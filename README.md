@@ -67,13 +67,19 @@ Store insights that survive across sessions:
 | Server | Purpose |
 |--------|---------|
 | **Context7** | Up-to-date library docs (add "use context7" to prompts) |
+| **Sanity** | CMS operations - GROQ, documents, releases, schemas |
 | **TLDR** | Semantic search, impact analysis (95% token savings) |
 
 ```bash
+# Sanity MCP (OAuth required on first use)
+# Just works - prompts for auth when needed
+
 # TLDR setup (optional)
 pipx install llm-tldr  # One-time
 tldr warm .            # Per project
 ```
+
+See [Sanity MCP docs](https://www.sanity.io/docs/compute-and-ai/mcp-server) for full capabilities.
 
 ---
 
