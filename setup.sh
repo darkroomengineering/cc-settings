@@ -102,7 +102,17 @@ if [ "$INSTALL_TLDR" = true ]; then
                 echo "  ✓ tldr-mcp available for MCP integration"
             fi
         } || {
-            echo "  ⚠ Failed to install llm-tldr (pip install llm-tldr)"
+            echo "  ⚠ Failed to install llm-tldr"
+            echo ""
+            echo "  This usually happens on macOS due to faiss-cpu."
+            echo "  Try one of these alternatives:"
+            echo ""
+            echo "    # Use pipx (isolated environment)"
+            echo "    brew install pipx"
+            echo "    pipx install llm-tldr"
+            echo ""
+            echo "  Or skip llm-tldr - the rest works without it."
+            echo ""
         }
     else
         echo "  ⚠ pip not found - install manually: pip install llm-tldr"

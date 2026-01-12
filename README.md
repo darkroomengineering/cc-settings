@@ -231,6 +231,13 @@ Create your own hooks in `settings.json`:
 pip install llm-tldr
 ```
 
+> **macOS Apple Silicon**: If you get a `faiss-cpu` dependency error:
+> ```bash
+> brew install pipx
+> pipx install llm-tldr
+> ```
+> If it still fails, skip `--with-tldr`—the rest of the config works without it.
+
 ### First-Time Setup (per project)
 
 ```bash
