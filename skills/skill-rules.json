@@ -1,0 +1,384 @@
+{
+	"$schema": "./skill-rules.schema.json",
+	"version": "1.0.0",
+	"skills": {
+		"fix": {
+			"type": "workflow",
+			"enforcement": "suggest",
+			"priority": "high",
+			"description": "Bug investigation and resolution workflow",
+			"promptTriggers": {
+				"keywords": [
+					"/fix",
+					"fix the bug",
+					"broken",
+					"not working",
+					"doesn't work",
+					"failing"
+				],
+				"intentPatterns": [
+					"fix.*?(bug|error|issue)",
+					"(broken|not working|failing).*?code"
+				]
+			},
+			"agents": ["explore", "tester", "implementer"],
+			"workflow": [
+				"explore → identify issue",
+				"implementer → fix",
+				"tester → verify"
+			]
+		},
+		"build": {
+			"type": "workflow",
+			"enforcement": "suggest",
+			"priority": "high",
+			"description": "Feature implementation workflow",
+			"promptTriggers": {
+				"keywords": [
+					"/build",
+					"build a",
+					"create a",
+					"implement",
+					"add feature"
+				],
+				"intentPatterns": [
+					"(build|create|implement).*?(feature|component|page)",
+					"add.*?(new|feature)"
+				]
+			},
+			"agents": ["planner", "scaffolder", "implementer", "tester"],
+			"workflow": [
+				"planner → breakdown",
+				"scaffolder → structure",
+				"implementer → code",
+				"tester → verify"
+			]
+		},
+		"refactor": {
+			"type": "workflow",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Code refactoring workflow",
+			"promptTriggers": {
+				"keywords": [
+					"/refactor",
+					"refactor",
+					"clean up",
+					"reorganize",
+					"restructure"
+				],
+				"intentPatterns": [
+					"refactor.*?(code|module|component)",
+					"(clean|tidy).*?up"
+				]
+			},
+			"agents": ["explore", "implementer", "reviewer"],
+			"workflow": [
+				"explore → analyze",
+				"implementer → refactor",
+				"reviewer → verify quality"
+			]
+		},
+		"review": {
+			"type": "workflow",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Code review workflow",
+			"promptTriggers": {
+				"keywords": ["/review", "review", "check code", "code quality"],
+				"intentPatterns": [
+					"review.*?(code|changes|pr)",
+					"check.*?(quality|code)"
+				]
+			},
+			"agents": ["reviewer", "tester"],
+			"workflow": ["reviewer → analyze", "tester → run tests"]
+		},
+		"test": {
+			"type": "workflow",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Testing workflow - unit tests, integration tests, E2E tests",
+			"promptTriggers": {
+				"keywords": ["/test", "run tests", "write tests", "test coverage"],
+				"intentPatterns": [
+					"(run|write|add).*?tests?",
+					"test.*?(coverage|suite)"
+				]
+			},
+			"agents": ["tester"],
+			"workflow": ["tester → run/write tests"],
+			"ambiguous": true
+		},
+		"explore": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Codebase exploration and understanding",
+			"promptTriggers": {
+				"keywords": [
+					"/explore",
+					"explore",
+					"understand",
+					"how does",
+					"where is",
+					"find"
+				],
+				"intentPatterns": [
+					"(understand|explore).*?(codebase|code|this)",
+					"(how|where).*?(does|is).*?(work|implemented)"
+				]
+			},
+			"agents": ["explore", "oracle"]
+		},
+		"docs": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "low",
+			"description": "Documentation lookup and generation",
+			"promptTriggers": {
+				"keywords": ["/docs", "documentation", "document this"],
+				"intentPatterns": ["(fetch|get|find).*?doc", "document.*?(this|code)"]
+			},
+			"agents": ["librarian", "oracle"]
+		},
+		"component": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Create React component with Darkroom standards",
+			"promptTriggers": {
+				"keywords": ["/component", "create component", "new component"],
+				"intentPatterns": ["(create|new|add).*?component"]
+			},
+			"agents": ["scaffolder", "implementer"]
+		},
+		"hook": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Create custom React hook",
+			"promptTriggers": {
+				"keywords": ["/hook", "create hook", "custom hook"],
+				"intentPatterns": ["(create|new|add).*?hook"]
+			},
+			"agents": ["scaffolder", "implementer"]
+		},
+		"init": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "low",
+			"description": "Initialize project with Darkroom standards",
+			"promptTriggers": {
+				"keywords": ["/init", "initialize", "setup project", "new project"],
+				"intentPatterns": ["(init|setup|start).*?project"]
+			},
+			"agents": ["scaffolder"]
+		},
+		"orchestrate": {
+			"type": "workflow",
+			"enforcement": "suggest",
+			"priority": "high",
+			"description": "Multi-agent task orchestration",
+			"promptTriggers": {
+				"keywords": ["/orchestrate", "orchestrate", "coordinate", "multi-step"],
+				"intentPatterns": [
+					"(coordinate|orchestrate).*?task",
+					"complex.*?(task|feature)"
+				]
+			},
+			"agents": ["maestro"]
+		},
+		"ask": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "low",
+			"description": "Ask Oracle for expert guidance",
+			"promptTriggers": {
+				"keywords": ["/ask", "ask oracle", "expert opinion"],
+				"intentPatterns": ["(ask|consult).*?(oracle|expert)"]
+			},
+			"agents": ["oracle"]
+		},
+		"lenis": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "low",
+			"description": "Setup Lenis smooth scroll",
+			"promptTriggers": {
+				"keywords": ["/lenis", "smooth scroll", "lenis"],
+				"intentPatterns": ["(setup|add|implement).*?(lenis|smooth.*?scroll)"]
+			},
+			"agents": ["implementer"]
+		},
+		"create_handoff": {
+			"type": "skill",
+			"enforcement": "block",
+			"priority": "critical",
+			"description": "Create session handoff before ending or context limit",
+			"promptTriggers": {
+				"keywords": [
+					"done for today",
+					"ending session",
+					"handoff",
+					"context full",
+					"wrapping up"
+				],
+				"intentPatterns": [
+					"(done|finished|ending).*?(today|session|now)",
+					"(save|preserve).*?state"
+				]
+			},
+			"contextTrigger": {
+				"threshold": 0.9,
+				"enforcement": "block"
+			}
+		},
+		"resume_handoff": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "high",
+			"description": "Resume from previous session handoff",
+			"promptTriggers": {
+				"keywords": ["resume", "continue where", "pick up", "last session"],
+				"intentPatterns": [
+					"(resume|continue).*?(where|session)",
+					"pick.*?up.*?(where|left)"
+				]
+			}
+		},
+		"premortem": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Analyze what could go wrong with a plan",
+			"promptTriggers": {
+				"keywords": [
+					"/premortem",
+					"what could go wrong",
+					"risks",
+					"potential issues"
+				],
+				"intentPatterns": [
+					"what.*?(could|might).*?(go wrong|fail|break)",
+					"(risks?|issues?).*?(with|in)"
+				]
+			},
+			"agents": ["oracle", "reviewer"]
+		},
+		"discovery": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Discovery interview to understand requirements",
+			"promptTriggers": {
+				"keywords": [
+					"help me figure out",
+					"what do I need",
+					"requirements",
+					"scope"
+				],
+				"intentPatterns": [
+					"(help|figure).*?(out|need)",
+					"(what|define).*?requirements"
+				]
+			},
+			"agents": ["planner", "oracle"]
+		},
+		"tldr": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "TLDR code analysis - semantic search, dependencies, program slicing",
+			"promptTriggers": {
+				"keywords": [
+					"/tldr",
+					"semantic search",
+					"who calls",
+					"what affects",
+					"trace dependencies",
+					"call graph"
+				],
+				"intentPatterns": [
+					"(who|what).*?calls.*?(this|function)",
+					"(trace|find).*?dependencies",
+					"what.*?affects.*?line",
+					"(semantic|meaning).*?search"
+				]
+			},
+			"agents": ["explore"],
+			"requires": "llm-tldr"
+		}
+	},
+	"agents": {
+		"planner": {
+			"description": "Task breakdown and planning",
+			"triggers": ["plan", "breakdown", "organize", "structure"],
+			"priority": "high"
+		},
+		"implementer": {
+			"description": "Code implementation",
+			"triggers": ["implement", "code", "build", "create"],
+			"priority": "high"
+		},
+		"reviewer": {
+			"description": "Code review and quality",
+			"triggers": ["review", "quality", "check", "audit"],
+			"priority": "medium"
+		},
+		"tester": {
+			"description": "Testing and verification",
+			"triggers": ["test", "verify", "validate"],
+			"priority": "medium"
+		},
+		"scaffolder": {
+			"description": "Boilerplate and structure generation",
+			"triggers": ["scaffold", "generate", "template", "boilerplate"],
+			"priority": "medium"
+		},
+		"librarian": {
+			"description": "Documentation management",
+			"triggers": ["document", "docs", "readme"],
+			"priority": "low"
+		},
+		"explore": {
+			"description": "Codebase navigation and understanding",
+			"triggers": ["explore", "find", "navigate", "understand"],
+			"priority": "medium"
+		},
+		"oracle": {
+			"description": "Expert Q&A and guidance",
+			"triggers": ["ask", "explain", "why", "how"],
+			"priority": "low"
+		},
+		"maestro": {
+			"description": "Multi-agent task orchestration",
+			"triggers": ["orchestrate", "coordinate", "complex", "multi-step"],
+			"priority": "high"
+		}
+	},
+	"contextThresholds": {
+		"notice": {
+			"percent": 70,
+			"message": "Consider handoff when you reach a stopping point",
+			"enforcement": "warn"
+		},
+		"warning": {
+			"percent": 80,
+			"message": "Recommend: create handoff then compact soon",
+			"enforcement": "warn"
+		},
+		"critical": {
+			"percent": 90,
+			"message": "Run create_handoff NOW before auto-compact!",
+			"enforcement": "block"
+		}
+	},
+	"ambiguousKeywords": ["test", "plan", "research", "check", "run"],
+	"settings": {
+		"showSkillSuggestions": true,
+		"showAgentSuggestions": true,
+		"validateAmbiguous": true,
+		"autoActivateCritical": true
+	}
+}

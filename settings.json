@@ -1,0 +1,134 @@
+{
+	"mcpServers": {
+		"tldr": {
+			"command": "tldr-mcp",
+			"args": ["--project", "."],
+			"_comment": "Requires: pip install llm-tldr. Run 'tldr warm .' to index before use."
+		}
+	},
+	"permissions": {
+		"allow": [
+			"Bash(bun:*)",
+			"Bash(bunx:*)",
+			"Bash(git status:*)",
+			"Bash(git diff:*)",
+			"Bash(git log:*)",
+			"Bash(git branch:*)",
+			"Bash(git add:*)",
+			"Bash(git commit:*)",
+			"Bash(git checkout:*)",
+			"Bash(git stash:*)",
+			"Bash(gh:*)",
+			"Bash(biome:*)",
+			"Bash(vitest:*)",
+			"Bash(playwright:*)",
+			"Bash(tree:*)",
+			"Bash(find:*)",
+			"Bash(cat:*)",
+			"Bash(head:*)",
+			"Bash(tail:*)",
+			"Bash(wc:*)",
+			"Bash(grep:*)",
+			"Bash(ls:*)",
+			"Bash(pwd:*)",
+			"Bash(echo:*)",
+			"Bash(mkdir:*)",
+			"Bash(cp:*)",
+			"Bash(mv:*)",
+			"Read(*)",
+			"Write(*)",
+			"Edit(*)",
+			"MultiEdit(*)",
+			"Glob(*)",
+			"Grep(*)",
+			"LS(*)",
+			"TodoWrite(*)"
+		],
+		"deny": [
+			"Bash(rm -rf /)",
+			"Bash(rm -rf /*)",
+			"Bash(rm -rf ~)",
+			"Bash(rm -rf ~/*)",
+			"Bash(git push --force origin main)",
+			"Bash(git push --force origin master)",
+			"Bash(git push -f origin main)",
+			"Bash(git push -f origin master)",
+			"Bash(sudo:*)",
+			"Bash(chmod 777:*)"
+		]
+	},
+	"hooks": {
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/skill-activation.sh \"$PROMPT\""
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "echo '[Hook] Running: $TOOL_INPUT' >> ~/.claude/hooks.log"
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "Write|Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/post-edit.sh"
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/create-handoff.sh"
+					}
+				]
+			}
+		],
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/session-start.sh"
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/create-handoff.sh"
+					}
+				]
+			}
+		],
+		"Notification": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/notify.sh"
+					}
+				]
+			}
+		]
+	}
+}
