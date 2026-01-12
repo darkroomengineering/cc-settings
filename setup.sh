@@ -90,32 +90,30 @@ fi
 # Install llm-tldr (optional)
 if [ "$INSTALL_TLDR" = true ]; then
     echo ""
-    echo "📦 Installing llm-tldr..."
     
-    if command -v pip &> /dev/null || command -v pip3 &> /dev/null; then
+    # Check if already installed
+    if command -v tldr-mcp &> /dev/null; then
+        echo "📦 llm-tldr already installed"
+        echo "  ✓ tldr-mcp available for MCP integration"
+    elif command -v pip &> /dev/null || command -v pip3 &> /dev/null; then
+        echo "📦 Installing llm-tldr..."
         PIP_CMD=$(command -v pip3 || command -v pip)
         $PIP_CMD install --user llm-tldr 2>/dev/null && {
             echo "  ✓ llm-tldr installed"
-            
-            # Enable MCP in settings if tldr-mcp is available
-            if command -v tldr-mcp &> /dev/null; then
-                echo "  ✓ tldr-mcp available for MCP integration"
-            fi
         } || {
             echo "  ⚠ Failed to install llm-tldr"
             echo ""
             echo "  This usually happens on macOS due to faiss-cpu."
-            echo "  Try one of these alternatives:"
+            echo "  Install manually with pipx:"
             echo ""
-            echo "    # Use pipx (isolated environment)"
             echo "    brew install pipx"
             echo "    pipx install llm-tldr"
             echo ""
-            echo "  Or skip llm-tldr - the rest works without it."
+            echo "  Or skip --with-tldr - the rest works without it."
             echo ""
         }
     else
-        echo "  ⚠ pip not found - install manually: pip install llm-tldr"
+        echo "  ⚠ pip not found - install manually: pipx install llm-tldr"
     fi
 fi
 
@@ -175,11 +173,8 @@ if [ "$INSTALL_TLDR" = true ] && command -v tldr &> /dev/null; then
     echo "│ Search:   tldr semantic \"query\" .       │"
     echo "│ Context:  tldr context func --project . │"
     echo "│ Impact:   tldr impact func .            │"
+    echo "│ MCP:      ✓ Pre-configured              │"
     echo "└─────────────────────────────────────────┘"
-    echo ""
-    echo "📖 MCP Integration:"
-    echo "   Add to .claude/settings.json:"
-    echo '   "mcpServers": { "tldr": { "command": "tldr-mcp", "args": ["--project", "."] } }'
     echo ""
 fi
 

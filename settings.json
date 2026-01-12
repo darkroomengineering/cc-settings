@@ -3,7 +3,7 @@
 		"tldr": {
 			"command": "tldr-mcp",
 			"args": ["--project", "."],
-			"_comment": "Requires: pip install llm-tldr. Run 'tldr warm .' to index before use."
+			"_comment": "Requires: pipx install llm-tldr. Run 'tldr warm .' in project to index."
 		}
 	},
 	"permissions": {
