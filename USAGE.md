@@ -111,6 +111,8 @@ When you know exactly what you need:
 /create-handoff              # Save session state
 /resume-handoff              # Resume previous session
 /tldr semantic "query"       # TLDR code analysis
+/learn store bug "fix"       # Store a learning
+/learn recall all            # Recall all learnings
 ```
 
 ---
@@ -197,6 +199,33 @@ Contains: tasks, context, decisions, next steps, files touched.
 # or
 "Resume where we left off"
 ```
+
+---
+
+## Learning Management
+
+Store insights that persist across sessions:
+
+### Store a Learning
+```bash
+/learn store bug "useAuth causes hydration - use dynamic import"
+/learn store pattern "Wrap async server components in Suspense"
+/learn store gotcha "Biome ignores .mdx files by default"
+```
+
+### Recall Learnings
+```bash
+/learn recall all                # All project learnings
+/learn recall category bug       # Filter by category
+/learn recall search hydration   # Search keyword
+/learn recall recent 5           # Last 5 learnings
+```
+
+### Categories
+`bug`, `pattern`, `gotcha`, `tool`, `perf`, `config`, `arch`, `test`
+
+### Auto-Recall
+On session start, the 3 most recent project learnings are automatically displayed.
 
 ---
 
@@ -321,5 +350,7 @@ ls -la .tldr/cache/
 | Review code | `/review` or `@reviewer` |
 | Find callers | `tldr impact functionName .` |
 | Debug line | `tldr slice file func line` |
+| Save a lesson | `/learn store bug "insight"` |
+| Recall lessons | `/learn recall all` |
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |

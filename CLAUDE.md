@@ -156,6 +156,16 @@ Use these slash commands for common workflows:
 - `/component <name>` - Scaffold a new component
 - `/hook <name>` - Create a custom hook
 - `/review` - Code review current changes
+- `/explore [target]` - Navigate codebase
+- `/docs <topic>` - Fetch documentation
+- `/context` - Manage context window
+- `/orchestrate <task>` - Multi-agent task coordination
+- `/ask <question>` - Ask Oracle for guidance
+- `/create-handoff` - Save session state
+- `/resume-handoff` - Resume previous session
+- `/tldr <action>` - TLDR code analysis
+- `/learn <action>` - Persistent learnings across sessions
+- `/lenis` - Setup smooth scroll
 
 ---
 

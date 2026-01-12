@@ -1,65 +1,144 @@
-# Hooks System (Behavioral Guidance)
+# Native Hooks System
 
-> **Note**: These are behavioral guidelines defined in `CLAUDE.md`, not native Claude Code features. Claude follows these instructions as part of its system prompt.
+Claude Code has a **native hooks system** that executes shell scripts at specific events. These are configured in `settings.json`.
 
-Hooks describe automated behaviors that Claude should follow at specific points during your coding session. They help enforce best practices, maintain context awareness, and recover from errors.
+## Configured Hooks
 
-## Hook Types
+| Event | Trigger | Script |
+|-------|---------|--------|
+| `UserPromptSubmit` | Before Claude sees prompt | `skill-activation.sh` (skill matching) |
+| `SessionStart` | New session begins | `session-start.sh` (recalls learnings) |
+| `PreToolUse` | Before Bash commands | Logs to `~/.claude/hooks.log` |
+| `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) |
+| `PreCompact` | Before context compaction | `create-handoff.sh` (saves state) |
+| `SessionEnd` | Session ending | `create-handoff.sh` (saves state) |
+| `Notification` | Task completion | `notify.sh` (macOS/Linux notification) |
 
-| Type | When It Runs |
-|------|--------------|
-| `pre-edit` | Before any file modification |
-| `post-edit` | After file modification |
-| `pre-commit` | Before git commit |
-| `post-commit` | After git commit |
-| `on-error` | When an error occurs |
-| `on-idle` | When no activity for N seconds |
-| `context-trigger` | When context threshold reached |
-| `session-start` | At session initialization |
-| `session-end` | Before session closes |
+## Hook Configuration Format
 
-## Available Hooks
-
-| Hook | Description | Default |
-|------|-------------|---------|
-| `todo-continuation-enforcer` | Ensures todos are completed | enabled |
-| `context-window-monitor` | Warns at 70% context usage | enabled |
-| `session-recovery` | Auto-recovers from crashes | enabled |
-| `pre-commit-check` | Validates before commits | enabled |
-| `lint-on-save` | Runs linter after edits | enabled |
-| `test-watcher` | Runs related tests on change | disabled |
-| `file-backup` | Creates backups before edits | disabled |
-| `dependency-check` | Validates imports exist | enabled |
-| `type-check` | Runs TypeScript on changes | enabled |
-| `auto-format` | Formats files on save | enabled |
-
-## Configuration
-
-Enable/disable hooks in `settings.json`:
+Hooks are defined in `settings.json`:
 
 ```json
 {
   "hooks": {
-    "enabled": true,
-    "config": {
-      "todo-continuation-enforcer": { "enabled": true },
-      "context-window-monitor": { "enabled": true, "threshold": 0.7 },
-      "session-recovery": { "enabled": true, "autoResume": true }
-    }
+    "EventName": [
+      {
+        "matcher": "ToolPattern",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/your-script.sh"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-## Custom Hooks
+## Available Hook Events
 
-Create custom hooks in `~/.claude/hooks/custom/`:
+| Event | When |
+|-------|------|
+| `PreToolUse` | Before any tool runs |
+| `PostToolUse` | After any tool runs |
+| `PermissionRequest` | When permission needed |
+| `Notification` | When Claude sends notification |
+| `UserPromptSubmit` | When you submit a prompt |
+| `Stop` | When Claude stops |
+| `SubagentStop` | When subagent stops |
+| `PreCompact` | Before context compaction |
+| `SessionStart` | When session begins |
+| `SessionEnd` | When session ends |
 
-```markdown
----
-name: my-hook
-trigger: post-edit
-pattern: "*.tsx"
----
+## Matcher Patterns
 
-[Hook instructions here]
+Use `matcher` to filter which tools trigger the hook:
+
+```json
+{
+  "PostToolUse": [
+    {
+      "matcher": "Write|Edit",
+      "hooks": [...]
+    }
+  ]
+}
 ```
+
+Common patterns:
+- `Write` - File writes
+- `Edit` - File edits
+- `Write|Edit` - Either writes or edits
+- `Bash` - Shell commands
+
+## Adding Custom Hooks
+
+1. Create your script in `~/.claude/scripts/`:
+
+```bash
+#!/bin/bash
+# my-hook.sh
+echo "[Hook] Custom action" >> ~/.claude/hooks.log
+```
+
+2. Make it executable:
+
+```bash
+chmod +x ~/.claude/scripts/my-hook.sh
+```
+
+3. Add to `settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/my-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Debugging
+
+Check hook logs:
+
+```bash
+cat ~/.claude/hooks.log
+cat ~/.claude/sessions.log
+```
+
+Check skill activation output:
+
+```bash
+cat ~/.claude/skill-activation.out
+```
+
+---
+
+## Behavioral Hook Guidelines
+
+The markdown files in this folder (`auto-format.md`, `lint-on-save.md`, etc.) describe **behavioral guidelines** that Claude follows as part of its coding standards. These are instructions in `CLAUDE.md`, not native hooks.
+
+| File | Description |
+|------|-------------|
+| `auto-format.md` | Format files after editing |
+| `lint-on-save.md` | Run linter after file changes |
+| `pre-commit-check.md` | Validate before git commits |
+| `context-window-monitor.md` | Warn at context thresholds |
+| `session-recovery.md` | Auto-recover from crashes |
+| `dependency-check.md` | Validate imports exist |
+| `type-check.md` | Run TypeScript on changes |
+| `test-watcher.md` | Run related tests on change |
+| `file-backup.md` | Create backups before edits |
+| `todo-continuation-enforcer.md` | Ensure todos are completed |
+| `secret-scan.md` | Scan for leaked secrets |

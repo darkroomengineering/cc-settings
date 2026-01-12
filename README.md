@@ -31,11 +31,14 @@ Restart Claude Code to apply changes.
 │   ├── notify.sh
 │   ├── skill-activation.sh
 │   ├── create-handoff.sh
-│   └── resume-handoff.sh
+│   ├── resume-handoff.sh
+│   ├── store-learning.sh
+│   ├── recall-learnings.sh
+│   └── delete-learning.sh
 ├── skills/             # Skill activation rules
 │   └── skill-rules.json
 ├── agents/             # 9 specialized agents
-└── commands/           # 13 slash commands
+└── commands/           # 14 slash commands
 ```
 
 **Optional:** `llm-tldr` for semantic code analysis (install with `--with-tldr`)
@@ -186,6 +189,7 @@ Auto-approve safe commands, deny dangerous ones:
 | `/create-handoff` | Save session state for resumption |
 | `/resume-handoff [id]` | Resume from previous handoff |
 | `/tldr <action>` | TLDR code analysis (requires llm-tldr) |
+| `/learn <action>` | Persistent learnings across sessions |
 
 ---
 
@@ -285,11 +289,11 @@ The MCP server is pre-configured in `settings.json`. If `tldr-mcp` isn't found, 
 | Feature | OpenCode | Claude Code | This Config |
 |---------|----------|-------------|-------------|
 | Native hooks | ✅ | ✅ | ✅ |
-| Slash commands | ✅ | ✅ | ✅ (12) |
+| Slash commands | ✅ | ✅ | ✅ (14) |
 | Custom agents | ✅ | ✅ | ✅ (9) |
 | Permissions | ✅ | ✅ | ✅ |
 | Plugins | ✅ | ✅ | ✅ |
-| Skills | ✅ | ✅ | ✅ (16 skills) |
+| Skills | ✅ | ✅ | ✅ (19 skills) |
 | Session handoffs | ✅ | ✅ | ✅ |
 | MCP servers | ✅ | ✅ | ✅ (tldr-mcp) |
 | Visual HUD | ✅ | ❌ | ❌ |

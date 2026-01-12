@@ -157,6 +157,8 @@ The skill activation system integrates with session handoffs:
 | "Continue where we left off" | `resume_handoff` |
 | "Review this code" | `review` → reviewer, tester |
 | "Create a component" | `component` → scaffolder |
+| "Remember this for next time" | `learn` → store learning |
+| "What did we learn?" | `learn` → recall learnings |
 
 ## Debugging
 

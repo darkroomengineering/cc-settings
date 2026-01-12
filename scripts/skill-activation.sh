@@ -100,6 +100,10 @@ if echo "$PROMPT_LOWER" | grep -qE "(who|what).*calls|(trace|find).*dependenc|wh
     fi
 fi
 
+if echo "$PROMPT_LOWER" | grep -qE "(remember|store|save).*(this|learning|lesson)|(recall|show|list).*learnings|what.*(learned|know).*(about|from)|lessons.*(learned|from)|/learn"; then
+    SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }learn"
+fi
+
 if echo "$PROMPT_LOWER" | grep -qE "\btest\b" && ! echo "$PROMPT_LOWER" | grep -qE "(run|write|add).*tests?"; then
     AMBIGUOUS_MATCHES="${AMBIGUOUS_MATCHES:+$AMBIGUOUS_MATCHES, }test [skill] - validate if testing is requested"
 fi

@@ -308,6 +308,28 @@
 			},
 			"agents": ["explore"],
 			"requires": "llm-tldr"
+		},
+		"learn": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Persistent memory system - store and recall learnings across sessions",
+			"promptTriggers": {
+				"keywords": [
+					"/learn",
+					"remember this",
+					"store learning",
+					"recall learnings",
+					"what did we learn",
+					"lessons learned"
+				],
+				"intentPatterns": [
+					"(remember|store|save).*?(this|learning|lesson)",
+					"(recall|show|list).*?learnings",
+					"what.*?(learned|know).*?(about|from)",
+					"lessons.*?(learned|from)"
+				]
+			}
 		}
 	},
 	"agents": {
