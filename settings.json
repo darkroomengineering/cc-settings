@@ -1,5 +1,10 @@
 {
 	"mcpServers": {
+		"context7": {
+			"command": "npx",
+			"args": ["-y", "@upstash/context7-mcp@latest"],
+			"_comment": "Fetches up-to-date library documentation. Add 'use context7' to prompts."
+		},
 		"tldr": {
 			"command": "tldr-mcp",
 			"args": ["--project", "."],

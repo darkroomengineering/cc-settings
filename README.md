@@ -62,10 +62,15 @@ Store insights that survive across sessions:
 /learn recall all
 ```
 
-### TLDR Code Analysis (Optional)
-Semantic search, impact analysis, program slicing with **95% token savings**.
+### MCP Servers
+
+| Server | Purpose |
+|--------|---------|
+| **Context7** | Up-to-date library docs (add "use context7" to prompts) |
+| **TLDR** | Semantic search, impact analysis (95% token savings) |
 
 ```bash
+# TLDR setup (optional)
 pipx install llm-tldr  # One-time
 tldr warm .            # Per project
 ```
