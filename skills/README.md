@@ -162,20 +162,4 @@ The skill activation system integrates with session handoffs:
 
 ## Debugging
 
-Check skill activation output:
-
-```bash
-cat ~/.claude/skill-activation.out
-```
-
-Check context usage:
-
-```bash
-cat ~/.claude/context-usage.json
-```
-
-List available handoffs:
-
-```bash
-ls ~/.claude/handoffs/*.md
-```
+See [hooks/README.md](../hooks/README.md#debugging) for all debugging commands.

@@ -88,6 +88,15 @@
 						"command": "~/.claude/scripts/post-edit.sh"
 					}
 				]
+			},
+			{
+				"matcher": "mcp__tldr",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "~/.claude/scripts/track-tldr.sh \"$TOOL_NAME\""
+					}
+				]
 			}
 		],
 		"PreCompact": [
@@ -115,7 +124,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/create-handoff.sh"
+						"command": "~/.claude/scripts/tldr-stats.sh; ~/.claude/scripts/create-handoff.sh"
 					}
 				]
 			}

@@ -10,8 +10,9 @@ Claude Code has a **native hooks system** that executes shell scripts at specifi
 | `SessionStart` | New session begins | `session-start.sh` (recalls learnings) |
 | `PreToolUse` | Before Bash commands | Logs to `~/.claude/hooks.log` |
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) |
+| `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) |
 | `PreCompact` | Before context compaction | `create-handoff.sh` (saves state) |
-| `SessionEnd` | Session ending | `create-handoff.sh` (saves state) |
+| `SessionEnd` | Session ending | `tldr-stats.sh` + `create-handoff.sh` |
 | `Notification` | Task completion | `notify.sh` (macOS/Linux notification) |
 
 ## Hook Configuration Format
@@ -110,17 +111,27 @@ chmod +x ~/.claude/scripts/my-hook.sh
 
 ## Debugging
 
-Check hook logs:
-
 ```bash
+# Hook execution logs
 cat ~/.claude/hooks.log
+
+# Session logs
 cat ~/.claude/sessions.log
-```
 
-Check skill activation output:
-
-```bash
+# Skill activation output
 cat ~/.claude/skill-activation.out
+
+# Context usage
+cat ~/.claude/context-usage.json
+
+# TLDR session stats
+cat ~/.claude/tldr-session-stats.json
+
+# List handoffs
+ls ~/.claude/handoffs/*.md
+
+# TLDR project index
+ls -la .tldr/cache/
 ```
 
 ---

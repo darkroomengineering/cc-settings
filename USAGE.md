@@ -309,36 +309,6 @@ Agents, commands, and skills are tool-agnostic markdown files.
 
 ---
 
-## Debugging
-
-### Check skill activation output
-```bash
-cat ~/.claude/skill-activation.out
-```
-
-### Check context usage
-```bash
-cat ~/.claude/context-usage.json
-```
-
-### List handoffs
-```bash
-ls ~/.claude/handoffs/*.md
-```
-
-### Check hook logs
-```bash
-cat ~/.claude/hooks.log
-cat ~/.claude/sessions.log
-```
-
-### Verify TLDR index
-```bash
-ls -la .tldr/cache/
-```
-
----
-
 ## Quick Reference
 
 | Want To... | Do This |
