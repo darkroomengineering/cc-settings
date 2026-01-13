@@ -22,6 +22,93 @@ Maximize efficiency through delegation, parallelism, and relentless progress.
 
 ---
 
+## MANDATORY Agent Routing (ENFORCED)
+
+> **CRITICAL**: These rules OVERRIDE default Claude behavior. You MUST delegate to agents as specified. Direct execution is ONLY permitted for trivial single-file tasks.
+
+### Decision Tree (FOLLOW THIS FIRST)
+
+```
+START: Receive user request
+  │
+  ├─► Is this a question about the codebase?
+  │     YES → MUST use `explore` or `oracle` agent
+  │     NO  ↓
+  │
+  ├─► Does this touch 3+ files?
+  │     YES → MUST use `planner` first, then delegate to `implementer`
+  │     NO  ↓
+  │
+  ├─► Is this a code review request?
+  │     YES → MUST use `reviewer` agent
+  │     NO  ↓
+  │
+  ├─► Is this a new feature/component?
+  │     YES → MUST use `scaffolder` then `implementer`
+  │     NO  ↓
+  │
+  ├─► Does this require tests?
+  │     YES → MUST use `tester` agent
+  │     NO  ↓
+  │
+  ├─► Is this a complex multi-step task?
+  │     YES → MUST use `maestro` orchestrator
+  │     NO  ↓
+  │
+  └─► Single-file trivial change?
+        YES → May execute directly
+        NO  → Re-evaluate: likely needs agent
+```
+
+### Mandatory Routing Table
+
+| Task Type | Required Agent | Fallback | Direct Execution |
+|-----------|----------------|----------|------------------|
+| **Exploration/Understanding** | `explore` | `oracle` | ❌ NEVER |
+| **"How does X work?"** | `oracle` | `explore` | ❌ NEVER |
+| **Multi-file changes (3+)** | `planner` → `implementer` | `maestro` | ❌ NEVER |
+| **Code review** | `reviewer` | - | ❌ NEVER |
+| **New component/hook** | `scaffolder` | `implementer` | ❌ NEVER |
+| **Writing tests** | `tester` | `implementer` | ❌ NEVER |
+| **Complex features** | `maestro` | `planner` | ❌ NEVER |
+| **Bug fix (multi-file)** | `explore` → `implementer` | - | ❌ NEVER |
+| **Refactoring** | `planner` → `implementer` → `reviewer` | - | ❌ NEVER |
+| **Single-file edit** | - | - | ✅ ALLOWED |
+| **Typo/trivial fix** | - | - | ✅ ALLOWED |
+
+### Enforcement Rules
+
+1. **NEVER skip exploration** - Before modifying code you haven't read, MUST delegate to `explore` agent first
+2. **NEVER implement without planning** - For 3+ step tasks, MUST use `planner` agent first
+3. **NEVER review your own work** - After implementation, MUST delegate to `reviewer` agent
+4. **ALWAYS parallelize** - When spawning multiple independent agents, use ONE message with MULTIPLE Task tool calls
+5. **ALWAYS use scaffolder** - For new components/hooks/routes, MUST use `scaffolder` first
+
+### What "Direct Execution Allowed" Means
+
+You may ONLY execute directly (without agents) when ALL of these are true:
+- [ ] Single file modification
+- [ ] Less than 20 lines changed
+- [ ] No architectural decisions required
+- [ ] No exploration needed (you already understand the code)
+- [ ] Not a code review request
+
+If ANY checkbox is false → **MUST use appropriate agent**
+
+### Parallelization Enforcement
+
+When the task can be parallelized:
+```
+✅ CORRECT: Single message, multiple Task calls
+   [Task(explore, "analyze auth"), Task(explore, "analyze routing")]
+
+❌ WRONG: Sequential agent spawning
+   Message 1: Task(explore, "analyze auth")
+   Message 2: Task(explore, "analyze routing")
+```
+
+---
+
 ## Tech Stack
 
 ### Primary
