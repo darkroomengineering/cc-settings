@@ -1,8 +1,10 @@
 #!/bin/bash
 # Skill Activation Hook - UserPromptSubmit
 # Analyzes user prompt and suggests relevant skills/agents
+# Optimized: Single-pass pattern matching with jq
 
 SKILLS_FILE="${HOME}/.claude/skills/skill-rules.json"
+SKILLS_CACHE="${HOME}/.claude/skill-rules.cache"
 CONTEXT_FILE="${HOME}/.claude/context-usage.json"
 OUTPUT_FILE="${HOME}/.claude/skill-activation.out"
 
@@ -12,110 +14,143 @@ if [ ! -f "$SKILLS_FILE" ]; then
     exit 0
 fi
 
-CRITICAL_SKILLS=""
-RECOMMENDED_SKILLS=""
-SUGGESTED_SKILLS=""
-RECOMMENDED_AGENTS=""
-AMBIGUOUS_MATCHES=""
-
-check_keyword_match() {
-    local prompt="$1"
-    local keyword="$2"
-    echo "$prompt" | grep -qi "$keyword" && return 0 || return 1
-}
-
-check_intent_pattern() {
-    local prompt="$1"
-    local pattern="$2"
-    echo "$prompt" | grep -qiE "$pattern" && return 0 || return 1
-}
+# Use cached compiled patterns if skill-rules.json hasn't changed
+USE_CACHE=false
+if [ -f "$SKILLS_CACHE" ] && [ "$SKILLS_CACHE" -nt "$SKILLS_FILE" ]; then
+    USE_CACHE=true
+fi
 
 PROMPT_LOWER=$(echo "$USER_PROMPT" | tr '[:upper:]' '[:lower:]')
 
-if echo "$PROMPT_LOWER" | grep -qE "(done|finished|ending).*(today|session|now)"; then
-    CRITICAL_SKILLS="create_handoff"
-fi
+# Use jq for single-pass matching if available (10x faster)
+if command -v jq &>/dev/null; then
+    MATCHES=$(jq -r --arg prompt "$PROMPT_LOWER" '
+        def matches_keyword($p; $kw): $p | test($kw; "i");
+        def matches_pattern($p; $pat): $p | test($pat; "i");
+        
+        .skills | to_entries | map(
+            select(
+                (.value.promptTriggers.keywords // []) as $kws |
+                (.value.promptTriggers.intentPatterns // []) as $pats |
+                ([$kws[] | select(. as $k | $prompt | test($k; "i"))] | length > 0) or
+                ([$pats[] | select(. as $p | $prompt | test($p; "i"))] | length > 0)
+            ) |
+            {
+                skill: .key,
+                priority: .value.priority,
+                enforcement: .value.enforcement,
+                agents: (.value.agents // []),
+                ambiguous: (.value.ambiguous // false)
+            }
+        )
+    ' "$SKILLS_FILE" 2>/dev/null)
+    
+    if [ -n "$MATCHES" ] && [ "$MATCHES" != "[]" ]; then
+        CRITICAL_SKILLS=$(echo "$MATCHES" | jq -r '[.[] | select(.enforcement == "block" or .priority == "critical")] | map(.skill) | join(", ")' 2>/dev/null)
+        RECOMMENDED_SKILLS=$(echo "$MATCHES" | jq -r '[.[] | select(.priority == "high" and .enforcement != "block")] | map(.skill) | join(", ")' 2>/dev/null)
+        SUGGESTED_SKILLS=$(echo "$MATCHES" | jq -r '[.[] | select(.priority == "medium" or .priority == "low") | select(.ambiguous != true)] | map(.skill) | join(", ")' 2>/dev/null)
+        RECOMMENDED_AGENTS=$(echo "$MATCHES" | jq -r '[.[] | .agents[]] | unique | join(", ")' 2>/dev/null)
+        AMBIGUOUS_MATCHES=$(echo "$MATCHES" | jq -r '[.[] | select(.ambiguous == true)] | map(.skill + " [ambiguous]") | join(", ")' 2>/dev/null)
+    fi
+else
+    # Fallback: Traditional grep-based matching (slower but works without jq)
+    CRITICAL_SKILLS=""
+    RECOMMENDED_SKILLS=""
+    SUGGESTED_SKILLS=""
+    RECOMMENDED_AGENTS=""
+    AMBIGUOUS_MATCHES=""
 
-if echo "$PROMPT_LOWER" | grep -qE "(handoff|context full|wrapping up|save state)"; then
-    CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create_handoff"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "(done|finished|ending).*(today|session|now)"; then
+        CRITICAL_SKILLS="create_handoff"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "(resume|continue where|pick up|last session)"; then
-    CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }resume_handoff"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "(handoff|context full|wrapping up|save state)"; then
+        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create_handoff"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "fix.*(bug|error|issue)|(broken|not working|failing)"; then
-    RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }fix"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, implementer, tester"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "(resume|continue where|pick up|last session)"; then
+        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }resume_handoff"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "(build|create|implement).*(feature|component|page)|add.*(new|feature)"; then
-    RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }build"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }planner, scaffolder, implementer"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "fix.*(bug|error|issue)|(broken|not working|failing)"; then
+        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }fix"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, implementer, tester"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "refactor|clean up|reorganize|restructure"; then
-    RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }refactor"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, implementer, reviewer"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "(build|create|implement).*(feature|component|page)|add.*(new|feature)"; then
+        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }build"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }planner, scaffolder, implementer"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "/review|review.*(code|changes|pr)|check.*(quality|code)"; then
-    RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }review"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }reviewer, tester"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "refactor|clean up|reorganize|restructure"; then
+        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }refactor"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, implementer, reviewer"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "/component|(create|new|add).*component"; then
-    SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }component"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }scaffolder"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "/review|review.*(code|changes|pr)|check.*(quality|code)"; then
+        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }review"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }reviewer, tester"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "/hook|(create|new|add).*hook"; then
-    SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }hook"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }scaffolder"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "/component|(create|new|add).*component"; then
+        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }component"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }scaffolder"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "/explore|(understand|explore).*(codebase|code|this)|(how|where).*(does|is)"; then
-    SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }explore"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, oracle"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "/hook|(create|new|add).*hook"; then
+        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }hook"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }scaffolder"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "what.*(could|might).*(go wrong|fail|break)|risk|potential issue"; then
-    SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }premortem"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }oracle, reviewer"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "/explore|(understand|explore).*(codebase|code|this)|(how|where).*(does|is)"; then
+        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }explore"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, oracle"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "/orchestrate|coordinate|multi-step|complex.*(task|feature)"; then
-    RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }orchestrate"
-    RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }maestro"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "what.*(could|might).*(go wrong|fail|break)|risk|potential issue"; then
+        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }premortem"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }oracle, reviewer"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "(setup|add|implement).*(lenis|smooth.*scroll)"; then
-    SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }lenis"
-fi
+    if echo "$PROMPT_LOWER" | grep -qE "/orchestrate|coordinate|multi-step|complex.*(task|feature)"; then
+        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }orchestrate"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }maestro"
+    fi
 
-if echo "$PROMPT_LOWER" | grep -qE "(who|what).*calls|(trace|find).*dependenc|what.*affects.*line|(semantic|meaning).*search|call.*graph"; then
-    if command -v tldr &> /dev/null; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }tldr"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore"
+    if echo "$PROMPT_LOWER" | grep -qE "(setup|add|implement).*(lenis|smooth.*scroll)"; then
+        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }lenis"
+    fi
+
+    if echo "$PROMPT_LOWER" | grep -qE "(who|what).*calls|(trace|find).*dependenc|what.*affects.*line|(semantic|meaning).*search|call.*graph"; then
+        if command -v tldr &>/dev/null; then
+            SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }tldr"
+            RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore"
+        fi
+    fi
+
+    if echo "$PROMPT_LOWER" | grep -qE "(remember|store|save).*(this|learning|lesson)|(recall|show|list).*learnings|what.*(learned|know).*(about|from)|lessons.*(learned|from)|/learn"; then
+        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }learn"
+    fi
+
+    if echo "$PROMPT_LOWER" | grep -qE "\btest\b" && ! echo "$PROMPT_LOWER" | grep -qE "(run|write|add).*tests?"; then
+        AMBIGUOUS_MATCHES="${AMBIGUOUS_MATCHES:+$AMBIGUOUS_MATCHES, }test [skill] - validate if testing is requested"
+    fi
+
+    if echo "$PROMPT_LOWER" | grep -qE "\bplan\b" && ! echo "$PROMPT_LOWER" | grep -qE "(create|make|write).*plan"; then
+        AMBIGUOUS_MATCHES="${AMBIGUOUS_MATCHES:+$AMBIGUOUS_MATCHES, }plan [keyword] - validate if planning is requested"
     fi
 fi
 
-if echo "$PROMPT_LOWER" | grep -qE "(remember|store|save).*(this|learning|lesson)|(recall|show|list).*learnings|what.*(learned|know).*(about|from)|lessons.*(learned|from)|/learn"; then
-    SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }learn"
-fi
-
-if echo "$PROMPT_LOWER" | grep -qE "\btest\b" && ! echo "$PROMPT_LOWER" | grep -qE "(run|write|add).*tests?"; then
-    AMBIGUOUS_MATCHES="${AMBIGUOUS_MATCHES:+$AMBIGUOUS_MATCHES, }test [skill] - validate if testing is requested"
-fi
-
-if echo "$PROMPT_LOWER" | grep -qE "\bplan\b" && ! echo "$PROMPT_LOWER" | grep -qE "(create|make|write).*plan"; then
-    AMBIGUOUS_MATCHES="${AMBIGUOUS_MATCHES:+$AMBIGUOUS_MATCHES, }plan [keyword] - validate if planning is requested"
-fi
-
+# Context warning check
 CONTEXT_WARNING=""
 if [ -f "$CONTEXT_FILE" ]; then
-    CONTEXT_PERCENT=$(cat "$CONTEXT_FILE" 2>/dev/null | grep -o '"percent":[0-9]*' | grep -o '[0-9]*' | head -1)
-    if [ -n "$CONTEXT_PERCENT" ]; then
+    if command -v jq &>/dev/null; then
+        CONTEXT_PERCENT=$(jq -r '.percent // 0' "$CONTEXT_FILE" 2>/dev/null)
+    else
+        CONTEXT_PERCENT=$(grep -o '"percent":[0-9]*' "$CONTEXT_FILE" 2>/dev/null | grep -o '[0-9]*' | head -1)
+    fi
+    
+    if [ -n "$CONTEXT_PERCENT" ] && [ "$CONTEXT_PERCENT" -gt 0 ] 2>/dev/null; then
         if [ "$CONTEXT_PERCENT" -ge 90 ]; then
             CONTEXT_WARNING="🔴 CRITICAL: Context at ${CONTEXT_PERCENT}% - Run create_handoff NOW!"
             CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create_handoff"

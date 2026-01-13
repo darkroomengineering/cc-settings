@@ -45,14 +45,35 @@ if [ -z "$CATEGORY" ] || [ -z "$LEARNING" ]; then
 fi
 
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-ID=$(date +%s%N | sha256sum | head -c 8)
+
+# Portable unique ID generation (works on macOS and Linux)
+# macOS doesn't support date +%s%N, so use alternative method
+generate_id() {
+    if command -v shasum &>/dev/null; then
+        echo "$$-$(date +%s)-$RANDOM" | shasum -a 256 | head -c 8
+    elif command -v sha256sum &>/dev/null; then
+        echo "$$-$(date +%s)-$RANDOM" | sha256sum | head -c 8
+    else
+        # Fallback: use base64 encoding of timestamp + random
+        echo "$(date +%s)$RANDOM" | base64 | tr -dc 'a-zA-Z0-9' | head -c 8
+    fi
+}
+
+ID=$(generate_id)
+
 GIT_BRANCH=""
 if git rev-parse --git-dir > /dev/null 2>&1; then
     GIT_BRANCH=$(git branch --show-current 2>/dev/null)
 fi
 
-LEARNING_ESCAPED=$(echo "$LEARNING" | sed 's/"/\\"/g' | sed 's/\\/\\\\/g')
-CONTEXT_ESCAPED=$(echo "$CONTEXT" | sed 's/"/\\"/g' | sed 's/\\/\\\\/g')
+# Escape special characters for JSON
+escape_json() {
+    local input="$1"
+    printf '%s' "$input" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' | tr -d '\n'
+}
+
+LEARNING_ESCAPED=$(escape_json "$LEARNING")
+CONTEXT_ESCAPED=$(escape_json "$CONTEXT")
 
 NEW_LEARNING=$(cat <<EOF
 {
@@ -66,18 +87,25 @@ NEW_LEARNING=$(cat <<EOF
 EOF
 )
 
+# Portable file update (avoids sed -i differences between macOS and Linux)
 TEMP_FILE=$(mktemp)
-if command -v jq &> /dev/null; then
-    jq --argjson new "$NEW_LEARNING" '.learnings += [$new]' "$LEARNINGS_FILE" > "$TEMP_FILE"
-    mv "$TEMP_FILE" "$LEARNINGS_FILE"
+if command -v jq &>/dev/null; then
+    jq --argjson new "$NEW_LEARNING" '.learnings += [$new]' "$LEARNINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$LEARNINGS_FILE"
 else
+    # Fallback without jq - portable approach
     EXISTING=$(cat "$LEARNINGS_FILE")
-    if [ "$EXISTING" = '{"learnings":[]}' ]; then
-        echo "{\"learnings\":[$NEW_LEARNING]}" > "$LEARNINGS_FILE"
+    if echo "$EXISTING" | grep -q '"learnings":\[\]'; then
+        # Empty learnings array
+        echo "${EXISTING%\]\}*}[$NEW_LEARNING]}" > "$TEMP_FILE"
     else
-        sed -i.bak 's/\]}$/,'"$(echo "$NEW_LEARNING" | tr -d '\n')"']}/' "$LEARNINGS_FILE"
-        rm -f "${LEARNINGS_FILE}.bak"
+        # Has existing learnings - insert before closing brackets
+        # Use awk for portable in-place style editing
+        awk -v new="$NEW_LEARNING" '
+            /\]\}$/ { gsub(/\]\}$/, "," new "]}"); }
+            { print }
+        ' "$LEARNINGS_FILE" > "$TEMP_FILE"
     fi
+    mv "$TEMP_FILE" "$LEARNINGS_FILE"
 fi
 
 echo ""

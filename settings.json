@@ -1,4 +1,5 @@
 {
+	"coauthorship": false,
 	"mcpServers": {
 		"context7": {
 			"command": "npx",
@@ -28,10 +29,19 @@
 			"Bash(git commit:*)",
 			"Bash(git checkout:*)",
 			"Bash(git stash:*)",
+			"Bash(git push:*)",
 			"Bash(gh:*)",
 			"Bash(biome:*)",
 			"Bash(vitest:*)",
 			"Bash(playwright:*)",
+			"Bash(bun run:*)",
+			"Bash(npm run:*)",
+			"Bash(curl:*)",
+			"Bash(rm -rf node_modules)",
+			"Bash(rm -rf .next)",
+			"Bash(rm -rf dist)",
+			"Bash(rm -rf .turbo)",
+			"Bash(rm *.tmp)",
 			"Bash(tree:*)",
 			"Bash(find:*)",
 			"Bash(cat:*)",
@@ -73,7 +83,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/skill-activation.sh \"$PROMPT\""
+						"command": "bash \"$HOME/.claude/scripts/skill-activation.sh\" \"$PROMPT\""
 					}
 				]
 			}
@@ -84,7 +94,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "echo '[Hook] Running: $TOOL_INPUT' >> ~/.claude/hooks.log"
+						"command": "echo '[Hook] Running: $TOOL_INPUT' >> \"$HOME/.claude/hooks.log\""
 					}
 				]
 			}
@@ -95,7 +105,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/post-edit.sh"
+						"command": "bash \"$HOME/.claude/scripts/post-edit.sh\""
 					}
 				]
 			},
@@ -104,7 +114,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/track-tldr.sh \"$TOOL_NAME\""
+						"command": "bash \"$HOME/.claude/scripts/track-tldr.sh\" \"$TOOL_NAME\""
 					}
 				]
 			}
@@ -114,7 +124,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/create-handoff.sh"
+						"command": "bash \"$HOME/.claude/scripts/create-handoff.sh\""
 					}
 				]
 			}
@@ -124,7 +134,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/session-start.sh"
+						"command": "bash \"$HOME/.claude/scripts/session-start.sh\""
 					}
 				]
 			}
@@ -134,7 +144,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/tldr-stats.sh; ~/.claude/scripts/create-handoff.sh"
+						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\" & bash \"$HOME/.claude/scripts/create-handoff.sh\" & wait"
 					}
 				]
 			}
@@ -144,7 +154,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "~/.claude/scripts/notify.sh"
+						"command": "bash \"$HOME/.claude/scripts/notify.sh\""
 					}
 				]
 			}

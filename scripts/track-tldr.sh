@@ -26,8 +26,16 @@ case "$TOOL_NAME" in
         ;;
 esac
 
-CURRENT_CALLS=$(jq -r '.calls // 0' "$STATS_FILE" 2>/dev/null)
-CURRENT_SAVED=$(jq -r '.tokens_saved // 0' "$STATS_FILE" 2>/dev/null)
+if command -v jq &>/dev/null; then
+    CURRENT_CALLS=$(jq -r '.calls // 0' "$STATS_FILE" 2>/dev/null)
+    CURRENT_SAVED=$(jq -r '.tokens_saved // 0' "$STATS_FILE" 2>/dev/null)
+else
+    CURRENT_CALLS=$(grep -o '"calls":[0-9]*' "$STATS_FILE" 2>/dev/null | grep -o '[0-9]*')
+    CURRENT_SAVED=$(grep -o '"tokens_saved":[0-9]*' "$STATS_FILE" 2>/dev/null | grep -o '[0-9]*')
+fi
+
+CURRENT_CALLS=${CURRENT_CALLS:-0}
+CURRENT_SAVED=${CURRENT_SAVED:-0}
 
 NEW_CALLS=$((CURRENT_CALLS + 1))
 NEW_SAVED=$((CURRENT_SAVED + SAVED))

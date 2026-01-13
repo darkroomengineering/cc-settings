@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_DIR="$HOME/.claude"
+CLAUDE_DIR="${HOME}/.claude"
 INSTALL_TLDR=false
 
 for arg in "$@"; do
@@ -18,84 +18,202 @@ for arg in "$@"; do
 done
 
 echo "╔══════════════════════════════════════════╗"
-echo "║   Darkroom Claude Code Setup v4.1        ║"
+echo "║   Darkroom Claude Code Setup v4.3        ║"
 echo "║   With Skill Activation System           ║"
+echo "║   (Idempotent - safe to re-run)          ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
-mkdir -p "$CLAUDE_DIR"
-mkdir -p "$CLAUDE_DIR/scripts"
-mkdir -p "$CLAUDE_DIR/agents"
-mkdir -p "$CLAUDE_DIR/commands"
-mkdir -p "$CLAUDE_DIR/skills"
-mkdir -p "$CLAUDE_DIR/handoffs"
-mkdir -p "$CLAUDE_DIR/learnings"
+# Pre-flight dependency check
+check_dependencies() {
+    local missing=()
+    local optional_missing=()
+    
+    # Required
+    command -v git &>/dev/null || missing+=("git")
+    
+    # Optional but recommended
+    command -v jq &>/dev/null || optional_missing+=("jq (recommended for learnings)")
+    command -v bun &>/dev/null || command -v npm &>/dev/null || optional_missing+=("bun or npm (for MCP servers)")
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "❌ Missing required dependencies:"
+        for dep in "${missing[@]}"; do
+            echo "   - $dep"
+        done
+        echo ""
+        echo "Please install them and re-run setup."
+        exit 1
+    fi
+    
+    if [ ${#optional_missing[@]} -gt 0 ]; then
+        echo "⚠️  Optional dependencies not found:"
+        for dep in "${optional_missing[@]}"; do
+            echo "   - $dep"
+        done
+        echo ""
+    fi
+}
+
+check_dependencies
+
+# Create directories in parallel
+echo "📁 Creating directories..."
+mkdir -p "${CLAUDE_DIR}/scripts" &
+mkdir -p "${CLAUDE_DIR}/agents" &
+mkdir -p "${CLAUDE_DIR}/commands" &
+mkdir -p "${CLAUDE_DIR}/skills" &
+mkdir -p "${CLAUDE_DIR}/handoffs" &
+mkdir -p "${CLAUDE_DIR}/learnings" &
+mkdir -p "${CLAUDE_DIR}/hooks" &
+wait
+echo "  ✓ Directory structure created"
 
 # Backup existing config
-if [ -f "$CLAUDE_DIR/settings.json" ]; then
-    BACKUP_FILE="$CLAUDE_DIR/settings.json.backup.$(date +%Y%m%d%H%M%S)"
+if [ -f "${CLAUDE_DIR}/settings.json" ]; then
+    BACKUP_FILE="${CLAUDE_DIR}/settings.json.backup.$(date +%Y%m%d%H%M%S)"
     echo "💾 Backing up existing settings.json"
-    cp "$CLAUDE_DIR/settings.json" "$BACKUP_FILE"
+    cp "${CLAUDE_DIR}/settings.json" "$BACKUP_FILE"
+fi
+
+# Clean old configuration files (preserves user data: learnings, handoffs, logs)
+echo ""
+echo "🧹 Cleaning old configuration..."
+CLEANED=0
+
+# Remove old scripts (will be replaced)
+if [ -d "${CLAUDE_DIR}/scripts" ] && [ "$(ls -A ${CLAUDE_DIR}/scripts 2>/dev/null)" ]; then
+    rm -f "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null && ((CLEANED++))
+fi
+
+# Remove old agents (will be replaced)
+if [ -d "${CLAUDE_DIR}/agents" ] && [ "$(ls -A ${CLAUDE_DIR}/agents 2>/dev/null)" ]; then
+    rm -f "${CLAUDE_DIR}/agents/"*.md 2>/dev/null && ((CLEANED++))
+fi
+
+# Remove old commands (will be replaced)
+if [ -d "${CLAUDE_DIR}/commands" ] && [ "$(ls -A ${CLAUDE_DIR}/commands 2>/dev/null)" ]; then
+    rm -f "${CLAUDE_DIR}/commands/"*.md 2>/dev/null && ((CLEANED++))
+fi
+
+# Remove old skills (will be replaced)
+if [ -d "${CLAUDE_DIR}/skills" ] && [ "$(ls -A ${CLAUDE_DIR}/skills 2>/dev/null)" ]; then
+    rm -f "${CLAUDE_DIR}/skills/"*.json 2>/dev/null
+    rm -f "${CLAUDE_DIR}/skills/"*.md 2>/dev/null && ((CLEANED++))
+fi
+
+# Remove old hooks docs (will be replaced)
+if [ -d "${CLAUDE_DIR}/hooks" ] && [ "$(ls -A ${CLAUDE_DIR}/hooks 2>/dev/null)" ]; then
+    rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null && ((CLEANED++))
+fi
+
+# Remove old cache files
+rm -f "${CLAUDE_DIR}/skill-rules.cache" 2>/dev/null
+rm -f "${CLAUDE_DIR}/skill-activation.out" 2>/dev/null
+
+# Remove old settings.json (backup already made)
+rm -f "${CLAUDE_DIR}/settings.json" 2>/dev/null
+rm -f "${CLAUDE_DIR}/CLAUDE.md" 2>/dev/null
+
+if [ $CLEANED -gt 0 ]; then
+    echo "  ✓ Cleaned old configuration ($CLEANED directories)"
+else
+    echo "  ✓ No old configuration to clean (fresh install)"
 fi
 
 echo ""
 echo "📦 Installing configuration..."
 echo ""
 
-# Copy CLAUDE.md
-if [ -f "$SCRIPT_DIR/CLAUDE.md" ]; then
-    cp "$SCRIPT_DIR/CLAUDE.md" "$CLAUDE_DIR/"
-    echo "  ✓ CLAUDE.md (coding standards)"
-fi
+# Copy files in parallel using background jobs
+copy_with_status() {
+    local src="$1"
+    local dst="$2"
+    local name="$3"
+    if [ -e "$src" ]; then
+        cp -r "$src" "$dst" && echo "  ✓ $name"
+    fi
+}
 
-# Copy settings.json (with real hooks!)
-if [ -f "$SCRIPT_DIR/settings.json" ]; then
-    cp "$SCRIPT_DIR/settings.json" "$CLAUDE_DIR/"
-    echo "  ✓ settings.json (permissions + hooks)"
-fi
+# Start all copy operations in background
+[ -f "${SCRIPT_DIR}/CLAUDE.md" ] && cp "${SCRIPT_DIR}/CLAUDE.md" "${CLAUDE_DIR}/" &
+PID_CLAUDE=$!
 
-# Copy and setup hook scripts
-if [ -d "$SCRIPT_DIR/scripts" ]; then
-    cp -r "$SCRIPT_DIR/scripts/"* "$CLAUDE_DIR/scripts/"
-    chmod +x "$CLAUDE_DIR/scripts/"*.sh 2>/dev/null || true
-    echo "  ✓ scripts/ (hook commands)"
-fi
+[ -f "${SCRIPT_DIR}/settings.json" ] && cp "${SCRIPT_DIR}/settings.json" "${CLAUDE_DIR}/" &
+PID_SETTINGS=$!
 
-# Copy agents
-if [ -d "$SCRIPT_DIR/agents" ]; then
-    cp -r "$SCRIPT_DIR/agents/"* "$CLAUDE_DIR/agents/"
-    AGENT_COUNT=$(ls -1 "$SCRIPT_DIR/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
+[ -d "${SCRIPT_DIR}/scripts" ] && cp -r "${SCRIPT_DIR}/scripts/"* "${CLAUDE_DIR}/scripts/" &
+PID_SCRIPTS=$!
+
+[ -d "${SCRIPT_DIR}/agents" ] && cp -r "${SCRIPT_DIR}/agents/"* "${CLAUDE_DIR}/agents/" &
+PID_AGENTS=$!
+
+[ -d "${SCRIPT_DIR}/commands" ] && cp -r "${SCRIPT_DIR}/commands/"* "${CLAUDE_DIR}/commands/" &
+PID_COMMANDS=$!
+
+[ -d "${SCRIPT_DIR}/skills" ] && cp -r "${SCRIPT_DIR}/skills/"* "${CLAUDE_DIR}/skills/" &
+PID_SKILLS=$!
+
+[ -d "${SCRIPT_DIR}/hooks" ] && cp -r "${SCRIPT_DIR}/hooks/"* "${CLAUDE_DIR}/hooks/" &
+PID_HOOKS=$!
+
+# Wait for all copies and report status
+wait $PID_CLAUDE 2>/dev/null && echo "  ✓ CLAUDE.md (coding standards)"
+wait $PID_SETTINGS 2>/dev/null && echo "  ✓ settings.json (permissions + hooks)"
+wait $PID_SCRIPTS 2>/dev/null && echo "  ✓ scripts/ (hook commands)"
+wait $PID_AGENTS 2>/dev/null && {
+    AGENT_COUNT=$(find "${SCRIPT_DIR}/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     echo "  ✓ agents/ ($AGENT_COUNT agents)"
-fi
-
-# Copy commands
-if [ -d "$SCRIPT_DIR/commands" ]; then
-    cp -r "$SCRIPT_DIR/commands/"* "$CLAUDE_DIR/commands/"
-    CMD_COUNT=$(ls -1 "$SCRIPT_DIR/commands/"*.md 2>/dev/null | wc -l | tr -d ' ')
+}
+wait $PID_COMMANDS 2>/dev/null && {
+    CMD_COUNT=$(find "${SCRIPT_DIR}/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     echo "  ✓ commands/ ($CMD_COUNT commands)"
+}
+wait $PID_SKILLS 2>/dev/null && echo "  ✓ skills/ (skill activation rules)"
+wait $PID_HOOKS 2>/dev/null && echo "  ✓ hooks/ (behavioral guidelines)"
+
+# Make scripts executable
+chmod +x "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null || true
+
+# Generate MCP availability report
+echo ""
+echo "🔌 Checking MCP server availability..."
+MCP_STATUS=""
+
+if command -v npx &>/dev/null; then
+    MCP_STATUS="${MCP_STATUS}  ✓ context7 (npx available)\n"
+else
+    MCP_STATUS="${MCP_STATUS}  ⚠ context7 (npx not found - install Node.js)\n"
 fi
 
-# Copy skills
-if [ -d "$SCRIPT_DIR/skills" ]; then
-    cp -r "$SCRIPT_DIR/skills/"* "$CLAUDE_DIR/skills/"
-    echo "  ✓ skills/ (skill activation rules)"
+if command -v tldr-mcp &>/dev/null; then
+    MCP_STATUS="${MCP_STATUS}  ✓ tldr (tldr-mcp available)\n"
+elif [ "$INSTALL_TLDR" = true ]; then
+    MCP_STATUS="${MCP_STATUS}  → tldr (will install)\n"
+else
+    MCP_STATUS="${MCP_STATUS}  ⚠ tldr (run with --with-tldr or: pipx install llm-tldr)\n"
 fi
 
-# Copy hooks documentation
-if [ -d "$SCRIPT_DIR/hooks" ]; then
-    cp -r "$SCRIPT_DIR/hooks/"* "$CLAUDE_DIR/hooks/" 2>/dev/null || mkdir -p "$CLAUDE_DIR/hooks" && cp -r "$SCRIPT_DIR/hooks/"* "$CLAUDE_DIR/hooks/"
-    echo "  ✓ hooks/ (behavioral guidelines)"
-fi
+# Sanity MCP is HTTP-based, always available
+MCP_STATUS="${MCP_STATUS}  ✓ Sanity (HTTP MCP - requires OAuth on first use)\n"
+
+echo -e "$MCP_STATUS"
 
 # Install llm-tldr (optional)
 if [ "$INSTALL_TLDR" = true ]; then
     echo ""
     
-    # Check if already installed
-    if command -v tldr-mcp &> /dev/null; then
+    if command -v tldr-mcp &>/dev/null; then
         echo "📦 llm-tldr already installed"
         echo "  ✓ tldr-mcp available for MCP integration"
-    elif command -v pip &> /dev/null || command -v pip3 &> /dev/null; then
+    elif command -v pipx &>/dev/null; then
+        echo "📦 Installing llm-tldr via pipx..."
+        pipx install llm-tldr 2>/dev/null && {
+            echo "  ✓ llm-tldr installed"
+        } || {
+            echo "  ⚠ Failed to install llm-tldr via pipx"
+        }
+    elif command -v pip &>/dev/null || command -v pip3 &>/dev/null; then
         echo "📦 Installing llm-tldr..."
         PIP_CMD=$(command -v pip3 || command -v pip)
         $PIP_CMD install --user llm-tldr 2>/dev/null && {
@@ -113,7 +231,7 @@ if [ "$INSTALL_TLDR" = true ]; then
             echo ""
         }
     else
-        echo "  ⚠ pip not found - install manually: pipx install llm-tldr"
+        echo "  ⚠ pip/pipx not found - install manually: pipx install llm-tldr"
     fi
 fi
 
@@ -165,7 +283,7 @@ echo "   The skill activation system will suggest"
 echo "   relevant skills, workflows, and agents."
 echo ""
 
-if [ "$INSTALL_TLDR" = true ] && command -v tldr &> /dev/null; then
+if [ "$INSTALL_TLDR" = true ] && command -v tldr &>/dev/null; then
     echo "┌─────────────────────────────────────────┐"
     echo "│ TLDR Code Analysis                      │"
     echo "├─────────────────────────────────────────┤"
