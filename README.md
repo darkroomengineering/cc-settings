@@ -5,14 +5,14 @@ Team-shareable Claude Code settings with **native hooks**, **skill activation**,
 ## Quick Setup
 
 ```bash
-git clone git@github.com:darkroomengineering/claude-config.git /tmp/darkroom-claude
-/tmp/darkroom-claude/setup.sh
+git clone git@github.com:darkroomengineering/cc-settings.git /tmp/darkroom-claude
+bash /tmp/darkroom-claude/setup.sh
 ```
 
 **With TLDR code analysis:**
 
 ```bash
-/tmp/darkroom-claude/setup.sh --with-tldr
+bash /tmp/darkroom-claude/setup.sh --with-tldr
 ```
 
 Restart Claude Code to apply changes.
