@@ -25,7 +25,7 @@ Restart Claude Code to apply changes.
 ~/.claude/
 ├── CLAUDE.md           # Coding standards
 ├── settings.json       # Permissions + Hooks + MCP
-├── scripts/            # 11 scripts
+├── scripts/            # 12 scripts
 ├── skills/             # 19 skill rules
 ├── agents/             # 9 specialized agents
 └── commands/           # 14 slash commands
@@ -42,6 +42,27 @@ Restart Claude Code to apply changes.
 "Fix the broken login" → fix workflow → explore, implementer, tester
 "Build a dashboard"    → build workflow → planner, scaffolder, implementer
 "Done for today"       → create_handoff (critical)
+```
+
+### Statusline
+Custom status bar showing model, directory, git branch with status, and context window usage:
+
+```
+Claude 4.5 Opus | my-project | main✱↑ | ████░░░░░░ 42% (84k/200k)
+```
+
+- Branch name in cyan
+- `✱` (yellow) = uncommitted changes
+- `↑` = unpushed commits, `↓` = behind remote
+
+Enable in `~/.claude/settings.json`:
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$HOME/.claude/scripts/statusline.sh\""
+  }
+}
 ```
 
 ### Native Hooks

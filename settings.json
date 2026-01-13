@@ -1,5 +1,9 @@
 {
 	"coauthorship": false,
+	"statusLine": {
+		"type": "command",
+		"command": "bash \"$HOME/.claude/scripts/statusline.sh\""
+	},
 	"mcpServers": {
 		"context7": {
 			"command": "npx",
