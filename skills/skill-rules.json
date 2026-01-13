@@ -134,13 +134,60 @@
 		"docs": {
 			"type": "skill",
 			"enforcement": "suggest",
-			"priority": "low",
-			"description": "Documentation lookup and generation",
+			"priority": "medium",
+			"description": "Documentation lookup via context7 MCP - fetches up-to-date library docs",
 			"promptTriggers": {
-				"keywords": ["/docs", "documentation", "document this"],
-				"intentPatterns": ["(fetch|get|find).*?doc", "document.*?(this|code)"]
+				"keywords": [
+					"/docs",
+					"documentation",
+					"how to use",
+					"api reference",
+					"library docs",
+					"package docs",
+					"latest docs"
+				],
+				"intentPatterns": [
+					"(fetch|get|find|show).*?doc",
+					"how.*?(to|do).*?(use|implement)",
+					"(react|next|tailwind|gsap|lenis|three).*?(docs?|api|guide)",
+					"what.*?(api|method|function).*?(for|in)"
+				]
 			},
-			"agents": ["librarian", "oracle"]
+			"agents": ["librarian", "oracle"],
+			"mcpServer": "context7",
+			"autoInvoke": true,
+			"_hint": "Use context7 MCP to fetch current documentation for any library"
+		},
+		"debug": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "high",
+			"description": "Browser debugging with Playwright MCP - screenshots, DOM inspection, visual testing",
+			"promptTriggers": {
+				"keywords": [
+					"/debug",
+					"browser debug",
+					"screenshot",
+					"visual bug",
+					"inspect element",
+					"dom inspection",
+					"e2e debug",
+					"see the page",
+					"what does it look like"
+				],
+				"intentPatterns": [
+					"(take|capture|get).*?screenshot",
+					"(debug|inspect).*?(browser|page|element|dom)",
+					"(visual|ui).*?(bug|issue|problem)",
+					"what.*?(look|render|display).*?like",
+					"(see|show).*?(page|component|ui)",
+					"(test|check).*?(visually|browser)"
+				]
+			},
+			"agents": ["tester"],
+			"mcpServer": "playwright",
+			"autoInvoke": true,
+			"_hint": "Use playwright MCP for browser automation, screenshots, and visual debugging"
 		},
 		"component": {
 			"type": "skill",

@@ -244,7 +244,8 @@ Use these slash commands for common workflows:
 - `/hook <name>` - Create a custom hook
 - `/review` - Code review current changes
 - `/explore [target]` - Navigate codebase
-- `/docs <topic>` - Fetch documentation
+- `/docs <topic>` - Fetch library documentation (uses context7 MCP)
+- `/debug` - Browser debugging with Playwright (screenshots, DOM inspection)
 - `/context` - Manage context window
 - `/orchestrate <task>` - Multi-agent task coordination
 - `/ask <question>` - Ask Oracle for guidance
@@ -253,6 +254,10 @@ Use these slash commands for common workflows:
 - `/tldr <action>` - TLDR code analysis
 - `/learn <action>` - Persistent learnings across sessions
 - `/lenis` - Setup smooth scroll
+
+### MCP Tools (Auto-triggered)
+- **context7** - Library docs lookup. Triggered by: "how to use X", "X docs", "api reference"
+- **playwright** - Browser automation. Triggered by: "screenshot", "visual bug", "inspect element"
 
 ---
 

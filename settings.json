@@ -7,8 +7,13 @@
 	"mcpServers": {
 		"context7": {
 			"command": "npx",
-			"args": ["-y", "@upstash/context7-mcp@latest"],
-			"_comment": "Fetches up-to-date library documentation. Add 'use context7' to prompts."
+			"args": ["-y", "@upstash/context7-mcp@1.0.8"],
+			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts."
+		},
+		"playwright": {
+			"command": "npx",
+			"args": ["-y", "@anthropic/mcp-server-playwright"],
+			"_comment": "Browser automation, debugging, and E2E testing. Use for visual debugging, screenshots, and browser interactions."
 		},
 		"Sanity": {
 			"type": "http",
@@ -73,6 +78,17 @@
 			"Bash(rm -rf /*)",
 			"Bash(rm -rf ~)",
 			"Bash(rm -rf ~/*)",
+			"Bash(rm -rf ~/.ssh)",
+			"Bash(rm -rf ~/.gnupg)",
+			"Bash(rm -rf ~/.aws)",
+			"Bash(cat ~/.ssh/*)",
+			"Bash(cat ~/.aws/*)",
+			"Bash(cat ~/.gnupg/*)",
+			"Write(~/.ssh/*)",
+			"Write(~/.aws/*)",
+			"Write(~/.gnupg/*)",
+			"Bash(curl * | bash)",
+			"Bash(curl * | sh)",
 			"Bash(git push --force origin main)",
 			"Bash(git push --force origin master)",
 			"Bash(git push -f origin main)",
@@ -92,17 +108,7 @@
 				]
 			}
 		],
-		"PreToolUse": [
-			{
-				"matcher": "Bash",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "echo '[Hook] Running: $TOOL_INPUT' >> \"$HOME/.claude/hooks.log\""
-					}
-				]
-			}
-		],
+		"PreToolUse": [],
 		"PostToolUse": [
 			{
 				"matcher": "Write|Edit",
@@ -148,7 +154,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\" & bash \"$HOME/.claude/scripts/create-handoff.sh\" & wait"
+						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\"; bash \"$HOME/.claude/scripts/create-handoff.sh\""
 					}
 				]
 			}

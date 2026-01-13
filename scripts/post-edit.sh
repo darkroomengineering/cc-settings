@@ -1,11 +1,15 @@
 #!/bin/bash
-# Post-Edit Hook
-# Runs after Write or Edit operations
+# Post-Edit Hook - Auto-format with biome for supported files
 
-# Auto-format with biome if available
-if command -v biome &>/dev/null; then
-    biome check --write --unsafe "$TOOL_INPUT_FILE" 2>/dev/null || true
-fi
+FILE_PATH="${TOOL_INPUT_path:-}"
 
-# Log the edit
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Edited: ${TOOL_INPUT_FILE:-unknown}" >> "${HOME}/.claude/edits.log"
+# Skip if no file path or biome not available
+[ -z "$FILE_PATH" ] && exit 0
+command -v biome &>/dev/null || exit 0
+
+# Only format supported file types
+case "$FILE_PATH" in
+    *.ts|*.tsx|*.js|*.jsx|*.json|*.css)
+        biome check --write "$FILE_PATH" 2>/dev/null || true
+        ;;
+esac
