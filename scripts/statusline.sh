@@ -7,8 +7,9 @@ input=$(cat)
 model=$(echo "$input" | jq -r '.model.display_name')
 current_dir=$(echo "$input" | jq -r '.workspace.current_dir')
 used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
-tokens_used=$(echo "$input" | jq -r '.context_window.total_input_tokens + .context_window.total_output_tokens')
 tokens_available=$(echo "$input" | jq -r '.context_window.context_window_size')
+# Calculate current context usage from percentage (not cumulative totals)
+tokens_used=$(awk "BEGIN {printf \"%.0f\", ${tokens_available:-0} * ${used:-0} / 100}")
 
 # Get basename of current directory
 dir_name=$(basename "$current_dir")
