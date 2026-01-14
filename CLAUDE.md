@@ -243,6 +243,25 @@ function Page() {
 }
 ```
 
+**Defer await until needed** - Move awaits into branches that actually need them:
+```tsx
+// ❌ WRONG: Always fetches even if returning early
+async function handler(req) {
+  const user = await getUser(req)
+  const perms = await getPermissions(user)
+  if (!req.query.id) return { error: 'Missing ID' }
+  // ...
+}
+
+// ✅ CORRECT: Defer awaits past early exits
+async function handler(req) {
+  if (!req.query.id) return { error: 'Missing ID' }
+  const user = await getUser(req)
+  const perms = await getPermissions(user)
+  // ...
+}
+```
+
 ### CRITICAL: Bundle Size Optimization
 
 **Avoid barrel imports** - Libraries like `lucide-react` can have 10,000+ re-exports, adding 200-800ms cold start:
@@ -265,6 +284,20 @@ import MonacoEditor from '@monaco-editor/react'
 // ✅ CORRECT: Lazy load when needed
 import dynamic from 'next/dynamic'
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
+```
+
+**Defer third-party libraries** - Analytics, GSAP, error tracking don't block interaction:
+```tsx
+// ❌ WRONG: Loads in initial bundle
+import { Analytics } from '@vercel/analytics/react'
+import gsap from 'gsap'
+
+// ✅ CORRECT: Load after hydration
+const Analytics = dynamic(
+  () => import('@vercel/analytics/react').then(mod => mod.Analytics),
+  { ssr: false }
+)
+const GSAPRuntime = dynamic(() => import('./gsap-runtime'), { ssr: false })
 ```
 
 ### HIGH: Server-Side Performance
@@ -297,6 +330,34 @@ export const getCurrentUser = cache(async () => {
 // ✅ CORRECT: SWR handles deduplication, caching, revalidation
 import useSWR from 'swr'
 const { data } = useSWR('/api/users', fetcher)
+```
+
+**Deduplicate global event listeners** - One listener for N component instances:
+```tsx
+// ❌ WRONG: Each component instance adds a listener
+function useScroll() {
+  useEffect(() => {
+    window.addEventListener('scroll', handler) // N listeners!
+    return () => window.removeEventListener('scroll', handler)
+  }, [])
+}
+
+// ✅ CORRECT: Single listener with callback delegation
+const scrollCallbacks = new Map<string, (e: Event) => void>()
+let listenerAttached = false
+
+function useScroll(id: string, callback: (e: Event) => void) {
+  useEffect(() => {
+    scrollCallbacks.set(id, callback)
+    if (!listenerAttached) {
+      window.addEventListener('scroll', (e) => {
+        scrollCallbacks.forEach(cb => cb(e))
+      })
+      listenerAttached = true
+    }
+    return () => { scrollCallbacks.delete(id) }
+  }, [id, callback])
+}
 ```
 
 ### MEDIUM: Re-render Optimization
@@ -340,6 +401,18 @@ onScroll={() => setScrollY(window.scrollY)}
 
 // ✅ CORRECT: Defers non-urgent update
 onScroll={() => startTransition(() => setScrollY(window.scrollY))}
+```
+
+**Lazy state initialization** - Use function form for expensive initial values:
+```tsx
+// ❌ WRONG: buildIndex runs on EVERY render
+const [index, setIndex] = useState(buildSearchIndex(items))
+
+// ✅ CORRECT: buildIndex runs only on first render
+const [index, setIndex] = useState(() => buildSearchIndex(items))
+
+// Also applies to: localStorage reads, DOM queries, data transformations
+const [prefs, setPrefs] = useState(() => JSON.parse(localStorage.getItem('prefs') || '{}'))
 ```
 
 ### MEDIUM: Rendering Performance
