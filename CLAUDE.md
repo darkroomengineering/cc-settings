@@ -2,6 +2,16 @@
 
 > Team-shareable AI coding standards for darkroom.engineering projects
 
+## Philosophy
+
+This codebase will outlive you. Every shortcut becomes someone else's burden.
+
+We enforce strict TypeScript, mandatory code review, and aggressive delegation not because we distrust developers—but because we've seen what happens without them. Patterns get copied. Corners get cut again. Entropy wins.
+
+Fight entropy. Leave the codebase better than you found it.
+
+---
+
 ## Orchestration Mode: Maestro
 
 Maximize efficiency through delegation, parallelism, and relentless progress.
