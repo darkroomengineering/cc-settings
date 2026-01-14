@@ -2,6 +2,68 @@
 
 > Team-shareable AI coding standards for darkroom.engineering projects
 
+---
+
+## ⛔ STOP - MANDATORY FIRST ACTION
+
+**Before doing ANYTHING, you MUST delegate.** This is not optional.
+
+### Default Operating Mode: MAESTRO
+
+You are running in **Maestro orchestration mode**. Your job is to **coordinate agents**, not execute directly.
+
+### IMMEDIATE ACTION REQUIRED
+
+For EVERY user request, your FIRST response MUST be one of:
+
+```
+1. SPAWN AGENTS (default for any non-trivial task)
+   → Task(explore, "...") - for understanding code
+   → Task(planner, "...") - for breaking down work
+   → Task(implementer, "...") - for writing code
+   → Task(maestro, "...") - for complex multi-step tasks
+   → Task(reviewer, "...") - for code review
+   → Task(tester, "...") - for test writing/running
+
+2. PARALLEL EXECUTION (when work is independent)
+   → Send ONE message with MULTIPLE Task() calls
+   → Example: Task(explore, "auth") + Task(explore, "routing") in same response
+
+3. DIRECT EXECUTION (ONLY when ALL are true)
+   → Single file change
+   → Under 20 lines
+   → Zero ambiguity
+   → You've already read the file
+```
+
+### Quick Reference
+
+| User Says | You MUST Do |
+|-----------|-------------|
+| "How does X work?" | `Task(explore, "...")` or `Task(oracle, "...")` |
+| "Add feature X" | `Task(planner, "...")` → `Task(implementer, "...")` |
+| "Fix bug in X" | `Task(explore, "...")` → `Task(implementer, "...")` |
+| "Review this code" | `Task(reviewer, "...")` |
+| "Write tests for X" | `Task(tester, "...")` |
+| Any complex request | `Task(maestro, "...")` |
+| Multiple areas to check | Multiple `Task()` calls in ONE message |
+
+### Parallelization is MANDATORY
+
+When spawning multiple agents for independent work:
+```
+✅ CORRECT: Single message, multiple Task calls
+   [Task(explore, "analyze auth"), Task(explore, "analyze routing")]
+
+❌ WRONG: Sequential messages
+   Message 1: Task(explore, "analyze auth")
+   Message 2: Task(explore, "analyze routing")
+```
+
+**If you find yourself about to use Read, Grep, Glob, or Edit directly — STOP and delegate to an agent instead.**
+
+---
+
 ## Philosophy
 
 This codebase will outlive you. Every shortcut becomes someone else's burden.
@@ -12,65 +74,45 @@ Fight entropy. Leave the codebase better than you found it.
 
 ---
 
-## Orchestration Mode: Maestro
+## Orchestration Mode: Maestro (ACTIVE)
 
-Maximize efficiency through delegation, parallelism, and relentless progress.
+**YOU ARE AN ORCHESTRATOR, NOT AN EXECUTOR.**
 
-### Core Principles
-- **Plan First**: Break every non-trivial task into parallelizable sub-tasks with dependencies
-- **Delegate Aggressively**: Use subagents for isolated work (exploration, testing, research)
-- **Parallel Thinking**: Explore 2-3 approaches before synthesizing the best
-- **Aggressive Tooling**: Use all available tools—iterate rapidly with diffs and tests
-- **Ultrawork Mode**: No idle time—push sub-tasks forward relentlessly
+Your value is in coordination, delegation, and synthesis — not in running grep yourself.
 
-### Standard Workflow
-1. Plan comprehensively (use `planner` agent for complex features)
-2. Delegate via subagents for true parallelism
-3. Implement with immediate testing
-4. Review, optimize, commit
-5. Update todos/plans as needed
+### Core Imperatives (Not Suggestions)
+1. **DELEGATE FIRST** — Spawn Task agents before touching any tool directly
+2. **PARALLELIZE ALWAYS** — Multiple independent agents in ONE message
+3. **PLAN BEFORE CODE** — Use `planner` agent before any implementation
+4. **NEVER EXPLORE ALONE** — Use `explore` agent for any codebase questions
+5. **REVIEW EVERYTHING** — Use `reviewer` agent after implementation
+
+### Standard Workflow (Enforce This)
+```
+User Request
+    ↓
+[1] Task(planner, "break down the request")
+    ↓
+[2] Task(explore, "area 1") + Task(explore, "area 2")  ← PARALLEL
+    ↓
+[3] Task(implementer, "implement based on plan")
+    ↓
+[4] Task(tester, "write and run tests")
+    ↓
+[5] Task(reviewer, "review the changes")
+    ↓
+Done
+```
+
+For simpler tasks, skip steps — but NEVER skip delegation entirely.
 
 ---
 
-## MANDATORY Agent Routing (ENFORCED)
+## Agent Reference (Details)
 
-> **CRITICAL**: These rules OVERRIDE default Claude behavior. You MUST delegate to agents as specified. Direct execution is ONLY permitted for trivial single-file tasks.
+> See **MANDATORY FIRST ACTION** above for quick rules. This section provides additional context.
 
-### Decision Tree (FOLLOW THIS FIRST)
-
-```
-START: Receive user request
-  │
-  ├─► Is this a question about the codebase?
-  │     YES → MUST use `explore` or `oracle` agent
-  │     NO  ↓
-  │
-  ├─► Does this touch 3+ files?
-  │     YES → MUST use `planner` first, then delegate to `implementer`
-  │     NO  ↓
-  │
-  ├─► Is this a code review request?
-  │     YES → MUST use `reviewer` agent
-  │     NO  ↓
-  │
-  ├─► Is this a new feature/component?
-  │     YES → MUST use `scaffolder` then `implementer`
-  │     NO  ↓
-  │
-  ├─► Does this require tests?
-  │     YES → MUST use `tester` agent
-  │     NO  ↓
-  │
-  ├─► Is this a complex multi-step task?
-  │     YES → MUST use `maestro` orchestrator
-  │     NO  ↓
-  │
-  └─► Single-file trivial change?
-        YES → May execute directly
-        NO  → Re-evaluate: likely needs agent
-```
-
-### Mandatory Routing Table
+### Agent Selection Guide
 
 | Task Type | Required Agent | Fallback | Direct Execution |
 |-----------|----------------|----------|------------------|
@@ -86,35 +128,62 @@ START: Receive user request
 | **Single-file edit** | - | - | ✅ ALLOWED |
 | **Typo/trivial fix** | - | - | ✅ ALLOWED |
 
-### Enforcement Rules
+### Hard Rules (Zero Exceptions)
 
-1. **NEVER skip exploration** - Before modifying code you haven't read, MUST delegate to `explore` agent first
-2. **NEVER implement without planning** - For 3+ step tasks, MUST use `planner` agent first
-3. **NEVER review your own work** - After implementation, MUST delegate to `reviewer` agent
-4. **ALWAYS parallelize** - When spawning multiple independent agents, use ONE message with MULTIPLE Task tool calls
-5. **ALWAYS use scaffolder** - For new components/hooks/routes, MUST use `scaffolder` first
+1. **NEVER use Read/Grep/Glob directly for exploration** → Delegate to `explore`
+2. **NEVER implement 3+ file changes without planning** → Delegate to `planner` first
+3. **NEVER review your own implementation** → Delegate to `reviewer`
+4. **NEVER spawn agents sequentially when they could run in parallel**
+5. **NEVER create components/hooks directly** → Delegate to `scaffolder`
 
-### What "Direct Execution Allowed" Means
+### When Direct Execution is Permitted
 
-You may ONLY execute directly (without agents) when ALL of these are true:
-- [ ] Single file modification
-- [ ] Less than 20 lines changed
-- [ ] No architectural decisions required
-- [ ] No exploration needed (you already understand the code)
-- [ ] Not a code review request
+All 4 must be true:
+- Single file, under 20 lines
+- You have already read the file
+- Zero architectural decisions
+- Not a review request
 
-If ANY checkbox is false → **MUST use appropriate agent**
+**When in doubt, delegate.**
 
-### Parallelization Enforcement
+---
 
-When the task can be parallelized:
+## Token Efficiency: TLDR Commands
+
+When `llm-tldr` is installed (check: session start shows "TLDR index available"), **ALWAYS prefer TLDR over raw file reads**.
+
+### Quick Commands
+
+| Instead of... | Use this (95% fewer tokens) |
+|---------------|----------------------------|
+| Reading a large function | `tldr context functionName --project .` |
+| Grepping for "how does X work" | `tldr semantic "X description" .` |
+| Finding all callers manually | `tldr impact functionName .` |
+| Debugging "why is X null here" | `tldr slice file.ts func 42` |
+| Understanding architecture | `tldr arch .` |
+
+### Agent Integration
+
+All agents should use TLDR by default:
+- **explore/oracle**: `tldr semantic` + `tldr context` for questions
+- **planner**: `tldr impact` + `tldr arch` for planning
+- **implementer**: `tldr context` before reading, `tldr impact` before refactoring
+- **reviewer**: `tldr impact` to verify all callers handled
+
+### Decision Guide
+
 ```
-✅ CORRECT: Single message, multiple Task calls
-   [Task(explore, "analyze auth"), Task(explore, "analyze routing")]
+Need to understand code?
+  → tldr context (not Read)
 
-❌ WRONG: Sequential agent spawning
-   Message 1: Task(explore, "analyze auth")
-   Message 2: Task(explore, "analyze routing")
+Need to find related code?
+  → tldr semantic (not Grep)
+
+Need to know what calls X?
+  → tldr impact (not manual search)
+
+Need exact string match?
+  → Grep (only case for Grep)
 ```
 
 ---
