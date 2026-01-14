@@ -269,28 +269,28 @@ CLEANED=0
 
 # Remove old scripts (will be replaced)
 if [ -d "${CLAUDE_DIR}/scripts" ] && [ "$(ls -A ${CLAUDE_DIR}/scripts 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null && ((CLEANED++))
+    rm -f "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null && CLEANED=$((CLEANED + 1))
 fi
 
 # Remove old agents (will be replaced)
 if [ -d "${CLAUDE_DIR}/agents" ] && [ "$(ls -A ${CLAUDE_DIR}/agents 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/agents/"*.md 2>/dev/null && ((CLEANED++))
+    rm -f "${CLAUDE_DIR}/agents/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
 fi
 
 # Remove old commands (will be replaced)
 if [ -d "${CLAUDE_DIR}/commands" ] && [ "$(ls -A ${CLAUDE_DIR}/commands 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/commands/"*.md 2>/dev/null && ((CLEANED++))
+    rm -f "${CLAUDE_DIR}/commands/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
 fi
 
 # Remove old skills (will be replaced)
 if [ -d "${CLAUDE_DIR}/skills" ] && [ "$(ls -A ${CLAUDE_DIR}/skills 2>/dev/null)" ]; then
     rm -f "${CLAUDE_DIR}/skills/"*.json 2>/dev/null
-    rm -f "${CLAUDE_DIR}/skills/"*.md 2>/dev/null && ((CLEANED++))
+    rm -f "${CLAUDE_DIR}/skills/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
 fi
 
 # Remove old hooks docs (will be replaced)
 if [ -d "${CLAUDE_DIR}/hooks" ] && [ "$(ls -A ${CLAUDE_DIR}/hooks 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null && ((CLEANED++))
+    rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
 fi
 
 # Remove old cache files
