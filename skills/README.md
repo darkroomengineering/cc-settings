@@ -156,6 +156,7 @@ The skill activation system integrates with session handoffs:
 | "Done for today" | `create_handoff` (critical) |
 | "Continue where we left off" | `resume_handoff` |
 | "Review this code" | `review` → reviewer, tester |
+| "Take a screenshot" | `debug` → tester (agent-browser) |
 | "Create a component" | `component` → scaffolder |
 | "Remember this for next time" | `learn` → store learning |
 | "What did we learn?" | `learn` → recall learnings |

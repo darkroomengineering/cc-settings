@@ -4,6 +4,16 @@ Practical guide to maximize your Claude Code configuration.
 
 ---
 
+## Quick Setup
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
+```
+
+Auto-installs: jq, agent-browser, llm-tldr. Restart Claude Code to apply.
+
+---
+
 ## Core Insight: Just Talk Naturally
 
 The skill activation system means you **don't need to memorize commands**. Describe what you want:
@@ -105,6 +115,7 @@ When you know exactly what you need:
 /lenis                       # Setup smooth scroll
 /explore components/         # Navigate codebase
 /docs Next.js routing        # Fetch documentation
+/debug screenshot            # Visual debugging with agent-browser
 /context                     # Manage context window
 /orchestrate "Add dark mode" # Multi-agent coordination
 /ask "Best auth pattern?"    # Ask Oracle
@@ -117,9 +128,23 @@ When you know exactly what you need:
 
 ---
 
+## Visual Debugging
+
+Use agent-browser for AI-optimized browser automation:
+
+```
+"Take a screenshot of the login page"
+"What does the dashboard look like?"
+"Debug the visual bug on mobile"
+```
+
+agent-browser uses an accessibility tree with unique element refs (`@e1`, `@e2`) for reliable LLM interactions.
+
+---
+
 ## TLDR Code Analysis
 
-After running `tldr warm .` once per project:
+**Auto-warmed on session start** - no manual setup required for most projects.
 
 ### Semantic Search
 ```bash
@@ -324,3 +349,4 @@ Agents, commands, and skills are tool-agnostic markdown files.
 | Recall lessons | `/learn recall all` |
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |
+| Debug visually | "Take a screenshot of..." |

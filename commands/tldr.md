@@ -12,7 +12,9 @@ arguments:
 
 **Usage:** `/tldr <action> [query]`
 
-**Requires:** `pip install llm-tldr` + `tldr warm .` to index project
+**Auto-Setup:** The setup script installs llm-tldr and auto-warms projects on session start.
+
+**Manual Install:** `pipx install llm-tldr` (if not using setup script)
 
 **Actions:**
 
@@ -71,11 +73,17 @@ arguments:
 
 **First-Time Setup:**
 
+If using the setup script, TLDR is auto-installed and projects auto-warm on session start.
+
+For manual setup:
 ```bash
-# Install
+# Install via pipx (recommended)
+pipx install llm-tldr
+
+# Or via pip
 pip install llm-tldr
 
-# Index your project (one-time, ~1-2 min)
+# Index manually (if not auto-warmed)
 cd /path/to/project
 tldr warm .
 

@@ -7,7 +7,7 @@ Claude Code has a **native hooks system** that executes shell scripts at specifi
 | Event | Trigger | Script |
 |-------|---------|--------|
 | `UserPromptSubmit` | Before Claude sees prompt | `skill-activation.sh` (skill matching) |
-| `SessionStart` | New session begins | `session-start.sh` (recalls learnings) |
+| `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) |
 | `PreToolUse` | Before Bash commands | Logs to `~/.claude/hooks.log` |
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) |
 | `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) |
