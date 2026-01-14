@@ -10,10 +10,8 @@
 			"args": ["-y", "@upstash/context7-mcp@1.0.8"],
 			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts."
 		},
-		"playwright": {
-			"command": "npx",
-			"args": ["-y", "@anthropic/mcp-server-playwright"],
-			"_comment": "Browser automation, debugging, and E2E testing. Use for visual debugging, screenshots, and browser interactions."
+		"agent-browser": {
+			"_comment": "AI-optimized browser automation CLI. Install globally: npm i -g agent-browser. Uses accessibility tree with unique element refs (@e1, @e2) for reliable LLM interactions. Docs: https://agent-browser.dev"
 		},
 		"Sanity": {
 			"type": "http",
@@ -42,7 +40,7 @@
 			"Bash(gh:*)",
 			"Bash(biome:*)",
 			"Bash(vitest:*)",
-			"Bash(playwright:*)",
+			"Bash(agent-browser:*)",
 			"Bash(bun run:*)",
 			"Bash(npm run:*)",
 			"Bash(curl:*)",

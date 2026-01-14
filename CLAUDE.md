@@ -255,7 +255,7 @@ Use these slash commands for common workflows:
 - `/review` - Code review current changes
 - `/explore [target]` - Navigate codebase
 - `/docs <topic>` - Fetch library documentation (uses context7 MCP)
-- `/debug` - Browser debugging with Playwright (screenshots, DOM inspection)
+- `/debug` - Browser debugging with agent-browser (screenshots, DOM inspection, AI-optimized)
 - `/context` - Manage context window
 - `/orchestrate <task>` - Multi-agent task coordination
 - `/ask <question>` - Ask Oracle for guidance
@@ -267,7 +267,7 @@ Use these slash commands for common workflows:
 
 ### MCP Tools (Auto-triggered)
 - **context7** - Library docs lookup. Triggered by: "how to use X", "X docs", "api reference"
-- **playwright** - Browser automation. Triggered by: "screenshot", "visual bug", "inspect element"
+- **agent-browser** - AI-optimized browser automation via CLI. Install: `npm i -g agent-browser`. Triggered by: "screenshot", "visual bug", "inspect element". Uses accessibility tree with unique element refs for reliable LLM interactions.
 
 ---
 

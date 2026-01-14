@@ -162,7 +162,7 @@
 			"type": "skill",
 			"enforcement": "suggest",
 			"priority": "high",
-			"description": "Browser debugging with Playwright MCP - screenshots, DOM inspection, visual testing",
+			"description": "AI-optimized browser debugging with agent-browser CLI - screenshots, DOM inspection, accessibility tree",
 			"promptTriggers": {
 				"keywords": [
 					"/debug",
@@ -185,9 +185,9 @@
 				]
 			},
 			"agents": ["tester"],
-			"mcpServer": "playwright",
+			"tool": "agent-browser",
 			"autoInvoke": true,
-			"_hint": "Use playwright MCP for browser automation, screenshots, and visual debugging"
+			"_hint": "Use agent-browser CLI for AI-optimized browser automation with accessibility tree refs (@e1, @e2)"
 		},
 		"component": {
 			"type": "skill",
