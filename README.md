@@ -96,8 +96,9 @@ Store insights that survive across sessions:
 # Just works - prompts for auth when needed
 
 # TLDR setup (optional)
+brew install pipx && pipx ensurepath  # If you don't have pipx
 pipx install llm-tldr  # One-time
-tldr warm .            # Per project
+tldr warm .            # Per project, optional flag: --lang typescript
 ```
 
 See [Sanity MCP docs](https://www.sanity.io/docs/compute-and-ai/mcp-server) for full capabilities.
