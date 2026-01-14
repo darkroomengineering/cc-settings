@@ -1,61 +1,246 @@
 #!/bin/bash
 # Darkroom Claude Code Setup Script
-# Installs team configuration with REAL hooks and skill activation
+# Fully standalone - auto-installs all dependencies
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
-INSTALL_TLDR=false
+MINIMAL=false
+SKIP_DEPS=false
 
+# Parse arguments
 for arg in "$@"; do
     case $arg in
-        --with-tldr)
-            INSTALL_TLDR=true
+        --minimal)
+            MINIMAL=true
             shift
+            ;;
+        --skip-deps)
+            SKIP_DEPS=true
+            shift
+            ;;
+        --help|-h)
+            echo "Darkroom Claude Code Setup"
+            echo ""
+            echo "Usage: setup.sh [options]"
+            echo ""
+            echo "Options:"
+            echo "  --minimal    Skip optional tools (agent-browser, tldr)"
+            echo "  --skip-deps  Skip all dependency installation"
+            echo "  --help       Show this help message"
+            echo ""
+            exit 0
             ;;
     esac
 done
 
 echo "╔══════════════════════════════════════════╗"
-echo "║   Darkroom Claude Code Setup v4.3        ║"
-echo "║   With Skill Activation System           ║"
+echo "║   Darkroom Claude Code Setup v5.0        ║"
+echo "║   Fully Standalone - Auto-Install        ║"
 echo "║   (Idempotent - safe to re-run)          ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
-# Pre-flight dependency check
-check_dependencies() {
-    local missing=()
-    local optional_missing=()
-    
-    # Required
-    command -v git &>/dev/null || missing+=("git")
-    
-    # Optional but recommended
-    command -v jq &>/dev/null || optional_missing+=("jq (recommended for learnings)")
-    command -v bun &>/dev/null || command -v npm &>/dev/null || optional_missing+=("bun or npm (for MCP servers)")
-    
-    if [ ${#missing[@]} -gt 0 ]; then
-        echo "❌ Missing required dependencies:"
-        for dep in "${missing[@]}"; do
-            echo "   - $dep"
-        done
-        echo ""
-        echo "Please install them and re-run setup."
-        exit 1
-    fi
-    
-    if [ ${#optional_missing[@]} -gt 0 ]; then
-        echo "⚠️  Optional dependencies not found:"
-        for dep in "${optional_missing[@]}"; do
-            echo "   - $dep"
-        done
-        echo ""
-    fi
+# Detect OS
+detect_os() {
+    case "$(uname -s)" in
+        Darwin*)  echo "macos" ;;
+        Linux*)   echo "linux" ;;
+        MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
+        *)        echo "unknown" ;;
+    esac
 }
 
-check_dependencies
+OS=$(detect_os)
+echo "🖥️  Detected OS: $OS"
+echo ""
+
+# Install a package using the appropriate package manager
+install_package() {
+    local pkg="$1"
+    local name="${2:-$pkg}"
+
+    if [ "$SKIP_DEPS" = true ]; then
+        echo "  ⚠ Skipped $name (--skip-deps)"
+        return 1
+    fi
+
+    case "$OS" in
+        macos)
+            if command -v brew &>/dev/null; then
+                echo "  → Installing $name via Homebrew..."
+                brew install "$pkg" 2>/dev/null && return 0
+            fi
+            ;;
+        linux)
+            if command -v apt-get &>/dev/null; then
+                echo "  → Installing $name via apt..."
+                sudo apt-get update -qq && sudo apt-get install -y "$pkg" 2>/dev/null && return 0
+            elif command -v dnf &>/dev/null; then
+                echo "  → Installing $name via dnf..."
+                sudo dnf install -y "$pkg" 2>/dev/null && return 0
+            elif command -v pacman &>/dev/null; then
+                echo "  → Installing $name via pacman..."
+                sudo pacman -S --noconfirm "$pkg" 2>/dev/null && return 0
+            fi
+            ;;
+        windows)
+            if command -v choco &>/dev/null; then
+                echo "  → Installing $name via Chocolatey..."
+                choco install "$pkg" -y 2>/dev/null && return 0
+            elif command -v scoop &>/dev/null; then
+                echo "  → Installing $name via Scoop..."
+                scoop install "$pkg" 2>/dev/null && return 0
+            fi
+            ;;
+    esac
+
+    return 1
+}
+
+# Install npm package globally
+install_npm_global() {
+    local pkg="$1"
+    local name="${2:-$pkg}"
+
+    if [ "$SKIP_DEPS" = true ]; then
+        echo "  ⚠ Skipped $name (--skip-deps)"
+        return 1
+    fi
+
+    if command -v bun &>/dev/null; then
+        echo "  → Installing $name via bun..."
+        bun install -g "$pkg" 2>/dev/null && return 0
+    elif command -v npm &>/dev/null; then
+        echo "  → Installing $name via npm..."
+        npm install -g "$pkg" 2>/dev/null && return 0
+    fi
+
+    return 1
+}
+
+# Install Python package via pipx or pip
+install_python_pkg() {
+    local pkg="$1"
+    local name="${2:-$pkg}"
+
+    if [ "$SKIP_DEPS" = true ]; then
+        echo "  ⚠ Skipped $name (--skip-deps)"
+        return 1
+    fi
+
+    if command -v pipx &>/dev/null; then
+        echo "  → Installing $name via pipx..."
+        pipx install "$pkg" 2>/dev/null && return 0
+    elif command -v pip3 &>/dev/null; then
+        echo "  → Installing $name via pip3..."
+        pip3 install --user "$pkg" 2>/dev/null && return 0
+    elif command -v pip &>/dev/null; then
+        echo "  → Installing $name via pip..."
+        pip install --user "$pkg" 2>/dev/null && return 0
+    fi
+
+    return 1
+}
+
+# Check and install dependencies
+echo "📦 Checking dependencies..."
+echo ""
+
+# Required: git
+if ! command -v git &>/dev/null; then
+    echo "❌ git is required but not installed."
+    echo "   Please install git and re-run setup."
+    exit 1
+fi
+echo "  ✓ git"
+
+# Required: jq (for learnings, skill activation, statusline)
+if ! command -v jq &>/dev/null; then
+    echo "  ⚠ jq not found (required for learnings & statusline)"
+    if ! install_package jq "jq"; then
+        echo ""
+        echo "  ⚠ Could not auto-install jq. Please install manually:"
+        echo "    macOS:   brew install jq"
+        echo "    Linux:   sudo apt install jq"
+        echo "    Windows: choco install jq"
+        echo ""
+    else
+        echo "  ✓ jq installed"
+    fi
+else
+    echo "  ✓ jq"
+fi
+
+# Required: Node.js/npm (for MCP servers)
+if ! command -v npm &>/dev/null && ! command -v bun &>/dev/null; then
+    echo "  ⚠ npm/bun not found (required for MCP servers)"
+    echo "    Please install Node.js: https://nodejs.org"
+else
+    if command -v bun &>/dev/null; then
+        echo "  ✓ bun"
+    else
+        echo "  ✓ npm"
+    fi
+fi
+
+# Optional: agent-browser (AI-optimized browser automation)
+if [ "$MINIMAL" = false ]; then
+    if ! command -v agent-browser &>/dev/null; then
+        echo "  ⚠ agent-browser not found (AI browser automation)"
+        if install_npm_global agent-browser "agent-browser"; then
+            echo "  ✓ agent-browser installed"
+        else
+            echo "  ⚠ Install manually: npm i -g agent-browser"
+        fi
+    else
+        echo "  ✓ agent-browser"
+    fi
+fi
+
+# Optional: pipx (for Python tools)
+if [ "$MINIMAL" = false ]; then
+    if ! command -v pipx &>/dev/null; then
+        echo "  ⚠ pipx not found (recommended for Python tools)"
+        if [ "$OS" = "macos" ]; then
+            if command -v brew &>/dev/null; then
+                echo "  → Installing pipx via Homebrew..."
+                brew install pipx 2>/dev/null && pipx ensurepath 2>/dev/null && {
+                    echo "  ✓ pipx installed"
+                    # Reload PATH
+                    export PATH="$HOME/.local/bin:$PATH"
+                }
+            fi
+        elif [ "$OS" = "linux" ]; then
+            if command -v apt-get &>/dev/null; then
+                echo "  → Installing pipx via apt..."
+                sudo apt-get update -qq && sudo apt-get install -y pipx 2>/dev/null && pipx ensurepath 2>/dev/null && {
+                    echo "  ✓ pipx installed"
+                    export PATH="$HOME/.local/bin:$PATH"
+                }
+            fi
+        fi
+    else
+        echo "  ✓ pipx"
+    fi
+fi
+
+# Optional: llm-tldr (semantic code search)
+if [ "$MINIMAL" = false ]; then
+    if ! command -v tldr &>/dev/null && ! command -v tldr-mcp &>/dev/null; then
+        echo "  ⚠ llm-tldr not found (semantic code analysis)"
+        if install_python_pkg llm-tldr "llm-tldr"; then
+            echo "  ✓ llm-tldr installed"
+        else
+            echo "  ⚠ Install manually: pipx install llm-tldr"
+        fi
+    else
+        echo "  ✓ llm-tldr"
+    fi
+fi
+
+echo ""
 
 # Create directories in parallel
 echo "📁 Creating directories..."
@@ -66,6 +251,7 @@ mkdir -p "${CLAUDE_DIR}/skills" &
 mkdir -p "${CLAUDE_DIR}/handoffs" &
 mkdir -p "${CLAUDE_DIR}/learnings" &
 mkdir -p "${CLAUDE_DIR}/hooks" &
+mkdir -p "${CLAUDE_DIR}/tldr-cache" &
 wait
 echo "  ✓ Directory structure created"
 
@@ -126,16 +312,6 @@ echo "📦 Installing configuration..."
 echo ""
 
 # Copy files in parallel using background jobs
-copy_with_status() {
-    local src="$1"
-    local dst="$2"
-    local name="$3"
-    if [ -e "$src" ]; then
-        cp -r "$src" "$dst" && echo "  ✓ $name"
-    fi
-}
-
-# Start all copy operations in background
 [ -f "${SCRIPT_DIR}/CLAUDE.md" ] && cp "${SCRIPT_DIR}/CLAUDE.md" "${CLAUDE_DIR}/" &
 PID_CLAUDE=$!
 
@@ -175,66 +351,6 @@ wait $PID_HOOKS 2>/dev/null && echo "  ✓ hooks/ (behavioral guidelines)"
 # Make scripts executable
 chmod +x "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null || true
 
-# Generate MCP availability report
-echo ""
-echo "🔌 Checking MCP server availability..."
-MCP_STATUS=""
-
-if command -v npx &>/dev/null; then
-    MCP_STATUS="${MCP_STATUS}  ✓ context7 (npx available)\n"
-else
-    MCP_STATUS="${MCP_STATUS}  ⚠ context7 (npx not found - install Node.js)\n"
-fi
-
-if command -v tldr-mcp &>/dev/null; then
-    MCP_STATUS="${MCP_STATUS}  ✓ tldr (tldr-mcp available)\n"
-elif [ "$INSTALL_TLDR" = true ]; then
-    MCP_STATUS="${MCP_STATUS}  → tldr (will install)\n"
-else
-    MCP_STATUS="${MCP_STATUS}  ⚠ tldr (run with --with-tldr or: pipx install llm-tldr)\n"
-fi
-
-# Sanity MCP is HTTP-based, always available
-MCP_STATUS="${MCP_STATUS}  ✓ Sanity (HTTP MCP - requires OAuth on first use)\n"
-
-echo -e "$MCP_STATUS"
-
-# Install llm-tldr (optional)
-if [ "$INSTALL_TLDR" = true ]; then
-    echo ""
-    
-    if command -v tldr-mcp &>/dev/null; then
-        echo "📦 llm-tldr already installed"
-        echo "  ✓ tldr-mcp available for MCP integration"
-    elif command -v pipx &>/dev/null; then
-        echo "📦 Installing llm-tldr via pipx..."
-        pipx install llm-tldr 2>/dev/null && {
-            echo "  ✓ llm-tldr installed"
-        } || {
-            echo "  ⚠ Failed to install llm-tldr via pipx"
-        }
-    elif command -v pip &>/dev/null || command -v pip3 &>/dev/null; then
-        echo "📦 Installing llm-tldr..."
-        PIP_CMD=$(command -v pip3 || command -v pip)
-        $PIP_CMD install --user llm-tldr 2>/dev/null && {
-            echo "  ✓ llm-tldr installed"
-        } || {
-            echo "  ⚠ Failed to install llm-tldr"
-            echo ""
-            echo "  This usually happens on macOS due to faiss-cpu."
-            echo "  Install manually with pipx:"
-            echo ""
-            echo "    brew install pipx"
-            echo "    pipx install llm-tldr"
-            echo ""
-            echo "  Or skip --with-tldr - the rest works without it."
-            echo ""
-        }
-    else
-        echo "  ⚠ pip/pipx not found - install manually: pipx install llm-tldr"
-    fi
-fi
-
 echo ""
 echo "╔══════════════════════════════════════════╗"
 echo "║           Setup Complete! 🎉             ║"
@@ -242,59 +358,60 @@ echo "╚═══════════════════════�
 echo ""
 echo "📂 Installed to ~/.claude/"
 echo ""
-echo "┌─────────────────────────────────────────┐"
-echo "│ Skill Activation System                 │"
-echo "├─────────────────────────────────────────┤"
-echo "│ ✓ UserPromptSubmit → skill-activation   │"
-echo "│ ✓ 19 skills with keyword/intent match   │"
-echo "│ ✓ Auto-suggest agents & workflows       │"
-echo "│ ✓ Context warnings at 70/80/90%         │"
-echo "└─────────────────────────────────────────┘"
-echo ""
-echo "┌─────────────────────────────────────────┐"
-echo "│ Native Hooks                            │"
-echo "├─────────────────────────────────────────┤"
-echo "│ ✓ SessionStart   → session-start.sh    │"
-echo "│   └─ Auto-recalls project learnings    │"
-echo "│ ✓ PostToolUse    → post-edit.sh        │"
-echo "│ ✓ PreCompact     → create-handoff.sh   │"
-echo "│ ✓ SessionEnd     → create-handoff.sh   │"
-echo "│ ✓ Notification   → notify.sh           │"
-echo "└─────────────────────────────────────────┘"
-echo ""
-echo "┌─────────────────────────────────────────┐"
-echo "│ Memory System                           │"
-echo "├─────────────────────────────────────────┤"
-echo "│ ✓ store-learning.sh   → Save insights  │"
-echo "│ ✓ recall-learnings.sh → Query memory   │"
-echo "│ ✓ Auto-recall on session start         │"
-echo "│ ✓ /learn command for management        │"
-echo "└─────────────────────────────────────────┘"
-echo ""
-echo "┌─────────────────────────────────────────┐"
-echo "│ Agents & Commands                       │"
-echo "├─────────────────────────────────────────┤"
-echo "│ 9 agents     @planner, @reviewer...    │"
-echo "│ 14 commands  /component, /learn...     │"
-echo "└─────────────────────────────────────────┘"
-echo ""
-echo "💡 Just describe what you want naturally!"
-echo "   The skill activation system will suggest"
-echo "   relevant skills, workflows, and agents."
-echo ""
 
-if [ "$INSTALL_TLDR" = true ] && command -v tldr &>/dev/null; then
-    echo "┌─────────────────────────────────────────┐"
-    echo "│ TLDR Code Analysis                      │"
-    echo "├─────────────────────────────────────────┤"
-    echo "│ Index:    tldr warm /path/to/project    │"
-    echo "│ Search:   tldr semantic \"query\" .       │"
-    echo "│ Context:  tldr context func --project . │"
-    echo "│ Impact:   tldr impact func .            │"
-    echo "│ MCP:      ✓ Pre-configured              │"
-    echo "└─────────────────────────────────────────┘"
-    echo ""
+# Feature summary based on what's installed
+echo "┌─────────────────────────────────────────┐"
+echo "│ Features Enabled                        │"
+echo "├─────────────────────────────────────────┤"
+
+# Core features (always available)
+echo "│ ✓ Skill Activation (19 skills)         │"
+echo "│ ✓ Agent Routing (9 agents)             │"
+echo "│ ✓ Session Handoffs (auto-save)         │"
+echo "│ ✓ Persistent Learnings (/learn)        │"
+
+# jq-dependent features
+if command -v jq &>/dev/null; then
+    echo "│ ✓ Custom Statusline                    │"
+else
+    echo "│ ⚠ Statusline (install jq)              │"
 fi
 
+# agent-browser
+if command -v agent-browser &>/dev/null; then
+    echo "│ ✓ Browser Automation (agent-browser)   │"
+else
+    echo "│ ⚠ Browser Automation (npm i -g agent-browser) │"
+fi
+
+# tldr
+if command -v tldr &>/dev/null || command -v tldr-mcp &>/dev/null; then
+    echo "│ ✓ Semantic Code Search (tldr)          │"
+    echo "│   Auto-warms on session start          │"
+else
+    echo "│ ⚠ Semantic Search (pipx install llm-tldr) │"
+fi
+
+echo "└─────────────────────────────────────────┘"
+echo ""
+
+# MCP Servers
+echo "┌─────────────────────────────────────────┐"
+echo "│ MCP Servers                             │"
+echo "├─────────────────────────────────────────┤"
+echo "│ ✓ context7   - Library docs lookup      │"
+echo "│ ✓ Sanity     - CMS operations (OAuth)   │"
+if command -v tldr-mcp &>/dev/null; then
+    echo "│ ✓ tldr       - Semantic code analysis   │"
+else
+    echo "│ ⚠ tldr       - Install llm-tldr         │"
+fi
+echo "└─────────────────────────────────────────┘"
+echo ""
+
+echo "💡 Just describe what you want naturally!"
+echo "   The skill activation system suggests"
+echo "   relevant skills, workflows, and agents."
+echo ""
 echo "⚡ Restart Claude Code to apply changes."
 echo ""

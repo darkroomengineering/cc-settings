@@ -2,33 +2,45 @@
 
 Team-shareable Claude Code settings with **native hooks**, **skill activation**, and **persistent learnings**.
 
-## Quick Setup
+## One-Liner Setup
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
+```
+
+Or clone and run locally:
 
 ```bash
 git clone git@github.com:darkroomengineering/cc-settings.git /tmp/darkroom-claude
 bash /tmp/darkroom-claude/setup.sh
 ```
 
-**With TLDR code analysis:**
+**Options:**
+- `--minimal` - Skip optional tools (agent-browser, tldr)
+- `--skip-deps` - Skip all dependency installation
 
-```bash
-bash /tmp/darkroom-claude/setup.sh --with-tldr
-```
+The setup script auto-installs:
+- **jq** - Required for learnings, statusline
+- **agent-browser** - AI-optimized browser automation
+- **llm-tldr** - Semantic code search (auto-warms on session start)
 
 Restart Claude Code to apply changes.
 
 ---
 
-## What's Installed
+## What Gets Installed
 
 ```
 ~/.claude/
 ├── CLAUDE.md           # Coding standards
 ├── settings.json       # Permissions + Hooks + MCP
-├── scripts/            # 12 scripts
+├── scripts/            # 12 hook scripts
 ├── skills/             # 19 skill rules
 ├── agents/             # 9 specialized agents
-└── commands/           # 14 slash commands
+├── commands/           # 14 slash commands
+├── learnings/          # Persistent project memory
+├── handoffs/           # Session state backups
+└── tldr-cache/         # TLDR warm status
 ```
 
 ---
@@ -55,24 +67,13 @@ Claude 4.5 Opus | my-project | main✱↑ | ████░░░░░░ 42% (
 - `✱` (yellow) = uncommitted changes
 - `↑` = unpushed commits, `↓` = behind remote
 
-Enable in `~/.claude/settings.json`:
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "bash \"$HOME/.claude/scripts/statusline.sh\""
-  }
-}
-```
-
 ### Native Hooks
-Real shell scripts triggered at specific events:
 
 | Event | Action |
 |-------|--------|
+| `SessionStart` | Recalls learnings, auto-warms TLDR |
 | `UserPromptSubmit` | Skill activation |
-| `SessionStart` | Recalls learnings |
-| `PostToolUse` | Auto-format, TLDR tracking |
+| `PostToolUse` | TLDR tracking |
 | `PreCompact` / `SessionEnd` | Auto-handoff |
 
 ### Persistent Learnings
@@ -83,25 +84,22 @@ Store insights that survive across sessions:
 /learn recall all
 ```
 
-### MCP Servers
+### Auto-Warming TLDR
+On session start, the system automatically:
+1. Detects project type (TypeScript, Rust, Go, Python)
+2. Warms the TLDR index in background
+3. Enables semantic code search without manual setup
 
-| Server | Purpose |
-|--------|---------|
-| **Context7** | Up-to-date library docs (add "use context7" to prompts) |
-| **Sanity** | CMS operations - GROQ, documents, releases, schemas |
-| **TLDR** | Semantic search, impact analysis (95% token savings) |
+---
 
-```bash
-# Sanity MCP (OAuth required on first use)
-# Just works - prompts for auth when needed
+## MCP Servers
 
-# TLDR setup (optional)
-brew install pipx && pipx ensurepath  # If you don't have pipx
-pipx install llm-tldr  # One-time
-tldr warm .            # Per project, optional flag: --lang typescript
-```
-
-See [Sanity MCP docs](https://www.sanity.io/docs/compute-and-ai/mcp-server) for full capabilities.
+| Server | Purpose | Status |
+|--------|---------|--------|
+| **context7** | Up-to-date library docs | Auto-configured |
+| **Sanity** | CMS operations (GROQ, documents) | OAuth on first use |
+| **tldr** | Semantic search, impact analysis | Auto-installed |
+| **agent-browser** | AI-optimized browser automation | Auto-installed |
 
 ---
 
@@ -116,6 +114,17 @@ See [Sanity MCP docs](https://www.sanity.io/docs/compute-and-ai/mcp-server) for 
 | Save insight | `/learn store bug "..."` |
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |
+| Debug visually | "Take a screenshot of..." |
+
+---
+
+## Agents
+
+`@planner` `@implementer` `@reviewer` `@tester` `@scaffolder` `@librarian` `@explore` `@oracle` `@maestro`
+
+## Commands
+
+`/component` `/hook` `/review` `/init` `/lenis` `/explore` `/docs` `/context` `/orchestrate` `/ask` `/create-handoff` `/resume-handoff` `/tldr` `/learn`
 
 ---
 
@@ -130,13 +139,12 @@ See [Sanity MCP docs](https://www.sanity.io/docs/compute-and-ai/mcp-server) for 
 
 ---
 
-## Agents
+## Platform Support
 
-`@planner` `@implementer` `@reviewer` `@tester` `@scaffolder` `@librarian` `@explore` `@oracle` `@maestro`
-
-## Commands
-
-`/component` `/hook` `/review` `/init` `/lenis` `/explore` `/docs` `/context` `/orchestrate` `/ask` `/create-handoff` `/resume-handoff` `/tldr` `/learn`
+The setup script and hooks work on:
+- **macOS** - Native (Homebrew for dependencies)
+- **Linux** - Native (apt, dnf, pacman for dependencies)
+- **Windows** - Via Git Bash, WSL, or MSYS2
 
 ---
 
