@@ -202,6 +202,195 @@ import { Link } from '@/components/link'
 
 ---
 
+## React/Next.js Performance
+
+> Performance optimization rules ordered by impact. Source: [Vercel Agent Skills](https://github.com/vercel-labs/agent-skills/tree/react-best-practices)
+
+### CRITICAL: Eliminate Waterfalls
+
+Waterfalls are the #1 performance killer. Each sequential `await` adds full network latency.
+
+```tsx
+// ❌ WRONG: Sequential fetching (3 round trips)
+const user = await fetchUser()
+const posts = await fetchPosts()
+const comments = await fetchComments()
+
+// ✅ CORRECT: Parallel fetching (1 round trip)
+const [user, posts, comments] = await Promise.all([
+  fetchUser(),
+  fetchPosts(),
+  fetchComments()
+])
+```
+
+**Server Components**: Restructure component tree so async operations happen at the same level:
+```tsx
+// ❌ WRONG: Nested async creates waterfall
+async function Page() {
+  const header = await fetchHeader()
+  return <Layout header={header}><Sidebar /></Layout> // Sidebar waits for header
+}
+
+// ✅ CORRECT: Sibling composition enables parallel fetching
+function Page() {
+  return (
+    <Layout>
+      <Header /> {/* fetches independently */}
+      <Sidebar /> {/* fetches independently */}
+    </Layout>
+  )
+}
+```
+
+### CRITICAL: Bundle Size Optimization
+
+**Avoid barrel imports** - Libraries like `lucide-react` can have 10,000+ re-exports, adding 200-800ms cold start:
+```tsx
+// ❌ WRONG: Barrel import
+import { Check } from 'lucide-react'
+
+// ✅ CORRECT: Direct import
+import Check from 'lucide-react/dist/esm/icons/check'
+
+// ✅ BETTER: Use Next.js optimizePackageImports in next.config.js
+// experimental: { optimizePackageImports: ['lucide-react', '@radix-ui/react-*'] }
+```
+
+**Dynamic imports for heavy components**:
+```tsx
+// ❌ WRONG: Static import bundles 300KB+ with initial JS
+import MonacoEditor from '@monaco-editor/react'
+
+// ✅ CORRECT: Lazy load when needed
+import dynamic from 'next/dynamic'
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
+```
+
+### HIGH: Server-Side Performance
+
+**Use `React.cache()` for per-request deduplication**:
+```tsx
+import { cache } from 'react'
+
+// Multiple calls within same request execute query only once
+export const getCurrentUser = cache(async () => {
+  const session = await getSession()
+  return db.user.findUnique({ where: { id: session.userId } })
+})
+```
+
+**Suspense boundaries for streaming** (use judiciously):
+```tsx
+// Enables immediate wrapper render while data loads
+<Suspense fallback={<Skeleton />}>
+  <AsyncDataComponent />
+</Suspense>
+```
+*Avoid when: layout depends on data, above-fold SEO content, fast queries, or layout shifts are unacceptable.*
+
+### MEDIUM-HIGH: Client-Side Data Fetching
+
+**Use SWR for automatic deduplication**:
+```tsx
+// ❌ WRONG: useState + useEffect + fetch (duplicate requests)
+// ✅ CORRECT: SWR handles deduplication, caching, revalidation
+import useSWR from 'swr'
+const { data } = useSWR('/api/users', fetcher)
+```
+
+### MEDIUM: Re-render Optimization
+
+**Extract expensive work into memoized components**:
+```tsx
+// ❌ WRONG: Expensive computation runs even on early return
+function Profile({ user, isLoading }) {
+  const avatar = useMemo(() => processAvatar(user), [user])
+  if (isLoading) return <Skeleton />
+  return <img src={avatar} />
+}
+
+// ✅ CORRECT: Memoized child skipped entirely on early return
+function Profile({ user, isLoading }) {
+  if (isLoading) return <Skeleton />
+  return <UserAvatar user={user} />
+}
+const UserAvatar = memo(({ user }) => <img src={processAvatar(user)} />)
+```
+
+**Narrow effect dependencies**:
+```tsx
+// ❌ WRONG: Effect runs on any user property change
+useEffect(() => { fetchPosts(user.id) }, [user])
+
+// ✅ CORRECT: Effect runs only when id changes
+useEffect(() => { fetchPosts(user.id) }, [user.id])
+
+// ✅ BETTER: Derive boolean for threshold-based effects
+const isMobile = width < 768
+useEffect(() => { /* ... */ }, [isMobile]) // Not [width]
+```
+
+**Use transitions for non-urgent updates**:
+```tsx
+import { startTransition } from 'react'
+
+// ❌ WRONG: Blocks UI on every scroll
+onScroll={() => setScrollY(window.scrollY)}
+
+// ✅ CORRECT: Defers non-urgent update
+onScroll={() => startTransition(() => setScrollY(window.scrollY))}
+```
+
+### MEDIUM: Rendering Performance
+
+**Hoist static JSX outside components**:
+```tsx
+// ❌ WRONG: Re-created every render
+function Icon() {
+  return <svg>...</svg>
+}
+
+// ✅ CORRECT: Created once at module level
+const iconSvg = <svg>...</svg>
+function Icon() {
+  return iconSvg
+}
+```
+
+**Explicit conditional rendering** (avoid `&&` with numbers):
+```tsx
+// ❌ WRONG: Renders "0" when count is 0
+{count && <Badge count={count} />}
+
+// ✅ CORRECT: Returns null when falsy
+{count > 0 ? <Badge count={count} /> : null}
+```
+
+### LOW-MEDIUM: JavaScript Performance
+
+- **Early returns**: Exit functions as soon as result is determined
+- **Index maps**: Build lookup objects for O(1) access instead of O(n) array searches
+- **Cache property access**: Store `obj.deeply.nested.value` in a variable if accessed multiple times
+- **Use Set/Map**: For membership checks and key-value lookups (O(1) vs O(n))
+- **Hoist RegExp**: Define regex patterns outside loops/functions
+
+### LOW: Advanced Patterns
+
+**Store event handlers in refs** to prevent re-subscription:
+```tsx
+const handlerRef = useRef(handler)
+useEffect(() => { handlerRef.current = handler }, [handler])
+
+useEffect(() => {
+  const listener = (e) => handlerRef.current(e)
+  window.addEventListener(eventType, listener)
+  return () => window.removeEventListener(eventType, listener)
+}, [eventType]) // No handler dependency - stable subscription
+```
+
+---
+
 ## Darkroom Libraries Reference
 
 When working on projects, leverage these internal libraries:
