@@ -618,7 +618,7 @@ main() {
     show_feature_summary
 
     echo ""
-    echo "Installed to: ${CYAN}~/.claude/${RESET}"
+    echo -e "Installed to: ${CYAN}~/.claude/${RESET}"
     echo ""
     info "Just describe what you want naturally!"
     info "The skill activation system suggests relevant skills, workflows, and agents."
