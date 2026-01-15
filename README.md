@@ -99,6 +99,11 @@ On session start, the system automatically:
 | **context7** | Up-to-date library docs | Auto-configured |
 | **Sanity** | CMS operations (GROQ, documents) | OAuth on first use |
 | **tldr** | Semantic search, impact analysis | Auto-installed |
+
+## CLI Tools
+
+| Tool | Purpose | Status |
+|------|---------|--------|
 | **agent-browser** | AI-optimized browser automation | Auto-installed |
 
 ---

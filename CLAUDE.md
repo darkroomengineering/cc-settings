@@ -632,9 +632,11 @@ Use these slash commands for common workflows:
 - `/learn <action>` - Persistent learnings across sessions
 - `/lenis` - Setup smooth scroll
 
-### MCP Tools (Auto-triggered)
+### MCP Servers (Auto-triggered)
 - **context7** - Library docs lookup. Triggered by: "how to use X", "X docs", "api reference"
-- **agent-browser** - AI-optimized browser automation via CLI. Install: `npm i -g agent-browser`. Triggered by: "screenshot", "visual bug", "inspect element". Uses accessibility tree with unique element refs for reliable LLM interactions.
+
+### CLI Tools (Auto-triggered)
+- **agent-browser** - AI-optimized browser automation. Install: `npm i -g agent-browser`. Triggered by: "screenshot", "visual bug", "inspect element". Uses accessibility tree with unique element refs for reliable LLM interactions.
 
 ---
 

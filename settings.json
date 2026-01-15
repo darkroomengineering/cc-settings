@@ -10,9 +10,6 @@
 			"args": ["-y", "@upstash/context7-mcp@1.0.8"],
 			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts."
 		},
-		"agent-browser": {
-			"_comment": "AI-optimized browser automation CLI. Install globally: npm i -g agent-browser. Uses accessibility tree with unique element refs (@e1, @e2) for reliable LLM interactions. Docs: https://agent-browser.dev"
-		},
 		"Sanity": {
 			"type": "http",
 			"url": "https://mcp.sanity.io",
