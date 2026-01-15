@@ -239,11 +239,11 @@ Need exact string match?
 - **TypeScript** - `strict: true`, `noUncheckedIndexedAccess: true`
 
 ### Animation & Graphics
-- **Lenis** - Smooth scroll (`@darkroom.engineering/lenis`)
+- **Lenis** - Smooth scroll (`lenis`)
 - **GSAP** - Complex animations
 - **React Three Fiber** - 3D graphics when needed
-- **Tempus** - RAF management (`@darkroom.engineering/tempus`)
-- **Hamo** - Performance React hooks (`@darkroom.engineering/hamo`)
+- **Tempus** - RAF management (`tempus`)
+- **Hamo** - Performance React hooks (`hamo`)
 
 ### CMS Integrations
 - Sanity (primary)
@@ -297,7 +297,7 @@ import { Link } from '@/components/link'
 - Server Components by default
 - `'use client'` only when needed (interactivity, hooks, browser APIs)
 - Prefer composition over props drilling
-- Use `@darkroom.engineering/hamo` hooks for performance
+- Use `hamo` hooks for performance
 
 ### CSS/Styling
 - Tailwind v4 for utility classes
@@ -575,9 +575,17 @@ When working on projects, leverage these internal libraries:
 
 | Package | Purpose | Install |
 |---------|---------|---------|
-| `lenis` | Smooth scroll | `bun add lenis` |
-| `@darkroom.engineering/hamo` | Performance hooks | `bun add @darkroom.engineering/hamo` |
-| `@darkroom.engineering/tempus` | RAF management | `bun add @darkroom.engineering/tempus` |
+| `lenis` | Smooth scroll | `bun add lenis@latest` |
+| `hamo` | Performance hooks | `bun add hamo@latest` |
+| `tempus` | RAF management | `bun add tempus@latest` |
+
+> **Package migration:** `hamo` and `tempus` were previously published as `@darkroom.engineering/hamo` and `@darkroom.engineering/tempus`. Use the new short names for new projects.
+
+> **Version checking:** Before installing ANY library, always:
+> 1. Check latest version: `bun info <package>`
+> 2. Fetch current docs: `/docs <library>` (context7)
+>
+> This ensures you're using valid, up-to-date APIs and leveraging the latest features.
 
 ### Lenis Quick Start
 ```tsx
@@ -599,7 +607,7 @@ requestAnimationFrame(raf)
 
 ### Hamo Hooks
 ```tsx
-import { useWindowSize, useRect, useIntersectionObserver } from '@darkroom.engineering/hamo'
+import { useWindowSize, useRect, useIntersectionObserver } from 'hamo'
 ```
 
 ---
@@ -632,6 +640,7 @@ Use these slash commands for common workflows:
 - `/tldr <action>` - TLDR code analysis
 - `/learn <action>` - Persistent learnings across sessions
 - `/lenis` - Setup smooth scroll
+- `/versions` - Check Darkroom package versions
 
 ### MCP Servers (Auto-triggered)
 - **context7** - Library docs lookup. Triggered by: "how to use X", "X docs", "api reference"
