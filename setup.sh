@@ -181,7 +181,7 @@ do_rollback() {
     echo ""
 
     if [[ "$INTERACTIVE" == true ]]; then
-        if ! prompt_yn "Restore this backup? This will overwrite current config"; then
+        if ! prompt_yn "Restore this backup?"; then
             info "Rollback cancelled"
             exit 0
         fi

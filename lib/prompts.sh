@@ -30,13 +30,13 @@ prompt_yn() {
 
     local hint
     if [[ "${default,,}" == "y" ]]; then
-        hint="[Y/n]"
+        hint="(y/n, default: yes)"
     else
-        hint="[y/N]"
+        hint="(y/n, default: no)"
     fi
 
     while true; do
-        echo -en "${CYAN}?${RESET} ${prompt} ${hint}: "
+        echo -en "${CYAN}?${RESET} ${prompt} ${hint} "
         read -r response
 
         # Empty response: use default
@@ -52,7 +52,7 @@ prompt_yn() {
                 return 1
                 ;;
             *)
-                echo "  Please answer yes or no."
+                echo "  Please enter 'y' for yes or 'n' for no."
                 ;;
         esac
     done
@@ -79,23 +79,22 @@ prompt_select() {
 
     local i
     for i in "${!options[@]}"; do
-        printf "  ${CYAN}%d)${RESET} %s\n" "$((i + 1))" "${options[$i]}"
+        printf "  %d. %s\n" "$((i + 1))" "${options[$i]}"
     done
 
     echo ""
 
     while true; do
-        echo -en "  Enter choice [1-${num_options}]: "
+        echo -en "  Enter number (1-${num_options}): "
         read -r choice
 
         if [[ "$choice" =~ ^[0-9]+$ ]] && [[ "$choice" -ge 1 ]] && [[ "$choice" -le "$num_options" ]]; then
             REPLY=$((choice - 1))
             echo ""
-            echo "  Selected: ${options[$REPLY]}"
             echo "${options[$REPLY]}"
             return 0
         else
-            echo "  Invalid choice. Please enter a number between 1 and ${num_options}."
+            echo "  Enter a number between 1 and ${num_options}"
         fi
     done
 }
@@ -104,6 +103,7 @@ prompt_select() {
 # Usage: prompt_multiselect "prompt" "option1" "option2" "option3"
 # Sets: SELECTED_ITEMS array with selected options
 # Sets: SELECTED_INDICES array with selected indices (0-based)
+# Returns: 0 on confirm, 1 on cancel
 declare -a SELECTED_ITEMS=()
 declare -a SELECTED_INDICES=()
 
@@ -131,7 +131,6 @@ prompt_multiselect() {
     fi
 
     echo -e "${CYAN}?${RESET} ${prompt}"
-    echo "  (Toggle with number, 'a' for all, 'n' for none, Enter to confirm)"
     echo ""
 
     while true; do
@@ -139,15 +138,16 @@ prompt_multiselect() {
         for i in "${!options[@]}"; do
             local checkbox
             if [[ "${selected[$i]}" == true ]]; then
-                checkbox="${GREEN}[X]${RESET}"
+                checkbox="${GREEN}✓${RESET}"
             else
-                checkbox="[ ]"
+                checkbox="${DIM}-${RESET}"
             fi
-            printf "  %s ${CYAN}%d)${RESET} %s\n" "$checkbox" "$((i + 1))" "${options[$i]}"
+            printf "  %s %d. %s\n" "$checkbox" "$((i + 1))" "${options[$i]}"
         done
 
         echo ""
-        echo -en "  Toggle [1-${num_options}], (a)ll, (n)one, or Enter to confirm: "
+        echo -e "  ${DIM}Enter number to toggle, or:${RESET}"
+        echo -en "  ${DIM}a=all, x=none, q=cancel, Enter=done${RESET} > "
         read -r input
 
         case "$input" in
@@ -162,16 +162,22 @@ prompt_multiselect() {
                     fi
                 done
                 echo ""
-                echo "  Selected ${#SELECTED_ITEMS[@]} item(s)"
                 return 0
                 ;;
-            a|A|all)
+            q|Q|n|N|no|quit|cancel)
+                # Cancel
+                SELECTED_ITEMS=()
+                SELECTED_INDICES=()
+                echo ""
+                return 1
+                ;;
+            a|A|all|y|Y|yes)
                 # Select all
                 for i in "${!options[@]}"; do
                     selected[$i]=true
                 done
                 ;;
-            n|N|none)
+            x|X|0|none|clear)
                 # Deselect all
                 for i in "${!options[@]}"; do
                     selected[$i]=false
@@ -186,8 +192,6 @@ prompt_multiselect() {
                     else
                         selected[$idx]=true
                     fi
-                else
-                    echo "  Invalid input."
                 fi
                 ;;
         esac

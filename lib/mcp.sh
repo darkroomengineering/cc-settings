@@ -90,31 +90,26 @@ prompt_mcp_preservation() {
         return 0
     fi
 
+    local count=${#USER_ONLY_SERVERS[@]}
+
     echo ""
-    info "Found custom MCP servers in your existing config:"
+    info "You have ${count} custom MCP server(s) not in the team config:"
     echo ""
     list_mcp_server_names "${USER_ONLY_SERVERS[@]}"
     echo ""
 
     if [[ "$INTERACTIVE" == true ]]; then
-        echo "  These servers are NOT in the team config."
-        echo "  Select which ones to preserve (they will be merged with team config)."
-        echo ""
-
-        prompt_multiselect "Select MCP servers to preserve:" "${USER_ONLY_SERVERS[@]}"
-        PRESERVED_SERVERS=("${SELECTED_ITEMS[@]}")
+        if prompt_yn "Keep these servers? (they'll be merged with team config)" "y"; then
+            PRESERVED_SERVERS=("${USER_ONLY_SERVERS[@]}")
+            success "Keeping all ${count} custom server(s)"
+        else
+            PRESERVED_SERVERS=()
+            info "Starting fresh (custom servers will not be kept)"
+        fi
     else
         # Non-interactive: preserve all by default
         PRESERVED_SERVERS=("${USER_ONLY_SERVERS[@]}")
-        info "Preserving all custom MCP servers (non-interactive mode)"
-    fi
-
-    if [[ ${#PRESERVED_SERVERS[@]} -gt 0 ]]; then
-        echo ""
-        success "Will preserve ${#PRESERVED_SERVERS[@]} custom MCP server(s):"
-        list_mcp_server_names "${PRESERVED_SERVERS[@]}"
-    else
-        info "No custom MCP servers will be preserved"
+        info "Keeping all custom MCP servers (non-interactive mode)"
     fi
 }
 
