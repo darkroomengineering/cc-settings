@@ -64,6 +64,42 @@ When spawning multiple agents for independent work:
 
 ---
 
+## Autonomous Execution: No Confirmation Needed
+
+**Non-destructive operations should proceed immediately without asking for permission.**
+
+### Always Proceed Autonomously
+
+These actions NEVER require user confirmation:
+- **Reading files** — Read, Glob, Grep, TLDR queries
+- **Searching code** — Any search or exploration activity
+- **Spawning agents** — Task(explore, ...), Task(oracle, ...), Task(planner, ...)
+- **Running read-only commands** — git status, git log, git diff, ls, tree
+- **Fetching documentation** — WebFetch, WebSearch for docs
+- **Research tasks** — Understanding code, architecture, dependencies
+
+### Only Confirm Destructive Actions
+
+Ask for confirmation ONLY when:
+- Writing or editing files (unless trivial/obvious)
+- Running commands that modify state (git commit, git push, rm, etc.)
+- Installing packages or changing dependencies
+- Making architectural decisions with multiple valid approaches
+
+### Anti-Pattern: Over-Confirmation
+
+```
+❌ WRONG: "I'll search for authentication files. Is that okay?"
+❌ WRONG: "Let me read the config file first. Should I proceed?"
+❌ WRONG: "I'm going to explore the codebase to understand the structure. Confirm?"
+
+✅ CORRECT: Just do it. Report findings. Ask only when you need a decision.
+```
+
+**Research and exploration are encouraged. Just do them.**
+
+---
+
 ## Philosophy
 
 This codebase will outlive you. Every shortcut becomes someone else's burden.
@@ -604,7 +640,8 @@ Use these slash commands for common workflows:
 
 ## Safety
 
-- Always seek explicit approval for destructive changes (deletes, force pushes)
+- Seek approval for **destructive** changes only (file deletes, force pushes, schema migrations)
+- Non-destructive operations (read, search, explore) proceed without confirmation
 - Never commit secrets or `.env` files
 - Use environment variables for all API keys
 - Validate user input at system boundaries

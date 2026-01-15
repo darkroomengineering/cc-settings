@@ -1,417 +1,638 @@
 #!/bin/bash
-# Darkroom Claude Code Setup Script
-# Fully standalone - auto-installs all dependencies
+# Darkroom Claude Code Setup Script v5.1
+# Batteries Included - Auto-installs all dependencies
+# Supports: macOS, Linux, Windows (Git Bash/WSL)
 
 set -e
 
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
+VERSION="5.1"
+
+# Default options
 MINIMAL=false
 SKIP_DEPS=false
+PRESERVE_MCP=true
+INTERACTIVE=true
+DRY_RUN=false
+DO_ROLLBACK=false
+BACKUP_FILE=""
 
-# Parse arguments
-for arg in "$@"; do
-    case $arg in
-        --minimal)
-            MINIMAL=true
-            shift
-            ;;
-        --skip-deps)
-            SKIP_DEPS=true
-            shift
-            ;;
-        --help|-h)
-            echo "Darkroom Claude Code Setup"
-            echo ""
-            echo "Usage: setup.sh [options]"
-            echo ""
-            echo "Options:"
-            echo "  --minimal    Skip optional tools (agent-browser, tldr)"
-            echo "  --skip-deps  Skip all dependency installation"
-            echo "  --help       Show this help message"
-            echo ""
+# =============================================================================
+# SOURCE LIBRARY FILES
+# =============================================================================
+
+# Source all library files
+source_libs() {
+    local lib_dir="${SCRIPT_DIR}/lib"
+
+    if [[ ! -d "$lib_dir" ]]; then
+        echo "ERROR: Library directory not found: $lib_dir"
+        echo "Please ensure setup.sh is run from the team-config directory."
+        exit 1
+    fi
+
+    # Source in dependency order
+    source "${lib_dir}/colors.sh"
+    source "${lib_dir}/platform.sh"
+    source "${lib_dir}/prompts.sh"
+    source "${lib_dir}/packages.sh"
+    source "${lib_dir}/mcp.sh"
+}
+
+source_libs
+
+# =============================================================================
+# ARGUMENT PARSING
+# =============================================================================
+
+show_help() {
+    echo "Darkroom Claude Code Setup v${VERSION}"
+    echo ""
+    echo "Usage: setup.sh [options]"
+    echo ""
+    echo "Options:"
+    echo "  --minimal          Skip optional tools (agent-browser, tldr, pipx)"
+    echo "  --skip-deps        Skip all dependency installation"
+    echo "  --preserve-mcp     Preserve custom MCP servers from existing config (default)"
+    echo "  --no-preserve-mcp  Don't preserve custom MCP servers"
+    echo "  --no-interactive   Run without prompts (use defaults)"
+    echo "  --dry-run          Show what would be done without making changes"
+    echo "  --rollback         Restore from the most recent backup"
+    echo "  --help, -h         Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  ./setup.sh                      # Full interactive setup"
+    echo "  ./setup.sh --minimal            # Quick setup, skip optional tools"
+    echo "  ./setup.sh --no-interactive     # CI/automated setup"
+    echo "  ./setup.sh --rollback           # Restore previous configuration"
+    echo ""
+}
+
+parse_args() {
+    for arg in "$@"; do
+        case $arg in
+            --minimal)
+                MINIMAL=true
+                ;;
+            --skip-deps)
+                SKIP_DEPS=true
+                ;;
+            --preserve-mcp)
+                PRESERVE_MCP=true
+                ;;
+            --no-preserve-mcp)
+                PRESERVE_MCP=false
+                ;;
+            --no-interactive)
+                INTERACTIVE=false
+                disable_prompts
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                ;;
+            --rollback)
+                DO_ROLLBACK=true
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            *)
+                warn "Unknown option: $arg"
+                ;;
+        esac
+    done
+}
+
+# =============================================================================
+# BACKUP AND ROLLBACK
+# =============================================================================
+
+# Create a timestamped backup of the Claude config directory
+create_backup() {
+    local timestamp
+    timestamp=$(get_timestamp)
+    local backup_dir="${CLAUDE_DIR}/backups"
+    BACKUP_FILE="${backup_dir}/backup-${timestamp}.tar.gz"
+
+    mkdir -p "$backup_dir"
+
+    # Files to backup
+    local files_to_backup=()
+    [[ -f "${CLAUDE_DIR}/settings.json" ]] && files_to_backup+=("settings.json")
+    [[ -f "${CLAUDE_DIR}/CLAUDE.md" ]] && files_to_backup+=("CLAUDE.md")
+
+    if [[ ${#files_to_backup[@]} -eq 0 ]]; then
+        debug "No existing files to backup"
+        BACKUP_FILE=""
+        return 0
+    fi
+
+    info "Creating backup: ${BACKUP_FILE}"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would backup: ${files_to_backup[*]}"
+        return 0
+    fi
+
+    # Create tarball
+    (cd "$CLAUDE_DIR" && tar -czf "$BACKUP_FILE" "${files_to_backup[@]}" 2>/dev/null) || {
+        warn "Could not create backup tarball, falling back to simple copy"
+        for f in "${files_to_backup[@]}"; do
+            cp "${CLAUDE_DIR}/${f}" "${backup_dir}/${f}.${timestamp}.bak" 2>/dev/null || true
+        done
+    }
+
+    progress_ok "Backup created"
+
+    # Clean old backups (keep last 5)
+    local backup_count
+    backup_count=$(find "$backup_dir" -name "backup-*.tar.gz" 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$backup_count" -gt 5 ]]; then
+        debug "Cleaning old backups (keeping last 5)"
+        find "$backup_dir" -name "backup-*.tar.gz" -type f | sort | tail -n +6 | xargs rm -f 2>/dev/null || true
+    fi
+}
+
+# Rollback to the most recent backup
+do_rollback() {
+    local backup_dir="${CLAUDE_DIR}/backups"
+
+    if [[ ! -d "$backup_dir" ]]; then
+        error "No backup directory found at: $backup_dir"
+        exit 1
+    fi
+
+    # Find most recent backup
+    local latest_backup
+    latest_backup=$(find "$backup_dir" -name "backup-*.tar.gz" -type f 2>/dev/null | sort -r | head -1)
+
+    if [[ -z "$latest_backup" ]]; then
+        error "No backups found in: $backup_dir"
+        exit 1
+    fi
+
+    info "Found backup: $latest_backup"
+    echo ""
+
+    if [[ "$INTERACTIVE" == true ]]; then
+        if ! prompt_yn "Restore this backup? This will overwrite current config"; then
+            info "Rollback cancelled"
             exit 0
-            ;;
-    esac
-done
+        fi
+    fi
 
-echo "╔══════════════════════════════════════════╗"
-echo "║   Darkroom Claude Code Setup v5.0        ║"
-echo "║   Fully Standalone - Auto-Install        ║"
-echo "║   (Idempotent - safe to re-run)          ║"
-echo "╚══════════════════════════════════════════╝"
-echo ""
+    info "Restoring from backup..."
 
-# Detect OS
-detect_os() {
-    case "$(uname -s)" in
-        Darwin*)  echo "macos" ;;
-        Linux*)   echo "linux" ;;
-        MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
-        *)        echo "unknown" ;;
-    esac
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would restore from: $latest_backup"
+        exit 0
+    fi
+
+    # Extract backup
+    (cd "$CLAUDE_DIR" && tar -xzf "$latest_backup") || {
+        error "Failed to extract backup"
+        exit 1
+    }
+
+    success "Configuration restored from backup"
+    info "Backup file: $latest_backup"
+    echo ""
+    info "Restart Claude Code to apply restored configuration."
+    exit 0
 }
 
-OS=$(detect_os)
-echo "🖥️  Detected OS: $OS"
-echo ""
+# =============================================================================
+# CLEANUP AND ERROR HANDLING
+# =============================================================================
 
-# Install a package using the appropriate package manager
-install_package() {
-    local pkg="$1"
-    local name="${2:-$pkg}"
+# Cleanup function for error handling
+cleanup_on_error() {
+    local exit_code=$?
 
-    if [ "$SKIP_DEPS" = true ]; then
-        echo "  ⚠ Skipped $name (--skip-deps)"
-        return 1
-    fi
-
-    case "$OS" in
-        macos)
-            if command -v brew &>/dev/null; then
-                echo "  → Installing $name via Homebrew..."
-                brew install "$pkg" 2>/dev/null && return 0
-            fi
-            ;;
-        linux)
-            if command -v apt-get &>/dev/null; then
-                echo "  → Installing $name via apt..."
-                sudo apt-get update -qq && sudo apt-get install -y "$pkg" 2>/dev/null && return 0
-            elif command -v dnf &>/dev/null; then
-                echo "  → Installing $name via dnf..."
-                sudo dnf install -y "$pkg" 2>/dev/null && return 0
-            elif command -v pacman &>/dev/null; then
-                echo "  → Installing $name via pacman..."
-                sudo pacman -S --noconfirm "$pkg" 2>/dev/null && return 0
-            fi
-            ;;
-        windows)
-            if command -v choco &>/dev/null; then
-                echo "  → Installing $name via Chocolatey..."
-                choco install "$pkg" -y 2>/dev/null && return 0
-            elif command -v scoop &>/dev/null; then
-                echo "  → Installing $name via Scoop..."
-                scoop install "$pkg" 2>/dev/null && return 0
-            fi
-            ;;
-    esac
-
-    return 1
-}
-
-# Install npm package globally
-install_npm_global() {
-    local pkg="$1"
-    local name="${2:-$pkg}"
-
-    if [ "$SKIP_DEPS" = true ]; then
-        echo "  ⚠ Skipped $name (--skip-deps)"
-        return 1
-    fi
-
-    if command -v bun &>/dev/null; then
-        echo "  → Installing $name via bun..."
-        bun install -g "$pkg" 2>/dev/null && return 0
-    elif command -v npm &>/dev/null; then
-        echo "  → Installing $name via npm..."
-        npm install -g "$pkg" 2>/dev/null && return 0
-    fi
-
-    return 1
-}
-
-# Install Python package via pipx or pip
-install_python_pkg() {
-    local pkg="$1"
-    local name="${2:-$pkg}"
-
-    if [ "$SKIP_DEPS" = true ]; then
-        echo "  ⚠ Skipped $name (--skip-deps)"
-        return 1
-    fi
-
-    if command -v pipx &>/dev/null; then
-        echo "  → Installing $name via pipx..."
-        pipx install "$pkg" 2>/dev/null && return 0
-    elif command -v pip3 &>/dev/null; then
-        echo "  → Installing $name via pip3..."
-        pip3 install --user "$pkg" 2>/dev/null && return 0
-    elif command -v pip &>/dev/null; then
-        echo "  → Installing $name via pip..."
-        pip install --user "$pkg" 2>/dev/null && return 0
-    fi
-
-    return 1
-}
-
-# Check and install dependencies
-echo "📦 Checking dependencies..."
-echo ""
-
-# Required: git
-if ! command -v git &>/dev/null; then
-    echo "❌ git is required but not installed."
-    echo "   Please install git and re-run setup."
-    exit 1
-fi
-echo "  ✓ git"
-
-# Required: jq (for learnings, skill activation, statusline)
-if ! command -v jq &>/dev/null; then
-    echo "  ⚠ jq not found (required for learnings & statusline)"
-    if ! install_package jq "jq"; then
+    if [[ $exit_code -ne 0 ]]; then
         echo ""
-        echo "  ⚠ Could not auto-install jq. Please install manually:"
-        echo "    macOS:   brew install jq"
-        echo "    Linux:   sudo apt install jq"
-        echo "    Windows: choco install jq"
+        error "Setup failed with exit code: $exit_code"
+
+        if [[ -n "$BACKUP_FILE" ]] && [[ -f "$BACKUP_FILE" ]]; then
+            echo ""
+            warn "A backup was created before changes were made."
+            info "To restore: ./setup.sh --rollback"
+        fi
+    fi
+}
+
+trap cleanup_on_error EXIT
+
+# =============================================================================
+# INSTALLATION FUNCTIONS
+# =============================================================================
+
+# Create directory structure
+create_directories() {
+    info "Creating directory structure..."
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would create directories in: $CLAUDE_DIR"
+        return 0
+    fi
+
+    local dirs=(
+        "${CLAUDE_DIR}/scripts"
+        "${CLAUDE_DIR}/agents"
+        "${CLAUDE_DIR}/commands"
+        "${CLAUDE_DIR}/skills"
+        "${CLAUDE_DIR}/handoffs"
+        "${CLAUDE_DIR}/learnings"
+        "${CLAUDE_DIR}/hooks"
+        "${CLAUDE_DIR}/tldr-cache"
+        "${CLAUDE_DIR}/backups"
+    )
+
+    for dir in "${dirs[@]}"; do
+        mkdir -p "$dir"
+    done
+
+    progress_ok "Directory structure created"
+}
+
+# Clean old configuration files
+clean_old_config() {
+    info "Cleaning old configuration..."
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would clean old config files"
+        return 0
+    fi
+
+    local cleaned=0
+
+    # Remove old scripts (will be replaced)
+    if [[ -d "${CLAUDE_DIR}/scripts" ]] && [[ "$(ls -A "${CLAUDE_DIR}/scripts" 2>/dev/null)" ]]; then
+        rm -f "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null && cleaned=$((cleaned + 1))
+    fi
+
+    # Remove old agents (will be replaced)
+    if [[ -d "${CLAUDE_DIR}/agents" ]] && [[ "$(ls -A "${CLAUDE_DIR}/agents" 2>/dev/null)" ]]; then
+        rm -f "${CLAUDE_DIR}/agents/"*.md 2>/dev/null && cleaned=$((cleaned + 1))
+    fi
+
+    # Remove old commands (will be replaced)
+    if [[ -d "${CLAUDE_DIR}/commands" ]] && [[ "$(ls -A "${CLAUDE_DIR}/commands" 2>/dev/null)" ]]; then
+        rm -f "${CLAUDE_DIR}/commands/"*.md 2>/dev/null && cleaned=$((cleaned + 1))
+    fi
+
+    # Remove old skills (will be replaced)
+    if [[ -d "${CLAUDE_DIR}/skills" ]] && [[ "$(ls -A "${CLAUDE_DIR}/skills" 2>/dev/null)" ]]; then
+        rm -f "${CLAUDE_DIR}/skills/"*.json 2>/dev/null
+        rm -f "${CLAUDE_DIR}/skills/"*.md 2>/dev/null && cleaned=$((cleaned + 1))
+    fi
+
+    # Remove old hooks docs (will be replaced)
+    if [[ -d "${CLAUDE_DIR}/hooks" ]] && [[ "$(ls -A "${CLAUDE_DIR}/hooks" 2>/dev/null)" ]]; then
+        rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null && cleaned=$((cleaned + 1))
+    fi
+
+    # Remove old cache files
+    rm -f "${CLAUDE_DIR}/skill-rules.cache" 2>/dev/null
+    rm -f "${CLAUDE_DIR}/skill-activation.out" 2>/dev/null
+
+    # Remove old CLAUDE.md (will be replaced)
+    rm -f "${CLAUDE_DIR}/CLAUDE.md" 2>/dev/null
+
+    if [[ $cleaned -gt 0 ]]; then
+        progress_ok "Cleaned old configuration ($cleaned areas)"
+    else
+        progress_ok "No old configuration to clean (fresh install)"
+    fi
+}
+
+# Copy configuration files
+install_config_files() {
+    info "Installing configuration files..."
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would install config files from: $SCRIPT_DIR"
+        return 0
+    fi
+
+    # Copy CLAUDE.md
+    if [[ -f "${SCRIPT_DIR}/CLAUDE.md" ]]; then
+        cp "${SCRIPT_DIR}/CLAUDE.md" "${CLAUDE_DIR}/"
+        progress_ok "CLAUDE.md (coding standards)"
+    fi
+
+    # Copy scripts
+    if [[ -d "${SCRIPT_DIR}/scripts" ]]; then
+        cp -r "${SCRIPT_DIR}/scripts/"* "${CLAUDE_DIR}/scripts/" 2>/dev/null || true
+        chmod +x "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null || true
+        progress_ok "scripts/ (hook commands)"
+    fi
+
+    # Copy agents
+    if [[ -d "${SCRIPT_DIR}/agents" ]]; then
+        cp -r "${SCRIPT_DIR}/agents/"* "${CLAUDE_DIR}/agents/" 2>/dev/null || true
+        local agent_count
+        agent_count=$(find "${SCRIPT_DIR}/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+        progress_ok "agents/ ($agent_count agents)"
+    fi
+
+    # Copy commands
+    if [[ -d "${SCRIPT_DIR}/commands" ]]; then
+        cp -r "${SCRIPT_DIR}/commands/"* "${CLAUDE_DIR}/commands/" 2>/dev/null || true
+        local cmd_count
+        cmd_count=$(find "${SCRIPT_DIR}/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+        progress_ok "commands/ ($cmd_count commands)"
+    fi
+
+    # Copy skills
+    if [[ -d "${SCRIPT_DIR}/skills" ]]; then
+        cp -r "${SCRIPT_DIR}/skills/"* "${CLAUDE_DIR}/skills/" 2>/dev/null || true
+        progress_ok "skills/ (skill activation rules)"
+    fi
+
+    # Copy hooks docs
+    if [[ -d "${SCRIPT_DIR}/hooks" ]]; then
+        cp -r "${SCRIPT_DIR}/hooks/"* "${CLAUDE_DIR}/hooks/" 2>/dev/null || true
+        progress_ok "hooks/ (behavioral guidelines)"
+    fi
+}
+
+# Handle settings.json with MCP preservation
+install_settings() {
+    info "Installing settings.json..."
+
+    local team_settings="${SCRIPT_DIR}/settings.json"
+    local existing_settings="${CLAUDE_DIR}/settings.json"
+    local output_settings="${CLAUDE_DIR}/settings.json"
+
+    if [[ ! -f "$team_settings" ]]; then
+        error "Team settings.json not found: $team_settings"
+        return 1
+    fi
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would install settings.json"
+        if [[ "$PRESERVE_MCP" == true ]] && [[ -f "$existing_settings" ]]; then
+            info "[DRY RUN] Would check for custom MCP servers to preserve"
+        fi
+        return 0
+    fi
+
+    # Handle MCP preservation
+    handle_mcp_preservation "$existing_settings" "$team_settings" "$output_settings"
+
+    progress_ok "settings.json (permissions + hooks)"
+}
+
+# =============================================================================
+# DEPENDENCY INSTALLATION
+# =============================================================================
+
+install_dependencies() {
+    header "Checking Dependencies"
+
+    # Initialize platform detection
+    detect_platform
+    info "Platform: $OS ($OS_VERSION) [$ARCH]"
+    echo ""
+
+    # Detect package managers
+    detect_package_managers
+    if [[ -n "$PM_SYSTEM" ]]; then
+        progress_ok "System package manager: $PM_SYSTEM"
+    else
+        progress_warn "No system package manager detected"
+    fi
+    if [[ -n "$PM_NODE" ]]; then
+        progress_ok "Node.js package manager: $PM_NODE"
+    else
+        progress_warn "No Node.js runtime detected"
+    fi
+    echo ""
+
+    # Required: git
+    info "Required dependencies:"
+    if has_command git; then
+        progress_ok "git"
+    else
+        progress_fail "git is required but not installed"
+        error "Please install git and re-run setup"
+        exit 1
+    fi
+
+    # Required: jq (for MCP handling, learnings, statusline)
+    if ! has_command jq; then
+        progress_warn "jq not found (required for MCP handling & learnings)"
+        ensure_system_package jq || {
+            echo ""
+            warn "Could not auto-install jq. Please install manually:"
+            echo "    $(get_install_hint jq)"
+            echo ""
+        }
+    else
+        progress_ok "jq"
+    fi
+
+    # Node.js runtime check
+    if [[ -z "$PM_NODE" ]]; then
+        progress_warn "npm/bun not found (required for MCP servers)"
+        echo "    Please install Node.js: https://nodejs.org"
+        echo "    Or Bun: https://bun.sh"
+    fi
+
+    # Skip optional deps if minimal mode
+    if [[ "$MINIMAL" == true ]]; then
         echo ""
-    else
-        echo "  ✓ jq installed"
+        info "Skipping optional dependencies (--minimal mode)"
+        return 0
     fi
-else
-    echo "  ✓ jq"
-fi
 
-# Required: Node.js/npm (for MCP servers)
-if ! command -v npm &>/dev/null && ! command -v bun &>/dev/null; then
-    echo "  ⚠ npm/bun not found (required for MCP servers)"
-    echo "    Please install Node.js: https://nodejs.org"
-else
-    if command -v bun &>/dev/null; then
-        echo "  ✓ bun"
+    echo ""
+    info "Optional dependencies:"
+
+    # pipx (for Python CLI tools)
+    ensure_pipx
+
+    # agent-browser
+    if ! has_command agent-browser; then
+        progress_warn "agent-browser not found (AI browser automation)"
+        ensure_npm_global agent-browser || {
+            echo "    Install manually: npm i -g agent-browser"
+        }
     else
-        echo "  ✓ npm"
+        progress_ok "agent-browser"
     fi
-fi
 
-# Optional: agent-browser (AI-optimized browser automation)
-if [ "$MINIMAL" = false ]; then
-    if ! command -v agent-browser &>/dev/null; then
-        echo "  ⚠ agent-browser not found (AI browser automation)"
-        if install_npm_global agent-browser "agent-browser"; then
-            echo "  ✓ agent-browser installed"
-        else
-            echo "  ⚠ Install manually: npm i -g agent-browser"
-        fi
+    # llm-tldr
+    if ! has_command tldr && ! has_command tldr-mcp; then
+        progress_warn "llm-tldr not found (semantic code analysis)"
+        ensure_python_package llm-tldr tldr || {
+            echo "    Install manually: pipx install llm-tldr"
+        }
     else
-        echo "  ✓ agent-browser"
+        progress_ok "llm-tldr"
     fi
-fi
-
-# Optional: pipx (for Python tools)
-if [ "$MINIMAL" = false ]; then
-    if ! command -v pipx &>/dev/null; then
-        echo "  ⚠ pipx not found (recommended for Python tools)"
-        if [ "$OS" = "macos" ]; then
-            if command -v brew &>/dev/null; then
-                echo "  → Installing pipx via Homebrew..."
-                brew install pipx 2>/dev/null && pipx ensurepath 2>/dev/null && {
-                    echo "  ✓ pipx installed"
-                    # Reload PATH
-                    export PATH="$HOME/.local/bin:$PATH"
-                }
-            fi
-        elif [ "$OS" = "linux" ]; then
-            if command -v apt-get &>/dev/null; then
-                echo "  → Installing pipx via apt..."
-                sudo apt-get update -qq && sudo apt-get install -y pipx 2>/dev/null && pipx ensurepath 2>/dev/null && {
-                    echo "  ✓ pipx installed"
-                    export PATH="$HOME/.local/bin:$PATH"
-                }
-            fi
-        fi
-    else
-        echo "  ✓ pipx"
-    fi
-fi
-
-# Optional: llm-tldr (semantic code search)
-if [ "$MINIMAL" = false ]; then
-    if ! command -v tldr &>/dev/null && ! command -v tldr-mcp &>/dev/null; then
-        echo "  ⚠ llm-tldr not found (semantic code analysis)"
-        if install_python_pkg llm-tldr "llm-tldr"; then
-            echo "  ✓ llm-tldr installed"
-        else
-            echo "  ⚠ Install manually: pipx install llm-tldr"
-        fi
-    else
-        echo "  ✓ llm-tldr"
-    fi
-fi
-
-echo ""
-
-# Create directories in parallel
-echo "📁 Creating directories..."
-mkdir -p "${CLAUDE_DIR}/scripts" &
-mkdir -p "${CLAUDE_DIR}/agents" &
-mkdir -p "${CLAUDE_DIR}/commands" &
-mkdir -p "${CLAUDE_DIR}/skills" &
-mkdir -p "${CLAUDE_DIR}/handoffs" &
-mkdir -p "${CLAUDE_DIR}/learnings" &
-mkdir -p "${CLAUDE_DIR}/hooks" &
-mkdir -p "${CLAUDE_DIR}/tldr-cache" &
-wait
-echo "  ✓ Directory structure created"
-
-# Backup existing config
-if [ -f "${CLAUDE_DIR}/settings.json" ]; then
-    BACKUP_FILE="${CLAUDE_DIR}/settings.json.backup.$(date +%Y%m%d%H%M%S)"
-    echo "💾 Backing up existing settings.json"
-    cp "${CLAUDE_DIR}/settings.json" "$BACKUP_FILE"
-fi
-
-# Clean old configuration files (preserves user data: learnings, handoffs, logs)
-echo ""
-echo "🧹 Cleaning old configuration..."
-CLEANED=0
-
-# Remove old scripts (will be replaced)
-if [ -d "${CLAUDE_DIR}/scripts" ] && [ "$(ls -A ${CLAUDE_DIR}/scripts 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null && CLEANED=$((CLEANED + 1))
-fi
-
-# Remove old agents (will be replaced)
-if [ -d "${CLAUDE_DIR}/agents" ] && [ "$(ls -A ${CLAUDE_DIR}/agents 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/agents/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
-fi
-
-# Remove old commands (will be replaced)
-if [ -d "${CLAUDE_DIR}/commands" ] && [ "$(ls -A ${CLAUDE_DIR}/commands 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/commands/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
-fi
-
-# Remove old skills (will be replaced)
-if [ -d "${CLAUDE_DIR}/skills" ] && [ "$(ls -A ${CLAUDE_DIR}/skills 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/skills/"*.json 2>/dev/null
-    rm -f "${CLAUDE_DIR}/skills/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
-fi
-
-# Remove old hooks docs (will be replaced)
-if [ -d "${CLAUDE_DIR}/hooks" ] && [ "$(ls -A ${CLAUDE_DIR}/hooks 2>/dev/null)" ]; then
-    rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null && CLEANED=$((CLEANED + 1))
-fi
-
-# Remove old cache files
-rm -f "${CLAUDE_DIR}/skill-rules.cache" 2>/dev/null
-rm -f "${CLAUDE_DIR}/skill-activation.out" 2>/dev/null
-
-# Remove old settings.json (backup already made)
-rm -f "${CLAUDE_DIR}/settings.json" 2>/dev/null
-rm -f "${CLAUDE_DIR}/CLAUDE.md" 2>/dev/null
-
-if [ $CLEANED -gt 0 ]; then
-    echo "  ✓ Cleaned old configuration ($CLEANED directories)"
-else
-    echo "  ✓ No old configuration to clean (fresh install)"
-fi
-
-echo ""
-echo "📦 Installing configuration..."
-echo ""
-
-# Copy files in parallel using background jobs
-[ -f "${SCRIPT_DIR}/CLAUDE.md" ] && cp "${SCRIPT_DIR}/CLAUDE.md" "${CLAUDE_DIR}/" &
-PID_CLAUDE=$!
-
-[ -f "${SCRIPT_DIR}/settings.json" ] && cp "${SCRIPT_DIR}/settings.json" "${CLAUDE_DIR}/" &
-PID_SETTINGS=$!
-
-[ -d "${SCRIPT_DIR}/scripts" ] && cp -r "${SCRIPT_DIR}/scripts/"* "${CLAUDE_DIR}/scripts/" &
-PID_SCRIPTS=$!
-
-[ -d "${SCRIPT_DIR}/agents" ] && cp -r "${SCRIPT_DIR}/agents/"* "${CLAUDE_DIR}/agents/" &
-PID_AGENTS=$!
-
-[ -d "${SCRIPT_DIR}/commands" ] && cp -r "${SCRIPT_DIR}/commands/"* "${CLAUDE_DIR}/commands/" &
-PID_COMMANDS=$!
-
-[ -d "${SCRIPT_DIR}/skills" ] && cp -r "${SCRIPT_DIR}/skills/"* "${CLAUDE_DIR}/skills/" &
-PID_SKILLS=$!
-
-[ -d "${SCRIPT_DIR}/hooks" ] && cp -r "${SCRIPT_DIR}/hooks/"* "${CLAUDE_DIR}/hooks/" &
-PID_HOOKS=$!
-
-# Wait for all copies and report status
-wait $PID_CLAUDE 2>/dev/null && echo "  ✓ CLAUDE.md (coding standards)"
-wait $PID_SETTINGS 2>/dev/null && echo "  ✓ settings.json (permissions + hooks)"
-wait $PID_SCRIPTS 2>/dev/null && echo "  ✓ scripts/ (hook commands)"
-wait $PID_AGENTS 2>/dev/null && {
-    AGENT_COUNT=$(find "${SCRIPT_DIR}/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-    echo "  ✓ agents/ ($AGENT_COUNT agents)"
 }
-wait $PID_COMMANDS 2>/dev/null && {
-    CMD_COUNT=$(find "${SCRIPT_DIR}/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-    echo "  ✓ commands/ ($CMD_COUNT commands)"
+
+# =============================================================================
+# SUMMARY AND VERIFICATION
+# =============================================================================
+
+show_feature_summary() {
+    header "Features Enabled"
+
+    # Core features (always available)
+    box_start "Core Features"
+    box_line "ok" "Skill Activation (19 skills)"
+    box_line "ok" "Agent Routing (9 agents)"
+    box_line "ok" "Session Handoffs (auto-save)"
+    box_line "ok" "Persistent Learnings (/learn)"
+
+    # jq-dependent features
+    if has_command jq; then
+        box_line "ok" "Custom Statusline"
+    else
+        box_line "warn" "Statusline (install jq)"
+    fi
+
+    # agent-browser
+    if has_command agent-browser; then
+        box_line "ok" "Browser Automation (agent-browser)"
+    else
+        box_line "warn" "Browser Automation (npm i -g agent-browser)"
+    fi
+
+    # tldr
+    if has_command tldr || has_command tldr-mcp; then
+        box_line "ok" "Semantic Code Search (tldr)"
+    else
+        box_line "warn" "Semantic Search (pipx install llm-tldr)"
+    fi
+
+    box_end
+
+    # MCP Servers summary
+    if [[ -f "${CLAUDE_DIR}/settings.json" ]]; then
+        echo ""
+        show_mcp_summary "${CLAUDE_DIR}/settings.json"
+    fi
 }
-wait $PID_SKILLS 2>/dev/null && echo "  ✓ skills/ (skill activation rules)"
-wait $PID_HOOKS 2>/dev/null && echo "  ✓ hooks/ (behavioral guidelines)"
 
-# Make scripts executable
-chmod +x "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null || true
+verify_installation() {
+    info "Verifying installation..."
 
-echo ""
-echo "╔══════════════════════════════════════════╗"
-echo "║           Setup Complete! 🎉             ║"
-echo "╚══════════════════════════════════════════╝"
-echo ""
-echo "📂 Installed to ~/.claude/"
-echo ""
+    local errors=0
 
-# Feature summary based on what's installed
-echo "┌─────────────────────────────────────────┐"
-echo "│ Features Enabled                        │"
-echo "├─────────────────────────────────────────┤"
+    # Check critical files exist
+    if [[ ! -f "${CLAUDE_DIR}/settings.json" ]]; then
+        progress_fail "settings.json missing"
+        errors=$((errors + 1))
+    else
+        progress_ok "settings.json"
+    fi
 
-# Core features (always available)
-echo "│ ✓ Skill Activation (19 skills)         │"
-echo "│ ✓ Agent Routing (9 agents)             │"
-echo "│ ✓ Session Handoffs (auto-save)         │"
-echo "│ ✓ Persistent Learnings (/learn)        │"
+    if [[ ! -f "${CLAUDE_DIR}/CLAUDE.md" ]]; then
+        progress_fail "CLAUDE.md missing"
+        errors=$((errors + 1))
+    else
+        progress_ok "CLAUDE.md"
+    fi
 
-# jq-dependent features
-if command -v jq &>/dev/null; then
-    echo "│ ✓ Custom Statusline                    │"
-else
-    echo "│ ⚠ Statusline (install jq)              │"
-fi
+    # Check scripts are executable
+    if [[ -d "${CLAUDE_DIR}/scripts" ]]; then
+        local script_count
+        script_count=$(find "${CLAUDE_DIR}/scripts" -name "*.sh" -type f 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$script_count" -gt 0 ]]; then
+            progress_ok "scripts/ ($script_count scripts)"
+        else
+            progress_warn "No scripts found"
+        fi
+    fi
 
-# agent-browser
-if command -v agent-browser &>/dev/null; then
-    echo "│ ✓ Browser Automation (agent-browser)   │"
-else
-    echo "│ ⚠ Browser Automation (npm i -g agent-browser) │"
-fi
+    if [[ $errors -gt 0 ]]; then
+        return 1
+    fi
+    return 0
+}
 
-# tldr
-if command -v tldr &>/dev/null || command -v tldr-mcp &>/dev/null; then
-    echo "│ ✓ Semantic Code Search (tldr)          │"
-    echo "│   Auto-warms on session start          │"
-else
-    echo "│ ⚠ Semantic Search (pipx install llm-tldr) │"
-fi
+# =============================================================================
+# MAIN
+# =============================================================================
 
-echo "└─────────────────────────────────────────┘"
-echo ""
+main() {
+    # Parse command line arguments
+    parse_args "$@"
 
-# MCP Servers
-echo "┌─────────────────────────────────────────┐"
-echo "│ MCP Servers                             │"
-echo "├─────────────────────────────────────────┤"
-echo "│ ✓ context7   - Library docs lookup      │"
-echo "│ ✓ Sanity     - CMS operations (OAuth)   │"
-if command -v tldr-mcp &>/dev/null; then
-    echo "│ ✓ tldr       - Semantic code analysis   │"
-else
-    echo "│ ⚠ tldr       - Install llm-tldr         │"
-fi
-echo "└─────────────────────────────────────────┘"
-echo ""
+    # Handle rollback mode
+    if [[ "$DO_ROLLBACK" == true ]]; then
+        do_rollback
+        exit 0
+    fi
 
-echo "💡 Just describe what you want naturally!"
-echo "   The skill activation system suggests"
-echo "   relevant skills, workflows, and agents."
-echo ""
-echo "⚡ Restart Claude Code to apply changes."
-echo ""
+    # Show banner
+    show_banner "$VERSION"
+
+    # Dry run notice
+    if [[ "$DRY_RUN" == true ]]; then
+        warn "DRY RUN MODE - No changes will be made"
+        echo ""
+    fi
+
+    # Install dependencies first (need jq for MCP handling)
+    install_dependencies
+
+    # Create backup before making changes
+    echo ""
+    create_backup
+
+    # Create directories
+    echo ""
+    create_directories
+
+    # Clean old config
+    clean_old_config
+
+    # Install config files
+    echo ""
+    install_config_files
+
+    # Handle settings.json with MCP preservation
+    echo ""
+    install_settings
+
+    # Verify installation
+    echo ""
+    if verify_installation; then
+        show_success_banner
+    else
+        warn "Installation completed with warnings"
+    fi
+
+    # Show feature summary
+    show_feature_summary
+
+    echo ""
+    echo "Installed to: ${CYAN}~/.claude/${RESET}"
+    echo ""
+    info "Just describe what you want naturally!"
+    info "The skill activation system suggests relevant skills, workflows, and agents."
+    echo ""
+
+    if [[ -n "$BACKUP_FILE" ]]; then
+        info "Backup saved to: $BACKUP_FILE"
+        info "To restore: ./setup.sh --rollback"
+        echo ""
+    fi
+
+    success "Restart Claude Code to apply changes."
+    echo ""
+}
+
+# Run main function
+main "$@"
