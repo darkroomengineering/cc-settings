@@ -10,10 +10,16 @@ Add Lenis smooth scroll to a Next.js project.
 
 ## Instructions
 
-1. **Install**
+1. **Check latest version and install**
    ```bash
-   bun add lenis
+   # Check latest version
+   bun info lenis --json | jq -r '"lenis@" + .version'
+
+   # Install with explicit latest
+   bun add lenis@latest
    ```
+
+   > Using `@latest` ensures the most recent version. For production stability, pin to a specific version after checking.
 
 2. **Create Lenis provider** (React)
    ```tsx

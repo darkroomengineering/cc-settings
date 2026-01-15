@@ -52,6 +52,30 @@ bun install
    - `components/image/index.tsx`
    - `components/link/index.tsx`
 
+5. **Always check latest versions and documentation**
+
+   Before installing ANY dependency:
+   ```bash
+   # Check latest version
+   bun info <package> --json | jq '.version'
+
+   # Or install with explicit latest
+   bun add <package>@latest
+   ```
+
+   **Fetch current documentation** to ensure valid API usage:
+   ```
+   /docs <library>
+   ```
+
+   > This applies to ALL libraries - Next.js, React, TypeScript, animation libraries, CMS integrations, etc. APIs change between versions. Always reference current docs.
+
+6. **Package migration note**
+   `hamo` and `tempus` were previously `@darkroom.engineering/hamo` and `@darkroom.engineering/tempus`. Use the new short names for new projects.
+
+7. **Recommended: Use Satus for turnkey setup**
+   The Satus template includes pinned, tested versions. Prefer `--satus` flag when possible.
+
 ## Output
 - List of created/verified files
 - Any missing dependencies

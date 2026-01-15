@@ -258,6 +258,26 @@
 			},
 			"agents": ["implementer"]
 		},
+		"versions": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "low",
+			"description": "Check latest version of any npm package",
+			"promptTriggers": {
+				"keywords": [
+					"/versions",
+					"package version",
+					"latest version",
+					"check version",
+					"npm version"
+				],
+				"intentPatterns": [
+					"(check|show|get|what).*?version",
+					"(latest|current).*?(version|release)"
+				]
+			},
+			"agents": ["implementer"]
+		},
 		"create_handoff": {
 			"type": "skill",
 			"enforcement": "block",
