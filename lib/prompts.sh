@@ -1,6 +1,7 @@
 #!/bin/bash
 # lib/prompts.sh - Interactive CLI prompts
 # Part of Darkroom Claude Code Setup
+# Compatible with bash 3.2+ (macOS default)
 
 # Global flag for non-interactive mode
 INTERACTIVE=true
@@ -15,28 +16,35 @@ enable_prompts() {
     INTERACTIVE=true
 }
 
+# Portable lowercase conversion (bash 3.2 compatible)
+to_lower() {
+    echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 # Yes/No prompt with default
 # Usage: prompt_yn "Question?" [y|n]
 # Returns: 0 for yes, 1 for no
 prompt_yn() {
     local prompt="$1"
     local default="${2:-y}"
+    local default_lower
+    default_lower=$(to_lower "$default")
 
     # Non-interactive mode: return default
     if [[ "$INTERACTIVE" != true ]]; then
-        [[ "${default,,}" == "y" ]]
+        [[ "$default_lower" == "y" ]]
         return $?
     fi
 
     local hint
-    if [[ "${default,,}" == "y" ]]; then
-        hint="(y/n, default: yes)"
+    if [[ "$default_lower" == "y" ]]; then
+        hint="[Y/n]"
     else
-        hint="(y/n, default: no)"
+        hint="[y/N]"
     fi
 
     while true; do
-        echo -en "${CYAN}?${RESET} ${prompt} ${hint} "
+        echo -n "? ${prompt} ${hint} "
         read -r response
 
         # Empty response: use default
@@ -44,7 +52,10 @@ prompt_yn() {
             response="$default"
         fi
 
-        case "${response,,}" in
+        local response_lower
+        response_lower=$(to_lower "$response")
+
+        case "$response_lower" in
             y|yes)
                 return 0
                 ;;
@@ -52,7 +63,7 @@ prompt_yn() {
                 return 1
                 ;;
             *)
-                echo "  Please enter 'y' for yes or 'n' for no."
+                echo "  Please enter 'y' or 'n'"
                 ;;
         esac
     done
@@ -74,7 +85,8 @@ prompt_select() {
         return 0
     fi
 
-    echo -e "${CYAN}?${RESET} ${prompt}"
+    echo ""
+    echo "? ${prompt}"
     echo ""
 
     local i
@@ -85,13 +97,12 @@ prompt_select() {
     echo ""
 
     while true; do
-        echo -en "  Enter number (1-${num_options}): "
+        echo -n "  Enter number (1-${num_options}): "
         read -r choice
 
         if [[ "$choice" =~ ^[0-9]+$ ]] && [[ "$choice" -ge 1 ]] && [[ "$choice" -le "$num_options" ]]; then
             REPLY=$((choice - 1))
-            echo ""
-            echo "${options[$REPLY]}"
+            echo "  -> ${options[$REPLY]}"
             return 0
         else
             echo "  Enter a number between 1 and ${num_options}"
@@ -99,7 +110,7 @@ prompt_select() {
     done
 }
 
-# Multiple selection menu (checkbox style)
+# Multiple selection menu (simple text-based)
 # Usage: prompt_multiselect "prompt" "option1" "option2" "option3"
 # Sets: SELECTED_ITEMS array with selected options
 # Sets: SELECTED_INDICES array with selected indices (0-based)
@@ -130,24 +141,26 @@ prompt_multiselect() {
         return 0
     fi
 
-    echo -e "${CYAN}?${RESET} ${prompt}"
     echo ""
+    echo "? ${prompt}"
 
     while true; do
+        echo ""
+        echo "  Current selection:"
         # Display options with checkboxes
         for i in "${!options[@]}"; do
             local checkbox
             if [[ "${selected[$i]}" == true ]]; then
-                checkbox="${GREEN}✓${RESET}"
+                checkbox="[x]"
             else
-                checkbox="${DIM}-${RESET}"
+                checkbox="[ ]"
             fi
             printf "  %s %d. %s\n" "$checkbox" "$((i + 1))" "${options[$i]}"
         done
 
         echo ""
-        echo -e "  ${DIM}Enter number to toggle, or:${RESET}"
-        echo -en "  ${DIM}a=all, x=none, q=cancel, Enter=done${RESET} > "
+        echo "  Commands: <number>=toggle, a=all, x=none, q=cancel, Enter=done"
+        echo -n "  > "
         read -r input
 
         case "$input" in
@@ -161,14 +174,14 @@ prompt_multiselect() {
                         SELECTED_INDICES+=("$i")
                     fi
                 done
-                echo ""
+                echo "  -> Selected ${#SELECTED_ITEMS[@]} item(s)"
                 return 0
                 ;;
             q|Q|n|N|no|quit|cancel)
                 # Cancel
                 SELECTED_ITEMS=()
                 SELECTED_INDICES=()
-                echo ""
+                echo "  -> Cancelled"
                 return 1
                 ;;
             a|A|all|y|Y|yes)
@@ -195,10 +208,6 @@ prompt_multiselect() {
                 fi
                 ;;
         esac
-
-        # Clear previous output for redraw (move cursor up)
-        local lines_to_clear=$((num_options + 3))
-        printf '\033[%dA\033[J' "$lines_to_clear"
     done
 }
 
@@ -218,10 +227,10 @@ prompt_text() {
 
     local hint=""
     if [[ -n "$default" ]]; then
-        hint=" (default: ${default})"
+        hint=" [${default}]"
     fi
 
-    echo -en "${CYAN}?${RESET} ${prompt}${hint}: "
+    echo -n "? ${prompt}${hint}: "
     read -r REPLY
 
     if [[ -z "$REPLY" ]]; then
@@ -239,56 +248,35 @@ press_any_key() {
         return 0
     fi
 
-    echo -en "${DIM}${prompt}${RESET}"
+    echo -n "${prompt}"
     read -rsn1
     echo ""
 }
 
-# Spinner for long operations (run in background)
-# Usage: start_spinner "message" && long_operation && stop_spinner
-SPINNER_PID=""
-
-start_spinner() {
+# Simple status message (replaces spinner)
+# Usage: status_start "message"
+status_start() {
     local message="${1:-Working...}"
-
-    if [[ "$INTERACTIVE" != true ]] || [[ ! -t 1 ]]; then
-        echo "$message"
-        return 0
-    fi
-
-    (
-        local spin_chars='|/-\'
-        local i=0
-        while true; do
-            printf "\r${CYAN}%s${RESET} %s " "${spin_chars:$((i % 4)):1}" "$message"
-            i=$((i + 1))
-            sleep 0.1
-        done
-    ) &
-    SPINNER_PID=$!
+    echo -n "  ${message} "
 }
 
-stop_spinner() {
+# Status done
+# Usage: status_done [success]
+status_done() {
     local success="${1:-true}"
-
-    if [[ -n "$SPINNER_PID" ]]; then
-        kill "$SPINNER_PID" 2>/dev/null
-        wait "$SPINNER_PID" 2>/dev/null
-        SPINNER_PID=""
-        printf "\r\033[K"  # Clear line
-    fi
-
     if [[ "$success" == true ]]; then
-        echo -e "${GREEN}Done${RESET}"
+        echo "done"
+    else
+        echo "failed"
     fi
 }
 
-# Progress bar
+# Progress bar (simple ASCII)
 # Usage: progress_bar current total [width]
 progress_bar() {
     local current="$1"
     local total="$2"
-    local width="${3:-40}"
+    local width="${3:-30}"
 
     if [[ ! -t 1 ]]; then
         return 0
@@ -298,10 +286,17 @@ progress_bar() {
     local filled=$((current * width / total))
     local empty=$((width - filled))
 
-    printf "\r  ["
-    printf "${GREEN}%*s${RESET}" "$filled" '' | tr ' ' '#'
-    printf "%*s" "$empty" ''
-    printf "] %3d%% (%d/%d)" "$percent" "$current" "$total"
+    # Build bar string
+    local bar=""
+    local j
+    for ((j = 0; j < filled; j++)); do
+        bar="${bar}#"
+    done
+    for ((j = 0; j < empty; j++)); do
+        bar="${bar}-"
+    done
+
+    printf "\r  [%s] %3d%% (%d/%d)" "$bar" "$percent" "$current" "$total"
 
     if [[ "$current" -eq "$total" ]]; then
         echo ""
