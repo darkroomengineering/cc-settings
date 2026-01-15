@@ -610,6 +610,7 @@ import { useWindowSize, useRect, useIntersectionObserver } from '@darkroom.engin
 - Small, atomic commits
 - Never force push to `main` or `master`
 - Always verify before destructive operations
+- **NO AI ATTRIBUTION** - Never add Co-Authored-By, "Generated with", or any AI/Claude credits to commits, PRs, or generated text. Operate stealth.
 
 ---
 
