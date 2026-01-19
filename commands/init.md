@@ -1,23 +1,36 @@
-# /init - Initialize Darkroom project standards
+# /init - Initialize Darkroom Project
 
-Set up a project with Darkroom Engineering conventions.
+**Default: Use Satus starter.** Only use existing project mode for legacy codebases.
 
 ## Usage
 ```
-/init              # Initialize current project
-/init --satus      # Clone from Satus starter
+/init              # Clone Satus starter (DEFAULT)
+/init --existing   # Configure existing project
 ```
 
-## For New Projects (--satus)
+## New Projects (Default)
+
+**Always start with Satus:**
 
 ```bash
-bunx degit darkroomengineering/satus .
+bunx degit darkroomengineering/satus my-project
+cd my-project
 bun install
+bun dev
 ```
 
-## For Existing Projects
+**Why Satus?**
+- Pre-configured React Compiler (no manual memoization needed)
+- Correct dependency versions (tested, compatible)
+- Darkroom conventions built-in (Image/Link wrappers, CSS modules)
+- Lenis, GSAP, R3F, Sanity integrations ready
+- Biome, TypeScript strict mode, Tailwind v4
 
-1. **Check/create structure**
+## Existing Projects (--existing)
+
+For legacy codebases that can't use Satus:
+
+1. **Verify structure**
    ```
    app/
    components/
@@ -28,7 +41,7 @@ bun install
      utils/
    ```
 
-2. **Create project CLAUDE.md** (if not exists)
+2. **Create project CLAUDE.md**
    ```markdown
    # Project: <name>
 
@@ -36,47 +49,34 @@ bun install
    <Brief description>
 
    ## Key Patterns
-   - <Project-specific patterns>
+   - <Project-specific conventions>
 
    ## Important Files
    - <Critical files to know about>
    ```
 
-3. **Verify dependencies**
-   - TypeScript strict mode
-   - Biome for linting
-   - Tailwind v4
-   - Required Darkroom packages
-
-4. **Create wrappers** (if missing)
-   - `components/image/index.tsx`
-   - `components/link/index.tsx`
-
-5. **Always check latest versions and documentation**
-
-   Before installing ANY dependency:
+3. **Check dependencies are latest**
    ```bash
-   # Check latest version
-   bun info <package> --json | jq '.version'
+   # ALWAYS check before installing
+   bun info <package>
 
-   # Or install with explicit latest
-   bun add <package>@latest
-   ```
-
-   **Fetch current documentation** to ensure valid API usage:
-   ```
+   # Fetch current docs
    /docs <library>
    ```
 
-   > This applies to ALL libraries - Next.js, React, TypeScript, animation libraries, CMS integrations, etc. APIs change between versions. Always reference current docs.
+4. **Create wrappers** (if missing)
+   - `components/ui/image/index.tsx`
+   - `components/ui/link/index.tsx`
 
-6. **Package migration note**
-   `hamo` and `tempus` were previously `@darkroom.engineering/hamo` and `@darkroom.engineering/tempus`. Use the new short names for new projects.
+## Pre-Implementation Checklist
 
-7. **Recommended: Use Satus for turnkey setup**
-   The Satus template includes pinned, tested versions. Prefer `--satus` flag when possible.
+Before writing ANY code with external libraries:
+
+- [ ] **Fetch latest docs**: `/docs <library>` (context7)
+- [ ] **Check latest version**: `bun info <package>`
+- [ ] **Use Satus conventions** if applicable
 
 ## Output
-- List of created/verified files
-- Any missing dependencies
-- Suggested next steps
+- Created/cloned project structure
+- Installed dependencies with correct versions
+- Ready to run `bun dev`
