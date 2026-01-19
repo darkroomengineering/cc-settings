@@ -160,6 +160,12 @@ The skill activation system integrates with session handoffs:
 | "Create a component" | `component` → scaffolder |
 | "Remember this for next time" | `learn` → store learning |
 | "What did we learn?" | `learn` → recall learnings |
+| "Check the accessibility" | `qa` → tester (agent-browser) |
+| "Validate visually" | `qa` → tester (agent-browser) |
+| "Does this look right?" | `qa` → tester (agent-browser) |
+| "Run visual QA" | `qa` → tester (agent-browser) |
+| "Check contrast and touch targets" | `qa` → tester (agent-browser) |
+| "How much context left?" | `context` → context management |
 
 ## Debugging
 
