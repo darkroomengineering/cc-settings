@@ -100,6 +100,47 @@ Ask for confirmation ONLY when:
 
 ---
 
+## ⚠️ MANDATORY: Latest Docs & Versions
+
+**Before implementing ANYTHING with external libraries:**
+
+### 1. Check Latest Documentation (context7)
+```bash
+# ALWAYS fetch current docs before writing code
+/docs gsap        # Get latest GSAP API
+/docs lenis       # Get latest Lenis API
+/docs three       # Get latest Three.js API
+/docs framer      # Get latest Framer Motion API
+```
+
+**Why?** APIs change. Your training data is outdated. Context7 fetches CURRENT documentation.
+
+### 2. Check Latest Versions Before Installing
+```bash
+# ALWAYS check version before bun add
+bun info gsap           # Check latest version
+bun info lenis          # Check latest version
+bun info @react-three/fiber
+```
+
+**Why?** Installing old versions leads to deprecated APIs, security issues, and missing features.
+
+### 3. Default to Satus for New Projects
+```bash
+# ALWAYS use Satus starter for new projects
+bunx degit darkroomengineering/satus my-project
+cd my-project && bun install
+```
+
+**Why?** Satus has correct versions, React Compiler setup, and Darkroom conventions pre-configured.
+
+### Pre-Implementation Checklist
+- [ ] Fetched latest docs via context7 for each library used
+- [ ] Checked latest versions with `bun info <package>`
+- [ ] Using Satus conventions (Image/Link wrappers, CSS modules as 's', no manual memoization)
+
+---
+
 ## Philosophy
 
 This codebase will outlive you. Every shortcut becomes someone else's burden.
@@ -237,6 +278,7 @@ Need exact string match?
 - **Turbopack** - Development bundler
 - **Biome** - Linting and formatting (not ESLint/Prettier)
 - **TypeScript** - `strict: true`, `noUncheckedIndexedAccess: true`
+- **React Compiler** - Automatic memoization (no manual `useMemo`/`useCallback`/`memo`)
 
 ### Animation & Graphics
 - **Lenis** - Smooth scroll (`lenis`)
@@ -298,6 +340,8 @@ import { Link } from '@/components/link'
 - `'use client'` only when needed (interactivity, hooks, browser APIs)
 - Prefer composition over props drilling
 - Use `hamo` hooks for performance
+- **React Compiler enabled**: Do NOT use `useMemo`, `useCallback`, or `React.memo`
+- Use `useRef` for object instantiation to prevent infinite loops
 
 ### CSS/Styling
 - Tailwind v4 for utility classes
@@ -612,6 +656,152 @@ import { useWindowSize, useRect, useIntersectionObserver } from 'hamo'
 
 ---
 
+## UI Constraints (from ui-skills)
+
+> Opinionated constraints for building better interfaces. Source: [ui-skills](https://ui-skills.com)
+
+### Stack
+- Use **Tailwind CSS** defaults unless custom values exist or requested
+- Animation: `motion/react` for JavaScript, `tw-animate-css` for entrance/micro
+- Use `cn()` utility (`clsx` + `tailwind-merge`) for class logic
+
+### Components
+- Use accessible primitives: **Base UI**, **React Aria**, or **Radix**
+- Never mix primitive systems within the same interaction surface
+- Add `aria-label` to icon-only buttons
+- Prioritize existing project components first
+
+### Interaction
+- Use `AlertDialog` for destructive/irreversible actions
+- Use structural skeletons for loading states
+- Use `h-dvh` not `h-screen`
+- Respect `safe-area-inset` for fixed positioning
+- Display errors adjacent to their action source
+- **NEVER block paste** in `input` or `textarea` elements
+
+### Animation
+- Only animate when explicitly requested
+- Restrict to compositor properties: `transform`, `opacity`
+- Never animate layout or paint properties
+- Max **200ms** for interaction feedback
+- Pause looping animations when off-screen
+- Honor `prefers-reduced-motion`
+
+### Typography & Layout
+- `text-balance` for headings, `text-pretty` for body
+- `tabular-nums` for numerical data
+- Fixed `z-index` scale (no arbitrary values)
+- Use `size-*` for square elements
+
+### Performance & Design
+- Avoid large blur/backdrop-filter animations
+- No `will-change` outside active animations
+- Exclude gradients unless requested
+- Limit accent color to one per view
+
+---
+
+## Accessibility Standards (WCAG 2.1)
+
+> Always check for accessibility issues. Source: [rams.ai](https://rams.ai)
+
+### Critical (Must Fix)
+- Images need `alt` text
+- Icon-only buttons need `aria-label`
+- Form inputs need `<label>` or `aria-label`
+- No `<div onClick>` - use semantic elements (`<button>`, `<a>`)
+- Links need `href` attribute
+
+### Serious
+- Focus indicators required (no `outline: none` without replacement)
+- Keyboard handlers for all interactive elements
+- No color-only status indicators
+- Touch targets minimum **44x44px**
+
+### Moderate
+- Proper heading hierarchy (no skipping levels)
+- No positive `tabIndex` values
+- ARIA roles have required attributes
+
+### Design Requirements
+- Color contrast **4.5:1** minimum
+- Component states: disabled, hover, focus, loading, error
+- Dark mode support when applicable
+
+---
+
+## Auto-Review Behavior
+
+After editing `.tsx`, `.jsx`, `.ts`, `.js` files, automatically check for:
+1. Accessibility violations (critical items above)
+2. UI constraint violations (from ui-skills)
+3. Performance anti-patterns (barrel imports, waterfalls)
+
+**Report issues inline with specific line numbers and fixes.**
+
+---
+
+## Visual QA with agent-browser
+
+Use `agent-browser` for visual validation after component changes.
+
+### Quick Start
+```bash
+/qa                              # Validate dev server
+/qa http://localhost:3000/about  # Validate specific page
+```
+
+### Automated Checks
+| Check | Validation |
+|-------|------------|
+| **Accessibility** | aria-labels, alt text, heading hierarchy, focus order |
+| **Touch Targets** | Minimum 44x44px for interactive elements |
+| **Contrast** | Text meets 4.5:1 ratio |
+| **Layout** | No overflow, proper spacing, alignment |
+| **States** | Hover, focus, disabled, loading, error |
+
+### Workflow
+1. **Navigate** to target URL (dev server or Storybook)
+2. **Screenshot** the viewport
+3. **Snapshot** the accessibility tree
+4. **Validate** against design guidelines
+5. **Report** issues with fix suggestions
+
+### Commands
+```bash
+agent-browser navigate http://localhost:3000
+agent-browser screenshot
+agent-browser snapshot           # Get accessibility tree
+agent-browser click @e5          # Click element by ref
+```
+
+### When to Run Visual QA
+- After creating/modifying components
+- Before PR submission
+- When fixing visual bugs
+- After responsive changes
+
+---
+
+## Stack Profiles
+
+For project-specific patterns, reference the appropriate profile:
+
+| Stack | Profile | Use When |
+|-------|---------|----------|
+| Next.js | `profiles/nextjs.md` | App Router projects |
+| WebGL/3D | `profiles/webgl.md` | R3F, Three.js, GSAP |
+| React Native | `profiles/react-native.md` | Expo, mobile apps |
+| Tauri | `profiles/tauri.md` | Desktop apps |
+
+Profiles are auto-detected by checking for:
+- `next.config.*` → Next.js profile
+- `@react-three/fiber` in deps → WebGL profile
+- `expo` in deps → React Native profile
+- `tauri.conf.json` → Tauri profile
+
+---
+
 ## Git & Commits
 
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
@@ -632,6 +822,7 @@ Use these slash commands for common workflows:
 - `/explore [target]` - Navigate codebase
 - `/docs <topic>` - Fetch library documentation (uses context7 MCP)
 - `/debug` - Browser debugging with agent-browser (screenshots, DOM inspection, AI-optimized)
+- `/qa` - Visual QA validation with agent-browser (a11y, contrast, touch targets, layout)
 - `/context` - Manage context window
 - `/orchestrate <task>` - Multi-agent task coordination
 - `/ask <question>` - Ask Oracle for guidance

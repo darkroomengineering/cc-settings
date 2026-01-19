@@ -133,9 +133,9 @@
 		},
 		"docs": {
 			"type": "skill",
-			"enforcement": "suggest",
-			"priority": "medium",
-			"description": "Documentation lookup via context7 MCP - fetches up-to-date library docs",
+			"enforcement": "block",
+			"priority": "critical",
+			"description": "ALWAYS fetch latest docs via context7 before implementing with any library",
 			"promptTriggers": {
 				"keywords": [
 					"/docs",
@@ -144,19 +144,32 @@
 					"api reference",
 					"library docs",
 					"package docs",
-					"latest docs"
+					"latest docs",
+					"implement with",
+					"use gsap",
+					"use lenis",
+					"use three",
+					"use framer",
+					"use radix",
+					"use sanity",
+					"add animation",
+					"add scroll",
+					"add 3d"
 				],
 				"intentPatterns": [
 					"(fetch|get|find|show).*?doc",
 					"how.*?(to|do).*?(use|implement)",
-					"(react|next|tailwind|gsap|lenis|three).*?(docs?|api|guide)",
-					"what.*?(api|method|function).*?(for|in)"
+					"(react|next|tailwind|gsap|lenis|three|framer|motion|radix|sanity|zustand).*?(docs?|api|guide|component|hook)",
+					"what.*?(api|method|function).*?(for|in)",
+					"(implement|add|create|build).*?(with|using).*?(gsap|lenis|three|framer|motion|radix)",
+					"(setup|configure|integrate).*?(library|package|dependency)"
 				]
 			},
 			"agents": ["librarian", "oracle"],
 			"mcpServer": "context7",
 			"autoInvoke": true,
-			"_hint": "Use context7 MCP to fetch current documentation for any library"
+			"preImplementation": true,
+			"_hint": "MANDATORY: Fetch context7 docs BEFORE writing any code that uses external libraries. Never assume API knowledge - always verify."
 		},
 		"debug": {
 			"type": "skill",
@@ -214,13 +227,15 @@
 		"init": {
 			"type": "skill",
 			"enforcement": "suggest",
-			"priority": "low",
-			"description": "Initialize project with Darkroom standards",
+			"priority": "high",
+			"description": "Initialize project with Satus starter - the Darkroom standard",
 			"promptTriggers": {
-				"keywords": ["/init", "initialize", "setup project", "new project"],
-				"intentPatterns": ["(init|setup|start).*?project"]
+				"keywords": ["/init", "initialize", "setup project", "new project", "start project", "create project", "new nextjs", "new next.js"],
+				"intentPatterns": ["(init|setup|start|create|new).*?project", "(new|create).*?(nextjs|next.js|react).*?(project|app)"]
 			},
-			"agents": ["scaffolder"]
+			"agents": ["scaffolder"],
+			"defaultTemplate": "satus",
+			"_hint": "Always use Satus starter: bunx degit darkroomengineering/satus"
 		},
 		"orchestrate": {
 			"type": "workflow",
@@ -260,23 +275,31 @@
 		},
 		"versions": {
 			"type": "skill",
-			"enforcement": "suggest",
-			"priority": "low",
-			"description": "Check latest version of any npm package",
+			"enforcement": "block",
+			"priority": "high",
+			"description": "ALWAYS check latest version before installing any package",
 			"promptTriggers": {
 				"keywords": [
 					"/versions",
 					"package version",
 					"latest version",
 					"check version",
-					"npm version"
+					"npm version",
+					"bun add",
+					"npm install",
+					"install package",
+					"add dependency"
 				],
 				"intentPatterns": [
 					"(check|show|get|what).*?version",
-					"(latest|current).*?(version|release)"
+					"(latest|current).*?(version|release)",
+					"(install|add).*?(package|dependency|library)",
+					"(bun|npm|yarn|pnpm).*?(add|install)"
 				]
 			},
-			"agents": ["implementer"]
+			"agents": ["implementer"],
+			"preInstall": true,
+			"_hint": "MANDATORY: Run 'bun info <package>' before installing. Never install without checking latest version first."
 		},
 		"create_handoff": {
 			"type": "skill",
@@ -395,6 +418,59 @@
 					"(recall|show|list).*?learnings",
 					"what.*?(learned|know).*?(about|from)",
 					"lessons.*?(learned|from)"
+				]
+			}
+		},
+		"qa": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "high",
+			"description": "Visual QA validation with agent-browser - accessibility, contrast, touch targets, layout",
+			"promptTriggers": {
+				"keywords": [
+					"/qa",
+					"visual qa",
+					"validate visually",
+					"check accessibility",
+					"check contrast",
+					"touch targets",
+					"visual validation",
+					"qa check",
+					"accessibility audit",
+					"a11y check"
+				],
+				"intentPatterns": [
+					"(validate|check|verify).*?(visually|visual|ui|a11y|accessibility)",
+					"(run|do).*?(qa|visual).*?(check|validation|test)",
+					"(check|test).*?(contrast|touch|layout|accessibility)",
+					"(accessibility|a11y).*?(audit|check|test)",
+					"does.*?(look|render).*?(correct|right|good)"
+				]
+			},
+			"agents": ["tester"],
+			"tool": "agent-browser",
+			"autoInvoke": true,
+			"_hint": "Use agent-browser to screenshot, analyze accessibility tree, check contrast/touch targets/layout"
+		},
+		"context": {
+			"type": "skill",
+			"enforcement": "suggest",
+			"priority": "medium",
+			"description": "Context window management - check usage, compact, optimize",
+			"promptTriggers": {
+				"keywords": [
+					"/context",
+					"context window",
+					"context usage",
+					"running out of context",
+					"compact context",
+					"context limit"
+				],
+				"intentPatterns": [
+					"(check|show|how much).*?context",
+					"context.*?(window|usage|limit|full)",
+					"running.*?(out|low).*?context",
+					"(compact|clear|reset).*?context"
 				]
 			}
 		}
