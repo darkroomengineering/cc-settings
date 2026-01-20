@@ -303,3 +303,110 @@ diff_mcp_servers() {
     echo "Only in file 1:$in_1_only"
     echo "Only in file 2:$in_2_only"
 }
+
+# =============================================================================
+# CLAUDE.JSON MCP INSTALLATION
+# =============================================================================
+# Claude Code reads MCP servers from ~/.claude.json, NOT ~/.claude/settings.json
+# This section handles installing MCP servers to the correct location.
+
+CLAUDE_JSON_FILE="${HOME}/.claude.json"
+
+# Extract MCP servers from ~/.claude.json (different structure than settings.json)
+# In claude.json, mcpServers can be at root level or per-project
+extract_claude_json_mcp() {
+    if [[ ! -f "$CLAUDE_JSON_FILE" ]]; then
+        echo ""
+        return 1
+    fi
+
+    # Get root-level mcpServers
+    local keys
+    keys=$(jq -r '.mcpServers // {} | keys[]' "$CLAUDE_JSON_FILE" 2>/dev/null)
+    echo "$keys" | tr '\n' ' ' | sed 's/ $//'
+}
+
+# Install MCP servers to ~/.claude.json (where Claude Code actually reads them)
+# Usage: install_mcp_to_claude_json "team_settings.json"
+install_mcp_to_claude_json() {
+    local team_settings="$1"
+
+    if [[ ! -f "$team_settings" ]]; then
+        warn "Team settings not found: $team_settings"
+        return 1
+    fi
+
+    # Extract MCP servers from team settings
+    local team_mcp
+    team_mcp=$(jq '.mcpServers // {}' "$team_settings" 2>/dev/null)
+
+    if [[ "$team_mcp" == "{}" ]] || [[ -z "$team_mcp" ]]; then
+        debug "No MCP servers in team config"
+        return 0
+    fi
+
+    # Create claude.json if it doesn't exist
+    if [[ ! -f "$CLAUDE_JSON_FILE" ]]; then
+        echo '{}' > "$CLAUDE_JSON_FILE"
+    fi
+
+    # Read existing claude.json
+    local existing_json
+    existing_json=$(cat "$CLAUDE_JSON_FILE")
+
+    # Get existing root-level mcpServers (preserve user's custom servers)
+    local existing_mcp
+    existing_mcp=$(echo "$existing_json" | jq '.mcpServers // {}' 2>/dev/null)
+
+    # Merge: team servers + existing user servers (user servers take precedence for conflicts)
+    # This means team provides base, user can override
+    local merged_mcp
+    merged_mcp=$(echo "$team_mcp" "$existing_mcp" | jq -s '.[0] * .[1]' 2>/dev/null)
+
+    # Update claude.json with merged mcpServers
+    local updated_json
+    updated_json=$(echo "$existing_json" | jq --argjson mcp "$merged_mcp" '.mcpServers = $mcp' 2>/dev/null)
+
+    if [[ -n "$updated_json" ]]; then
+        echo "$updated_json" | jq '.' > "$CLAUDE_JSON_FILE"
+        debug "Installed MCP servers to ~/.claude.json"
+        return 0
+    else
+        warn "Failed to update ~/.claude.json"
+        return 1
+    fi
+}
+
+# Show MCP servers installed in ~/.claude.json
+show_claude_json_mcp() {
+    if [[ ! -f "$CLAUDE_JSON_FILE" ]]; then
+        return 1
+    fi
+
+    local servers
+    servers=$(extract_claude_json_mcp)
+
+    if [[ -z "$servers" ]]; then
+        return 1
+    fi
+
+    box_start "MCP Servers (active)"
+
+    read -ra server_array <<< "$servers"
+    for server in "${server_array[@]}"; do
+        local server_config
+        server_config=$(jq ".mcpServers.\"$server\" // {}" "$CLAUDE_JSON_FILE" 2>/dev/null)
+
+        local has_command has_url
+        has_command=$(echo "$server_config" | jq -r '.command // empty' 2>/dev/null)
+        has_url=$(echo "$server_config" | jq -r '.url // empty' 2>/dev/null)
+
+        if [[ -n "$has_command" ]] || [[ -n "$has_url" ]]; then
+            box_line "ok" "$server"
+        else
+            box_line "warn" "$server (invalid config)"
+        fi
+    done
+
+    box_end
+}
