@@ -51,8 +51,12 @@ create_backup() {
 
     (cd "$CLAUDE_DIR" && tar -czf "${backup_dir}/backup-${timestamp}.tar.gz" "${files_to_backup[@]}" 2>/dev/null) || true
 
-    # Keep last 5 backups
-    find "$backup_dir" -name "backup-*.tar.gz" -type f 2>/dev/null | sort | head -n -5 | xargs rm -f 2>/dev/null || true
+    # Keep last 5 backups (remove all but the 5 most recent)
+    local backup_count
+    backup_count=$(find "$backup_dir" -name "backup-*.tar.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$backup_count" -gt 5 ]]; then
+        find "$backup_dir" -name "backup-*.tar.gz" -type f 2>/dev/null | sort | head -n $((backup_count - 5)) | xargs rm -f 2>/dev/null || true
+    fi
 }
 
 # =============================================================================
@@ -140,8 +144,12 @@ install_settings() {
         return 1
     fi
 
-    # Preserve custom MCP servers
+    # Install permissions, hooks, etc. to ~/.claude/settings.json
     handle_mcp_preservation "$existing_settings" "$team_settings" "${CLAUDE_DIR}/settings.json"
+
+    # IMPORTANT: Install MCP servers to ~/.claude.json (where Claude Code actually reads them)
+    # Claude Code reads MCP from ~/.claude.json, NOT from ~/.claude/settings.json
+    install_mcp_to_claude_json "$team_settings"
 }
 
 install_dependencies() {
@@ -163,7 +171,8 @@ show_summary() {
     echo ""
     box_start "Installed"
     box_line "ok" "CLAUDE.md"
-    box_line "ok" "settings.json"
+    box_line "ok" "settings.json (permissions, hooks)"
+    box_line "ok" "~/.claude.json (MCP servers)"
 
     local agent_count=$(find "${CLAUDE_DIR}/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     local cmd_count=$(find "${CLAUDE_DIR}/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
@@ -176,10 +185,9 @@ show_summary() {
     box_line "ok" "scripts/"
     box_end
 
-    if [[ -f "${CLAUDE_DIR}/settings.json" ]]; then
-        echo ""
-        show_mcp_summary "${CLAUDE_DIR}/settings.json"
-    fi
+    # Show MCP servers from ~/.claude.json (where Claude Code reads them)
+    echo ""
+    show_claude_json_mcp
 }
 
 # =============================================================================
