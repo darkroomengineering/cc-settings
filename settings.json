@@ -103,7 +103,17 @@
 				]
 			}
 		],
-		"PreToolUse": [],
+		"PreToolUse": [
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -q \"git push\"; then echo \"[Hook] Pushing to remote - ensure changes are reviewed\"; fi'"
+					}
+				]
+			}
+		],
 		"PostToolUse": [
 			{
 				"matcher": "Write|Edit",
@@ -111,6 +121,15 @@
 					{
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/post-edit.sh\""
+					}
+				]
+			},
+			{
+				"matcher": "Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'FILE=$(echo \"$TOOL_INPUT\" | grep -o '\"file_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' | sed 's/.*\"\\([^\"]*\\)\"$/\\1/'); if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then npx tsc --noEmit 2>&1 | grep -E \"$FILE\" || true; fi'"
 					}
 				]
 			},
@@ -150,6 +169,16 @@
 					{
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\"; bash \"$HOME/.claude/scripts/create-handoff.sh\""
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'CHANGES=$(git diff --stat 2>/dev/null | tail -1); if [[ \"$CHANGES\" =~ ([0-9]+)[[:space:]]+file ]]; then COUNT=${BASH_REMATCH[1]}; if [ \"$COUNT\" -gt 5 ]; then echo \"[Hook] Session had significant changes ($COUNT files) - consider /learn store\"; fi; fi'"
 					}
 				]
 			}
