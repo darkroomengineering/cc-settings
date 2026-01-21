@@ -3,7 +3,7 @@ name: context
 description: Switch development ecosystem contexts or manage context window
 arguments:
   - name: target
-    description: Ecosystem (web, ios, macos, tauri, rn) or window action (status, compact, fresh, save)
+    description: Ecosystem (web, webgl, desktop, mobile) or window action (status, compact, fresh, save)
     required: false
 ---
 
@@ -12,10 +12,9 @@ arguments:
 **Examples:**
 - `/context` - Show available contexts and current status
 - `/context web` - Switch to web development mode (Next.js, React)
-- `/context ios` - Switch to iOS development mode (Swift, SwiftUI)
-- `/context macos` - Switch to macOS development mode (AppKit, SwiftUI)
-- `/context tauri` - Switch to Tauri desktop app mode (Rust + Web)
-- `/context rn` - Switch to React Native mode (Expo)
+- `/context webgl` - Switch to WebGL/3D mode (R3F, Three.js)
+- `/context desktop` - Switch to desktop app mode (Tauri - macOS/Windows/Linux)
+- `/context mobile` - Switch to mobile app mode (Expo - iOS/Android)
 - `/context status` - Show context window usage
 - `/context compact` - Summarize and prune old context
 
@@ -29,10 +28,8 @@ arguments:
 |---------|-------|-------|---------|
 | **web** | `nextjs`, `next` | Next.js, React, Tailwind, Lenis | `profiles/nextjs.md` |
 | **webgl** | `3d`, `three` | R3F, Three.js, GSAP, WebGL | `profiles/webgl.md` |
-| **ios** | `swift`, `swiftui` | Swift, SwiftUI, UIKit | `profiles/ios.md` |
-| **macos** | `appkit`, `mac` | Swift, AppKit, SwiftUI | `profiles/macos.md` |
-| **tauri** | `desktop` | Rust, Tauri, Web frontend | `profiles/tauri.md` |
-| **rn** | `expo`, `mobile` | React Native, Expo | `profiles/react-native.md` |
+| **desktop** | `tauri`, `macos`, `mac` | Tauri (Rust + Web) for macOS/Windows/Linux | `profiles/tauri.md` |
+| **mobile** | `rn`, `expo`, `ios` | Expo/React Native for iOS/Android | `profiles/react-native.md` |
 
 ### Behavior When Switching
 
@@ -71,69 +68,13 @@ Session context persisted.
 
 ---
 
-### Context: iOS (`/context ios`)
+### Context: Desktop (`/context desktop`)
 
 **Output:**
 ```markdown
-## Context Switched: iOS (Swift/SwiftUI)
+## Context Switched: Desktop (Tauri)
 
-### Behavioral Changes
-- **UI Framework**: SwiftUI preferred, UIKit when needed
-- **Architecture**: MVVM with ObservableObject
-- **Concurrency**: Swift async/await, actors
-- **State**: @State, @Binding, @Environment
-- **Navigation**: NavigationStack (iOS 16+)
-
-### Tools Favored
-- `xcodebuild` for builds
-- `swift` CLI for packages
-- `xcrun` for simulators
-
-### Key Conventions
-- Protocol-oriented design
-- Value types (structs) over classes
-- Result builders for DSLs
-- Combine for reactive streams
-
-Session context persisted.
-```
-
----
-
-### Context: macOS (`/context macos`)
-
-**Output:**
-```markdown
-## Context Switched: macOS (AppKit/SwiftUI)
-
-### Behavioral Changes
-- **UI Framework**: SwiftUI + AppKit interop
-- **Windows**: NSWindow, WindowGroup
-- **Menus**: @CommandsBuilder, NSMenu
-- **System**: NSWorkspace, FileManager
-- **Sandboxing**: Entitlements awareness
-
-### Tools Favored
-- `xcodebuild` for builds
-- `codesign` for signing
-- `notarytool` for notarization
-
-### Key Conventions
-- Document-based app patterns
-- Toolbar and sidebar layouts
-- System integration (Services, Spotlight)
-- Hardened runtime compliance
-
-Session context persisted.
-```
-
----
-
-### Context: Tauri (`/context tauri`)
-
-**Output:**
-```markdown
-## Context Switched: Tauri (Rust + Web)
+**Target Platforms**: macOS, Windows, Linux
 
 ### Active Profile
 `profiles/tauri.md` loaded
@@ -161,11 +102,13 @@ Session context persisted.
 
 ---
 
-### Context: React Native (`/context rn`)
+### Context: Mobile (`/context mobile`)
 
 **Output:**
 ```markdown
-## Context Switched: React Native (Expo)
+## Context Switched: Mobile (Expo)
+
+**Target Platforms**: iOS, Android
 
 ### Active Profile
 `profiles/react-native.md` loaded
@@ -211,10 +154,8 @@ Session context persisted.
 |---------|-------------|
 | `/context web` | Next.js, React, Tailwind, Lenis |
 | `/context webgl` | R3F, Three.js, GSAP, shaders |
-| `/context ios` | Swift, SwiftUI, UIKit |
-| `/context macos` | Swift, AppKit, SwiftUI desktop |
-| `/context tauri` | Rust + Web desktop apps |
-| `/context rn` | React Native with Expo |
+| `/context desktop` | Tauri for macOS/Windows/Linux |
+| `/context mobile` | Expo for iOS/Android |
 
 ### Context Window
 Usage: ████████░░ 73% (~73,000 / 100,000 tokens)
@@ -310,9 +251,8 @@ If no context is set, auto-detection runs based on project files:
 |---------------|-------------|
 | `next.config.*` | web |
 | `@react-three/fiber` in deps | webgl |
-| `*.xcodeproj` or `Package.swift` | ios/macos |
-| `tauri.conf.json` | tauri |
-| `expo` in deps or `app.json` with expo | rn |
+| `tauri.conf.json` or `src-tauri/` | desktop |
+| `expo` in deps or `app.json` with expo | mobile |
 
 ---
 

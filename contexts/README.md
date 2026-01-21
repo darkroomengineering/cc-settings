@@ -7,10 +7,9 @@ Switchable behavioral contexts for working across different platforms and ecosys
 ```bash
 /context           # Show available contexts
 /context web       # Switch to web development (default)
-/context ios       # Switch to iOS/Swift development
-/context macos     # Switch to macOS native development
-/context tauri     # Switch to Tauri desktop apps
-/context rn        # Switch to React Native/Expo
+/context webgl     # Switch to WebGL/3D development
+/context desktop   # Switch to desktop apps (Tauri - macOS/Windows/Linux)
+/context mobile    # Switch to mobile apps (Expo - iOS/Android)
 ```
 
 ## What Contexts Do
@@ -24,18 +23,18 @@ Each context adjusts:
 
 ## Available Contexts
 
-| Context | Ecosystem | Primary Stack |
-|---------|-----------|---------------|
-| `web` | Web development | Next.js, React, Tailwind |
-| `ios` | iOS apps | Swift, SwiftUI, XCTest |
-| `macos` | macOS apps | AppKit, SwiftUI, Sandbox |
-| `tauri` | Desktop apps | Rust, Web frontend, IPC |
-| `rn` | Mobile apps | React Native, Expo |
+| Context | Alias | Platform | Primary Stack |
+|---------|-------|----------|---------------|
+| `web` | `next`, `nextjs` | Web | Next.js, React, Tailwind |
+| `webgl` | `3d`, `three` | Web | R3F, Three.js, GSAP |
+| `desktop` | `tauri`, `macos`, `mac` | macOS/Windows/Linux | Tauri (Rust + Web) |
+| `mobile` | `rn`, `expo`, `ios` | iOS/Android | Expo, React Native |
 
 ## When to Switch
 
-- Working on an iOS feature? `/context ios`
-- Building a Tauri app? `/context tauri`
+- Building a desktop app? `/context desktop`
+- Building a mobile app? `/context mobile`
+- Working on 3D/WebGL? `/context webgl`
 - Back to web work? `/context web`
 
 Contexts persist for the session until you switch again.
