@@ -14,6 +14,40 @@ if command -v biome &>/dev/null; then
     esac
 fi
 
+# Console.log warning detection for JS/TS files
+check_console_logs() {
+    local file="$1"
+
+    # Only check JS/TS files
+    case "$file" in
+        *.ts|*.tsx|*.js|*.jsx) ;;
+        *) return 0 ;;
+    esac
+
+    # Check if file exists and is readable
+    [ -r "$file" ] || return 0
+
+    # Find console.log statements with line numbers
+    local matches
+    matches=$(grep -n 'console\.log' "$file" 2>/dev/null)
+
+    if [ -n "$matches" ]; then
+        echo "" >&2
+        echo "[Hook] console.log found in $file" >&2
+        while IFS= read -r line; do
+            local line_num="${line%%:*}"
+            local content="${line#*:}"
+            # Trim leading whitespace from content
+            content="${content#"${content%%[![:space:]]*}"}"
+            echo "  Line $line_num: $content" >&2
+        done <<< "$matches"
+        echo "[Hook] Remove before committing" >&2
+        echo "" >&2
+    fi
+}
+
+check_console_logs "$FILE_PATH"
+
 # Auto-review + Visual QA reminder for component files
 case "$FILE_PATH" in
     *.tsx|*.jsx)

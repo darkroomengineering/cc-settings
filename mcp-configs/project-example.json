@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_description": "Example project-specific MCP configuration. Place in .claude/settings.json within your project.",
+  "_location": "PROJECT_ROOT/.claude/settings.json",
+
+  "_example_ecommerce": {
+    "_description": "E-commerce project using Shopify + Supabase",
+    "mcpServers": {
+      "supabase": {
+        "command": "npx",
+        "args": ["-y", "@supabase/mcp-server"],
+        "env": {
+          "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+        }
+      }
+    },
+    "disabledMcpServers": [
+      "railway",
+      "postgres"
+    ]
+  },
+
+  "_example_static_site": {
+    "_description": "Static marketing site - minimal servers needed",
+    "disabledMcpServers": [
+      "supabase",
+      "railway",
+      "postgres",
+      "sqlite",
+      "github"
+    ]
+  },
+
+  "_example_api_heavy": {
+    "_description": "API-heavy project with Railway + Postgres",
+    "mcpServers": {
+      "railway": {
+        "command": "npx",
+        "args": ["-y", "@railway/mcp-server"],
+        "env": {
+          "RAILWAY_TOKEN": "${RAILWAY_TOKEN}"
+        }
+      },
+      "postgres": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres"],
+        "env": {
+          "POSTGRES_CONNECTION_STRING": "${DATABASE_URL}"
+        }
+      }
+    },
+    "disabledMcpServers": [
+      "supabase",
+      "notion",
+      "slack"
+    ]
+  },
+
+  "_actual_config_template": {
+    "_description": "Copy this structure to your .claude/settings.json",
+    "mcpServers": {},
+    "disabledMcpServers": []
+  },
+
+  "_notes": {
+    "envVariables": "Use ${VAR_NAME} syntax to reference environment variables from .env files",
+    "inheritance": "Project config merges with global ~/.claude.json config",
+    "precedence": "Project settings override global settings for the same server",
+    "disabling": "Add server names to disabledMcpServers to disable globally-configured servers"
+  }
+}
