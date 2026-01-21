@@ -36,9 +36,9 @@ Restart Claude Code to apply changes.
 ├── settings.json       # Permissions + Hooks + MCP
 ├── agents/             # 10 specialized agents
 ├── commands/           # 17 slash commands
-├── contexts/           # 5 ecosystem contexts (web, ios, macos, tauri, rn)
+├── contexts/           # 4 ecosystem contexts (web, webgl, desktop, mobile)
 ├── rules/              # 7 modular rule files
-├── profiles/           # 6 stack-specific profiles
+├── profiles/           # 4 stack-specific profiles
 ├── mcp-configs/        # MCP server templates
 ├── scripts/            # 12 hook scripts
 ├── skills/             # 19 skill rules
@@ -103,11 +103,10 @@ On session start, the system automatically:
 Switch contexts when working in unfamiliar ecosystems. No configuration needed—just switch and go.
 
 ```bash
-/context ios      # Swift/SwiftUI, MVVM, XCTest patterns
-/context macos    # AppKit, sandboxing, code signing, notarization
-/context tauri    # Rust backend, IPC, capability permissions
-/context rn       # React Native/Expo, FlashList, navigation
 /context web      # Default - Next.js, React, Tailwind (Darkroom patterns)
+/context webgl    # R3F, Three.js, GSAP, shaders
+/context desktop  # Tauri for macOS/Windows/Linux (Rust + Web)
+/context mobile   # Expo for iOS/Android (React Native)
 ```
 
 Each context loads:
@@ -176,8 +175,8 @@ Additional server templates in [mcp-configs/](./mcp-configs/):
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |
 | Debug visually | "Take a screenshot of..." |
-| Work on iOS | `/context ios` |
-| Work on macOS | `/context macos` |
+| Build desktop app | `/context desktop` |
+| Build mobile app | `/context mobile` |
 | Security review | "Review for security issues" |
 | Check accessibility | `/qa` |
 
