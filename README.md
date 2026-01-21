@@ -41,7 +41,8 @@ Restart Claude Code to apply changes.
 ├── profiles/           # 4 stack-specific profiles
 ├── mcp-configs/        # MCP server templates
 ├── scripts/            # 12 hook scripts
-├── skills/             # 19 skill rules
+├── skills/             # 23 skill rules
+├── lib/                # 5 shared bash utilities
 ├── learnings/          # Persistent project memory
 ├── handoffs/           # Session state backups
 └── tldr-cache/         # TLDR warm status
