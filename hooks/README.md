@@ -15,6 +15,18 @@ Claude Code has a **native hooks system** that executes shell scripts at specifi
 | `SessionEnd` | Session ending | `tldr-stats.sh` + `create-handoff.sh` |
 | `Notification` | Task completion | `notify.sh` (macOS/Linux notification) |
 
+## Supporting Scripts
+
+These scripts are used by commands or other hooks but aren't directly triggered by events:
+
+| Script | Purpose |
+|--------|---------|
+| `statusline.sh` | Generates custom status bar (model, git, context %) |
+| `resume-handoff.sh` | Loads previous session state |
+| `recall-learnings.sh` | Retrieves stored learnings by category/search |
+| `store-learning.sh` | Persists a new learning with category |
+| `delete-learning.sh` | Removes outdated learnings |
+
 ## Hook Configuration Format
 
 Hooks are defined in `settings.json`:

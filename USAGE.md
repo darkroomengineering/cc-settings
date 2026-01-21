@@ -102,6 +102,7 @@ When you know exactly what you need:
 | `@explore` | Navigation | Understanding codebase structure |
 | `@oracle` | Expert Q&A | Best practices, architecture decisions |
 | `@maestro` | Multi-agent | Complex tasks needing coordination |
+| `@security-reviewer` | Security audit | OWASP Top 10, secrets, framework-specific checks |
 
 ---
 
@@ -124,6 +125,8 @@ When you know exactly what you need:
 /tldr semantic "query"       # TLDR code analysis
 /learn store bug "fix"       # Store a learning
 /learn recall all            # Recall all learnings
+/qa                          # Visual QA validation (a11y, contrast, layout)
+/versions                    # Check package versions before installing
 ```
 
 ---
