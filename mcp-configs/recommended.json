@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_description": "Recommended MCP servers for Darkroom projects. Copy these into ~/.claude.json under 'mcpServers'.",
+
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@context7/mcp-server"],
+      "env": {},
+      "_description": "Live documentation lookup. Essential for getting current API docs instead of outdated training data.",
+      "_usage": "Triggered by: 'how to use X', 'X docs', 'api reference for Y'",
+      "_contextCost": "low"
+    },
+
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com",
+      "_description": "Vercel deployment management. View deployments, logs, environment variables.",
+      "_usage": "Deploy, check build status, view logs, manage env vars",
+      "_contextCost": "low"
+    },
+
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "env": {},
+      "_description": "Persistent memory across sessions. Stores facts, preferences, and context.",
+      "_usage": "Remember project decisions, user preferences, learned patterns",
+      "_contextCost": "medium"
+    }
+  }
+}
