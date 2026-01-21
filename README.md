@@ -1,6 +1,6 @@
 # Darkroom Claude Code Configuration
 
-Team-shareable Claude Code settings with **native hooks**, **skill activation**, and **persistent learnings**.
+Team-shareable Claude Code settings with **native hooks**, **skill activation**, **ecosystem contexts**, and **persistent learnings**.
 
 ## One-Liner Setup
 
@@ -34,10 +34,14 @@ Restart Claude Code to apply changes.
 ~/.claude/
 ├── CLAUDE.md           # Coding standards
 ├── settings.json       # Permissions + Hooks + MCP
+├── agents/             # 10 specialized agents
+├── commands/           # 17 slash commands
+├── contexts/           # 5 ecosystem contexts (web, ios, macos, tauri, rn)
+├── rules/              # 7 modular rule files
+├── profiles/           # 6 stack-specific profiles
+├── mcp-configs/        # MCP server templates
 ├── scripts/            # 12 hook scripts
 ├── skills/             # 19 skill rules
-├── agents/             # 9 specialized agents
-├── commands/           # 14 slash commands
 ├── learnings/          # Persistent project memory
 ├── handoffs/           # Session state backups
 └── tldr-cache/         # TLDR warm status
@@ -73,8 +77,10 @@ Claude 4.5 Opus | my-project | main✱↑ | ████░░░░░░ 42% (
 |-------|--------|
 | `SessionStart` | Recalls learnings, auto-warms TLDR |
 | `UserPromptSubmit` | Skill activation |
-| `PostToolUse` | TLDR tracking |
+| `PostToolUse` | TLDR tracking, console.log warnings, TypeScript checks |
+| `PreToolUse` | Pre-push review reminder |
 | `PreCompact` / `SessionEnd` | Auto-handoff |
+| `Stop` | Session evaluation, learning reminder |
 
 ### Persistent Learnings
 Store insights that survive across sessions:
@@ -92,6 +98,51 @@ On session start, the system automatically:
 
 ---
 
+## Ecosystem Contexts
+
+Switch contexts when working in unfamiliar ecosystems. No configuration needed—just switch and go.
+
+```bash
+/context ios      # Swift/SwiftUI, MVVM, XCTest patterns
+/context macos    # AppKit, sandboxing, code signing, notarization
+/context tauri    # Rust backend, IPC, capability permissions
+/context rn       # React Native/Expo, FlashList, navigation
+/context web      # Default - Next.js, React, Tailwind (Darkroom patterns)
+```
+
+Each context loads:
+- Behavioral priorities (stability vs speed, etc.)
+- Ecosystem-specific patterns and gotchas
+- Favored tools and commands
+- Relevant documentation sources
+
+See [contexts/](./contexts/) for full details.
+
+---
+
+## Modular Rules
+
+Rules are extracted into focused files for easier maintenance:
+
+| Rule | Focus |
+|------|-------|
+| `rules/security.md` | Secrets, input validation, OWASP |
+| `rules/typescript.md` | Strict mode, no `any`, narrowing |
+| `rules/react.md` | Server Components, no manual memo |
+| `rules/performance.md` | Waterfalls, bundles, lazy loading |
+| `rules/accessibility.md` | WCAG 2.1, aria, semantic HTML |
+| `rules/git.md` | Conventional commits, no force push |
+| `rules/style.md` | CSS modules, Tailwind conventions |
+
+Disable per-project in `.claude/settings.json`:
+```json
+{
+  "disabledRules": ["rules/style.md"]
+}
+```
+
+---
+
 ## MCP Servers
 
 | Server | Purpose | Status |
@@ -99,6 +150,11 @@ On session start, the system automatically:
 | **context7** | Up-to-date library docs | Auto-configured |
 | **Sanity** | CMS operations (GROQ, documents) | OAuth on first use |
 | **tldr** | Semantic search, impact analysis | Auto-installed |
+
+Additional server templates in [mcp-configs/](./mcp-configs/):
+- `recommended.json` - context7, vercel, memory
+- `optional.json` - railway, supabase, cloudflare, github, firecrawl, etc.
+- `project-example.json` - Per-project configuration examples
 
 ## CLI Tools
 
@@ -120,16 +176,24 @@ On session start, the system automatically:
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |
 | Debug visually | "Take a screenshot of..." |
+| Work on iOS | `/context ios` |
+| Work on macOS | `/context macos` |
+| Security review | "Review for security issues" |
+| Check accessibility | `/qa` |
 
 ---
 
 ## Agents
 
-`@planner` `@implementer` `@reviewer` `@tester` `@scaffolder` `@librarian` `@explore` `@oracle` `@maestro`
+`@planner` `@implementer` `@reviewer` `@security-reviewer` `@tester` `@scaffolder` `@librarian` `@explore` `@oracle` `@maestro`
+
+**New:** `@security-reviewer` - OWASP Top 10, secret detection, Shopify/Sanity-specific checks
 
 ## Commands
 
-`/component` `/hook` `/review` `/init` `/lenis` `/explore` `/docs` `/context` `/orchestrate` `/ask` `/create-handoff` `/resume-handoff` `/tldr` `/learn`
+`/component` `/hook` `/review` `/init` `/lenis` `/explore` `/docs` `/context` `/orchestrate` `/ask` `/create-handoff` `/resume-handoff` `/tldr` `/learn` `/debug` `/qa` `/versions`
+
+**Enhanced:** `/context` now supports ecosystem switching (`/context ios`, `/context macos`, etc.)
 
 ---
 
@@ -140,7 +204,10 @@ On session start, the system automatically:
 | **[USAGE.md](./USAGE.md)** | Daily workflow, all commands, agents, examples |
 | **[hooks/README.md](./hooks/README.md)** | Native hooks configuration |
 | **[skills/README.md](./skills/README.md)** | Skill activation details |
+| **[rules/README.md](./rules/README.md)** | Modular rules system |
+| **[mcp-configs/README.md](./mcp-configs/README.md)** | MCP server setup guide |
 | **[commands/learn.md](./commands/learn.md)** | Learning system reference |
+| **[commands/context.md](./commands/context.md)** | Ecosystem context switching |
 
 ---
 
