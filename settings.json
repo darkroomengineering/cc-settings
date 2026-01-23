@@ -8,17 +8,20 @@
 		"context7": {
 			"command": "npx",
 			"args": ["-y", "@upstash/context7-mcp@1.0.8"],
-			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts."
+			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
+			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
 		"Sanity": {
 			"type": "http",
 			"url": "https://mcp.sanity.io",
-			"_comment": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server"
+			"_comment": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server",
+			"serverInstructions": "Sanity CMS content and configuration operations including querying datasets, inspecting schemas, and managing content documents. Use for any tasks involving Sanity projects, GROQ queries, or CMS-driven content workflows."
 		},
 		"tldr": {
 			"command": "tldr-mcp",
 			"args": ["--project", "."],
-			"_comment": "Requires: pipx install llm-tldr. Run 'tldr warm .' in project to index."
+			"_comment": "Requires: pipx install llm-tldr. Run 'tldr warm .' in project to index.",
+			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. Use when you need to find where something is implemented, understand large or unfamiliar code, or answer questions that require scanning many files across the codebase."
 		}
 	},
 	"permissions": {
