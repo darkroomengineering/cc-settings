@@ -4,16 +4,19 @@ Claude Code has a **native hooks system** that executes shell scripts at specifi
 
 ## Configured Hooks
 
-| Event | Trigger | Script |
-|-------|---------|--------|
-| `UserPromptSubmit` | Before Claude sees prompt | `skill-activation.sh` (skill matching) |
-| `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) |
-| `PreToolUse` | Before Bash commands | Logs to `~/.claude/hooks.log` |
-| `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) |
-| `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) |
-| `PreCompact` | Before context compaction | `create-handoff.sh` (saves state) |
-| `SessionEnd` | Session ending | `tldr-stats.sh` + `create-handoff.sh` |
-| `Notification` | Task completion | `notify.sh` (macOS/Linux notification) |
+| Event | Trigger | Script | Async |
+|-------|---------|--------|-------|
+| `UserPromptSubmit` | Before Claude sees prompt | `skill-activation.sh` (skill matching) | No |
+| `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) | No |
+| `PreToolUse` | Before Bash commands | Git push warning inline | No |
+| `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) | No |
+| `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) | **Yes** |
+| `PreCompact` | Before context compaction | `create-handoff.sh` (saves state) | No |
+| `SessionEnd` | Session ending | `tldr-stats.sh` + `create-handoff.sh` | **Yes** |
+| `Stop` | Claude finishes | Learning reminder if >5 files changed | No |
+| `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
+| `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |
+| `Notification` | Task completion | `notify.sh` (macOS/Linux notification) | **Yes** |
 
 ## Supporting Scripts
 
@@ -40,7 +43,9 @@ Hooks are defined in `settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/scripts/your-script.sh"
+            "command": "~/.claude/scripts/your-script.sh",
+            "async": true,
+            "timeout": 30
           }
         ]
       }
@@ -49,20 +54,123 @@ Hooks are defined in `settings.json`:
 }
 ```
 
+### Hook Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `type` | string | `"command"` for shell commands, `"prompt"` for LLM evaluation |
+| `command` | string | Shell command to execute |
+| `async` | boolean | Run in background without blocking (Claude Code 2.1.0+) |
+| `timeout` | number | Timeout in seconds (default: 60) |
+
+### Async Hooks (Background Execution)
+
+Use `async: true` for hooks that don't need to block execution:
+
+```json
+{
+  "PostToolUse": [
+    {
+      "matcher": "mcp__tldr",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "~/.claude/scripts/track-tldr.sh",
+          "async": true,
+          "timeout": 10
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Best uses for async hooks:**
+- Logging and metrics collection
+- Notifications (desktop alerts)
+- Non-critical tracking (TLDR usage stats)
+- Session cleanup tasks
+
+**Avoid async for:**
+- Validation hooks (PreToolUse)
+- Hooks that need to block/allow operations
+- Hooks that inject context (UserPromptSubmit, SessionStart)
+
 ## Available Hook Events
 
-| Event | When |
-|-------|------|
-| `PreToolUse` | Before any tool runs |
-| `PostToolUse` | After any tool runs |
-| `PermissionRequest` | When permission needed |
-| `Notification` | When Claude sends notification |
-| `UserPromptSubmit` | When you submit a prompt |
-| `Stop` | When Claude stops |
-| `SubagentStop` | When subagent stops |
-| `PreCompact` | Before context compaction |
-| `SessionStart` | When session begins |
-| `SessionEnd` | When session ends |
+| Event | When | Matcher |
+|-------|------|---------|
+| `PreToolUse` | Before any tool runs | Tool name |
+| `PostToolUse` | After any tool runs | Tool name |
+| `PermissionRequest` | When permission needed | Tool name |
+| `Notification` | When Claude sends notification | Notification type |
+| `UserPromptSubmit` | When you submit a prompt | - |
+| `Stop` | When Claude stops | - |
+| `SubagentStart` | When subagent spawns | Agent type |
+| `SubagentStop` | When subagent finishes | Agent type |
+| `PreCompact` | Before context compaction | `manual` or `auto` |
+| `Setup` | On `--init` or `--maintenance` | `init` or `maintenance` |
+| `SessionStart` | When session begins | `startup`, `resume`, `clear`, `compact` |
+| `SessionEnd` | When session ends | - |
+
+## Swarm/Multi-Agent Hooks
+
+The `SubagentStart` and `SubagentStop` hooks enable monitoring and coordination of parallel agents (swarm pattern).
+
+### Configuration
+
+```json
+{
+  "SubagentStart": [
+    {
+      "matcher": "explore",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "echo \"Explore agent started\" >> ~/.claude/swarm.log",
+          "async": true
+        }
+      ]
+    }
+  ],
+  "SubagentStop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "~/.claude/scripts/swarm-coordinator.sh",
+          "async": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Available Matchers for Subagent Hooks
+
+| Matcher | Description |
+|---------|-------------|
+| `Explore` | Built-in exploration agent (Haiku) |
+| `Plan` | Built-in planning agent |
+| `general-purpose` | Built-in multi-step agent |
+| `Bash` | Shell command subagent |
+| `<custom>` | Your custom agent names |
+
+### Environment Variables in Subagent Hooks
+
+| Variable | Description |
+|----------|-------------|
+| `$AGENT_ID` | Unique identifier for the subagent |
+| `$AGENT_TYPE` | Agent type (e.g., "explore", "planner") |
+
+### Swarm Log
+
+Monitor agent activity:
+
+```bash
+tail -f ~/.claude/swarm.log
+```
 
 ## Matcher Patterns
 
@@ -127,6 +235,9 @@ chmod +x ~/.claude/scripts/my-hook.sh
 # Hook execution logs
 cat ~/.claude/hooks.log
 
+# Swarm/agent activity log
+tail -f ~/.claude/swarm.log
+
 # Session logs
 cat ~/.claude/sessions.log
 
@@ -144,6 +255,9 @@ ls ~/.claude/handoffs/*.md
 
 # TLDR project index
 ls -la .tldr/cache/
+
+# Subagent transcripts
+ls ~/.claude/projects/*/subagents/
 ```
 
 ---
