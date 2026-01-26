@@ -106,6 +106,8 @@ clean_old_config() {
     rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-rules.cache" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-activation.out" 2>/dev/null || true
+    rm -f "${CLAUDE_DIR}/skill-index.compiled" 2>/dev/null || true
+    rm -f "${CLAUDE_DIR}/skill-index.checksum" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/CLAUDE.md" 2>/dev/null || true
 }
 
@@ -133,6 +135,15 @@ install_config_files() {
 
     # Hooks
     [[ -d "${SCRIPT_DIR}/hooks" ]] && cp -r "${SCRIPT_DIR}/hooks/"* "${CLAUDE_DIR}/hooks/" 2>/dev/null || true
+}
+
+compile_skill_index() {
+    # Compile skill index for fast skill matching
+    local compile_script="${CLAUDE_DIR}/scripts/compile-skills.sh"
+    if [[ -f "$compile_script" ]] && [[ -x "$compile_script" ]]; then
+        "$compile_script" --force >/dev/null 2>&1 && return 0
+    fi
+    return 1
 }
 
 install_settings() {
@@ -208,6 +219,13 @@ main() {
     clean_old_config
     install_config_files
     install_settings
+
+    info "Compiling skill index..."
+    if compile_skill_index; then
+        success "Skill index compiled"
+    else
+        warn "Skill index compilation skipped (will compile on first session)"
+    fi
 
     show_summary
 
