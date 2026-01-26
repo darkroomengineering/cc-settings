@@ -1,8 +1,20 @@
 # Darkroom Claude Code Configuration
 
-Team-shareable Claude Code settings with **native hooks**, **skill activation**, **ecosystem contexts**, and **persistent learnings**.
+Team-shareable Claude Code settings with **auto-orchestration**, **natural language skills**, **TLDR-first exploration**, and **persistent learnings**.
 
-## One-Liner Setup
+## Installation
+
+### Option 1: Plugin Install (Recommended)
+
+In Claude Code, run:
+
+```
+/plugins install darkroomengineering/cc-settings
+```
+
+This installs the plugin from GitHub and enables all features automatically.
+
+### Option 2: Setup Script
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
@@ -15,16 +27,41 @@ git clone git@github.com:darkroomengineering/cc-settings.git /tmp/darkroom-claud
 bash /tmp/darkroom-claude/setup.sh
 ```
 
-**Options:**
+**Script Options:**
 - `--minimal` - Skip optional tools (agent-browser, tldr)
 - `--skip-deps` - Skip all dependency installation
 
+### Dependencies
+
 The setup script auto-installs:
 - **jq** - Required for learnings, statusline
+- **llm-tldr** - Semantic code search (95% token savings)
 - **agent-browser** - AI-optimized browser automation
-- **llm-tldr** - Semantic code search (auto-warms on session start)
 
 Restart Claude Code to apply changes.
+
+---
+
+## Philosophy
+
+**You don't need to memorize commands.** Just describe what you want naturally.
+
+Claude automatically:
+1. Recognizes intent from your message
+2. Invokes the appropriate skill
+3. Delegates to specialized agents
+4. Returns a clean summary
+
+```
+You: "Fix the auth bug"
+
+Claude automatically:
+→ Invokes fix skill
+→ Spawns explore agent (investigate)
+→ Spawns implementer agent (fix)
+→ Spawns tester agent (verify)
+→ Returns summary
+```
 
 ---
 
@@ -32,16 +69,15 @@ Restart Claude Code to apply changes.
 
 ```
 ~/.claude/
-├── CLAUDE.md           # Coding standards
+├── CLAUDE.md           # Coding standards + orchestration mode
 ├── settings.json       # Permissions + Hooks + MCP
-├── agents/             # 10 specialized agents
-├── commands/           # 17 slash commands
+├── agents/             # 10 specialized agents (TLDR-enforced)
+├── skills/             # 23 auto-invocable skills (SKILL.md format)
 ├── contexts/           # 4 ecosystem contexts (web, webgl, desktop, mobile)
-├── rules/              # 7 modular rule files
+├── rules/              # 7 path-conditioned rule files
 ├── profiles/           # 4 stack-specific profiles
 ├── mcp-configs/        # MCP server templates
 ├── scripts/            # 12 hook scripts
-├── skills/             # 23 skill rules
 ├── lib/                # 5 shared bash utilities
 ├── learnings/          # Persistent project memory
 ├── handoffs/           # Session state backups
@@ -52,93 +88,162 @@ Restart Claude Code to apply changes.
 
 ## Core Features
 
-### Skill Activation
-**Just describe what you want.** The `UserPromptSubmit` hook analyzes your intent and suggests skills, workflows, and agents.
+### Auto-Orchestration (Maestro Mode)
 
+Claude defaults to **orchestration mode**—coordinating agents rather than executing directly.
+
+| You Say | Claude Does |
+|---------|-------------|
+| "Fix the broken login" | `explore` → `implementer` → `tester` |
+| "Build a dashboard" | `planner` → `scaffolder` → `implementer` |
+| "How does auth work?" | `explore` with TLDR semantic search |
+| "Review my changes" | `reviewer` agent |
+| "Done for today" | `create-handoff` (critical) |
+
+### Skills Auto-Invoke
+
+Skills use the native `SKILL.md` format with intent-based descriptions. Claude reads these descriptions and **automatically invokes** the right skill based on your conversation.
+
+| Natural Language | Skill Invoked | What Happens |
+|-----------------|---------------|--------------|
+| "fix", "broken", "bug" | `fix` | explore → implement → test |
+| "build", "create", "add feature" | `build` | plan → scaffold → implement |
+| "how does X work?" | `explore` | TLDR semantic + context |
+| "refactor", "clean up" | `refactor` | explore → implement → review |
+| Non-obvious fix discovered | `learn` | **Auto-stores** the insight |
+
+### TLDR-First Exploration
+
+All agents enforce **TLDR usage** for 95% token savings:
+
+```bash
+# Instead of reading files...
+tldr context functionName --project .   # LLM-ready summary
+tldr semantic "authentication flow" .   # Find by meaning
+tldr impact functionName .              # Who calls this?
+tldr slice file.ts func 42              # What affects line 42?
 ```
-"Fix the broken login" → fix workflow → explore, implementer, tester
-"Build a dashboard"    → build workflow → planner, scaffolder, implementer
-"Done for today"       → create_handoff (critical)
-```
+
+Agents have "Forbidden" lists that prohibit reading raw files when TLDR would suffice.
+
+### Auto-Learning
+
+The `learn` skill **auto-invokes** when Claude discovers something worth remembering:
+- Non-obvious bug fixes
+- Useful patterns
+- Gotchas and edge cases
+- Architecture decisions
+
+Learnings persist across sessions and are recalled on session start.
 
 ### Statusline
+
 Custom status bar showing model, directory, git branch with status, and context window usage:
 
 ```
 Claude 4.5 Opus | my-project | main✱↑ | ████░░░░░░ 42% (84k/200k)
 ```
 
-- Branch name in cyan
-- `✱` (yellow) = uncommitted changes
-- `↑` = unpushed commits, `↓` = behind remote
+---
 
-### Native Hooks
+## Natural Language Examples
 
-| Event | Action |
-|-------|--------|
-| `SessionStart` | Recalls learnings, auto-warms TLDR |
-| `UserPromptSubmit` | Skill activation |
-| `PostToolUse` | TLDR tracking, console.log warnings, TypeScript checks |
-| `PreToolUse` | Pre-push review reminder |
-| `PreCompact` / `SessionEnd` | Auto-handoff |
-| `Stop` | Session evaluation, learning reminder |
+| What You Say | What Happens |
+|--------------|--------------|
+| "Fix the broken login" | fix workflow (explore → tester → implementer) |
+| "Build a user dashboard" | build workflow (planner → scaffolder → implementer) |
+| "How does auth work?" | explore agent with TLDR |
+| "Review my changes" | reviewer agent |
+| "Create a Button component" | scaffolder agent |
+| "What could go wrong?" | premortem analysis |
+| "Done for today" | saves session state |
+| "Resume where we left off" | loads previous handoff |
 
-### Persistent Learnings
-Store insights that survive across sessions:
+---
 
-```
-/learn store bug "useAuth causes hydration - use dynamic import"
-/learn recall all
-```
+## Skills Reference
 
-### Auto-Warming TLDR
-On session start, the system automatically:
-1. Detects project type (TypeScript, Rust, Go, Python)
-2. Warms the TLDR index in background
-3. Enables semantic code search without manual setup
+### Workflows (Multi-Agent)
+| Skill | Triggers | Agents |
+|-------|----------|--------|
+| `fix` | bug, broken, error, not working | explore → tester → implementer |
+| `build` | build, create, implement, add feature | planner → scaffolder → implementer |
+| `refactor` | refactor, clean up, reorganize | explore → implementer → reviewer |
+| `review` | review, check, PR | reviewer |
+| `test` | test, write tests, coverage | tester |
+| `orchestrate` | complex task, coordinate | maestro |
+
+### Research (Forked Context)
+| Skill | Triggers |
+|-------|----------|
+| `explore` | how does, where is, find, understand |
+| `docs` | documentation, how to use, API |
+| `ask` | advice, guidance, what should I |
+| `tldr` | who calls, dependencies, semantic search |
+| `premortem` | risks, what could go wrong |
+| `discovery` | requirements, scope, figure out |
+
+### Creation (Direct Output)
+| Skill | Triggers |
+|-------|----------|
+| `component` | create component, new component |
+| `hook` | create hook, custom hook |
+| `init` | new project, initialize |
+
+### Session Management
+| Skill | Triggers |
+|-------|----------|
+| `learn` | **AUTO**: after discoveries |
+| `context` | context window, running out |
+| `create-handoff` | done for today, save state |
+| `resume-handoff` | resume, continue, last session |
+
+---
+
+## Agents
+
+All agents are **TLDR-enforced** with mandatory commands and forbidden actions.
+
+| Agent | Purpose | TLDR Commands |
+|-------|---------|---------------|
+| `explore` | Codebase navigation | `semantic`, `arch`, `context` |
+| `oracle` | Expert Q&A | `context`, `semantic`, `impact`, `slice` |
+| `planner` | Task breakdown | `arch`, `impact`, `calls` |
+| `implementer` | Code execution | `context`, `impact`, `slice` |
+| `reviewer` | Code review | `impact`, `context`, `change-impact` |
+| `tester` | Testing | `change-impact`, `impact`, `context` |
+| `scaffolder` | Boilerplate | `semantic`, `structure`, `context` |
+| `librarian` | Documentation | `semantic`, `context`, `arch`, `calls` |
+| `maestro` | Multi-agent coordination | All commands |
+| `security-reviewer` | Security audit | `semantic`, `slice`, `dfg`, `impact` |
+
+---
+
+## Rules (Path-Conditioned)
+
+Rules load automatically based on file context:
+
+| Rule | Loaded When |
+|------|-------------|
+| `react.md` | Working with `.tsx`, `.jsx`, `components/` |
+| `typescript.md` | Working with `.ts`, `.tsx` |
+| `style.md` | Working with CSS, SCSS, styled components |
+| `accessibility.md` | Working with UI components |
+| `security.md` | Working with API routes, lib code, env files |
+| `performance.md` | Working with app code or components |
+| `git.md` | Always loaded |
 
 ---
 
 ## Ecosystem Contexts
 
-Switch contexts when working in unfamiliar ecosystems. No configuration needed—just switch and go.
+Switch contexts for different platforms:
 
 ```bash
-/context web      # Default - Next.js, React, Tailwind (Darkroom patterns)
+/context web      # Default - Next.js, React, Tailwind
 /context webgl    # R3F, Three.js, GSAP, shaders
-/context desktop  # Tauri for macOS/Windows/Linux (Rust + Web)
-/context mobile   # Expo for iOS/Android (React Native)
-```
-
-Each context loads:
-- Behavioral priorities (stability vs speed, etc.)
-- Ecosystem-specific patterns and gotchas
-- Favored tools and commands
-- Relevant documentation sources
-
-See [contexts/](./contexts/) for full details.
-
----
-
-## Modular Rules
-
-Rules are extracted into focused files for easier maintenance:
-
-| Rule | Focus |
-|------|-------|
-| `rules/security.md` | Secrets, input validation, OWASP |
-| `rules/typescript.md` | Strict mode, no `any`, narrowing |
-| `rules/react.md` | Server Components, no manual memo |
-| `rules/performance.md` | Waterfalls, bundles, lazy loading |
-| `rules/accessibility.md` | WCAG 2.1, aria, semantic HTML |
-| `rules/git.md` | Conventional commits, no force push |
-| `rules/style.md` | CSS modules, Tailwind conventions |
-
-Disable per-project in `.claude/settings.json`:
-```json
-{
-  "disabledRules": ["rules/style.md"]
-}
+/context desktop  # Tauri (Rust + Web)
+/context mobile   # Expo (React Native)
 ```
 
 ---
@@ -151,49 +256,32 @@ Disable per-project in `.claude/settings.json`:
 | **Sanity** | CMS operations (GROQ, documents) | OAuth on first use |
 | **tldr** | Semantic search, impact analysis | Auto-installed |
 
-Additional server templates in [mcp-configs/](./mcp-configs/):
-- `recommended.json` - context7, vercel, memory
-- `optional.json` - railway, supabase, cloudflare, github, firecrawl, etc.
-- `project-example.json` - Per-project configuration examples
+---
 
-## CLI Tools
+## Native Hooks
 
-| Tool | Purpose | Status |
-|------|---------|--------|
-| **agent-browser** | AI-optimized browser automation | Auto-installed |
+| Event | Action |
+|-------|--------|
+| `SessionStart` | Recalls learnings, auto-warms TLDR |
+| `SubagentStart/Stop` | Swarm logging |
+| `PostToolUse` | TLDR tracking (async) |
+| `PreCompact` / `SessionEnd` | Auto-handoff |
 
 ---
 
 ## Quick Reference
 
-| Want To... | Do This |
-|------------|---------|
+| Want To... | Just Say... |
+|------------|-------------|
 | Understand code | "How does X work?" |
 | Build feature | "Build a..." |
 | Fix bug | "Fix the..." |
-| Find callers | `tldr impact func .` |
-| Save insight | `/learn store bug "..."` |
+| Review code | "Review my changes" |
+| Find callers | "Who calls X?" |
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |
 | Debug visually | "Take a screenshot of..." |
-| Build desktop app | `/context desktop` |
-| Build mobile app | `/context mobile` |
-| Security review | "Review for security issues" |
-| Check accessibility | `/qa` |
-
----
-
-## Agents
-
-`@planner` `@implementer` `@reviewer` `@security-reviewer` `@tester` `@scaffolder` `@librarian` `@explore` `@oracle` `@maestro`
-
-**New:** `@security-reviewer` - OWASP Top 10, secret detection, Shopify/Sanity-specific checks
-
-## Commands
-
-`/component` `/hook` `/review` `/init` `/lenis` `/explore` `/docs` `/context` `/orchestrate` `/ask` `/create-handoff` `/resume-handoff` `/tldr` `/learn` `/debug` `/qa` `/versions`
-
-**Enhanced:** `/context` now supports ecosystem switching (`/context ios`, `/context macos`, etc.)
+| Security audit | "Check for security issues" |
 
 ---
 
@@ -201,21 +289,19 @@ Additional server templates in [mcp-configs/](./mcp-configs/):
 
 | Doc | Content |
 |-----|---------|
-| **[USAGE.md](./USAGE.md)** | Daily workflow, all commands, agents, examples |
+| **[USAGE.md](./USAGE.md)** | Daily workflow, examples |
+| **[skills/README.md](./skills/README.md)** | Skill system details |
 | **[hooks/README.md](./hooks/README.md)** | Native hooks configuration |
-| **[skills/README.md](./skills/README.md)** | Skill activation details |
-| **[rules/README.md](./rules/README.md)** | Modular rules system |
-| **[mcp-configs/README.md](./mcp-configs/README.md)** | MCP server setup guide |
-| **[commands/learn.md](./commands/learn.md)** | Learning system reference |
-| **[commands/context.md](./commands/context.md)** | Ecosystem context switching |
+| **[rules/README.md](./rules/README.md)** | Path-conditioned rules |
+| **[mcp-configs/README.md](./mcp-configs/README.md)** | MCP server setup |
+| **[contexts/README.md](./contexts/README.md)** | Ecosystem contexts |
 
 ---
 
 ## Platform Support
 
-The setup script and hooks work on:
 - **macOS** - Native (Homebrew for dependencies)
-- **Linux** - Native (apt, dnf, pacman for dependencies)
+- **Linux** - Native (apt, dnf, pacman)
 - **Windows** - Via Git Bash, WSL, or MSYS2
 
 ---
