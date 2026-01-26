@@ -141,7 +141,9 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/track-tldr.sh\" \"$TOOL_NAME\""
+						"command": "bash \"$HOME/.claude/scripts/track-tldr.sh\" \"$TOOL_NAME\"",
+						"async": true,
+						"timeout": 10
 					}
 				]
 			}
@@ -171,7 +173,9 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\"; bash \"$HOME/.claude/scripts/create-handoff.sh\""
+						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\"; bash \"$HOME/.claude/scripts/create-handoff.sh\"",
+						"async": true,
+						"timeout": 30
 					}
 				]
 			}
@@ -186,12 +190,38 @@
 				]
 			}
 		],
+		"SubagentStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'echo \"[Swarm] Agent started: $AGENT_TYPE ($AGENT_ID)\" >> ~/.claude/swarm.log'",
+						"async": true,
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'echo \"[Swarm] Agent stopped: $AGENT_TYPE ($AGENT_ID)\" >> ~/.claude/swarm.log'",
+						"async": true,
+						"timeout": 5
+					}
+				]
+			}
+		],
 		"Notification": [
 			{
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify.sh\""
+						"command": "bash \"$HOME/.claude/scripts/notify.sh\"",
+						"async": true,
+						"timeout": 10
 					}
 				]
 			}
