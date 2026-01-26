@@ -1,30 +1,36 @@
 # Usage Guide
 
-Practical guide to maximize your Claude Code configuration.
+Practical guide for Darkroom's Claude Code configuration.
 
 ---
 
 ## Quick Setup
 
+### Plugin Install (Recommended)
+```
+/plugins install darkroomengineering/cc-settings
+```
+
+### Script Install
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
 ```
 
-Auto-installs: jq, agent-browser, llm-tldr. Restart Claude Code to apply.
+Restart Claude Code to apply.
 
 ---
 
-## Core Insight: Just Talk Naturally
+## Core Concept: Just Talk Naturally
 
-The skill activation system means you **don't need to memorize commands**. Describe what you want:
+**You don't need to memorize commands.** The system recognizes intent and auto-invokes skills.
 
-| Say This | System Does This |
-|----------|------------------|
-| "Fix the broken auth" | Suggests `fix` workflow → explore → implement → test |
-| "Build a dashboard component" | Suggests `build` → planner → scaffolder → implementer |
-| "Who calls this function?" | Suggests `tldr` → semantic analysis |
-| "What could go wrong?" | Suggests `premortem` → oracle, reviewer |
-| "Done for today" | **Critical**: Forces `create_handoff` |
+| Say This | System Does |
+|----------|-------------|
+| "Fix the broken auth" | `fix` skill → explore → implement → test |
+| "Build a dashboard" | `build` skill → plan → scaffold → implement |
+| "Who calls this function?" | `tldr` skill → impact analysis |
+| "What could go wrong?" | `premortem` skill → risk analysis |
+| "Done for today" | `create-handoff` → saves session state |
 
 ---
 
@@ -34,100 +40,276 @@ The skill activation system means you **don't need to memorize commands**. Descr
 
 ```
 "Resume where we left off"
-→ Activates resume_handoff, loads previous context
+→ Loads previous handoff, recalls learnings
 ```
+
+On session start, the system automatically:
+1. Recalls project learnings
+2. Warms TLDR index (background)
+3. Shows recent handoff if available
 
 ### During Development
 
-**New features:**
+**Building features:**
 ```
 "Build a user profile page with avatar upload"
-→ Activates: planner → scaffolder → implementer → tester
+→ planner breaks down tasks
+→ scaffolder creates structure
+→ implementer writes code
+→ tester verifies
 ```
 
-**Bugs:**
+**Fixing bugs:**
 ```
 "Fix the login redirect loop"
-→ Activates: explore → implementer → tester
+→ explore investigates
+→ implementer fixes
+→ tester verifies
 ```
 
 **Understanding code:**
 ```
 "How does the payment flow work?"
-→ Activates: explore + oracle
-
-# With TLDR (more powerful):
-"Who calls processPayment?"
-→ tldr impact processPayment .
+→ explore agent with TLDR semantic search
+→ Returns summary with file:line citations
 ```
 
 **Refactoring:**
 ```
 "Clean up the auth module"
-→ Activates: explore → implementer → reviewer
+→ explore maps current state
+→ implementer refactors
+→ reviewer checks quality
 ```
 
 ### Ending a Session
 
 ```
 "Done for today" or "Wrapping up"
-→ CRITICAL: Auto-creates handoff before context is lost
+→ Auto-creates handoff with:
+   - Tasks completed
+   - Decisions made
+   - Files modified
+   - Next steps
 ```
 
 ---
 
-## Direct Agent Invocation
+## TLDR-First Exploration
+
+**All agents enforce TLDR usage.** This saves 95% of tokens compared to reading raw files.
+
+### Quick Reference
+
+| Question | TLDR Command |
+|----------|--------------|
+| "How does X work?" | `tldr semantic "X" .` |
+| "Who calls this?" | `tldr impact functionName .` |
+| "Why is X null on line 42?" | `tldr slice file.ts func 42` |
+| "Explain this function" | `tldr context func --project .` |
+| "Project architecture?" | `tldr arch .` |
+| "What tests are affected?" | `tldr change-impact .` |
+
+### When TLDR is Used
+
+Agents have **Forbidden** lists that prohibit:
+- Reading large files when `tldr context` would suffice
+- Using grep for "how does X work" (use `tldr semantic`)
+- Manually tracing callers (use `tldr impact`)
+- Exploring architecture without `tldr arch`
+
+### Full Command Reference
+
+```bash
+# Semantic search (find by meaning)
+tldr semantic "authentication flow" .
+tldr semantic "error handling" .
+
+# Function context (95% fewer tokens)
+tldr context handleLogin --project .
+
+# Impact analysis (who calls this?)
+tldr impact validateSession .
+
+# Program slice (what affects line X?)
+tldr slice src/auth.ts login 42 --direction backward
+
+# Architecture detection
+tldr arch .
+
+# Call graph
+tldr calls . --language typescript
+
+# Data flow graph
+tldr dfg src/auth.ts validateToken
+
+# Control flow graph
+tldr cfg src/auth.ts handleRequest
+
+# Affected tests
+tldr change-impact .
+
+# Dead code detection
+tldr dead .
+
+# Type diagnostics
+tldr diagnostics src/ --language typescript
+```
+
+---
+
+## Auto-Learning
+
+The `learn` skill **automatically invokes** when Claude discovers something worth remembering:
+
+- Non-obvious bug fix
+- Useful pattern
+- Gotcha or edge case
+- Performance optimization
+- Configuration that solved a problem
+- Architecture decision
+
+### Manual Learning
+
+```bash
+/learn store bug "useAuth causes hydration - use dynamic import"
+/learn store pattern "Wrap async server components in Suspense"
+/learn store gotcha "Biome ignores .mdx files by default"
+```
+
+### Recalling Learnings
+
+```bash
+/learn recall all                # All project learnings
+/learn recall category bug       # Filter by category
+/learn recall search hydration   # Search keyword
+/learn recall recent 5           # Last 5 learnings
+```
+
+### Categories
+`bug`, `pattern`, `gotcha`, `tool`, `perf`, `config`, `arch`, `test`
+
+---
+
+## Orchestration Mode
+
+Claude defaults to **Maestro mode**—coordinating agents rather than executing directly.
+
+### Agent Delegation
+
+| Task Type | Agent Chain |
+|-----------|-------------|
+| Understanding code | `explore` or `oracle` |
+| Multi-file changes | `planner` → `implementer` |
+| Code review | `reviewer` |
+| New components | `scaffolder` |
+| Writing tests | `tester` |
+| Security audit | `security-reviewer` |
+| Complex tasks | `maestro` (coordinates all) |
+
+### Direct Agent Invocation
 
 When you know exactly what you need:
 
 ```
-@planner    Break down the checkout redesign into tasks
+@planner    Break down the checkout redesign
 @reviewer   Check this PR for issues
 @oracle     What's the best approach for rate limiting?
 @explore    Map the data flow from API to UI
 @tester     Write tests for the auth module
 @scaffolder Generate a new API route structure
+@security-reviewer  Audit for vulnerabilities
 ```
-
-### All Agents
-
-| Agent | Purpose | When to Use |
-|-------|---------|-------------|
-| `@planner` | Task breakdown | Complex features, multi-step work |
-| `@implementer` | Code execution | Writing/editing code |
-| `@reviewer` | Code review | Before PRs, quality checks |
-| `@tester` | Testing | Unit tests, E2E, coverage |
-| `@scaffolder` | Boilerplate | New components, routes, modules |
-| `@librarian` | Documentation | README, API docs, comments |
-| `@explore` | Navigation | Understanding codebase structure |
-| `@oracle` | Expert Q&A | Best practices, architecture decisions |
-| `@maestro` | Multi-agent | Complex tasks needing coordination |
-| `@security-reviewer` | Security audit | OWASP Top 10, secrets, framework-specific checks |
 
 ---
 
-## Slash Commands
+## Skills Reference
+
+### Workflows (Fork Context, Multi-Agent)
+
+| Skill | Triggers | Flow |
+|-------|----------|------|
+| `fix` | bug, broken, error | explore → tester → implementer |
+| `build` | build, create, add feature | planner → scaffolder → implementer |
+| `refactor` | refactor, clean up | explore → implementer → reviewer |
+| `review` | review, check, PR | reviewer |
+| `test` | test, coverage | tester |
+| `orchestrate` | complex, coordinate | maestro |
+
+### Research (Fork Context)
+
+| Skill | Triggers |
+|-------|----------|
+| `explore` | how does, where is, find |
+| `docs` | documentation, API reference |
+| `ask` | advice, what should I |
+| `tldr` | who calls, dependencies |
+| `premortem` | risks, what could go wrong |
+| `discovery` | requirements, scope |
+
+### Creation (Main Context)
+
+| Skill | Triggers |
+|-------|----------|
+| `component` | create component |
+| `hook` | create hook |
+| `init` | new project |
+
+### Session
+
+| Skill | Triggers |
+|-------|----------|
+| `learn` | **AUTO** after discoveries |
+| `context` | context window |
+| `create-handoff` | done for today |
+| `resume-handoff` | resume, continue |
+
+---
+
+## Context Management
+
+### Watch the Statusline
 
 ```
-/component UserAvatar        # Scaffold component with Darkroom standards
-/hook useWindowScroll        # Create custom hook
-/review                      # Review current changes
-/init                        # Initialize project with standards
-/lenis                       # Setup smooth scroll
-/explore components/         # Navigate codebase
-/docs Next.js routing        # Fetch documentation
-/debug screenshot            # Visual debugging with agent-browser
-/context                     # Manage context window
-/orchestrate "Add dark mode" # Multi-agent coordination
-/ask "Best auth pattern?"    # Ask Oracle
-/create-handoff              # Save session state
-/resume-handoff              # Resume previous session
-/tldr semantic "query"       # TLDR code analysis
-/learn store bug "fix"       # Store a learning
-/learn recall all            # Recall all learnings
-/qa                          # Visual QA validation (a11y, contrast, layout)
-/versions                    # Check package versions before installing
+Claude 4.5 Opus | my-project | main✱↑ | ████░░░░░░ 42% (84k/200k)
 ```
+
+### Context Warnings
+
+| Level | Usage | Action |
+|-------|-------|--------|
+| Notice | 70-79% | Consider handoff |
+| Warning | 80-89% | Start wrapping up |
+| **Critical** | 90%+ | Run handoff NOW |
+
+### Manual Handoff
+
+```
+/create-handoff
+```
+
+Creates:
+- `~/.claude/handoffs/handoff_TIMESTAMP.json`
+- `~/.claude/handoffs/handoff_TIMESTAMP.md`
+
+---
+
+## Ecosystem Contexts
+
+Switch contexts for different platforms:
+
+```bash
+/context web      # Next.js, React, Tailwind (default)
+/context webgl    # R3F, Three.js, GSAP, shaders
+/context desktop  # Tauri (Rust + Web)
+/context mobile   # Expo (React Native)
+```
+
+Each context loads:
+- Platform-specific patterns
+- Relevant tools and commands
+- Documentation sources
+- Gotchas and best practices
 
 ---
 
@@ -141,119 +323,18 @@ Use agent-browser for AI-optimized browser automation:
 "Debug the visual bug on mobile"
 ```
 
-agent-browser uses an accessibility tree with unique element refs (`@e1`, `@e2`) for reliable LLM interactions.
-
----
-
-## TLDR Code Analysis
-
-**Auto-warmed on session start** - no manual setup required for most projects.
-
-### Semantic Search
-```bash
-# "How does X work?"
-tldr semantic "authentication flow" .
-tldr semantic "error handling" .
-tldr semantic "database queries" .
-```
-
-### Program Slicing
-```bash
-# "Why is user null on line 42?"
-tldr slice src/auth.ts login 42
-# Shows only the 6 lines that affect line 42
-```
-
-### Impact Analysis
-```bash
-# "What breaks if I change this?"
-tldr impact validateSession .
-tldr impact processPayment .
-# Shows all callers (reverse call graph)
-```
-
-### Context Extraction
-```bash
-# "Explain this function" - 95% fewer tokens
-tldr context processPayment --project .
-# Returns structured summary instead of raw code
-```
-
-### Architecture Detection
-```bash
-tldr arch .
-# Identifies layers: presentation, business, data
-```
-
-### When to Use TLDR vs Traditional
-
-| Question Type | Traditional | TLDR |
-|--------------|-------------|------|
-| Exact text match | `grep -r "errorCode"` | — |
-| File name pattern | `find . -name "*.tsx"` | — |
-| How does X work? | Read 10+ files | `tldr semantic "X"` |
-| Who calls this? | grep + manual trace | `tldr impact func` |
-| Why is X null here? | Read entire function | `tldr slice file func line` |
-| Explain this function | Paste 500 lines | `tldr context func` |
-
----
-
-## Context Management
-
-### Watch the Warnings
-
-| Indicator | Context % | Action |
-|-----------|-----------|--------|
-| 🟡 Notice | 70-79% | Good stopping point? Consider handoff |
-| 🟠 Warning | 80-89% | Start wrapping up, handoff soon |
-| 🔴 Critical | 90%+ | **STOP** - Run `/create-handoff` NOW |
-
-### Manual Handoff
+### QA Validation
 
 ```
-/create-handoff
+/qa
+/qa http://localhost:3000/about
 ```
 
-Creates:
-- `~/.claude/handoffs/handoff_TIMESTAMP.json` (machine-readable)
-- `~/.claude/handoffs/handoff_TIMESTAMP.md` (human-readable)
-
-Contains: tasks, context, decisions, next steps, files touched.
-
-### Resume
-
-```
-/resume-handoff
-# or
-"Resume where we left off"
-```
-
----
-
-## Learning Management
-
-Store insights that persist across sessions:
-
-### Store a Learning
-```bash
-/learn store bug "useAuth causes hydration - use dynamic import"
-/learn store pattern "Wrap async server components in Suspense"
-/learn store gotcha "Biome ignores .mdx files by default"
-```
-
-### Recall Learnings
-```bash
-/learn recall all                # All project learnings
-/learn recall category bug       # Filter by category
-/learn recall search hydration   # Search keyword
-/learn recall recent 5           # Last 5 learnings
-```
-
-### Categories
-`bug`, `pattern`, `gotcha`, `tool`, `perf`, `config`, `arch`, `test`
-
-### Auto-Recall
-On session start, the 3 most recent project learnings are automatically displayed.
+Checks:
+- Accessibility (aria-labels, alt text, heading hierarchy)
+- Touch targets (44x44px minimum)
+- Contrast (4.5:1 ratio)
+- Layout (overflow, spacing)
 
 ---
 
@@ -262,94 +343,50 @@ On session start, the 3 most recent project learnings are automatically displaye
 ```
 # === START ===
 "Resume where we left off"
-→ Loads handoff: "Working on checkout flow, coupon validation pending"
+→ Loads: "Working on checkout, coupon validation pending"
 
 # === UNDERSTAND ===
 "How does the cart work?"
-→ explore agent maps structure
-→ "Who calls calculateTotal?"
-→ tldr impact calculateTotal .
+→ explore: tldr semantic "cart" + tldr context calculateTotal
 
 # === PLAN ===
-"I need to add coupon codes to checkout"
-→ planner breaks down:
+"Add coupon codes to checkout"
+→ planner:
    1. Coupon validation API
    2. Cart discount calculation
    3. UI for coupon input
    4. Tests
 
 # === BUILD ===
-"Let's start with the coupon validation API"
-→ scaffolder creates route structure
-→ implementer writes validation logic
-→ tester adds unit tests
+"Start with the coupon API"
+→ scaffolder: creates route structure
+→ implementer: writes validation logic
+→ tester: adds unit tests
 
 # === REVIEW ===
-"/review"
-→ reviewer checks code quality
-→ Suggests edge case handling
+"Review my changes"
+→ reviewer: checks quality, suggests edge cases
 
 # === END ===
-"Good for today"
-→ Handoff created automatically
-→ "Completed coupon validation. Next: cart discount calculation"
+"Done for today"
+→ Handoff: "Completed coupon validation. Next: cart integration"
 ```
-
----
-
-## Workflows Reference
-
-### Fix Workflow
-```
-Trigger: "fix the bug", "broken", "not working"
-Flow: explore → implementer → tester
-```
-
-### Build Workflow
-```
-Trigger: "build a", "create a", "implement", "add feature"
-Flow: planner → scaffolder → implementer → tester
-```
-
-### Refactor Workflow
-```
-Trigger: "refactor", "clean up", "reorganize"
-Flow: explore → implementer → reviewer
-```
-
-### Review Workflow
-```
-Trigger: "/review", "review code", "check quality"
-Flow: reviewer → tester
-```
-
----
-
-## OpenCode Compatibility
-
-Same configuration works in OpenCode:
-
-```bash
-cp -r ~/.claude/* ~/.opencode/
-```
-
-Agents, commands, and skills are tool-agnostic markdown files.
 
 ---
 
 ## Quick Reference
 
-| Want To... | Do This |
-|------------|---------|
-| Start fresh | `/init` |
-| Understand code | "How does X work?" or `@explore` |
-| Build feature | "Build a..." or `@planner` then `@implementer` |
+| Want To... | Just Say... |
+|------------|-------------|
+| Understand code | "How does X work?" |
+| Build feature | "Build a..." |
 | Fix bug | "Fix the..." |
-| Review code | `/review` or `@reviewer` |
-| Find callers | `tldr impact functionName .` |
-| Debug line | `tldr slice file func line` |
-| Save a lesson | `/learn store bug "insight"` |
-| Recall lessons | `/learn recall all` |
+| Review code | "Review my changes" |
+| Find callers | "Who calls X?" |
+| Debug line | "Why is X null on line 42?" |
+| Security audit | "Check for security issues" |
+| Save insight | `/learn store bug "..."` |
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |
-| Debug visually | "Take a screenshot of..." |
+| Debug visually | "Take a screenshot" |
+| Switch platform | `/context mobile` |
