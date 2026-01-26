@@ -4,17 +4,7 @@ Team-shareable Claude Code settings with **auto-orchestration**, **natural langu
 
 ## Installation
 
-### Option 1: Plugin Install (Recommended)
-
-In Claude Code, run:
-
-```
-/plugins install darkroomengineering/cc-settings
-```
-
-This installs the plugin from GitHub and enables all features automatically.
-
-### Option 2: Setup Script
+### Setup Script (Recommended)
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
@@ -23,13 +13,27 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 Or clone and run locally:
 
 ```bash
-git clone git@github.com:darkroomengineering/cc-settings.git /tmp/darkroom-claude
+git clone https://github.com/darkroomengineering/cc-settings.git /tmp/darkroom-claude
 bash /tmp/darkroom-claude/setup.sh
 ```
 
-**Script Options:**
+**Options:**
 - `--minimal` - Skip optional tools (agent-browser, tldr)
 - `--skip-deps` - Skip all dependency installation
+
+### Alternative: Plugin Install
+
+If you have SSH keys configured for GitHub:
+
+```
+/plugin install darkroomengineering/cc-settings
+```
+
+Or with HTTPS:
+
+```
+/plugin install https://github.com/darkroomengineering/cc-settings
+```
 
 ### Dependencies
 
@@ -38,7 +42,7 @@ The setup script auto-installs:
 - **llm-tldr** - Semantic code search (95% token savings)
 - **agent-browser** - AI-optimized browser automation
 
-Restart Claude Code to apply changes.
+**Restart Claude Code to apply changes.**
 
 ---
 
