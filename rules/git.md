@@ -1,3 +1,9 @@
+---
+paths:
+  - ".git/**/*"
+  - "**/*"
+---
+
 # Git
 
 > Conventional commits, atomic changes, protected branches

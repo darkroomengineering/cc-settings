@@ -1,0 +1,20 @@
+{
+  "name": "darkroom",
+  "description": "Darkroom Engineering standards with auto-orchestration. Claude automatically delegates tasks to specialized agents based on natural conversation.",
+  "version": "2.0.0",
+  "author": {
+    "name": "Darkroom Engineering",
+    "url": "https://darkroom.engineering"
+  },
+  "repository": "https://github.com/darkroomengineering/cc-settings",
+  "homepage": "https://darkroom.engineering",
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "maestro",
+    "react",
+    "nextjs",
+    "typescript",
+    "darkroom"
+  ]
+}

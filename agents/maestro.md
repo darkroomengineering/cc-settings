@@ -1,6 +1,15 @@
 ---
 name: maestro
-description: Master orchestrator for complex multi-step tasks. Delegates aggressively, runs parallel explorations, and synthesizes results. Use for any task requiring coordination across multiple agents.
+description: |
+  Multi-agent orchestrator. Coordinates complex tasks across multiple agents in parallel.
+
+  DELEGATE when user asks:
+  - "Implement full feature X" / "Build entire Y system"
+  - "Refactor X across the codebase" / "Large-scale change"
+  - Any task spanning 3+ agents or requiring coordination
+  - Complex debugging requiring multiple perspectives
+
+  RETURNS: Orchestration status, synthesized results from sub-agents, progress tracking
 tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Task]
 color: red
 ---

@@ -1,6 +1,15 @@
 ---
 name: explore
-description: Codebase navigator for efficient exploration of large projects. Maps architecture, finds patterns, and answers structural questions. Use when you need to understand project layout.
+description: |
+  Fast codebase exploration and navigation. Read-only research agent.
+
+  DELEGATE when user asks:
+  - "How does X work?" / "Where is X?" / "Find X"
+  - "What files handle Y?" / "Show me the Z code"
+  - "Map the architecture" / "What's the project structure?"
+  - Any exploration before making changes
+
+  RETURNS: File locations, architecture maps, dependency graphs, code structure summaries
 tools: [Read, Grep, Glob, LS, Bash]
 color: purple
 ---

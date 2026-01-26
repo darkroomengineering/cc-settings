@@ -1,6 +1,15 @@
 ---
 name: tester
-description: Test runner and test writer for Darkroom projects. Runs tests, analyzes coverage, and writes missing tests.
+description: |
+  Test writing and execution. Runs tests, analyzes coverage, writes missing tests.
+
+  DELEGATE when user asks:
+  - "Write tests for X" / "Add test coverage" / "Test this component"
+  - "Run the tests" / "Check if tests pass" / "Run E2E tests"
+  - "What's the test coverage?" / "Find untested code"
+  - After implementation to verify correctness
+
+  RETURNS: Test results (pass/fail/skip), coverage reports, test files, failure analysis
 tools: [Read, Write, Edit, Bash, Grep, Glob, LS]
 color: cyan
 ---

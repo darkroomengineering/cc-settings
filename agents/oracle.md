@@ -1,6 +1,15 @@
 ---
 name: oracle
-description: Context-aware Q&A agent with deep codebase knowledge. Answers questions intelligently by synthesizing information from code, docs, and patterns. Use for "how does X work?" questions.
+description: |
+  Expert Q&A and guidance. Deep codebase knowledge with evidence-based answers.
+
+  DELEGATE when user asks:
+  - "Why is X done this way?" / "Explain this code" / "What does X do?"
+  - "Is X safe to change?" / "What happens when Y?"
+  - "Where should I put Z?" / "What's the best practice for X?"
+  - Complex questions requiring synthesis of multiple sources
+
+  RETURNS: Detailed explanations with file:line citations, evidence, caveats, related context
 tools: [Read, Grep, Glob, LS, WebFetch, Bash]
 color: gold
 ---

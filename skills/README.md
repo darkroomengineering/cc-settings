@@ -1,172 +1,174 @@
-# Skill Activation System
+# Skills
 
 **You don't need to memorize slash commands.** Just describe what you want naturally.
 
 ## How It Works
 
-When you send a message, the `UserPromptSubmit` hook analyzes your intent and suggests relevant skills, workflows, and agents.
+Skills use the native Claude Code `SKILL.md` format. Claude sees skill descriptions in its context and **automatically invokes them** based on your conversation.
 
 ```
-> "Fix the login bug in auth.ts"
+You: "Fix the auth bug"
 
-🎯 SKILL ACTIVATION CHECK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📚 RECOMMENDED SKILLS:
-   → fix
-
-🤖 RECOMMENDED AGENTS:
-   → explore, implementer, tester
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Claude automatically:
+1. Recognizes this matches the "fix" skill
+2. Forks context (keeps main conversation clean)
+3. Spawns explore agent → investigate
+4. Spawns tester agent → reproduce
+5. Spawns implementer agent → fix
+6. Returns clean summary
 ```
-
-## Matching Strategies
-
-| Strategy | What It Matches | Confidence |
-|----------|----------------|------------|
-| **Keywords** | Simple words like "fix", "debug", "broken" | Medium |
-| **Intent Patterns** | Regex patterns like `"fix.*?(bug\|error)"` | High |
-
-## Priority Levels
-
-| Level | Meaning | Enforcement |
-|-------|---------|-------------|
-| ⚠️ **CRITICAL** | Must use before proceeding | `block` |
-| 📚 **RECOMMENDED** | Should use | `suggest` |
-| 💡 **SUGGESTED** | Consider using | `suggest` |
-| ❓ **AMBIGUOUS** | Validate before activating | `warn` |
-
-## Skill Types
-
-| Type | Purpose | Example |
-|------|---------|---------|
-| **skill** | Single-purpose tool | `commit`, `explore`, `docs` |
-| **workflow** | Multi-step process | `/fix`, `/build`, `/refactor` |
-
-## Context Warnings
-
-| Context % | Warning | Skill Triggered |
-|-----------|---------|-----------------|
-| 70-79% | 🟡 Notice | — |
-| 80-89% | 🟠 Warning | — |
-| 90%+ | 🔴 **CRITICAL** | `create_handoff` (enforcement: block) |
-
-## Adding Custom Skills
-
-Edit `skill-rules.json` to add your own skills:
-
-```json
-{
-  "skills": {
-    "my-skill": {
-      "type": "skill",
-      "enforcement": "suggest",
-      "priority": "medium",
-      "description": "What this skill does",
-      "promptTriggers": {
-        "keywords": ["/my-skill", "trigger phrase"],
-        "intentPatterns": ["regex.*?pattern"]
-      },
-      "agents": ["agent1", "agent2"]
-    }
-  }
-}
-```
-
-### Trigger Configuration
-
-```json
-{
-  "promptTriggers": {
-    "keywords": [
-      "/my-skill",           // Slash command
-      "exact phrase",        // Exact match (case-insensitive)
-      "another trigger"
-    ],
-    "intentPatterns": [
-      "what.*?could.*?go wrong",  // Regex pattern
-      "(broken|not working)"       // Alternatives
-    ]
-  }
-}
-```
-
-### Enforcement Levels
-
-| Level | Behavior |
-|-------|----------|
-| `"block"` | Must use skill before proceeding (guardrail) |
-| `"suggest"` | Shows suggestion, doesn't block |
-| `"warn"` | Shows warning, allows proceeding |
-
-### Ambiguous Keywords
-
-Some keywords appear in casual conversation. Mark them as ambiguous:
-
-```json
-{
-  "test": {
-    "ambiguous": true,
-    ...
-  }
-}
-```
-
-These get flagged for validation:
-
-```
-❓ AMBIGUOUS MATCHES (validate before activating):
-   test [skill] - validate if testing is requested
-```
-
-## Session Handoffs
-
-The skill activation system integrates with session handoffs:
-
-- **create_handoff** - Auto-suggested at 80%+, required at 90%+
-- **resume_handoff** - Activated when resuming sessions
-
-### Handoff Storage
-
-```
-~/.claude/handoffs/
-├── handoff_20240115_143022.json   # Machine-readable
-├── handoff_20240115_143022.md     # Human-readable
-├── latest.json                     # Symlink to latest
-└── latest.md                       # Symlink to latest
-```
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `skill-rules.json` | Skill definitions and triggers |
-| `~/.claude/scripts/skill-activation.sh` | UserPromptSubmit hook script |
-| `~/.claude/context-usage.json` | Context tracking (written by hooks) |
 
 ## Natural Language Examples
 
-| What You Say | Skills/Agents Activated |
-|--------------|------------------------|
-| "Fix the broken login" | `fix` → explore, implementer, tester |
-| "Build a user dashboard" | `build` → planner, scaffolder, implementer |
-| "Understand this codebase" | `explore` → explore, oracle |
-| "What could go wrong?" | `premortem` → oracle, reviewer |
-| "Done for today" | `create_handoff` (critical) |
-| "Continue where we left off" | `resume_handoff` |
-| "Review this code" | `review` → reviewer, tester |
-| "Take a screenshot" | `debug` → tester (agent-browser) |
-| "Create a component" | `component` → scaffolder |
-| "Remember this for next time" | `learn` → store learning |
-| "What did we learn?" | `learn` → recall learnings |
-| "Check the accessibility" | `qa` → tester (agent-browser) |
-| "Validate visually" | `qa` → tester (agent-browser) |
-| "Does this look right?" | `qa` → tester (agent-browser) |
-| "Run visual QA" | `qa` → tester (agent-browser) |
-| "Check contrast and touch targets" | `qa` → tester (agent-browser) |
-| "How much context left?" | `context` → context management |
+| What You Say | Skill Auto-Invoked | What Happens |
+|--------------|-------------------|--------------|
+| "Fix the broken login" | `fix` | explore → tester → implementer → review |
+| "Build a user dashboard" | `build` | planner → scaffolder → implementer → test |
+| "How does auth work?" | `explore` | Codebase investigation, returns summary |
+| "Review my changes" | `review` | Code review against Darkroom standards |
+| "Create a Button component" | `component` | Scaffolds component with CSS module |
+| "What could go wrong?" | `premortem` | Risk analysis before implementing |
+| "Done for today" | `create-handoff` | Saves session state |
+
+## Skill Categories
+
+### Workflows (Multi-Agent Delegation)
+These fork context and delegate to specialized agents:
+
+| Skill | Triggers On | Agents Used |
+|-------|-------------|-------------|
+| `fix` | bug, broken, error, not working | explore → tester → implementer |
+| `build` | build, create, implement, add feature | planner → scaffolder → implementer |
+| `refactor` | refactor, clean up, reorganize | explore → implementer → reviewer |
+| `review` | review, check, PR, changes | reviewer |
+| `test` | test, write tests, coverage | tester |
+| `orchestrate` | complex task, coordinate | maestro |
+
+### Creation (Direct Output)
+These create files directly in main context:
+
+| Skill | Triggers On |
+|-------|-------------|
+| `component` | create component, new component |
+| `hook` | create hook, custom hook |
+| `init` | new project, initialize, setup |
+
+### Research (Forked Context)
+These fork context for clean exploration:
+
+| Skill | Triggers On |
+|-------|-------------|
+| `explore` | how does, where is, find, understand |
+| `docs` | documentation, how to use, library API |
+| `ask` | advice, guidance, what should I |
+| `tldr` | who calls, dependencies, semantic search |
+| `premortem` | risks, what could go wrong |
+| `discovery` | requirements, scope, figure out |
+
+### Tools
+| Skill | Triggers On |
+|-------|-------------|
+| `debug` | screenshot, visual bug, inspect element |
+| `qa` | visual check, accessibility, validate |
+| `versions` | package version, before installing |
+| `lenis` | smooth scroll, lenis setup |
+
+### Session Management
+| Skill | Triggers On |
+|-------|-------------|
+| `learn` | **AUTO**: after non-obvious fix, pattern, gotcha |
+| `context` | context window, running out of context |
+| `create-handoff` | done for today, save state |
+| `resume-handoff` | resume, continue, last session |
+
+## The `learn` Skill (Auto-Applied)
+
+**Claude automatically stores learnings when it should remember something.**
+
+Auto-triggers when:
+- Fixing a non-obvious bug
+- Discovering a useful pattern
+- Encountering a gotcha or edge case
+- Finding a tool/library feature
+- Making an architecture decision
+
+Learnings persist across sessions and are recalled on session start.
+
+## Skill Structure
+
+Each skill is a directory with `SKILL.md`:
+
+```
+skills/
+├── fix/
+│   └── SKILL.md
+├── explore/
+│   └── SKILL.md
+├── learn/
+│   └── SKILL.md
+└── ...
+```
+
+### SKILL.md Format
+
+```yaml
+---
+name: skill-name
+description: |
+  What this skill does. Use when:
+  - User says "X", "Y", "Z"
+  - Specific situations that trigger this skill
+context: fork          # Run in isolated context
+agent: agentName       # Which agent runs it
+allowed-tools: [...]   # Restrict available tools
+---
+
+# Skill Instructions
+
+[What Claude does when skill is invoked]
+```
+
+### Key Options
+
+| Option | Effect |
+|--------|--------|
+| `description` | Tells Claude WHEN to auto-invoke (critical!) |
+| `context: fork` | Runs isolated, returns summary to main |
+| `agent: X` | Uses specific agent (explore, reviewer, etc.) |
+| `allowed-tools` | Restricts which tools can be used |
+
+## Adding Custom Skills
+
+1. Create directory: `skills/my-skill/`
+2. Create `SKILL.md` with frontmatter
+3. Write intent-based description (what triggers it?)
+4. Restart Claude Code to load
+
+## Context Thresholds
+
+| Context % | Warning | Action |
+|-----------|---------|--------|
+| 70-79% | Notice | Consider handoff |
+| 80-89% | Warning | Create handoff soon |
+| 90%+ | **Critical** | `create-handoff` auto-suggested |
+
+## Legacy Migration
+
+These files are deprecated and will be removed:
+- `skill-rules.json` → Replaced by `*/SKILL.md` files
+- `commands/*.md` → Merged into skills
+
+Skills are now the unified way to extend Claude's capabilities.
 
 ## Debugging
 
-See [hooks/README.md](../hooks/README.md#debugging) for all debugging commands.
+```bash
+# Check which skills Claude sees
+/skills
+
+# Manually invoke a skill
+/darkroom:fix "the auth bug"
+
+# Check learnings
+bash ~/.claude/scripts/recall-learnings.sh all
+```

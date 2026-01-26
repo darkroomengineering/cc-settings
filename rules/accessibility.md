@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.html"
+  - "components/**/*"
+---
+
 # Accessibility
 
 > WCAG 2.1 compliance, semantic HTML, inclusive design

@@ -1,6 +1,15 @@
 ---
 name: security-reviewer
-description: Security auditor for Darkroom projects. Scans for OWASP Top 10 vulnerabilities, secrets exposure, and platform-specific security issues (Next.js, Shopify, Sanity).
+description: |
+  Security audit and vulnerability detection. OWASP Top 10, secrets scanning, platform-specific checks.
+
+  DELEGATE when user asks:
+  - "Security review" / "Check for vulnerabilities" / "Audit this code"
+  - "Scan for secrets" / "Check for exposed credentials"
+  - "Is this secure?" / "Any security issues?"
+  - Before deploying to production or merging sensitive changes
+
+  RETURNS: Security report by severity (Critical/High/Medium), secret detection results, remediation steps
 model: opus
 tools: [Read, Grep, Glob, Bash]
 color: red
