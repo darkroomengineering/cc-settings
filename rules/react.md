@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "components/**/*"
+  - "app/**/*"
+---
+
 # React
 
 > Server Components first, no manual memoization, composition over props

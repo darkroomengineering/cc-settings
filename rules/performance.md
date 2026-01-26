@@ -1,3 +1,12 @@
+---
+paths:
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "app/**/*"
+  - "components/**/*"
+---
+
 # Performance
 
 > Eliminate waterfalls, minimize bundles, defer non-critical work

@@ -1,7 +1,16 @@
 ---
 name: implementer
-description: Expert implementation agent for writing, editing, and testing code. Use after planning to execute changes aggressively and iteratively.
-tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]  # Full tools for coding and testing
+description: |
+  Code execution agent. Writes, edits, and tests code based on approved plans.
+
+  DELEGATE when user asks:
+  - "Implement X" / "Build X" / "Create X" / "Add X"
+  - "Fix this bug" / "Make this change" / "Update the code"
+  - "Apply the plan" / "Execute these changes"
+  - After planner has created a roadmap
+
+  RETURNS: Working code, test results, implementation status, files created/modified
+tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]
 color: green
 ---
 

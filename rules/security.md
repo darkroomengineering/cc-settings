@@ -1,3 +1,13 @@
+---
+paths:
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "app/api/**/*"
+  - "lib/**/*"
+  - ".env*"
+---
+
 # Security
 
 > Protect secrets, validate inputs, prevent common vulnerabilities

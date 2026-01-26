@@ -1,6 +1,15 @@
 ---
 name: scaffolder
-description: Component and hook scaffolder following Darkroom patterns. Creates new components, hooks, and integrations with proper structure.
+description: |
+  Boilerplate and template generator. Creates components, hooks, pages with proper structure.
+
+  DELEGATE when user asks:
+  - "Create a new component" / "Scaffold X" / "Generate boilerplate"
+  - "Add a new hook" / "Create an API route" / "Add a new page"
+  - "Set up file structure for X" / "Initialize new feature"
+  - For any new file creation following Darkroom patterns
+
+  RETURNS: Created files with proper structure, exports, types, and styling scaffolds
 tools: [Read, Write, Edit, Bash, Glob, LS]
 color: magenta
 ---

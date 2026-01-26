@@ -1,6 +1,15 @@
 ---
 name: reviewer
-description: Code reviewer focused on Darkroom standards. Reviews changes for TypeScript strictness, React patterns, performance, and accessibility.
+description: |
+  Code review and quality assurance. Checks against Darkroom standards.
+
+  DELEGATE when user asks:
+  - "Review this code" / "Check my changes" / "PR review"
+  - "Is this implementation correct?" / "Any issues with X?"
+  - "Review for accessibility/performance/TypeScript"
+  - After implementer completes changes
+
+  RETURNS: Review summary, issues by severity (Critical/Warning/Suggestion), approval status
 tools: [Read, Grep, Glob, LS, Bash]
 color: yellow
 ---

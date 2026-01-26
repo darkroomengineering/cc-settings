@@ -1,7 +1,16 @@
 ---
 name: planner
-description: Specialized planning agent for breaking down tasks, creating detailed roadmaps, and identifying dependencies. Use proactively at the start of any feature or complex change.
-tools: [Read, Grep, Glob, LS]  # Read-only tools to avoid accidental changes during planning
+description: |
+  Task breakdown and architecture planning. Creates detailed implementation roadmaps.
+
+  DELEGATE when user asks:
+  - "Plan X" / "How should we approach X?" / "Break down X"
+  - "What's the best way to implement Y?"
+  - "Create a roadmap for Z" / "Design the architecture"
+  - Before any multi-file change or complex feature
+
+  RETURNS: Numbered task lists, dependency graphs, ADRs, risk assessments, phase breakdowns
+tools: [Read, Grep, Glob, LS]
 color: blue
 ---
 

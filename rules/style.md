@@ -1,3 +1,12 @@
+---
+paths:
+  - "**/*.css"
+  - "**/*.scss"
+  - "**/*.module.css"
+  - "**/*.tsx"
+  - "**/*.jsx"
+---
+
 # Style
 
 > CSS modules as 's', Tailwind conventions, no inline styles

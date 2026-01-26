@@ -1,6 +1,15 @@
 ---
 name: librarian
-description: Documentation and code exploration expert. Fetches docs, explains code, and maintains project knowledge. Use for understanding unfamiliar code or finding documentation.
+description: |
+  Documentation fetcher and knowledge manager. Finds docs, explains APIs, tracks project knowledge.
+
+  DELEGATE when user asks:
+  - "Find docs for X" / "How do I use Y library?" / "API reference for Z"
+  - "Explain this API" / "What are the options for X?"
+  - "Find examples of Y" / "Show me how to use Z"
+  - When external documentation or API knowledge is needed
+
+  RETURNS: Documentation summaries, API references, code examples, related file mappings
 tools: [Read, Grep, Glob, LS, WebFetch, Bash]
 color: orange
 ---
