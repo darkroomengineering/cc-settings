@@ -2,6 +2,29 @@
 
 > Patterns for React Native mobile applications with Expo SDK and Expo Router.
 
+---
+
+## Behavioral Mode
+
+**Mobile-first, performance-aware, platform-respectful.**
+
+- Expo SDK for managed features, eject only when necessary
+- Respect platform conventions (iOS HIG, Material Design)
+- 60fps is the target - use native driver for animations
+- Test on real devices, not just simulators
+
+---
+
+## Priorities (Ordered)
+
+1. **Stability** - No crashes, graceful error handling
+2. **Performance** - Smooth scrolling, fast interactions
+3. **Platform Feel** - iOS feels iOS, Android feels Android
+4. **Offline Support** - Handle network failures gracefully
+5. **Bundle Size** - Users care about app size
+
+---
+
 ## Project Structure
 
 ```
@@ -23,6 +46,7 @@ components/
 lib/
 ├── api/                  # API clients
 ├── hooks/                # Custom hooks
+├── stores/               # State management
 └── utils/                # Utilities
 ```
 
@@ -116,7 +140,6 @@ const { id } = useLocalSearchParams<{ id: string }>()
 
 ### NativeWind (Tailwind for RN)
 ```tsx
-// With NativeWind
 import { View, Text } from 'react-native'
 
 function Card() {
@@ -175,6 +198,18 @@ function Screen() {
   )
 }
 
+// With hooks
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+
+function Header() {
+  const insets = useSafeAreaInsets()
+  return (
+    <View style={{ paddingTop: insets.top }}>
+      <HeaderContent />
+    </View>
+  )
+}
+
 // With NativeWind
 <View className="flex-1 pt-safe pb-safe">
   <Content />
@@ -212,6 +247,22 @@ Button.android.tsx   # Android-specific
 Button.native.tsx    # Both iOS & Android
 Button.web.tsx       # Web-specific
 ```
+
+---
+
+## Gotchas & Pitfalls
+
+| Pitfall | Fix |
+|---------|-----|
+| FlatList slow with many items | Use `@shopify/flash-list` |
+| Animations janky | Use `react-native-reanimated` with native driver |
+| Keyboard covers input | Use `KeyboardAvoidingView` or `react-native-keyboard-aware-scroll-view` |
+| `ScrollView` inside `FlatList` | Never nest scrollables - use `ListHeaderComponent` |
+| Text not showing on Android | Wrap in `<Text>` - no raw strings |
+| Image not loading | Check `expo-image` and proper URI |
+| Safe area overlap | Use `react-native-safe-area-context` |
+| Touch target too small | Minimum 44x44 points |
+| Slow re-renders | Memoize list items, check `keyExtractor` |
 
 ---
 
@@ -367,18 +418,20 @@ import Animated, {
 } from 'react-native-reanimated'
 
 function AnimatedBox() {
-  const offset = useSharedValue(0)
+  const scale = useSharedValue(1)
 
-  const animatedStyles = useAnimatedStyle(() => ({
-    transform: [{ translateX: offset.value }],
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
   }))
 
+  const onPress = () => {
+    scale.value = withSpring(1.2)
+  }
+
   return (
-    <Animated.View style={[styles.box, animatedStyles]}>
-      <Pressable onPress={() => { offset.value = withSpring(offset.value + 50) }}>
-        <Text>Move</Text>
-      </Pressable>
-    </Animated.View>
+    <Pressable onPress={onPress}>
+      <Animated.View style={[styles.box, animatedStyle]} />
+    </Pressable>
   )
 }
 ```
@@ -415,9 +468,8 @@ function DraggableBox() {
 
 ---
 
-## Expo Modules
+## Expo SDK Modules
 
-### Common Modules
 ```tsx
 // Secure storage
 import * as SecureStore from 'expo-secure-store'
@@ -441,6 +493,30 @@ import * as Notifications from 'expo-notifications'
 
 ---
 
+## Development Commands
+
+```bash
+# Start development
+npx expo start
+
+# Run on specific platform
+npx expo run:ios
+npx expo run:android
+
+# Build for production (EAS)
+eas build --platform ios
+eas build --platform android
+
+# Submit to stores
+eas submit --platform ios
+eas submit --platform android
+
+# Update OTA
+eas update --branch production
+```
+
+---
+
 ## Performance Tips
 
 1. **Use FlashList** over FlatList for large lists
@@ -449,3 +525,26 @@ import * as Notifications from 'expo-notifications'
 4. **Use Reanimated** for 60fps animations (runs on UI thread)
 5. **Optimize images** with expo-image and proper sizing
 6. **Profile with React DevTools** and Flipper
+
+---
+
+## Documentation Sources
+
+- **Expo**: [docs.expo.dev](https://docs.expo.dev)
+- **Expo Router**: [docs.expo.dev/router](https://docs.expo.dev/router/introduction/)
+- **React Native**: [reactnative.dev](https://reactnative.dev)
+- **Reanimated**: [docs.swmansion.com/react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/)
+- **FlashList**: [shopify.github.io/flash-list](https://shopify.github.io/flash-list/)
+
+---
+
+## Pre-Implementation Checklist
+
+- [ ] Using Expo SDK features where available
+- [ ] Platform-specific code for iOS/Android differences
+- [ ] Safe areas handled for all screens
+- [ ] Animations use native driver / Reanimated
+- [ ] Lists use FlashList for performance
+- [ ] Touch targets minimum 44x44 points
+- [ ] Handles offline/error states
+- [ ] Tested on real devices (not just simulator)

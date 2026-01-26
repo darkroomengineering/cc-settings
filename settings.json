@@ -132,7 +132,8 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'FILE=$(echo \"$TOOL_INPUT\" | grep -o '\"file_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' | sed 's/.*\"\\([^\"]*\\)\"$/\\1/'); if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then npx tsc --noEmit 2>&1 | grep -E \"$FILE\" || true; fi'"
+						"command": "bash -c 'FILE=$(echo \"$TOOL_INPUT\" | grep -o '\"file_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' | sed 's/.*\"\\([^\"]*\\)\"$/\\1/'); if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then npx tsc --noEmit 2>&1 | grep -E \"$FILE\" || true; fi'",
+						"async": true
 					}
 				]
 			},

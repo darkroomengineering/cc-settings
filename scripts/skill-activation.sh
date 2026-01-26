@@ -1,33 +1,102 @@
 #!/bin/bash
 # Skill Activation Hook - UserPromptSubmit
 # Analyzes user prompt and suggests relevant skills/agents
-# Optimized: Single-pass pattern matching with jq
+# Optimized: Uses compiled skill index with awk for single-pass matching
+# Falls back to jq parsing if index is missing
 
-SKILLS_FILE="${HOME}/.claude/skills/skill-rules.json"
-SKILLS_CACHE="${HOME}/.claude/skill-rules.cache"
-CONTEXT_FILE="${HOME}/.claude/context-usage.json"
-OUTPUT_FILE="${HOME}/.claude/skill-activation.out"
+CLAUDE_DIR="${HOME}/.claude"
+SKILLS_FILE="${CLAUDE_DIR}/skills/skill-rules.json"
+COMPILED_INDEX="${CLAUDE_DIR}/skill-index.compiled"
+CONTEXT_FILE="${CLAUDE_DIR}/context-usage.json"
+OUTPUT_FILE="${CLAUDE_DIR}/skill-activation.out"
 
 USER_PROMPT="$1"
 
-if [ ! -f "$SKILLS_FILE" ]; then
-    exit 0
-fi
-
-# Use cached compiled patterns if skill-rules.json hasn't changed
-USE_CACHE=false
-if [ -f "$SKILLS_CACHE" ] && [ "$SKILLS_CACHE" -nt "$SKILLS_FILE" ]; then
-    USE_CACHE=true
-fi
+# Exit early if no prompt
+[[ -z "$USER_PROMPT" ]] && exit 0
 
 PROMPT_LOWER=$(echo "$USER_PROMPT" | tr '[:upper:]' '[:lower:]')
 
-# Use jq for single-pass matching if available (10x faster)
-if command -v jq &>/dev/null; then
-    MATCHES=$(jq -r --arg prompt "$PROMPT_LOWER" '
+# Initialize result variables
+CRITICAL_SKILLS=""
+RECOMMENDED_SKILLS=""
+SUGGESTED_SKILLS=""
+RECOMMENDED_AGENTS=""
+AMBIGUOUS_MATCHES=""
+USE_COMPILED=false
+
+# =============================================================================
+# FAST PATH: Use compiled index with awk for single-pass matching
+# =============================================================================
+
+if [[ -f "$COMPILED_INDEX" ]]; then
+    USE_COMPILED=true
+
+    # Use awk for fast single-pass pattern matching
+    # Format: PATTERN|SKILL_NAME|PRIORITY|ENFORCEMENT|AGENTS
+    MATCHES=$(awk -F'|' -v prompt="$PROMPT_LOWER" '
+        BEGIN {
+            IGNORECASE = 1
+        }
+        /^#/ { next }  # Skip comments
+        NF < 2 { next } # Skip malformed lines
+        {
+            pattern = $1
+            skill = $2
+            priority = $3
+            enforcement = $4
+            agents = $5
+
+            # Try to match the pattern against the prompt
+            if (match(prompt, pattern)) {
+                # Only output first match per skill
+                if (!(skill in seen)) {
+                    seen[skill] = 1
+                    print skill "|" priority "|" enforcement "|" agents
+                }
+            }
+        }
+    ' "$COMPILED_INDEX" 2>/dev/null)
+
+    # Process matches
+    while IFS='|' read -r skill priority enforcement agents; do
+        [[ -z "$skill" ]] && continue
+
+        case "$enforcement" in
+            block)
+                CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }$skill"
+                ;;
+            *)
+                case "$priority" in
+                    critical)
+                        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }$skill"
+                        ;;
+                    high)
+                        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }$skill"
+                        ;;
+                    medium|low)
+                        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }$skill"
+                        ;;
+                esac
+                ;;
+        esac
+
+        # Collect agents
+        if [[ -n "$agents" ]]; then
+            RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }$agents"
+        fi
+    done <<< "$MATCHES"
+fi
+
+# =============================================================================
+# FALLBACK PATH: jq-based matching from skill-rules.json
+# =============================================================================
+
+if [[ "$USE_COMPILED" != true ]] && [[ -f "$SKILLS_FILE" ]] && command -v jq &>/dev/null; then
+    JQ_MATCHES=$(jq -r --arg prompt "$PROMPT_LOWER" '
         def matches_keyword($p; $kw): $p | test($kw; "i");
         def matches_pattern($p; $pat): $p | test($pat; "i");
-        
+
         .skills | to_entries | map(
             select(
                 (.value.promptTriggers.keywords // []) as $kws |
@@ -44,32 +113,31 @@ if command -v jq &>/dev/null; then
             }
         )
     ' "$SKILLS_FILE" 2>/dev/null)
-    
-    if [ -n "$MATCHES" ] && [ "$MATCHES" != "[]" ]; then
-        CRITICAL_SKILLS=$(echo "$MATCHES" | jq -r '[.[] | select(.enforcement == "block" or .priority == "critical")] | map(.skill) | join(", ")' 2>/dev/null)
-        RECOMMENDED_SKILLS=$(echo "$MATCHES" | jq -r '[.[] | select(.priority == "high" and .enforcement != "block")] | map(.skill) | join(", ")' 2>/dev/null)
-        SUGGESTED_SKILLS=$(echo "$MATCHES" | jq -r '[.[] | select(.priority == "medium" or .priority == "low") | select(.ambiguous != true)] | map(.skill) | join(", ")' 2>/dev/null)
-        RECOMMENDED_AGENTS=$(echo "$MATCHES" | jq -r '[.[] | .agents[]] | unique | join(", ")' 2>/dev/null)
-        AMBIGUOUS_MATCHES=$(echo "$MATCHES" | jq -r '[.[] | select(.ambiguous == true)] | map(.skill + " [ambiguous]") | join(", ")' 2>/dev/null)
-    fi
-else
-    # Fallback: Traditional grep-based matching (slower but works without jq)
-    CRITICAL_SKILLS=""
-    RECOMMENDED_SKILLS=""
-    SUGGESTED_SKILLS=""
-    RECOMMENDED_AGENTS=""
-    AMBIGUOUS_MATCHES=""
 
+    if [[ -n "$JQ_MATCHES" ]] && [[ "$JQ_MATCHES" != "[]" ]]; then
+        CRITICAL_SKILLS=$(echo "$JQ_MATCHES" | jq -r '[.[] | select(.enforcement == "block" or .priority == "critical")] | map(.skill) | join(", ")' 2>/dev/null)
+        RECOMMENDED_SKILLS=$(echo "$JQ_MATCHES" | jq -r '[.[] | select(.priority == "high" and .enforcement != "block")] | map(.skill) | join(", ")' 2>/dev/null)
+        SUGGESTED_SKILLS=$(echo "$JQ_MATCHES" | jq -r '[.[] | select(.priority == "medium" or .priority == "low") | select(.ambiguous != true)] | map(.skill) | join(", ")' 2>/dev/null)
+        RECOMMENDED_AGENTS=$(echo "$JQ_MATCHES" | jq -r '[.[] | .agents[]] | unique | join(", ")' 2>/dev/null)
+        AMBIGUOUS_MATCHES=$(echo "$JQ_MATCHES" | jq -r '[.[] | select(.ambiguous == true)] | map(.skill + " [ambiguous]") | join(", ")' 2>/dev/null)
+    fi
+fi
+
+# =============================================================================
+# ULTIMATE FALLBACK: Hardcoded grep patterns (no jq, no compiled index)
+# =============================================================================
+
+if [[ "$USE_COMPILED" != true ]] && [[ -z "$JQ_MATCHES" ]]; then
     if echo "$PROMPT_LOWER" | grep -qE "(done|finished|ending).*(today|session|now)"; then
-        CRITICAL_SKILLS="create_handoff"
+        CRITICAL_SKILLS="create-handoff"
     fi
 
     if echo "$PROMPT_LOWER" | grep -qE "(handoff|context full|wrapping up|save state)"; then
-        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create_handoff"
+        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create-handoff"
     fi
 
     if echo "$PROMPT_LOWER" | grep -qE "(resume|continue where|pick up|last session)"; then
-        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }resume_handoff"
+        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }resume-handoff"
     fi
 
     if echo "$PROMPT_LOWER" | grep -qE "fix.*(bug|error|issue)|(broken|not working|failing)"; then
@@ -141,73 +209,80 @@ else
     fi
 fi
 
+# =============================================================================
 # Context warning check
+# =============================================================================
+
 CONTEXT_WARNING=""
-if [ -f "$CONTEXT_FILE" ]; then
+if [[ -f "$CONTEXT_FILE" ]]; then
     if command -v jq &>/dev/null; then
         CONTEXT_PERCENT=$(jq -r '.percent // 0' "$CONTEXT_FILE" 2>/dev/null)
     else
         CONTEXT_PERCENT=$(grep -o '"percent":[0-9]*' "$CONTEXT_FILE" 2>/dev/null | grep -o '[0-9]*' | head -1)
     fi
-    
-    if [ -n "$CONTEXT_PERCENT" ] && [ "$CONTEXT_PERCENT" -gt 0 ] 2>/dev/null; then
-        if [ "$CONTEXT_PERCENT" -ge 90 ]; then
-            CONTEXT_WARNING="🔴 CRITICAL: Context at ${CONTEXT_PERCENT}% - Run create_handoff NOW!"
-            CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create_handoff"
-        elif [ "$CONTEXT_PERCENT" -ge 80 ]; then
-            CONTEXT_WARNING="🟠 WARNING: Context at ${CONTEXT_PERCENT}% - Recommend handoff soon"
-        elif [ "$CONTEXT_PERCENT" -ge 70 ]; then
-            CONTEXT_WARNING="🟡 NOTICE: Context at ${CONTEXT_PERCENT}% - Consider handoff at stopping point"
+
+    if [[ -n "$CONTEXT_PERCENT" ]] && [[ "$CONTEXT_PERCENT" -gt 0 ]] 2>/dev/null; then
+        if [[ "$CONTEXT_PERCENT" -ge 90 ]]; then
+            CONTEXT_WARNING="CRITICAL: Context at ${CONTEXT_PERCENT}% - Run create-handoff NOW!"
+            CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create-handoff"
+        elif [[ "$CONTEXT_PERCENT" -ge 80 ]]; then
+            CONTEXT_WARNING="WARNING: Context at ${CONTEXT_PERCENT}% - Recommend handoff soon"
+        elif [[ "$CONTEXT_PERCENT" -ge 70 ]]; then
+            CONTEXT_WARNING="NOTICE: Context at ${CONTEXT_PERCENT}% - Consider handoff at stopping point"
         fi
     fi
 fi
 
-if [ -n "$CRITICAL_SKILLS" ] || [ -n "$RECOMMENDED_SKILLS" ] || [ -n "$SUGGESTED_SKILLS" ] || [ -n "$CONTEXT_WARNING" ]; then
+# =============================================================================
+# Output
+# =============================================================================
+
+if [[ -n "$CRITICAL_SKILLS" ]] || [[ -n "$RECOMMENDED_SKILLS" ]] || [[ -n "$SUGGESTED_SKILLS" ]] || [[ -n "$CONTEXT_WARNING" ]]; then
     {
         echo ""
-        echo "🎯 SKILL ACTIVATION CHECK"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "SKILL ACTIVATION CHECK"
+        echo "------------------------------------"
         echo ""
-        
-        if [ -n "$CONTEXT_WARNING" ]; then
+
+        if [[ -n "$CONTEXT_WARNING" ]]; then
             echo "$CONTEXT_WARNING"
             echo ""
         fi
-        
-        if [ -n "$CRITICAL_SKILLS" ]; then
-            echo "⚠️  CRITICAL SKILLS (REQUIRED):"
-            echo "   → $CRITICAL_SKILLS"
+
+        if [[ -n "$CRITICAL_SKILLS" ]]; then
+            echo "CRITICAL SKILLS (REQUIRED):"
+            echo "   -> $CRITICAL_SKILLS"
             echo ""
         fi
-        
-        if [ -n "$RECOMMENDED_SKILLS" ]; then
-            echo "📚 RECOMMENDED SKILLS:"
-            echo "   → $RECOMMENDED_SKILLS"
+
+        if [[ -n "$RECOMMENDED_SKILLS" ]]; then
+            echo "RECOMMENDED SKILLS:"
+            echo "   -> $RECOMMENDED_SKILLS"
             echo ""
         fi
-        
-        if [ -n "$SUGGESTED_SKILLS" ]; then
-            echo "💡 SUGGESTED SKILLS:"
-            echo "   → $SUGGESTED_SKILLS"
+
+        if [[ -n "$SUGGESTED_SKILLS" ]]; then
+            echo "SUGGESTED SKILLS:"
+            echo "   -> $SUGGESTED_SKILLS"
             echo ""
         fi
-        
-        if [ -n "$RECOMMENDED_AGENTS" ]; then
+
+        if [[ -n "$RECOMMENDED_AGENTS" ]]; then
             UNIQUE_AGENTS=$(echo "$RECOMMENDED_AGENTS" | tr ',' '\n' | sed 's/^ *//' | sort -u | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
-            echo "🤖 RECOMMENDED AGENTS:"
-            echo "   → $UNIQUE_AGENTS"
+            echo "RECOMMENDED AGENTS:"
+            echo "   -> $UNIQUE_AGENTS"
             echo ""
         fi
-        
-        if [ -n "$AMBIGUOUS_MATCHES" ]; then
-            echo "❓ AMBIGUOUS MATCHES (validate before activating):"
+
+        if [[ -n "$AMBIGUOUS_MATCHES" ]]; then
+            echo "AMBIGUOUS MATCHES (validate before activating):"
             echo "   $AMBIGUOUS_MATCHES"
             echo ""
         fi
-        
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        echo "------------------------------------"
     } > "$OUTPUT_FILE"
-    
+
     cat "$OUTPUT_FILE"
 fi
 
