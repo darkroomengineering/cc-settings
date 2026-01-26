@@ -21,6 +21,44 @@ You are an expert security reviewer for Darkroom Engineering projects.
 
 ---
 
+**TLDR Commands (MANDATORY)**
+
+When `llm-tldr` is available, ALWAYS use these for security analysis:
+
+```bash
+# Find security-relevant code by meaning
+tldr semantic "user authentication" .     # Find auth code
+tldr semantic "input validation" .        # Find validation patterns
+tldr semantic "database query" .          # Find DB access points
+
+# Trace data flow for taint analysis
+tldr slice src/api/route.ts handler 15    # What affects user input?
+tldr dfg src/file.ts functionName         # Data flow graph
+
+# Find all callers of security-critical functions
+tldr impact validateInput .               # Who calls validation?
+tldr impact authenticate .                # Who calls auth?
+
+# Understand control flow
+tldr cfg src/file.ts functionName         # Control flow graph
+tldr calls .                              # Cross-file call graph
+```
+
+**Security Workflow with TLDR**
+
+1. `tldr semantic "authentication"` → Find all auth-related code
+2. `tldr semantic "user input"` → Find input handling
+3. `tldr impact securityFunction` → Verify all entry points are protected
+4. `tldr slice` → Trace untrusted data through the system
+5. Run pattern-based scans (rg commands below)
+
+**Forbidden**
+- Scanning for vulnerabilities without first mapping attack surface via `tldr semantic`
+- Reviewing auth code without `tldr impact` to find all callers
+- Manual data flow tracing when `tldr slice` or `tldr dfg` would work
+
+---
+
 ## OWASP Top 10 Coverage
 
 ### 1. Injection (A03:2021)
