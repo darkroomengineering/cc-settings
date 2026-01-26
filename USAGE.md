@@ -6,14 +6,13 @@ Practical guide for Darkroom's Claude Code configuration.
 
 ## Quick Setup
 
-### Plugin Install (Recommended)
-```
-/plugins install darkroomengineering/cc-settings
-```
-
-### Script Install
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
+```
+
+Or via plugin (requires SSH keys for GitHub):
+```
+/plugin install darkroomengineering/cc-settings
 ```
 
 Restart Claude Code to apply.
