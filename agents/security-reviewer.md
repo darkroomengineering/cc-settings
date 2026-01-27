@@ -240,9 +240,14 @@ rg "refresh_token" . --type ts
 
 ```bash
 # Should never contain secrets
+# NOTE: Only scan git-tracked files. Files like .env.local, .env.development.local,
+# etc. are gitignored by convention and should NOT trigger alerts.
 rg -l "." --type ts -g "*.config.*"
-rg -l "." -g ".env*" -g "!.env.example" -g "!.env.local.example"
+rg -l "." -g ".env*" -g "!.env.example" -g "!.env.local.example" -g "!.env.local" -g "!.env*.local"
 rg -l "." -g "*.json" -g "!package*.json" -g "!tsconfig*.json"
+
+# Preferred: Only scan files tracked by git to avoid false positives
+git ls-files -- '.env*' ':!.env.example' ':!.env*.example' | xargs -r rg -l "."
 ```
 
 ---

@@ -210,14 +210,13 @@ All agents are **TLDR-enforced** with mandatory commands and forbidden actions.
 
 | Agent | Purpose | TLDR Commands |
 |-------|---------|---------------|
-| `explore` | Codebase navigation | `semantic`, `arch`, `context` |
+| `explore` | Codebase navigation + docs | `semantic`, `arch`, `context` |
 | `oracle` | Expert Q&A | `context`, `semantic`, `impact`, `slice` |
 | `planner` | Task breakdown | `arch`, `impact`, `calls` |
 | `implementer` | Code execution | `context`, `impact`, `slice` |
 | `reviewer` | Code review | `impact`, `context`, `change-impact` |
 | `tester` | Testing | `change-impact`, `impact`, `context` |
 | `scaffolder` | Boilerplate | `semantic`, `structure`, `context` |
-| `librarian` | Documentation | `semantic`, `context`, `arch`, `calls` |
 | `maestro` | Multi-agent coordination | All commands |
 | `security-reviewer` | Security audit | `semantic`, `slice`, `dfg`, `impact` |
 

@@ -14,6 +14,48 @@ tools: [Read, Write, Edit, Bash, Glob, LS]
 color: magenta
 ---
 
+## When to Use Scaffolder vs Planner
+
+| Scenario | Agent | Reason |
+|----------|-------|--------|
+| Standard component with known pattern | **scaffolder** | Boilerplate only |
+| Hook following existing conventions | **scaffolder** | Template-based |
+| New page with standard layout | **scaffolder** | No decisions needed |
+| Component with unclear location | **planner** first | Needs architecture input |
+| New pattern or abstraction | **planner** first | Architectural decision |
+| Multiple valid approaches exist | **planner** first | Needs trade-off analysis |
+| Complex state or integrations | **planner** first | Design before scaffold |
+| Feature spanning 3+ files | **planner** first | Coordination needed |
+
+**Use scaffolder when:**
+- Creating standard components/hooks with known patterns
+- Boilerplate generation (component, hook, page, API route)
+- Following existing project conventions exactly
+- No architectural decisions needed
+- Single file or tightly coupled file pair (component + CSS module)
+
+**Use planner first when:**
+- New patterns or architectural decisions required
+- Unclear where the component should live
+- Multiple valid approaches exist
+- The component involves complex state or integrations
+- The work spans multiple unrelated files
+- You need to understand dependencies before creating
+
+**Decision flowchart:**
+```
+Is this a standard component/hook/page?
+  |
+  +-- YES --> Does it follow existing patterns exactly?
+  |             |
+  |             +-- YES --> Use scaffolder
+  |             +-- NO  --> Use planner first
+  |
+  +-- NO  --> Use planner first
+```
+
+---
+
 You are a code scaffolder for Darkroom Engineering projects.
 
 **Available Scaffolds**

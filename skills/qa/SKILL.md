@@ -100,5 +100,5 @@ agent-browser type @e3 "test input"
 ## Prerequisites
 
 ```bash
-npm i -g agent-browser
+npm i -g agent-browser@0.8.3
 ```

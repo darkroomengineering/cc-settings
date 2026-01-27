@@ -34,12 +34,24 @@ ON pre_commit OR post_edit:
 **Commands:**
 
 ```bash
-# Manual scan
-grep -rn "API_KEY\|SECRET\|PASSWORD\|PRIVATE_KEY" --include="*.ts" --include="*.tsx" --include="*.env"
+# Manual scan (only git-tracked files to avoid false positives)
+# NOTE: .env.local and .env*.local files are gitignored by convention and excluded
+git ls-files -- '*.ts' '*.tsx' '.env*' ':!.env.local' ':!.env*.local' | \
+  xargs grep -n "API_KEY\|SECRET\|PASSWORD\|PRIVATE_KEY"
+
+# Alternative: Direct grep with exclusions
+grep -rn "API_KEY\|SECRET\|PASSWORD\|PRIVATE_KEY" \
+  --include="*.ts" --include="*.tsx" --include=".env*" \
+  --exclude=".env.local" --exclude=".env.*.local" --exclude=".env.development.local" --exclude=".env.production.local"
 
 # Exclude test files
 grep -rn "API_KEY" --include="*.ts" --exclude="*.test.ts"
+
+# RECOMMENDED: Use git ls-files to only scan tracked files
+git ls-files -- '*.ts' '*.tsx' | xargs grep -n "API_KEY\|SECRET"
 ```
+
+**Important:** Only scan files tracked by git. Local environment files (`.env.local`, `.env.development.local`, `.env.production.local`) are gitignored by Next.js convention and should never trigger alerts.
 
 **Output (Clean):**
 

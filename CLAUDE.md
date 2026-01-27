@@ -45,6 +45,9 @@ For EVERY user request, your FIRST response MUST be one of:
 | "Fix bug in X" | `Task(explore, "...")` -> `Task(implementer, "...")` |
 | "Review this code" | `Task(reviewer, "...")` |
 | "Write tests for X" | `Task(tester, "...")` |
+| "Clean up unused code" | `Task(deslopper, "...")` |
+| "Review auth/payments" | `Task(security-reviewer, "...")` |
+| "Docs for library X" | `Task(explore, "fetch docs for X")` |
 | Any complex request | `Task(maestro, "...")` |
 | Multiple areas to check | Multiple `Task()` calls in ONE message |
 
@@ -120,21 +123,29 @@ Fight entropy. Leave the codebase better than you found it.
 ### Standard Workflow
 ```
 User Request
-    |
+    │
 [1] Task(planner, "break down the request")
-    |
-[2] Task(explore, "area 1") + Task(explore, "area 2")  <- PARALLEL
-    |
-[3] Task(implementer, "implement based on plan")
-    |
-[4] Task(tester, "write and run tests")
-    |
-[5] Task(reviewer, "review the changes")
-    |
+    │
+[2] Task(explore, "area 1") + Task(explore, "area 2")  ← PARALLEL
+    │
+[3] Task(scaffolder, "...") [if new files needed]
+    │
+[4] Task(implementer, "implement based on plan")
+    │
+[5] Task(deslopper, "clean up dead code, suggest consolidation")
+    │
+[6] Task(tester, "write and run tests")
+    │
+[7] Task(reviewer, "review the changes")
+    │
+[8] Task(security-reviewer, "...") [for auth/payments/sensitive code]
+    │
 Done
 ```
 
 For simpler tasks, skip steps - but NEVER skip delegation entirely.
+
+**When to use `security-reviewer`**: Always invoke for changes touching authentication, authorization, payments, PII handling, cryptography, or any sensitive data flows.
 
 ---
 
@@ -142,13 +153,17 @@ For simpler tasks, skip steps - but NEVER skip delegation entirely.
 
 | Task Type | Required Agent | Direct Execution |
 |-----------|----------------|------------------|
-| Exploration/Understanding | `explore` or `oracle` | NEVER |
+| Exploration/Understanding/Docs | `explore` or `oracle` | NEVER |
 | Multi-file changes (3+) | `planner` -> `implementer` | NEVER |
 | Code review | `reviewer` | NEVER |
 | New component/hook | `scaffolder` | NEVER |
 | Writing tests | `tester` | NEVER |
 | Complex features | `maestro` | NEVER |
+| Dead code cleanup | `deslopper` | NEVER |
+| Auth/payments/sensitive code | `security-reviewer` | NEVER |
 | Single-file edit (<20 lines) | - | ALLOWED |
+
+**Note**: `explore` also handles library docs fetching (via context7) - no separate librarian agent needed.
 
 ### Hard Rules (Zero Exceptions)
 
