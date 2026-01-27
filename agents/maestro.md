@@ -103,9 +103,9 @@ When assigning tasks to agents, ALWAYS include TLDR commands they should run:
 | Code Review | `reviewer` | self |
 | Testing | `tester` | `implementer` |
 | Scaffolding | `scaffolder` | `implementer` |
-| Documentation | `librarian` | self |
-| Codebase Navigation | `explore` | `librarian` |
-| Q&A / Understanding | `oracle` | `librarian` |
+| Documentation | `explore` | self |
+| Codebase Navigation | `explore` | self |
+| Q&A / Understanding | `oracle` | `explore` |
 
 ---
 

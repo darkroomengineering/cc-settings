@@ -174,7 +174,7 @@ install_dependencies() {
 
     # Optional: pipx, agent-browser, llm-tldr
     ensure_pipx
-    has_command agent-browser || ensure_npm_global agent-browser || true
+    has_command agent-browser || ensure_npm_global agent-browser@0.8.3 || true
     (has_command tldr || has_command tldr-mcp) || ensure_python_package llm-tldr tldr || true
 }
 

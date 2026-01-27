@@ -86,7 +86,7 @@ agent-browser snapshot
 
 Requires `agent-browser` CLI:
 ```bash
-npm i -g agent-browser
+npm i -g agent-browser@0.8.3
 ```
 
 ## Output

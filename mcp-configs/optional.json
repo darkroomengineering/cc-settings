@@ -122,15 +122,6 @@
       "_contextCost": "low"
     },
 
-    "puppeteer": {
-      "command": "npx",
-      "args": ["-y", "@anthropic/mcp-server-puppeteer"],
-      "env": {},
-      "_description": "Browser automation for testing and scraping.",
-      "_usage": "Screenshot pages, interact with UIs, test flows",
-      "_contextCost": "high"
-    },
-
     "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"],

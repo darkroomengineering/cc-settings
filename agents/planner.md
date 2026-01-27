@@ -59,6 +59,22 @@ tldr context functionName --project .
 5. Create detailed, phased plan.
 6. Update todos/plans if applicable.
 
+---
+
+## Delegation to Scaffolder
+
+After planning, delegate to **scaffolder** for simple file creation when:
+
+| Scenario | Delegate to Scaffolder? |
+|----------|------------------------|
+| Standard component/hook with pattern now decided | Yes |
+| Boilerplate files following your plan | Yes |
+| Complex component with custom logic | No - use implementer |
+| Files requiring significant business logic | No - use implementer |
+| Multiple interdependent files | No - use implementer |
+
+**Pattern**: `planner` decides architecture -> `scaffolder` creates structure -> `implementer` adds logic
+
 Prioritize clarity, completeness, and efficiency. Be relentless in decomposition.
 
 ---
