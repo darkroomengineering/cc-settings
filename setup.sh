@@ -119,6 +119,7 @@ create_directories() {
         "${CLAUDE_DIR}/hooks"
         "${CLAUDE_DIR}/memory"
         "${CLAUDE_DIR}/memory/agents"
+        "${CLAUDE_DIR}/docs"
         "${CLAUDE_DIR}/tldr-cache"
         "${CLAUDE_DIR}/backups"
     )
@@ -137,6 +138,8 @@ clean_old_config() {
     rm -f "${CLAUDE_DIR}/rules/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/contexts/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null || true
+    rm -rf "${CLAUDE_DIR}/skills/"*/  2>/dev/null || true
+    rm -f "${CLAUDE_DIR}/docs/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-rules.cache" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-activation.out" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-index.compiled" 2>/dev/null || true
@@ -171,6 +174,9 @@ install_config_files() {
 
     # Hooks
     [[ -d "${SCRIPT_DIR}/hooks" ]] && cp -r "${SCRIPT_DIR}/hooks/"* "${CLAUDE_DIR}/hooks/" 2>/dev/null || true
+
+    # Docs
+    [[ -d "${SCRIPT_DIR}/docs" ]] && cp -r "${SCRIPT_DIR}/docs/"* "${CLAUDE_DIR}/docs/" 2>/dev/null || true
 }
 
 compile_skill_index() {
@@ -232,6 +238,7 @@ show_summary() {
     box_line "ok" "contexts/ ($context_count)"
     box_line "ok" "skills/"
     box_line "ok" "scripts/"
+    box_line "ok" "docs/"
     box_line "ok" "tasks/"
     box_line "ok" "memory/"
     box_end

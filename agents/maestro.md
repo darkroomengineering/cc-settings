@@ -255,6 +255,103 @@ If all yes → **Parallelize**. If any dependency → **Sequence only the depend
 
 ---
 
+**Thread Orchestration**
+
+Maestro selects and manages thread types based on task complexity:
+
+| Thread | Name | When to Use | Verification |
+|--------|------|-------------|--------------|
+| **B** | Base | Simple single-agent tasks (< 3 steps) | Manual review |
+| **P** | Parallel | Independent concurrent work | Per-agent + synthesis |
+| **C** | Chained | Sequential dependent phases | Phase gates |
+| **F** | Fusion | Compare multiple approaches | Criteria comparison |
+| **L** | Long-duration | Overnight autonomous work | Full automated stack |
+
+### Thread Selection Decision Tree
+
+```
+Is the task simple (< 3 steps)?
+├─ YES → B-Thread (Base)
+└─ NO ↓
+
+Are there multiple independent parts?
+├─ YES → Can they run in parallel?
+│        ├─ YES → P-Thread (Parallel)
+│        └─ NO → C-Thread (Chained)
+└─ NO ↓
+
+Is this a decision/comparison?
+├─ YES → F-Thread (Fusion) → /f-thread
+└─ NO ↓
+
+Will this take hours/overnight?
+├─ YES → L-Thread (Long-duration) → /l-thread
+└─ NO → P-Thread or C-Thread based on dependencies
+```
+
+### Thread Combination Patterns
+
+Complex projects combine thread types:
+
+```
+Feature Sprint (P containing L):
+├─ L-Thread: Auth system
+├─ L-Thread: Payment system
+└─ L-Thread: Notification system
+
+Migration Project (C with F phase):
+Phase 1: Plan (B-Thread)
+Phase 2: Choose approach (F-Thread)
+Phase 3: Implement (L-Thread)
+Phase 4: Verify (P-Thread of tests)
+```
+
+See `docs/thread-types.md` for full documentation.
+
+---
+
+**Context-Window-Aware Scheduling**
+
+Before spawning agents, check context budget:
+
+### Token Budget Rules
+
+- Reserve ~30K for system context
+- Available budget = remaining tokens × 0.7 (safety margin)
+- Never start a task that would exceed 80% context usage
+
+### Batch Sizing
+
+```markdown
+## Context Budget Check
+
+Available: 60K tokens
+Batch estimate: 15K tokens
+
+Batch 1 (15K): ✓ Safe to spawn
+After Batch 1: ~45K remaining → continue
+
+Batch 2 (40K): ⚠ Would leave < 20% → checkpoint first
+```
+
+### Context Thresholds
+
+See `hooks/checkpoint.md` for context threshold actions (70% warn, 80% checkpoint, 90% stop + handoff).
+
+### Parallel Batch Detection
+
+Before spawning parallel work, use Kahn's algorithm to detect independent batches:
+
+1. Build dependency graph from todos
+2. Find tasks with no dependencies (Level 0)
+3. Tasks at same level = one parallel batch
+4. Spawn each batch in ONE message with multiple Task calls
+5. Wait for batch completion before next level
+
+See `docs/parallel-batch-detection.md` for full algorithm.
+
+---
+
 **Invocation**
 
 Use Maestro for:
