@@ -104,6 +104,14 @@
 						"command": "bash \"$HOME/.claude/scripts/skill-activation.sh\" \"$PROMPT\""
 					}
 				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'if echo \"$PROMPT\" | grep -qiE \"no,|wrong|actually,|instead|fix that|not what|should be|correction\"; then echo \"[Hook] Correction detected - consider capturing this as a learning with /learn\"; fi'"
+					}
+				]
 			}
 		],
 		"PreToolUse": [

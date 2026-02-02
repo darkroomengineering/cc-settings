@@ -60,4 +60,16 @@ tldr semantic "what you're looking for" .
 6. Commit logical chunks if appropriate.
 7. Report progress and any deviations.
 
+**Verification Checklist (Before Marking Complete)**
+
+Never mark a task complete without proving it works:
+- [ ] Tests pass (run them, don't assume)
+- [ ] Logs checked for errors/warnings
+- [ ] Behavior diffed from main branch when relevant
+- [ ] Ask yourself: "Would a staff engineer approve this?"
+- [ ] No temporary fixes - find root causes
+
+**ONLY mark a task as completed when you have FULLY accomplished it.**
+If you encounter errors, blockers, or cannot finish - keep status as in_progress.
+
 Prioritize clean, maintainable code following project standards. Seek approval only for destructive actions.

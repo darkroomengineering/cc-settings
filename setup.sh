@@ -1,12 +1,12 @@
 #!/bin/bash
-# Darkroom Claude Code Setup Script v6.0
+# Darkroom Claude Code Setup Script v6.1
 # Just run it. No flags needed.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
-VERSION="6.0"
+VERSION="6.1"
 
 # =============================================================================
 # SOURCE LIBRARY FILES
@@ -84,6 +84,9 @@ create_directories() {
         "${CLAUDE_DIR}/commands"
         "${CLAUDE_DIR}/skills"
         "${CLAUDE_DIR}/profiles"
+        "${CLAUDE_DIR}/rules"
+        "${CLAUDE_DIR}/contexts"
+        "${CLAUDE_DIR}/tasks"
         "${CLAUDE_DIR}/handoffs"
         "${CLAUDE_DIR}/learnings"
         "${CLAUDE_DIR}/hooks"
@@ -103,6 +106,8 @@ clean_old_config() {
     rm -f "${CLAUDE_DIR}/skills/"*.json 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skills/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/profiles/"*.md 2>/dev/null || true
+    rm -f "${CLAUDE_DIR}/rules/"*.md 2>/dev/null || true
+    rm -f "${CLAUDE_DIR}/contexts/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-rules.cache" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-activation.out" 2>/dev/null || true
@@ -132,6 +137,12 @@ install_config_files() {
 
     # Profiles
     [[ -d "${SCRIPT_DIR}/profiles" ]] && cp -r "${SCRIPT_DIR}/profiles/"* "${CLAUDE_DIR}/profiles/" 2>/dev/null || true
+
+    # Rules (path-conditioned)
+    [[ -d "${SCRIPT_DIR}/rules" ]] && cp -r "${SCRIPT_DIR}/rules/"* "${CLAUDE_DIR}/rules/" 2>/dev/null || true
+
+    # Contexts (ecosystem profiles)
+    [[ -d "${SCRIPT_DIR}/contexts" ]] && cp -r "${SCRIPT_DIR}/contexts/"* "${CLAUDE_DIR}/contexts/" 2>/dev/null || true
 
     # Hooks
     [[ -d "${SCRIPT_DIR}/hooks" ]] && cp -r "${SCRIPT_DIR}/hooks/"* "${CLAUDE_DIR}/hooks/" 2>/dev/null || true
@@ -188,12 +199,17 @@ show_summary() {
     local agent_count=$(find "${CLAUDE_DIR}/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     local cmd_count=$(find "${CLAUDE_DIR}/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     local profile_count=$(find "${CLAUDE_DIR}/profiles" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+    local rule_count=$(find "${CLAUDE_DIR}/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+    local context_count=$(find "${CLAUDE_DIR}/contexts" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
 
     box_line "ok" "agents/ ($agent_count)"
     box_line "ok" "commands/ ($cmd_count)"
     box_line "ok" "profiles/ ($profile_count)"
+    box_line "ok" "rules/ ($rule_count)"
+    box_line "ok" "contexts/ ($context_count)"
     box_line "ok" "skills/"
     box_line "ok" "scripts/"
+    box_line "ok" "tasks/"
     box_end
 
     # Show MCP servers from ~/.claude.json (where Claude Code reads them)
