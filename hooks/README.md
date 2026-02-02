@@ -2,11 +2,14 @@
 
 Claude Code has a **native hooks system** that executes shell scripts at specific events. These are configured in `settings.json`.
 
+All hooks are **automatically installed** by the setup script. No manual configuration needed.
+
 ## Configured Hooks
 
 | Event | Trigger | Script | Async |
 |-------|---------|--------|-------|
 | `UserPromptSubmit` | Before Claude sees prompt | `skill-activation.sh` (skill matching) | No |
+| `UserPromptSubmit` | On user correction | Correction detection (learning reminder) | No |
 | `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) | No |
 | `PreToolUse` | Before Bash commands | Git push warning inline | No |
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) | No |
@@ -17,6 +20,16 @@ Claude Code has a **native hooks system** that executes shell scripts at specifi
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
 | `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |
 | `Notification` | Task completion | `notify.sh` (macOS/Linux notification) | **Yes** |
+
+## Correction Detection Hook
+
+When you correct Claude with phrases like "no," "wrong," "actually," "instead," or "fix that," a hook automatically reminds Claude to capture the learning:
+
+```
+[Hook] Correction detected - consider capturing this as a learning with /learn
+```
+
+This ensures mistakes become permanent knowledge across sessions.
 
 ## Supporting Scripts
 

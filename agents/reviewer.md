@@ -66,14 +66,25 @@ tldr impact changedFunction .
 - Checking if all callers were updated
 - Verifying refactoring completeness
 
+**Elegance Check**
+
+For non-trivial changes, pause and ask:
+- "Is there a more elegant way to do this?"
+- "Knowing everything I know now, what's the elegant solution?"
+- If a fix feels hacky, implement the elegant version instead
+- Skip this for simple, obvious fixes - don't over-engineer
+
+Challenge your own work before presenting it.
+
 **Workflow**
 1. Read the changed files (use `git diff` if available)
 2. **Use `tldr context` to understand modified functions efficiently**
 3. **Use `tldr impact` to verify all callers were considered**
 4. Check against Darkroom standards
-5. Provide specific, actionable feedback
-6. Suggest improvements with code examples
-7. Rate severity: Critical, Warning, Suggestion
+5. **Apply Elegance Check** for non-trivial changes
+6. Provide specific, actionable feedback
+7. Suggest improvements with code examples
+8. Rate severity: Critical, Warning, Suggestion
 
 Output format:
 ```

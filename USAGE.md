@@ -1,6 +1,8 @@
 # Usage Guide
 
-Practical guide for Darkroom's Claude Code configuration.
+Practical guide for Darkroom's Claude Code configuration (v6.1).
+
+**Batteries included.** Run the setup script and everything works automatically.
 
 ---
 
@@ -10,12 +12,7 @@ Practical guide for Darkroom's Claude Code configuration.
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
 ```
 
-Or via plugin (requires SSH keys for GitHub):
-```
-/plugin install darkroomengineering/cc-settings
-```
-
-Restart Claude Code to apply.
+Restart Claude Code. That's it.
 
 ---
 
@@ -61,10 +58,12 @@ On session start, the system automatically:
 **Fixing bugs:**
 ```
 "Fix the login redirect loop"
-→ explore investigates
-→ implementer fixes
-→ tester verifies
+→ Claude IMMEDIATELY fixes it (no hand-holding)
+→ Points at logs, errors, tests
+→ Resolves without asking for permission
 ```
+
+**Important:** When you give Claude a bug report, it fixes it autonomously. No "should I?" questions.
 
 **Understanding code:**
 ```
@@ -168,6 +167,10 @@ The `learn` skill **automatically invokes** when Claude discovers something wort
 - Configuration that solved a problem
 - Architecture decision
 
+### Correction Detection
+
+When you correct Claude ("no, actually...", "that's wrong", "fix that"), a hook automatically reminds Claude to capture the learning. This ensures mistakes become permanent knowledge.
+
 ### Manual Learning
 
 ```bash
@@ -187,6 +190,33 @@ The `learn` skill **automatically invokes** when Claude discovers something wort
 
 ### Categories
 `bug`, `pattern`, `gotcha`, `tool`, `perf`, `config`, `arch`, `test`
+
+---
+
+## Task Tracking
+
+For complex tasks, Claude uses file-based tracking in `tasks/todo.md`:
+
+1. **Plan First** - Write plan with checkable items
+2. **Verify Plan** - Check in before starting
+3. **Track Progress** - Mark items complete as you go
+4. **Explain Changes** - High-level summary at each step
+5. **Document Results** - Add review section when done
+6. **Capture Lessons** - Update learnings after corrections
+
+### Verification Before Done
+
+Claude won't mark a task complete without proving it works:
+- Tests pass (run them, don't assume)
+- Logs checked for errors/warnings
+- Behavior diffed from main when relevant
+- "Would a staff engineer approve this?"
+
+### Elegance Check
+
+For non-trivial changes, Claude pauses to ask:
+- "Is there a more elegant way?"
+- If a fix feels hacky, implements the elegant version instead
 
 ---
 
@@ -389,3 +419,16 @@ Checks:
 | Resume | "Resume where we left off" |
 | Debug visually | "Take a screenshot" |
 | Switch platform | `/context mobile` |
+
+---
+
+## Optional: claude-mem
+
+For automatic cross-session memory beyond the built-in learning system:
+
+```
+/plugin marketplace add thedotmack/claude-mem
+/plugin install claude-mem
+```
+
+This adds automatic capture, AI-compressed summaries, and semantic search over all past sessions. The base setup works fully without it.

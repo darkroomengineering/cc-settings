@@ -85,6 +85,13 @@ WRONG: Sequential messages
 - Installing packages or changing dependencies
 - Making architectural decisions with multiple valid approaches
 
+### Bug Reports: Just Fix It
+When given a bug report, **FIX IT IMMEDIATELY**. Don't ask for hand-holding.
+- Point at logs, errors, failing tests - then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
+- If something goes sideways, STOP and re-plan immediately - don't keep pushing
+
 **Research and exploration are encouraged. Just do them.**
 
 ---
@@ -315,6 +322,19 @@ Use `agent-browser` for visual validation:
 ```
 
 Checks: aria-labels, alt text, touch targets (44x44px), contrast (4.5:1), layout
+
+---
+
+## Task Tracking
+
+For non-trivial tasks, use file-based tracking:
+
+1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Add review section to `tasks/todo.md`
+6. **Capture Lessons**: Update learnings after corrections
 
 ---
 

@@ -2,47 +2,42 @@
 
 Team-shareable Claude Code settings with **auto-orchestration**, **natural language skills**, **TLDR-first exploration**, and **persistent learnings**.
 
+**v6.1** - Batteries included. Run the setup script and everything works.
+
 ## Installation
 
-### Setup Script (Recommended)
+### One Command Setup
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
 ```
 
-Or clone and run locally:
+That's it. Restart Claude Code.
 
+<details>
+<summary>Alternative methods</summary>
+
+**Clone and run locally:**
 ```bash
 git clone https://github.com/darkroomengineering/cc-settings.git /tmp/darkroom-claude
 bash /tmp/darkroom-claude/setup.sh
 ```
 
-**Options:**
-- `--minimal` - Skip optional tools (agent-browser, tldr)
-- `--skip-deps` - Skip all dependency installation
-
-### Alternative: Plugin Install
-
-If you have SSH keys configured for GitHub:
-
+**Plugin install (requires GitHub SSH keys):**
 ```
 /plugin install darkroomengineering/cc-settings
 ```
+</details>
 
-Or with HTTPS:
+### What Gets Auto-Installed
 
-```
-/plugin install https://github.com/darkroomengineering/cc-settings
-```
-
-### Dependencies
-
-The setup script auto-installs:
+The setup script handles everything:
 - **jq** - Required for learnings, statusline
 - **llm-tldr** - Semantic code search (95% token savings)
 - **agent-browser** - AI-optimized browser automation
+- All configs, agents, skills, rules, contexts, hooks
 
-**Restart Claude Code to apply changes.**
+**Zero manual configuration required.**
 
 ---
 
@@ -80,6 +75,7 @@ Claude automatically:
 ├── contexts/           # 4 ecosystem contexts (web, webgl, desktop, mobile)
 ├── rules/              # 7 path-conditioned rule files
 ├── profiles/           # 4 stack-specific profiles
+├── tasks/              # Task tracking (todo.md convention)
 ├── mcp-configs/        # MCP server templates
 ├── scripts/            # 12 hook scripts
 ├── lib/                # 5 shared bash utilities
@@ -139,6 +135,30 @@ The `learn` skill **auto-invokes** when Claude discovers something worth remembe
 - Architecture decisions
 
 Learnings persist across sessions and are recalled on session start.
+
+**Correction Detection:** When you correct Claude ("no, actually...", "that's wrong", "fix that"), a hook reminds Claude to capture the learning.
+
+### Task Tracking
+
+For complex work, Claude uses file-based task tracking:
+1. Plans go to `tasks/todo.md` with checkable items
+2. Progress tracked as items complete
+3. Results documented when done
+
+### Verification & Quality
+
+**Implementer agent** won't mark tasks complete without:
+- Tests passing
+- Logs checked
+- "Would a staff engineer approve this?"
+
+**Reviewer agent** applies an elegance check:
+- "Is there a more elegant way?"
+- Challenges hacky solutions before presenting
+
+### Autonomous Bug Fixing
+
+When given a bug report, Claude **fixes it immediately**—no hand-holding required. Points at logs, errors, failing tests, then resolves them.
 
 ### Statusline
 
@@ -266,9 +286,11 @@ Switch contexts for different platforms:
 | Event | Action |
 |-------|--------|
 | `SessionStart` | Recalls learnings, auto-warms TLDR |
+| `UserPromptSubmit` | Skill matching + correction detection |
 | `SubagentStart/Stop` | Swarm logging |
-| `PostToolUse` | TLDR tracking (async) |
+| `PostToolUse` | TLDR tracking, auto-format (async) |
 | `PreCompact` / `SessionEnd` | Auto-handoff |
+| `Stop` | Learning reminder if >5 files changed |
 
 ---
 
@@ -306,6 +328,25 @@ Switch contexts for different platforms:
 - **macOS** - Native (Homebrew for dependencies)
 - **Linux** - Native (apt, dnf, pacman)
 - **Windows** - Via Git Bash, WSL, or MSYS2
+
+---
+
+## Optional Enhancement: claude-mem
+
+For automatic cross-session memory (beyond the built-in learning system), install [claude-mem](https://github.com/thedotmack/claude-mem):
+
+```
+/plugin marketplace add thedotmack/claude-mem
+/plugin install claude-mem
+```
+
+This adds:
+- Automatic capture of everything Claude does
+- AI-compressed session summaries
+- Semantic search over past sessions
+- Web UI for browsing memories
+
+**Note:** The base setup is fully functional without claude-mem. This is an optional enhancement for teams wanting deeper session continuity.
 
 ---
 
