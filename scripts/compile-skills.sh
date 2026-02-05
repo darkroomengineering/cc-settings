@@ -156,6 +156,12 @@ generate_patterns() {
         discovery)
             patterns+=("/discovery" "discover" "find features" "what can you do")
             ;;
+        effort)
+            patterns+=("think harder" "be thorough" "quick fix" "effort" "max effort" "speed up" "slow down" "think more")
+            ;;
+        teams)
+            patterns+=("use teams" "fan out" "split work" "parallel agents" "divide and conquer" "multi-instance" "agent teams")
+            ;;
         *)
             # For unknown skills, extract keywords from description
             if [[ -n "$description" ]]; then

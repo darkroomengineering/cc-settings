@@ -1,5 +1,6 @@
 ---
 name: deslopper
+model: opus
 description: |
   Code cleanup agent that suggests improvements and auto-removes dead code only.
   Reviews codebase for consolidation opportunities, reports findings for approval.

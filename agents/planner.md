@@ -1,5 +1,7 @@
 ---
 name: planner
+model: opus
+memory: project
 description: |
   Task breakdown and architecture planning. Creates detailed implementation roadmaps.
 
@@ -325,3 +327,11 @@ When architect mode is active, include these sections in the plan:
 ---
 
 **End with**: "Plan complete. Delegate to implementer for execution."
+
+## Persistent Memory
+
+You have persistent memory across sessions. As you work:
+- Record non-obvious patterns, conventions, and architectural decisions in MEMORY.md
+- Check your memory at the start of each task for relevant context
+- Update or remove memories that turn out to be wrong
+- Keep entries concise and actionable

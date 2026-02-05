@@ -116,6 +116,34 @@ Fight entropy. Leave the codebase better than you found it.
 
 ---
 
+## Model & Context Configuration
+
+### Opus 4.6 (Default)
+- **Adaptive Thinking**: Dynamically allocates reasoning depth based on complexity
+- **128K max output**: Generate entire modules in a single response
+- **Effort levels**: `low`, `medium`, `high` (default), `max`
+  - `max` for architecture decisions, security reviews, complex debugging
+  - `low` for simple formatting, renaming, boilerplate
+  - Set via `CLAUDE_CODE_EFFORT_LEVEL` or interactively in `/model`
+
+### 1M Context Window (Beta)
+- Available via `[1m]` model suffix (e.g., `opus[1m]`)
+- ~750K words / 3.4M characters in a single session
+- Dramatically reduces compaction frequency and information loss
+- Premium pricing above 200K tokens -- use for large refactors, full-codebase analysis
+- Skill character budget scales to 2% of context window (~20K chars at 1M)
+
+### Agent Teams (Experimental)
+- Multiple independent Claude Code instances with inter-agent messaging
+- Shared task list with self-coordination and file locking
+- Enable: set in settings.json `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`
+- Display: `in-process` (single terminal) or split panes (tmux/iTerm2)
+- **Delegate mode**: Restrict lead to coordination only
+- **Plan approval**: Require teammates to plan before implementing
+- Use for: 3+ independent workstreams, parallel file editing, competing hypotheses
+
+---
+
 ## Orchestration Mode: Maestro (ACTIVE)
 
 **YOU ARE AN ORCHESTRATOR, NOT AN EXECUTOR.**
@@ -138,6 +166,8 @@ User Request
 [3] Task(scaffolder, "...") [if new files needed]
     │
 [4] Task(implementer, "implement based on plan")
+    │  ── OR for 3+ independent workstreams ──
+    │  Agent Teams: fan out to independent teammates
     │
 [5] Task(deslopper, "clean up dead code, suggest consolidation")
     │
@@ -170,7 +200,27 @@ For simpler tasks, skip steps - but NEVER skip delegation entirely.
 | Auth/payments/sensitive code | `security-reviewer` | NEVER |
 | Single-file edit (<20 lines) | - | ALLOWED |
 
-**Note**: `explore` also handles library docs fetching (via context7) - no separate librarian agent needed.
+All agents run on **Opus 4.6** with persistent memory for key agents (explore, planner, reviewer, oracle).
+
+### Agent Teams vs Subagents
+
+| Characteristic | Subagents (Task) | Agent Teams |
+|---------------|-----------------|-------------|
+| Instances | Nested within parent | Independent processes |
+| Communication | Return values only | Mailbox messaging |
+| File safety | No locking | File locking built-in |
+| Best for | Dependent sequential tasks | Independent parallel work |
+| Context | Shared with parent | Independent per-teammate |
+
+**When to use Teams:**
+- 3+ independent workstreams with no file conflicts
+- Large refactors touching unrelated areas
+- Parallel exploration of competing approaches
+
+**When to use Subagents:**
+- Sequential dependent tasks
+- Quick focused investigations
+- Tasks that need parent context
 
 ### Hard Rules (Zero Exceptions)
 
@@ -362,6 +412,8 @@ For non-trivial tasks, use file-based tracking:
 | `/orchestrate <task>` | Multi-agent coordination |
 | `/ask <question>` | Ask Oracle |
 | `/tldr <action>` | TLDR code analysis |
+| `/effort [level]` | Set thinking depth (low/medium/high/max) |
+| `/teams` | Agent teams orchestration |
 
 ### MCP Servers
 - **context7** - Library docs lookup

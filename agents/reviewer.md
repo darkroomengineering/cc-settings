@@ -1,5 +1,7 @@
 ---
 name: reviewer
+model: opus
+memory: project
 description: |
   Code review and quality assurance. Checks against Darkroom standards.
 
@@ -103,3 +105,11 @@ Output format:
 
 ## Approved: Yes/No
 ```
+
+## Persistent Memory
+
+You have persistent memory across sessions. As you work:
+- Record non-obvious patterns, conventions, and architectural decisions in MEMORY.md
+- Check your memory at the start of each task for relevant context
+- Update or remove memories that turn out to be wrong
+- Keep entries concise and actionable

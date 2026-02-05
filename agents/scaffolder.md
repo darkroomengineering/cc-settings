@@ -1,5 +1,6 @@
 ---
 name: scaffolder
+model: opus
 description: |
   Boilerplate and template generator. Creates components, hooks, pages with proper structure.
 
@@ -180,3 +181,12 @@ tldr arch .                           # Understand architecture layers
 5. Create files with proper structure
 6. Add exports to barrel files if applicable
 7. Report created files
+
+## Output Capacity
+
+Opus 4.6 supports 128K max output tokens (~500+ lines per response). Use this to:
+- Generate entire modules in a single response
+- Write comprehensive test suites without splitting
+- Create full component trees with styles in one pass
+
+Still prefer incremental changes for reviewability when possible.

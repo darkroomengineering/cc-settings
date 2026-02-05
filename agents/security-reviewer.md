@@ -1,5 +1,6 @@
 ---
 name: security-reviewer
+model: opus
 description: |
   Security audit and vulnerability detection. OWASP Top 10, secrets scanning, platform-specific checks.
 
@@ -10,7 +11,6 @@ description: |
   - Before deploying to production or merging sensitive changes
 
   RETURNS: Security report by severity (Critical/High/Medium), secret detection results, remediation steps
-model: opus
 tools: [Read, Grep, Glob, Bash]
 color: red
 ---
