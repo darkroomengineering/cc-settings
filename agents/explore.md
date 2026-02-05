@@ -207,13 +207,6 @@ lib/
 - Provide concrete file paths
 - Prioritize clarity over comprehensiveness
 
-## Extended Context (1M)
-
-When running with 1M context:
-- Files under 500 lines can be read directly (TLDR optimization less critical)
-- Keep more exploration results in context without handoff pressure
-- Still use TLDR for semantic search and impact analysis (better results than grep)
-
 ## Persistent Memory
 
 You have persistent memory across sessions. As you work:
