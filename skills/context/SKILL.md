@@ -27,7 +27,7 @@ Thresholds scale with your context window size:
 | Warning | 80% (~160K) | Create handoff, prepare to compact |
 | Critical | 90% (~180K) | Create handoff NOW, then compact |
 
-### Extended Context (~1M tokens)
+### 1M Context (Default)
 | Level | Usage | Action |
 |-------|-------|--------|
 | Notice | 70% (~700K) | Consider handoff at next stopping point |
@@ -40,10 +40,6 @@ Thresholds scale with your context window size:
 - Full codebase analysis without handoffs
 - Extended multi-agent orchestration sessions
 - Use "Summarize from here" for partial compaction without full handoff
-
-### Enabling 1M Context
-Use model suffix: `opus[1m]` or `sonnet[1m]`
-Note: Premium pricing applies above 200K tokens (2x input, 1.5x output)
 
 ## Managing Context
 

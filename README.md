@@ -165,7 +165,7 @@ When given a bug report, Claude **fixes it immediately**—no hand-holding requi
 Custom status bar showing model, directory, git branch with status, and context window usage:
 
 ```
-Claude 4.5 Opus | my-project | main✱↑ | ████░░░░░░ 42% (84k/200k)
+Claude 4.5 Opus | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/1.0M) [1M]
 ```
 
 ---

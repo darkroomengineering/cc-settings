@@ -3,7 +3,7 @@
 		"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
 		"CLAUDE_CODE_EFFORT_LEVEL": "high"
 	},
-	"model": "opus",
+	"model": "opus[1m]",
 	"teammateMode": "auto",
 	"coauthorship": false,
 	"statusLine": {
