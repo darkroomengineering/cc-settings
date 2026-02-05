@@ -200,6 +200,17 @@ if [[ "$USE_COMPILED" != true ]] && [[ -z "$JQ_MATCHES" ]]; then
         SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }learn"
     fi
 
+    # Effort level management
+    if echo "$PROMPT_LOWER" | grep -qE "think harder|be thorough|max effort|quick fix|speed up|slow down|think more"; then
+        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }effort"
+    fi
+
+    # Agent teams orchestration
+    if echo "$PROMPT_LOWER" | grep -qE "use teams|fan out|split work|parallel agents|divide and conquer|multi-instance|agent teams"; then
+        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }teams"
+        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }maestro"
+    fi
+
     if echo "$PROMPT_LOWER" | grep -qE "\btest\b" && ! echo "$PROMPT_LOWER" | grep -qE "(run|write|add).*tests?"; then
         AMBIGUOUS_MATCHES="${AMBIGUOUS_MATCHES:+$AMBIGUOUS_MATCHES, }test [skill] - validate if testing is requested"
     fi

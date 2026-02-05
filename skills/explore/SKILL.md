@@ -7,7 +7,7 @@ description: |
   - "navigate to X", "explore the codebase"
   - any question about code structure, architecture, or implementation details
 context: fork
-agent: Explore
+agent: explore
 ---
 
 # Codebase Exploration

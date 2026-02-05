@@ -1,5 +1,7 @@
 ---
 name: oracle
+model: opus
+memory: project
 description: |
   Expert Q&A and guidance. Deep codebase knowledge with evidence-based answers.
 
@@ -149,3 +151,18 @@ tldr slice src/file.ts functionName 42
 - Ignoring project-specific context
 - Making assumptions about code not read
 - Reading raw files when `tldr context` would suffice
+
+## Extended Context (1M)
+
+When running with 1M context:
+- Files under 500 lines can be read directly (TLDR optimization less critical)
+- Keep more exploration results in context without handoff pressure
+- Still use TLDR for semantic search and impact analysis (better results than grep)
+
+## Persistent Memory
+
+You have persistent memory across sessions. As you work:
+- Record non-obvious patterns, conventions, and architectural decisions in MEMORY.md
+- Check your memory at the start of each task for relevant context
+- Update or remove memories that turn out to be wrong
+- Keep entries concise and actionable

@@ -1,5 +1,6 @@
 ---
 name: tester
+model: opus
 description: |
   Test writing and execution. Runs tests, analyzes coverage, writes missing tests.
 

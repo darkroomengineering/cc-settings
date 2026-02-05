@@ -1,5 +1,6 @@
 ---
 name: maestro
+model: opus
 description: |
   Multi-agent orchestrator. Coordinates complex tasks across multiple agents in parallel.
 
@@ -312,3 +313,35 @@ Use Maestro for:
 ```
 @maestro Implement user authentication with OAuth
 ```
+
+## Agent Teams Mode
+
+When Agent Teams is enabled, you can coordinate multiple independent Claude Code instances
+for true multi-instance parallelism.
+
+### Teams vs Subagents Decision
+
+| Scenario | Use | Reason |
+|----------|-----|--------|
+| 2+ independent file edits in different areas | Teams | True parallelism, file locking |
+| Sequential dependent tasks | Subagents | Must wait for prior results |
+| 3+ independent workstreams | Teams | Maximum parallelism |
+| Quick focused task | Subagents | Less overhead |
+| Large codebase analysis | Teams | Each agent gets independent context |
+
+### Teams Orchestration Pattern
+
+When using teams:
+1. Use **delegate mode** (coordination only -- don't implement yourself)
+2. Require **plan approval** before teammates execute
+3. Assign clear file boundaries to prevent conflicts
+4. Use the shared task list for coordination
+5. Monitor teammate progress via mailbox
+
+### Inter-Agent Messaging
+
+Teammates communicate via mailbox for:
+- Status updates and progress reports
+- Requesting information from other teammates
+- Coordinating on shared interfaces
+- Reporting blockers immediately

@@ -1,12 +1,12 @@
 #!/bin/bash
-# Darkroom Claude Code Setup Script v6.1
+# Darkroom Claude Code Setup Script v7.0
 # Just run it. No flags needed.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
-VERSION="6.1"
+VERSION="7.0"
 
 # =============================================================================
 # SOURCE LIBRARY FILES
@@ -90,6 +90,8 @@ create_directories() {
         "${CLAUDE_DIR}/handoffs"
         "${CLAUDE_DIR}/learnings"
         "${CLAUDE_DIR}/hooks"
+        "${CLAUDE_DIR}/memory"
+        "${CLAUDE_DIR}/memory/agents"
         "${CLAUDE_DIR}/tldr-cache"
         "${CLAUDE_DIR}/backups"
     )
@@ -210,6 +212,7 @@ show_summary() {
     box_line "ok" "skills/"
     box_line "ok" "scripts/"
     box_line "ok" "tasks/"
+    box_line "ok" "memory/"
     box_end
 
     # Show MCP servers from ~/.claude.json (where Claude Code reads them)

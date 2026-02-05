@@ -85,11 +85,26 @@ if [ -n "$used" ]; then
     progress_bar+="░"
   done
 
-  # Format tokens in "k" format (rounded to nearest thousand)
-  tokens_used_k=$(awk "BEGIN {printf \"%.0fk\", ${tokens_used}/1000}")
-  tokens_available_k=$(awk "BEGIN {printf \"%.0fk\", ${tokens_available}/1000}")
+  # Format tokens: use "M" suffix when above 500K, otherwise "k"
+  if [ "${tokens_used:-0}" -gt 500000 ] 2>/dev/null; then
+    tokens_used_fmt=$(awk "BEGIN {printf \"%.1fM\", ${tokens_used}/1000000}")
+  else
+    tokens_used_fmt=$(awk "BEGIN {printf \"%.0fk\", ${tokens_used}/1000}")
+  fi
 
-  parts+=("${progress_bar} ${used_int}% (${tokens_used_k}/${tokens_available_k})")
+  if [ "${tokens_available:-0}" -gt 500000 ] 2>/dev/null; then
+    tokens_available_fmt=$(awk "BEGIN {printf \"%.1fM\", ${tokens_available}/1000000}")
+  else
+    tokens_available_fmt=$(awk "BEGIN {printf \"%.0fk\", ${tokens_available}/1000}")
+  fi
+
+  # Add [1M] indicator when in extended context mode (>500K tokens available)
+  context_indicator=""
+  if [ "${tokens_available:-0}" -gt 500000 ] 2>/dev/null; then
+    context_indicator=" [1M]"
+  fi
+
+  parts+=("${progress_bar} ${used_int}% (${tokens_used_fmt}/${tokens_available_fmt})${context_indicator}")
 fi
 
 # Join with dimmed separator and print

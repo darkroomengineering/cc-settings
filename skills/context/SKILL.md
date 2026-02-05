@@ -18,11 +18,32 @@ Run `/context` in Claude Code to see current usage.
 
 ## Context Thresholds
 
+Thresholds scale with your context window size:
+
+### Standard Context (~200K tokens)
 | Level | Usage | Action |
 |-------|-------|--------|
-| **Notice** | 70% | Consider handoff at next stopping point |
-| **Warning** | 80% | Create handoff, prepare to compact |
-| **Critical** | 90% | Create handoff NOW, then compact |
+| Notice | 70% (~140K) | Consider handoff at next stopping point |
+| Warning | 80% (~160K) | Create handoff, prepare to compact |
+| Critical | 90% (~180K) | Create handoff NOW, then compact |
+
+### Extended Context (~1M tokens)
+| Level | Usage | Action |
+|-------|-------|--------|
+| Notice | 70% (~700K) | Consider handoff at next stopping point |
+| Warning | 80% (~800K) | Create handoff, prepare to compact |
+| Critical | 90% (~900K) | Create handoff NOW, then compact |
+
+### 1M Context Benefits
+- Fewer compactions = less information loss
+- Larger skills loaded (2% of context = ~20K chars vs ~4K)
+- Full codebase analysis without handoffs
+- Extended multi-agent orchestration sessions
+- Use "Summarize from here" for partial compaction without full handoff
+
+### Enabling 1M Context
+Use model suffix: `opus[1m]` or `sonnet[1m]`
+Note: Premium pricing applies above 200K tokens (2x input, 1.5x output)
 
 ## Managing Context
 

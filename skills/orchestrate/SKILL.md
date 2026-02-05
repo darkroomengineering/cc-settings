@@ -69,3 +69,15 @@ Return a summary:
 - **Agents used**: Which agents did what
 - **Results**: Key outcomes
 - **Learnings**: Patterns worth remembering
+
+## Agent Teams
+
+For tasks with 3+ independent workstreams, consider using Agent Teams instead of
+sequential subagent orchestration:
+
+- **Fan out**: Spawn teammates for independent parallel work
+- **Delegate mode**: Lead coordinates, doesn't implement
+- **File locking**: Built-in protection against conflicts
+- **Mailbox**: Teammates communicate directly with each other
+
+Use `/teams` for dedicated agent teams orchestration.
