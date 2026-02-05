@@ -152,13 +152,6 @@ tldr slice src/file.ts functionName 42
 - Making assumptions about code not read
 - Reading raw files when `tldr context` would suffice
 
-## Extended Context (1M)
-
-When running with 1M context:
-- Files under 500 lines can be read directly (TLDR optimization less critical)
-- Keep more exploration results in context without handoff pressure
-- Still use TLDR for semantic search and impact analysis (better results than grep)
-
 ## Persistent Memory
 
 You have persistent memory across sessions. As you work:

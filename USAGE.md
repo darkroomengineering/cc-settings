@@ -300,7 +300,7 @@ When you know exactly what you need:
 ### Watch the Statusline
 
 ```
-Claude 4.5 Opus | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/1.0M) [1M]
+Claude 4.5 Opus | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/200K)
 ```
 
 ### Context Warnings

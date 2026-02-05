@@ -1,6 +1,6 @@
 {
   "name": "darkroom",
-  "description": "Darkroom Engineering standards with Opus 4.6, 1M context, agent teams, and auto-orchestration. Claude automatically delegates tasks to specialized agents based on natural conversation.",
+  "description": "Darkroom Engineering standards with Opus 4.6, agent teams, and auto-orchestration. Claude automatically delegates tasks to specialized agents based on natural conversation.",
   "version": "7.0.0",
   "author": {
     "name": "Darkroom Engineering",
@@ -27,7 +27,6 @@
   "features": [
     "agent-teams",
     "persistent-memory",
-    "adaptive-effort",
-    "1m-context-aware"
+    "adaptive-effort"
   ]
 }

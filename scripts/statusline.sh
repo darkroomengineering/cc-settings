@@ -98,13 +98,7 @@ if [ -n "$used" ]; then
     tokens_available_fmt=$(awk "BEGIN {printf \"%.0fk\", ${tokens_available}/1000}")
   fi
 
-  # Add [1M] indicator when in extended context mode (>500K tokens available)
-  context_indicator=""
-  if [ "${tokens_available:-0}" -gt 500000 ] 2>/dev/null; then
-    context_indicator=" [1M]"
-  fi
-
-  parts+=("${progress_bar} ${used_int}% (${tokens_used_fmt}/${tokens_available_fmt})${context_indicator}")
+  parts+=("${progress_bar} ${used_int}% (${tokens_used_fmt}/${tokens_available_fmt})")
 fi
 
 # Join with dimmed separator and print

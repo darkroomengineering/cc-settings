@@ -126,12 +126,9 @@ Fight entropy. Leave the codebase better than you found it.
   - `low` for simple formatting, renaming, boilerplate
   - Set via `CLAUDE_CODE_EFFORT_LEVEL` or interactively in `/model`
 
-### 1M Context Window (Default)
-- Configured as default via `opus[1m]` in settings.json
-- ~750K words / 3.4M characters in a single session
-- Dramatically reduces compaction frequency and information loss
-- Ideal for large refactors, full-codebase analysis, and extended orchestration sessions
-- Skill character budget scales to 2% of context window (~20K chars at 1M)
+### Context Window
+- Default: 200K tokens. Skill character budget scales to 2% (~4K chars).
+- 1M context available in beta if your subscription supports it — use `opus[1m]` in settings.json.
 
 ### Agent Teams (Experimental)
 - Multiple independent Claude Code instances with inter-agent messaging
