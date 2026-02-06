@@ -162,6 +162,9 @@ generate_patterns() {
         teams)
             patterns+=("use teams" "fan out" "split work" "parallel agents" "divide and conquer" "multi-instance" "agent teams")
             ;;
+        ship)
+            patterns+=("ship" "ship it" "create pr" "open pr" "/pr" "/ship" "ready to merge" "push and pr" "ready to ship")
+            ;;
         *)
             # For unknown skills, extract keywords from description
             if [[ -n "$description" ]]; then
@@ -184,7 +187,7 @@ get_priority() {
         create-handoff|resume-handoff)
             echo "critical"
             ;;
-        fix|build|refactor|review|orchestrate)
+        fix|build|refactor|review|orchestrate|ship)
             echo "high"
             ;;
         explore|test|component|hook|learn|tldr)
@@ -203,7 +206,7 @@ get_enforcement() {
         create-handoff)
             echo "block"
             ;;
-        fix|build|refactor|review)
+        fix|build|refactor|review|ship)
             echo "recommend"
             ;;
         *)
@@ -239,6 +242,9 @@ get_agents() {
             ;;
         component|hook)
             echo "scaffolder"
+            ;;
+        ship)
+            echo "tester,reviewer,implementer"
             ;;
         premortem|ask)
             echo "oracle,reviewer"

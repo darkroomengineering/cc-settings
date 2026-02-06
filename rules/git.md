@@ -48,6 +48,15 @@ git checkout -b feat/user-profile
 git checkout -b fix/login-redirect
 ```
 
+### Proper File Untracking
+When removing a tracked file from git but keeping it locally:
+```bash
+git rm --cached <file>        # Untrack without deleting
+echo "<file>" >> .gitignore   # Prevent re-tracking
+git commit -m "chore: untrack <file>"
+```
+Adding to `.gitignore` alone does NOT remove already-tracked files. You must use `git rm --cached`.
+
 ---
 
 ## DON'T

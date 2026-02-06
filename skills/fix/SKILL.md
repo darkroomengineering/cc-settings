@@ -22,12 +22,20 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 5. **Verify** - Spawn `tester` agent to confirm the fix
 6. **Learn** - If this was a non-obvious fix, auto-invoke `/learn store bug "..."` to remember it
 
+## Scope Rules (Mandatory)
+
+1. **File boundary**: Only modify files directly related to the bug. If a fix requires touching 4+ files, pause and reassess.
+2. **No drive-by refactoring**: Do not rename variables, reorganize imports, or clean up adjacent code during a bug fix.
+3. **No dependency upgrades**: If the bug is caused by a dependency, log it as a separate task.
+4. **2-iteration limit**: If your fix approach fails twice, stop. Present 2-3 alternative approaches with trade-offs before continuing.
+5. **Build verification**: After fixing, run `tsc --noEmit` and the project build command before considering the fix complete.
+
 ## Agent Delegation
 
 ```
 Task(explore, "Investigate the bug: $ARGUMENTS. Find relevant files, trace the issue.")
 Task(tester, "Create a failing test that reproduces: $ARGUMENTS")
-Task(implementer, "Fix the bug based on findings: [summary from explore]")
+Task(implementer, "Fix the bug based on findings: [summary from explore] SCOPE: Only modify files identified in exploration. Do NOT refactor adjacent code.")
 Task(reviewer, "Quick review of the fix for quality and edge cases")
 ```
 
