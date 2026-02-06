@@ -2,7 +2,7 @@
 
 Team-shareable Claude Code settings with **auto-orchestration**, **natural language skills**, **TLDR-first exploration**, and **persistent learnings**.
 
-**v6.1** - Batteries included. Run the setup script and everything works.
+**v7.0** - Batteries included. Run the setup script and everything works.
 
 ## Installation
 
@@ -165,7 +165,7 @@ When given a bug report, Claude **fixes it immediately**—no hand-holding requi
 Custom status bar showing model, directory, git branch with status, and context window usage:
 
 ```
-Claude 4.5 Opus | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/200K)
+Opus 4.6 | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/200K)
 ```
 
 ---
@@ -196,6 +196,7 @@ Claude 4.5 Opus | my-project | main✱↑ | █░░░░░░░░░ 8% (8
 | `review` | review, check, PR | reviewer |
 | `test` | test, write tests, coverage | tester |
 | `orchestrate` | complex task, coordinate | maestro |
+| `ship` | ship it, create PR, /pr, /ship | tester → reviewer → implementer |
 
 ### Research (Forked Context)
 | Skill | Triggers |
@@ -239,6 +240,7 @@ All agents are **TLDR-enforced** with mandatory commands and forbidden actions.
 | `scaffolder` | Boilerplate | `semantic`, `structure`, `context` |
 | `maestro` | Multi-agent coordination | All commands |
 | `security-reviewer` | Security audit | `semantic`, `slice`, `dfg`, `impact` |
+| `deslopper` | Dead code cleanup | `semantic`, `impact`, `calls` |
 
 ---
 
@@ -306,6 +308,7 @@ Switch contexts for different platforms:
 | End session | "Done for today" |
 | Resume | "Resume where we left off" |
 | Debug visually | "Take a screenshot of..." |
+| Ship changes | "Ship it" or "/pr" |
 | Security audit | "Check for security issues" |
 
 ---
