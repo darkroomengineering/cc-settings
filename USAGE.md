@@ -1,6 +1,6 @@
 # Usage Guide
 
-Practical guide for Darkroom's Claude Code configuration (v6.1).
+Practical guide for Darkroom's Claude Code configuration (v7.0).
 
 **Batteries included.** Run the setup script and everything works automatically.
 

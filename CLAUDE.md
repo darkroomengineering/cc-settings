@@ -96,6 +96,62 @@ When given a bug report, **FIX IT IMMEDIATELY**. Don't ask for hand-holding.
 
 ---
 
+## Guardrails (Learned from Experience)
+
+These rules exist because we've seen them violated repeatedly across sessions. They are non-negotiable.
+
+### Bug Fix Scope Constraint
+When fixing a bug, you are **confined to the files directly related to the bug**. Do NOT:
+- Refactor adjacent code "while you're in there"
+- Upgrade dependencies as part of a bug fix
+- Reorganize imports, rename variables, or clean up unrelated code
+- Touch files outside the immediate blast radius
+
+When using parallel agents for bug fixes, each agent MUST be assigned a distinct set of files with NO overlap. A bug fix PR should be reviewable in under 2 minutes.
+
+### 2-Iteration Limit
+If an approach fails after **2 attempts**, you MUST:
+1. STOP trying the same thing
+2. Summarize what you tried and why it failed
+3. Present **2-3 alternative approaches** with trade-offs
+4. Ask the user which direction to take
+
+Never burn 6+ attempts on the same strategy. Context is finite. Fail fast, pivot deliberately.
+
+### Visual/Spatial Task Honesty
+For tasks involving sub-pixel rendering, WebGL, physics simulations, complex animations, or canvas layout -- **acknowledge limitations upfront**. These require visual feedback loops. Instead:
+- Provide a best-effort implementation with clear TODOs
+- Suggest the user validate visually and provide feedback
+- Never claim pixel-perfect accuracy without visual verification
+
+### Never Fake Measurements
+NEVER fabricate, mock, or simulate the output of:
+- Lighthouse / PageSpeed scores
+- Bundle size measurements
+- Performance profiling results
+- Test coverage numbers
+- Build output or error messages
+
+If you cannot run a tool, say so. Do not invent plausible-looking output. Never detect audit tools (e.g., Lighthouse) to disable features and fake results.
+
+### Pre-Commit Verification
+Before ANY `git commit`, you MUST:
+1. Run `tsc --noEmit` (if TypeScript project) -- fix all errors
+2. Run the project build command (`bun run build`, `next build`, etc.) -- fix all errors
+3. Run existing tests if present -- fix all failures
+
+**Never commit code that doesn't build.** A broken commit wastes everyone's time.
+
+### Git: Proper File Untracking
+When removing a tracked file from git (but keeping it locally):
+```bash
+git rm --cached <file>        # Untrack without deleting
+echo "<file>" >> .gitignore   # Prevent re-tracking
+```
+Adding to `.gitignore` alone does NOT untrack already-tracked files.
+
+---
+
 ## Latest Docs & Versions
 
 **Before implementing ANYTHING with external libraries:**
@@ -411,6 +467,7 @@ For non-trivial tasks, use file-based tracking:
 | `/tldr <action>` | TLDR code analysis |
 | `/effort [level]` | Set thinking depth (low/medium/high/max) |
 | `/teams` | Agent teams orchestration |
+| `/ship` or `/pr` | Build, verify, and create PR |
 
 ### MCP Servers
 - **context7** - Library docs lookup
