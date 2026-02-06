@@ -129,6 +129,15 @@
 						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -q \"git push\"; then echo \"[Hook] Pushing to remote - ensure changes are reviewed\"; fi'"
 					}
 				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -qE \"git commit\"; then if [ -f tsconfig.json ]; then if ! npx tsc --noEmit --pretty 2>&1 | tee /tmp/tsc-check.txt | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" /tmp/tsc-check.txt 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 /tmp/tsc-check.txt; exit 1; fi; fi; fi'"
+					}
+				]
 			}
 		],
 		"PostToolUse": [
