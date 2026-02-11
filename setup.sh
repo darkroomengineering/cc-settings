@@ -4,7 +4,35 @@
 
 set -e
 
+# =============================================================================
+# BOOTSTRAP: Handle `bash <(curl ...)` by cloning to a temp directory
+# =============================================================================
+# When run via process substitution, BASH_SOURCE[0] points to /dev/fd/XX
+# which means we can't resolve lib/ relative to the script. Detect this and
+# auto-clone the repo so everything works seamlessly.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ "$SCRIPT_DIR" == "/dev/fd" || "$SCRIPT_DIR" == /proc/self/fd* ]]; then
+    REPO_URL="https://github.com/darkroomengineering/cc-settings.git"
+    CLONE_DIR="$(mktemp -d)"
+
+    cleanup_clone() { rm -rf "$CLONE_DIR"; }
+    trap cleanup_clone EXIT
+
+    echo "Fetching cc-settings..."
+    if command -v git &>/dev/null; then
+        git clone --depth 1 "$REPO_URL" "$CLONE_DIR" 2>/dev/null
+    else
+        echo "ERROR: git is required for remote install."
+        echo "Install git or clone manually: git clone $REPO_URL && bash cc-settings/setup.sh"
+        exit 1
+    fi
+
+    bash "$CLONE_DIR/setup.sh" "$@"
+    exit $?
+fi
+
 CLAUDE_DIR="${HOME}/.claude"
 VERSION="7.0"
 
