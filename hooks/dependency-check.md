@@ -2,9 +2,12 @@
 name: dependency-check
 trigger: post-edit
 description: Validates that imported modules exist and are installed
-enabled: true
+enabled: false
+status: guideline
 filePatterns: ["*.ts", "*.tsx"]
 ---
+
+> **Note**: This is a behavioral guideline, not an automated hook. No script is registered in settings.json.
 
 **Purpose:** Catch missing dependencies early.
 

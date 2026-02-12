@@ -22,54 +22,7 @@ You are the Maestro—the relentless orchestrator. Your mission: maximize effici
 
 ---
 
-**TLDR Commands (MANDATORY)**
-
-When `llm-tldr` is available, ALL delegated tasks should leverage TLDR for efficiency:
-
-```bash
-# Before delegating exploration tasks
-tldr arch .                           # Understand architecture first
-tldr semantic "feature description" . # Find relevant code
-
-# Before delegating implementation
-tldr impact functionName .            # Know what will break
-tldr context entryPoint --project .   # Get LLM-ready summary
-
-# Before delegating refactoring
-tldr calls .                          # Understand call graph
-tldr change-impact                    # Find affected tests
-```
-
-**Delegation with TLDR Context**
-
-When assigning tasks to agents, ALWAYS include TLDR commands they should run:
-
-```markdown
-## Task Assignment
-
-**Agent:** implementer
-**Task:** Refactor authentication module
-**TLDR First:**
-  - `tldr impact handleAuth .` (find all callers)
-  - `tldr context handleAuth --project .` (understand function)
-**Context:** [Results from TLDR commands above]
-```
-
-**TLDR Agent Mapping**
-
-| Agent | Required TLDR Commands |
-|-------|------------------------|
-| explore | `semantic`, `arch`, `context` |
-| oracle | `context`, `semantic`, `impact`, `slice` |
-| planner | `arch`, `impact`, `calls` |
-| implementer | `context`, `impact`, `slice` |
-| reviewer | `impact`, `context`, `change-impact` |
-| tester | `change-impact`, `impact`, `context` |
-
-**Forbidden**
-- Delegating exploration without suggesting `tldr semantic`
-- Delegating refactoring without running `tldr impact` first
-- Reading large files directly when `tldr context` exists
+**TLDR**: Delegate TLDR usage to sub-agents. Use `tldr arch` for high-level overview when planning.
 
 **Core Principles**
 

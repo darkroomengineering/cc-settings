@@ -7,12 +7,14 @@
 ### Styling
 - Use **Tailwind CSS** values unless custom values already exist in the project or are explicitly requested
 - Never invent custom spacing, colors, or breakpoints when Tailwind defaults suffice
-- Use `cn()` utility (combining `clsx` + `tailwind-merge`) for conditional class logic
+- Use **CSS Modules** (`import s from './component.module.css'`) for conditional and complex class logic
 
 ### Animation Libraries
-- **motion/react** (Framer Motion) for JavaScript-driven animations
-- **tw-animate-css** for CSS entrance/micro animations
-- Choose based on complexity: CSS for simple, JS for orchestrated sequences
+- **GSAP** for JavaScript-driven and orchestrated animations
+- **Lenis** (`lenis`) for smooth scroll
+- **Tempus** (`tempus`) for RAF management
+- CSS transitions/animations for simple micro-interactions
+- Choose based on complexity: CSS for simple, GSAP for orchestrated sequences
 
 ### Component Primitives
 - Use accessible primitives from: **Base UI**, **React Aria**, or **Radix UI**
@@ -24,10 +26,8 @@
 ## Component Constraints
 
 ### Accessibility
-- Add `aria-label` to all icon-only buttons
-- Use semantic HTML elements (`<button>`, `<a>`, `<nav>`) over divs with handlers
-- Form inputs must have associated `<label>` or `aria-label`
-- Never use `<div onClick>` for interactive elements
+
+See `skills/accessibility.md` for full accessibility rules.
 
 ### Dialogs & Modals
 - Use `AlertDialog` (not `Dialog`) for destructive/irreversible actions
@@ -163,13 +163,13 @@ function ProductCardSkeleton() {
 
 ### Good: Respecting Reduced Motion
 ```tsx
+import gsap from 'gsap'
+
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-<motion.div
-  initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
->
-  Content
-</motion.div>
+gsap.to(elementRef.current, {
+  opacity: 1,
+  y: 0,
+  duration: prefersReducedMotion ? 0 : 0.2,
+})
 ```

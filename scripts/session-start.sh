@@ -36,8 +36,8 @@ cleanup_handoffs() {
     local keep="${2:-20}"
 
     if [[ -d "$dir" ]]; then
-        ls -1t "$dir"/handoff_*.json 2>/dev/null | tail -n +$((keep + 1)) | xargs -r rm -f
-        ls -1t "$dir"/handoff_*.md 2>/dev/null | tail -n +$((keep + 1)) | xargs -r rm -f
+        ls -1t "$dir"/handoff_*.json 2>/dev/null | tail -n +$((keep + 1)) | xargs rm -f
+        ls -1t "$dir"/handoff_*.md 2>/dev/null | tail -n +$((keep + 1)) | xargs rm -f
     fi
 }
 
@@ -125,6 +125,8 @@ rotate_log "${CLAUDE_DIR}/edits.log" &
 pid_edits=$!
 rotate_log "${CLAUDE_DIR}/hooks.log" &
 pid_hooks=$!
+rotate_log "${CLAUDE_DIR}/safety-net.log" &
+pid_safety=$!
 
 # Handoff cleanup (parallel with log rotation)
 cleanup_handoffs "${CLAUDE_DIR}/handoffs" 20 &
@@ -158,7 +160,7 @@ auto_warm_tldr
 
 # --- Phase 4: Wait for remaining background tasks ---
 # These should complete quickly, but ensure they finish before script exits
-wait $pid_edits $pid_hooks $pid_handoffs $pid_skills $pid_compile 2>/dev/null
+wait $pid_edits $pid_hooks $pid_safety $pid_handoffs $pid_skills $pid_compile 2>/dev/null
 
 # --- Phase 5: Display output (must be sequential for clean terminal output) ---
 
@@ -184,7 +186,7 @@ if [[ -f "$LEARNINGS_FILE" ]] && command -v jq &>/dev/null; then
             "  - [\(.category)] \(.learning)"
         ' "$LEARNINGS_FILE" 2>/dev/null
         echo ""
-        echo "Run: recall-learnings.sh all"
+        echo "Run: learning.sh recall"
         echo "------------------------------------"
     fi
 fi

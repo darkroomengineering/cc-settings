@@ -11,8 +11,11 @@ All hooks are **automatically installed** by the setup script. No manual configu
 | `UserPromptSubmit` | Before Claude sees prompt | `skill-activation.sh` (skill matching) | No |
 | `UserPromptSubmit` | On user correction | Correction detection (learning reminder) | No |
 | `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) | No |
-| `PreToolUse` | Before Bash commands | Git push warning inline | No |
+| `PreToolUse` | Before Bash commands (Bash matcher) | `safety-net.sh` (blocks destructive commands) | No |
+| `PreToolUse` | Before Bash commands (Bash matcher) | Git push warning inline | No |
+| `PreToolUse` | Before git commit (Bash matcher) | Pre-commit tsc check (TypeScript validation) | No |
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) | No |
+| `PostToolUse` | After Edit | Async tsc check (TypeScript type errors) | **Yes** |
 | `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) | **Yes** |
 | `PreCompact` | Before context compaction | `create-handoff.sh` (saves state) | No |
 | `SessionEnd` | Session ending | `tldr-stats.sh` + `create-handoff.sh` | **Yes** |
@@ -151,8 +154,9 @@ The `SubagentStart` and `SubagentStop` hooks enable monitoring and coordination 
       "hooks": [
         {
           "type": "command",
-          "command": "~/.claude/scripts/swarm-coordinator.sh",
-          "async": true
+          "command": "bash -c 'echo \"[Swarm] Agent stopped: $AGENT_TYPE ($AGENT_ID)\" >> ~/.claude/swarm.log'",
+          "async": true,
+          "timeout": 5
         }
       ]
     }

@@ -147,8 +147,8 @@ clean_old_config() {
 }
 
 install_config_files() {
-    # CLAUDE.md
-    [[ -f "${SCRIPT_DIR}/CLAUDE.md" ]] && cp "${SCRIPT_DIR}/CLAUDE.md" "${CLAUDE_DIR}/"
+    # CLAUDE.md (install the full version from CLAUDE-FULL.md)
+    [[ -f "${SCRIPT_DIR}/CLAUDE-FULL.md" ]] && cp "${SCRIPT_DIR}/CLAUDE-FULL.md" "${CLAUDE_DIR}/CLAUDE.md"
 
     # Scripts
     if [[ -d "${SCRIPT_DIR}/scripts" ]]; then

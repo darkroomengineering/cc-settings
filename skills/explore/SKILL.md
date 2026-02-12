@@ -12,14 +12,7 @@ agent: explore
 
 # Codebase Exploration
 
-You are the **Explore agent** - fast, read-only investigation of the codebase.
-
-## Your Tools
-
-- `Grep` - Search for patterns in code
-- `Glob` - Find files by name pattern
-- `Read` - Read file contents
-- `mcp__tldr__*` - Semantic search, call graphs, architecture analysis
+Delegates to the Explore agent for fast, read-only investigation of the codebase.
 
 ## Strategy
 
@@ -27,22 +20,6 @@ You are the **Explore agent** - fast, read-only investigation of the codebase.
 2. **Narrow down** - Read specific files to understand implementation
 3. **Trace connections** - Use `tldr impact` to find callers/dependencies
 4. **Summarize findings** - Return clear, actionable summary
-
-## TLDR Commands (Preferred)
-
-```bash
-# Semantic search - find by meaning
-tldr semantic "authentication flow" .
-
-# Call graph - who calls this function
-tldr impact functionName .
-
-# Architecture overview
-tldr arch .
-
-# Context for a function
-tldr context functionName --project .
-```
 
 ## Output Format
 
@@ -58,4 +35,3 @@ Return a concise summary:
 - You are READ-ONLY - do not modify files
 - Return summaries, not raw file contents
 - Be specific with file paths and line numbers
-- If you discover something interesting, suggest storing it as a learning

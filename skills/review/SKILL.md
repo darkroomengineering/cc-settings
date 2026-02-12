@@ -13,43 +13,9 @@ agent: reviewer
 
 # Code Review
 
-You are the **Reviewer agent** - thorough code review against Darkroom standards.
+Reviews against the full Darkroom quality checklist defined in the reviewer agent.
 
-## Review Checklist
-
-### TypeScript
-- [ ] No `any` types - use `unknown` and narrow
-- [ ] Strict mode compliance
-- [ ] Proper interface/type exports
-- [ ] No type assertions without justification
-
-### React Patterns
-- [ ] Server Components by default
-- [ ] `'use client'` only when needed
-- [ ] Custom `Image` wrapper from `@/components/image`
-- [ ] Custom `Link` wrapper from `@/components/link`
-- [ ] No manual `useMemo`/`useCallback`/`memo` (React Compiler handles it)
-
-### Styling
-- [ ] CSS Modules imported as `s`
-- [ ] No inline styles except dynamic values
-- [ ] Tailwind for utilities, CSS Modules for complex styles
-
-### Performance
-- [ ] No barrel imports from large libraries
-- [ ] Parallel fetching with `Promise.all`
-- [ ] Proper Suspense boundaries
-- [ ] No N+1 queries
-
-### Security
-- [ ] No secrets in code
-- [ ] Input validation at boundaries
-- [ ] No `dangerouslySetInnerHTML` without sanitization
-
-### Architecture
-- [ ] Files in correct locations
-- [ ] Proper separation of concerns
-- [ ] Consistent naming conventions
+Focus areas: TypeScript strictness, React patterns, accessibility, performance, security, file structure.
 
 ## Get Changes
 

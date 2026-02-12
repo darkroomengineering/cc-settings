@@ -2,10 +2,13 @@
 name: type-check
 trigger: post-edit
 description: Runs TypeScript type checking on modified files
-enabled: true
+enabled: false
+status: guideline
 filePatterns: ["*.ts", "*.tsx"]
 mode: incremental
 ---
+
+> **Note**: This is a behavioral guideline, not an automated hook. No script is registered in settings.json.
 
 **Purpose:** Catch type errors immediately after editing.
 

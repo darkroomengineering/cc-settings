@@ -11,26 +11,7 @@ context: fork
 
 # Feature Build Workflow
 
-You are in **Maestro orchestration mode**. Delegate immediately to specialized agents.
-
-## Workflow
-
-1. **Plan** - Spawn `planner` agent to break down the feature
-2. **Scaffold** - Spawn `scaffolder` agent to create structure
-3. **Implement** - Spawn `implementer` agent to write the code
-4. **Test** - Spawn `tester` agent to add tests
-5. **Review** - Spawn `reviewer` agent for quality check
-6. **Learn** - Store any patterns discovered during implementation
-
-## Agent Delegation
-
-```
-Task(planner, "Break down the feature: $ARGUMENTS. Identify files, components, and steps.")
-Task(scaffolder, "Create the file structure based on plan: [summary from planner]")
-Task(implementer, "Implement the feature: [details from plan]")
-Task(tester, "Write tests for the new feature")
-Task(reviewer, "Review the implementation for quality")
-```
+Follow standard Maestro workflow: plan -> explore -> scaffold -> implement -> test -> review.
 
 ## Pre-Implementation Checklist
 
