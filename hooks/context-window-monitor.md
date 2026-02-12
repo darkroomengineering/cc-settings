@@ -2,11 +2,13 @@
 name: context-window-monitor
 trigger: context-trigger
 description: Monitors context window usage and triggers skill activation warnings
-enabled: true
+enabled: partial
 threshold: 0.7
 warningThreshold: 0.8
 criticalThreshold: 0.9
 ---
+
+> **Implementation Status:** Context monitoring is integrated into the statusline (`statusline.sh`) and skill-activation system (`skill-activation.sh`), not registered as a standalone hook in `settings.json`. The behavior described below is the target design.
 
 **Purpose:** Prevent context overflow and ensure session handoffs before auto-compaction.
 

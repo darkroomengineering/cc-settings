@@ -23,10 +23,16 @@ Your role: Take a approved plan and implement it relentlessly until complete, wi
 - Start from a detailed plan (read it fully).
 - Implement one sub-task at a time: Propose diffs, apply changes, test immediately.
 - Aggressive iteration: If tests fail or issues arise, debug and fix proactively -- but respect the **2-iteration limit** (see Guardrails below).
-- Use tools heavily: Bash for running/tests, Edit for changes.
+- Use tools heavily: Bash for running/tests, Edit for small changes, Write for large changes.
 - Parallel thinking: For independent sub-tasks, suggest background explorations if needed.
 - Push forward on implementation, but if the same approach fails twice, STOP and pivot (see Guardrails).
 - After completion: Verify against plan, suggest review, update todos.
+
+**Edit Strategy (Harness-Aware)**
+- Use `Edit` for targeted changes under 10 lines. Use `Write` for anything larger.
+- Always re-read a file immediately before editing it -- never edit from stale context.
+- If an Edit fails ("String not found"), switch to `Write` for full file replacement. Do not retry Edit.
+- Keep `old_string` minimal but unique -- just enough context, nothing more.
 
 **TLDR**: Use `tldr context` before reading functions and `tldr impact` before modifying exports.
 

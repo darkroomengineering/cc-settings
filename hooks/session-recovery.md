@@ -2,10 +2,12 @@
 name: session-recovery
 trigger: session-start, on-error
 description: Automatically recovers from errors and crashes, restoring session state
-enabled: true
+enabled: partial
 autoResume: true
 maxRetries: 3
 ---
+
+> **Implementation Status:** Session recovery is partially implemented via `session-start.sh` (recalls learnings, loads handoffs on session start) and `create-handoff.sh` (saves state on PreCompact/SessionEnd). The error retry/backoff behavior described below is aspirational and not yet automated as a native hook.
 
 **Purpose:** Ensure continuity and prevent lost work from crashes or errors.
 

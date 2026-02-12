@@ -62,4 +62,6 @@ Located in `biome.json`:
 }
 ```
 
+**Implementation:** This behavior is implemented as part of `scripts/post-edit.sh`, which runs as a `PostToolUse` hook (matcher: `Write|Edit`) in `settings.json`. It is not a standalone hook.
+
 **Note:** This hook runs silently in most cases. It only reports when significant formatting changes are made.

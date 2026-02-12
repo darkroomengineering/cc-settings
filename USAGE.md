@@ -264,6 +264,7 @@ When you know exactly what you need:
 | `review` | review, check, PR | reviewer |
 | `test` | test, coverage | tester |
 | `orchestrate` | complex, coordinate | maestro |
+| `ship` | ship it, create PR, /pr | tester → reviewer → implementer |
 
 ### Research (Fork Context)
 
@@ -293,6 +294,14 @@ When you know exactly what you need:
 | `create-handoff` | done for today |
 | `resume-handoff` | resume, continue |
 
+### Utility
+
+| Skill | Triggers |
+|-------|----------|
+| `effort` | think harder, max effort, quick fix |
+| `teams` | parallel agents, split work, fan out |
+| `versions` | package version, before installing |
+
 ---
 
 ## Context Management
@@ -300,7 +309,7 @@ When you know exactly what you need:
 ### Watch the Statusline
 
 ```
-Claude 4.5 Opus | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/200K)
+Opus 4.6 | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/200K)
 ```
 
 ### Context Warnings
