@@ -71,13 +71,13 @@ Claude automatically:
 ├── CLAUDE.md           # Coding standards + orchestration mode
 ├── settings.json       # Permissions + Hooks + MCP
 ├── agents/             # 10 specialized agents (TLDR-enforced)
-├── skills/             # 23 auto-invocable skills (SKILL.md format)
+├── skills/             # 26 auto-invocable skills (SKILL.md format)
 ├── contexts/           # 4 ecosystem contexts (web, webgl, desktop, mobile)
 ├── rules/              # 7 path-conditioned rule files
 ├── profiles/           # 4 stack-specific profiles
 ├── tasks/              # Task tracking (todo.md convention)
 ├── mcp-configs/        # MCP server templates
-├── scripts/            # 12 hook scripts
+├── scripts/            # 17 hook and utility scripts
 ├── lib/                # 5 shared bash utilities
 ├── learnings/          # Persistent project memory
 ├── handoffs/           # Session state backups
@@ -215,6 +215,13 @@ Opus 4.6 | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/200K
 | `hook` | create hook, custom hook |
 | `init` | new project, initialize |
 
+### Utility
+| Skill | Triggers |
+|-------|----------|
+| `effort` | think harder, max effort, quick fix |
+| `teams` | parallel agents, split work, fan out |
+| `versions` | package version, before installing |
+
 ### Session Management
 | Skill | Triggers |
 |-------|----------|
@@ -289,8 +296,9 @@ Switch contexts for different platforms:
 |-------|--------|
 | `SessionStart` | Recalls learnings, auto-warms TLDR |
 | `UserPromptSubmit` | Skill matching + correction detection |
+| `PreToolUse` | Safety net (Bash), tsc pre-commit (Bash), pre-edit validation (Edit) |
 | `SubagentStart/Stop` | Swarm logging |
-| `PostToolUse` | TLDR tracking, auto-format (async) |
+| `PostToolUse` | TLDR tracking, auto-format, async tsc check |
 | `PreCompact` / `SessionEnd` | Auto-handoff |
 | `Stop` | Learning reminder if >5 files changed |
 

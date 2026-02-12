@@ -19,11 +19,11 @@ There is no TypeScript, no build step, and no `node_modules`.
 - `scripts/` - Bash scripts installed to `~/.claude/scripts/`
 - `agents/` - Agent definitions installed to `~/.claude/agents/`
 - `skills/` - Skill files installed to `~/.claude/skills/`
-- `commands/` - Slash commands installed to `~/.claude/commands/`
 - `rules/` - Path-conditioned rules installed to `~/.claude/rules/`
 - `profiles/` - Profile definitions installed to `~/.claude/profiles/`
 - `contexts/` - Ecosystem contexts installed to `~/.claude/contexts/`
-- `hooks/` - Hook definitions installed to `~/.claude/hooks/`
+- `hooks/` - Hook documentation and guidelines
+- `mcp-configs/` - MCP server configuration templates
 - `lib/` - Shared bash libraries (colors.sh, platform.sh, prompts.sh, etc.)
 - `tests/` - Test scripts for validation
 - `setup.sh` - The installer entry point

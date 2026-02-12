@@ -7,14 +7,16 @@ enabled: true
 
 **Purpose:** Ensure code quality standards are met before committing.
 
+**Implementation Status:** Only TypeScript type checking (`tsc --noEmit`) is automated as a `PreToolUse` hook (matcher: `Bash`, triggers on `git commit`). The remaining checks below are behavioral guidelines enforced through CLAUDE.md instructions, not native hooks.
+
 **Checks Performed:**
 
-1. **Linting** - Run Biome/ESLint
-2. **Type checking** - TypeScript compilation
-3. **Tests** - Run affected tests
-4. **Format** - Check formatting
-5. **Secrets** - Scan for exposed credentials
-6. **TODOs** - Check for incomplete markers
+1. ~~**Linting** - Run Biome/ESLint~~ (guideline only)
+2. **Type checking** - TypeScript compilation (AUTOMATED)
+3. ~~**Tests** - Run affected tests~~ (guideline only)
+4. ~~**Format** - Check formatting~~ (guideline only)
+5. ~~**Secrets** - Scan for exposed credentials~~ (guideline only)
+6. ~~**TODOs** - Check for incomplete markers~~ (guideline only)
 
 **Behavior:**
 

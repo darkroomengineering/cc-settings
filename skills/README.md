@@ -43,6 +43,7 @@ These fork context and delegate to specialized agents:
 | `review` | review, check, PR, changes | reviewer |
 | `test` | test, write tests, coverage | tester |
 | `orchestrate` | complex task, coordinate | maestro |
+| `ship` | ship it, create PR, /pr, /ship | tester → reviewer → implementer |
 
 ### Creation (Direct Output)
 These create files directly in main context:
@@ -72,6 +73,13 @@ These fork context for clean exploration:
 | `qa` | visual check, accessibility, validate |
 | `versions` | package version, before installing |
 | `lenis` | smooth scroll, lenis setup |
+
+### Utility
+| Skill | Triggers On |
+|-------|-------------|
+| `effort` | think harder, max effort, quick fix, slow down |
+| `teams` | parallel agents, split work, fan out |
+| `versions` | package version, before installing |
 
 ### Session Management
 | Skill | Triggers On |
@@ -152,13 +160,9 @@ allowed-tools: [...]   # Restrict available tools
 | 80-89% | Warning | Create handoff soon |
 | 90%+ | **Critical** | `create-handoff` auto-suggested |
 
-## Legacy Migration
+## Legacy
 
-These files are deprecated and will be removed:
-- `skill-rules.json` → Replaced by `*/SKILL.md` files
-- `commands/*.md` → Merged into skills
-
-Skills are now the unified way to extend Claude's capabilities.
+The old `skill-rules.json` and `commands/*.md` formats have been replaced by `*/SKILL.md` files. Skills are now the unified way to extend Claude's capabilities.
 
 ## Debugging
 

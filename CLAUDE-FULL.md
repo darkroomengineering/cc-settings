@@ -150,6 +150,19 @@ echo "<file>" >> .gitignore   # Prevent re-tracking
 ```
 Adding to `.gitignore` alone does NOT untrack already-tracked files.
 
+### Edit Strategy (Harness-Aware)
+
+The Edit tool uses exact string matching (`old_string` -> `new_string`). This is the most failure-prone part of the tool harness. Follow these rules to minimize wasted context:
+
+- **Small edits (<10 lines)**: Use `Edit` with minimal but unique `old_string`
+- **Large edits (>15 lines)**: Use `Write` for full file replacement -- it is more reliable
+- **On first Edit failure**: Switch to `Write` immediately. Do NOT retry Edit with adjusted strings.
+- **Keep `old_string` tight**: Include just enough surrounding context for uniqueness, nothing more
+- **Re-read before editing**: If a file was read more than 2 tool calls ago, re-read it -- content may have changed (other hooks or agents may have modified it)
+- **New code blocks**: When adding large blocks of new code, prefer `Write` over inserting via `Edit`
+
+A pre-edit validation hook enforces checks 1-2 automatically. If it blocks your edit, re-read the file and try again, or switch to `Write`.
+
 ---
 
 ## Latest Docs & Versions

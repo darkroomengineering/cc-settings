@@ -12,8 +12,8 @@ All hooks are **automatically installed** by the setup script. No manual configu
 | `UserPromptSubmit` | On user correction | Correction detection (learning reminder) | No |
 | `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) | No |
 | `PreToolUse` | Before Bash commands (Bash matcher) | `safety-net.sh` (blocks destructive commands) | No |
-| `PreToolUse` | Before Bash commands (Bash matcher) | Git push warning inline | No |
 | `PreToolUse` | Before git commit (Bash matcher) | Pre-commit tsc check (TypeScript validation) | No |
+| `PreToolUse` | Before Edit calls (Edit matcher) | `pre-edit-validate.sh` (harness optimization) | No |
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) | No |
 | `PostToolUse` | After Edit | Async tsc check (TypeScript type errors) | **Yes** |
 | `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) | **Yes** |
@@ -285,11 +285,11 @@ The markdown files in this folder (`auto-format.md`, `lint-on-save.md`, etc.) de
 
 | File | Description |
 |------|-------------|
-| `auto-format.md` | Format files after editing |
+| `auto-format.md` | Format files after editing (implemented in `post-edit.sh`) |
 | `lint-on-save.md` | Run linter after file changes |
-| `pre-commit-check.md` | Validate before git commits |
-| `context-window-monitor.md` | Warn at context thresholds |
-| `session-recovery.md` | Auto-recover from crashes |
+| `pre-commit-check.md` | Validate before git commits (tsc check automated; rest are guidelines) |
+| `context-window-monitor.md` | Warn at context thresholds (integrated in statusline/skill-activation) |
+| `session-recovery.md` | Auto-recover from crashes (partially via `session-start.sh`) |
 | `dependency-check.md` | Validate imports exist |
 | `type-check.md` | Run TypeScript on changes |
 | `test-watcher.md` | Run related tests on change |
