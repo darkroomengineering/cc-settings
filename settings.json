@@ -34,6 +34,8 @@
 		"allow": [
 			"Bash(bun:*)",
 			"Bash(bunx:*)",
+			"Bash(npm run:*)",
+
 			"Bash(git status:*)",
 			"Bash(git diff:*)",
 			"Bash(git log:*)",
@@ -44,30 +46,26 @@
 			"Bash(git stash:*)",
 			"Bash(git push:*)",
 			"Bash(gh:*)",
+
 			"Bash(biome:*)",
 			"Bash(vitest:*)",
 			"Bash(agent-browser:*)",
-			"Bash(bun run:*)",
-			"Bash(npm run:*)",
-			"Bash(curl:*)",
+
+			"Bash(ls:*)",
+			"Bash(pwd:*)",
+			"Bash(tree:*)",
+			"Bash(wc:*)",
+			"Bash(mkdir:*)",
+			"Bash(cp:*)",
+			"Bash(mv:*)",
 			"Bash(rm -rf node_modules)",
 			"Bash(rm -rf .next)",
 			"Bash(rm -rf dist)",
 			"Bash(rm -rf .turbo)",
 			"Bash(rm *.tmp)",
-			"Bash(tree:*)",
-			"Bash(find:*)",
-			"Bash(cat:*)",
-			"Bash(head:*)",
-			"Bash(tail:*)",
-			"Bash(wc:*)",
-			"Bash(grep:*)",
-			"Bash(ls:*)",
-			"Bash(pwd:*)",
-			"Bash(echo:*)",
-			"Bash(mkdir:*)",
-			"Bash(cp:*)",
-			"Bash(mv:*)",
+
+			"Bash(curl:*)",
+
 			"Read(*)",
 			"Write(*)",
 			"Edit(*)",
@@ -75,7 +73,8 @@
 			"Glob(*)",
 			"Grep(*)",
 			"LS(*)",
-			"TodoWrite(*)"
+			"TodoWrite(*)",
+			"NotebookEdit(*)"
 		],
 		"deny": [
 			"Bash(rm -rf /)",
@@ -85,20 +84,52 @@
 			"Bash(rm -rf ~/.ssh)",
 			"Bash(rm -rf ~/.gnupg)",
 			"Bash(rm -rf ~/.aws)",
+			"Bash(rm -rf $HOME:*)",
+			"Bash(rm -rf $HOME/*:*)",
+			"Bash(rm -fr /:*)",
+			"Bash(rm -fr /*:*)",
+			"Bash(rm -fr ~:*)",
+			"Bash(rm -fr ~/*:*)",
+			"Bash(rm -Rf /:*)",
+			"Bash(rm -Rf ~:*)",
+
+			"Read(~/.ssh/*)",
+			"Read(~/.aws/*)",
+			"Read(~/.gnupg/*)",
+			"Read(~/.config/gh/*)",
+			"Read(~/.netrc)",
 			"Bash(cat ~/.ssh/*)",
 			"Bash(cat ~/.aws/*)",
 			"Bash(cat ~/.gnupg/*)",
+			"Bash(cp ~/.ssh/*:*)",
+			"Bash(cp ~/.aws/*:*)",
+			"Bash(mv ~/.ssh/*:*)",
+			"Bash(mv ~/.aws/*:*)",
 			"Write(~/.ssh/*)",
 			"Write(~/.aws/*)",
 			"Write(~/.gnupg/*)",
-			"Bash(curl * | bash)",
-			"Bash(curl * | sh)",
+
 			"Bash(git push --force origin main)",
 			"Bash(git push --force origin master)",
 			"Bash(git push -f origin main)",
 			"Bash(git push -f origin master)",
+			"Bash(git reset --hard:*)",
+			"Bash(git clean -f:*)",
+			"Bash(git checkout -- .:*)",
+			"Bash(git checkout -- *)",
+			"Bash(git stash drop:*)",
+			"Bash(git stash clear:*)",
+
+			"Bash(curl * | bash)",
+			"Bash(curl * | sh)",
+			"Bash(wget * | bash)",
+			"Bash(wget * | sh)",
+
 			"Bash(sudo:*)",
-			"Bash(chmod 777:*)"
+			"Bash(chmod 777:*)",
+
+			"Bash(find * -delete:*)",
+			"Bash(xargs rm:*)"
 		]
 	},
 	"hooks": {
@@ -126,7 +157,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -q \"git push\"; then echo \"[Hook] Pushing to remote - ensure changes are reviewed\"; fi'"
+						"command": "bash \"$HOME/.claude/scripts/safety-net.sh\""
 					}
 				]
 			},
@@ -135,7 +166,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -qE \"git commit\"; then if [ -f tsconfig.json ]; then if ! npx tsc --noEmit --pretty 2>&1 | tee /tmp/tsc-check.txt | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" /tmp/tsc-check.txt 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 /tmp/tsc-check.txt; exit 1; fi; fi; fi'"
+						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -qE \"git commit\"; then if [ -f tsconfig.json ]; then if ! bunx tsc --noEmit --pretty 2>&1 | tee /tmp/tsc-check.txt | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" /tmp/tsc-check.txt 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 /tmp/tsc-check.txt; exit 1; fi; fi; fi'"
 					}
 				]
 			}
@@ -155,7 +186,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'FILE=$(echo \"$TOOL_INPUT\" | grep -o '\"file_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' | sed 's/.*\"\\([^\"]*\\)\"$/\\1/'); if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then npx tsc --noEmit 2>&1 | grep -E \"$FILE\" || true; fi'",
+						"command": "bash -c 'FILE=$(echo \"$TOOL_INPUT\" | grep -o '\"file_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' | sed 's/.*\"\\([^\"]*\\)\"$/\\1/'); if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then bunx tsc --noEmit 2>&1 | grep -E \"$FILE\" || true; fi'",
 						"async": true
 					}
 				]

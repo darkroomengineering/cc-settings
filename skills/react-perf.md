@@ -189,18 +189,22 @@ function useScroll(id: string, callback: (e: Event) => void) {
 ### Extract Expensive Work
 ```tsx
 // ❌ WRONG: Expensive computation runs on early return
-function Profile({ user, isLoading }) {
-  const avatar = useMemo(() => processAvatar(user), [user])
+function Profile({ user, isLoading }: { user: User; isLoading: boolean }) {
+  const avatar = processAvatar(user) // runs even when loading
   if (isLoading) return <Skeleton />
-  return <img src={avatar} />
+  return <img src={avatar} alt={user.name} />
 }
 
-// ✅ CORRECT: Memoized child skipped on early return
-function Profile({ user, isLoading }) {
+// ✅ CORRECT: Extract to child component, skipped on early return
+// React Compiler handles memoization automatically
+function Profile({ user, isLoading }: { user: User; isLoading: boolean }) {
   if (isLoading) return <Skeleton />
   return <UserAvatar user={user} />
 }
-const UserAvatar = memo(({ user }) => <img src={processAvatar(user)} />)
+
+function UserAvatar({ user }: { user: User }) {
+  return <img src={processAvatar(user)} alt={user.name} />
+}
 ```
 
 ### Narrow Effect Dependencies

@@ -2,9 +2,12 @@
 name: secret-scan
 trigger: pre-commit, post-edit
 description: Scans for accidentally exposed secrets, API keys, and credentials
-enabled: true
+enabled: false
+status: guideline
 blockOnDetection: true
 ---
+
+> **Note**: This is a behavioral guideline, not an automated hook. No script is registered in settings.json.
 
 **Purpose:** Prevent credential leaks in commits.
 

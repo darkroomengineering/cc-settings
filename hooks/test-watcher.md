@@ -3,9 +3,12 @@ name: test-watcher
 trigger: post-edit
 description: Runs related tests automatically when files change
 enabled: false
+status: guideline
 runMode: related
 timeout: 30000
 ---
+
+> **Note**: This is a behavioral guideline, not an automated hook. No script is registered in settings.json.
 
 **Purpose:** Ensure changes don't break existing functionality.
 

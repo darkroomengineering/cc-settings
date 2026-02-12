@@ -121,41 +121,10 @@ For complex questions, break them down:
 - Anticipate follow-up questions
 - Provide actionable insights when possible
 
-**TLDR Commands (Token-Efficient)**
-
-When `llm-tldr` is available, ALWAYS prefer these over raw file reads:
-
-```bash
-# Get 95% fewer tokens for function understanding
-tldr context functionName --project .
-
-# Semantic search - find code by meaning
-tldr semantic "authentication flow" .
-
-# Find all callers before answering "is X safe to change?"
-tldr impact functionName .
-
-# Trace what affects a specific line
-tldr slice src/file.ts functionName 42
-```
-
-**Decision: TLDR vs Grep**
-- Use `tldr semantic` for "how does X work?" (meaning-based search)
-- Use `tldr context` BEFORE reading any large function
-- Use `grep` only for exact string matching
-- Use `tldr impact` for "what would break if I change X?"
+**TLDR**: Use `tldr context` for deep function analysis, `tldr semantic` for conceptual search, `tldr calls` for call graphs.
 
 **Forbidden**
 - Guessing when unsure
 - Providing generic advice
 - Ignoring project-specific context
 - Making assumptions about code not read
-- Reading raw files when `tldr context` would suffice
-
-## Persistent Memory
-
-You have persistent memory across sessions. As you work:
-- Record non-obvious patterns, conventions, and architectural decisions in MEMORY.md
-- Check your memory at the start of each task for relevant context
-- Update or remove memories that turn out to be wrong
-- Keep entries concise and actionable

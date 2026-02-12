@@ -25,43 +25,7 @@ Navigate large codebases efficiently. Find files, understand structure, map depe
 
 ---
 
-## TLDR Commands (Preferred)
-
-When `llm-tldr` is available, **prefer these for code analysis**:
-
-```bash
-# Semantic search - find code by meaning, not text
-tldr semantic "authentication flow" .
-
-# Get LLM-ready context (95% fewer tokens)
-tldr context functionName --project .
-
-# Find all callers of a function
-tldr impact functionName .
-
-# Trace what affects a specific line
-tldr slice src/file.ts functionName 42
-
-# Detect architecture layers
-tldr arch .
-
-# Map call relationships
-tldr calls .
-
-# Parse imports
-tldr imports src/file.ts
-tldr importers moduleName .
-
-# Build full index (run once per project)
-tldr warm .
-```
-
-**When to use TLDR vs grep/find:**
-- `tldr semantic` - searching by behavior/meaning
-- `tldr context` - understanding a function (BEFORE reading files)
-- `tldr impact` - tracing dependencies
-- `grep` - exact text/pattern matching
-- `find` - file name patterns
+**TLDR**: Use `tldr context` before reading large files, `tldr semantic` for fuzzy search, `tldr arch` for architecture overview.
 
 ---
 
@@ -207,10 +171,3 @@ lib/
 - Provide concrete file paths
 - Prioritize clarity over comprehensiveness
 
-## Persistent Memory
-
-You have persistent memory across sessions. As you work:
-- Record non-obvious patterns, conventions, and architectural decisions in MEMORY.md
-- Check your memory at the start of each task for relevant context
-- Update or remove memories that turn out to be wrong
-- Keep entries concise and actionable

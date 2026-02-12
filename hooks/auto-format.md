@@ -13,21 +13,21 @@ filePatterns: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.json", "*.css"]
 ```
 ON post_edit:
   IF file_matches_pattern:
-    RUN biome format --write on_file
-    LOG formatting_applied
+    RUN biome check --write on_file
+    LOG formatting_and_lint_fixes_applied
 ```
 
 **Commands:**
 
 ```bash
-# Format single file
-bun biome format --write path/to/file.ts
+# Check and auto-fix single file (formatting + lint)
+bun biome check --write path/to/file.ts
 
-# Format directory
-bun biome format --write src/
+# Check and auto-fix directory
+bun biome check --write src/
 
 # Check without writing
-bun biome format --check path/to/file.ts
+bun biome check path/to/file.ts
 ```
 
 **Formatting Rules (Biome Defaults):**

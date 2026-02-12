@@ -3,9 +3,12 @@ name: file-backup
 trigger: pre-edit
 description: Creates backup copies of files before modification
 enabled: false
+status: guideline
 backupDir: .claude-backups
 maxBackups: 5
 ---
+
+> **Note**: This is a behavioral guideline, not an automated hook. No script is registered in settings.json.
 
 **Purpose:** Provide safety net for reverting changes.
 

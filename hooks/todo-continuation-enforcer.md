@@ -2,8 +2,11 @@
 name: todo-continuation-enforcer
 trigger: session-end, on-idle
 description: Ensures all todos are completed or acknowledged before ending a session
-enabled: true
+enabled: false
+status: guideline
 ---
+
+> **Note**: This is a behavioral guideline, not an automated hook. No script is registered in settings.json.
 
 **Purpose:** Prevent incomplete work from being abandoned.
 

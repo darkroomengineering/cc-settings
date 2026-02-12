@@ -2,10 +2,13 @@
 name: lint-on-save
 trigger: post-edit
 description: Automatically runs linter after file modifications
-enabled: true
+enabled: false
+status: guideline
 autoFix: true
 filePatterns: ["*.ts", "*.tsx", "*.js", "*.jsx"]
 ---
+
+> **Note**: This is a behavioral guideline, not an automated hook. No script is registered in settings.json.
 
 **Purpose:** Catch and fix lint errors immediately after editing.
 
