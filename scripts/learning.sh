@@ -8,7 +8,7 @@
 #   delete - Remove a learning by ID
 #   list   - List all learnings (alias for recall all)
 
-set -e
+set -euo pipefail
 
 # Common setup
 PROJECT_DIR=$(pwd)
@@ -124,52 +124,38 @@ cmd_store() {
     # Ensure directory and file exist
     mkdir -p "$LEARNINGS_DIR"
     if [ ! -f "$LEARNINGS_FILE" ]; then
-        echo '{"project":"'"$PROJECT_NAME"'","path":"'"$PROJECT_DIR"'","learnings":[]}' > "$LEARNINGS_FILE"
+        jq -n \
+          --arg project "$PROJECT_NAME" \
+          --arg path "$PROJECT_DIR" \
+          '{project: $project, path: $path, learnings: []}' \
+          > "$LEARNINGS_FILE"
     fi
 
+    local TIMESTAMP
     TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    local ID
     ID=$(generate_id)
 
-    GIT_BRANCH=""
+    local GIT_BRANCH=""
     if git rev-parse --git-dir > /dev/null 2>&1; then
-        GIT_BRANCH=$(git branch --show-current 2>/dev/null)
+        GIT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
     fi
 
-    LEARNING_ESCAPED=$(escape_json "$LEARNING")
-    CONTEXT_ESCAPED=$(escape_json "$CONTEXT")
+    # Build learning JSON safely with jq (all values properly escaped)
+    local NEW_LEARNING
+    NEW_LEARNING=$(jq -n \
+      --arg id "$ID" \
+      --arg ts "$TIMESTAMP" \
+      --arg cat "$CATEGORY" \
+      --arg learning "$LEARNING" \
+      --arg context "$CONTEXT" \
+      --arg branch "$GIT_BRANCH" \
+      '{id: $id, timestamp: $ts, category: $cat, learning: $learning, context: $context, branch: $branch}')
 
-    NEW_LEARNING=$(cat <<EOF
-{
-  "id": "$ID",
-  "timestamp": "$TIMESTAMP",
-  "category": "$CATEGORY",
-  "learning": "$LEARNING_ESCAPED",
-  "context": "$CONTEXT_ESCAPED",
-  "branch": "$GIT_BRANCH"
-}
-EOF
-)
-
-    # Portable file update (avoids sed -i differences between macOS and Linux)
+    # Portable file update
+    local TEMP_FILE
     TEMP_FILE=$(mktemp)
-    if command -v jq &>/dev/null; then
-        jq --argjson new "$NEW_LEARNING" '.learnings += [$new]' "$LEARNINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$LEARNINGS_FILE"
-    else
-        # Fallback without jq - portable approach
-        EXISTING=$(cat "$LEARNINGS_FILE")
-        if echo "$EXISTING" | grep -q '"learnings":\[\]'; then
-            # Empty learnings array
-            echo "${EXISTING%\]\}*}[$NEW_LEARNING]}" > "$TEMP_FILE"
-        else
-            # Has existing learnings - insert before closing brackets
-            # Use awk for portable in-place style editing
-            awk -v new="$NEW_LEARNING" '
-                /\]\}$/ { gsub(/\]\}$/, "," new "]}"); }
-                { print }
-            ' "$LEARNINGS_FILE" > "$TEMP_FILE"
-        fi
-        mv "$TEMP_FILE" "$LEARNINGS_FILE"
-    fi
+    jq --argjson new "$NEW_LEARNING" '.learnings += [$new]' "$LEARNINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$LEARNINGS_FILE"
 
     echo ""
     echo "✅ LEARNING STORED"
