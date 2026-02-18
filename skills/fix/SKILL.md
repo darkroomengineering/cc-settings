@@ -46,6 +46,7 @@ Return a concise summary:
 
 ## Remember
 
+- If the fix involves a library API, **fetch docs first** via `/docs <library>` — APIs change between versions
 - Always store non-obvious bug fixes as learnings
 - Check if similar bugs were fixed before (recall learnings)
 - Run tests after fixing

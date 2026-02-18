@@ -76,8 +76,7 @@ Claude automatically:
 ├── rules/              # 7 path-conditioned rule files
 ├── profiles/           # 4 stack-specific profiles
 ├── tasks/              # Task tracking (todo.md convention)
-├── mcp-configs/        # MCP server templates
-├── scripts/            # 17 hook and utility scripts
+├── scripts/            # 19 hook and utility scripts
 ├── lib/                # 5 shared bash utilities
 ├── learnings/          # Persistent project memory
 ├── handoffs/           # Session state backups
@@ -292,15 +291,18 @@ Switch contexts for different platforms:
 
 ## Native Hooks
 
+14 hook events supported. Our configured hooks:
+
 | Event | Action |
 |-------|--------|
 | `SessionStart` | Recalls learnings, auto-warms TLDR |
 | `UserPromptSubmit` | Skill matching + correction detection |
-| `PreToolUse` | Safety net (Bash), tsc pre-commit (Bash), pre-edit validation (Edit) |
+| `PreToolUse` | Safety net (Bash), tsc pre-commit (Bash), doc-fetch reminder (Bash), pre-edit validation (Edit) |
+| `PostToolUse` | Auto-format (Biome), async tsc check, TLDR tracking |
 | `SubagentStart/Stop` | Swarm logging |
-| `PostToolUse` | TLDR tracking, auto-format, async tsc check |
 | `PreCompact` / `SessionEnd` | Auto-handoff |
 | `Stop` | Learning reminder if >5 files changed |
+| `Notification` | Desktop notifications (macOS/Linux) |
 
 ---
 

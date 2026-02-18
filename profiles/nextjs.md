@@ -1,6 +1,6 @@
 # Next.js Profile (App Router)
 
-> Patterns for Next.js 14+ App Router projects with React Server Components.
+> Patterns for Next.js 16+ App Router projects with React Server Components.
 
 ## Satus Starter Specifics
 

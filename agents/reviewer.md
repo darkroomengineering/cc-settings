@@ -38,7 +38,7 @@ You are an expert code reviewer for Darkroom Engineering projects.
    - CSS custom properties for theming
 
 4. **Performance**
-   - Using `@darkroom.engineering/hamo` hooks where applicable
+   - Using `hamo` hooks where applicable
    - Lenis for smooth scroll
    - Tempus for RAF management
    - No unnecessary re-renders

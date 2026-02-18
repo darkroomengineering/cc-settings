@@ -2,7 +2,7 @@
 # Skill Activation Hook - UserPromptSubmit
 # Analyzes user prompt and suggests relevant skills/agents
 # Optimized: Uses compiled skill index with awk for single-pass matching
-# Falls back to jq parsing if index is missing
+# Legacy fallback: jq path (only runs if skill-rules.json exists, which it no longer does)
 
 CLAUDE_DIR="${HOME}/.claude"
 SKILLS_FILE="${CLAUDE_DIR}/skills/skill-rules.json"

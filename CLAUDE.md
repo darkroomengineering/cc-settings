@@ -23,7 +23,7 @@ There is no TypeScript, no build step, and no `node_modules`.
 - `profiles/` - Profile definitions installed to `~/.claude/profiles/`
 - `contexts/` - Ecosystem contexts installed to `~/.claude/contexts/`
 - `hooks/` - Hook documentation and guidelines
-- `mcp-configs/` - MCP server configuration templates
+- `mcp-configs/` - MCP server configuration (recommended servers)
 - `lib/` - Shared bash libraries (colors.sh, platform.sh, prompts.sh, etc.)
 - `tests/` - Test scripts for validation
 - `setup.sh` - The installer entry point

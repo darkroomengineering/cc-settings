@@ -190,6 +190,7 @@ Fight entropy. Leave the codebase better than you found it.
 ### Opus 4.6 (Default)
 - **Adaptive Thinking**: Dynamically allocates reasoning depth based on complexity
 - **128K max output**: Generate entire modules in a single response
+- **Fast mode**: Same model, faster output. Toggle with `/fast`.
 - **Effort levels**: `low`, `medium`, `high` (default), `max`
   - `max` for architecture decisions, security reviews, complex debugging
   - `low` for simple formatting, renaming, boilerplate
@@ -198,15 +199,30 @@ Fight entropy. Leave the codebase better than you found it.
 ### Context Window
 - Default: 200K tokens. Skill character budget scales to 2% (~4K chars).
 - 1M context available in beta if your subscription supports it — use `opus[1m]` in settings.json.
+- Override skill budget: `SLASH_COMMAND_TOOL_CHAR_BUDGET` env var.
 
-### Agent Teams (Experimental)
+### Agent Teams
 - Multiple independent Claude Code instances with inter-agent messaging
 - Shared task list with self-coordination and file locking
 - Enable: set in settings.json `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`
-- Display: `in-process` (single terminal) or split panes (tmux/iTerm2)
-- **Delegate mode**: Restrict lead to coordination only
+- Display: `in-process` (single terminal, Shift+Up/Down to navigate) or split panes (tmux/iTerm2)
+- **Delegate mode**: Restrict lead to coordination only (Shift+Tab to toggle)
 - **Plan approval**: Require teammates to plan before implementing
+- **Agent memory**: `memory` frontmatter field with user/project/local scope
+- **Quality hooks**: `TeammateIdle` and `TaskCompleted` hook events for enforcement
 - Use for: 3+ independent workstreams, parallel file editing, competing hypotheses
+
+### MCP Tool Deferral
+- When MCP tool descriptions exceed 10% of context, tools are auto-deferred
+- Deferred tools discovered on-demand via `ToolSearch`
+- Reduces token usage by ~47%. Configure threshold: `ENABLE_TOOL_SEARCH=auto:N`
+
+### Hook Events (14 total)
+`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`,
+`PostToolUseFailure`, `Notification`, `SubagentStart`, `SubagentStop`, `Stop`,
+`TeammateIdle`, `TaskCompleted`, `PreCompact`, `SessionEnd`
+
+Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools)
 
 ---
 
@@ -483,7 +499,9 @@ For non-trivial tasks, use file-based tracking:
 | `/ship` or `/pr` | Build, verify, and create PR |
 
 ### MCP Servers
-- **context7** - Library docs lookup
+- **context7** - Library docs lookup (`@upstash/context7-mcp`)
+- **Sanity** - CMS operations (remote HTTP)
+- **tldr** - Semantic codebase analysis (`llm-tldr` via pipx)
 
 ### CLI Tools
 - **agent-browser** - AI-optimized browser automation

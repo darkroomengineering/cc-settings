@@ -109,7 +109,6 @@ create_directories() {
     local dirs=(
         "${CLAUDE_DIR}/scripts"
         "${CLAUDE_DIR}/agents"
-        "${CLAUDE_DIR}/commands"
         "${CLAUDE_DIR}/skills"
         "${CLAUDE_DIR}/profiles"
         "${CLAUDE_DIR}/rules"
@@ -132,7 +131,6 @@ create_directories() {
 clean_old_config() {
     rm -f "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/agents/"*.md 2>/dev/null || true
-    rm -f "${CLAUDE_DIR}/commands/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skills/"*.json 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skills/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/profiles/"*.md 2>/dev/null || true
@@ -158,9 +156,6 @@ install_config_files() {
 
     # Agents
     [[ -d "${SCRIPT_DIR}/agents" ]] && cp -r "${SCRIPT_DIR}/agents/"* "${CLAUDE_DIR}/agents/" 2>/dev/null || true
-
-    # Commands
-    [[ -d "${SCRIPT_DIR}/commands" ]] && cp -r "${SCRIPT_DIR}/commands/"* "${CLAUDE_DIR}/commands/" 2>/dev/null || true
 
     # Skills
     [[ -d "${SCRIPT_DIR}/skills" ]] && cp -r "${SCRIPT_DIR}/skills/"* "${CLAUDE_DIR}/skills/" 2>/dev/null || true
@@ -227,13 +222,11 @@ show_summary() {
     box_line "ok" "~/.claude.json (MCP servers)"
 
     local agent_count=$(find "${CLAUDE_DIR}/agents" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-    local cmd_count=$(find "${CLAUDE_DIR}/commands" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     local profile_count=$(find "${CLAUDE_DIR}/profiles" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     local rule_count=$(find "${CLAUDE_DIR}/rules" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
     local context_count=$(find "${CLAUDE_DIR}/contexts" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
 
     box_line "ok" "agents/ ($agent_count)"
-    box_line "ok" "commands/ ($cmd_count)"
     box_line "ok" "profiles/ ($profile_count)"
     box_line "ok" "rules/ ($rule_count)"
     box_line "ok" "contexts/ ($context_count)"

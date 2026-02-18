@@ -1,6 +1,6 @@
-# MCP Server Catalog
+# MCP Servers
 
-Model Context Protocol (MCP) servers extend Claude Code with external capabilities like database access, deployment management, live documentation, and persistent memory.
+Model Context Protocol (MCP) servers extend Claude Code with external capabilities like deployment management, live documentation, and persistent memory.
 
 ---
 
@@ -27,7 +27,7 @@ Add MCP servers to `~/.claude.json`:
   "mcpServers": {
     "context7": {
       "command": "npx",
-      "args": ["-y", "@context7/mcp-server"],
+      "args": ["-y", "@upstash/context7-mcp@latest"],
       "env": {}
     },
     "vercel": {
@@ -97,7 +97,7 @@ Use `disabledMcpServers` in `.claude/settings.json` to disable servers for speci
 {
   "disabledMcpServers": [
     "memory",
-    "supabase"
+    "vercel"
   ]
 }
 ```
@@ -143,18 +143,9 @@ Essential servers for Darkroom projects:
 - **vercel** - Deployment management
 - **memory** - Persistent knowledge across sessions
 
-### Optional (`optional.json`)
+### Adding Project-Specific Servers
 
-Additional servers based on project needs:
-- **railway** - Railway deployment management
-- **supabase** - Database and auth
-- **cloudflare** - Workers, R2, DNS
-- **github** - Repository management
-- **firecrawl** - Web scraping for research
-
-### Project-Specific (`project-example.json`)
-
-Example of project-specific configuration for overrides.
+For client projects that need additional MCP servers (databases, hosting, comms tools), add them to the project's `.claude/settings.json` rather than the global config. Browse available servers at [modelcontextprotocol.io](https://modelcontextprotocol.io).
 
 ---
 

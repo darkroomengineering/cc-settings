@@ -50,9 +50,15 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
 4. **Prefix with `use`** - React hook naming convention
 5. **No memoization** - React Compiler handles it automatically
 
+## Before You Start
+
+If this hook uses an external library, **fetch docs first**:
+1. Run `/docs <library>` to get current API via context7
+2. Run `bun info <package>` to check latest version
+
 ## Consider Using Hamo
 
-For common use cases, prefer `hamo` hooks:
+For common use cases, prefer `hamo` hooks (run `/docs hamo` first):
 
 ```tsx
 import { useWindowSize, useRect, useIntersectionObserver } from 'hamo'

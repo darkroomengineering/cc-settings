@@ -5,7 +5,7 @@
   "mcpServers": {
     "context7": {
       "command": "npx",
-      "args": ["-y", "@context7/mcp-server"],
+      "args": ["-y", "@upstash/context7-mcp@latest"],
       "env": {},
       "_description": "Live documentation lookup. Essential for getting current API docs instead of outdated training data.",
       "_usage": "Triggered by: 'how to use X', 'X docs', 'api reference for Y'",

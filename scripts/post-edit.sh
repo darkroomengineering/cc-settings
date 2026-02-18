@@ -1,7 +1,7 @@
 #!/bin/bash
 # Post-Edit Hook - Auto-format, auto-review, and visual QA
 
-FILE_PATH="${TOOL_INPUT_path:-}"
+FILE_PATH="${TOOL_INPUT_file_path:-}"
 
 [ -z "$FILE_PATH" ] && exit 0
 
