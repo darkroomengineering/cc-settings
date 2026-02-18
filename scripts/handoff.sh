@@ -7,7 +7,7 @@
 #   handoff.sh resume [handoff_id]           - Resume from a handoff (latest if no id)
 #   handoff.sh list                          - List available handoffs
 
-set -e
+set -euo pipefail
 
 HANDOFF_DIR="${HOME}/.claude/handoffs"
 
@@ -33,27 +33,18 @@ cmd_create() {
         GIT_STATUS=$(git status --porcelain 2>/dev/null | head -20)
     fi
 
-    # Create JSON file
-    cat > "$HANDOFF_FILE" << EOF
-{
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "project": {
-    "name": "$PROJECT_NAME",
-    "path": "$PROJECT_DIR"
-  },
-  "git": {
-    "branch": "$GIT_BRANCH",
-    "pendingChanges": $(echo "$GIT_STATUS" | wc -l | tr -d ' ')
-  },
-  "context": {
-    "summary": "",
-    "activeTodos": [],
-    "keyFiles": [],
-    "currentTask": ""
-  },
-  "notes": ""
-}
-EOF
+    # Create JSON file (use jq for safe escaping)
+    local pending_changes
+    pending_changes=$(echo "$GIT_STATUS" | grep -c '.' 2>/dev/null || echo 0)
+
+    jq -n \
+      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg name "$PROJECT_NAME" \
+      --arg path "$PROJECT_DIR" \
+      --arg branch "$GIT_BRANCH" \
+      --argjson changes "$pending_changes" \
+      '{timestamp: $ts, project: {name: $name, path: $path}, git: {branch: $branch, pendingChanges: $changes}, context: {summary: "", activeTodos: [], keyFiles: [], currentTask: ""}, notes: ""}' \
+      > "$HANDOFF_FILE"
 
     # Create markdown file
     cat > "$HANDOFF_MD" << EOF
@@ -89,9 +80,9 @@ ${GIT_STATUS}
 *Resume with: \`handoff.sh resume ${TIMESTAMP}\` or \`/resume-handoff ${TIMESTAMP}\`*
 EOF
 
-    # Update latest symlinks
-    ln -sf "$HANDOFF_FILE" "${HANDOFF_DIR}/latest.json"
-    ln -sf "$HANDOFF_MD" "${HANDOFF_DIR}/latest.md"
+    # Update latest symlinks (relative for portability)
+    ln -sf "$(basename "$HANDOFF_FILE")" "${HANDOFF_DIR}/latest.json"
+    ln -sf "$(basename "$HANDOFF_MD")" "${HANDOFF_DIR}/latest.md"
 
     echo ""
     echo "HANDOFF CREATED"

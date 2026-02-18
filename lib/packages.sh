@@ -334,37 +334,6 @@ ensure_pipx() {
     fi
 }
 
-# Check if all required dependencies are present
-check_required_deps() {
-    local missing=()
-
-    # git is always required
-    if ! has_command git; then
-        missing+=("git")
-    fi
-
-    # jq is required for JSON manipulation
-    if ! has_command jq; then
-        missing+=("jq")
-    fi
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        error "Missing required dependencies: ${missing[*]}"
-        echo ""
-        echo "Please install the missing dependencies:"
-        for dep in "${missing[@]}"; do
-            case "$OS" in
-                macos)   echo "  brew install $dep" ;;
-                linux*)  echo "  sudo apt install $dep" ;;
-                windows) echo "  choco install $dep" ;;
-            esac
-        done
-        return 1
-    fi
-
-    return 0
-}
-
 # Get installation instructions for a package
 get_install_hint() {
     local pkg="$1"

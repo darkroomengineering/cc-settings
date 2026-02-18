@@ -2,7 +2,7 @@
 # Darkroom Claude Code Setup Script v7.0
 # Just run it. No flags needed.
 
-set -e
+set -euo pipefail
 
 # =============================================================================
 # BOOTSTRAP: Handle `bash <(curl ...)` by cloning to a temp directory

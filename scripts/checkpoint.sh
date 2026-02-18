@@ -4,7 +4,8 @@ set -euo pipefail
 # Checkpoint system for long-running Claude Code tasks
 # Usage: checkpoint.sh <save|list|show|restore|clean> [args]
 
-# Colors
+# Colors (self-contained — this script is installed standalone to ~/.claude/scripts/
+# and cannot source lib/colors.sh which is not installed alongside it)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

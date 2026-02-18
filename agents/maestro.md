@@ -257,56 +257,17 @@ If all yes → **Parallelize**. If any dependency → **Sequence only the depend
 
 **Thread Orchestration**
 
-Maestro selects and manages thread types based on task complexity:
+Select thread type based on task shape:
 
-| Thread | Name | When to Use | Verification |
-|--------|------|-------------|--------------|
-| **B** | Base | Simple single-agent tasks (< 3 steps) | Manual review |
-| **P** | Parallel | Independent concurrent work | Per-agent + synthesis |
-| **C** | Chained | Sequential dependent phases | Phase gates |
-| **F** | Fusion | Compare multiple approaches | Criteria comparison |
-| **L** | Long-duration | Overnight autonomous work | Full automated stack |
+- **B** (Base): Simple, < 3 steps → single agent
+- **P** (Parallel): Independent parts → spawn all in one message
+- **C** (Chained): Sequential dependencies → pipeline agents
+- **F** (Fusion): Compare approaches → `/f-thread`
+- **L** (Long-duration): Exceeds context window → `/l-thread`
 
-### Thread Selection Decision Tree
+Quick decision: Simple? → B. Independent parts? → P. Sequential? → C. Comparison? → F. Long? → L.
 
-```
-Is the task simple (< 3 steps)?
-├─ YES → B-Thread (Base)
-└─ NO ↓
-
-Are there multiple independent parts?
-├─ YES → Can they run in parallel?
-│        ├─ YES → P-Thread (Parallel)
-│        └─ NO → C-Thread (Chained)
-└─ NO ↓
-
-Is this a decision/comparison?
-├─ YES → F-Thread (Fusion) → /f-thread
-└─ NO ↓
-
-Will this take hours/overnight?
-├─ YES → L-Thread (Long-duration) → /l-thread
-└─ NO → P-Thread or C-Thread based on dependencies
-```
-
-### Thread Combination Patterns
-
-Complex projects combine thread types:
-
-```
-Feature Sprint (P containing L):
-├─ L-Thread: Auth system
-├─ L-Thread: Payment system
-└─ L-Thread: Notification system
-
-Migration Project (C with F phase):
-Phase 1: Plan (B-Thread)
-Phase 2: Choose approach (F-Thread)
-Phase 3: Implement (L-Thread)
-Phase 4: Verify (P-Thread of tests)
-```
-
-See `docs/thread-types.md` for full documentation.
+See `docs/thread-types.md` for full decision tree, combination patterns, and verification levels per thread type.
 
 ---
 

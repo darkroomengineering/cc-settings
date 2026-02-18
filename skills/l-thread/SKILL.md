@@ -35,30 +35,7 @@ Save checkpoints at these milestones:
 
 ### Checkpoint Contents
 
-```json
-{
-  "timestamp": "2024-01-15T10:30:00Z",
-  "phase": "3/6",
-  "description": "Completed component migration",
-  "git": {
-    "branch": "feat/migration",
-    "sha": "abc123",
-    "dirty": false
-  },
-  "todos": {
-    "completed": ["task-1", "task-2", "task-3"],
-    "remaining": ["task-4", "task-5", "task-6"],
-    "blocked": []
-  },
-  "modifiedFiles": ["src/a.ts", "src/b.ts"],
-  "verification": {
-    "compile": "pass",
-    "lint": "pass",
-    "test": "pass"
-  },
-  "notes": "Next: migrate remaining 3 components"
-}
-```
+See `hooks/checkpoint.md` for the full checkpoint JSON schema, storage location, and auto-checkpoint threshold actions.
 
 ### Save/Restore Commands
 
@@ -75,15 +52,7 @@ Save checkpoints at these milestones:
 
 ## Verification Stack
 
-Every checkpoint must pass verification before saving:
-
-```
-Level 1: Compile    → npx tsc --noEmit
-Level 2: Lint       → bunx biome check [modified files]
-Level 3: Test       → bun test --filter="[relevant]"
-```
-
-If verification fails, fix before checkpointing.
+Every checkpoint must pass Levels 1-3 before saving. Full verification (Levels 1-5) at task completion. See `hooks/verification-check.md` for the complete 5-level stack, per-agent requirements, and failure handling.
 
 ## Workflow
 
