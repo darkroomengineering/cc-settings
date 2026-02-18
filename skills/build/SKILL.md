@@ -13,10 +13,10 @@ context: fork
 
 Follow standard Maestro workflow: plan -> explore -> scaffold -> implement -> test -> review.
 
-## Pre-Implementation Checklist
+## Pre-Implementation Checklist (MANDATORY)
 
 Before implementing with ANY external library:
-1. **Fetch docs** - Use context7 MCP to get latest documentation
+1. **Fetch docs** - Run `/docs <library>` to get current API via context7. Never code from memory.
 2. **Check versions** - Run `bun info <package>` for latest version
 3. **Follow patterns** - Check existing code for similar implementations
 

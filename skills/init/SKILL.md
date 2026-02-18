@@ -24,7 +24,7 @@ bun install
 
 ## What Satus Includes
 
-- **Next.js 15+** with App Router
+- **Next.js 16+** with App Router
 - **React 19+** with React Compiler
 - **TypeScript** strict mode
 - **Tailwind CSS v4**

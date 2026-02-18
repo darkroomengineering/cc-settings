@@ -13,6 +13,7 @@ All hooks are **automatically installed** by the setup script. No manual configu
 | `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) | No |
 | `PreToolUse` | Before Bash commands (Bash matcher) | `safety-net.sh` (blocks destructive commands) | No |
 | `PreToolUse` | Before git commit (Bash matcher) | Pre-commit tsc check (TypeScript validation) | No |
+| `PreToolUse` | Before package install (Bash matcher) | `check-docs-before-install.sh` (doc-fetch reminder) | No |
 | `PreToolUse` | Before Edit calls (Edit matcher) | `pre-edit-validate.sh` (harness optimization) | No |
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) | No |
 | `PostToolUse` | After Edit | Async tsc check (TypeScript type errors) | **Yes** |
@@ -74,10 +75,11 @@ Hooks are defined in `settings.json`:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `type` | string | `"command"` for shell commands, `"prompt"` for LLM evaluation |
-| `command` | string | Shell command to execute |
-| `async` | boolean | Run in background without blocking (Claude Code 2.1.0+) |
-| `timeout` | number | Timeout in seconds (default: 60) |
+| `type` | string | `"command"`, `"prompt"` (LLM yes/no), or `"agent"` (subagent with tools) |
+| `command` | string | Shell command to execute (for `command` type) |
+| `async` | boolean | Run in background without blocking |
+| `timeout` | number | Timeout in seconds (default: 600, max: 600) |
+| `once` | boolean | Run exactly once per session then disable (skills only) |
 
 ### Async Hooks (Background Execution)
 
@@ -112,22 +114,32 @@ Use `async: true` for hooks that don't need to block execution:
 - Hooks that need to block/allow operations
 - Hooks that inject context (UserPromptSubmit, SessionStart)
 
-## Available Hook Events
+## Available Hook Events (14 total)
 
 | Event | When | Matcher |
 |-------|------|---------|
-| `PreToolUse` | Before any tool runs | Tool name |
-| `PostToolUse` | After any tool runs | Tool name |
-| `PermissionRequest` | When permission needed | Tool name |
-| `Notification` | When Claude sends notification | Notification type |
+| `SessionStart` | When session begins | `startup`, `resume`, `clear`, `compact` |
 | `UserPromptSubmit` | When you submit a prompt | - |
-| `Stop` | When Claude stops | - |
+| `PreToolUse` | Before any tool runs | Tool name |
+| `PermissionRequest` | When permission needed | Tool name |
+| `PostToolUse` | After any tool runs | Tool name |
+| `PostToolUseFailure` | After a tool fails | Tool name |
+| `Notification` | When Claude sends notification | Notification type |
 | `SubagentStart` | When subagent spawns | Agent type |
 | `SubagentStop` | When subagent finishes | Agent type |
+| `Stop` | When Claude stops | - |
+| `TeammateIdle` | When agent team teammate goes idle | - |
+| `TaskCompleted` | When a task is marked completed | - |
 | `PreCompact` | Before context compaction | `manual` or `auto` |
-| `Setup` | On `--init` or `--maintenance` | `init` or `maintenance` |
-| `SessionStart` | When session begins | `startup`, `resume`, `clear`, `compact` |
 | `SessionEnd` | When session ends | - |
+
+### Hook Types
+
+| Type | Description |
+|------|-------------|
+| `command` | Shell command (standard) |
+| `prompt` | LLM single-turn yes/no evaluation |
+| `agent` | Subagent with tools (Read, Grep, Glob) for verification |
 
 ## Swarm/Multi-Agent Hooks
 

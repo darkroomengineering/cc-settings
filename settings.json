@@ -13,7 +13,7 @@
 	"mcpServers": {
 		"context7": {
 			"command": "npx",
-			"args": ["-y", "@upstash/context7-mcp@1.0.8"],
+			"args": ["-y", "@upstash/context7-mcp@latest"],
 			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
@@ -171,6 +171,15 @@
 				]
 			},
 			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/check-docs-before-install.sh\""
+					}
+				]
+			},
+			{
 				"matcher": "Edit",
 				"hooks": [
 					{
@@ -195,7 +204,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'FILE=$(echo \"$TOOL_INPUT\" | grep -o '\"file_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"' | sed 's/.*\"\\([^\"]*\\)\"$/\\1/'); if [[ \"$FILE\" =~ \\.(ts|tsx)$ ]]; then bunx tsc --noEmit 2>&1 | grep -E \"$FILE\" || true; fi'",
+						"command": "bash \"$HOME/.claude/scripts/post-edit-tsc.sh\"",
 						"async": true
 					}
 				]

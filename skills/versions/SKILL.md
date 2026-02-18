@@ -7,7 +7,7 @@ description: |
   - Before implementing with any library
 
   MANDATORY: Never install packages without checking version first.
-allowed-tools: [Bash]
+allowed-tools: [Bash, mcp__context7__resolve-library-id, mcp__context7__get-library-docs]
 ---
 
 # Package Version Checker

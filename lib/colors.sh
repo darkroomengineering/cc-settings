@@ -139,7 +139,7 @@ box_end() {
 
 # Banner for script start
 show_banner() {
-    local version="${1:-5.1}"
+    local version="${1:-7.0}"
     echo ""
     echo -e "${BOLD}${CYAN}+============================================+${RESET}"
     echo -e "${BOLD}${CYAN}|   Darkroom Claude Code Setup v${version}         |${RESET}"
