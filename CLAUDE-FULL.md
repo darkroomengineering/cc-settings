@@ -493,6 +493,10 @@ For non-trivial tasks, use file-based tracking:
 | `/qa` | Visual QA validation |
 | `/orchestrate <task>` | Multi-agent coordination |
 | `/ask <question>` | Ask Oracle |
+| `/checkpoint [subcommand]` | Save/restore task state |
+| `/f-thread` | Compare approaches, architecture decisions |
+| `/l-thread` | Long-running autonomous task with checkpoints |
+| `/prd` | Generate product requirements document |
 | `/tldr <action>` | TLDR code analysis |
 | `/effort [level]` | Set thinking depth (low/medium/high/max) |
 | `/teams` | Agent teams orchestration |

@@ -135,6 +135,31 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
 | Pattern | Reason to Keep Separate |
 |---------|------------------------|
 | [item] | [rationale] |
+```
+
+**Example Output**
+
+```markdown
+### Auto-Fixed (Dead Code Removal)
+| Removed | File | Reason |
+|---------|------|--------|
+| `unusedHelper()` | `lib/utils.ts:45` | Zero callers (verified via `tldr impact`) |
+| `OldComponent` | `components/old.tsx` | Not imported anywhere |
+| `LEGACY_CONFIG` | `lib/config.ts:12` | Unreferenced constant |
+
+### Recommendations (Requires Approval)
+#### 1. Duplicate Utility Extraction
+**Locations:** `lib/utils.ts:12` — `formatDate()`, `components/date.tsx:8` — `formatDateString()`
+**Recommendation:** Extract to `lib/utils/date.ts`
+**Effort:** Low (15 min)
+**Benefit:** Removes 20 duplicated lines, single source of truth
+**Approve?** Reply "yes to 1" to proceed
+
+### Not Recommended (Documented)
+| Pattern | Reason to Keep Separate |
+|---------|------------------------|
+| `useQuery` vs `useFetch` | Different caching strategies, intentional |
+| `Button` vs `IconButton` | Distinct accessibility requirements |
 
 ### Next Steps
 1. Review recommendations above
