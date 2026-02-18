@@ -40,4 +40,5 @@ CURRENT_SAVED=${CURRENT_SAVED:-0}
 NEW_CALLS=$((CURRENT_CALLS + 1))
 NEW_SAVED=$((CURRENT_SAVED + SAVED))
 
-echo "{\"calls\": $NEW_CALLS, \"tokens_saved\": $NEW_SAVED}" > "$STATS_FILE"
+TEMP_FILE=$(mktemp)
+echo "{\"calls\": $NEW_CALLS, \"tokens_saved\": $NEW_SAVED}" > "$TEMP_FILE" && mv "$TEMP_FILE" "$STATS_FILE"

@@ -44,6 +44,8 @@ These fork context and delegate to specialized agents:
 | `test` | test, write tests, coverage | tester |
 | `orchestrate` | complex task, coordinate | maestro |
 | `ship` | ship it, create PR, /pr, /ship | tester → reviewer → implementer |
+| `f-thread` | compare approaches, architecture decision | parallel oracles → scoring matrix |
+| `l-thread` | overnight, long running, autonomous task | phased execution with checkpoints |
 
 ### Creation (Direct Output)
 These create files directly in main context:
@@ -65,6 +67,7 @@ These fork context for clean exploration:
 | `tldr` | who calls, dependencies, semantic search |
 | `premortem` | risks, what could go wrong |
 | `discovery` | requirements, scope, figure out |
+| `prd` | PRD, requirements document, product spec |
 
 ### Tools
 | Skill | Triggers On |
@@ -86,6 +89,7 @@ These fork context for clean exploration:
 |-------|-------------|
 | `learn` | **AUTO**: after non-obvious fix, pattern, gotcha |
 | `context` | context window, running out of context |
+| `checkpoint` | save state, save progress, checkpoint |
 | `create-handoff` | done for today, save state |
 | `resume-handoff` | resume, continue, last session |
 
@@ -156,9 +160,11 @@ allowed-tools: [...]   # Restrict available tools
 
 | Context % | Warning | Action |
 |-----------|---------|--------|
-| 70-79% | Notice | Consider handoff |
-| 80-89% | Warning | Create handoff soon |
-| 90%+ | **Critical** | `create-handoff` auto-suggested |
+| 70-79% | Notice | Save checkpoint, consider handoff |
+| 80-89% | Warning | Save checkpoint + commit work, create handoff soon |
+| 90%+ | **Critical** | Save checkpoint, `create-handoff` auto-suggested |
+
+> Checkpoints (`/checkpoint save`) are lightweight task snapshots. Handoffs (`/create-handoff`) are full session transfers. Use both at thresholds.
 
 ## Legacy
 

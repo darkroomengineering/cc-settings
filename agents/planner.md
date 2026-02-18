@@ -176,5 +176,52 @@ When architect mode is active, include these sections in the plan:
 
 ---
 
-**End with**: "Plan complete. Delegate to implementer for execution."
+## Thread Selection Guide
 
+When planning, recommend the appropriate thread type:
+
+| Scenario | Thread | Why |
+|----------|--------|-----|
+| Fix a typo | B (Base) | Simple, single agent |
+| Explore 3 areas of codebase | P (Parallel) | Independent exploration |
+| Database migration (5 phases) | C (Chained) | Sequential dependencies |
+| Choose between React Query vs SWR | F (Fusion) | Decision with alternatives |
+| Build auth system overnight | L (Long-duration) | Extended autonomous work |
+| Refactor 10 independent files | P (Parallel) | No dependencies between files |
+| Implement feature with 3 dependent steps | C (Chained) | Sequential phases |
+
+### In Plans, Include Thread Recommendation
+
+```markdown
+## Implementation Plan: [Feature]
+
+### Recommended Thread: [B/P/C/F/L]
+**Reason:** [Why this thread type fits]
+
+### Parallel Batches (if P-Thread)
+- Batch 1: [tasks that can run together]
+- Batch 2: [tasks after Batch 1]
+
+### Phases (if C-Thread)
+- Phase 1: [description] → verify before Phase 2
+- Phase 2: [description] → verify before Phase 3
+```
+
+### Enhanced Task Breakdown
+
+Include dependency and sizing info in task tables:
+
+```markdown
+| ID | Task | Complexity | Est. Tokens | Deps | Parallel Group |
+|----|------|------------|-------------|------|----------------|
+| t1 | Create types | trivial | 1K | - | A |
+| t2 | Setup API | small | 4K | - | A |
+| t3 | Auth middleware | medium | 15K | t1, t2 | B |
+| t4 | Tests | medium | 12K | t3 | C |
+```
+
+See `docs/thread-types.md` and `docs/enhanced-todos.md` for details.
+
+---
+
+**End with**: "Plan complete. Delegate to implementer for execution."

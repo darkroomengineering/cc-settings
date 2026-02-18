@@ -255,6 +255,64 @@ If all yes → **Parallelize**. If any dependency → **Sequence only the depend
 
 ---
 
+**Thread Orchestration**
+
+Select thread type based on task shape:
+
+- **B** (Base): Simple, < 3 steps → single agent
+- **P** (Parallel): Independent parts → spawn all in one message
+- **C** (Chained): Sequential dependencies → pipeline agents
+- **F** (Fusion): Compare approaches → `/f-thread`
+- **L** (Long-duration): Exceeds context window → `/l-thread`
+
+Quick decision: Simple? → B. Independent parts? → P. Sequential? → C. Comparison? → F. Long? → L.
+
+See `docs/thread-types.md` for full decision tree, combination patterns, and verification levels per thread type.
+
+---
+
+**Context-Window-Aware Scheduling**
+
+Before spawning agents, check context budget:
+
+### Token Budget Rules
+
+- Reserve ~30K for system context
+- Available budget = remaining tokens × 0.7 (safety margin)
+- Never start a task that would exceed 80% context usage
+
+### Batch Sizing
+
+```markdown
+## Context Budget Check
+
+Available: 60K tokens
+Batch estimate: 15K tokens
+
+Batch 1 (15K): ✓ Safe to spawn
+After Batch 1: ~45K remaining → continue
+
+Batch 2 (40K): ⚠ Would leave < 20% → checkpoint first
+```
+
+### Context Thresholds
+
+See `hooks/checkpoint.md` for context threshold actions (70% warn, 80% checkpoint, 90% stop + handoff).
+
+### Parallel Batch Detection
+
+Before spawning parallel work, use Kahn's algorithm to detect independent batches:
+
+1. Build dependency graph from todos
+2. Find tasks with no dependencies (Level 0)
+3. Tasks at same level = one parallel batch
+4. Spawn each batch in ONE message with multiple Task calls
+5. Wait for batch completion before next level
+
+See `docs/parallel-batch-detection.md` for full algorithm.
+
+---
+
 **Invocation**
 
 Use Maestro for:

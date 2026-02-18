@@ -103,8 +103,10 @@
 			"Bash(cat ~/.gnupg/*)",
 			"Bash(cp ~/.ssh/*:*)",
 			"Bash(cp ~/.aws/*:*)",
+			"Bash(cp ~/.gnupg/*:*)",
 			"Bash(mv ~/.ssh/*:*)",
 			"Bash(mv ~/.aws/*:*)",
+			"Bash(mv ~/.gnupg/*:*)",
 			"Write(~/.ssh/*)",
 			"Write(~/.aws/*)",
 			"Write(~/.gnupg/*)",
@@ -166,7 +168,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -qE \"git commit\"; then if [ -f tsconfig.json ]; then if ! bunx tsc --noEmit --pretty 2>&1 | tee /tmp/tsc-check.txt | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" /tmp/tsc-check.txt 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 /tmp/tsc-check.txt; exit 1; fi; fi; fi'"
+						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -qE \"git commit\"; then if [ -f tsconfig.json ]; then TSC_TMP=$(mktemp /tmp/tsc-check.XXXXXX); trap \"rm -f $TSC_TMP\" EXIT; if ! bunx tsc --noEmit --pretty 2>&1 | tee \"$TSC_TMP\" | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" \"$TSC_TMP\" 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 \"$TSC_TMP\"; exit 1; fi; fi; fi'"
 					}
 				]
 			},

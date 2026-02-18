@@ -149,14 +149,5 @@ show_banner() {
     echo ""
 }
 
-# Final success banner
-show_success_banner() {
-    echo ""
-    echo -e "${BOLD}${GREEN}+============================================+${RESET}"
-    echo -e "${BOLD}${GREEN}|           Setup Complete!                 |${RESET}"
-    echo -e "${BOLD}${GREEN}+============================================+${RESET}"
-    echo ""
-}
-
 # Initialize colors on source
 setup_colors
