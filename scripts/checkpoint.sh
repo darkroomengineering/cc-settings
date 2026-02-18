@@ -43,24 +43,21 @@ cmd_save() {
   dirty=$(git diff --quiet 2>/dev/null && echo "false" || echo "true")
   modified_files=$(git diff --name-only HEAD 2>/dev/null | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null || echo "[]")
 
-  # Build checkpoint JSON
-  cat > "$file" <<EOF
-{
-  "id": "$id",
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "project": "$PROJECT",
-  "description": "$description",
-  "git": {
-    "branch": "$branch",
-    "sha": "$sha",
-    "dirty": $dirty,
-    "modifiedFiles": $modified_files
-  }
-}
-EOF
+  # Build checkpoint JSON (use jq for safe escaping)
+  jq -n \
+    --arg id "$id" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg project "$PROJECT" \
+    --arg desc "$description" \
+    --arg branch "$branch" \
+    --arg sha "$sha" \
+    --argjson dirty "$dirty" \
+    --argjson files "$modified_files" \
+    '{id: $id, timestamp: $ts, project: $project, description: $desc, git: {branch: $branch, sha: $sha, dirty: $dirty, modifiedFiles: $files}}' \
+    > "$file"
 
-  # Update latest symlink
-  ln -sf "$file" "$CHECKPOINT_DIR/latest"
+  # Update latest symlink (relative for portability)
+  ln -sf "$(basename "$file")" "$CHECKPOINT_DIR/latest"
 
   echo -e "${GREEN}Checkpoint saved:${NC} $id"
   echo -e "${CYAN}Description:${NC} $description"
@@ -70,7 +67,7 @@ EOF
 cmd_list() {
   ensure_dir
   local files
-  files=$(ls -1 "$CHECKPOINT_DIR"/*.json 2>/dev/null)
+  files=$(find "$CHECKPOINT_DIR" -maxdepth 1 -name "*.json" -type f 2>/dev/null | sort)
 
   if [ -z "$files" ]; then
     echo -e "${YELLOW}No checkpoints found for project: $PROJECT${NC}"
@@ -80,17 +77,19 @@ cmd_list() {
   echo -e "${BLUE}Checkpoints for ${CYAN}$PROJECT${NC}:"
   echo ""
 
-  for f in $files; do
+  while IFS= read -r f; do
     local id desc ts
     id=$(jq -r '.id' "$f")
     desc=$(jq -r '.description' "$f")
     ts=$(jq -r '.timestamp' "$f")
     local latest_marker=""
-    if [ "$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null)" = "$f" ]; then
+    local latest_target
+    latest_target=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
+    if [ "$(basename "$f")" = "$latest_target" ]; then
       latest_marker=" ${GREEN}(latest)${NC}"
     fi
     echo -e "  ${CYAN}$id${NC}  $ts  $desc$latest_marker"
-  done
+  done <<< "$files"
   echo ""
 }
 
@@ -100,8 +99,10 @@ cmd_show() {
   local file
 
   if [ -z "$target" ]; then
-    file=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
-    if [ -z "$file" ] || [ ! -f "$file" ]; then
+    local link_target
+    link_target=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
+    file="$CHECKPOINT_DIR/$link_target"
+    if [ -z "$link_target" ] || [ ! -f "$file" ]; then
       echo -e "${RED}No latest checkpoint found.${NC}"
       return 1
     fi
@@ -123,8 +124,10 @@ cmd_restore() {
   local file
 
   if [ -z "$target" ]; then
-    file=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
-    if [ -z "$file" ] || [ ! -f "$file" ]; then
+    local link_target
+    link_target=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
+    file="$CHECKPOINT_DIR/$link_target"
+    if [ -z "$link_target" ] || [ ! -f "$file" ]; then
       echo -e "${RED}No latest checkpoint found.${NC}"
       return 1
     fi
@@ -169,9 +172,17 @@ cmd_clean() {
   ensure_dir
   local keep="${1:-10}"
   local files
-  files=$(ls -1t "$CHECKPOINT_DIR"/*.json 2>/dev/null)
+  # Sort by modification time (newest first); portable across macOS and Linux
+  files=$(find "$CHECKPOINT_DIR" -maxdepth 1 -name "*.json" -type f 2>/dev/null \
+    | while IFS= read -r fp; do
+        # macOS stat: -f '%m', Linux stat: -c '%Y'
+        local ts
+        ts=$(stat -f '%m' "$fp" 2>/dev/null || stat -c '%Y' "$fp" 2>/dev/null || echo "0")
+        echo "$ts $fp"
+      done | sort -rn | cut -d' ' -f2-)
+
   local count
-  count=$(echo "$files" | wc -l | tr -d ' ')
+  count=$(echo "$files" | grep -c '.' 2>/dev/null || echo 0)
 
   if [ "$count" -le "$keep" ]; then
     echo -e "${GREEN}Nothing to clean. $count checkpoints (keep: $keep).${NC}"
@@ -181,7 +192,7 @@ cmd_clean() {
   local to_delete
   to_delete=$(echo "$files" | tail -n +"$((keep + 1))")
   local del_count
-  del_count=$(echo "$to_delete" | wc -l | tr -d ' ')
+  del_count=$(echo "$to_delete" | grep -c '.' 2>/dev/null || echo 0)
 
   echo -e "${YELLOW}Removing $del_count old checkpoints (keeping $keep)...${NC}"
   echo "$to_delete" | xargs rm -f

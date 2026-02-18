@@ -156,9 +156,11 @@ allowed-tools: [...]   # Restrict available tools
 
 | Context % | Warning | Action |
 |-----------|---------|--------|
-| 70-79% | Notice | Consider handoff |
-| 80-89% | Warning | Create handoff soon |
-| 90%+ | **Critical** | `create-handoff` auto-suggested |
+| 70-79% | Notice | Save checkpoint, consider handoff |
+| 80-89% | Warning | Save checkpoint + commit work, create handoff soon |
+| 90%+ | **Critical** | Save checkpoint, `create-handoff` auto-suggested |
+
+> Checkpoints (`/checkpoint save`) are lightweight task snapshots. Handoffs (`/create-handoff`) are full session transfers. Use both at thresholds.
 
 ## Legacy
 

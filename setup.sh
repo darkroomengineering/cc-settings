@@ -138,7 +138,16 @@ clean_old_config() {
     rm -f "${CLAUDE_DIR}/rules/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/contexts/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null || true
-    rm -rf "${CLAUDE_DIR}/skills/"*/  2>/dev/null || true
+    # Only remove known managed skill directories (preserve user-created custom skills)
+    local managed_skills=(
+        ask build checkpoint component context create-handoff debug discovery
+        docs effort explore f-thread fix hook init l-thread learn lenis
+        orchestrate prd premortem qa refactor resume-handoff review ship
+        teams test tldr versions
+    )
+    for skill_dir in "${managed_skills[@]}"; do
+        rm -rf "${CLAUDE_DIR}/skills/${skill_dir}" 2>/dev/null || true
+    done
     rm -f "${CLAUDE_DIR}/docs/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-rules.cache" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-activation.out" 2>/dev/null || true
