@@ -67,9 +67,9 @@ list_mcp_server_names() {
 find_user_only_servers() {
     USER_ONLY_SERVERS=()
 
-    for user_server in "${USER_MCP_SERVERS[@]}"; do
+    for user_server in ${USER_MCP_SERVERS[@]+"${USER_MCP_SERVERS[@]}"}; do
         local found=false
-        for team_server in "${TEAM_MCP_SERVERS[@]}"; do
+        for team_server in ${TEAM_MCP_SERVERS[@]+"${TEAM_MCP_SERVERS[@]}"}; do
             if [[ "$user_server" == "$team_server" ]]; then
                 found=true
                 break
@@ -95,12 +95,12 @@ prompt_mcp_preservation() {
     echo ""
     info "You have ${count} custom MCP server(s) not in the team config:"
     echo ""
-    list_mcp_server_names "${USER_ONLY_SERVERS[@]}"
+    list_mcp_server_names ${USER_ONLY_SERVERS[@]+"${USER_ONLY_SERVERS[@]}"}
     echo ""
 
     if [[ "$INTERACTIVE" == true ]]; then
         if prompt_yn "Keep these servers? (they'll be merged with team config)" "y"; then
-            PRESERVED_SERVERS=("${USER_ONLY_SERVERS[@]}")
+            PRESERVED_SERVERS=(${USER_ONLY_SERVERS[@]+"${USER_ONLY_SERVERS[@]}"})
             success "Keeping all ${count} custom server(s)"
         else
             PRESERVED_SERVERS=()
@@ -108,7 +108,7 @@ prompt_mcp_preservation() {
         fi
     else
         # Non-interactive: preserve all by default
-        PRESERVED_SERVERS=("${USER_ONLY_SERVERS[@]}")
+        PRESERVED_SERVERS=(${USER_ONLY_SERVERS[@]+"${USER_ONLY_SERVERS[@]}"})
         info "Keeping all custom MCP servers (non-interactive mode)"
     fi
 }
@@ -131,7 +131,7 @@ merge_mcp_configs() {
     fi
 
     # Merge each preserved server
-    for server in "${PRESERVED_SERVERS[@]}"; do
+    for server in ${PRESERVED_SERVERS[@]+"${PRESERVED_SERVERS[@]}"}; do
         local server_config
         server_config=$(get_mcp_server_config "$user_file" "$server")
 
@@ -172,9 +172,9 @@ detect_existing_mcp() {
     # Find user-only servers
     find_user_only_servers
 
-    debug "User MCP servers: ${USER_MCP_SERVERS[*]}"
-    debug "Team MCP servers: ${TEAM_MCP_SERVERS[*]}"
-    debug "User-only servers: ${USER_ONLY_SERVERS[*]}"
+    debug "User MCP servers: ${USER_MCP_SERVERS[*]+"${USER_MCP_SERVERS[*]}"}"
+    debug "Team MCP servers: ${TEAM_MCP_SERVERS[*]+"${TEAM_MCP_SERVERS[*]}"}"
+    debug "User-only servers: ${USER_ONLY_SERVERS[*]+"${USER_ONLY_SERVERS[*]}"}"
 }
 
 # Main MCP handling workflow
