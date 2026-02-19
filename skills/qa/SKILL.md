@@ -284,5 +284,5 @@ Looks good: [What's working]
 ## Prerequisites
 
 ```bash
-npm i -g agent-browser@0.8.3
+npm i -g agent-browser@latest
 ```

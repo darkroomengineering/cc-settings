@@ -119,6 +119,7 @@ create_directories() {
         "${CLAUDE_DIR}/hooks"
         "${CLAUDE_DIR}/memory"
         "${CLAUDE_DIR}/memory/agents"
+        "${CLAUDE_DIR}/lib"
         "${CLAUDE_DIR}/docs"
         "${CLAUDE_DIR}/tldr-cache"
         "${CLAUDE_DIR}/backups"
@@ -130,6 +131,7 @@ create_directories() {
 }
 
 clean_old_config() {
+    rm -f "${CLAUDE_DIR}/lib/"*.sh 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/scripts/"*.sh 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/agents/"*.md 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skills/"*.json 2>/dev/null || true
@@ -159,6 +161,9 @@ clean_old_config() {
 install_config_files() {
     # CLAUDE.md (install the full version from CLAUDE-FULL.md)
     [[ -f "${SCRIPT_DIR}/CLAUDE-FULL.md" ]] && cp "${SCRIPT_DIR}/CLAUDE-FULL.md" "${CLAUDE_DIR}/CLAUDE.md"
+
+    # Lib (shared libraries used by scripts)
+    [[ -d "${SCRIPT_DIR}/lib" ]] && cp -r "${SCRIPT_DIR}/lib/"* "${CLAUDE_DIR}/lib/" 2>/dev/null || true
 
     # Scripts
     if [[ -d "${SCRIPT_DIR}/scripts" ]]; then
