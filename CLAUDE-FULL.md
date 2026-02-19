@@ -107,7 +107,7 @@ When fixing a bug, you are **confined to the files directly related to the bug**
 - Reorganize imports, rename variables, or clean up unrelated code
 - Touch files outside the immediate blast radius
 
-When using parallel agents for bug fixes, each agent MUST be assigned a distinct set of files with NO overlap. A bug fix PR should be reviewable in under 2 minutes.
+When using parallel agents (for bug fixes or any task), each agent MUST be assigned a distinct set of files with NO overlap. Agents must NOT make changes outside their assigned scope -- no "while I'm here" improvements. A bug fix PR should be reviewable in under 2 minutes.
 
 ### 2-Iteration Limit
 If an approach fails after **2 attempts**, you MUST:
@@ -124,6 +124,8 @@ For tasks involving sub-pixel rendering, WebGL, physics simulations, complex ani
 - Suggest the user validate visually and provide feedback
 - Never claim pixel-perfect accuracy without visual verification
 
+For CSS/visual bugs specifically: if a fix doesn't work after **2 attempts**, stop iterating on variations of the same technique. Propose **3 fundamentally different approaches** with tradeoffs and let the user pick. The user often knows the right direction (e.g., replacing WebGL with a plain image) that Claude would never guess by iterating on shaders.
+
 ### Never Fake Measurements
 NEVER fabricate, mock, or simulate the output of:
 - Lighthouse / PageSpeed scores
@@ -134,6 +136,9 @@ NEVER fabricate, mock, or simulate the output of:
 
 If you cannot run a tool, say so. Do not invent plausible-looking output. Never detect audit tools (e.g., Lighthouse) to disable features and fake results.
 
+### Verify After Every Fix
+After any fix attempt, run the build (`bun run build`, `next build`, or equivalent) and verify it passes **before moving to the next issue**. Never stack multiple untested fixes -- cascading errors eat context and compound regressions.
+
 ### Pre-Commit Verification
 Before ANY `git commit`, you MUST:
 1. Run `tsc --noEmit` (if TypeScript project) -- fix all errors
@@ -141,6 +146,9 @@ Before ANY `git commit`, you MUST:
 3. Run existing tests if present -- fix all failures
 
 **Never commit code that doesn't build.** A broken commit wastes everyone's time.
+
+### Dependency Upgrade Rollback
+Before upgrading major dependencies, check for known breaking changes. If an upgrade breaks the build, **immediately rollback** to the working version rather than attempting iterative fixes on the new version. Rollback first, research the migration path, then try again with a plan.
 
 ### Git: Proper File Untracking
 When removing a tracked file from git (but keeping it locally):

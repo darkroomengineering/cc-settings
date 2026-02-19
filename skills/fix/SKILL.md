@@ -26,12 +26,14 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 
 Follow CLAUDE.md Guardrails (scope constraint, 2-iteration limit). Only modify files directly related to the bug.
 
+**Build after every fix**: Run the build after each individual fix attempt. Never stack multiple untested fixes -- verify green before moving on. If the build breaks, fix *that* before continuing.
+
 ## Agent Delegation
 
 ```
 Task(explore, "Investigate the bug: $ARGUMENTS. Find relevant files, trace the issue.")
 Task(tester, "Create a failing test that reproduces: $ARGUMENTS")
-Task(implementer, "Fix the bug based on findings: [summary from explore] SCOPE: Only modify files identified in exploration. Do NOT refactor adjacent code.")
+Task(implementer, "Fix the bug based on findings: [summary from explore] SCOPE: Only modify files identified in exploration. Do NOT refactor adjacent code. Run the build after each fix to verify.")
 Task(reviewer, "Quick review of the fix for quality and edge cases")
 ```
 
