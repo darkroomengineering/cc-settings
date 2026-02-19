@@ -4,71 +4,50 @@
 
 # Detected package managers (set by detect_package_managers)
 PM_SYSTEM=""          # brew, apt, dnf, pacman, choco, scoop
-PM_SYSTEM_LIST=()     # All available system package managers
 PM_NODE=""            # bun, npm, yarn, pnpm
 PM_PYTHON=""          # pipx, pip3, pip
 
-# Skip dependency installation
-SKIP_DEPS=false
-
 # Detect available package managers
 detect_package_managers() {
-    PM_SYSTEM_LIST=()
-
     # System package managers
     case "$OS" in
         macos)
             if has_command brew; then
                 PM_SYSTEM="brew"
-                PM_SYSTEM_LIST+=("brew")
             fi
             # MacPorts as fallback
             if has_command port; then
-                PM_SYSTEM_LIST+=("port")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="port"
             fi
             ;;
         linux|wsl)
             if has_command apt-get; then
                 PM_SYSTEM="apt"
-                PM_SYSTEM_LIST+=("apt")
             fi
             if has_command dnf; then
-                PM_SYSTEM_LIST+=("dnf")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="dnf"
             fi
             if has_command yum; then
-                PM_SYSTEM_LIST+=("yum")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="yum"
             fi
             if has_command pacman; then
-                PM_SYSTEM_LIST+=("pacman")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="pacman"
             fi
             if has_command zypper; then
-                PM_SYSTEM_LIST+=("zypper")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="zypper"
             fi
             if has_command apk; then
-                PM_SYSTEM_LIST+=("apk")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="apk"
-            fi
-            # Homebrew on Linux
-            if has_command brew; then
-                PM_SYSTEM_LIST+=("brew")
             fi
             ;;
         windows)
             if has_command choco; then
                 PM_SYSTEM="choco"
-                PM_SYSTEM_LIST+=("choco")
             fi
             if has_command scoop; then
-                PM_SYSTEM_LIST+=("scoop")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="scoop"
             fi
             if has_command winget; then
-                PM_SYSTEM_LIST+=("winget")
                 [[ -z "$PM_SYSTEM" ]] && PM_SYSTEM="winget"
             fi
             ;;
@@ -107,12 +86,6 @@ ensure_system_package() {
     if has_command "$cmd"; then
         progress_ok "$cmd"
         return 0
-    fi
-
-    # Skip if requested
-    if [[ "$SKIP_DEPS" == true ]]; then
-        progress_skip "$pkg (--skip-deps)"
-        return 1
     fi
 
     # No package manager available?
@@ -186,12 +159,6 @@ ensure_npm_global() {
         return 0
     fi
 
-    # Skip if requested
-    if [[ "$SKIP_DEPS" == true ]]; then
-        progress_skip "$pkg (--skip-deps)"
-        return 1
-    fi
-
     # No Node.js package manager?
     if [[ -z "$PM_NODE" ]]; then
         progress_warn "$pkg - npm/bun not available"
@@ -237,12 +204,6 @@ ensure_python_package() {
         return 0
     fi
 
-    # Skip if requested
-    if [[ "$SKIP_DEPS" == true ]]; then
-        progress_skip "$pkg (--skip-deps)"
-        return 1
-    fi
-
     # No Python package manager?
     if [[ -z "$PM_PYTHON" ]]; then
         progress_warn "$pkg - pip/pipx not available"
@@ -283,11 +244,6 @@ ensure_pipx() {
         progress_ok "pipx"
         PM_PYTHON="pipx"
         return 0
-    fi
-
-    if [[ "$SKIP_DEPS" == true ]]; then
-        progress_skip "pipx (--skip-deps)"
-        return 1
     fi
 
     progress_arrow "Installing pipx..."

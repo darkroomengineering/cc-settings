@@ -27,7 +27,7 @@ Add MCP servers to `~/.claude.json`:
   "mcpServers": {
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "args": ["-y", "@upstash/context7-mcp"],
       "env": {}
     },
     "vercel": {

@@ -53,6 +53,7 @@ These create files directly in main context:
 | Skill | Triggers On |
 |-------|-------------|
 | `component` | create component, new component |
+| `design-tokens` | design tokens, type scale, color palette, spacing system, theme setup |
 | `hook` | create hook, custom hook |
 | `init` | new project, initialize, setup |
 
@@ -180,5 +181,5 @@ The old `skill-rules.json` and `commands/*.md` formats have been replaced by `*/
 /darkroom:fix "the auth bug"
 
 # Check learnings
-bash ~/.claude/scripts/recall-learnings.sh all
+bash ~/.claude/scripts/learning.sh recall all
 ```

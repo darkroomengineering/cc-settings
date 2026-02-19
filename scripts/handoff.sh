@@ -110,7 +110,7 @@ EOF
 # SUBCOMMAND: resume
 # ============================================================================
 cmd_resume() {
-    local HANDOFF_ID="$1"
+    local HANDOFF_ID="${1:-}"
 
     if [ -z "$HANDOFF_ID" ]; then
         # No ID provided - try to use latest

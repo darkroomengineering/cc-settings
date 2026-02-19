@@ -25,6 +25,11 @@ else
     log_error() { echo "[ERROR] $1"; }
 fi
 
+# Source shared skill patterns
+if [[ -f "${LIB_DIR}/skill-patterns.sh" ]]; then
+    source "${LIB_DIR}/skill-patterns.sh"
+fi
+
 # Check if skills directory exists
 if [[ ! -d "$SKILLS_DIR" ]]; then
     log_error "Skills directory not found: $SKILLS_DIR"
@@ -82,177 +87,53 @@ generate_patterns() {
     # Add skill name itself
     patterns+=("$skill_name")
 
-    # Skill-specific patterns based on known skills
-    case "$skill_name" in
-        fix)
-            patterns+=("fix" "bug" "broken" "error" "failing" "not working" "issue" "debug")
-            ;;
-        build)
-            patterns+=("build" "create" "implement" "add feature" "new feature" "add new")
-            ;;
-        explore)
-            patterns+=("explore" "how does" "where is" "find" "understand" "what files" "navigate" "how.*work")
-            ;;
-        review)
-            patterns+=("review" "check" "look at" "pr" "pull request" "code review" "diff")
-            ;;
-        test)
-            patterns+=("write tests" "add tests" "run tests" "coverage" "unit test" "integration test")
-            ;;
-        refactor)
-            patterns+=("refactor" "clean up" "reorganize" "restructure" "improve code" "technical debt")
-            ;;
-        component)
-            patterns+=("create component" "new component" "add component" "/component")
-            ;;
-        hook)
-            patterns+=("create hook" "new hook" "add hook" "/hook")
-            ;;
-        orchestrate)
-            patterns+=("orchestrate" "coordinate" "complex task" "multi-step" "/orchestrate")
-            ;;
-        create-handoff)
-            patterns+=("done.*today" "ending.*session" "save state" "handoff" "wrapping up" "pause work" "context full")
-            ;;
-        resume-handoff)
-            patterns+=("resume" "continue where" "pick up" "last session" "previous work")
-            ;;
-        learn)
-            patterns+=("remember.*this" "store.*learning" "recall.*learnings" "what.*learned" "lessons learned" "/learn")
-            ;;
-        tldr)
-            patterns+=("who calls" "what affects" "trace" "dependencies" "semantic search" "call graph" "/tldr")
-            ;;
-        premortem)
-            patterns+=("what could.*wrong" "risks" "potential issues" "fail" "break")
-            ;;
-        docs)
-            patterns+=("/docs" "documentation" "api reference" "library docs")
-            ;;
-        debug)
-            patterns+=("/debug" "debug" "screenshot" "inspect element" "visual bug")
-            ;;
-        qa)
-            patterns+=("/qa" "visual qa" "accessibility check" "a11y")
-            ;;
-        init)
-            patterns+=("/init" "initialize project" "setup project")
-            ;;
-        ask)
-            patterns+=("/ask" "oracle" "expert advice" "guidance")
-            ;;
-        lenis)
-            patterns+=("/lenis" "smooth scroll" "lenis" "smooth scrolling")
-            ;;
-        versions)
-            patterns+=("/versions" "package versions" "check versions" "darkroom packages")
-            ;;
-        context)
-            patterns+=("/context" "context window" "context usage" "token usage")
-            ;;
-        discovery)
-            patterns+=("/discovery" "discover" "find features" "what can you do")
-            ;;
-        effort)
-            patterns+=("think harder" "be thorough" "quick fix" "effort" "max effort" "speed up" "slow down" "think more")
-            ;;
-        teams)
-            patterns+=("use teams" "fan out" "split work" "parallel agents" "divide and conquer" "multi-instance" "agent teams")
-            ;;
-        ship)
-            patterns+=("ship" "ship it" "create pr" "open pr" "/pr" "/ship" "ready to merge" "push and pr" "ready to ship")
-            ;;
-        *)
-            # For unknown skills, extract keywords from description
-            if [[ -n "$description" ]]; then
-                # Extract quoted strings from description as patterns
-                echo "$description" | grep -oE '"[^"]+"' | tr -d '"' | while read -r pattern; do
-                    patterns+=("$pattern")
-                done
-            fi
-            ;;
-    esac
+    # Get patterns from shared mapping
+    if type get_skill_patterns &>/dev/null; then
+        while IFS= read -r p; do
+            [[ -n "$p" ]] && patterns+=("$p")
+        done < <(get_skill_patterns "$skill_name")
+    fi
+
+    # If no patterns from shared mapping and we have a description, extract from it
+    if [[ ${#patterns[@]} -le 1 ]] && [[ -n "$description" ]]; then
+        # Extract quoted strings from description as patterns
+        while read -r pattern; do
+            [[ -n "$pattern" ]] && patterns+=("$pattern")
+        done < <(echo "$description" | grep -oE '"[^"]+"' | tr -d '"')
+    fi
 
     # Output patterns (deduplicated)
     printf '%s\n' "${patterns[@]}" | sort -u
 }
 
-# Determine priority based on skill
+# Determine priority based on skill (delegates to shared lib)
 get_priority() {
     local skill_name="$1"
-    case "$skill_name" in
-        create-handoff|resume-handoff)
-            echo "critical"
-            ;;
-        fix|build|refactor|review|orchestrate|ship)
-            echo "high"
-            ;;
-        explore|test|component|hook|learn|tldr)
-            echo "medium"
-            ;;
-        *)
-            echo "low"
-            ;;
-    esac
+    if type get_skill_priority &>/dev/null; then
+        get_skill_priority "$skill_name"
+    else
+        echo "low"
+    fi
 }
 
-# Determine enforcement based on skill
+# Determine enforcement based on skill (delegates to shared lib)
 get_enforcement() {
     local skill_name="$1"
-    case "$skill_name" in
-        create-handoff)
-            echo "block"
-            ;;
-        fix|build|refactor|review|ship)
-            echo "recommend"
-            ;;
-        *)
-            echo "suggest"
-            ;;
-    esac
+    if type get_skill_enforcement &>/dev/null; then
+        get_skill_enforcement "$skill_name"
+    else
+        echo "suggest"
+    fi
 }
 
-# Get default agents for skill
+# Get default agents for skill (delegates to shared lib)
 get_agents() {
     local skill_name="$1"
-    case "$skill_name" in
-        fix)
-            echo "explore,implementer,tester"
-            ;;
-        build)
-            echo "planner,scaffolder,implementer"
-            ;;
-        explore)
-            echo "explore,oracle"
-            ;;
-        review)
-            echo "reviewer,tester"
-            ;;
-        refactor)
-            echo "explore,implementer,reviewer"
-            ;;
-        test)
-            echo "tester"
-            ;;
-        orchestrate)
-            echo "maestro"
-            ;;
-        component|hook)
-            echo "scaffolder"
-            ;;
-        ship)
-            echo "tester,reviewer,implementer"
-            ;;
-        premortem|ask)
-            echo "oracle,reviewer"
-            ;;
-        tldr)
-            echo "explore"
-            ;;
-        *)
-            echo ""
-            ;;
-    esac
+    if type get_skill_agents &>/dev/null; then
+        get_skill_agents "$skill_name"
+    else
+        echo ""
+    fi
 }
 
 # Main compilation function

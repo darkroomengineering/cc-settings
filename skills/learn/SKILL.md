@@ -35,7 +35,7 @@ Store a learning AUTOMATICALLY when:
 
 ### Store a learning
 ```bash
-bash ~/.claude/scripts/store-learning.sh "<category>" "<learning>" "[context]"
+bash ~/.claude/scripts/learning.sh store "<category>" "<learning>" "[context]"
 ```
 
 **Categories:** `bug`, `pattern`, `gotcha`, `tool`, `perf`, `config`, `arch`, `test`
@@ -43,21 +43,21 @@ bash ~/.claude/scripts/store-learning.sh "<category>" "<learning>" "[context]"
 **Examples:**
 ```bash
 # After fixing a hydration error
-bash ~/.claude/scripts/store-learning.sh "bug" "useAuth hook causes hydration mismatch - wrap in dynamic import with ssr:false"
+bash ~/.claude/scripts/learning.sh store "bug" "useAuth hook causes hydration mismatch - wrap in dynamic import with ssr:false"
 
 # After discovering a pattern
-bash ~/.claude/scripts/store-learning.sh "pattern" "Always use Image wrapper from @/components/image, not next/image directly"
+bash ~/.claude/scripts/learning.sh store "pattern" "Always use Image wrapper from @/components/image, not next/image directly"
 
 # After hitting a gotcha
-bash ~/.claude/scripts/store-learning.sh "gotcha" "Biome ignores .mdx files by default - add to biome.json includes"
+bash ~/.claude/scripts/learning.sh store "gotcha" "Biome ignores .mdx files by default - add to biome.json includes"
 
 # After a tool discovery
-bash ~/.claude/scripts/store-learning.sh "tool" "Use 'bun --bun' flag to enable native Bun APIs in scripts"
+bash ~/.claude/scripts/learning.sh store "tool" "Use 'bun --bun' flag to enable native Bun APIs in scripts"
 ```
 
 ### Recall learnings
 ```bash
-bash ~/.claude/scripts/recall-learnings.sh [filter] [value]
+bash ~/.claude/scripts/learning.sh recall [filter] [value]
 ```
 
 **Filters:**
@@ -69,7 +69,7 @@ bash ~/.claude/scripts/recall-learnings.sh [filter] [value]
 
 ### Delete a learning
 ```bash
-bash ~/.claude/scripts/delete-learning.sh <id>
+bash ~/.claude/scripts/learning.sh delete <id>
 ```
 
 ## Storage
