@@ -13,7 +13,7 @@
 	"mcpServers": {
 		"context7": {
 			"command": "npx",
-			"args": ["-y", "@upstash/context7-mcp@latest"],
+			"args": ["-y", "@upstash/context7-mcp"],
 			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
@@ -111,10 +111,8 @@
 			"Write(~/.aws/*)",
 			"Write(~/.gnupg/*)",
 
-			"Bash(git push --force origin main)",
-			"Bash(git push --force origin master)",
-			"Bash(git push -f origin main)",
-			"Bash(git push -f origin master)",
+			"Bash(git push --force:*)",
+			"Bash(git push -f:*)",
 			"Bash(git reset --hard:*)",
 			"Bash(git clean -f:*)",
 			"Bash(git checkout -- .:*)",
@@ -131,7 +129,22 @@
 			"Bash(chmod 777:*)",
 
 			"Bash(find * -delete:*)",
-			"Bash(xargs rm:*)"
+			"Bash(xargs rm:*)",
+
+			"Read(~/.bashrc)",
+			"Read(~/.zshrc)",
+			"Read(~/.bash_profile)",
+			"Read(~/.npmrc)",
+			"Read(~/.docker/config.json)",
+			"Read(~/.kube/config)",
+			"Write(~/.bashrc)",
+			"Write(~/.zshrc)",
+			"Write(~/.bash_profile)",
+			"Write(~/.claude/settings.json)",
+			"Write(~/.claude.json)",
+
+			"Bash(gh repo delete:*)",
+			"Bash(gh secret:*)"
 		]
 	},
 	"hooks": {
@@ -228,7 +241,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/create-handoff.sh\""
+						"command": "bash \"$HOME/.claude/scripts/handoff.sh\" create"
 					}
 				]
 			}
@@ -248,7 +261,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\"; bash \"$HOME/.claude/scripts/create-handoff.sh\"",
+						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\"; bash \"$HOME/.claude/scripts/handoff.sh\" create",
 						"async": true,
 						"timeout": 30
 					}

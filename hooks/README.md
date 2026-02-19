@@ -18,8 +18,8 @@ All hooks are **automatically installed** by the setup script. No manual configu
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) | No |
 | `PostToolUse` | After Edit | Async tsc check (TypeScript type errors) | **Yes** |
 | `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) | **Yes** |
-| `PreCompact` | Before context compaction | `create-handoff.sh` (saves state) | No |
-| `SessionEnd` | Session ending | `tldr-stats.sh` + `create-handoff.sh` | **Yes** |
+| `PreCompact` | Before context compaction | `handoff.sh create` (saves state) | No |
+| `SessionEnd` | Session ending | `tldr-stats.sh` + `handoff.sh create` | **Yes** |
 | `Stop` | Claude finishes | Learning reminder if >5 files changed | No |
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
 | `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |
@@ -42,10 +42,10 @@ These scripts are used by commands or other hooks but aren't directly triggered 
 | Script | Purpose |
 |--------|---------|
 | `statusline.sh` | Generates custom status bar (model, git, context %) |
-| `resume-handoff.sh` | Loads previous session state |
-| `recall-learnings.sh` | Retrieves stored learnings by category/search |
-| `store-learning.sh` | Persists a new learning with category |
-| `delete-learning.sh` | Removes outdated learnings |
+| `handoff.sh resume` | Loads previous session state |
+| `learning.sh recall` | Retrieves stored learnings by category/search |
+| `learning.sh store` | Persists a new learning with category |
+| `learning.sh delete` | Removes outdated learnings |
 
 ## Hook Configuration Format
 

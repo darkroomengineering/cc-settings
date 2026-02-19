@@ -9,8 +9,8 @@ Projects started from `satus` have these conventions:
 ### Required Component Wrappers
 ```tsx
 // Always use these, never native HTML
-import { Image } from '@/components/ui/image'
-import { Link } from '@/components/ui/link'
+import { Image } from '@/components/image'
+import { Link } from '@/components/link'
 ```
 
 ### CSS Modules Convention

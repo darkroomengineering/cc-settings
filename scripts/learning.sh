@@ -33,12 +33,6 @@ generate_id() {
     fi
 }
 
-# Escape special characters for JSON
-escape_json() {
-    local input="$1"
-    printf '%s' "$input" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/	/\\t/g' | tr -d '\n'
-}
-
 # Format a single learning for display
 format_learning() {
     local learning="$1"
@@ -91,9 +85,9 @@ print_learnings() {
 # ============================================================================
 
 cmd_store() {
-    local CATEGORY="$1"
-    local LEARNING="$2"
-    local CONTEXT="$3"
+    local CATEGORY="${1:-}"
+    local LEARNING="${2:-}"
+    local CONTEXT="${3:-}"
 
     if [ -z "$CATEGORY" ] || [ -z "$LEARNING" ]; then
         echo ""
@@ -205,8 +199,8 @@ show_recall_help() {
 }
 
 cmd_recall() {
-    local FILTER_TYPE="$1"
-    local FILTER_VALUE="$2"
+    local FILTER_TYPE="${1:-}"
+    local FILTER_VALUE="${2:-}"
     local LIMIT="${3:-10}"
 
     # Handle all-projects first (doesn't need learnings file)
@@ -319,7 +313,7 @@ cmd_recall() {
 # ============================================================================
 
 cmd_delete() {
-    local LEARNING_ID="$1"
+    local LEARNING_ID="${1:-}"
 
     if [ -z "$LEARNING_ID" ]; then
         echo ""
@@ -416,7 +410,7 @@ show_main_help() {
 # MAIN DISPATCH
 # ============================================================================
 
-COMMAND="$1"
+COMMAND="${1:-}"
 shift || true
 
 case "$COMMAND" in

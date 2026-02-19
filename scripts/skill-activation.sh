@@ -10,6 +10,13 @@ COMPILED_INDEX="${CLAUDE_DIR}/skill-index.compiled"
 CONTEXT_FILE="${CLAUDE_DIR}/context-usage.json"
 OUTPUT_FILE="${CLAUDE_DIR}/skill-activation.out"
 
+# Source shared skill patterns for the ultimate fallback path
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${SCRIPT_DIR}/../lib"
+if [[ -f "${LIB_DIR}/skill-patterns.sh" ]]; then
+    source "${LIB_DIR}/skill-patterns.sh"
+fi
+
 USER_PROMPT="$1"
 
 # Exit early if no prompt
@@ -124,93 +131,85 @@ if [[ "$USE_COMPILED" != true ]] && [[ -f "$SKILLS_FILE" ]] && command -v jq &>/
 fi
 
 # =============================================================================
-# ULTIMATE FALLBACK: Hardcoded grep patterns (no jq, no compiled index)
+# ULTIMATE FALLBACK: Pattern matching using shared skill-patterns.sh
+# (no jq, no compiled index)
 # =============================================================================
 
 if [[ "$USE_COMPILED" != true ]] && [[ -z "$JQ_MATCHES" ]]; then
-    if echo "$PROMPT_LOWER" | grep -qE "(done|finished|ending).*(today|session|now)"; then
-        CRITICAL_SKILLS="create-handoff"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "(handoff|context full|wrapping up|save state)"; then
-        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }create-handoff"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "(resume|continue where|pick up|last session)"; then
-        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }resume-handoff"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "fix.*(bug|error|issue)|(broken|not working|failing)"; then
-        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }fix"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, implementer, tester"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "(build|create|implement).*(feature|component|page)|add.*(new|feature)"; then
-        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }build"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }planner, scaffolder, implementer"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "refactor|clean up|reorganize|restructure"; then
-        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }refactor"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, implementer, reviewer"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "/review|review.*(code|changes|pr)|check.*(quality|code)"; then
-        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }review"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }reviewer, tester"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "/component|(create|new|add).*component"; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }component"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }scaffolder"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "/hook|(create|new|add).*hook"; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }hook"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }scaffolder"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "/explore|(understand|explore).*(codebase|code|this)|(how|where).*(does|is)"; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }explore"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore, oracle"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "what.*(could|might).*(go wrong|fail|break)|risk|potential issue"; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }premortem"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }oracle, reviewer"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "/orchestrate|coordinate|multi-step|complex.*(task|feature)"; then
-        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }orchestrate"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }maestro"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "(setup|add|implement).*(lenis|smooth.*scroll)"; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }lenis"
-    fi
-
-    if echo "$PROMPT_LOWER" | grep -qE "(who|what).*calls|(trace|find).*dependenc|what.*affects.*line|(semantic|meaning).*search|call.*graph"; then
-        if command -v tldr &>/dev/null; then
-            SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }tldr"
-            RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }explore"
+    # Helper: check if prompt matches any pattern for a given skill
+    _matches_skill() {
+        local skill="$1"
+        if type get_skill_patterns &>/dev/null; then
+            while IFS= read -r pattern; do
+                [[ -z "$pattern" ]] && continue
+                if echo "$PROMPT_LOWER" | grep -qiE "$pattern"; then
+                    return 0
+                fi
+            done < <(get_skill_patterns "$skill")
         fi
-    fi
+        return 1
+    }
 
-    if echo "$PROMPT_LOWER" | grep -qE "(remember|store|save).*(this|learning|lesson)|(recall|show|list).*learnings|what.*(learned|know).*(about|from)|lessons.*(learned|from)|/learn"; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }learn"
-    fi
+    # Helper: classify a matched skill by priority/enforcement from shared lib
+    _classify_skill() {
+        local skill="$1"
+        local priority="low"
+        local enforcement="suggest"
+        local agents=""
 
-    # Effort level management
-    if echo "$PROMPT_LOWER" | grep -qE "think harder|be thorough|max effort|quick fix|speed up|slow down|think more"; then
-        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }effort"
-    fi
+        if type get_skill_priority &>/dev/null; then
+            priority=$(get_skill_priority "$skill")
+        fi
+        if type get_skill_enforcement &>/dev/null; then
+            enforcement=$(get_skill_enforcement "$skill")
+        fi
+        if type get_skill_agents &>/dev/null; then
+            agents=$(get_skill_agents "$skill")
+        fi
 
-    # Agent teams orchestration
-    if echo "$PROMPT_LOWER" | grep -qE "use teams|fan out|split work|parallel agents|divide and conquer|multi-instance|agent teams"; then
-        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }teams"
-        RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }maestro"
-    fi
+        case "$enforcement" in
+            block)
+                CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }$skill"
+                ;;
+            *)
+                case "$priority" in
+                    critical)
+                        CRITICAL_SKILLS="${CRITICAL_SKILLS:+$CRITICAL_SKILLS, }$skill"
+                        ;;
+                    high)
+                        RECOMMENDED_SKILLS="${RECOMMENDED_SKILLS:+$RECOMMENDED_SKILLS, }$skill"
+                        ;;
+                    medium|low)
+                        SUGGESTED_SKILLS="${SUGGESTED_SKILLS:+$SUGGESTED_SKILLS, }$skill"
+                        ;;
+                esac
+                ;;
+        esac
 
+        if [[ -n "$agents" ]]; then
+            RECOMMENDED_AGENTS="${RECOMMENDED_AGENTS:+$RECOMMENDED_AGENTS, }$agents"
+        fi
+    }
+
+    # Check all known skills using shared patterns
+    KNOWN_SKILLS=(
+        create-handoff resume-handoff
+        fix build refactor review orchestrate ship teams
+        component hook explore premortem lenis tldr learn effort
+    )
+
+    for skill in "${KNOWN_SKILLS[@]}"; do
+        # Special case: tldr requires the command to be installed
+        if [[ "$skill" == "tldr" ]]; then
+            command -v tldr &>/dev/null || continue
+        fi
+
+        if _matches_skill "$skill"; then
+            _classify_skill "$skill"
+        fi
+    done
+
+    # Ambiguous matches (require special logic)
     if echo "$PROMPT_LOWER" | grep -qE "\btest\b" && ! echo "$PROMPT_LOWER" | grep -qE "(run|write|add).*tests?"; then
         AMBIGUOUS_MATCHES="${AMBIGUOUS_MATCHES:+$AMBIGUOUS_MATCHES, }test [skill] - validate if testing is requested"
     fi

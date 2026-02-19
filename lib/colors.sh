@@ -71,21 +71,6 @@ debug() {
     fi
 }
 
-# Styled headers
-header() {
-    local text="$1"
-    local width=44
-    local padding=$(( (width - ${#text} - 2) / 2 ))
-    local pad_left=$(printf '%*s' "$padding" '')
-    local pad_right=$(printf '%*s' "$((width - ${#text} - 2 - padding))" '')
-
-    echo ""
-    echo -e "${BOLD}+$(printf '%*s' "$width" '' | tr ' ' '-')+${RESET}"
-    echo -e "${BOLD}|${pad_left} ${text} ${pad_right}|${RESET}"
-    echo -e "${BOLD}+$(printf '%*s' "$width" '' | tr ' ' '-')+${RESET}"
-    echo ""
-}
-
 # Progress indicator with checkmark or warning
 progress_ok() {
     echo -e "  ${GREEN}✓${RESET} $*"

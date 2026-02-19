@@ -7,7 +7,7 @@ autoResume: true
 maxRetries: 3
 ---
 
-> **Implementation Status:** Session recovery is partially implemented via `session-start.sh` (recalls learnings, loads handoffs on session start) and `create-handoff.sh` (saves state on PreCompact/SessionEnd). The error retry/backoff behavior described below is aspirational and not yet automated as a native hook.
+> **Implementation Status:** Session recovery is partially implemented via `session-start.sh` (recalls learnings, loads handoffs on session start) and `handoff.sh create` (saves state on PreCompact/SessionEnd). The error retry/backoff behavior described below is aspirational and not yet automated as a native hook.
 
 **Purpose:** Ensure continuity and prevent lost work from crashes or errors.
 

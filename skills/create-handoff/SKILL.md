@@ -16,7 +16,7 @@ Save current session state for seamless resumption.
 ## Usage
 
 ```bash
-bash ~/.claude/scripts/create-handoff.sh
+bash ~/.claude/scripts/handoff.sh create
 ```
 
 Or use the native command:
