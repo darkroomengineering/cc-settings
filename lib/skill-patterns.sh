@@ -87,7 +87,8 @@ get_skill_patterns() {
             echo "done.*today"
             echo "ending.*session"
             echo "save state"
-            echo "handoff"
+            echo "create.*handoff"
+            echo "handoff.sh create"
             echo "wrapping up"
             echo "pause work"
             echo "context full"
@@ -96,15 +97,18 @@ get_skill_patterns() {
             echo "resume"
             echo "continue where"
             echo "pick up"
+            echo "resume.*handoff"
+            echo "handoff.sh resume"
             echo "last session"
             echo "previous work"
             ;;
         learn)
             echo "remember.*this"
             echo "store.*learning"
-            echo "recall.*learnings"
+            echo "recall.*learning"
             echo "what.*learned"
             echo "lessons learned"
+            echo "learning.sh"
             echo "/learn"
             ;;
         tldr)
