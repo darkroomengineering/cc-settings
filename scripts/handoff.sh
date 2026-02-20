@@ -18,6 +18,36 @@ mkdir -p "$HANDOFF_DIR"
 # SUBCOMMAND: create
 # ============================================================================
 cmd_create() {
+    # Parse --summary / --message flags
+    local SUMMARY=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --summary|--message|-m)
+                SUMMARY="${2:-}"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    # 60-second dedup cooldown — skip if a handoff was created very recently
+    local LATEST_HANDOFF="${HANDOFF_DIR}/latest.json"
+    if [ -f "$LATEST_HANDOFF" ]; then
+        local now=$(date +%s)
+        local last_mod=$(stat -f%m "$LATEST_HANDOFF" 2>/dev/null || stat -c%Y "$LATEST_HANDOFF" 2>/dev/null || echo 0)
+        local age=$((now - last_mod))
+        if [ "$age" -lt 60 ]; then
+            echo ""
+            echo "HANDOFF SKIPPED (cooldown)"
+            echo "------------------------------------"
+            echo "Last handoff was ${age}s ago (< 60s cooldown)."
+            echo "------------------------------------"
+            exit 0
+        fi
+    fi
+
     local TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     local HANDOFF_FILE="${HANDOFF_DIR}/handoff_${TIMESTAMP}.json"
     local HANDOFF_MD="${HANDOFF_DIR}/handoff_${TIMESTAMP}.md"
@@ -43,7 +73,8 @@ cmd_create() {
       --arg path "$PROJECT_DIR" \
       --arg branch "$GIT_BRANCH" \
       --argjson changes "$pending_changes" \
-      '{timestamp: $ts, project: {name: $name, path: $path}, git: {branch: $branch, pendingChanges: $changes}, context: {summary: "", activeTodos: [], keyFiles: [], currentTask: ""}, notes: ""}' \
+      --arg summary "$SUMMARY" \
+      '{timestamp: $ts, project: {name: $name, path: $path}, git: {branch: $branch, pendingChanges: $changes}, context: {summary: $summary, activeTodos: [], keyFiles: [], currentTask: ""}, notes: ""}' \
       > "$HANDOFF_FILE"
 
     # Create markdown file
@@ -61,7 +92,7 @@ ${GIT_STATUS}
 \`\`\`
 
 ## Session Summary
-<!-- Add summary of what was accomplished -->
+${SUMMARY:-<!-- Add summary of what was accomplished -->}
 
 ## Active Todos
 <!-- List any incomplete tasks -->
@@ -247,7 +278,7 @@ cmd_help() {
     echo "Usage: handoff.sh <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  create              Create a new handoff from current session"
+    echo "  create [--summary \"text\"]  Create a new handoff from current session"
     echo "  resume [id]         Resume from a handoff (latest if no id given)"
     echo "  list                List all available handoffs"
     echo "  help                Show this help message"

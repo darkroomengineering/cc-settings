@@ -85,9 +85,19 @@ print_learnings() {
 # ============================================================================
 
 cmd_store() {
-    local CATEGORY="${1:-}"
-    local LEARNING="${2:-}"
-    local CONTEXT="${3:-}"
+    local FORCE=false
+    # Parse --force flag (can appear anywhere in args)
+    local args=()
+    for arg in "$@"; do
+        if [ "$arg" = "--force" ] || [ "$arg" = "-f" ]; then
+            FORCE=true
+        else
+            args+=("$arg")
+        fi
+    done
+    local CATEGORY="${args[0]:-}"
+    local LEARNING="${args[1]:-}"
+    local CONTEXT="${args[2]:-}"
 
     if [ -z "$CATEGORY" ] || [ -z "$LEARNING" ]; then
         echo ""
@@ -145,6 +155,22 @@ cmd_store() {
       --arg context "$CONTEXT" \
       --arg branch "$GIT_BRANCH" \
       '{id: $id, timestamp: $ts, category: $cat, learning: $learning, context: $context, branch: $branch}')
+
+    # Exact-match dedup guard (skip with --force)
+    if [ "$FORCE" = false ] && jq -e --arg text "$LEARNING" '.learnings | map(.learning) | index($text)' "$LEARNINGS_FILE" >/dev/null 2>&1; then
+        echo ""
+        echo "⚠️  DUPLICATE LEARNING"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "An identical learning already exists:"
+        echo "  $LEARNING"
+        echo ""
+        echo "Use --force to store anyway:"
+        echo "  learning.sh store --force $CATEGORY '$LEARNING'"
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        exit 1
+    fi
 
     # Portable file update
     local TEMP_FILE
@@ -269,7 +295,7 @@ cmd_recall() {
             show_recall_help
             ;;
         "all")
-            RESULT=$(jq ".learnings | .[-$LIMIT:]" "$LEARNINGS_FILE")
+            RESULT=$(jq ".learnings | sort_by(.timestamp) | reverse | .[:$LIMIT]" "$LEARNINGS_FILE")
             print_learnings "$RESULT"
             ;;
         "category"|"cat")
@@ -278,11 +304,11 @@ cmd_recall() {
                 show_recall_help
                 exit 1
             fi
-            RESULT=$(jq --arg cat "$FILTER_VALUE" '[.learnings[] | select(.category == $cat)] | .[-'"$LIMIT"':]' "$LEARNINGS_FILE")
+            RESULT=$(jq --arg cat "$FILTER_VALUE" '[.learnings[] | select(.category == $cat)] | sort_by(.timestamp) | reverse | .[:'"$LIMIT"']' "$LEARNINGS_FILE")
             print_learnings "$RESULT"
             ;;
         "project"|"proj")
-            print_learnings "$(jq '.learnings | .[-'"$LIMIT"':]' "$LEARNINGS_FILE")"
+            print_learnings "$(jq '.learnings | sort_by(.timestamp) | reverse | .[:'"$LIMIT"']' "$LEARNINGS_FILE")"
             ;;
         "search"|"find"|"grep")
             if [ -z "$FILTER_VALUE" ]; then
@@ -290,17 +316,17 @@ cmd_recall() {
                 show_recall_help
                 exit 1
             fi
-            RESULT=$(jq --arg kw "$FILTER_VALUE" '[.learnings[] | select(.learning | ascii_downcase | contains($kw | ascii_downcase))] | .[-'"$LIMIT"':]' "$LEARNINGS_FILE")
+            RESULT=$(jq --arg kw "$FILTER_VALUE" '[.learnings[] | select((.learning | ascii_downcase | contains($kw | ascii_downcase)) or (.context // "" | ascii_downcase | contains($kw | ascii_downcase)))] | sort_by(.timestamp) | reverse | .[:'"$LIMIT"']' "$LEARNINGS_FILE")
             print_learnings "$RESULT"
             ;;
         "recent")
             COUNT="${FILTER_VALUE:-$LIMIT}"
-            RESULT=$(jq ".learnings | .[-$COUNT:]" "$LEARNINGS_FILE")
+            RESULT=$(jq ".learnings | sort_by(.timestamp) | reverse | .[:$COUNT]" "$LEARNINGS_FILE")
             print_learnings "$RESULT"
             ;;
         *)
             # Default: treat as search keyword
-            RESULT=$(jq --arg kw "$FILTER_TYPE" '[.learnings[] | select(.learning | ascii_downcase | contains($kw | ascii_downcase))] | .[-'"$LIMIT"':]' "$LEARNINGS_FILE")
+            RESULT=$(jq --arg kw "$FILTER_TYPE" '[.learnings[] | select((.learning | ascii_downcase | contains($kw | ascii_downcase)) or (.context // "" | ascii_downcase | contains($kw | ascii_downcase)))] | sort_by(.timestamp) | reverse | .[:'"$LIMIT"']' "$LEARNINGS_FILE")
             print_learnings "$RESULT"
             ;;
     esac
