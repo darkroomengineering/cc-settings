@@ -273,15 +273,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'CHANGES=$(git diff --stat 2>/dev/null | tail -1); if [[ \"$CHANGES\" =~ ([0-9]+)[[:space:]]+file ]]; then COUNT=${BASH_REMATCH[1]}; if [ \"$COUNT\" -gt 5 ]; then echo \"[Hook] Session had significant changes ($COUNT files) - consider /learn store\"; fi; fi'"
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash -c 'echo \"[Hook] If you discovered something worth remembering:\"; echo \"  learning.sh store <category> <learning> [context]\"; echo \"  Categories: bug | pattern | gotcha | tool | perf | config | arch | test\"'"
+						"command": "bash -c 'CHANGES=$(git diff --stat 2>/dev/null | tail -1); if [[ \"$CHANGES\" =~ ([0-9]+)[[:space:]]+file ]]; then COUNT=${BASH_REMATCH[1]}; if [ \"$COUNT\" -gt 5 ]; then echo \"[Hook] Session had significant changes ($COUNT files) - consider storing learnings:\"; echo \"  learning.sh store <category> <learning> [context]\"; echo \"  Categories: bug | pattern | gotcha | tool | perf | config | arch | test\"; fi; fi'"
 					}
 				]
 			}
