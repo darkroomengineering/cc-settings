@@ -182,7 +182,7 @@ if [[ -f "$LEARNINGS_FILE" ]] && command -v jq &>/dev/null; then
         echo ""
         echo "Recent learnings:"
         jq -r '
-            .learnings | .[-3:] | .[] |
+            .learnings | sort_by(.timestamp) | reverse | .[:3] | .[] |
             "  - [\(.category)] \(.learning)"
         ' "$LEARNINGS_FILE" 2>/dev/null
         echo ""
