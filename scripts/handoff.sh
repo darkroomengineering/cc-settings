@@ -23,26 +23,32 @@ cmd_create() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --summary|--message|-m)
-                SUMMARY="${2:-}"
+                if [[ $# -lt 2 ]]; then
+                    echo "Error: $1 requires a value"
+                    exit 1
+                fi
+                SUMMARY="$2"
                 shift 2
                 ;;
             *)
+                echo "Warning: unknown argument '$1' ignored" >&2
                 shift
                 ;;
         esac
     done
 
-    # 60-second dedup cooldown — skip if a handoff was created very recently
+    # 5-second dedup cooldown — prevents literal double-fires from the same event
+    # Only blocks rapid duplicates; does NOT block sequential PreCompact -> SessionEnd handoffs
     local LATEST_HANDOFF="${HANDOFF_DIR}/latest.json"
     if [ -f "$LATEST_HANDOFF" ]; then
         local now=$(date +%s)
         local last_mod=$(stat -f%m "$LATEST_HANDOFF" 2>/dev/null || stat -c%Y "$LATEST_HANDOFF" 2>/dev/null || echo 0)
         local age=$((now - last_mod))
-        if [ "$age" -lt 60 ]; then
+        if [ "$age" -lt 5 ]; then
             echo ""
             echo "HANDOFF SKIPPED (cooldown)"
             echo "------------------------------------"
-            echo "Last handoff was ${age}s ago (< 60s cooldown)."
+            echo "Last handoff was ${age}s ago (< 5s cooldown)."
             echo "------------------------------------"
             exit 0
         fi
