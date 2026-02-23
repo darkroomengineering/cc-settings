@@ -1,7 +1,7 @@
 {
   "name": "darkroom",
-  "description": "Darkroom Engineering standards with Opus 4.6, agent teams, and auto-orchestration. Claude automatically delegates tasks to specialized agents based on natural conversation.",
-  "version": "7.0.0",
+  "description": "Darkroom Engineering AI coding standards. Layered config with portable AGENTS.md, progressive complexity, and two-tier knowledge system.",
+  "version": "8.0.0",
   "author": {
     "name": "Darkroom Engineering",
     "url": "https://darkroom.engineering"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Darkroom Claude Code Setup Script v7.0
+# Darkroom Claude Code Setup Script v8.0
 # Just run it. No flags needed.
 
 set -euo pipefail
@@ -34,7 +34,7 @@ if [[ "$SCRIPT_DIR" == "/dev/fd" || "$SCRIPT_DIR" == /proc/self/fd* ]]; then
 fi
 
 CLAUDE_DIR="${HOME}/.claude"
-VERSION="7.0"
+VERSION="8.0"
 
 # =============================================================================
 # SOURCE LIBRARY FILES
@@ -73,6 +73,7 @@ create_backup() {
     local files_to_backup=()
     [[ -f "${CLAUDE_DIR}/settings.json" ]] && files_to_backup+=("settings.json")
     [[ -f "${CLAUDE_DIR}/CLAUDE.md" ]] && files_to_backup+=("CLAUDE.md")
+    [[ -f "${CLAUDE_DIR}/AGENTS.md" ]] && files_to_backup+=("AGENTS.md")
 
     if [[ ${#files_to_backup[@]} -eq 0 ]]; then
         return 0
@@ -157,11 +158,15 @@ clean_old_config() {
     rm -f "${CLAUDE_DIR}/skill-index.compiled" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/skill-index.checksum" 2>/dev/null || true
     rm -f "${CLAUDE_DIR}/CLAUDE.md" 2>/dev/null || true
+    rm -f "${CLAUDE_DIR}/AGENTS.md" 2>/dev/null || true
 }
 
 install_config_files() {
-    # CLAUDE.md (install the full version from CLAUDE-FULL.md)
+    # CLAUDE.md (Claude-Code-specific config from CLAUDE-FULL.md)
     [[ -f "${SCRIPT_DIR}/CLAUDE-FULL.md" ]] && cp "${SCRIPT_DIR}/CLAUDE-FULL.md" "${CLAUDE_DIR}/CLAUDE.md"
+
+    # AGENTS.md (portable coding standards — reference copy for projects)
+    [[ -f "${SCRIPT_DIR}/AGENTS.md" ]] && cp "${SCRIPT_DIR}/AGENTS.md" "${CLAUDE_DIR}/AGENTS.md"
 
     # Lib (shared libraries used by scripts)
     [[ -d "${SCRIPT_DIR}/lib" ]] && cp -r "${SCRIPT_DIR}/lib/"* "${CLAUDE_DIR}/lib/" 2>/dev/null || true
@@ -247,7 +252,8 @@ install_dependencies() {
 show_summary() {
     echo ""
     box_start "Installed"
-    box_line "ok" "CLAUDE.md"
+    box_line "ok" "CLAUDE.md (Claude-Code config)"
+    box_line "ok" "AGENTS.md (portable standards)"
     box_line "ok" "settings.json (permissions, hooks)"
     box_line "ok" "~/.claude.json (MCP servers)"
 

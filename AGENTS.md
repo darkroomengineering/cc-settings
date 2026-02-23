@@ -1,0 +1,194 @@
+# Darkroom Engineering
+
+> Coding standards and guardrails for AI-assisted development.
+> Works with Claude Code, Codex, Cursor, Copilot, Windsurf, and any AGENTS.md-compatible tool.
+
+---
+
+## Philosophy
+
+This codebase will outlive any single contributor. Every shortcut becomes someone else's burden.
+Fight entropy. Leave the codebase better than you found it.
+
+---
+
+## Getting Started
+
+1. **Read this file** — it's the baseline for how we work
+2. **Use your tools naturally** — read files, search code, run builds directly
+3. **Scale up when needed** — delegate to agents for complex multi-file tasks
+4. **Learn the guardrails** — they exist because we hit every one of these problems
+
+Don't over-engineer your workflow. Start simple, add complexity only when you feel friction.
+
+---
+
+## Guardrails
+
+These rules exist because we've seen them violated repeatedly. Non-negotiable.
+
+### 2-Iteration Limit
+If an approach fails after **2 attempts**, STOP:
+1. Summarize what you tried and why it failed
+2. Present **2-3 alternative approaches** with trade-offs
+3. Ask which direction to take
+
+Never burn 6+ attempts on the same strategy. Fail fast, pivot deliberately.
+
+### Bug Fix Scope
+When fixing a bug, stay **confined to files directly related to the bug**:
+- Don't refactor adjacent code "while you're in there"
+- Don't upgrade dependencies as part of a bug fix
+- Don't touch files outside the immediate blast radius
+- A bug fix PR should be reviewable in under 2 minutes
+
+### Verify After Every Fix
+Run the build after any fix and verify it passes **before moving on**. Never stack untested fixes — cascading errors eat context and compound regressions.
+
+### Pre-Commit Verification
+Before ANY commit:
+1. Run type checking (`tsc --noEmit` for TypeScript) — fix all errors
+2. Run the build command — fix all errors
+3. Run existing tests — fix all failures
+
+**Never commit code that doesn't build.**
+
+### Never Fake Measurements
+NEVER fabricate output from Lighthouse, bundle size tools, performance profilers, test runners, or build systems. If you can't run a tool, say so.
+
+### Visual/Spatial Honesty
+For sub-pixel rendering, WebGL, physics, complex animations, or canvas — acknowledge limitations upfront. Provide best-effort with clear TODOs, and suggest the user validate visually.
+
+For CSS/visual bugs: if a fix doesn't work after 2 attempts, propose **3 fundamentally different approaches** and let the user pick.
+
+### Dependency Upgrades
+Before upgrading major dependencies, check for breaking changes. If an upgrade breaks the build, **rollback immediately** to the working version. Rollback first, research the migration, then try again with a plan.
+
+### Autonomous Execution
+Non-destructive operations proceed without asking:
+- Reading files, searching code, exploring architecture
+- Running read-only commands (git status, git log, git diff)
+- Fetching documentation, research
+
+Only confirm destructive or irreversible actions.
+
+### Bug Reports
+When given a bug report, fix it immediately. No "should I?" questions. If something goes sideways, stop and re-plan — don't keep pushing.
+
+---
+
+## Tech Stack
+
+### Core
+- **TypeScript** — Strict mode, no `any` types
+- **Next.js 16+** — App Router only
+- **React 19+** — Server Components default, Client when needed
+- **Tailwind CSS v4** — With CSS Modules for complex components
+- **Bun** — Package manager and runtime
+
+### Quality
+- **Biome** — Linting and formatting (not ESLint/Prettier)
+- **React Compiler** — No manual `useMemo`/`useCallback`/`memo`
+
+### Animation & Graphics
+- **Lenis** — Smooth scroll
+- **GSAP** — Complex animations
+- **Tempus** — RAF management
+- **Hamo** — Performance hooks
+
+Always check latest version before installing: `bun info <package>`
+
+---
+
+## Project Structure
+
+```
+app/                 # Next.js routes only
+components/          # UI components
+lib/
+  ├── hooks/         # Custom hooks
+  ├── integrations/  # Third-party clients
+  ├── styles/        # CSS, Tailwind config
+  └── utils/         # Pure utilities
+```
+
+---
+
+## Coding Standards
+
+### TypeScript
+- No `any` — use `unknown` and narrow
+- Prefer `interface` over `type` for objects
+- Use discriminated unions for state
+
+### React
+- Server Components by default
+- `'use client'` only when needed
+- React Compiler enabled: do NOT use `useMemo`, `useCallback`, or `React.memo`
+- Use `useRef` for object instantiation to prevent infinite loops
+
+### Components
+```tsx
+import s from './component.module.css'
+import { Image } from '@/components/image'
+import { Link } from '@/components/link'
+```
+
+### Performance
+- Eliminate waterfalls — `Promise.all` for parallel fetches
+- Avoid barrel imports — use direct imports
+- Dynamic imports for heavy components
+- `React.cache()` for server-side deduplication
+
+### Accessibility
+- Images need `alt` text
+- Icon-only buttons need `aria-label`
+- Form inputs need `<label>` or `aria-label`
+- No `<div onClick>` — use semantic elements
+- Touch targets minimum 44x44px
+- Color contrast 4.5:1 minimum
+
+### UI
+- Use `h-dvh` not `h-screen`
+- Never block paste in inputs
+- Animate only `transform`, `opacity` (compositor properties)
+- Max 200ms for interaction feedback
+- Honor `prefers-reduced-motion`
+
+---
+
+## Git
+
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
+- Small, atomic commits
+- Never force push to `main` or `master`
+- No AI attribution in commits
+
+---
+
+## External Libraries
+
+Before implementing with any external library:
+1. Fetch current docs — don't assume API knowledge
+2. Check latest version: `bun info <package>`
+3. New projects: `bunx degit darkroomengineering/satus my-project`
+
+---
+
+## Safety
+
+- Never commit secrets or `.env` files
+- Use environment variables for all API keys
+- Seek approval for destructive changes only
+
+---
+
+## Knowledge System
+
+This project uses a two-tier knowledge system:
+
+**Shared (Team)** — Stored in the project's GitHub Project board. Architecture decisions, team conventions, cross-cutting gotchas. Accessible to any team member's AI agent via `gh` CLI.
+
+**Local (Personal)** — Stored in auto-memory and local config files. Workflow preferences, individual learnings, session context. Private to each developer.
+
+See `docs/knowledge-system.md` for details.

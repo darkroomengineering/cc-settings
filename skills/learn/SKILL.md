@@ -2,6 +2,7 @@
 name: learn
 description: |
   Persistent memory system for storing and recalling learnings across sessions.
+  Supports local (personal) and shared (team) knowledge tiers.
 
   AUTO-INVOKE THIS SKILL when you:
   - Fix a non-obvious bug (store as "bug")
@@ -19,48 +20,68 @@ description: |
 
 # Persistent Learning System
 
-Store learnings that survive across Claude Code sessions. **Proactively store learnings when you discover something valuable** - don't wait for the user to ask.
+Store learnings that survive across sessions. **Proactively store when you discover something valuable.**
+
+## Two Tiers
+
+| Tier | Flag | Storage | Scope |
+|------|------|---------|-------|
+| **Local** | (default) | `~/.claude/learnings/<project>/` | Personal to this developer |
+| **Shared** | `--shared` | GitHub Project board | Team-wide, all agents |
+
+**Decision guide:** If another team member's AI agent would benefit from knowing it, use `--shared`.
 
 ## Auto-Store Triggers
 
-Store a learning AUTOMATICALLY when:
+Store automatically when:
 - You fix a bug that wasn't immediately obvious
 - You discover why something was breaking
 - You find a workaround for a limitation
 - You make a decision that future sessions should know about
-- You encounter behavior that was unexpected
+- You encounter unexpected behavior
 - You find a pattern that works well in this codebase
 
 ## Actions
 
-### Store a learning
+### Store locally (default)
 ```bash
 bash ~/.claude/scripts/learning.sh store "<category>" "<learning>" "[context]"
 ```
+
+### Store to shared team knowledge
+```bash
+bash ~/.claude/scripts/learning.sh store --shared "<category>" "<learning>" "[context]"
+```
+
+This creates an entry in the project's GitHub Project board, accessible to any team member's AI agent. Requires `gh` CLI authenticated and a configured project number.
 
 **Categories:** `bug`, `pattern`, `gotcha`, `tool`, `perf`, `config`, `arch`, `test`
 
 **Examples:**
 ```bash
-# After fixing a hydration error
+# Local: personal learning
 bash ~/.claude/scripts/learning.sh store "bug" "useAuth hook causes hydration mismatch - wrap in dynamic import with ssr:false"
 
-# After discovering a pattern
-bash ~/.claude/scripts/learning.sh store "pattern" "Always use Image wrapper from @/components/image, not next/image directly"
+# Shared: team-wide gotcha
+bash ~/.claude/scripts/learning.sh store --shared "gotcha" "Sanity API returns UTC dates - always convert to local before display"
 
-# After hitting a gotcha
-bash ~/.claude/scripts/learning.sh store "gotcha" "Biome ignores .mdx files by default - add to biome.json includes"
+# Shared: architecture decision
+bash ~/.claude/scripts/learning.sh store --shared "arch" "Chose Lenis over native smooth-scroll for cross-browser consistency"
 
-# After a tool discovery
+# Local: tool discovery
 bash ~/.claude/scripts/learning.sh store "tool" "Use 'bun --bun' flag to enable native Bun APIs in scripts"
 ```
 
 ### Recall learnings
 ```bash
+# Local learnings
 bash ~/.claude/scripts/learning.sh recall [filter] [value]
+
+# Shared team knowledge
+bash ~/.claude/scripts/learning.sh recall shared
 ```
 
-**Filters:**
+**Local filters:**
 - `all` - All learnings for current project
 - `all-projects` - List all projects with learnings
 - `category <cat>` - Filter by category
@@ -74,11 +95,14 @@ bash ~/.claude/scripts/learning.sh delete <id>
 
 ## Storage
 
-Learnings are stored per-project at `~/.claude/learnings/<project>/learnings.json`
+- **Local:** `~/.claude/learnings/<project>/learnings.json`
+- **Shared:** GitHub Project board (see `docs/knowledge-system.md` for setup)
 
 ## Best Practices
 
 1. **Be specific** - Include the actual fix, not just "fixed the bug"
 2. **Include context** - What file, what component, what was the symptom
 3. **Store immediately** - Don't wait until end of session
-4. **Categorize correctly** - Helps with recall later
+4. **Categorize correctly** - Helps with recall
+5. **Use `--shared` for team knowledge** - Gotchas, decisions, conventions that affect everyone
+6. **Keep local for personal stuff** - Workflow preferences, environment-specific notes

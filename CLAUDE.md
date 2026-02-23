@@ -4,10 +4,16 @@ Darkroom Engineering Claude Code configuration repository.
 
 ## Important
 
-The full CLAUDE.md instructions are in `CLAUDE-FULL.md`. The `setup.sh` installer
-copies that file to `~/.claude/CLAUDE.md` where Claude Code loads it globally.
-Do NOT duplicate the full config here -- it would be loaded twice per session
-(once as global from `~/.claude/CLAUDE.md`, once as project from this file).
+This repo contains two config files installed globally:
+- `AGENTS.md` → `~/.claude/AGENTS.md` (portable coding standards, reference copy)
+- `CLAUDE-FULL.md` → `~/.claude/CLAUDE.md` (Claude-Code-specific config)
+
+The `AGENTS.md` file is the source of truth for coding standards and guardrails.
+It works across all AI coding tools (Codex, Cursor, Copilot, Windsurf, etc.).
+
+`CLAUDE-FULL.md` contains only Claude-Code-specific settings (edit strategy,
+delegation guidance, model config, profiles, hooks). It points to AGENTS.md
+for standards.
 
 ## About This Repo
 
@@ -16,19 +22,21 @@ There is no TypeScript, no build step, and no `node_modules`.
 
 ### Structure
 
+- `AGENTS.md` - Portable coding standards (source of truth)
+- `CLAUDE-FULL.md` - Claude-Code config (installed to `~/.claude/CLAUDE.md`)
 - `scripts/` - Bash scripts installed to `~/.claude/scripts/`
 - `agents/` - Agent definitions installed to `~/.claude/agents/`
 - `skills/` - Skill files installed to `~/.claude/skills/`
 - `rules/` - Path-conditioned rules installed to `~/.claude/rules/`
-- `profiles/` - Profile definitions installed to `~/.claude/profiles/`
+- `profiles/` - Profiles installed to `~/.claude/profiles/`
 - `contexts/` - Ecosystem contexts installed to `~/.claude/contexts/`
 - `hooks/` - Hook documentation and guidelines
-- `mcp-configs/` - MCP server configuration (recommended servers)
-- `lib/` - Shared bash libraries (colors.sh, platform.sh, prompts.sh, etc.)
+- `mcp-configs/` - MCP server configuration
+- `lib/` - Shared bash libraries
+- `docs/` - Reference documentation
 - `tests/` - Test scripts for validation
 - `setup.sh` - The installer entry point
-- `settings.json` - Permissions, hooks, and MCP server config
-- `CLAUDE-FULL.md` - Full instructions (installed to `~/.claude/CLAUDE.md`)
+- `settings.json` - Permissions, hooks, and MCP config
 
 ### Development
 
@@ -36,3 +44,6 @@ There is no TypeScript, no build step, and no `node_modules`.
 - Test safety net: `bash tests/safety-net-test.sh`
 - Shared libraries in `lib/` are sourced by `setup.sh` and scripts
 - Use conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
+
+# currentDate
+Today's date is 2026-02-23.
