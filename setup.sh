@@ -125,6 +125,8 @@ create_directories() {
         "${CLAUDE_DIR}/docs"
         "${CLAUDE_DIR}/tldr-cache"
         "${CLAUDE_DIR}/backups"
+        "${CLAUDE_DIR}/tmp"
+        "${CLAUDE_DIR}/logs"
     )
 
     for dir in "${dirs[@]}"; do

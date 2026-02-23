@@ -312,7 +312,7 @@
 					{
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/post-failure.sh\"",
-						"async": true,
+						"async": false,
 						"timeout": 10
 					}
 				]

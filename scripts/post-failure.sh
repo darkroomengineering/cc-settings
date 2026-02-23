@@ -13,21 +13,21 @@ mkdir -p "$LOG_DIR" "${CLAUDE_DIR}/tmp" 2>/dev/null || true
 
 # Extract tool info from environment
 TOOL_NAME="${TOOL_NAME:-unknown}"
-TOOL_INPUT="${TOOL_INPUT:-}"
+TOOL_ERROR="${TOOL_ERROR:-}"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%s")
 
-# Truncate tool input for logging (max 200 chars)
-if [[ ${#TOOL_INPUT} -gt 200 ]]; then
-    TOOL_INPUT="${TOOL_INPUT:0:200}..."
+# Truncate tool error for logging (max 200 chars)
+if [[ ${#TOOL_ERROR} -gt 200 ]]; then
+    TOOL_ERROR="${TOOL_ERROR:0:200}..."
 fi
 
 # Log the failure (use jq for safe JSON construction)
 if command -v jq &>/dev/null; then
-    jq -n --arg ts "$TIMESTAMP" --arg tool "$TOOL_NAME" --arg input "${TOOL_INPUT:0:200}" \
-        '{"timestamp":$ts,"tool":$tool,"input":$input}' >> "$LOG_FILE" 2>/dev/null || true
+    jq -n --arg ts "$TIMESTAMP" --arg tool "$TOOL_NAME" --arg error "${TOOL_ERROR:0:200}" \
+        '{"timestamp":$ts,"tool":$tool,"error":$error}' >> "$LOG_FILE" 2>/dev/null || true
 else
-    SAFE_INPUT=$(echo "${TOOL_INPUT:0:200}" | tr '\n' ' ' | sed 's/"/\\"/g')
-    echo "{\"timestamp\":\"${TIMESTAMP}\",\"tool\":\"${TOOL_NAME}\",\"input\":\"${SAFE_INPUT}\"}" \
+    SAFE_ERROR=$(echo "${TOOL_ERROR:0:200}" | tr '\n' ' ' | sed 's/"/\\"/g')
+    echo "{\"timestamp\":\"${TIMESTAMP}\",\"tool\":\"${TOOL_NAME}\",\"error\":\"${SAFE_ERROR}\"}" \
         >> "$LOG_FILE" 2>/dev/null || true
 fi
 
