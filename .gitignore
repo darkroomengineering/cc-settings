@@ -3,3 +3,4 @@
 .tldr/
 .claude/agent-memory/
 .claude/settings.local.json
+hooks-config.local.json

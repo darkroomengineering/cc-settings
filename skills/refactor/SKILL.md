@@ -11,6 +11,8 @@ context: fork
 
 # Refactoring Workflow
 
+Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "refactor" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+
 You are in **Maestro orchestration mode**. Delegate immediately.
 
 ## Workflow

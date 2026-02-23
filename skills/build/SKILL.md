@@ -11,6 +11,8 @@ context: fork
 
 # Feature Build Workflow
 
+Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "build" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+
 Follow standard Maestro workflow: plan -> explore -> scaffold -> implement -> test -> review.
 
 ## Pre-Implementation Checklist (MANDATORY)

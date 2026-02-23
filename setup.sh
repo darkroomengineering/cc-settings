@@ -54,6 +54,7 @@ source_libs() {
     source "${lib_dir}/prompts.sh"
     source "${lib_dir}/packages.sh"
     source "${lib_dir}/mcp.sh"
+    source "${lib_dir}/hook-config.sh"
 }
 
 source_libs
@@ -191,6 +192,15 @@ install_config_files() {
 
     # Docs
     [[ -d "${SCRIPT_DIR}/docs" ]] && cp -r "${SCRIPT_DIR}/docs/"* "${CLAUDE_DIR}/docs/" 2>/dev/null || true
+
+    # Hook config (team defaults - only install if missing or older than source)
+    if [[ -f "${SCRIPT_DIR}/hooks-config.json" ]]; then
+        local src_config="${SCRIPT_DIR}/hooks-config.json"
+        local dst_config="${CLAUDE_DIR}/hooks-config.json"
+        if [[ ! -f "$dst_config" ]] || [[ "$src_config" -nt "$dst_config" ]]; then
+            cp "$src_config" "$dst_config"
+        fi
+    fi
 }
 
 compile_skill_index() {
@@ -255,6 +265,7 @@ show_summary() {
     box_line "ok" "docs/"
     box_line "ok" "tasks/"
     box_line "ok" "memory/"
+    box_line "ok" "hooks-config.json"
     box_end
 
     # Show MCP servers from ~/.claude.json (where Claude Code reads them)

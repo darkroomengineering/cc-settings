@@ -14,6 +14,12 @@ agent: explore
 
 Delegates to the Explore agent for fast, read-only investigation of the codebase.
 
+## Current State
+- Directory: !`pwd 2>/dev/null`
+- Project: !`basename "$(pwd)" 2>/dev/null`
+- Stack: !`ls package.json Cargo.toml go.mod pyproject.toml 2>/dev/null || echo "unknown"`
+- Git root: !`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
+
 ## Strategy
 
 1. **Start broad** - Use `tldr semantic` or `Glob` to find relevant files

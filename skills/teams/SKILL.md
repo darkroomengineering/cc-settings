@@ -12,6 +12,8 @@ agent: maestro
 
 # Agent Teams Orchestration
 
+Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "teams" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+
 Delegates to the Maestro agent for coordinating multiple independent Claude Code instances.
 
 ## When to Use Teams

@@ -118,6 +118,9 @@ auto_warm_tldr() {
 
 # --- Phase 1: Fire off all independent background tasks ---
 
+# Clean per-session temp files from previous session
+rm -f "${CLAUDE_DIR}/tmp/tool-failure-counts" "${CLAUDE_DIR}/tmp/heavy-skill-active" 2>/dev/null
+
 # Log rotation (parallel)
 rotate_log "${CLAUDE_DIR}/sessions.log" &
 pid_sessions=$!
@@ -127,6 +130,8 @@ rotate_log "${CLAUDE_DIR}/hooks.log" &
 pid_hooks=$!
 rotate_log "${CLAUDE_DIR}/safety-net.log" &
 pid_safety=$!
+rotate_log "${CLAUDE_DIR}/logs/tool-failures.log" &
+pid_failures=$!
 
 # Handoff cleanup (parallel with log rotation)
 cleanup_handoffs "${CLAUDE_DIR}/handoffs" 20 &
@@ -160,7 +165,7 @@ auto_warm_tldr
 
 # --- Phase 4: Wait for remaining background tasks ---
 # These should complete quickly, but ensure they finish before script exits
-wait $pid_edits $pid_hooks $pid_safety $pid_handoffs $pid_skills $pid_compile 2>/dev/null
+wait $pid_edits $pid_hooks $pid_safety $pid_failures $pid_handoffs $pid_skills $pid_compile 2>/dev/null
 
 # --- Phase 5: Display output (must be sequential for clean terminal output) ---
 
@@ -199,5 +204,35 @@ if command -v tldr &>/dev/null; then
     else
         echo ""
         echo "TLDR warming in background (semantic search coming soon)"
+    fi
+fi
+
+# CLAUDE.md size monitoring
+# Large CLAUDE.md files degrade model adherence -- warn early
+CLAUDE_MD="${CLAUDE_DIR}/CLAUDE.md"
+if [[ -f "$CLAUDE_MD" ]]; then
+    # Read thresholds from hook config if available, otherwise use defaults
+    HOOK_CONFIG_LIB="${CLAUDE_DIR}/lib/hook-config.sh"
+    if [[ -f "$HOOK_CONFIG_LIB" ]]; then
+        source "$HOOK_CONFIG_LIB"
+        CLAUDE_MD_ENABLED=$(get_hook_config "claude_md_monitor.enabled" "true")
+        CLAUDE_MD_WARN=$(get_hook_config "claude_md_monitor.warn_lines" "400")
+        CLAUDE_MD_CRIT=$(get_hook_config "claude_md_monitor.critical_lines" "600")
+    else
+        # Hardcoded defaults -- can be made configurable via lib/hook-config.sh
+        CLAUDE_MD_ENABLED="true"
+        CLAUDE_MD_WARN=400
+        CLAUDE_MD_CRIT=600
+    fi
+
+    if [[ "$CLAUDE_MD_ENABLED" == "true" ]]; then
+        CLAUDE_MD_LINES=$(wc -l < "$CLAUDE_MD" | tr -d ' ')
+        if [[ "$CLAUDE_MD_LINES" -gt "$CLAUDE_MD_CRIT" ]]; then
+            echo ""
+            echo "WARNING: CLAUDE.md is ${CLAUDE_MD_LINES} lines (critical threshold). Adherence may degrade. Run: wc -l ~/.claude/CLAUDE.md"
+        elif [[ "$CLAUDE_MD_LINES" -gt "$CLAUDE_MD_WARN" ]]; then
+            echo ""
+            echo "WARNING: CLAUDE.md is ${CLAUDE_MD_LINES} lines (recommended: <${CLAUDE_MD_WARN}). Consider moving sections to rules/ or profiles/."
+        fi
     fi
 fi

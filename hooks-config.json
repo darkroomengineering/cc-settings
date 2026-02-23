@@ -1,0 +1,27 @@
+{
+	"_comment": "Team default hook configuration. Personal overrides go in hooks-config.local.json (git-ignored).",
+	"audio": {
+		"enabled": false,
+		"volume": 0.5,
+		"events": {
+			"session_start": true,
+			"commit": true,
+			"error": true,
+			"task_complete": true,
+			"safety_block": true
+		}
+	},
+	"compact_reminder": {
+		"enabled": true,
+		"threshold_percent": 60
+	},
+	"claude_md_monitor": {
+		"enabled": true,
+		"warn_lines": 400,
+		"critical_lines": 600
+	},
+	"notifications": {
+		"os_native": true,
+		"sound": false
+	}
+}

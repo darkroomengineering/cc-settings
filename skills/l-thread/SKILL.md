@@ -11,6 +11,8 @@ context: fork
 
 # Long-Duration Thread: Autonomous Execution with Checkpoints
 
+Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "l-thread" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+
 For tasks too large for a single context window. Implements checkpoint/restore, automatic verification, and graceful recovery.
 
 ## When to Use

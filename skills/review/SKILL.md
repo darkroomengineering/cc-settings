@@ -17,6 +17,11 @@ Reviews against the full Darkroom quality checklist defined in the reviewer agen
 
 Focus areas: TypeScript strictness, React patterns, accessibility, performance, security, file structure.
 
+## Current State
+- Branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+- Staged files: !`git diff --staged --stat 2>/dev/null || echo "nothing staged"`
+- Unstaged files: !`git diff --stat 2>/dev/null || echo "nothing unstaged"`
+
 ## Get Changes
 
 ```bash

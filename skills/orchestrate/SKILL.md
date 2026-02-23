@@ -12,6 +12,8 @@ agent: maestro
 
 # Multi-Agent Orchestration
 
+Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "orchestrate" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+
 Delegate to the Maestro agent for multi-agent task orchestration.
 
 The Maestro agent handles: agent selection, parallel execution, workflow coordination, and agent teams.

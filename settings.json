@@ -172,7 +172,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/safety-net.sh\""
+						"command": "bash -c 'output=$(bash \"$HOME/.claude/scripts/safety-net.sh\" 2>&1); rc=$?; if [ $rc -eq 2 ]; then bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block & disown 2>/dev/null; echo \"$output\"; exit 2; fi; echo \"$output\"; exit $rc'"
 					}
 				]
 			},
@@ -254,6 +254,16 @@
 						"command": "bash \"$HOME/.claude/scripts/session-start.sh\""
 					}
 				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" session_start",
+						"async": true,
+						"timeout": 10
+					}
+				]
 			}
 		],
 		"SessionEnd": [
@@ -274,6 +284,36 @@
 					{
 						"type": "command",
 						"command": "bash -c 'CHANGES=$(git diff --stat 2>/dev/null | tail -1); if [[ \"$CHANGES\" =~ ([0-9]+)[[:space:]]+file ]]; then COUNT=${BASH_REMATCH[1]}; if [ \"$COUNT\" -gt 5 ]; then echo \"[Hook] Session had significant changes ($COUNT files) - consider storing learnings:\"; echo \"  learning.sh store <category> <learning> [context]\"; echo \"  Categories: bug | pattern | gotcha | tool | perf | config | arch | test\"; fi; fi'"
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/compact-reminder.sh\""
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" task_complete",
+						"async": true,
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"PostToolUseFailure": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/post-failure.sh\"",
+						"async": true,
+						"timeout": 10
 					}
 				]
 			}

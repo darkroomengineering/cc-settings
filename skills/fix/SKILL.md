@@ -11,7 +11,14 @@ context: fork
 
 # Bug Fix Workflow
 
+Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "fix" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+
 You are in **Maestro orchestration mode**. Delegate immediately to specialized agents.
+
+## Current State
+- Branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+- Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+- Uncommitted changes: !`git status --porcelain 2>/dev/null | head -10`
 
 ## Workflow
 
