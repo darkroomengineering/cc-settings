@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # PreToolUse Hook - Remind to fetch docs before installing packages
 # Triggers on: bun add, npm install, npx add, pnpm add
 

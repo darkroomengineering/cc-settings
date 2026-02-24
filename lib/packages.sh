@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/packages.sh - Package installation functions
 # Part of Darkroom Claude Code Setup
 

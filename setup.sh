@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Darkroom Claude Code Setup Script v8.0
 # Just run it. No flags needed.
 
@@ -251,6 +251,26 @@ install_dependencies() {
     (has_command tldr || has_command tldr-mcp) || ensure_python_package llm-tldr tldr || true
 }
 
+write_version_sentinel() {
+    local sentinel="${CLAUDE_DIR}/.cc-settings-version"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    if command -v jq &>/dev/null; then
+        jq -n \
+            --arg version "$VERSION" \
+            --arg installed_at "$timestamp" \
+            --arg installer "setup.sh" \
+            '{version: $version, installed_at: $installed_at, installer: $installer}' \
+            > "$sentinel"
+    else
+        # Fallback if jq not available
+        cat > "$sentinel" << EOF
+{"version":"${VERSION}","installed_at":"${timestamp}","installer":"setup.sh"}
+EOF
+    fi
+}
+
 show_summary() {
     echo ""
     box_start "Installed"
@@ -307,10 +327,16 @@ main() {
         warn "Skill index compilation skipped (will compile on first session)"
     fi
 
+    # Write version sentinel (enables staleness detection and cross-tool sync)
+    write_version_sentinel
+
     show_summary
 
     echo ""
     echo -e "Installed to: ${CYAN}~/.claude/${RESET}"
+    echo ""
+    info "Set up cross-tool AI config in any project:"
+    echo -e "  ${CYAN}~/.claude/scripts/project-init.sh /path/to/project${RESET}"
     echo ""
     success "Restart Claude Code to apply changes."
     echo ""

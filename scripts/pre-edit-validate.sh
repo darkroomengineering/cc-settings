@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Pre-Edit Validation Hook (Harness Optimization)
 # Validates Edit tool calls before execution to prevent guaranteed failures.
 #

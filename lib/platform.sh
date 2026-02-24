@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/platform.sh - OS detection and path normalization
 # Part of Darkroom Claude Code Setup
 

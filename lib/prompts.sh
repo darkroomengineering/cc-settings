@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/prompts.sh - Interactive CLI prompts
 # Part of Darkroom Claude Code Setup
 # Compatible with bash 3.2+ (macOS default)

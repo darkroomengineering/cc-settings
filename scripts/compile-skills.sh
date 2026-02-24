@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Compile Skills Index
 # Scans all SKILL.md files and creates a fast-lookup index
 # Format: PATTERN|SKILL_NAME|PRIORITY|ENFORCEMENT|AGENTS

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Skill Activation Hook - UserPromptSubmit
 # Analyzes user prompt and suggests relevant skills/agents
 # Optimized: Uses compiled skill index with awk for single-pass matching

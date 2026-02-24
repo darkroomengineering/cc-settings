@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Post-Failure Hook - PostToolUseFailure event
 # Logs tool failures and warns on repeated failures per session
 # Fail-open: exit 0 always

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/colors.sh - Terminal colors and styled output
 # Part of Darkroom Claude Code Setup
 

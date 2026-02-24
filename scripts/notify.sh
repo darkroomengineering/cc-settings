@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Notification Hook
 # Sends system notification when Claude needs attention
 

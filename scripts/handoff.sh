@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unified Handoff Script
 # Manages session state for handoffs between sessions
 #

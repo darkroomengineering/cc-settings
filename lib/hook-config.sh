@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/hook-config.sh - Two-tier hook configuration reader
 # Part of Darkroom Claude Code Setup
 #

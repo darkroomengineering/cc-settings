@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Compact Reminder - Stop hook
 # Checks if a heavy skill was recently active and suggests /compact
 # Fail-open: exit 0 always

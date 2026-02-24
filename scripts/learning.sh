@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unified Learning Management Script
 # Manages per-project learnings for cross-session memory
 #

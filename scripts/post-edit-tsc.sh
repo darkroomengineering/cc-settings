@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Post-Edit TypeScript Check - runs tsc --noEmit for TS/TSX files
 # Async hook: reports errors without blocking
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Display TLDR token savings summary
 
 STATS_FILE="${HOME}/.claude/tldr-session-stats.json"

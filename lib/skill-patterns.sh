@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/skill-patterns.sh - Shared skill-to-pattern mapping
 # Part of Darkroom Claude Code Setup
 #

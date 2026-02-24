@@ -1,6 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/mcp.sh - MCP server detection, preservation, and merging
 # Part of Darkroom Claude Code Setup
+
+# Guard: jq is required for all MCP operations
+if ! command -v jq &>/dev/null; then
+    _mcp_no_jq() {
+        error "jq is required for MCP server configuration but was not found."
+        error "Install jq: https://jqlang.github.io/jq/download/"
+        return 1
+    }
+    # Stub out functions so callers get a clear error instead of silent failure
+    handle_mcp_preservation() { _mcp_no_jq; }
+    install_mcp_to_claude_json() { _mcp_no_jq; }
+    show_claude_json_mcp() { return 0; }
+    return 0 2>/dev/null || exit 0
+fi
 
 # Global MCP state
 declare -a USER_MCP_SERVERS=()        # All servers in user's existing config

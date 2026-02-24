@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Track TLDR MCP tool usage for session stats
 
 STATS_FILE="${HOME}/.claude/tldr-session-stats.json"
