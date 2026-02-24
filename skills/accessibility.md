@@ -1,6 +1,8 @@
 # Accessibility Standards (WCAG 2.1)
 
 > Comprehensive accessibility checklist for web applications. Source: [rams.ai](https://rams.ai)
+>
+> **Foundation:** `rules/accessibility.md` covers core DO/DON'T patterns (semantic HTML, alt text, labels, focus, contrast, touch targets). This file extends those with severity tiers, detailed ARIA patterns, and testing checklists.
 
 ## Severity Tiers
 
@@ -29,25 +31,6 @@ These issues create friction but don't completely block users.
 <img src="/decoration.svg" alt="" role="presentation" />
 ```
 
-### Icon-Only Buttons
-```tsx
-// ❌ No accessible name
-<button onClick={handleClose}>
-  <XIcon />
-</button>
-
-// ✅ With aria-label
-<button onClick={handleClose} aria-label="Close dialog">
-  <XIcon />
-</button>
-
-// ✅ With visually hidden text
-<button onClick={handleClose}>
-  <XIcon />
-  <span className="sr-only">Close dialog</span>
-</button>
-```
-
 ### Form Inputs
 ```tsx
 // ❌ Input without label
@@ -59,31 +42,9 @@ These issues create friction but don't completely block users.
   <input type="email" />
 </label>
 
-// ✅ With aria-label (when visual label not possible)
-<input type="email" aria-label="Email address" placeholder="Email" />
-
 // ✅ With aria-labelledby
 <span id="email-label">Email</span>
 <input type="email" aria-labelledby="email-label" />
-```
-
-### Semantic Elements
-```tsx
-// ❌ NEVER: div with click handler
-<div onClick={handleClick} className="cursor-pointer">
-  Click me
-</div>
-
-// ✅ Use button for actions
-<button type="button" onClick={handleClick}>
-  Click me
-</button>
-
-// ❌ NEVER: span/div as link
-<span onClick={() => navigate('/about')}>About</span>
-
-// ✅ Use anchor for navigation
-<a href="/about">About</a>
 ```
 
 ### Links
@@ -104,90 +65,25 @@ These issues create friction but don't completely block users.
 
 ## Serious Issues
 
-### Focus Indicators
-```tsx
-// ❌ NEVER: Remove focus outline without replacement
-button:focus {
-  outline: none;
-}
-
-// ✅ Custom focus style
-button:focus-visible {
-  outline: 2px solid var(--focus-color);
-  outline-offset: 2px;
-}
-
-// ✅ Tailwind
-<button className="focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-```
-
-### Keyboard Navigation
-```tsx
-// ❌ Mouse-only interaction
-<div onMouseEnter={showTooltip} onMouseLeave={hideTooltip}>
-  Hover for info
-</div>
-
-// ✅ Keyboard accessible
-<button
-  onMouseEnter={showTooltip}
-  onMouseLeave={hideTooltip}
-  onFocus={showTooltip}
-  onBlur={hideTooltip}
->
-  Info
-</button>
-```
-
 ### Color-Only Indicators
 ```tsx
 // ❌ Color-only status
 <span className="text-red-500">Error</span>
-<span className="text-green-500">Success</span>
 
 // ✅ Color + icon/text
 <span className="text-red-500">
   <ErrorIcon aria-hidden="true" /> Error: Invalid email
 </span>
-<span className="text-green-500">
-  <CheckIcon aria-hidden="true" /> Success
-</span>
-```
-
-### Touch Targets
-```tsx
-// ❌ Too small (under 44x44px)
-<button className="p-1">
-  <SmallIcon className="w-4 h-4" />
-</button>
-
-// ✅ Adequate touch target
-<button className="p-3 min-w-[44px] min-h-[44px]">
-  <SmallIcon className="w-4 h-4" />
-</button>
 ```
 
 ---
 
 ## Moderate Issues
 
-### Heading Hierarchy
-```tsx
-// ❌ Skipping heading levels
-<h1>Page Title</h1>
-<h3>Section</h3>  // Skipped h2!
-
-// ✅ Sequential headings
-<h1>Page Title</h1>
-<h2>Section</h2>
-<h3>Subsection</h3>
-```
-
 ### TabIndex
 ```tsx
 // ❌ Positive tabindex (breaks natural order)
 <button tabIndex={5}>First</button>
-<button tabIndex={2}>Second</button>
 
 // ✅ Use 0 or -1 only
 <button tabIndex={0}>Focusable in natural order</button>
@@ -225,14 +121,6 @@ button:focus-visible {
 | Large text (≥18px bold, ≥24px) | 3:1 |
 | UI components | 3:1 |
 
-```css
-/* ❌ Insufficient contrast */
-.text-gray-400 { color: #9ca3af; } /* on white: ~2.9:1 */
-
-/* ✅ Sufficient contrast */
-.text-gray-600 { color: #4b5563; } /* on white: ~5.4:1 */
-```
-
 ### Component States
 Every interactive component needs:
 - **Default**: Normal appearance
@@ -245,11 +133,7 @@ Every interactive component needs:
 
 ### Dark Mode
 ```tsx
-// Support system preference
 <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-
-// Or manual toggle with class strategy
-<html className={theme === 'dark' ? 'dark' : ''}>
 ```
 
 ---

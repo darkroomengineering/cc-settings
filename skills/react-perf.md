@@ -1,6 +1,8 @@
 # React/Next.js Performance Rules
 
 > Condensed from Vercel Agent Skills. Focus: Critical and High priority optimizations.
+>
+> **Foundation:** `rules/performance.md` covers core patterns (parallel fetching, direct imports, dynamic imports, `React.cache`, lazy state init). This file extends those with detailed examples, re-render optimization, and advanced patterns.
 
 ## React Compiler Note
 
@@ -12,23 +14,6 @@
 ---
 
 ## CRITICAL: Eliminate Waterfalls
-
-Waterfalls are the #1 performance killer. Each sequential `await` adds full network latency.
-
-### Client-Side Waterfalls
-```tsx
-// ❌ WRONG: Sequential fetching (3 round trips)
-const user = await fetchUser()
-const posts = await fetchPosts()
-const comments = await fetchComments()
-
-// ✅ CORRECT: Parallel fetching (1 round trip)
-const [user, posts, comments] = await Promise.all([
-  fetchUser(),
-  fetchPosts(),
-  fetchComments()
-])
-```
 
 ### Server Component Waterfalls
 ```tsx
@@ -68,34 +53,6 @@ async function handler(req) {
 
 ## CRITICAL: Bundle Size Optimization
 
-### Avoid Barrel Imports
-```tsx
-// ❌ WRONG: Barrel import (pulls entire icon library)
-import { Check } from 'lucide-react'
-
-// ✅ CORRECT: Direct import
-import Check from 'lucide-react/dist/esm/icons/check'
-
-// ✅ BETTER: Configure Next.js
-// next.config.js
-experimental: {
-  optimizePackageImports: ['lucide-react', '@radix-ui/react-*']
-}
-```
-
-### Dynamic Imports for Heavy Components
-```tsx
-// ❌ WRONG: Static import bundles 300KB+ with initial JS
-import MonacoEditor from '@monaco-editor/react'
-
-// ✅ CORRECT: Lazy load when needed
-import dynamic from 'next/dynamic'
-const MonacoEditor = dynamic(
-  () => import('@monaco-editor/react'),
-  { ssr: false }
-)
-```
-
 ### Defer Third-Party Libraries
 ```tsx
 // ❌ WRONG: Loads in initial bundle
@@ -117,20 +74,8 @@ const GSAPRuntime = dynamic(
 
 ## HIGH: Server-Side Performance
 
-### React.cache() for Deduplication
-```tsx
-import { cache } from 'react'
-
-// Multiple calls within same request execute query only once
-export const getCurrentUser = cache(async () => {
-  const session = await getSession()
-  return db.user.findUnique({ where: { id: session.userId } })
-})
-```
-
 ### Suspense for Streaming
 ```tsx
-// Enables immediate wrapper render while data loads
 <Suspense fallback={<Skeleton />}>
   <AsyncDataComponent />
 </Suspense>
@@ -196,7 +141,6 @@ function Profile({ user, isLoading }: { user: User; isLoading: boolean }) {
 }
 
 // ✅ CORRECT: Extract to child component, skipped on early return
-// React Compiler handles memoization automatically
 function Profile({ user, isLoading }: { user: User; isLoading: boolean }) {
   if (isLoading) return <Skeleton />
   return <UserAvatar user={user} />
@@ -231,37 +175,9 @@ onScroll={() => setScrollY(window.scrollY)}
 onScroll={() => startTransition(() => setScrollY(window.scrollY))}
 ```
 
-### Lazy State Initialization
-```tsx
-// ❌ WRONG: buildIndex runs on EVERY render
-const [index, setIndex] = useState(buildSearchIndex(items))
-
-// ✅ CORRECT: Runs only on first render
-const [index, setIndex] = useState(() => buildSearchIndex(items))
-
-// Also: localStorage reads, DOM queries, data transforms
-const [prefs, setPrefs] = useState(() =>
-  JSON.parse(localStorage.getItem('prefs') || '{}')
-)
-```
-
 ---
 
 ## MEDIUM: Rendering Performance
-
-### Hoist Static JSX
-```tsx
-// ❌ WRONG: Re-created every render
-function Icon() {
-  return <svg>...</svg>
-}
-
-// ✅ CORRECT: Created once at module level
-const iconSvg = <svg>...</svg>
-function Icon() {
-  return iconSvg
-}
-```
 
 ### Explicit Conditional Rendering
 ```tsx

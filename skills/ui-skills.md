@@ -1,6 +1,8 @@
 # UI Skills Reference
 
 > Opinionated constraints for building better interfaces. Source: [ui-skills.com](https://ui-skills.com)
+>
+> **Foundation:** `rules/style.md` covers core patterns (CSS modules as 's', Tailwind conventions, viewport units, z-index scale, compositor-only animations). This file extends those with stack constraints, component/interaction/animation/typography/layout rules.
 
 ## Stack Constraints
 
@@ -27,7 +29,7 @@
 
 ### Accessibility
 
-See `skills/accessibility.md` for full accessibility rules.
+See `rules/accessibility.md` and `skills/accessibility.md` for full rules.
 
 ### Dialogs & Modals
 - Use `AlertDialog` (not `Dialog`) for destructive/irreversible actions
@@ -48,30 +50,14 @@ See `skills/accessibility.md` for full accessibility rules.
 
 ## Interaction Constraints
 
-### Viewport & Layout
-- Use `h-dvh` (dynamic viewport height) not `h-screen`
-- Respect `safe-area-inset-*` for fixed/sticky positioning on mobile
-- Test on devices with notches and gesture navigation
-
 ### Input Handling
 - **NEVER block paste** in `input` or `textarea` elements
 - Allow password managers to function properly
 - Support autofill attributes (`autocomplete`)
 
-### Touch Targets
-- Minimum touch target size: **44x44px**
-- Add padding/margin to meet targets, not just visual size
-- Test with actual touch input, not just mouse
-
 ---
 
 ## Animation Constraints
-
-### Performance Rules
-- Restrict to compositor properties: `transform`, `opacity`
-- Never animate `width`, `height`, `top`, `left`, `margin`, `padding`
-- Avoid large `blur()` or `backdrop-filter` animations
-- No `will-change` outside actively animating elements
 
 ### Timing & Motion
 - Max **200ms** for interaction feedback (button press, toggle)
@@ -101,11 +87,6 @@ See `skills/accessibility.md` for full accessibility rules.
 
 ## Layout Constraints
 
-### Z-Index Scale
-- Use fixed z-index scale, no arbitrary values
-- Suggested scale: `0, 10, 20, 30, 40, 50` (or project-defined)
-- Document z-index usage in project conventions
-
 ### Sizing
 - Use `size-*` utility for square elements (same width/height)
 - Example: `size-8` instead of `w-8 h-8`
@@ -127,26 +108,6 @@ See `skills/accessibility.md` for full accessibility rules.
 ---
 
 ## Code Examples
-
-### Good: Semantic Button with Accessible Icon
-```tsx
-<button
-  type="button"
-  aria-label="Close dialog"
-  className="size-10 flex items-center justify-center"
-  onClick={onClose}
->
-  <XIcon className="size-5" />
-</button>
-```
-
-### Bad: Div with Click Handler
-```tsx
-// ❌ Never do this
-<div onClick={onClose} className="cursor-pointer">
-  <XIcon />
-</div>
-```
 
 ### Good: Skeleton Loading
 ```tsx

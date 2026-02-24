@@ -71,60 +71,7 @@ bash /tmp/darkroom-claude/setup.sh
 
 ## Getting Started
 
-### Level 0: Just Talk
-
-You don't need to memorize anything. Describe what you want naturally.
-
-```
-"Fix the auth bug"
-"Build a user profile page"
-"How does the payment flow work?"
-"Review my changes"
-```
-
-Skills auto-trigger based on your words.
-
-### Level 1: Understand the Guardrails
-
-The guardrails in `AGENTS.md` protect you from common AI coding pitfalls:
-
-- **2-iteration limit** — if something fails twice, stop and present alternatives
-- **Bug fix scope** — stay confined to relevant files, no drive-by refactoring
-- **Verify after fix** — run the build before moving on
-- **Never fake measurements** — if you can't run a tool, say so
-
-These exist because the team hit every one of these problems. They're non-negotiable.
-
-### Level 2: Use Skills
-
-| Say This | What Happens |
-|----------|--------------|
-| "Fix the broken login" | `fix` skill → explore → implement → test |
-| "Build a dashboard" | `build` skill → plan → scaffold → implement |
-| "Who calls this function?" | `tldr` skill → impact analysis |
-| "Done for today" | `create-handoff` → saves session state |
-| "Ship it" | `ship` → test → review → PR |
-
-### Level 3: Delegate to Agents
-
-For complex multi-file tasks:
-
-```
-Task(explore, "how does auth work?")
-Task(planner, "break down the checkout redesign")
-Task(implementer, "implement the coupon validation")
-Task(reviewer, "review these changes")
-```
-
-### Level 4: Full Orchestration (Opt-in)
-
-Power users can activate maestro mode for full agent coordination:
-
-```
-/profile maestro
-```
-
-Enables: mandatory delegation, parallel agent pipelines, TLDR-first exploration, agent teams. See `profiles/maestro.md`.
+See **[USAGE.md](./USAGE.md)** for the progressive onboarding guide (Level 0-4: from "just talk" to full orchestration).
 
 ---
 

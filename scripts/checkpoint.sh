@@ -4,14 +4,20 @@ set -euo pipefail
 # Checkpoint system for long-running Claude Code tasks
 # Usage: checkpoint.sh <save|list|show|restore|clean> [args]
 
-# Colors (self-contained — this script is installed standalone to ~/.claude/scripts/
-# and cannot source lib/colors.sh which is not installed alongside it)
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Source shared color library (installed to ~/.claude/lib/ by setup.sh)
+LIB_DIR="${HOME}/.claude/lib"
+if [[ -f "${LIB_DIR}/colors.sh" ]]; then
+    source "${LIB_DIR}/colors.sh"
+    NC="${RESET}"
+else
+    # Fallback if lib not available
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    CYAN='\033[0;36m'
+    NC='\033[0m'
+fi
 
 # Determine project name from git or directory
 get_project_name() {
