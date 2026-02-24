@@ -100,6 +100,18 @@ Use TLDR when it saves tokens. Use Read/Grep when you need exact content or smal
 
 ---
 
+## Cache-Friendly Context Ordering
+
+Context ordering affects KV-cache hit rates. For maximum prefix cache reuse:
+
+1. **Stable elements first** — system prompt, tool definitions, AGENTS.md rules
+2. **Semi-stable next** — skill content, project context, loaded rules
+3. **Dynamic elements last** — user messages, tool outputs, timestamps
+
+Placing dynamic content (timestamps, user-specific data) early in context invalidates the cache prefix for everything after it. This ordering is mostly handled by Claude Code automatically, but be aware when constructing custom prompts or skill content.
+
+---
+
 ## MCP Tool Deferral
 
 When MCP tool descriptions exceed 10% of context, tools are auto-deferred.

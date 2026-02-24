@@ -175,6 +175,24 @@ Before implementing with any external library:
 
 ---
 
+## Context Hygiene
+
+### Tool Output Offloading
+When a tool returns output exceeding ~2000 tokens (large search results, verbose logs, big API responses), write it to a scratch file and return a summary with the file path instead of carrying the full output in context.
+
+```
+# Instead of returning 10K tokens of search results:
+[Results written to /tmp/scratch/search_results_001.txt — 47 matches found.
+Top 3: auth.controller.ts:42, session.service.ts:18, middleware/jwt.ts:7]
+```
+
+This prevents context bloat from accumulating tool outputs (which comprise ~84% of token usage in typical agent sessions).
+
+### Information Placement
+Place critical information at the **beginning** and **end** of context. The middle receives less attention (lost-in-middle effect). When constructing prompts or structured output, put the most important facts first and last.
+
+---
+
 ## Safety
 
 - Never commit secrets or `.env` files

@@ -27,6 +27,21 @@ Thresholds scale with your context window size:
 | Warning | 80% (~160K) | Create handoff, prepare to compact |
 | Critical | 90% (~180K) | Create handoff NOW, then compact |
 
+## Model Degradation Thresholds
+
+Context degradation is not gradual — it follows a step function. Place critical information at the **beginning** and **end** of context (attention-favored positions). Avoid burying important facts in the middle.
+
+| Model | Noticeable Degradation | Severe Degradation |
+|-------|------------------------|-------------------|
+| Claude Opus 4.6 | ~100K tokens | ~180K tokens |
+| Claude Sonnet 4.6 | ~80K tokens | ~150K tokens |
+| Claude Haiku 4.5 | ~50K tokens | ~90K tokens |
+
+**Key patterns:**
+- **Lost-in-middle**: Information in the center of context gets less attention
+- **Context poisoning**: A single wrong fact in context can corrupt reasoning on related topics
+- **Context distraction**: Irrelevant information degrades performance on a step function, not proportionally
+
 ## Managing Context
 
 ### Create Handoff Before Compacting
@@ -54,19 +69,69 @@ Reduces context by summarizing earlier conversation.
 
 Restores context from handoff file.
 
+## Structured Compaction Template
+
+When compacting, use this structured format to prevent silent information loss. Each section acts as a checklist the summarizer must populate:
+
+```markdown
+## Session Intent
+[What the user is trying to accomplish — the "why"]
+
+## Files Modified
+- path/to/file.ts: What changed and why
+- path/to/other.ts: What changed and why
+
+## Files Read (Not Modified)
+- path/to/reference.ts: Why it was consulted
+
+## Decisions Made
+- Decision 1: Rationale
+- Decision 2: Rationale
+
+## Errors Encountered
+- Error message or symptom → Resolution applied
+- Error message or symptom → Still unresolved
+
+## Current State
+- Build status (passing/failing)
+- Test status (X passing, Y failing)
+- What's working, what isn't
+
+## Next Steps
+1. Immediate next action
+2. Following action
+3. Remaining work
+```
+
+**Why structure matters**: The artifact trail (which files were touched, what changed) is universally the weakest dimension after compression, scoring 2.2-2.5/5.0 even with structured summaries. Dedicated sections force preservation of file paths, error messages, and decisions that would otherwise silently drift away.
+
+## Post-Compaction Validation
+
+After compaction, verify quality with 3-5 probe questions before continuing work:
+
+1. "What files have I modified in this session?"
+2. "What was the last error I encountered?"
+3. "What approach did I decide on and why?"
+4. "What are the remaining next steps?"
+
+If any probe returns vague or incorrect answers, re-read the handoff file (`/resume-handoff`) to restore critical context. Traditional metrics (ROUGE, embedding similarity) fail to capture functional compression quality — probing tests whether the information the agent actually needs survived.
+
 ## Tips for Reducing Context
 
 1. **Use `context: fork`** - Skills that fork don't bloat main context
 2. **Delegate exploration** - Let agents handle research
 3. **Clean summaries** - Agents return summaries, not raw output
 4. **Avoid large file reads** - Use TLDR for token-efficient analysis
+5. **Offload tool output** - Write outputs >2000 tokens to scratch files, return summary + path
+6. **Place critical info at edges** - Beginning and end of context get more attention
 
 ## When Context is Full
 
 1. **Don't panic** - Your work isn't lost
 2. **Create handoff** - Save current state
-3. **Compact** - Let Claude summarize
-4. **Resume** - Pick up where you left off
+3. **Compact** - Let Claude summarize using structured template above
+4. **Validate** - Probe 3-5 critical facts
+5. **Resume** - Pick up where you left off
 
 ## Automatic Protection
 

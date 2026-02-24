@@ -206,13 +206,24 @@ None
 
 **Communication Protocol**
 
+### Context Fidelity (Telephone Game Prevention)
+
+When delegating to subagents, **pass user messages and requirements verbatim** rather than paraphrasing. Summarization at each hop degrades fidelity — the "telephone game" problem.
+
+- **DO**: Include the user's original request text in the Task prompt
+- **DO**: Copy exact error messages, file paths, and code snippets into context
+- **DON'T**: Rephrase user requirements in your own words before delegating
+- **DON'T**: Summarize previous agent findings before passing to next agent — include the original output
+
+When chaining agents (e.g., explore → plan → implement), pass forward the raw findings from each step rather than your synthesis. Your synthesis can accompany but should not replace the source material.
+
 ### To Subagents
 ```markdown
 ## Task Assignment
 
 **Agent:** implementer
 **Task:** Implement Button component
-**Context:** [Relevant files and requirements]
+**Context:** [Relevant files and requirements — include original user request verbatim]
 **Constraints:** [Time, dependencies, standards]
 **Expected Output:** [Deliverables]
 **Report To:** maestro

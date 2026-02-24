@@ -93,6 +93,19 @@ bash ~/.claude/scripts/learning.sh recall shared
 bash ~/.claude/scripts/learning.sh delete <id>
 ```
 
+### Prune stale learnings
+```bash
+bash ~/.claude/scripts/learning.sh prune [days]
+```
+
+Surfaces learnings older than N days (default 90) for review. Stale learnings may reflect outdated patterns, deprecated APIs, or resolved issues. The command lists candidates — you confirm which to keep or delete.
+
+**When to prune:**
+- Start of a new project phase
+- After major dependency upgrades
+- When recalled learnings contradict current behavior
+- Periodically (quarterly recommended)
+
 ## Storage
 
 - **Local:** `~/.claude/learnings/<project>/learnings.json`

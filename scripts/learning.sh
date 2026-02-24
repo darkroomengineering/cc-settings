@@ -6,6 +6,7 @@
 #   store  - Save a new learning
 #   recall - Query/search learnings
 #   delete - Remove a learning by ID
+#   prune  - Surface stale learnings for review
 #   list   - List all learnings (alias for recall all)
 
 set -euo pipefail
@@ -393,6 +394,74 @@ cmd_delete() {
 }
 
 # ============================================================================
+# PRUNE SUBCOMMAND
+# ============================================================================
+
+cmd_prune() {
+    local DAYS="${1:-90}"
+
+    if [ ! -f "$LEARNINGS_FILE" ]; then
+        echo "No learnings file found for project: $PROJECT_NAME"
+        exit 1
+    fi
+
+    if ! command -v jq &> /dev/null; then
+        echo "Error: jq is required for prune. Install with: brew install jq"
+        exit 1
+    fi
+
+    # Calculate cutoff date (portable for macOS and Linux)
+    local CUTOFF
+    if date -v -${DAYS}d +%Y-%m-%dT%H:%M:%SZ &>/dev/null 2>&1; then
+        # macOS
+        CUTOFF=$(date -v -${DAYS}d -u +%Y-%m-%dT%H:%M:%SZ)
+    else
+        # Linux
+        CUTOFF=$(date -u -d "${DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
+    fi
+
+    local STALE
+    STALE=$(jq --arg cutoff "$CUTOFF" '[.learnings[] | select(.timestamp < $cutoff)]' "$LEARNINGS_FILE")
+    local COUNT
+    COUNT=$(echo "$STALE" | jq 'length')
+
+    if [ "$COUNT" -eq 0 ]; then
+        echo ""
+        echo "✅ NO STALE LEARNINGS"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "No learnings older than $DAYS days for project: $PROJECT_NAME"
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        exit 0
+    fi
+
+    echo ""
+    echo "🧹 STALE LEARNINGS (older than $DAYS days)"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Found $COUNT stale learning(s) for review:"
+    echo ""
+
+    echo "$STALE" | jq -c '.[]' | while read -r learning; do
+        format_learning "$learning"
+    done
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "To delete: learning.sh delete <id>"
+    echo "To keep:   No action needed"
+    echo ""
+    echo "Tip: Review each learning — does it still apply?"
+    echo "  - API changed? → Delete"
+    echo "  - Bug was fixed upstream? → Delete"
+    echo "  - Pattern is still valid? → Keep"
+    echo ""
+
+    exit 0
+}
+
+# ============================================================================
 # LIST SUBCOMMAND (alias for recall all)
 # ============================================================================
 
@@ -415,6 +484,7 @@ show_main_help() {
     echo "  store   <category> <learning> [context]  - Save a new learning"
     echo "  recall  [filter_type] [filter_value]     - Query/search learnings"
     echo "  delete  <learning_id>                    - Remove a learning by ID"
+    echo "  prune   [days]                           - Surface learnings older than N days (default 90)"
     echo "  list    [limit]                          - List all learnings (shortcut for recall all)"
     echo ""
     echo "Examples:"
@@ -448,6 +518,9 @@ case "$COMMAND" in
         ;;
     "delete"|"remove"|"rm")
         cmd_delete "$@"
+        ;;
+    "prune"|"stale"|"review")
+        cmd_prune "$@"
         ;;
     "list"|"ls"|"all")
         cmd_list "$@"
