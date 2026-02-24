@@ -148,7 +148,7 @@ clean_old_config() {
     local managed_skills=(
         ask build checkpoint component context create-handoff debug discovery
         docs effort explore f-thread fix hook init l-thread learn lenis
-        orchestrate prd premortem qa refactor resume-handoff review ship
+        orchestrate prd premortem project qa refactor resume-handoff review ship
         teams test tldr versions
     )
     for skill_dir in "${managed_skills[@]}"; do

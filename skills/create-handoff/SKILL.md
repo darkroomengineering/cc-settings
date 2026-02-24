@@ -35,6 +35,22 @@ The handoff file includes:
 - **Context**: Important information to remember
 - **Learnings**: Patterns discovered in session
 
+## GitHub Issue Sync
+
+If the current branch is linked to a GitHub Issue (e.g., `feat/123-description`):
+
+1. **Post a progress comment** on the issue:
+   ```bash
+   gh issue comment 123 --body "## Session Update
+   - Completed: [summary of work done]
+   - Files modified: [list]
+   - Next steps: [what remains]"
+   ```
+
+2. **Check off completed tasks** in the issue body if any task checkboxes were resolved during this session.
+
+This ensures project progress is visible to the whole team, not just in local handoff files.
+
 ## Handoff Location
 
 ```
@@ -61,7 +77,7 @@ The setup automatically creates handoffs:
 ## Output
 
 Confirms:
-- Handoff file created
+- Handoff file created (and GitHub Issue updated if linked)
 - Location of file
 - Key information saved
 
