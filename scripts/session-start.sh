@@ -167,54 +167,6 @@ auto_warm_tldr
 # These should complete quickly, but ensure they finish before script exits
 wait $pid_edits $pid_hooks $pid_safety $pid_failures $pid_handoffs $pid_skills $pid_compile 2>/dev/null
 
-# --- Phase 4b: Auto-sync AGENTS.md for cross-tool compatibility ---
-sync_agents_md() {
-    local source_agents="${CLAUDE_DIR}/AGENTS.md"
-    local project_agents="${PROJECT_DIR}/AGENTS.md"
-    local version_file="${CLAUDE_DIR}/.cc-settings-version"
-
-    # Only run in git repos
-    [[ -d "${PROJECT_DIR}/.git" ]] || return 0
-    # Need the source file
-    [[ -f "$source_agents" ]] || return 0
-
-    # Get installed version
-    local installed_version="unknown"
-    if [[ -f "$version_file" ]] && command -v jq &>/dev/null; then
-        installed_version=$(jq -r '.version // "unknown"' "$version_file" 2>/dev/null)
-    fi
-
-    if [[ ! -f "$project_agents" ]]; then
-        # No AGENTS.md in project — create it
-        {
-            echo "<!-- cc-settings v${installed_version} | $(date -u +%Y-%m-%dT%H:%M:%SZ) | DO NOT EDIT — managed by cc-settings -->"
-            cat "$source_agents"
-        } > "$project_agents"
-        echo ""
-        echo "AGENTS.md added to project root (v${installed_version})"
-        echo "Commit it to share coding standards with your team and all AI tools."
-    elif head -1 "$project_agents" 2>/dev/null | grep -q "cc-settings" 2>/dev/null; then
-        # Managed file — check if outdated
-        local proj_version=""
-        local header
-        header=$(head -1 "$project_agents" 2>/dev/null)
-        if [[ "$header" =~ cc-settings\ v([0-9.]+) ]]; then
-            proj_version="${BASH_REMATCH[1]}"
-        fi
-
-        if [[ -n "$proj_version" ]] && [[ "$proj_version" != "$installed_version" ]] && [[ "$installed_version" != "unknown" ]]; then
-            {
-                echo "<!-- cc-settings v${installed_version} | $(date -u +%Y-%m-%dT%H:%M:%SZ) | DO NOT EDIT — managed by cc-settings -->"
-                cat "$source_agents"
-            } > "$project_agents"
-            echo ""
-            echo "AGENTS.md updated: v${proj_version} -> v${installed_version}"
-        fi
-    fi
-    # If file exists but isn't managed by cc-settings, don't touch it
-}
-sync_agents_md
-
 # --- Phase 5: Display output (must be sequential for clean terminal output) ---
 
 # Display learnings if available
