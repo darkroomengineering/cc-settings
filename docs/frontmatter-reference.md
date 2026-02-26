@@ -81,7 +81,7 @@ color: purple
 | `oracle` | opus | project | Read, Grep, Glob, LS, WebFetch, Bash | gold |
 | `tester` | opus | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
 | `scaffolder` | opus | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
-| `deslopper` | opus | -- | Read, Edit, Grep, Glob, LS, Bash, Task, AskUserQuestion | cyan |
+| `deslopper` | opus | -- | Read, Edit, Grep, Glob, LS, Bash, Task, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
 | `security-reviewer` | opus | -- | Read, Grep, Glob, Bash | red |
 
 ---
