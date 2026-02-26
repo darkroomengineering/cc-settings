@@ -136,10 +136,17 @@ Ask: "What MCP servers are available?"
 
 ## Server Categories
 
-### Recommended (`recommended.json`)
+### Installed by Default (`recommended.json` — `mcpServers`)
 
-Essential servers for Darkroom projects:
+These servers are configured automatically by `setup.sh`:
 - **context7** - Live documentation lookup (crucial for current APIs)
+- **Sanity** - CMS content and schema operations (OAuth on first use)
+- **tldr** - Semantic codebase analysis and search (requires `pipx install llm-tldr`)
+
+### Optional (`recommended.json` — `optionalMcpServers`)
+
+Additional servers you can add manually to `~/.claude.json`:
+- **github** - GitHub integration for issues, PRs, projects (alternative: use `gh` CLI)
 - **vercel** - Deployment management
 - **memory** - Persistent knowledge across sessions
 

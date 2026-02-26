@@ -85,6 +85,31 @@ Available in all hooks:
 | `SubagentStop` | `$AGENT_ID` | Unique identifier for the subagent |
 | `SubagentStop` | `$AGENT_TYPE` | Agent type (e.g., `explore`, `planner`) |
 
+### Flattened Tool Input Variables
+
+For `PreToolUse` and `PostToolUse` hooks, Claude Code also provides **flattened** versions of the `$TOOL_INPUT` JSON object as individual environment variables. Each top-level key in the tool input becomes `TOOL_INPUT_<key>`.
+
+This is more convenient than parsing the raw `$TOOL_INPUT` JSON string in shell scripts.
+
+| Variable | Available In | Description |
+|----------|-------------|-------------|
+| `TOOL_INPUT_command` | `PreToolUse(Bash)`, `PostToolUse(Bash)` | The shell command being executed |
+| `TOOL_INPUT_file_path` | `PreToolUse(Edit)`, `PostToolUse(Write\|Edit)` | The file path being written or edited |
+
+**Example usage in a hook script:**
+
+```bash
+#!/usr/bin/env bash
+# Access the file path directly instead of parsing $TOOL_INPUT JSON
+FILE_PATH="${TOOL_INPUT_file_path:-}"
+[[ -z "$FILE_PATH" ]] && exit 0
+
+# Now use $FILE_PATH directly
+echo "Edited file: $FILE_PATH"
+```
+
+The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<key>` matches the parameter name from the tool's input schema (e.g., `file_path`, `command`, `old_string`, `new_string`, `pattern`).
+
 ---
 
 ## Hook Configuration Format
@@ -227,6 +252,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `session-start.sh` | Recalls relevant learnings, auto-warms TLDR index | No |
+| `notify-sound.sh session_start` | Plays audio notification on session start (when audio enabled) | Yes |
 
 ### UserPromptSubmit
 
@@ -262,6 +288,12 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `track-tldr.sh "$TOOL_NAME"` | Tracks TLDR MCP usage statistics | Yes |
 
+### PostToolUseFailure
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `post-failure.sh` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
+
 ### PreCompact
 
 | Script | Purpose | Async |
@@ -273,6 +305,8 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | Inline learning reminder | If >5 files were changed, reminds to store learnings | No |
+| `compact-reminder.sh` | Suggests `/compact` after context-heavy skill operations | No |
+| `notify-sound.sh task_complete` | Plays audio notification on task completion (when audio enabled) | Yes |
 
 ### SubagentStart / SubagentStop
 
@@ -347,7 +381,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 - Always quote `$HOME` paths in the `command` string.
 - Use `async: true` for non-blocking operations (logging, metrics).
 - Set reasonable `timeout` values (default 600s is often too long for simple scripts).
-- For `PreToolUse` hooks: exit 0 means allow, exit 1 means block. Include a clear message explaining why.
+- For `PreToolUse` hooks: exit 0 means allow, exit 2 means block (output JSON with `{"decision":"block","reason":"..."}`). Include a clear message explaining why.
 - Write to log files for debugging rather than relying on stdout for async hooks.
 
 ---
@@ -362,8 +396,9 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 | `~/.claude/swarm.log` | Subagent start/stop events |
 | `~/.claude/sessions.log` | Session lifecycle events |
 | `~/.claude/skill-activation.out` | Skill pattern matching results |
-| `~/.claude/context-usage.json` | Context window usage data |
 | `~/.claude/tldr-session-stats.json` | TLDR tool usage statistics per session |
+| `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.sh`) |
+| `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.sh`) |
 
 ### Common Issues
 

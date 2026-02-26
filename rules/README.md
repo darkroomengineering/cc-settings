@@ -31,6 +31,8 @@ Claude Code automatically loads relevant rules based on:
 | `accessibility.md` | Working with UI components |
 | `security.md` | Working with API routes, lib code, or env files |
 | `performance.md` | Working with app code or components |
+| `react-perf.md` | Working with `.tsx`, `.ts`, `components/`, or `app/` |
+| `ui-skills.md` | Working with `.tsx`, `.jsx`, or `components/` |
 | `git.md` | Always loaded (git operations) |
 
 ## Adding New Rules

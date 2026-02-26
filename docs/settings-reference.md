@@ -98,6 +98,54 @@ Custom status bar displayed in the Claude Code terminal.
 
 The `statusline.sh` script displays model name, git branch, and context usage percentage.
 
+### `plansDirectory`
+
+Directory where Claude Code writes plan output files (from planner agent, PRD skill, etc.).
+
+```json
+{
+  "plansDirectory": "./plans"
+}
+```
+
+| Value | Behavior |
+|-------|----------|
+| `"./plans"` | Relative to project root. Plans saved to `<project>/plans/` |
+| Any path string | Absolute or relative path for plan output |
+
+### `outputStyle`
+
+Controls the verbosity of Claude's responses.
+
+```json
+{
+  "outputStyle": "concise"
+}
+```
+
+| Value | Behavior |
+|-------|----------|
+| `"concise"` | Shorter, more focused responses. Reduces filler text |
+| `"verbose"` | Longer, more detailed responses |
+
+### `spinnerVerbs`
+
+Customizes the animated spinner text shown while Claude is processing.
+
+```json
+{
+  "spinnerVerbs": {
+    "mode": "replace",
+    "verbs": ["Analyzing", "Architecting", "Building", "Crafting", "Debugging", "..."]
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | `"replace"` or `"append"` | `replace` overrides default verbs entirely; `append` adds to them |
+| `verbs` | list of strings | Present-participle verbs shown in the spinner (e.g., "Analyzing", "Building") |
+
 ---
 
 ## Permissions

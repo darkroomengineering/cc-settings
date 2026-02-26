@@ -29,6 +29,8 @@ Use agents for complex tasks. Use tools directly for simple ones.
 - Writing tests → `Task(tester, "...")`
 - Security-sensitive code → `Task(security-reviewer, "...")`
 - Dead code cleanup → `Task(deslopper, "...")`
+- Expert Q&A / second opinions → `Task(oracle, "...")`
+- Scaffolding new components → `Task(scaffolder, "...")`
 - Complex multi-step tasks → `Task(maestro, "...")`
 
 **Act directly when:**

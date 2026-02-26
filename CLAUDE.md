@@ -45,6 +45,3 @@ There is no TypeScript, no build step, and no `node_modules`.
 - Test safety net: `bash tests/safety-net-test.sh`
 - Shared libraries in `lib/` are sourced by `setup.sh` and scripts
 - Use conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
-
-# currentDate
-Today's date is 2026-02-23.

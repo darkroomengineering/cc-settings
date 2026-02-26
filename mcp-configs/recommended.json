@@ -1,27 +1,51 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "_description": "Recommended MCP servers for Darkroom projects. Copy these into ~/.claude.json under 'mcpServers'.",
+  "_description": "MCP server reference for Darkroom projects. 'installed' servers are configured by setup.sh. 'optional' servers can be added manually to ~/.claude.json.",
+
+  "_installed": "These servers are installed automatically by setup.sh into settings.json and ~/.claude.json.",
 
   "mcpServers": {
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"],
-      "env": {},
-      "_description": "Live documentation lookup. Essential for getting current API docs instead of outdated training data.",
+      "_description": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
       "_usage": "Triggered by: 'how to use X', 'X docs', 'api reference for Y'",
-      "_contextCost": "low"
+      "_contextCost": "low",
+      "_status": "installed"
     },
 
+    "Sanity": {
+      "type": "http",
+      "url": "https://mcp.sanity.io",
+      "_description": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server",
+      "_usage": "Sanity projects, GROQ queries, CMS-driven content workflows",
+      "_contextCost": "medium",
+      "_status": "installed"
+    },
+
+    "tldr": {
+      "command": "tldr-mcp",
+      "args": ["--project", "."],
+      "_description": "Semantic codebase analysis and repository-level search. Requires: pipx install llm-tldr",
+      "_usage": "Find implementations, understand large codebases, semantic search across files",
+      "_contextCost": "low",
+      "_status": "installed"
+    }
+  },
+
+  "_optional": "These servers are NOT installed by default. Add them manually to ~/.claude.json if needed.",
+
+  "optionalMcpServers": {
     "github": {
       "command": "npx",
       "args": ["-y", "@anthropic/github-mcp-server"],
       "env": {
         "GITHUB_TOKEN": "<your-github-token>"
       },
-      "_description": "GitHub integration for issues, PRs, projects, and repos. Enables agents to read/update issues, manage project boards, and track work.",
+      "_description": "GitHub integration for issues, PRs, projects, and repos.",
       "_usage": "Project management, issue tracking, PR creation, code review",
       "_contextCost": "medium",
-      "_note": "Alternative: use 'gh' CLI directly via Bash (no MCP server needed, lower context cost). The MCP server adds structured tool access but consumes more context."
+      "_note": "Alternative: use 'gh' CLI directly via Bash (no MCP server needed, lower context cost)."
     },
 
     "vercel": {

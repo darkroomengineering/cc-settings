@@ -84,10 +84,6 @@ progress_fail() {
     echo -e "  ${RED}✗${RESET} $*"
 }
 
-progress_skip() {
-    echo -e "  ${DIM}○${RESET} $*"
-}
-
 progress_arrow() {
     echo -e "  ${CYAN}→${RESET} $*"
 }
@@ -124,7 +120,7 @@ box_end() {
 
 # Banner for script start
 show_banner() {
-    local version="${1:-7.0}"
+    local version="${1:-8.0}"
     echo ""
     echo -e "${BOLD}${CYAN}+============================================+${RESET}"
     echo -e "${BOLD}${CYAN}|   Darkroom Claude Code Setup v${version}         |${RESET}"

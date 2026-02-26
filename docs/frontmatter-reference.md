@@ -121,9 +121,9 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
 | `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
 
-Skills using `fork`: `docs`, `explore`, `ask`, `ship`, `qa`, `checkpoint`, `f-thread`, `l-thread`, `discovery`, `teams`, `design-tokens`, `premortem`.
+Skills using `fork`: `ask`, `build`, `checkpoint`, `debug`, `design-tokens`, `discovery`, `docs`, `explore`, `f-thread`, `fix`, `l-thread`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `teams`, `test`, `tldr`.
 
-Skills using `inherit` (default): `learn`, `effort`, `context`, `init`, `versions`.
+Skills using `inherit` (default): `component`, `context`, `create-handoff`, `effort`, `hook`, `init`, `learn`, `lenis`, `project`, `resume-handoff`, `versions`.
 
 ### Agent Delegation
 
@@ -131,12 +131,14 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 
 | Skill | Delegates to Agent |
 |-------|--------------------|
-| `explore` | `explore` |
 | `ask` | `oracle` |
-| `premortem` | `oracle` |
 | `discovery` | `planner` |
+| `explore` | `explore` |
+| `orchestrate` | `maestro` |
+| `premortem` | `oracle` |
+| `review` | `reviewer` |
 | `teams` | `maestro` |
-| `orchestrate` | `maestro` (via skill content) |
+| `test` | `tester` |
 
 ### Example: Skill with Fork and Agent Delegation
 
@@ -183,35 +185,36 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | Skill | Context | Agent | Allowed Tools | Argument Hint |
 |-------|---------|-------|---------------|---------------|
 | `ask` | fork | oracle | -- | -- |
-| `build` | -- | -- | -- | -- |
+| `build` | fork | -- | -- | -- |
 | `checkpoint` | fork | -- | Bash | -- |
 | `component` | -- | -- | -- | -- |
 | `context` | -- | -- | -- | -- |
 | `create-handoff` | -- | -- | -- | -- |
-| `debug` | -- | -- | -- | -- |
+| `debug` | fork | -- | Bash | -- |
 | `design-tokens` | fork | -- | -- | -- |
 | `discovery` | fork | planner | -- | -- |
 | `docs` | fork | -- | MCP context7 tools, WebFetch, WebSearch | -- |
 | `effort` | -- | -- | Bash | `[low\|medium\|high\|max]` |
 | `explore` | fork | explore | -- | -- |
 | `f-thread` | fork | -- | -- | -- |
-| `fix` | -- | -- | -- | -- |
+| `fix` | fork | -- | -- | -- |
 | `hook` | -- | -- | -- | -- |
 | `init` | -- | -- | -- | `[project-name]` |
 | `l-thread` | fork | -- | -- | -- |
 | `learn` | -- | -- | -- | -- |
 | `lenis` | -- | -- | -- | -- |
-| `orchestrate` | -- | -- | -- | -- |
-| `prd` | -- | -- | -- | -- |
+| `orchestrate` | fork | maestro | -- | -- |
+| `prd` | fork | -- | -- | -- |
 | `premortem` | fork | oracle | -- | -- |
+| `project` | -- | -- | -- | -- |
 | `qa` | fork | -- | Bash | -- |
-| `refactor` | -- | -- | -- | -- |
+| `refactor` | fork | -- | -- | -- |
 | `resume-handoff` | -- | -- | -- | -- |
-| `review` | -- | -- | -- | -- |
+| `review` | fork | reviewer | -- | -- |
 | `ship` | fork | -- | -- | -- |
 | `teams` | fork | maestro | -- | -- |
-| `test` | -- | -- | -- | -- |
-| `tldr` | -- | -- | -- | -- |
+| `test` | fork | tester | -- | -- |
+| `tldr` | fork | -- | -- | -- |
 | `versions` | -- | -- | -- | -- |
 
 ---
@@ -244,12 +247,4 @@ paths:
 
 ### Configured Rules
 
-| Rule File | Loaded When |
-|-----------|-------------|
-| `react.md` | Working with `.tsx`, `.jsx`, or `components/` |
-| `typescript.md` | Working with `.ts`, `.tsx` files |
-| `style.md` | Working with CSS, SCSS, or styled components |
-| `accessibility.md` | Working with UI components |
-| `security.md` | Working with API routes, lib code, or env files |
-| `performance.md` | Working with app code or components |
-| `git.md` | Always loaded (git operations) |
+See `rules/README.md` for the current list of all available rules and their trigger paths.

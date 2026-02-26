@@ -69,6 +69,7 @@ These fork context for clean exploration:
 | `premortem` | risks, what could go wrong |
 | `discovery` | requirements, scope, figure out |
 | `prd` | PRD, requirements document, product spec |
+| `project` | project status, update the issue, sync with github, show my tasks |
 
 ### Tools
 | Skill | Triggers On |
@@ -83,7 +84,6 @@ These fork context for clean exploration:
 |-------|-------------|
 | `effort` | think harder, max effort, quick fix, slow down |
 | `teams` | parallel agents, split work, fan out |
-| `versions` | package version, before installing |
 
 ### Session Management
 | Skill | Triggers On |

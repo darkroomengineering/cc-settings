@@ -71,6 +71,7 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "who calls X?", "dependencies" | `tldr` |
 | "what could go wrong?" | `premortem` |
 | "advice on X" | `ask` |
+| "project status", "update the issue" | `project` — syncs with GitHub Issues and Projects |
 
 ### Session Management
 
