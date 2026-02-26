@@ -41,14 +41,6 @@ cleanup_handoffs() {
     fi
 }
 
-# Pre-warm jq and skills file into filesystem cache
-prewarm_skills() {
-    local skills_file="$1"
-    if [[ -f "$skills_file" ]] && command -v jq &>/dev/null; then
-        jq empty "$skills_file" 2>/dev/null
-    fi
-}
-
 # Auto-warm tldr index if available and not already warmed
 # Runs completely detached (survives script exit)
 auto_warm_tldr() {
@@ -124,8 +116,6 @@ rm -f "${CLAUDE_DIR}/tmp/tool-failure-counts" "${CLAUDE_DIR}/tmp/heavy-skill-act
 # Log rotation (parallel)
 rotate_log "${CLAUDE_DIR}/sessions.log" &
 pid_sessions=$!
-rotate_log "${CLAUDE_DIR}/edits.log" &
-pid_edits=$!
 rotate_log "${CLAUDE_DIR}/hooks.log" &
 pid_hooks=$!
 rotate_log "${CLAUDE_DIR}/safety-net.log" &
@@ -136,10 +126,6 @@ pid_failures=$!
 # Handoff cleanup (parallel with log rotation)
 cleanup_handoffs "${CLAUDE_DIR}/handoffs" 20 &
 pid_handoffs=$!
-
-# Skills file pre-warm (parallel)
-prewarm_skills "${CLAUDE_DIR}/skills/skill-rules.json" &
-pid_skills=$!
 
 # Compile skill index if needed (parallel, non-blocking)
 # This creates a fast-lookup index for skill matching
@@ -165,7 +151,7 @@ auto_warm_tldr
 
 # --- Phase 4: Wait for remaining background tasks ---
 # These should complete quickly, but ensure they finish before script exits
-wait $pid_edits $pid_hooks $pid_safety $pid_failures $pid_handoffs $pid_skills $pid_compile 2>/dev/null
+wait $pid_hooks $pid_safety $pid_failures $pid_handoffs $pid_compile 2>/dev/null
 
 # --- Phase 5: Display output (must be sequential for clean terminal output) ---
 

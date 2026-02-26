@@ -36,6 +36,7 @@ There is no TypeScript, no build step, and no `node_modules`.
 - `docs/` - Reference documentation
 - `tests/` - Test scripts for validation
 - `setup.sh` - The installer entry point
+- `plans/` - Persistent plan output directory (auto-populated by Claude Code)
 - `settings.json` - Permissions, hooks, and MCP config
 
 ### Development

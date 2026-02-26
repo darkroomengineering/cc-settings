@@ -13,14 +13,32 @@ context: fork
 
 Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "build" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
-Follow standard Maestro workflow: plan -> explore -> scaffold -> implement -> test -> review.
+## Phase 1: Research (GO/NO-GO Gate)
 
-## Pre-Implementation Checklist (MANDATORY)
+Before any implementation, complete this research phase:
 
-Before implementing with ANY external library:
-1. **Fetch docs** - Run `/docs <library>` to get current API via context7. Never code from memory.
-2. **Check versions** - Run `bun info <package>` for latest version
-3. **Follow patterns** - Check existing code for similar implementations
+1. **Understand requirements** - Parse what the user actually needs
+2. **Explore codebase** - Find existing patterns, similar implementations
+3. **Fetch docs** - Run `/docs <library>` for any external library. Never code from memory.
+4. **Check versions** - Run `bun info <package>` for latest version
+5. **Assess feasibility** - Can this be done cleanly within existing architecture?
+
+**GO/NO-GO Verdict**: After research, state one of:
+- **GO** - Requirements are clear, approach is viable, proceed to implementation
+- **NO-GO** - Requirements are ambiguous, approach has blockers, or scope is too large. Report findings and stop.
+
+Do not proceed past this gate without an explicit GO verdict.
+
+## Phase 2: Plan
+
+Create a brief implementation plan:
+- Files to create/modify
+- Key decisions and rationale
+- Dependency order
+
+## Phase 3: Implement
+
+Follow standard Maestro workflow: scaffold -> implement -> test -> review.
 
 ## Output
 

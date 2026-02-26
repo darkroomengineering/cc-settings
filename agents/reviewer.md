@@ -60,6 +60,16 @@ For non-trivial changes, pause and ask:
 
 Challenge your own work before presenting it.
 
+**Self-Evolving Learnings**
+
+After every review, if you discover a recurring pattern, edge case, or new convention,
+append it to your agent memory (`~/.claude/agent-memory/reviewer/MEMORY.md`).
+First 200 lines auto-load on next invocation. Keep entries terse:
+```
+- [YYYY-MM-DD] <category>: <one-line learning>
+```
+Categories: `pattern`, `gotcha`, `convention`, `false-positive`
+
 **Workflow**
 1. Read the changed files (use `git diff` if available)
 2. **Use `tldr context` to understand modified functions efficiently**

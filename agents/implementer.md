@@ -59,6 +59,17 @@ If you encounter errors, blockers, or cannot finish - keep status as in_progress
 
 Prioritize clean, maintainable code following project standards. Seek approval only for destructive actions.
 
+## Self-Evolving Learnings
+
+After completing an implementation, if you hit a non-obvious bug, discovered a useful
+pattern, or found an edge case, append it to your agent memory
+(`~/.claude/agent-memory/implementer/MEMORY.md`). First 200 lines auto-load on next invocation.
+Keep entries terse:
+```
+- [YYYY-MM-DD] <category>: <one-line learning>
+```
+Categories: `bug`, `pattern`, `edge-case`, `tool-tip`, `perf`
+
 ## Guardrails
 
 Follow all Guardrails defined in CLAUDE.md (2-iteration limit, scope constraint,

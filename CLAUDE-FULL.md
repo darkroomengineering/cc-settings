@@ -54,7 +54,9 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 ### Context Window
 - Default: 200K tokens
 - 1M available in beta: use `opus[1m]` in settings.json
-- Skill character budget: 2% of context (~4K chars)
+- Skill character budget: 25K chars (`SLASH_COMMAND_TOOL_CHAR_BUDGET`)
+- **Manual `/compact` at 50% context utilization** — do not wait for automatic compaction
+- **Break subtasks to complete within 50% context** — prevents context rot mid-task
 
 ---
 

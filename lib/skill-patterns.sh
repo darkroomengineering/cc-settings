@@ -211,6 +211,62 @@ get_skill_patterns() {
             echo "push and pr"
             echo "ready to ship"
             ;;
+        checkpoint)
+            echo "checkpoint"
+            echo "save state"
+            echo "save progress"
+            echo "restore checkpoint"
+            echo "list checkpoints"
+            echo "/checkpoint"
+            ;;
+        design-tokens)
+            echo "design tokens"
+            echo "type scale"
+            echo "color palette"
+            echo "spacing system"
+            echo "theme setup"
+            echo "design system"
+            echo "color scale"
+            echo "/design-tokens"
+            ;;
+        f-thread)
+            echo "compare approaches"
+            echo "which is better"
+            echo "evaluate options"
+            echo "architecture decision"
+            echo "technology selection"
+            echo "trade-off analysis"
+            echo "trade-off"
+            echo "/f-thread"
+            ;;
+        l-thread)
+            echo "overnight"
+            echo "long running"
+            echo "autonomous task"
+            echo "l-thread"
+            echo "extended task"
+            echo "/l-thread"
+            ;;
+        prd)
+            echo "prd"
+            echo "requirements document"
+            echo "product spec"
+            echo "feature spec"
+            echo "write requirements"
+            echo "/prd"
+            ;;
+        project)
+            echo "what's the plan"
+            echo "project status"
+            echo "update the issue"
+            echo "sync with github"
+            echo "check the roadmap"
+            echo "what am i working on"
+            echo "show my tasks"
+            echo "close the issue"
+            echo "mark as done"
+            echo "/project"
+            ;;
     esac
 }
 
@@ -232,6 +288,12 @@ get_skill_agents() {
         premortem|ask)          echo "oracle,reviewer" ;;
         tldr)                   echo "explore" ;;
         teams)                  echo "maestro" ;;
+        f-thread)               echo "oracle" ;;
+        l-thread)               echo "planner,implementer" ;;
+        prd)                    echo "planner" ;;
+        project)                echo "" ;;
+        checkpoint)             echo "" ;;
+        design-tokens)          echo "scaffolder" ;;
         *)                      echo "" ;;
     esac
 }
@@ -244,7 +306,7 @@ get_skill_priority() {
     case "$skill_name" in
         create-handoff|resume-handoff)  echo "critical" ;;
         fix|build|refactor|review|orchestrate|ship) echo "high" ;;
-        explore|test|component|hook|learn|tldr) echo "medium" ;;
+        explore|test|component|hook|learn|tldr|prd|f-thread|l-thread|project) echo "medium" ;;
         *)                              echo "low" ;;
     esac
 }

@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/*.tsx"
+  - "**/*.ts"
+  - "components/**/*"
+  - "app/**/*"
+---
+
 # React/Next.js Performance Rules
 
 > Condensed from Vercel Agent Skills. Focus: Critical and High priority optimizations.
@@ -17,13 +25,13 @@
 
 ### Server Component Waterfalls
 ```tsx
-// ❌ WRONG: Nested async creates waterfall
+// WRONG: Nested async creates waterfall
 async function Page() {
   const header = await fetchHeader()
   return <Layout header={header}><Sidebar /></Layout>
 }
 
-// ✅ CORRECT: Sibling composition enables parallel
+// CORRECT: Sibling composition enables parallel
 function Page() {
   return (
     <Layout>
@@ -36,13 +44,13 @@ function Page() {
 
 ### Defer Await Until Needed
 ```tsx
-// ❌ WRONG: Always fetches even if returning early
+// WRONG: Always fetches even if returning early
 async function handler(req) {
   const user = await getUser(req)
   if (!req.query.id) return { error: 'Missing ID' }
 }
 
-// ✅ CORRECT: Defer awaits past early exits
+// CORRECT: Defer awaits past early exits
 async function handler(req) {
   if (!req.query.id) return { error: 'Missing ID' }
   const user = await getUser(req)
@@ -55,11 +63,11 @@ async function handler(req) {
 
 ### Defer Third-Party Libraries
 ```tsx
-// ❌ WRONG: Loads in initial bundle
+// WRONG: Loads in initial bundle
 import { Analytics } from '@vercel/analytics/react'
 import gsap from 'gsap'
 
-// ✅ CORRECT: Load after hydration
+// CORRECT: Load after hydration
 const Analytics = dynamic(
   () => import('@vercel/analytics/react').then(mod => mod.Analytics),
   { ssr: false }
@@ -93,15 +101,15 @@ const GSAPRuntime = dynamic(
 
 ### Use SWR for Deduplication
 ```tsx
-// ❌ WRONG: useState + useEffect + fetch
-// ✅ CORRECT: SWR handles deduplication, caching, revalidation
+// WRONG: useState + useEffect + fetch
+// CORRECT: SWR handles deduplication, caching, revalidation
 import useSWR from 'swr'
 const { data } = useSWR('/api/users', fetcher)
 ```
 
 ### Deduplicate Event Listeners
 ```tsx
-// ❌ WRONG: Each component adds listener
+// WRONG: Each component adds listener
 function useScroll() {
   useEffect(() => {
     window.addEventListener('scroll', handler) // N listeners!
@@ -109,7 +117,7 @@ function useScroll() {
   }, [])
 }
 
-// ✅ CORRECT: Single listener, callback delegation
+// CORRECT: Single listener, callback delegation
 const callbacks = new Map<string, (e: Event) => void>()
 let attached = false
 
@@ -133,14 +141,14 @@ function useScroll(id: string, callback: (e: Event) => void) {
 
 ### Extract Expensive Work
 ```tsx
-// ❌ WRONG: Expensive computation runs on early return
+// WRONG: Expensive computation runs on early return
 function Profile({ user, isLoading }: { user: User; isLoading: boolean }) {
   const avatar = processAvatar(user) // runs even when loading
   if (isLoading) return <Skeleton />
   return <img src={avatar} alt={user.name} />
 }
 
-// ✅ CORRECT: Extract to child component, skipped on early return
+// CORRECT: Extract to child component, skipped on early return
 function Profile({ user, isLoading }: { user: User; isLoading: boolean }) {
   if (isLoading) return <Skeleton />
   return <UserAvatar user={user} />
@@ -153,13 +161,13 @@ function UserAvatar({ user }: { user: User }) {
 
 ### Narrow Effect Dependencies
 ```tsx
-// ❌ WRONG: Runs on any user property change
+// WRONG: Runs on any user property change
 useEffect(() => { fetchPosts(user.id) }, [user])
 
-// ✅ CORRECT: Runs only when id changes
+// CORRECT: Runs only when id changes
 useEffect(() => { fetchPosts(user.id) }, [user.id])
 
-// ✅ BETTER: Derive boolean for thresholds
+// BETTER: Derive boolean for thresholds
 const isMobile = width < 768
 useEffect(() => { /* ... */ }, [isMobile])
 ```
@@ -168,10 +176,10 @@ useEffect(() => { /* ... */ }, [isMobile])
 ```tsx
 import { startTransition } from 'react'
 
-// ❌ WRONG: Blocks UI on every scroll
+// WRONG: Blocks UI on every scroll
 onScroll={() => setScrollY(window.scrollY)}
 
-// ✅ CORRECT: Defers non-urgent update
+// CORRECT: Defers non-urgent update
 onScroll={() => startTransition(() => setScrollY(window.scrollY))}
 ```
 
@@ -181,10 +189,10 @@ onScroll={() => startTransition(() => setScrollY(window.scrollY))}
 
 ### Explicit Conditional Rendering
 ```tsx
-// ❌ WRONG: Renders "0" when count is 0
+// WRONG: Renders "0" when count is 0
 {count && <Badge count={count} />}
 
-// ✅ CORRECT: Returns null when falsy
+// CORRECT: Returns null when falsy
 {count > 0 ? <Badge count={count} /> : null}
 ```
 

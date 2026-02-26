@@ -8,7 +8,6 @@ set -euo pipefail
 LIB_DIR="${HOME}/.claude/lib"
 if [[ -f "${LIB_DIR}/colors.sh" ]]; then
     source "${LIB_DIR}/colors.sh"
-    NC="${RESET}"
 else
     # Fallback if lib not available
     RED='\033[0;31m'
@@ -16,7 +15,7 @@ else
     YELLOW='\033[1;33m'
     BLUE='\033[0;34m'
     CYAN='\033[0;36m'
-    NC='\033[0m'
+    RESET='\033[0m'
 fi
 
 # Determine project name from git or directory
@@ -66,9 +65,9 @@ cmd_save() {
   # Update latest symlink (relative for portability)
   ln -sf "$(basename "$file")" "$CHECKPOINT_DIR/latest"
 
-  echo -e "${GREEN}Checkpoint saved:${NC} $id"
-  echo -e "${CYAN}Description:${NC} $description"
-  echo -e "${BLUE}Location:${NC} $file"
+  echo -e "${GREEN}Checkpoint saved:${RESET} $id"
+  echo -e "${CYAN}Description:${RESET} $description"
+  echo -e "${BLUE}Location:${RESET} $file"
 }
 
 cmd_list() {
@@ -77,11 +76,11 @@ cmd_list() {
   files=$(find "$CHECKPOINT_DIR" -maxdepth 1 -name "*.json" -type f 2>/dev/null | sort)
 
   if [ -z "$files" ]; then
-    echo -e "${YELLOW}No checkpoints found for project: $PROJECT${NC}"
+    echo -e "${YELLOW}No checkpoints found for project: $PROJECT${RESET}"
     return 0
   fi
 
-  echo -e "${BLUE}Checkpoints for ${CYAN}$PROJECT${NC}:"
+  echo -e "${BLUE}Checkpoints for ${CYAN}$PROJECT${RESET}:"
   echo ""
 
   while IFS= read -r f; do
@@ -93,9 +92,9 @@ cmd_list() {
     local latest_target
     latest_target=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
     if [ "$(basename "$f")" = "$latest_target" ]; then
-      latest_marker=" ${GREEN}(latest)${NC}"
+      latest_marker=" ${GREEN}(latest)${RESET}"
     fi
-    echo -e "  ${CYAN}$id${NC}  $ts  $desc$latest_marker"
+    echo -e "  ${CYAN}$id${RESET}  $ts  $desc$latest_marker"
   done <<< "$files"
   echo ""
 }
@@ -110,18 +109,18 @@ cmd_show() {
     link_target=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
     file="$CHECKPOINT_DIR/$link_target"
     if [ -z "$link_target" ] || [ ! -f "$file" ]; then
-      echo -e "${RED}No latest checkpoint found.${NC}"
+      echo -e "${RED}No latest checkpoint found.${RESET}"
       return 1
     fi
   else
     file="$CHECKPOINT_DIR/$target.json"
     if [ ! -f "$file" ]; then
-      echo -e "${RED}Checkpoint not found: $target${NC}"
+      echo -e "${RED}Checkpoint not found: $target${RESET}"
       return 1
     fi
   fi
 
-  echo -e "${BLUE}Checkpoint Details:${NC}"
+  echo -e "${BLUE}Checkpoint Details:${RESET}"
   jq '.' "$file"
 }
 
@@ -135,13 +134,13 @@ cmd_restore() {
     link_target=$(readlink "$CHECKPOINT_DIR/latest" 2>/dev/null || true)
     file="$CHECKPOINT_DIR/$link_target"
     if [ -z "$link_target" ] || [ ! -f "$file" ]; then
-      echo -e "${RED}No latest checkpoint found.${NC}"
+      echo -e "${RED}No latest checkpoint found.${RESET}"
       return 1
     fi
   else
     file="$CHECKPOINT_DIR/$target.json"
     if [ ! -f "$file" ]; then
-      echo -e "${RED}Checkpoint not found: $target${NC}"
+      echo -e "${RED}Checkpoint not found: $target${RESET}"
       return 1
     fi
   fi
@@ -152,9 +151,9 @@ cmd_restore() {
   branch=$(jq -r '.git.branch' "$file")
   sha=$(jq -r '.git.sha' "$file")
 
-  echo -e "${GREEN}Restoring checkpoint:${NC} $id"
-  echo -e "${CYAN}Description:${NC} $desc"
-  echo -e "${BLUE}Branch:${NC} $branch @ $sha"
+  echo -e "${GREEN}Restoring checkpoint:${RESET} $id"
+  echo -e "${CYAN}Description:${RESET} $desc"
+  echo -e "${BLUE}Branch:${RESET} $branch @ $sha"
   echo ""
 
   # Verify git state
@@ -164,14 +163,14 @@ cmd_restore() {
   current_sha=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
   if [ "$current_branch" != "$branch" ]; then
-    echo -e "${YELLOW}WARNING: Current branch ($current_branch) differs from checkpoint ($branch)${NC}"
+    echo -e "${YELLOW}WARNING: Current branch ($current_branch) differs from checkpoint ($branch)${RESET}"
   fi
   if [ "$current_sha" != "$sha" ]; then
-    echo -e "${YELLOW}WARNING: Current SHA ($current_sha) differs from checkpoint ($sha)${NC}"
+    echo -e "${YELLOW}WARNING: Current SHA ($current_sha) differs from checkpoint ($sha)${RESET}"
   fi
 
   echo ""
-  echo -e "${GREEN}Checkpoint state loaded. Review above and continue work.${NC}"
+  echo -e "${GREEN}Checkpoint state loaded. Review above and continue work.${RESET}"
   cat "$file"
 }
 
@@ -192,7 +191,7 @@ cmd_clean() {
   count=$(echo "$files" | grep -c '.' 2>/dev/null || echo 0)
 
   if [ "$count" -le "$keep" ]; then
-    echo -e "${GREEN}Nothing to clean. $count checkpoints (keep: $keep).${NC}"
+    echo -e "${GREEN}Nothing to clean. $count checkpoints (keep: $keep).${RESET}"
     return 0
   fi
 
@@ -201,9 +200,9 @@ cmd_clean() {
   local del_count
   del_count=$(echo "$to_delete" | grep -c '.' 2>/dev/null || echo 0)
 
-  echo -e "${YELLOW}Removing $del_count old checkpoints (keeping $keep)...${NC}"
+  echo -e "${YELLOW}Removing $del_count old checkpoints (keeping $keep)...${RESET}"
   echo "$to_delete" | xargs rm -f
-  echo -e "${GREEN}Done.${NC}"
+  echo -e "${GREEN}Done.${RESET}"
 }
 
 # Main

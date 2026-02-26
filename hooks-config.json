@@ -8,7 +8,9 @@
 			"commit": true,
 			"error": true,
 			"task_complete": true,
-			"safety_block": true
+			"safety_block": true,
+			"compact": true,
+			"gate_nogo": true
 		}
 	},
 	"compact_reminder": {
@@ -17,8 +19,12 @@
 	},
 	"claude_md_monitor": {
 		"enabled": true,
-		"warn_lines": 400,
-		"critical_lines": 600
+		"warn_lines": 150,
+		"critical_lines": 300
+	},
+	"context_compaction": {
+		"manual_threshold_percent": 50,
+		"subtask_budget_percent": 50
 	},
 	"notifications": {
 		"os_native": true,

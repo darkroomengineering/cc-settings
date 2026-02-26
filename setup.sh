@@ -115,7 +115,6 @@ create_directories() {
         "${CLAUDE_DIR}/profiles"
         "${CLAUDE_DIR}/rules"
         "${CLAUDE_DIR}/contexts"
-        "${CLAUDE_DIR}/tasks"
         "${CLAUDE_DIR}/handoffs"
         "${CLAUDE_DIR}/learnings"
         "${CLAUDE_DIR}/hooks"
@@ -291,7 +290,6 @@ show_summary() {
     box_line "ok" "skills/"
     box_line "ok" "scripts/"
     box_line "ok" "docs/"
-    box_line "ok" "tasks/"
     box_line "ok" "memory/"
     box_line "ok" "hooks-config.json"
     box_end

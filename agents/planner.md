@@ -59,6 +59,19 @@ Prioritize clarity, completeness, and efficiency. Be relentless in decomposition
 
 ---
 
+## Self-Evolving Learnings
+
+After every planning session, if you discover a recurring pattern, architectural insight,
+or project-specific convention, append it to your agent memory
+(`~/.claude/agent-memory/planner/MEMORY.md`). First 200 lines auto-load on next invocation.
+Keep entries terse:
+```
+- [YYYY-MM-DD] <category>: <one-line learning>
+```
+Categories: `arch-decision`, `gotcha`, `estimation`, `dependency`, `convention`
+
+---
+
 ## Architect Mode
 
 For complex features, the planner also thinks architecturally. Activate architect mode when:

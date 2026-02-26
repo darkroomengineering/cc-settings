@@ -4,7 +4,7 @@
 # Designed to be non-blocking (plays in background) and fail-open (exit 0 always)
 #
 # Usage: bash notify-sound.sh <event_name>
-# Events: session_start, commit, error, task_complete, safety_block
+# Events: session_start, commit, error, task_complete, safety_block, compact, gate_nogo
 
 # ---------------------------------------------------------------------------
 # Fail-open wrapper: all errors -> exit 0
@@ -40,19 +40,15 @@ fi
 VOLUME=$(get_hook_config "audio.volume" "0.5")
 
 # ---------------------------------------------------------------------------
-# Platform detection
+# Platform detection (uses shared lib)
 # ---------------------------------------------------------------------------
-detect_os() {
-    local uname_s
-    uname_s="$(uname -s)"
-    case "$uname_s" in
-        Darwin*) echo "macos" ;;
-        Linux*)  echo "linux" ;;
-        *)       echo "unknown" ;;
-    esac
-}
+if [[ -f "${CLAUDE_DIR}/lib/platform.sh" ]]; then
+    source "${CLAUDE_DIR}/lib/platform.sh"
+    detect_platform 2>/dev/null
+fi
 
-PLATFORM=$(detect_os)
+# $OS is set by detect_platform (macos, linux, wsl, windows, unknown)
+[[ -z "$OS" ]] && exit 0
 
 # ---------------------------------------------------------------------------
 # Sound file mapping
@@ -69,6 +65,8 @@ get_macos_sound() {
         error)          echo "${sounds_dir}/Basso.aiff" ;;
         task_complete)  echo "${sounds_dir}/Purr.aiff" ;;
         safety_block)   echo "${sounds_dir}/Basso.aiff" ;;
+        compact)        echo "${sounds_dir}/Submarine.aiff" ;;
+        gate_nogo)      echo "${sounds_dir}/Sosumi.aiff" ;;
         *)              echo "${sounds_dir}/Ping.aiff" ;;
     esac
 }
@@ -84,6 +82,8 @@ get_linux_sound() {
         error)          echo "${sounds_base}/dialog-error.oga" ;;
         task_complete)  echo "${sounds_base}/complete.oga" ;;
         safety_block)   echo "${sounds_base}/dialog-warning.oga" ;;
+        compact)        echo "${sounds_base}/bell.oga" ;;
+        gate_nogo)      echo "${sounds_base}/dialog-warning.oga" ;;
         *)              echo "${sounds_base}/message.oga" ;;
     esac
 }
@@ -98,7 +98,7 @@ play_sound() {
     # Verify the sound file exists
     [[ ! -f "$sound_file" ]] && return 0
 
-    case "$PLATFORM" in
+    case "$OS" in
         macos)
             if command -v afplay &>/dev/null; then
                 # afplay volume is a float where 1.0 = normal playback volume
@@ -106,7 +106,7 @@ play_sound() {
                 disown 2>/dev/null
             fi
             ;;
-        linux)
+        linux|wsl)
             if command -v paplay &>/dev/null; then
                 # paplay volume: 0-65536, config volume: 0.0-1.0
                 local pa_volume
@@ -128,11 +128,11 @@ play_sound() {
 # Main
 # ---------------------------------------------------------------------------
 
-case "$PLATFORM" in
+case "$OS" in
     macos)
         sound_file=$(get_macos_sound "$EVENT")
         ;;
-    linux)
+    linux|wsl)
         sound_file=$(get_linux_sound "$EVENT")
         ;;
     *)

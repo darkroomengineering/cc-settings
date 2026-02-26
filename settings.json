@@ -1,11 +1,42 @@
 {
 	"env": {
 		"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-		"CLAUDE_CODE_EFFORT_LEVEL": "high"
+		"CLAUDE_CODE_EFFORT_LEVEL": "high",
+		"SLASH_COMMAND_TOOL_CHAR_BUDGET": "25000"
 	},
 	"model": "opus",
 	"teammateMode": "auto",
 	"coauthorship": false,
+	"plansDirectory": "./plans",
+	"outputStyle": "concise",
+	"spinnerVerbs": {
+		"mode": "replace",
+		"verbs": [
+			"Analyzing",
+			"Architecting",
+			"Building",
+			"Checking",
+			"Composing",
+			"Crafting",
+			"Debugging",
+			"Deploying",
+			"Designing",
+			"Evaluating",
+			"Exploring",
+			"Implementing",
+			"Investigating",
+			"Optimizing",
+			"Orchestrating",
+			"Refactoring",
+			"Researching",
+			"Reviewing",
+			"Scaffolding",
+			"Testing",
+			"Tracing",
+			"Validating",
+			"Wiring"
+		]
+	},
 	"statusLine": {
 		"type": "command",
 		"command": "bash \"$HOME/.claude/scripts/statusline.sh\""

@@ -1,3 +1,10 @@
+---
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "components/**/*"
+---
+
 # UI Skills Reference
 
 > Opinionated constraints for building better interfaces. Source: [ui-skills.com](https://ui-skills.com)
