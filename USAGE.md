@@ -81,6 +81,14 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "resume", "continue" | `resume-handoff` — loads previous state |
 | Non-obvious bug fix discovered | `learn` — **auto-stores** the insight |
 
+### Tools
+
+| Trigger | Skill |
+|---------|-------|
+| "compare to design", "inspect in figma" | `figma` — Figma desktop + MCP integration |
+| screenshot, visual bug | `debug` — browser debugging with agent-browser |
+| "QA check", accessibility | `qa` — visual QA validation |
+
 ### Utility
 
 | Trigger | Skill |

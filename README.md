@@ -55,7 +55,7 @@ bash /tmp/darkroom-claude/setup.sh
 ├── AGENTS.md           # Portable coding standards (reference copy)
 ├── settings.json       # Permissions, hooks, MCP servers
 ├── agents/             # 10 specialized agents
-├── skills/             # 32 auto-invocable skills
+├── skills/             # 33 auto-invocable skills
 ├── profiles/           # Workflow profiles (maestro, nextjs, etc.)
 ├── rules/              # Path-conditioned rules (load on-demand)
 ├── contexts/           # Ecosystem contexts

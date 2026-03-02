@@ -236,6 +236,7 @@ NotebookEdit(*)
 
 ```
 Bash(agent-browser:*)    # Visual QA browser automation
+Bash(open -a:*)          # Launch macOS apps (e.g., Figma with debugging port)
 ```
 
 ### Configured Deny Rules

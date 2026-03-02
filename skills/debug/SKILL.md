@@ -84,10 +84,7 @@ agent-browser snapshot
 
 ## Prerequisites
 
-Requires `agent-browser` CLI:
-```bash
-npm i -g agent-browser@0.8.3
-```
+Requires `agent-browser` (installed by `setup.sh`).
 
 ## Output
 

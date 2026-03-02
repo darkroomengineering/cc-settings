@@ -267,6 +267,15 @@ get_skill_patterns() {
             echo "mark as done"
             echo "/project"
             ;;
+        figma)
+            echo "/figma"
+            echo "figma"
+            echo "compare to design"
+            echo "design fidelity"
+            echo "match the figma"
+            echo "extract tokens from figma"
+            echo "inspect in figma"
+            ;;
     esac
 }
 
@@ -294,6 +303,7 @@ get_skill_agents() {
         project)                echo "" ;;
         checkpoint)             echo "" ;;
         design-tokens)          echo "scaffolder" ;;
+        figma)                  echo "" ;;
         *)                      echo "" ;;
     esac
 }

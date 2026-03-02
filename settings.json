@@ -81,6 +81,7 @@
 			"Bash(biome:*)",
 			"Bash(vitest:*)",
 			"Bash(agent-browser:*)",
+			"Bash(open -a:*)",
 
 			"Bash(ls:*)",
 			"Bash(pwd:*)",

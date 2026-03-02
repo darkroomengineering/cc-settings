@@ -181,7 +181,9 @@ agent-browser snapshot
 
 ### Comparing to a Mockup
 
-1. Get the mockup image (Figma export, screenshot, user-provided)
+1. Get the mockup image:
+   - **From Figma (preferred):** Use `/figma` to launch Figma desktop, navigate to the frame, and screenshot it directly
+   - **Manual:** Figma export, screenshot, or user-provided image
 2. Screenshot the implementation at the same viewport size
 3. Run comparison review
 4. Fix deviations by priority
@@ -283,6 +285,4 @@ Looks good: [What's working]
 
 ## Prerequisites
 
-```bash
-npm i -g agent-browser@latest
-```
+Requires `agent-browser` (installed by `setup.sh`).

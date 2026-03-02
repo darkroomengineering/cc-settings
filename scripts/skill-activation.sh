@@ -160,7 +160,7 @@ if [[ "$USE_COMPILED" != true ]]; then
         fix build refactor review orchestrate ship teams
         component hook explore premortem lenis tldr learn effort
         checkpoint design-tokens f-thread l-thread prd project
-        test ask docs debug qa init context discovery versions
+        test ask docs debug qa figma init context discovery versions
     )
 
     for skill in "${KNOWN_SKILLS[@]}"; do
