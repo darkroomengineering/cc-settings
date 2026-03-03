@@ -94,7 +94,7 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | Trigger | Skill |
 |---------|-------|
 | "compare to design", "inspect in figma" | `figma` — Figma desktop + MCP integration |
-| screenshot, visual bug | `debug` — browser debugging with agent-browser |
+| screenshot, visual bug | `debug` — browser debugging with pinchtab |
 | "QA check", accessibility | `qa` — visual QA validation |
 | "design tokens", "type scale", "color palette" | `design-tokens` — generates token systems with math |
 | "smooth scroll", "lenis" | `lenis` — Lenis smooth scroll setup |

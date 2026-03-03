@@ -1,7 +1,7 @@
 ---
 name: debug
 description: |
-  Browser debugging with agent-browser CLI. Use when:
+  Browser debugging with pinchtab CLI. Use when:
   - User mentions "screenshot", "visual bug", "inspect element"
   - User asks "what does it look like", "see the page"
   - Need to debug browser rendering, layout, or visual issues
@@ -11,80 +11,110 @@ context: fork
 allowed-tools: [Bash]
 ---
 
-# Browser Debugging with agent-browser
+# Browser Debugging with PinchTab
 
-AI-optimized browser automation for visual debugging.
+AI-optimized browser automation for visual debugging. Token-efficient text extraction, persistent profiles, and stealth mode.
 
 ## Commands
 
 ```bash
 # Navigate to a URL
-agent-browser navigate http://localhost:3000
+pinchtab nav http://localhost:3000
+
+# Token-efficient page text (~800 tokens — preferred first step)
+pinchtab text
 
 # Take screenshot
-agent-browser screenshot
+pinchtab screenshot
 
-# Get accessibility tree (AI-optimized DOM)
-agent-browser snapshot
+# Get interactive compact accessibility snapshot
+pinchtab snap -i -c
 
-# Click element by accessibility ref
-agent-browser click @e5
+# Click element by ref
+pinchtab click e5
 
-# Type text
-agent-browser type @e3 "search query"
+# Fill input (clear + set)
+pinchtab fill e3 "search query"
 
-# Get page info
-agent-browser info
+# Type keystrokes
+pinchtab type e3 "search query"
+
+# Press keyboard keys
+pinchtab press Enter
+pinchtab press Tab
+pinchtab press Escape
+
+# Hover over element
+pinchtab hover e5
+
+# Scroll page
+pinchtab scroll down
+pinchtab scroll up
+
+# Select dropdown option
+pinchtab select e7 "Option text"
+
+# Semantic element discovery
+pinchtab find "search button"
+
+# Execute JavaScript
+pinchtab eval "document.title"
+
+# Health check
+pinchtab health
 ```
 
 ## Workflow
 
 1. **Navigate** to the target URL
-2. **Screenshot** to see current state
-3. **Snapshot** to get accessibility tree with element refs
-4. **Interact** using element refs (@e1, @e2, etc.)
-5. **Screenshot** again to verify changes
+2. **Text** to get token-efficient page content (~800 tokens)
+3. **Screenshot** if visual inspection needed
+4. **Snap** to get accessibility tree with element refs
+5. **Interact** using element refs (e5, e12, etc.)
+6. **Screenshot** again to verify changes
 
 ## Element References
 
-The accessibility tree gives each element a unique ref:
+The accessibility snapshot gives each element a unique ref:
 
 ```
-@e1: button "Submit"
-@e2: textbox "Email"
-@e3: link "Home"
+e1: button "Submit"
+e2: textbox "Email"
+e3: link "Home"
 ```
 
-Use these refs for reliable element targeting.
+Use these refs for reliable element targeting. No `@` prefix needed.
 
 ## Common Debugging Tasks
 
 ### Visual Bug
 ```bash
-agent-browser navigate http://localhost:3000/broken-page
-agent-browser screenshot
-# Analyze screenshot for visual issues
+pinchtab nav http://localhost:3000/broken-page
+pinchtab text        # Quick content check first
+pinchtab screenshot  # Visual inspection
 ```
 
 ### Interactive Testing
 ```bash
-agent-browser navigate http://localhost:3000/form
-agent-browser snapshot
-agent-browser type @e2 "test@example.com"
-agent-browser click @e5
-agent-browser screenshot
+pinchtab nav http://localhost:3000/form
+pinchtab snap -i -c
+pinchtab fill e2 "test@example.com"
+pinchtab press Tab
+pinchtab fill e3 "password123"
+pinchtab click e5
+pinchtab screenshot
 ```
 
 ### Layout Inspection
 ```bash
-agent-browser navigate http://localhost:3000
-agent-browser snapshot
+pinchtab nav http://localhost:3000
+pinchtab snap -i -c
 # Analyze accessibility tree for structure
 ```
 
 ## Prerequisites
 
-Requires `agent-browser` (installed by `setup.sh`).
+Requires `pinchtab` (installed by `setup.sh`).
 
 ## Output
 

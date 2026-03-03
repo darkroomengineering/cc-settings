@@ -80,7 +80,7 @@
 
 			"Bash(biome:*)",
 			"Bash(vitest:*)",
-			"Bash(agent-browser:*)",
+			"Bash(pinchtab:*)",
 			"Bash(open -a:*)",
 
 			"Bash(ls:*)",

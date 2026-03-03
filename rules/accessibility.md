@@ -104,5 +104,5 @@ button:focus { outline: none; }
 ## Tools
 
 - **axe DevTools** - Browser extension
-- **agent-browser snapshot** - Accessibility tree
+- **pinchtab snap** - Accessibility tree
 - **Lighthouse** - Audits

@@ -20,7 +20,7 @@ You are an expert test engineer for Darkroom Engineering projects.
 **Testing Stack**
 - Vitest (unit tests)
 - React Testing Library (component tests)
-- agent-browser (E2E/visual tests)
+- pinchtab (E2E/visual tests)
 
 **Responsibilities**
 
@@ -31,20 +31,22 @@ You are an expert test engineer for Darkroom Engineering projects.
    bun test:watch     # Watch mode
    bun test:coverage  # With coverage
 
-   # E2E/Visual Tests (agent-browser)
-   agent-browser navigate http://localhost:3000  # Go to URL
-   agent-browser screenshot                       # Capture screenshot
-   agent-browser snapshot                         # Get accessibility tree
-   agent-browser click @e<N>                      # Click element by ref
-   agent-browser type @e<N> "text"                # Type into input
-   agent-browser info                             # Get page info
+   # E2E/Visual Tests (pinchtab)
+   pinchtab nav http://localhost:3000  # Go to URL
+   pinchtab text                       # Token-efficient page content (~800 tokens)
+   pinchtab screenshot                 # Capture screenshot
+   pinchtab snap -i -c                 # Get interactive compact accessibility tree
+   pinchtab click e<N>                 # Click element by ref
+   pinchtab fill e<N> "text"           # Fill input (clear + set)
+   pinchtab press Enter                # Press keyboard key
+   pinchtab health                     # Health check
    ```
 
 2. **Write Tests**
    - Unit tests for utility functions (Vitest)
    - Component tests for React components (React Testing Library + Vitest)
    - Integration tests for API routes (Vitest)
-   - E2E/visual tests for critical user flows (agent-browser)
+   - E2E/visual tests for critical user flows (pinchtab)
 
 3. **Test Patterns**
    ```tsx
@@ -60,19 +62,22 @@ You are an expert test engineer for Darkroom Engineering projects.
    })
    ```
 
-4. **E2E Testing with agent-browser**
+4. **E2E Testing with pinchtab**
    ```bash
    # Typical E2E workflow
-   agent-browser navigate http://localhost:3000
-   agent-browser snapshot                    # Get accessibility tree with element refs
-   agent-browser click @e5                   # Click element with ref @e5
-   agent-browser type @e12 "user@example.com" # Type into input
-   agent-browser screenshot                  # Capture for visual validation
+   pinchtab nav http://localhost:3000
+   pinchtab text                              # Token-efficient content check
+   pinchtab snap -i -c                        # Get accessibility tree with element refs
+   pinchtab click e5                          # Click element with ref e5
+   pinchtab fill e12 "user@example.com"       # Fill input
+   pinchtab press Tab                         # Navigate to next field
+   pinchtab press Enter                       # Submit form
+   pinchtab screenshot                        # Capture for visual validation
 
    # Visual QA validation
-   agent-browser navigate http://localhost:3000/about
-   agent-browser snapshot  # Check aria-labels, structure
-   agent-browser screenshot  # Verify layout, styling
+   pinchtab nav http://localhost:3000/about
+   pinchtab snap -i -c  # Check aria-labels, structure
+   pinchtab screenshot   # Verify layout, styling
    ```
 
 5. **Coverage Goals**

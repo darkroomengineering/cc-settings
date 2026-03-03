@@ -62,7 +62,7 @@ case "$FILE_PATH" in
         echo "  • Perf: barrel imports, waterfalls, memoization"
         echo ""
         echo "Visual QA (if dev server running):"
-        echo "  • Run /qa to validate with agent-browser"
+        echo "  • Run /qa to validate with pinchtab"
         echo "  • Screenshot + accessibility tree analysis"
         echo "  • Touch targets, contrast, layout validation"
         echo ""

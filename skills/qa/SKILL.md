@@ -1,7 +1,7 @@
 ---
 name: qa
 description: |
-  Visual QA validation with agent-browser. Use when:
+  Visual QA validation with pinchtab. Use when:
   - User asks to "validate", "check visually", "QA check"
   - After creating or modifying components
   - Before PR submission
@@ -16,7 +16,7 @@ allowed-tools: [Bash]
 
 # Visual QA Validation
 
-Visual and accessibility validation using agent-browser. Combines automated tooling with structured design review methodology.
+Visual and accessibility validation using pinchtab. Combines automated tooling with structured design review methodology.
 
 ## Core Philosophy
 
@@ -29,9 +29,10 @@ Visual and accessibility validation using agent-browser. Combines automated tool
 
 ```bash
 # Validate dev server
-agent-browser navigate http://localhost:3000
-agent-browser screenshot
-agent-browser snapshot
+pinchtab nav http://localhost:3000
+pinchtab text        # Token-efficient content check (~800 tokens)
+pinchtab screenshot  # Visual inspection
+pinchtab snap -i -c  # Interactive compact accessibility tree
 ```
 
 ---
@@ -194,18 +195,32 @@ agent-browser snapshot
 
 ```bash
 # Navigate
-agent-browser navigate http://localhost:3000/page
+pinchtab nav http://localhost:3000/page
+
+# Token-efficient page text (~800 tokens — preferred first step)
+pinchtab text
 
 # Screenshot
-agent-browser screenshot
+pinchtab screenshot
 
-# Accessibility tree
-agent-browser snapshot
+# Interactive compact accessibility tree
+pinchtab snap -i -c
 
 # Interact with elements
-agent-browser click @e5
-agent-browser type @e3 "test input"
+pinchtab click e5
+pinchtab fill e3 "test input"
+
+# Hover states and scroll for below-fold content
+pinchtab hover e5
+pinchtab scroll down
+pinchtab scroll up
+
+# Keyboard interaction
+pinchtab press Enter
+pinchtab press Tab
 ```
+
+**Multi-instance parallel QA:** Test multiple viewports simultaneously using separate pinchtab instances for desktop, tablet, and mobile widths.
 
 ---
 
@@ -285,4 +300,4 @@ Looks good: [What's working]
 
 ## Prerequisites
 
-Requires `agent-browser` (installed by `setup.sh`).
+Requires `pinchtab` (installed by `setup.sh`).
