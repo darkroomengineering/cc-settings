@@ -14,12 +14,14 @@ description: |
 
   PREFER TLDR over raw file reads - 95% token savings.
 context: fork
-allowed-tools: [mcp__tldr__semantic, mcp__tldr__context, mcp__tldr__impact, mcp__tldr__arch, mcp__tldr__slice, mcp__tldr__structure, mcp__tldr__calls, mcp__tldr__cfg, mcp__tldr__dfg, mcp__tldr__change_impact, mcp__tldr__dead, mcp__tldr__imports, mcp__tldr__importers, mcp__tldr__diagnostics]
+allowed-tools: [mcp__tldr__semantic, mcp__tldr__context, mcp__tldr__impact, mcp__tldr__arch, mcp__tldr__slice, mcp__tldr__structure, mcp__tldr__calls, mcp__tldr__cfg, mcp__tldr__dfg, mcp__tldr__change_impact, mcp__tldr__dead, mcp__tldr__imports, mcp__tldr__importers, mcp__tldr__diagnostics, mcp__tldr__tree, mcp__tldr__search, mcp__tldr__extract, mcp__tldr__status]
 ---
 
 # TLDR Code Analysis
 
-Token-efficient codebase analysis using llm-tldr. **95% fewer tokens than reading raw files.**
+Token-efficient codebase analysis using llm-tldr v1.5+. **95% fewer tokens than reading raw files.**
+
+Language is auto-detected (17 supported). No need to specify `--lang` unless overriding.
 
 ## Quick Reference
 
@@ -36,11 +38,13 @@ Token-efficient codebase analysis using llm-tldr. **95% fewer tokens than readin
 | "Control flow" | `cfg` |
 | "Find dead code" | `dead` |
 | "Type errors?" | `diagnostics` |
+| "File tree" | `tree` |
+| "Regex search" | `search` |
 
 ## Commands
 
 ### Semantic Search (Natural Language)
-Find code by meaning, not exact text:
+Find code by meaning, not exact text. Uses 5-layer embeddings (AST + call graph + CFG + DFG + PDG):
 ```
 mcp__tldr__semantic { "project": ".", "query": "user authentication flow" }
 mcp__tldr__semantic { "project": ".", "query": "error handling" }
@@ -77,9 +81,9 @@ mcp__tldr__slice {
 ```
 
 ### Call Graph
-Cross-file function call relationships:
+Cross-file function call relationships (language auto-detected):
 ```
-mcp__tldr__calls { "project": ".", "language": "typescript" }
+mcp__tldr__calls { "project": "." }
 ```
 
 ### Data Flow Graph
@@ -95,15 +99,15 @@ mcp__tldr__cfg { "file": "src/auth.ts", "function": "handleRequest" }
 ```
 
 ### Change Impact (Affected Tests)
-Find tests affected by changed files:
+Find tests affected by changed files (auto-detects from git diff):
 ```
 mcp__tldr__change_impact { "project": "." }
 ```
 
 ### Dead Code Detection
-Find unreachable code:
+Find unreachable code (language auto-detected):
 ```
-mcp__tldr__dead { "project": ".", "entry_points": ["main", "test_"] }
+mcp__tldr__dead { "project": "." }
 ```
 
 ### Import Analysis
@@ -116,13 +120,38 @@ mcp__tldr__importers { "project": ".", "module": "auth" }
 ### Diagnostics (Type/Lint)
 Type checking and linting:
 ```
-mcp__tldr__diagnostics { "path": "src/", "language": "typescript" }
+mcp__tldr__diagnostics { "path": "src/" }
+```
+
+### File Tree
+Quick project structure overview:
+```
+mcp__tldr__tree { "project": "." }
+mcp__tldr__tree { "project": "src/", "extensions": [".ts", ".tsx"] }
+```
+
+### Regex Search
+Search files by regex pattern:
+```
+mcp__tldr__search { "project": ".", "pattern": "TODO|FIXME|HACK" }
 ```
 
 ### Structure Overview
-Functions, classes, methods per file:
+Functions, classes, methods per file (language auto-detected):
 ```
-mcp__tldr__structure { "project": ".", "language": "typescript", "max_results": 50 }
+mcp__tldr__structure { "project": ".", "max_results": 50 }
+```
+
+### Full File Extract
+Complete code structure from a single file (imports, functions, classes, call graph):
+```
+mcp__tldr__extract { "file": "src/auth.ts" }
+```
+
+### Daemon Status
+Check uptime and cache statistics:
+```
+mcp__tldr__status { "project": "." }
 ```
 
 ## Workflow Patterns
@@ -165,6 +194,7 @@ tldr warm .           # Build indexes including embeddings
 2. **ALWAYS use `tldr impact` BEFORE refactoring**
 3. **ALWAYS use `tldr semantic` for "how does X work" questions**
 4. **Use `grep` ONLY for exact string matching**
+5. **Do NOT hardcode `language` param** — auto-detection handles 17 languages
 
 ## Output
 

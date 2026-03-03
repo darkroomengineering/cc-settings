@@ -57,8 +57,8 @@
 		"tldr": {
 			"command": "tldr-mcp",
 			"args": ["--project", "."],
-			"_comment": "Requires: pipx install llm-tldr. Run 'tldr warm .' in project to index.",
-			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. Use when you need to find where something is implemented, understand large or unfamiliar code, or answer questions that require scanning many files across the codebase."
+			"_comment": "Requires: pipx install llm-tldr (v1.5+). Run 'tldr warm .' in project to index.",
+			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred."
 		}
 	},
 	"permissions": {

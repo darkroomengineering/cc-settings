@@ -91,7 +91,7 @@ Use teams for independent parallel work.
 
 ## TLDR (Token-Efficient Exploration)
 
-When `llm-tldr` is installed, prefer TLDR for large codebases:
+When `llm-tldr` is installed (v1.5+), prefer TLDR for large codebases. Language is auto-detected across 17 languages — no need to specify `--lang`.
 
 | Instead of... | Use |
 |---|---|
@@ -99,6 +99,8 @@ When `llm-tldr` is installed, prefer TLDR for large codebases:
 | Searching by meaning | `tldr semantic "description" .` |
 | Finding callers | `tldr impact functionName .` |
 | Architecture overview | `tldr arch .` |
+| File tree | `tldr tree .` |
+| Dead code | `tldr dead .` |
 
 Use TLDR when it saves tokens. Use Read/Grep when you need exact content or small files.
 
