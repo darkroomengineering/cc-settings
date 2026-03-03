@@ -13,21 +13,12 @@
 			"gate_nogo": true
 		}
 	},
-	"compact_reminder": {
-		"enabled": true,
-		"threshold_percent": 60
-	},
 	"claude_md_monitor": {
 		"enabled": true,
 		"warn_lines": 150,
 		"critical_lines": 300
 	},
-	"context_compaction": {
-		"manual_threshold_percent": 50,
-		"subtask_budget_percent": 50
-	},
-	"notifications": {
-		"os_native": true,
-		"sound": false
+	"compact_reminder": {
+		"enabled": true
 	}
 }

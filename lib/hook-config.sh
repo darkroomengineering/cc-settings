@@ -28,7 +28,6 @@ HOOK_CONFIG_TEAM="${HOOK_CONFIG_DIR}/hooks-config.json"
 # Examples:
 #   enabled=$(get_hook_config "audio.enabled" "false")
 #   volume=$(get_hook_config "audio.volume" "0.5")
-#   threshold=$(get_hook_config "compact_reminder.threshold_percent" "60")
 get_hook_config() {
     local key_path="$1"
     local default_value="${2:-}"

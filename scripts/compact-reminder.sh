@@ -6,6 +6,16 @@
 CLAUDE_DIR="${HOME}/.claude"
 MARKER_FILE="${CLAUDE_DIR}/tmp/heavy-skill-active"
 
+# Source hook config for enabled toggle
+if [[ -f "${CLAUDE_DIR}/lib/hook-config.sh" ]]; then
+    source "${CLAUDE_DIR}/lib/hook-config.sh"
+else
+    exit 0
+fi
+
+# Check if compact reminder is enabled
+is_hook_enabled "compact_reminder.enabled" "true" || exit 0
+
 # Exit early if no marker file
 [[ -f "$MARKER_FILE" ]] || exit 0
 

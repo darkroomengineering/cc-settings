@@ -61,6 +61,10 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "review", "check", "PR" | `review` | reviewer agent |
 | "test", "coverage" | `test` | tester agent |
 | "ship it", "create PR" | `ship` | test → review → PR |
+| "coordinate", "complex task" | `orchestrate` | maestro multi-agent delegation |
+| "new project", "initialize" | `init` | scaffolds from Satus starter template |
+| "compare approaches", "which is better" | `f-thread` | parallel evaluation → scoring matrix |
+| "overnight", "long running" | `l-thread` | phased execution with checkpoints |
 
 ### Research
 
@@ -72,6 +76,8 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "what could go wrong?" | `premortem` |
 | "advice on X" | `ask` |
 | "project status", "update the issue" | `project` — syncs with GitHub Issues and Projects |
+| "help me figure out", "define requirements" | `discovery` — structured requirements interview |
+| "PRD", "product spec", "feature spec" | `prd` — generates product requirements document |
 
 ### Session Management
 
@@ -80,6 +86,8 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "done for today" | `create-handoff` — saves state |
 | "resume", "continue" | `resume-handoff` — loads previous state |
 | Non-obvious bug fix discovered | `learn` — **auto-stores** the insight |
+| "save progress", "checkpoint" | `checkpoint` — saves/restores task state |
+| "context window", "running out of context" | `context` — context window management |
 
 ### Tools
 
@@ -88,6 +96,9 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "compare to design", "inspect in figma" | `figma` — Figma desktop + MCP integration |
 | screenshot, visual bug | `debug` — browser debugging with agent-browser |
 | "QA check", accessibility | `qa` — visual QA validation |
+| "design tokens", "type scale", "color palette" | `design-tokens` — generates token systems with math |
+| "smooth scroll", "lenis" | `lenis` — Lenis smooth scroll setup |
+| "create hook", "custom hook" | `hook` — scaffolds React hook with standards |
 
 ### Utility
 
@@ -96,6 +107,7 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "think harder", "max effort" | `effort` — adjusts reasoning depth |
 | "check version of X" | `versions` — checks before installing |
 | "create component X" | `component` — scaffolds with standards |
+| "parallel agents", "split work", "fan out" | `teams` — multi-instance parallel work |
 
 ---
 
