@@ -87,6 +87,21 @@ rg "Access-Control-Allow-Origin.*\*" --type ts
 rg "cors\(" --type ts -A 5
 ```
 
+**Source Map Exposure**
+```bash
+# Check for exposed source maps in production
+rg "devtool.*source-map" -g "*.config.*"
+rg "productionSourceMap" -g "*.config.*"
+rg "sourceMap.*true" -g "tsconfig*"
+```
+
+```ts
+// next.config.ts — hide source maps in production
+const nextConfig: NextConfig = {
+  productionBrowserSourceMaps: false, // default, but be explicit
+}
+```
+
 ### 6. Vulnerable Components (A06:2021)
 
 ```bash

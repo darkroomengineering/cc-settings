@@ -179,3 +179,139 @@ Every interactive component needs:
 | Small touch target | Ensure 44x44px minimum |
 | Skipped heading | Use sequential h1→h2→h3 |
 | `tabIndex > 0` | Use 0 or -1 only |
+
+---
+
+## Implementation Patterns
+
+### Skip Link
+```tsx
+// In layout.tsx — first child of <body>
+<a href="#main-content" className="skip-link">
+  Skip to main content
+</a>
+<nav>...</nav>
+<main id="main-content">...</main>
+```
+```css
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: white;
+  z-index: 100;
+}
+.skip-link:focus {
+  top: 0;
+}
+```
+
+### Modal Focus Trap
+```tsx
+function Modal({ isOpen, onClose, children }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const modal = modalRef.current
+    if (!modal) return
+
+    const focusable = modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    first?.focus()
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') { onClose(); return }
+      if (e.key !== 'Tab') return
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last?.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first?.focus()
+      }
+    }
+
+    modal.addEventListener('keydown', handleKeyDown)
+    return () => modal.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen) return null
+  return (
+    <div role="dialog" aria-modal="true" ref={modalRef}>
+      {children}
+    </div>
+  )
+}
+```
+
+### Live Region Announcements
+```tsx
+// Force screen reader re-announcement of dynamic content
+function announce(message: string) {
+  const el = document.getElementById('live-region')
+  if (!el) return
+  el.textContent = ''
+  requestAnimationFrame(() => { el.textContent = message })
+}
+
+// In layout.tsx
+<div id="live-region" aria-live="polite" aria-atomic="true" className="sr-only" />
+```
+
+---
+
+## Screen Reader Quick Reference
+
+### VoiceOver (macOS)
+| Action | Keys |
+|--------|------|
+| Start/Stop | Cmd + F5 |
+| Next element | VO + Right (Ctrl+Opt+Right) |
+| Previous element | VO + Left |
+| Activate | VO + Space |
+| Headings list | VO + U, then Left/Right to Headings |
+| Links list | VO + U, then Left/Right to Links |
+| Read all | VO + A |
+
+### NVDA (Windows)
+| Action | Keys |
+|--------|------|
+| Start | Ctrl + Alt + N |
+| Stop | Insert + Q |
+| Next element | Tab / Down |
+| Headings list | Insert + F7 |
+| Links list | Insert + F7, Alt+L |
+| Read all | Insert + Down |
+
+---
+
+## WCAG 2.1 Quick Reference
+
+### Level A (Minimum)
+| Criterion | Requirement |
+|-----------|-------------|
+| 1.1.1 Non-text Content | All images have alt text |
+| 1.3.1 Info and Relationships | Semantic HTML, proper headings |
+| 1.4.1 Use of Color | Color is not the only visual means |
+| 2.1.1 Keyboard | All functionality keyboard-accessible |
+| 2.4.1 Bypass Blocks | Skip navigation mechanism |
+| 2.4.2 Page Titled | Pages have descriptive titles |
+| 3.1.1 Language of Page | `lang` attribute on `<html>` |
+| 3.3.1 Error Identification | Errors described in text |
+| 4.1.1 Parsing | Valid HTML |
+| 4.1.2 Name, Role, Value | Custom controls have accessible names |
+
+### Level AA (Target)
+| Criterion | Requirement |
+|-----------|-------------|
+| 1.4.3 Contrast (Minimum) | 4.5:1 text, 3:1 large text |
+| 1.4.4 Resize Text | Content usable at 200% zoom |
+| 1.4.11 Non-text Contrast | 3:1 for UI components |
+| 2.4.6 Headings and Labels | Descriptive headings |
+| 2.4.7 Focus Visible | Visible keyboard focus indicator |
+| 3.2.3 Consistent Navigation | Same nav across pages |
+| 3.3.3 Error Suggestion | Suggest corrections for errors |

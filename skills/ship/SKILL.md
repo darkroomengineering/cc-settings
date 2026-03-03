@@ -46,13 +46,23 @@ biome check .
 ```
 If errors: fix or justify.
 
-### Step 5: Review Changes
+### Step 5: Web Quality Gate
+Quick sanity check before review:
+- [ ] No `loading="lazy"` on above-fold/LCP images
+- [ ] Images have explicit dimensions or `fill` prop
+- [ ] No `console.log` left in production code
+- [ ] Meta tags present on new pages (`title`, `description`, `canonical`)
+- [ ] Structured data valid on new content pages
+
+If issues found: fix them before proceeding to review.
+
+### Step 6: Review Changes
 Spawn `reviewer` agent:
 ```
 Task(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
 ```
 
-### Step 6: Commit and PR
+### Step 7: Commit and PR
 ```bash
 git add <relevant files>
 git commit -m "<type>: <description>"
