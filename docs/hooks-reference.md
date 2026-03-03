@@ -282,6 +282,12 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `post-edit.sh` | Auto-formats edited files with Biome | No |
 | `post-edit-tsc.sh` | Runs TypeScript type check on edited files | Yes |
 
+### PostToolUse (Bash matcher — commit sound)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `notify-sound.sh commit` | Plays audio notification on git commit (when audio enabled) | Yes |
+
 ### PostToolUse (mcp__tldr matcher)
 
 | Script | Purpose | Async |
@@ -293,12 +299,14 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `post-failure.sh` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
+| `notify-sound.sh error` | Plays audio notification on tool failure (when audio enabled) | Yes |
 
 ### PreCompact
 
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `handoff.sh create` | Saves current task state to handoff file before context is compacted | No |
+| `notify-sound.sh compact` | Plays audio notification before compaction (when audio enabled) | Yes |
 
 ### Stop
 

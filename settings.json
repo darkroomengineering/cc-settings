@@ -266,6 +266,17 @@
 						"timeout": 10
 					}
 				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'echo \"$TOOL_INPUT\" | grep -qE \"git commit\" && bash \"$HOME/.claude/scripts/notify-sound.sh\" commit'",
+						"async": true,
+						"timeout": 10
+					}
+				]
 			}
 		],
 		"PreCompact": [
@@ -274,6 +285,16 @@
 					{
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/handoff.sh\" create"
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" compact",
+						"async": true,
+						"timeout": 10
 					}
 				]
 			}
@@ -345,6 +366,16 @@
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/post-failure.sh\"",
 						"async": false,
+						"timeout": 10
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" error",
+						"async": true,
 						"timeout": 10
 					}
 				]

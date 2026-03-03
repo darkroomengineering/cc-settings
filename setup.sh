@@ -9,7 +9,7 @@ set -euo pipefail
 # =============================================================================
 # When run via process substitution, BASH_SOURCE[0] points to /dev/fd/XX
 # which means we can't resolve lib/ relative to the script. Detect this and
-# auto-clone the repo so everything works seamlessly.
+# auto-clone the repo so everything works.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

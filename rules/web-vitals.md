@@ -120,11 +120,8 @@ function handleClick() {
 // WRONG: JSON.parse on large payload in main thread
 const data = JSON.parse(megabyteString)
 
-// WRONG: Layout thrashing (interleaved reads and writes)
-elements.forEach(el => {
-  const height = el.offsetHeight  // Read (forces layout)
-  el.style.height = height + 10 + 'px' // Write (invalidates layout)
-})
+// WRONG: Layout thrashing — see rules/performance.md for fix pattern
+// WRONG: Interleaved DOM reads and writes in loops
 ```
 
 ---
@@ -166,14 +163,6 @@ elements.forEach(el => {
 ```css
 .widget {
   contain: layout style paint;
-}
-```
-
-#### content-visibility for Long Lists
-```css
-.offscreen-section {
-  content-visibility: auto;
-  contain-intrinsic-size: 0 500px;
 }
 ```
 

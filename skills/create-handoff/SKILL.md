@@ -11,7 +11,7 @@ description: |
 
 # Create Session Handoff
 
-Save current session state for seamless resumption.
+Save current session state for later resumption.
 
 ## Usage
 

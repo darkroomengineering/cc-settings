@@ -1,6 +1,6 @@
 # Accessibility Standards (WCAG 2.1)
 
-> Comprehensive accessibility checklist for web applications. Source: [rams.ai](https://rams.ai)
+> Accessibility checklist for web applications. Source: [rams.ai](https://rams.ai)
 >
 > **Foundation:** `rules/accessibility.md` covers core DO/DON'T patterns (semantic HTML, alt text, labels, focus, contrast, touch targets). This file extends those with severity tiers, detailed ARIA patterns, and testing checklists.
 

@@ -330,7 +330,7 @@ neutral-950 (heading) -> neutral-50 (heading)
 }
 ```
 
-The beauty: components reference semantic tokens, never raw shades. Switching themes is just swapping the token mapping.
+Components reference semantic tokens, never raw shades. Switching themes means swapping the token mapping.
 
 ---
 

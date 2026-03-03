@@ -113,4 +113,4 @@ On restore, todos are rebuilt from checkpoint state.
 | **Todo state** | Full todo snapshot | Summary only |
 | **Use case** | Long task, context exhaustion | End of day, team handoff |
 
-Checkpoints are lightweight and frequent. Handoffs are comprehensive and intentional.
+Checkpoints are lightweight and frequent. Handoffs are thorough and intentional.

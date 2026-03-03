@@ -73,7 +73,7 @@ Categories: `bug`, `pattern`, `edge-case`, `tool-tip`, `perf`
 ## Guardrails
 
 Follow all Guardrails defined in CLAUDE.md (2-iteration limit, scope constraint,
-pre-commit verification). Additionally:
+pre-commit verification). Also:
 - Only modify files specified in the task assignment
 - If you discover adjacent issues, NOTE them in your report — do not fix them
 - If a fix requires touching files outside your assignment, STOP and report back

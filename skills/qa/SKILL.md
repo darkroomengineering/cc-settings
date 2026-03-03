@@ -16,7 +16,7 @@ allowed-tools: [Bash]
 
 # Visual QA Validation
 
-Comprehensive visual and accessibility validation using agent-browser. Combines automated tooling with structured design review methodology.
+Visual and accessibility validation using agent-browser. Combines automated tooling with structured design review methodology.
 
 ## Core Philosophy
 
