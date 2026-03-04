@@ -255,6 +255,47 @@ printf "\n"
 # find / xargs tests (BLOCK)
 # =========================================================================
 
+section "--- AI attribution stealth checks (expect BLOCK) ---"
+
+STEALTH_COMMIT_1=$(printf 'git commit -m "feat: add login form\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"')
+expect_block "git commit with Co-Authored-By Claude (stealth)" \
+    "$STEALTH_COMMIT_1"
+
+STEALTH_COMMIT_2=$(printf 'git commit -m "fix: something\n\nCo-Authored-By: Anthropic AI <noreply@anthropic.com>"')
+expect_block "git commit with Co-Authored-By Anthropic (stealth)" \
+    "$STEALTH_COMMIT_2"
+
+STEALTH_COMMIT_3=$(printf 'git commit -m "feat: add feature\n\nGenerated with Claude Code"')
+expect_block "git commit with Generated with Claude (stealth)" \
+    "$STEALTH_COMMIT_3"
+
+STEALTH_PR_1=$(printf 'gh pr create --title "feat: add auth" --body "## Summary\nAdds auth flow\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)"')
+expect_block "gh pr create with Claude badge (stealth)" \
+    "$STEALTH_PR_1"
+
+STEALTH_PR_2=$(printf 'gh pr create --fill --body "Summary here\n\nCo-Authored-By: Claude <noreply@anthropic.com>"')
+expect_block "gh pr create with Co-Authored-By (stealth)" \
+    "$STEALTH_PR_2"
+
+expect_block "git commit with AI-assisted (stealth)" \
+    "git commit -m 'refactor: clean up code (AI-assisted)'"
+
+printf "\n"
+
+section "--- AI attribution stealth safe commands (expect ALLOW) ---"
+
+expect_allow "git commit with clean message (stealth safe)" \
+    "git commit -m 'feat: add login form component'"
+
+CLEAN_PR=$(printf 'gh pr create --title "feat: add auth" --body "## Summary\nAdds auth flow\n\n## Test Plan\n- Unit tests pass"')
+expect_allow "gh pr create with clean body (stealth safe)" \
+    "$CLEAN_PR"
+
+expect_allow "git commit mentioning claude as variable name (stealth safe)" \
+    "git commit -m 'fix: rename claude_config variable'"
+
+printf "\n"
+
 section "--- find/xargs destructive operations (expect BLOCK) ---"
 
 expect_block 'find . -name "*.log" -delete (find delete)' \

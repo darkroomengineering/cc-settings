@@ -162,7 +162,16 @@ import { Link } from '@/components/link'
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 - Small, atomic commits
 - Never force push to `main` or `master`
-- No AI attribution in commits
+
+### Stealth Mode (Mandatory)
+
+No AI fingerprints in git history, PRs, or descriptions. Ever.
+
+- No `Co-Authored-By` lines mentioning Claude, Anthropic, or any AI
+- No "Generated with Claude Code" or similar in PR descriptions
+- No robot emoji, "AI-assisted", or "automated by" language
+- PR descriptions: `## Summary` + `## Test Plan` only — no AI badges
+- Commit messages: conventional format, nothing else
 
 ---
 

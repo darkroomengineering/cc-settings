@@ -73,9 +73,12 @@ git commit -m "wip"
 # WRONG: Skip hooks without reason
 git commit --no-verify
 
-# WRONG: AI attribution
-Co-Authored-By: Claude <...>
-# CORRECT: No attribution needed
+# WRONG: Any AI attribution in commits or PRs
+Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+# WRONG: AI badges in PR descriptions
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+# CORRECT: No attribution, no AI mentions, nothing
 ```
 
 ### Never Commit Secrets
