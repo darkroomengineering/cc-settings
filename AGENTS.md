@@ -61,6 +61,23 @@ For sub-pixel rendering, WebGL, physics, complex animations, or canvas — ackno
 
 For CSS/visual bugs: if a fix doesn't work after 2 attempts, propose **3 fundamentally different approaches** and let the user pick.
 
+### Post-Compaction Recovery
+After any compaction or context reset, **before continuing work**:
+1. Re-read the task plan (todo, plan file, or issue)
+2. Re-read the files you're actively modifying
+3. Run `git diff --stat` to see what's changed
+4. Only then continue implementation
+
+Never assume you remember file contents or task state after compaction. Context loss is silent — re-read, don't guess.
+
+### Neutral Exploration
+When investigating code (auditing, reviewing, exploring), use **neutral prompts** that don't bias toward a specific outcome:
+- Say "analyze the logic and report all findings" — not "find the bug"
+- Say "review the auth flow and describe what happens" — not "what's wrong with auth"
+- Say "trace the data flow and report" — not "where's the data leak"
+
+Biased prompts cause agents to manufacture issues that don't exist.
+
 ### Dependency Upgrades
 Before upgrading major dependencies, check for breaking changes. If an upgrade breaks the build, **rollback immediately** to the working version. Rollback first, research the migration, then try again with a plan.
 

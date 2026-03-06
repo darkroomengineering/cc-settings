@@ -57,13 +57,6 @@ bun info tempus
 bun outdated
 ```
 
-## Why This Matters
-
-1. **Security** - Old versions may have vulnerabilities
-2. **Features** - Latest versions have new APIs
-3. **Compatibility** - Mismatched versions cause issues
-4. **Training data** - Your knowledge may be outdated
-
 ## Workflow
 
 1. **Check version** - `bun info <package>`

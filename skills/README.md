@@ -28,6 +28,8 @@ Claude automatically:
 | "Review my changes" | `review` | Code review against Darkroom standards |
 | "Create a Button component" | `component` | Scaffolds component with CSS module |
 | "What could go wrong?" | `premortem` | Risk analysis before implementing |
+| "Double check this is correct" | `verify` | finder → adversary → referee |
+| "Clean up our rules" | `consolidate` | Audit and merge rules/skills/learnings |
 | "Done for today" | `create-handoff` | Saves session state |
 
 ## Skill Categories
@@ -46,6 +48,7 @@ These fork context and delegate to specialized agents:
 | `ship` | ship it, create PR, /pr, /ship | tester → reviewer → implementer |
 | `f-thread` | compare approaches, architecture decision | parallel oracles → scoring matrix |
 | `l-thread` | overnight, long running, autonomous task | phased execution with checkpoints |
+| `verify` | verify, double check, prove it, adversarial, audit | finder → adversary → referee |
 
 ### Creation (Direct Output)
 These create files directly in main context:
@@ -85,6 +88,7 @@ These fork context for clean exploration:
 |-------|-------------|
 | `effort` | think harder, max effort, quick fix, slow down |
 | `teams` | parallel agents, split work, fan out |
+| `consolidate` | clean up rules, simplify config, contradictions, spa day, prune |
 
 ### Session Management
 | Skill | Triggers On |

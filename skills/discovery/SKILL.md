@@ -45,23 +45,6 @@ Turn vague requests into clear, actionable requirements.
 - Confirm priorities
 - Identify open questions
 
-## Question Techniques
-
-### Open Questions
-- "Tell me more about..."
-- "What happens when..."
-- "How do you envision..."
-
-### Clarifying Questions
-- "When you say X, do you mean..."
-- "Can you give an example of..."
-- "What would that look like..."
-
-### Probing Questions
-- "Why is that important?"
-- "What if we didn't have X?"
-- "What's the worst case?"
-
 ## Output
 
 ```

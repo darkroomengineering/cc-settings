@@ -22,6 +22,7 @@ There is no TypeScript, no build step, and no `node_modules`.
 
 ### Structure
 
+- `MANUAL.md` - User-facing guide (what you can do, how to do it)
 - `AGENTS.md` - Portable coding standards (source of truth)
 - `CLAUDE-FULL.md` - Claude-Code config (installed to `~/.claude/CLAUDE.md`)
 - `scripts/` - Bash scripts installed to `~/.claude/scripts/`
@@ -43,5 +44,6 @@ There is no TypeScript, no build step, and no `node_modules`.
 
 - Test installer changes: `bash setup.sh`
 - Test safety net: `bash tests/safety-net-test.sh`
+- Test manual sync: `bash tests/manual-sync.sh`
 - Shared libraries in `lib/` are sourced by `setup.sh` and scripts
 - Use conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`

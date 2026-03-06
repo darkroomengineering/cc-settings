@@ -12,20 +12,19 @@ description: |
 
 Monitor and manage Claude Code context window usage.
 
-## Check Context Usage
+## Watch the Statusline
 
-Run `/context` in Claude Code to see current usage.
+The statusline shows live context usage:
 
-## Context Thresholds
+```
+Opus 4.6 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/200K)
+```
 
-Thresholds scale with your context window size:
-
-### Default Context (~200K tokens)
-| Level | Usage | Action |
-|-------|-------|--------|
-| Notice | 70% (~140K) | Consider handoff at next stopping point |
-| Warning | 80% (~160K) | Create handoff, prepare to compact |
-| Critical | 90% (~180K) | Create handoff NOW, then compact |
+| Usage | Action |
+|-------|--------|
+| 70-79% | Consider wrapping up or handing off |
+| 80-89% | Start wrapping up |
+| 90%+ | Run `/create-handoff` now |
 
 ## Model Degradation Thresholds
 

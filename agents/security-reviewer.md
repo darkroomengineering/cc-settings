@@ -32,36 +32,38 @@ See `skills/security-reference.md` for OWASP detection patterns, secret scanning
 1. **Run automated scans**
    ```bash
    # Secret detection
-   rg "AKIA|sk-|sk_live|ghp_|shpat_" .
+   Grep("AKIA|sk-|sk_live|ghp_|shpat_", path=".")
 
    # Dependency audit
    bun audit
 
    # Find dangerous patterns
-   rg "eval|dangerouslySetInnerHTML|innerHTML" --type ts
+   Grep("eval|dangerouslySetInnerHTML|innerHTML", include="*.ts,*.tsx")
    ```
 
 2. **Review changed files**
    ```bash
-   git diff --name-only HEAD~1 | xargs -I {} rg "(password|token|secret|key)" {}
+   git diff --name-only HEAD~1
+   # Then Grep for sensitive patterns in changed files
+   Grep("password|token|secret|key", include="*.ts,*.tsx")
    ```
 
 3. **Check API routes for auth**
    ```bash
    # Find all API routes
-   fd "route\.(ts|js)" app/api/
+   Glob("app/api/**/route.{ts,js}")
 
    # Check each for authentication
-   rg "getSession|getServerSession|auth\(" app/api/ -l
+   Grep("getSession|getServerSession|auth\\(", path="app/api/")
    ```
 
 4. **Verify environment handling**
    ```bash
    # List all env usage
-   rg "process\.env\." --type ts | sort | uniq
+   Grep("process\\.env\\.", include="*.ts,*.tsx")
 
    # Check for client exposure
-   rg "NEXT_PUBLIC_" --type ts
+   Grep("NEXT_PUBLIC_", include="*.ts,*.tsx")
    ```
 
 5. **Generate report**
@@ -108,13 +110,10 @@ See `skills/security-reference.md` for OWASP detection patterns, secret scanning
 
 ```bash
 # Full security scan
-rg "AKIA|sk-|sk_live|ghp_|shpat_|password.*=.*['\"]|secret.*=.*['\"]" . && \
-rg "eval|dangerouslySetInnerHTML|innerHTML|exec\(|spawn\(" --type ts && \
+Grep("AKIA|sk-|sk_live|ghp_|shpat_|password.*=.*['\"]|secret.*=.*['\"]", path=".")
+Grep("eval|dangerouslySetInnerHTML|innerHTML|exec\\(|spawn\\(", include="*.ts,*.tsx")
 bun audit
 
-# API route audit
-fd "route\.(ts|js)" app/api/ -x rg -l "(getSession|auth)" {} \; || echo "MISSING AUTH"
-
 # Environment leak check
-rg "NEXT_PUBLIC_.*SECRET|NEXT_PUBLIC_.*TOKEN|NEXT_PUBLIC_.*KEY" .
+Grep("NEXT_PUBLIC_.*SECRET|NEXT_PUBLIC_.*TOKEN|NEXT_PUBLIC_.*KEY", path=".")
 ```

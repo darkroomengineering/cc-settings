@@ -59,6 +59,7 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Skill character budget: 25K chars (`SLASH_COMMAND_TOOL_CHAR_BUDGET`)
 - **Manual `/compact` at 50% context utilization** — do not wait for automatic compaction
 - **Break subtasks to complete within 50% context** — prevents context rot mid-task
+- **After compaction**: re-read task plan + active files before continuing (see AGENTS.md "Post-Compaction Recovery")
 
 ---
 

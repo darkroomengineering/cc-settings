@@ -74,19 +74,19 @@ bun info <package>
 
 ```bash
 # Find all React components
-find . -name "*.tsx" -path "*/components/*" | head -20
+Glob("components/**/*.tsx")
 
 # Find all API routes
-find . -path "*/api/*" -name "route.ts"
+Glob("app/api/**/route.ts")
 
 # Find all usages of a function
-grep -r "functionName" --include="*.ts" --include="*.tsx"
+Grep("functionName", include="*.ts,*.tsx")
 
 # Find all imports of a module
-grep -r "from.*moduleName" --include="*.ts" --include="*.tsx"
+Grep("from.*moduleName", include="*.ts,*.tsx")
 
-# Map directory structure
-tree -L 3 -I "node_modules|.git|.next"
+# Architecture overview (token-efficient)
+tldr arch .
 ```
 
 ---
