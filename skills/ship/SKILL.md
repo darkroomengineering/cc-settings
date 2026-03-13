@@ -62,13 +62,47 @@ Spawn `reviewer` agent:
 Task(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
 ```
 
-### Step 7: Commit and PR
+### Step 7: Commit (Bisectable)
+
+Analyze the diff to decide commit strategy:
+
+```bash
+git diff --cached --stat | tail -1
+```
+
+**Small diff** (<50 lines changed across <4 files): Single commit.
 ```bash
 git add <relevant files>
 git commit -m "<type>: <description>"
+```
+
+**Larger diff**: Split into ordered commits by dependency layer. Each commit must be independently valid — no broken imports, no forward references.
+
+**Commit order (skip layers with no changes):**
+1. **Infrastructure** — config files, env changes, package.json, build config
+2. **Types/interfaces** — type definitions, schemas, shared interfaces
+3. **Logic** — utilities, hooks, services, lib code (group with their tests when small)
+4. **UI** — components, pages, styles (group with their tests when small)
+5. **Tests** — remaining test files not already grouped with their subjects
+6. **Meta** — docs, changelog, version bumps — **always last commit**
+
+**Per-commit validation:** Each commit must independently pass:
+```bash
+npx tsc --noEmit && biome check .
+```
+If a commit would break either check in isolation, merge it with the next commit in the sequence.
+
+**Commit messages:** Each gets a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`). Keep them descriptive of what that specific commit contains.
+
+**No AI attribution on any commit.**
+
+### Step 8: Push and PR
+```bash
 git push origin HEAD
 gh pr create --fill
 ```
+
+If `gh` is not available, provide the push command and instruct the user to create the PR manually.
 
 ## Rules
 - NEVER skip the type check or build step
@@ -76,10 +110,14 @@ gh pr create --fill
 - Conventional commit messages only (`feat:`, `fix:`, `refactor:`, etc.)
 - No AI attribution in commits or PR descriptions
 - If build fails, fix and re-run -- do not skip
+- Each bisectable commit must pass `tsc --noEmit` AND `biome check` independently
+- If total diff is small, single commit is fine -- don't over-split
 
 ## Output
 Return:
 - **Build status**: Pass/Fail
 - **Test status**: Pass/Fail (with count)
+- **Lint status**: Pass/Fail
 - **Review status**: Approved/Needs Changes
+- **Commits created**: Count and summary of each
 - **PR link**: URL if created
