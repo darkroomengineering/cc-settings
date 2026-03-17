@@ -76,8 +76,7 @@ Available in all hooks:
 | `PreToolUse` | `$TOOL_NAME` | Name of the tool about to execute |
 | `PreToolUse` | `$TOOL_INPUT` | JSON string of tool input parameters |
 | `PostToolUse` | `$TOOL_NAME` | Name of the tool that executed |
-| `PostToolUse` | `$TOOL_INPUT` | JSON string of tool input parameters |
-| `PostToolUse` | `$TOOL_OUTPUT` | Output from the tool execution |
+| `PostToolUse` | stdin (JSON) | Full hook context: `tool_input`, `tool_response`, `tool_name`, `session_id`, `cwd` |
 | `PostToolUseFailure` | `$TOOL_NAME` | Name of the tool that failed |
 | `PostToolUseFailure` | `$TOOL_ERROR` | Error message from the failure |
 | `SubagentStart` | `$AGENT_ID` | Unique identifier for the subagent |
@@ -87,7 +86,7 @@ Available in all hooks:
 
 ### Flattened Tool Input Variables
 
-For `PreToolUse` and `PostToolUse` hooks, Claude Code also provides **flattened** versions of the `$TOOL_INPUT` JSON object as individual environment variables. Each top-level key in the tool input becomes `TOOL_INPUT_<key>`.
+For `PreToolUse` hooks, Claude Code also provides **flattened** versions of the `$TOOL_INPUT` JSON object as individual environment variables. **Note: these are NOT available in `PostToolUse` hooks** — PostToolUse receives data on stdin instead. Each top-level key in the tool input becomes `TOOL_INPUT_<key>`.
 
 This is more convenient than parsing the raw `$TOOL_INPUT` JSON string in shell scripts.
 
@@ -288,6 +287,18 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `notify-sound.sh commit` | Plays audio notification on git commit (when audio enabled) | Yes |
 
+### PostToolUse (Bash matcher — command logging)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `log-bash.sh` | Logs every Bash command to `~/.claude/logs/bash-YYYY-MM-DD.log` | Yes |
+
+Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
+
+**Log format:** `[HH:MM:SS] [project] command`
+
+**Retention:** Controlled by `CLAUDE_LOG_RETENTION_DAYS` env var (default: 1 day, today only). Old logs are pruned automatically on each hook fire.
+
 ### PostToolUse (mcp__tldr matcher)
 
 | Script | Purpose | Async |
@@ -407,6 +418,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 | `~/.claude/tldr-session-stats.json` | TLDR tool usage statistics per session |
 | `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.sh`) |
 | `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.sh`) |
+| `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.sh`, analyzed by `/audit`) |
 
 ### Common Issues
 

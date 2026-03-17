@@ -86,6 +86,7 @@ These fork context for clean exploration:
 ### Utility
 | Skill | Triggers On |
 |-------|-------------|
+| `audit` | /audit — analyzes Claude's Bash command log (categories, security, repeats) |
 | `effort` | think harder, max effort, quick fix, slow down |
 | `teams` | parallel agents, split work, fan out |
 | `consolidate` | clean up rules, simplify config, contradictions, spa day, prune |

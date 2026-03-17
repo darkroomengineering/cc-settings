@@ -22,6 +22,7 @@ For full hook documentation (all 14 events, configuration format, matchers, debu
 | `PostToolUse` | After Write/Edit | `post-edit.sh` (auto-format with Biome) | No |
 | `PostToolUse` | After Write/Edit | `post-edit-tsc.sh` (async TypeScript type check) | **Yes** |
 | `PostToolUse` | After TLDR MCP calls | `track-tldr.sh` (usage stats) | **Yes** |
+| `PostToolUse` | After Bash commands | `log-bash.sh` (command audit log) | **Yes** |
 | `PostToolUseFailure` | Tool execution fails | `post-failure.sh` (logs failures, warns on repeats) | No |
 | `PreCompact` | Before context compaction | `handoff.sh create` (saves state) | No |
 | `Stop` | Claude finishes | Learning reminder if >5 files changed | No |

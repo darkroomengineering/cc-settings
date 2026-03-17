@@ -14,14 +14,8 @@ RETENTION=${CLAUDE_LOG_RETENTION_DAYS:-1}
 # Prune old logs
 find "$LOG_DIR" -name "bash-*.log" -mtime +"$RETENTION" -delete 2>/dev/null
 
-# Read JSON from stdin
+# Read JSON from stdin (PostToolUse receives data on stdin, not env vars)
 STDIN_JSON=$(cat)
-
-# Extract command from tool_input.command in the JSON
-# 1. Flatten to single line
-# 2. Replace \" with placeholder (so [^"]* doesn't stop at escaped quotes)
-# 3. Extract command value with non-greedy match
-# 4. Restore escaped quotes, normalize newlines
 CMD=$(echo "$STDIN_JSON" | tr '\n' ' ' | sed 's/\\"/\x01/g' | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | sed 's/\x01/"/g; s/\\n/ /g' | head -1)
 
 if [ -n "$CMD" ]; then
