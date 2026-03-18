@@ -185,8 +185,6 @@ get_skill_patterns() {
             echo "be thorough"
             echo "quick fix"
             echo "effort"
-            echo "max effort"
-            echo "speed up"
             echo "slow down"
             echo "think more"
             ;;
@@ -279,7 +277,6 @@ get_skill_patterns() {
             echo "lighthouse"
             echo "performance audit"
             echo "page speed"
-            echo "improve scores"
             echo "web vitals"
             echo "core web vitals"
             echo "LCP"
@@ -289,8 +286,10 @@ get_skill_patterns() {
             echo "/lighthouse"
             ;;
         audit)
-            echo "audit"
+            echo "audit commands"
+            echo "audit bash"
             echo "analyze commands"
+            echo "command history"
             echo "/audit"
             ;;
         consolidate)
@@ -299,6 +298,7 @@ get_skill_patterns() {
             echo "clean up rules"
             echo "settings review"
             echo "/consolidate"
+            echo "spa day"
             ;;
         verify)
             echo "verify"

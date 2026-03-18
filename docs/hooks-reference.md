@@ -166,7 +166,7 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | (required) | `"command"` (shell), `"prompt"` (LLM yes/no), or `"agent"` (subagent with tools) |
+| `type` | string | (required) | `"command"` (shell), `"prompt"` (LLM yes/no), `"agent"` (subagent with tools), or `"http"` (webhook) |
 | `command` | string | (required for command type) | Shell command to execute |
 | `async` | boolean | `false` | Run in background without blocking Claude |
 | `timeout` | number | `600` | Timeout in seconds (max: 600) |

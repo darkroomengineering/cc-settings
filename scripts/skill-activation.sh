@@ -161,6 +161,7 @@ if [[ "$USE_COMPILED" != true ]]; then
         component hook explore premortem lenis tldr learn effort
         checkpoint design-tokens f-thread l-thread prd project
         test ask docs debug qa figma init context discovery versions
+        lighthouse audit consolidate verify autoresearch
     )
 
     for skill in "${KNOWN_SKILLS[@]}"; do

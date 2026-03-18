@@ -55,7 +55,7 @@ Skip steps for simpler tasks. The workflow scales to the task complexity.
 
 ### Parallelization (Mandatory in this mode)
 
-Send ALL independent Task calls in a single message:
+Send ALL independent Agent calls in a single message:
 
 ```
 CORRECT: [Agent(explore, "auth"), Agent(explore, "routing")] in ONE message
@@ -95,7 +95,7 @@ Use TLDR when it saves tokens. Use Read/Grep for exact content or small files.
 
 For 3+ independent workstreams with no file conflicts:
 
-| Characteristic | Subagents (Task) | Agent Teams |
+| Characteristic | Subagents (Agent) | Agent Teams |
 |---|---|---|
 | Instances | Nested in parent | Independent processes |
 | Communication | Return values | Mailbox messaging |

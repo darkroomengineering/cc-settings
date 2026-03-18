@@ -58,7 +58,7 @@ Place feature agents in your project at `.claude/agents/<name>.md`.
 ---
 name: auth-agent
 model: opus
-allowedTools: [Task, Read, Grep, Glob]
+allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Handles authentication features for this project.
 
@@ -144,7 +144,7 @@ For projects using Sanity, Contentful, or similar:
 ---
 name: cms-agent
 model: opus
-allowedTools: [Task, Read, Grep, Glob]
+allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Manages CMS content integration (Sanity).
 
@@ -190,7 +190,7 @@ For projects with complex animations:
 ---
 name: animation-agent
 model: opus
-allowedTools: [Task, Read, Grep, Glob]
+allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Handles animations and transitions using GSAP, Lenis, and Tempus.
 
@@ -226,7 +226,7 @@ For projects with multiple external API integrations:
 ---
 name: api-agent
 model: opus
-allowedTools: [Task, Read, Grep, Glob]
+allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Manages external API integrations (Stripe, SendGrid, etc.).
 
@@ -278,7 +278,7 @@ Right -- delegate to the role agent with domain context:
 ---
 name: auth-agent
 description: "Auth domain specialist"
-allowedTools: [Task, Read, Grep, Glob]
+allowedTools: [Agent, Read, Grep, Glob]
 ---
 
 ## Workflow
@@ -359,6 +359,6 @@ Before shipping a feature agent, verify:
 - [ ] **Documents key files** so role agents know where to look
 - [ ] **Lists gotchas** that are non-obvious and project-specific
 - [ ] **Includes a workflow** with the standard pattern: explore, plan, implement, review, test
-- [ ] **Uses `allowedTools: [Task, Read, Grep, Glob]`** -- read-only plus delegation
+- [ ] **Uses `allowedTools: [Agent, Read, Grep, Glob]`** -- read-only plus delegation
 - [ ] **Lives in `.claude/agents/`** within the project (not globally)
 - [ ] **Security review step** included for sensitive domains (auth, payments, PII)

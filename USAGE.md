@@ -141,7 +141,7 @@ Agent(security-reviewer, "audit the auth flow for vulnerabilities")
 
 ### Parallelization
 
-When spawning multiple agents for independent work, send all Task calls in one message:
+When spawning multiple agents for independent work, send all Agent calls in one message:
 
 ```
 EFFICIENT:  Agent(explore, "auth") + Agent(explore, "routing")  ← one message

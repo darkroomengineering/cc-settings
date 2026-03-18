@@ -35,7 +35,7 @@ Environment variables injected into every Claude Code session.
 | Variable | Values | Description |
 |----------|--------|-------------|
 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `"1"` or unset | Enables Agent Teams mode for multi-instance parallelism |
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high` | Default adaptive thinking depth. `medium` is the default for Max/Team plans |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high` | Default adaptive thinking depth. Platform default is `medium`; cc-settings overrides to `high` |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window, ~80K chars at 1M). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context |
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window |
@@ -58,7 +58,7 @@ Default model for all sessions.
 | `opus` | Claude Opus 4.6 | Default. Full capability, adaptive thinking |
 | `sonnet` | Claude Sonnet | Faster, lower cost |
 | `haiku` | Claude Haiku | Fastest, lowest cost |
-| `opus[1m]` | Claude Opus 4.6 (1M context) | Beta. Requires subscription support |
+| `opus[1m]` | Claude Opus 4.6 (1M context) | 1M context variant. Default for Max/Team/Enterprise — only needed for explicit opt-in on other plans |
 
 ### `teammateMode`
 
@@ -244,7 +244,6 @@ Bash(bunx:*)          # All bunx commands
 Bash(npm run:*)       # npm run scripts
 Bash(biome:*)         # Biome linter/formatter
 Bash(vitest:*)        # Vitest test runner
-Bash(lighthouse:*)    # Lighthouse performance audits
 ```
 
 **Git operations:**
