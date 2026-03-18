@@ -145,10 +145,10 @@ clean_old_config() {
     rm -f "${CLAUDE_DIR}/hooks/"*.md 2>/dev/null || true
     # Only remove known managed skill directories (preserve user-created custom skills)
     local managed_skills=(
-        ask build checkpoint component context create-handoff debug design-tokens
-        discovery docs effort explore f-thread figma fix hook init l-thread learn lenis
-        orchestrate prd premortem project qa refactor resume-handoff review ship
-        teams test tldr versions
+        ask audit autoresearch build checkpoint component consolidate context
+        create-handoff debug design-tokens discovery docs effort explore f-thread
+        figma fix hook init l-thread learn lenis lighthouse orchestrate prd premortem
+        project qa refactor resume-handoff review ship teams test tldr verify versions
     )
     for skill_dir in "${managed_skills[@]}"; do
         rm -rf "${CLAUDE_DIR}/skills/${skill_dir}" 2>/dev/null || true

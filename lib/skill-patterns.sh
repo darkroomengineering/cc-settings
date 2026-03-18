@@ -19,7 +19,6 @@ get_skill_patterns() {
             echo "failing"
             echo "not working"
             echo "issue"
-            echo "debug"
             ;;
         build)
             echo "build"
@@ -86,7 +85,7 @@ get_skill_patterns() {
         create-handoff)
             echo "done.*today"
             echo "ending.*session"
-            echo "save state"
+            echo "save session"
             echo "create.*handoff"
             echo "handoff.sh create"
             echo "wrapping up"
@@ -289,6 +288,25 @@ get_skill_patterns() {
             echo "slow page"
             echo "/lighthouse"
             ;;
+        audit)
+            echo "audit"
+            echo "analyze commands"
+            echo "/audit"
+            ;;
+        consolidate)
+            echo "consolidate"
+            echo "contradictions"
+            echo "clean up rules"
+            echo "settings review"
+            echo "/consolidate"
+            ;;
+        verify)
+            echo "verify"
+            echo "double check"
+            echo "prove it"
+            echo "adversarial review"
+            echo "/verify"
+            ;;
         autoresearch)
             echo "autoresearch"
             echo "optimize skill"
@@ -328,6 +346,9 @@ get_skill_agents() {
         design-tokens)          echo "scaffolder" ;;
         figma)                  echo "" ;;
         lighthouse)             echo "implementer" ;;
+        audit)                  echo "" ;;
+        consolidate)            echo "" ;;
+        verify)                 echo "reviewer" ;;
         autoresearch)           echo "" ;;
         *)                      echo "" ;;
     esac

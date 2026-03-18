@@ -4,7 +4,7 @@ Claude Code has a **native hooks system** that executes shell scripts at specifi
 
 All hooks are **automatically installed** by the setup script. No manual configuration needed.
 
-For full hook documentation (all 14 events, configuration format, matchers, debugging):
+For full hook documentation (all 23 events, configuration format, matchers, debugging):
 **See [docs/hooks-reference.md](../docs/hooks-reference.md)**
 
 ## Configured Hooks

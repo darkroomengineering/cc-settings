@@ -244,15 +244,41 @@ Bash(bunx:*)          # All bunx commands
 Bash(npm run:*)       # npm run scripts
 Bash(biome:*)         # Biome linter/formatter
 Bash(vitest:*)        # Vitest test runner
+Bash(lighthouse:*)    # Lighthouse performance audits
 ```
 
 **Git operations:**
 
 ```
 Bash(git status:*)    Bash(git diff:*)      Bash(git log:*)
-Bash(git branch:*)    Bash(git add:*)       Bash(git commit:*)
-Bash(git checkout:*)  Bash(git stash:*)     Bash(git push:*)
-Bash(gh:*)            # GitHub CLI
+Bash(git show:*)      Bash(git branch:*)    Bash(git add:*)
+Bash(git commit:*)    Bash(git checkout:*)  Bash(git stash:*)
+Bash(git push:*)      Bash(git blame:*)     Bash(git rev-parse:*)
+Bash(git remote:*)    Bash(gh:*)
+```
+
+**Read-only commands:**
+
+```
+Bash(cat:*)       Bash(head:*)      Bash(tail:*)      Bash(less:*)
+Bash(file:*)      Bash(stat:*)      Bash(which:*)     Bash(type:*)
+Bash(echo:*)      Bash(printf:*)
+```
+
+**Search and text processing:**
+
+```
+Bash(grep:*)      Bash(rg:*)        Bash(find:*)      Bash(diff:*)
+Bash(sort:*)      Bash(uniq:*)      Bash(cut:*)       Bash(awk:*)
+Bash(sed -n:*)    Bash(jq:*)        Bash(xargs:*)
+```
+
+**System info:**
+
+```
+Bash(du:*)        Bash(df:*)        Bash(env:*)       Bash(printenv:*)
+Bash(date:*)      Bash(uname:*)     Bash(whoami:*)    Bash(basename:*)
+Bash(dirname:*)   Bash(realpath:*)  Bash(node -e:*)   Bash(node -p:*)
 ```
 
 **File operations:**
@@ -282,6 +308,7 @@ NotebookEdit(*)
 
 ```
 Bash(pinchtab:*)          # Visual QA browser automation
+Bash(lighthouse:*)        # Lighthouse performance audits
 Bash(open -a:*)          # Launch macOS apps (e.g., Figma with debugging port)
 ```
 
@@ -307,6 +334,14 @@ Bash(cp ~/.ssh/*:*)     Bash(cp ~/.aws/*:*)
 Write(~/.ssh/*)         Write(~/.aws/*)         Write(~/.gnupg/*)
 ```
 
+**Data exfiltration:**
+
+```
+Bash(curl * --data:*)      Bash(curl * -d :*)
+Bash(curl * -F :*)         Bash(curl * --upload-file:*)
+Bash(curl * -T :*)
+```
+
 **Destructive git operations:**
 
 ```
@@ -314,6 +349,7 @@ Bash(git push --force:*)     Bash(git push -f:*)
 Bash(git reset --hard:*)     Bash(git clean -f:*)
 Bash(git checkout -- .:*)    Bash(git checkout -- *)
 Bash(git stash drop:*)       Bash(git stash clear:*)
+Bash(git restore .:*)        Bash(git restore --staged .:*)
 ```
 
 **Remote code execution:**
