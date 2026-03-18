@@ -54,10 +54,9 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Effort levels: `low`, `medium`, `high`
 
 ### Context Window
-- Default: 200K tokens
-- 1M context: default for Max/Team/Enterprise plans. Opt out with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
-- Skill character budget: 25K chars (`SLASH_COMMAND_TOOL_CHAR_BUDGET`)
-- **Manual `/compact` at 50% context utilization** — do not wait for automatic compaction
+- Default: 1M tokens (Max/Team/Enterprise). Opt out with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
+- Skill character budget: auto-scales to 2% of context window (~80K chars at 1M)
+- **Manual `/compact` at 70% context utilization** — auto-compaction triggers at 95% but don't let it get that far
 - **Break subtasks to complete within 50% context** — prevents context rot mid-task
 - **After compaction**: re-read task plan + active files before continuing (see AGENTS.md "Post-Compaction Recovery")
 

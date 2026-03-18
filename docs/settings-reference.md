@@ -36,7 +36,7 @@ Environment variables injected into every Claude Code session.
 |----------|--------|-------------|
 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `"1"` or unset | Enables Agent Teams mode for multi-instance parallelism |
 | `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high` | Default adaptive thinking depth. `medium` is the default for Max/Team plans |
-| `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context) |
+| `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window, ~80K chars at 1M). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context |
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt |
