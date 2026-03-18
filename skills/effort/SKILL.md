@@ -8,7 +8,7 @@ description: |
   - User says "slow down", "speed up", "think more"
 allowed-tools:
   - Bash
-argument-hint: "[low|medium|high|max]"
+argument-hint: "[low|medium|high]"
 ---
 
 # Effort Level Management
@@ -21,16 +21,15 @@ Adjust Claude's adaptive thinking depth based on task complexity.
 |-------|-------------|-------------------|
 | `low` | Simple edits, formatting, renaming | Minimal -- fast responses |
 | `medium` | Standard implementation, exploration | Balanced depth |
-| `high` | Complex logic, multi-file changes (DEFAULT) | Deep analysis |
-| `max` | Architecture decisions, security reviews, hard bugs | Maximum depth, no constraints |
+| `high` | Complex logic, architecture, security reviews, hard bugs (DEFAULT) | Deep analysis, maximum depth |
 
 ## Auto-Scaling Recommendations
 
 | Task Type | Recommended Effort |
 |-----------|-------------------|
-| Security-sensitive code | `max` |
-| Architecture decisions | `max` |
-| Complex debugging | `max` |
+| Security-sensitive code | `high` |
+| Architecture decisions | `high` |
+| Complex debugging | `high` |
 | Standard implementation | `high` |
 | File exploration | `medium` |
 | Boilerplate generation | `low` |

@@ -31,7 +31,7 @@ Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "verify" 
 ### Agent 1: Finder
 
 ```
-Task(reviewer, "You are a bug finder. Analyze the following code/changes thoroughly.
+Agent(reviewer, "You are a bug finder. Analyze the following code/changes thoroughly.
 Score yourself: +1 for low-impact issues, +5 for medium-impact, +10 for critical.
 Report every potential issue you find — edge cases, race conditions, missing validation,
 security holes, logic errors, performance problems.
@@ -48,7 +48,7 @@ Finder over-reports by design — this is the **superset** of all possible issue
 Takes the finder's output and tries to disprove each issue.
 
 ```
-Task(reviewer, "You are an adversarial reviewer. For each issue below, try to DISPROVE it.
+Agent(reviewer, "You are an adversarial reviewer. For each issue below, try to DISPROVE it.
 Score yourself: +points of the bug for each you successfully disprove,
 but -2x the points if you wrongly disprove a real issue.
 
@@ -68,7 +68,7 @@ Adversary filters aggressively but cautiously — this is the **subset** of like
 Takes both inputs and produces the final verdict.
 
 ```
-Task(oracle, "You are a neutral referee scoring two reviewers.
+Agent(oracle, "You are a neutral referee scoring two reviewers.
 You will get +1 for each correct judgment and -1 for each incorrect one.
 The ground truth exists and will be checked against your answers.
 
@@ -129,8 +129,8 @@ Finder: N issues. Adversary disproved: M. Referee confirmed: K.
 For smaller changes, skip the referee:
 
 ```
-Task(reviewer, "Find all issues in [target]. Be thorough.")
-Task(reviewer, "Challenge each issue: [paste output]. Disprove what you can.")
+Agent(reviewer, "Find all issues in [target]. Be thorough.")
+Agent(reviewer, "Challenge each issue: [paste output]. Disprove what you can.")
 ```
 
 Review surviving issues yourself.

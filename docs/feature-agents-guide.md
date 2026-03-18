@@ -29,7 +29,7 @@ cc-settings ships with **role agents** -- general-purpose agents defined by what
 | Scope | All projects | Single project |
 | Ships with | cc-settings (global) | Your project (local) |
 | Location | `~/.claude/agents/` | `<project>/.claude/agents/` |
-| Delegates to | Tools directly | Role agents via `Task()` |
+| Delegates to | Tools directly | Role agents via `Agent()` |
 
 ---
 
@@ -118,11 +118,11 @@ if (!hasRole(session.user, 'admin')) {
 
 For any auth-related task:
 
-1. **Explore first**: `Task(explore, "Map the current auth flow for [feature]")`
-2. **Plan changes**: `Task(planner, "Plan [auth change] considering session handling and role checks")`
-3. **Implement**: `Task(implementer, "Implement [auth feature] following the patterns in lib/auth/")`
-4. **Security review**: `Task(security-reviewer, "Review auth changes for OWASP vulnerabilities")`
-5. **Test**: `Task(tester, "Write tests for [auth feature] covering happy path and unauthorized access")`
+1. **Explore first**: `Agent(explore, "Map the current auth flow for [feature]")`
+2. **Plan changes**: `Agent(planner, "Plan [auth change] considering session handling and role checks")`
+3. **Implement**: `Agent(implementer, "Implement [auth feature] following the patterns in lib/auth/")`
+4. **Security review**: `Agent(security-reviewer, "Review auth changes for OWASP vulnerabilities")`
+5. **Test**: `Agent(tester, "Write tests for [auth feature] covering happy path and unauthorized access")`
 
 ## Gotchas
 
@@ -175,11 +175,11 @@ description: |
 
 ## Workflow
 
-1. `Task(explore, "Check existing Sanity schemas and query patterns")`
-2. `Task(planner, "Plan content type addition with schema, query, and component")`
-3. `Task(scaffolder, "Create schema file following existing pattern")`
-4. `Task(implementer, "Implement GROQ query and data fetching")`
-5. `Task(tester, "Test content fetching with mock data")`
+1. `Agent(explore, "Check existing Sanity schemas and query patterns")`
+2. `Agent(planner, "Plan content type addition with schema, query, and component")`
+3. `Agent(scaffolder, "Create schema file following existing pattern")`
+4. `Agent(implementer, "Implement GROQ query and data fetching")`
+5. `Agent(tester, "Test content fetching with mock data")`
 ```
 
 ### Animation Agent
@@ -212,10 +212,10 @@ description: |
 
 ## Workflow
 
-1. `Task(explore, "fetch docs for [GSAP/Lenis/library]")` -- ALWAYS fetch current docs
-2. `Task(planner, "Plan animation approach considering performance and reduced-motion")`
-3. `Task(implementer, "Implement animation using [library] following fetched docs")`
-4. `Task(reviewer, "Review animation for performance: only compositor properties, cleanup on unmount")`
+1. `Agent(explore, "fetch docs for [GSAP/Lenis/library]")` -- ALWAYS fetch current docs
+2. `Agent(planner, "Plan animation approach considering performance and reduced-motion")`
+3. `Agent(implementer, "Implement animation using [library] following fetched docs")`
+4. `Agent(reviewer, "Review animation for performance: only compositor properties, cleanup on unmount")`
 ```
 
 ### API Integration Agent
@@ -247,11 +247,11 @@ description: |
 
 ## Workflow
 
-1. `Task(explore, "Check existing integrations for patterns")`
-2. `Task(planner, "Plan [service] integration with error handling and types")`
-3. `Task(implementer, "Build integration client and server actions")`
-4. `Task(security-reviewer, "Verify API keys not exposed, webhook signatures validated")`
-5. `Task(tester, "Write tests with mocked API responses")`
+1. `Agent(explore, "Check existing integrations for patterns")`
+2. `Agent(planner, "Plan [service] integration with error handling and types")`
+3. `Agent(implementer, "Build integration client and server actions")`
+4. `Agent(security-reviewer, "Verify API keys not exposed, webhook signatures validated")`
+5. `Agent(tester, "Write tests with mocked API responses")`
 ```
 
 ---
@@ -282,7 +282,7 @@ allowedTools: [Task, Read, Grep, Glob]
 ---
 
 ## Workflow
-1. Task(implementer, "Implement [feature] using the auth patterns in lib/auth/")
+1. Agent(implementer, "Implement [feature] using the auth patterns in lib/auth/")
 ```
 
 ### Do Not Make Agents Too Broad
@@ -324,7 +324,7 @@ Right -- reference patterns by location:
 ## How to Add a Protected Route
 
 Follow the pattern in `middleware.ts` and `lib/auth/index.ts`.
-Delegate to `Task(explore, "Show the route protection pattern in middleware.ts")` for current implementation.
+Delegate to `Agent(explore, "Show the route protection pattern in middleware.ts")` for current implementation.
 ```
 
 ### Do Not Skip Security Review
@@ -333,8 +333,8 @@ Wrong -- implementing auth without security check:
 
 ```markdown
 ## Workflow
-1. Task(planner, "Plan auth feature")
-2. Task(implementer, "Build it")
+1. Agent(planner, "Plan auth feature")
+2. Agent(implementer, "Build it")
 3. Done!
 ```
 
@@ -342,10 +342,10 @@ Right -- always include security review for sensitive domains:
 
 ```markdown
 ## Workflow
-1. Task(planner, "Plan auth feature")
-2. Task(implementer, "Build it")
-3. Task(security-reviewer, "Audit for OWASP vulnerabilities")
-4. Task(tester, "Test including unauthorized access paths")
+1. Agent(planner, "Plan auth feature")
+2. Agent(implementer, "Build it")
+3. Agent(security-reviewer, "Audit for OWASP vulnerabilities")
+4. Agent(tester, "Test including unauthorized access paths")
 ```
 
 ---
@@ -355,7 +355,7 @@ Right -- always include security review for sensitive domains:
 Before shipping a feature agent, verify:
 
 - [ ] **Scoped to a domain**, not a role (it knows things, not just does things)
-- [ ] **Delegates to role agents** via `Task()` instead of using tools directly
+- [ ] **Delegates to role agents** via `Agent()` instead of using tools directly
 - [ ] **Documents key files** so role agents know where to look
 - [ ] **Lists gotchas** that are non-obvious and project-specific
 - [ ] **Includes a workflow** with the standard pattern: explore, plan, implement, review, test

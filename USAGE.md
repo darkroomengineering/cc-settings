@@ -99,6 +99,7 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "design tokens", "type scale", "color palette" | `design-tokens` — generates token systems with math |
 | "smooth scroll", "lenis" | `lenis` — Lenis smooth scroll setup |
 | "create hook", "custom hook" | `hook` — scaffolds React hook with standards |
+| "lighthouse", "page speed", "core web vitals" | `lighthouse` — performance audit + optimization loop |
 
 ### Utility
 
@@ -108,6 +109,10 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "check version of X" | `versions` — checks before installing |
 | "create component X" | `component` — scaffolds with standards |
 | "parallel agents", "split work", "fan out" | `teams` — multi-instance parallel work |
+| "verify", "double check", "are you sure" | `verify` — adversarial multi-agent verification |
+| "consolidate", "clean up rules", "maintenance" | `consolidate` — prunes rules, skills, learnings |
+| "audit commands", "what did it run" | `audit` — analyzes logged Bash commands |
+| "optimize skill", "autoresearch" | `autoresearch` — iterative skill prompt optimization |
 
 ---
 
@@ -116,12 +121,12 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 For complex tasks, delegate to specialized agents:
 
 ```
-Task(explore, "how does the auth module work?")
-Task(planner, "break down the checkout redesign")
-Task(implementer, "implement coupon validation based on the plan")
-Task(reviewer, "review these changes for quality and edge cases")
-Task(tester, "write tests for the payment module")
-Task(security-reviewer, "audit the auth flow for vulnerabilities")
+Agent(explore, "how does the auth module work?")
+Agent(planner, "break down the checkout redesign")
+Agent(implementer, "implement coupon validation based on the plan")
+Agent(reviewer, "review these changes for quality and edge cases")
+Agent(tester, "write tests for the payment module")
+Agent(security-reviewer, "audit the auth flow for vulnerabilities")
 ```
 
 ### When to Delegate
@@ -129,9 +134,9 @@ Task(security-reviewer, "audit the auth flow for vulnerabilities")
 | Situation | Approach |
 |-----------|----------|
 | Know the file, small change | Edit directly |
-| Need to understand a large area | `Task(explore, "...")` |
-| Multi-file implementation | `Task(planner, "...")` then `Task(implementer, "...")` |
-| Need a second opinion | `Task(reviewer, "...")` |
+| Need to understand a large area | `Agent(explore, "...")` |
+| Multi-file implementation | `Agent(planner, "...")` then `Agent(implementer, "...")` |
+| Need a second opinion | `Agent(reviewer, "...")` |
 | 3+ independent workstreams | Use Agent Teams |
 
 ### Parallelization
@@ -139,8 +144,8 @@ Task(security-reviewer, "audit the auth flow for vulnerabilities")
 When spawning multiple agents for independent work, send all Task calls in one message:
 
 ```
-EFFICIENT:  Task(explore, "auth") + Task(explore, "routing")  ← one message
-WASTEFUL:   Task(explore, "auth") → wait → Task(explore, "routing")  ← two messages
+EFFICIENT:  Agent(explore, "auth") + Agent(explore, "routing")  ← one message
+WASTEFUL:   Agent(explore, "auth") → wait → Agent(explore, "routing")  ← two messages
 ```
 
 ---

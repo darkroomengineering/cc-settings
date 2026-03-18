@@ -27,11 +27,11 @@ You are in **Maestro orchestration mode**. Delegate immediately.
 ## Agent Delegation
 
 ```
-Task(explore, "Analyze the code to refactor: $ARGUMENTS. Identify patterns, issues, dependencies.")
-Task(planner, "Design refactoring approach based on analysis. Keep behavior unchanged.")
-Task(implementer, "Refactor according to plan. Preserve all functionality.")
-Task(tester, "Verify refactored code behaves identically to original.")
-Task(reviewer, "Review refactoring for quality and completeness.")
+Agent(explore, "Analyze the code to refactor: $ARGUMENTS. Identify patterns, issues, dependencies.")
+Agent(planner, "Design refactoring approach based on analysis. Keep behavior unchanged.")
+Agent(implementer, "Refactor according to plan. Preserve all functionality.")
+Agent(tester, "Verify refactored code behaves identically to original.")
+Agent(reviewer, "Review refactoring for quality and completeness.")
 ```
 
 ## Refactoring Principles

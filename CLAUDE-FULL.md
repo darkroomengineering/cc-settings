@@ -22,16 +22,16 @@ The Edit tool uses exact string matching. Follow these rules:
 Use agents for complex tasks. Use tools directly for simple ones.
 
 **Delegate when:**
-- Multi-file exploration → `Task(explore, "...")`
-- Breaking down complex work → `Task(planner, "...")`
-- Multi-file implementation → `Task(implementer, "...")`
-- Code review → `Task(reviewer, "...")`
-- Writing tests → `Task(tester, "...")`
-- Security-sensitive code → `Task(security-reviewer, "...")`
-- Dead code cleanup → `Task(deslopper, "...")`
-- Expert Q&A / second opinions → `Task(oracle, "...")`
-- Scaffolding new components → `Task(scaffolder, "...")`
-- Complex multi-step tasks → `Task(maestro, "...")`
+- Multi-file exploration → `Agent(explore, "...")`
+- Breaking down complex work → `Agent(planner, "...")`
+- Multi-file implementation → `Agent(implementer, "...")`
+- Code review → `Agent(reviewer, "...")`
+- Writing tests → `Agent(tester, "...")`
+- Security-sensitive code → `Agent(security-reviewer, "...")`
+- Dead code cleanup → `Agent(deslopper, "...")`
+- Expert Q&A / second opinions → `Agent(oracle, "...")`
+- Scaffolding new components → `Agent(scaffolder, "...")`
+- Complex multi-step tasks → `Agent(maestro, "...")`
 
 **Act directly when:**
 - Reading a specific file you know the path to
@@ -39,7 +39,7 @@ Use agents for complex tasks. Use tools directly for simple ones.
 - Running a build or test command
 - Simple searches (grep for a string, glob for a file)
 
-**Parallelize**: when spawning multiple agents for independent work, send all Task calls in a single message.
+**Parallelize**: when spawning multiple agents for independent work, send all Agent calls in a single message.
 
 For full orchestration mode (power users), activate `profiles/maestro.md`.
 
@@ -51,11 +51,11 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Adaptive reasoning depth based on complexity
 - 128K max output per response
 - Fast mode: same model, faster output (`/fast`)
-- Effort levels: `low`, `medium`, `high` (default), `max`
+- Effort levels: `low`, `medium`, `high`
 
 ### Context Window
 - Default: 200K tokens
-- 1M available in beta: use `opus[1m]` in settings.json
+- 1M context: default for Max/Team/Enterprise plans. Opt out with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
 - Skill character budget: 25K chars (`SLASH_COMMAND_TOOL_CHAR_BUDGET`)
 - **Manual `/compact` at 50% context utilization** — do not wait for automatic compaction
 - **Break subtasks to complete within 50% context** — prevents context rot mid-task
@@ -85,7 +85,7 @@ For 3+ independent workstreams with no file conflicts:
 - Delegate mode: Shift+Tab to toggle
 - File locking built-in
 
-Use subagents (Task) for dependent sequential tasks.
+Use subagents (Agent) for dependent sequential tasks.
 Use teams for independent parallel work.
 
 ---
@@ -128,11 +128,17 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 ## Hook Events
 
-14 events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`,
-`PostToolUse`, `PostToolUseFailure`, `Notification`, `SubagentStart`, `SubagentStop`,
-`Stop`, `TeammateIdle`, `TaskCompleted`, `PreCompact`, `SessionEnd`
+23 events across 7 categories:
 
-Types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools)
+**Session:** `SessionStart`, `SessionEnd`, `Setup`
+**User:** `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`
+**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`
+**Agent:** `SubagentStart`, `SubagentStop`, `TeammateIdle`, `TaskCompleted`
+**Context:** `PreCompact`, `PostCompact`, `InstructionsLoaded`, `ConfigChange`
+**MCP:** `Elicitation`, `ElicitationResult`
+**Worktree:** `WorktreeCreate`, `WorktreeRemove`
+
+Types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook)
 
 ---
 

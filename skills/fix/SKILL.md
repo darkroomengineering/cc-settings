@@ -38,10 +38,10 @@ Follow CLAUDE.md Guardrails (scope constraint, 2-iteration limit). Only modify f
 ## Agent Delegation
 
 ```
-Task(explore, "Investigate the bug: $ARGUMENTS. Find relevant files, trace the issue.")
-Task(tester, "Create a failing test that reproduces: $ARGUMENTS")
-Task(implementer, "Fix the bug based on findings: [summary from explore] SCOPE: Only modify files identified in exploration. Do NOT refactor adjacent code. Run the build after each fix to verify.")
-Task(reviewer, "Quick review of the fix for quality and edge cases")
+Agent(explore, "Investigate the bug: $ARGUMENTS. Find relevant files, trace the issue.")
+Agent(tester, "Create a failing test that reproduces: $ARGUMENTS")
+Agent(implementer, "Fix the bug based on findings: [summary from explore] SCOPE: Only modify files identified in exploration. Do NOT refactor adjacent code. Run the build after each fix to verify.")
+Agent(reviewer, "Quick review of the fix for quality and edge cases")
 ```
 
 ## Output

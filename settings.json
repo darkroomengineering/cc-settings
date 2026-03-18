@@ -6,7 +6,10 @@
 	},
 	"model": "opus",
 	"teammateMode": "auto",
-	"coauthorship": false,
+	"attribution": {
+		"commit": "",
+		"pr": ""
+	},
 	"plansDirectory": "./plans",
 	"outputStyle": "concise",
 	"spinnerVerbs": {

@@ -221,4 +221,4 @@ See [MCP SDK docs](https://modelcontextprotocol.io/docs) for full guide.
 
 - [MCP Specification](https://modelcontextprotocol.io)
 - [MCP SDK (TypeScript)](https://github.com/modelcontextprotocol/typescript-sdk)
-- [Claude Code MCP Docs](https://docs.anthropic.com/en/docs/claude-code/mcp)
+- [Claude Code MCP Docs](https://code.claude.com/docs/en/mcp)

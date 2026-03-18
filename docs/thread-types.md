@@ -17,7 +17,7 @@ Five thread types for different task patterns. Choose based on task complexity, 
 Single agent, single task. The default.
 
 ```
-User → Task(implementer, "fix the bug") → Done
+User → Agent(implementer, "fix the bug") → Done
 ```
 
 **When:** Simple, unambiguous, single-file or small scope.
@@ -29,7 +29,7 @@ User → Task(implementer, "fix the bug") → Done
 Multiple independent agents running concurrently.
 
 ```
-User → Task(implementer, "component A") + Task(implementer, "component B") → Done
+User → Agent(implementer, "component A") + Agent(implementer, "component B") → Done
 ```
 
 **When:** Tasks share no dependencies. Files don't overlap.
@@ -46,11 +46,11 @@ User → Task(implementer, "component A") + Task(implementer, "component B") →
 Sequential pipeline where each agent depends on the previous.
 
 ```
-User → Task(explore, "understand system")
-     → Task(planner, "design solution")
-     → Task(implementer, "build it")
-     → Task(tester, "test it")
-     → Task(reviewer, "review it")
+User → Agent(explore, "understand system")
+     → Agent(planner, "design solution")
+     → Agent(implementer, "build it")
+     → Agent(tester, "test it")
+     → Agent(reviewer, "review it")
      → Done
 ```
 
@@ -64,7 +64,7 @@ Parallel evaluation of alternatives, then merge into a decision.
 
 ```
 User → Define criteria
-     → Task(oracle, "evaluate A") + Task(oracle, "evaluate B") + Task(oracle, "evaluate C")
+     → Agent(oracle, "evaluate A") + Agent(oracle, "evaluate B") + Agent(oracle, "evaluate C")
      → Scoring matrix
      → ADR recommendation
      → Done
@@ -81,7 +81,7 @@ See: `skills/f-thread/SKILL.md` for full specification.
 Single agent executing autonomously with checkpoint/restore across context windows.
 
 ```
-User → Task(planner, "phase the work")
+User → Agent(planner, "phase the work")
      → Execute Phase 1 → Checkpoint
      → Execute Phase 2 → Checkpoint
      → [context exhausted, new session]

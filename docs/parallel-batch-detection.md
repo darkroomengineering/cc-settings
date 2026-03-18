@@ -159,7 +159,7 @@ Maestro uses batch detection to:
 ```
 for batch in batches:
   // Spawn all tasks in batch in ONE message
-  parallel: [Task(implementer, task) for task in batch]
+  parallel: [Agent(implementer, task) for task in batch]
   // Wait for all to complete
   // Verify batch results
   // Checkpoint if L-thread

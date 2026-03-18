@@ -35,9 +35,13 @@ Environment variables injected into every Claude Code session.
 | Variable | Values | Description |
 |----------|--------|-------------|
 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `"1"` or unset | Enables Agent Teams mode for multi-instance parallelism |
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `max` | Default adaptive thinking depth. `high` is the default |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high` | Default adaptive thinking depth. `medium` is the default for Max/Team plans |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context) |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context |
+| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window |
+| `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt |
+| `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
+| `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
 
 ### `model`
 
@@ -71,17 +75,20 @@ Controls Agent Teams behavior when enabled.
 | `auto` | Teammates self-coordinate via shared task list |
 | `manual` | Teammates require explicit direction |
 
-### `coauthorship`
+### `attribution`
 
-Controls AI attribution in git commits.
+Controls AI attribution in git commits and PRs. Replaces the deprecated `coauthorship` setting.
 
 ```json
 {
-  "coauthorship": false
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
 }
 ```
 
-When `false`, prevents automatic `Co-Authored-By` lines in commit messages. Darkroom policy: **no AI attribution**.
+Empty strings suppress attribution entirely. Darkroom policy: **no AI attribution**.
 
 ### `statusLine`
 
@@ -145,6 +152,45 @@ Customizes the animated spinner text shown while Claude is processing.
 |-------|------|-------------|
 | `mode` | `"replace"` or `"append"` | `replace` overrides default verbs entirely; `append` adds to them |
 | `verbs` | list of strings | Present-participle verbs shown in the spinner (e.g., "Analyzing", "Building") |
+
+### `modelOverrides`
+
+Maps model picker entries to custom provider model IDs (e.g., Bedrock ARNs, Vertex endpoints).
+
+```json
+{
+  "modelOverrides": {
+    "opus": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-opus-4-6-v1",
+    "sonnet": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-sonnet-4-6-v1"
+  }
+}
+```
+
+### `autoMemoryDirectory`
+
+Custom directory for auto-memory storage.
+
+```json
+{
+  "autoMemoryDirectory": "./memory"
+}
+```
+
+### `worktree`
+
+Configuration for git worktree operations.
+
+```json
+{
+  "worktree": {
+    "sparsePaths": ["src/", "packages/shared/"]
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sparsePaths` | list | Directories to check out in each worktree via git sparse-checkout. Useful for large monorepos |
 
 ---
 

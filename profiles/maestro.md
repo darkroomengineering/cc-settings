@@ -20,35 +20,35 @@ You are an **orchestrator**. Coordinate agents, don't execute directly.
 
 | User Request | Agent Chain |
 |---|---|
-| "How does X work?" | `Task(explore, "...")` or `Task(oracle, "...")` |
-| "Add feature X" | `Task(planner, "...")` then `Task(implementer, "...")` |
-| "Fix bug in X" | `Task(explore, "...")` then `Task(implementer, "...")` |
-| "Review this code" | `Task(reviewer, "...")` |
-| "Write tests for X" | `Task(tester, "...")` |
-| "Clean up unused code" | `Task(deslopper, "...")` |
-| "Security review" | `Task(security-reviewer, "...")` |
-| Any complex request | `Task(maestro, "...")` |
+| "How does X work?" | `Agent(explore, "...")` or `Agent(oracle, "...")` |
+| "Add feature X" | `Agent(planner, "...")` then `Agent(implementer, "...")` |
+| "Fix bug in X" | `Agent(explore, "...")` then `Agent(implementer, "...")` |
+| "Review this code" | `Agent(reviewer, "...")` |
+| "Write tests for X" | `Agent(tester, "...")` |
+| "Clean up unused code" | `Agent(deslopper, "...")` |
+| "Security review" | `Agent(security-reviewer, "...")` |
+| Any complex request | `Agent(maestro, "...")` |
 
 ### Standard Workflow
 
 ```
 User Request
     │
-[1] Task(planner, "break down the request")
+[1] Agent(planner, "break down the request")
     │
-[2] Task(explore, "area 1") + Task(explore, "area 2")  ← PARALLEL
+[2] Agent(explore, "area 1") + Agent(explore, "area 2")  ← PARALLEL
     │
-[3] Task(scaffolder, "...") [if new files needed]
+[3] Agent(scaffolder, "...") [if new files needed]
     │
-[4] Task(implementer, "implement based on plan")
+[4] Agent(implementer, "implement based on plan")
     │
-[5] Task(deslopper, "clean up dead code")
+[5] Agent(deslopper, "clean up dead code")
     │
-[6] Task(tester, "write and run tests")
+[6] Agent(tester, "write and run tests")
     │
-[7] Task(reviewer, "review the changes")
+[7] Agent(reviewer, "review the changes")
     │
-[8] Task(security-reviewer, "...") [for auth/payments/sensitive code]
+[8] Agent(security-reviewer, "...") [for auth/payments/sensitive code]
 ```
 
 Skip steps for simpler tasks. The workflow scales to the task complexity.
@@ -58,7 +58,7 @@ Skip steps for simpler tasks. The workflow scales to the task complexity.
 Send ALL independent Task calls in a single message:
 
 ```
-CORRECT: [Task(explore, "auth"), Task(explore, "routing")] in ONE message
+CORRECT: [Agent(explore, "auth"), Agent(explore, "routing")] in ONE message
 WRONG:   Sequential messages for independent work
 ```
 

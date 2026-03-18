@@ -12,7 +12,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
-## Hook Events (14 total)
+## Hook Events (23 total)
 
 ### Session Lifecycle
 
@@ -20,6 +20,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 |-------|------|----------------|----------|
 | `SessionStart` | Session begins (new, resume, compact, clear) | `startup`, `resume`, `clear`, `compact` | Yes |
 | `SessionEnd` | Session is ending | -- | No (always async) |
+| `Setup` | Triggered via `--init`, `--init-only`, or `--maintenance` CLI flags | -- | Yes |
 
 ### User Interaction
 
@@ -28,6 +29,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 | `UserPromptSubmit` | User submits a prompt, before Claude sees it | -- | Yes |
 | `Notification` | Claude sends a notification to the user | Notification type | No |
 | `Stop` | Claude finishes generating a response | -- | Yes |
+| `StopFailure` | Turn ends due to API error (rate limit, auth failure) | -- | No |
 
 ### Tool Lifecycle
 
@@ -52,6 +54,23 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
 | `PreCompact` | Before context compaction | `manual` or `auto` | Yes |
+| `PostCompact` | After context compaction completes | -- | No |
+| `InstructionsLoaded` | CLAUDE.md or `.claude/rules/*.md` loaded | -- | No |
+| `ConfigChange` | Configuration file changes during session | `user_settings`, `project_settings`, `local_settings`, `policy_settings`, `skills` | Yes |
+
+### MCP Events
+
+| Event | When | Matcher Values | Blocking |
+|-------|------|----------------|----------|
+| `Elicitation` | MCP server requests structured user input mid-task | -- | Yes |
+| `ElicitationResult` | User responds to MCP elicitation dialog | -- | No |
+
+### Worktree Events
+
+| Event | When | Matcher Values | Blocking |
+|-------|------|----------------|----------|
+| `WorktreeCreate` | Worktree being created (can replace default git behavior) | -- | Yes |
+| `WorktreeRemove` | Worktree being removed | -- | No |
 
 ---
 
@@ -83,6 +102,7 @@ Available in all hooks:
 | `SubagentStart` | `$AGENT_TYPE` | Agent type (e.g., `explore`, `planner`) |
 | `SubagentStop` | `$AGENT_ID` | Unique identifier for the subagent |
 | `SubagentStop` | `$AGENT_TYPE` | Agent type (e.g., `explore`, `planner`) |
+| `Notification` | `$NOTIFICATION_MESSAGE` | The notification text |
 
 ### Flattened Tool Input Variables
 
@@ -159,6 +179,7 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | `command` | Executes a shell command. Exit code 0 = pass, non-zero = block (for PreToolUse). stdout is injected into Claude's context. | Validation, logging, context injection |
 | `prompt` | Sends a single-turn prompt to Claude for yes/no evaluation. | Complex validation requiring LLM judgment |
 | `agent` | Spawns a subagent with tool access (Read, Grep, Glob) for verification. | Multi-step validation requiring code inspection |
+| `http` | Sends a webhook to a URL. Configure with `url`, `headers`, `allowedEnvVars`. Controlled by `allowedHttpHookUrls` setting. | Remote validation, external integrations, audit logging |
 
 ---
 

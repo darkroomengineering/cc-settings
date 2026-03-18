@@ -24,7 +24,7 @@ Before delegating to agents:
 
 **GO/NO-GO Verdict**:
 - **GO** - Task has 3+ workstreams, clear boundaries, and agents can work independently. Proceed.
-- **SIMPLIFY** - Task has <3 workstreams. Use direct Task() delegation instead.
+- **SIMPLIFY** - Task has <3 workstreams. Use direct Agent() delegation instead.
 - **NO-GO** - Requirements unclear, scope too large, or high risk of file conflicts. Report and stop.
 
 Do not proceed past this gate without an explicit verdict.
@@ -35,4 +35,4 @@ Delegate to the Maestro agent for multi-agent task orchestration.
 
 The Maestro agent handles: agent selection, parallel execution, workflow coordination, and agent teams.
 
-For simple delegation (1-2 agents), use Task() directly without invoking this skill.
+For simple delegation (1-2 agents), use Agent() directly without invoking this skill.

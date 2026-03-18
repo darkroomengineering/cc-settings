@@ -276,6 +276,29 @@ get_skill_patterns() {
             echo "extract tokens from figma"
             echo "inspect in figma"
             ;;
+        lighthouse)
+            echo "lighthouse"
+            echo "performance audit"
+            echo "page speed"
+            echo "improve scores"
+            echo "web vitals"
+            echo "core web vitals"
+            echo "LCP"
+            echo "CLS"
+            echo "INP"
+            echo "slow page"
+            echo "/lighthouse"
+            ;;
+        autoresearch)
+            echo "autoresearch"
+            echo "optimize skill"
+            echo "improve skill"
+            echo "tune skill"
+            echo "evolve skill"
+            echo "prompt optimization"
+            echo "skill optimization"
+            echo "/autoresearch"
+            ;;
     esac
 }
 
@@ -304,6 +327,8 @@ get_skill_agents() {
         checkpoint)             echo "" ;;
         design-tokens)          echo "scaffolder" ;;
         figma)                  echo "" ;;
+        lighthouse)             echo "implementer" ;;
+        autoresearch)           echo "" ;;
         *)                      echo "" ;;
     esac
 }
@@ -316,7 +341,7 @@ get_skill_priority() {
     case "$skill_name" in
         create-handoff|resume-handoff)  echo "critical" ;;
         fix|build|refactor|review|orchestrate|ship) echo "high" ;;
-        explore|test|component|hook|learn|tldr|prd|f-thread|l-thread|project) echo "medium" ;;
+        explore|test|component|hook|learn|tldr|prd|f-thread|l-thread|project|lighthouse) echo "medium" ;;
         *)                              echo "low" ;;
     esac
 }

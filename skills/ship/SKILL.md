@@ -59,7 +59,7 @@ If issues found: fix them before proceeding to review.
 ### Step 6: Review Changes
 Spawn `reviewer` agent:
 ```
-Task(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
+Agent(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
 ```
 
 ### Step 7: Commit and PR

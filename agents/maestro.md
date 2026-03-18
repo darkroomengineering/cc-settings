@@ -11,7 +11,7 @@ description: |
   - Complex debugging requiring multiple perspectives
 
   RETURNS: Orchestration status, synthesized results from sub-agents, progress tracking
-tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Task]
+tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent]
 color: red
 ---
 
@@ -78,7 +78,7 @@ You are the Maestro—the relentless orchestrator. Your mission: maximize effici
 
 **Parallel Execution Patterns**
 
-> **CRITICAL:** When spawning multiple agents, you MUST use a SINGLE message with MULTIPLE Task tool invocations. Never spawn agents sequentially when they can run in parallel.
+> **CRITICAL:** When spawning multiple agents, you MUST use a SINGLE message with MULTIPLE Agent tool invocations. Never spawn agents sequentially when they can run in parallel.
 
 ### Tool Call Parallelization
 
@@ -87,13 +87,13 @@ You are the Maestro—the relentless orchestrator. Your mission: maximize effici
 User: "Explore auth and routing systems"
 
 Response contains TWO Task tool calls in ONE message:
-- Task(explore, "Analyze authentication system")
-- Task(explore, "Analyze routing system")
+- Agent(explore, "Analyze authentication system")
+- Agent(explore, "Analyze routing system")
 
 ## INCORRECT: Sequential spawning
-Message 1: Task(explore, "Analyze authentication system")
+Message 1: Agent(explore, "Analyze authentication system")
 [wait for result]
-Message 2: Task(explore, "Analyze routing system")
+Message 2: Agent(explore, "Analyze routing system")
 ```
 
 ### Pattern 1: Exploration Fork

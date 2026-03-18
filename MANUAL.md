@@ -123,6 +123,12 @@ Say: *"compare to the figma design"* or *"design fidelity check"*
 
 Triggers `/figma` — connects to Figma desktop, screenshots the design, compares against implementation.
 
+### Performance Audit
+
+Say: *"run a lighthouse audit"* or *"check page speed"* or *"improve web vitals"*
+
+Triggers `/lighthouse` — runs Lighthouse audits (3 mobile + 3 desktop, averaged), optimizes scores, and visually verifies UI isn't broken after each change.
+
 ### Debug in Browser
 
 Say: *"take a screenshot"* or *"what does the page look like?"*
@@ -238,6 +244,12 @@ Say: *"how do I use GSAP ScrollTrigger?"* or triggered automatically before impl
 
 Triggers `/docs` — fetches current documentation via Context7 MCP. Never codes from memory.
 
+### Optimize a Skill
+
+Say: *"autoresearch the build skill"* or *"optimize skill prompt"*
+
+Triggers `/autoresearch` — autonomous skill optimization loop. Mutates a SKILL.md, tests it, keeps improvements, reverts failures. Runs until interrupted.
+
 ---
 
 ## Advanced
@@ -262,9 +274,9 @@ Triggers `/orchestrate` — delegates to Maestro for multi-agent coordination.
 
 ### Effort Level
 
-Say: *"think harder"* or *"quick fix"* or *"max effort"*
+Say: *"think harder"* or *"quick fix"*
 
-Triggers `/effort` — adjusts reasoning depth. Levels: `low`, `medium`, `high` (default), `max`.
+Triggers `/effort` — adjusts reasoning depth. Levels: `low`, `medium`, `high` (default).
 
 ### Profiles
 
@@ -339,14 +351,16 @@ These are enforced automatically — no skill needed:
 | `debug` | screenshot, visual bug |
 | `figma` | compare to design, figma |
 | `qa` | visual check, accessibility, validate |
+| `lighthouse` | lighthouse, performance audit, page speed, web vitals |
 | `versions` | package version, before installing |
 | `context` | context window, running out of context |
 | `checkpoint` | save state, save progress |
 | `create-handoff` | done for today, ending session |
 | `resume-handoff` | resume, continue, last session |
-| `effort` | think harder, max effort, quick fix |
+| `effort` | think harder, quick fix |
 | `learn` | remember this, store learning (also auto-triggers) |
 | `consolidate` | clean up rules, contradictions, spa day |
+| `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 
 ### All Agents
 
@@ -363,20 +377,32 @@ These are enforced automatically — no skill needed:
 | `deslopper` | Dead code removal, cleanup | scanners (team mode) |
 | `maestro` | Multi-agent orchestration | all of the above |
 
-### Hooks (Automatic)
+### Hooks (Automatic — 23 Events)
+
+Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook to URL).
 
 | Event | What Happens |
 |-------|-------------|
 | Session start | Load learnings, check TLDR index |
+| Setup | Runs on `--init`, `--init-only`, or `--maintenance` CLI flags |
 | User prompt | Skill activation, correction detection |
 | Pre-tool (Bash) | Safety net, pre-commit TSC, docs check before install |
 | Pre-tool (Edit) | Stale file detection |
+| Permission request | When a tool needs user permission |
 | Post-tool (Write/Edit) | Post-edit validation, async TSC |
 | Post-tool (TLDR) | Usage tracking |
 | Post-tool (git commit) | Commit sound |
 | Tool failure | Failure tracking, error sound |
 | Pre-compact | Auto-handoff save |
+| Post-compact | After context compaction completes |
 | Stop | Learning reminder, compact reminder |
+| Stop failure | Turn ends due to API error (rate limit, auth failure) |
 | Session end | TLDR stats, auto-handoff |
 | Subagent start/stop | Swarm logging |
+| Teammate idle | Agent Teams teammate goes idle |
+| Task completed | Task marked completed |
 | Notification | Desktop notification |
+| Instructions loaded | CLAUDE.md or rules loaded |
+| Config change | Configuration file changes during session |
+| Elicitation / result | MCP server requests structured user input |
+| Worktree create/remove | Worktree lifecycle management |

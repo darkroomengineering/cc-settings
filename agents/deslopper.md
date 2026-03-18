@@ -14,7 +14,7 @@ description: |
   - "before push" / "pre-push review" / "final cleanup"
 
   RETURNS: Dead code auto-removed, consolidation recommendations for approval
-tools: [Read, Edit, Grep, Glob, LS, Bash, Task, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet]
+tools: [Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet]
 color: cyan
 ---
 
@@ -223,7 +223,7 @@ When user approves recommendations:
 
 2. **Verify with tester**
    ```
-   Task(tester, "Run tests to verify consolidation of [specific change]. Focus on: [affected areas]")
+   Agent(tester, "Run tests to verify consolidation of [specific change]. Focus on: [affected areas]")
    ```
 
 3. **Report completion**
@@ -320,9 +320,9 @@ In team mode the deslopper becomes a **coordinator** — it does NOT scan files 
 1. **Create team**: `TeamCreate("deslop-scan")`
 2. **Create 3 tasks** via `TaskCreate` — one per scanner (dead-code, duplicates, integrity)
 3. **Spawn 3 `explore` subagents in ONE message** (all `Task` calls in a single response):
-   - `Task(explore, "dead-code-scanner prompt...", team_name="deslop-scan", name="dead-code-scanner")`
-   - `Task(explore, "duplicates-scanner prompt...", team_name="deslop-scan", name="duplicates-scanner")`
-   - `Task(explore, "integrity-scanner prompt...", team_name="deslop-scan", name="integrity-scanner")`
+   - `Agent(explore, "dead-code-scanner prompt...", team_name="deslop-scan", name="dead-code-scanner")`
+   - `Agent(explore, "duplicates-scanner prompt...", team_name="deslop-scan", name="duplicates-scanner")`
+   - `Agent(explore, "integrity-scanner prompt...", team_name="deslop-scan", name="integrity-scanner")`
 4. **Wait for all 3** — scanners send messages when done. Monitor via `TaskList`.
 5. **Merge scanner outputs** into the standard report format (see Merge Protocol)
 6. **Run self-check** (Phase 4) on merged findings — the coordinator verifies each finding

@@ -61,7 +61,7 @@ Every checkpoint must pass Levels 1-3 before saving. Full verification (Levels 1
 ### Phase 1: Planning
 
 ```
-Task(planner, "Break down [task] into phases with dependencies and estimates")
+Agent(planner, "Break down [task] into phases with dependencies and estimates")
 ```
 
 Produce a phased plan with:
@@ -126,7 +126,7 @@ Only then output:
 ```
 User: "Migrate all class components to hooks across the app"
 
-→ Task(planner, "Break migration into phases by module")
+→ Agent(planner, "Break migration into phases by module")
 Plan: 6 phases, ~4 context windows estimated
 
 Phase 1: Core hooks (auth, routing)

@@ -54,9 +54,9 @@ Establish evaluation criteria with weights (must sum to 100):
 Spawn one oracle agent per approach in a SINGLE message:
 
 ```
-Task(oracle, "Evaluate [Approach A] against criteria: [criteria list with weights]. Score 1-10 per criterion. Include concrete examples, code samples, and evidence.")
-Task(oracle, "Evaluate [Approach B] against criteria: [criteria list with weights]. Score 1-10 per criterion. Include concrete examples, code samples, and evidence.")
-Task(oracle, "Evaluate [Approach C] against criteria: [criteria list with weights]. Score 1-10 per criterion. Include concrete examples, code samples, and evidence.")
+Agent(oracle, "Evaluate [Approach A] against criteria: [criteria list with weights]. Score 1-10 per criterion. Include concrete examples, code samples, and evidence.")
+Agent(oracle, "Evaluate [Approach B] against criteria: [criteria list with weights]. Score 1-10 per criterion. Include concrete examples, code samples, and evidence.")
+Agent(oracle, "Evaluate [Approach C] against criteria: [criteria list with weights]. Score 1-10 per criterion. Include concrete examples, code samples, and evidence.")
 ```
 
 Each evaluator must return:
@@ -142,9 +142,9 @@ We will use **Option A** because [primary reasons].
 User: "Which state management should we use for this Next.js app?"
 
 → Define criteria (Frontend preset)
-→ Task(oracle, "Evaluate Zustand against frontend criteria...")
-  + Task(oracle, "Evaluate Jotai against frontend criteria...")
-  + Task(oracle, "Evaluate Redux Toolkit against frontend criteria...")
+→ Agent(oracle, "Evaluate Zustand against frontend criteria...")
+  + Agent(oracle, "Evaluate Jotai against frontend criteria...")
+  + Agent(oracle, "Evaluate Redux Toolkit against frontend criteria...")
 → Build comparison matrix
 → Output ADR recommendation
 ```
@@ -155,7 +155,7 @@ User: "Which state management should we use for this Next.js app?"
 User: "Compare Turborepo vs Nx for our monorepo"
 
 → Define criteria (Infrastructure preset)
-→ Task(oracle, "Evaluate Turborepo...") + Task(oracle, "Evaluate Nx...")
+→ Agent(oracle, "Evaluate Turborepo...") + Agent(oracle, "Evaluate Nx...")
 → Build comparison matrix
 → Output ADR recommendation
 ```
