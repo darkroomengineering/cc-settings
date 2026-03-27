@@ -15,6 +15,7 @@ description: |
 
   RETURNS: File locations, architecture maps, dependency graphs, code summaries, documentation
 tools: [Read, Grep, Glob, LS, Bash, WebFetch]
+effort: medium
 color: purple
 ---
 

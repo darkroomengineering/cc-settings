@@ -26,20 +26,22 @@ Environment variables injected into every Claude Code session.
 ```json
 {
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_EFFORT_LEVEL": "high"
+    "CLAUDE_CODE_EFFORT_LEVEL": "high",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }
 ```
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `"1"` or unset | Enables Agent Teams mode for multi-instance parallelism |
 | `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high` | Default adaptive thinking depth. Platform default is `medium`; cc-settings overrides to `high` |
+| `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window, ~80K chars at 1M). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context |
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window |
-| `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt |
+| `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
+| `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments |
+| `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
 | `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
 
@@ -120,20 +122,32 @@ Directory where Claude Code writes plan output files (from planner agent, PRD sk
 | `"./plans"` | Relative to project root. Plans saved to `<project>/plans/` |
 | Any path string | Absolute or relative path for plan output |
 
-### `outputStyle`
+### `includeGitInstructions`
 
-Controls the verbosity of Claude's responses.
+Controls whether Claude Code injects its built-in git workflow instructions into the system prompt. Since AGENTS.md and rules/git.md already provide comprehensive git guidance, this is disabled to save ~2K tokens of context.
 
 ```json
 {
-  "outputStyle": "concise"
+  "includeGitInstructions": false
 }
 ```
 
-| Value | Behavior |
-|-------|----------|
-| `"concise"` | Shorter, more focused responses. Reduces filler text |
-| `"verbose"` | Longer, more detailed responses |
+### `sandbox`
+
+Sandbox configuration for secure command execution.
+
+```json
+{
+  "sandbox": {
+    "failIfUnavailable": true
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `failIfUnavailable` | boolean | Exit with error when sandbox is enabled but unavailable (default: false) |
+| `enableWeakerNetworkIsolation` | boolean | macOS: weaker network isolation for MITM proxy verification |
 
 ### `spinnerVerbs`
 
@@ -261,7 +275,7 @@ Bash(git remote:*)    Bash(gh:*)
 ```
 Bash(cat:*)       Bash(head:*)      Bash(tail:*)      Bash(less:*)
 Bash(file:*)      Bash(stat:*)      Bash(which:*)     Bash(type:*)
-Bash(echo:*)      Bash(printf:*)
+Bash(echo:*)
 ```
 
 **Search and text processing:**

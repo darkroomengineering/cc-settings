@@ -12,7 +12,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
-## Hook Events (23 total)
+## Hook Events (26 total)
 
 ### Session Lifecycle
 
@@ -48,6 +48,14 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 | `SubagentStop` | A subagent finishes | Agent type | No |
 | `TeammateIdle` | An Agent Teams teammate goes idle | -- | No |
 | `TaskCompleted` | A task is marked completed | -- | No |
+| `TaskCreated` | A task is created via `TaskCreate` | -- | No |
+
+### Environment Events
+
+| Event | When | Matcher Values | Blocking |
+|-------|------|----------------|----------|
+| `CwdChanged` | Working directory changes during session | -- | No |
+| `FileChanged` | A watched file changes on disk | -- | No |
 
 ### Context Management
 
@@ -160,7 +168,10 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `matcher` | string | -- | Filter which tools/events trigger the hook (see Matcher Patterns below) |
+| `if` | string | -- | Conditional filter using permission rule syntax (e.g., `"Bash(git commit*)"`, `"Bash(bun add*) Bash(npm install*)"`) — more precise than `matcher` for command-level filtering |
 | `hooks` | list | (required) | Array of hook actions to execute |
+
+**`if` vs `matcher`**: Use `matcher` to filter by tool name (`"Bash"`, `"Edit"`, `"Write|Edit"`). Use `if` to filter by specific command patterns within a tool, avoiding the need for shell-script grep matching. Space-separated patterns are OR'd together.
 
 ### Hook Action Fields
 

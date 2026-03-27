@@ -12,6 +12,8 @@ description: |
 
   RETURNS: Security report by severity (Critical/High/Medium), secret detection results, remediation steps
 tools: [Read, Grep, Glob, Bash]
+effort: high
+isolation: worktree
 color: red
 ---
 

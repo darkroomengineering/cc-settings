@@ -1,16 +1,16 @@
 {
 	"env": {
-		"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-		"CLAUDE_CODE_EFFORT_LEVEL": "high"
+		"CLAUDE_CODE_EFFORT_LEVEL": "high",
+		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
 	},
 	"model": "opus",
 	"teammateMode": "auto",
+	"includeGitInstructions": false,
 	"attribution": {
 		"commit": "",
 		"pr": ""
 	},
 	"plansDirectory": "./plans",
-	"outputStyle": "concise",
 	"spinnerVerbs": {
 		"mode": "replace",
 		"verbs": [
@@ -103,7 +103,6 @@
 			"Bash(which:*)",
 			"Bash(type:*)",
 			"Bash(echo:*)",
-			"Bash(printf:*)",
 
 			"Bash(grep:*)",
 			"Bash(rg:*)",
@@ -259,16 +258,16 @@
 				]
 			},
 			{
-				"matcher": "Bash",
+				"if": "Bash(git commit*)",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -qE \"git commit\"; then if [ -f tsconfig.json ]; then TSC_TMP=$(mktemp /tmp/tsc-check.XXXXXX); trap \"rm -f $TSC_TMP\" EXIT; if ! bunx tsc --noEmit --pretty 2>&1 | tee \"$TSC_TMP\" | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" \"$TSC_TMP\" 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 \"$TSC_TMP\"; exit 1; fi; fi; fi'"
+						"command": "bash -c 'if [ -f tsconfig.json ]; then TSC_TMP=$(mktemp /tmp/tsc-check.XXXXXX); trap \"rm -f $TSC_TMP\" EXIT; if ! bunx tsc --noEmit --pretty 2>&1 | tee \"$TSC_TMP\" | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" \"$TSC_TMP\" 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 \"$TSC_TMP\"; exit 1; fi; fi'"
 					}
 				]
 			},
 			{
-				"matcher": "Bash",
+				"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*) Bash(bunx*)",
 				"hooks": [
 					{
 						"type": "command",
@@ -329,11 +328,11 @@
 				]
 			},
 			{
-				"matcher": "Bash",
+				"if": "Bash(git commit*)",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'echo \"$TOOL_INPUT\" | grep -qE \"git commit\" && bash \"$HOME/.claude/scripts/notify-sound.sh\" commit'",
+						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" commit",
 						"async": true,
 						"timeout": 10
 					}

@@ -13,6 +13,7 @@ description: |
 
   RETURNS: Detailed explanations with file:line citations, evidence, caveats, related context
 tools: [Read, Grep, Glob, LS, WebFetch, Bash]
+effort: medium
 color: gold
 ---
 

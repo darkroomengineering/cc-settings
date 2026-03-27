@@ -78,6 +78,17 @@ When investigating code (auditing, reviewing, exploring), use **neutral prompts*
 
 Biased prompts cause agents to manufacture issues that don't exist.
 
+### TODO Comments Are Instructions
+When you encounter a `TODO`, `FIXME`, or `HACK` comment, **implement it** — don't delete it. Removing a TODO without doing the work is marking your own homework complete by erasing the assignment.
+
+### Plan Before Multi-File Changes
+Before any change touching **5+ files**, outline the plan first:
+1. List every file you'll modify and what changes
+2. Identify what could break
+3. Get approval before executing
+
+This prevents wrong-approach cascades that force full rollbacks.
+
 ### Dependency Upgrades
 Before upgrading major dependencies, check for breaking changes. If an upgrade breaks the build, **rollback immediately** to the working version. Rollback first, research the migration, then try again with a plan.
 

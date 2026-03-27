@@ -12,6 +12,7 @@ description: |
 
   RETURNS: Created files with proper structure, exports, types, and styling scaffolds
 tools: [Read, Write, Edit, Bash, Glob, LS]
+effort: low
 color: magenta
 ---
 

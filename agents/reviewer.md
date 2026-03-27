@@ -13,6 +13,7 @@ description: |
 
   RETURNS: Review summary, issues by severity (Critical/Warning/Suggestion), approval status
 tools: [Read, Grep, Glob, LS, Bash]
+effort: high
 color: yellow
 ---
 

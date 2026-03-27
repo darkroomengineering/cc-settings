@@ -13,6 +13,7 @@ description: |
 
   RETURNS: Numbered task lists, dependency graphs, ADRs, risk assessments, phase breakdowns
 tools: [Read, Grep, Glob, LS]
+effort: medium
 color: blue
 ---
 

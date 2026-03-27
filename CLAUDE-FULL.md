@@ -49,9 +49,9 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 
 ### Opus 4.6 (Default)
 - Adaptive reasoning depth based on complexity
-- 128K max output per response
 - Fast mode: same model, faster output (`/fast`)
-- Effort levels: `low`, `medium`, `high`
+- Effort levels: `low`, `medium`, `high` — set per-session with `/effort`, per-agent via `effort` frontmatter
+- Default effort: `high` (overridden from Claude Code's `medium` default)
 
 ### Context Window
 - Default: 1M tokens (Max/Team/Enterprise). Opt out with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
@@ -79,10 +79,12 @@ Activate for specialized workflows:
 ## Agent Teams
 
 For 3+ independent workstreams with no file conflicts:
-- Enable: `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` in settings.json
+- Set `teammateMode: "auto"` in settings.json (already configured)
 - Display: `in-process` (Shift+Up/Down) or split panes
 - Delegate mode: Shift+Tab to toggle
 - File locking built-in
+- Agents can declare `isolation: worktree` for isolated git worktree copies
+- Agents can declare `background: true` to always run as background tasks
 
 Use subagents (Agent) for dependent sequential tasks.
 Use teams for independent parallel work.
@@ -127,17 +129,20 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 ## Hook Events
 
-23 events across 7 categories:
+26 events across 7 categories:
 
 **Session:** `SessionStart`, `SessionEnd`, `Setup`
 **User:** `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`
 **Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`
-**Agent:** `SubagentStart`, `SubagentStop`, `TeammateIdle`, `TaskCompleted`
+**Agent:** `SubagentStart`, `SubagentStop`, `TeammateIdle`, `TaskCompleted`, `TaskCreated`
 **Context:** `PreCompact`, `PostCompact`, `InstructionsLoaded`, `ConfigChange`
+**Environment:** `CwdChanged`, `FileChanged`
 **MCP:** `Elicitation`, `ElicitationResult`
 **Worktree:** `WorktreeCreate`, `WorktreeRemove`
 
-Types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook)
+Types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook POST/response)
+
+Hooks support conditional `if` field using permission rule syntax (e.g., `"if": "Bash(git commit*)"`) to filter when they fire.
 
 ---
 

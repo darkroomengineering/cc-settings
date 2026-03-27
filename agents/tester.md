@@ -12,6 +12,7 @@ description: |
 
   RETURNS: Test results (pass/fail/skip), coverage reports, test files, failure analysis
 tools: [Read, Write, Edit, Bash, Grep, Glob, LS]
+effort: medium
 color: cyan
 ---
 

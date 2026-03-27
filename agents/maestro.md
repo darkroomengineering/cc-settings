@@ -12,6 +12,7 @@ description: |
 
   RETURNS: Orchestration status, synthesized results from sub-agents, progress tracking
 tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent]
+effort: high
 color: red
 ---
 
