@@ -1,73 +1,44 @@
 ---
 name: versions
-description: |
-  Check package versions before installing. CRITICAL - AUTO-INVOKE when:
-  - About to install any package (bun add, npm install)
-  - User asks about "latest version", "update package"
-  - Before implementing with any library
-
-  MANDATORY: Never install packages without checking version first.
-allowed-tools: [Bash, mcp__context7__resolve-library-id, mcp__context7__get-library-docs]
+description: "Check package versions before installing. Auto-invoke when about to run bun add or npm install, when user asks about 'latest version' or 'update package', or before implementing with any library. Never install packages without checking version first."
+allowed-tools: "Bash, mcp__context7__resolve-library-id, mcp__context7__get-library-docs"
 ---
 
 # Package Version Checker
 
-**CRITICAL**: Always check latest version before installing ANY package.
+Always check latest version before installing any package.
 
-## Check Version
+## Workflow
+
+1. **Check version**: `bun info <package>`
+2. **Fetch docs**: Use context7 MCP tools for current documentation
+3. **Install**: `bun add <package>@latest`
+4. **Verify**: Confirm `package.json` has the correct version
+
+## Commands
 
 ```bash
 # Check latest version
 bun info <package>
 
-# Examples
-bun info gsap
-bun info lenis
-bun info @react-three/fiber
-bun info framer-motion
-```
-
-## Install with Version
-
-```bash
 # Install latest
-bun add gsap@latest
+bun add <package>@latest
 
 # Install specific version
-bun add gsap@3.12.5
-```
+bun add <package>@3.12.5
 
-## Check Darkroom Package Versions
-
-```bash
-# Lenis (smooth scroll)
-bun info lenis
-
-# Hamo (performance hooks)
-bun info hamo
-
-# Tempus (RAF management)
-bun info tempus
-```
-
-## Check Outdated Packages
-
-```bash
-# List outdated packages in project
+# List outdated packages
 bun outdated
 ```
 
-## Workflow
+## Darkroom Packages
 
-1. **Check version** - `bun info <package>`
-2. **Fetch docs** - Use context7 for current documentation
-3. **Install** - `bun add <package>@latest`
-4. **Verify** - Check `package.json` has correct version
+| Package | Purpose |
+|---------|---------|
+| `lenis` | Smooth scroll |
+| `hamo` | Performance hooks |
+| `tempus` | RAF management |
 
 ## Output
 
-Report:
-- **Package**: Name
-- **Latest version**: Current release
-- **Your version**: What's in package.json (if applicable)
-- **Action**: Install/update recommendation
+Report: package name, latest version, current version (if in package.json), and install/update recommendation.
