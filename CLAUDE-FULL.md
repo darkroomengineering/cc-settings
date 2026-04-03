@@ -51,7 +51,7 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Adaptive reasoning depth based on complexity
 - Fast mode: same model, faster output (`/fast`)
 - Effort levels: `low`, `medium`, `high` — set per-session with `/effort`, per-agent via `effort` frontmatter
-- Default effort: `high` (overridden from Claude Code's `medium` default)
+- Default effort: `medium` (Claude Code default — auto-escalates for complex tasks, use `/effort high` when needed)
 
 ### Context Window
 - Default: 1M tokens (Max/Team/Enterprise). Opt out with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
@@ -129,11 +129,11 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 ## Hook Events
 
-26 events across 7 categories:
+27 events across 8 categories:
 
 **Session:** `SessionStart`, `SessionEnd`, `Setup`
 **User:** `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`
-**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`
+**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied`
 **Agent:** `SubagentStart`, `SubagentStop`, `TeammateIdle`, `TaskCompleted`, `TaskCreated`
 **Context:** `PreCompact`, `PostCompact`, `InstructionsLoaded`, `ConfigChange`
 **Environment:** `CwdChanged`, `FileChanged`

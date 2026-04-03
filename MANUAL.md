@@ -360,6 +360,7 @@ These are enforced automatically — no skill needed:
 | `effort` | think harder, quick fix |
 | `learn` | remember this, store learning (also auto-triggers) |
 | `consolidate` | clean up rules, contradictions, spa day |
+| `audit` | audit, run audit script |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 
 ### All Agents

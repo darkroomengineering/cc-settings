@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Log every Bash command Claude runs to a daily log file.
 # Called as a PostToolUse hook for Bash.
 # Receives JSON on stdin (not env var).
@@ -16,7 +16,7 @@ find "$LOG_DIR" -name "bash-*.log" -mtime +"$RETENTION" -delete 2>/dev/null
 
 # Read JSON from stdin (PostToolUse receives data on stdin, not env vars)
 STDIN_JSON=$(cat)
-CMD=$(echo "$STDIN_JSON" | tr '\n' ' ' | sed 's/\\"/\x01/g' | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | sed 's/\x01/"/g; s/\\n/ /g' | head -1)
+CMD=$(echo "$STDIN_JSON" | jq -r '.tool_input.command // empty' 2>/dev/null)
 
 if [ -n "$CMD" ]; then
   PROJECT=$(basename "$PWD" 2>/dev/null)

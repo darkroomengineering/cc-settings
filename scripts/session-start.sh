@@ -77,18 +77,6 @@ auto_warm_tldr() {
         fi
     fi
 
-    # Determine language flag based on project type
-    local lang_flag=""
-    if [[ -f "$PROJECT_DIR/tsconfig.json" ]] || [[ -f "$PROJECT_DIR/package.json" ]]; then
-        lang_flag="--lang typescript"
-    elif [[ -f "$PROJECT_DIR/Cargo.toml" ]]; then
-        lang_flag="--lang rust"
-    elif [[ -f "$PROJECT_DIR/go.mod" ]]; then
-        lang_flag="--lang go"
-    elif [[ -f "$PROJECT_DIR/pyproject.toml" ]] || [[ -f "$PROJECT_DIR/setup.py" ]]; then
-        lang_flag="--lang python"
-    fi
-
     # Create cache directory
     mkdir -p "${CLAUDE_DIR}/tldr-cache"
 
@@ -96,9 +84,10 @@ auto_warm_tldr() {
     touch "$tldr_cache"
 
     # Run tldr warm in background (completely non-blocking, survives script exit)
+    # Language auto-detected by TLDR v1.5+ — no need for --lang flag
     (
         cd "$PROJECT_DIR" && \
-        tldr warm . $lang_flag >/dev/null 2>&1 && \
+        tldr warm . >/dev/null 2>&1 && \
         echo "$(date '+%Y-%m-%d %H:%M:%S') - TLDR warmed: $PROJECT_NAME" >> "${CLAUDE_DIR}/sessions.log"
     ) &
     disown

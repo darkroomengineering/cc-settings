@@ -1,7 +1,7 @@
 {
 	"env": {
-		"CLAUDE_CODE_EFFORT_LEVEL": "high",
-		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
+		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+		"CLAUDE_CODE_NO_FLICKER": "1"
 	},
 	"model": "opus",
 	"teammateMode": "auto",
@@ -225,7 +225,49 @@
 			"Write(~/.claude.json)",
 
 			"Bash(gh repo delete:*)",
-			"Bash(gh secret:*)"
+			"Bash(gh secret:*)",
+			"Bash(gh api -X DELETE:*)",
+			"Bash(gh api * -X DELETE:*)",
+			"Bash(gh release delete:*)",
+
+			"Bash(cat ~/.netrc)",
+			"Bash(cat ~/.npmrc)",
+			"Bash(cat ~/.docker/config.json)",
+			"Bash(cat ~/.kube/config)",
+			"Bash(cat ~/.config/gh/*)",
+			"Bash(head ~/.netrc)",
+			"Bash(head ~/.npmrc)",
+			"Bash(head ~/.docker/config.json)",
+			"Bash(head ~/.kube/config)",
+			"Bash(head ~/.config/gh/*)",
+			"Bash(tail ~/.netrc)",
+			"Bash(tail ~/.npmrc)",
+			"Bash(tail ~/.docker/config.json)",
+			"Bash(tail ~/.kube/config)",
+			"Bash(tail ~/.config/gh/*)",
+
+			"Bash(cp ~/.netrc:*)",
+			"Bash(cp ~/.npmrc:*)",
+			"Bash(cp ~/.docker/config.json:*)",
+			"Bash(cp ~/.kube/config:*)",
+			"Bash(cp ~/.config/gh/*:*)",
+			"Bash(mv ~/.netrc:*)",
+			"Bash(mv ~/.npmrc:*)",
+			"Bash(mv ~/.docker/config.json:*)",
+			"Bash(mv ~/.kube/config:*)",
+			"Bash(mv ~/.config/gh/*:*)",
+
+			"Bash(curl * --json:*)",
+			"Bash(curl * --data-raw:*)",
+			"Bash(curl * --data-binary:*)",
+			"Bash(curl * --data-urlencode:*)",
+			"Bash(curl -X POST:*)",
+			"Bash(curl * -X POST:*)",
+			"Bash(curl -X PUT:*)",
+			"Bash(curl * -X PUT:*)",
+
+			"Bash(awk * system(:*)",
+			"Bash(awk * system (:*)"
 		]
 	},
 	"hooks": {
@@ -258,7 +300,7 @@
 				]
 			},
 			{
-				"if": "Bash(git commit*)",
+			"if": "Bash(git commit*)",
 				"hooks": [
 					{
 						"type": "command",
@@ -473,6 +515,30 @@
 						"command": "bash \"$HOME/.claude/scripts/notify.sh\"",
 						"async": true,
 						"timeout": 10
+					}
+				]
+			}
+		],
+		"PermissionDenied": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'echo \"[Permission] Denied: $TOOL_NAME ($PERMISSION_DECISION_REASON)\" >> ~/.claude/swarm.log; bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block'",
+						"async": true,
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"TaskCreated": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash -c 'echo \"[Swarm] Task created: $TASK_SUBJECT\" >> ~/.claude/swarm.log'",
+						"async": true,
+						"timeout": 5
 					}
 				]
 			}
