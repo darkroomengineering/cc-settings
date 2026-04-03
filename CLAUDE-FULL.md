@@ -51,7 +51,26 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Adaptive reasoning depth based on complexity
 - Fast mode: same model, faster output (`/fast`)
 - Effort levels: `low`, `medium`, `high` — set per-session with `/effort`, per-agent via `effort` frontmatter
-- Default effort: `medium` (Claude Code default — auto-escalates for complex tasks, use `/effort high` when needed)
+- Default effort: `medium` (Claude Code default — use `high` selectively via "ultrathink" or `/effort high`)
+
+### Model Routing (Opus + Sonnet)
+
+Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical work to reduce rate limit pressure.
+
+| Agent | Model | Rationale |
+|-------|-------|-----------|
+| `maestro` | **opus** | Orchestration needs strongest reasoning |
+| `planner` | **opus** | Architecture decisions need depth |
+| `oracle` | **opus** | Expert Q&A needs nuance |
+| `security-reviewer` | **opus** | Can't afford missed vulnerabilities |
+| `reviewer` | **opus** | Code review needs careful judgment |
+| `implementer` | **sonnet** | Code writing is well-defined work |
+| `tester` | **sonnet** | Test writing follows clear patterns |
+| `scaffolder` | **sonnet** | Boilerplate generation is mechanical |
+| `explore` | **sonnet** | File search/read doesn't need deep reasoning |
+| `deslopper` | **sonnet** | Pattern matching for dead code is straightforward |
+
+Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` for complex implementations.
 
 ### Context Window
 - Default: 1M tokens (Max/Team/Enterprise). Opt out with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
@@ -129,7 +148,7 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 ## Hook Events
 
-27 events across 8 categories:
+28 events across 8 categories:
 
 **Session:** `SessionStart`, `SessionEnd`, `Setup`
 **User:** `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`

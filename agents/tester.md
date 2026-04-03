@@ -1,6 +1,6 @@
 ---
 name: tester
-model: opus
+model: sonnet
 description: |
   Test writing and execution. Runs tests, analyzes coverage, writes missing tests.
 

@@ -54,6 +54,10 @@ if git -C "$current_dir" rev-parse --git-dir > /dev/null 2>&1; then
   fi
 fi
 
+# Extract rate limit info (5-hour window)
+rate_used=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
+rate_resets=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)
+
 # Build status line parts
 parts=()
 
@@ -99,6 +103,26 @@ if [ -n "$used" ]; then
   fi
 
   parts+=("${progress_bar} ${used_int}% (${tokens_used_fmt}/${tokens_available_fmt})")
+fi
+
+# 5. Rate limit usage (if available)
+if [ -n "$rate_used" ]; then
+  rate_int=$(printf "%.0f" "$rate_used")
+  red="\033[31m"
+  yellow="\033[33m"
+  green="\033[32m"
+  reset="\033[0m"
+
+  if [ "$rate_int" -ge 80 ]; then
+    rate_color="$red"
+  elif [ "$rate_int" -ge 50 ]; then
+    rate_color="$yellow"
+  else
+    rate_color="$green"
+  fi
+
+  rate_label=$(printf "${rate_color}⚡${rate_int}%%${reset}")
+  parts+=("$rate_label")
 fi
 
 # Join with dimmed separator and print

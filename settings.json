@@ -1,5 +1,6 @@
 {
 	"env": {
+		"CLAUDE_CODE_EFFORT_LEVEL": "medium",
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
 		"CLAUDE_CODE_NO_FLICKER": "1"
 	},
@@ -381,6 +382,36 @@
 				]
 			}
 		],
+		"PostCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/post-compact.sh\""
+					}
+				]
+			}
+		],
+		"StopFailure": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/stop-failure.sh\""
+					}
+				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" error",
+						"async": true,
+						"timeout": 10
+					}
+				]
+			}
+		],
 		"PreCompact": [
 			{
 				"hooks": [
@@ -524,7 +555,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'echo \"[Permission] Denied: $TOOL_NAME ($PERMISSION_DECISION_REASON)\" >> ~/.claude/swarm.log; bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block'",
+						"command": "bash -c 'echo \"[Permission] Denied: $TOOL_NAME ($PERMISSION_DECISION_REASON)\" >> ~/.claude/swarm.log; bash \"$HOME/.claude/scripts/permission-denied.sh\"; bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block'",
 						"async": true,
 						"timeout": 10
 					}

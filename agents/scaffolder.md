@@ -1,6 +1,6 @@
 ---
 name: scaffolder
-model: opus
+model: sonnet
 description: |
   Boilerplate and template generator. Creates components, hooks, pages with proper structure.
 
