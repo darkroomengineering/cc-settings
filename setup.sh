@@ -244,9 +244,10 @@ install_dependencies() {
         ensure_system_package jq || warn "Please install jq manually: $(get_install_hint jq)"
     fi
 
-    # Optional: pipx, pinchtab, llm-tldr
+    # Optional: pipx, pinchtab, agent-browser, llm-tldr
     ensure_pipx
     has_command pinchtab || ensure_npm_global pinchtab || true
+    has_command agent-browser || ensure_npm_global agent-browser || true
     (has_command tldr || has_command tldr-mcp) || ensure_python_package llm-tldr tldr || true
 }
 
