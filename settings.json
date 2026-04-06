@@ -267,8 +267,8 @@
 			"Bash(curl -X PUT:*)",
 			"Bash(curl * -X PUT:*)",
 
-			"Bash(awk * system(:*)",
-			"Bash(awk * system (:*)"
+			"Bash(awk * system\\(:*)",
+			"Bash(awk * system \\(:*)"
 		]
 	},
 	"hooks": {
