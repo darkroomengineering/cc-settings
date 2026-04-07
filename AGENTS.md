@@ -27,6 +27,9 @@ Don't over-engineer your workflow. Start simple, add complexity only when you fe
 
 These rules exist because we've seen them violated repeatedly. Non-negotiable.
 
+### Read Before Edit
+**Never change code you haven't read.** Research the codebase before editing — open the file, trace the callers, understand the context. Edit-first behavior produces shallow fixes and regressions. If you're about to modify something you haven't read in this session, stop and read it first.
+
 ### 2-Iteration Limit
 If an approach fails after **2 attempts**, STOP:
 1. Summarize what you tried and why it failed

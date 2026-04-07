@@ -52,6 +52,7 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Fast mode: same model, faster output (`/fast`)
 - Effort levels: `low`, `medium`, `high` — set per-session with `/effort`, per-agent via `effort` frontmatter
 - Default effort: `medium` (Claude Code default — use `high` selectively via "ultrathink" or `/effort high`)
+- For hard multi-file debugging on Opus, escalate to `/effort max`. The `medium` default biases toward edit-first; raise effort to restore research-first behavior.
 
 ### Model Routing (Opus + Sonnet)
 
