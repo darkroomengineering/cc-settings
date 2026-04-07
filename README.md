@@ -55,7 +55,7 @@ bash /tmp/darkroom-claude/setup.sh
 ├── AGENTS.md           # Portable coding standards (reference copy)
 ├── settings.json       # Permissions, hooks, MCP servers
 ├── agents/             # 10 specialized agents
-├── skills/             # 33 auto-invocable skills
+├── skills/             # 43 auto-invocable skills
 ├── profiles/           # Workflow profiles (maestro, nextjs, etc.)
 ├── rules/              # Path-conditioned rules (load on-demand)
 ├── contexts/           # Ecosystem contexts
@@ -130,7 +130,7 @@ See [docs/knowledge-system.md](./docs/knowledge-system.md) for setup.
 | [docs/knowledge-system.md](./docs/knowledge-system.md) | Two-tier knowledge setup |
 | [skills/README.md](./skills/README.md) | Skill system |
 | [hooks/README.md](./hooks/README.md) | Hook configuration |
-| [docs/hooks-reference.md](./docs/hooks-reference.md) | All 14 hook events |
+| [docs/hooks-reference.md](./docs/hooks-reference.md) | All 26 hook events |
 | [docs/settings-reference.md](./docs/settings-reference.md) | settings.json fields |
 | [docs/frontmatter-reference.md](./docs/frontmatter-reference.md) | YAML frontmatter fields for agents, skills, rules |
 | [docs/feature-agents-guide.md](./docs/feature-agents-guide.md) | Creating project-specific feature agents |

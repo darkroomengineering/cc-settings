@@ -149,11 +149,11 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 ## Hook Events
 
-28 events across 8 categories:
+26 events across 8 categories:
 
 **Session:** `SessionStart`, `SessionEnd`, `Setup`
 **User:** `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`
-**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied`
+**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`
 **Agent:** `SubagentStart`, `SubagentStop`, `TeammateIdle`, `TaskCompleted`, `TaskCreated`
 **Context:** `PreCompact`, `PostCompact`, `InstructionsLoaded`, `ConfigChange`
 **Environment:** `CwdChanged`, `FileChanged`
