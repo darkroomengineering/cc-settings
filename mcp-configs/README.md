@@ -162,7 +162,7 @@ For client projects that need additional MCP servers (databases, hosting, comms 
 
 1. Check `~/.claude.json` syntax (valid JSON)
 2. Restart Claude Code
-3. Verify package exists: `npx -y package-name --help`
+3. Verify package exists: `bunx -y package-name --help`
 
 ### Authentication Errors
 

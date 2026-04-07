@@ -129,6 +129,16 @@ When given a bug report, fix it immediately. No "should I?" questions. If someth
 
 Always check latest version before installing: `bun info <package>`
 
+### Package Manager: Bun Only
+Darkroom projects are **bun-first**. Never mix package managers within a session.
+
+- Install: `bun add <pkg>` (never `npm install` / `pnpm add` / `yarn add`)
+- Run scripts: `bun run <script>` (never `npm run`)
+- Execute binaries: `bunx <bin>` (never `npx`)
+- Type-check: `bunx tsc --noEmit` (never `npx tsc`)
+
+**Exception:** `npx expo ...` is the official Expo invocation and is allowed in React Native projects only. Everywhere else, default to `bunx`. If you started a session with `bun`, do not silently switch to `npx` mid-task — it creates lockfile drift and confuses users.
+
 ---
 
 ## Project Structure

@@ -6,7 +6,7 @@ Behavioral guideline for verifying work before claiming completion. Ensures no a
 
 | Level | Check | Command | When Required |
 |-------|-------|---------|---------------|
-| 1 | **Compile** | `npx tsc --noEmit` | Always (TypeScript projects) |
+| 1 | **Compile** | `bunx tsc --noEmit` | Always (TypeScript projects) |
 | 2 | **Lint** | `bunx biome check [files]` | Always |
 | 3 | **Test** | `bun test --filter="[pattern]"` | When tests exist for modified code |
 | 4 | **UI Screenshot** | `pinchtab screenshot` | After visual component changes |

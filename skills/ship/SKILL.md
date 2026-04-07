@@ -24,7 +24,7 @@ You are in **Maestro orchestration mode**. Execute the shipping checklist in ord
 
 ### Step 1: Type Check
 ```bash
-npx tsc --noEmit
+bunx tsc --noEmit
 ```
 If errors: fix them. Do not proceed until clean.
 
