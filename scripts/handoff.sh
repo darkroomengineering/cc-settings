@@ -9,6 +9,13 @@
 
 set -euo pipefail
 
+# Source shared platform utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${SCRIPT_DIR}/../lib"
+if [[ -f "${LIB_DIR}/platform.sh" ]]; then
+    source "${LIB_DIR}/platform.sh"
+fi
+
 HANDOFF_DIR="${HOME}/.claude/handoffs"
 
 # Ensure handoff directory exists
@@ -42,7 +49,7 @@ cmd_create() {
     local LATEST_HANDOFF="${HANDOFF_DIR}/latest.json"
     if [ -f "$LATEST_HANDOFF" ]; then
         local now=$(date +%s)
-        local last_mod=$(stat -f%m "$LATEST_HANDOFF" 2>/dev/null || stat -c%Y "$LATEST_HANDOFF" 2>/dev/null || echo 0)
+        local last_mod=$(get_file_mtime "$LATEST_HANDOFF")
         local age=$((now - last_mod))
         if [ "$age" -lt 5 ]; then
             echo ""
@@ -238,7 +245,7 @@ cmd_list() {
     for file in "$HANDOFF_DIR"/handoff_*.md; do
         if [ -f "$file" ]; then
             local id=$(basename "$file" .md | sed 's/handoff_//')
-            local created=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$file" 2>/dev/null || stat -c "%y" "$file" 2>/dev/null | cut -d. -f1)
+            local created=$(get_file_mtime_human "$file")
 
             # Extract project name from the file
             local project=$(grep -m1 "^\- \*\*Name:\*\*" "$file" 2>/dev/null | sed 's/.*\*\*Name:\*\* //' || echo "unknown")

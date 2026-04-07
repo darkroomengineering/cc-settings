@@ -26,13 +26,11 @@ case "$TOOL_NAME" in
         ;;
 esac
 
-if command -v jq &>/dev/null; then
-    CURRENT_CALLS=$(jq -r '.calls // 0' "$STATS_FILE" 2>/dev/null)
-    CURRENT_SAVED=$(jq -r '.tokens_saved // 0' "$STATS_FILE" 2>/dev/null)
-else
-    CURRENT_CALLS=$(grep -o '"calls":[0-9]*' "$STATS_FILE" 2>/dev/null | grep -o '[0-9]*')
-    CURRENT_SAVED=$(grep -o '"tokens_saved":[0-9]*' "$STATS_FILE" 2>/dev/null | grep -o '[0-9]*')
-fi
+# Extract a numeric JSON value with jq fallback to grep
+json_num() { jq -r ".$1 // 0" "$2" 2>/dev/null || grep -o "\"$1\":[0-9]*" "$2" 2>/dev/null | grep -o '[0-9]*'; }
+
+CURRENT_CALLS=$(json_num calls "$STATS_FILE")
+CURRENT_SAVED=$(json_num tokens_saved "$STATS_FILE")
 
 CURRENT_CALLS=${CURRENT_CALLS:-0}
 CURRENT_SAVED=${CURRENT_SAVED:-0}

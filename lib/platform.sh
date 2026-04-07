@@ -40,6 +40,24 @@ get_timestamp() {
     date +%Y%m%d%H%M%S
 }
 
+# Get file modification time (Unix epoch) - cross-platform
+# Usage: get_file_mtime <file>
+get_file_mtime() {
+    stat -f%m "$1" 2>/dev/null || stat -c%Y "$1" 2>/dev/null || echo 0
+}
+
+# Get file size in bytes - cross-platform
+# Usage: get_file_size <file>
+get_file_size() {
+    stat -f%z "$1" 2>/dev/null || stat -c%s "$1" 2>/dev/null || echo 0
+}
+
+# Get file modification time in human-readable format - cross-platform
+# Usage: get_file_mtime_human <file>
+get_file_mtime_human() {
+    stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$1" 2>/dev/null || stat -c "%y" "$1" 2>/dev/null | cut -d. -f1
+}
+
 # Platform-specific command check
 has_command() {
     command -v "$1" &>/dev/null

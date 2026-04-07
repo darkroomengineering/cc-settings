@@ -10,6 +10,11 @@ CLAUDE_DIR="${HOME}/.claude"
 PROJECT_DIR="$(pwd)"
 PROJECT_NAME=$(basename "$PROJECT_DIR")
 
+# Source shared platform utilities
+if [[ -f "${CLAUDE_DIR}/lib/platform.sh" ]]; then
+    source "${CLAUDE_DIR}/lib/platform.sh"
+fi
+
 # ============================================
 # Parallel helper functions
 # ============================================
@@ -22,7 +27,7 @@ rotate_log() {
 
     if [[ -f "$log" ]]; then
         local size
-        size=$(stat -f%z "$log" 2>/dev/null || stat -c%s "$log" 2>/dev/null || echo 0)
+        size=$(get_file_size "$log")
         if [[ "$size" -gt "$max_size" ]]; then
             mv "$log" "${log}.old"
         fi
@@ -71,7 +76,7 @@ auto_warm_tldr() {
 
     # Check if we've tried warming recently (within last hour) to avoid repeated attempts
     if [[ -f "$tldr_cache" ]]; then
-        local cache_age=$(($(date +%s) - $(stat -f%m "$tldr_cache" 2>/dev/null || stat -c%Y "$tldr_cache" 2>/dev/null || echo 0)))
+        local cache_age=$(($(date +%s) - $(get_file_mtime "$tldr_cache")))
         if [[ "$cache_age" -lt 3600 ]]; then
             return 0
         fi

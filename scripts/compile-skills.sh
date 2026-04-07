@@ -13,17 +13,12 @@ COMPILED_CHECKSUM="${CLAUDE_DIR}/skill-index.checksum"
 # Source shared library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${SCRIPT_DIR}/../lib"
-if [[ -f "${LIB_DIR}/colors.sh" ]]; then
-    source "${LIB_DIR}/colors.sh"
-    log_info() { info "$1"; }
-    log_warn() { warn "$1"; }
-    log_error() { error "$1"; }
-else
-    # Fallback if lib not available
-    log_info() { echo "[INFO] $1"; }
-    log_warn() { echo "[WARN] $1"; }
-    log_error() { echo "[ERROR] $1"; }
-fi
+[[ -f "${LIB_DIR}/colors.sh" ]] && source "${LIB_DIR}/colors.sh"
+
+# Logging helpers — use colors.sh functions if available, plain echo otherwise
+log_info() { if type info &>/dev/null; then info "$1"; else echo "[INFO] $1"; fi; }
+log_warn() { if type warn &>/dev/null; then warn "$1"; else echo "[WARN] $1"; fi; }
+log_error() { if type error &>/dev/null; then error "$1"; else echo "[ERROR] $1"; fi; }
 
 # Source shared skill patterns
 if [[ -f "${LIB_DIR}/skill-patterns.sh" ]]; then

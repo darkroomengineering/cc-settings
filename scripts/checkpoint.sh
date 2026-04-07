@@ -4,7 +4,7 @@ set -euo pipefail
 # Checkpoint system for long-running Claude Code tasks
 # Usage: checkpoint.sh <save|list|show|restore|clean> [args]
 
-# Source shared color library (installed to ~/.claude/lib/ by setup.sh)
+# Source shared libraries (installed to ~/.claude/lib/ by setup.sh)
 LIB_DIR="${HOME}/.claude/lib"
 if [[ -f "${LIB_DIR}/colors.sh" ]]; then
     source "${LIB_DIR}/colors.sh"
@@ -16,6 +16,9 @@ else
     BLUE='\033[0;34m'
     CYAN='\033[0;36m'
     RESET='\033[0m'
+fi
+if [[ -f "${LIB_DIR}/platform.sh" ]]; then
+    source "${LIB_DIR}/platform.sh"
 fi
 
 # Determine project name from git or directory
@@ -183,7 +186,7 @@ cmd_clean() {
     | while IFS= read -r fp; do
         # macOS stat: -f '%m', Linux stat: -c '%Y'
         local ts
-        ts=$(stat -f '%m' "$fp" 2>/dev/null || stat -c '%Y' "$fp" 2>/dev/null || echo "0")
+        ts=$(get_file_mtime "$fp")
         echo "$ts $fp"
       done | sort -rn | cut -d' ' -f2-)
 

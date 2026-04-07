@@ -41,22 +41,23 @@ get_hook_config() {
     # Convert dot-notation to jq path (e.g., "audio.enabled" -> ".audio.enabled")
     local jq_path=".${key_path}"
 
+    # Single jq call per file: extract value if present, output nothing if null
+    local value
+
     # Try local config first (personal overrides)
     if [[ -f "$HOOK_CONFIG_LOCAL" ]]; then
-        local local_type
-        local_type=$(jq -r "$jq_path | type" "$HOOK_CONFIG_LOCAL" 2>/dev/null)
-        if [[ "$local_type" != "null" ]] && [[ -n "$local_type" ]]; then
-            jq -r "if ($jq_path | type) == \"null\" then empty else ($jq_path | tostring) end" "$HOOK_CONFIG_LOCAL" 2>/dev/null
+        value=$(jq -r "if ($jq_path | type) == \"null\" then empty else ($jq_path | tostring) end" "$HOOK_CONFIG_LOCAL" 2>/dev/null)
+        if [[ -n "$value" ]]; then
+            echo "$value"
             return 0
         fi
     fi
 
     # Fall back to team config
     if [[ -f "$HOOK_CONFIG_TEAM" ]]; then
-        local team_type
-        team_type=$(jq -r "$jq_path | type" "$HOOK_CONFIG_TEAM" 2>/dev/null)
-        if [[ "$team_type" != "null" ]] && [[ -n "$team_type" ]]; then
-            jq -r "if ($jq_path | type) == \"null\" then empty else ($jq_path | tostring) end" "$HOOK_CONFIG_TEAM" 2>/dev/null
+        value=$(jq -r "if ($jq_path | type) == \"null\" then empty else ($jq_path | tostring) end" "$HOOK_CONFIG_TEAM" 2>/dev/null)
+        if [[ -n "$value" ]]; then
+            echo "$value"
             return 0
         fi
     fi
