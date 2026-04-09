@@ -4,7 +4,7 @@
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
 		"CLAUDE_CODE_NO_FLICKER": "1"
 	},
-	"model": "opus",
+	"model": "opus[1m]",
 	"showThinkingSummaries": true,
 	"teammateMode": "auto",
 	"includeGitInstructions": false,

@@ -74,7 +74,9 @@ Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical w
 Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` for complex implementations.
 
 ### Context Window
-- **1M tokens** for both Opus and Sonnet on Max plans — subagents get full 1M regardless of model
+- **1M tokens** via `opus[1m]` / `sonnet[1m]` model aliases (configured in settings.json). Without the `[1m]` suffix, default is 200K.
+- On Max/Team/Enterprise: Opus 1M is included. Sonnet 1M requires extra usage.
+- Subagents inherit the 1M context from the parent model setting.
 - Skill character budget: auto-scales to 2% of context window (~80K chars at 1M)
 - **Manual `/compact` at 70% context utilization** — auto-compaction triggers at 95% but don't let it get that far
 - **Break subtasks to complete within 50% context** — prevents context rot mid-task
