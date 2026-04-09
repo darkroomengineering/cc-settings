@@ -146,7 +146,7 @@ Say: *"how's my context?"* or *"context usage"*
 Triggers `/context`. Watch the statusline:
 
 ```
-Opus 4.6 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/200K)
+Opus 4.6 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |

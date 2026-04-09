@@ -1,7 +1,7 @@
 ---
 name: create-handoff
 description: |
-  Save session state for later resumption. Use when:
+  Use when:
   - User says "done for today", "ending session", "save state"
   - Context is getting full (80%+)
   - User is taking a break

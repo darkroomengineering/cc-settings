@@ -1,7 +1,7 @@
 ---
 name: context
 description: |
-  Context window management. Use when:
+  Use when:
   - User asks about "context window", "context usage", "context limit"
   - User mentions "running out of context", "context full"
   - User wants to "compact", "clear context", "optimize context"
@@ -17,7 +17,7 @@ Monitor and manage Claude Code context window usage.
 The statusline shows live context usage:
 
 ```
-Opus 4.6 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/200K)
+Opus 4.6 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |

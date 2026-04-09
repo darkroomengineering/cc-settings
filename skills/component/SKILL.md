@@ -1,7 +1,7 @@
 ---
 name: component
 description: |
-  Create React components following Darkroom standards. Use when:
+  Use when:
   - User says "create component", "new component", "add component"
   - User wants to build a UI element, widget, or reusable piece
   - User mentions a component name like "Button", "Header", "Card"

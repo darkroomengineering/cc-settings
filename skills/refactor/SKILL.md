@@ -1,7 +1,7 @@
 ---
 name: refactor
 description: |
-  Code refactoring workflow. Use when:
+  Use when:
   - User says "refactor", "clean up", "reorganize", "restructure"
   - Code needs improvement without changing behavior
   - User wants to improve code quality, readability, or performance

@@ -1,7 +1,7 @@
 ---
 name: review
 description: |
-  Code review for quality, security, and best practices. Use when:
+  Use when:
   - User asks to "review", "check", "look at" code
   - Before merging, committing, or shipping
   - User mentions PR, pull request, changes, diff

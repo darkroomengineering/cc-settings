@@ -1,7 +1,7 @@
 ---
 name: consolidate
 description: |
-  Clean up and consolidate rules, skills, and learnings. Use when:
+  Use when:
   - User says "consolidate", "clean up rules", "simplify config"
   - User mentions "contradictions", "too many rules", "bloated"
   - User says "spa day", "maintenance", "spring cleaning"

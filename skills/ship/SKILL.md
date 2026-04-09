@@ -1,7 +1,7 @@
 ---
 name: ship
 description: |
-  Shipping pipeline: build, verify, and create PR. Use when:
+  Use when:
   - User says "ship it", "create PR", "open PR", "ready to merge"
   - User says "/pr", "/ship", "push and PR"
   - After implementation is complete and needs to be shipped

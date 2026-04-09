@@ -1,7 +1,7 @@
 ---
 name: l-thread
 description: |
-  Long-duration autonomous task with checkpoints and verification. Use when:
+  Use when:
   - User says "overnight", "long running", "autonomous task"
   - User mentions "l-thread", "extended task"
   - Task will consume significant context window

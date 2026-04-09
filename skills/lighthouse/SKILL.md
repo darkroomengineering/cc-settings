@@ -1,8 +1,7 @@
 ---
 name: lighthouse
 description: |
-  Lighthouse performance optimization loop with visual regression protection.
-  Runs audits, improves scores, and verifies UI isn't broken. Use when:
+  Use when:
   - User says "lighthouse", "performance audit", "page speed"
   - User wants to "improve scores", "optimize performance", "fix web vitals"
   - User mentions "LCP", "CLS", "INP", "core web vitals"

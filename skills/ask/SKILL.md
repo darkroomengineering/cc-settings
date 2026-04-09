@@ -1,7 +1,7 @@
 ---
 name: ask
 description: |
-  Expert guidance and advice from Oracle. Use when:
+  Use when:
   - User has a question about best practices
   - User needs architectural guidance
   - User asks "what should I", "how should I", "advice on"

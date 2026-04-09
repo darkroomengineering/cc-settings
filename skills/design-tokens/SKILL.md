@@ -1,7 +1,7 @@
 ---
 name: design-tokens
 description: |
-  Design token generation and management. Use when:
+  Use when:
   - User asks for "design tokens", "type scale", "color palette", "spacing system"
   - Setting up a new project's design system or theme
   - User needs WCAG-compliant color combinations

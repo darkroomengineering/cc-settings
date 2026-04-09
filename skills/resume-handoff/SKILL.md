@@ -1,7 +1,7 @@
 ---
 name: resume-handoff
 description: |
-  Resume from a previous session handoff. Use when:
+  Use when:
   - User says "resume", "continue where we left off", "pick up where"
   - Starting a new session after a break
   - User mentions "last session", "previous work"

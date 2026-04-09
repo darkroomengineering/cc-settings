@@ -1,7 +1,7 @@
 ---
 name: premortem
 description: |
-  Analyze what could go wrong with a plan. Use when:
+  Use when:
   - User asks "what could go wrong", "risks", "potential issues"
   - Before implementing a significant change
   - User wants to validate an approach

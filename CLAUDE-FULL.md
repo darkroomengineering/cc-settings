@@ -51,8 +51,8 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Adaptive reasoning depth based on complexity
 - Fast mode: same model, faster output (`/fast`)
 - Effort levels: `low`, `medium`, `high` — set per-session with `/effort`, per-agent via `effort` frontmatter
-- Default effort: `medium` (Claude Code default — use `high` selectively via "ultrathink" or `/effort high`)
-- For hard multi-file debugging on Opus, escalate to `/effort max`. The `medium` default biases toward edit-first; raise effort to restore research-first behavior.
+- Default effort: `high` (since v2.1.94 for API/Team/Enterprise users). Use `low` for trivial lookups, `medium` for routine edits.
+- For hard multi-file debugging, "ultrathink" keyword triggers maximum reasoning depth for the next turn.
 
 ### Model Routing (Opus + Sonnet)
 
@@ -74,8 +74,8 @@ Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical w
 Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` for complex implementations.
 
 ### Context Window
-- Default: 1M tokens (Max/Team/Enterprise). Opt out with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
-- Skill character budget: auto-scales to 2% of context window (~80K chars at 1M)
+- 200K tokens (Pro), 1M tokens (Max/Team/Enterprise). Opt out of 1M with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
+- Skill character budget: auto-scales to 2% of context window (~80K chars at 1M, ~4K chars at 200K)
 - **Manual `/compact` at 70% context utilization** — auto-compaction triggers at 95% but don't let it get that far
 - **Break subtasks to complete within 50% context** — prevents context rot mid-task
 - **After compaction**: re-read task plan + active files before continuing (see AGENTS.md "Post-Compaction Recovery")

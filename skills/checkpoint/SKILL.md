@@ -1,7 +1,7 @@
 ---
 name: checkpoint
 description: |
-  Save and restore task state for long-running operations. Use when:
+  Use when:
   - User says "checkpoint", "save state", "save progress"
   - User says "restore checkpoint", "list checkpoints"
   - Context window is running low and state needs persisting

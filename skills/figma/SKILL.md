@@ -1,7 +1,7 @@
 ---
 name: figma
 description: |
-  Figma desktop integration via pinchtab + Figma MCP. Use when:
+  Use when:
   - User says "compare to design", "design fidelity", "match the figma"
   - User asks to "extract tokens from figma", "inspect in figma"
   - User wants to screenshot a Figma frame for comparison

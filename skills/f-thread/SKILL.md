@@ -1,7 +1,7 @@
 ---
 name: f-thread
 description: |
-  Fusion/Comparison Thread for architecture decisions. Use when:
+  Use when:
   - User says "compare approaches", "which is better"
   - User asks to "evaluate options", "architecture decision"
   - User needs "technology selection", "trade-off analysis"

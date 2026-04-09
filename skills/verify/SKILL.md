@@ -1,7 +1,7 @@
 ---
 name: verify
 description: |
-  Adversarial multi-agent verification for high-stakes code. Use when:
+  Use when:
   - User says "verify", "double check", "are you sure", "prove it"
   - User asks to "stress test", "find holes", "poke holes"
   - User mentions "adversarial review", "devil's advocate"
@@ -134,6 +134,32 @@ Agent(reviewer, "Challenge each issue: [paste output]. Disprove what you can.")
 ```
 
 Review surviving issues yourself.
+
+## Rationalization Counters
+
+If you catch yourself thinking any of the following, STOP — you are rationalizing skipping verification:
+
+| Rationalization | Why It's Wrong |
+|---|---|
+| "The change is too simple to need three agents" | Simple changes to auth/payments have caused the worst production incidents |
+| "I already reviewed it myself" | Self-review has a known blind spot for logic errors you just wrote |
+| "It's just a refactor, behavior doesn't change" | Refactors that "don't change behavior" are the #1 source of subtle regressions |
+| "Tests are passing, that's enough" | Tests verify expected behavior; adversarial review finds unexpected behavior |
+| "This would take too long" | A 5-minute verification is cheaper than a production incident |
+| "The reviewer agent already checked it" | The reviewer checks quality; verification checks correctness under adversarial pressure |
+
+## Red-Flag Phrases
+
+If any agent (including yourself) uses these phrases, verification is NOT complete — restart the verification step:
+
+- "should work" / "should be fine"
+- "probably" / "likely" / "most likely"
+- "I believe" / "I think" (without evidence)
+- "Done!" / "All good!" / "Looks great!"
+- "I don't see any issues"
+- "This is straightforward"
+
+Each of these must be replaced with evidence: a specific test, a concrete trace through the code, or a cited invariant.
 
 ## Remember
 

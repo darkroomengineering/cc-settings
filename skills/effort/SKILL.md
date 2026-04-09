@@ -1,8 +1,8 @@
 ---
 name: effort
 description: |
-  Dynamic effort level management. Use when:
-  - User mentions "think harder", "be thorough", "quick fix", "max effort"
+  Use when:
+  - User mentions "think harder", "be thorough", "quick fix"
   - Task complexity changes mid-session
   - Need to optimize for speed vs depth
   - User says "slow down", "speed up", "think more"

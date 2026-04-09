@@ -1,7 +1,7 @@
 ---
 name: debug
 description: |
-  Browser debugging with pinchtab CLI. Use when:
+  Use when:
   - User mentions "screenshot", "visual bug", "inspect element"
   - User asks "what does it look like", "see the page"
   - Need to debug browser rendering, layout, or visual issues

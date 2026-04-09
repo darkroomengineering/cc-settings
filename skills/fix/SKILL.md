@@ -1,7 +1,7 @@
 ---
 name: fix
 description: |
-  Bug investigation and resolution workflow. Use when the user mentions:
+  Use when the user mentions:
   - "fix", "broken", "not working", "bug", "error", "issue", "failing"
   - debugging, troubleshooting, investigating problems
   - something that used to work but doesn't anymore

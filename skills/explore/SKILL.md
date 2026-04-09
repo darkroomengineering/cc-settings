@@ -1,7 +1,7 @@
 ---
 name: explore
 description: |
-  Codebase exploration and understanding. Use when the user asks:
+  Use when the user asks:
   - "how does X work?", "where is X?", "find X", "understand X"
   - "what files handle X?", "show me the X implementation"
   - "navigate to X", "explore the codebase"

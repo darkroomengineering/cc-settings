@@ -1,7 +1,7 @@
 ---
 name: build
 description: |
-  Feature implementation workflow. Use when the user wants to:
+  Use when the user wants to:
   - "build a", "create a", "implement", "add feature"
   - build a new page, component, feature, integration
   - create something from scratch
@@ -48,6 +48,19 @@ Return a concise summary:
 - **Files modified**: List of changed files
 - **How to use**: Quick usage guide
 - **Tests added**: What's covered
+
+## Rationalization Counters
+
+If you catch yourself thinking any of the following, STOP — you are skipping the research gate:
+
+| Rationalization | Why It's Wrong |
+|---|---|
+| "I already know how to do this" | The codebase may have existing patterns, wrappers, or conventions you'd miss |
+| "The requirements are obvious" | Obvious requirements have hidden edge cases; the GO/NO-GO gate catches them |
+| "Research would take too long" | Building the wrong thing takes longer than 5 minutes of research |
+| "I'll figure it out as I go" | This leads to mid-implementation pivots that waste context and leave dead code |
+| "It's just a small feature" | Small features in the wrong place create architectural debt |
+| "The user seems impatient" | Shipping broken code is worse than a brief research pause |
 
 ## Remember
 

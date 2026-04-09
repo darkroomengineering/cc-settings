@@ -1,7 +1,7 @@
 ---
 name: prd
 description: |
-  Product Requirements Document generation. Use when:
+  Use when:
   - User says "PRD", "requirements document", "product spec"
   - User asks for "feature spec", "write requirements"
   - User wants to plan a feature end-to-end before implementation

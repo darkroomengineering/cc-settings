@@ -1,7 +1,7 @@
 ---
 name: discovery
 description: |
-  Discovery interview to understand requirements. Use when:
+  Use when:
   - User says "help me figure out", "what do I need", "define requirements"
   - Scope is unclear or ambiguous
   - Starting a new feature with vague requirements

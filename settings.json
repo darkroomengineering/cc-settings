@@ -1,6 +1,6 @@
 {
 	"env": {
-		"CLAUDE_CODE_EFFORT_LEVEL": "medium",
+		"CLAUDE_CODE_EFFORT_LEVEL": "high",
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
 		"CLAUDE_CODE_NO_FLICKER": "1"
 	},
@@ -43,7 +43,8 @@
 	},
 	"statusLine": {
 		"type": "command",
-		"command": "bash \"$HOME/.claude/scripts/statusline.sh\""
+		"command": "bash \"$HOME/.claude/scripts/statusline.sh\"",
+		"refreshInterval": 30
 	},
 	"mcpServers": {
 		"context7": {

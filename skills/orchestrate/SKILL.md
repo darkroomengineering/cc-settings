@@ -1,7 +1,7 @@
 ---
 name: orchestrate
 description: |
-  Multi-agent task orchestration for complex features. Use when:
+  Use when:
   - User has a complex, multi-step task
   - Task requires multiple agents working together
   - User says "coordinate", "orchestrate", "complex task"

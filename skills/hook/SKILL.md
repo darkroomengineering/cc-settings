@@ -1,7 +1,7 @@
 ---
 name: hook
 description: |
-  Create custom React hooks following Darkroom standards. Use when:
+  Use when:
   - User says "create hook", "new hook", "custom hook"
   - User wants to extract logic into a reusable hook
   - User mentions "use" prefix like "useAuth", "useScroll"

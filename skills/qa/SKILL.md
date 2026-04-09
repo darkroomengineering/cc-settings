@@ -1,7 +1,7 @@
 ---
 name: qa
 description: |
-  Visual QA validation with pinchtab. Use when:
+  Use when:
   - User asks to "validate", "check visually", "QA check"
   - After creating or modifying components
   - Before PR submission
