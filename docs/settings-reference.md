@@ -38,7 +38,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context |
-| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window (Max/Team/Enterprise only) |
+| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window (Max plan default — rarely needed) |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
@@ -57,10 +57,9 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `opus` | Claude Opus 4.6 | Default. Full capability, adaptive thinking |
-| `sonnet` | Claude Sonnet | Faster, lower cost |
-| `haiku` | Claude Haiku | Fastest, lowest cost |
-| `opus[1m]` | Claude Opus 4.6 (1M context) | 1M context variant. Default for Max/Team/Enterprise — only needed for explicit opt-in on other plans |
+| `opus` | Claude Opus 4.6 | Default. Full capability, adaptive thinking. 1M context on Max |
+| `sonnet` | Claude Sonnet 4.6 | Faster, lower cost. 1M context on Max |
+| `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 
 ### `teammateMode`
 

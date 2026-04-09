@@ -56,7 +56,7 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 
 ### Model Routing (Opus + Sonnet)
 
-Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical work to reduce rate limit pressure.
+Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical work to conserve Opus quota. Both get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
@@ -74,8 +74,8 @@ Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical w
 Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` for complex implementations.
 
 ### Context Window
-- 200K tokens (Pro), 1M tokens (Max/Team/Enterprise). Opt out of 1M with `CLAUDE_CODE_DISABLE_1M_CONTEXT`
-- Skill character budget: auto-scales to 2% of context window (~80K chars at 1M, ~4K chars at 200K)
+- **1M tokens** for both Opus and Sonnet on Max plans — subagents get full 1M regardless of model
+- Skill character budget: auto-scales to 2% of context window (~80K chars at 1M)
 - **Manual `/compact` at 70% context utilization** — auto-compaction triggers at 95% but don't let it get that far
 - **Break subtasks to complete within 50% context** — prevents context rot mid-task
 - **After compaction**: re-read task plan + active files before continuing (see AGENTS.md "Post-Compaction Recovery")
