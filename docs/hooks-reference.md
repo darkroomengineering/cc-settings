@@ -12,7 +12,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
-## Hook Events (26 total)
+## Hook Events (27 total)
 
 ### Session Lifecycle
 
@@ -39,6 +39,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 | `PostToolUse` | After a tool executes successfully | Tool name | Optional (supports async) |
 | `PostToolUseFailure` | After a tool execution fails | Tool name | Optional |
 | `PermissionRequest` | When a tool needs user permission | Tool name | Yes |
+| `PermissionDenied` | After auto mode classifier denies a tool | Tool name | No |
 
 ### Agent Lifecycle
 
@@ -111,6 +112,8 @@ Available in all hooks:
 | `SubagentStop` | `$AGENT_ID` | Unique identifier for the subagent |
 | `SubagentStop` | `$AGENT_TYPE` | Agent type (e.g., `explore`, `planner`) |
 | `Notification` | `$NOTIFICATION_MESSAGE` | The notification text |
+| `PermissionDenied` | `$TOOL_NAME` | Name of the tool that was denied |
+| `PermissionDenied` | `$PERMISSION_DECISION_REASON` | Reason for the denial |
 
 ### Flattened Tool Input Variables
 
@@ -376,6 +379,12 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `tldr-stats.sh` + `handoff.sh create` | Prints TLDR session stats and saves final handoff state | Yes |
+
+### PermissionDenied
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| Log + `permission-denied.sh` + `notify-sound.sh safety_block` | Logs denial to swarm.log, handles denied permissions, plays alert sound | Yes |
 
 ---
 

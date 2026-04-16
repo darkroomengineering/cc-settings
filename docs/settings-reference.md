@@ -57,8 +57,8 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `opus` | Claude Opus 4.6 | Default. Full capability, adaptive thinking. 1M context on Max |
-| `sonnet` | Claude Sonnet 4.6 | Faster, lower cost. 1M context on Max |
+| `opus` | Claude Opus 4.7 | Default. Full capability, adaptive thinking. 1M context on Max |
+| `sonnet` | Claude Sonnet 4.7 | Faster, lower cost. 1M context on Max |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 
 ### `teammateMode`

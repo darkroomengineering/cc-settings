@@ -219,7 +219,7 @@ See `docs/knowledge-system.md` for GitHub Projects setup.
 Watch the statusline for context usage:
 
 ```
-Opus 4.6 | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/1.0M)
+Opus 4.7 | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |

@@ -257,7 +257,7 @@ printf "\n"
 
 section "--- AI attribution stealth checks (expect BLOCK) ---"
 
-STEALTH_COMMIT_1=$(printf 'git commit -m "feat: add login form\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"')
+STEALTH_COMMIT_1=$(printf 'git commit -m "feat: add login form\n\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"')
 expect_block "git commit with Co-Authored-By Claude (stealth)" \
     "$STEALTH_COMMIT_1"
 

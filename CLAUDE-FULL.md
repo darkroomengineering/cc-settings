@@ -47,12 +47,16 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 
 ## Model & Context
 
-### Opus 4.6 (Default)
+### Opus 4.7 (Default)
 - Adaptive reasoning depth based on complexity
 - Fast mode: same model, faster output (`/fast`)
 - Effort levels: `low`, `medium`, `high` — set per-session with `/effort`, per-agent via `effort` frontmatter
 - Default effort: `high` (since v2.1.94 for API/Team/Enterprise users). Use `low` for trivial lookups, `medium` for routine edits.
 - For hard multi-file debugging, "ultrathink" keyword triggers maximum reasoning depth for the next turn.
+- Output token limits: 64K default, 128K upper bound.
+- `/tui fullscreen` — flicker-free fullscreen rendering (pairs with `CLAUDE_CODE_NO_FLICKER=1`).
+- `/focus` — toggle between normal and verbose transcript view.
+- `/recap` — session recap; auto-triggers when returning to sessions, configurable via `/config`.
 
 ### Model Routing (Opus + Sonnet)
 
@@ -140,6 +144,8 @@ Context ordering affects KV-cache hit rates. For maximum prefix cache reuse:
 
 Placing dynamic content (timestamps, user-specific data) early in context invalidates the cache prefix for everything after it. This ordering is mostly handled by Claude Code automatically, but be aware when constructing custom prompts or skill content.
 
+Set `ENABLE_PROMPT_CACHING_1H=1` for 1-hour prompt cache TTL (default is 5 minutes). Available on API key, Bedrock, Vertex, and Foundry. Use `FORCE_PROMPT_CACHING_5M=1` to override back to 5-minute default.
+
 ---
 
 ## MCP Tool Deferral
@@ -151,11 +157,11 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 ## Hook Events
 
-26 events across 8 categories:
+27 events across 8 categories:
 
 **Session:** `SessionStart`, `SessionEnd`, `Setup`
 **User:** `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`
-**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`
+**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied`
 **Agent:** `SubagentStart`, `SubagentStop`, `TeammateIdle`, `TaskCompleted`, `TaskCreated`
 **Context:** `PreCompact`, `PostCompact`, `InstructionsLoaded`, `ConfigChange`
 **Environment:** `CwdChanged`, `FileChanged`
