@@ -99,8 +99,8 @@ Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` 
 - On Max/Team/Enterprise: Opus 1M is included. Sonnet 1M requires extra usage.
 - Subagents inherit the 1M context from the parent model setting.
 - Skill character budget: auto-scales to 2% of context window (~80K chars at 1M)
-- **Manual `/compact` at 70% context utilization** — auto-compaction triggers at 95% but don't let it get that far
-- **Break subtasks to complete within 50% context** — prevents context rot mid-task
+- **Manual `/compact` at 65% context utilization** — Opus 4.7's tokenizer uses ~1-1.35x more tokens per text vs 4.6, so 65% is the new safe threshold (was 70% on 4.6). Auto-compaction still triggers at 95% but don't let it get that far.
+- **Break subtasks to complete within 45% context** — conservative budget accounting for 4.7 tokenization. Prevents context rot mid-task.
 - **After compaction**: re-read task plan + active files before continuing (see AGENTS.md "Post-Compaction Recovery")
 
 ---

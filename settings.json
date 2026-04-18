@@ -149,8 +149,6 @@
 			"Bash(basename:*)",
 			"Bash(dirname:*)",
 			"Bash(realpath:*)",
-			"Bash(node -e:*)",
-			"Bash(node -p:*)",
 			"Bash(mkdir:*)",
 			"Bash(cp:*)",
 			"Bash(mv:*)",
@@ -276,7 +274,12 @@
 			"Bash(curl -X PUT:*)",
 			"Bash(curl * -X PUT:*)",
 			"Bash(awk * system\\(:*)",
-			"Bash(awk * system \\(:*)"
+			"Bash(awk * system \\(:*)",
+
+			"Bash(node -e:*)",
+			"Bash(node -p:*)",
+			"Bash(node --eval:*)",
+			"Bash(node --print:*)"
 		]
 	},
 	"hooks": {
