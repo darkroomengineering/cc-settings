@@ -21,7 +21,7 @@ Manage checkpoints for long-running tasks. Enables recovery from interruptions a
 Save current state with an optional label.
 
 ```bash
-~/.claude/scripts/checkpoint.sh save "Completed phase 3 migration"
+bun ~/.claude/src/scripts/checkpoint.ts save "Completed phase 3 migration"
 ```
 
 ### list
@@ -29,7 +29,7 @@ Save current state with an optional label.
 List all checkpoints for the current project.
 
 ```bash
-~/.claude/scripts/checkpoint.sh list
+bun ~/.claude/src/scripts/checkpoint.ts list
 ```
 
 ### show [checkpoint-id]
@@ -37,7 +37,7 @@ List all checkpoints for the current project.
 Show details of a specific checkpoint.
 
 ```bash
-~/.claude/scripts/checkpoint.sh show chk-20240115-103000
+bun ~/.claude/src/scripts/checkpoint.ts show chk-20240115-103000
 ```
 
 ### restore [checkpoint-id]
@@ -46,10 +46,10 @@ Restore from the latest checkpoint, or a specific one by ID.
 
 ```bash
 # Restore latest
-~/.claude/scripts/checkpoint.sh restore
+bun ~/.claude/src/scripts/checkpoint.ts restore
 
 # Restore specific
-~/.claude/scripts/checkpoint.sh restore chk-20240115-103000
+bun ~/.claude/src/scripts/checkpoint.ts restore chk-20240115-103000
 ```
 
 ### clean
@@ -57,7 +57,7 @@ Restore from the latest checkpoint, or a specific one by ID.
 Remove old checkpoints, keeping the last 10.
 
 ```bash
-~/.claude/scripts/checkpoint.sh clean
+bun ~/.claude/src/scripts/checkpoint.ts clean
 ```
 
 ## Examples

@@ -14,7 +14,7 @@ Load state from a previous session and continue work.
 ## Usage
 
 ```bash
-bash ~/.claude/scripts/handoff.sh resume
+bun ~/.claude/src/scripts/handoff.ts resume
 ```
 
 Or use:

@@ -22,7 +22,7 @@ Prevent context bloat and contradictions by periodically auditing, merging, and 
 ```bash
 echo "Rules:" && ls ~/.claude/rules/*.md 2>/dev/null | wc -l
 echo "Skills:" && ls -d ~/.claude/skills/*/SKILL.md 2>/dev/null | wc -l
-echo "Learnings:" && bash ~/.claude/scripts/learning.sh recall all 2>/dev/null | wc -l
+echo "Learnings:" && bun ~/.claude/src/scripts/learning.ts recall all 2>/dev/null | wc -l
 echo "CLAUDE.md lines:" && wc -l ~/.claude/CLAUDE.md 2>/dev/null
 echo "AGENTS.md lines:" && wc -l ~/.claude/AGENTS.md 2>/dev/null
 ```
@@ -56,7 +56,7 @@ Read all skill descriptions and flag:
 
 ### Learnings
 ```bash
-bash ~/.claude/scripts/learning.sh prune 90
+bun ~/.claude/src/scripts/learning.ts prune 90
 ```
 - Remove learnings about long-fixed bugs
 - Remove learnings about deprecated patterns

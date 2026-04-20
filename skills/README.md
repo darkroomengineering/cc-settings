@@ -186,5 +186,5 @@ The old `skill-rules.json` and `commands/*.md` formats have been replaced by `*/
 /darkroom:fix "the auth bug"
 
 # Check learnings
-bash ~/.claude/scripts/learning.sh recall all
+bun ~/.claude/src/scripts/learning.ts recall all
 ```

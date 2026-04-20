@@ -45,12 +45,12 @@ Store automatically when:
 
 ### Store locally (default)
 ```bash
-bash ~/.claude/scripts/learning.sh store "<category>" "<learning>" "[context]"
+bun ~/.claude/src/scripts/learning.ts store "<category>" "<learning>" "[context]"
 ```
 
 ### Store to shared team knowledge
 ```bash
-bash ~/.claude/scripts/learning.sh store --shared "<category>" "<learning>" "[context]"
+bun ~/.claude/src/scripts/learning.ts store --shared "<category>" "<learning>" "[context]"
 ```
 
 This creates an entry in the project's GitHub Project board, accessible to any team member's AI agent. Requires `gh` CLI authenticated and a configured project number.
@@ -60,25 +60,25 @@ This creates an entry in the project's GitHub Project board, accessible to any t
 **Examples:**
 ```bash
 # Local: personal learning
-bash ~/.claude/scripts/learning.sh store "bug" "useAuth hook causes hydration mismatch - wrap in dynamic import with ssr:false"
+bun ~/.claude/src/scripts/learning.ts store "bug" "useAuth hook causes hydration mismatch - wrap in dynamic import with ssr:false"
 
 # Shared: team-wide gotcha
-bash ~/.claude/scripts/learning.sh store --shared "gotcha" "Sanity API returns UTC dates - always convert to local before display"
+bun ~/.claude/src/scripts/learning.ts store --shared "gotcha" "Sanity API returns UTC dates - always convert to local before display"
 
 # Shared: architecture decision
-bash ~/.claude/scripts/learning.sh store --shared "arch" "Chose Lenis over native smooth-scroll for cross-browser consistency"
+bun ~/.claude/src/scripts/learning.ts store --shared "arch" "Chose Lenis over native smooth-scroll for cross-browser consistency"
 
 # Local: tool discovery
-bash ~/.claude/scripts/learning.sh store "tool" "Use 'bun --bun' flag to enable native Bun APIs in scripts"
+bun ~/.claude/src/scripts/learning.ts store "tool" "Use 'bun --bun' flag to enable native Bun APIs in scripts"
 ```
 
 ### Recall learnings
 ```bash
 # Local learnings
-bash ~/.claude/scripts/learning.sh recall [filter] [value]
+bun ~/.claude/src/scripts/learning.ts recall [filter] [value]
 
 # Shared team knowledge
-bash ~/.claude/scripts/learning.sh recall shared
+bun ~/.claude/src/scripts/learning.ts recall shared
 ```
 
 **Local filters:**
@@ -90,12 +90,12 @@ bash ~/.claude/scripts/learning.sh recall shared
 
 ### Delete a learning
 ```bash
-bash ~/.claude/scripts/learning.sh delete <id>
+bun ~/.claude/src/scripts/learning.ts delete <id>
 ```
 
 ### Prune stale learnings
 ```bash
-bash ~/.claude/scripts/learning.sh prune [days]
+bun ~/.claude/src/scripts/learning.ts prune [days]
 ```
 
 Surfaces learnings older than N days (default 90) for review. Stale learnings may reflect outdated patterns, deprecated APIs, or resolved issues. The command lists candidates — you confirm which to keep or delete.

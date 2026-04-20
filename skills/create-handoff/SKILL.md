@@ -16,7 +16,7 @@ Save current session state for later resumption.
 ## Usage
 
 ```bash
-bash ~/.claude/scripts/handoff.sh create
+bun ~/.claude/src/scripts/handoff.ts create
 ```
 
 Or use the native command:
