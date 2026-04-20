@@ -180,15 +180,7 @@ get_skill_patterns() {
             echo "find features"
             echo "what can you do"
             ;;
-        effort)
-            echo "think harder"
-            echo "be thorough"
-            echo "quick fix"
-            echo "effort"
-            echo "slow down"
-            echo "think more"
-            ;;
-        teams)
+teams)
             echo "use teams"
             echo "fan out"
             echo "split work"

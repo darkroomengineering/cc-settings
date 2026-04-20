@@ -158,7 +158,7 @@ if [[ "$USE_COMPILED" != true ]]; then
     KNOWN_SKILLS=(
         create-handoff resume-handoff
         fix build refactor review orchestrate ship teams
-        component hook explore premortem lenis tldr learn effort
+        component hook explore premortem lenis tldr learn
         checkpoint design-tokens f-thread l-thread prd project
         test ask docs debug qa figma init context discovery versions
         lighthouse audit consolidate verify autoresearch

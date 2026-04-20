@@ -78,7 +78,7 @@ Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical w
 Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` for complex implementations.
 
 ### Context Window
-- **1M tokens** via `opus[1m]` / `sonnet[1m]` model aliases (configured in settings.json). Without the `[1m]` suffix, default is 200K.
+- **1M tokens** — default on Max plans. Use `opus[1m]` / `sonnet[1m]` aliases in settings.json to pin explicitly.
 - On Max/Team/Enterprise: Opus 1M is included. Sonnet 1M requires extra usage.
 - Subagents inherit the 1M context from the parent model setting.
 - Skill character budget: auto-scales to 2% of context window (~80K chars at 1M)
@@ -134,17 +134,9 @@ Use TLDR when it saves tokens. Use Read/Grep when you need exact content or smal
 
 ---
 
-## Cache-Friendly Context Ordering
+## Prompt Caching
 
-Context ordering affects KV-cache hit rates. For maximum prefix cache reuse:
-
-1. **Stable elements first** — system prompt, tool definitions, AGENTS.md rules
-2. **Semi-stable next** — skill content, project context, loaded rules
-3. **Dynamic elements last** — user messages, tool outputs, timestamps
-
-Placing dynamic content (timestamps, user-specific data) early in context invalidates the cache prefix for everything after it. This ordering is mostly handled by Claude Code automatically, but be aware when constructing custom prompts or skill content.
-
-Set `ENABLE_PROMPT_CACHING_1H=1` for 1-hour prompt cache TTL (default is 5 minutes). Available on API key, Bedrock, Vertex, and Foundry. Use `FORCE_PROMPT_CACHING_5M=1` to override back to 5-minute default.
+`ENABLE_PROMPT_CACHING_1H=1` extends cache TTL from 5 min → 1 hour (already set in settings.json). Override back with `FORCE_PROMPT_CACHING_5M=1`. See `docs/cache-strategy.md` for context-ordering details.
 
 ---
 
@@ -155,22 +147,9 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 ---
 
-## Hook Events
+## Hooks
 
-27 events across 8 categories:
-
-**Session:** `SessionStart`, `SessionEnd`, `Setup`
-**User:** `UserPromptSubmit`, `Notification`, `Stop`, `StopFailure`
-**Tool:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied`
-**Agent:** `SubagentStart`, `SubagentStop`, `TeammateIdle`, `TaskCompleted`, `TaskCreated`
-**Context:** `PreCompact`, `PostCompact`, `InstructionsLoaded`, `ConfigChange`
-**Environment:** `CwdChanged`, `FileChanged`
-**MCP:** `Elicitation`, `ElicitationResult`
-**Worktree:** `WorktreeCreate`, `WorktreeRemove`
-
-Types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook POST/response)
-
-Hooks support conditional `if` field using permission rule syntax (e.g., `"if": "Bash(git commit*)"`) to filter when they fire.
+27 events across 8 categories. Types: `command`, `prompt`, `agent`, `http`. Conditional filtering via `if` field using permission rule syntax (e.g., `"if": "Bash(git commit*)"`). See `docs/hooks-reference.md` for full event list and examples.
 
 ---
 

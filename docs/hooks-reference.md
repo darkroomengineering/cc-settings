@@ -359,7 +359,6 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 | Script | Purpose | Async |
 |--------|---------|-------|
 | Inline learning reminder | If >5 files were changed, reminds to store learnings | No |
-| `compact-reminder.sh` | Suggests `/compact` after context-heavy skill operations | No |
 | `notify-sound.sh task_complete` | Plays audio notification on task completion (when audio enabled) | Yes |
 
 ### SubagentStart / SubagentStop
@@ -384,7 +383,7 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| Log + `permission-denied.sh` + `notify-sound.sh safety_block` | Logs denial to swarm.log, handles denied permissions, plays alert sound | Yes |
+| `notify-sound.sh safety_block` | Plays alert sound on permission denial | Yes |
 
 ---
 

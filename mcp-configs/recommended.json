@@ -30,6 +30,24 @@
       "_usage": "Find implementations, understand large codebases, semantic search across files",
       "_contextCost": "low",
       "_status": "installed"
+    },
+
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "_description": "Figma Dev Mode MCP (remote). OAuth on first use. Requires Dev or Full Figma seat.",
+      "_usage": "Design tokens, styles, component props, variables, file structure — design-to-code workflows",
+      "_contextCost": "medium",
+      "_status": "installed"
+    },
+
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "_description": "Chrome DevTools via CDP. Performance traces, network, console, user simulation.",
+      "_usage": "Performance tracing, network inspection, console logs, Core Web Vitals measurement",
+      "_contextCost": "medium",
+      "_status": "installed"
     }
   },
 

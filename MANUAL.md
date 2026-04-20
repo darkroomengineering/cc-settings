@@ -357,7 +357,6 @@ These are enforced automatically — no skill needed:
 | `checkpoint` | save state, save progress |
 | `create-handoff` | done for today, ending session |
 | `resume-handoff` | resume, continue, last session |
-| `effort` | think harder, quick fix |
 | `learn` | remember this, store learning (also auto-triggers) |
 | `consolidate` | clean up rules, contradictions, spa day |
 | `audit` | audit, run audit script |

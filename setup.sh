@@ -146,7 +146,7 @@ clean_old_config() {
     # Only remove known managed skill directories (preserve user-created custom skills)
     local managed_skills=(
         ask audit autoresearch build checkpoint component consolidate context
-        create-handoff debug design-tokens discovery docs effort explore f-thread
+        create-handoff debug design-tokens discovery docs explore f-thread
         figma fix hook init l-thread learn lenis lighthouse orchestrate prd premortem
         project qa refactor resume-handoff review ship teams test tldr verify versions
     )

@@ -131,7 +131,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 Skills using `fork`: `ask`, `autoresearch`, `build`, `checkpoint`, `consolidate`, `debug`, `design-tokens`, `discovery`, `docs`, `explore`, `f-thread`, `figma`, `fix`, `l-thread`, `lighthouse`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `teams`, `test`, `tldr`, `verify`.
 
-Skills using `inherit` (default): `audit`, `component`, `context`, `create-handoff`, `effort`, `hook`, `init`, `learn`, `lenis`, `project`, `resume-handoff`, `versions`.
+Skills using `inherit` (default): `audit`, `component`, `context`, `create-handoff`, `hook`, `init`, `learn`, `lenis`, `project`, `resume-handoff`, `versions`.
 
 ### Agent Delegation
 
@@ -165,13 +165,13 @@ agent: explore
 
 ```yaml
 ---
-name: effort
+name: checkpoint
 description: |
-  Dynamic effort level management. Use when:
-  - User mentions "think harder", "be thorough", "quick fix"
+  Save session state snapshots. Use when:
+  - User says "checkpoint", "save state", "save progress"
 allowed-tools:
   - Bash
-argument-hint: "[low|medium|high]"
+argument-hint: "[save|restore|list] [name]"
 ---
 ```
 
@@ -205,7 +205,6 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | `design-tokens` | fork | -- | -- | -- |
 | `discovery` | fork | planner | -- | -- |
 | `docs` | fork | -- | MCP context7 tools, WebFetch, WebSearch | -- |
-| `effort` | -- | -- | Bash | `[low\|medium\|high]` |
 | `explore` | fork | explore | -- | -- |
 | `f-thread` | fork | -- | -- | -- |
 | `figma` | fork | -- | Bash, MCP figma tools | -- |

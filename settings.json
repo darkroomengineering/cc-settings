@@ -5,7 +5,7 @@
 		"CLAUDE_CODE_NO_FLICKER": "1",
 		"ENABLE_PROMPT_CACHING_1H": "1"
 	},
-	"model": "opus[1m]",
+	"model": "opus",
 	"showThinkingSummaries": true,
 	"teammateMode": "auto",
 	"includeGitInstructions": false,
@@ -65,6 +65,18 @@
 			"args": ["--project", "."],
 			"_comment": "Requires: pipx install llm-tldr (v1.5+). Run 'tldr warm .' in project to index.",
 			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred."
+		},
+		"figma": {
+			"type": "http",
+			"url": "https://mcp.figma.com/mcp",
+			"_comment": "Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use.",
+			"serverInstructions": "Figma design inspection and extraction: tokens, styles, component props, variables, and file structure. Use for design-to-code workflows, design fidelity checks, and extracting design tokens. Prefer this over screenshot-based workflows when structured design data is needed."
+		},
+		"chrome-devtools": {
+			"command": "npx",
+			"args": ["-y", "chrome-devtools-mcp@latest"],
+			"_comment": "Chrome DevTools via CDP. Performance traces, network, console, user simulation.",
+			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
 		}
 	},
 	"permissions": {
@@ -98,10 +110,6 @@
 			"Bash(pwd:*)",
 			"Bash(tree:*)",
 			"Bash(wc:*)",
-			"Bash(cat:*)",
-			"Bash(head:*)",
-			"Bash(tail:*)",
-			"Bash(less:*)",
 			"Bash(file:*)",
 			"Bash(stat:*)",
 			"Bash(which:*)",
@@ -116,7 +124,6 @@
 			"Bash(uniq:*)",
 			"Bash(cut:*)",
 			"Bash(awk:*)",
-			"Bash(sed -n:*)",
 			"Bash(jq:*)",
 			"Bash(xargs:*)",
 
@@ -480,14 +487,6 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/compact-reminder.sh\""
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" task_complete",
 						"async": true,
 						"timeout": 10
@@ -558,7 +557,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'echo \"[Permission] Denied: $TOOL_NAME ($PERMISSION_DECISION_REASON)\" >> ~/.claude/swarm.log; bash \"$HOME/.claude/scripts/permission-denied.sh\"; bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block'",
+						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block",
 						"async": true,
 						"timeout": 10
 					}

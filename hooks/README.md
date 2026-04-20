@@ -26,7 +26,6 @@ For full hook documentation (all 23 events, configuration format, matchers, debu
 | `PostToolUseFailure` | Tool execution fails | `post-failure.sh` (logs failures, warns on repeats) | No |
 | `PreCompact` | Before context compaction | `handoff.sh create` (saves state) | No |
 | `Stop` | Claude finishes | Learning reminder if >5 files changed | No |
-| `Stop` | Claude finishes | `compact-reminder.sh` (suggests /compact after heavy skills) | No |
 | `Stop` | Claude finishes | `notify-sound.sh task_complete` | **Yes** |
 | `SessionEnd` | Session ending | `tldr-stats.sh` + `handoff.sh create` | **Yes** |
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
