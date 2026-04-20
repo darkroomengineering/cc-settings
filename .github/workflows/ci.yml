@@ -79,6 +79,20 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run upstream:scan
 
+  bench:
+    # Re-run the baseline on macOS and assert no hook p95 regressed > 20%
+    # vs the committed bench/baseline-bash.json. macOS-only because the
+    # baseline itself was taken on macOS; Linux/Windows numbers would trip
+    # the gate with platform-derived noise.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - run: bun run bench:check -- --iters=20 --max=0.20
+
   bash-safety-net-test:
     # Keep the legacy bash harness green until Phase 7 deletes it.
     runs-on: ubuntu-latest

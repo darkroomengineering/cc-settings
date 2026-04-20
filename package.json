@@ -10,6 +10,7 @@
     "test": "bun test",
     "test:safety-net": "bun test tests/safety-net.test.ts",
     "bench:baseline": "bun bench/run-baseline.ts",
+    "bench:check": "bun bench/regression-check.ts",
     "prototype:compile": "bun bench/prototype/compile.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

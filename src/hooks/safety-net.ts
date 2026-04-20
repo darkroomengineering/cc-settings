@@ -122,8 +122,11 @@ function checkRmRf(cmd: string): void {
     target === "$HOME" ||
     target === "$HOME/" ||
     target === "$HOME/*" ||
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
     target === "${HOME}" ||
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
     target === "${HOME}/" ||
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
     target === "${HOME}/*"
   ) {
     block("rm -rf targeting home directory", cmd);
@@ -156,6 +159,7 @@ function checkRmRf(cmd: string): void {
     !target.startsWith("/") &&
     !target.startsWith("~") &&
     !target.startsWith("$HOME") &&
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
     !target.startsWith("${HOME}") &&
     target !== "." &&
     target !== "./" &&

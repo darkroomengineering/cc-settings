@@ -5,7 +5,7 @@
 // Commands: store | recall | delete | prune | list
 
 import { existsSync, readdirSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { atomicWriteJson } from "../lib/mcp.ts";
