@@ -21,6 +21,7 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
 const PROJECT_DIR = process.cwd();
@@ -67,30 +68,6 @@ async function cleanupHandoffs(dir: string, keep = 20): Promise<void> {
     await Promise.all(toDrop.map((m) => unlink(m.full).catch(() => {})));
   };
   await Promise.all([prune(/^handoff_.*\.json$/), prune(/^handoff_.*\.md$/)]);
-}
-
-// Inline read of hooks-config.json for the claude_md_monitor.* keys we care
-// about. Phase 3 replaces this with src/lib/hook-config.ts.
-type HooksConfigShape = {
-  claude_md_monitor?: {
-    enabled?: boolean;
-    warn_lines?: number;
-    critical_lines?: number;
-  };
-};
-
-async function readHookConfig(): Promise<HooksConfigShape> {
-  const local = join(CLAUDE_DIR, "hooks-config.local.json");
-  const team = join(CLAUDE_DIR, "hooks-config.json");
-  for (const path of [local, team]) {
-    try {
-      const raw = await readFile(path, "utf8");
-      return JSON.parse(raw) as HooksConfigShape;
-    } catch {
-      // try next
-    }
-  }
-  return {};
 }
 
 async function autoWarmTldr(): Promise<void> {
@@ -244,27 +221,23 @@ if (await which("tldr")) {
   }
 }
 
-// CLAUDE.md size monitoring
+// CLAUDE.md size monitoring (thresholds read via hook-config lib).
 const claudeMd = join(CLAUDE_DIR, "CLAUDE.md");
 if (existsSync(claudeMd)) {
-  const cfg = await readHookConfig();
-  const monitor = cfg.claude_md_monitor ?? {};
-  const enabled = monitor.enabled ?? true;
-  const warnLines = monitor.warn_lines ?? 400;
-  const critLines = monitor.critical_lines ?? 600;
-  if (enabled) {
+  const monitor = getClaudeMdMonitor();
+  if (monitor.enabled) {
     try {
       const text = await readFile(claudeMd, "utf8");
       const lineCount = text.split("\n").length - 1; // bash `wc -l` counts newlines
-      if (lineCount > critLines) {
+      if (lineCount > monitor.criticalLines) {
         console.log("");
         console.log(
           `WARNING: CLAUDE.md is ${lineCount} lines (critical threshold). Adherence may degrade. Run: wc -l ~/.claude/CLAUDE.md`,
         );
-      } else if (lineCount > warnLines) {
+      } else if (lineCount > monitor.warnLines) {
         console.log("");
         console.log(
-          `WARNING: CLAUDE.md is ${lineCount} lines (recommended: <${warnLines}). Consider moving sections to rules/ or profiles/.`,
+          `WARNING: CLAUDE.md is ${lineCount} lines (recommended: <${monitor.warnLines}). Consider moving sections to rules/ or profiles/.`,
         );
       }
     } catch {

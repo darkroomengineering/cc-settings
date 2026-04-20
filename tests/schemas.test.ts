@@ -5,6 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
 import { HooksConfig } from "../src/schemas/hooks-config.ts";
 import { Settings } from "../src/schemas/settings.ts";
@@ -16,70 +17,15 @@ async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
-// Minimal YAML frontmatter extractor for SKILL.md files. Phase 3 replaces this
-// with the `yaml` dep (see migration plan); we only need it here to validate
-// shape, so a lazy regex is fine.
+// Real YAML parser (Phase 3 upgrade). Returns the parsed frontmatter object
+// or null if no frontmatter block is present.
 function parseFrontmatter(md: string): Record<string, unknown> | null {
   const match = md.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return null;
   const body = match[1] ?? "";
-  const out: Record<string, unknown> = {};
-  const lines = body.split(/\r?\n/);
-  const indentedOrBlank = /^(\s+\S|\s*$)/;
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i] ?? "";
-    const kv = line.match(/^([a-zA-Z_-][a-zA-Z0-9_-]*):\s*(.*)$/);
-    if (!kv) {
-      i++;
-      continue;
-    }
-    const [, key = "", rest = ""] = kv;
-
-    // Block scalar (`|` or `>`) — gather indented lines until next key.
-    if (rest === "|" || rest === ">") {
-      const collected: string[] = [];
-      i++;
-      while (i < lines.length && indentedOrBlank.test(lines[i] ?? "")) {
-        const next = lines[i] ?? "";
-        collected.push(next.replace(/^\s+/, ""));
-        i++;
-      }
-      out[key] = collected.join("\n").trim();
-      continue;
-    }
-
-    // Block sequence (`key:\n  - value\n  - value`).
-    if (rest === "") {
-      const items: string[] = [];
-      let j = i + 1;
-      const listItem = /^\s+-\s+(.*)$/;
-      while (j < lines.length) {
-        const m = (lines[j] ?? "").match(listItem);
-        if (!m) break;
-        items.push((m[1] ?? "").replace(/^['"]|['"]$/g, "").trim());
-        j++;
-      }
-      if (items.length) {
-        out[key] = items;
-        i = j;
-        continue;
-      }
-    }
-
-    // Inline array `[a, b, c]`.
-    if (rest.startsWith("[") && rest.endsWith("]")) {
-      out[key] = rest
-        .slice(1, -1)
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-    } else {
-      out[key] = rest.replace(/^['"]|['"]$/g, "");
-    }
-    i++;
-  }
-  return out;
+  const parsed = parseYaml(body) as unknown;
+  if (parsed === null || typeof parsed !== "object") return null;
+  return parsed as Record<string, unknown>;
 }
 
 function formatZodError(err: z.ZodError): string {
