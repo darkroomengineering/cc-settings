@@ -1,4 +1,5 @@
 {
+	"$schema": "./schemas/settings.schema.json",
 	"env": {
 		"CLAUDE_CODE_EFFORT_LEVEL": "high",
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",

@@ -1,0 +1,34 @@
+name: upstream-sync
+
+# Skeleton — fully wired in Phase 1 when src/upstream/scan.ts exists.
+# The job currently short-circuits so the workflow is visible in the Actions
+# tab without creating noise PRs.
+
+on:
+  schedule:
+    # Daily 09:00 UTC. Claude Code usually ships patch releases mid-week;
+    # daily is tight enough to catch drift within 24h of release.
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - name: Scan upstream (Phase 1 will implement)
+        run: |
+          if [ -f src/upstream/scan.ts ]; then
+            bun src/upstream/scan.ts
+          else
+            echo "Phase 1 pending — src/upstream/scan.ts not yet implemented."
+            echo "Skeleton workflow; no-op until scanner lands."
+          fi

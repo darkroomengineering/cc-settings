@@ -1,0 +1,38 @@
+{
+  "$id": "https://cc-settings.darkroom/schema/skill.json",
+  "title": "Darkroom skill frontmatter",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "type": "string",
+      "enum": [
+        "fork",
+        "main"
+      ]
+    },
+    "agent": {
+      "type": "string"
+    },
+    "allowed-tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "name",
+    "description"
+  ],
+  "additionalProperties": {}
+}

@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-04-20T17:04:38.487Z",
+  "schemaVersion": 1,
+  "runtime": "bash",
+  "system": {
+    "uname": "Darwin 25.5.0 arm64",
+    "bun": "1.3.7",
+    "bash": "GNU bash, version 5.3.3(1)-release (aarch64-apple-darwin25.1.0)",
+    "arch": "arm64",
+    "platform": "darwin"
+  },
+  "hooks": {
+    "safety-net": {
+      "p50": 113.14,
+      "p95": 130.77,
+      "p99": 137.4,
+      "mean": 115.01,
+      "min": 100.71,
+      "max": 152.96,
+      "iters": 100,
+      "budgetMs": 50,
+      "overBudget": true
+    },
+    "safety-net-fastpath": {
+      "p50": 10.99,
+      "p95": 13.26,
+      "p99": 14.16,
+      "mean": 11.28,
+      "min": 9.8,
+      "max": 16.1,
+      "iters": 100,
+      "budgetMs": 50,
+      "overBudget": false
+    },
+    "statusline": {
+      "p50": 94.32,
+      "p95": 104.34,
+      "p99": 106.11,
+      "mean": 95.99,
+      "min": 89.31,
+      "max": 106.77,
+      "iters": 100,
+      "budgetMs": 100,
+      "overBudget": true
+    },
+    "post-edit": {
+      "p50": 20.51,
+      "p95": 23.06,
+      "p99": 31.87,
+      "mean": 21.1,
+      "min": 18.82,
+      "max": 41.47,
+      "iters": 100,
+      "budgetMs": 75,
+      "overBudget": false
+    },
+    "post-edit-tsc": {
+      "p50": 6.25,
+      "p95": 7.29,
+      "p99": 8.64,
+      "mean": 6.35,
+      "min": 5.5,
+      "max": 9.02,
+      "iters": 100,
+      "budgetMs": 200,
+      "overBudget": false
+    },
+    "session-start": {
+      "p50": 22.66,
+      "p95": 27.03,
+      "p99": 49.35,
+      "mean": 23.56,
+      "min": 20.47,
+      "max": 52.63,
+      "iters": 100,
+      "budgetMs": 300,
+      "overBudget": false
+    }
+  },
+  "notes": [
+    "p95 is the CI-enforced metric; see docs/migration-coexistence.md for budgets.",
+    "Isolated HOME: no tldr warm, no real log rotation. Comparable across TS/bash runs.",
+    "post-edit-tsc measured without tsconfig → early-exit path (startup overhead only).",
+    "safety-net measured on both analyze path (git ...) and fast-exit path (ls -la)."
+  ]
+}

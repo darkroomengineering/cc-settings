@@ -1,0 +1,87 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+
+  test:
+    # Safety-net tests shell out to scripts/safety-net.sh (bash). Windows gets
+    # bash via Git Bash but path / quoting behavior diverges. Re-enable Windows
+    # in Phase 4 once the TS port replaces the .sh dependency.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - run: bun test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+
+  schemas:
+    # Fails if `bun run schemas:emit` would produce a diff — enforces that the
+    # committed JSON Schemas match the zod sources.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - run: bun run schemas:emit
+      - run: git diff --exit-code schemas/
+
+  upstream-scan:
+    # Dry-run in CI so any drift shows up in the PR. This is not a gate —
+    # the scheduled upstream-sync workflow proposes fixes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - run: bun run upstream:scan
+
+  bash-safety-net-test:
+    # Keep the legacy bash harness green until Phase 7 deletes it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash tests/safety-net-test.sh

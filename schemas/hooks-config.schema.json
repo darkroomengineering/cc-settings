@@ -1,0 +1,36 @@
+{
+  "$id": "https://cc-settings.darkroom/schema/hooks-config.json",
+  "title": "cc-settings hooks-config.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "_comment": {
+      "type": "string"
+    },
+    "claude_md_monitor": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "warn_lines": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "critical_lines": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "enabled",
+        "warn_lines",
+        "critical_lines"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
