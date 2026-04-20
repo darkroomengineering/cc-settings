@@ -5,7 +5,6 @@
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
 		"CLAUDE_CODE_NO_FLICKER": "1",
 		"ENABLE_PROMPT_CACHING_1H": "1",
-
 		"CC_CLAUDE_MD_MONITOR_ENABLED": "true",
 		"CC_CLAUDE_MD_WARN_LINES": "400",
 		"CC_CLAUDE_MD_CRITICAL_LINES": "600"
@@ -49,13 +48,16 @@
 	},
 	"statusLine": {
 		"type": "command",
-		"command": "bash \"$HOME/.claude/scripts/statusline.sh\"",
+		"command": "bun \"$HOME/.claude/src/hooks/statusline.ts\"",
 		"refreshInterval": 30
 	},
 	"mcpServers": {
 		"context7": {
 			"command": "npx",
-			"args": ["-y", "@upstash/context7-mcp"],
+			"args": [
+				"-y",
+				"@upstash/context7-mcp"
+			],
 			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
@@ -67,7 +69,10 @@
 		},
 		"tldr": {
 			"command": "tldr-mcp",
-			"args": ["--project", "."],
+			"args": [
+				"--project",
+				"."
+			],
 			"_comment": "Requires: pipx install llm-tldr (v1.5+). Run 'tldr warm .' in project to index.",
 			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred."
 		},
@@ -79,7 +84,10 @@
 		},
 		"chrome-devtools": {
 			"command": "npx",
-			"args": ["-y", "chrome-devtools-mcp@latest"],
+			"args": [
+				"-y",
+				"chrome-devtools-mcp@latest"
+			],
 			"_comment": "Chrome DevTools via CDP. Performance traces, network, console, user simulation.",
 			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
 		}
@@ -89,7 +97,6 @@
 			"Bash(bun:*)",
 			"Bash(bunx:*)",
 			"Bash(npm run:*)",
-
 			"Bash(git status:*)",
 			"Bash(git diff:*)",
 			"Bash(git log:*)",
@@ -104,13 +111,11 @@
 			"Bash(git rev-parse:*)",
 			"Bash(git remote:*)",
 			"Bash(gh:*)",
-
 			"Bash(biome:*)",
 			"Bash(vitest:*)",
 			"Bash(pinchtab:*)",
 			"Bash(lighthouse:*)",
 			"Bash(open -a:*)",
-
 			"Bash(ls:*)",
 			"Bash(pwd:*)",
 			"Bash(tree:*)",
@@ -120,7 +125,6 @@
 			"Bash(which:*)",
 			"Bash(type:*)",
 			"Bash(echo:*)",
-
 			"Bash(grep:*)",
 			"Bash(rg:*)",
 			"Bash(find:*)",
@@ -131,7 +135,6 @@
 			"Bash(awk:*)",
 			"Bash(jq:*)",
 			"Bash(xargs:*)",
-
 			"Bash(du:*)",
 			"Bash(df:*)",
 			"Bash(env:*)",
@@ -144,7 +147,6 @@
 			"Bash(realpath:*)",
 			"Bash(node -e:*)",
 			"Bash(node -p:*)",
-
 			"Bash(mkdir:*)",
 			"Bash(cp:*)",
 			"Bash(mv:*)",
@@ -153,9 +155,7 @@
 			"Bash(rm -rf dist)",
 			"Bash(rm -rf .turbo)",
 			"Bash(rm *.tmp)",
-
 			"Bash(curl:*)",
-
 			"Read(*)",
 			"Write(*)",
 			"Edit(*)",
@@ -182,7 +182,6 @@
 			"Bash(rm -fr ~/*:*)",
 			"Bash(rm -Rf /:*)",
 			"Bash(rm -Rf ~:*)",
-
 			"Read(~/.ssh/*)",
 			"Read(~/.aws/*)",
 			"Read(~/.gnupg/*)",
@@ -200,7 +199,6 @@
 			"Write(~/.ssh/*)",
 			"Write(~/.aws/*)",
 			"Write(~/.gnupg/*)",
-
 			"Bash(git push --force:*)",
 			"Bash(git push -f:*)",
 			"Bash(git reset --hard:*)",
@@ -211,7 +209,6 @@
 			"Bash(git stash clear:*)",
 			"Bash(git restore .:*)",
 			"Bash(git restore --staged .:*)",
-
 			"Bash(curl * | bash)",
 			"Bash(curl * | sh)",
 			"Bash(curl * --data:*)",
@@ -221,13 +218,10 @@
 			"Bash(curl * -T :*)",
 			"Bash(wget * | bash)",
 			"Bash(wget * | sh)",
-
 			"Bash(sudo:*)",
 			"Bash(chmod 777:*)",
-
 			"Bash(find * -delete:*)",
 			"Bash(xargs rm:*)",
-
 			"Read(~/.bashrc)",
 			"Read(~/.zshrc)",
 			"Read(~/.bash_profile)",
@@ -239,13 +233,11 @@
 			"Write(~/.bash_profile)",
 			"Write(~/.claude/settings.json)",
 			"Write(~/.claude.json)",
-
 			"Bash(gh repo delete:*)",
 			"Bash(gh secret:*)",
 			"Bash(gh api -X DELETE:*)",
 			"Bash(gh api * -X DELETE:*)",
 			"Bash(gh release delete:*)",
-
 			"Bash(cat ~/.netrc)",
 			"Bash(cat ~/.npmrc)",
 			"Bash(cat ~/.docker/config.json)",
@@ -261,7 +253,6 @@
 			"Bash(tail ~/.docker/config.json)",
 			"Bash(tail ~/.kube/config)",
 			"Bash(tail ~/.config/gh/*)",
-
 			"Bash(cp ~/.netrc:*)",
 			"Bash(cp ~/.npmrc:*)",
 			"Bash(cp ~/.docker/config.json:*)",
@@ -272,7 +263,6 @@
 			"Bash(mv ~/.docker/config.json:*)",
 			"Bash(mv ~/.kube/config:*)",
 			"Bash(mv ~/.config/gh/*:*)",
-
 			"Bash(curl * --json:*)",
 			"Bash(curl * --data-raw:*)",
 			"Bash(curl * --data-binary:*)",
@@ -281,7 +271,6 @@
 			"Bash(curl * -X POST:*)",
 			"Bash(curl -X PUT:*)",
 			"Bash(curl * -X PUT:*)",
-
 			"Bash(awk * system\\(:*)",
 			"Bash(awk * system \\(:*)"
 		]
@@ -292,7 +281,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/skill-activation.sh\" \"$PROMPT\""
+						"command": "bun \"$HOME/.claude/src/hooks/skill-activation.ts\" \"$PROMPT\""
 					}
 				]
 			},
@@ -300,7 +289,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'if echo \"$PROMPT\" | grep -qiE \"no,|wrong|actually,|instead|fix that|not what|should be|correction\"; then echo \"[Hook] Correction detected - consider capturing this as a learning with /learn\"; fi'"
+						"command": "bun \"$HOME/.claude/src/scripts/detect-correction.ts\""
 					}
 				]
 			}
@@ -311,16 +300,16 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/safety-net.sh\""
+						"command": "bun \"$HOME/.claude/src/hooks/safety-net.ts\""
 					}
 				]
 			},
 			{
-			"if": "Bash(git commit*)",
+				"if": "Bash(git commit*)",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'if [ -f tsconfig.json ]; then TSC_TMP=$(mktemp /tmp/tsc-check.XXXXXX); trap \"rm -f $TSC_TMP\" EXIT; if ! bunx tsc --noEmit --pretty 2>&1 | tee \"$TSC_TMP\" | tail -5; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; exit 1; fi; if grep -q \"error TS\" \"$TSC_TMP\" 2>/dev/null; then echo \"[Pre-commit Hook] TypeScript errors found - fix before committing\"; tail -20 \"$TSC_TMP\"; exit 1; fi; fi'"
+						"command": "bun \"$HOME/.claude/src/scripts/pre-commit-tsc.ts\""
 					}
 				]
 			},
@@ -329,7 +318,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/check-docs-before-install.sh\""
+						"command": "bun \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
 					}
 				]
 			},
@@ -338,7 +327,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/pre-edit-validate.sh\""
+						"command": "bun \"$HOME/.claude/src/hooks/pre-edit-validate.ts\""
 					}
 				]
 			}
@@ -349,7 +338,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/post-edit.sh\""
+						"command": "bun \"$HOME/.claude/src/scripts/post-edit.ts\""
 					}
 				]
 			},
@@ -358,7 +347,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/post-edit-tsc.sh\"",
+						"command": "bun \"$HOME/.claude/src/scripts/post-edit-tsc.ts\"",
 						"async": true
 					}
 				]
@@ -368,7 +357,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/track-tldr.sh\" \"$TOOL_NAME\"",
+						"command": "bun \"$HOME/.claude/src/scripts/track-tldr.ts\" \"$TOOL_NAME\"",
 						"async": true,
 						"timeout": 10
 					}
@@ -379,7 +368,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/log-bash.sh\"",
+						"command": "bun \"$HOME/.claude/src/scripts/log-bash.ts\"",
 						"async": true,
 						"timeout": 10
 					}
@@ -391,7 +380,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/post-compact.sh\""
+						"command": "bun \"$HOME/.claude/src/scripts/post-compact.ts\""
 					}
 				]
 			}
@@ -401,7 +390,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/stop-failure.sh\""
+						"command": "bun \"$HOME/.claude/src/scripts/stop-failure.ts\""
 					}
 				]
 			}
@@ -411,7 +400,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/handoff.sh\" create"
+						"command": "bun \"$HOME/.claude/src/scripts/handoff.ts\" create"
 					}
 				]
 			}
@@ -421,7 +410,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/session-start.sh\""
+						"command": "bun \"$HOME/.claude/src/scripts/session-start.ts\""
 					}
 				]
 			}
@@ -431,7 +420,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/tldr-stats.sh\"; bash \"$HOME/.claude/scripts/handoff.sh\" create",
+						"command": "bun \"$HOME/.claude/src/scripts/tldr-stats.ts\"; bun \"$HOME/.claude/src/scripts/handoff.ts\" create",
 						"async": true,
 						"timeout": 30
 					}
@@ -443,7 +432,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'CHANGES=$(git diff --stat 2>/dev/null | tail -1); if [[ \"$CHANGES\" =~ ([0-9]+)[[:space:]]+file ]]; then COUNT=${BASH_REMATCH[1]}; if [ \"$COUNT\" -gt 5 ]; then echo \"[Hook] Session had significant changes ($COUNT files) - consider storing learnings:\"; echo \"  learning.sh store <category> <learning> [context]\"; echo \"  Categories: bug | pattern | gotcha | tool | perf | config | arch | test\"; fi; fi'"
+						"command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
 					}
 				]
 			}
@@ -453,7 +442,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/post-failure.sh\"",
+						"command": "bun \"$HOME/.claude/src/scripts/post-failure.ts\"",
 						"async": false,
 						"timeout": 10
 					}
@@ -465,7 +454,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'echo \"[Swarm] Agent started: $AGENT_TYPE ($AGENT_ID)\" >> ~/.claude/swarm.log'",
+						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" start",
 						"async": true,
 						"timeout": 5
 					}
@@ -477,7 +466,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'echo \"[Swarm] Agent stopped: $AGENT_TYPE ($AGENT_ID)\" >> ~/.claude/swarm.log'",
+						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" stop",
 						"async": true,
 						"timeout": 5
 					}
@@ -489,7 +478,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify.sh\"",
+						"command": "bun \"$HOME/.claude/src/scripts/notify.ts\"",
 						"async": true,
 						"timeout": 10
 					}
@@ -501,7 +490,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'echo \"[Swarm] Task created: $TASK_SUBJECT\" >> ~/.claude/swarm.log'",
+						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" task",
 						"async": true,
 						"timeout": 5
 					}

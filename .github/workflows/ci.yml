@@ -28,13 +28,10 @@ jobs:
       - run: bun run typecheck
 
   test:
-    # Safety-net tests shell out to scripts/safety-net.sh (bash). Windows gets
-    # bash via Git Bash but path / quoting behavior diverges. Re-enable Windows
-    # in Phase 4 once the TS port replaces the .sh dependency.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -92,10 +89,3 @@ jobs:
           bun-version: ">=1.1.30"
       - run: bun install --frozen-lockfile
       - run: bun run bench:check -- --iters=20 --max=0.20
-
-  bash-safety-net-test:
-    # Keep the legacy bash harness green until Phase 7 deletes it.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash tests/safety-net-test.sh

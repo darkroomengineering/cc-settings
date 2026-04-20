@@ -49,13 +49,14 @@ describe("Settings schema vs the real settings.json", () => {
 });
 
 describe("HooksConfig schema", () => {
-  test("parses hooks-config.json", async () => {
-    const raw = await readJson(resolve(ROOT, "hooks-config.json"));
-    const result = HooksConfig.safeParse(raw);
-    if (!result.success) {
-      throw new Error(`hooks-config.json failed:\n${formatZodError(result.error)}`);
-    }
-    expect(result.success).toBe(true);
+  // hooks-config.json was collapsed into settings.json.env (CC_CLAUDE_MD_*)
+  // in Phase 4 and deleted in Phase 7. The schema stays callable in case a
+  // downstream project revives the file shape, but we no longer ship one.
+  test("HooksConfig parses an empty object", () => {
+    expect(HooksConfig.safeParse({}).success).toBe(true);
+  });
+  test("HooksConfig rejects unknown top-level keys (strict)", () => {
+    expect(HooksConfig.safeParse({ totally_unknown: true }).success).toBe(false);
   });
 });
 

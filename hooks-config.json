@@ -1,8 +1,0 @@
-{
-	"_comment": "Team default hook configuration. Personal overrides go in hooks-config.local.json (git-ignored).",
-	"claude_md_monitor": {
-		"enabled": true,
-		"warn_lines": 150,
-		"critical_lines": 300
-	}
-}

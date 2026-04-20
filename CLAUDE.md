@@ -17,33 +17,46 @@ for standards.
 
 ## About This Repo
 
-This is a **bash/markdown configuration project**, not a Next.js app.
-There is no TypeScript, no build step, and no `node_modules`.
+**TypeScript on Bun** (migrated from bash in April 2026; see
+`docs/migration-coexistence.md` for history). Runtime: `bun >=1.1.30`.
+Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
+`@types/bun`.
 
 ### Structure
 
-- `MANUAL.md` - User-facing guide (what you can do, how to do it)
-- `AGENTS.md` - Portable coding standards (source of truth)
-- `CLAUDE-FULL.md` - Claude-Code config (installed to `~/.claude/CLAUDE.md`)
-- `scripts/` - Bash scripts installed to `~/.claude/scripts/`
-- `agents/` - Agent definitions installed to `~/.claude/agents/`
-- `skills/` - Skill files installed to `~/.claude/skills/`
-- `rules/` - Path-conditioned rules installed to `~/.claude/rules/`
-- `profiles/` - Profiles installed to `~/.claude/profiles/`
-- `contexts/` - Ecosystem contexts installed to `~/.claude/contexts/`
-- `hooks/` - Hook documentation and guidelines
-- `mcp-configs/` - MCP server configuration
-- `lib/` - Shared bash libraries
-- `docs/` - Reference documentation
-- `tests/` - Test scripts for validation
-- `setup.sh` - The installer entry point
-- `plans/` - Persistent plan output directory (auto-populated by Claude Code)
-- `settings.json` - Permissions, hooks, and MCP config
+- `MANUAL.md` — User-facing guide (what you can do, how to do it)
+- `AGENTS.md` — Portable coding standards (source of truth)
+- `CLAUDE-FULL.md` — Claude-Code config (installed to `~/.claude/CLAUDE.md`)
+- `src/setup.ts` — The installer
+- `src/hooks/` — Hot-path hook implementations (PreToolUse, statusLine, …)
+- `src/scripts/` — One-shot scripts (post-edit, handoff, learning, …)
+- `src/lib/` — Shared libs (colors, mcp, packages, platform, prompts, …)
+- `src/schemas/` — zod schemas for settings.json, hooks, skills, MCP
+- `src/upstream/` — Claude Code version-drift scanner
+- `agents/` — Agent definitions installed to `~/.claude/agents/`
+- `skills/` — Skill files installed to `~/.claude/skills/`
+- `rules/` — Path-conditioned rules installed to `~/.claude/rules/`
+- `profiles/` — Profiles installed to `~/.claude/profiles/`
+- `contexts/` — Ecosystem contexts installed to `~/.claude/contexts/`
+- `hooks/` — Hook documentation (markdown)
+- `mcp-configs/` — MCP server reference config
+- `docs/` — Reference documentation
+- `bench/` — Performance benchmarks + regression gate
+- `tests/` — bun:test suites
+- `setup.sh` / `setup.ps1` — Tiny bootstraps (install Bun, exec `bun src/setup.ts`)
+- `settings.json` — Permissions, hooks, and MCP config (user-installed)
+- `schemas/*.schema.json` — Generated JSON Schemas (via `bun run schemas:emit`)
 
 ### Development
 
-- Test installer changes: `bash setup.sh`
-- Test safety net: `bash tests/safety-net-test.sh`
-- Test manual sync: `bash tests/manual-sync.sh`
-- Shared libraries in `lib/` are sourced by `setup.sh` and scripts
-- Use conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
+- Install: `bash setup.sh` (macOS/Linux) or `.\setup.ps1` (Windows)
+- Rollback: `bun src/setup.ts --rollback` (restores newest backup)
+- Dry-run: `bun src/setup.ts --dry-run`
+- Tests: `bun test`
+- Typecheck: `bun run typecheck`
+- Lint: `bun run lint` / `bun run lint:fix`
+- Schemas (regenerate JSON Schema from zod sources): `bun run schemas:emit`
+- Upstream drift scan: `bun run upstream:scan`
+- Bench baseline: `bun run bench:baseline`
+- Bench regression: `bun run bench:check`
+- Commits: conventional — `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`.
