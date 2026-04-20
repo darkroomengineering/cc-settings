@@ -125,11 +125,41 @@ create_directories() {
         "${CLAUDE_DIR}/backups"
         "${CLAUDE_DIR}/tmp"
         "${CLAUDE_DIR}/logs"
+        "${CLAUDE_DIR}/src"
+        "${CLAUDE_DIR}/src/scripts"
+        "${CLAUDE_DIR}/src/hooks"
+        "${CLAUDE_DIR}/src/lib"
+        "${CLAUDE_DIR}/src/schemas"
     )
 
     for dir in "${dirs[@]}"; do
         mkdir -p "$dir"
     done
+}
+
+# Install TypeScript ports into ~/.claude/src/ so hooks can invoke them
+# directly (CC_USE_TS_HOOKS=1 contract; see docs/migration-coexistence.md).
+# Bash implementations remain installed — this is strictly additive during
+# Phases 4–6.
+install_ts_sources() {
+    if [[ ! -d "${SCRIPT_DIR}/src" ]]; then
+        return 0
+    fi
+    # Clean previous TS install so stale ports don't linger.
+    rm -rf "${CLAUDE_DIR}/src" 2>/dev/null || true
+    mkdir -p "${CLAUDE_DIR}/src"
+    cp -r "${SCRIPT_DIR}/src/"* "${CLAUDE_DIR}/src/" 2>/dev/null || true
+
+    # package.json + node_modules aren't installed under ~/.claude — deps
+    # (zod, @inquirer/prompts, yaml) are loaded from the repo the user
+    # cloned. Phase 5 proper will provision a dedicated runtime dir.
+    # For now, link back to the source repo so `bun` resolves deps correctly.
+    if [[ -f "${SCRIPT_DIR}/package.json" ]]; then
+        cp "${SCRIPT_DIR}/package.json" "${CLAUDE_DIR}/src/package.json"
+    fi
+    if [[ -f "${SCRIPT_DIR}/tsconfig.json" ]]; then
+        cp "${SCRIPT_DIR}/tsconfig.json" "${CLAUDE_DIR}/src/tsconfig.json"
+    fi
 }
 
 clean_old_config() {
@@ -300,6 +330,46 @@ show_summary() {
 }
 
 # =============================================================================
+# ROLLBACK — restore the newest settings.json backup
+# =============================================================================
+# Usage:
+#   bash setup.sh --rollback                         # newest backup
+#   bash setup.sh --rollback=2026-04-20T10-00-00Z    # specific timestamp
+# The bash setup creates tar.gz backups in ~/.claude/backups/backup-*.tar.gz
+# containing settings.json + CLAUDE.md + AGENTS.md.
+
+cmd_rollback() {
+    local target="${1:-}"
+    local backup_dir="${CLAUDE_DIR}/backups"
+
+    if [[ ! -d "$backup_dir" ]]; then
+        echo "ERROR: No backups directory found at $backup_dir"
+        exit 1
+    fi
+
+    local backup_file
+    if [[ -z "$target" ]]; then
+        # Newest backup-*.tar.gz
+        backup_file=$(find "$backup_dir" -name "backup-*.tar.gz" -type f 2>/dev/null | sort -r | head -1)
+    else
+        # Match by timestamp substring.
+        backup_file=$(find "$backup_dir" -name "backup-${target}*.tar.gz" -type f 2>/dev/null | head -1)
+    fi
+
+    if [[ -z "$backup_file" ]] || [[ ! -f "$backup_file" ]]; then
+        echo "ERROR: No matching backup found."
+        echo "Available backups:"
+        find "$backup_dir" -name "backup-*.tar.gz" -type f 2>/dev/null | sort -r | head -5
+        exit 1
+    fi
+
+    echo "Rolling back from: $backup_file"
+    (cd "$CLAUDE_DIR" && tar -xzf "$backup_file")
+    echo "Restored. Restart Claude Code to apply."
+    exit 0
+}
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -316,6 +386,7 @@ main() {
     create_directories
     clean_old_config
     install_config_files
+    install_ts_sources
     install_settings
 
     info "Compiling skill index..."
@@ -339,5 +410,15 @@ main() {
     success "Restart Claude Code to apply changes."
     echo ""
 }
+
+# Handle --rollback BEFORE main — never installs when rolling back.
+case "${1:-}" in
+    --rollback)
+        cmd_rollback ""
+        ;;
+    --rollback=*)
+        cmd_rollback "${1#--rollback=}"
+        ;;
+esac
 
 main
