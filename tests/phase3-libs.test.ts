@@ -158,7 +158,7 @@ describe("mcp — merge + preserve", () => {
       await writeFile(
         team,
         JSON.stringify({
-          $schema: "./schemas/settings.schema.json",
+          $schema: "https://json.schemastore.org/claude-code-settings.json",
           mcpServers: {
             shared: { command: "team-shared" },
             context7: { command: "team-context7" },
@@ -178,7 +178,7 @@ describe("mcp — merge + preserve", () => {
       expect(merged.mcpServers.shared.command).toBe("team-shared");
       expect(merged.mcpServers["my-custom-mcp"].command).toBe("foo");
       // $schema and other team-root fields survive.
-      expect(merged.$schema).toBe("./schemas/settings.schema.json");
+      expect(merged.$schema).toBe("https://json.schemastore.org/claude-code-settings.json");
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }
