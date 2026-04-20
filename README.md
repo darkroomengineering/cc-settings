@@ -59,9 +59,9 @@ bash /tmp/darkroom-claude/setup.sh
 ├── profiles/           # Workflow profiles (maestro, nextjs, etc.)
 ├── rules/              # Path-conditioned rules (load on-demand)
 ├── contexts/           # Ecosystem contexts
-├── scripts/            # Hook and utility scripts
-├── lib/                # Shared bash utilities
+├── src/                # TypeScript: hooks, scripts, libs, schemas
 ├── docs/               # Reference documentation
+├── backups/            # Install backups (rollback target)
 ├── learnings/          # Local persistent memory
 └── handoffs/           # Session state backups
 ```
@@ -143,9 +143,11 @@ See [docs/knowledge-system.md](./docs/knowledge-system.md) for setup.
 
 ## Platform Support
 
-- **macOS** — Native (Homebrew)
-- **Linux** — Native (apt, dnf, pacman)
-- **Windows** — Via Git Bash, WSL, or MSYS2
+- **macOS** — Native (`bash setup.sh`)
+- **Linux** — Native (`bash setup.sh`)
+- **Windows** — Native (`.\setup.ps1` in PowerShell)
+
+Runtime: Bun `>=1.1.30` (auto-installed by the bootstrap if missing).
 
 ---
 
@@ -153,26 +155,34 @@ See [docs/knowledge-system.md](./docs/knowledge-system.md) for setup.
 
 1. Fork the repo
 2. Edit configs locally
-3. Test: `bash setup.sh`
-4. Validate: `bash tests/safety-net-test.sh`
-5. Submit PR with conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`)
+3. Install deps: `bun install`
+4. Gates: `bun run typecheck && bun run lint && bun test`
+5. Install to `~/.claude/`: `bash setup.sh` (or `.\setup.ps1` on Windows)
+6. Submit PR with conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`)
 
 ### Project Structure
 
 ```
 AGENTS.md              # Portable coding standards (source of truth)
 CLAUDE-FULL.md         # Claude-Code config (installed as ~/.claude/CLAUDE.md)
-setup.sh               # Installer
+setup.sh               # Bootstrap (installs Bun, execs src/setup.ts)
+setup.ps1              # Windows bootstrap
 settings.json          # Permissions, hooks, MCP
+src/setup.ts           # Authoritative installer
+src/hooks/             # Hot-path hooks (safety-net, statusline, …)
+src/scripts/           # One-shot scripts (post-edit, handoff, learn, …)
+src/lib/               # Shared libs (colors, mcp, packages, platform, …)
+src/schemas/           # zod schemas for settings.json, hooks, skills, MCP
+src/upstream/          # Claude Code version-drift scanner
 agents/                # Agent definitions
 skills/                # Skill definitions
 profiles/              # Workflow + platform profiles
 rules/                 # Path-conditioned rules
 contexts/              # Ecosystem contexts
-scripts/               # Bash scripts
-lib/                   # Shared bash libraries
 docs/                  # Reference docs
-tests/                 # Validation tests
+bench/                 # Performance benchmarks + regression gate
+tests/                 # bun:test suites
+schemas/               # Generated JSON Schemas (bun run schemas:emit)
 ```
 
 ---
