@@ -28,6 +28,9 @@ PRESERVE_MCP=true
 # Extract MCP server names from a settings.json file
 # Usage: extract_mcp_servers "/path/to/settings.json"
 # Sets: MCP_SERVERS array
+# Exits non-zero and writes to stderr if file is unparseable — callers MUST
+# treat this as a hard failure (do NOT silently proceed to `cp team_file`,
+# that's how colleagues have lost MCPs).
 extract_mcp_servers() {
     local settings_file="$1"
     local -a servers=()
@@ -37,9 +40,15 @@ extract_mcp_servers() {
         return 1
     fi
 
-    # Extract mcpServers keys using jq
+    # Validate JSON first — a parse error here means preservation cannot be
+    # trusted. Bail loudly instead of falling through to a wipe.
+    if ! jq empty "$settings_file" >/dev/null 2>&1; then
+        echo "ERROR: $settings_file is not valid JSON. Refusing to continue — fix the file or restore from ~/.claude/backups/ before re-running setup." >&2
+        return 2
+    fi
+
     local keys
-    keys=$(jq -r '.mcpServers // {} | keys[]' "$settings_file" 2>/dev/null)
+    keys=$(jq -r '.mcpServers // {} | keys[]' "$settings_file")
 
     if [[ -n "$keys" ]]; then
         while IFS= read -r server; do
@@ -47,7 +56,6 @@ extract_mcp_servers() {
         done <<< "$keys"
     fi
 
-    # Return space-separated list
     echo "${servers[*]}"
 }
 
@@ -112,13 +120,21 @@ prompt_mcp_preservation() {
     list_mcp_server_names ${USER_ONLY_SERVERS[@]+"${USER_ONLY_SERVERS[@]}"}
     echo ""
 
+    # Default to preserving — wiping user MCPs on install has burned
+    # colleagues. Explicit opt-out required via CC_WIPE_CUSTOM_MCP=1.
+    if [[ "${CC_WIPE_CUSTOM_MCP:-0}" == "1" ]]; then
+        PRESERVED_SERVERS=()
+        warn "CC_WIPE_CUSTOM_MCP=1 — dropping ${count} custom MCP server(s)"
+        return 0
+    fi
+
     if [[ "$INTERACTIVE" == true ]]; then
         if prompt_yn "Keep these servers? (they'll be merged with team config)" "y"; then
             PRESERVED_SERVERS=(${USER_ONLY_SERVERS[@]+"${USER_ONLY_SERVERS[@]}"})
             success "Keeping all ${count} custom server(s)"
         else
             PRESERVED_SERVERS=()
-            info "Starting fresh (custom servers will not be kept)"
+            warn "User chose not to preserve — ${count} custom MCP server(s) will be dropped"
         fi
     else
         # Non-interactive: preserve all by default
@@ -155,21 +171,34 @@ merge_mcp_configs() {
         fi
     done
 
-    # Write merged config
-    echo "$merged" | jq '.' > "$output_file"
+    # Atomic write: tmp + rename so an interrupted setup cannot truncate
+    # ~/.claude/settings.json.
+    local tmp="${output_file}.tmp.$$"
+    if ! echo "$merged" | jq '.' > "$tmp"; then
+        rm -f "$tmp"
+        echo "ERROR: failed to write merged MCP config to $tmp" >&2
+        return 1
+    fi
+    mv -f "$tmp" "$output_file"
 }
 
 # Detect existing MCP configuration
 # Usage: detect_existing_mcp "/path/to/existing/settings.json" "/path/to/team/settings.json"
+# Returns non-zero if either file is unparseable so callers abort rather than wipe.
 detect_existing_mcp() {
     local existing_file="$1"
     local team_file="$2"
 
-    # Extract server lists
-    local user_list team_list
+    # Extract server lists — capture rc separately so a JSON parse failure
+    # surfaces instead of silently resolving to an empty list (which would
+    # cause a wipe in merge_mcp_configs).
+    local user_list team_list user_rc team_rc
+    user_list=$(extract_mcp_servers "$existing_file"); user_rc=$?
+    team_list=$(extract_mcp_servers "$team_file"); team_rc=$?
 
-    user_list=$(extract_mcp_servers "$existing_file")
-    team_list=$(extract_mcp_servers "$team_file")
+    if [[ "$user_rc" == "2" ]] || [[ "$team_rc" == "2" ]]; then
+        return 2
+    fi
 
     # Convert to arrays
     USER_MCP_SERVERS=()
@@ -212,8 +241,11 @@ handle_mcp_preservation() {
         return 0
     fi
 
-    # Detect existing MCP servers
-    detect_existing_mcp "$existing_file" "$team_file"
+    # Detect existing MCP servers — abort on parse error so we never wipe.
+    if ! detect_existing_mcp "$existing_file" "$team_file"; then
+        echo "ERROR: cannot read existing MCP config. Aborting setup to avoid wiping user MCPs." >&2
+        return 1
+    fi
 
     # If user has custom servers, prompt for preservation
     if [[ ${#USER_ONLY_SERVERS[@]} -gt 0 ]]; then
@@ -289,11 +321,18 @@ install_mcp_to_claude_json() {
     updated_json=$(echo "$existing_json" | jq --argjson mcp "$merged_mcp" '.mcpServers = $mcp' 2>/dev/null)
 
     if [[ -n "$updated_json" ]]; then
-        echo "$updated_json" | jq '.' > "$CLAUDE_JSON_FILE"
+        # Atomic write — same rationale as merge_mcp_configs.
+        local tmp="${CLAUDE_JSON_FILE}.tmp.$$"
+        if ! echo "$updated_json" | jq '.' > "$tmp"; then
+            rm -f "$tmp"
+            warn "Failed to write ~/.claude.json (keeping previous version)"
+            return 1
+        fi
+        mv -f "$tmp" "$CLAUDE_JSON_FILE"
         debug "Installed MCP servers to ~/.claude.json"
         return 0
     else
-        warn "Failed to update ~/.claude.json"
+        warn "Failed to update ~/.claude.json (keeping previous version)"
         return 1
     fi
 }
