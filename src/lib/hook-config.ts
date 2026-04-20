@@ -54,15 +54,36 @@ export function getHookConfig(keyPath: string, defaultValue?: unknown): unknown 
   return defaultValue;
 }
 
-/** Convenience: typed read for the claude_md_monitor block used by session-start. */
+/** Convenience: typed read for the claude_md_monitor block used by session-start.
+ *
+ * Resolution order:
+ *   1. settings.json env vars (CC_CLAUDE_MD_*) — authoritative, set by setup.ts
+ *   2. legacy hooks-config.local.json → hooks-config.json (Phase 3 compatibility)
+ *   3. hardcoded defaults
+ *
+ * The env-var path will become the only path once hooks-config.json is
+ * deleted in Phase 4.11 cleanup (tracked in plans/migration-lthread.md).
+ */
 export function getClaudeMdMonitor(): {
   enabled: boolean;
   warnLines: number;
   criticalLines: number;
 } {
-  return {
-    enabled: getHookConfig<boolean>("claude_md_monitor.enabled", true),
-    warnLines: getHookConfig<number>("claude_md_monitor.warn_lines", 400),
-    criticalLines: getHookConfig<number>("claude_md_monitor.critical_lines", 600),
-  };
+  // Env var path (preferred). `true`/`false`/`1`/`0` accepted.
+  const envEnabled = process.env.CC_CLAUDE_MD_MONITOR_ENABLED;
+  const envWarn = process.env.CC_CLAUDE_MD_WARN_LINES;
+  const envCrit = process.env.CC_CLAUDE_MD_CRITICAL_LINES;
+  const enabled =
+    envEnabled !== undefined
+      ? envEnabled === "true" || envEnabled === "1"
+      : getHookConfig<boolean>("claude_md_monitor.enabled", true);
+  const warnLines =
+    envWarn !== undefined
+      ? Number.parseInt(envWarn, 10) || 400
+      : getHookConfig<number>("claude_md_monitor.warn_lines", 400);
+  const criticalLines =
+    envCrit !== undefined
+      ? Number.parseInt(envCrit, 10) || 600
+      : getHookConfig<number>("claude_md_monitor.critical_lines", 600);
+  return { enabled, warnLines, criticalLines };
 }
