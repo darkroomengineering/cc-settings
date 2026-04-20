@@ -391,8 +391,8 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Permission request | When a tool needs user permission |
 | Post-tool (Write/Edit) | Post-edit validation, async TSC |
 | Post-tool (TLDR) | Usage tracking |
-| Post-tool (git commit) | Commit sound |
-| Tool failure | Failure tracking, error sound |
+| Post-tool (Bash) | Command audit log |
+| Tool failure | Failure tracking |
 | Pre-compact | Auto-handoff save |
 | Post-compact | After context compaction completes |
 | Stop | Learning reminder, compact reminder |

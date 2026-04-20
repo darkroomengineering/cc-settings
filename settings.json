@@ -306,7 +306,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash -c 'output=$(bash \"$HOME/.claude/scripts/safety-net.sh\" 2>&1); rc=$?; if [ $rc -eq 2 ]; then bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block & disown 2>/dev/null; echo \"$output\"; exit 2; fi; echo \"$output\"; exit $rc'"
+						"command": "bash \"$HOME/.claude/scripts/safety-net.sh\""
 					}
 				]
 			},
@@ -379,17 +379,6 @@
 						"timeout": 10
 					}
 				]
-			},
-			{
-				"if": "Bash(git commit*)",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" commit",
-						"async": true,
-						"timeout": 10
-					}
-				]
 			}
 		],
 		"PostCompact": [
@@ -410,16 +399,6 @@
 						"command": "bash \"$HOME/.claude/scripts/stop-failure.sh\""
 					}
 				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" error",
-						"async": true,
-						"timeout": 10
-					}
-				]
 			}
 		],
 		"PreCompact": [
@@ -430,16 +409,6 @@
 						"command": "bash \"$HOME/.claude/scripts/handoff.sh\" create"
 					}
 				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" compact",
-						"async": true,
-						"timeout": 10
-					}
-				]
 			}
 		],
 		"SessionStart": [
@@ -448,16 +417,6 @@
 					{
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/session-start.sh\""
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" session_start",
-						"async": true,
-						"timeout": 10
 					}
 				]
 			}
@@ -482,16 +441,6 @@
 						"command": "bash -c 'CHANGES=$(git diff --stat 2>/dev/null | tail -1); if [[ \"$CHANGES\" =~ ([0-9]+)[[:space:]]+file ]]; then COUNT=${BASH_REMATCH[1]}; if [ \"$COUNT\" -gt 5 ]; then echo \"[Hook] Session had significant changes ($COUNT files) - consider storing learnings:\"; echo \"  learning.sh store <category> <learning> [context]\"; echo \"  Categories: bug | pattern | gotcha | tool | perf | config | arch | test\"; fi; fi'"
 					}
 				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" task_complete",
-						"async": true,
-						"timeout": 10
-					}
-				]
 			}
 		],
 		"PostToolUseFailure": [
@@ -501,16 +450,6 @@
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/post-failure.sh\"",
 						"async": false,
-						"timeout": 10
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" error",
-						"async": true,
 						"timeout": 10
 					}
 				]
@@ -546,18 +485,6 @@
 					{
 						"type": "command",
 						"command": "bash \"$HOME/.claude/scripts/notify.sh\"",
-						"async": true,
-						"timeout": 10
-					}
-				]
-			}
-		],
-		"PermissionDenied": [
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bash \"$HOME/.claude/scripts/notify-sound.sh\" safety_block",
 						"async": true,
 						"timeout": 10
 					}
