@@ -5,7 +5,7 @@
 		"CLAUDE_CODE_NO_FLICKER": "1",
 		"ENABLE_PROMPT_CACHING_1H": "1"
 	},
-	"model": "opus",
+	"model": "opus[1m]",
 	"showThinkingSummaries": true,
 	"teammateMode": "auto",
 	"includeGitInstructions": false,
