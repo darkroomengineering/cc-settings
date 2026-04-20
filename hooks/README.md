@@ -4,7 +4,7 @@ Claude Code has a **native hooks system** that executes shell scripts at specifi
 
 All hooks are **automatically installed** by the setup script. No manual configuration needed.
 
-For full hook documentation (all 23 events, configuration format, matchers, debugging):
+For full hook documentation (all 27 events, configuration format, matchers, debugging):
 **See [docs/hooks-reference.md](../docs/hooks-reference.md)**
 
 ## Configured Hooks
@@ -12,7 +12,6 @@ For full hook documentation (all 23 events, configuration format, matchers, debu
 | Event | Trigger | Script | Async |
 |-------|---------|--------|-------|
 | `SessionStart` | New session begins | `session-start.sh` (recalls learnings, auto-warms TLDR) | No |
-| `SessionStart` | New session begins | `notify-sound.sh session_start` | **Yes** |
 | `UserPromptSubmit` | Before Claude sees prompt | `skill-activation.sh` (skill matching) | No |
 | `UserPromptSubmit` | On user correction | Correction detection (learning reminder) | No |
 | `PreToolUse` | Before Bash commands (Bash matcher) | `safety-net.sh` (blocks destructive commands) | No |
@@ -25,12 +24,14 @@ For full hook documentation (all 23 events, configuration format, matchers, debu
 | `PostToolUse` | After Bash commands | `log-bash.sh` (command audit log) | **Yes** |
 | `PostToolUseFailure` | Tool execution fails | `post-failure.sh` (logs failures, warns on repeats) | No |
 | `PreCompact` | Before context compaction | `handoff.sh create` (saves state) | No |
+| `PostCompact` | After context compaction | `post-compact.sh` (recovery steps reminder) | No |
 | `Stop` | Claude finishes | Learning reminder if >5 files changed | No |
-| `Stop` | Claude finishes | `notify-sound.sh task_complete` | **Yes** |
+| `StopFailure` | Turn ends due to API error | `stop-failure.sh` (logs, surfaces rate limit info) | No |
 | `SessionEnd` | Session ending | `tldr-stats.sh` + `handoff.sh create` | **Yes** |
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
 | `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |
 | `Notification` | Task completion | `notify.sh` (macOS/Linux notification) | **Yes** |
+| `TaskCreated` | Task created via TaskCreate | Logs to `~/.claude/swarm.log` | **Yes** |
 
 ## Behavioral Guidelines
 

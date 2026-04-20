@@ -286,7 +286,6 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `session-start.sh` | Recalls relevant learnings, auto-warms TLDR index | No |
-| `notify-sound.sh session_start` | Plays audio notification on session start (when audio enabled) | Yes |
 
 ### UserPromptSubmit
 
@@ -316,12 +315,6 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `post-edit.sh` | Auto-formats edited files with Biome | No |
 | `post-edit-tsc.sh` | Runs TypeScript type check on edited files | Yes |
 
-### PostToolUse (Bash matcher — commit sound)
-
-| Script | Purpose | Async |
-|--------|---------|-------|
-| `notify-sound.sh commit` | Plays audio notification on git commit (when audio enabled) | Yes |
-
 ### PostToolUse (Bash matcher — command logging)
 
 | Script | Purpose | Async |
@@ -345,27 +338,36 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `post-failure.sh` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
-| `notify-sound.sh error` | Plays audio notification on tool failure (when audio enabled) | Yes |
 
 ### PreCompact
 
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `handoff.sh create` | Saves current task state to handoff file before context is compacted | No |
-| `notify-sound.sh compact` | Plays audio notification before compaction (when audio enabled) | Yes |
+
+### PostCompact
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `post-compact.sh` | Injects recovery steps (re-read plan, key files, check TaskList) and surfaces latest handoff path | No |
 
 ### Stop
 
 | Script | Purpose | Async |
 |--------|---------|-------|
 | Inline learning reminder | If >5 files were changed, reminds to store learnings | No |
-| `notify-sound.sh task_complete` | Plays audio notification on task completion (when audio enabled) | Yes |
 
-### SubagentStart / SubagentStop
+### StopFailure
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| Log to `~/.claude/swarm.log` | Records agent spawn/stop events with agent type and ID | Yes |
+| `stop-failure.sh` | Logs API errors to `~/.claude/api-failures.log`; surfaces rate limit guidance on 429/capacity errors | No |
+
+### SubagentStart / SubagentStop / TaskCreated
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| Log to `~/.claude/swarm.log` | Records agent spawn/stop events with agent type and ID; logs task creation with subject | Yes |
 
 ### Notification
 
@@ -378,12 +380,6 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `tldr-stats.sh` + `handoff.sh create` | Prints TLDR session stats and saves final handoff state | Yes |
-
-### PermissionDenied
-
-| Script | Purpose | Async |
-|--------|---------|-------|
-| `notify-sound.sh safety_block` | Plays alert sound on permission denial | Yes |
 
 ---
 

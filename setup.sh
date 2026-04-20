@@ -54,7 +54,6 @@ source_libs() {
     source "${lib_dir}/prompts.sh"
     source "${lib_dir}/packages.sh"
     source "${lib_dir}/mcp.sh"
-    source "${lib_dir}/hook-config.sh"
 }
 
 source_libs

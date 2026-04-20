@@ -8,8 +8,8 @@
 #
 # Usage:
 #   source "$HOME/.claude/lib/hook-config.sh"
-#   value=$(get_hook_config "audio.enabled")
-#   volume=$(get_hook_config "audio.volume")
+#   value=$(get_hook_config "claude_md_monitor.enabled")
+#   lines=$(get_hook_config "claude_md_monitor.warn_lines")
 
 HOOK_CONFIG_DIR="${HOME}/.claude"
 HOOK_CONFIG_LOCAL="${HOOK_CONFIG_DIR}/hooks-config.local.json"
@@ -18,7 +18,7 @@ HOOK_CONFIG_TEAM="${HOOK_CONFIG_DIR}/hooks-config.json"
 # get_hook_config - Read a config value using dot-notation key path
 #
 # Args:
-#   $1 - key path in dot-notation (e.g., "audio.enabled", "audio.events.commit")
+#   $1 - key path in dot-notation (e.g., "claude_md_monitor.enabled", "claude_md_monitor.warn_lines")
 #   $2 - default value if key is not found (optional, defaults to empty string)
 #
 # Returns:
@@ -26,8 +26,8 @@ HOOK_CONFIG_TEAM="${HOOK_CONFIG_DIR}/hooks-config.json"
 #   Exit code is always 0 (fail-open).
 #
 # Examples:
-#   enabled=$(get_hook_config "audio.enabled" "false")
-#   volume=$(get_hook_config "audio.volume" "0.5")
+#   enabled=$(get_hook_config "claude_md_monitor.enabled" "true")
+#   warn=$(get_hook_config "claude_md_monitor.warn_lines" "400")
 get_hook_config() {
     local key_path="$1"
     local default_value="${2:-}"
@@ -38,7 +38,7 @@ get_hook_config() {
         return 0
     fi
 
-    # Convert dot-notation to jq path (e.g., "audio.enabled" -> ".audio.enabled")
+    # Convert dot-notation to jq path (e.g., "claude_md_monitor.enabled" -> ".claude_md_monitor.enabled")
     local jq_path=".${key_path}"
 
     # Try local config first (personal overrides)
@@ -64,25 +64,4 @@ get_hook_config() {
     # Neither file has the key -- return default
     echo "$default_value"
     return 0
-}
-
-# is_hook_enabled - Convenience function to check boolean config values
-#
-# Args:
-#   $1 - key path in dot-notation
-#   $2 - default value (optional, defaults to "false")
-#
-# Returns:
-#   Exit code 0 if enabled (value is "true"), 1 otherwise.
-#
-# Example:
-#   if is_hook_enabled "audio.enabled"; then
-#       echo "Audio is on"
-#   fi
-is_hook_enabled() {
-    local key_path="$1"
-    local default_value="${2:-false}"
-    local value
-    value=$(get_hook_config "$key_path" "$default_value")
-    [[ "$value" == "true" ]]
 }

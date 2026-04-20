@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+### Audio Removal + Pre-TS-Migration Deslop
+
+- **Removed `scripts/notify-sound.sh`** (146 lines) and all 8 hook invocations — audio feedback unused in practice.
+- **Removed `PermissionDenied` hook event entirely** — its only action was `notify-sound.sh safety_block`.
+- **Removed `PostToolUse if: Bash(git commit*)` hook** — was commit sound only.
+- **Simplified PreToolUse `safety-net.sh` wrapper** — dropped the sound-on-block branch; direct script invocation now.
+- **Dropped `Bash(afplay:*)` from `.claude/settings.local.json`**.
+- **Pruned `hooks-config.json`** — removed `audio.*` (14 lines) and stale `compact_reminder` (3 lines) sections.
+- **Removed dead `is_hook_enabled` function** from `lib/hook-config.sh` (no callers).
+- **Stopped sourcing `lib/hook-config.sh` in `setup.sh`** — it's runtime-only (used by `session-start.sh`).
+- **Doc sync**: corrected hook-event count (23/26 → 27) across `README.md`, `hooks/README.md`, `docs/hooks-reference.md`; added missing `PostCompact`, `StopFailure`, `TaskCreated` rows.
+
 ### New MCP Servers
 
 - **Figma Dev Mode MCP** — Remote HTTP at `https://mcp.figma.com/mcp`. OAuth on first use. Design-to-code: tokens, styles, component props, variables.
@@ -13,7 +25,7 @@ All notable changes to cc-settings are documented here.
 
 - **`model: "opus[1m]"` → `"opus"`** — 1M context is default on Max plans (v2.1.75+).
 - **Removed `Bash(cat|head|tail|less|sed -n):*`** from `permissions.allow` — CLAUDE.md instructs Claude to use Read/Edit tools.
-- **Simplified `PermissionDenied` hook** — dropped bespoke logging (native `/less-permission-prompts` in v2.1.111 covers it). Sound retained.
+- **Simplified `PermissionDenied` hook** — dropped bespoke logging (native `/less-permission-prompts` in v2.1.111 covers it).
 - **Simplified `Stop` hook** — dropped `compact-reminder.sh` call (native `/context` tips in v2.1.108 cover it).
 - **Removed `skills/effort/`** — superseded by native `/effort` interactive slider (v2.1.111).
 - **Removed `scripts/permission-denied.sh`, `scripts/compact-reminder.sh`** — no longer referenced.

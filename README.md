@@ -130,7 +130,7 @@ See [docs/knowledge-system.md](./docs/knowledge-system.md) for setup.
 | [docs/knowledge-system.md](./docs/knowledge-system.md) | Two-tier knowledge setup |
 | [skills/README.md](./skills/README.md) | Skill system |
 | [hooks/README.md](./hooks/README.md) | Hook configuration |
-| [docs/hooks-reference.md](./docs/hooks-reference.md) | All 26 hook events |
+| [docs/hooks-reference.md](./docs/hooks-reference.md) | All 27 hook events |
 | [docs/settings-reference.md](./docs/settings-reference.md) | settings.json fields |
 | [docs/frontmatter-reference.md](./docs/frontmatter-reference.md) | YAML frontmatter fields for agents, skills, rules |
 | [docs/feature-agents-guide.md](./docs/feature-agents-guide.md) | Creating project-specific feature agents |
