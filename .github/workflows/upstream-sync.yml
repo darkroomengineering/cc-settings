@@ -1,8 +1,8 @@
 name: upstream-sync
 
-# Skeleton — fully wired in Phase 1 when src/upstream/scan.ts exists.
-# The job currently short-circuits so the workflow is visible in the Actions
-# tab without creating noise PRs.
+# Daily scan of Claude Code upstream. When `src/upstream/scan.ts --open-pr`
+# detects a new npm version of @anthropic-ai/claude-code, it writes an
+# updated upstream/claude-code-manifest.json and opens a labeled PR.
 
 on:
   schedule:
@@ -20,15 +20,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Need history to push a new branch.
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ">=1.1.30"
       - run: bun install --frozen-lockfile
-      - name: Scan upstream (Phase 1 will implement)
-        run: |
-          if [ -f src/upstream/scan.ts ]; then
-            bun src/upstream/scan.ts
-          else
-            echo "Phase 1 pending — src/upstream/scan.ts not yet implemented."
-            echo "Skeleton workflow; no-op until scanner lands."
-          fi
+      - name: Scan upstream (dry-run summary)
+        run: bun src/upstream/scan.ts
+      - name: Open PR on drift
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun src/upstream/scan.ts --open-pr

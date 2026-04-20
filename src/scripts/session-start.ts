@@ -1,0 +1,274 @@
+#!/usr/bin/env bun
+// SessionStart hook — rotate logs, clean handoffs, auto-warm TLDR, recall learnings.
+// Port of scripts/session-start.sh.
+//
+// Hook contract: no stdin shape required, no arguments. Output goes to stdout
+// for Claude Code to show; side effects touch ~/.claude/{sessions.log,
+// handoffs,tldr-cache,tmp}.
+//
+// Phase 3 will replace the inlined hooks-config.json read with src/lib/hook-config.ts.
+
+import { existsSync } from "node:fs";
+import {
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
+
+const CLAUDE_DIR = join(homedir(), ".claude");
+const PROJECT_DIR = process.cwd();
+const PROJECT_NAME = basename(PROJECT_DIR);
+
+// --- Helpers --------------------------------------------------------------
+
+async function which(cmd: string): Promise<boolean> {
+  const probe = process.platform === "win32" ? ["where", cmd] : ["sh", "-c", `command -v ${cmd}`];
+  const p = Bun.spawn(probe, { stdout: "ignore", stderr: "ignore" });
+  return (await p.exited) === 0;
+}
+
+async function rotateLog(logPath: string, maxSize = 1_048_576): Promise<void> {
+  try {
+    const st = await stat(logPath);
+    if (st.size > maxSize) await rename(logPath, `${logPath}.old`);
+  } catch {
+    // missing or stat fails — no rotation.
+  }
+}
+
+async function cleanupHandoffs(dir: string, keep = 20): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return;
+  }
+  const prune = async (pattern: RegExp) => {
+    const matches: Array<{ full: string; mtime: number }> = [];
+    for (const name of entries) {
+      if (!pattern.test(name)) continue;
+      const full = join(dir, name);
+      try {
+        const st = await stat(full);
+        matches.push({ full, mtime: st.mtimeMs });
+      } catch {
+        // ignore
+      }
+    }
+    matches.sort((a, b) => b.mtime - a.mtime);
+    const toDrop = matches.slice(keep);
+    await Promise.all(toDrop.map((m) => unlink(m.full).catch(() => {})));
+  };
+  await Promise.all([prune(/^handoff_.*\.json$/), prune(/^handoff_.*\.md$/)]);
+}
+
+// Inline read of hooks-config.json for the claude_md_monitor.* keys we care
+// about. Phase 3 replaces this with src/lib/hook-config.ts.
+type HooksConfigShape = {
+  claude_md_monitor?: {
+    enabled?: boolean;
+    warn_lines?: number;
+    critical_lines?: number;
+  };
+};
+
+async function readHookConfig(): Promise<HooksConfigShape> {
+  const local = join(CLAUDE_DIR, "hooks-config.local.json");
+  const team = join(CLAUDE_DIR, "hooks-config.json");
+  for (const path of [local, team]) {
+    try {
+      const raw = await readFile(path, "utf8");
+      return JSON.parse(raw) as HooksConfigShape;
+    } catch {
+      // try next
+    }
+  }
+  return {};
+}
+
+async function autoWarmTldr(): Promise<void> {
+  if (!(await which("tldr"))) return;
+  const markers = [
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "pyproject.toml",
+    "setup.py",
+    "Makefile",
+    ".git",
+  ];
+  if (!markers.some((m) => existsSync(join(PROJECT_DIR, m)))) return;
+
+  const tldrIndex = join(PROJECT_DIR, ".tldr");
+  if (existsSync(tldrIndex)) return;
+
+  const tldrCache = join(CLAUDE_DIR, "tldr-cache", `${PROJECT_NAME}.warmed`);
+  try {
+    const st = await stat(tldrCache);
+    const ageSec = (Date.now() - st.mtimeMs) / 1000;
+    if (ageSec < 3600) return;
+  } catch {
+    // no cache yet — proceed
+  }
+
+  await mkdir(join(CLAUDE_DIR, "tldr-cache"), { recursive: true }).catch(() => {});
+  await writeFile(tldrCache, "").catch(() => {});
+
+  // Fire and forget — equivalent of `( cd "$PROJECT_DIR" && tldr warm . ) & disown`.
+  // Bun.spawn default is detached enough for our purposes; we do not await.
+  const proc = Bun.spawn(["tldr", "warm", "."], {
+    cwd: PROJECT_DIR,
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  proc.unref?.();
+  // Append to sessions.log after warming completes, non-blocking.
+  void (async () => {
+    try {
+      await proc.exited;
+      const ts = formatDate(new Date());
+      await appendFile(
+        join(CLAUDE_DIR, "sessions.log"),
+        `${ts} - TLDR warmed: ${PROJECT_NAME}\n`,
+      ).catch(() => {});
+    } catch {
+      // ignore
+    }
+  })();
+}
+
+function formatDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// --- Phase 1: background tasks --------------------------------------------
+
+// Clean per-session temp files from the previous session.
+await Promise.all(
+  [
+    join(CLAUDE_DIR, "tmp", "tool-failure-counts"),
+    join(CLAUDE_DIR, "tmp", "heavy-skill-active"),
+  ].map((p) => unlink(p).catch(() => {})),
+);
+
+const logRotations = [
+  rotateLog(join(CLAUDE_DIR, "sessions.log")),
+  rotateLog(join(CLAUDE_DIR, "hooks.log")),
+  rotateLog(join(CLAUDE_DIR, "safety-net.log")),
+  rotateLog(join(CLAUDE_DIR, "logs", "tool-failures.log")),
+];
+const handoffCleanup = cleanupHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
+// Compile-skills (bash variant exists; during Phase 2 we still call the .sh).
+let compileSkills: Promise<void> = Promise.resolve();
+const compileScript = join(CLAUDE_DIR, "scripts", "compile-skills.sh");
+if (existsSync(compileScript)) {
+  compileSkills = (async () => {
+    const proc = Bun.spawn(["bash", compileScript], { stdout: "ignore", stderr: "ignore" });
+    await proc.exited;
+  })();
+}
+
+// --- Phase 2: wait for sessions.log rotation, then log session start ------
+
+await logRotations[0];
+await appendFile(
+  join(CLAUDE_DIR, "sessions.log"),
+  `${formatDate(new Date())} - Session started in ${PROJECT_DIR}\n`,
+).catch(() => {});
+
+// --- Phase 3: fire-and-forget TLDR warming -------------------------------
+
+await autoWarmTldr();
+
+// --- Phase 4: wait for remaining background tasks ------------------------
+
+await Promise.all([...logRotations.slice(1), handoffCleanup, compileSkills]);
+
+// --- Phase 5: display output ----------------------------------------------
+
+// Learnings
+const learningsBase = join(CLAUDE_DIR, "learnings");
+const learningsFile = join(learningsBase, PROJECT_NAME, "learnings.json");
+if (existsSync(learningsFile)) {
+  try {
+    const parsed = JSON.parse(await readFile(learningsFile, "utf8")) as {
+      learnings?: Array<{ timestamp?: string; category?: string; learning?: string }>;
+    };
+    const entries = parsed.learnings ?? [];
+    let totalProjects = 0;
+    try {
+      const dirents = await readdir(learningsBase, { withFileTypes: true });
+      totalProjects = dirents.filter((d) => d.isDirectory()).length;
+    } catch {
+      // leave 0
+    }
+    if (entries.length > 0) {
+      console.log("");
+      console.log("MEMORY SYSTEM ACTIVE");
+      console.log("------------------------------------");
+      console.log("");
+      console.log(`Project: ${PROJECT_NAME}`);
+      console.log(
+        `Learnings: ${entries.length} for this project (${totalProjects} projects tracked)`,
+      );
+      console.log("");
+      console.log("Recent learnings:");
+      const recent = [...entries]
+        .sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""))
+        .slice(0, 3);
+      for (const e of recent) console.log(`  - [${e.category ?? "?"}] ${e.learning ?? ""}`);
+      console.log("");
+      console.log("Run: learning.sh recall");
+      console.log("------------------------------------");
+    }
+  } catch {
+    // malformed learnings file — same as bash jq fallback: skip
+  }
+}
+
+// TLDR status
+if (await which("tldr")) {
+  console.log("");
+  if (existsSync(join(PROJECT_DIR, ".tldr"))) {
+    console.log("TLDR index available for semantic search");
+  } else {
+    console.log("TLDR warming in background (semantic search coming soon)");
+  }
+}
+
+// CLAUDE.md size monitoring
+const claudeMd = join(CLAUDE_DIR, "CLAUDE.md");
+if (existsSync(claudeMd)) {
+  const cfg = await readHookConfig();
+  const monitor = cfg.claude_md_monitor ?? {};
+  const enabled = monitor.enabled ?? true;
+  const warnLines = monitor.warn_lines ?? 400;
+  const critLines = monitor.critical_lines ?? 600;
+  if (enabled) {
+    try {
+      const text = await readFile(claudeMd, "utf8");
+      const lineCount = text.split("\n").length - 1; // bash `wc -l` counts newlines
+      if (lineCount > critLines) {
+        console.log("");
+        console.log(
+          `WARNING: CLAUDE.md is ${lineCount} lines (critical threshold). Adherence may degrade. Run: wc -l ~/.claude/CLAUDE.md`,
+        );
+      } else if (lineCount > warnLines) {
+        console.log("");
+        console.log(
+          `WARNING: CLAUDE.md is ${lineCount} lines (recommended: <${warnLines}). Consider moving sections to rules/ or profiles/.`,
+        );
+      }
+    } catch {
+      // unreadable CLAUDE.md — skip
+    }
+  }
+}
