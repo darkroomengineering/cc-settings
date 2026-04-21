@@ -16,8 +16,13 @@ async function run(
   script: string,
   opts: { env?: Record<string, string>; stdin?: string; args?: string[] } = {},
 ): Promise<{ exit: number; stdout: string; stderr: string }> {
+  const env = { ...process.env, ...opts.env };
+  // node:os `homedir()` reads USERPROFILE on Windows, not HOME. When a test
+  // sandboxes HOME, mirror it to USERPROFILE so child scripts resolve into
+  // the sandbox on every platform.
+  if (opts.env?.HOME) env.USERPROFILE = opts.env.HOME;
   const proc = Bun.spawn(["bun", resolve(SRC, script), ...(opts.args ?? [])], {
-    env: { ...process.env, ...opts.env },
+    env,
     stdin: opts.stdin !== undefined ? "pipe" : undefined,
     stdout: "pipe",
     stderr: "pipe",
