@@ -12,6 +12,7 @@ description: |
 
   RETURNS: Created files with proper structure, exports, types, and styling scaffolds
 tools: [Read, Write, Edit, Bash, Glob, LS]
+disallowedTools: ["Bash(git push:*)", "Bash(rm:*)"]
 effort: low
 color: magenta
 ---

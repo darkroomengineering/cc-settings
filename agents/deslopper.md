@@ -15,6 +15,7 @@ description: |
 
   RETURNS: Dead code auto-removed, consolidation recommendations for approval
 tools: [Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet]
+disallowedTools: ["Bash(git push:*)", "Bash(rm:*)"]
 effort: high
 isolation: worktree
 color: cyan
@@ -298,9 +299,9 @@ tldr semantic "date formatting" .
 For config repos with no TypeScript (TLDR/impact won't help):
 ```bash
 # Cross-index consistency: compare parallel lists that should match
-# Example: skill dirs vs managed_skills array vs skill-patterns.sh cases
+# Example: skill dirs vs MANAGED_SKILLS array in setup.ts
 diff <(ls skills/*/SKILL.md | sed 's|.*/||;s|/.*||' | sort) \
-     <(grep -o '^        [a-z-]*)' lib/skill-patterns.sh | tr -d ' )' | sort)
+     <(grep -oE '"[a-z-]+"' src/setup.ts | tr -d '"' | sort -u)
 
 # Phantom file references: find references to files that don't exist
 grep -roh '[a-z_-]*\.sh' settings.json | sort -u | while read f; do

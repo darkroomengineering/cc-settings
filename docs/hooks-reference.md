@@ -6,7 +6,7 @@ Complete reference for Claude Code hook events, configuration, and debugging.
 
 ## Overview
 
-Hooks are shell scripts that execute at specific points in the Claude Code lifecycle. They are configured in `settings.json` under the `hooks` key and are installed automatically by `setup.sh`.
+Hooks are TypeScript scripts (executed via Bun) that run at specific points in the Claude Code lifecycle. They are configured in `settings.json` under the `hooks` key and are installed automatically by `setup.sh`.
 
 Hooks can validate input, block operations, inject context, log activity, and trigger side effects.
 
@@ -285,43 +285,44 @@ Matchers filter which specific tool invocations or events trigger a hook.
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `session-start.sh` | Recalls relevant learnings, auto-warms TLDR index | No |
+| `session-start.ts` | Recalls relevant learnings, auto-warms TLDR index | No |
 
 ### UserPromptSubmit
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `skill-activation.sh "$PROMPT"` | Matches prompt against skill patterns, injects skill context | No |
-| Inline correction detection | Detects correction phrases ("no,", "wrong", "actually,") and reminds to store learnings | No |
+| `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
+
+> Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
 ### PreToolUse (Bash matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `safety-net.sh` | Blocks destructive shell commands (rm -rf /, force push, etc.) | No |
+| `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.) | No |
 | Inline pre-commit tsc check | Runs `tsc --noEmit` before any `git commit` command. Blocks commit if TypeScript errors found | No |
-| `check-docs-before-install.sh` | Reminds to fetch docs before installing new packages | No |
+| `check-docs-before-install.ts` | Reminds to fetch docs before installing new packages | No |
 
 ### PreToolUse (Edit matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `pre-edit-validate.sh` | Validates edit strategy (file recently read, edit size appropriate) | No |
+| `pre-edit-validate.ts` | Validates edit strategy (file recently read, edit size appropriate) | No |
 
 ### PostToolUse (Write|Edit matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-edit.sh` | Auto-formats edited files with Biome | No |
-| `post-edit-tsc.sh` | Runs TypeScript type check on edited files | Yes |
+| `post-edit.ts` | Auto-formats edited files with Biome | No |
+| `post-edit-tsc.ts` | Runs TypeScript type check on edited files | Yes |
 
 ### PostToolUse (Bash matcher — command logging)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `log-bash.sh` | Logs every Bash command to `~/.claude/logs/bash-YYYY-MM-DD.log` | Yes |
+| `log-bash.ts` | Logs every Bash command to `~/.claude/logs/bash-YYYY-MM-DD.log` | Yes |
 
-Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
+Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
 
 **Log format:** `[HH:MM:SS] [project] command`
 
@@ -331,25 +332,25 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `track-tldr.sh "$TOOL_NAME"` | Tracks TLDR MCP usage statistics | Yes |
+| `track-tldr.ts "$TOOL_NAME"` | Tracks TLDR MCP usage statistics | Yes |
 
 ### PostToolUseFailure
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-failure.sh` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
+| `post-failure.ts` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
 
 ### PreCompact
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `handoff.sh create` | Saves current task state to handoff file before context is compacted | No |
+| `handoff.ts create` | Saves current task state to handoff file before context is compacted | No |
 
 ### PostCompact
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-compact.sh` | Injects recovery steps (re-read plan, key files, check TaskList) and surfaces latest handoff path | No |
+| `post-compact.ts` | Injects recovery steps (re-read plan, key files, check TaskList) and surfaces latest handoff path | No |
 
 ### Stop
 
@@ -361,7 +362,7 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `stop-failure.sh` | Logs API errors to `~/.claude/api-failures.log`; surfaces rate limit guidance on 429/capacity errors | No |
+| `stop-failure.ts` | Logs API errors to `~/.claude/api-failures.log`; surfaces rate limit guidance on 429/capacity errors | No |
 
 ### SubagentStart / SubagentStop / TaskCreated
 
@@ -373,39 +374,39 @@ Logs are used by the `/audit` skill (`claude-audit.sh`) to analyze command patte
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `notify.sh` | Sends desktop notification (macOS/Linux) when tasks complete | Yes |
+| `notify.ts` | Sends desktop notification (macOS/Linux) when tasks complete | Yes |
 
 ### SessionEnd
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `tldr-stats.sh` + `handoff.sh create` | Prints TLDR session stats and saves final handoff state | Yes |
+| `tldr-stats.ts` + `handoff.ts create` | Prints TLDR session stats and saves final handoff state | Yes |
 
 ---
 
 ## Adding New Hooks
 
+cc-settings hooks are TypeScript executed by Bun (since v8.0.0). Land the script under `src/scripts/` or `src/hooks/` in the repo — the installer copies it to `~/.claude/src/...`.
+
 ### Step 1: Create the Script
 
-```bash
-#!/bin/bash
-# ~/.claude/scripts/my-hook.sh
-# Description of what this hook does
+```ts
+#!/usr/bin/env bun
+// src/scripts/my-hook.ts — description of what this hook does
 
-# Access environment variables
-echo "[Hook] Processing: $TOOL_NAME"
+const toolName = process.env.TOOL_NAME ?? "";
+if (!toolName) process.exit(0);
 
-# Exit 0 to allow, non-zero to block (PreToolUse only)
-exit 0
+console.log(`[Hook] Processing: ${toolName}`);
+
+// Exit 0 to allow, non-zero to block (PreToolUse only).
+// To emit structured hook output, write a JSON object to stdout:
+//   console.log(JSON.stringify({ hookSpecificOutput: { sessionTitle: "…" } }));
+
+export {};
 ```
 
-### Step 2: Make Executable
-
-```bash
-chmod +x ~/.claude/scripts/my-hook.sh
-```
-
-### Step 3: Add to settings.json
+### Step 2: Register in `settings.json`
 
 ```json
 {
@@ -416,7 +417,7 @@ chmod +x ~/.claude/scripts/my-hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$HOME/.claude/scripts/my-hook.sh\"",
+            "command": "bun \"$HOME/.claude/src/scripts/my-hook.ts\"",
             "async": true,
             "timeout": 30
           }
@@ -427,9 +428,9 @@ chmod +x ~/.claude/scripts/my-hook.sh
 }
 ```
 
-### Step 4: Test
+### Step 3: Test
 
-Run a Claude Code session and trigger the relevant event. Check logs for output.
+Run a Claude Code session and trigger the relevant event. Check logs for output (see "Debugging Hooks" below).
 
 ### Best Practices
 
@@ -450,11 +451,11 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 | `~/.claude/hooks.log` | General hook execution output |
 | `~/.claude/swarm.log` | Subagent start/stop events |
 | `~/.claude/sessions.log` | Session lifecycle events |
-| `~/.claude/skill-activation.out` | Skill pattern matching results |
+| `~/.claude/session-titles/` | Per-session title flags (set once per session by `session-title.ts`) |
 | `~/.claude/tldr-session-stats.json` | TLDR tool usage statistics per session |
-| `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.sh`) |
-| `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.sh`) |
-| `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.sh`, analyzed by `/audit`) |
+| `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.ts`) |
+| `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.ts`) |
+| `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.ts`, analyzed by `/audit`) |
 
 ### Common Issues
 
@@ -474,7 +475,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 # Simulate PreToolUse environment
 export TOOL_NAME="Bash"
 export TOOL_INPUT='{"command":"git commit -m test"}'
-bash ~/.claude/scripts/safety-net.sh
+bun ~/.claude/scripts/safety-net.ts
 
 # Check exit code
 echo $?  # 0 = allow, 1 = block
@@ -488,9 +489,6 @@ tail -f ~/.claude/swarm.log
 
 # Watch all hook-related logs
 tail -f ~/.claude/hooks.log
-
-# Check recent skill activations
-cat ~/.claude/skill-activation.out
 
 # List handoff files
 ls -lt ~/.claude/handoffs/*.md | head -5

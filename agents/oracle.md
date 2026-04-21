@@ -13,6 +13,8 @@ description: |
 
   RETURNS: Detailed explanations with file:line citations, evidence, caveats, related context
 tools: [Read, Grep, Glob, LS, WebFetch, Bash]
+disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)", "Bash(gh pr:*)"]
+maxTurns: 25
 effort: medium
 color: gold
 ---

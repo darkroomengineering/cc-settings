@@ -36,11 +36,13 @@ Environment variables injected into every Claude Code session.
 |----------|--------|-------------|
 | `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high` | Default adaptive thinking depth. Platform default is `high` (since v2.1.94 for API/Team/Enterprise). cc-settings matches this default |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
+| `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
+| `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
+| `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Extends prompt cache TTL from 5 min → 1 hour. cc-settings enables this (v2.1.108+) |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context |
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window (Max plan default — rarely needed) |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
-| `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
 | `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
@@ -99,12 +101,12 @@ Custom status bar displayed in the Claude Code terminal.
 {
   "statusLine": {
     "type": "command",
-    "command": "bash \"$HOME/.claude/scripts/statusline.sh\""
+    "command": "bun \"$HOME/.claude/scripts/statusline.ts\""
   }
 }
 ```
 
-The `statusline.sh` script displays model name, git branch, and context usage percentage.
+The `statusline.ts` script displays model name, git branch, and context usage percentage.
 
 ### `plansDirectory`
 
@@ -133,12 +135,12 @@ Controls whether Claude Code injects its built-in git workflow instructions into
 
 ### `sandbox`
 
-Sandbox configuration for secure command execution.
+Sandbox configuration for secure command execution. cc-settings ships with `failIfUnavailable: false` — opt-in per machine once you've confirmed sandbox support (bubblewrap on Linux, native on macOS).
 
 ```json
 {
   "sandbox": {
-    "failIfUnavailable": true
+    "failIfUnavailable": false
   }
 }
 ```
@@ -147,6 +149,8 @@ Sandbox configuration for secure command execution.
 |-------|------|-------------|
 | `failIfUnavailable` | boolean | Exit with error when sandbox is enabled but unavailable (default: false) |
 | `enableWeakerNetworkIsolation` | boolean | macOS: weaker network isolation for MITM proxy verification |
+| `filesystem.allowRead` / `allowWrite` | list | Re-allow paths inside `denyRead`/`denyWrite` regions (v2.1.77, v2.1.78) |
+| `network.deniedDomains` | list | Block specific domains despite broader `allowedDomains` wildcard (v2.1.113) |
 
 ### `spinnerVerbs`
 

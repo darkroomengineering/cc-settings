@@ -12,6 +12,7 @@ description: |
 
   RETURNS: Orchestration status, synthesized results from sub-agents, progress tracking
 tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent]
+disallowedTools: ["Bash(git push:*)", "Bash(rm:*)"]
 effort: high
 color: red
 ---

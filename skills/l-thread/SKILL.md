@@ -96,7 +96,7 @@ For each phase:
 
 When resuming after interruption:
 
-1. Run `checkpoint.sh restore` to load latest state
+1. Run `checkpoint.ts restore` to load latest state
 2. Check git status for uncommitted work
 3. Review remaining todos
 4. Run verification to confirm baseline

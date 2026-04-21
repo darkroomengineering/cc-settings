@@ -151,6 +151,24 @@ Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
 
 27 events across 8 categories. Types: `command`, `prompt`, `agent`, `http`. Conditional filtering via `if` field using permission rule syntax (e.g., `"if": "Bash(git commit*)"`). See `docs/hooks-reference.md` for full event list and examples.
 
+Session auto-titling: a tiny `UserPromptSubmit` hook (`session-title.ts`) emits `hookSpecificOutput.sessionTitle` on the first meaningful prompt so `claude --resume <name>` (v2.1.101) and `/recap` work without manual `/rename`.
+
+Skill matching is handled by the **native `Skill` tool** (v2.1.108) — no custom pattern-matching hook needed.
+
+## Agent frontmatter
+
+Agents declare capabilities in YAML frontmatter. cc-settings uses:
+
+| Field | Purpose |
+|-------|---------|
+| `tools` | Allowlist of tools the agent may invoke |
+| `disallowedTools` | Permission-rule-syntax blocklist, e.g. `["Bash(git push:*)", "Bash(rm:*)"]` (v2.1.84) |
+| `maxTurns` | Cap turns for read-only agents (v2.1.84) |
+| `effort` | Override effort level per-agent (v2.1.80) |
+| `isolation: worktree` | Run in isolated git worktree copy |
+| `hooks` | Fire when running as main-thread agent via `--agent` (v2.1.116) |
+| `initialPrompt` | Auto-submit first turn (v2.1.83) |
+
 ---
 
 ## Knowledge System

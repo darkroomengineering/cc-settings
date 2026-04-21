@@ -143,15 +143,6 @@ const logRotations = [
   rotateLog(join(CLAUDE_DIR, "logs", "tool-failures.log")),
 ];
 const handoffCleanup = cleanupHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
-// Compile-skills (bash variant exists; during Phase 2 we still call the .sh).
-let compileSkills: Promise<void> = Promise.resolve();
-const compileScript = join(CLAUDE_DIR, "scripts", "compile-skills.sh");
-if (existsSync(compileScript)) {
-  compileSkills = (async () => {
-    const proc = Bun.spawn(["bash", compileScript], { stdout: "ignore", stderr: "ignore" });
-    await proc.exited;
-  })();
-}
 
 // --- Phase 2: wait for sessions.log rotation, then log session start ------
 
@@ -167,7 +158,7 @@ await autoWarmTldr();
 
 // --- Phase 4: wait for remaining background tasks ------------------------
 
-await Promise.all([...logRotations.slice(1), handoffCleanup, compileSkills]);
+await Promise.all([...logRotations.slice(1), handoffCleanup]);
 
 // --- Phase 5: display output ----------------------------------------------
 
@@ -203,7 +194,7 @@ if (existsSync(learningsFile)) {
         .slice(0, 3);
       for (const e of recent) console.log(`  - [${e.category ?? "?"}] ${e.learning ?? ""}`);
       console.log("");
-      console.log("Run: learning.sh recall");
+      console.log("Run: bun src/scripts/learning.ts recall");
       console.log("------------------------------------");
     }
   } catch {

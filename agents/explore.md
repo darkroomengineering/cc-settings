@@ -15,6 +15,8 @@ description: |
 
   RETURNS: File locations, architecture maps, dependency graphs, code summaries, documentation
 tools: [Read, Grep, Glob, LS, Bash, WebFetch]
+disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)", "Bash(gh pr:*)"]
+maxTurns: 30
 effort: medium
 color: purple
 ---

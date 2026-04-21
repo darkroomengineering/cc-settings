@@ -18,7 +18,6 @@ import {
 } from "../src/lib/mcp.ts";
 import { getInstallHint } from "../src/lib/packages.ts";
 import { getTimestamp, hasCommand, os } from "../src/lib/platform.ts";
-import { getSkillAgents, getSkillPatterns, KNOWN_SKILLS } from "../src/lib/skill-patterns.ts";
 
 describe("platform", () => {
   test("os is one of the known values", () => {
@@ -39,26 +38,6 @@ describe("packages", () => {
   test("getInstallHint returns a platform-appropriate hint", () => {
     const hint = getInstallHint("jq");
     expect(hint).toContain("jq");
-  });
-});
-
-describe("skill-patterns", () => {
-  test("KNOWN_SKILLS is non-empty and has all major skills", () => {
-    expect(KNOWN_SKILLS.length).toBeGreaterThan(30);
-    for (const name of ["fix", "build", "explore", "review", "ship"]) {
-      expect(KNOWN_SKILLS).toContain(name);
-    }
-  });
-  test("getSkillPatterns returns [] for unknown", () => {
-    expect(getSkillPatterns("totally-unknown")).toEqual([]);
-  });
-  test("getSkillPatterns returns the expected patterns for a known skill", () => {
-    const patterns = getSkillPatterns("fix");
-    expect(patterns).toContain("bug");
-    expect(patterns).toContain("fix");
-  });
-  test("getSkillAgents returns agents array", () => {
-    expect(getSkillAgents("orchestrate")).toEqual(["maestro"]);
   });
 });
 

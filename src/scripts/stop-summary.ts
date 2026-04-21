@@ -17,6 +17,6 @@ if (count > 5) {
   console.log(
     `[Hook] Session had significant changes (${count} files) - consider storing learnings:`,
   );
-  console.log("  learning.sh store <category> <learning> [context]");
+  console.log("  bun src/scripts/learning.ts store <category> <learning> [context]");
   console.log("  Categories: bug | pattern | gotcha | tool | perf | config | arch | test");
 }

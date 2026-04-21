@@ -29,9 +29,10 @@ proved `bun build --compile` offered no startup win on macOS vs `bun run`).
 4. **Phase 2 — leaf scripts** (12 scripts ported to `src/scripts/`).
 5. **Phase 3 — shared libs** (7 libs ported to `src/lib/`).
 6. **Phase 4 — hot-path hooks + stateful** (`safety-net`, `statusline`,
-   `pre-edit-validate`, `skill-activation` + `handoff`, `checkpoint`,
-   `learning`, `compile-skills`, `project-init`). `hooks-config.json`
-   collapsed into `settings.json.env` as `CC_CLAUDE_MD_*`.
+   `pre-edit-validate` + `handoff`, `checkpoint`, `learning`, `project-init`).
+   `hooks-config.json` collapsed into `settings.json.env` as `CC_CLAUDE_MD_*`.
+   Later removed: `skill-activation`, `compile-skills` (native `Skill` tool
+   in Claude Code v2.1.108 supersedes pattern-matching approach).
 7. **Phase 5 — installer** (`src/setup.ts` full port, `setup.sh` shrunk to
    bootstrap, `setup.ps1` added, bench regression gate in CI).
 8. **Phase 6 — cutover** (rewrote repo `settings.json` to invoke

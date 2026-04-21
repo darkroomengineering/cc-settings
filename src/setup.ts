@@ -44,7 +44,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.0"; // Phase 7: TS-only, bash removed
+const VERSION = "10.1"; // v2.1.116 sync: native-feature adoption + duplication cleanup
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -212,6 +212,7 @@ const MANAGED_SKILLS = [
   "test",
   "tldr",
   "verify",
+  // Kept for upgrade cleanup; skill was removed (superseded by `docs` + `check-docs-before-install` hook).
   "versions",
 ];
 
@@ -333,13 +334,6 @@ async function installDependencies(): Promise<void> {
   if (!hasCommand("tldr") && !hasCommand("tldr-mcp")) {
     await ensurePythonPackage("llm-tldr", "tldr").catch(() => false);
   }
-}
-
-async function compileSkillIndex(): Promise<boolean> {
-  const tsPort = join(CLAUDE_DIR, "src", "scripts", "compile-skills.ts");
-  if (!existsSync(tsPort)) return false;
-  const proc = Bun.spawn(["bun", tsPort, "--force"], { stdout: "ignore", stderr: "ignore" });
-  return (await proc.exited) === 0;
 }
 
 async function writeVersionSentinel(): Promise<void> {
@@ -468,10 +462,6 @@ async function main(): Promise<number> {
     }
     throw err;
   }
-
-  info("Compiling skill index...");
-  if (await compileSkillIndex()) success("Skill index compiled");
-  else warn("Skill index compilation skipped (will compile on first session)");
 
   await writeVersionSentinel();
   await showSummary();

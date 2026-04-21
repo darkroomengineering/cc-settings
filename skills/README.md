@@ -80,7 +80,6 @@ These fork context for clean exploration:
 | `debug` | screenshot, visual bug, inspect element |
 | `figma` | figma, compare to design, design fidelity, extract tokens from figma |
 | `qa` | visual check, accessibility, validate |
-| `versions` | package version, before installing |
 | `lenis` | smooth scroll, lenis setup |
 
 ### Utility

@@ -13,6 +13,8 @@ description: |
 
   RETURNS: Review summary, issues by severity (Critical/Warning/Suggestion), approval status
 tools: [Read, Grep, Glob, LS, Bash]
+disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
+maxTurns: 30
 effort: high
 color: yellow
 ---

@@ -232,17 +232,11 @@ Say: *"remember this"* or happens automatically after non-obvious fixes.
 
 Triggers `/learn` — stores learnings that persist across sessions. Supports `--shared` for team knowledge via GitHub Projects.
 
-### Check Package Versions
+### Fetch Docs & Check Versions
 
-Say: *"what's the latest version of gsap?"* or triggered automatically before any install.
+Say: *"how do I use GSAP ScrollTrigger?"* or *"what's the latest version of gsap?"* — triggered automatically before implementing with or installing a library.
 
-Triggers `/versions` — checks `bun info <package>` before installing.
-
-### Fetch Docs
-
-Say: *"how do I use GSAP ScrollTrigger?"* or triggered automatically before implementing with a library.
-
-Triggers `/docs` — fetches current documentation via Context7 MCP. Never codes from memory.
+Triggers `/docs` — fetches current documentation via Context7 MCP and surfaces latest version info. Never codes from memory. The `PreToolUse` install hook (`check-docs-before-install.ts`) also nudges you to fetch docs before `bun add` / `npm install`.
 
 ### Optimize a Skill
 
@@ -352,7 +346,6 @@ These are enforced automatically — no skill needed:
 | `figma` | compare to design, figma |
 | `qa` | visual check, accessibility, validate |
 | `lighthouse` | lighthouse, performance audit, page speed, web vitals |
-| `versions` | package version, before installing |
 | `context` | context window, running out of context |
 | `checkpoint` | save state, save progress |
 | `create-handoff` | done for today, ending session |

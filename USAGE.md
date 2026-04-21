@@ -105,7 +105,6 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 
 | Trigger | Skill |
 |---------|-------|
-| "check version of X" | `versions` — checks before installing |
 | "create component X" | `component` — scaffolds with standards |
 | "parallel agents", "split work", "fan out" | `teams` — multi-instance parallel work |
 | "verify", "double check", "are you sure" | `verify` — adversarial multi-agent verification |

@@ -4,10 +4,14 @@
 		"CLAUDE_CODE_EFFORT_LEVEL": "high",
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
 		"CLAUDE_CODE_NO_FLICKER": "1",
+		"CLAUDE_CODE_SCRIPT_CAPS": "500",
 		"ENABLE_PROMPT_CACHING_1H": "1",
 		"CC_CLAUDE_MD_MONITOR_ENABLED": "true",
 		"CC_CLAUDE_MD_WARN_LINES": "400",
 		"CC_CLAUDE_MD_CRITICAL_LINES": "600"
+	},
+	"sandbox": {
+		"failIfUnavailable": false
 	},
 	"model": "opus[1m]",
 	"showThinkingSummaries": true,
@@ -281,15 +285,9 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/skill-activation.ts\" \"$PROMPT\""
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/detect-correction.ts\""
+						"command": "bun \"$HOME/.claude/src/scripts/session-title.ts\"",
+						"async": true,
+						"timeout": 3
 					}
 				]
 			}
