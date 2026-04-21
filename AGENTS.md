@@ -16,10 +16,30 @@ Fight entropy. Leave the codebase better than you found it.
 
 1. **Read this file** — it's the baseline for how we work
 2. **Use your tools naturally** — read files, search code, run builds directly
-3. **Scale up when needed** — delegate to agents for complex multi-file tasks
+3. **Delegate when triggered** — see delegation rules in Claude Code's CLAUDE-FULL.md. Multi-file exploration, security-sensitive code, and test writing MUST go to agents; don't reason your way out of it.
 4. **Learn the guardrails** — they exist because we hit every one of these problems
 
 Don't over-engineer your workflow. Start simple, add complexity only when you feel friction.
+
+---
+
+## Response Calibration
+
+Claude Opus 4.7 calibrates response length to task complexity rather than defaulting to fixed verbosity. Match your output to what was asked:
+
+- **Simple questions** (1-2 sentences): direct answer, no preamble, no trailing summary
+- **Lookups ("where is X", "what does Y do")**: one short paragraph + file:line reference
+- **Single-file changes**: brief description + show the diff. Don't restate what the diff already shows
+- **Multi-file or complex work**: brief plan → execute → 1-2 sentence summary of what changed
+- **Explanations**: use headers/bullets only when structure genuinely helps; avoid ceremonial formatting for short answers
+
+**Never**:
+- Add trailing summaries that restate the diff
+- Explain what you're about to do before every tool call (one sentence before a batch is enough)
+- Use "I'll now..." / "Let me..." preambles; just do the thing and announce completion
+- Pad responses with caveats or qualifications that don't change the outcome
+
+**Positive guidance beats negative**: state how to respond (concise, direct) rather than what to avoid. 4.7 interprets prompts literally — a rule like "don't be verbose" is weaker than "respond in 1-2 sentences for simple questions."
 
 ---
 

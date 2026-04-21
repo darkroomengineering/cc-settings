@@ -19,27 +19,39 @@ The Edit tool uses exact string matching. Follow these rules:
 
 ## Delegation
 
-Use agents for complex tasks. Use tools directly for simple ones.
+> **Opus 4.7 note**: Claude Opus 4.7 spawns fewer subagents by default than 4.6 and prefers internal reasoning over tool/agent use. The rules below are **not suggestions** — they are explicit triggers to counter that bias. When a trigger fires, delegate. Do not reason your way out of delegating "because you could do it yourself."
 
-**Delegate when:**
-- Multi-file exploration → `Agent(explore, "...")`
-- Breaking down complex work → `Agent(planner, "...")`
-- Multi-file implementation → `Agent(implementer, "...")`
-- Code review → `Agent(reviewer, "...")`
-- Writing tests → `Agent(tester, "...")`
-- Security-sensitive code → `Agent(security-reviewer, "...")`
-- Dead code cleanup → `Agent(deslopper, "...")`
-- Expert Q&A / second opinions → `Agent(oracle, "...")`
-- Scaffolding new components → `Agent(scaffolder, "...")`
-- Complex multi-step tasks → `Agent(maestro, "...")`
+### You MUST delegate (non-negotiable) when:
 
-**Act directly when:**
-- Reading a specific file you know the path to
+- **Multi-file exploration spanning 3+ files** → `Agent(explore, "...")`
+- **Any task that would require 10+ sequential tool calls** → break into agent tasks
+- **Security-sensitive code** (auth, payments, crypto, input validation) → `Agent(security-reviewer, "...")`
+- **Writing new test files** → `Agent(tester, "...")`
+- **Dead code cleanup or codebase deslop** → `Agent(deslopper, "...")`
+- **Parallel independent workstreams** (3+ with no file conflicts) → spawn agents in a single message
+
+### You SHOULD prefer delegation for:
+
+- **Complex multi-step implementation touching 2+ files** → `Agent(implementer, "...")`
+- **Architecture decisions or upfront planning** → `Agent(planner, "...")`
+- **Scaffolding new components/hooks/pages** → `Agent(scaffolder, "...")`
+- **Code review on changes touching 3+ files** → `Agent(reviewer, "...")`
+- **Expert second opinions on hard trade-offs** → `Agent(oracle, "...")`
+- **Full-feature orchestration across 3+ agents** → `Agent(maestro, "...")`
+
+### Act directly ONLY when:
+
+- Reading a specific file you already know the path to
 - Single-file edits under 20 lines
-- Running a build or test command
-- Simple searches (grep for a string, glob for a file)
+- Running a single build or test command
+- Simple searches (one grep for a string, one glob for a file pattern)
+- Answering a conversational question with no code change
 
-**Parallelize**: when spawning multiple agents for independent work, send all Agent calls in a single message.
+### Enforcement Rules
+
+1. **Parallelize**: when multiple delegations have no dependencies, send all `Agent` calls in a single message — they run concurrently.
+2. **Don't narrate the decision**: if a trigger fires, call the Agent tool directly. Don't explain why you're delegating — just delegate.
+3. **Don't self-override**: if you catch yourself thinking "I could just do this myself instead of spawning an agent," re-read the triggers above. The triggers exist because 4.7 biases toward self-execution.
 
 For full orchestration mode (power users), activate `profiles/maestro.md`.
 
@@ -50,8 +62,13 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 ### Opus 4.7 (Default)
 - Adaptive reasoning depth based on complexity
 - Fast mode: same model, faster output (`/fast`)
-- Effort levels: `low`, `medium`, `high` — set per-session with `/effort`, per-agent via `effort` frontmatter
-- Default effort: `high` (since v2.1.94 for API/Team/Enterprise users). Use `low` for trivial lookups, `medium` for routine edits.
+- Effort levels: `low`, `medium`, `high`, `xhigh`, `max` — set per-session with `/effort`, per-agent via `effort` frontmatter
+- Default effort: `xhigh` (Anthropic's recommended setting for coding/agentic workflows on Opus 4.7 — see [migration guide](https://platform.claude.com/docs/en/about-claude/models/migration-guide)).
+  - Use `low` for trivial lookups and latency-sensitive work.
+  - Use `medium` for routine edits where depth isn't required.
+  - Use `high` for non-coding intelligence work (writing, analysis).
+  - Use `max` only for extreme cases — often overthinks and shows diminishing returns.
+- **Effort calibration is stricter on 4.7**: at `low` and `medium` the model scopes strictly to what was asked and may under-think complex problems. Raise effort rather than prompting around shallow reasoning.
 - For hard multi-file debugging, "ultrathink" keyword triggers maximum reasoning depth for the next turn.
 - Output token limits: 64K default, 128K upper bound.
 - `/tui fullscreen` — flicker-free fullscreen rendering (pairs with `CLAUDE_CODE_NO_FLICKER=1`).
@@ -82,8 +99,8 @@ Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` 
 - On Max/Team/Enterprise: Opus 1M is included. Sonnet 1M requires extra usage.
 - Subagents inherit the 1M context from the parent model setting.
 - Skill character budget: auto-scales to 2% of context window (~80K chars at 1M)
-- **Manual `/compact` at 70% context utilization** — auto-compaction triggers at 95% but don't let it get that far
-- **Break subtasks to complete within 50% context** — prevents context rot mid-task
+- **Manual `/compact` at 65% context utilization** — Opus 4.7's tokenizer uses ~1-1.35x more tokens per text vs 4.6, so 65% is the new safe threshold (was 70% on 4.6). Auto-compaction still triggers at 95% but don't let it get that far.
+- **Break subtasks to complete within 45% context** — conservative budget accounting for 4.7 tokenization. Prevents context rot mid-task.
 - **After compaction**: re-read task plan + active files before continuing (see AGENTS.md "Post-Compaction Recovery")
 
 ---

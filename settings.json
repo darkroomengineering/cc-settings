@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json.schemastore.org/claude-code-settings.json",
 	"env": {
-		"CLAUDE_CODE_EFFORT_LEVEL": "high",
+		"CLAUDE_CODE_EFFORT_LEVEL": "xhigh",
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
 		"CLAUDE_CODE_NO_FLICKER": "1",
 		"CLAUDE_CODE_SCRIPT_CAPS": "500",
@@ -149,8 +149,6 @@
 			"Bash(basename:*)",
 			"Bash(dirname:*)",
 			"Bash(realpath:*)",
-			"Bash(node -e:*)",
-			"Bash(node -p:*)",
 			"Bash(mkdir:*)",
 			"Bash(cp:*)",
 			"Bash(mv:*)",
@@ -276,7 +274,12 @@
 			"Bash(curl -X PUT:*)",
 			"Bash(curl * -X PUT:*)",
 			"Bash(awk * system\\(:*)",
-			"Bash(awk * system \\(:*)"
+			"Bash(awk * system \\(:*)",
+
+			"Bash(node -e:*)",
+			"Bash(node -p:*)",
+			"Bash(node --eval:*)",
+			"Bash(node --print:*)"
 		]
 	},
 	"hooks": {
