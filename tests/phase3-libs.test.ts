@@ -241,6 +241,151 @@ describe("mcp — merge + preserve", () => {
       await rm(sandbox, { recursive: true, force: true });
     }
   });
+
+  test("preserves user-added permission rules (allow/deny/ask) via union", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-perms-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+      await writeFile(
+        existing,
+        JSON.stringify({
+          permissions: {
+            allow: ["Bash(bun:*)", "Bash(docker:*)", "Bash(kubectl:*)"],
+            deny: ["Bash(rm -rf /)", "Bash(sudo:*)"],
+            ask: ["Bash(curl:*)"],
+            defaultMode: "acceptEdits",
+          },
+        }),
+      );
+      await writeFile(
+        team,
+        JSON.stringify({
+          permissions: {
+            allow: ["Bash(bun:*)", "Bash(git:*)"],
+            deny: ["Bash(rm -rf /)"],
+            defaultMode: "default",
+          },
+        }),
+      );
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      // Union: team baseline + user extras, no dupes.
+      expect(merged.permissions.allow).toEqual([
+        "Bash(bun:*)",
+        "Bash(git:*)",
+        "Bash(docker:*)",
+        "Bash(kubectl:*)",
+      ]);
+      // Team deny entries are never lost.
+      expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(sudo:*)"]);
+      // User-only array surfaces.
+      expect(merged.permissions.ask).toEqual(["Bash(curl:*)"]);
+      // Scalar: user wins when declared.
+      expect(merged.permissions.defaultMode).toBe("acceptEdits");
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("team deny rules re-appear even if user removed them", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-deny-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+      // User has deleted all team denies locally.
+      await writeFile(existing, JSON.stringify({ permissions: { deny: [] } }));
+      await writeFile(
+        team,
+        JSON.stringify({
+          permissions: { deny: ["Bash(rm -rf /)", "Bash(rm -rf ~)"] },
+        }),
+      );
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(rm -rf ~)"]);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves user hook groups per event while keeping team hooks", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-hooks-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+      const teamHook = { hooks: [{ type: "command", command: "team-hook" }] };
+      const userHook = { hooks: [{ type: "command", command: "user-hook" }] };
+      const userStopHook = { hooks: [{ type: "command", command: "user-stop" }] };
+      await writeFile(
+        existing,
+        JSON.stringify({
+          hooks: {
+            PreToolUse: [teamHook, userHook], // one dup, one new
+            Stop: [userStopHook],
+          },
+        }),
+      );
+      await writeFile(team, JSON.stringify({ hooks: { PreToolUse: [teamHook] } }));
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      // Team hook kept, user's new group appended, no dupes.
+      expect(merged.hooks.PreToolUse).toEqual([teamHook, userHook]);
+      // User-only event surfaces.
+      expect(merged.hooks.Stop).toEqual([userStopHook]);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("env user values win on conflict, team fills in missing", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-env-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+      await writeFile(
+        existing,
+        JSON.stringify({
+          env: { ENABLE_PROMPT_CACHING_1H: "0", USER_ONLY: "yes" },
+        }),
+      );
+      await writeFile(
+        team,
+        JSON.stringify({
+          env: { ENABLE_PROMPT_CACHING_1H: "1", TEAM_ONLY: "yes" },
+        }),
+      );
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      expect(merged.env.ENABLE_PROMPT_CACHING_1H).toBe("0"); // user wins
+      expect(merged.env.USER_ONLY).toBe("yes");
+      expect(merged.env.TEAM_ONLY).toBe("yes"); // team fills gap
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("top-level scalars: user wins when declared", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-scalar-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+      await writeFile(existing, JSON.stringify({ model: "opus[1m]", theme: "dark" }));
+      await writeFile(team, JSON.stringify({ model: "sonnet", statusLine: "team" }));
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      expect(merged.model).toBe("opus[1m]"); // user wins
+      expect(merged.theme).toBe("dark"); // user-only
+      expect(merged.statusLine).toBe("team"); // team fills gap
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("mcp — claude.json installer", () => {

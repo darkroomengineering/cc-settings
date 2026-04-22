@@ -115,25 +115,106 @@ export async function promptPreserveUserServers(
 
 // --- Settings.json merge --------------------------------------------------
 
+type StringArray = string[] | undefined;
+type UnknownRecord = Record<string, unknown>;
+
+// Union two string arrays: team entries stay as the floor, user extras append.
+// Preserves order, dedupes, returns count of user-only additions for logging.
+function unionPermissionArray(
+  team: StringArray,
+  user: StringArray,
+): { merged: string[] | undefined; added: number } {
+  const teamArr = team ?? [];
+  const userArr = user ?? [];
+  if (teamArr.length === 0 && userArr.length === 0) return { merged: undefined, added: 0 };
+  const teamSet = new Set(teamArr);
+  const extras = userArr.filter((r) => !teamSet.has(r));
+  const merged = [...teamArr, ...extras];
+  return { merged, added: extras.length };
+}
+
+// Deep-merge permissions blocks: user wins on scalar fields (defaultMode,
+// autoMode), arrays are unioned so team baseline survives while user additions
+// are preserved.
+function mergePermissions(
+  team: UnknownRecord | undefined,
+  user: UnknownRecord | undefined,
+): { merged: UnknownRecord | undefined; added: number } {
+  if (!team && !user) return { merged: undefined, added: 0 };
+  const t = team ?? {};
+  const u = user ?? {};
+  const allow = unionPermissionArray(t.allow as StringArray, u.allow as StringArray);
+  const deny = unionPermissionArray(t.deny as StringArray, u.deny as StringArray);
+  const ask = unionPermissionArray(t.ask as StringArray, u.ask as StringArray);
+  const dirs = unionPermissionArray(
+    t.additionalDirectories as StringArray,
+    u.additionalDirectories as StringArray,
+  );
+  // Scalars / objects: user wins when declared.
+  const merged: UnknownRecord = { ...t, ...u };
+  if (allow.merged !== undefined) merged.allow = allow.merged;
+  if (deny.merged !== undefined) merged.deny = deny.merged;
+  if (ask.merged !== undefined) merged.ask = ask.merged;
+  if (dirs.merged !== undefined) merged.additionalDirectories = dirs.merged;
+  return { merged, added: allow.added + deny.added + ask.added + dirs.added };
+}
+
+// Per-event union of hook groups. Team groups run first (they power cc-settings);
+// user-added groups that aren't byte-identical to a team group are appended.
+function mergeHooks(
+  team: UnknownRecord | undefined,
+  user: UnknownRecord | undefined,
+): { merged: UnknownRecord | undefined; added: number } {
+  if (!team && !user) return { merged: undefined, added: 0 };
+  const t = team ?? {};
+  const u = user ?? {};
+  const events = new Set([...Object.keys(t), ...Object.keys(u)]);
+  const merged: UnknownRecord = {};
+  let added = 0;
+  for (const ev of events) {
+    const teamGroups = Array.isArray(t[ev]) ? (t[ev] as unknown[]) : [];
+    const userGroups = Array.isArray(u[ev]) ? (u[ev] as unknown[]) : [];
+    const teamJson = new Set(teamGroups.map((g) => JSON.stringify(g)));
+    const extras = userGroups.filter((g) => !teamJson.has(JSON.stringify(g)));
+    added += extras.length;
+    merged[ev] = extras.length > 0 ? [...teamGroups, ...extras] : teamGroups;
+  }
+  return { merged, added };
+}
+
+// Shallow env merge: user values win on key conflict (local overrides for
+// cache flags, debug toggles, etc. stick across re-installs).
+function mergeEnv(
+  team: UnknownRecord | undefined,
+  user: UnknownRecord | undefined,
+): { merged: UnknownRecord | undefined; userWins: number } {
+  if (!team && !user) return { merged: undefined, userWins: 0 };
+  const t = team ?? {};
+  const u = user ?? {};
+  let userWins = 0;
+  for (const k of Object.keys(u)) if (k in t && u[k] !== t[k]) userWins++;
+  return { merged: { ...t, ...u }, userWins };
+}
+
 /**
- * Merge user's existing settings.json with the team settings.json. The team
- * file is authoritative for its keys; user-only MCP servers are preserved
- * per the preservation prompt.
+ * Merge user's existing settings.json with the team settings.json. Policy:
+ *   - User-declared keys win for top-level scalars (model, statusLine, …).
+ *   - `permissions.{allow,deny,ask,additionalDirectories}` are unioned so the
+ *     team baseline (guardrails, common tool access) survives while user
+ *     additions (the common complaint) are preserved.
+ *   - `hooks` is per-event union of groups.
+ *   - `env` shallow-merges with user values winning.
+ *   - `mcpServers` uses the interactive preservation prompt.
  */
 export async function mergeSettingsWithMcpPreservation(
   existingPath: string,
   teamPath: string,
   outputPath: string,
 ): Promise<void> {
-  const teamRaw = (await readJsonOrNull(teamPath)) as {
-    mcpServers?: McpServers;
-    [key: string]: unknown;
-  } | null;
+  const teamRaw = (await readJsonOrNull(teamPath)) as UnknownRecord | null;
   if (!teamRaw) throw new Error(`Team settings not found: ${teamPath}`);
 
-  const userRaw = (await readJsonOrNull(existingPath)) as {
-    mcpServers?: McpServers;
-  } | null;
+  const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
   // No existing file → write team as-is (atomic).
   if (!userRaw) {
@@ -141,22 +222,48 @@ export async function mergeSettingsWithMcpPreservation(
     return;
   }
 
-  const userServers = userRaw.mcpServers ?? {};
-  const teamServers = teamRaw.mcpServers ?? {};
+  const userServers = (userRaw.mcpServers as McpServers | undefined) ?? {};
+  const teamServers = (teamRaw.mcpServers as McpServers | undefined) ?? {};
   const userOnly = findUserOnlyServers(userServers, teamServers);
 
-  if (userOnly.length === 0) {
-    debug("No user-only MCP servers, using team config");
-    await atomicWriteJson(outputPath, teamRaw);
-    return;
+  let preserved: McpServers = {};
+  if (userOnly.length > 0) {
+    ({ preserved } = await promptPreserveUserServers(userOnly, userServers));
+  } else {
+    debug("No user-only MCP servers");
   }
 
-  const { preserved } = await promptPreserveUserServers(userOnly, userServers);
+  const permissions = mergePermissions(
+    teamRaw.permissions as UnknownRecord | undefined,
+    userRaw.permissions as UnknownRecord | undefined,
+  );
+  const hooks = mergeHooks(
+    teamRaw.hooks as UnknownRecord | undefined,
+    userRaw.hooks as UnknownRecord | undefined,
+  );
+  const env = mergeEnv(
+    teamRaw.env as UnknownRecord | undefined,
+    userRaw.env as UnknownRecord | undefined,
+  );
 
-  const merged: typeof teamRaw = {
-    ...teamRaw,
-    mcpServers: { ...teamServers, ...preserved },
-  };
+  // Start from team (authoritative for unknown keys), overlay user top-level
+  // scalars/objects (user wins when declared), then slot in the field-specific
+  // merges so they aren't clobbered by the user overlay.
+  const merged: UnknownRecord = { ...teamRaw, ...userRaw };
+  merged.mcpServers = { ...teamServers, ...preserved };
+  if (permissions.merged !== undefined) merged.permissions = permissions.merged;
+  else delete merged.permissions;
+  if (hooks.merged !== undefined) merged.hooks = hooks.merged;
+  else delete merged.hooks;
+  if (env.merged !== undefined) merged.env = env.merged;
+  else delete merged.env;
+
+  const bits: string[] = [];
+  if (permissions.added > 0) bits.push(`${permissions.added} permission rule(s)`);
+  if (hooks.added > 0) bits.push(`${hooks.added} hook group(s)`);
+  if (env.userWins > 0) bits.push(`${env.userWins} env override(s)`);
+  if (bits.length > 0) success(`Preserved user customization: ${bits.join(", ")}`);
+
   await atomicWriteJson(outputPath, merged);
 }
 
