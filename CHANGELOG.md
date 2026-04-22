@@ -2,7 +2,9 @@
 
 All notable changes to cc-settings are documented here.
 
-## [8.2.0] — 2026-04-22
+> **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
+
+## [10.2.0] — 2026-04-22
 
 ### Non-destructive settings.json merge + `--interactive` installer
 
@@ -38,7 +40,7 @@ Defaults on every prompt reproduce the non-interactive output, so `--interactive
 - `README.md` / `MANUAL.md` — install sections mention non-destructive behavior + `--interactive`.
 - `docs/settings-reference.md` — new "Re-install Merge Behavior" section documenting both modes.
 
-## [8.1.0] — 2026-04-21
+## [10.1.0] — 2026-04-21
 
 ### v2.1.116 Sync — Duplication Cleanup + New Feature Adoption
 
@@ -146,9 +148,8 @@ Reviewed cc-settings against Claude Code changelog v2.1.0 → v2.1.116 (2026-04-
 
 ## Previous Versions
 
-Prior changes were tracked in git history. Key milestones:
+Pre-unification milestones (product versioned as v5–v8; installer versioned 8–10 separately):
 
-- **v8.1.0** — Claude Code v2.1.116 sync: removed skill-activation/compile-skills/skill-patterns/detect-correction/skills-versions (~550 lines), adopted session auto-titling, agent `disallowedTools`/`maxTurns` hardening, `sandbox` block, `CLAUDE_CODE_SCRIPT_CAPS`. Installer bumped to v10.1.
 - **v8.0.0** — 1M context window default via `opus[1m]` model alias
 - **v7.x** — Hook system expansion (27 events), PermissionDenied hook, conditional `if` field
 - **v6.x** — Agent Teams, TLDR integration, skill system

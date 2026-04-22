@@ -2,15 +2,15 @@
 
 Open-source AI coding configuration for [darkroom.engineering](https://darkroom.engineering) projects.
 
-**v8.0** — Layered config, portable standards, progressive complexity.
+Layered config, portable standards, progressive complexity. See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 ---
 
-## What Changed in v8
+## Architecture
 
-Previous versions shipped a 538-line monolithic CLAUDE.md loaded into every conversation and every agent spawn — ~5,000 tokens of config overhead per agent, compounding to ~198K tokens across a full orchestration pipeline. A third of API spend was re-reading configuration.
+Early versions shipped a 538-line monolithic CLAUDE.md loaded into every conversation and every agent spawn — ~5,000 tokens of config overhead per agent, compounding to ~198K tokens across a full orchestration pipeline. A third of API spend was re-reading configuration.
 
-v8 splits this into layers:
+Current design splits this into layers:
 
 | Layer | File | Approx. Tokens | Loaded |
 |-------|------|----------------|--------|
