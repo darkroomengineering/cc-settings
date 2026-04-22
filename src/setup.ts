@@ -44,7 +44,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.1"; // v2.1.116 sync: native-feature adoption + duplication cleanup
+const VERSION = "10.2"; // non-destructive settings merge + --interactive flag
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -54,6 +54,7 @@ type Args = {
   dryRun: boolean;
   help: boolean;
   sourceDir: string;
+  interactive: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -62,11 +63,14 @@ function parseArgs(argv: string[]): Args {
     dryRun: false,
     help: false,
     sourceDir: resolve(import.meta.dir, ".."),
+    // CC_INTERACTIVE=1 opts in for scripts/CI without argv juggling.
+    interactive: process.env.CC_INTERACTIVE === "1",
   };
   for (const a of argv) {
     if (a === "--rollback") args.rollback = true;
     else if (a.startsWith("--rollback=")) args.rollback = a.slice("--rollback=".length);
     else if (a === "--dry-run") args.dryRun = true;
+    else if (a === "--interactive") args.interactive = true;
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
   }
@@ -82,6 +86,9 @@ Flags:
   --source=<dir>     Source repo path (default: parent of setup.ts).
   --rollback[=TS]    Restore newest backup, or one matching timestamp TS.
   --dry-run          Print planned actions; do not touch disk.
+  --interactive      Prompt on settings.json conflicts (scalar overrides, team
+                     additions to allow/ask rules, new hook groups). Also opt in
+                     via CC_INTERACTIVE=1.
   --help, -h         Show this message.
 
 Rollback examples:
@@ -307,14 +314,16 @@ async function installTsSources(source: string): Promise<void> {
 
 // --- Settings + MCP install ---------------------------------------------
 
-async function installSettings(source: string): Promise<void> {
+async function installSettings(source: string, interactive: boolean): Promise<void> {
   const teamSettingsPath = join(source, "settings.json");
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
   if (!existsSync(teamSettingsPath)) {
     error("Team settings.json not found at source.");
     process.exit(1);
   }
-  await mergeSettingsWithMcpPreservation(userSettingsPath, teamSettingsPath, userSettingsPath);
+  await mergeSettingsWithMcpPreservation(userSettingsPath, teamSettingsPath, userSettingsPath, {
+    interactive,
+  });
   await installMcpToClaudeJson(teamSettingsPath);
 }
 
@@ -452,7 +461,7 @@ async function main(): Promise<number> {
   await installTsSources(args.sourceDir);
 
   try {
-    await installSettings(args.sourceDir);
+    await installSettings(args.sourceDir, args.interactive);
   } catch (err) {
     // McpParseError is the one we want to surface loudly — see lib/mcp.ts.
     if ((err as McpParseError).name === "McpParseError") {

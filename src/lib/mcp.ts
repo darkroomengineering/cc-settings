@@ -118,98 +118,254 @@ export async function promptPreserveUserServers(
 type StringArray = string[] | undefined;
 type UnknownRecord = Record<string, unknown>;
 
-// Union two string arrays: team entries stay as the floor, user extras append.
-// Preserves order, dedupes, returns count of user-only additions for logging.
-function unionPermissionArray(
+/**
+ * Merge policy options. Interactive mode only asks where auto-merge has a real
+ * tradeoff: scalar conflicts (user vs team differ on same key) and team-added
+ * rules/hooks (team baseline changed since last install). Deny rules and
+ * additive merges stay automatic.
+ */
+export interface MergeOptions {
+  interactive?: boolean;
+}
+
+// Union two string arrays, preserving team order. Team-only entries can be
+// declined in interactive mode (they're the ones team added since last install).
+async function unionPermissionArray(
   team: StringArray,
   user: StringArray,
-): { merged: string[] | undefined; added: number } {
+  opts: MergeOptions,
+  label: string,
+  alwaysAccept = false,
+): Promise<{ merged: string[] | undefined; added: number; declined: number }> {
   const teamArr = team ?? [];
   const userArr = user ?? [];
-  if (teamArr.length === 0 && userArr.length === 0) return { merged: undefined, added: 0 };
+  if (teamArr.length === 0 && userArr.length === 0)
+    return { merged: undefined, added: 0, declined: 0 };
+
+  const userSet = new Set(userArr);
+  const teamOnly = teamArr.filter((r) => !userSet.has(r));
   const teamSet = new Set(teamArr);
-  const extras = userArr.filter((r) => !teamSet.has(r));
-  const merged = [...teamArr, ...extras];
-  return { merged, added: extras.length };
+  const userExtras = userArr.filter((r) => !teamSet.has(r));
+
+  let acceptedTeamOnly = new Set(teamOnly);
+  let declined = 0;
+  if (opts.interactive && !alwaysAccept && teamOnly.length > 0) {
+    info(`Team added ${teamOnly.length} new ${label}(s) since your last install:`);
+    for (const r of teamOnly) console.log(`  + ${r}`);
+    const adopt = await promptYn("Adopt these?", true);
+    if (!adopt) {
+      acceptedTeamOnly = new Set<string>();
+      declined = teamOnly.length;
+    }
+  }
+
+  // Preserve team order, drop declined team-only entries, append user extras.
+  const teamFiltered = teamArr.filter((r) => userSet.has(r) || acceptedTeamOnly.has(r));
+  const merged = [...teamFiltered, ...userExtras];
+  return { merged, added: userExtras.length, declined };
+}
+
+// Prompt for a scalar conflict: user has X, team has Y, values differ.
+async function resolveScalarConflict(
+  key: string,
+  teamVal: unknown,
+  userVal: unknown,
+  opts: MergeOptions,
+): Promise<{ value: unknown; adopted: boolean }> {
+  if (!opts.interactive) return { value: userVal, adopted: false };
+  info(`"${key}" differs between your settings and team:`);
+  console.log(`  your value: ${JSON.stringify(userVal)}`);
+  console.log(`  team value: ${JSON.stringify(teamVal)}`);
+  const keepUser = await promptYn("Keep your value?", true);
+  return { value: keepUser ? userVal : teamVal, adopted: !keepUser };
 }
 
 // Deep-merge permissions blocks: user wins on scalar fields (defaultMode,
 // autoMode), arrays are unioned so team baseline survives while user additions
-// are preserved.
-function mergePermissions(
+// are preserved. `deny` is always additive — safety guardrails never prompt.
+async function mergePermissions(
   team: UnknownRecord | undefined,
   user: UnknownRecord | undefined,
-): { merged: UnknownRecord | undefined; added: number } {
-  if (!team && !user) return { merged: undefined, added: 0 };
+  opts: MergeOptions,
+): Promise<{
+  merged: UnknownRecord | undefined;
+  added: number;
+  declined: number;
+  adoptedScalars: number;
+}> {
+  if (!team && !user) return { merged: undefined, added: 0, declined: 0, adoptedScalars: 0 };
   const t = team ?? {};
   const u = user ?? {};
-  const allow = unionPermissionArray(t.allow as StringArray, u.allow as StringArray);
-  const deny = unionPermissionArray(t.deny as StringArray, u.deny as StringArray);
-  const ask = unionPermissionArray(t.ask as StringArray, u.ask as StringArray);
-  const dirs = unionPermissionArray(
+  const allow = await unionPermissionArray(
+    t.allow as StringArray,
+    u.allow as StringArray,
+    opts,
+    "allow rule",
+  );
+  const deny = await unionPermissionArray(
+    t.deny as StringArray,
+    u.deny as StringArray,
+    opts,
+    "deny rule",
+    true, // deny always accepts team additions — guardrail
+  );
+  const ask = await unionPermissionArray(
+    t.ask as StringArray,
+    u.ask as StringArray,
+    opts,
+    "ask rule",
+  );
+  const dirs = await unionPermissionArray(
     t.additionalDirectories as StringArray,
     u.additionalDirectories as StringArray,
+    opts,
+    "additionalDirectory",
   );
-  // Scalars / objects: user wins when declared.
+
   const merged: UnknownRecord = { ...t, ...u };
   if (allow.merged !== undefined) merged.allow = allow.merged;
   if (deny.merged !== undefined) merged.deny = deny.merged;
   if (ask.merged !== undefined) merged.ask = ask.merged;
   if (dirs.merged !== undefined) merged.additionalDirectories = dirs.merged;
-  return { merged, added: allow.added + deny.added + ask.added + dirs.added };
+
+  // Scalar conflicts within permissions (defaultMode, autoMode).
+  let adoptedScalars = 0;
+  for (const k of ["defaultMode", "autoMode"]) {
+    if (k in t && k in u && JSON.stringify(t[k]) !== JSON.stringify(u[k])) {
+      const { value, adopted } = await resolveScalarConflict(`permissions.${k}`, t[k], u[k], opts);
+      merged[k] = value;
+      if (adopted) adoptedScalars++;
+    }
+  }
+
+  return {
+    merged,
+    added: allow.added + deny.added + ask.added + dirs.added,
+    declined: allow.declined + deny.declined + ask.declined + dirs.declined,
+    adoptedScalars,
+  };
 }
 
-// Per-event union of hook groups. Team groups run first (they power cc-settings);
-// user-added groups that aren't byte-identical to a team group are appended.
-function mergeHooks(
+// Per-event union of hook groups. Team-only groups (added since last install)
+// are prompted in interactive mode; user-only groups always survive.
+async function mergeHooks(
   team: UnknownRecord | undefined,
   user: UnknownRecord | undefined,
-): { merged: UnknownRecord | undefined; added: number } {
-  if (!team && !user) return { merged: undefined, added: 0 };
+  opts: MergeOptions,
+): Promise<{ merged: UnknownRecord | undefined; added: number; declined: number }> {
+  if (!team && !user) return { merged: undefined, added: 0, declined: 0 };
   const t = team ?? {};
   const u = user ?? {};
   const events = new Set([...Object.keys(t), ...Object.keys(u)]);
   const merged: UnknownRecord = {};
   let added = 0;
+  let declined = 0;
   for (const ev of events) {
     const teamGroups = Array.isArray(t[ev]) ? (t[ev] as unknown[]) : [];
     const userGroups = Array.isArray(u[ev]) ? (u[ev] as unknown[]) : [];
+    const userJson = new Set(userGroups.map((g) => JSON.stringify(g)));
     const teamJson = new Set(teamGroups.map((g) => JSON.stringify(g)));
-    const extras = userGroups.filter((g) => !teamJson.has(JSON.stringify(g)));
-    added += extras.length;
-    merged[ev] = extras.length > 0 ? [...teamGroups, ...extras] : teamGroups;
+    const teamOnly = teamGroups.filter((g) => !userJson.has(JSON.stringify(g)));
+    const userExtras = userGroups.filter((g) => !teamJson.has(JSON.stringify(g)));
+
+    let acceptedTeamOnly = new Set(teamOnly.map((g) => JSON.stringify(g)));
+    if (opts.interactive && teamOnly.length > 0) {
+      info(`Team added ${teamOnly.length} hook group(s) for ${ev}:`);
+      for (const g of teamOnly) console.log(`  + ${JSON.stringify(g)}`);
+      const adopt = await promptYn("Adopt these?", true);
+      if (!adopt) {
+        acceptedTeamOnly = new Set<string>();
+        declined += teamOnly.length;
+      }
+    }
+
+    const teamFiltered = teamGroups.filter((g) => {
+      const j = JSON.stringify(g);
+      return userJson.has(j) || acceptedTeamOnly.has(j);
+    });
+    added += userExtras.length;
+    merged[ev] = [...teamFiltered, ...userExtras];
   }
-  return { merged, added };
+  return { merged, added, declined };
 }
 
 // Shallow env merge: user values win on key conflict (local overrides for
-// cache flags, debug toggles, etc. stick across re-installs).
-function mergeEnv(
+// cache flags, debug toggles, etc. stick across re-installs). Interactive mode
+// asks on each conflict.
+async function mergeEnv(
   team: UnknownRecord | undefined,
   user: UnknownRecord | undefined,
-): { merged: UnknownRecord | undefined; userWins: number } {
-  if (!team && !user) return { merged: undefined, userWins: 0 };
+  opts: MergeOptions,
+): Promise<{ merged: UnknownRecord | undefined; userWins: number; adoptedScalars: number }> {
+  if (!team && !user) return { merged: undefined, userWins: 0, adoptedScalars: 0 };
   const t = team ?? {};
   const u = user ?? {};
+  const merged: UnknownRecord = { ...t, ...u };
   let userWins = 0;
-  for (const k of Object.keys(u)) if (k in t && u[k] !== t[k]) userWins++;
-  return { merged: { ...t, ...u }, userWins };
+  let adoptedScalars = 0;
+  for (const k of Object.keys(u)) {
+    if (k in t && u[k] !== t[k]) {
+      userWins++;
+      const { value, adopted } = await resolveScalarConflict(`env.${k}`, t[k], u[k], opts);
+      merged[k] = value;
+      if (adopted) {
+        adoptedScalars++;
+        userWins--;
+      }
+    }
+  }
+  return { merged, userWins, adoptedScalars };
+}
+
+// Keys handled by field-specific merges (skip in the top-level scalar pass).
+const SCALAR_SKIP_KEYS = new Set(["mcpServers", "permissions", "hooks", "env", "$schema"]);
+
+// Resolve top-level scalar conflicts (model, statusLine, theme, etc.).
+// In interactive mode, prompts on each conflict; otherwise user-wins silently.
+async function resolveTopLevelScalars(
+  teamRaw: UnknownRecord,
+  userRaw: UnknownRecord,
+  opts: MergeOptions,
+): Promise<{ overrides: UnknownRecord; adopted: number }> {
+  const overrides: UnknownRecord = {};
+  let adopted = 0;
+  for (const k of Object.keys(teamRaw)) {
+    if (SCALAR_SKIP_KEYS.has(k)) continue;
+    if (!(k in userRaw)) continue; // team-only: already applied via spread
+    const t = teamRaw[k];
+    const u = userRaw[k];
+    if (Array.isArray(t) || (t !== null && typeof t === "object")) continue;
+    if (Array.isArray(u) || (u !== null && typeof u === "object")) continue;
+    if (t === u) continue;
+    const { value, adopted: a } = await resolveScalarConflict(k, t, u, opts);
+    overrides[k] = value;
+    if (a) adopted++;
+  }
+  return { overrides, adopted };
 }
 
 /**
- * Merge user's existing settings.json with the team settings.json. Policy:
+ * Merge user's existing settings.json with the team settings.json.
+ *
+ * Non-interactive policy (default):
  *   - User-declared keys win for top-level scalars (model, statusLine, …).
  *   - `permissions.{allow,deny,ask,additionalDirectories}` are unioned so the
  *     team baseline (guardrails, common tool access) survives while user
- *     additions (the common complaint) are preserved.
+ *     additions are preserved.
  *   - `hooks` is per-event union of groups.
  *   - `env` shallow-merges with user values winning.
  *   - `mcpServers` uses the interactive preservation prompt.
+ *
+ * Interactive policy (`opts.interactive`):
+ *   - Scalar conflicts prompt "keep your value / take team's".
+ *   - Team-added permission rules (allow/ask) and hook groups prompt "adopt / skip".
+ *   - `deny` rules and user-only entries stay automatic (guardrails / additive).
  */
 export async function mergeSettingsWithMcpPreservation(
   existingPath: string,
   teamPath: string,
   outputPath: string,
+  opts: MergeOptions = {},
 ): Promise<void> {
   const teamRaw = (await readJsonOrNull(teamPath)) as UnknownRecord | null;
   if (!teamRaw) throw new Error(`Team settings not found: ${teamPath}`);
@@ -233,22 +389,26 @@ export async function mergeSettingsWithMcpPreservation(
     debug("No user-only MCP servers");
   }
 
-  const permissions = mergePermissions(
+  const permissions = await mergePermissions(
     teamRaw.permissions as UnknownRecord | undefined,
     userRaw.permissions as UnknownRecord | undefined,
+    opts,
   );
-  const hooks = mergeHooks(
+  const hooks = await mergeHooks(
     teamRaw.hooks as UnknownRecord | undefined,
     userRaw.hooks as UnknownRecord | undefined,
+    opts,
   );
-  const env = mergeEnv(
+  const env = await mergeEnv(
     teamRaw.env as UnknownRecord | undefined,
     userRaw.env as UnknownRecord | undefined,
+    opts,
   );
+  const scalars = await resolveTopLevelScalars(teamRaw, userRaw, opts);
 
   // Start from team (authoritative for unknown keys), overlay user top-level
   // scalars/objects (user wins when declared), then slot in the field-specific
-  // merges so they aren't clobbered by the user overlay.
+  // merges and any scalar overrides from interactive mode.
   const merged: UnknownRecord = { ...teamRaw, ...userRaw };
   merged.mcpServers = { ...teamServers, ...preserved };
   if (permissions.merged !== undefined) merged.permissions = permissions.merged;
@@ -257,12 +417,22 @@ export async function mergeSettingsWithMcpPreservation(
   else delete merged.hooks;
   if (env.merged !== undefined) merged.env = env.merged;
   else delete merged.env;
+  Object.assign(merged, scalars.overrides);
 
   const bits: string[] = [];
   if (permissions.added > 0) bits.push(`${permissions.added} permission rule(s)`);
   if (hooks.added > 0) bits.push(`${hooks.added} hook group(s)`);
   if (env.userWins > 0) bits.push(`${env.userWins} env override(s)`);
   if (bits.length > 0) success(`Preserved user customization: ${bits.join(", ")}`);
+
+  if (opts.interactive) {
+    const ibits: string[] = [];
+    const declined = permissions.declined + hooks.declined;
+    const adopted = permissions.adoptedScalars + env.adoptedScalars + scalars.adopted;
+    if (declined > 0) ibits.push(`${declined} team addition(s) declined`);
+    if (adopted > 0) ibits.push(`${adopted} team value(s) adopted over yours`);
+    if (ibits.length > 0) info(`Interactive choices: ${ibits.join(", ")}`);
+  }
 
   await atomicWriteJson(outputPath, merged);
 }

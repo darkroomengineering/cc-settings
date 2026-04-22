@@ -32,6 +32,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 
 Restart Claude Code.
 
+Re-running the installer preserves your hand-edits to `~/.claude/settings.json` — permission rules you added, custom hooks, local env overrides, and extra MCP servers all survive. For fine-grained control over scalar overrides and team-added rules, pass `--interactive` (see [docs/settings-reference.md](./docs/settings-reference.md#re-install-merge-behavior)).
+
 <details>
 <summary>Alternative methods</summary>
 
@@ -39,6 +41,11 @@ Restart Claude Code.
 ```bash
 git clone https://github.com/darkroomengineering/cc-settings.git /tmp/darkroom-claude
 bash /tmp/darkroom-claude/setup.sh
+```
+
+**Interactive install** (prompts on each settings conflict):
+```bash
+bash setup.sh --interactive    # or: CC_INTERACTIVE=1 bash setup.sh
 ```
 
 **Plugin install (requires GitHub SSH keys):**

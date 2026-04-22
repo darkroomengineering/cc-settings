@@ -2,6 +2,42 @@
 
 All notable changes to cc-settings are documented here.
 
+## [8.2.0] — 2026-04-22
+
+### Non-destructive settings.json merge + `--interactive` installer
+
+Re-running the installer no longer overwrites hand-edits to `~/.claude/settings.json`. Root cause was `{ ...teamRaw, mcpServers: ... }` in `mergeSettingsWithMcpPreservation` wholesale-replacing every top-level key; only `mcpServers` had preservation logic. Users reported losing hand-added Bash permissions (the trigger for this work).
+
+**New merge policy (non-interactive, default):**
+
+- `permissions.{allow,deny,ask,additionalDirectories}` → union; team baseline stays as the floor, user additions preserved. `deny` is always additive (safety guardrail).
+- `permissions.defaultMode` / `autoMode` → user wins when declared.
+- `hooks` → per-event union of groups, dedupe by structural equality.
+- `env` → shallow merge, user values win on conflict (local overrides like `ENABLE_PROMPT_CACHING_1H` stick).
+- Top-level scalars (`model`, `statusLine`, `theme`, …) → user wins when declared.
+- `mcpServers` → unchanged (interactive prompt).
+
+Installer logs a one-line summary of preserved customizations, e.g. `✓ Preserved user customization: 3 permission rule(s), 1 env override(s)`.
+
+**New `--interactive` flag:**
+
+`bash setup.sh --interactive` (or `CC_INTERACTIVE=1`) prompts on each real conflict point:
+
+- Scalar conflicts (top-level, `permissions.defaultMode`/`autoMode`, `env.*`) → "keep your value / take team's".
+- Team additions to `permissions.allow` / `ask` / `additionalDirectories` and new hook groups → "adopt / skip".
+- `permissions.deny` additions and user-only entries never prompt.
+
+Defaults on every prompt reproduce the non-interactive output, so `--interactive` is a safe way to audit the merge before committing.
+
+**Changes:**
+
+- `src/lib/mcp.ts` — rewrote `mergeSettingsWithMcpPreservation`; added `MergeOptions`, field-aware merge helpers (`unionPermissionArray`, `mergePermissions`, `mergeHooks`, `mergeEnv`, `resolveTopLevelScalars`, `resolveScalarConflict`).
+- `src/setup.ts` — added `--interactive` flag (and `CC_INTERACTIVE=1` env); threaded through to `installSettings`.
+- `setup.sh` / `setup.ps1` — documented `--interactive` in flag headers (bootstrap already forwards all args).
+- `tests/phase3-libs.test.ts` — 7 new tests: permission union, team-deny re-appearance, hook union, env user-wins, top-level scalar user-wins, interactive-with-defaults parity, interactive-deny-always-applies.
+- `README.md` / `MANUAL.md` — install sections mention non-destructive behavior + `--interactive`.
+- `docs/settings-reference.md` — new "Re-install Merge Behavior" section documenting both modes.
+
 ## [8.1.0] — 2026-04-21
 
 ### v2.1.116 Sync — Duplication Cleanup + New Feature Adoption

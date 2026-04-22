@@ -8,6 +8,7 @@
 # Flags (all forwarded to src/setup.ts):
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
 #   --dry-run         print planned actions only
+#   --interactive     prompt on settings.json conflicts (also: CC_INTERACTIVE=1)
 #   --ts-hooks        install with TS hook paths (also: CC_USE_TS_HOOKS=1)
 #   --help, -h
 

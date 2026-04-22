@@ -531,3 +531,41 @@ When the same setting exists in multiple locations, the resolution order is:
 4. **Claude Code built-in defaults** (lowest priority)
 
 For MCP servers specifically, servers from all config files are merged. If the same server name appears in multiple files, the project-level definition wins.
+
+---
+
+## Re-install Merge Behavior
+
+Running `setup.sh` against an existing `~/.claude/settings.json` performs a **field-aware merge** rather than a wholesale overwrite. A full backup is always written to `~/.claude/backups/backup-<timestamp>.tar.gz` before any changes; recover with `bun src/setup.ts --rollback`.
+
+### Non-interactive (default)
+
+| Field | Policy |
+|-------|--------|
+| Top-level scalars (`model`, `statusLine`, `theme`, …) | **User wins when declared.** If you've set a value, re-install keeps it. Team fills in keys you haven't declared. |
+| `permissions.allow` / `permissions.ask` / `permissions.additionalDirectories` | **Union.** Team entries always present; your additions are preserved. Order: team-original-order, then your extras. |
+| `permissions.deny` | **Union (always additive).** Team denies re-appear even if you deleted them locally — they're safety guardrails. |
+| `permissions.defaultMode` / `permissions.autoMode` | **User wins when declared.** |
+| `hooks` | **Per-event union of groups.** Team's hooks (the ones that power cc-settings) run alongside any hooks you've added. Dedupe by structural equality. |
+| `env` | **Shallow merge, user wins on conflict.** Your local `ENABLE_PROMPT_CACHING_1H=0` or debug flags stick across re-installs. |
+| `mcpServers` | Interactive prompt per user-only server (unchanged behavior — see below). Override with `CC_WIPE_CUSTOM_MCP=1`. |
+
+At the end of a merge the installer logs a one-line summary, e.g. `✓ Preserved user customization: 3 permission rule(s), 1 env override(s)`.
+
+### Interactive mode
+
+Run `bash setup.sh --interactive` (or `CC_INTERACTIVE=1 bash setup.sh`) to get fine-grained control over conflicts:
+
+| Prompt | When |
+|--------|------|
+| `"<key>" differs between your settings and team: keep your value?` | Scalar conflict (user and team both declare the same key with different values). Covers top-level scalars, `permissions.defaultMode`/`autoMode`, and `env.*` conflicts. |
+| `Team added N new allow rule(s) since your last install. Adopt these?` | Team's `permissions.allow` contains rules you don't have locally. Same prompt appears for `ask` and `additionalDirectories`. |
+| `Team added N hook group(s) for <event>. Adopt these?` | Team registered new hook groups you don't have. |
+
+`deny` rules, MCP servers, and user-only entries never prompt — denies are guardrails, MCP has its own dedicated prompt (kept from before), and user-only entries are strictly additive.
+
+Hitting Enter on every prompt accepts the default (take team addition / keep your value), which reproduces the non-interactive output exactly. So `--interactive` is a safe way to see what the installer *would* do before committing.
+
+### Why `--interactive` exists
+
+Non-interactive "user wins when declared" has one known tradeoff: if the team file changes a scalar like `model` in a future release, users whose `settings.json` still contains the previous value won't pick up the update (the merger can't distinguish "user explicitly declared X" from "X is a stale copy from last install"). Interactive mode surfaces each such divergence so you can opt into team updates explicitly.

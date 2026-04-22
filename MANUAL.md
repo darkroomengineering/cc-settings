@@ -11,9 +11,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 
 # Update
 cd ~/.claude/cc-settings && git pull && bash setup.sh
+
+# Interactive update — prompt on each settings conflict
+bash setup.sh --interactive
 ```
 
 After install, start Claude Code in any project. The setup loads automatically.
+
+**Re-installs are non-destructive.** Your hand-added permission rules, custom hooks, local env overrides (`ENABLE_PROMPT_CACHING_1H`, etc.), and custom MCP servers are preserved across updates. See [docs/settings-reference.md#re-install-merge-behavior](./docs/settings-reference.md#re-install-merge-behavior) for the merge policy and what `--interactive` controls.
 
 ---
 

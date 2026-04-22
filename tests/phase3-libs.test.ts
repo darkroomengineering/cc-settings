@@ -369,6 +369,73 @@ describe("mcp — merge + preserve", () => {
     }
   });
 
+  test("interactive mode with default prompts matches non-interactive output", async () => {
+    // In a non-TTY test env, `promptYn` returns its default. Merge defaults
+    // are "adopt team additions" and "keep user's value" — both of which
+    // match the non-interactive auto-merge semantics. So interactive+defaults
+    // should produce byte-identical output to plain merge (guards against
+    // accidental divergence of the two code paths).
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-interactive-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const autoOut = join(sandbox, "auto.json");
+      const interactiveOut = join(sandbox, "interactive.json");
+      await writeFile(
+        existing,
+        JSON.stringify({
+          model: "opus[1m]",
+          permissions: {
+            allow: ["Bash(bun:*)", "Bash(docker:*)"],
+            deny: ["Bash(sudo:*)"],
+          },
+          env: { DEBUG: "1", LOCAL_ONLY: "yes" },
+        }),
+      );
+      await writeFile(
+        team,
+        JSON.stringify({
+          model: "sonnet",
+          statusLine: "team-bar",
+          permissions: {
+            allow: ["Bash(bun:*)", "Bash(git:*)"],
+            deny: ["Bash(rm -rf /)"],
+          },
+          env: { DEBUG: "0", TEAM_ONLY: "yes" },
+        }),
+      );
+      await mergeSettingsWithMcpPreservation(existing, team, autoOut);
+      await mergeSettingsWithMcpPreservation(existing, team, interactiveOut, { interactive: true });
+      expect(await readFile(interactiveOut, "utf8")).toBe(await readFile(autoOut, "utf8"));
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("interactive mode: deny rules always auto-apply (guardrail, never prompted)", async () => {
+    // Even if user declined every prompt, deny additions must still land.
+    // We can't easily mock "decline all" in a non-TTY test, so this asserts
+    // via the observed output that new team deny rules merged through.
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-deny-interactive-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+      await writeFile(existing, JSON.stringify({ permissions: { deny: [] } }));
+      await writeFile(
+        team,
+        JSON.stringify({
+          permissions: { deny: ["Bash(rm -rf /)", "Bash(sudo:*)"] },
+        }),
+      );
+      await mergeSettingsWithMcpPreservation(existing, team, out, { interactive: true });
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(sudo:*)"]);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
   test("top-level scalars: user wins when declared", async () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-scalar-"));
     try {
