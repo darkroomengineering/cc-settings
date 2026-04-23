@@ -136,6 +136,14 @@ await Promise.all(
   ].map((p) => unlink(p).catch(() => {})),
 );
 
+// Prune stale entries from the MCP needs-auth cache so OAuth servers whose
+// tokens have since refreshed can reconnect. See prune-mcp-auth-cache.ts.
+const mcpPrune = Bun.spawn(["bun", join(CLAUDE_DIR, "src", "scripts", "prune-mcp-auth-cache.ts")], {
+  stdout: "ignore",
+  stderr: "ignore",
+});
+mcpPrune.unref?.();
+
 const logRotations = [
   rotateLog(join(CLAUDE_DIR, "sessions.log")),
   rotateLog(join(CLAUDE_DIR, "hooks.log")),

@@ -46,6 +46,65 @@ describe("notify.ts", () => {
   });
 });
 
+describe("prune-mcp-auth-cache.ts", () => {
+  const tmp = resolve(import.meta.dir, "..", ".tmp-mcp-auth-cache-test");
+  const cachePath = resolve(tmp, "cache.json");
+
+  async function seed(shape: unknown): Promise<void> {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    await mkdir(tmp, { recursive: true });
+    await writeFile(cachePath, JSON.stringify(shape), "utf8");
+  }
+
+  async function readCache(): Promise<string | null> {
+    const { readFile } = await import("node:fs/promises");
+    try {
+      return await readFile(cachePath, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  test("missing cache → no-op, exit 0", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(tmp, { recursive: true, force: true });
+    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    expect(r.exit).toBe(0);
+  });
+
+  test("stale entries pruned, fresh entries kept", async () => {
+    const now = Date.now();
+    await seed({
+      stale: { timestamp: now - 2 * 60 * 60 * 1000 }, // 2h old
+      fresh: { timestamp: now - 60 * 1000 }, // 1 min old
+    });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_TTL_MS: "3600000" },
+    });
+    expect(r.exit).toBe(0);
+    const contents = await readCache();
+    expect(contents).not.toBeNull();
+    const parsed = JSON.parse(contents ?? "{}") as Record<string, unknown>;
+    expect(Object.keys(parsed)).toEqual(["fresh"]);
+  });
+
+  test("all stale → file removed", async () => {
+    await seed({ a: { timestamp: 1 }, b: { timestamp: 2 } });
+    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    expect(r.exit).toBe(0);
+    expect(await readCache()).toBeNull();
+  });
+
+  test("malformed cache removed, exits 0", async () => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    await mkdir(tmp, { recursive: true });
+    await writeFile(cachePath, "{not json", "utf8");
+    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    expect(r.exit).toBe(0);
+    expect(await readCache()).toBeNull();
+  });
+});
+
 describe("post-compact.ts", () => {
   test("prints recovery steps", async () => {
     const r = await run("post-compact.ts");
