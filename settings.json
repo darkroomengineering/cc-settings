@@ -306,6 +306,7 @@
 				]
 			},
 			{
+				"matcher": "Bash",
 				"if": "Bash(git commit*)",
 				"hooks": [
 					{

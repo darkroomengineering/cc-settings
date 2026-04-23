@@ -6,6 +6,14 @@
 
 import { existsSync } from "node:fs";
 
+// Self-gate: only run on `git commit` Bash invocations. The group-level
+// `if: "Bash(git commit*)"` filter in settings.json isn't reliably applied by
+// Claude Code 2.1.118 (fires on every tool call including ToolSearch), so we
+// re-check here. Matches the pattern used by safety-net.ts and
+// check-docs-before-install.ts.
+const cmd = process.env.TOOL_INPUT_command ?? "";
+if (!/(^|[;&|\s])git\s+commit\b/.test(cmd)) process.exit(0);
+
 if (!existsSync("tsconfig.json")) {
   // Not a TS project — allow.
   process.exit(0);
