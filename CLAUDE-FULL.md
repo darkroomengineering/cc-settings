@@ -63,7 +63,7 @@ For full orchestration mode (power users), activate `profiles/maestro.md`.
 - Adaptive reasoning depth based on complexity
 - Fast mode: same model, faster output (`/fast`)
 - Effort levels: `low`, `medium`, `high`, `xhigh`, `max` — set per-session with `/effort`, per-agent via `effort` frontmatter
-- Default effort: `xhigh` (Anthropic's recommended setting for coding/agentic workflows on Opus 4.7 — see [migration guide](https://platform.claude.com/docs/en/about-claude/models/migration-guide)).
+- Default effort: `xhigh` — pinned explicitly via `CLAUDE_CODE_EFFORT_LEVEL=xhigh` in `settings.json`. Anthropic's recommended setting for coding/agentic workflows on Opus 4.7 ([migration guide](https://platform.claude.com/docs/en/about-claude/models/migration-guide)), and a guard against silent default downgrades like the Mar 4–Apr 7 2026 incident documented in Anthropic's [Apr 23 postmortem](https://www.anthropic.com/engineering/april-23-postmortem).
   - Use `low` for trivial lookups and latency-sensitive work.
   - Use `medium` for routine edits where depth isn't required.
   - Use `high` for non-coding intelligence work (writing, analysis).
