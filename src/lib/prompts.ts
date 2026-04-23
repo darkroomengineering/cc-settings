@@ -1,19 +1,12 @@
 // Interactive prompts — port of lib/prompts.sh.
 //
-// Wraps @inquirer/prompts so callers don't import it directly. Supports a
-// global non-interactive mode that auto-returns defaults (used by CI + tests).
+// Wraps @inquirer/prompts so callers don't import it directly. Falls back to
+// defaults when stdin isn't a TTY (CI, piped input).
 
 import { confirm, input, select } from "@inquirer/prompts";
 
-let interactive = true;
-
-/** Force non-interactive mode. In this mode, all prompts return their default. */
-export function setInteractive(on: boolean): void {
-  interactive = on;
-}
-
 export function isInteractive(): boolean {
-  return interactive && process.stdin.isTTY === true;
+  return process.stdin.isTTY === true;
 }
 
 /** Yes/No prompt. Defaults to yes. Returns true for yes. */

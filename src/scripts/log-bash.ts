@@ -8,18 +8,10 @@
 import { appendFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { readStdin } from "../lib/io.ts";
 
 const LOG_DIR = join(homedir(), ".claude", "logs");
 const RETENTION = Number.parseInt(process.env.CLAUDE_LOG_RETENTION_DAYS ?? "1", 10) || 1;
-
-function readStdin(): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  return new Promise((resolve, reject) => {
-    process.stdin.on("data", (c) => chunks.push(c as Uint8Array));
-    process.stdin.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    process.stdin.on("error", reject);
-  });
-}
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");

@@ -7,6 +7,7 @@
 import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { readStdin } from "../lib/io.ts";
 
 const LOG_FILE = join(homedir(), ".claude", "api-failures.log");
 
@@ -16,15 +17,6 @@ type StopFailureInput = {
     message?: string;
   };
 };
-
-function readStdin(): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  return new Promise((resolve, reject) => {
-    process.stdin.on("data", (c) => chunks.push(c as Uint8Array));
-    process.stdin.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    process.stdin.on("error", reject);
-  });
-}
 
 function formatTimestamp(d: Date): string {
   // Bash parity: `date '+%Y-%m-%d %H:%M:%S'` — local time, space separator.

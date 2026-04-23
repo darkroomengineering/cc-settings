@@ -7,6 +7,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
+import { hasCommand } from "../lib/platform.ts";
 
 const filePath = process.env.TOOL_INPUT_file_path ?? "";
 if (!filePath) process.exit(0);
@@ -16,20 +17,9 @@ const BIOMABLE = new Set([".ts", ".tsx", ".js", ".jsx", ".json", ".css"]);
 const JSTS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 const COMPONENT = new Set([".tsx", ".jsx"]);
 
-async function hasCommand(cmd: string): Promise<boolean> {
-  const proc = Bun.spawn(["sh", "-c", `command -v ${cmd}`], {
-    stdout: "ignore",
-    stderr: "ignore",
-  });
-  return (await proc.exited) === 0;
-}
-
-// 1. Auto-format with biome (skip on Windows where sh isn't available; fall
-//    back to a direct spawn).
+// 1. Auto-format with biome.
 if (BIOMABLE.has(ext)) {
-  const biomeOnPath =
-    process.platform === "win32" ? Bun.which("biome") !== null : await hasCommand("biome");
-  if (biomeOnPath) {
+  if (hasCommand("biome")) {
     const proc = Bun.spawn(["biome", "check", "--write", filePath], {
       stdout: "ignore",
       stderr: "ignore",

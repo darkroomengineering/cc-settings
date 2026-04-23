@@ -1,14 +1,13 @@
 import { z } from "zod";
 
 // Schema for `hooks-config.json` (team-default) and `hooks-config.local.json`
-// (personal override, gitignored). As of the Phase -1 deslop, the file has one
-// live feature: `claude_md_monitor` thresholds consumed by session-start.sh.
+// (personal override, gitignored). Carries one live feature:
+// `claude_md_monitor` thresholds consumed by session-start.ts.
 //
-// **Decision (Phase 1, ~/Desktop/cc-settings-MIGRATION.md Appendix A #5):**
-// This file is *targeted for removal* in Phase 4. The three thresholds fold
-// into `settings.json.env` as `CC_CLAUDE_MD_ENABLED`, `CC_CLAUDE_MD_WARN`,
-// `CC_CLAUDE_MD_CRITICAL`. Phase 1 keeps the schema so the existing file
-// parses cleanly; Phase 4 drops the file when session-start.ts lands.
+// Kept as the legacy compatibility shim for pre-Phase-7 installs that still
+// have a `hooks-config.json` on disk; the thresholds are also mirrored into
+// `settings.json.env` as `CC_CLAUDE_MD_ENABLED`, `CC_CLAUDE_MD_WARN`,
+// `CC_CLAUDE_MD_CRITICAL` for new installs.
 
 export const ClaudeMdMonitor = z.object({
   enabled: z.boolean(),

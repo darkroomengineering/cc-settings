@@ -5,6 +5,7 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { readStdin } from "../lib/io.ts";
 
 type Payload = {
   model?: { display_name?: string };
@@ -20,15 +21,6 @@ type Payload = {
     };
   };
 };
-
-function readStdin(): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  return new Promise((resolve, reject) => {
-    process.stdin.on("data", (c) => chunks.push(c as Uint8Array));
-    process.stdin.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    process.stdin.on("error", reject);
-  });
-}
 
 function formatTokens(n: number): string {
   if (n > 500_000) return `${(n / 1_000_000).toFixed(1)}M`;

@@ -7,7 +7,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, join } from "node:path";
 import { atomicWriteJson } from "../lib/mcp.ts";
 
 const PROJECT_DIR = process.cwd();
@@ -338,6 +338,3 @@ switch (cmd) {
   default:
     showMainHelp();
 }
-
-// Keep dirname import used (reserved for future multi-project switch).
-void dirname;

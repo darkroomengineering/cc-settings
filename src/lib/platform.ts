@@ -33,14 +33,6 @@ function detectOS(): OS {
 
 export const os: OS = detectOS();
 
-export function isMacOS(): boolean {
-  return os === "macos";
-}
-
-export function isLinux(): boolean {
-  return os === "linux" || os === "wsl";
-}
-
 export function isWindows(): boolean {
   return os === "windows";
 }
