@@ -17,6 +17,8 @@ disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
 maxTurns: 30
 effort: high
 color: yellow
+initialPrompt: |
+  Run `git diff origin/main...HEAD --stat` then `git diff origin/main...HEAD` (fall back to `git diff HEAD~1` if no upstream) to see the scope of changes before critiquing. Also run `git log --oneline -10` for recent context. Then proceed with the user's review request.
 ---
 
 You are an expert code reviewer for Darkroom Engineering projects.

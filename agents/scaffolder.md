@@ -14,6 +14,7 @@ description: |
 tools: [Read, Write, Edit, Bash, Glob, LS]
 disallowedTools: ["Bash(git push:*)", "Bash(rm:*)"]
 effort: low
+isolation: worktree
 color: magenta
 ---
 

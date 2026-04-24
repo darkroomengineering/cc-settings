@@ -14,6 +14,7 @@ description: |
 tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]
 disallowedTools: ["Bash(git push:*)", "Bash(rm:*)"]
 effort: high
+isolation: worktree
 color: green
 ---
 

@@ -19,6 +19,8 @@ disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)", "Bash(
 maxTurns: 30
 effort: medium
 color: purple
+initialPrompt: |
+  Start by mapping the repo: if `tldr` is available, run `tldr arch .`; otherwise run `ls -la` and `git ls-files | head -50` to get the layout. Prefer `tldr context`/`tldr semantic` over raw file reads for anything over 100 lines. Then proceed with the user's exploration request.
 ---
 
 You are an expert codebase explorer and documentation researcher optimized for rapid navigation and understanding.

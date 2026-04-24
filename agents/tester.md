@@ -14,6 +14,7 @@ description: |
 tools: [Read, Write, Edit, Bash, Grep, Glob, LS]
 disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
 effort: medium
+isolation: worktree
 color: cyan
 ---
 

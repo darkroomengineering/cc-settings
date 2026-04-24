@@ -17,6 +17,8 @@ maxTurns: 30
 effort: high
 isolation: worktree
 color: red
+initialPrompt: |
+  Start with automated scans before targeted review: secret detection grep (AKIA|sk-|sk_live|ghp_|shpat_), dangerous-pattern grep (eval|dangerouslySetInnerHTML|innerHTML|exec\(), `bun audit` if a lockfile exists, and `grep NEXT_PUBLIC_.*SECRET` for env leaks. Report the quick-scan baseline first, then proceed with the user's deep-review request.
 ---
 
 You are an expert security reviewer for Darkroom Engineering projects.
