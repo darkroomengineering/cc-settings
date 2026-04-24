@@ -1,0 +1,232 @@
+{
+	"hooks": {
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/session-title.ts\"",
+						"async": true,
+						"timeout": 3
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/safety-net.ts\""
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"if": "Bash(git commit*)",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/pre-commit-tsc.ts\""
+					}
+				]
+			},
+			{
+				"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*) Bash(bunx*)",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
+					}
+				]
+			},
+			{
+				"matcher": "Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/pre-edit-validate.ts\""
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "Write|Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/post-edit.ts\""
+					}
+				]
+			},
+			{
+				"matcher": "Write|Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/post-edit-tsc.ts\"",
+						"async": true
+					}
+				]
+			},
+			{
+				"matcher": "mcp__tldr",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/track-tldr.ts\" \"$TOOL_NAME\"",
+						"async": true,
+						"timeout": 10
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/log-bash.ts\"",
+						"async": true,
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"PostCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/post-compact.ts\""
+					}
+				]
+			}
+		],
+		"StopFailure": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/stop-failure.ts\""
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/handoff.ts\" create"
+					}
+				]
+			}
+		],
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/session-start.ts\""
+					}
+				]
+			}
+		],
+		"CwdChanged": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/cwd-changed.ts\"",
+						"async": true,
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/tldr-stats.ts\"; bun \"$HOME/.claude/src/scripts/handoff.ts\" create",
+						"async": true,
+						"timeout": 30
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
+					}
+				]
+			}
+		],
+		"PostToolUseFailure": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/post-failure.ts\"",
+						"async": false,
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"SubagentStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" start",
+						"async": true,
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" stop",
+						"async": true,
+						"timeout": 5
+					}
+				]
+			}
+		],
+		"Notification": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/notify.ts\"",
+						"async": true,
+						"timeout": 10
+					}
+				]
+			}
+		],
+		"TaskCreated": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" task",
+						"async": true,
+						"timeout": 5
+					}
+				]
+			}
+		]
+	}
+}

@@ -22,6 +22,7 @@ import {
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
+import { projectAwareness } from "../lib/project-awareness.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
 const PROJECT_DIR = process.cwd();
@@ -219,6 +220,10 @@ if (await which("tldr")) {
     console.log("TLDR warming in background (semantic search coming soon)");
   }
 }
+
+// Project context — git branch, local standards (AGENTS.md / CLAUDE.md / rules/ / .claude/),
+// and recent commits. Surfaces local coding standards at session open.
+for (const l of await projectAwareness(PROJECT_DIR)) console.log(l);
 
 // CLAUDE.md size monitoring (thresholds read via hook-config lib).
 const claudeMd = join(CLAUDE_DIR, "CLAUDE.md");

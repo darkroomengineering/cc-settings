@@ -44,7 +44,7 @@ Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 - `bench/` — Performance benchmarks + regression gate
 - `tests/` — bun:test suites
 - `setup.sh` / `setup.ps1` — Tiny bootstraps (install Bun, exec `bun src/setup.ts`)
-- `settings.json` — Permissions, hooks, and MCP config (user-installed)
+- `config/` — Settings fragments (source of truth; `10-core.json`, `20-mcp.json`, `30-permissions.json`, `40-hooks.json`). Composed into `~/.claude/settings.json` at install time. Run `bun run compose` to preview the composed output.
 - `schemas/*.schema.json` — Generated JSON Schemas (via `bun run schemas:emit`)
 
 ### Development
@@ -56,6 +56,7 @@ Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 - Typecheck: `bun run typecheck`
 - Lint: `bun run lint` / `bun run lint:fix`
 - Schemas (regenerate JSON Schema from zod sources): `bun run schemas:emit`
+- Preview composed settings.json: `bun run compose`
 - Upstream drift scan: `bun run upstream:scan`
 - Bench baseline: `bun run bench:baseline`
 - Bench regression: `bun run bench:check`

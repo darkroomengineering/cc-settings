@@ -16,7 +16,8 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "schemas:emit": "bun src/schemas/emit.ts",
-    "upstream:scan": "bun src/upstream/scan.ts"
+    "upstream:scan": "bun src/upstream/scan.ts",
+    "compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.2",

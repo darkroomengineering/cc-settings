@@ -1,0 +1,59 @@
+{
+	"$schema": "https://json.schemastore.org/claude-code-settings.json",
+	"env": {
+		"CLAUDE_CODE_EFFORT_LEVEL": "xhigh",
+		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+		"CLAUDE_CODE_NO_FLICKER": "1",
+		"CLAUDE_CODE_SCRIPT_CAPS": "500",
+		"ENABLE_PROMPT_CACHING_1H": "1",
+		"ENABLE_TOOL_SEARCH": "auto:50",
+		"CC_CLAUDE_MD_MONITOR_ENABLED": "true",
+		"CC_CLAUDE_MD_WARN_LINES": "400",
+		"CC_CLAUDE_MD_CRITICAL_LINES": "600"
+	},
+	"sandbox": {
+		"failIfUnavailable": false
+	},
+	"model": "opus[1m]",
+	"showThinkingSummaries": true,
+	"teammateMode": "auto",
+	"includeGitInstructions": false,
+	"attribution": {
+		"commit": "",
+		"pr": ""
+	},
+	"plansDirectory": "./plans",
+	"spinnerVerbs": {
+		"mode": "replace",
+		"verbs": [
+			"Analyzing",
+			"Architecting",
+			"Building",
+			"Checking",
+			"Composing",
+			"Crafting",
+			"Debugging",
+			"Deploying",
+			"Designing",
+			"Evaluating",
+			"Exploring",
+			"Implementing",
+			"Investigating",
+			"Optimizing",
+			"Orchestrating",
+			"Refactoring",
+			"Researching",
+			"Reviewing",
+			"Scaffolding",
+			"Testing",
+			"Tracing",
+			"Validating",
+			"Wiring"
+		]
+	},
+	"statusLine": {
+		"type": "command",
+		"command": "bun \"$HOME/.claude/src/hooks/statusline.ts\"",
+		"refreshInterval": 30
+	}
+}

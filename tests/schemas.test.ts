@@ -3,19 +3,16 @@
 // Kept minimal: we're verifying the schemas describe reality, not testing zod.
 
 import { describe, expect, test } from "bun:test";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
+import { composeSettings } from "../src/lib/compose-settings.ts";
 import { HooksConfig } from "../src/schemas/hooks-config.ts";
 import { Settings } from "../src/schemas/settings.ts";
 import { SkillFrontmatter } from "../src/schemas/skill.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
-
-async function readJson(path: string): Promise<unknown> {
-  return JSON.parse(await readFile(path, "utf8"));
-}
 
 // Real YAML parser (Phase 3 upgrade). Returns the parsed frontmatter object
 // or null if no frontmatter block is present.
@@ -32,12 +29,12 @@ function formatZodError(err: z.ZodError): string {
   return err.issues.map((i) => `  ${i.path.join(".") || "<root>"}: ${i.message}`).join("\n");
 }
 
-describe("Settings schema vs the real settings.json", () => {
-  test("parses without errors", async () => {
-    const raw = await readJson(resolve(ROOT, "settings.json"));
-    const result = Settings.safeParse(raw);
+describe("Settings schema vs the composed config/ fragments", () => {
+  test("composed fragments parse without errors", async () => {
+    const composed = await composeSettings(ROOT);
+    const result = Settings.safeParse(composed);
     if (!result.success) {
-      throw new Error(`settings.json failed validation:\n${formatZodError(result.error)}`);
+      throw new Error(`composed fragments failed validation:\n${formatZodError(result.error)}`);
     }
     expect(result.success).toBe(true);
   });

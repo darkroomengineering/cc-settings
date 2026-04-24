@@ -174,7 +174,7 @@ AGENTS.md              # Portable coding standards (source of truth)
 CLAUDE-FULL.md         # Claude-Code config (installed as ~/.claude/CLAUDE.md)
 setup.sh               # Bootstrap (installs Bun, execs src/setup.ts)
 setup.ps1              # Windows bootstrap
-settings.json          # Permissions, hooks, MCP
+config/                # Settings fragments (composed at install): core, mcp, permissions, hooks
 src/setup.ts           # Authoritative installer
 src/hooks/             # Hot-path hooks (safety-net, statusline, …)
 src/scripts/           # One-shot scripts (post-edit, handoff, learn, …)

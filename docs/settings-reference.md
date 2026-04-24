@@ -8,12 +8,12 @@ Complete reference for all settings in `settings.json` and related configuration
 
 | File | Scope | Contains |
 |------|-------|----------|
-| `settings.json` (project repo) | Team-shared, checked into git | Env vars, model, permissions, hooks, MCP servers |
+| `config/*.json` (project repo) | Team-shared, checked into git | Settings fragments (core, mcp, permissions, hooks) composed at install time |
 | `~/.claude.json` | Per-user, machine-local | Personal MCP servers, user-specific overrides |
 | `~/.claude/CLAUDE.md` | Per-user, global instructions | Behavioral instructions loaded into every session |
 | `<project>/CLAUDE.md` | Per-project instructions | Project-specific behavioral instructions |
 
-The installer (`setup.sh`) copies `settings.json` from this repo to `~/.claude/settings.json`, making it the global default for all projects.
+The installer (`setup.sh`) composes the repo's `config/*.json` fragments alphabetically into `~/.claude/settings.json`, making it the global default for all projects. Authoring happens in the individual fragments so PRs touching hooks don't churn permissions diffs. Preview the composed output with `bun run compose`.
 
 ---
 

@@ -1,0 +1,43 @@
+{
+	"mcpServers": {
+		"context7": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@upstash/context7-mcp"
+			],
+			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
+			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
+		},
+		"Sanity": {
+			"type": "http",
+			"url": "https://mcp.sanity.io",
+			"_comment": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server",
+			"serverInstructions": "Sanity CMS content and configuration operations including querying datasets, inspecting schemas, and managing content documents. Use for any tasks involving Sanity projects, GROQ queries, or CMS-driven content workflows."
+		},
+		"tldr": {
+			"command": "tldr-mcp",
+			"args": [
+				"--project",
+				"."
+			],
+			"_comment": "Requires: pipx install llm-tldr (v1.5+). Run 'tldr warm .' in project to index.",
+			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred."
+		},
+		"figma": {
+			"type": "http",
+			"url": "https://mcp.figma.com/mcp",
+			"_comment": "Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use.",
+			"serverInstructions": "Figma design inspection and extraction: tokens, styles, component props, variables, and file structure. Use for design-to-code workflows, design fidelity checks, and extracting design tokens. Prefer this over screenshot-based workflows when structured design data is needed."
+		},
+		"chrome-devtools": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"chrome-devtools-mcp@latest"
+			],
+			"_comment": "Chrome DevTools via CDP. Performance traces, network, console, user simulation.",
+			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
+		}
+	}
+}

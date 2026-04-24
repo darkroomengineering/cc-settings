@@ -14,7 +14,7 @@
 //   --help, -h         Usage.
 
 import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -28,7 +28,9 @@ import {
   success,
   warn,
 } from "./lib/colors.ts";
+import { composeSettings } from "./lib/compose-settings.ts";
 import {
+  atomicWriteJson,
   CLAUDE_JSON_PATH,
   installMcpToClaudeJson,
   type McpParseError,
@@ -52,6 +54,7 @@ const CLAUDE_DIR = join(homedir(), ".claude");
 type Args = {
   rollback: string | true | null;
   dryRun: boolean;
+  status: boolean;
   help: boolean;
   sourceDir: string;
   interactive: boolean;
@@ -61,6 +64,7 @@ function parseArgs(argv: string[]): Args {
   const args: Args = {
     rollback: null,
     dryRun: false,
+    status: false,
     help: false,
     sourceDir: resolve(import.meta.dir, ".."),
     // CC_INTERACTIVE=1 opts in for scripts/CI without argv juggling.
@@ -70,6 +74,7 @@ function parseArgs(argv: string[]): Args {
     if (a === "--rollback") args.rollback = true;
     else if (a.startsWith("--rollback=")) args.rollback = a.slice("--rollback=".length);
     else if (a === "--dry-run") args.dryRun = true;
+    else if (a === "--status") args.status = true;
     else if (a === "--interactive") args.interactive = true;
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
@@ -86,6 +91,8 @@ Flags:
   --source=<dir>     Source repo path (default: parent of setup.ts).
   --rollback[=TS]    Restore newest backup, or one matching timestamp TS.
   --dry-run          Print planned actions; do not touch disk.
+  --status           Report installed version, drift vs repo HEAD, missing
+                     managed skills, hooks, key env vars, and MCP servers.
   --interactive      Prompt on settings.json conflicts (scalar overrides, team
                      additions to allow/ask rules, new hook groups). Also opt in
                      via CC_INTERACTIVE=1.
@@ -315,16 +322,20 @@ async function installTsSources(source: string): Promise<void> {
 // --- Settings + MCP install ---------------------------------------------
 
 async function installSettings(source: string, interactive: boolean): Promise<void> {
-  const teamSettingsPath = join(source, "settings.json");
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
-  if (!existsSync(teamSettingsPath)) {
-    error("Team settings.json not found at source.");
-    process.exit(1);
+  // Compose team settings from config/ fragments, stage to a temp file so the
+  // existing merger (path-based) can consume them without API churn.
+  const teamComposed = await composeSettings(source);
+  const teamStaged = join(CLAUDE_DIR, ".team-settings.staged.json");
+  await atomicWriteJson(teamStaged, teamComposed);
+  try {
+    await mergeSettingsWithMcpPreservation(userSettingsPath, teamStaged, userSettingsPath, {
+      interactive,
+    });
+    await installMcpToClaudeJson(teamStaged);
+  } finally {
+    await rm(teamStaged, { force: true }).catch(() => {});
   }
-  await mergeSettingsWithMcpPreservation(userSettingsPath, teamSettingsPath, userSettingsPath, {
-    interactive,
-  });
-  await installMcpToClaudeJson(teamSettingsPath);
 }
 
 // --- Dependencies --------------------------------------------------------
@@ -408,7 +419,7 @@ async function cmdDryRun(source: string): Promise<void> {
   const items: Array<[string, string]> = [
     ["CLAUDE-FULL.md", "→ ~/.claude/CLAUDE.md"],
     ["AGENTS.md", "→ ~/.claude/AGENTS.md"],
-    ["settings.json", "→ ~/.claude/settings.json (MCP-merged)"],
+    ["config/", "→ ~/.claude/settings.json (composed + MCP-merged)"],
     ["src/", "→ ~/.claude/src/ (all TS)"],
     ["agents/", "→ ~/.claude/agents/"],
     ["skills/", "→ ~/.claude/skills/"],
@@ -426,6 +437,170 @@ async function cmdDryRun(source: string): Promise<void> {
   console.log("No files written. Re-run without --dry-run to install.");
 }
 
+// --- Status --------------------------------------------------------------
+
+interface VersionSentinel {
+  version?: string;
+  installed_at?: string;
+  installer?: string;
+}
+
+async function gitHeadInfo(sourceDir: string): Promise<{ sha: string; behind: number | null }> {
+  const sha = await runCapture(["git", "-C", sourceDir, "rev-parse", "--short", "HEAD"]);
+  // How many commits has HEAD advanced since the last install? We count with the
+  // sentinel file's mtime as a rough lower bound — there's no installed-sha,
+  // so this answers "anything changed since the sentinel was written?"
+  const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
+  let behind: number | null = null;
+  if (existsSync(sentinelPath)) {
+    const since = (await Bun.file(sentinelPath).stat()).mtime.toISOString();
+    const count = await runCapture([
+      "git",
+      "-C",
+      sourceDir,
+      "rev-list",
+      "--count",
+      `HEAD`,
+      `--since=${since}`,
+    ]);
+    const n = Number.parseInt(count, 10);
+    behind = Number.isFinite(n) ? n : null;
+  }
+  return { sha, behind };
+}
+
+async function runCapture(cmd: string[]): Promise<string> {
+  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "ignore" });
+  const out = await new Response(proc.stdout).text();
+  await proc.exited;
+  return proc.exitCode === 0 ? out.trim() : "";
+}
+
+async function cmdStatus(sourceDir: string): Promise<number> {
+  console.log(`cc-settings --status`);
+  console.log("");
+
+  // Installed version
+  const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
+  let sentinel: VersionSentinel | null = null;
+  if (existsSync(sentinelPath)) {
+    try {
+      sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as VersionSentinel;
+    } catch {
+      // malformed — treat as absent
+    }
+  }
+  if (sentinel?.version) {
+    console.log(`  installed: v${sentinel.version}  (${sentinel.installed_at ?? "unknown"})`);
+  } else {
+    console.log(
+      `  installed: ${palette.yellow}none${palette.reset}  (no sentinel at ~/.claude/.cc-settings-version)`,
+    );
+  }
+  console.log(`  packaged:  v${VERSION}`);
+
+  // Git drift — only if source is a git checkout.
+  if (existsSync(join(sourceDir, ".git"))) {
+    const { sha, behind } = await gitHeadInfo(sourceDir);
+    if (sha) {
+      const driftNote =
+        behind === null
+          ? "(sentinel absent — can't compute drift)"
+          : behind === 0
+            ? `${palette.green}up to date${palette.reset}`
+            : `${palette.yellow}${behind} commit(s) since install${palette.reset}`;
+      console.log(`  repo HEAD: ${sha}  ${driftNote}`);
+    }
+  }
+
+  console.log("");
+  console.log("Managed skills:");
+  const skillsDir = join(CLAUDE_DIR, "skills");
+  const installedSkills = existsSync(skillsDir)
+    ? new Set(await readdir(skillsDir).catch(() => []))
+    : new Set<string>();
+  // Filter out skills that are in MANAGED_SKILLS only for cleanup (not shipped).
+  const shippedSkills = MANAGED_SKILLS.filter((s) => existsSync(join(sourceDir, "skills", s)));
+  const missing = shippedSkills.filter((s) => !installedSkills.has(s));
+  console.log(`  present: ${shippedSkills.length - missing.length}/${shippedSkills.length}`);
+  if (missing.length > 0) {
+    console.log(`  missing: ${missing.join(", ")}`);
+  }
+
+  // Settings.json inspection
+  const userSettingsPath = join(CLAUDE_DIR, "settings.json");
+  const userSettings = (await readJsonOrNull<Record<string, unknown>>(userSettingsPath)) ?? {};
+
+  const hooks = (userSettings.hooks ?? {}) as Record<string, unknown>;
+  const hookEvents = Object.keys(hooks);
+  const hookCount = hookEvents.reduce(
+    (n, ev) => n + (Array.isArray(hooks[ev]) ? (hooks[ev] as unknown[]).length : 0),
+    0,
+  );
+  console.log("");
+  console.log("Hooks:");
+  console.log(`  events registered: ${hookEvents.length}  (${hookCount} group(s) total)`);
+  if (hookEvents.length > 0) {
+    console.log(`  ${hookEvents.sort().join(", ")}`);
+  }
+
+  // Env var audit — surface the ones CLAUDE-FULL.md promises.
+  const env = (userSettings.env ?? {}) as Record<string, unknown>;
+  const expectedEnv = [
+    "CLAUDE_CODE_EFFORT_LEVEL",
+    "ENABLE_PROMPT_CACHING_1H",
+    "ENABLE_TOOL_SEARCH",
+    "CLAUDE_CODE_NO_FLICKER",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+  ];
+  console.log("");
+  console.log("Env vars:");
+  for (const k of expectedEnv) {
+    const v = env[k];
+    const mark =
+      v === undefined ? `${palette.yellow}✗${palette.reset}` : `${palette.green}✓${palette.reset}`;
+    const val = v === undefined ? "(unset)" : String(v);
+    console.log(`  ${mark} ${k}=${val}`);
+  }
+
+  // Permissions
+  const perms = (userSettings.permissions ?? {}) as Record<string, unknown>;
+  const allow = Array.isArray(perms.allow) ? (perms.allow as unknown[]).length : 0;
+  const deny = Array.isArray(perms.deny) ? (perms.deny as unknown[]).length : 0;
+  console.log("");
+  console.log("Permissions:");
+  console.log(`  allow: ${allow}  deny: ${deny}`);
+
+  // MCP servers from ~/.claude.json
+  const claudeJson = await readJsonOrNull<{ mcpServers?: Record<string, unknown> }>(
+    CLAUDE_JSON_PATH,
+  );
+  const servers = Object.keys(claudeJson?.mcpServers ?? {});
+  console.log("");
+  console.log("MCP servers:");
+  console.log(
+    `  configured: ${servers.length}${servers.length > 0 ? `  (${servers.join(", ")})` : ""}`,
+  );
+
+  console.log("");
+
+  // Summary row — was anything worth flagging?
+  const warnings: string[] = [];
+  if (missing.length > 0) warnings.push(`${missing.length} skill(s) missing`);
+  if (sentinel?.version && sentinel.version !== VERSION) {
+    warnings.push(`installed v${sentinel.version} ≠ packaged v${VERSION} (re-run to update)`);
+  }
+  const missingEnv = expectedEnv.filter((k) => env[k] === undefined);
+  if (missingEnv.length > 0) warnings.push(`${missingEnv.length} env var(s) unset`);
+
+  if (warnings.length === 0) {
+    success("all checks passed");
+  } else {
+    for (const w of warnings) warn(w);
+  }
+  return 0; // status is informational; never fail
+}
+
 // --- Main ----------------------------------------------------------------
 
 async function main(): Promise<number> {
@@ -433,6 +608,9 @@ async function main(): Promise<number> {
   if (args.help) {
     printHelp();
     return 0;
+  }
+  if (args.status) {
+    return await cmdStatus(args.sourceDir);
   }
   if (args.rollback !== null) {
     return await cmdRollback(args.rollback);
