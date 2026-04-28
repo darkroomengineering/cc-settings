@@ -1,11 +1,6 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cc-settings.darkroom/upstream/claude-code-manifest.json",
-  "description": "Snapshot of Claude Code upstream surface area as known to the cc-settings zod schemas. Updated by src/upstream/scan.ts (daily GH Action). Drift triggers a PR that extends the schemas and this manifest atomically. See docs/migration-coexistence.md and ~/Desktop/cc-settings-MIGRATION.md v2.",
-  "lastScan": "2026-04-20T00:00:00Z",
-  "claudeCodeVersion": "2.1.114",
-  "manifestSchemaVersion": 1,
-  "source": "manual (first snapshot — Phase 1). From 2.1.115 onward, upstream-sync bot owns this file.",
+  "lastScan": "2026-04-28T09:47:35.583Z",
+  "claudeCodeVersion": "2.1.121",
   "knownSettingsKeys": [
     "$schema",
     "allowedChannelPlugins",
@@ -64,16 +59,12 @@
     "WorktreeCreate",
     "WorktreeRemove"
   ],
-  "knownHookTypes": ["command", "http", "prompt", "agent"],
-  "knownPermissionModes": [
-    "default",
-    "acceptEdits",
-    "plan",
-    "auto",
-    "dontAsk",
-    "bypassPermissions"
+  "knownHookTypes": [
+    "command",
+    "http",
+    "prompt",
+    "agent"
   ],
-  "knownMcpTransports": ["stdio", "http"],
   "knownEnvVars": [
     "CLAUDE_CODE_EFFORT_LEVEL",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
@@ -106,6 +97,23 @@
     "Skill",
     "TodoWrite",
     "Write"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cc-settings.darkroom/upstream/claude-code-manifest.json",
+  "description": "Snapshot of Claude Code upstream surface area as known to the cc-settings zod schemas. Updated by src/upstream/scan.ts (daily GH Action). Drift triggers a PR that extends the schemas and this manifest atomically. See docs/migration-coexistence.md and ~/Desktop/cc-settings-MIGRATION.md v2.",
+  "manifestSchemaVersion": 1,
+  "source": "manual (first snapshot — Phase 1). From 2.1.115 onward, upstream-sync bot owns this file.",
+  "knownPermissionModes": [
+    "default",
+    "acceptEdits",
+    "plan",
+    "auto",
+    "dontAsk",
+    "bypassPermissions"
+  ],
+  "knownMcpTransports": [
+    "stdio",
+    "http"
   ],
   "notes": [
     "knownSettingsKeys mirrors the top-level keys enumerated in src/schemas/settings.ts. Order is alphabetical so the scanner's diffs stay stable.",
