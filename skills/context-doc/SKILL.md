@@ -49,48 +49,8 @@ If a question can be answered by reading code, read the code instead. Don't ask 
 
 ### File structure
 
-Most repos have a single context:
-
-```
-/
-├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
-└── src/
-```
-
-If the repo has multiple contexts (microservices, separate domains within a monorepo), use a `CONTEXT-MAP.md` at the root that points at one `CONTEXT.md` per context:
-
-```
-/
-├── CONTEXT-MAP.md
-├── docs/adr/                          ← system-wide decisions
-└── src/
-    ├── ordering/
-    │   ├── CONTEXT.md
-    │   └── docs/adr/                  ← context-specific decisions
-    └── billing/
-        ├── CONTEXT.md
-        └── docs/adr/
-```
-
-**Create files lazily.** No `CONTEXT.md`? Create one when the first term is resolved. No `docs/adr/`? Create it when the first ADR is needed.
+For the directory layout (single-context vs multi-context with `CONTEXT-MAP.md`), see [DOMAIN-AWARENESS.md](./DOMAIN-AWARENESS.md). **Create files lazily** — no `CONTEXT.md`? Create one when the first term is resolved. No `docs/adr/`? Create it when the first ADR is needed.
 
 ### Offer ADRs sparingly
 
-Only offer to create an ADR when **all three** are true:
-
-1. **Hard to reverse** — the cost of changing your mind later is meaningful
-2. **Surprising without context** — a future reader will look at the code and wonder "why on earth did they do it this way?"
-3. **The result of a real trade-off** — there were genuine alternatives and you picked one for specific reasons
-
-If any of the three is missing, skip the ADR. Most decisions don't qualify. See [ADR-FORMAT.md](./ADR-FORMAT.md).
-
-## Why this works
-
-Generic project rules (in `AGENTS.md`, in `rules/`) cover engineering practice. They don't know your domain. After a long conversation about Orders, Invoices, Fulfillment, and Customers, the agent forgets the specifics next session.
-
-`CONTEXT.md` is the project-specific layer that survives. Each session re-reads it via `DOMAIN-AWARENESS.md`. The agent uses your terms in test names, file names, function names, error messages — and stops drifting toward the generic vocabulary in its training data.
-
-ADRs do the same thing for decisions: they stop the next engineer (or the next agent) from "fixing" something that was deliberate.
+See [ADR-FORMAT.md](./ADR-FORMAT.md) for the three-criterion threshold (hard to reverse, surprising without context, real trade-off) and the format. If a decision misses any criterion, skip the ADR. Most decisions don't qualify.
