@@ -358,6 +358,53 @@
                       "prompt"
                     ],
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "mcp_tool"
+                      },
+                      "server": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "tool": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "input": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      },
+                      "if": {
+                        "type": "string"
+                      },
+                      "timeout": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "async": {
+                        "type": "boolean"
+                      },
+                      "statusMessage": {
+                        "type": "string"
+                      },
+                      "once": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "server",
+                      "tool"
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               }
@@ -396,6 +443,9 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "alwaysLoad": {
+                "type": "boolean"
               },
               "_comment": {
                 "type": "string"
@@ -456,6 +506,9 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "alwaysLoad": {
+                "type": "boolean"
               },
               "_comment": {
                 "type": "string"
@@ -585,6 +638,9 @@
       "additionalProperties": {}
     },
     "changelogUrl": {
+      "type": "string"
+    },
+    "prUrlTemplate": {
       "type": "string"
     }
   },

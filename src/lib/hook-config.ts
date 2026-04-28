@@ -54,15 +54,13 @@ function getHookConfig(keyPath: string, defaultValue?: unknown): unknown {
   return defaultValue;
 }
 
-/** Convenience: typed read for the claude_md_monitor block used by session-start.
+/** Typed read for the claude_md_monitor block used by session-start.
  *
  * Resolution order:
  *   1. settings.json env vars (CC_CLAUDE_MD_*) — authoritative, set by setup.ts
- *   2. legacy hooks-config.local.json → hooks-config.json (Phase 3 compatibility)
+ *   2. legacy hooks-config.{local.,}json — back-compat for installs from
+ *      before the env-var collapse; safe no-op when files don't exist
  *   3. hardcoded defaults
- *
- * The env-var path will become the only path once hooks-config.json is
- * deleted in Phase 4.11 cleanup (tracked in plans/migration-lthread.md).
  */
 export function getClaudeMdMonitor(): {
   enabled: boolean;

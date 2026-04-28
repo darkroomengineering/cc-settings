@@ -356,7 +356,6 @@ async function installDependencies(): Promise<void> {
 
   if (!hasCommand("pipx")) await ensureSystemPackage("pipx").catch(() => false);
   if (!hasCommand("pinchtab")) await ensureNpmGlobal("pinchtab").catch(() => false);
-  if (!hasCommand("agent-browser")) await ensureNpmGlobal("agent-browser").catch(() => false);
   if (!hasCommand("tldr") && !hasCommand("tldr-mcp")) {
     await ensurePythonPackage("llm-tldr", "tldr").catch(() => false);
   }

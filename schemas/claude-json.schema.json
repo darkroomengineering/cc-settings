@@ -31,6 +31,9 @@
                   "type": "string"
                 }
               },
+              "alwaysLoad": {
+                "type": "boolean"
+              },
               "_comment": {
                 "type": "string"
               },
@@ -90,6 +93,9 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "alwaysLoad": {
+                "type": "boolean"
               },
               "_comment": {
                 "type": "string"
