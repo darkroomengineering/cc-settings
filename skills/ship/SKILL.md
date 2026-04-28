@@ -35,10 +35,22 @@ bun run build
 If errors: fix them. Do not proceed until clean.
 
 ### Step 3: Test (if tests exist)
+
+**3a. Affected tests first (when `tldr` is available).** Run only the tests touched by your changes, before the full suite. Fast feedback if you broke something obvious:
+
+```bash
+tldr change-impact --project . 2>/dev/null
+```
+
+If TLDR returns a list, run those tests first (`bun test <file>` or `vitest run <file>`). If they fail, fix before the full run — don't waste cycles on the rest.
+
+**3b. Full suite.**
+
 ```bash
 bun test || vitest run
 ```
-If test runner is not configured, skip this step. If tests exist and fail: fix them. Do not proceed until green.
+
+If test runner is not configured, skip this step. If tests fail: fix them. Do not proceed until green.
 
 ### Step 4: Lint
 ```bash

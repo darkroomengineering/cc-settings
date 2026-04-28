@@ -51,7 +51,19 @@ if (JSTS.has(ext) && existsSync(filePath)) {
   }
 }
 
-// 3. Auto-review + Visual QA reminder for component files.
+// 3. Notify the TLDR daemon that this file changed, so semantic indexes stay
+//    fresh without manual `tldr warm` runs. Fire-and-forget; the daemon may not
+//    be running (no daemon = no-op exit code).
+if (hasCommand("tldr")) {
+  const proc = Bun.spawn(["tldr", "daemon", "notify", filePath, "--project", "."], {
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  proc.unref?.();
+  void proc.exited.catch(() => {});
+}
+
+// 4. Auto-review + Visual QA reminder for component files.
 if (COMPONENT.has(ext)) {
   console.log("");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

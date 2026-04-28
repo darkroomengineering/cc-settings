@@ -71,6 +71,19 @@ async function cleanupHandoffs(dir: string, keep = 20): Promise<void> {
   await Promise.all([prune(/^handoff_.*\.json$/), prune(/^handoff_.*\.md$/)]);
 }
 
+async function startTldrDaemon(): Promise<void> {
+  // Daemon keeps indexes in memory: ~100ms queries instead of ~30s CLI spawns.
+  // Auto-rebuilds embeddings once the dirty threshold (default 20 files) is hit;
+  // post-edit.ts notifies it on writes.
+  const proc = Bun.spawn(["tldr", "daemon", "start", "--project", "."], {
+    cwd: PROJECT_DIR,
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  proc.unref?.();
+  void proc.exited.catch(() => {});
+}
+
 async function autoWarmTldr(): Promise<void> {
   if (!(await which("tldr"))) return;
   const markers = [
@@ -85,13 +98,20 @@ async function autoWarmTldr(): Promise<void> {
   if (!markers.some((m) => existsSync(join(PROJECT_DIR, m)))) return;
 
   const tldrIndex = join(PROJECT_DIR, ".tldr");
-  if (existsSync(tldrIndex)) return;
+  // Index already exists — skip warming, but still ensure the daemon is up.
+  if (existsSync(tldrIndex)) {
+    await startTldrDaemon();
+    return;
+  }
 
   const tldrCache = join(CLAUDE_DIR, "tldr-cache", `${PROJECT_NAME}.warmed`);
   try {
     const st = await stat(tldrCache);
     const ageSec = (Date.now() - st.mtimeMs) / 1000;
-    if (ageSec < 3600) return;
+    if (ageSec < 3600) {
+      await startTldrDaemon();
+      return;
+    }
   } catch {
     // no cache yet — proceed
   }
@@ -107,7 +127,7 @@ async function autoWarmTldr(): Promise<void> {
     stderr: "ignore",
   });
   proc.unref?.();
-  // Append to sessions.log after warming completes, non-blocking.
+  // After warming completes, start the daemon and log; both non-blocking.
   void (async () => {
     try {
       await proc.exited;
@@ -116,6 +136,7 @@ async function autoWarmTldr(): Promise<void> {
         join(CLAUDE_DIR, "sessions.log"),
         `${ts} - TLDR warmed: ${PROJECT_NAME}\n`,
       ).catch(() => {});
+      await startTldrDaemon();
     } catch {
       // ignore
     }
