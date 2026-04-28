@@ -422,12 +422,14 @@ Library documentation lookup via the Context7 MCP protocol.
 ```json
 {
   "context7": {
-    "command": "npx",
+    "command": "bunx",
     "args": ["-y", "@upstash/context7-mcp"],
     "serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices."
   }
 }
 ```
+
+> **Note:** uses `bunx` rather than `npx` so monorepos that combine Bun's `catalog:` protocol with `overrides` in `package.json` don't break the server launch (`EOVERRIDE`).
 
 **Tools provided:** `mcp__context7__resolve-library-id`, `mcp__context7__get-library-docs`
 

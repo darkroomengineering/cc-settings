@@ -26,7 +26,7 @@ Add MCP servers to `~/.claude.json`:
 {
   "mcpServers": {
     "context7": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@upstash/context7-mcp"],
       "env": {}
     },
@@ -35,12 +35,14 @@ Add MCP servers to `~/.claude.json`:
       "url": "https://mcp.vercel.com"
     },
     "memory": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@modelcontextprotocol/server-memory"]
     }
   }
 }
 ```
+
+> **Why `bunx` over `npx`?** `npx` resolves from the current working directory's `package.json` and fails (`EOVERRIDE`) inside monorepos that use Bun's `catalog:` protocol alongside `overrides`. `bunx` understands `catalog:` natively and is guaranteed available on Darkroom machines (cc-settings requires `bun >=1.1.30`).
 
 ### Server Types
 
@@ -48,7 +50,7 @@ Add MCP servers to `~/.claude.json`:
 ```json
 {
   "server-name": {
-    "command": "npx",
+    "command": "bunx",
     "args": ["-y", "package-name"],
     "env": {
       "API_KEY": "your-key"
@@ -182,7 +184,7 @@ Some servers need longer startup time:
 ```json
 {
   "server-name": {
-    "command": "npx",
+    "command": "bunx",
     "args": ["-y", "package-name"],
     "timeout": 30000
   }

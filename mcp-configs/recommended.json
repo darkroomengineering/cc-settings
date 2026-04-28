@@ -6,9 +6,9 @@
 
   "mcpServers": {
     "context7": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@upstash/context7-mcp"],
-      "_description": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
+      "_description": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts. bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
       "_usage": "Triggered by: 'how to use X', 'X docs', 'api reference for Y'",
       "_contextCost": "low",
       "_status": "installed"
@@ -42,9 +42,9 @@
     },
 
     "chrome-devtools": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "chrome-devtools-mcp@latest"],
-      "_description": "Chrome DevTools via CDP. Performance traces, network, console, user simulation.",
+      "_description": "Chrome DevTools via CDP. Performance traces, network, console, user simulation. bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
       "_usage": "Performance tracing, network inspection, console logs, Core Web Vitals measurement",
       "_contextCost": "medium",
       "_status": "installed"
@@ -55,7 +55,7 @@
 
   "optionalMcpServers": {
     "github": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@anthropic/github-mcp-server"],
       "env": {
         "GITHUB_TOKEN": "<your-github-token>"
@@ -75,7 +75,7 @@
     },
 
     "memory": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@modelcontextprotocol/server-memory"],
       "env": {},
       "_description": "Persistent memory across sessions. Stores facts, preferences, and context.",

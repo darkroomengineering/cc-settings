@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.2.1] — 2026-04-24
+
+### Fix: stdio MCP servers launch via `bunx` instead of `npx`
+
+`context7` and `chrome-devtools` failed to start from any project whose root `package.json` combined Bun's `catalog:` protocol with `overrides` (npm aborts with `EOVERRIDE: Override for elysia@catalog: conflicts with direct dependency`). Because `npx` resolves from the current working directory, the failure surfaced whenever Claude Code was launched inside such a monorepo — `/mcp` reported `Failed to reconnect to context7` / `chrome-devtools` even though auth and network were fine.
+
+Swapped `"command": "npx"` → `"command": "bunx"` for all stdio servers. Bun understands `catalog:` natively, and cc-settings already mandates `bun >=1.1.30` (see `package.json` `engines`), so the dependency is guaranteed.
+
+**Changes:**
+
+- `config/20-mcp.json` — `context7`, `chrome-devtools` now launch via `bunx`.
+- `mcp-configs/recommended.json` — `context7`, `chrome-devtools` (installed) and `github`, `memory` (optional) updated for consistency.
+- `mcp-configs/README.md` — examples updated, added a note explaining the `bunx` choice.
+- `docs/settings-reference.md` — `context7` example updated with a monorepo note.
+
+**Existing installs:** re-running `setup.sh` does *not* overwrite MCP servers already in `~/.claude.json` (user entries shadow the team baseline — see `src/lib/mcp.ts:481`). To migrate an existing install:
+
+```bash
+claude mcp remove context7 -s user
+claude mcp remove chrome-devtools -s user
+bash ~/Developer/@darkroom/cc-settings/setup.sh
+```
+
 ## [10.2.0] — 2026-04-22
 
 ### Non-destructive settings.json merge + `--interactive` installer

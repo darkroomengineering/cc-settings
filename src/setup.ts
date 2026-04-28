@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.2"; // non-destructive settings merge + --interactive flag
+const VERSION = "10.2.1"; // stdio MCP servers launch via bunx (catalog:/overrides safe)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
