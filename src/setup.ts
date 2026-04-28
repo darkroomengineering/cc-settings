@@ -199,6 +199,7 @@ const MANAGED_SKILLS = [
   "component",
   "consolidate",
   "context",
+  "context-doc",
   "create-handoff",
   "debug",
   "design-tokens",
@@ -223,10 +224,13 @@ const MANAGED_SKILLS = [
   "resume-handoff",
   "review",
   "ship",
+  "tdd",
   "teams",
   "test",
   "tldr",
   "verify",
+  "write-a-skill",
+  "zoom-out",
   // Kept for upgrade cleanup; skill was removed (superseded by `docs` + `check-docs-before-install` hook).
   "versions",
 ];

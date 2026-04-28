@@ -88,6 +88,18 @@ Say: *"help me figure out what we need"*
 
 Triggers `/discovery` — structured interview to turn vague ideas into clear requirements.
 
+### Build the Domain Glossary
+
+Say: *"set up a context doc"* or *"create a glossary"* or *"record this as an ADR"*
+
+Triggers `/context-doc` — grilling interview that produces a project-level `CONTEXT.md` (domain language) and `docs/adr/` (architecture decisions). Other skills (`/explore`, `/zoom-out`, `/tdd`) read these files so agent output stays aligned with your project's vocabulary across sessions. Stops agent drift toward generic terminology.
+
+### Zoom Out
+
+Say: *"zoom out"* or *"give me the bigger picture"* or *"where does this fit"*
+
+Triggers `/zoom-out` — focused upward map for an unfamiliar code region. Lists immediate callers, sibling modules, and where this area sits in the system, using `CONTEXT.md` vocabulary when present.
+
 ### Premortem
 
 Say: *"what could go wrong with this approach?"*
@@ -109,6 +121,12 @@ Triggers `/verify` — three-agent adversarial pattern: finder (finds issues) �
 Say: *"test the payment module"* or *"add test coverage"*
 
 Triggers `/test` — delegates to tester agent for writing and running tests.
+
+### Test-Driven Development
+
+Say: *"TDD this"* or *"red-green-refactor"* or *"test-first"*
+
+Triggers `/tdd` — strict red → green → refactor discipline. Sibling to `/build` (which scaffolds tests after impl). Use this when you want tests to drive the design, or when the failure mode is "tests pass but behavior is wrong."
 
 ### Security Review
 
@@ -230,6 +248,12 @@ Triggers `/lenis` — installs and configures Lenis smooth scroll.
 Say: *"sync with claude code"* or *"changelog sync"* or *"upstream sync"*
 
 Triggers `/cc-sync` — audits cc-settings against the official Claude Code changelog, identifies new features to adopt and native functionality that now duplicates our code, and produces a categorized plan for human review. Stops for approval before any edits, then executes the approved subset, runs validation, and commits + pushes.
+
+### Create a New Skill
+
+Say: *"create a skill"* or *"write a new skill"*
+
+Triggers `/write-a-skill` — scaffolds a new cc-settings skill with the right frontmatter, file layout, and registration. Writes `skills/<name>/SKILL.md`, optional reference docs, and updates `MANAGED_SKILLS` + `MANUAL.md` so the installer ships it.
 
 ### Consolidate Rules & Skills
 
@@ -364,6 +388,10 @@ These are enforced automatically — no skill needed:
 | `learn` | remember this, store learning (also auto-triggers) |
 | `consolidate` | clean up rules, contradictions, spa day |
 | `cc-sync` | sync with claude code, changelog sync, upstream sync |
+| `context-doc` | domain glossary, ADR, shared vocabulary, context doc |
+| `tdd` | TDD, test-first, red-green-refactor |
+| `zoom-out` | zoom out, bigger picture, where does this fit |
+| `write-a-skill` | create a skill, write a new skill |
 | `audit` | audit, run audit script |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 

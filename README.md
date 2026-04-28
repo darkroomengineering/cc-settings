@@ -127,6 +127,7 @@ These run constantly. Get fluent with them first.
 - **[`/docs`](./skills/docs/SKILL.md)** — fetches current library docs via Context7 MCP. Auto-runs before `bun add` / `npm install`
 - **[`/refactor`](./skills/refactor/SKILL.md)** — explore → plan → implement → test → review with behavior preserved
 - **[`/test`](./skills/test/SKILL.md)** — write/run tests, surface coverage gaps
+- **[`/tdd`](./skills/tdd/SKILL.md)** — strict red → green → refactor when you want tests to drive the design
 
 ### Verification & quality
 
@@ -146,6 +147,8 @@ Before writing code on anything non-trivial.
 
 - **[`/discovery`](./skills/discovery/SKILL.md)** — turn vague ideas into concrete requirements
 - **[`/prd`](./skills/prd/SKILL.md)** — clarifying interview → scope → user stories → task breakdown
+- **[`/context-doc`](./skills/context-doc/SKILL.md)** — build the project's `CONTEXT.md` (domain glossary) and `docs/adr/`. Stops agent drift toward generic vocabulary
+- **[`/zoom-out`](./skills/zoom-out/SKILL.md)** — focused upward map for an unfamiliar code region
 - **[`/ask`](./skills/ask/SKILL.md)** — delegate to the oracle agent for evidence-based guidance
 - **[`/premortem`](./skills/premortem/SKILL.md)** — failure-mode analysis before implementing
 - **[`/f-thread`](./skills/f-thread/SKILL.md)** — compare approaches with weighted scoring matrix → ADR
@@ -167,6 +170,7 @@ Run weekly or when entropy hits.
 - **[`/cc-sync`](./skills/cc-sync/SKILL.md)** — sync cc-settings with the official Claude Code changelog
 - **[`/consolidate`](./skills/consolidate/SKILL.md)** — audit rules, skills, learnings for contradictions and bloat
 - **[`/autoresearch`](./skills/autoresearch/SKILL.md)** — autonomous skill optimization loop
+- **[`/write-a-skill`](./skills/write-a-skill/SKILL.md)** — scaffold a new cc-settings skill with the right frontmatter and registration
 
 ### Scaffolding
 
@@ -217,7 +221,7 @@ Opus for judgment, Sonnet for execution. Read-only agents (`explore`, `oracle`, 
 ├── AGENTS.md           # Portable coding standards (reference copy)
 ├── settings.json       # Permissions, hooks, MCP servers
 ├── agents/             # 10 specialized agents
-├── skills/             # 38 auto-invocable skills
+├── skills/             # 42 auto-invocable skills
 ├── profiles/           # Workflow profiles (maestro, nextjs, etc.)
 ├── rules/              # Path-conditioned rules (load on-demand)
 ├── contexts/           # Ecosystem contexts
