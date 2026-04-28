@@ -29,7 +29,7 @@ export const palette = {
   reset: COLORS_FORCED ? "\x1b[0m" : "",
 } as const;
 
-export function color(s: string, ansi: string): string {
+function color(s: string, ansi: string): string {
   if (!ansi) return s;
   return `${ansi}${s}${palette.reset}`;
 }

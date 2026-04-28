@@ -42,9 +42,9 @@ function getDot(cfg: Config, path: string): unknown {
  * Read a config value using dot-notation. Returns the first defined value
  * found (local → team). Returns `defaultValue` if neither file has the key.
  */
-export function getHookConfig<T>(keyPath: string, defaultValue: T): T;
-export function getHookConfig(keyPath: string): unknown;
-export function getHookConfig(keyPath: string, defaultValue?: unknown): unknown {
+function getHookConfig<T>(keyPath: string, defaultValue: T): T;
+function getHookConfig(keyPath: string): unknown;
+function getHookConfig(keyPath: string, defaultValue?: unknown): unknown {
   for (const path of [LOCAL, TEAM]) {
     const cfg = readValidated(path);
     if (!cfg) continue;

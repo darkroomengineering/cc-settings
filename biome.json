@@ -12,7 +12,8 @@
       "tests/**/*.ts",
       "!bench/prototype/dist",
       "!node_modules",
-      "!plans"
+      "!plans",
+      "!.claude"
     ]
   },
   "formatter": {
