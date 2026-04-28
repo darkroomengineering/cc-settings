@@ -249,6 +249,12 @@ Say: *"sync with claude code"* or *"changelog sync"* or *"upstream sync"*
 
 Triggers `/cc-sync` — audits cc-settings against the official Claude Code changelog, identifies new features to adopt and native functionality that now duplicates our code, and produces a categorized plan for human review. Stops for approval before any edits, then executes the approved subset, runs validation, and commits + pushes.
 
+### Update Your cc-settings Install
+
+Say: *"update cc-settings"* or *"upgrade cc-settings"* or *"pull the latest"*
+
+Triggers `/cc-update` — compares your installed version against the latest on `origin/main`, shows the commits and CHANGELOG entries that you'd be applying, warns about uncommitted changes in your cc-settings checkout, runs the installer with non-destructive merge, and prompts you to restart Claude Code. Pairs with `/cc-sync`: `/cc-sync` keeps the repo in sync with Claude Code upstream (maintainers); `/cc-update` keeps your local install in sync with the repo (everyone).
+
 ### Create a New Skill
 
 Say: *"create a skill"* or *"write a new skill"*
@@ -388,6 +394,7 @@ These are enforced automatically — no skill needed:
 | `learn` | remember this, store learning (also auto-triggers) |
 | `consolidate` | clean up rules, contradictions, spa day |
 | `cc-sync` | sync with claude code, changelog sync, upstream sync |
+| `cc-update` | update cc-settings, upgrade cc-settings, pull the latest |
 | `context-doc` | domain glossary, ADR, shared vocabulary, context doc |
 | `tdd` | TDD, test-first, red-green-refactor |
 | `zoom-out` | zoom out, bigger picture, where does this fit |

@@ -167,7 +167,8 @@ For long sessions and multi-day work.
 
 Run weekly or when entropy hits.
 
-- **[`/cc-sync`](./skills/cc-sync/SKILL.md)** — sync cc-settings with the official Claude Code changelog
+- **[`/cc-sync`](./skills/cc-sync/SKILL.md)** — sync cc-settings with the official Claude Code changelog (maintainers)
+- **[`/cc-update`](./skills/cc-update/SKILL.md)** — pull the latest cc-settings into your local install (users)
 - **[`/consolidate`](./skills/consolidate/SKILL.md)** — audit rules, skills, learnings for contradictions and bloat
 - **[`/autoresearch`](./skills/autoresearch/SKILL.md)** — autonomous skill optimization loop
 - **[`/write-a-skill`](./skills/write-a-skill/SKILL.md)** — scaffold a new cc-settings skill with the right frontmatter and registration
