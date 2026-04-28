@@ -22,6 +22,7 @@ import {
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
+import { hasCommand } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
@@ -29,12 +30,6 @@ const PROJECT_DIR = process.cwd();
 const PROJECT_NAME = basename(PROJECT_DIR);
 
 // --- Helpers --------------------------------------------------------------
-
-async function which(cmd: string): Promise<boolean> {
-  const probe = process.platform === "win32" ? ["where", cmd] : ["sh", "-c", `command -v ${cmd}`];
-  const p = Bun.spawn(probe, { stdout: "ignore", stderr: "ignore" });
-  return (await p.exited) === 0;
-}
 
 async function rotateLog(logPath: string, maxSize = 1_048_576): Promise<void> {
   try {
@@ -85,7 +80,7 @@ async function startTldrDaemon(): Promise<void> {
 }
 
 async function autoWarmTldr(): Promise<void> {
-  if (!(await which("tldr"))) return;
+  if (!hasCommand("tldr")) return;
   const markers = [
     "package.json",
     "Cargo.toml",
@@ -233,7 +228,7 @@ if (existsSync(learningsFile)) {
 }
 
 // TLDR status
-if (await which("tldr")) {
+if (hasCommand("tldr")) {
   console.log("");
   if (existsSync(join(PROJECT_DIR, ".tldr"))) {
     console.log("TLDR index available for semantic search");

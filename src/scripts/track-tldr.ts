@@ -4,9 +4,10 @@
 //
 // State file: ~/.claude/tldr-session-stats.json (atomic write via tmp + rename).
 
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { atomicWriteString } from "../lib/mcp.ts";
 
 const STATS_FILE = join(homedir(), ".claude", "tldr-session-stats.json");
 const toolName = process.argv[2] ?? "unknown";
@@ -36,20 +37,11 @@ async function loadStats(): Promise<Stats> {
   }
 }
 
-async function writeAtomic(path: string, content: string): Promise<void> {
-  // Stage in the same directory as the target so `rename` stays on one fs
-  // (avoids EXDEV when HOME lives on a different volume than tmpdir).
-  const dir = dirname(path);
-  await mkdir(dir, { recursive: true });
-  const tmp = join(dir, `.${Date.now()}-${process.pid}.tmp`);
-  await writeFile(tmp, content);
-  await rename(tmp, path);
-}
-
 const current = await loadStats();
 const next: Stats = {
   calls: current.calls + 1,
   tokens_saved: current.tokens_saved + savingsFor(toolName),
 };
 
-await writeAtomic(STATS_FILE, `${JSON.stringify(next)}\n`);
+await mkdir(dirname(STATS_FILE), { recursive: true });
+await atomicWriteString(STATS_FILE, `${JSON.stringify(next)}\n`);

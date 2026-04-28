@@ -11,15 +11,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, readlink, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { runGit } from "../lib/git.ts";
 
 const HANDOFF_DIR = join(homedir(), ".claude", "handoffs");
-
-async function runGit(args: string[]): Promise<string> {
-  const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "ignore" });
-  const out = (await new Response(proc.stdout).text()).trim();
-  await proc.exited;
-  return out;
-}
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");

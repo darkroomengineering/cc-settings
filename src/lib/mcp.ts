@@ -40,11 +40,16 @@ export class McpParseError extends Error {
 // --- Atomic IO helpers ----------------------------------------------------
 
 /** Stage + rename in the same directory so crashes don't leave a half-written target. */
-export async function atomicWriteJson(path: string, data: unknown): Promise<void> {
+export async function atomicWriteString(path: string, content: string): Promise<void> {
   const dir = dirname(path);
   const tmp = join(dir, `.${process.pid}-${Date.now()}.tmp`);
-  await writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`);
+  await writeFile(tmp, content);
   await rename(tmp, path);
+}
+
+/** atomicWriteString helper that JSON-serializes (2-space indent, trailing newline). */
+export async function atomicWriteJson(path: string, data: unknown): Promise<void> {
+  await atomicWriteString(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 export async function readJsonOrNull<T>(path: string): Promise<T | null> {

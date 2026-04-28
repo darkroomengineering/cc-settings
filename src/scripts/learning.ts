@@ -8,6 +8,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { runGit } from "../lib/git.ts";
 import { atomicWriteJson } from "../lib/mcp.ts";
 
 const PROJECT_DIR = process.cwd();
@@ -37,13 +38,6 @@ function generateId(): string {
   const hasher = new Bun.CryptoHasher("sha256");
   hasher.update(seed);
   return hasher.digest("hex").slice(0, 8);
-}
-
-async function runGit(args: string[]): Promise<string> {
-  const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "ignore" });
-  const out = (await new Response(proc.stdout).text()).trim();
-  await proc.exited;
-  return out;
 }
 
 async function ensureStore(): Promise<Store> {
