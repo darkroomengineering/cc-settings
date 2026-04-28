@@ -14,6 +14,7 @@ description: |
 tools: [Read, Grep, Glob, Bash]
 disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)", "Bash(curl:*)"]
 maxTurns: 30
+permissionMode: plan
 effort: high
 isolation: worktree
 color: red

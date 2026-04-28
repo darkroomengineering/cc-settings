@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.2.1"; // stdio MCP servers launch via bunx (catalog:/overrides safe)
+const VERSION = "10.3.0"; // v2.1.121 sync: alwaysLoad MCP, mcp_tool hooks, prUrlTemplate, statusline effort, agent permissionMode
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

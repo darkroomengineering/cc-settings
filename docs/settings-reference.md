@@ -40,11 +40,17 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
 | `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Extends prompt cache TTL from 5 min → 1 hour. cc-settings enables this (v2.1.108+) |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window). Not set by default — let it auto-scale |
-| `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context |
+| `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context. Per-server opt-out via `alwaysLoad: true` (v2.1.121) |
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window (Max plan default — rarely needed) |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
+| `CLAUDE_CODE_HIDE_CWD` | `"1"` or unset | Hide the working directory in the startup logo (v2.1.119) |
+| `DISABLE_UPDATES` | `"1"` or unset | Block all update paths including manual `claude update`. Stricter than `DISABLE_AUTOUPDATER` (v2.1.118) |
+| `CLAUDE_CODE_FORK_SUBAGENT` | `"1"` or unset | Enable forked subagents on external builds; works in non-interactive sessions as of v2.1.121 |
+| `AI_AGENT` | set automatically | Set by Claude Code for subprocesses so `gh` can attribute traffic correctly (v2.1.120) |
+| `CLAUDE_EFFORT` | set automatically | Available inside skills as `${CLAUDE_EFFORT}` for effort-aware behavior (v2.1.120) |
+| `OTEL_LOG_USER_PROMPTS` | `"1"` or unset | Adds `user_system_prompt` to LLM request spans (v2.1.121) |
 | `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
 
 ### `model`
@@ -208,6 +214,18 @@ Configuration for git worktree operations.
 | Field | Type | Description |
 |-------|------|-------------|
 | `sparsePaths` | list | Directories to check out in each worktree via git sparse-checkout. Useful for large monorepos |
+
+### `prUrlTemplate`
+
+Point the footer PR badge at a custom code-review URL instead of github.com (v2.1.119).
+
+```json
+{
+  "prUrlTemplate": "https://reviews.example.com/{owner}/{repo}/pull/{number}"
+}
+```
+
+Substitutes `{host}`, `{owner}`, `{repo}`, `{number}`, and `{url}` from the `gh`-reported PR URL.
 
 ---
 
@@ -424,12 +442,13 @@ Library documentation lookup via the Context7 MCP protocol.
   "context7": {
     "command": "bunx",
     "args": ["-y", "@upstash/context7-mcp"],
+    "alwaysLoad": true,
     "serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices."
   }
 }
 ```
 
-> **Note:** uses `bunx` rather than `npx` so monorepos that combine Bun's `catalog:` protocol with `overrides` in `package.json` don't break the server launch (`EOVERRIDE`).
+> **Note:** uses `bunx` rather than `npx` so monorepos that combine Bun's `catalog:` protocol with `overrides` in `package.json` don't break the server launch (`EOVERRIDE`). `alwaysLoad: true` (v2.1.121) opts the server out of `ENABLE_TOOL_SEARCH` deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip.
 
 **Tools provided:** `mcp__context7__resolve-library-id`, `mcp__context7__get-library-docs`
 
@@ -473,6 +492,7 @@ Semantic codebase analysis via the `llm-tldr` tool.
 | `args` | list | Arguments to the executable |
 | `type` | string | `"http"` for remote servers (default: local subprocess) |
 | `url` | string | URL for HTTP-type servers |
+| `alwaysLoad` | boolean | When `true`, all tools from this server skip tool-search deferral and are always available (v2.1.121). Use for hot-path servers like docs lookup |
 | `_comment` | string | Human-readable description (ignored by Claude Code) |
 | `serverInstructions` | string | Instructions for Claude on when/how to use this server |
 

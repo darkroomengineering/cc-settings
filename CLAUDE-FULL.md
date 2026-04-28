@@ -181,9 +181,11 @@ Agents declare capabilities in YAML frontmatter. cc-settings uses:
 | `tools` | Allowlist of tools the agent may invoke |
 | `disallowedTools` | Permission-rule-syntax blocklist, e.g. `["Bash(git push:*)", "Bash(rm:*)"]` (v2.1.84) |
 | `maxTurns` | Cap turns for read-only agents (v2.1.84) |
+| `permissionMode` | Permission mode honored when running as main-thread agent via `--agent` (v2.1.119). cc-settings uses `plan` for read-only agents (`explore`, `oracle`, `reviewer`, `security-reviewer`) |
 | `effort` | Override effort level per-agent (v2.1.80) |
 | `isolation: worktree` | Run in isolated git worktree copy |
 | `hooks` | Fire when running as main-thread agent via `--agent` (v2.1.116) |
+| `mcpServers` | Loaded for main-thread agent sessions via `--agent` (v2.1.117) |
 | `initialPrompt` | Auto-submit first turn (v2.1.83) |
 
 ---

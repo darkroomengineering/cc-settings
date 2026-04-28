@@ -15,6 +15,7 @@ description: |
 tools: [Read, Grep, Glob, LS, Bash]
 disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
 maxTurns: 30
+permissionMode: plan
 effort: high
 color: yellow
 initialPrompt: |

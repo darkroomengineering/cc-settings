@@ -78,7 +78,23 @@ export const AgentHook = z.object({
   ...HookCommon,
 });
 
-export const Hook = z.discriminatedUnion("type", [CommandHook, HttpHook, PromptHook, AgentHook]);
+// v2.1.118 — invoke an MCP tool directly. The named server must already be
+// connected; the hook never triggers OAuth or a connection flow.
+export const McpToolHook = z.object({
+  type: z.literal("mcp_tool"),
+  server: z.string().min(1),
+  tool: z.string().min(1),
+  input: z.record(z.string(), z.unknown()).optional(), // string values support ${path} substitution
+  ...HookCommon,
+});
+
+export const Hook = z.discriminatedUnion("type", [
+  CommandHook,
+  HttpHook,
+  PromptHook,
+  AgentHook,
+  McpToolHook,
+]);
 export type Hook = z.infer<typeof Hook>;
 
 export const HookGroup = z.object({

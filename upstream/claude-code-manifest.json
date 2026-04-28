@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cc-settings.darkroom/upstream/claude-code-manifest.json",
   "description": "Snapshot of Claude Code upstream surface area as known to the cc-settings zod schemas. Updated by src/upstream/scan.ts (daily GH Action). Drift triggers a PR that extends the schemas and this manifest atomically. See docs/migration-coexistence.md and ~/Desktop/cc-settings-MIGRATION.md v2.",
-  "lastScan": "2026-04-20T00:00:00Z",
-  "claudeCodeVersion": "2.1.114",
+  "lastScan": "2026-04-28T00:00:00Z",
+  "claudeCodeVersion": "2.1.121",
   "manifestSchemaVersion": 1,
-  "source": "manual (first snapshot — Phase 1). From 2.1.115 onward, upstream-sync bot owns this file.",
+  "source": "manual sync (cc-settings v10.3.0). From 2.1.115 onward, upstream-sync bot owns this file.",
   "knownSettingsKeys": [
     "$schema",
     "allowedChannelPlugins",
@@ -30,6 +30,7 @@
     "modelOverrides",
     "permissions",
     "plansDirectory",
+    "prUrlTemplate",
     "sandbox",
     "showThinkingSummaries",
     "spinnerVerbs",
@@ -64,7 +65,7 @@
     "WorktreeCreate",
     "WorktreeRemove"
   ],
-  "knownHookTypes": ["command", "http", "prompt", "agent"],
+  "knownHookTypes": ["command", "http", "prompt", "agent", "mcp_tool"],
   "knownPermissionModes": [
     "default",
     "acceptEdits",
@@ -75,23 +76,29 @@
   ],
   "knownMcpTransports": ["stdio", "http"],
   "knownEnvVars": [
-    "CLAUDE_CODE_EFFORT_LEVEL",
-    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
-    "CLAUDE_CODE_NO_FLICKER",
-    "ENABLE_PROMPT_CACHING_1H",
-    "FORCE_PROMPT_CACHING_5M",
-    "ENABLE_TOOL_SEARCH",
-    "CLAUDE_CODE_EXTRA_BODY",
-    "OTEL_LOG_RAW_API_BODIES",
+    "AI_AGENT",
     "CLAUDE_CODE_CERT_STORE",
-    "CLAUDE_CODE_USE_POWERSHELL_TOOL",
-    "CLAUDE_CODE_ENABLE_AWAY_SUMMARY",
     "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK",
-    "CLAUDE_CODE_SCRIPT_CAPS",
-    "CLAUDE_CODE_PERFORCE_MODE",
-    "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS",
+    "CLAUDE_CODE_EFFORT_LEVEL",
+    "CLAUDE_CODE_ENABLE_AWAY_SUMMARY",
+    "CLAUDE_CODE_EXTRA_BODY",
+    "CLAUDE_CODE_FORK_SUBAGENT",
+    "CLAUDE_CODE_HIDE_CWD",
     "CLAUDE_CODE_MCP_SERVER_NAME",
-    "CLAUDE_CODE_MCP_SERVER_URL"
+    "CLAUDE_CODE_MCP_SERVER_URL",
+    "CLAUDE_CODE_NO_FLICKER",
+    "CLAUDE_CODE_PERFORCE_MODE",
+    "CLAUDE_CODE_SCRIPT_CAPS",
+    "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL",
+    "CLAUDE_EFFORT",
+    "DISABLE_UPDATES",
+    "ENABLE_PROMPT_CACHING_1H",
+    "ENABLE_TOOL_SEARCH",
+    "FORCE_PROMPT_CACHING_5M",
+    "OTEL_LOG_RAW_API_BODIES",
+    "OTEL_LOG_USER_PROMPTS"
   ],
   "knownBuiltinTools": [
     "Agent",
@@ -110,6 +117,7 @@
   "notes": [
     "knownSettingsKeys mirrors the top-level keys enumerated in src/schemas/settings.ts. Order is alphabetical so the scanner's diffs stay stable.",
     "knownEnvVars lists CC env vars that affect CC itself — application env vars set in settings.json are out of scope.",
-    "knownBuiltinTools is used by the zod schemas when validating permission rules by shape (e.g., `Tool(pattern)`). Updated when upstream adds tools."
+    "knownBuiltinTools is used by the zod schemas when validating permission rules by shape (e.g., `Tool(pattern)`). Updated when upstream adds tools.",
+    "knownHookTypes includes `mcp_tool` (added 2.1.118) for hooks that invoke MCP tools directly."
   ]
 }

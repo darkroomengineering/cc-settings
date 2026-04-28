@@ -20,6 +20,9 @@ type Payload = {
       resets_at?: string;
     };
   };
+  // 2.1.119 — effort level + thinking flag are now in statusline stdin.
+  effort?: { level?: string };
+  thinking?: { enabled?: boolean };
 };
 
 function formatTokens(n: number): string {
@@ -99,8 +102,18 @@ const gitStatus = currentDir ? await buildGitStatus(currentDir) : null;
 
 const rateUsed = input.rate_limits?.five_hour?.used_percentage;
 
+const effortLevel = input.effort?.level;
+const thinkingEnabled = input.thinking?.enabled === true;
+
 const parts: string[] = [];
-if (model) parts.push(model);
+if (model) {
+  // Suffix model with effort marker — e.g. "Opus 4.7 ⚙xhigh" or "Opus 4.7 ⚙xhigh†".
+  // † = thinking enabled. Dim the marker so the model name stays prominent.
+  const dim = "\x1b[2m";
+  const reset = "\x1b[0m";
+  const marker = effortLevel ? `${dim} ⚙${effortLevel}${thinkingEnabled ? "†" : ""}${reset}` : "";
+  parts.push(`${model}${marker}`);
+}
 if (dirName) parts.push(dirName);
 if (gitStatus) parts.push(gitStatus);
 

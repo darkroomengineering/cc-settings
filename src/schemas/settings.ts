@@ -90,6 +90,7 @@ export const Settings = z
     feedbackSurveyRate: z.number().optional(), // 2.1.106 (enterprise)
     sandbox: Sandbox.optional(), // 2.1.98–2.1.108 nested
     changelogUrl: z.string().optional(),
+    prUrlTemplate: z.string().optional(), // 2.1.119 — substitutes {host}, {owner}, {repo}, {number}, {url}
   })
   .strict(); // strict: unknown keys fail parse, so drift is caught at install time.
 

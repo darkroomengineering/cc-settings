@@ -15,6 +15,7 @@ description: |
 tools: [Read, Grep, Glob, LS, WebFetch, Bash]
 disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)", "Bash(gh pr:*)"]
 maxTurns: 25
+permissionMode: plan
 effort: medium
 color: gold
 ---

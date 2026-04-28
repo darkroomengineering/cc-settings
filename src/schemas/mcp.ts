@@ -12,12 +12,20 @@ const mcpCommentary = {
   serverInstructions: z.string().optional(),
 };
 
+// Fields shared across all transports. `alwaysLoad` (v2.1.121) opts a server
+// out of tool-search deferral — its tools are always available regardless of
+// `ENABLE_TOOL_SEARCH`. Use for hot-path servers (e.g. docs lookup).
+const mcpCommon = {
+  alwaysLoad: z.boolean().optional(),
+};
+
 // stdio transport: command + args + env. No `type` field (or `type: "stdio"`).
 export const McpStdioServer = z.object({
   type: z.literal("stdio").optional(),
   command: z.string().min(1),
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),
+  ...mcpCommon,
   ...mcpCommentary,
 });
 
@@ -25,6 +33,7 @@ export const McpHttpServer = z.object({
   type: z.literal("http"),
   url: z.string().url(),
   headers: z.record(z.string(), z.string()).optional(),
+  ...mcpCommon,
   ...mcpCommentary,
 });
 
