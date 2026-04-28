@@ -64,7 +64,7 @@ Add MCP servers to `~/.claude.json`:
 {
   "server-name": {
     "type": "http",
-    "url": "https://mcp.example.com"
+    "url": "https://mcp.your-host.example"
   }
 }
 ```

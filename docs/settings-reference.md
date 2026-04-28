@@ -221,7 +221,7 @@ Point the footer PR badge at a custom code-review URL instead of github.com (v2.
 
 ```json
 {
-  "prUrlTemplate": "https://reviews.example.com/{owner}/{repo}/pull/{number}"
+  "prUrlTemplate": "https://reviews.your-host.example/{owner}/{repo}/pull/{number}"
 }
 ```
 

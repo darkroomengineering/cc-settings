@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
   },
   alternates: {
-    canonical: 'https://example.com/page',
+    canonical: 'https://your-site.example/page',
   },
 }
 ```
@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: page.seo?.image ? [urlFor(page.seo.image).width(1200).height(630).url()] : [],
     },
     alternates: {
-      canonical: `https://example.com/${params.slug}`,
+      canonical: `https://your-site.example/${params.slug}`,
     },
   }
 }
@@ -61,8 +61,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Company Name',
-  url: 'https://example.com',
-  logo: 'https://example.com/logo.png',
+  url: 'https://your-site.example',
+  logo: 'https://your-site.example/logo.png',
   sameAs: [
     'https://twitter.com/company',
     'https://instagram.com/company',
@@ -105,7 +105,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   publisher: {
     '@type': 'Organization',
     name: 'Company Name',
-    logo: { '@type': 'ImageObject', url: 'https://example.com/logo.png' },
+    logo: { '@type': 'ImageObject', url: 'https://your-site.example/logo.png' },
   },
 }) }} />
 ```
@@ -132,7 +132,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     '@type': 'ListItem',
     position: i + 1,
     name: crumb.label,
-    item: `https://example.com${crumb.href}`,
+    item: `https://your-site.example${crumb.href}`,
   })),
 }) }} />
 ```
@@ -149,15 +149,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const products = await getAllProducts() // from Shopify
 
   return [
-    { url: 'https://example.com', lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
+    { url: 'https://your-site.example', lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
     ...pages.map(page => ({
-      url: `https://example.com/${page.slug}`,
+      url: `https://your-site.example/${page.slug}`,
       lastModified: new Date(page._updatedAt),
       changeFrequency: 'monthly' as const,
       priority: 0.8,
     })),
     ...products.map(product => ({
-      url: `https://example.com/products/${product.handle}`,
+      url: `https://your-site.example/products/${product.handle}`,
       lastModified: new Date(product.updatedAt),
       changeFrequency: 'weekly' as const,
       priority: 0.9,
@@ -172,7 +172,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: { userAgent: '*', allow: '/', disallow: ['/api/', '/studio/'] },
-    sitemap: 'https://example.com/sitemap.xml',
+    sitemap: 'https://your-site.example/sitemap.xml',
   }
 }
 ```
@@ -187,11 +187,11 @@ export default function robots(): MetadataRoute.Robots {
 ```tsx
 export const metadata: Metadata = {
   alternates: {
-    canonical: 'https://example.com/page',
+    canonical: 'https://your-site.example/page',
     languages: {
-      'en': 'https://example.com/page',
-      'fr': 'https://fr.example.com/page',
-      'de': 'https://de.example.com/page',
+      'en': 'https://your-site.example/page',
+      'fr': 'https://fr.your-site.example/page',
+      'de': 'https://de.your-site.example/page',
     },
   },
 }
