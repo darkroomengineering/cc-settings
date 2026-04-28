@@ -45,7 +45,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
-| `SubagentStart` | A subagent spawns | Agent type (e.g., `explore`, `Plan`) |  No |
+| `SubagentStart` | A subagent spawns | Agent type (e.g., `explore`, `planner`) |  No |
 | `SubagentStop` | A subagent finishes | Agent type | No |
 | `TeammateIdle` | An Agent Teams teammate goes idle | -- | No |
 | `TaskCompleted` | A task is marked completed | -- | No |

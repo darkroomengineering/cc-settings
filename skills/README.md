@@ -182,7 +182,7 @@ The old `skill-rules.json` and `commands/*.md` formats have been replaced by `*/
 /skills
 
 # Manually invoke a skill
-/darkroom:fix "the auth bug"
+/fix "the auth bug"
 
 # Check learnings
 bun ~/.claude/src/scripts/learning.ts recall all
