@@ -225,6 +225,12 @@ Triggers `/lenis` — installs and configures Lenis smooth scroll.
 
 ## Maintenance
 
+### Sync with Claude Code Releases
+
+Say: *"sync with claude code"* or *"changelog sync"* or *"upstream sync"*
+
+Triggers `/cc-sync` — audits cc-settings against the official Claude Code changelog, identifies new features to adopt and native functionality that now duplicates our code, and produces a categorized plan for human review. Stops for approval before any edits, then executes the approved subset, runs validation, and commits + pushes.
+
 ### Consolidate Rules & Skills
 
 Say: *"clean up our rules"* or *"consolidate"* or *"spa day"*
@@ -357,6 +363,7 @@ These are enforced automatically — no skill needed:
 | `resume-handoff` | resume, continue, last session |
 | `learn` | remember this, store learning (also auto-triggers) |
 | `consolidate` | clean up rules, contradictions, spa day |
+| `cc-sync` | sync with claude code, changelog sync, upstream sync |
 | `audit` | audit, run audit script |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 

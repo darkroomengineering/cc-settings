@@ -194,6 +194,7 @@ const MANAGED_SKILLS = [
   "audit",
   "autoresearch",
   "build",
+  "cc-sync",
   "checkpoint",
   "component",
   "consolidate",
