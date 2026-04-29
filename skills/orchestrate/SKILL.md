@@ -1,11 +1,6 @@
 ---
 name: orchestrate
-description: |
-  Use when:
-  - User has a complex, multi-step task
-  - Task requires multiple agents working together
-  - User says "coordinate", "orchestrate", "complex task"
-  - Work involves planning, implementation, testing, AND review
+description: Coordinate multi-agent complex task across plan/implement/test/review. Triggers "coordinate", "orchestrate", "complex task", multi-step work needing multiple agents.
 context: fork
 agent: maestro
 ---

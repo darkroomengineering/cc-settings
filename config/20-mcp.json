@@ -10,12 +10,6 @@
 			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts. alwaysLoad=true (v2.1.121) opts out of tool-search deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution.",
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
-		"Sanity": {
-			"type": "http",
-			"url": "https://mcp.sanity.io",
-			"_comment": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server",
-			"serverInstructions": "Sanity CMS content and configuration operations including querying datasets, inspecting schemas, and managing content documents. Use for any tasks involving Sanity projects, GROQ queries, or CMS-driven content workflows."
-		},
 		"tldr": {
 			"command": "tldr-mcp",
 			"args": [

@@ -1,11 +1,6 @@
 ---
 name: fix
-description: |
-  Use when the user mentions:
-  - "fix", "broken", "not working", "bug", "error", "issue", "failing"
-  - debugging, troubleshooting, investigating problems
-  - something that used to work but doesn't anymore
-  - errors in console, build failures, test failures
+description: Debug and fix bugs/errors/failures. Triggers "fix", "broken", "not working", "bug", "error", "failing", console errors, build/test failures, regression.
 context: fork
 ---
 

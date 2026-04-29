@@ -1,16 +1,6 @@
 ---
 name: cc-sync
-description: |
-  Use when:
-  - User says "sync with claude code", "changelog sync", "upstream sync"
-  - User says "what's new in claude code", "review the changelog"
-  - User wants to update cc-settings against the latest Claude Code release
-  - Routine weekly/biweekly maintenance to track upstream
-  - Drift detected by `bun run upstream:scan`
-
-  This skill audits cc-settings against the Claude Code changelog, identifies
-  features to adopt and overlap to remove, and produces a plan for review.
-  STOPS for human approval before any edits.
+description: Audit cc-settings against Claude Code changelog; identify features to adopt and duplication to remove. Stops for approval before edits. Triggers "sync with claude code", "changelog sync", "upstream sync".
 ---
 
 # cc-sync — Claude Code Changelog Sync

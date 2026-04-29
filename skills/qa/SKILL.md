@@ -1,15 +1,6 @@
 ---
 name: qa
-description: |
-  Use when:
-  - User asks to "validate", "check visually", "QA check"
-  - After creating or modifying components
-  - Before PR submission
-  - User mentions "accessibility", "a11y", "contrast", "touch targets"
-  - User wants to verify UI looks correct
-  - User asks to "review this design" or "check this screenshot"
-  - User wants to compare implementation vs mockup/reference
-  - User asks "does this look right?" or "what's off about this?"
+description: Visual + a11y QA — screenshot-first critique, contrast/touch-target checks, mockup-vs-impl diff. Triggers "validate", "QA check", "does this look right", "a11y", "contrast", post-component changes.
 context: fork
 allowed-tools: [Bash]
 ---

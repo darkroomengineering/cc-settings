@@ -1,19 +1,6 @@
 ---
 name: context-doc
-description: |
-  Use when:
-  - User says "domain language", "context doc", "shared vocabulary", "glossary"
-  - User says "ADR", "architecture decision record", "record this decision"
-  - User uses inconsistent terminology and wants to lock it down
-  - Starting a project where the domain has specialized vocabulary
-  - User wants to challenge a plan against existing project language
-  - Agent output uses generic terms instead of project-specific ones
-
-  Builds and maintains `CONTEXT.md` (domain language glossary) and
-  `docs/adr/` (architecture decision records) at the repo root via a
-  grilling interview. Other skills (`/explore`, `/zoom-out`, `/tdd`)
-  read these artifacts so agent output stays aligned with project
-  vocabulary across sessions.
+description: Build CONTEXT.md (domain glossary) and docs/adr/ via grilling interview; keeps agent vocab aligned. Triggers "domain language", "glossary", "ADR", "architecture decision", inconsistent terminology.
 ---
 
 # Context doc — domain language + ADRs

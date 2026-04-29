@@ -1,13 +1,6 @@
 ---
 name: docs
-description: |
-  Fetch latest documentation for libraries and frameworks. CRITICAL - AUTO-INVOKE when:
-  - User wants to implement with ANY external library (GSAP, Lenis, Three.js, Framer, Radix, etc.)
-  - User asks "how to use X", "X docs", "X API", "X reference"
-  - Before writing ANY code that uses external packages
-  - User mentions library names: gsap, lenis, three, framer, motion, radix, sanity, zustand
-
-  MANDATORY: Never assume API knowledge. Always fetch current docs first.
+description: Fetch latest library/framework docs via Context7. MANDATORY before writing code with any external lib (gsap, lenis, three, framer, radix, sanity, zustand). Triggers "how to use X", "X docs", "X API".
 context: fork
 allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-docs, WebFetch, WebSearch]
 ---

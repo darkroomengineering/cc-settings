@@ -1,21 +1,6 @@
 ---
 name: learn
-description: |
-  Persistent memory system for storing and recalling learnings across sessions.
-  Supports local (personal) and shared (team) knowledge tiers.
-
-  AUTO-INVOKE THIS SKILL when you:
-  - Fix a non-obvious bug (store as "bug")
-  - Discover a useful code pattern (store as "pattern")
-  - Encounter a gotcha or edge case (store as "gotcha")
-  - Find a useful tool/library feature (store as "tool")
-  - Make a performance optimization (store as "perf")
-  - Discover configuration that solved a problem (store as "config")
-  - Make an architecture decision with rationale (store as "arch")
-  - Find a useful testing insight (store as "test")
-
-  Also invoke when user says: "remember this", "store learning", "recall learnings",
-  "what did we learn", "lessons learned"
+description: Save/recall learnings across sessions (bugs, patterns, gotchas, perf, config, arch). Auto-invoke after fixing non-obvious bugs. Triggers "remember this", "store learning", "what did we learn".
 ---
 
 # Persistent Learning System

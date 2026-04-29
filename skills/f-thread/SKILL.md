@@ -1,11 +1,6 @@
 ---
 name: f-thread
-description: |
-  Use when:
-  - User says "compare approaches", "which is better"
-  - User asks to "evaluate options", "architecture decision"
-  - User needs "technology selection", "trade-off analysis"
-  - Multiple valid approaches exist and a structured comparison is needed
+description: Structured comparison of architectural/tech approaches. Triggers "compare approaches", "which is better", "evaluate options", "trade-off analysis", "tech selection".
 context: fork
 ---
 

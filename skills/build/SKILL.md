@@ -1,11 +1,6 @@
 ---
 name: build
-description: |
-  Use when the user wants to:
-  - "build a", "create a", "implement", "add feature"
-  - build a new page, component, feature, integration
-  - create something from scratch
-  - add new functionality to the app
+description: Build new feature/page/component/integration from scratch. Triggers "build a", "create a", "implement", "add feature", "add new functionality".
 context: fork
 ---
 

@@ -1,11 +1,6 @@
 ---
 name: ship
-description: |
-  Use when:
-  - User says "ship it", "create PR", "open PR", "ready to merge"
-  - User says "/pr", "/ship", "push and PR"
-  - After implementation is complete and needs to be shipped
-  - User wants to verify and publish changes
+description: Verify and publish changes — push + PR. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR".
 context: fork
 ---
 

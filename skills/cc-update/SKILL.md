@@ -1,18 +1,6 @@
 ---
 name: cc-update
-description: |
-  Use when:
-  - User says "update cc-settings", "upgrade cc-settings", "/cc-update"
-  - User says "pull the latest cc-settings", "refresh my install"
-  - User wants to apply newly-released cc-settings changes locally
-
-  Updates the user's local cc-settings install (the things in `~/.claude/`)
-  with the latest commits on `origin/main`. Shows what changed before
-  applying, warns about local customizations in the working repo, runs
-  the installer, and prints a restart nudge. Pairs with `/cc-sync` —
-  use `/cc-sync` to sync the cc-settings repo with Claude Code upstream
-  (maintainer-facing); use `/cc-update` to pull the latest cc-settings
-  into your install (user-facing).
+description: Update local cc-settings install (~/.claude/) from origin/main; shows changes, runs installer. User-facing counterpart to /cc-sync. Triggers "update cc-settings", "/cc-update", "refresh my install".
 ---
 
 # cc-update — pull the latest cc-settings into your install

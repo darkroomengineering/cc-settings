@@ -1,10 +1,6 @@
 ---
 name: component
-description: |
-  Use when:
-  - User says "create component", "new component", "add component"
-  - User wants to build a UI element, widget, or reusable piece
-  - User mentions a component name like "Button", "Header", "Card"
+description: Create UI component / widget / reusable piece. Triggers "create component", "new component", "add component", or naming a component (Button, Header, Card).
 argument-hint: "[ComponentName]"
 ---
 

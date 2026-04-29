@@ -1,10 +1,6 @@
 ---
 name: prd
-description: |
-  Use when:
-  - User says "PRD", "requirements document", "product spec"
-  - User asks for "feature spec", "write requirements"
-  - User wants to plan a feature end-to-end before implementation
+description: Write feature PRD/requirements/spec end-to-end before implementation. Triggers "PRD", "requirements document", "product spec", "feature spec", "write requirements".
 context: fork
 ---
 

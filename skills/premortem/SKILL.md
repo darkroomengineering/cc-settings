@@ -1,11 +1,6 @@
 ---
 name: premortem
-description: |
-  Use when:
-  - User asks "what could go wrong", "risks", "potential issues"
-  - Before implementing a significant change
-  - User wants to validate an approach
-  - Planning a risky operation
+description: Risk analysis before significant changes. Triggers "what could go wrong", "risks", "potential issues", validating an approach, planning a risky operation.
 context: fork
 agent: oracle
 ---

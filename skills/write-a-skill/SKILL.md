@@ -1,16 +1,6 @@
 ---
 name: write-a-skill
-description: |
-  Use when:
-  - User says "create a skill", "write a skill", "new skill"
-  - User wants to scaffold a new entry under `skills/`
-  - User is contributing back to cc-settings or a fork
-  - You're about to repeat the same prompt three times — turn it into a skill instead
-
-  Scaffolds a new cc-settings skill with the right frontmatter, file
-  layout, and registration. Writes `skills/<name>/SKILL.md`, optionally
-  reference docs, and updates `MANAGED_SKILLS` + `MANUAL.md` so the
-  installer ships it.
+description: Scaffold new cc-settings skill (frontmatter, layout, MANUAL.md registration). Triggers "create a skill", "write a skill", "new skill", or repeated prompt patterns worth turning into a skill.
 ---
 
 # write-a-skill — scaffold a new cc-settings skill

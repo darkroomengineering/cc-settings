@@ -1,11 +1,6 @@
 ---
 name: checkpoint
-description: |
-  Use when:
-  - User says "checkpoint", "save state", "save progress"
-  - User says "restore checkpoint", "list checkpoints"
-  - Context window is running low and state needs persisting
-  - Before risky operations that might need rollback
+description: Save/restore session state checkpoints before risky ops or low context. Triggers "checkpoint", "save state", "save progress", "restore checkpoint", "list checkpoints".
 context: fork
 allowed-tools: [Bash]
 ---

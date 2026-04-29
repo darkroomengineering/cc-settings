@@ -1,13 +1,6 @@
 ---
 name: design-tokens
-description: |
-  Use when:
-  - User asks for "design tokens", "type scale", "color palette", "spacing system"
-  - Setting up a new project's design system or theme
-  - User needs WCAG-compliant color combinations
-  - User wants dark mode colors derived from a light palette
-  - Building a Tailwind config or CSS custom properties
-  - User asks for "theme setup", "design system", "color scale"
+description: Generate type scales, color palettes, spacing systems, dark-mode derivations with WCAG checks; outputs CSS/Tailwind. Triggers "design tokens", "type scale", "color palette", "theme setup".
 context: fork
 ---
 

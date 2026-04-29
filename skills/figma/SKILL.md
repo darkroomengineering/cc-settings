@@ -1,12 +1,6 @@
 ---
 name: figma
-description: |
-  Use when:
-  - User says "compare to design", "design fidelity", "match the figma"
-  - User asks to "extract tokens from figma", "inspect in figma"
-  - User wants to screenshot a Figma frame for comparison
-  - User mentions "figma" in the context of visual QA or token extraction
-  - User wants to navigate Figma files and inspect components
+description: Figma MCP (structured data) + pinchtab (screenshots) for design-to-code, fidelity checks, token extraction. Triggers "compare to design", "match the figma", "extract tokens from figma", "inspect in figma".
 context: fork
 allowed-tools: [Bash, mcp__figma__*]
 ---

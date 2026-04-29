@@ -1,15 +1,6 @@
 ---
 name: project
-description: |
-  GitHub-native project management. Syncs agent context with GitHub Issues and Projects.
-
-  AUTO-INVOKE on session start when a branch is linked to an issue.
-
-  Also invoke when user says:
-  - "what's the plan", "project status", "update the issue"
-  - "sync with github", "check the roadmap"
-  - "what am I working on", "show my tasks"
-  - "close the issue", "mark as done"
+description: GitHub-native project mgmt — Issues replace PLAN.md; agents read/update them. Auto-invoke on branches linked to issues. Triggers "what's the plan", "project status", "sync with github", "close the issue".
 ---
 
 # GitHub Project Sync

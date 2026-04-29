@@ -1,11 +1,6 @@
 ---
 name: discovery
-description: |
-  Use when:
-  - User says "help me figure out", "what do I need", "define requirements"
-  - Scope is unclear or ambiguous
-  - Starting a new feature with vague requirements
-  - User needs help clarifying what they want
+description: Clarify ambiguous requirements via interview before building. Triggers "help me figure out", "what do I need", "define requirements", vague scope.
 context: fork
 agent: planner
 ---

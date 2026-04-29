@@ -1,15 +1,6 @@
 ---
 name: zoom-out
-description: |
-  Use when:
-  - User says "zoom out", "give me the bigger picture", "where does this fit"
-  - User is unfamiliar with a section of code and needs system context
-  - User wants module map / caller graph for an area, not local detail
-  - Onboarding to an unfamiliar codebase area before making changes
-
-  One-shot architectural map of an unfamiliar code region: relevant
-  modules, callers, and where this area sits in the larger system. Uses
-  the project's `CONTEXT.md` vocabulary when present.
+description: Upward architectural map — modules, callers, where this fits in the larger system. Uses CONTEXT.md vocab. Triggers "zoom out", "bigger picture", "where does this fit", onboarding unfamiliar code.
 ---
 
 # zoom-out

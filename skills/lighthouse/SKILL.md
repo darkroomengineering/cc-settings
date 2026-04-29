@@ -1,11 +1,6 @@
 ---
 name: lighthouse
-description: |
-  Use when:
-  - User says "lighthouse", "performance audit", "page speed"
-  - User wants to "improve scores", "optimize performance", "fix web vitals"
-  - User mentions "LCP", "CLS", "INP", "core web vitals"
-  - User says "speed up", "slow page", "performance issues"
+description: Lighthouse audit + improvement loop until targets met. Triggers "lighthouse", "performance audit", "page speed", "improve scores", "LCP", "CLS", "INP", "core web vitals".
 context: fork
 argument-hint: "<url>"
 allowed-tools:

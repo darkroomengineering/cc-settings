@@ -1,12 +1,6 @@
 ---
 name: review
-description: |
-  Use when:
-  - User asks to "review", "check", "look at" code
-  - Before merging, committing, or shipping
-  - User mentions PR, pull request, changes, diff
-  - User wants feedback on implementation
-  - After implementing a feature (self-review)
+description: Code review before merge/commit/ship. Triggers "review", "check this code", "look at this", "PR review", "feedback on", post-implementation self-review.
 context: fork
 agent: reviewer
 ---

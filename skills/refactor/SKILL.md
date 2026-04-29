@@ -1,11 +1,6 @@
 ---
 name: refactor
-description: |
-  Use when:
-  - User says "refactor", "clean up", "reorganize", "restructure"
-  - Code needs improvement without changing behavior
-  - User wants to improve code quality, readability, or performance
-  - Technical debt needs addressing
+description: Improve code quality/readability/perf without changing behavior. Triggers "refactor", "clean up", "reorganize", "restructure", tech debt.
 context: fork
 ---
 

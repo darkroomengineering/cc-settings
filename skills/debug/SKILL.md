@@ -1,12 +1,6 @@
 ---
 name: debug
-description: |
-  Use when:
-  - User mentions "screenshot", "visual bug", "inspect element"
-  - User asks "what does it look like", "see the page"
-  - Need to debug browser rendering, layout, or visual issues
-  - User wants to test UI in browser
-  - E2E debugging or visual verification
+description: Browser debugging via pinchtab — token-efficient text extraction, screenshots, layout/element inspection. Triggers "screenshot", "visual bug", "inspect element", "what does it look like", E2E.
 context: fork
 allowed-tools: [Bash]
 ---

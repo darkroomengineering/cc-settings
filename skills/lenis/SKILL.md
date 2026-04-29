@@ -1,10 +1,6 @@
 ---
 name: lenis
-description: |
-  Set up Lenis smooth scroll. Use when:
-  - User mentions "smooth scroll", "lenis", "scroll behavior"
-  - User wants to add smooth scrolling to the app
-  - Setting up scroll-based animations
+description: Set up Lenis smooth scroll. Triggers "smooth scroll", "lenis", "scroll behavior", scroll-based animations.
 ---
 
 # Lenis Smooth Scroll Setup

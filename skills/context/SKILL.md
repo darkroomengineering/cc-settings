@@ -1,11 +1,6 @@
 ---
 name: context
-description: |
-  Use when:
-  - User asks about "context window", "context usage", "context limit"
-  - User mentions "running out of context", "context full"
-  - User wants to "compact", "clear context", "optimize context"
-  - Context is getting full and needs management
+description: Manage Claude Code context window — usage, compaction, optimization. Triggers "context window/usage/limit", "running out of context", "compact", "clear context".
 ---
 
 # Context Window Management

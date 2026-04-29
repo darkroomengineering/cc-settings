@@ -1,11 +1,6 @@
 ---
 name: l-thread
-description: |
-  Use when:
-  - User says "overnight", "long running", "autonomous task"
-  - User mentions "l-thread", "extended task"
-  - Task will consume significant context window
-  - Multi-phase implementation requiring persistence across interruptions
+description: Long-running autonomous task with multi-phase persistence across interruptions. Triggers "overnight", "long running", "autonomous task", "l-thread", "extended task".
 context: fork
 ---
 

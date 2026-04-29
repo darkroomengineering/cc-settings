@@ -1,12 +1,6 @@
 ---
 name: create-handoff
-description: |
-  Use when:
-  - User says "done for today", "ending session", "save state"
-  - Context is getting full (80%+)
-  - User is taking a break
-  - Before context compaction
-  - User mentions "handoff", "pause work", "wrapping up"
+description: Persist session state for later pickup before break/compaction. Triggers "done for today", "ending session", "handoff", "pause work", "wrapping up", context >80%.
 ---
 
 # Create Session Handoff

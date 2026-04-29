@@ -1,11 +1,6 @@
 ---
 name: test
-description: |
-  Use when:
-  - User says "test", "write tests", "add tests", "run tests"
-  - User mentions "coverage", "unit test", "integration test"
-  - After implementing a feature (tests should follow)
-  - Before shipping or merging code
+description: Write/run tests, check coverage. Triggers "test", "write tests", "add tests", "run tests", "coverage", "unit test", "integration test"; post-implementation, pre-merge.
 context: fork
 agent: tester
 ---

@@ -1,15 +1,6 @@
 ---
 name: verify
-description: |
-  Use when:
-  - User says "verify", "double check", "are you sure", "prove it"
-  - User asks to "stress test", "find holes", "poke holes"
-  - User mentions "adversarial review", "devil's advocate"
-  - User says "audit", "validate thoroughly", "high confidence"
-  - After a critical fix (auth, payments, data integrity)
-  - Before deploying to production
-  - User says "triple check", "verify this is correct"
-  - Migrating data, schemas, or APIs
+description: Adversarial verification with three competing agents (issue-finder, disprover, judge). Triggers "verify", "double check", "are you sure", "stress test", "poke holes"; pre-prod, post-critical-fix.
 context: fork
 ---
 

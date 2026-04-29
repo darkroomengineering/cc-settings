@@ -1,11 +1,6 @@
 ---
 name: teams
-description: |
-  Use when:
-  - User mentions "use teams", "parallel agents", "split work", "fan out"
-  - Task has 3+ independent workstreams
-  - Large-scale refactoring across unrelated files
-  - User says "divide and conquer", "multi-instance"
+description: Parallel-agent fan-out for 3+ independent workstreams. Triggers "use teams", "parallel agents", "split work", "fan out", "divide and conquer", "multi-instance", large-scale refactor.
 context: fork
 agent: maestro
 ---

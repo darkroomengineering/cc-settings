@@ -1,17 +1,6 @@
 ---
 name: tdd
-description: |
-  Use when:
-  - User says "TDD", "test-first", "red-green-refactor"
-  - User wants tests to drive design, not just verify it
-  - Building a non-trivial feature where the interface isn't obvious
-  - Fixing a bug that should never recur (write the failing test first)
-  - User wants integration-style tests that survive refactors
-
-  Test-driven development with strict red → green → refactor discipline.
-  Sibling to `/build` (which scaffolds tests after implementation).
-  Use this when you want tests to drive the design, or when the failure
-  mode is "tests pass but behavior is wrong."
+description: Test-driven dev with strict red→green→refactor; tests describe behavior via public interfaces (survive refactors). Triggers "TDD", "test-first", "red-green-refactor", bugs-that-must-not-recur.
 ---
 
 # TDD — red → green → refactor

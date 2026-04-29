@@ -1,11 +1,6 @@
 ---
 name: autoresearch
-description: |
-  Autonomous skill prompt optimization via iterative mutation and scoring.
-  Adapts Karpathy's autoresearch method for SKILL.md files. Use when:
-  - User says "autoresearch", "optimize skill", "improve skill prompt"
-  - User wants to "tune", "iterate on", "evolve" a skill
-  - User says "prompt optimization", "skill optimization"
+description: Autonomous skill prompt optimization — Karpathy-style mutate/score/keep loop on SKILL.md. Triggers "autoresearch", "optimize skill", "tune", "iterate on", "evolve" a skill, "prompt optimization".
 context: fork
 argument-hint: "<skill-name>"
 ---

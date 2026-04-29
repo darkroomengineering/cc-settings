@@ -1,14 +1,6 @@
 ---
 name: consolidate
-description: |
-  Use when:
-  - User says "consolidate", "clean up rules", "simplify config"
-  - User mentions "contradictions", "too many rules", "bloated"
-  - User says "spa day", "maintenance", "spring cleaning"
-  - User asks to "review skills", "audit rules", "prune learnings"
-  - Agent performance seems to have degraded
-  - Rules or skills have been added incrementally over time
-  - User says "what's redundant", "what can we remove"
+description: Audit and prune rules/skills/learnings to prevent context bloat and contradictions. Triggers "consolidate", "clean up rules", "spa day", "spring cleaning", "what's redundant", degraded agent perf.
 context: fork
 ---
 

@@ -1,10 +1,6 @@
 ---
 name: init
-description: |
-  Initialize a new project with Darkroom standards. Use when:
-  - User says "new project", "start project", "initialize", "setup project"
-  - User wants to create a new Next.js, React, or web app
-  - User mentions "satus" or "starter template"
+description: Initialize new project with Darkroom standards (Next.js, React, satus template). Triggers "new project", "start project", "initialize", "setup project", "satus".
 argument-hint: "[project-name]"
 ---
 

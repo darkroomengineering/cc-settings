@@ -1,10 +1,6 @@
 ---
 name: resume-handoff
-description: |
-  Use when:
-  - User says "resume", "continue where we left off", "pick up where"
-  - Starting a new session after a break
-  - User mentions "last session", "previous work"
+description: Resume work from prior session via handoff file. Triggers "resume", "continue where we left off", "pick up where", "last session", "previous work".
 ---
 
 # Resume Session Handoff

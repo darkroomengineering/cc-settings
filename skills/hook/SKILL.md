@@ -1,10 +1,6 @@
 ---
 name: hook
-description: |
-  Use when:
-  - User says "create hook", "new hook", "custom hook"
-  - User wants to extract logic into a reusable hook
-  - User mentions "use" prefix like "useAuth", "useScroll"
+description: Create reusable React hook (useX pattern). Triggers "create hook", "new hook", "custom hook", "useAuth"/"useScroll"-style names, extracting logic from a component.
 argument-hint: "[hookName]"
 ---
 

@@ -1,11 +1,6 @@
 ---
 name: explore
-description: |
-  Use when the user asks:
-  - "how does X work?", "where is X?", "find X", "understand X"
-  - "what files handle X?", "show me the X implementation"
-  - "navigate to X", "explore the codebase"
-  - any question about code structure, architecture, or implementation details
+description: Read-only codebase investigation via the Explore agent. Triggers "how does X work", "where is X", "find X", "understand X", "what files handle Y", "navigate the codebase".
 context: fork
 agent: explore
 ---

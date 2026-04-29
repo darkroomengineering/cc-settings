@@ -1,12 +1,6 @@
 ---
 name: ask
-description: |
-  Use when:
-  - User has a question about best practices
-  - User needs architectural guidance
-  - User asks "what should I", "how should I", "advice on"
-  - Need expert opinion on an approach
-  - User is uncertain about a decision
+description: Expert advice / architectural guidance / best-practice Q&A. Triggers "what should I", "how should I", "advice on", uncertain about a decision.
 context: fork
 agent: oracle
 ---
