@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.3.1] — 2026-04-30
+
+### v2.1.123 Sync — Adopt `ANTHROPIC_BEDROCK_SERVICE_TIER`, `spinnerTipsOverride`
+
+Reviewed cc-settings against Claude Code changelog v2.1.121 → v2.1.123. Quiet cycle: v2.1.123 was fix-only, and v2.1.122 was mostly bug fixes plus two additive surface changes. No native overlap to remove.
+
+**Adopted:**
+
+- **`ANTHROPIC_BEDROCK_SERVICE_TIER` env var** (v2.1.122) — accepts `default`, `flex`, or `priority`; sent as the `X-Amzn-Bedrock-Service-Tier` header so Bedrock callers can pick a service tier without a custom proxy. Added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env-var table in `docs/settings-reference.md`.
+- **`spinnerTipsOverride` setting** (v2.1.122) — upstream fixed `spinnerTipsOverride.excludeDefault` not suppressing time-based spinner tips, which means the key is real and our `.strict()` schema would reject it. Added `SpinnerTipsOverride` (passthrough, only `excludeDefault: boolean` documented upstream) to `src/schemas/settings.ts`, and a section to `docs/settings-reference.md`. Added to manifest `knownSettingsKeys`.
+- **Manifest bump** — `upstream/claude-code-manifest.json`: `2.1.121` → `2.1.123`, refreshed `lastScan` to `2026-04-30`.
+
+**Files changed:**
+
+- `src/setup.ts` — `VERSION` 10.3.0 → 10.3.1.
+- `src/schemas/settings.ts` — `SpinnerTipsOverride` schema + `spinnerTipsOverride` field.
+- `upstream/claude-code-manifest.json` — version bump, `ANTHROPIC_BEDROCK_SERVICE_TIER`, `spinnerTipsOverride` keys.
+- `docs/settings-reference.md` — env-var table row + `spinnerTipsOverride` section.
+
+**Native-now-redundant:** none this cycle.
+
+**Skipped (bug fixes, no surface change):** OAuth 401 retry loop with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1`, `/branch` rewound-timeline forks, `/model` Effort for Bedrock ARNs, Vertex/Bedrock structured-output `output_config` errors, Vertex `count_tokens` proxy 400s, ToolSearch missing late-attached MCP tools in nonblocking mode, `!exit`/`!quit` exiting CLI from bash mode, image resize 2576px → 2000px, remote-control idle redraw flooding `tmux -CC`, stale view preference blanking messages, malformed hooks no longer invalidating settings.json, OTel numeric attribute serialization, OTel `claude_code.at_mention` log event, Caps Lock voice keybinding error, `/resume` PR-URL paste, `/mcp` clarifications.
+
 ## [10.3.0] — 2026-04-28
 
 ### v2.1.121 Sync — Adopt `alwaysLoad`, `mcp_tool` hooks, statusline effort, agent `permissionMode`

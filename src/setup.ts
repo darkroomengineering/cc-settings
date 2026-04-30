@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.3.0"; // v2.1.121 sync: alwaysLoad MCP, mcp_tool hooks, prUrlTemplate, statusline effort, agent permissionMode
+const VERSION = "10.3.1"; // v2.1.123 sync: ANTHROPIC_BEDROCK_SERVICE_TIER env, spinnerTipsOverride setting
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -10,6 +10,15 @@ export const SpinnerVerbs = z.object({
   verbs: z.array(z.string().min(1)).min(1),
 });
 
+// Suppress built-in spinner tips (2.1.122). Shape is partially documented;
+// only `excludeDefault` is referenced upstream. passthrough() so future fields
+// don't break user configs at install time.
+export const SpinnerTipsOverride = z
+  .object({
+    excludeDefault: z.boolean().optional(),
+  })
+  .passthrough();
+
 export const StatusLine = z.object({
   type: z.literal("command"),
   command: z.string().min(1),
@@ -58,6 +67,7 @@ export const Settings = z
 
     // Appearance + UX
     spinnerVerbs: SpinnerVerbs.optional(),
+    spinnerTipsOverride: SpinnerTipsOverride.optional(), // 2.1.122
     statusLine: StatusLine.optional(),
     showThinkingSummaries: z.boolean().optional(),
 

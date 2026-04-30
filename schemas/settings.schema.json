@@ -44,6 +44,15 @@
       ],
       "additionalProperties": false
     },
+    "spinnerTipsOverride": {
+      "type": "object",
+      "properties": {
+        "excludeDefault": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": {}
+    },
     "statusLine": {
       "type": "object",
       "properties": {

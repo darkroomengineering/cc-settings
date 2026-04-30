@@ -51,6 +51,7 @@ Environment variables injected into every Claude Code session.
 | `AI_AGENT` | set automatically | Set by Claude Code for subprocesses so `gh` can attribute traffic correctly (v2.1.120) |
 | `CLAUDE_EFFORT` | set automatically | Available inside skills as `${CLAUDE_EFFORT}` for effort-aware behavior (v2.1.120) |
 | `OTEL_LOG_USER_PROMPTS` | `"1"` or unset | Adds `user_system_prompt` to LLM request spans (v2.1.121) |
+| `ANTHROPIC_BEDROCK_SERVICE_TIER` | `default`, `flex`, `priority` | Sent as `X-Amzn-Bedrock-Service-Tier` to select a Bedrock service tier (v2.1.122) |
 | `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
 
 ### `model`
@@ -175,6 +176,22 @@ Customizes the animated spinner text shown while Claude is processing.
 |-------|------|-------------|
 | `mode` | `"replace"` or `"append"` | `replace` overrides default verbs entirely; `append` adds to them |
 | `verbs` | list of strings | Present-participle verbs shown in the spinner (e.g., "Analyzing", "Building") |
+
+### `spinnerTipsOverride`
+
+Suppress the time-based tips that appear under the spinner (v2.1.122).
+
+```json
+{
+  "spinnerTipsOverride": {
+    "excludeDefault": true
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `excludeDefault` | boolean | When `true`, skips Claude Code's built-in tip rotation. Useful for cleaner CI output or recordings |
 
 ### `modelOverrides`
 
