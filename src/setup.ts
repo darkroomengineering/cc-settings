@@ -48,7 +48,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.6.0"; // skills declare `requires:` (CLI / MCP); installer warns about missing prereqs
+const VERSION = "10.6.1"; // hooks fail open — wrap 7 unhardened hook scripts so a hook crash never propagates
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -4,6 +4,39 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.6.1] — 2026-05-04
+
+### fix: hook fail-open audit — wrap 7 unhardened scripts
+
+A hook crash is supposed to be invisible to the parent operation. Audit revealed 7 of 25 hook scripts could throw uncaught (rest already had `try {` or `.catch(`):
+
+| Script | Hook event | What could throw |
+|---|---|---|
+| `notify.ts` | Notification | `await notifyWindows()` if PowerShell crashed |
+| `cwd-changed.ts` | CwdChanged | `projectAwareness()` (git read failure, missing files) |
+| `session-title.ts` | UserPromptSubmit | `mkdir`/`writeFile` on permissions or disk full |
+| `check-docs-before-install.ts` | PreToolUse:Bash | regex/string ops (defensive — low actual risk) |
+| `post-edit-tsc.ts` | PostToolUse | `Bun.spawn` if `bunx` missing |
+| `pre-commit-tsc.ts` | PreToolUse:Bash (`git commit`) | spawn / Promise.all crash |
+| `stop-summary.ts` | Stop | `git diff --stat` outside a repo or git missing |
+
+Each now wraps its body in `try { … } catch { /* silent */ }`, matching the pattern already used by `safety-net.ts` (the highest-criticality hook).
+
+**`pre-commit-tsc.ts` keeps its blocking semantics:** genuine `error TS<N>` from tsc still exits 1 to block the commit. Only *infrastructure* crashes (bunx missing, spawn failure) fail open. The commit guard rail is preserved.
+
+**Skipped:**
+
+- `swarm-log.ts` already uses `.catch(() => {})` on every IO call — defensive enough.
+- `claude-audit.ts` is a manual CLI invoked by `/audit`, not a hook; errors there should be visible to the user.
+
+**Regression test:** `tests/hook-fail-open.test.ts` walks every TS script wired in `config/40-hooks.json` and asserts each contains either `try {` or `.catch(`. Future hooks can't ship without fail-open handling.
+
+**Files changed:**
+
+- `src/scripts/{notify,cwd-changed,session-title,check-docs-before-install,post-edit-tsc,pre-commit-tsc,stop-summary}.ts` — wrapped in try/catch.
+- `tests/hook-fail-open.test.ts` — new regression test.
+- `src/setup.ts` — `VERSION` 10.6.0 → 10.6.1.
+
 ## [10.6.0] — 2026-05-04
 
 ### feat: skills declare `requires:` (CLI / MCP); installer warns about missing prereqs

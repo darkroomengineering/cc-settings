@@ -40,9 +40,14 @@ $n.ShowBalloonTip(3000, 'Claude Code', '${safeMsg}', 'Info')`;
   });
 }
 
-const msg = process.env.NOTIFICATION_MESSAGE ?? "";
-if (msg) {
-  if (platform === "darwin") notifyMac(msg);
-  else if (platform === "linux") notifyLinux(msg);
-  else if (platform === "win32") await notifyWindows(msg);
+// Fail-open: a notifier crash must never break the Notification hook.
+try {
+  const msg = process.env.NOTIFICATION_MESSAGE ?? "";
+  if (msg) {
+    if (platform === "darwin") notifyMac(msg);
+    else if (platform === "linux") notifyLinux(msg);
+    else if (platform === "win32") await notifyWindows(msg);
+  }
+} catch {
+  // intentional swallow — desktop notification is best-effort
 }
