@@ -4,6 +4,22 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.10.3] — 2026-05-04
+
+### ci: dedicated install-e2e + bash-bootstrap jobs
+
+CI's `test` matrix already runs `tests/install-e2e.test.ts` on `ubuntu-latest` / `macos-latest` / `windows-latest` — install failures were technically caught, just buried among 240+ unrelated tests. Two new jobs surface them as their own PR checks:
+
+- **`install-e2e`** (Ubuntu + macOS) — runs `tests/install-e2e.test.ts` and `tests/golden-migrations.test.ts` in isolation. Fastest signal when an install regression lands.
+- **`install-bash-bootstrap`** (Ubuntu + macOS) — runs `bash setup.sh --dry-run` to validate the bootstrap path itself (the bash wrapper that ensures Bun is installed before exec'ing `bun src/setup.ts`). Catches bash-specific bugs that the direct-bun path misses.
+
+Windows is excluded from both — it goes through `setup.ps1`, which has its own (currently untested) bootstrap and its own escape hatches. Closing that gap is a separate task tracked in `docs/migration-coexistence.md`.
+
+**Files changed:**
+
+- `.github/workflows/ci.yml` — two new jobs added.
+- `src/setup.ts` — `VERSION` 10.10.2 → 10.10.3.
+
 ## [10.10.2] — 2026-05-04
 
 ### chore: self-/consolidate audit logged

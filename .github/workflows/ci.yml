@@ -89,3 +89,49 @@ jobs:
           bun-version: ">=1.1.30"
       - run: bun install --frozen-lockfile
       - run: bun run bench:check -- --iters=20 --max=0.20
+
+  install-e2e:
+    # Dedicated job for the E2E install tests so install failures are
+    # surfaced as their own PR check (otherwise they're buried in the
+    # `test` job among 240+ other tests). Runs the same tests as `test`
+    # but only the install-e2e file, with the same matrix.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - name: Run install E2E tests (HOME=tmpdir, CC_SKIP_DEPS=1)
+        run: bun test tests/install-e2e.test.ts tests/golden-migrations.test.ts
+
+  install-bash-bootstrap:
+    # Smoke test setup.sh's bootstrap path (the bash wrapper that ensures
+    # Bun is installed before exec'ing bun src/setup.ts). --dry-run prints
+    # the planned actions without writing — enough to validate setup.sh
+    # parses and dispatches correctly.
+    #
+    # Linux + macOS only. Windows users go through setup.ps1, which has
+    # its own (currently untested) bootstrap; that gap is documented in
+    # docs/migration-coexistence.md.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - name: bash setup.sh --dry-run
+        run: bash setup.sh --dry-run
+        env:
+          # Use the runner's HOME so we don't accidentally pollute it with
+          # cc-settings artifacts (--dry-run wouldn't, but defense-in-depth).
+          CC_SKIP_DEPS: "1"

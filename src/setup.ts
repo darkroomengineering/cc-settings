@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.10.2"; // self-/consolidate audit logged: surface intentional, no merges or retirements
+const VERSION = "10.10.3"; // ci: dedicated install-e2e job + bash-bootstrap dry-run smoke on Linux+macOS
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
