@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.9.0"; // refactor: strategy-based merge tree — internal only, all behavior preserved
+const VERSION = "10.10.0"; // E2E install test against tmpdir HOME + golden migration fixtures + CC_SKIP_DEPS env var
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -357,6 +357,11 @@ async function installSettings(source: string, interactive: boolean): Promise<vo
 // --- Dependencies --------------------------------------------------------
 
 async function installDependencies(): Promise<void> {
+  // CC_SKIP_DEPS=1 — used by E2E tests to avoid touching system-wide install
+  // locations (npm global, pipx, etc.) when running setup.sh against a tmp
+  // HOME. Setting HOME to tmpdir doesn't isolate `npm i -g` writes.
+  if (process.env.CC_SKIP_DEPS === "1") return;
+
   detectPackageManagers();
 
   if (!hasCommand("jq")) {

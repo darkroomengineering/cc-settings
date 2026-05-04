@@ -1,0 +1,33 @@
+{
+  "model": "opus",
+  "env": {
+    "ENABLE_PROMPT_CACHING_1H": "0",
+    "MY_CUSTOM_VAR": "1"
+  },
+  "permissions": {
+    "allow": ["Bash(bun:*)", "Bash(git status:*)", "Bash(my-tool:*)"],
+    "deny": []
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/scripts/compact-reminder.sh\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/scripts/my-notify.js\""
+          }
+        ]
+      }
+    ]
+  }
+}

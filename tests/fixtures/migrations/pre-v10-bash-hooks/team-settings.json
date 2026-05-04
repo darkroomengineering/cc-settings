@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/settings.schema.json",
+  "model": "opus",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
+          }
+        ]
+      }
+    ]
+  }
+}

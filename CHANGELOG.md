@@ -4,6 +4,40 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.10.0] — 2026-05-04
+
+### test: E2E install + golden migration fixtures
+
+Two new test layers cover ground that unit tests couldn't:
+
+**Golden migration fixtures (`tests/fixtures/migrations/<scenario>/`).** Each scenario ships three files: `team-settings.json` (what cc-settings ships), `user-settings.json` (what the user has), `expected.json` (post-merge state). The runner deep-equals merger output against expected, with a sandboxed copy so fixtures stay immutable. Three scenarios committed:
+
+| Scenario | What it locks in |
+|---|---|
+| `pre-v10-bash-hooks` | v10.3.2 hook prune: stale `bash $HOME/.claude/scripts/*.sh` references in user settings get dropped, team's `bun .../src/scripts/*.ts` survives |
+| `pre-v10-bash-statusline` | v10.4.1 statusLine reset: stale `bash $HOME/.claude/scripts/statusline.sh` gets replaced with team's `bun .../src/hooks/statusline.ts` |
+| `user-customizations-preserved` | Custom env vars + custom permission rules + custom Notification hook all survive a merge that simultaneously prunes a stale Stop hook |
+
+These exercise the same ground as the unit tests (`tests/phase3-libs.test.ts`) but as snapshots — a refactor that accidentally drops a key or reorders output now fails with a deep-diff, not a missing assertion.
+
+**E2E install test (`tests/install-e2e.test.ts`).** Spawns `bun src/setup.ts --source=<repo>` with `HOME` pointed at a fresh tmpdir + `CC_SKIP_DEPS=1`. Asserts the resulting `~/.claude/` tree shape: every managed directory exists, `settings.json` is valid JSON with the expected `$schema` and `statusLine.command`, the version sentinel was written, the first-install delta line printed. Three tests:
+
+| Test | Coverage |
+|---|---|
+| First install on fresh HOME | full install path: backup → directories → cleanOldConfig → installConfigFiles → installTsSources → settings merge → sentinel → summary |
+| Second install (re-run) | re-install path with existing sentinel; summary still prints |
+| `--migrate-only` flag | merger + sentinel only; CLAUDE.md should NOT be copied |
+
+**`CC_SKIP_DEPS=1` env var.** New escape hatch in `installDependencies`. Prevents the installer from running `npm i -g pinchtab`, `pipx install llm-tldr`, etc. — those write outside HOME and would pollute the dev/CI environment. Used by the E2E test; users won't typically need it.
+
+**Files changed:**
+
+- `tests/fixtures/migrations/{pre-v10-bash-hooks,pre-v10-bash-statusline,user-customizations-preserved}/{team,user,expected}-settings.json` — 9 fixture files.
+- `tests/golden-migrations.test.ts` — fixture runner (4 tests).
+- `tests/install-e2e.test.ts` — E2E install runner (3 tests).
+- `src/setup.ts` — `CC_SKIP_DEPS` guard in `installDependencies`.
+- `src/setup.ts` — `VERSION` 10.9.0 → 10.10.0.
+
 ## [10.9.0] — 2026-05-04
 
 ### refactor: strategy-based merge tree (internal-only)

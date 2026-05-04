@@ -1,0 +1,35 @@
+{
+  "model": "opus",
+  "env": {
+    "ENABLE_PROMPT_CACHING_1H": "0",
+    "CLAUDE_CODE_NO_FLICKER": "1",
+    "MY_CUSTOM_VAR": "1"
+  },
+  "permissions": {
+    "allow": ["Bash(bun:*)", "Bash(git status:*)", "Bash(my-tool:*)"],
+    "deny": ["Bash(rm -rf:*)"]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/scripts/my-notify.js\""
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {}
+}
