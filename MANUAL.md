@@ -3,22 +3,41 @@
 > Everything you can do with Darkroom's Claude Code setup.
 > You don't need to memorize this — just describe what you want and Claude will invoke the right skill.
 
-## Quick Start
+## Quickstart
+
+**1. Install** (one command, idempotent — re-run it any time):
 
 ```bash
-# Install (one command)
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
-
-# Update
-cd ~/.claude/cc-settings && git pull && bash setup.sh
-
-# Interactive update — prompt on each settings conflict
-bash setup.sh --interactive
 ```
 
-After install, start Claude Code in any project. The setup loads automatically.
+Re-installs are non-destructive: hand-added permission rules, custom hooks, local env overrides, and custom MCP servers all survive. Update later via `cd ~/.claude/cc-settings && git pull && bash setup.sh`. Pass `--interactive` to be prompted on each settings conflict.
 
-**Re-installs are non-destructive.** Your hand-added permission rules, custom hooks, local env overrides (`ENABLE_PROMPT_CACHING_1H`, etc.), and custom MCP servers are preserved across updates. See [docs/settings-reference.md#re-install-merge-behavior](./docs/settings-reference.md#re-install-merge-behavior) for the merge policy and what `--interactive` controls.
+**2. Start a new Darkroom project** (or skip if you have one):
+
+```
+> /init my-project
+```
+
+You'll be asked to pick a starter — **satus** (Next.js, content sites) or **novus** (React Router 7, app-leaning SPAs). cc-settings auto-detects which one each project uses from `package.json` for everything that follows.
+
+**3. Open Claude Code in any project directory.** The team config loads automatically. Just describe what you want:
+
+| You say | What happens |
+|---|---|
+| *"fix the login redirect"* | `/fix` — explore → tester → implementer → reviewer |
+| *"add a dashboard with stats"* | `/build` — research gate → plan → scaffold → implement → test |
+| *"create a Button component"* | `/component` — stack-aware scaffold (Next.js or RR shape) |
+| *"how do I use react-router loaders?"* | `/docs` — fetches current docs via Context7 (always before adding new deps) |
+| *"ship it"* / *"create a PR"* | `/ship` — typecheck → build → test → lint → review → commit → PR |
+| *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
+| *"audit my recent activity"* | `/audit` — analyzes Bash command logs |
+
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 42, scroll to [All Skills](#all-skills) below.
+
+**5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
+
+> **For maintainers / contributors:** see `CLAUDE.md` (project-level guidance) and `CHANGELOG.md` for the per-version delta. The merge policy and `--interactive` semantics live in [docs/settings-reference.md](./docs/settings-reference.md#re-install-merge-behavior).
 
 ---
 

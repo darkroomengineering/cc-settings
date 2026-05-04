@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.5.1] — 2026-05-04
+
+### docs: MANUAL.md Day-1 Quickstart
+
+Replaced the install-only "Quick Start" header with a true Day-1 Quickstart: install → `/init` (asks satus vs novus) → "describe what you want" golden-path table → "ask Claude what skill handles X" escape hatch. Closes the orientation gap a fresh joiner felt — they now have a 5-minute path from install to productive work without scrolling the 500-line reference.
+
+The "Daily Workflows" section still exists as the next layer of depth. Existing skill / agent / hook tables unchanged.
+
+**Files changed:**
+
+- `MANUAL.md` — replaced lines 6-23 with a 5-step Quickstart.
+- `src/setup.ts` — `VERSION` 10.5.0 → 10.5.1.
+
 ## [10.5.0] — 2026-05-04
 
 ### IDE IntelliSense — published JSON schemas at GitHub raw

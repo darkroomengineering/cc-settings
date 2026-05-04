@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.5.0"; // publish JSON schemas at raw.githubusercontent.com — IDE IntelliSense for every cc-settings field
+const VERSION = "10.5.1"; // MANUAL.md Day-1 Quickstart with golden-path table for new joiners
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
