@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.7.1] — 2026-05-04
+
+### fix: composeSettings asserts unique numeric prefixes
+
+`composeSettings` previously sorted `config/*.json` fragments alphabetically. With 4 fragments today (`10-core`, `20-mcp`, `30-permissions`, `40-hooks`) that worked, but it would silently miscompose if someone added `010-foo.json` (which alphabetizes before `10-core.json`) or `100-extra.json` (which alphabetizes between `10-` and `20-`). Both edge cases produced ambiguous merge order with no error.
+
+The composer now:
+
+1. **Sorts by numeric prefix value** — `10-*` comes before `100-*` (was reversed under alpha sort).
+2. **Rejects fragments without a numeric prefix** — `extra.json` throws at install with a clear message.
+3. **Rejects collisions on numeric value** — `10-foo.json` and `010-bar.json` (both 10) both throw, naming the conflict.
+
+The naming contract `<digits>-<name>.json` is now formally enforced.
+
+**Files changed:**
+
+- `src/lib/compose-settings.ts` — prefix extraction + uniqueness check + numeric sort.
+- `tests/compose-settings.test.ts` — 11 tests: repo dogfood, naming contract failures, ordering correctness, content errors, empty/missing dir.
+- `src/setup.ts` — `VERSION` 10.7.0 → 10.7.1.
+
 ## [10.7.0] — 2026-05-04
 
 ### feat: agent + skill frontmatter validation at install

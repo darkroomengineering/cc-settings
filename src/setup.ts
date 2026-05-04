@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.7.0"; // agent + skill frontmatter zod schemas; install-time validation catches typos like effort: xtreme
+const VERSION = "10.7.1"; // composeSettings asserts unique numeric prefixes and rejects unprefixed fragments
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
