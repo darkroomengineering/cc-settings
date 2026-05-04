@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.10.3"; // ci: dedicated install-e2e job + bash-bootstrap dry-run smoke on Linux+macOS
+const VERSION = "10.11.0"; // MCP servers: _status: core | optional annotation; install summary groups by status
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -417,14 +417,36 @@ async function showSummary(): Promise<void> {
   boxLine("ok", "memory/");
   boxEnd();
 
-  const claudeJson = await readJsonOrNull<{ mcpServers?: Record<string, unknown> }>(
-    CLAUDE_JSON_PATH,
-  );
-  const servers = Object.keys(claudeJson?.mcpServers ?? {});
+  const claudeJson = await readJsonOrNull<{
+    mcpServers?: Record<string, { _status?: unknown }>;
+  }>(CLAUDE_JSON_PATH);
+  const servers = Object.entries(claudeJson?.mcpServers ?? {});
   if (servers.length > 0) {
     console.log("");
     console.log(`${palette.bold}MCP servers in ~/.claude.json:${palette.reset}`);
-    for (const s of servers) console.log(`  - ${s}`);
+    // Group by `_status` annotation. Servers without a status are listed as
+    // "user-added" — they came from the user's machine, not the team config.
+    const core: string[] = [];
+    const optional: string[] = [];
+    const userAdded: string[] = [];
+    for (const [name, server] of servers) {
+      const status = (server as { _status?: unknown })._status;
+      if (status === "core") core.push(name);
+      else if (status === "optional") optional.push(name);
+      else userAdded.push(name);
+    }
+    if (core.length > 0) {
+      console.log(`  ${palette.dim}core:${palette.reset}`);
+      for (const s of core) console.log(`    - ${s}`);
+    }
+    if (optional.length > 0) {
+      console.log(`  ${palette.dim}optional (manually added):${palette.reset}`);
+      for (const s of optional) console.log(`    - ${s}`);
+    }
+    if (userAdded.length > 0) {
+      console.log(`  ${palette.dim}user-added:${palette.reset}`);
+      for (const s of userAdded) console.log(`    - ${s}`);
+    }
   }
 }
 

@@ -365,6 +365,28 @@ Say: *"who calls this function?"* or *"find the auth implementation"*
 
 Triggers `/tldr` — token-efficient codebase analysis. 95% fewer tokens than reading files. Semantic search, impact analysis, call graphs, dead code detection.
 
+### MCP servers (core vs optional)
+
+cc-settings ships a **core** set of MCP servers — installed automatically by `setup.sh` into `~/.claude.json`. These power the skills cc-settings advertises.
+
+| Server | Purpose | Used by |
+|---|---|---|
+| `context7` | Library / framework documentation lookup | `/docs`, every skill that fetches docs before adding deps |
+| `tldr` | Semantic codebase analysis (call graphs, impact) | `/tldr`, `/explore`, `/zoom-out` |
+| `figma` | Figma Dev Mode MCP — design tokens, component props | `/figma` |
+| `chrome-devtools` | Chrome DevTools (perf traces, network, console) | `/lighthouse`, `/debug`, `/qa` |
+| `Sanity` | Sanity CMS operations (GROQ queries, etc.) | satus / novus projects with Sanity integration |
+
+**Optional** servers — not installed by default; add manually to `~/.claude.json` if you want them. Listed in `mcp-configs/recommended.json`:
+
+| Server | Purpose | Why optional |
+|---|---|---|
+| `github` | GitHub issues / PRs / projects | `gh` CLI covers most of this with lower context cost |
+| `vercel` | Deployment management | Stack-specific (Vercel-only) |
+| `memory` | Persistent cross-session memory | cc-settings has its own `~/.claude/memory/` system |
+
+The post-install summary groups MCP servers by status (`core` / `optional` / `user-added`) so a new joiner can tell which came from cc-settings vs which they added themselves.
+
 ---
 
 ## Guardrails (Always Active)

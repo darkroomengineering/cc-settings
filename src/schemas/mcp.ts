@@ -8,7 +8,12 @@ const mcpCommentary = {
   _description: z.string().optional(),
   _usage: z.string().optional(),
   _contextCost: z.enum(["low", "medium", "high"]).optional(),
-  _status: z.enum(["installed", "optional"]).optional(),
+  // `_status` annotates whether a server is part of the team-shipped baseline
+  // ("core") or recommended-but-not-installed ("optional"). Onboarding signal
+  // for new team members. The installer surfaces it in the post-install summary
+  // and groups servers by status. Field is documentation-only — Claude Code
+  // doesn't read it.
+  _status: z.enum(["core", "optional"]).optional(),
   serverInstructions: z.string().optional(),
 };
 

@@ -54,7 +54,7 @@
               "_status": {
                 "type": "string",
                 "enum": [
-                  "installed",
+                  "core",
                   "optional"
                 ]
               },
@@ -117,7 +117,7 @@
               "_status": {
                 "type": "string",
                 "enum": [
-                  "installed",
+                  "core",
                   "optional"
                 ]
               },

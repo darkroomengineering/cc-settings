@@ -4,6 +4,49 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.11.0] — 2026-05-04
+
+### feat: MCP servers — `_status: core | optional` annotation; install summary groups by status
+
+A new team member could install cc-settings, see 5 MCP servers in `~/.claude.json`, and have no way to tell which were the team baseline vs which were the previous owner's preferences. The `_status` annotation closes that.
+
+**Schema** — `src/schemas/mcp.ts` `_status` field changed from `"installed" | "optional"` to `"core" | "optional"`. Existing values renamed for clarity (`installed` was ambiguous — installed by whom, into what).
+
+**Configs annotated:**
+
+- `config/20-mcp.json` — every shipped server (`context7`, `tldr`, `figma`, `chrome-devtools`) now declares `_status: "core"`.
+- `mcp-configs/recommended.json` — every server in `mcpServers` (5) is `core`; every server in `optionalMcpServers` (3) is `optional`.
+
+**Install-summary surface** (`src/setup.ts` `showSummary`):
+
+```
+MCP servers in ~/.claude.json:
+  core:
+    - context7
+    - tldr
+    - figma
+    - chrome-devtools
+    - Sanity
+  optional (manually added):
+    - github
+  user-added:
+    - my-internal-server
+```
+
+The three buckets — `core`, `optional`, `user-added` (no `_status` field) — make it obvious which servers came from cc-settings, which the user added from the optional list, and which are the user's own (custom team-internal MCPs etc.).
+
+**MANUAL.md** — new "MCP servers (core vs optional)" section under "Advanced". Tables enumerate each core server's purpose + which skill(s) use it, and each optional server's "why optional" rationale.
+
+**Files changed:**
+
+- `src/schemas/mcp.ts` — `_status` enum updated, comment block explaining the field.
+- `config/20-mcp.json` — `_status: "core"` on all 4 servers.
+- `mcp-configs/recommended.json` — renamed `installed` → `core`, added `optional` to the 3 optionalMcpServers entries.
+- `src/setup.ts` — `showSummary` now groups MCP servers by `_status` (3 buckets).
+- `MANUAL.md` — new MCP servers section.
+- `schemas/{skill,agent,claude-json}.schema.json` — regenerated.
+- `src/setup.ts` — `VERSION` 10.10.3 → 10.11.0.
+
 ## [10.10.3] — 2026-05-04
 
 ### ci: dedicated install-e2e + bash-bootstrap jobs
