@@ -4,6 +4,30 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.5.2] — 2026-05-04
+
+### feat: install-summary version delta
+
+Re-running `bash setup.sh` now ends with a one-block summary of what landed since the previous install:
+
+```
+cc-settings: v10.4.1 → v10.5.2 (3 version(s) since last install)
+  • v10.5.2: install-summary version delta
+  • v10.5.1: docs: MANUAL.md Day-1 Quickstart
+  • v10.5.0: IDE IntelliSense — published JSON schemas at GitHub raw
+```
+
+Reads the version sentinel (`~/.claude/.cc-settings-version`) BEFORE the install overwrites it, parses `## [X.Y.Z] — DATE` + `### <title>` headings out of `CHANGELOG.md`, and renders the delta. First installs print `cc-settings: first install at v<X>`. Re-installs of the same version print nothing. Downgrades (rollback scenarios) are flagged.
+
+The merger's existing migration messages (hook prune, statusLine reset) still print separately — those tell you what the merger *did*, while the delta tells you which *versions* you got.
+
+**Files changed:**
+
+- `src/lib/version-delta.ts` — new helper. Pure parsing/formatting + sentinel read.
+- `src/setup.ts` — captures `prevInstalledVersion` before `writeVersionSentinel`, prints delta after `showSummary`.
+- `tests/version-delta.test.ts` — 23 tests covering compareVersion, sentinel parsing, CHANGELOG parsing, between-filtering, format cases (first install / same / downgrade / forward / missing CHANGELOG), and a roundtrip against the repo's real CHANGELOG.
+- `src/setup.ts` — `VERSION` 10.5.1 → 10.5.2.
+
 ## [10.5.1] — 2026-05-04
 
 ### docs: MANUAL.md Day-1 Quickstart

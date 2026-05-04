@@ -45,8 +45,9 @@ import {
   getInstallHint,
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
+import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.5.1"; // MANUAL.md Day-1 Quickstart with golden-path table for new joiners
+const VERSION = "10.5.2"; // install-summary version delta — show prev → current + per-version titles from CHANGELOG
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -631,6 +632,10 @@ async function main(): Promise<number> {
 
   showBanner(VERSION);
 
+  // Capture the previously-installed version BEFORE we overwrite the sentinel
+  // — used to print the version-delta summary at the end of the install.
+  const prevInstalledVersion = await readInstalledVersion(CLAUDE_DIR);
+
   info("Installing dependencies...");
   await installDependencies();
 
@@ -657,6 +662,18 @@ async function main(): Promise<number> {
 
   await writeVersionSentinel();
   await showSummary();
+
+  // Version delta: surface what just landed (prev → current + per-version
+  // titles from CHANGELOG.md). Uses prevInstalledVersion captured BEFORE
+  // writeVersionSentinel ran — the sentinel now holds the new version.
+  const changelogPath = join(args.sourceDir, "CHANGELOG.md");
+  const delta = await buildVersionDelta(prevInstalledVersion, VERSION, changelogPath).catch(
+    () => null,
+  );
+  if (delta) {
+    console.log("");
+    console.log(delta);
+  }
 
   console.log("");
   console.log(`Installed to: ${palette.cyan}${CLAUDE_DIR}${palette.reset}`);
