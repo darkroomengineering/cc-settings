@@ -4,6 +4,21 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.10.2] — 2026-05-04
+
+### chore: self-/consolidate audit logged
+
+Ran `/consolidate` on cc-settings' own surface (42 skills + 10 agents + 11 rules + 5 profiles). The methodology in `skills/consolidate/SKILL.md` was applied to the repo itself: trigger overlap audit, rule contradiction audit, discoverability check.
+
+**Decision: no merges, no retirements this cycle.** The 9 intent clusters identified all sit at distinct specificity levels. The v10.4.0 stack-aware refactor already restructured the rules with explicit foundation/extension cross-references; further splitting would dilute, merging would create unwieldy multi-purpose files.
+
+Full audit findings + trigger criteria for the next cycle are in `docs/consolidation-audits/2026-05.md`. Audit recommended at Q3 2026, or when surface counts cross documented thresholds (skills >50, rules LOC >2500), or on overlap signals.
+
+**Files changed:**
+
+- `docs/consolidation-audits/2026-05.md` — new audit log (first in series).
+- `src/setup.ts` — `VERSION` 10.10.1 → 10.10.2.
+
 ## [10.10.1] — 2026-05-04
 
 ### docs: explicit Bun requirement; Node fallback dropped from the plan
