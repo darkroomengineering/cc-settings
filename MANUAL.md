@@ -11,6 +11,8 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
 ```
 
+> **Requires [Bun](https://bun.sh) ≥ 1.1.30.** The bootstrap auto-installs Bun via `curl -fsSL https://bun.sh/install | bash` if you don't have it. Hooks, scripts, and the installer itself all run on Bun — there's no Node.js fallback. If your environment blocks `curl`-installs (corporate sandboxes), install Bun manually first.
+
 Re-installs are non-destructive: hand-added permission rules, custom hooks, local env overrides, and custom MCP servers all survive. Update later via `cd ~/.claude/cc-settings && git pull && bash setup.sh`. Pass `--interactive` to be prompted on each settings conflict, or `--migrate-only` to run just the merger (settings.json clean-up) and skip the file-copy phase.
 
 **2. Start a new Darkroom project** (or skip if you have one):

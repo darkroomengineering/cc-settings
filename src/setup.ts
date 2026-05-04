@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.10.0"; // E2E install test against tmpdir HOME + golden migration fixtures + CC_SKIP_DEPS env var
+const VERSION = "10.10.1"; // docs: explicit Bun requirement (P2.C Node fallback dropped — too big for Phase 2)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

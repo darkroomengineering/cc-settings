@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.10.1] — 2026-05-04
+
+### docs: explicit Bun requirement; Node fallback dropped from the plan
+
+A probe of the proposed Node 22 LTS fallback (P2.C of the cc-settings improvement plan) revealed the codebase is more deeply Bun-coupled than initial scoping suggested: `Bun.spawn`, `Bun.which`, `Bun.file`, `import.meta.dir` are used across 30+ files including every hook script. Porting via a runtime-abstraction layer is realistic but multi-day work — out of scope for Phase 2's "quick wins + medium refactors" frame.
+
+**Decision: drop the Node fallback.** Bun is required, period. MANUAL.md's Quickstart now states this explicitly so users on locked-down environments learn the requirement upfront instead of mid-bootstrap.
+
+The `setup.sh` bootstrap still auto-installs Bun via `curl -fsSL https://bun.sh/install | bash` for users with curl access. Corporate sandboxes that block curl-installs need a manual Bun install first.
+
+Future-leaning: if a Node fallback is ever needed, the right path is a `src/lib/runtime.ts` abstraction layer that wraps `Bun.spawn`/`Bun.which`/etc. with Node-compatible fallbacks, then a pre-built `dist/` shipped with the repo. That's a P3+ project, tracked separately if/when a use case emerges.
+
+**Files changed:**
+
+- `MANUAL.md` — explicit "Requires Bun ≥ 1.1.30" callout in the Quickstart.
+- `src/setup.ts` — `VERSION` 10.10.0 → 10.10.1.
+
 ## [10.10.0] — 2026-05-04
 
 ### test: E2E install + golden migration fixtures
