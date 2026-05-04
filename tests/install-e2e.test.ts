@@ -88,7 +88,7 @@ describe("install E2E — fresh HOME", () => {
         const settings = JSON.parse(await readFile(join(claudeDir, "settings.json"), "utf8"));
         expect(typeof settings).toBe("object");
         expect(settings.statusLine?.command).toContain("statusline.ts");
-        expect(settings.$schema).toMatch(/raw\.githubusercontent\.com.*settings\.schema\.json/);
+        expect(settings.$schema).toBe("https://json.schemastore.org/claude-code-settings.json");
 
         // Version sentinel was written.
         const sentinel = JSON.parse(

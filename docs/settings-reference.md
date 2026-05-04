@@ -17,18 +17,18 @@ The installer (`setup.sh`) composes the repo's `config/*.json` fragments alphabe
 
 ### IDE IntelliSense
 
-The composed `settings.json` declares a `$schema` pointing at the cc-settings JSON Schema, hosted at `raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/`. VSCode, Cursor, JetBrains, and any editor with JSON Schema support will autocomplete every cc-settings field, validate values, and surface inline docs.
+The composed `settings.json` declares the official Claude Code `$schema` (`https://json.schemastore.org/claude-code-settings.json`). Claude Code validates this URL strictly at startup and skips the entire file if anything else is set, so don't change it. VSCode, Cursor, JetBrains, and any editor with JSON Schema support pick up the canonical schema for autocomplete and validation.
 
-If you author a `~/.claude/settings.json` by hand (without re-running the installer), reference the schema yourself:
+If you author a `~/.claude/settings.json` by hand (without re-running the installer), use the same value:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/settings.schema.json",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   ...
 }
 ```
 
-Other published schemas in the same directory: `hooks-config.schema.json`, `skill.schema.json`, `claude-json.schema.json`. They're regenerated from `src/schemas/*.ts` via `bun run schemas:emit` (CI fails if you change a zod source without re-emitting — see `bun run schemas:check`).
+cc-settings publishes its own extended schemas at `raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/` for *non-settings* files: `agent.schema.json`, `hooks-config.schema.json`, `skill.schema.json`, `claude-json.schema.json`. They're regenerated from `src/schemas/*.ts` via `bun run schemas:emit` (CI fails if you change a zod source without re-emitting — see `bun run schemas:check`).
 
 ---
 

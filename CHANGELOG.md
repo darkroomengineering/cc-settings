@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.11.1] — 2026-05-04
+
+### fix: `$schema` must be the schemastore URL — Claude Code skips the entire settings.json otherwise
+
+Clean installs were silently losing every setting (env vars, statusLine, hooks, permissions) because `config/10-core.json` declared `$schema` as `https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/settings.schema.json` — the cc-settings extended schema. Claude Code's settings validator only accepts `https://json.schemastore.org/claude-code-settings.json` and skips the whole file on any other value. Symptom in the wild: a clean install of Claude + cmux + cc-settings produced an empty statusline and a "Settings Error" banner.
+
+Fixed by switching `config/10-core.json` to the canonical schemastore URL. cc-settings's own extended schemas (`agent.schema.json`, `hooks-config.schema.json`, `skill.schema.json`, `claude-json.schema.json`) remain published and used for *non-settings* files, where editor IntelliSense isn't gated by Claude Code's runtime check. `docs/settings-reference.md` updated to document the constraint so the broken pattern doesn't get re-copied.
+
 ## [10.11.0] — 2026-05-04
 
 ### feat: MCP servers — `_status: core | optional` annotation; install summary groups by status

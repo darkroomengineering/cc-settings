@@ -80,11 +80,14 @@ describe("Published JSON Schemas vs zod sources", () => {
     });
   }
 
-  test("config/10-core.json $schema points at our published schema", async () => {
+  test("config/10-core.json $schema points at the canonical schemastore URL", async () => {
+    // Claude Code's settings validator strictly accepts only the schemastore
+    // URL — any other value makes it skip the entire settings.json (env vars,
+    // statusLine, hooks, permissions, all of it). Regression guard for v10.11.1.
     const raw = await readFile(resolve(ROOT, "config/10-core.json"), "utf8");
     const cfg = JSON.parse(raw) as { $schema?: string };
     expect(cfg.$schema).toBe(
-      "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/settings.schema.json",
+      "https://json.schemastore.org/claude-code-settings.json",
     );
   });
 
