@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.4.1] — 2026-05-04
+
+### Fix: statusline missing for pre-v10 upgraders
+
+Some users were seeing no statusline at all after upgrading. Root cause: pre-v10 cc-settings shipped `statusLine` as `bash "$HOME/.claude/scripts/statusline.sh"`. The bash → TS migration in v10.0.0 deleted that directory and rewrote the team value to `bun "$HOME/.claude/src/hooks/statusline.ts"` — but the merger does `{ ...teamRaw, ...userRaw }` for top-level objects, so any user with the old value carried it forward. Claude Code tries to spawn the missing script, gets a non-zero exit, and renders no bar.
+
+The hooks-array prune from v10.3.2 didn't cover this case because `statusLine` is a single top-level object, not an array entry.
+
+**Fix:** the merger now also detects when `userRaw.statusLine.command` matches `DEPRECATED_COMMAND_PATTERNS` and resets to the team value. Custom user statuslines pointing at non-deprecated paths (e.g. their own script) are left alone.
+
+**Existing affected users:** re-run `bash setup.sh`. The summary line `Reset stale statusLine command…` confirms cleanup.
+
+The `DEPRECATED_HOOK_COMMAND_PATTERNS` constant from v10.3.2 was renamed to `DEPRECATED_COMMAND_PATTERNS` since it now applies to both hook entries and the top-level statusLine.
+
+**Files changed:**
+
+- `src/setup.ts` — `VERSION` 10.4.0 → 10.4.1.
+- `src/lib/mcp.ts` — generalize the deprecation registry; reset stale statusLine post-merge.
+- `tests/phase3-libs.test.ts` — coverage for stale-statusLine reset + non-deprecated-statusLine preservation.
+
 ## [10.4.0] — 2026-05-04
 
 ### Stack-aware ergonomics — Next.js (satus) + React Router (novus)

@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.4.0"; // stack-aware ergonomics: react-router profile, stack detector, scaffolds branch on package.json, statusline glyph fix
+const VERSION = "10.4.1"; // reset stale statusLine command pointing at removed ~/.claude/scripts/*.sh (pre-v10 upgraders)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

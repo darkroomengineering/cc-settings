@@ -251,27 +251,33 @@ async function mergePermissions(
   };
 }
 
-// User-only hook groups whose `command` matches one of these patterns are
-// pruned during merge. Source-of-truth for hook scripts that cc-settings has
-// removed in past releases — without this, the per-event union below preserves
+// Commands matching one of these patterns reference a script cc-settings has
+// removed in a past release. The merger drops user-only hook groups whose
+// command matches, and resets the top-level `statusLine` field to the team
+// value when the user's value matches — without this, the merger preserves
 // the dangling reference forever and Claude Code logs "No such file or
-// directory" on every session.
+// directory" on every session (or for `statusLine`, the bar silently fails
+// to render at all).
 //
-// When a future release removes a hook script, add its path here so upgraders
+// When a future release removes a script, add its path here so upgraders
 // don't end up with a broken settings.json. Patterns are matched against the
-// `command` field of each entry inside a `HookGroup.hooks[]` array.
+// `command` field of any object that has one — hooks and statusLine both go
+// through this check.
 //
 // The first entry sweeps the entire `~/.claude/scripts/*.sh` directory because
 // the bash → TypeScript migration (cc-settings v10.0.0, April 2026) deleted
 // that directory wholesale; replacements live under `~/.claude/src/scripts/`
-// and are invoked via `bun ...`.
-const DEPRECATED_HOOK_COMMAND_PATTERNS: RegExp[] = [/[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/];
+// or `~/.claude/src/hooks/` and are invoked via `bun ...`.
+const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [/[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/];
+
+function commandIsDeprecated(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(value));
+}
 
 function isDeprecatedHook(hook: unknown): boolean {
   if (!hook || typeof hook !== "object") return false;
-  const cmd = (hook as { command?: unknown }).command;
-  if (typeof cmd !== "string") return false;
-  return DEPRECATED_HOOK_COMMAND_PATTERNS.some((re) => re.test(cmd));
+  return commandIsDeprecated((hook as { command?: unknown }).command);
 }
 
 // A group is deprecated only if every hook inside it is deprecated. Mixed
@@ -479,6 +485,18 @@ export async function mergeSettingsWithMcpPreservation(
   else delete merged.env;
   Object.assign(merged, scalars.overrides);
 
+  // statusLine is an object that gets spread-overridden by the user value.
+  // If the user's value points at a removed script (e.g. pre-v10 bash path),
+  // reset to the team value so the bar renders again. Custom user statuslines
+  // pointing at non-deprecated paths are left alone.
+  const userStatusLine = userRaw.statusLine as { command?: unknown } | undefined;
+  let statusLineReset = false;
+  if (userStatusLine && commandIsDeprecated(userStatusLine.command)) {
+    if (teamRaw.statusLine !== undefined) merged.statusLine = teamRaw.statusLine;
+    else delete merged.statusLine;
+    statusLineReset = true;
+  }
+
   const bits: string[] = [];
   if (permissions.added > 0) bits.push(`${permissions.added} permission rule(s)`);
   if (hooks.added > 0) bits.push(`${hooks.added} hook group(s)`);
@@ -487,6 +505,9 @@ export async function mergeSettingsWithMcpPreservation(
 
   if (hooks.pruned > 0) {
     info(`Pruned ${hooks.pruned} stale hook reference(s) pointing at removed cc-settings scripts`);
+  }
+  if (statusLineReset) {
+    info("Reset stale statusLine command (pointed at a removed cc-settings script)");
   }
 
   if (opts.interactive) {

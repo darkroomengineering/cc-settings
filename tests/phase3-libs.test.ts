@@ -341,6 +341,82 @@ describe("mcp — merge + preserve", () => {
     }
   });
 
+  test("resets stale statusLine command pointing at removed ~/.claude/scripts/*.sh", async () => {
+    // Regression: pre-v10 cc-settings shipped statusLine as bash
+    // "$HOME/.claude/scripts/statusline.sh". Bash → TS migration replaced
+    // it with bun "$HOME/.claude/src/hooks/statusline.ts". Without explicit
+    // detection the merger preserves the user's stale object via the
+    // { ...teamRaw, ...userRaw } spread, so the bar silently fails to render.
+    // See CHANGELOG v10.4.1.
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-statusline-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+
+      await writeFile(
+        existing,
+        JSON.stringify({
+          statusLine: {
+            type: "command",
+            command: 'bash "$HOME/.claude/scripts/statusline.sh"',
+          },
+        }),
+      );
+      await writeFile(
+        team,
+        JSON.stringify({
+          statusLine: {
+            type: "command",
+            command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
+            refreshInterval: 30,
+          },
+        }),
+      );
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      expect(merged.statusLine.command).toBe('bun "$HOME/.claude/src/hooks/statusline.ts"');
+      expect(merged.statusLine.refreshInterval).toBe(30);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves user-customized statusLine pointing at a non-deprecated path", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-statusline-keep-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+
+      // User's statusLine points at their own custom script (not a removed
+      // cc-settings path). Should survive intact.
+      await writeFile(
+        existing,
+        JSON.stringify({
+          statusLine: {
+            type: "command",
+            command: 'node "$HOME/scripts/my-status.js"',
+          },
+        }),
+      );
+      await writeFile(
+        team,
+        JSON.stringify({
+          statusLine: {
+            type: "command",
+            command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
+          },
+        }),
+      );
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      expect(merged.statusLine.command).toBe('node "$HOME/scripts/my-status.js"');
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
   test("prunes user hooks pointing at removed ~/.claude/scripts/*.sh files", async () => {
     // Regression: pre-v10.0 cc-settings shipped bash hooks under
     // ~/.claude/scripts/. The bash → TS migration removed that directory.
