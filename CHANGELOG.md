@@ -4,6 +4,49 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.9.0] — 2026-05-04
+
+### refactor: strategy-based merge tree (internal-only)
+
+Replaced the hand-coded `mergeSettingsWithMcpPreservation` with a strategy table. Each top-level field in `settings.json` registers a `Strategy` function in `STRATEGIES`; the orchestrator walks every key in (team ∪ user), picks the strategy (defaulting to user-wins-scalar), and assembles the result. Adding a new field-specific behavior is now one registry entry instead of a new helper + a new branch in the main function + a new accounting field — see for example the v10.4.1 statusLine fix, which previously required wedging a post-merge step into the orchestrator.
+
+**Behavior preserved end-to-end** — all 236 existing tests pass without modification:
+- permissions: deep object with array unions + scalar conflicts (deny is always additive)
+- hooks: per-event group union with deprecated-script prune
+- env: shallow merge, user wins on conflict
+- statusLine: user wins, except when command targets a removed cc-settings script
+- mcpServers: interactive preservation prompt (still handled before the per-key loop because the prompt is shared across the whole merge, not scoped to one strategy)
+- unknown keys: fall through to user-wins-scalar (with prompts in interactive mode)
+
+**New regression test** locks in the fallback for unknown top-level keys — a future Claude Code key cc-settings doesn't know about will round-trip through the merger without being dropped.
+
+**Internal data layout:**
+
+```ts
+interface StrategyContext {
+  opts: MergeOptions;
+  accounting: MergeAccounting;  // strategies write counts here; orchestrator reads at the end
+}
+
+type StrategyResult = { keep: false } | { keep: true; value: unknown };
+type Strategy = (team: unknown, user: unknown, ctx: StrategyContext) => Promise<StrategyResult>;
+
+const STRATEGIES: Record<string, Strategy> = {
+  permissions: permissionsStrategy,
+  hooks: hooksStrategy,
+  env: envStrategy,
+  statusLine: statusLineStrategy,
+};
+```
+
+mcpServers is still handled outside the table because its preservation prompt fires once for the whole merge, not per-key.
+
+**Files changed:**
+
+- `src/lib/mcp.ts` — strategy interface + 4 strategy functions + `userWinsScalarStrategy` fallback + new orchestrator. Net: replaces ~250 LOC of hand-coded helpers + special-cases with ~330 LOC of structured strategies. Slightly longer but every field's logic is in one place and the orchestrator is a single loop.
+- `tests/phase3-libs.test.ts` — added regression test for unknown-key fallback.
+- `src/setup.ts` — `VERSION` 10.8.0 → 10.9.0.
+
 ## [10.8.0] — 2026-05-04
 
 ### feat: --migrate-only flag

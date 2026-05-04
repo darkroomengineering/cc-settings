@@ -119,6 +119,16 @@ export async function promptPreserveUserServers(
 }
 
 // --- Settings.json merge --------------------------------------------------
+//
+// Strategy-based merge tree. Each top-level key in settings.json has a merge
+// strategy registered in STRATEGIES below. The orchestrator walks every key
+// in (team ∪ user), looks up the strategy (defaulting to user-wins-scalar),
+// and assembles the result. Adding a new field-specific behavior = register
+// a new strategy + key. No churn in the orchestrator.
+//
+// The accounting struct collects per-strategy counts (added, declined,
+// pruned, etc.) so the orchestrator can build the user-facing summary at
+// the end without each strategy needing its own return shape.
 
 type StringArray = string[] | undefined;
 type UnknownRecord = Record<string, unknown>;
@@ -132,6 +142,35 @@ type UnknownRecord = Record<string, unknown>;
 export interface MergeOptions {
   interactive?: boolean;
 }
+
+interface MergeAccounting {
+  permissionsAdded: number;
+  permissionsDeclined: number;
+  permissionsAdoptedScalars: number;
+  hooksAdded: number;
+  hooksDeclined: number;
+  hooksPruned: number;
+  envUserWins: number;
+  envAdoptedScalars: number;
+  scalarsAdopted: number;
+  statusLineReset: boolean;
+}
+
+interface StrategyContext {
+  opts: MergeOptions;
+  accounting: MergeAccounting;
+}
+
+/**
+ * A strategy returns either:
+ *   - `{ keep: true, value }` — write `value` under the key in the merged result
+ *   - `{ keep: false }` — omit the key entirely
+ */
+type StrategyResult = { keep: false } | { keep: true; value: unknown };
+
+type Strategy = (team: unknown, user: unknown, ctx: StrategyContext) => Promise<StrategyResult>;
+
+// --- Strategy helpers (shared) -------------------------------------------
 
 // Union two string arrays, preserving team order. Team-only entries can be
 // declined in interactive mode (they're the ones team added since last install).
@@ -185,22 +224,16 @@ async function resolveScalarConflict(
   return { value: keepUser ? userVal : teamVal, adopted: !keepUser };
 }
 
-// Deep-merge permissions blocks: user wins on scalar fields (defaultMode,
-// autoMode), arrays are unioned so team baseline survives while user additions
-// are preserved. `deny` is always additive — safety guardrails never prompt.
-async function mergePermissions(
-  team: UnknownRecord | undefined,
-  user: UnknownRecord | undefined,
-  opts: MergeOptions,
-): Promise<{
-  merged: UnknownRecord | undefined;
-  added: number;
-  declined: number;
-  adoptedScalars: number;
-}> {
-  if (!team && !user) return { merged: undefined, added: 0, declined: 0, adoptedScalars: 0 };
-  const t = team ?? {};
-  const u = user ?? {};
+// --- Strategies ----------------------------------------------------------
+
+// permissions: deep object with array unions (allow/deny/ask/additionalDirectories)
+// + scalar fields (defaultMode/autoMode). deny is always additive (never prompts).
+const permissionsStrategy: Strategy = async (team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  const t = (team as UnknownRecord | undefined) ?? {};
+  const u = (user as UnknownRecord | undefined) ?? {};
+  const { opts } = ctx;
+
   const allow = await unionPermissionArray(
     t.allow as StringArray,
     u.allow as StringArray,
@@ -234,22 +267,20 @@ async function mergePermissions(
   if (dirs.merged !== undefined) merged.additionalDirectories = dirs.merged;
 
   // Scalar conflicts within permissions (defaultMode, autoMode).
-  let adoptedScalars = 0;
   for (const k of ["defaultMode", "autoMode"]) {
     if (k in t && k in u && JSON.stringify(t[k]) !== JSON.stringify(u[k])) {
       const { value, adopted } = await resolveScalarConflict(`permissions.${k}`, t[k], u[k], opts);
       merged[k] = value;
-      if (adopted) adoptedScalars++;
+      if (adopted) ctx.accounting.permissionsAdoptedScalars++;
     }
   }
 
-  return {
-    merged,
-    added: allow.added + deny.added + ask.added + dirs.added,
-    declined: allow.declined + deny.declined + ask.declined + dirs.declined,
-    adoptedScalars,
-  };
-}
+  ctx.accounting.permissionsAdded += allow.added + deny.added + ask.added + dirs.added;
+  ctx.accounting.permissionsDeclined +=
+    allow.declined + deny.declined + ask.declined + dirs.declined;
+
+  return { keep: true, value: merged };
+};
 
 // Commands matching one of these patterns reference a script cc-settings has
 // removed in a past release. The merger drops user-only hook groups whose
@@ -292,27 +323,19 @@ function pruneDeprecatedHooks(group: unknown): unknown | null {
   return { ...g, hooks: kept };
 }
 
-// Per-event union of hook groups. Team-only groups (added since last install)
-// are prompted in interactive mode; user-only groups survive *unless* they
-// reference a script cc-settings has removed (see DEPRECATED_HOOK_COMMAND_PATTERNS).
-async function mergeHooks(
-  team: UnknownRecord | undefined,
-  user: UnknownRecord | undefined,
-  opts: MergeOptions,
-): Promise<{
-  merged: UnknownRecord | undefined;
-  added: number;
-  declined: number;
-  pruned: number;
-}> {
-  if (!team && !user) return { merged: undefined, added: 0, declined: 0, pruned: 0 };
-  const t = team ?? {};
-  const u = user ?? {};
+// hooks: per-event union of hook groups. Team-only groups can be declined in
+// interactive mode; user-only groups survive UNLESS their command references
+// a script in DEPRECATED_COMMAND_PATTERNS (see v10.3.2). Mixed groups keep
+// their non-deprecated hooks.
+const hooksStrategy: Strategy = async (team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  const t = (team as UnknownRecord | undefined) ?? {};
+  const u = (user as UnknownRecord | undefined) ?? {};
+  const { opts } = ctx;
+
   const events = new Set([...Object.keys(t), ...Object.keys(u)]);
   const merged: UnknownRecord = {};
-  let added = 0;
-  let declined = 0;
-  let pruned = 0;
+
   for (const ev of events) {
     const teamGroups = Array.isArray(t[ev]) ? (t[ev] as unknown[]) : [];
     const userGroups = Array.isArray(u[ev]) ? (u[ev] as unknown[]) : [];
@@ -322,15 +345,14 @@ async function mergeHooks(
     const rawUserExtras = userGroups.filter((g) => !teamJson.has(JSON.stringify(g)));
 
     // Drop user extras whose commands point at scripts cc-settings has removed.
-    // Mixed groups keep their surviving hooks.
     const userExtras: unknown[] = [];
     for (const g of rawUserExtras) {
       const cleaned = pruneDeprecatedHooks(g);
       if (cleaned === null) {
-        pruned++;
+        ctx.accounting.hooksPruned++;
         continue;
       }
-      if (cleaned !== g) pruned++; // partial prune (some inner hooks dropped)
+      if (cleaned !== g) ctx.accounting.hooksPruned++; // partial prune
       userExtras.push(cleaned);
     }
 
@@ -341,7 +363,7 @@ async function mergeHooks(
       const adopt = await promptYn("Adopt these?", true);
       if (!adopt) {
         acceptedTeamOnly = new Set<string>();
-        declined += teamOnly.length;
+        ctx.accounting.hooksDeclined += teamOnly.length;
       }
     }
 
@@ -349,77 +371,103 @@ async function mergeHooks(
       const j = JSON.stringify(g);
       return userJson.has(j) || acceptedTeamOnly.has(j);
     });
-    added += userExtras.length;
+    ctx.accounting.hooksAdded += userExtras.length;
     merged[ev] = [...teamFiltered, ...userExtras];
   }
-  return { merged, added, declined, pruned };
-}
 
-// Shallow env merge: user values win on key conflict (local overrides for
-// cache flags, debug toggles, etc. stick across re-installs). Interactive mode
-// asks on each conflict.
-async function mergeEnv(
-  team: UnknownRecord | undefined,
-  user: UnknownRecord | undefined,
-  opts: MergeOptions,
-): Promise<{ merged: UnknownRecord | undefined; userWins: number; adoptedScalars: number }> {
-  if (!team && !user) return { merged: undefined, userWins: 0, adoptedScalars: 0 };
-  const t = team ?? {};
-  const u = user ?? {};
+  return { keep: true, value: merged };
+};
+
+// env: shallow merge, user wins on key conflict (cache flags, debug toggles
+// stick across re-installs). Interactive prompts on each conflict.
+const envStrategy: Strategy = async (team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  const t = (team as UnknownRecord | undefined) ?? {};
+  const u = (user as UnknownRecord | undefined) ?? {};
   const merged: UnknownRecord = { ...t, ...u };
-  let userWins = 0;
-  let adoptedScalars = 0;
+
   for (const k of Object.keys(u)) {
     if (k in t && u[k] !== t[k]) {
-      userWins++;
-      const { value, adopted } = await resolveScalarConflict(`env.${k}`, t[k], u[k], opts);
+      ctx.accounting.envUserWins++;
+      const { value, adopted } = await resolveScalarConflict(`env.${k}`, t[k], u[k], ctx.opts);
       merged[k] = value;
       if (adopted) {
-        adoptedScalars++;
-        userWins--;
+        ctx.accounting.envAdoptedScalars++;
+        ctx.accounting.envUserWins--;
       }
     }
   }
-  return { merged, userWins, adoptedScalars };
-}
+  return { keep: true, value: merged };
+};
 
-// Keys handled by field-specific merges (skip in the top-level scalar pass).
-const SCALAR_SKIP_KEYS = new Set(["mcpServers", "permissions", "hooks", "env", "$schema"]);
-
-// Resolve top-level scalar conflicts (model, statusLine, theme, etc.).
-// In interactive mode, prompts on each conflict; otherwise user-wins silently.
-async function resolveTopLevelScalars(
-  teamRaw: UnknownRecord,
-  userRaw: UnknownRecord,
-  opts: MergeOptions,
-): Promise<{ overrides: UnknownRecord; adopted: number }> {
-  const overrides: UnknownRecord = {};
-  let adopted = 0;
-  for (const k of Object.keys(teamRaw)) {
-    if (SCALAR_SKIP_KEYS.has(k)) continue;
-    if (!(k in userRaw)) continue; // team-only: already applied via spread
-    const t = teamRaw[k];
-    const u = userRaw[k];
-    if (Array.isArray(t) || (t !== null && typeof t === "object")) continue;
-    if (Array.isArray(u) || (u !== null && typeof u === "object")) continue;
-    if (t === u) continue;
-    const { value, adopted: a } = await resolveScalarConflict(k, t, u, opts);
-    overrides[k] = value;
-    if (a) adopted++;
+// statusLine: object — user's value normally wins. Exception: if user's
+// command points at a removed cc-settings script (see DEPRECATED_COMMAND_PATTERNS),
+// reset to team. Other custom statuslines (pointing at the user's own scripts)
+// are preserved unchanged.
+const statusLineStrategy: Strategy = async (team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  const u = user as { command?: unknown } | undefined;
+  if (u && commandIsDeprecated(u.command)) {
+    ctx.accounting.statusLineReset = true;
+    if (team === undefined) return { keep: false };
+    return { keep: true, value: team };
   }
-  return { overrides, adopted };
-}
+  // Default object overlay: user wins when declared.
+  if (user !== undefined) return { keep: true, value: user };
+  return { keep: true, value: team };
+};
+
+// Default fallback for any key not in STRATEGIES. User-wins on values
+// declared in both; team-only and user-only keys pass through. Scalar
+// conflicts can prompt in interactive mode.
+const userWinsScalarStrategy: Strategy = async (team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  if (user === undefined) return { keep: true, value: team };
+  if (team === undefined) return { keep: true, value: user };
+
+  // Both present. For non-scalar values (objects/arrays), user wins silently
+  // — matches pre-refactor behavior of `{ ...teamRaw, ...userRaw }`.
+  const tIsScalar = !(Array.isArray(team) || (team !== null && typeof team === "object"));
+  const uIsScalar = !(Array.isArray(user) || (user !== null && typeof user === "object"));
+  if (!tIsScalar || !uIsScalar) return { keep: true, value: user };
+  if (team === user) return { keep: true, value: user };
+
+  // Scalar conflict: prompt or silent user-wins. We don't know the key here;
+  // pass a placeholder. The strategy registry could be extended to inject the
+  // key, but the prompt's framing ("differs between your settings and team")
+  // doesn't strictly require it.
+  const { value, adopted } = await resolveScalarConflict("<scalar>", team, user, ctx.opts);
+  if (adopted) ctx.accounting.scalarsAdopted++;
+  return { keep: true, value };
+};
+
+// --- Strategy registry ---------------------------------------------------
+
+const STRATEGIES: Record<string, Strategy> = {
+  permissions: permissionsStrategy,
+  hooks: hooksStrategy,
+  env: envStrategy,
+  statusLine: statusLineStrategy,
+  // mcpServers is handled separately — it needs the user-server preservation
+  // prompt run BEFORE the per-key loop (the prompt is shared across the whole
+  // settings.json merge, not just the mcpServers field).
+};
+
+// --- Orchestrator --------------------------------------------------------
 
 /**
  * Merge user's existing settings.json with the team settings.json.
  *
  * Non-interactive policy (default):
- *   - User-declared keys win for top-level scalars (model, statusLine, …).
+ *   - User-declared keys win for top-level scalars (model, theme, …).
  *   - `permissions.{allow,deny,ask,additionalDirectories}` are unioned so the
  *     team baseline (guardrails, common tool access) survives while user
  *     additions are preserved.
- *   - `hooks` is per-event union of groups.
+ *   - `hooks` is per-event union of groups, with deprecation prune for
+ *     user-only groups pointing at removed cc-settings scripts.
  *   - `env` shallow-merges with user values winning.
+ *   - `statusLine` user wins, except when the user's command targets a
+ *     removed cc-settings script (then reset to team).
  *   - `mcpServers` uses the interactive preservation prompt.
  *
  * Interactive policy (`opts.interactive`):
@@ -444,10 +492,11 @@ export async function mergeSettingsWithMcpPreservation(
     return;
   }
 
+  // mcpServers needs the preservation prompt to run BEFORE the per-key loop —
+  // the prompt is shared across the whole merge, not scoped to one strategy.
   const userServers = (userRaw.mcpServers as McpServers | undefined) ?? {};
   const teamServers = (teamRaw.mcpServers as McpServers | undefined) ?? {};
   const userOnly = findUserOnlyServers(userServers, teamServers);
-
   let preserved: McpServers = {};
   if (userOnly.length > 0) {
     ({ preserved } = await promptPreserveUserServers(userOnly, userServers));
@@ -455,65 +504,56 @@ export async function mergeSettingsWithMcpPreservation(
     debug("No user-only MCP servers");
   }
 
-  const permissions = await mergePermissions(
-    teamRaw.permissions as UnknownRecord | undefined,
-    userRaw.permissions as UnknownRecord | undefined,
+  const ctx: StrategyContext = {
     opts,
-  );
-  const hooks = await mergeHooks(
-    teamRaw.hooks as UnknownRecord | undefined,
-    userRaw.hooks as UnknownRecord | undefined,
-    opts,
-  );
-  const env = await mergeEnv(
-    teamRaw.env as UnknownRecord | undefined,
-    userRaw.env as UnknownRecord | undefined,
-    opts,
-  );
-  const scalars = await resolveTopLevelScalars(teamRaw, userRaw, opts);
+    accounting: {
+      permissionsAdded: 0,
+      permissionsDeclined: 0,
+      permissionsAdoptedScalars: 0,
+      hooksAdded: 0,
+      hooksDeclined: 0,
+      hooksPruned: 0,
+      envUserWins: 0,
+      envAdoptedScalars: 0,
+      scalarsAdopted: 0,
+      statusLineReset: false,
+    },
+  };
 
-  // Start from team (authoritative for unknown keys), overlay user top-level
-  // scalars/objects (user wins when declared), then slot in the field-specific
-  // merges and any scalar overrides from interactive mode.
-  const merged: UnknownRecord = { ...teamRaw, ...userRaw };
+  // Walk every key in (team ∪ user). Strategy table picks the merge logic;
+  // unknown keys fall through to user-wins-scalar.
+  const merged: UnknownRecord = {};
+  const allKeys = new Set([...Object.keys(teamRaw), ...Object.keys(userRaw)]);
+
+  // mcpServers gets a fixed result based on the prompt outcome above.
   merged.mcpServers = { ...teamServers, ...preserved };
-  if (permissions.merged !== undefined) merged.permissions = permissions.merged;
-  else delete merged.permissions;
-  if (hooks.merged !== undefined) merged.hooks = hooks.merged;
-  else delete merged.hooks;
-  if (env.merged !== undefined) merged.env = env.merged;
-  else delete merged.env;
-  Object.assign(merged, scalars.overrides);
+  allKeys.delete("mcpServers");
 
-  // statusLine is an object that gets spread-overridden by the user value.
-  // If the user's value points at a removed script (e.g. pre-v10 bash path),
-  // reset to the team value so the bar renders again. Custom user statuslines
-  // pointing at non-deprecated paths are left alone.
-  const userStatusLine = userRaw.statusLine as { command?: unknown } | undefined;
-  let statusLineReset = false;
-  if (userStatusLine && commandIsDeprecated(userStatusLine.command)) {
-    if (teamRaw.statusLine !== undefined) merged.statusLine = teamRaw.statusLine;
-    else delete merged.statusLine;
-    statusLineReset = true;
+  for (const key of allKeys) {
+    const strategy = STRATEGIES[key] ?? userWinsScalarStrategy;
+    const result = await strategy(teamRaw[key], userRaw[key], ctx);
+    if (result.keep) merged[key] = result.value;
   }
 
+  // --- Build the user-facing summary ---
+  const a = ctx.accounting;
   const bits: string[] = [];
-  if (permissions.added > 0) bits.push(`${permissions.added} permission rule(s)`);
-  if (hooks.added > 0) bits.push(`${hooks.added} hook group(s)`);
-  if (env.userWins > 0) bits.push(`${env.userWins} env override(s)`);
+  if (a.permissionsAdded > 0) bits.push(`${a.permissionsAdded} permission rule(s)`);
+  if (a.hooksAdded > 0) bits.push(`${a.hooksAdded} hook group(s)`);
+  if (a.envUserWins > 0) bits.push(`${a.envUserWins} env override(s)`);
   if (bits.length > 0) success(`Preserved user customization: ${bits.join(", ")}`);
 
-  if (hooks.pruned > 0) {
-    info(`Pruned ${hooks.pruned} stale hook reference(s) pointing at removed cc-settings scripts`);
+  if (a.hooksPruned > 0) {
+    info(`Pruned ${a.hooksPruned} stale hook reference(s) pointing at removed cc-settings scripts`);
   }
-  if (statusLineReset) {
+  if (a.statusLineReset) {
     info("Reset stale statusLine command (pointed at a removed cc-settings script)");
   }
 
   if (opts.interactive) {
     const ibits: string[] = [];
-    const declined = permissions.declined + hooks.declined;
-    const adopted = permissions.adoptedScalars + env.adoptedScalars + scalars.adopted;
+    const declined = a.permissionsDeclined + a.hooksDeclined;
+    const adopted = a.permissionsAdoptedScalars + a.envAdoptedScalars + a.scalarsAdopted;
     if (declined > 0) ibits.push(`${declined} team addition(s) declined`);
     if (adopted > 0) ibits.push(`${adopted} team value(s) adopted over yours`);
     if (ibits.length > 0) info(`Interactive choices: ${ibits.join(", ")}`);

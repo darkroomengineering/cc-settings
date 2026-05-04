@@ -481,6 +481,27 @@ describe("mcp — merge + preserve", () => {
     }
   });
 
+  test("unknown top-level keys pass through to merged output (strategy-table fallback)", async () => {
+    // Locks in the userWinsScalarStrategy fallback. A field cc-settings
+    // doesn't know about (e.g. some new Claude Code key) should round-trip
+    // without being dropped.
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-fallback-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+      await writeFile(existing, JSON.stringify({ futureField: "user-side" }));
+      await writeFile(team, JSON.stringify({ teamOnlyField: "team-side", model: "opus" }));
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+      expect(merged.futureField).toBe("user-side"); // user-only survives
+      expect(merged.teamOnlyField).toBe("team-side"); // team-only survives
+      expect(merged.model).toBe("opus"); // team value (no user override)
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
   test("env user values win on conflict, team fills in missing", async () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-env-"));
     try {
