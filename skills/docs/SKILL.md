@@ -33,8 +33,10 @@ mcp__context7__get-library-docs {
 | Framer Motion | `framer/motion` | animate, variants, gestures |
 | Radix | `radix-ui/primitives` | Dialog, Dropdown, Tabs |
 | Next.js | `vercel/nextjs` | App Router, Server Components |
+| React Router | `remix-run/react-router` | loaders, actions, route modules |
 | React | `facebook/react` | hooks, components, patterns |
 | Sanity | `sanity-io/sanity` | GROQ, schemas, studio |
+| Vite | `vitejs/vite` | config, plugins, asset pipeline |
 
 ## Pre-Implementation Checklist
 

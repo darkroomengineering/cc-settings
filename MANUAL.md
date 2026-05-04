@@ -320,10 +320,17 @@ Activate specialized workflows in `settings.json`:
 | Profile | For |
 |---------|-----|
 | `maestro` | Full orchestration mode |
-| `nextjs` | Next.js web apps |
+| `nextjs` | Next.js web apps (satus starter) |
+| `react-router` | React Router 7 web apps (novus starter) |
 | `react-native` | Expo mobile apps |
 | `tauri` | Tauri desktop apps |
 | `webgl` | 3D web (R3F, Three.js, GSAP) |
+
+### Stack-aware skills
+
+Scaffolding skills (`/component`, `/hook`, `/init`, `/build`, `/lenis`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`web-vitals`, `react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
+
+The detector lives in `src/lib/stack.ts` if you need to extend it to a new framework.
 
 ### GitHub Project Sync
 

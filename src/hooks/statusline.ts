@@ -107,11 +107,13 @@ const thinkingEnabled = input.thinking?.enabled === true;
 
 const parts: string[] = [];
 if (model) {
-  // Suffix model with effort marker — e.g. "Opus 4.7 ⚙xhigh" or "Opus 4.7 ⚙xhigh†".
-  // † = thinking enabled. Dim the marker so the model name stays prominent.
+  // Suffix model with effort marker — e.g. "Opus 4.7 ⚙xhigh" or "Opus 4.7 ⚙xhigh+".
+  // `+` = thinking enabled. Used `+` instead of `†` (dagger) because the dagger
+  // glyph reads as a "t" in many monospace terminal fonts, making "xhigh†" look
+  // like "xhight".
   const dim = "\x1b[2m";
   const reset = "\x1b[0m";
-  const marker = effortLevel ? `${dim} ⚙${effortLevel}${thinkingEnabled ? "†" : ""}${reset}` : "";
+  const marker = effortLevel ? `${dim} ⚙${effortLevel}${thinkingEnabled ? "+" : ""}${reset}` : "";
   parts.push(`${model}${marker}`);
 }
 if (dirName) parts.push(dirName);

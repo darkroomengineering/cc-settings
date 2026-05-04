@@ -4,6 +4,58 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.4.0] — 2026-05-04
+
+### Stack-aware ergonomics — Next.js (satus) + React Router (novus)
+
+Darkroom is splitting between two starters — `satus` (Next.js) and `novus` (React Router 7) — and cc-settings now mirrors that. Rules describe stack-agnostic principles followed by clearly-labeled Next.js + React Router subsections. Scaffolding skills detect the project's stack from `package.json` and emit the right shape.
+
+**New:**
+
+- `profiles/react-router.md` — full RR7 profile mirroring `profiles/nextjs.md`: route module exports, loaders, actions, `defer()`, novus-specific path alias / asset pipeline notes.
+- `src/lib/stack.ts` — detector returning `{ kind, starter, alsoDetected, evidence, cwd }`. Detects nextjs, react-router, vite-react, react-native, tauri, unknown. Reads `package.json` deps + config files + folder shape (in that order). Recognizes satus and novus starters from name lineage or explicit `darkroom.starter` marker.
+- `tests/stack.test.ts` — 23 tests covering each detection path, multi-stack projects, starter detection, malformed input.
+
+**Refactored rules:**
+
+- `rules/web-vitals.md`, `rules/react-perf.md`, `rules/performance.md`, `rules/react.md` rewritten to lead with stack-agnostic principles + Next.js/RR subsections. The model picks the right pattern from visible imports — no detector layer in rules.
+
+**Refactored scaffolding skills (read package.json, branch on stack):**
+
+- `/component` — paths, image/link wrappers, `'use client'` directive, path alias all branch.
+- `/hook` — `lib/hooks/` (satus) vs `hooks/` (novus); directive presence; browser-API guards.
+- `/init` — picks satus or novus, asks if user is unsure.
+- `/build` — research gate detects stack; primitives table covers both.
+- `/lenis` — mount point differs (`app/layout.tsx` vs `app/root.tsx`).
+
+**Refactored agents:**
+
+- `agents/scaffolder.md` — templates per stack for component/hook/page/server-endpoint. RR resource routes + actions added.
+- `agents/reviewer.md` — checklist now stack-aware (RR component is isomorphic; satus uses `'use client'` boundary).
+
+**Statusline fix:**
+
+- Effort+thinking marker `⚙xhigh†` was reading as `xhight†` in monospace terminal fonts where the dagger glyph has a t-like ascender. Replaced `†` → `+` (`⚙xhigh+` is unambiguous in any font). `src/hooks/statusline.ts:114`.
+
+**Docs:**
+
+- `MANUAL.md` adds the `react-router` profile row and a "Stack-aware skills" section pointing at the detector.
+
+**Files changed:**
+
+- `src/setup.ts` — `VERSION` 10.3.2 → 10.4.0.
+- `src/lib/stack.ts` — new detector.
+- `src/hooks/statusline.ts` — dagger → plus.
+- `tests/stack.test.ts` — new test file (23 tests).
+- `profiles/react-router.md` — new profile.
+- `rules/web-vitals.md`, `rules/react-perf.md`, `rules/performance.md`, `rules/react.md` — stack-aware rewrite.
+- `skills/component/SKILL.md`, `skills/hook/SKILL.md`, `skills/init/SKILL.md`, `skills/build/SKILL.md`, `skills/lenis/SKILL.md` — stack detection + dual templates.
+- `skills/docs/SKILL.md`, `skills/lighthouse/SKILL.md`, `skills/prd/SKILL.md` — minor stack-aware references.
+- `agents/scaffolder.md`, `agents/reviewer.md` — stack-aware checklists/templates.
+- `MANUAL.md` — react-router profile row + stack-aware skills section.
+
+**Why minor (10.4.0) not patch:** new feature surface (RR profile, stack detector, dual templates) + behavior change in scaffolding skills. No breaking changes — projects with no detectable stack get the same default behavior as before (satus assumptions).
+
 ## [10.3.2] — 2026-05-04
 
 ### Fix: prune stale hook references to removed `~/.claude/scripts/*.sh`

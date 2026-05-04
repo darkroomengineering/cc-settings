@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.3.2"; // v2.1.126 sync (quiet patch cycle) + prune stale hook refs to removed ~/.claude/scripts/*.sh
+const VERSION = "10.4.0"; // stack-aware ergonomics: react-router profile, stack detector, scaffolds branch on package.json, statusline glyph fix
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

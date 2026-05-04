@@ -5,21 +5,31 @@ description: Set up Lenis smooth scroll. Triggers "smooth scroll", "lenis", "scr
 
 # Lenis Smooth Scroll Setup
 
-Set up Lenis for smooth scrolling in a Next.js/React app.
+Set up Lenis for smooth scrolling. Both satus and novus include Lenis pre-wired — only set this up manually for projects that didn't start from a Darkroom template.
 
-## Installation
+## Step 1 — Detect stack
+
+Read `package.json`:
+- `dependencies.next` → Next.js / satus mount point
+- `dependencies["react-router"]` → React Router / novus mount point
+
+## Step 2 — Install (if not already)
 
 ```bash
 bun add lenis@latest
 ```
 
-## Basic Setup (Satus already includes this)
+Check first: run `bun info lenis` to get the current version, and check `package.json` to see if it's already installed.
 
-### Create Lenis Provider
+## Step 3 — Mount
+
+Both stacks use the same `ReactLenis` provider. The difference is *where* it's mounted.
+
+### Provider component (both stacks)
 
 ```tsx
-// components/lenis/index.tsx
-'use client'
+// components/lenis/index.tsx (satus) or components/lenis/index.tsx (novus)
+'use client'  // satus only — RR doesn't need this directive
 
 import { ReactLenis } from 'lenis/react'
 
@@ -44,13 +54,12 @@ export function Lenis({ children }: LenisProps) {
 }
 ```
 
-### Add to Layout
-
+### Mount in satus
 ```tsx
 // app/layout.tsx
 import { Lenis } from '@/components/lenis'
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html>
       <body>
@@ -61,35 +70,47 @@ export default function RootLayout({ children }) {
 }
 ```
 
+### Mount in novus
+```tsx
+// app/root.tsx
+import { Lenis } from '~/components/lenis'
+
+export default function Root() {
+  return (
+    <html>
+      <body>
+        <Lenis>
+          <Outlet />
+        </Lenis>
+      </body>
+    </html>
+  )
+}
+```
+
+> Both starters already ship Lenis wired up — check `components/lenis/` and the root layout/root file before doing this manually.
+
 ## Using Lenis
 
-### Scroll to Element
-
+### Scroll to element (any stack)
 ```tsx
 import { useLenis } from 'lenis/react'
 
 function Component() {
   const lenis = useLenis()
-
-  const scrollToSection = () => {
-    lenis?.scrollTo('#section-id', { duration: 1.5 })
-  }
-
+  const scrollToSection = () => lenis?.scrollTo('#section-id', { duration: 1.5 })
   return <button onClick={scrollToSection}>Scroll</button>
 }
 ```
 
-### Scroll Events
-
+### Scroll events (any stack)
 ```tsx
 useLenis(({ scroll, velocity, direction }) => {
   // React to scroll
-  console.log({ scroll, velocity, direction })
 })
 ```
 
-### With GSAP ScrollTrigger
-
+### With GSAP ScrollTrigger (any stack)
 ```tsx
 import { useLenis } from 'lenis/react'
 import gsap from 'gsap'
@@ -102,13 +123,8 @@ useLenis(() => {
 })
 ```
 
-## Satus Note
-
-If using Satus starter, Lenis is already configured. Check:
-- `components/lenis/index.tsx`
-- `app/layout.tsx`
-
 ## Remember
 
-- Always fetch latest docs before implementing
-- Store any gotchas as learnings
+- Always run `/docs lenis` before implementing — APIs change.
+- Both starters pre-wire this; only do it manually for non-Darkroom projects.
+- Store any gotchas as learnings.

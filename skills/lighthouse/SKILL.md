@@ -138,7 +138,7 @@ LOOP until all scores >= 90 or user interrupts:
        • largest-contentful-paint → priority attribute, preload, optimize image
        • cumulative-layout-shift → explicit dimensions, font-display
        • unused-javascript → dynamic imports, code splitting
-       • uses-responsive-images → srcSet, next/image, proper sizing
+       • uses-responsive-images → srcSet + sizes, `next/image` (satus) or `<picture>`/`vite-imagetools` (novus), proper dimensions
        • uses-text-compression → verify gzip/brotli enabled
        • image-size-responsive → width/height attributes
        • unminified-javascript → check build config

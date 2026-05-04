@@ -9,48 +9,77 @@ paths:
 
 # Performance
 
-> Eliminate waterfalls, minimize bundles, defer non-critical work
+> Eliminate waterfalls, minimize bundles, defer non-critical work. Stack-agnostic principles first; framework-specific implementations follow.
+
+The model picks the right implementation by reading visible imports in the file you're editing.
 
 ---
 
 ## DO
 
-### Parallel Data Fetching
+### Parallel data fetching (any stack)
 ```tsx
 const [user, posts, comments] = await Promise.all([
-  fetchUser(), fetchPosts(), fetchComments()
+  fetchUser(),
+  fetchPosts(),
+  fetchComments(),
 ])
 ```
 
-### Defer Awaits Past Early Exits
+### Defer awaits past early exits (any stack)
 ```tsx
 async function handler(req: Request) {
-  if (!req.query.id) return { error: 'Missing ID' }  // Early exit
-  const user = await getUser(req)                     // Then fetch
+  if (!req.query.id) return { error: 'Missing ID' }  // early exit
+  const user = await getUser(req)
   return user
 }
 ```
 
-### Direct Imports Over Barrels
+### Direct imports over barrels (any stack)
 ```tsx
+// any stack
 import Check from 'lucide-react/dist/esm/icons/check'
-// Or: next.config.js: experimental.optimizePackageImports: ['lucide-react']
+
+// Next.js: configure once in next.config
+// experimental: { optimizePackageImports: ['lucide-react'] }
+
+// Vite/RR: rely on direct import + tree-shaking
 ```
 
-### Dynamic Imports for Heavy Components
+### Dynamic imports for heavy components
+
+| Stack | Pattern |
+|---|---|
+| Next.js | `next/dynamic` with `ssr: false` for browser-only libs |
+| React Router | `React.lazy()` + `<Suspense>` |
+| Either | Plain `import()` inside event handler for true on-demand |
+
 ```tsx
+// Next.js
 import dynamic from 'next/dynamic'
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
-const Analytics = dynamic(() => import('@vercel/analytics/react').then(m => m.Analytics), { ssr: false })
+
+// React Router (or any Vite-based React app)
+import { lazy, Suspense } from 'react'
+const MonacoEditor = lazy(() => import('@monaco-editor/react'))
+// usage: <Suspense fallback={...}><MonacoEditor /></Suspense>
 ```
 
-### React.cache for Request Deduplication
+### Request deduplication
+
+| Stack | Pattern |
+|---|---|
+| Next.js | `import { cache } from 'react'` — dedupes across Server Components in one request |
+| React Router | Compose loaders so each piece of data is fetched once at the right level. Use `useFetchers()` if you need to read in-flight state. |
+| Either | SWR / TanStack Query for client-side dedup + revalidation |
+
 ```tsx
+// Next.js — Server Component cache
 import { cache } from 'react'
 export const getUser = cache(async (id: string) => db.user.findUnique({ where: { id } }))
 ```
 
-### Lazy State Initialization
+### Lazy state initialization (any stack)
 ```tsx
 const [index, setIndex] = useState(() => buildSearchIndex(items))
 ```
@@ -60,30 +89,30 @@ const [index, setIndex] = useState(() => buildSearchIndex(items))
 ## DON'T
 
 ```tsx
-// WRONG: Sequential (3 round trips)
+// WRONG (any stack): sequential when independent
 const user = await fetchUser()
-const posts = await fetchPosts()
+const posts = await fetchPosts()  // could've been Promise.all
 
-// WRONG: Nested async creates waterfall
+// WRONG (Next.js): nested async waterfall in Server Components
 async function Page() {
   const header = await fetchHeader()
   return <Layout><Sidebar /></Layout>  // Sidebar waits for header
 }
 
-// WRONG: Barrel imports
+// WRONG (any stack): barrel imports
 import { Check } from 'lucide-react'        // 10,000+ re-exports
-import { Button } from '@/components'       // Barrel file
+import { Button } from '@/components'       // barrel file
 
-// WRONG: Static import of heavy libs
+// WRONG (any stack): static import of heavy libs
 import MonacoEditor from '@monaco-editor/react'  // 300KB+
 
-// WRONG: Wide effect dependencies
-useEffect(() => { fetch(user.id) }, [user])      // Runs on any user change
+// WRONG (any stack): wide effect dependencies
+useEffect(() => { fetch(user.id) }, [user])      // runs on any user change
 // CORRECT
 useEffect(() => { fetch(user.id) }, [user.id])
 
-// WRONG: && with numbers
-{count && <Badge count={count} />}  // Renders "0"
+// WRONG (any stack): && with numbers
+{count && <Badge count={count} />}  // renders "0"
 // CORRECT
 {count > 0 ? <Badge count={count} /> : null}
 ```
@@ -92,16 +121,17 @@ useEffect(() => { fetch(user.id) }, [user.id])
 
 ## Patterns
 
-### Hoist Static JSX
+### Hoist static JSX
 ```tsx
 const icon = <svg>...</svg>
-function Icon() { return icon }  // Created once
+function Icon() { return icon }  // created once
 ```
 
 ## Tools
-- **Turbopack** - Fast dev builds
-- **Bundle Analyzer** - `@next/bundle-analyzer`
-- **Lighthouse** - Performance audits
+- **Turbopack** — fast dev builds (Next.js)
+- **Vite** — fast dev builds (React Router and others)
+- **Bundle Analyzer** — `@next/bundle-analyzer` (Next.js) or `rollup-plugin-visualizer` (Vite)
+- **Lighthouse** — performance audits (any stack)
 
 ---
 
@@ -120,102 +150,154 @@ function Icon() { return icon }  // Created once
 <link rel="dns-prefetch" href="https://www.google-analytics.com">
 ```
 
-Next.js metadata pattern:
+### Where to declare hints
+
+| Stack | Pattern |
+|---|---|
+| Next.js | `export const metadata` in a layout/page (`other: { link: [...] }`), or raw `<link>` in `app/layout.tsx` |
+| React Router | `links()` route export — runs on SSR + client navigation |
+
 ```tsx
-// app/layout.tsx
+// Next.js — app/layout.tsx
 export const metadata: Metadata = {
   other: {
-    'link': [
-      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-    ],
+    link: [{ rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
   },
+}
+
+// React Router — app/root.tsx or any route
+export function links() {
+  return [
+    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+    { rel: 'preload', href: '/fonts/custom.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
+  ]
 }
 ```
 
+---
+
 ## Image Optimization
 
+### Stack-agnostic baseline
 ```tsx
-// Next.js — hero image (LCP)
-<Image src="/hero.webp" alt="..." priority fill sizes="100vw" />
+// LCP (above the fold)
+<img
+  src="/hero.webp"
+  alt="Hero"
+  width={1200}
+  height={600}
+  fetchPriority="high"
+  loading="eager"
+  decoding="sync"
+/>
+
+// Below the fold
+<img src="/photo.webp" alt="Photo" width={800} height={600} loading="lazy" decoding="async" />
 
 // Responsive with art direction
 <picture>
   <source srcSet="/hero-wide.avif" type="image/avif" media="(min-width: 768px)" />
   <source srcSet="/hero-wide.webp" type="image/webp" media="(min-width: 768px)" />
   <source srcSet="/hero-mobile.avif" type="image/avif" />
-  <source srcSet="/hero-mobile.webp" type="image/webp" />
-  <img src="/hero-mobile.jpg" alt="..." width={375} height={500} />
+  <img src="/hero-mobile.webp" alt="Hero" width={375} height={500} />
 </picture>
 ```
 
-**Format priority:** AVIF > WebP > JPEG/PNG. Use AVIF for photos (30-50% smaller than WebP). Use SVG for icons/logos.
+### Next.js: `next/image`
+```tsx
+import Image from 'next/image'
 
-## Font Loading
+// LCP image
+<Image src="/hero.webp" alt="..." priority fill sizes="100vw" />
+
+// Remote — configure remotePatterns in next.config
+<Image src={user.avatar} alt={user.name} width={48} height={48} />
+```
+
+### React Router: build-time tools
+No built-in image component. For optimization, use a Vite plugin (`vite-imagetools`, `unplugin-imagemin`). For dynamic remote images, configure CSP/CORS at the edge.
+
+**Format priority:** AVIF > WebP > JPEG/PNG. AVIF is 30–50% smaller than WebP. SVG for icons/logos.
+
+---
+
+## Font Loading (any stack)
 
 ```css
-/* Preload the critical font in <head> */
-/* <link rel="preload" href="/fonts/custom.woff2" as="font" type="font/woff2" crossorigin> */
-
+/* Preload the critical font in <head> via your stack's link mechanism */
 @font-face {
   font-family: 'Custom';
   src: url('/fonts/custom.woff2') format('woff2');
-  font-display: swap; /* swap for body text, optional for non-critical */
-  unicode-range: U+0000-00FF; /* Subset to latin if possible */
+  font-display: swap;
+  unicode-range: U+0000-00FF;  /* subset to latin if possible */
 }
 ```
 
-- Use **variable fonts** -- one file replaces multiple weight files
+- Use **variable fonts** — one file replaces multiple weight files
 - Subset fonts to used character ranges (`unicode-range`)
 - Self-host fonts instead of Google Fonts for fewer round trips
 - `font-display: optional` for non-critical fonts (prevents CLS entirely)
 
+---
+
 ## Cache Headers
 
+| Stack | Pattern |
+|---|---|
+| Next.js | `headers()` in `next.config.ts`, or `Cache-Control` returned from a Route Handler |
+| React Router | `headers` route export (per-route, has access to loader data) |
+
 ```ts
-// next.config.ts — static assets with content hash
-{
-  source: '/_next/static/:path*',
-  headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
-}
-
-// API responses
-{
-  source: '/api/:path*',
-  headers: [{ key: 'Cache-Control', value: 'private, max-age=0, must-revalidate' }],
-}
-
-// HTML pages
-{
-  source: '/:path*',
-  headers: [{ key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' }],
+// Next.js — next.config.ts
+async headers() {
+  return [
+    {
+      source: '/_next/static/:path*',
+      headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+    },
+    {
+      source: '/api/:path*',
+      headers: [{ key: 'Cache-Control', value: 'private, max-age=0, must-revalidate' }],
+    },
+  ]
 }
 ```
 
-## DOM Performance
+```tsx
+// React Router — app/routes/posts.$id.tsx
+export function headers() {
+  return {
+    'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400',
+  }
+}
+```
 
-### Passive Event Listeners
+---
+
+## DOM Performance (any stack)
+
+### Passive event listeners
 ```ts
-// Touch/wheel handlers — always passive to avoid scroll blocking
 element.addEventListener('touchstart', handler, { passive: true })
 element.addEventListener('wheel', handler, { passive: true })
 ```
 
-### Layout Thrashing Prevention
+### Layout thrashing prevention
 ```ts
-// WRONG: Interleaved reads and writes (forces layout per iteration)
-elements.forEach(el => {
-  const h = el.offsetHeight      // read
-  el.style.height = h + 10 + 'px' // write — triggers layout
+// WRONG: interleaved reads and writes (forces layout per iteration)
+elements.forEach((el) => {
+  const h = el.offsetHeight
+  el.style.height = h + 10 + 'px'
 })
 
-// CORRECT: Batch reads, then batch writes
-const heights = elements.map(el => el.offsetHeight) // all reads
+// CORRECT: batch reads, then batch writes
+const heights = elements.map((el) => el.offsetHeight)
 elements.forEach((el, i) => {
-  el.style.height = heights[i] + 10 + 'px'          // all writes
+  el.style.height = heights[i] + 10 + 'px'
 })
 ```
 
-### Content Visibility for Long Lists
+### Content visibility for long lists
 ```css
 .offscreen-section {
   content-visibility: auto;
@@ -223,9 +305,15 @@ elements.forEach((el, i) => {
 }
 ```
 
+---
+
 ## Third-Party Scripts
 
-- Load analytics/chat/tracking with `next/script` strategy `afterInteractive` or `lazyOnload`
-- Use facade pattern for heavy embeds (YouTube, maps) -- show static image until interaction
-- IntersectionObserver to lazy-load below-fold widgets
+| Stack | Pattern |
+|---|---|
+| Next.js | `next/script` with `strategy="afterInteractive"` or `"lazyOnload"` |
+| React Router | Plain `<script>` in `links()`/`<head>` of `root.tsx`, or load on user interaction |
+| Either | Facade pattern for heavy embeds (YouTube, maps): static image until click |
+
+- IntersectionObserver to lazy-load below-fold widgets (any stack)
 - Budget: < 200 KB total third-party JS

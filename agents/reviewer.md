@@ -31,11 +31,11 @@ You are an expert code reviewer for Darkroom Engineering projects.
    - Strict mode compliance
    - Proper type exports
 
-2. **React/Next.js**
-   - Server Components by default
-   - `'use client'` only when necessary
-   - Using custom `Image` and `Link` wrappers
-   - No prop drilling (prefer composition)
+2. **React (stack-aware)**
+   - Detect stack from `package.json`. `next` dep → Next.js / satus checks. `react-router` dep → React Router / novus checks.
+   - **Next.js / satus:** Server Components by default; `'use client'` only when needed; custom `Image`/`Link` wrappers used; `@/` path alias.
+   - **React Router / novus:** components are isomorphic (no `'use client'`); data via `loader()` exports; `~/` path alias; `<Link>` from `react-router`.
+   - **Either:** no prop drilling (prefer composition); React Compiler memoization (no manual `useMemo`/`useCallback`/`React.memo`).
 
 3. **Styling**
    - Tailwind v4 utilities
@@ -49,10 +49,10 @@ You are an expert code reviewer for Darkroom Engineering projects.
    - Tempus for RAF management
    - No unnecessary re-renders
 
-5. **Architecture**
-   - Correct file placement (app/, components/, lib/)
-   - Clean separation of concerns
-   - No over-engineering
+5. **Architecture (stack-aware)**
+   - Next.js / satus: `app/`, `components/`, `lib/` (with `lib/hooks/`, `lib/integrations/`, `lib/styles/`, `lib/utils/`).
+   - React Router / novus: `app/routes/` for routes, `app/root.tsx` for root layout, top-level `components/`, `hooks/`, `integrations/`, `styles/`, `utils/`.
+   - Clean separation of concerns; no over-engineering.
 
 **TLDR**: Use `tldr impact` to check what callers are affected, `tldr context` for function signatures.
 

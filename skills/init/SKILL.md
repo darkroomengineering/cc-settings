@@ -1,65 +1,114 @@
 ---
 name: init
-description: Initialize new project with Darkroom standards (Next.js, React, satus template). Triggers "new project", "start project", "initialize", "setup project", "satus".
+description: Initialize new Darkroom project. Triggers "new project", "start project", "initialize", "setup project", "satus", "novus".
 argument-hint: "[project-name]"
 ---
 
 # Initialize Darkroom Project
 
-Create a new project using the Satus starter template.
+Create a new project using a Darkroom starter. Darkroom maintains two:
 
-## Satus Starter
+| Starter | Stack | When to use |
+|---|---|---|
+| **satus** | Next.js 16 + App Router + RSC + React 19 | Content-driven sites, SEO-critical, Vercel-friendly, projects that benefit from Server Components / Server Actions |
+| **novus** | React Router 7 + Vite + React 19 | SPA-leaning apps, projects that prefer the loader/action data model, projects without need for RSC, projects deploying to non-Vercel infra |
 
-**Always use Satus** for new projects:
+## Step 1 — Pick the starter
 
+If the user already specified ("/init satus", "/init novus", "create new react-router project"), use that. Otherwise ask:
+
+```
+Which starter?
+- satus (Next.js)   — App Router, Server Components, Vercel-optimized
+- novus (React Router) — RR7, Vite, classic loader/action model
+```
+
+When the user is unsure, prefer **satus** for marketing/content sites and **novus** for app-heavy SPAs.
+
+## Step 2 — Clone
+
+### satus (Next.js)
 ```bash
 bunx degit darkroomengineering/satus $ARGUMENTS
 cd $ARGUMENTS
 bun install
 ```
 
-## What Satus Includes
-
-- **Next.js 16+** with App Router
-- **React 19+** with React Compiler
-- **TypeScript** strict mode
-- **Tailwind CSS v4**
-- **Biome** for linting/formatting
-- **Lenis** smooth scroll setup
-- **Hamo** performance hooks
-- **Image/Link wrappers** configured
-- **CSS Modules** with `s` alias pattern
-
-## Post-Setup
-
-After cloning:
-
-1. **Update package.json** - Change name, description
-2. **Configure environment** - Copy `.env.example` to `.env.local`
-3. **Start dev server** - `bun dev`
-4. **Open debug mode** - `Cmd/Ctrl + O` in browser
-
-## Project Structure
-
+### novus (React Router)
+```bash
+bunx degit darkroomengineering/novus $ARGUMENTS
+cd $ARGUMENTS
+bun install
 ```
-app/                 # Next.js pages and routes
+
+## Step 3 — Post-setup
+
+Both starters:
+1. **Update package.json** — change `name`, `description`.
+2. **Configure environment** — copy `.env.example` to `.env` (or `.env.local` for satus).
+3. **Start dev** — `bun dev`.
+4. **Open debug** — `Cmd/Ctrl + O` (satus) or `Cmd + .` / `Ctrl + O` (novus).
+
+## What each starter includes
+
+### satus
+- Next.js 16 + App Router
+- React 19 + React Compiler
+- TypeScript strict mode
+- Tailwind CSS v4
+- Biome
+- Lenis smooth scroll
+- Hamo performance hooks
+- Image / Link component wrappers
+- CSS Modules with `s` alias
+- `@/` path alias
+
+### novus
+- React Router 7 + SSR via Vite
+- React 19 + React Compiler
+- TypeScript strict mode
+- Tailwind CSS v4
+- Biome
+- Optional: WebGL (R3F), Anime.js, Theatre.js
+- Sanity CMS integration (optional)
+- t3-env + Valibot for typed env
+- CSS Modules with `s` alias
+- `~/` path alias
+
+## Project structure
+
+### satus
+```
+app/                 # Next.js routes
 components/          # React components
 lib/
-├── hooks/          # Custom React hooks
+├── hooks/          # Custom hooks
 ├── integrations/   # Third-party clients
 ├── styles/         # Global CSS, Tailwind
-└── utils/          # Pure utility functions
+└── utils/          # Pure utilities
 ```
 
-## Don't Use
+### novus
+```
+app/
+├── root.tsx        # Root layout
+├── routes/         # Route modules (file-based)
+└── routes.ts       # Optional explicit route config
+components/         # React components
+hooks/              # Custom hooks
+integrations/       # Third-party clients
+styles/             # Global CSS, Tailwind
+utils/              # Pure utilities
+```
 
-- `create-next-app` - Missing Darkroom standards
-- `create-react-app` - Deprecated
-- Manual setup - Too many things to configure
+## Don't use
+
+- `create-next-app` / `create-react-app` — missing Darkroom standards
+- Manual setup — too many things to configure
 
 ## Output
 
 After initialization:
-- Confirm project created
-- List next steps
-- Offer to start dev server
+- Confirm project created and which starter was used
+- List the next steps (env, dev server)
+- Offer to start the dev server

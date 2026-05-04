@@ -12,37 +12,51 @@ Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "build" >
 
 Before any implementation, complete this research phase:
 
-1. **Understand requirements** - Parse what the user actually needs
-2. **Explore codebase** - Find existing patterns, similar implementations
-3. **Fetch docs** - Run `/docs <library>` for any external library. Never code from memory.
-4. **Check versions** - Run `bun info <package>` for latest version
-5. **Assess feasibility** - Can this be done cleanly within existing architecture?
+1. **Detect stack** — read `package.json`. `next` dep → satus / Next.js; `react-router` dep → novus / React Router. Note any starter signal (`name` field, `darkroom.starter` marker).
+2. **Understand requirements** — parse what the user actually needs.
+3. **Explore codebase** — find existing patterns, similar implementations.
+4. **Fetch docs** — run `/docs <library>` for any external library. Never code from memory.
+5. **Check versions** — run `bun info <package>` for the latest version.
+6. **Assess feasibility** — can this be done cleanly within existing architecture?
 
 **GO/NO-GO Verdict**: After research, state one of:
-- **GO** - Requirements are clear, approach is viable, proceed to implementation
-- **NO-GO** - Requirements are ambiguous, approach has blockers, or scope is too large. Report findings and stop.
+- **GO** — requirements are clear, approach is viable, proceed to implementation.
+- **NO-GO** — requirements are ambiguous, approach has blockers, or scope is too large. Report findings and stop.
 
 Do not proceed past this gate without an explicit GO verdict.
 
 ## Phase 2: Plan
 
 Create a brief implementation plan:
-- Files to create/modify
+- Files to create/modify (with stack-correct paths — `lib/hooks/` for satus, `hooks/` for novus, etc.)
 - Key decisions and rationale
 - Dependency order
 
 ## Phase 3: Implement
 
-Follow standard Maestro workflow: scaffold -> implement -> test -> review.
+Follow standard Maestro workflow: scaffold → implement → test → review.
+
+Use the right primitives for the stack:
+
+| Concern | satus (Next.js) | novus (React Router) |
+|---|---|---|
+| Page | `app/<path>/page.tsx` | `app/routes/<path>.tsx` |
+| Layout | `app/<path>/layout.tsx` | `app/root.tsx` or nested route |
+| Data fetching | Server Component `async function` | `loader()` route export |
+| Mutations | Server Actions (`'use server'`) | `action()` route export |
+| Routing | File-based `app/` | File-based `app/routes/` |
+| Image | `next/image` | `<img>` (or Vite plugin) |
+| Link | `@/components/link` (project wrapper) | `react-router` `Link` |
 
 ## Output
 
 Return a concise summary:
-- **What was built**: Feature description
-- **Files created**: List of new files
-- **Files modified**: List of changed files
-- **How to use**: Quick usage guide
-- **Tests added**: What's covered
+- **Stack detected**: satus / novus / other (with evidence — e.g. `next ^16.0.0`)
+- **What was built**: feature description
+- **Files created**: list of new files
+- **Files modified**: list of changed files
+- **How to use**: quick usage guide
+- **Tests added**: what's covered
 
 ## Rationalization Counters
 
@@ -56,9 +70,11 @@ If you catch yourself thinking any of the following, STOP — you are skipping t
 | "I'll figure it out as I go" | This leads to mid-implementation pivots that waste context and leave dead code |
 | "It's just a small feature" | Small features in the wrong place create architectural debt |
 | "The user seems impatient" | Shipping broken code is worse than a brief research pause |
+| "Both starters are similar enough" | They diverge on routing, data fetching, mutations, and asset handling. The wrong shape compiles but doesn't fit |
 
 ## Remember
 
-- Always use Satus conventions (Image/Link wrappers, CSS modules as 's')
-- Server Components by default, Client only when needed
-- Store useful patterns as learnings
+- Detect stack before scaffolding — wrong shape = rewrite later.
+- Use the starter's conventions (CSS modules as `s`, path alias `@/` for satus / `~/` for novus).
+- Server-side data fetching where the framework supports it (RSC for satus, loaders for novus).
+- Store useful patterns as learnings.

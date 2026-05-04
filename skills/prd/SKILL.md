@@ -171,7 +171,7 @@ Compile everything into the final document.
 ## Smart Defaults
 
 When the user provides minimal input, apply these defaults:
-- **Platform:** Web (Next.js if project uses it)
+- **Platform:** Web — detect from `package.json` (`next` → Next.js / satus, `react-router` → RR / novus)
 - **Auth:** Existing auth system
 - **Performance:** LCP <3s, INP <100ms, CLS <0.1
 - **Accessibility:** WCAG 2.1 AA
