@@ -18,29 +18,35 @@ const OUT = resolve(ROOT, "schemas");
 
 type Target = { file: string; schema: z.ZodType; id: string; title: string };
 
+// Real, fetchable URLs — IDEs (VSCode, Cursor, JetBrains) use these for
+// IntelliSense when a settings.json declares `$schema`. GitHub raw on `main`
+// means schema updates are live as soon as a commit lands.
+const SCHEMA_BASE =
+  "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas";
+
 const targets: Target[] = [
   {
     file: "settings.schema.json",
     schema: Settings,
-    id: "https://cc-settings.darkroom/schema/settings.json",
-    title: "Claude Code settings.json",
+    id: `${SCHEMA_BASE}/settings.schema.json`,
+    title: "Claude Code settings.json (cc-settings)",
   },
   {
     file: "hooks-config.schema.json",
     schema: HooksConfig,
-    id: "https://cc-settings.darkroom/schema/hooks-config.json",
+    id: `${SCHEMA_BASE}/hooks-config.schema.json`,
     title: "cc-settings hooks-config.json",
   },
   {
     file: "skill.schema.json",
     schema: SkillFrontmatter,
-    id: "https://cc-settings.darkroom/schema/skill.json",
+    id: `${SCHEMA_BASE}/skill.schema.json`,
     title: "Darkroom skill frontmatter",
   },
   {
     file: "claude-json.schema.json",
     schema: ClaudeJson,
-    id: "https://cc-settings.darkroom/schema/claude-json.json",
+    id: `${SCHEMA_BASE}/claude-json.schema.json`,
     title: "~/.claude.json (passthrough)",
   },
 ];

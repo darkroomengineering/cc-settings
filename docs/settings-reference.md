@@ -15,6 +15,21 @@ Complete reference for all settings in `settings.json` and related configuration
 
 The installer (`setup.sh`) composes the repo's `config/*.json` fragments alphabetically into `~/.claude/settings.json`, making it the global default for all projects. Authoring happens in the individual fragments so PRs touching hooks don't churn permissions diffs. Preview the composed output with `bun run compose`.
 
+### IDE IntelliSense
+
+The composed `settings.json` declares a `$schema` pointing at the cc-settings JSON Schema, hosted at `raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/`. VSCode, Cursor, JetBrains, and any editor with JSON Schema support will autocomplete every cc-settings field, validate values, and surface inline docs.
+
+If you author a `~/.claude/settings.json` by hand (without re-running the installer), reference the schema yourself:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/settings.schema.json",
+  ...
+}
+```
+
+Other published schemas in the same directory: `hooks-config.schema.json`, `skill.schema.json`, `claude-json.schema.json`. They're regenerated from `src/schemas/*.ts` via `bun run schemas:emit` (CI fails if you change a zod source without re-emitting — see `bun run schemas:check`).
+
 ---
 
 ## Top-Level Settings

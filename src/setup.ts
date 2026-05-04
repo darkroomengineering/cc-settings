@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.4.1"; // reset stale statusLine command pointing at removed ~/.claude/scripts/*.sh (pre-v10 upgraders)
+const VERSION = "10.5.0"; // publish JSON schemas at raw.githubusercontent.com — IDE IntelliSense for every cc-settings field
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

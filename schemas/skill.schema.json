@@ -1,5 +1,5 @@
 {
-  "$id": "https://cc-settings.darkroom/schema/skill.json",
+  "$id": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/skill.schema.json",
   "title": "Darkroom skill frontmatter",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",

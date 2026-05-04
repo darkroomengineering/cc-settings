@@ -16,6 +16,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "schemas:emit": "bun src/schemas/emit.ts",
+    "schemas:check": "bun src/schemas/emit.ts && git diff --exit-code schemas/",
     "upstream:scan": "bun src/upstream/scan.ts",
     "compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'"
   },

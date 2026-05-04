@@ -1,5 +1,5 @@
 {
-  "$id": "https://cc-settings.darkroom/schema/claude-json.json",
+  "$id": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/claude-json.schema.json",
   "title": "~/.claude.json (passthrough)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",

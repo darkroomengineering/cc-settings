@@ -1,6 +1,6 @@
 {
-  "$id": "https://cc-settings.darkroom/schema/settings.json",
-  "title": "Claude Code settings.json",
+  "$id": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/settings.schema.json",
+  "title": "Claude Code settings.json (cc-settings)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {

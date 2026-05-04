@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.5.0] — 2026-05-04
+
+### IDE IntelliSense — published JSON schemas at GitHub raw
+
+The `schemas/*.schema.json` files (already generated from `src/schemas/*.ts` via `bun run schemas:emit`) now carry real `$id` URLs at `raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/`. VSCode, Cursor, JetBrains, and any JSON-Schema-aware editor will autocomplete every cc-settings field, validate values, and surface inline docs.
+
+The composed team `settings.json` (via `config/10-core.json`) now references our schema instead of `json.schemastore.org/claude-code-settings.json`. Users who author `~/.claude/settings.json` by hand can add `"$schema": "..."` at the top to opt in.
+
+**Files changed:**
+
+- `src/schemas/emit.ts` — `$id` URLs now point at GitHub raw on main; placeholder `cc-settings.darkroom/schema/...` URLs replaced.
+- `schemas/{settings,hooks-config,skill,claude-json}.schema.json` — regenerated.
+- `config/10-core.json` — `$schema` points at our published schema.
+- `package.json` — new `schemas:check` script (regen + assert no diff; CI guard against zod-source changes that forget to re-emit).
+- `tests/schemas.test.ts` — coverage for $id URLs, title metadata, config $schema reference, roundtrip composed-settings validation.
+- `docs/settings-reference.md` — "IDE IntelliSense" section explains the published URLs.
+- `src/setup.ts` — `VERSION` 10.4.1 → 10.5.0.
+
 ## [10.4.1] — 2026-05-04
 
 ### Fix: statusline missing for pre-v10 upgraders

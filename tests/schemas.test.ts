@@ -3,7 +3,7 @@
 // Kept minimal: we're verifying the schemas describe reality, not testing zod.
 
 import { describe, expect, test } from "bun:test";
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
@@ -54,6 +54,46 @@ describe("HooksConfig schema", () => {
   });
   test("HooksConfig rejects unknown top-level keys (strict)", () => {
     expect(HooksConfig.safeParse({ totally_unknown: true }).success).toBe(false);
+  });
+});
+
+describe("Published JSON Schemas vs zod sources", () => {
+  // The schemas/*.schema.json files are committed to git and referenced by
+  // editors via $schema URLs (raw.githubusercontent.com on main). They must
+  // stay in sync with the zod sources — `bun run schemas:emit` regenerates
+  // them; CI fails if a commit changes a zod source without re-emitting.
+  const schemas = [
+    { file: "settings.schema.json", expectedTitle: "Claude Code settings.json (cc-settings)" },
+    { file: "hooks-config.schema.json", expectedTitle: "cc-settings hooks-config.json" },
+    { file: "skill.schema.json", expectedTitle: "Darkroom skill frontmatter" },
+    { file: "claude-json.schema.json", expectedTitle: "~/.claude.json (passthrough)" },
+  ] as const;
+
+  for (const { file, expectedTitle } of schemas) {
+    test(`${file} carries a valid $id pointing at GitHub raw on main`, async () => {
+      const raw = await readFile(resolve(ROOT, "schemas", file), "utf8");
+      const schema = JSON.parse(raw) as { $id?: string; title?: string };
+      expect(schema.$id).toBe(
+        `https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/${file}`,
+      );
+      expect(schema.title).toBe(expectedTitle);
+    });
+  }
+
+  test("config/10-core.json $schema points at our published schema", async () => {
+    const raw = await readFile(resolve(ROOT, "config/10-core.json"), "utf8");
+    const cfg = JSON.parse(raw) as { $schema?: string };
+    expect(cfg.$schema).toBe(
+      "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/settings.schema.json",
+    );
+  });
+
+  test("composed settings.json validates against the published settings schema", async () => {
+    // Roundtrip: zod → JSON Schema → real composed config. If the published
+    // schema rejects what we ship, editors will lint-error on every key.
+    const composed = await composeSettings(ROOT);
+    const result = Settings.safeParse(composed);
+    expect(result.success).toBe(true);
   });
 });
 
