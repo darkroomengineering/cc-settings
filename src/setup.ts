@@ -46,7 +46,7 @@ import {
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 
-const VERSION = "10.3.1"; // v2.1.123 sync: ANTHROPIC_BEDROCK_SERVICE_TIER env, spinnerTipsOverride setting
+const VERSION = "10.3.2"; // v2.1.126 sync (quiet patch cycle) + prune stale hook refs to removed ~/.claude/scripts/*.sh
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

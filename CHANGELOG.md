@@ -4,6 +4,46 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.3.2] — 2026-05-04
+
+### Fix: prune stale hook references to removed `~/.claude/scripts/*.sh`
+
+Affected users were seeing errors like `bash: /Users/<user>/.claude/scripts/compact-reminder.sh: No such file or directory` (Stop hook) and `bash: .../scripts/check-docs-before-install.sh: No such file or directory` (PreToolUse:Bash hook) on every session after upgrading. The team config no longer references those scripts — both were removed in v10.0.0 (bash → TypeScript migration) and the migration entry called them out — but the merger preserved the user's old references as "user customization" forever.
+
+Root cause: `mergeHooks` in `src/lib/mcp.ts` does a per-event union of hook groups; anything in the user's `settings.json` that doesn't byte-for-byte match a current team entry survives as a `userExtra`. When v10.0.0 rewrote the bash hooks as `bun "$HOME/.claude/src/scripts/*.ts"`, the user's pre-existing `bash $HOME/.claude/scripts/*.sh` entries got reclassified from "current team baseline" to "user customization" and were preserved indefinitely — pointing at files that no longer ship.
+
+**Fix:** the merger now drops user-only hook groups whose `command` references the removed `~/.claude/scripts/*.sh` directory. Mixed groups keep their non-deprecated hooks. A new `DEPRECATED_HOOK_COMMAND_PATTERNS` constant in `src/lib/mcp.ts` makes future hook-script removals explicit — when a release retires a hook script, add its path here and the next install cleans up users automatically.
+
+**Existing affected users:** re-run `bash setup.sh`. The merger prunes during the normal install — no separate command needed. The summary line `Pruned N stale hook reference(s)…` confirms cleanup happened.
+
+**Memory safety verified.** Audited the installer end-to-end before shipping this fix: `~/.claude/memory/`, `~/.claude/memory/agents/`, and the per-project `~/.claude/projects/<slug>/memory/` directories are **never** touched (only `mkdir … {recursive: true}`, never `rm`). The `autoMemoryDirectory` setting is preserved by the merger's user-wins scalar pass. The installer's deletion scope is bounded to: pre-v10 bash artifacts (`~/.claude/scripts/`, `~/.claude/lib/`), top-level `.md`/`.json` files in cc-settings-managed directories, and named subdirectories in `MANAGED_SKILLS`. Hand-authored skills outside `MANAGED_SKILLS` also survive.
+
+### v2.1.126 Sync — Manifest-only bump
+
+Reviewed cc-settings against Claude Code changelog v2.1.123 → v2.1.126. Quiet cycle: 2.1.124 and 2.1.125 were silent point releases (no public bullets); 2.1.126 was bug fixes, UX polish, and Windows/PowerShell/OAuth flow improvements. No new schema keys, hook events, env vars, frontmatter fields, or settings — nothing for the schemas, config fragments, or docs to absorb.
+
+**Adopted:** none (no surface-area changes).
+
+**Native-now-redundant:** none.
+
+**Notable upstream fixes that benefit cc-settings automatically (no edits needed):**
+
+- Deferred tools (`WebSearch`, `WebFetch`, etc.) now available to skills with `context: fork` and other subagents on their first turn — applies to 18+ cc-settings skills (`autoresearch`, `verify`, `explore`, `figma`, `qa`, `docs`, …).
+- Stream idle timeout no longer fires after Mac sleep mid-request or during long Opus thinking pauses.
+- OAuth login now works in IPv6-only devcontainers, on slow/proxied connections, and when the browser callback can't reach localhost (manual code paste).
+- `Ctrl+L` now only redraws the screen instead of clearing the prompt input (matches readline).
+- `--dangerously-skip-permissions` bypasses prompts for writes to `.claude/`, `.git/`, `.vscode/`, and shell config files (catastrophic removal commands still prompt).
+
+**Skipped (not relevant to cc-settings):** `claude project purge` subcommand, gateway `/v1/models` discovery, `claude_code.skill_activated.invocation_trigger` OTel attribute (we don't catalog event attributes), `allowManagedDomainsOnly`/`allowManagedReadPathsOnly` precedence fix (managed-settings/enterprise-only), Windows-specific fixes (PowerShell 7 detection, clipboard EDR exposure, CJK rendering), and ~25 other pure bug fixes.
+
+**Files changed:**
+
+- `src/setup.ts` — `VERSION` 10.3.1 → 10.3.2.
+- `src/lib/mcp.ts` — `DEPRECATED_HOOK_COMMAND_PATTERNS` constant, `isDeprecatedHook` + `pruneDeprecatedHooks` helpers, `mergeHooks` now returns `pruned` count, summary line for prune.
+- `tests/phase3-libs.test.ts` — coverage for stale-hook prune (full-group + mixed-group cases).
+- `upstream/claude-code-manifest.json` — `claudeCodeVersion` 2.1.123 → 2.1.126, `lastScan` refreshed to 2026-05-04, source line updated.
+- `CHANGELOG.md` — this entry.
+
 ## [10.3.1] — 2026-04-30
 
 ### v2.1.123 Sync — Adopt `ANTHROPIC_BEDROCK_SERVICE_TIER`, `spinnerTipsOverride`

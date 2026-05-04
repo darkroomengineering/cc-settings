@@ -251,27 +251,82 @@ async function mergePermissions(
   };
 }
 
+// User-only hook groups whose `command` matches one of these patterns are
+// pruned during merge. Source-of-truth for hook scripts that cc-settings has
+// removed in past releases — without this, the per-event union below preserves
+// the dangling reference forever and Claude Code logs "No such file or
+// directory" on every session.
+//
+// When a future release removes a hook script, add its path here so upgraders
+// don't end up with a broken settings.json. Patterns are matched against the
+// `command` field of each entry inside a `HookGroup.hooks[]` array.
+//
+// The first entry sweeps the entire `~/.claude/scripts/*.sh` directory because
+// the bash → TypeScript migration (cc-settings v10.0.0, April 2026) deleted
+// that directory wholesale; replacements live under `~/.claude/src/scripts/`
+// and are invoked via `bun ...`.
+const DEPRECATED_HOOK_COMMAND_PATTERNS: RegExp[] = [/[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/];
+
+function isDeprecatedHook(hook: unknown): boolean {
+  if (!hook || typeof hook !== "object") return false;
+  const cmd = (hook as { command?: unknown }).command;
+  if (typeof cmd !== "string") return false;
+  return DEPRECATED_HOOK_COMMAND_PATTERNS.some((re) => re.test(cmd));
+}
+
+// A group is deprecated only if every hook inside it is deprecated. Mixed
+// groups keep their non-deprecated hooks (we filter the inner array).
+function pruneDeprecatedHooks(group: unknown): unknown | null {
+  if (!group || typeof group !== "object") return group;
+  const g = group as { hooks?: unknown[] };
+  if (!Array.isArray(g.hooks)) return group;
+  const kept = g.hooks.filter((h) => !isDeprecatedHook(h));
+  if (kept.length === 0) return null;
+  if (kept.length === g.hooks.length) return group;
+  return { ...g, hooks: kept };
+}
+
 // Per-event union of hook groups. Team-only groups (added since last install)
-// are prompted in interactive mode; user-only groups always survive.
+// are prompted in interactive mode; user-only groups survive *unless* they
+// reference a script cc-settings has removed (see DEPRECATED_HOOK_COMMAND_PATTERNS).
 async function mergeHooks(
   team: UnknownRecord | undefined,
   user: UnknownRecord | undefined,
   opts: MergeOptions,
-): Promise<{ merged: UnknownRecord | undefined; added: number; declined: number }> {
-  if (!team && !user) return { merged: undefined, added: 0, declined: 0 };
+): Promise<{
+  merged: UnknownRecord | undefined;
+  added: number;
+  declined: number;
+  pruned: number;
+}> {
+  if (!team && !user) return { merged: undefined, added: 0, declined: 0, pruned: 0 };
   const t = team ?? {};
   const u = user ?? {};
   const events = new Set([...Object.keys(t), ...Object.keys(u)]);
   const merged: UnknownRecord = {};
   let added = 0;
   let declined = 0;
+  let pruned = 0;
   for (const ev of events) {
     const teamGroups = Array.isArray(t[ev]) ? (t[ev] as unknown[]) : [];
     const userGroups = Array.isArray(u[ev]) ? (u[ev] as unknown[]) : [];
     const userJson = new Set(userGroups.map((g) => JSON.stringify(g)));
     const teamJson = new Set(teamGroups.map((g) => JSON.stringify(g)));
     const teamOnly = teamGroups.filter((g) => !userJson.has(JSON.stringify(g)));
-    const userExtras = userGroups.filter((g) => !teamJson.has(JSON.stringify(g)));
+    const rawUserExtras = userGroups.filter((g) => !teamJson.has(JSON.stringify(g)));
+
+    // Drop user extras whose commands point at scripts cc-settings has removed.
+    // Mixed groups keep their surviving hooks.
+    const userExtras: unknown[] = [];
+    for (const g of rawUserExtras) {
+      const cleaned = pruneDeprecatedHooks(g);
+      if (cleaned === null) {
+        pruned++;
+        continue;
+      }
+      if (cleaned !== g) pruned++; // partial prune (some inner hooks dropped)
+      userExtras.push(cleaned);
+    }
 
     let acceptedTeamOnly = new Set(teamOnly.map((g) => JSON.stringify(g)));
     if (opts.interactive && teamOnly.length > 0) {
@@ -291,7 +346,7 @@ async function mergeHooks(
     added += userExtras.length;
     merged[ev] = [...teamFiltered, ...userExtras];
   }
-  return { merged, added, declined };
+  return { merged, added, declined, pruned };
 }
 
 // Shallow env merge: user values win on key conflict (local overrides for
@@ -429,6 +484,10 @@ export async function mergeSettingsWithMcpPreservation(
   if (hooks.added > 0) bits.push(`${hooks.added} hook group(s)`);
   if (env.userWins > 0) bits.push(`${env.userWins} env override(s)`);
   if (bits.length > 0) success(`Preserved user customization: ${bits.join(", ")}`);
+
+  if (hooks.pruned > 0) {
+    info(`Pruned ${hooks.pruned} stale hook reference(s) pointing at removed cc-settings scripts`);
+  }
 
   if (opts.interactive) {
     const ibits: string[] = [];

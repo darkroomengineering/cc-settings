@@ -341,6 +341,70 @@ describe("mcp — merge + preserve", () => {
     }
   });
 
+  test("prunes user hooks pointing at removed ~/.claude/scripts/*.sh files", async () => {
+    // Regression: pre-v10.0 cc-settings shipped bash hooks under
+    // ~/.claude/scripts/. The bash → TS migration removed that directory.
+    // Without prune logic, the per-event hook union preserved the dangling
+    // user references forever, producing "No such file or directory" on every
+    // session. See CHANGELOG v10.3.2.
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-stale-hooks-"));
+    try {
+      const existing = join(sandbox, "user-settings.json");
+      const team = join(sandbox, "team-settings.json");
+      const out = join(sandbox, "merged.json");
+
+      // User has the broken bash refs (entire group + a partial group with a
+      // legitimate sibling) plus a legitimate hook that should survive.
+      const staleStop = {
+        hooks: [{ type: "command", command: "bash $HOME/.claude/scripts/compact-reminder.sh" }],
+      };
+      const stalePre = {
+        hooks: [
+          {
+            type: "command",
+            command: 'bash "$HOME/.claude/scripts/check-docs-before-install.sh"',
+          },
+          { type: "command", command: "echo legitimate-sibling" },
+        ],
+      };
+      const userKeep = { hooks: [{ type: "command", command: "user-custom-hook" }] };
+      const teamPre = {
+        hooks: [
+          {
+            type: "command",
+            command: 'bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"',
+          },
+        ],
+      };
+
+      await writeFile(
+        existing,
+        JSON.stringify({
+          hooks: {
+            Stop: [staleStop],
+            PreToolUse: [stalePre, userKeep],
+          },
+        }),
+      );
+      await writeFile(team, JSON.stringify({ hooks: { PreToolUse: [teamPre] } }));
+      await mergeSettingsWithMcpPreservation(existing, team, out);
+      const merged = JSON.parse(await readFile(out, "utf8"));
+
+      // Stop event: only entry was the stale reference → event becomes empty.
+      expect(merged.hooks.Stop).toEqual([]);
+
+      // PreToolUse: team entry survives, stalePre's sibling hook survives in
+      // a partially-pruned group, fully-legitimate userKeep survives.
+      expect(merged.hooks.PreToolUse).toEqual([
+        teamPre,
+        { hooks: [{ type: "command", command: "echo legitimate-sibling" }] },
+        userKeep,
+      ]);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
   test("env user values win on conflict, team fills in missing", async () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-env-"));
     try {
