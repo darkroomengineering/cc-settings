@@ -3,6 +3,9 @@ name: debug
 description: Browser debugging via pinchtab — token-efficient text extraction, screenshots, layout/element inspection. Triggers "screenshot", "visual bug", "inspect element", "what does it look like", E2E.
 context: fork
 allowed-tools: [Bash]
+requires:
+  - command: pinchtab
+    install: "npm i -g pinchtab (browser automation CLI)"
 ---
 
 # Browser Debugging with PinchTab

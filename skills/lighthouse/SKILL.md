@@ -12,6 +12,9 @@ allowed-tools:
   - Grep
   - Glob
   - LS
+requires:
+  - command: lighthouse
+    install: "npm i -g lighthouse"
 ---
 
 # Lighthouse Optimization Loop

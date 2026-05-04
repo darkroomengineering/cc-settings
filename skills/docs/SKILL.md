@@ -3,6 +3,9 @@ name: docs
 description: Fetch latest library/framework docs via Context7. MANDATORY before writing code with any external lib (gsap, lenis, three, framer, radix, sanity, zustand). Triggers "how to use X", "X docs", "X API".
 context: fork
 allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-docs, WebFetch, WebSearch]
+requires:
+  - mcp: context7
+    install: "Configure Context7 MCP — see config/20-mcp.json (ships by default)"
 ---
 
 # Documentation Fetcher

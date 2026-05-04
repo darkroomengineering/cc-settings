@@ -28,6 +28,45 @@
       "items": {
         "type": "string"
       }
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "minLength": 1
+              },
+              "install": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mcp": {
+                "type": "string",
+                "minLength": 1
+              },
+              "install": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mcp"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
     }
   },
   "required": [

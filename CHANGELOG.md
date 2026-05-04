@@ -4,6 +4,47 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.6.0] — 2026-05-04
+
+### feat: skills declare `requires:` (CLI / MCP); installer warns about missing prereqs
+
+Skills with external dependencies now declare them in their frontmatter:
+
+```yaml
+---
+name: lighthouse
+description: …
+requires:
+  - command: lighthouse
+    install: "npm i -g lighthouse"
+---
+```
+
+The installer walks every skill at the end of `setup.sh`, evaluates each `requires:` against the user's environment (CLIs via `Bun.which`, MCP servers via the union of `~/.claude/settings.json` and `~/.claude.json`), and prints a single warning block listing any missing prereqs. Non-fatal — the skill still runs; users just know in advance which ones will fail until they install the prereq.
+
+**Annotated this release:**
+
+| Skill | Requires |
+|---|---|
+| `/lighthouse` | `lighthouse` CLI |
+| `/figma` | `pinchtab` CLI + `figma` MCP |
+| `/qa` | `pinchtab` CLI |
+| `/debug` | `pinchtab` CLI |
+| `/tldr` | `tldr` MCP (`pipx install llm-tldr`) |
+| `/docs` | `context7` MCP (ships by default) |
+
+**Schema change:** `src/schemas/skill.ts` now exports `SkillRequirement` (discriminated union of `{ command }` or `{ mcp }`, both with optional `install` hint). `SkillFrontmatter.requires` is optional; existing skills without it continue to work unchanged. Each entry must declare exactly one of `command` or `mcp`.
+
+**Files changed:**
+
+- `src/schemas/skill.ts` — new `SkillRequirement` schema; `requires` field added to `SkillFrontmatter`.
+- `src/lib/skill-prereqs.ts` — new helper: parse skills, read MCP servers from settings.json + ~/.claude.json, evaluate requires, format warning block.
+- `src/setup.ts` — calls `reportMissingPrereqs` after `showSummary`, warns via `warn()` if any prereq is missing.
+- `tests/skill-prereqs.test.ts` — 20 tests: schema validation, MCP server reading (with malformed-JSON tolerance), CLI/MCP requirement checks, end-to-end report aggregation, formatter cases.
+- `skills/{lighthouse,figma,qa,debug,tldr,docs}/SKILL.md` — annotated with `requires:`.
+- `schemas/skill.schema.json` — regenerated (now describes `SkillRequirement`).
+- `src/setup.ts` — `VERSION` 10.5.2 → 10.6.0.
+
 ## [10.5.2] — 2026-05-04
 
 ### feat: install-summary version delta

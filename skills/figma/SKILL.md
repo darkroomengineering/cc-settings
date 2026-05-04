@@ -3,6 +3,11 @@ name: figma
 description: Figma MCP (structured data) + pinchtab (screenshots) for design-to-code, fidelity checks, token extraction. Triggers "compare to design", "match the figma", "extract tokens from figma", "inspect in figma".
 context: fork
 allowed-tools: [Bash, mcp__figma__*]
+requires:
+  - command: pinchtab
+    install: "npm i -g pinchtab (browser screenshot CLI used for fidelity checks)"
+  - mcp: figma
+    install: "Configure Figma MCP — see mcp-configs/recommended.json"
 ---
 
 # Figma Desktop Integration

@@ -3,6 +3,9 @@ name: qa
 description: Visual + a11y QA — screenshot-first critique, contrast/touch-target checks, mockup-vs-impl diff. Triggers "validate", "QA check", "does this look right", "a11y", "contrast", post-component changes.
 context: fork
 allowed-tools: [Bash]
+requires:
+  - command: pinchtab
+    install: "npm i -g pinchtab (browser screenshot CLI required for visual QA)"
 ---
 
 # Visual QA Validation

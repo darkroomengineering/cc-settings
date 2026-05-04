@@ -45,9 +45,10 @@ import {
   getInstallHint,
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
+import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.5.2"; // install-summary version delta — show prev → current + per-version titles from CHANGELOG
+const VERSION = "10.6.0"; // skills declare `requires:` (CLI / MCP); installer warns about missing prereqs
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -673,6 +674,17 @@ async function main(): Promise<number> {
   if (delta) {
     console.log("");
     console.log(delta);
+  }
+
+  // Skill prereq check: warn if any installed skill declares `requires:` for
+  // a CLI / MCP that's missing from the user's environment. Non-fatal — the
+  // skill simply fails at runtime if the user invokes it without the prereq.
+  const skillsDir = join(CLAUDE_DIR, "skills");
+  const prereqReports = await reportMissingPrereqs(skillsDir, CLAUDE_DIR).catch(() => []);
+  const prereqWarnings = formatPrereqWarnings(prereqReports);
+  if (prereqWarnings) {
+    console.log("");
+    warn(prereqWarnings);
   }
 
   console.log("");
