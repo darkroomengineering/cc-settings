@@ -4,6 +4,45 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.7.0] — 2026-05-04
+
+### feat: agent + skill frontmatter validation at install
+
+Typos like `effort: xtreme` or `permissionMode: planning` used to silently degrade agents — the field would be ignored and the agent would run with defaults. The installer now parses every `agents/*.md` and `skills/*/SKILL.md` frontmatter against a zod schema and warns about issues before shipping the file to `~/.claude/`.
+
+**New schema** — `src/schemas/agent.ts`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | kebab-case string | required |
+| `description` | non-empty string | required |
+| `model` | `opus` / `sonnet` / `haiku` / pinned variant | accepts `opus[1m]`-style strings |
+| `effort` | `low` / `medium` / `high` / `xhigh` / `max` | strict — typos rejected |
+| `permissionMode` | `default` / `acceptEdits` / `plan` / `auto` / `dontAsk` / `bypassPermissions` | mirrors upstream manifest |
+| `isolation` | `worktree` | strict |
+| `memory` | `project` | strict |
+| `tools`, `disallowedTools` | string arrays | passthrough |
+| `maxTurns` | positive integer | |
+| `color`, `initialPrompt`, `hooks`, `mcpServers` | accepted, lightly typed | |
+
+The schema is `.passthrough()` on unknown fields — agent ecosystem is fast-moving and we'd rather accept than reject. Strict enums on the well-known fields are where the value is.
+
+**New validator** — `src/lib/frontmatter-validate.ts`:
+
+Walks `agents/*.md` and `skills/*/SKILL.md`, parses each frontmatter, validates against the corresponding schema, returns the combined issue list. Wired into `setup.ts`'s install flow — non-fatal warning so a single bad agent doesn't block install of the rest.
+
+**JSON schema published** — `schemas/agent.schema.json` joins the others at `raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/`. IDEs that point at it get autocomplete on `effort`, `permissionMode`, etc. when authoring agents.
+
+**Files changed:**
+
+- `src/schemas/agent.ts` — new zod schema.
+- `src/schemas/emit.ts` — added agent.schema.json target.
+- `src/lib/frontmatter-validate.ts` — install-time validator.
+- `src/setup.ts` — calls validator before install, warns via `warn()` if any issues.
+- `tests/agent-schema.test.ts` — 16 tests: schema unit tests, repo dogfood (all 10 agents + 42 skills validate today), synthetic failure cases (effort typo, permissionMode typo, kebab violation, missing delimiters, empty dirs).
+- `schemas/agent.schema.json` — emitted.
+- `src/setup.ts` — `VERSION` 10.6.1 → 10.7.0.
+
 ## [10.6.1] — 2026-05-04
 
 ### fix: hook fail-open audit — wrap 7 unhardened scripts

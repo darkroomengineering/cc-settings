@@ -29,6 +29,7 @@ import {
   warn,
 } from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
+import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import {
   atomicWriteJson,
   CLAUDE_JSON_PATH,
@@ -48,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.6.1"; // hooks fail open — wrap 7 unhardened hook scripts so a hook crash never propagates
+const VERSION = "10.7.0"; // agent + skill frontmatter zod schemas; install-time validation catches typos like effort: xtreme
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -636,6 +637,13 @@ async function main(): Promise<number> {
   // Capture the previously-installed version BEFORE we overwrite the sentinel
   // — used to print the version-delta summary at the end of the install.
   const prevInstalledVersion = await readInstalledVersion(CLAUDE_DIR);
+
+  // Frontmatter validation — catches typos in agents/*.md and skills/*/SKILL.md
+  // before we ship them to ~/.claude/. Non-fatal; warn and continue so a single
+  // bad agent doesn't block the rest of the install.
+  const fmIssues = await validateFrontmatters(args.sourceDir).catch(() => []);
+  const fmWarning = formatFrontmatterIssues(fmIssues);
+  if (fmWarning) warn(fmWarning);
 
   info("Installing dependencies...");
   await installDependencies();

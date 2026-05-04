@@ -8,6 +8,7 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
+import { AgentFrontmatter } from "./agent.ts";
 import { ClaudeJson } from "./claude-json.ts";
 import { HooksConfig } from "./hooks-config.ts";
 import { Settings } from "./settings.ts";
@@ -42,6 +43,12 @@ const targets: Target[] = [
     schema: SkillFrontmatter,
     id: `${SCHEMA_BASE}/skill.schema.json`,
     title: "Darkroom skill frontmatter",
+  },
+  {
+    file: "agent.schema.json",
+    schema: AgentFrontmatter,
+    id: `${SCHEMA_BASE}/agent.schema.json`,
+    title: "Darkroom agent frontmatter",
   },
   {
     file: "claude-json.schema.json",

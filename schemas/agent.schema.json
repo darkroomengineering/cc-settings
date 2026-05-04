@@ -1,0 +1,102 @@
+{
+  "$id": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/agent.schema.json",
+  "title": "Darkroom agent frontmatter",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "opus",
+            "sonnet",
+            "haiku"
+          ]
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "disallowedTools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "maxTurns": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "permissionMode": {
+      "type": "string",
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "auto",
+        "dontAsk",
+        "bypassPermissions"
+      ]
+    },
+    "effort": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "isolation": {
+      "type": "string",
+      "enum": [
+        "worktree"
+      ]
+    },
+    "memory": {
+      "type": "string",
+      "enum": [
+        "project"
+      ]
+    },
+    "color": {
+      "type": "string"
+    },
+    "initialPrompt": {
+      "type": "string"
+    },
+    "hooks": {},
+    "mcpServers": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "name",
+    "description"
+  ],
+  "additionalProperties": {}
+}
