@@ -4,6 +4,33 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.8.0] — 2026-05-04
+
+### feat: --migrate-only flag
+
+Re-running `bash setup.sh` does the full install: dependency check, file copy, MANAGED_SKILLS refresh, settings merger. For users who hit a deprecation message ("Reset stale statusLine command…", "Pruned N stale hook reference(s)…") and want to clean up their settings without the rest, that's overkill.
+
+`--migrate-only` runs just the merger + version sentinel + version delta + prereq check. Skipped:
+
+- `installDependencies` (bun, jq, pinchtab, tldr — assumed present)
+- `cleanOldConfig` (no need to wipe managed content)
+- `installConfigFiles` (no skill / agent / docs refresh)
+- `installTsSources` (no `src/` recopy)
+- `showSummary` (the visual recap is meant for full installs)
+
+Backup still runs. `createDirectories` still runs (idempotent — ensures `~/.claude/` shape exists for the merger).
+
+```bash
+bash setup.sh --migrate-only
+```
+
+**Files changed:**
+
+- `src/setup.ts` — `Args.migrateOnly`, `parseArgs` exports + handles `--migrate-only`, `main()` branches on it.
+- `tests/setup-args.test.ts` — new file. 10 parser tests covering every flag (`--rollback`, `--rollback=<ts>`, `--dry-run`, `--status`, `--interactive`, `--migrate-only`, `--source=<path>`, `--help`/`-h`, multi-flag composition, defaults).
+- `MANUAL.md` — Quickstart mentions `--migrate-only`.
+- `src/setup.ts` — `VERSION` 10.7.1 → 10.8.0.
+
 ## [10.7.1] — 2026-05-04
 
 ### fix: composeSettings asserts unique numeric prefixes

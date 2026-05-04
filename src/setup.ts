@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.7.1"; // composeSettings asserts unique numeric prefixes and rejects unprefixed fragments
+const VERSION = "10.8.0"; // --migrate-only flag: run merger + sentinel only, skip file copy + dependencies
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -61,9 +61,10 @@ type Args = {
   help: boolean;
   sourceDir: string;
   interactive: boolean;
+  migrateOnly: boolean;
 };
 
-function parseArgs(argv: string[]): Args {
+export function parseArgs(argv: string[]): Args {
   const args: Args = {
     rollback: null,
     dryRun: false,
@@ -72,6 +73,7 @@ function parseArgs(argv: string[]): Args {
     sourceDir: resolve(import.meta.dir, ".."),
     // CC_INTERACTIVE=1 opts in for scripts/CI without argv juggling.
     interactive: process.env.CC_INTERACTIVE === "1",
+    migrateOnly: false,
   };
   for (const a of argv) {
     if (a === "--rollback") args.rollback = true;
@@ -79,6 +81,7 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--status") args.status = true;
     else if (a === "--interactive") args.interactive = true;
+    else if (a === "--migrate-only") args.migrateOnly = true;
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
   }
@@ -99,6 +102,10 @@ Flags:
   --interactive      Prompt on settings.json conflicts (scalar overrides, team
                      additions to allow/ask rules, new hook groups). Also opt in
                      via CC_INTERACTIVE=1.
+  --migrate-only     Run only the settings.json merger + version sentinel;
+                     skip file copy, dependency install, and skill/agent
+                     refresh. Use after a cc-settings update if you only
+                     want the merger's deprecation prune to apply.
   --help, -h         Show this message.
 
 Rollback examples:
@@ -645,17 +652,23 @@ async function main(): Promise<number> {
   const fmWarning = formatFrontmatterIssues(fmIssues);
   if (fmWarning) warn(fmWarning);
 
-  info("Installing dependencies...");
-  await installDependencies();
+  if (args.migrateOnly) {
+    info("Migrate-only: backup + merger + sentinel; skipping file copy");
+    await createBackup();
+    await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
+  } else {
+    info("Installing dependencies...");
+    await installDependencies();
 
-  info("Creating backup...");
-  await createBackup();
+    info("Creating backup...");
+    await createBackup();
 
-  info("Installing configuration...");
-  await createDirectories();
-  await cleanOldConfig();
-  await installConfigFiles(args.sourceDir);
-  await installTsSources(args.sourceDir);
+    info("Installing configuration...");
+    await createDirectories();
+    await cleanOldConfig();
+    await installConfigFiles(args.sourceDir);
+    await installTsSources(args.sourceDir);
+  }
 
   try {
     await installSettings(args.sourceDir, args.interactive);
@@ -670,7 +683,7 @@ async function main(): Promise<number> {
   }
 
   await writeVersionSentinel();
-  await showSummary();
+  if (!args.migrateOnly) await showSummary();
 
   // Version delta: surface what just landed (prev → current + per-version
   // titles from CHANGELOG.md). Uses prevInstalledVersion captured BEFORE
