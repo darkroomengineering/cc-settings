@@ -108,7 +108,7 @@ Custom status bar displayed in the Claude Code terminal.
 {
   "statusLine": {
     "type": "command",
-    "command": "bun \"$HOME/.claude/scripts/statusline.ts\""
+    "command": "bun \"$HOME/.claude/src/hooks/statusline.ts\""
   }
 }
 ```

@@ -356,7 +356,7 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| Inline learning reminder | If >5 files were changed, reminds to store learnings | No |
+| `stop-summary.ts` | End-of-turn summary; if >5 files were changed, reminds to store learnings | No |
 
 ### StopFailure
 
@@ -381,6 +381,12 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `tldr-stats.ts` + `handoff.ts create` | Prints TLDR session stats and saves final handoff state | Yes |
+
+### CwdChanged
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `cwd-changed.ts` | Surfaces project context (CLAUDE.md size, recent commits, branch, untracked files) when the working directory changes mid-session | Yes |
 
 ---
 
@@ -442,6 +448,31 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 
 ---
 
+## Removing a Hook (deprecation)
+
+When a hook script is removed from cc-settings (consolidated, replaced by a native feature, or no longer needed), the team config drops the entry — but a user's existing `~/.claude/settings.json` may already reference it. The merger preserves user-only hook groups by default, so the dangling reference would otherwise survive forever and produce `bash: <path>: No such file or directory` on every session.
+
+To prevent this, **add the removed script's path pattern to `DEPRECATED_HOOK_COMMAND_PATTERNS` in `src/lib/mcp.ts`**:
+
+```ts
+const DEPRECATED_HOOK_COMMAND_PATTERNS: RegExp[] = [
+  // bash → TypeScript migration (v10.0.0): the entire ~/.claude/scripts/
+  // directory was deleted; replacements live under ~/.claude/src/scripts/.
+  /[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/,
+  // <new entry here when you remove a hook>
+];
+```
+
+The next install will:
+
+1. Detect user-only hook groups whose `command` matches any pattern.
+2. Drop fully-deprecated groups; partially-deprecated groups keep their non-deprecated hooks.
+3. Print `Pruned N stale hook reference(s)…` in the install summary.
+
+The matcher tests the literal `command` string, so patterns should anchor on a unique fragment of the path (e.g. `/\.claude/scripts/foo\.sh\b/`) — not the whole resolved path, since users may have absolute or `$HOME`-relative variants. Cover this with a test in `tests/phase3-libs.test.ts` (the existing stale-hook prune test is a template).
+
+---
+
 ## Debugging Hooks
 
 ### Log Locations
@@ -467,7 +498,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | Hook output not visible | Hook is async | Async hooks don't inject into context; switch to sync if needed |
 | Hook causes timeout | Script hangs | Add timeout to the script itself; reduce `timeout` value |
 | `$TOOL_INPUT` is empty | Wrong event | `TOOL_INPUT` is only available in `PreToolUse` and `PostToolUse` |
-| Path not found | Missing quotes | Always use `bash "$HOME/.claude/scripts/..."` with quotes |
+| Path not found | Missing quotes | Always quote the path: `bun "$HOME/.claude/src/scripts/..."` (or `src/hooks/...`) |
 
 ### Testing a Hook Manually
 
@@ -475,7 +506,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 # Simulate PreToolUse environment
 export TOOL_NAME="Bash"
 export TOOL_INPUT='{"command":"git commit -m test"}'
-bun ~/.claude/scripts/safety-net.ts
+bun ~/.claude/src/hooks/safety-net.ts
 
 # Check exit code
 echo $?  # 0 = allow, 1 = block
