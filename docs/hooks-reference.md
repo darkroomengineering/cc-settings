@@ -448,31 +448,6 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 
 ---
 
-## Removing a Hook (deprecation)
-
-When a hook script is removed from cc-settings (consolidated, replaced by a native feature, or no longer needed), the team config drops the entry — but a user's existing `~/.claude/settings.json` may already reference it. The merger preserves user-only hook groups by default, so the dangling reference would otherwise survive forever and produce `bash: <path>: No such file or directory` on every session.
-
-To prevent this, **add the removed script's path pattern to `DEPRECATED_HOOK_COMMAND_PATTERNS` in `src/lib/mcp.ts`**:
-
-```ts
-const DEPRECATED_HOOK_COMMAND_PATTERNS: RegExp[] = [
-  // bash → TypeScript migration (v10.0.0): the entire ~/.claude/scripts/
-  // directory was deleted; replacements live under ~/.claude/src/scripts/.
-  /[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/,
-  // <new entry here when you remove a hook>
-];
-```
-
-The next install will:
-
-1. Detect user-only hook groups whose `command` matches any pattern.
-2. Drop fully-deprecated groups; partially-deprecated groups keep their non-deprecated hooks.
-3. Print `Pruned N stale hook reference(s)…` in the install summary.
-
-The matcher tests the literal `command` string, so patterns should anchor on a unique fragment of the path (e.g. `/\.claude/scripts/foo\.sh\b/`) — not the whole resolved path, since users may have absolute or `$HOME`-relative variants. Cover this with a test in `tests/phase3-libs.test.ts` (the existing stale-hook prune test is a template).
-
----
-
 ## Debugging Hooks
 
 ### Log Locations
