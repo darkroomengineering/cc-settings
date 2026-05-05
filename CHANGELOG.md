@@ -4,6 +4,33 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.11.2] — 2026-05-05
+
+### chore: sync upstream tracking to Claude Code 2.1.128 (no schema impact)
+
+Tracking-only sync. Upstream 2.1.128 is overwhelmingly bug fixes (30+) plus a handful of small UX/CLI changes. None require schema changes, hook event additions, or new env var tracking. (2.1.127 was skipped upstream.)
+
+**Adopted:** none — no new schema-relevant surface area.
+
+**Deletions / Native-now-redundant:** none — nothing in cc-settings is subsumed by 2.1.128.
+
+**Notable upstream changes (no cc-settings impact, recorded for reference):**
+
+- `--channels` now works with console (API key) auth; managed-settings orgs must set `channelsEnabled: true`. Schema comment on `src/schemas/settings.ts` `channelsEnabled` updated to note this.
+- MCP: `workspace` is now a reserved server name. Verified no shipped cc-settings MCP config (`config/20-mcp.json`, `mcp-configs/`) uses that name.
+- Subprocesses (Bash, hooks, MCP, LSP) no longer inherit `OTEL_*` env vars. cc-settings already exposes the related `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` knob; no change needed.
+- `EnterWorktree` now creates branches from local HEAD as documented (was branching from `origin/<default>`). cc-settings does not invoke this tool from any skill or hook; only `skills/cc-update/SKILL.md` references `origin/main`, and that is for our own update flow, unrelated.
+- ~25 other bug fixes (focus mode, OSC 9 desktop notification, drag-drop, fenced-code-block clipboard whitespace, vim NORMAL-mode `Space`, Bedrock default-model prefix, parallel shell tool calls, sub-agent prompt caching, etc.) — all bug fixes with no cc-settings overlap.
+
+**Manifest:** `upstream/claude-code-manifest.json` bumped (claudeCodeVersion `2.1.126` → `2.1.128`, lastScan `2026-05-05`). No additions to `knownSettingsKeys`, `knownHookEvents`, `knownHookTypes`, `knownEnvVars`, `knownPermissionModes`, `knownMcpTransports`, or `knownBuiltinTools`.
+
+**Files changed:**
+
+- `upstream/claude-code-manifest.json`
+- `src/schemas/settings.ts` (comment only)
+- `src/setup.ts` (VERSION bump)
+- `CHANGELOG.md`
+
 ## [10.11.1] — 2026-05-04
 
 ### fix: `$schema` must be the schemastore URL — Claude Code skips the entire settings.json otherwise

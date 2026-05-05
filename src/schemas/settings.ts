@@ -92,7 +92,7 @@ export const Settings = z
     disableDeepLinkRegistration: z.boolean().optional(), // 2.1.103
     autoScrollEnabled: z.boolean().optional(), // 2.1.102
     autoMemoryDirectory: z.string().optional(), // 2.1.101
-    channelsEnabled: z.boolean().optional(),
+    channelsEnabled: z.boolean().optional(), // 2.1.128: also gates `--channels` for console (API key) auth in managed-settings orgs
     allowedChannelPlugins: z.array(z.string()).optional(), // 2.1.107 (team/enterprise)
     allowedMcpServers: z.array(z.string()).optional(), // 2.1.112
     deniedMcpServers: z.array(z.string()).optional(), // 2.1.112

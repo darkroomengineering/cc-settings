@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.11.1"; // fix: $schema must be schemastore URL — Claude Code skips entire settings.json otherwise
+const VERSION = "10.11.2"; // chore: sync upstream tracking to Claude Code 2.1.128 (no schema impact)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

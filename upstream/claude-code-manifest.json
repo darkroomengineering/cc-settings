@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cc-settings.darkroom/upstream/claude-code-manifest.json",
   "description": "Snapshot of Claude Code upstream surface area as known to the cc-settings zod schemas. Updated by src/upstream/scan.ts (daily GH Action). Drift triggers a PR that extends the schemas and this manifest atomically. See docs/migration-coexistence.md and ~/Desktop/cc-settings-MIGRATION.md v2.",
-  "lastScan": "2026-05-04T00:00:00Z",
-  "claudeCodeVersion": "2.1.126",
+  "lastScan": "2026-05-05T00:00:00Z",
+  "claudeCodeVersion": "2.1.128",
   "manifestSchemaVersion": 1,
   "source": "manual sync (cc-settings v10.3.2). From 2.1.115 onward, upstream-sync bot owns this file.",
   "knownSettingsKeys": [
