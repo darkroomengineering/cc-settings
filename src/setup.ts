@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.12.0"; // feat: sync upstream to Claude Code 2.1.138 — worktree.baseRef, skillOverrides, parentSettingsBehavior, autoMode.hard_deny, sandbox bwrap/socat paths, 6 env vars
+const VERSION = "10.12.1"; // docs: document 13 schema keys missing from settings-reference.md; relocate 4 reference docs from skills/ to docs/
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

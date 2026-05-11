@@ -154,7 +154,7 @@ For every significant decision, evaluate:
 
 ---
 
-See `skills/architecture-reference.md` for pattern reference, anti-patterns, and checklists.
+See `docs/architecture-reference.md` for pattern reference, anti-patterns, and checklists.
 
 ---
 

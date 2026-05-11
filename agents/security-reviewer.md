@@ -30,7 +30,7 @@ You are an expert security reviewer for Darkroom Engineering projects.
 
 **TLDR**: Use `tldr semantic` to find security-sensitive code, `tldr context` for auth flow analysis.
 
-See `skills/security-reference.md` for OWASP detection patterns, secret scanning regex, vulnerability examples, and Darkroom-specific security checks.
+See `docs/security-reference.md` for OWASP detection patterns, secret scanning regex, vulnerability examples, and Darkroom-specific security checks.
 
 ---
 

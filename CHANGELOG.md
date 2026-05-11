@@ -4,6 +4,44 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.12.1] — 2026-05-11
+
+### docs: document 13 schema keys + relocate reference docs to docs/
+
+Post-sync congruence pass surfaced two pre-existing gaps that predated v10.12.0:
+
+**docs/settings-reference.md** — 13 keys from `src/schemas/settings.ts` had no dedicated section. Added concise sections (each with a `json` snippet) for:
+
+- `showThinkingSummaries`, `autoScrollEnabled`, `changelogUrl`
+- `disableAllHooks`, `disableAutoMode`, `disableBypassPermissionsMode`, `disableSkillShellExecution`, `disableDeepLinkRegistration`
+- `channelsEnabled` / `allowedChannelPlugins` (paired)
+- `allowedMcpServers` / `deniedMcpServers` (paired)
+- `feedbackSurveyRate`
+
+Documentation now matches schema 1:1 — every top-level key in `Settings` (zod) has either a dedicated `### key` section or is the subject of a top-level section (Permissions, MCP Server Configuration, Hook Configuration).
+
+**Reference docs relocated** — four `.md` files that lived at the root of `skills/` were not skills; they were reference material that `agents/*.md` and `rules/*.md` linked to. Moved to `docs/` where reference docs belong, since `skills/` is for `<name>/SKILL.md` directories used by the Skill tool:
+
+- `skills/accessibility.md` → `docs/accessibility.md`
+- `skills/architecture-reference.md` → `docs/architecture-reference.md`
+- `skills/security-reference.md` → `docs/security-reference.md`
+- `skills/seo-reference.md` → `docs/seo-reference.md`
+
+Inbound references updated atomically in `rules/ui-skills.md`, `agents/planner.md`, `agents/security-reviewer.md`. Files are still copied to `~/.claude/docs/` by `installConfigFiles` (which iterates `["agents", "skills", "profiles", "rules", "contexts", "hooks", "docs"]`) — no installer change required, only the relative path in the inbound references.
+
+**Files changed:**
+
+- `docs/settings-reference.md` (13 new `###` sections inserted before `## Permissions`)
+- `docs/accessibility.md` (moved from `skills/`)
+- `docs/architecture-reference.md` (moved from `skills/`)
+- `docs/security-reference.md` (moved from `skills/`)
+- `docs/seo-reference.md` (moved from `skills/`)
+- `rules/ui-skills.md` (path update)
+- `agents/planner.md` (path update)
+- `agents/security-reviewer.md` (path update)
+- `src/setup.ts` (VERSION 10.12.0 → 10.12.1)
+- `CHANGELOG.md`
+
 ## [10.12.0] — 2026-05-11
 
 ### feat: sync upstream to Claude Code 2.1.138 — 3 new top-level settings, 6 new env vars

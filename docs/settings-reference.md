@@ -304,6 +304,100 @@ Point the footer PR badge at a custom code-review URL instead of github.com (v2.
 
 Substitutes `{host}`, `{owner}`, `{repo}`, `{number}`, and `{url}` from the `gh`-reported PR URL.
 
+### `showThinkingSummaries`
+
+Show inline thinking summaries (the model's pre-action reasoning) in the conversation. cc-settings ships `true`. Set `false` to hide.
+
+```json
+{ "showThinkingSummaries": true }
+```
+
+### `autoScrollEnabled`
+
+Auto-scroll to the bottom of the conversation as new output streams in (v2.1.102). Disable to keep the viewport pinned to wherever the user scrolled.
+
+```json
+{ "autoScrollEnabled": false }
+```
+
+### `changelogUrl`
+
+Override the URL `/release-notes` fetches the changelog from. Useful for enterprise mirrors or third-party gateway deployments.
+
+```json
+{ "changelogUrl": "https://internal.example.com/claude-code/CHANGELOG.md" }
+```
+
+### `disableAllHooks`
+
+Master kill-switch for the entire hooks subsystem. When `true`, no hook of any event type fires. Useful for debugging or running Claude Code in a stripped-down environment.
+
+```json
+{ "disableAllHooks": true }
+```
+
+### `disableAutoMode`
+
+Disable auto-mode entirely (admin-tier). Once set, `/auto` and the auto-mode permission flow are unavailable in this profile.
+
+```json
+{ "disableAutoMode": "disable" }
+```
+
+### `disableBypassPermissionsMode`
+
+Disable the `bypassPermissions` mode (admin-tier). With this set, `--permission-mode bypassPermissions` and the in-session shortcut are rejected — a hard guardrail for managed deployments.
+
+```json
+{ "disableBypassPermissionsMode": "disable" }
+```
+
+### `disableSkillShellExecution`
+
+Disable the Skill tool's ability to run inline shell commands (v2.1.98). Skills can still load text and prompt the model, but `bun ~/.claude/...` invocations from within a skill are blocked.
+
+```json
+{ "disableSkillShellExecution": true }
+```
+
+### `disableDeepLinkRegistration`
+
+Disable Claude Code's deep-link URL handler registration on first launch (v2.1.103). Use in environments where the OS-level handler would conflict with another tool.
+
+```json
+{ "disableDeepLinkRegistration": true }
+```
+
+### `channelsEnabled` / `allowedChannelPlugins`
+
+Channels are the team-distribution mechanism for plugins and managed configuration (v2.1.107 enterprise, expanded to console API key auth in v2.1.128). `channelsEnabled: true` opts an org into channel features. `allowedChannelPlugins` is the allowlist of plugin identifiers that channel admins can push.
+
+```json
+{
+  "channelsEnabled": true,
+  "allowedChannelPlugins": ["org/baseline-config", "org/reviewer-pack"]
+}
+```
+
+### `allowedMcpServers` / `deniedMcpServers`
+
+Managed MCP server policy lists (v2.1.112). Patterns are matched against MCP server URLs / identifiers. Use for enterprise allowlisting; supports scheme wildcards (e.g., `https://*.internal.example.com`).
+
+```json
+{
+  "allowedMcpServers": ["https://*.internal.example.com", "claudeai-proxy"],
+  "deniedMcpServers": ["http://*"]
+}
+```
+
+### `feedbackSurveyRate`
+
+Sampling rate (0.0–1.0) for the in-session feedback survey (v2.1.106, enterprise). Set `0` to disable the prompt entirely. The OTel equivalent is gated by `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` (v2.1.136).
+
+```json
+{ "feedbackSurveyRate": 0 }
+```
+
 ---
 
 ## Permissions
