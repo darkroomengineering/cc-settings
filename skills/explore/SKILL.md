@@ -1,6 +1,6 @@
 ---
 name: explore
-description: Read-only codebase investigation via the Explore agent, with a focused upward-zoom mode for unfamiliar code regions (formerly `/zoom-out`). Triggers "how does X work", "where is X", "find X", "understand X", "what files handle Y", "navigate the codebase", "zoom out", "bigger picture", "where does this fit", onboarding unfamiliar code.
+description: Read-only codebase investigation via Explore agent; also handles upward-zoom for unfamiliar code regions. Triggers "how does X work", "where is X", "find X", "understand X", "navigate codebase", "zoom out", "bigger picture", "where does this fit".
 context: fork
 agent: explore
 ---

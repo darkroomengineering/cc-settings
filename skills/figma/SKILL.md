@@ -1,58 +1,27 @@
 ---
 name: figma
-description: Figma MCP (structured data) + pinchtab (screenshots) for design-to-code, fidelity checks, token extraction. Triggers "compare to design", "match the figma", "extract tokens from figma", "inspect in figma".
+description: Figma MCP for design-to-code, fidelity checks, token extraction; implementation screenshots via chrome-devtools MCP. Triggers "compare to design", "match the figma", "extract tokens from figma", "inspect in figma".
 context: fork
-allowed-tools: [Bash, mcp__figma__*]
+allowed-tools: [mcp__figma__*, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__resize_page]
 requires:
-  - command: pinchtab
-    install: "npm i -g pinchtab (browser screenshot CLI used for fidelity checks)"
   - mcp: figma
     install: "Configure Figma MCP — see mcp-configs/recommended.json"
+  - mcp: chrome-devtools
+    install: "Configure chrome-devtools MCP — used to screenshot the running implementation"
 ---
 
-# Figma Desktop Integration
+# Figma Integration
 
-Combines Figma MCP (structured data) with pinchtab browser control (visual interaction) for design-to-code workflows.
+Uses the Figma Dev Mode MCP for structured design data and chrome-devtools MCP for capturing the running implementation. The two combine to drive fidelity checks and token extraction without manual screenshots of Figma itself.
 
-**MCP** = tokens, styles, component props, file structure.
-**PinchTab** = screenshots, navigation, layer inspection, interactive exploration.
+**Figma MCP** = tokens, styles, component props, dimensions, file structure — exact values, no pixel-pushing.
+**Chrome DevTools MCP** = screenshots and a11y trees of the running implementation in the user's local dev server.
 
 ## Prerequisites
 
-Requires `pinchtab` (installed by `setup.sh`). Figma desktop app must be installed. The Figma Dev Mode MCP must be configured in settings.
-
----
-
-## Connecting to Figma Desktop
-
-### Launch with Remote Debugging
-
-```bash
-# macOS — launch Figma with debugging port
-open -a "Figma" --args --remote-debugging-port=9222
-```
-
-If Figma is already running, quit it first, then relaunch with the flag.
-
-### Connect PinchTab via CDP
-
-```bash
-# Launch a persistent Figma profile instance connected via CDP
-CDP_URL=ws://localhost:9222 pinchtab instance launch --profile=figma --mode headed
-
-# List available tabs/windows
-pinchtab tabs
-
-# Switch to the correct tab (Figma file)
-pinchtab tab info <tab-id>
-```
-
-### Verify Connection
-
-```bash
-pinchtab screenshot
-# Should show the Figma canvas
-```
+- Figma Dev Mode MCP configured (see `mcp-configs/recommended.json`)
+- Figma desktop app installed; the file you're inspecting must be open in Dev Mode
+- `chrome-devtools` MCP available (shipped by default in cc-settings)
 
 ---
 
@@ -60,24 +29,16 @@ pinchtab screenshot
 
 ### 1. Design-to-Code QA
 
-Compare a Figma frame directly against the running implementation.
+Compare design spec from Figma MCP against the running implementation captured via chrome-devtools.
 
-```bash
-# Step 1: Connect and screenshot the Figma frame
-open -a "Figma" --args --remote-debugging-port=9222
-CDP_URL=ws://localhost:9222 pinchtab instance launch --profile=figma --mode headed
-# Navigate to the target frame in Figma
-pinchtab screenshot  # Capture the design
+1. **Pull design spec from Figma MCP** — use `mcp__figma__*` tools to fetch the target frame's tokens, dimensions, typography, colors, and component props. This is the source of truth; prefer structured data over screenshots whenever the MCP exposes it.
+2. **Capture the implementation** with chrome-devtools:
+   - `mcp__chrome-devtools__navigate_page` (type: "url", url: "http://localhost:3000/target-page")
+   - `mcp__chrome-devtools__resize_page` to match the Figma frame width
+   - `mcp__chrome-devtools__take_screenshot` — captures the rendered page
+3. **Diff structured data vs rendered output** and report deviations.
 
-# Step 2: Screenshot the implementation
-pinchtab nav http://localhost:3000/target-page
-pinchtab screenshot  # Capture the implementation
-
-# Step 3: Compare
-# Use the /qa comparison review output format
-```
-
-**Output format:** Use the "Comparison Review (Implementation vs Mockup)" format from `/qa`:
+**Output format** — use the "Comparison Review (Implementation vs Mockup)" format from `/qa`:
 
 ```
 ## Design vs Implementation Review
@@ -85,9 +46,9 @@ pinchtab screenshot  # Capture the implementation
 **Fidelity score:** [1-10] / 10
 
 ### Deviations Found
-1. **[Element]:** Mockup shows [X], implementation has [Y]
+1. **[Element]:** Figma spec says [X], implementation has [Y]
    Impact: [High/Medium/Low]
-   -> **Fix:** [How to match the mockup]
+   -> **Fix:** [How to match the design]
 
 ### Matching Well
 - [Elements that accurately match the design]
@@ -95,37 +56,25 @@ pinchtab screenshot  # Capture the implementation
 
 ### 2. Token Extraction
 
-Pull design tokens from Figma — use MCP for structured data, PinchTab for visual inspection fallback.
+Pull design tokens from Figma — MCP gives exact values without screenshotting.
 
-**MCP first (preferred):**
+**MCP first (always preferred):**
 - Use `mcp__figma__*` tools to extract colors, typography, spacing, effects
-- MCP gives exact values: hex codes, font stacks, rem/px values
+- MCP returns exact values: hex codes, font stacks, rem/px values, shadow specs, border radii
 
-**PinchTab fallback (when MCP doesn't expose it):**
-```bash
-# Assumes Figma is connected — see "Connecting to Figma Desktop" above
-pinchtab screenshot  # Capture the inspect panel values
-# Read values from the dev mode measurements
-```
+**Fallback when MCP can't reach a value:**
+- Ask the user to paste the value from Figma's Dev Mode inspect panel, OR
+- Ask the user to export the frame as PNG/SVG so you can read it
 
-Use PinchTab when you need:
-- Values from the inspect panel that MCP doesn't expose
-- Dev mode measurements and red-line specs
-- Layer-specific overrides or computed values
+We deliberately do not screenshot Figma's UI — Figma's MCP is the canonical interface; chasing pixels through a browser-automated Figma desktop window is brittle and unnecessary.
 
 ### 3. Component Inspection
 
-Navigate Figma files interactively to inspect components, states, and variants.
+Use `mcp__figma__*` to inspect component variants, states, and properties.
 
-```bash
-# Assumes Figma is connected — see "Connecting to Figma Desktop" above
-pinchtab screenshot  # See current state
-
-# Use Figma's UI to switch variants, states
-pinchtab snap -i -c  # Get accessibility tree for clickable elements
-pinchtab click e5    # Click variant switcher, state toggle, etc.
-pinchtab screenshot  # Capture the new state
-```
+- List variants and their property values via Figma MCP
+- Read the component's `properties` and `boundingBox` from MCP responses
+- Cross-reference with the implementation by navigating each variant's URL or storybook page with `chrome-devtools__navigate_page` and screenshotting
 
 Use this for:
 - Reviewing all component variants (hover, active, disabled, error)
@@ -135,25 +84,9 @@ Use this for:
 
 ---
 
-## Persistent Profiles
-
-PinchTab supports persistent profiles so Figma auth persists across sessions:
-
-```bash
-# First time — launches browser, you log in to Figma
-pinchtab instance launch --profile=figma --mode headed
-
-# Future sessions — reuses saved profile (no re-auth needed)
-pinchtab instance launch --profile=figma --mode headed
-```
-
----
-
 ## Tips
 
-- **Always screenshot after navigation** to confirm you're looking at the right frame
-- **Use MCP for data, PinchTab for visuals** — don't screenshot when MCP can give you exact values
-- **Match viewport sizes** when comparing design vs implementation screenshots
-- **Quit and relaunch Figma** if you need the debugging port and Figma is already running
-- **Tab management matters** — Figma may have multiple files open, use `pinchtab tabs` to find the right one
-- **Use `pinchtab text`** for quick content extraction before taking full screenshots
+- **MCP is the canonical Figma interface.** Don't try to script the Figma desktop UI — use the MCP tools.
+- **Match viewport sizes** when comparing design vs implementation screenshots — use `resize_page` with the Figma frame's width.
+- **Pull tokens, don't eyeball them.** If you find yourself reading hex codes off a screenshot, you're holding it wrong — Figma MCP returns them as data.
+- **Use `take_snapshot` before `take_screenshot`** when interacting with the implementation — the a11y tree gives you `uid`s for click/fill targets at ~1/10th the token cost.

@@ -1,6 +1,6 @@
 ---
 name: build
-description: Build new feature, page, or integration end-to-end with a GO/NO-GO gate. For single components use `/component`, for hooks use `/hook`. Triggers "build a feature", "build a page", "implement feature", "add feature", "add new functionality", "build integration".
+description: Build feature/page/integration end-to-end with GO/NO-GO gate. For components use `/component`, hooks `/hook`. Triggers "build a feature/page", "implement feature", "add feature", "build integration".
 context: fork
 ---
 

@@ -137,7 +137,7 @@ Reach for these before merging or whenever stakes are high.
 - **[`/qa`](./skills/qa/SKILL.md)** — visual + a11y review (layout, typography, contrast, hierarchy)
 - **[`/figma`](./skills/figma/SKILL.md)** — compares implementation against Figma designs
 - **[`/lighthouse`](./skills/lighthouse/SKILL.md)** — Lighthouse audits with median-of-3 averaging, optimizes scores
-- **[`/pinchtab`](./skills/pinchtab/SKILL.md)** — browser automation for visual debugging (renamed from `/debug`)
+- **`chrome-devtools` MCP** — browser automation (navigate, screenshot, a11y snapshot, click/fill, lighthouse). Tools called directly by any agent / skill; not a dedicated slash command.
 - **[`/audit`](./skills/audit/SKILL.md)** — runs the cc-settings audit script
 - **`security-reviewer`** *(agent)* — OWASP Top 10, secret scanning, auth flow audit
 

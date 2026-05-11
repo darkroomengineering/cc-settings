@@ -12,16 +12,22 @@ allowed-tools:
   - Grep
   - Glob
   - LS
+  - mcp__chrome-devtools__navigate_page
+  - mcp__chrome-devtools__take_screenshot
+  - mcp__chrome-devtools__take_snapshot
+  - mcp__chrome-devtools__lighthouse_audit
 requires:
   - command: lighthouse
-    install: "npm i -g lighthouse"
+    install: "npm i -g lighthouse (CLI, used for batched 3x3 averaged audits)"
+  - mcp: chrome-devtools
+    install: "chrome-devtools MCP — provides on-demand audits + visual regression screenshots"
 ---
 
 # Lighthouse Optimization Loop
 
 Run Lighthouse audits, improve scores, verify UI isn't broken. Repeat until targets are met.
 
-**Method:** 3 mobile + 3 desktop runs per audit, averaged for reliability. After each code change, re-audit AND visually verify the page with pinchtab to catch regressions.
+**Method:** 3 mobile + 3 desktop runs per audit, averaged for reliability. After each code change, re-audit AND visually verify the page with chrome-devtools MCP to catch regressions.
 
 ---
 
@@ -31,22 +37,20 @@ Run Lighthouse audits, improve scores, verify UI isn't broken. Repeat until targ
 
 2. **Verify prerequisites:**
    ```bash
-   lighthouse --version    # Must be installed
-   pinchtab health         # Must be available for visual QA
+   lighthouse --version    # CLI must be installed for the batched 3x3 protocol
    ```
    If lighthouse is missing: `npm install -g lighthouse`
-   If pinchtab is broken: `npm rebuild pinchtab` or `bun update -g pinchtab`
+   The chrome-devtools MCP is shipped by default; if missing, see `mcp-configs/recommended.json`.
 
 3. **Create results directory:**
    ```bash
    mkdir -p ~/.claude/tmp/lighthouse
    ```
 
-4. **Take baseline screenshots** with pinchtab before any changes:
-   ```bash
-   pinchtab nav <url>
-   pinchtab screenshot
-   ```
+4. **Take baseline screenshots** before any changes:
+   - `mcp__chrome-devtools__navigate_page` (type: "url", url: `<url>`)
+   - `mcp__chrome-devtools__take_screenshot`
+
    Describe the current layout, key elements, and visual state. This is your **visual baseline** — you will compare against it after every change to catch regressions.
 
 5. **Confirm with user:** Show the URL, confirm the dev server is running, ask if there are specific pages or routes to audit beyond the main URL.
@@ -159,8 +163,8 @@ LOOP until all scores >= 90 or user interrupts:
      - If TypeScript project: `tsc --noEmit` first
 
   5. VISUAL REGRESSION CHECK
-     - Navigate pinchtab to the same URL
-     - Take a screenshot
+     - `mcp__chrome-devtools__navigate_page` to the same URL
+     - `mcp__chrome-devtools__take_screenshot`
      - Compare against the baseline screenshot:
        • Layout intact? (same general structure, no collapsed/missing sections)
        • Content visible? (text, images, interactive elements still present)
@@ -168,11 +172,8 @@ LOOP until all scores >= 90 or user interrupts:
        • Functionality preserved? (interactive elements still look clickable)
      - If regression detected: REVERT the change immediately and try a different approach
      - Also check critical user flows if the change affects interactive elements:
-       ```bash
-       pinchtab nav <url>
-       pinchtab snap -i -c    # Check interactive elements are present
-       pinchtab screenshot     # Visual verification
-       ```
+       - `mcp__chrome-devtools__take_snapshot` (a11y tree — confirms interactive elements are present, returns `uid`s)
+       - `mcp__chrome-devtools__take_screenshot` (visual verification)
 
   6. RE-AUDIT
      - Run full audit protocol again (3 mobile + 3 desktop)
@@ -199,8 +200,8 @@ This is the critical safety net. Performance changes MUST NOT break the UI.
 
 ### After every code change:
 
-1. **Navigate:** `pinchtab nav <url>`
-2. **Screenshot:** `pinchtab screenshot`
+1. **Navigate:** `mcp__chrome-devtools__navigate_page` (type: "url", url: `<url>`)
+2. **Screenshot:** `mcp__chrome-devtools__take_screenshot`
 3. **Compare** against baseline:
    - Is the page layout the same structure?
    - Are all visible elements still present?

@@ -34,7 +34,7 @@
 | Dev server | `bun dev` |
 | Performance monitor | `r3f-perf` component |
 | Fetch docs | `/docs three`, `/docs gsap`, `/docs lenis` |
-| Visual QA | `/qa` or `pinchtab` |
+| Visual QA | `/qa` (chrome-devtools MCP) |
 | Linting/formatting | `bun biome check --fix` |
 
 ---

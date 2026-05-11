@@ -1,6 +1,6 @@
 ---
 name: cc-update
-description: Update local cc-settings install (~/.claude/) from origin/main; shows changes, runs installer. User-facing counterpart to /cc-sync. Triggers "update cc-settings", "/cc-update", "refresh my install".
+description: Update local cc-settings install (~/.claude/) from origin/main; runs installer. User-facing counterpart to /cc-sync. Triggers "update cc-settings", "refresh my install".
 ---
 
 # cc-update — pull the latest cc-settings into your install

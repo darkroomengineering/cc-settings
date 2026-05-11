@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Fetch latest library/framework docs via Context7. MANDATORY before writing code with any external lib (gsap, lenis, three, framer, radix, sanity, zustand). Triggers "how to use X", "X docs", "X API".
+description: Fetch latest library/framework docs via Context7. MANDATORY before adding any external dep. Triggers "how to use X", "X docs", "X API", adding a new library.
 context: fork
 allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-docs, WebFetch, WebSearch]
 requires:

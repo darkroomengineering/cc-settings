@@ -76,7 +76,7 @@ if (COMPONENT.has(ext)) {
   console.log("  • Perf: barrel imports, waterfalls, memoization");
   console.log("");
   console.log("Visual QA (if dev server running):");
-  console.log("  • Run /qa to validate with pinchtab");
+  console.log("  • Run /qa to validate via chrome-devtools MCP");
   console.log("  • Screenshot + accessibility tree analysis");
   console.log("  • Touch targets, contrast, layout validation");
   console.log("");

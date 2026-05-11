@@ -1,6 +1,6 @@
 ---
 name: context-doc
-description: Build CONTEXT.md (domain glossary) and docs/adr/ via grilling interview; keeps agent vocab aligned. Triggers "domain language", "glossary", "ADR", "architecture decision", inconsistent terminology.
+description: Build CONTEXT.md (domain glossary) + docs/adr/ via interview; keeps agent vocab aligned. Triggers "domain language", "glossary", "ADR", inconsistent terminology.
 ---
 
 # Context doc — domain language + ADRs

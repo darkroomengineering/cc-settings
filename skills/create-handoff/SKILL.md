@@ -1,6 +1,6 @@
 ---
 name: create-handoff
-description: End-of-session boundary marker — persist session state for later pickup before a break, compaction, or task switch. For mid-task rollback points before risky operations, use `/checkpoint` instead. Triggers "done for today", "ending session", "handoff", "pause work", "wrapping up", "context window", "running out of context", "save my work for later", context >80%.
+description: End-of-session state save before break/compaction/task switch. For mid-task rollback use `/checkpoint`. Triggers "done for today", "ending session", "handoff", "wrapping up", "context window", "running out of context", context >80%.
 ---
 
 # Create Session Handoff

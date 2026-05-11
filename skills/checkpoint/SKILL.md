@@ -1,6 +1,6 @@
 ---
 name: checkpoint
-description: Mid-task rollback points — save/restore session state before risky operations (refactors, schema migrations, destructive edits). Multi-snapshot, git-like. For end-of-session continuity use `/create-handoff` instead. Triggers "checkpoint", "snapshot", "before this risky op", "restore checkpoint", "list checkpoints", "rollback to", pre-refactor save.
+description: Mid-task rollback points — save/restore state before risky ops (refactors, migrations, destructive edits). For end-of-session save use `/create-handoff`. Triggers "checkpoint", "snapshot", "before this risky op", "rollback to", "list checkpoints", pre-refactor save.
 context: fork
 allowed-tools: [Bash]
 ---

@@ -93,7 +93,7 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | Trigger | Skill |
 |---------|-------|
 | "compare to design", "inspect in figma" | `figma` — Figma desktop + MCP integration |
-| screenshot, visual bug | `pinchtab` — browser debugging via pinchtab CLI (renamed from `debug`) |
+| screenshot, visual bug | `chrome-devtools` MCP — `mcp__chrome-devtools__*` tools, no dedicated slash command |
 | "QA check", accessibility | `qa` — visual QA validation |
 | "design tokens", "type scale", "color palette" | `design-tokens` — generates token systems with math |
 | "smooth scroll", "lenis" | `lenis` — Lenis smooth scroll setup |

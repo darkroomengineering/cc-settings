@@ -104,5 +104,5 @@ button:focus { outline: none; }
 ## Tools
 
 - **axe DevTools** - Browser extension
-- **pinchtab snap** - Accessibility tree
+- **`mcp__chrome-devtools__take_snapshot`** — text-based accessibility tree with element `uid`s
 - **Lighthouse** - Audits

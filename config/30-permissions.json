@@ -20,7 +20,6 @@
 			"Bash(gh:*)",
 			"Bash(biome:*)",
 			"Bash(vitest:*)",
-			"Bash(pinchtab:*)",
 			"Bash(lighthouse:*)",
 			"Bash(open -a:*)",
 			"Bash(ls:*)",

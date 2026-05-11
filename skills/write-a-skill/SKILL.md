@@ -1,6 +1,6 @@
 ---
 name: write-a-skill
-description: Scaffold new cc-settings skill (frontmatter, layout, MANUAL.md registration). Triggers "create a skill", "write a skill", "new skill", or repeated prompt patterns worth turning into a skill.
+description: Scaffold new cc-settings skill — frontmatter, layout, MANUAL.md registration. Triggers "create a skill", "write a skill", "new skill", repeated patterns worth a skill.
 ---
 
 # write-a-skill — scaffold a new cc-settings skill

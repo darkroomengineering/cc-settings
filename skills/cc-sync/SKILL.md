@@ -1,6 +1,6 @@
 ---
 name: cc-sync
-description: Audit cc-settings against Claude Code changelog; identify features to adopt and duplication to remove. Stops for approval before edits. Triggers "sync with claude code", "changelog sync", "upstream sync".
+description: Audit cc-settings against Claude Code changelog; identify features to adopt and duplication to remove; stops for approval. Triggers "sync with claude code", "changelog sync", "upstream sync".
 ---
 
 # cc-sync — Claude Code Changelog Sync

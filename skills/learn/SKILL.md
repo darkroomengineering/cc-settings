@@ -1,6 +1,6 @@
 ---
 name: learn
-description: Save/recall learnings across sessions (bugs, patterns, gotchas, perf, config, arch). Auto-invoke after fixing non-obvious bugs. Triggers "remember this", "store learning", "what did we learn".
+description: Save/recall learnings across sessions; auto-invoke after non-obvious bug fixes. Triggers "remember this", "store learning", "what did we learn".
 ---
 
 # Persistent Learning System

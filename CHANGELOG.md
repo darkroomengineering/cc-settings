@@ -4,6 +4,82 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.0.0] — 2026-05-11
+
+### refactor: drop pinchtab, single browser-automation surface (chrome-devtools MCP)
+
+Major version bump because this removes a published skill (`/pinchtab`) and an installed CLI dependency. The browser-automation surface is now exclusively the `chrome-devtools` MCP server, which is richer (CDP, perf traces, network, console, lighthouse, screenshots, a11y snapshots, clicks, fills) and integrates with `ENABLE_TOOL_SEARCH` so its descriptions don't burn context when idle.
+
+**What changed**
+
+- **`skills/pinchtab/` deleted** — the `/pinchtab` slash command no longer exists. Skill count 39 → 38.
+- **`src/setup.ts`** — removed `npm i -g pinchtab` from `installDependencies`. Fresh installs no longer touch global npm for this.
+- **`config/30-permissions.json`** — dropped `Bash(pinchtab:*)` allow rule.
+- **`skills/qa/SKILL.md`** — rewritten to call `mcp__chrome-devtools__*` tools (navigate_page, take_snapshot, take_screenshot, click, fill, hover, press_key, resize_page, evaluate_script). Workflow + tool cheat-sheet updated.
+- **`skills/figma/SKILL.md`** — removed the Figma desktop CDP integration (brittle, required `--remote-debugging-port` and a separate pinchtab profile). Figma MCP remains the canonical interface for design data; chrome-devtools MCP screenshots the running implementation only. Documented the deliberate choice ("Figma MCP is the canonical Figma interface — don't screenshot it").
+- **`skills/lighthouse/SKILL.md`** — visual-regression and baseline screenshots now use `mcp__chrome-devtools__take_screenshot` instead of `pinchtab screenshot`. The `lighthouse` CLI is still required (for the batched 3×3 averaged audit protocol); the MCP server's `lighthouse_audit` is a quicker alternative for ad-hoc runs.
+- **`agents/tester.md`** — E2E section rewritten: testing stack now lists `chrome-devtools MCP` in place of `pinchtab (E2E/visual tests)`. Both pinchtab blocks (testing-stack list + workflow example) converted to MCP tool calls.
+- **`hooks/verification-check.md`** — "UI Screenshot" verification step references `mcp__chrome-devtools__take_screenshot`.
+- **`rules/accessibility.md`** — "Tools" section references `mcp__chrome-devtools__take_snapshot` (text-based a11y tree) instead of `pinchtab snap`.
+- **`profiles/webgl.md`** — Visual QA row points at `/qa` (chrome-devtools MCP).
+- **`src/scripts/post-edit.ts`** — post-edit hint updated to "Run /qa to validate via chrome-devtools MCP".
+- **`tests/install-e2e.test.ts`** — `CC_SKIP_DEPS=1` comment no longer mentions pinchtab.
+- **Doc tables** — `MANUAL.md`, `README.md`, `USAGE.md`, `skills/README.md`, `docs/settings-reference.md`, `docs/frontmatter-reference.md` (skill listings, `Bash(pinchtab:*)` permission line, "Skills using `fork`" list, "All Skills" table row) all cleaned of `/pinchtab` references.
+
+**Migration for existing users**
+
+Re-run `setup.sh` (or `/cc-update`). The installer overwrites `~/.claude/` from the repo, so `skills/pinchtab/` will be removed on next install. The global `pinchtab` npm package will linger on your machine — uninstall it manually with `npm uninstall -g pinchtab` if you want it gone. Existing prompts that reach for `/pinchtab` should now reach for `/qa` (structured review) or call `mcp__chrome-devtools__*` tools directly.
+
+### refactor: compress 38 skill descriptions (8072 → 6732 chars, −17%)
+
+The Skill tool's selector reads every skill description into context on every turn. Trimming the description budget reduces per-session overhead. **No trigger keywords were removed** — only redundant prose, "formerly /X" breadcrumbs that have moved to skill bodies, and over-qualified "for Y use /Z" notes that the model can infer from context.
+
+Top compressions:
+
+| Skill | Before | After | Δ |
+|---|---|---|---|
+| create-handoff | 365 | 233 | -132 |
+| orchestrate | 363 | 227 | -136 |
+| checkpoint | 350 | 246 | -104 |
+| explore | 336 | 235 | -101 |
+| compare-approaches | 294 | 248 | -46 |
+| qa | 282 | 234 | -48 |
+| long-task | 291 | 207 | -84 |
+| build | 261 | 199 | -62 |
+
+20 other skills got smaller per-description reductions. The 5 shortest (lenis, init, ship, ask, refactor) were already lean — left alone.
+
+### docs: MCP `_status` audit
+
+Phase 3 of the rebuild. Audited every server's `_status: core` claim against actual usage in shipped skills/agents/hooks/rules/docs. **All 4 servers in `config/20-mcp.json` are correctly classified:** `chrome-devtools` (59 refs after the pinchtab drop), `tldr` (38), `context7` (8), `figma` (4). The 5th server in `mcp-configs/recommended.json` (Sanity) is `core` despite 0 references in shipped code — but Sanity is a Darkroom stack baseline (per-user auth means it lives in `~/.claude.json`, not the shipped MCP config), so the classification is correct. **No reclassifications needed.**
+
+### refactor: profile shrink evaluated, declined
+
+Phase 2 of the rebuild was to extract a `profiles/_base.md` from the 5 stack profiles. Delegated to an implementer agent; the agent's honest report: profiles share almost no verbatim content (only ~15 lines of true overlap between nextjs.md and react-router.md). A `_base.md` extraction would net **+51 total lines** for marginal abstraction value. Decision: do not extract. Re-evaluate if a 6th profile is added or if real overlap accumulates.
+
+### What v11.0.0 doesn't change
+
+- All zod schemas — unchanged
+- All agents (except tester.md content edit) — unchanged
+- All hooks (except verification-check.md content edit) — unchanged
+- All MCP server configs (except dropping pinchtab references) — unchanged
+
+**Files changed (30):**
+
+- `skills/pinchtab/SKILL.md` (deleted)
+- `skills/{qa,figma,lighthouse}/SKILL.md` (rewritten to use chrome-devtools MCP)
+- `skills/{create-handoff,orchestrate,checkpoint,explore,compare-approaches,long-task,qa,build,figma,cc-sync,cc-update,autoresearch,project,context-doc,consolidate,docs,learn,verify,tdd,write-a-skill,tldr}/SKILL.md` (description compression)
+- `src/setup.ts` (removed pinchtab install; VERSION 10.13.0 → 11.0.0)
+- `src/scripts/post-edit.ts` (post-edit hint)
+- `config/30-permissions.json` (dropped pinchtab Bash rule)
+- `agents/tester.md` (E2E section rewritten)
+- `hooks/verification-check.md` (UI Screenshot row)
+- `rules/accessibility.md` (Tools list)
+- `profiles/webgl.md` (Favored Tools row)
+- `tests/install-e2e.test.ts` (CC_SKIP_DEPS comment)
+- `MANUAL.md`, `README.md`, `USAGE.md`, `skills/README.md`, `docs/settings-reference.md`, `docs/frontmatter-reference.md` (table + listing updates)
+- `CHANGELOG.md`
+
 ## [10.13.0] — 2026-05-11
 
 ### refactor: skill consolidation — 42 → 39 skills, 3 renames, 5 trigger tightenings

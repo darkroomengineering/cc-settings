@@ -1,6 +1,6 @@
 ---
 name: project
-description: GitHub-native project mgmt — Issues replace PLAN.md; agents read/update them. Auto-invoke on branches linked to issues. Triggers "what's the plan", "project status", "sync with github", "close the issue".
+description: GitHub Issues as PLAN.md replacement — agents read/update them. Auto-invoke on issue-linked branches. Triggers "what's the plan", "project status", "sync with github", "close the issue".
 ---
 
 # GitHub Project Sync

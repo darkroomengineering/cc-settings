@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.13.0"; // refactor: skill consolidation — 42 → 39 skills (drop teams/zoom-out/context, rename f-thread→compare-approaches, l-thread→long-task, debug→pinchtab, tighten triggers)
+const VERSION = "11.0.0"; // refactor: drop pinchtab (use chrome-devtools MCP), compress skill descriptions -17%, MCP _status audit clean, profile shrink evaluated and declined
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -370,7 +370,6 @@ async function installDependencies(): Promise<void> {
   }
 
   if (!hasCommand("pipx")) await ensureSystemPackage("pipx").catch(() => false);
-  if (!hasCommand("pinchtab")) await ensureNpmGlobal("pinchtab").catch(() => false);
   if (!hasCommand("tldr") && !hasCommand("tldr-mcp")) {
     await ensurePythonPackage("llm-tldr", "tldr").catch(() => false);
   }

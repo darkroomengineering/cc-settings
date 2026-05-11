@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Adversarial verification with three competing agents (issue-finder, disprover, judge). Triggers "verify", "double check", "are you sure", "stress test", "poke holes"; pre-prod, post-critical-fix.
+description: Adversarial verification — three competing agents (issue-finder, disprover, judge). Triggers "verify", "double check", "are you sure", "poke holes"; pre-prod, post-critical-fix.
 context: fork
 ---
 

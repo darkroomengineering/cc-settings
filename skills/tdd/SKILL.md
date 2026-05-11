@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Test-driven dev with strict red→green→refactor; tests describe behavior via public interfaces (survive refactors). Triggers "TDD", "test-first", "red-green-refactor", bugs-that-must-not-recur.
+description: Strict red→green→refactor TDD; tests describe behavior via public interfaces. Triggers "TDD", "test-first", "red-green-refactor", bugs-that-must-not-recur.
 ---
 
 # TDD — red → green → refactor

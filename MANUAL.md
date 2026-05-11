@@ -177,7 +177,7 @@ Triggers `/lighthouse` — runs Lighthouse audits (3 mobile + 3 desktop, average
 
 Say: *"take a screenshot"* or *"what does the page look like?"*
 
-Triggers `/pinchtab` — pinchtab browser automation for visual debugging. (Renamed from `/debug` to match the underlying CLI; for general code-level bug fixing use `/fix`.)
+Use the `chrome-devtools` MCP directly (`mcp__chrome-devtools__navigate_page`, `take_screenshot`, `take_snapshot`, `click`, `fill`, …) — there is no longer a dedicated skill for this. The `/qa` skill is the structured-review entry point; for ad-hoc browser debugging, the MCP tools are available to any agent or directly to you in a session. (For general code-level bug fixing use `/fix`.)
 
 ---
 
@@ -374,7 +374,7 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 | `context7` | Library / framework documentation lookup | `/docs`, every skill that fetches docs before adding deps |
 | `tldr` | Semantic codebase analysis (call graphs, impact) | `/tldr`, `/explore` |
 | `figma` | Figma Dev Mode MCP — design tokens, component props | `/figma` |
-| `chrome-devtools` | Chrome DevTools (perf traces, network, console) | `/lighthouse`, `/pinchtab`, `/qa` |
+| `chrome-devtools` | Chrome DevTools (perf traces, network, console, screenshots, a11y tree, click/fill, lighthouse) | `/lighthouse`, `/qa`, `/figma`, `/fix`, `tester` agent |
 | `Sanity` | Sanity CMS operations (GROQ queries, etc.) | satus / novus projects with Sanity integration |
 
 **Optional** servers — not installed by default; add manually to `~/.claude.json` if you want them. Listed in `mcp-configs/recommended.json`:
@@ -432,7 +432,6 @@ These are enforced automatically — no skill needed:
 | `init` | new project, initialize, setup |
 | `design-tokens` | type scale, color palette, spacing system |
 | `lenis` | smooth scroll, lenis |
-| `pinchtab` | screenshot, visual bug, inspect element, browser automation |
 | `figma` | compare to design, figma |
 | `qa` | visual QA, accessibility, contrast, touch target |
 | `lighthouse` | lighthouse, performance audit, page speed, web vitals |

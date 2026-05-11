@@ -6,8 +6,8 @@
 // the actual file copies, the version sentinel write, the link-vs-copy logic
 // for node_modules. This test fires the whole flow and verifies the end state.
 //
-// Sets CC_SKIP_DEPS=1 to bypass `npm i -g pinchtab`, `pipx install llm-tldr`,
-// etc. — those write outside HOME and would pollute the dev/CI environment.
+// Sets CC_SKIP_DEPS=1 to bypass `pipx install llm-tldr` and similar global
+// installs — those write outside HOME and would pollute the dev/CI environment.
 
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";

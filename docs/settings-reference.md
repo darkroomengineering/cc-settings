@@ -512,9 +512,8 @@ NotebookEdit(*)
 **External tools:**
 
 ```
-Bash(pinchtab:*)          # Visual QA browser automation
-Bash(lighthouse:*)        # Lighthouse performance audits
-Bash(open -a:*)          # Launch macOS apps (e.g., Figma with debugging port)
+Bash(lighthouse:*)        # Lighthouse performance audits (CLI; complemented by chrome-devtools MCP)
+Bash(open -a:*)          # Launch macOS apps
 ```
 
 ### Configured Deny Rules

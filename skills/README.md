@@ -77,7 +77,6 @@ These fork context for clean exploration:
 ### Tools
 | Skill | Triggers On |
 |-------|-------------|
-| `pinchtab` | screenshot, visual bug, inspect element, browser automation |
 | `figma` | figma, compare to design, design fidelity, extract tokens from figma |
 | `qa` | visual QA, accessibility, contrast, touch target |
 | `lenis` | smooth scroll, lenis setup |
