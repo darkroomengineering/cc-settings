@@ -38,5 +38,5 @@ The following markdown files describe **behavioral guidelines** referenced by sk
 
 | File | Referenced By |
 |------|--------------|
-| `checkpoint.md` | `skills/l-thread/`, `agents/maestro.md` |
-| `verification-check.md` | `skills/l-thread/` |
+| `checkpoint.md` | `skills/long-task/`, `agents/maestro.md` |
+| `verification-check.md` | `skills/long-task/` |

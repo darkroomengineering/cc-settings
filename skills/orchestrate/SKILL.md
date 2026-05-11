@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Coordinate multi-agent complex task across plan/implement/test/review. Triggers "coordinate", "orchestrate", "complex task", multi-step work needing multiple agents.
+description: Coordinate multi-agent complex task across plan/implement/test/review, including parallel fan-out for 3+ independent workstreams (formerly `/teams`). Triggers "coordinate", "orchestrate", "complex task", "use teams", "parallel agents", "split work", "fan out", "divide and conquer", "multi-instance", large-scale refactor, multi-step work needing multiple agents.
 context: fork
 agent: maestro
 ---
@@ -31,3 +31,25 @@ Delegate to the Maestro agent for multi-agent task orchestration.
 The Maestro agent handles: agent selection, parallel execution, workflow coordination, and agent teams.
 
 For simple delegation (1-2 agents), use Agent() directly without invoking this skill.
+
+## When to Fan Out (Teams mode)
+
+Use full parallel team fan-out instead of sequential subagent delegation when:
+
+| Scenario | Fan out? | Why |
+|----------|----------|-----|
+| 3+ independent file areas | Yes | Maximum parallelism, isolated context per agent |
+| Frontend + Backend + Tests | Yes | No file conflicts, clear boundaries |
+| Large codebase analysis | Yes | Independent context per agent prevents bleed |
+| Competing approaches | Yes | Explore alternatives in parallel before deciding |
+| Sequential dependent work | No | Use subagents in sequence; fan-out adds overhead |
+| Quick single investigation | No | Overhead not worth it; use `/explore` directly |
+
+### Prerequisites for fan-out
+
+- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` must be set (enabled by default in cc-settings)
+- For split panes: tmux or iTerm2 recommended
+
+## Output
+
+Report: team composition (when fan-out chosen), task assignments, coordination strategy, and progress.

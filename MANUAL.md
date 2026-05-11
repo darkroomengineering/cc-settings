@@ -89,7 +89,7 @@ Triggers `/explore` — read-only investigation, returns file locations and summ
 
 Say: *"compare Zustand vs Jotai"* or *"which approach is better?"*
 
-Triggers `/f-thread` — spawns parallel oracle agents, builds weighted scoring matrix, outputs ADR.
+Triggers `/compare-approaches` — spawns parallel oracle agents, builds weighted scoring matrix, outputs ADR. (Renamed from `/f-thread`.)
 
 ### Write a PRD
 
@@ -113,13 +113,13 @@ Triggers `/discovery` — structured interview to turn vague ideas into clear re
 
 Say: *"set up a context doc"* or *"create a glossary"* or *"record this as an ADR"*
 
-Triggers `/context-doc` — grilling interview that produces a project-level `CONTEXT.md` (domain language) and `docs/adr/` (architecture decisions). Other skills (`/explore`, `/zoom-out`, `/tdd`) read these files so agent output stays aligned with your project's vocabulary across sessions. Stops agent drift toward generic terminology.
+Triggers `/context-doc` — grilling interview that produces a project-level `CONTEXT.md` (domain language) and `docs/adr/` (architecture decisions). Other skills (`/explore`, `/tdd`) read these files so agent output stays aligned with your project's vocabulary across sessions. Stops agent drift toward generic terminology.
 
 ### Zoom Out
 
 Say: *"zoom out"* or *"give me the bigger picture"* or *"where does this fit"*
 
-Triggers `/zoom-out` — focused upward map for an unfamiliar code region. Lists immediate callers, sibling modules, and where this area sits in the system, using `CONTEXT.md` vocabulary when present.
+Triggers `/explore` (upward-zoom mode) — focused map listing immediate callers, sibling modules, and where this area sits in the system, using `CONTEXT.md` vocabulary when present. (Folded in from former `/zoom-out`.)
 
 ### Premortem
 
@@ -177,7 +177,7 @@ Triggers `/lighthouse` — runs Lighthouse audits (3 mobile + 3 desktop, average
 
 Say: *"take a screenshot"* or *"what does the page look like?"*
 
-Triggers `/debug` — pinchtab browser automation for visual debugging.
+Triggers `/pinchtab` — pinchtab browser automation for visual debugging. (Renamed from `/debug` to match the underlying CLI; for general code-level bug fixing use `/fix`.)
 
 ---
 
@@ -185,9 +185,9 @@ Triggers `/debug` — pinchtab browser automation for visual debugging.
 
 ### Context Window
 
-Say: *"how's my context?"* or *"context usage"*
+Say: *"how's my context?"* or *"context usage"* or *"running out of context"*
 
-Triggers `/context`. Watch the statusline:
+Triggers `/create-handoff` (context-window runbook now lives inside the handoff skill). Watch the statusline:
 
 ```
 Opus 4.7 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
@@ -314,13 +314,13 @@ Triggers `/autoresearch` — autonomous skill optimization loop. Mutates a SKILL
 
 Say: *"this is going to be a long task"* or *"overnight refactor"*
 
-Triggers `/l-thread` — phased execution with automatic checkpoints, verification stack, and recovery from interruption.
+Triggers `/long-task` — phased execution with automatic checkpoints, verification stack, and recovery from interruption. (Renamed from `/l-thread`.)
 
 ### Parallel Agent Teams
 
 Say: *"use teams"* or *"split this across parallel agents"*
 
-Triggers `/teams` — coordinates multiple independent Claude Code instances for true parallelism. Use when 3+ independent workstreams.
+Triggers `/orchestrate` (teams mode) — coordinates multiple independent Claude Code instances for true parallelism. Use when 3+ independent workstreams. (Merged in from former `/teams`.)
 
 ### Full Orchestration
 
@@ -372,9 +372,9 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 | Server | Purpose | Used by |
 |---|---|---|
 | `context7` | Library / framework documentation lookup | `/docs`, every skill that fetches docs before adding deps |
-| `tldr` | Semantic codebase analysis (call graphs, impact) | `/tldr`, `/explore`, `/zoom-out` |
+| `tldr` | Semantic codebase analysis (call graphs, impact) | `/tldr`, `/explore` |
 | `figma` | Figma Dev Mode MCP — design tokens, component props | `/figma` |
-| `chrome-devtools` | Chrome DevTools (perf traces, network, console) | `/lighthouse`, `/debug`, `/qa` |
+| `chrome-devtools` | Chrome DevTools (perf traces, network, console) | `/lighthouse`, `/pinchtab`, `/qa` |
 | `Sanity` | Sanity CMS operations (GROQ queries, etc.) | satus / novus projects with Sanity integration |
 
 **Optional** servers — not installed by default; add manually to `~/.claude.json` if you want them. Listed in `mcp-configs/recommended.json`:
@@ -422,10 +422,9 @@ These are enforced automatically — no skill needed:
 | `discovery` | requirements, scope, figure out |
 | `prd` | PRD, requirements document, product spec |
 | `premortem` | risks, what could go wrong |
-| `f-thread` | compare approaches, architecture decision |
-| `l-thread` | overnight, long running, autonomous task |
-| `orchestrate` | complex task, coordinate |
-| `teams` | parallel agents, split work, fan out |
+| `compare-approaches` | compare approaches, architecture decision, decide between, trade-off analysis |
+| `long-task` | overnight, long running, autonomous task, marathon |
+| `orchestrate` | complex task, coordinate, parallel agents, split work, fan out, multi-instance |
 | `project` | project status, update the issue |
 | `tldr` | who calls, dependencies, semantic search |
 | `component` | create component, new component |
@@ -433,23 +432,22 @@ These are enforced automatically — no skill needed:
 | `init` | new project, initialize, setup |
 | `design-tokens` | type scale, color palette, spacing system |
 | `lenis` | smooth scroll, lenis |
-| `debug` | screenshot, visual bug |
+| `pinchtab` | screenshot, visual bug, inspect element, browser automation |
 | `figma` | compare to design, figma |
-| `qa` | visual check, accessibility, validate |
+| `qa` | visual QA, accessibility, contrast, touch target |
 | `lighthouse` | lighthouse, performance audit, page speed, web vitals |
-| `context` | context window, running out of context |
-| `checkpoint` | save state, save progress |
-| `create-handoff` | done for today, ending session |
+| `checkpoint` | snapshot, before risky op, restore checkpoint, rollback to |
+| `create-handoff` | done for today, ending session, context window, running out of context |
 | `resume-handoff` | resume, continue, last session |
+| `explore` | how does, where is, find, understand, zoom out, bigger picture |
 | `learn` | remember this, store learning (also auto-triggers) |
 | `consolidate` | clean up rules, contradictions, spa day |
 | `cc-sync` | sync with claude code, changelog sync, upstream sync |
 | `cc-update` | update cc-settings, upgrade cc-settings, pull the latest |
 | `context-doc` | domain glossary, ADR, shared vocabulary, context doc |
 | `tdd` | TDD, test-first, red-green-refactor |
-| `zoom-out` | zoom out, bigger picture, where does this fit |
 | `write-a-skill` | create a skill, write a new skill |
-| `audit` | audit, run audit script |
+| `audit` | slash-only (`/audit`) |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 
 ### All Agents

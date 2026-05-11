@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.12.1"; // docs: document 13 schema keys missing from settings-reference.md; relocate 4 reference docs from skills/ to docs/
+const VERSION = "10.13.0"; // refactor: skill consolidation — 42 → 39 skills (drop teams/zoom-out/context, rename f-thread→compare-approaches, l-thread→long-task, debug→pinchtab, tighten triggers)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

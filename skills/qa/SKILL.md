@@ -1,6 +1,6 @@
 ---
 name: qa
-description: Visual + a11y QA — screenshot-first critique, contrast/touch-target checks, mockup-vs-impl diff. Triggers "validate", "QA check", "does this look right", "a11y", "contrast", post-component changes.
+description: Visual + a11y QA — screenshot-first critique, contrast/touch-target checks, mockup-vs-impl diff. For adversarial logic verification use `/verify`. Triggers "visual QA", "QA check", "does this look right", "a11y check", "contrast check", "touch target check", post-component changes.
 context: fork
 allowed-tools: [Bash]
 requires:

@@ -129,9 +129,9 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
 | `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
 
-Skills using `fork`: `ask`, `autoresearch`, `build`, `checkpoint`, `consolidate`, `debug`, `design-tokens`, `discovery`, `docs`, `explore`, `f-thread`, `figma`, `fix`, `l-thread`, `lighthouse`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `teams`, `test`, `tldr`, `verify`.
+Skills using `fork`: `ask`, `autoresearch`, `build`, `checkpoint`, `compare-approaches`, `consolidate`, `design-tokens`, `discovery`, `docs`, `explore`, `figma`, `fix`, `lighthouse`, `long-task`, `orchestrate`, `pinchtab`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `test`, `tldr`, `verify`.
 
-Skills using `inherit` (default): `audit`, `component`, `context`, `create-handoff`, `hook`, `init`, `learn`, `lenis`, `project`, `resume-handoff`, `versions`.
+Skills using `inherit` (default): `audit`, `component`, `create-handoff`, `hook`, `init`, `learn`, `lenis`, `project`, `resume-handoff`, `versions`.
 
 ### Agent Delegation
 
@@ -145,7 +145,6 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 | `orchestrate` | `maestro` |
 | `premortem` | `oracle` |
 | `review` | `reviewer` |
-| `teams` | `maestro` |
 | `test` | `tester` |
 
 ### Example: Skill with Fork and Agent Delegation
@@ -197,25 +196,24 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | `autoresearch` | fork | -- | -- | `<skill-name>` |
 | `build` | fork | -- | -- | -- |
 | `checkpoint` | fork | -- | Bash | -- |
+| `compare-approaches` | fork | -- | -- | -- |
 | `component` | -- | -- | -- | -- |
 | `consolidate` | fork | -- | -- | -- |
-| `context` | -- | -- | -- | -- |
 | `create-handoff` | -- | -- | -- | -- |
-| `debug` | fork | -- | Bash | -- |
 | `design-tokens` | fork | -- | -- | -- |
 | `discovery` | fork | planner | -- | -- |
 | `docs` | fork | -- | MCP context7 tools, WebFetch, WebSearch | -- |
 | `explore` | fork | explore | -- | -- |
-| `f-thread` | fork | -- | -- | -- |
 | `figma` | fork | -- | Bash, MCP figma tools | -- |
 | `fix` | fork | -- | -- | -- |
 | `hook` | -- | -- | -- | -- |
 | `init` | -- | -- | -- | `[project-name]` |
-| `l-thread` | fork | -- | -- | -- |
 | `learn` | -- | -- | -- | -- |
 | `lenis` | -- | -- | -- | -- |
 | `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
+| `long-task` | fork | -- | -- | -- |
 | `orchestrate` | fork | maestro | -- | -- |
+| `pinchtab` | fork | -- | Bash | -- |
 | `prd` | fork | -- | -- | -- |
 | `premortem` | fork | oracle | -- | -- |
 | `project` | -- | -- | -- | -- |
@@ -224,7 +222,6 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | `resume-handoff` | -- | -- | -- | -- |
 | `review` | fork | reviewer | -- | -- |
 | `ship` | fork | -- | -- | -- |
-| `teams` | fork | maestro | -- | -- |
 | `test` | fork | tester | -- | -- |
 | `tldr` | fork | -- | -- | -- |
 | `verify` | fork | -- | -- | -- |

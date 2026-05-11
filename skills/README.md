@@ -46,8 +46,8 @@ These fork context and delegate to specialized agents:
 | `test` | test, write tests, coverage | tester |
 | `orchestrate` | complex task, coordinate | maestro |
 | `ship` | ship it, create PR, /pr, /ship | tester → reviewer → implementer |
-| `f-thread` | compare approaches, architecture decision | parallel oracles → scoring matrix |
-| `l-thread` | overnight, long running, autonomous task | phased execution with checkpoints |
+| `compare-approaches` | compare approaches, architecture decision | parallel oracles → scoring matrix |
+| `long-task` | overnight, long running, autonomous task | phased execution with checkpoints |
 | `verify` | verify, double check, prove it, adversarial, audit | finder → adversary → referee |
 
 ### Creation (Direct Output)
@@ -65,7 +65,7 @@ These fork context for clean exploration:
 
 | Skill | Triggers On |
 |-------|-------------|
-| `explore` | how does, where is, find, understand |
+| `explore` | how does, where is, find, understand, zoom out, bigger picture, where does this fit |
 | `docs` | documentation, how to use, library API |
 | `ask` | advice, guidance, what should I |
 | `tldr` | who calls, dependencies, semantic search |
@@ -77,25 +77,23 @@ These fork context for clean exploration:
 ### Tools
 | Skill | Triggers On |
 |-------|-------------|
-| `debug` | screenshot, visual bug, inspect element |
+| `pinchtab` | screenshot, visual bug, inspect element, browser automation |
 | `figma` | figma, compare to design, design fidelity, extract tokens from figma |
-| `qa` | visual check, accessibility, validate |
+| `qa` | visual QA, accessibility, contrast, touch target |
 | `lenis` | smooth scroll, lenis setup |
 
 ### Utility
 | Skill | Triggers On |
 |-------|-------------|
 | `audit` | /audit — analyzes Claude's Bash command log (categories, security, repeats) |
-| `teams` | parallel agents, split work, fan out |
 | `consolidate` | clean up rules, simplify config, contradictions, spa day, prune |
 
 ### Session Management
 | Skill | Triggers On |
 |-------|-------------|
 | `learn` | **AUTO**: after non-obvious fix, pattern, gotcha |
-| `context` | context window, running out of context |
-| `checkpoint` | save state, save progress, checkpoint |
-| `create-handoff` | done for today, save state |
+| `checkpoint` | snapshot, before risky op, rollback to |
+| `create-handoff` | done for today, ending session, context window, running out of context |
 | `resume-handoff` | resume, continue, last session |
 
 ## The `learn` Skill (Auto-Applied)

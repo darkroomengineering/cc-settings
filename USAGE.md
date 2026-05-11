@@ -63,8 +63,8 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "ship it", "create PR" | `ship` | test → review → PR |
 | "coordinate", "complex task" | `orchestrate` | maestro multi-agent delegation |
 | "new project", "initialize" | `init` | scaffolds from Satus starter template |
-| "compare approaches", "which is better" | `f-thread` | parallel evaluation → scoring matrix |
-| "overnight", "long running" | `l-thread` | phased execution with checkpoints |
+| "compare approaches", "which is better" | `compare-approaches` | parallel evaluation → scoring matrix |
+| "overnight", "long running" | `long-task` | phased execution with checkpoints |
 
 ### Research
 
@@ -83,18 +83,17 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 
 | Trigger | Skill |
 |---------|-------|
-| "done for today" | `create-handoff` — saves state |
+| "done for today", "context window", "running out of context" | `create-handoff` — end-of-session state save (incl. context-window runbook) |
 | "resume", "continue" | `resume-handoff` — loads previous state |
 | Non-obvious bug fix discovered | `learn` — **auto-stores** the insight |
-| "save progress", "checkpoint" | `checkpoint` — saves/restores task state |
-| "context window", "running out of context" | `context` — context window management |
+| "snapshot", "before risky op", "rollback to" | `checkpoint` — mid-task rollback points |
 
 ### Tools
 
 | Trigger | Skill |
 |---------|-------|
 | "compare to design", "inspect in figma" | `figma` — Figma desktop + MCP integration |
-| screenshot, visual bug | `debug` — browser debugging with pinchtab |
+| screenshot, visual bug | `pinchtab` — browser debugging via pinchtab CLI (renamed from `debug`) |
 | "QA check", accessibility | `qa` — visual QA validation |
 | "design tokens", "type scale", "color palette" | `design-tokens` — generates token systems with math |
 | "smooth scroll", "lenis" | `lenis` — Lenis smooth scroll setup |
@@ -106,7 +105,7 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | Trigger | Skill |
 |---------|-------|
 | "create component X" | `component` — scaffolds with standards |
-| "parallel agents", "split work", "fan out" | `teams` — multi-instance parallel work |
+| "parallel agents", "split work", "fan out" | `orchestrate` (teams mode) — multi-instance parallel work |
 | "verify", "double check", "are you sure" | `verify` — adversarial multi-agent verification |
 | "consolidate", "clean up rules", "maintenance" | `consolidate` — prunes rules, skills, learnings |
 | "audit commands", "what did it run" | `audit` — analyzes logged Bash commands |

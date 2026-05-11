@@ -4,6 +4,68 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.13.0] — 2026-05-11
+
+### refactor: skill consolidation — 42 → 39 skills, 3 renames, 5 trigger tightenings
+
+Post-congruence audit (via `/consolidate`) found three skills that were stubs or duplicates of existing capabilities, three names that obscured their function, and five trigger-keyword collisions. All actioned. **Behavior preserved everywhere** — every removed or renamed skill's functionality lives on under a different name, with backward-compatibility breadcrumbs in MANUAL.md / README.md / SKILL.md descriptions.
+
+**Drops / merges (4 → 1 skill removed, 3 folded into siblings):**
+
+- `audit` — broken YAML (`description: |` with no value). Description rewritten to a single line clarifying it's slash-only.
+- `teams` — **merged into `orchestrate`**. The 22-line stub was a parallel-fan-out specialization of the same `maestro` delegation. Body folded into a "When to Fan Out (Teams mode)" section in `orchestrate/SKILL.md`. Triggers migrated.
+- `zoom-out` — **merged into `explore`**. Self-described as "Counter to /explore" — it was a focused mode, not a separate skill. Body folded into an "Upward-zoom mode" section in `explore/SKILL.md`. Triggers migrated.
+- `context` — **runbook folded into `create-handoff`**. Trigger "compact" collided with the native `/compact` command; "context window" / "running out of context" triggers moved to `create-handoff`. The full context-window runbook (statusline thresholds, model degradation table, structured compaction template, post-compaction validation, proactive reduction tips) is now a final section in `create-handoff/SKILL.md`.
+
+**Renames (3) — names now match function:**
+
+- `f-thread` → `compare-approaches` — `f-thread` was a Darkroom-internal label. New name is self-documenting and matches the trigger phrases.
+- `l-thread` → `long-task` — same opacity problem. New name distinguishes from the `t*` cluster (`tldr`/`teams`/`tdd`/`test`) it used to crowd into alphabetically.
+- `debug` → `pinchtab` — the skill is not general debugging, it's a wrapper around the `pinchtab` CLI. The misleading name was stealing invocations from `/fix` via the "bug"/"broken" trigger words.
+
+**Trigger tightening (5) — eliminates collisions:**
+
+- `build` — removed the word "component" from the description (it was stealing from `/component`)
+- `pinchtab` (was `debug`) — dropped generic "bug"/"broken" terms; restricted to visual/UI/E2E
+- `qa` — dropped "validate" (now reserved for `/verify`); lead with "Visual + a11y QA"
+- `checkpoint` — clarified scope to **mid-task rollback before risky operations**; moved "save progress" out
+- `create-handoff` — leads with **end-of-session boundary**; absorbs context-window triggers from former `/context`
+
+**Inbound references updated (no broken links):**
+
+- `agents/maestro.md` — FBPCL framework lines now reference `/compare-approaches` and `/long-task`
+- `agents/planner.md`, `agents/security-reviewer.md`, `rules/ui-skills.md` — paths to relocated reference docs (carried over from v10.12.1)
+- `docs/thread-types.md` — skill file paths updated
+- `docs/frontmatter-reference.md` — `fork`/`inherit` skill lists, agent-delegation table, "All Skills" table
+- `hooks/README.md` — checkpoint.md / verification-check.md cross-references
+- `MANUAL.md`, `USAGE.md`, `README.md`, `skills/README.md` — all trigger tables, slash command references, and prose mentions
+
+**Conceptual names preserved:** `docs/thread-types.md` retains "F-Thread" and "L-Thread" as section headers — these are the FBPCL framework categories (Fusion / Long-duration), distinct from the slash command names. Only the implementation pointers (`See: skills/.../SKILL.md`) were updated.
+
+**Result:** 42 → 39 skills. No functionality lost; every former skill has either a renamed home or a fold-in target with its triggers preserved.
+
+**Files changed (16):**
+
+- `skills/audit/SKILL.md` (YAML fix)
+- `skills/orchestrate/SKILL.md` (teams folded in)
+- `skills/explore/SKILL.md` (zoom-out folded in)
+- `skills/create-handoff/SKILL.md` (context runbook folded in)
+- `skills/teams/SKILL.md` (deleted)
+- `skills/zoom-out/SKILL.md` (deleted)
+- `skills/context/SKILL.md` (deleted)
+- `skills/f-thread/` → `skills/compare-approaches/` (renamed + frontmatter updated)
+- `skills/l-thread/` → `skills/long-task/` (renamed + frontmatter updated)
+- `skills/debug/` → `skills/pinchtab/` (renamed + frontmatter + clarifying body)
+- `skills/build/SKILL.md` (trigger tightening)
+- `skills/qa/SKILL.md` (trigger tightening)
+- `skills/checkpoint/SKILL.md` (trigger tightening)
+- `agents/maestro.md` (FBPCL slash-command refs)
+- `docs/thread-types.md` (skill file paths)
+- `docs/frontmatter-reference.md` (three tables)
+- `hooks/README.md`, `skills/README.md`, `MANUAL.md`, `USAGE.md`, `README.md` (skill listings + trigger tables)
+- `src/setup.ts` (VERSION 10.12.1 → 10.13.0)
+- `CHANGELOG.md`
+
 ## [10.12.1] — 2026-05-11
 
 ### docs: document 13 schema keys + relocate reference docs to docs/

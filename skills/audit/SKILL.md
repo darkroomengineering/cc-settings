@@ -1,7 +1,6 @@
 ---
 name: audit
-description: |
-  Run `bun ~/.claude/src/scripts/claude-audit.ts` and show the output as-is.
+description: Analyze Claude's Bash command logs — categories, repeats, security signals. Slash-only invocation (triggered by `/audit`); thin wrapper around `claude-audit.ts` with no keyword triggers.
 ---
 
 Run `bun ~/.claude/src/scripts/claude-audit.ts` and show the output as-is.

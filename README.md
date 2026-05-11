@@ -137,7 +137,7 @@ Reach for these before merging or whenever stakes are high.
 - **[`/qa`](./skills/qa/SKILL.md)** — visual + a11y review (layout, typography, contrast, hierarchy)
 - **[`/figma`](./skills/figma/SKILL.md)** — compares implementation against Figma designs
 - **[`/lighthouse`](./skills/lighthouse/SKILL.md)** — Lighthouse audits with median-of-3 averaging, optimizes scores
-- **[`/debug`](./skills/debug/SKILL.md)** — browser automation for visual debugging
+- **[`/pinchtab`](./skills/pinchtab/SKILL.md)** — browser automation for visual debugging (renamed from `/debug`)
 - **[`/audit`](./skills/audit/SKILL.md)** — runs the cc-settings audit script
 - **`security-reviewer`** *(agent)* — OWASP Top 10, secret scanning, auth flow audit
 
@@ -148,18 +148,17 @@ Before writing code on anything non-trivial.
 - **[`/discovery`](./skills/discovery/SKILL.md)** — turn vague ideas into concrete requirements
 - **[`/prd`](./skills/prd/SKILL.md)** — clarifying interview → scope → user stories → task breakdown
 - **[`/context-doc`](./skills/context-doc/SKILL.md)** — build the project's `CONTEXT.md` (domain glossary) and `docs/adr/`. Stops agent drift toward generic vocabulary
-- **[`/zoom-out`](./skills/zoom-out/SKILL.md)** — focused upward map for an unfamiliar code region
+- **[`/explore`](./skills/explore/SKILL.md)** — broad codebase navigation; also handles upward-zoom for unfamiliar regions (merged in `/zoom-out`)
 - **[`/ask`](./skills/ask/SKILL.md)** — delegate to the oracle agent for evidence-based guidance
 - **[`/premortem`](./skills/premortem/SKILL.md)** — failure-mode analysis before implementing
-- **[`/f-thread`](./skills/f-thread/SKILL.md)** — compare approaches with weighted scoring matrix → ADR
+- **[`/compare-approaches`](./skills/compare-approaches/SKILL.md)** — compare approaches with weighted scoring matrix → ADR (renamed from `/f-thread`)
 
 ### Session management
 
 For long sessions and multi-day work.
 
-- **[`/context`](./skills/context/SKILL.md)** — context-window status and management
-- **[`/checkpoint`](./skills/checkpoint/SKILL.md)** — lightweight JSON quicksave (mid-session)
-- **[`/create-handoff`](./skills/create-handoff/SKILL.md)** — full markdown session transfer with GitHub Issue sync
+- **[`/checkpoint`](./skills/checkpoint/SKILL.md)** — mid-task rollback points before risky operations (multi-snapshot)
+- **[`/create-handoff`](./skills/create-handoff/SKILL.md)** — end-of-session transfer with GitHub Issue sync; includes context-window runbook (merged in `/context`)
 - **[`/resume-handoff`](./skills/resume-handoff/SKILL.md)** — load handoff + linked issue context
 - **[`/learn`](./skills/learn/SKILL.md)** — store learnings (local or `--shared` to team via GitHub Projects)
 
@@ -187,9 +186,8 @@ For starting fresh or adding common pieces.
 
 Niche but powerful — reach for these when the simpler skills fall short.
 
-- **[`/orchestrate`](./skills/orchestrate/SKILL.md)** — delegate multi-agent coordination to Maestro
-- **[`/teams`](./skills/teams/SKILL.md)** — coordinate independent Claude Code instances for true parallelism (3+ workstreams, no file conflicts)
-- **[`/l-thread`](./skills/l-thread/SKILL.md)** — phased execution with checkpoints and recovery; for overnight or multi-hour tasks
+- **[`/orchestrate`](./skills/orchestrate/SKILL.md)** — delegate multi-agent coordination to Maestro; includes parallel team fan-out for 3+ independent workstreams (merged in `/teams`)
+- **[`/long-task`](./skills/long-task/SKILL.md)** — phased execution with checkpoints and recovery; for overnight or multi-hour tasks (renamed from `/l-thread`)
 - **[`/tldr`](./skills/tldr/SKILL.md)** — token-efficient codebase analysis (95% fewer tokens than reading files)
 - **[`/project`](./skills/project/SKILL.md)** — read/update linked GitHub issues from branch name
 

@@ -1,6 +1,6 @@
 ---
-name: f-thread
-description: Structured comparison of architectural/tech approaches. Triggers "compare approaches", "which is better", "evaluate options", "trade-off analysis", "tech selection".
+name: compare-approaches
+description: Structured comparison of architectural/tech approaches (formerly `/f-thread`) — parallel oracle agents, weighted scoring matrix, outputs ADR. Triggers "compare approaches", "which is better", "evaluate options", "trade-off analysis", "tech selection", "decide between", "architecture decision".
 context: fork
 ---
 

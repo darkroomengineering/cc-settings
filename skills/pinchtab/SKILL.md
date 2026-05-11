@@ -1,6 +1,6 @@
 ---
-name: debug
-description: Browser debugging via pinchtab — token-efficient text extraction, screenshots, layout/element inspection. Triggers "screenshot", "visual bug", "inspect element", "what does it look like", E2E.
+name: pinchtab
+description: Browser automation via pinchtab CLI — token-efficient text extraction, screenshots, accessibility tree inspection, element interaction. For visual/UI debugging and E2E checks only; for general code bug fixing use `/fix`. Triggers "screenshot", "visual bug", "inspect element", "what does it look like", "pinchtab", "browser automation", E2E, layout inspection.
 context: fork
 allowed-tools: [Bash]
 requires:

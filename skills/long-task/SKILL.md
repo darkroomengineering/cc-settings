@@ -1,6 +1,6 @@
 ---
-name: l-thread
-description: Long-running autonomous task with multi-phase persistence across interruptions. Triggers "overnight", "long running", "autonomous task", "l-thread", "extended task".
+name: long-task
+description: Long-running autonomous task with multi-phase persistence across interruptions (formerly `/l-thread`) — phased execution with checkpoints and recovery; for overnight or multi-hour tasks. Triggers "overnight", "long running", "autonomous task", "extended task", "marathon", "multi-hour task".
 context: fork
 ---
 

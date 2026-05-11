@@ -238,8 +238,8 @@ Select thread type based on task shape:
 - **B** (Base): Simple, < 3 steps → single agent
 - **P** (Parallel): Independent parts → spawn all in one message
 - **C** (Chained): Sequential dependencies → pipeline agents
-- **F** (Fusion): Compare approaches → `/f-thread`
-- **L** (Long-duration): Exceeds context window → `/l-thread`
+- **F** (Fusion): Compare approaches → `/compare-approaches`
+- **L** (Long-duration): Exceeds context window → `/long-task`
 
 Quick decision: Simple? → B. Independent parts? → P. Sequential? → C. Comparison? → F. Long? → L.
 
