@@ -68,6 +68,12 @@ Environment variables injected into every Claude Code session.
 | `OTEL_LOG_USER_PROMPTS` | `"1"` or unset | Adds `user_system_prompt` to LLM request spans (v2.1.121) |
 | `ANTHROPIC_BEDROCK_SERVICE_TIER` | `default`, `flex`, `priority` | Sent as `X-Amzn-Bedrock-Service-Tier` to select a Bedrock service tier (v2.1.122) |
 | `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
+| `CLAUDE_CODE_SESSION_ID` | set automatically | Mirrors the `session_id` passed to hooks; available inside Bash tool subprocesses (v2.1.132) |
+| `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN` | `"1"` or unset | Opt out of the fullscreen alternate-screen renderer and keep the conversation in the terminal's native scrollback (v2.1.132) |
+| `CLAUDE_CODE_FORCE_SYNC_OUTPUT` | `"1"` or unset | Force-enable synchronized output on terminals that auto-detection misses (e.g. Emacs `eat`) (v2.1.129) |
+| `CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE` | `"1"` or unset | On Homebrew or WinGet installs, Claude Code runs the upgrade command in the background and prompts to restart (v2.1.129) |
+| `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY` | `"1"` or unset | Opt in to `/v1/models` discovery for the `/model` picker on third-party gateways (was automatic 2.1.126–2.1.128) (v2.1.129) |
+| `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` | `"1"` or unset | Re-enable the session quality survey for enterprises capturing responses through OpenTelemetry (v2.1.136) |
 
 ### `model`
 
@@ -173,6 +179,8 @@ Sandbox configuration for secure command execution. cc-settings ships with `fail
 | `enableWeakerNetworkIsolation` | boolean | macOS: weaker network isolation for MITM proxy verification |
 | `filesystem.allowRead` / `allowWrite` | list | Re-allow paths inside `denyRead`/`denyWrite` regions (v2.1.77, v2.1.78) |
 | `network.deniedDomains` | list | Block specific domains despite broader `allowedDomains` wildcard (v2.1.113) |
+| `bwrapPath` | string | Linux/WSL: managed override for the bubblewrap binary location (v2.1.133) |
+| `socatPath` | string | Linux/WSL: managed override for the socat binary location (v2.1.133) |
 
 ### `spinnerVerbs`
 
@@ -238,6 +246,7 @@ Configuration for git worktree operations.
 ```json
 {
   "worktree": {
+    "baseRef": "fresh",
     "sparsePaths": ["src/", "packages/shared/"]
   }
 }
@@ -245,7 +254,43 @@ Configuration for git worktree operations.
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `baseRef` | `"fresh"` \| `"head"` | What `--worktree`, `EnterWorktree`, and agent-isolation worktrees branch from. `fresh` (default since v2.1.133) → `origin/<default-branch>`. `head` → local `HEAD` (the 2.1.128–2.1.132 default). Use `head` to keep unpushed commits in new worktrees |
 | `sparsePaths` | list | Directories to check out in each worktree via git sparse-checkout. Useful for large monorepos |
+
+### `skillOverrides`
+
+Hide or trim individual skills from the model and the `/` slash-command picker (v2.1.129 — fully functional in 2.1.129+; earlier versions silently no-op'd).
+
+```json
+{
+  "skillOverrides": {
+    "noisy-skill": "off",
+    "experimental-skill": "user-invocable-only",
+    "verbose-skill": "name-only"
+  }
+}
+```
+
+| Value | Effect |
+|-------|--------|
+| `"off"` | Hide entirely — invisible to the model and to `/` |
+| `"user-invocable-only"` | Hide from the model; user can still invoke via `/` |
+| `"name-only"` | Visible to the model but with the description collapsed to just the name |
+
+### `parentSettingsBehavior`
+
+Admin-tier key (v2.1.133). Controls whether the SDK's `managedSettings` (the "parent" tier) participates in the standard policy merge.
+
+```json
+{
+  "parentSettingsBehavior": "merge"
+}
+```
+
+| Value | Effect |
+|-------|--------|
+| `"first-wins"` | Default — managed settings take precedence and shadow downstream tiers |
+| `"merge"` | Opt managed settings into the standard merge logic alongside team/user tiers |
 
 ### `prUrlTemplate`
 
@@ -441,6 +486,29 @@ Read(~/.kube/config)
 Write(~/.bashrc)        Write(~/.zshrc)         Write(~/.bash_profile)
 Write(~/.claude/settings.json)                  Write(~/.claude.json)
 ```
+
+### `permissions.autoMode`
+
+Configuration for auto-mode classifier behavior. cc-settings does not set this — included here for completeness and managed-settings authoring.
+
+```json
+{
+  "permissions": {
+    "autoMode": {
+      "hard_deny": [
+        "Bash(rm -rf /:*)",
+        "Bash(sudo:*)"
+      ]
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | boolean | Whether auto-mode is active |
+| `allowAll` | boolean | Allow everything not explicitly denied |
+| `hard_deny` | list of permission rules | Block unconditionally regardless of user intent or allow exceptions (v2.1.136). Uses the same `Tool(pattern)` syntax as `permissions.deny`. Distinct from `permissions.deny` in that `hard_deny` cannot be overridden by elevated permission modes or user prompts |
 
 ---
 

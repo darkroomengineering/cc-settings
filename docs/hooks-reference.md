@@ -114,6 +114,22 @@ Available in all hooks:
 | `Notification` | `$NOTIFICATION_MESSAGE` | The notification text |
 | `PermissionDenied` | `$TOOL_NAME` | Name of the tool that was denied |
 | `PermissionDenied` | `$PERMISSION_DECISION_REASON` | Reason for the denial |
+| _all events_ | `$CLAUDE_EFFORT` | Active effort level (`low`, `medium`, `high`, `xhigh`, `max`) — also available to Bash tool subprocesses (v2.1.133) |
+
+### Effort Level in JSON Input
+
+As of v2.1.133, hooks that receive JSON on stdin also see the active effort level under `effort.level`:
+
+```json
+{
+  "session_id": "…",
+  "cwd": "…",
+  "tool_input": { /* … */ },
+  "effort": { "level": "xhigh" }
+}
+```
+
+Use this when a hook should change behavior based on effort — e.g., skip an expensive lint pass on `low`, run a stricter validator on `max`.
 
 ### Flattened Tool Input Variables
 

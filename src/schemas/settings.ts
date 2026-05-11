@@ -48,12 +48,31 @@ export const Sandbox = z
         allowRead: z.array(z.string()).optional(),
       })
       .optional(),
+    bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
+    socatPath: z.string().optional(), // 2.1.133 — Linux/WSL socat binary override
   })
   .passthrough();
 
 // Model-specific overrides map (2.1.105). Value shape undocumented-but-open;
 // keep it permissive until the scanner surfaces its schema.
 export const ModelOverrides = z.record(z.string(), z.unknown());
+
+// Worktree config (2.1.133). `baseRef` chooses whether new worktrees branch
+// from origin/<default> (`fresh`, the post-2.1.133 default) or local HEAD
+// (`head`, the 2.1.128–2.1.132 default). Use `head` to keep unpushed commits.
+export const Worktree = z
+  .object({
+    baseRef: z.enum(["fresh", "head"]).optional(),
+  })
+  .passthrough();
+
+// Per-skill override map (2.1.129). Hides or trims skills from the model /
+// `/` picker. `off`: hide entirely; `user-invocable-only`: hide from model;
+// `name-only`: collapse description.
+export const SkillOverrides = z.record(
+  z.string(),
+  z.enum(["off", "user-invocable-only", "name-only"]),
+);
 
 // --- Root -----------------------------------------------------------------
 
@@ -101,6 +120,9 @@ export const Settings = z
     sandbox: Sandbox.optional(), // 2.1.98–2.1.108 nested
     changelogUrl: z.string().optional(),
     prUrlTemplate: z.string().optional(), // 2.1.119 — substitutes {host}, {owner}, {repo}, {number}, {url}
+    worktree: Worktree.optional(), // 2.1.133
+    skillOverrides: SkillOverrides.optional(), // 2.1.129 (now functional)
+    parentSettingsBehavior: z.enum(["first-wins", "merge"]).optional(), // 2.1.133 (admin-tier)
   })
   .strict(); // strict: unknown keys fail parse, so drift is caught at install time.
 

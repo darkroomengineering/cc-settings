@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "10.11.2"; // chore: sync upstream tracking to Claude Code 2.1.128 (no schema impact)
+const VERSION = "10.12.0"; // feat: sync upstream to Claude Code 2.1.138 — worktree.baseRef, skillOverrides, parentSettingsBehavior, autoMode.hard_deny, sandbox bwrap/socat paths, 6 env vars
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

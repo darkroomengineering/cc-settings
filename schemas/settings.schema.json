@@ -151,6 +151,12 @@
             },
             "allowAll": {
               "type": "boolean"
+            },
+            "hard_deny": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": {}
@@ -642,6 +648,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "bwrapPath": {
+          "type": "string"
+        },
+        "socatPath": {
+          "type": "string"
         }
       },
       "additionalProperties": {}
@@ -651,6 +663,40 @@
     },
     "prUrlTemplate": {
       "type": "string"
+    },
+    "worktree": {
+      "type": "object",
+      "properties": {
+        "baseRef": {
+          "type": "string",
+          "enum": [
+            "fresh",
+            "head"
+          ]
+        }
+      },
+      "additionalProperties": {}
+    },
+    "skillOverrides": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "off",
+          "user-invocable-only",
+          "name-only"
+        ]
+      }
+    },
+    "parentSettingsBehavior": {
+      "type": "string",
+      "enum": [
+        "first-wins",
+        "merge"
+      ]
     }
   },
   "additionalProperties": false

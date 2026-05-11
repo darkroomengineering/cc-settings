@@ -20,6 +20,10 @@ export const AutoModeConfig = z
     // pins it down. Any unknown keys are flagged by strict parents.
     enabled: z.boolean().optional(),
     allowAll: z.boolean().optional(),
+    // v2.1.136 — classifier rules that block unconditionally regardless of
+    // user intent or allow exceptions. Same rule-string syntax as
+    // `permissions.deny`.
+    hard_deny: z.array(z.string()).optional(),
   })
   .passthrough();
 

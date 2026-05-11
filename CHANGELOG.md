@@ -4,6 +4,45 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [10.12.0] — 2026-05-11
+
+### feat: sync upstream to Claude Code 2.1.138 — 3 new top-level settings, 6 new env vars
+
+Upstream 2.1.129 → 2.1.138 ships three new top-level settings, a new permissions-nested array, two new sandbox path overrides, six new env vars, and a new hook JSON input field. The rest of the ~80 upstream entries in this range are bug fixes that don't overlap with cc-settings hooks, scripts, or schemas — no dedupe required.
+
+**Adopted (schema):**
+
+- `worktree.baseRef` (v2.1.133) — `fresh` | `head` chooses whether `--worktree`, `EnterWorktree`, and agent-isolation worktrees branch from `origin/<default>` (`fresh`, the new default) or local `HEAD` (`head`). The new default **reverts** the 2.1.128 change we tracked in v10.11.2 — `EnterWorktree`'s base went `origin/<default>` → local HEAD in 2.1.128, then back to `origin/<default>` in 2.1.133. Users who relied on the 2.1.128 behavior (carrying unpushed commits into worktrees) should set `worktree.baseRef: "head"` explicitly. `src/schemas/settings.ts` extends the existing `worktree` block with a strict `baseRef` enum.
+- `skillOverrides` (v2.1.129) — per-skill record, `off` | `user-invocable-only` | `name-only`. Previously documented but non-functional; the v2.1.129 bug fix made it real. `src/schemas/settings.ts` adds a strict `z.record(string, enum)`.
+- `parentSettingsBehavior` (v2.1.133, admin-tier) — `'first-wins' | 'merge'` for SDK `managedSettings` policy participation. `src/schemas/settings.ts` adds a strict enum.
+- `permissions.autoMode.hard_deny` (v2.1.136) — array of permission rules that block unconditionally regardless of user intent or allow exceptions. `src/schemas/permissions.ts` `AutoModeConfig` now documents the field; the existing `.passthrough()` already accepted it at install time, but now editor IntelliSense surfaces it.
+- `sandbox.bwrapPath` / `sandbox.socatPath` (v2.1.133) — Linux/WSL managed overrides for bubblewrap and socat binary locations. `src/schemas/settings.ts` `Sandbox` documents both; passthrough already accepted them.
+
+**Adopted (manifest):**
+
+- `upstream/claude-code-manifest.json` — `claudeCodeVersion` 2.1.128 → 2.1.138, `lastScan` 2026-05-11.
+- `knownSettingsKeys` += `parentSettingsBehavior`, `skillOverrides`, `worktree`.
+- `knownEnvVars` += `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN`, `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL`, `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`, `CLAUDE_CODE_FORCE_SYNC_OUTPUT`, `CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE`, `CLAUDE_CODE_SESSION_ID`.
+
+**Adopted (docs):**
+
+- `docs/settings-reference.md` — env table gains the 6 new env vars (with version annotations), `sandbox` table gains `bwrapPath`/`socatPath`, `worktree` section gains `baseRef`, new sections `skillOverrides`/`parentSettingsBehavior`, and a new `permissions.autoMode` subsection documents `hard_deny`.
+- `docs/hooks-reference.md` — `$CLAUDE_EFFORT` env var is now exposed to Bash subprocesses and to hook scripts; JSON input gains `effort.level` (v2.1.133). New "Effort Level in JSON Input" subsection.
+
+**Deletions / Native-now-redundant:** none. None of the 2.1.129 → 2.1.138 fixes overlap with cc-settings workarounds — the upstream `Bash(mkdir *)` / `Bash(touch *)` allow-rule fix (v2.1.129) honors patterns we already had in `config/30-permissions.json` without any change on our side.
+
+**Skipped (notable):** VS Code activation fix (2.1.137), VS Code/Mantle gateway fixes (2.1.131), ~50 bug fixes in 2.1.136 (login race, MCP OAuth refresh, plan-mode Edit allow rule, `/usage`, plugin slugs, BG color artifacts, etc.), 2.1.133 misc fixes (parallel 401, drive-root rules, mapped drives, subagent skill discovery, etc.), 2.1.132 misc fixes (SIGINT, surrogates, paste, vim NFD, fullscreen sleep/wake, MCP stdio runaway, Bedrock 400), 2.1.129 CLI flags (`--plugin-url`) and plugin manifest `themes`/`monitors` reorg (cc-settings ships no plugin manifest).
+
+**Files changed:**
+
+- `src/schemas/settings.ts` (new fields: `worktree`, `skillOverrides`, `parentSettingsBehavior`, `Sandbox.bwrapPath`, `Sandbox.socatPath`)
+- `src/schemas/permissions.ts` (new field: `AutoModeConfig.hard_deny`)
+- `upstream/claude-code-manifest.json` (version + scan date + 3 settings keys + 6 env vars)
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `src/setup.ts` (VERSION 10.11.2 → 10.12.0)
+- `CHANGELOG.md`
+
 ## [10.11.2] — 2026-05-05
 
 ### chore: sync upstream tracking to Claude Code 2.1.128 (no schema impact)
