@@ -87,6 +87,25 @@ Output token limits: 64K default, 128K upper bound.
 
 Skill matching is handled by the native `Skill` tool (v2.1.108).
 
+### Supply-chain hook defense
+
+cc-settings detects post-install tampering of `~/.claude/settings.json` — the
+Shai-Hulud worm pattern that compromised 172 npm/PyPI packages in May 2026
+by injecting a persistent `SessionStart` hook. Two layers:
+
+- **Fingerprint** — `setup.sh` writes a SHA256 of the merged hooks block. The
+  `verify-hooks.ts` SessionStart hook re-hashes on every session and warns
+  on mismatch. Silent when fingerprint matches.
+- **Audit** — `bun run audit:hooks` classifies every hook command in
+  `~/.claude/settings.json` as trusted / unknown / suspicious. Exit 1 on
+  suspicious findings, suitable for CI.
+
+Custom hooks are preserved by the installer's merger; after intentionally
+adding one, re-run `setup.sh` to refresh the fingerprint. The auditor never
+self-refreshes the fingerprint — that would let malware whitelist itself.
+
+Full threat model + remediation: see `SECURITY.md`.
+
 ### Skill library soft cap — 40
 
 Anthropic's Skills guide flags 20–50 skills as the point where the Skill selector starts struggling to read every description per turn. We sit at ~39 today. **Adding a new skill past 40 requires removing one** — re-evaluate `skills/` for consolidation candidates first. Validate the library with `bun run lint:skills`, which enforces the spec (kebab-case folders, frontmatter contract, no angle brackets, …) and surfaces the cap as a warning when crossed. Drift hides easily; let the linter catch it.

@@ -4,6 +4,57 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.0.4] — 2026-05-12
+
+### security: supply-chain hook defense (Shai-Hulud / npm worm pattern)
+
+In May 2026 the "Mini Shai-Hulud" npm/PyPI worm compromised 172 packages across @tanstack, @mistralai, @guardrails-ai, @uipath, @opensearch-project. Persistence mechanism: post-install payload injects a `SessionStart` hook into `~/.claude/settings.json` that re-executes on every Claude Code session and survives `npm uninstall`. cc-settings now ships three defenses against this attack class.
+
+**Added — Layer 1: Hooks-block fingerprint**
+
+- `src/lib/hooks-fingerprint.ts` — canonicalize-then-SHA256 of the merged settings.json `hooks` block. Key-reorder produces identical hash (canonicalization is stable); injected hooks change the hash.
+- `src/hooks/verify-hooks.ts` — SessionStart hook. Re-hashes on every session, compares against `~/.claude/.cc-settings-hooks-fingerprint`. Silent on match; loud terminal banner on mismatch with remediation steps. Fail-open on any internal error (never blocks session start).
+- `src/setup.ts` — writes the fingerprint after `installSettings` succeeds. Re-running `setup.sh` refreshes the fingerprint (the intended workflow when users intentionally customize hooks).
+- `config/40-hooks.json` — wires `verify-hooks.ts` as the first hook in the `SessionStart` chain (timeout 3s, runs before `session-start.ts`).
+
+**Added — Layer 2: Command auditor**
+
+- `src/lib/audit-hooks.ts` — classifies every hook command in `~/.claude/settings.json` as trusted / unknown / suspicious. Trusted: matches the cc-settings shipped pattern (`bun "$HOME/.claude/src/{scripts,hooks,lib}/<name>.ts"`) or a compound of those. Suspicious patterns flagged: `curl|wget pipe to shell`, `base64 decode + shell`, `eval $(…)`, `node -e`, `python -c`, `/tmp/<exec>`, hidden `node_modules/.bin/`, `atob(…)`, opaque base64 blobs (>250 chars single-token, >85% base64-alphabet density).
+- `src/scripts/audit-hooks.ts` — CLI, exits 1 on any suspicious finding.
+- `bun run audit:hooks` script entry in `package.json`.
+
+**Added — Layer 3: SECURITY.md threat model**
+
+- `SECURITY.md` — documents the threat, the three defense layers, the allowlist convention (every cc-settings hook starts with `bun "$HOME/.claude/src/…"`), the false-positive workflow (re-run `setup.sh` to fingerprint custom hooks), the compromise-remediation workflow (backup → manual scrub → re-run setup.sh → rotate creds), and what cc-settings deliberately does not do (no auto-quarantine, no npm install blocking, no cryptographic signing). Sources: Snyk, Socket, StepSecurity, Wiz, The Hacker News, Mend.
+- `CLAUDE-FULL.md` — one-paragraph reference under the existing Reference section.
+
+**Tests**
+
+- `tests/audit-hooks.test.ts` — 23 cases. Trusted patterns (quoted/unquoted/compound `$HOME` bun commands). Each suspicious pattern positive case. Unknown-but-not-malware cases. Settings-shape walking (event/group/hook indices preserved). File IO (missing file, malformed JSON, real shape). Report formatting.
+- `tests/hooks-fingerprint.test.ts` — 16 cases. Canonicalization stability (key-reorder = same hash; array-reorder = different hash, by design). Round-trip write/read. `hooksCount` aggregation across groups. Atomic write (no `.tmp` residue). Verify status table (`match` / `mismatch` / `missing-fingerprint` / `missing-settings`). Malformed settings.json surfaces as mismatch, not silent pass.
+
+**Design notes**
+
+- The auditor never refreshes the fingerprint. If it could, malware could call it to whitelist itself.
+- The fingerprint is updated only by `setup.sh`. This is the deliberate trust anchor — the human re-running setup is the "I've verified the current state" signal.
+- All cc-settings-shipped hooks match `bun "$HOME/.claude/src/…"`. New hooks added to `config/40-hooks.json` MUST follow this convention; if a third-party tool needs a hook, wrap it in a `src/scripts/<wrapper>.ts` rather than referencing the binary directly. This invariant is what makes both the auditor and fingerprint work.
+- Detection is conservative: false positives (unknown) surface as warnings; only explicit malware-pattern matches exit non-zero. We'd rather make humans review than miss a real intrusion or block on benign custom hooks.
+
+**Files changed:**
+
+- `src/lib/audit-hooks.ts` (new)
+- `src/lib/hooks-fingerprint.ts` (new)
+- `src/scripts/audit-hooks.ts` (new)
+- `src/hooks/verify-hooks.ts` (new)
+- `tests/audit-hooks.test.ts` (new)
+- `tests/hooks-fingerprint.test.ts` (new)
+- `SECURITY.md` (new)
+- `config/40-hooks.json` (added verify-hooks to SessionStart chain)
+- `src/setup.ts` (writes fingerprint after install; bumps VERSION)
+- `CLAUDE-FULL.md` (added supply-chain defense section)
+- `package.json` (added `audit:hooks` script)
+- `CHANGELOG.md`
+
 ## [11.0.3] — 2026-05-12
 
 ### tooling: skills linter + 40-skill soft cap + strict-spec cleanups

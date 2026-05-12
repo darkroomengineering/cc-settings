@@ -30,6 +30,7 @@ import {
 } from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
+import { writeFingerprint as writeHooksFingerprint } from "./lib/hooks-fingerprint.ts";
 import {
   atomicWriteJson,
   CLAUDE_JSON_PATH,
@@ -49,7 +50,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.0.3"; // tooling: bun run lint:skills (mechanizes Anthropic Skills Guide Reference A); 40-skill soft cap; 3 frontmatter angle-bracket cleanups
+const VERSION = "11.0.4"; // security: SessionStart hook fingerprint + bun run audit:hooks (defense vs Shai-Hulud npm worm); SECURITY.md
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -349,6 +350,19 @@ async function installSettings(source: string, interactive: boolean): Promise<vo
       interactive,
     });
     await installMcpToClaudeJson(teamStaged);
+    // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
+    // SessionStart integrity check) can detect post-install tampering — the
+    // Shai-Hulud worm attack pattern (May 2026). Re-running setup.sh refreshes
+    // the fingerprint, which is the intended workflow when users intentionally
+    // add custom hooks. See SECURITY.md.
+    try {
+      const mergedText = await Bun.file(userSettingsPath).text();
+      const mergedSettings = JSON.parse(mergedText);
+      await writeHooksFingerprint(mergedSettings, CLAUDE_DIR);
+    } catch {
+      // Fingerprint write is best-effort. A failed write means verify-hooks.ts
+      // prints a "missing fingerprint" nudge on next session; it never blocks.
+    }
   } finally {
     await rm(teamStaged, { force: true }).catch(() => {});
   }

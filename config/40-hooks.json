@@ -129,6 +129,11 @@
 				"hooks": [
 					{
 						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/verify-hooks.ts\"",
+						"timeout": 3
+					},
+					{
+						"type": "command",
 						"command": "bun \"$HOME/.claude/src/scripts/session-start.ts\""
 					}
 				]
