@@ -2,7 +2,7 @@
 name: autoresearch
 description: Autonomous skill-prompt optimization — Karpathy-style mutate/score/keep loop on SKILL.md. Triggers "autoresearch", "optimize skill", "tune", "evolve" a skill, "prompt optimization".
 context: fork
-argument-hint: "<skill-name>"
+argument-hint: "[skill-name]"
 ---
 
 # AutoResearch

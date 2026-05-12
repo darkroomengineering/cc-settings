@@ -1,6 +1,6 @@
 ---
 name: create-handoff
-description: End-of-session state save before break/compaction/task switch. For mid-task rollback use `/checkpoint`. Triggers "done for today", "ending session", "handoff", "wrapping up", "context window", "running out of context", context >80%.
+description: End-of-session state save before break/compaction/task switch. For mid-task rollback use `/checkpoint`. Triggers "done for today", "ending session", "handoff", "wrapping up", "context window", "running out of context", context over 80%.
 ---
 
 # Create Session Handoff

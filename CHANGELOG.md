@@ -4,6 +4,54 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.0.3] — 2026-05-12
+
+### tooling: skills linter + 40-skill soft cap + strict-spec cleanups
+
+Reviewed Anthropic's "Complete Guide to Building Skills for Claude" (May 2026 PDF) against the 38-skill library. We comply with the spec across the board (kebab-case folders, exact `SKILL.md` casing, frontmatter contract, no README inside, descriptions well under 1024 chars), with three minor angle-bracket frontmatter instances that strict-compliance flagged. Built the linter the audit implied, fixed the cleanups, and codified the skill-count soft cap.
+
+**Added:**
+
+- **`bun run lint:skills`** — mechanizes Reference A's validation checklist programmatically. Walks `skills/*/SKILL.md` and reports per-skill findings by severity (error / warning). Lives in `src/lib/lint-skills.ts` (logic) and `src/scripts/lint-skills.ts` (CLI). Rules enforced:
+  - folder name kebab-case (`/^[a-z][a-z0-9-]*$/`)
+  - reserved-prefix check (`claude-*`, `anthropic-*`, literal `claude`/`anthropic`)
+  - no `README.md` inside skill folder
+  - `SKILL.md` exists (exact case)
+  - `---`-delimited YAML frontmatter present and parseable
+  - frontmatter passes `SkillFrontmatter` zod schema
+  - no `<` or `>` chars in frontmatter (raw-text scan — catches passthrough fields like `argument-hint`)
+  - frontmatter `name` matches folder name
+  - `description` length ≤ 1024 chars (error) / ≥ 50 chars (warning)
+  - `description` contains trigger language (`Triggers`, `Use when`, `Use for`, …) — warning when missing
+  - skill count ≤ 40 (`SKILL_SOFT_CAP`) — warning when crossed
+- **`tests/lint-skills.test.ts`** — 17 new tests covering each rule's positive and negative paths. Total suite: 244 → 261 pass.
+- **40-skill soft cap policy** (`CLAUDE-FULL.md`) — Anthropic's guide flags 20–50 as the point where Skill-tool selection degrades. We sit at 38. Adding past 40 should require removing one; the linter surfaces the cap as a warning when crossed.
+
+**Strict-spec cleanups (cheap compliance wins):**
+
+- `skills/autoresearch/SKILL.md` — `argument-hint: "<skill-name>"` → `"[skill-name]"`
+- `skills/lighthouse/SKILL.md` — `argument-hint: "<url>"` → `"[url]"`
+- `skills/create-handoff/SKILL.md` — description `context >80%` → `context over 80%`
+- `skills/tldr/SKILL.md` — description `Auto-invoke for` → `Use for` (caught by the new linter's trigger-language heuristic; aligns phrasing with the rest of the library)
+
+**Why these (and not the rest of the guide)**
+
+cc-settings architecture is past the guide's single-file mindset — we have 38 skills, 25 agents, 11 path-conditioned rules, 5 profiles, hooks, and MCP config installed via git pull, not Claude.ai uploads. Most divergences from the guide are intentional (no `scripts/`/`references/`/`assets/` subdir use, extra frontmatter fields like `context`, `agent`, `requires`, `argument-hint`). The three actions in this release are the only strict-spec gaps worth bridging.
+
+**Files changed:**
+
+- `src/lib/lint-skills.ts` (new)
+- `src/scripts/lint-skills.ts` (new)
+- `tests/lint-skills.test.ts` (new)
+- `skills/autoresearch/SKILL.md`
+- `skills/lighthouse/SKILL.md`
+- `skills/create-handoff/SKILL.md`
+- `skills/tldr/SKILL.md`
+- `CLAUDE-FULL.md`
+- `package.json`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.0.2] — 2026-05-12
 
 ### standards: close three gaps surfaced by the 12-rule CLAUDE.md template

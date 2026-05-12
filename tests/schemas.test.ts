@@ -86,9 +86,7 @@ describe("Published JSON Schemas vs zod sources", () => {
     // statusLine, hooks, permissions, all of it). Regression guard for v10.11.1.
     const raw = await readFile(resolve(ROOT, "config/10-core.json"), "utf8");
     const cfg = JSON.parse(raw) as { $schema?: string };
-    expect(cfg.$schema).toBe(
-      "https://json.schemastore.org/claude-code-settings.json",
-    );
+    expect(cfg.$schema).toBe("https://json.schemastore.org/claude-code-settings.json");
   });
 
   test("composed settings.json validates against the published settings schema", async () => {

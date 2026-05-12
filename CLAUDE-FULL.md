@@ -86,3 +86,7 @@ Output token limits: 64K default, 128K upper bound.
 - **Agent teams** (parallel independent workstreams, `teammateMode: "auto"`) — see `docs/feature-agents-guide.md`
 
 Skill matching is handled by the native `Skill` tool (v2.1.108).
+
+### Skill library soft cap — 40
+
+Anthropic's Skills guide flags 20–50 skills as the point where the Skill selector starts struggling to read every description per turn. We sit at ~39 today. **Adding a new skill past 40 requires removing one** — re-evaluate `skills/` for consolidation candidates first. Validate the library with `bun run lint:skills`, which enforces the spec (kebab-case folders, frontmatter contract, no angle brackets, …) and surfaces the cap as a warning when crossed. Drift hides easily; let the linter catch it.
