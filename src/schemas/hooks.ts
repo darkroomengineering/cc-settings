@@ -48,11 +48,18 @@ const HookCommon = {
   async: z.boolean().optional(),
   statusMessage: z.string().optional(),
   once: z.boolean().optional(), // skills/agents only
+  // v2.1.139 — PostToolUse only. When the hook returns a block signal, the
+  // turn continues anyway (the block surfaces in context but doesn't abort).
+  continueOnBlock: z.boolean().optional(),
 };
 
+// v2.1.139 — `args` opts a command hook into exec form: CC spawns the binary
+// at `command` directly with the given argv, no shell. Safer for paths with
+// spaces; removes the need to quote in `command`.
 export const CommandHook = z.object({
   type: z.literal("command"),
   command: z.string().min(1),
+  args: z.array(z.string()).optional(),
   ...HookCommon,
 });
 

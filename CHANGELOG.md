@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.0.1] — 2026-05-12
+
+### sync: Claude Code 2.1.139
+
+Two new optional hook fields adopted into the schema. Nothing removed; nothing in cc-settings is made redundant by 2.1.139. All other 2.1.139 additions are native CLI/TUI features (`claude agents`, `/goal`, `/scroll-speed`, `claude plugin details`, transcript navigation) or runtime behavior (MCP `CLAUDE_PROJECT_DIR`, `/mcp` reconnect, compaction prompt) with no cc-settings surface to update.
+
+**Adopted:**
+
+- `CommandHook.args: string[]` — exec form. When set, CC spawns `command` directly with this argv instead of via a shell. Safer for paths with spaces; removes shell-quoting from `command`. (upstream 2.1.139.) Added to `src/schemas/hooks.ts` and documented in `docs/hooks-reference.md`.
+- `HookCommon.continueOnBlock: boolean` — PostToolUse-only. When the hook returns a block signal, the turn continues anyway (the block surfaces in context but doesn't abort). Use for soft warnings. (upstream 2.1.139.) Added to `src/schemas/hooks.ts` and documented in `docs/hooks-reference.md`.
+
+**Deletions / Native-now-redundant:**
+
+- None.
+
+**Files changed:**
+
+- `src/schemas/hooks.ts`
+- `docs/hooks-reference.md`
+- `upstream/claude-code-manifest.json`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.0.0] — 2026-05-11
 
 ### refactor: drop pinchtab, single browser-automation surface (chrome-devtools MCP)

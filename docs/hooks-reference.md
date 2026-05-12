@@ -198,9 +198,11 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 |-------|------|---------|-------------|
 | `type` | string | (required) | `"command"` (shell), `"prompt"` (LLM yes/no), `"agent"` (subagent with tools), or `"http"` (webhook) |
 | `command` | string | (required for command type) | Shell command to execute |
+| `args` | string[] | -- | (v2.1.139, `command` type) Exec form. When set, CC spawns `command` directly with this argv — no shell. Safer for paths with spaces; no quoting needed in `command`. |
 | `async` | boolean | `false` | Run in background without blocking Claude |
 | `timeout` | number | `600` | Timeout in seconds (max: 600) |
 | `once` | boolean | `false` | Run exactly once per session, then disable |
+| `continueOnBlock` | boolean | `false` | (v2.1.139, `PostToolUse` only) When the hook returns a block signal, the turn continues — the block surfaces in context but doesn't abort. Use for soft warnings. |
 
 ### Hook Types
 
