@@ -4,6 +4,33 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.0.2] — 2026-05-12
+
+### standards: close three gaps surfaced by the 12-rule CLAUDE.md template
+
+Reviewed Forrest Chang's 12-rule template (the one extending Karpathy's January 2026 4-rule baseline). Most rules duplicate existing cc-settings coverage — Anthropic's base system prompt covers "Think before coding" and "Simplicity first"; our `Edit`-after-`Read` requirement enforces "Read before write" mechanically; `/checkpoint`, `/create-handoff`, and `/compact`-at-65% beat hardcoded token budgets; `rules/*.md` path-conditioning beats "match conventions." Three gaps were real and worth bridging.
+
+**Added (AGENTS.md → installed at `~/.claude/AGENTS.md`):**
+
+- **Fail Loud** guardrail — generalizes existing piecemeal honesty rules (Never Fake Measurements, Visual/Spatial Honesty). "Done" is wrong when anything was skipped, mocked, or unverified — surface it in the final message instead of glossing over partial completion.
+- **Surface Conflicts, Don't Average** guardrail — when two existing patterns in the codebase contradict, pick the more recent/tested one and flag the other for cleanup. Never blend conflicting patterns into "average" code that satisfies both.
+
+**Added (`agents/tester.md`):**
+
+- **Test Intent, Not Behavior** principle — tests must encode *why* a behavior matters, not just *what* a function returns. A test that can't fail when business logic changes is testing the implementation, not the contract.
+- **Surface Skips** principle — links back to Fail Loud guardrail; never silently `.skip` or `.only` a test.
+
+**Why these three (and not the other nine)**
+
+The post's other rules either duplicated what we already have (often more sharply) or operate at the wrong layer for our setup. cc-settings is past single-file CLAUDE.md mindset — path-conditioned `rules/`, skill architecture, and verification hooks do work that prose can't. Full evaluation in conversation log; not duplicated here.
+
+**Files changed:**
+
+- `AGENTS.md`
+- `agents/tester.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.0.1] — 2026-05-12
 
 ### sync: Claude Code 2.1.139

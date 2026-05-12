@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.0.1"; // sync: Claude Code 2.1.139 — hook `args` (exec form) + `continueOnBlock` (PostToolUse)
+const VERSION = "11.0.2"; // standards: Fail Loud + Surface Conflicts guardrails (AGENTS.md), Test Intent principle (tester agent)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

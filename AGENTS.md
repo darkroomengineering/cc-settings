@@ -84,6 +84,18 @@ For sub-pixel rendering, WebGL, physics, complex animations, or canvas — ackno
 
 For CSS/visual bugs: if a fix doesn't work after 2 attempts, propose **3 fundamentally different approaches** and let the user pick.
 
+### Fail Loud
+"Done" is wrong if anything was skipped, mocked, or unverified. State it explicitly in your final message when:
+- A test was skipped, marked `.only`, or had an assertion relaxed
+- A migration, batch job, or script "completed" but the run had skipped/failed records
+- A feature was implemented but not exercised end-to-end (e.g. UI shipped without browser verification)
+- A claim relies on a tool, command, or service you didn't actually run
+
+Type checking and tests verify code correctness, not feature correctness. Default to surfacing uncertainty — the cheapest bugs to fix are the ones the user hears about before they ship.
+
+### Surface Conflicts, Don't Average
+When two existing patterns in the codebase contradict (two error-handling styles, two state-management approaches, two router conventions), pick one — usually the more recent or more tested — and flag the other for follow-up cleanup. Do **not** write code that satisfies both. "Average" code that bridges contradictions doubles handlers, hides bugs, and ratchets complexity for the next reader.
+
 ### Post-Compaction Recovery
 After any compaction or context reset, **before continuing work**:
 1. Re-read the task plan (todo, plan file, or issue)
