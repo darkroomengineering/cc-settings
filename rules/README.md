@@ -34,6 +34,7 @@ Claude Code automatically loads relevant rules based on:
 | `react-perf.md` | Working with `.tsx`, `.ts`, `components/`, or `app/` |
 | `web-vitals.md` | Working with `.ts`, `.tsx`, `app/`, or `components/` |
 | `ui-skills.md` | Working with `.tsx`, `.jsx`, or `components/` |
+| `ui-fix.md` | Working with `.tsx`, `.jsx`, `.css`, `app/`, or `components/` — UI bug-fix workflow, screenshot-first |
 | `git.md` | Always loaded (git operations) |
 
 ## Adding New Rules

@@ -17,6 +17,14 @@ You are in **Maestro orchestration mode**. Execute the shipping checklist in ord
 
 ## Pipeline (All Steps Mandatory)
 
+### Step 0: Preflight
+```bash
+ssh-add -l
+```
+If no identities loaded: **Unlock 1Password and retry — git signing will fail otherwise.** Agent drops mid-flow are a recurring cause of failed pushes; catch it now, not after the commit.
+
+Do not commit until Steps 1–4 (typecheck/build/test/lint) are green. Skipping ahead is where amend churn comes from — `--amend` to fix a lint error you would have caught in 30 seconds invalidates signatures and CI runs.
+
 ### Step 1: Type Check
 ```bash
 bunx tsc --noEmit

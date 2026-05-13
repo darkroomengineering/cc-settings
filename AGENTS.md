@@ -84,6 +84,14 @@ For sub-pixel rendering, WebGL, physics, complex animations, or canvas — ackno
 
 For CSS/visual bugs: if a fix doesn't work after 2 attempts, propose **3 fundamentally different approaches** and let the user pick.
 
+### Name the Cause
+Before committing a fix, you must be able to name the specific cause in one sentence. If you can't, you don't have the cause — you have a guess. Guessed fixes get committed, miss the root cause, force rollbacks. Especially true for CSS and viewport bugs.
+
+- **Guess**: "I think `safe-area-inset` should fix the black bars."
+- **Cause**: "The Lenis scroller has `height: 100vh` which excludes iOS browser chrome; needs `h-svh`."
+
+If the sentence requires "I think" or "maybe," gather more signal — screenshot the broken element, inspect computed styles — before editing.
+
 ### Fail Loud
 "Done" is wrong if anything was skipped, mocked, or unverified. State it explicitly in your final message when:
 - A test was skipped, marked `.only`, or had an assertion relaxed

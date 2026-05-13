@@ -350,6 +350,25 @@ Right -- always include security review for sensitive domains:
 
 ---
 
+## Subagent Gotchas
+
+Cross-cutting issues that bite when dispatching role agents from feature agents (or directly from the main session).
+
+### Base ref overwrites in-session edits
+
+The `implementer` agent defaults to `isolation: "worktree"`, which branches from `origin/main`. Uncommitted in-session edits do not exist on that base ref, so when the subagent writes back, those edits are gone. This has happened twice.
+
+Mitigation:
+- Commit (or stash) in-session changes before dispatching `implementer` for code edits that need to build on them.
+- Or pass `isolation: "head"` / omit isolation entirely so the subagent runs against the live worktree.
+- When in doubt, tell the subagent explicitly: "base off the current worktree HEAD, not origin/main."
+
+### Worktree isolation requires a git repo
+
+`isolation: "worktree"` calls `git worktree add`. If the dispatching directory is not a git repository (e.g., a parent folder containing multiple repos), the subagent dispatch fails immediately. Switch to `general-purpose` or run from inside the actual repo.
+
+---
+
 ## Checklist for Creating a Feature Agent
 
 Before shipping a feature agent, verify:

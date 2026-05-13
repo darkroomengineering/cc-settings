@@ -76,6 +76,23 @@ Output token limits: 64K default, 128K upper bound.
 
 ---
 
+## Verification Before Recommendation
+
+For hardware, firmware, OS-level, dock, or filesystem-compatibility tasks, web-search the exact model number and platform **before** recommending tooling or steps. Three things must be verified upfront:
+
+1. **The tool exists on the user's platform.** Apple Silicon macOS support is not implied by a Windows or Intel Mac listing.
+2. **The hardware actually supports the assumed feature.** exFAT, NTFS, PCIe passthrough, and similar capabilities are licensed or chipset-gated — they are not universal.
+3. **Documented platform restrictions.** Apple Silicon's Hypervisor.framework blocks PCIe passthrough required for many firmware flashers; macOS rejects unsigned kexts; iOS blocks raw USB.
+
+Real incidents this rule encodes:
+- **TCL C845** lacks exFAT licensing — hours of reformatting wasted before discovery.
+- **Dell macOS firmware updater** searched for does not exist on macOS; only Windows and Linux builds ship.
+- **WD19TB dock firmware flash** blocked by Hypervisor.framework on Apple Silicon — the vendor tool requires PCIe passthrough that the platform forbids.
+
+Scope: consumer hardware and platform-integration questions specifically. Library and framework questions still go through context7.
+
+---
+
 ## Reference
 
 - **Profiles** (specialized workflows: `nextjs`, `react-native`, `tauri`, `webgl`, `maestro`) — see `docs/profiles.md`
