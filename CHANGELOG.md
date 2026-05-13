@@ -4,6 +4,37 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.1.3] — 2026-05-13
+
+### feat: 4 React rules folded in from react-doctor research
+
+Evaluated [millionco/react-doctor](https://github.com/millionco/react-doctor) (static analyzer, 9.1k★) and [aidenybai/react-scan](https://github.com/aidenybai/react-scan) (runtime re-render overlay, 21.3k★) as potential cc-settings adoptions. Verdict on both: **skip the tools, fold the worthwhile rule knowledge directly into our path-conditioned `rules/`**.
+
+**Why skip the tools:**
+- **react-doctor** is a CI-time static analyzer; cc-settings is prompt-time guidance. The skill it auto-installs into Claude Code is a 4-line CLI wrapper, not encoded rule knowledge. False positives on Next.js Route Handlers (Issue #206) and unclear React Compiler awareness — both load-bearing for Darkroom projects.
+- **react-scan** is broken with React Compiler (Issues #378, #229 — compiler-memoized components misreported, or re-renders go silent). Every Darkroom project runs Compiler, so acting on its output could cause engineers to add explicit `memo`/`useMemo` calls the Compiler then fights. No CI mode, so can't slot into `/lighthouse` or `/qa`. Revisit when RFC #207 + #305 land.
+
+**What we DID fold in (4 rules across 2 files):**
+
+- `rules/react.md` — three new DON'Ts:
+  - **Don't cascade setState calls** — consolidate to one setter or derive; cascading fights React's batching and creates stale-closure bugs.
+  - **Don't put `useState` / `useEffect` / refs in a Server Component** — Next.js App Router build error; split into Server (fetch) + Client (interact) pair.
+  - **Don't make a Client Component `async`** — `'use client'` + `async function` = runtime error; the data fetch belongs one boundary up.
+- `rules/react-perf.md` — one new bullet in the React Compiler Note section:
+  - Inline JSX literals (`<Button style={{ color: 'red' }} onClick={() => doThing()} />`) are FINE under Compiler. The classic "don't put object/function literals in JSX" advice is pre-Compiler folklore. Don't extract them into `useMemo` / `useCallback` to "fix" something the Compiler already handles.
+
+**What we DIDN'T fold:**
+
+`no-barrel-imports` — already covered by `rules/performance.md`'s "Direct imports over barrels" section.
+
+`react-scan`'s runtime-only signals (real-interaction render counts, context-subscriber blast detection) — no prompt-time rule can substitute for runtime observation. Left as a "revisit later" note.
+
+**Files changed**
+
+- Modified: `rules/react.md`, `rules/react-perf.md`, `src/setup.ts` (VERSION 11.1.2 → 11.1.3)
+
+---
+
 ## [11.1.2] — 2026-05-13
 
 ### chore: doc pass + deslop residue from v11.1.1

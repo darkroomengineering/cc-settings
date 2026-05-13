@@ -25,6 +25,7 @@ The model picks the right one by reading visible imports in the file you're edit
 - Do NOT use `useMemo`, `useCallback`, or `React.memo` — the compiler handles this automatically.
 - Use `useRef` for object instantiation to prevent infinite loops.
 - The "Re-render Optimization" section below is reference only (compiler handles it).
+- Inline JSX literals are fine — `<Button style={{ color: 'red' }} onClick={() => doThing()} />` does NOT cause referential-identity re-renders under Compiler. Don't extract them into `useMemo` / `useCallback` to "fix" something the Compiler already handles. The classic "don't put object/function literals in JSX" advice is pre-Compiler folklore.
 
 ---
 

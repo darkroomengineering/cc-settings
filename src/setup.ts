@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.1.2"; // doc pass + deslop residue: ensureNpmGlobal function body removed, stale session-start description fixed, hook-runtime.ts surfaced in docs/hooks-reference.md
+const VERSION = "11.1.3"; // 4 React rules folded in from react-doctor research: cascading setState, useState-in-RSC, async Client Component, inline JSX literal context for Compiler
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -119,6 +119,61 @@ const fullName = `${first} ${last}`
 
 Client-side fetching is correct for *post-mount* state (autocomplete, polling, mutations). It's wrong for the data the user sees on first paint.
 
+### Don't cascade setState calls
+```tsx
+// WRONG: each setter schedules its own render; later state depends on earlier
+function handleSubmit() {
+  setLoading(true)
+  setError(null)
+  setStatus('submitting')
+  setLastAttempt(Date.now())
+}
+// CORRECT: consolidate to one setter or derive
+function handleSubmit() {
+  setForm((f) => ({ ...f, loading: true, error: null, status: 'submitting', lastAttempt: Date.now() }))
+}
+```
+
+Cascading setters fight React's batching, create stale-closure bugs in async paths, and obscure intent. One state object > four boolean toggles.
+
+### Don't put `useState` / `useEffect` / refs in a Server Component
+```tsx
+// WRONG: Server Component (no 'use client') with client-only hooks
+async function Page() {
+  const [open, setOpen] = useState(false)  // build error
+  return <Modal open={open} />
+}
+// CORRECT: split — Server fetches, Client owns interaction
+async function Page() {
+  const data = await fetchData()
+  return <PageClient data={data} />
+}
+'use client'
+function PageClient({ data }: { data: Data }) {
+  const [open, setOpen] = useState(false)
+  return <Modal open={open} data={data} />
+}
+```
+
+Applies to Next.js App Router. React Router components are isomorphic — no directive boundary to police, but the loader-vs-effect split has the same shape.
+
+### Don't make a Client Component `async`
+```tsx
+// WRONG: 'use client' + async function = runtime error
+'use client'
+async function Profile({ id }: { id: string }) {
+  const user = await getUser(id)  // can't await in a Client Component
+  return <ProfileView user={user} />
+}
+// CORRECT: fetch in the parent Server Component, pass data down
+async function ProfilePage({ id }: { id: string }) {
+  const user = await getUser(id)
+  return <Profile user={user} />  // Client Component, sync, takes data as prop
+}
+```
+
+Only Server Components can be async. If you find yourself reaching for `await` inside a `'use client'` file, the data fetch belongs one boundary up.
+
 ---
 
 ## Patterns
