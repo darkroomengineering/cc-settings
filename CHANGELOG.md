@@ -4,6 +4,68 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.1.1] — 2026-05-13
+
+### refactor: accelerationist cleanup — retire bash-era bench, retire local-tier learning, extract hook-runtime helper
+
+Post-v11.1.0 deslop pass surfaced three orphan systems that the consolidation narrative had implied retired but hadn't actually cut. This release finishes those cuts and extracts a tiny shared library for the new hook trio.
+
+**Deleted — bash-era benchmark harness**
+
+The bench harness pre-dated the bash→TS migration (April 2026). `bench/run-baseline.ts` hardcoded `join(REPO, "scripts")` — a directory deleted when the bash scripts were ported — meaning every run silently timed nothing and produced garbage numbers. `bench/regression-check.ts` chained into it. `bench/baseline-bash.json` was a frozen snapshot from the bash era. The `bench:baseline` / `bench:check` package.json scripts and the CI job that ran them were also dead.
+
+- `bench/run-baseline.ts`, `bench/regression-check.ts`, `bench/baseline-bash.json` — deleted (`git rm`).
+- `package.json` — removed `bench:baseline` and `bench:check` script entries. `prototype:compile` (which points at `bench/prototype/`) preserved.
+- `.github/workflows/ci.yml` — removed the `bench:` job that ran `bun run bench:check` on macOS.
+- `CLAUDE.md` (project-level) — removed the two `Bench baseline` / `Bench regression` lines from the Development commands list.
+
+`bench/prototype/` is untouched — it's unrelated exploratory code.
+
+**Deleted — `learning.ts` local tier (finishing the v11.1.0 retirement)**
+
+The v11.1.0 CHANGELOG declared the local tier "folded into auto-memory" but the underlying `src/scripts/learning.ts` (~350 lines) and three call-site references survived. Auto-memory at `~/.claude/projects/<hash>/memory/` is the cc-settings-blessed local store. This release deletes the script and updates its three callers.
+
+- `src/scripts/learning.ts` — deleted.
+- `src/scripts/session-start.ts` — removed the Learnings block that read from `~/.claude/learnings/<project>/learnings.json`; replaced with a one-line auto-memory pointer.
+- `src/scripts/stop-summary.ts` — replaced the `learning.ts store` invocation hint with an auto-memory-equivalent pointer.
+- `skills/consolidate/SKILL.md` — replaced the `learning.ts recall all | wc -l` count with a `find ~/.claude/projects/*/memory -name "*.md"` count; replaced the prune-bash block with prose about reviewing auto-memory entries.
+- `skills/README.md` — updated the recall example that still referenced `learning.ts`.
+
+**Added — `src/lib/hook-runtime.ts` (53 lines, four helpers)**
+
+The three new v11.1.0 hooks (`parallelmax-nudge`, `delegation-detector`, `parallelmax-judge`) duplicated three patterns:
+
+1. `Bun.stdin.text()` → JSON parse → env-var fallback
+2. read/write a state file at `~/.claude/tmp/<name>.json`
+3. top-level `try { await main(); } catch {}` fail-open wrapper
+
+Extracted to `src/lib/hook-runtime.ts` exporting `readHookInput<T>()`, `readState<T>(name, fallback)`, `writeState(name, data)`, and `runHook(main)`. Refactored all three hooks to use the helpers — behavior identical, just less repetition.
+
+| Hook | Before | After | Delta |
+|---|---|---|---|
+| `parallelmax-nudge.ts` | 85 | 61 | −24 |
+| `delegation-detector.ts` | 88 | 77 | −11 |
+| `parallelmax-judge.ts` | 165 | 145 | −20 |
+
+Net: +53 (new lib) − 55 (across three hooks) = −2 lines, but every future hook gets the helpers for free, and the cc-settings supply-chain auditor still classifies all three as `trusted` (the helper lives under `src/lib/` which is one of the three allowlisted directories).
+
+**Also fixed**
+
+- `skills/share-learning/SKILL.md` — the body invoked `learning.ts store --shared` which never existed in the TS port (the `--shared` flag was a documentation aspiration, never implemented). Replaced with direct `gh project item-create` invocations.
+- `src/setup.ts` — removed unused `ensureNpmGlobal` import (orphan from when the retired `docs` skill installed npm globals; pre-existing lint error).
+
+**Files changed**
+
+- Deleted: `bench/run-baseline.ts`, `bench/regression-check.ts`, `bench/baseline-bash.json`, `src/scripts/learning.ts`
+- Added: `src/lib/hook-runtime.ts`
+- Modified: `package.json`, `.github/workflows/ci.yml`, `CLAUDE.md`, `src/setup.ts`, `src/scripts/session-start.ts`, `src/scripts/stop-summary.ts`, `src/hooks/parallelmax-nudge.ts`, `src/hooks/delegation-detector.ts`, `src/hooks/parallelmax-judge.ts`, `skills/consolidate/SKILL.md`, `skills/share-learning/SKILL.md`, `skills/README.md`
+
+### infra: VERSION 11.1.0 → 11.1.1
+
+Patch bump — refactors and cleanups, no new features.
+
+---
+
 ## [11.1.0] — 2026-05-13
 
 ### feat: parallelmaxxing hooks — counter the Opus 4.7 self-execution bias

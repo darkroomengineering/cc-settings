@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// SessionStart hook — rotate logs, clean handoffs, auto-warm TLDR, recall learnings.
+// SessionStart hook — rotate logs, clean handoffs, auto-warm TLDR, pointer to auto-memory.
 // Port of scripts/session-start.sh.
 //
 // Hook contract: no stdin shape required, no arguments. Output goes to stdout
@@ -187,45 +187,9 @@ await Promise.all([...logRotations.slice(1), handoffCleanup]);
 
 // --- Phase 5: display output ----------------------------------------------
 
-// Learnings
-const learningsBase = join(CLAUDE_DIR, "learnings");
-const learningsFile = join(learningsBase, PROJECT_NAME, "learnings.json");
-if (existsSync(learningsFile)) {
-  try {
-    const parsed = JSON.parse(await readFile(learningsFile, "utf8")) as {
-      learnings?: Array<{ timestamp?: string; category?: string; learning?: string }>;
-    };
-    const entries = parsed.learnings ?? [];
-    let totalProjects = 0;
-    try {
-      const dirents = await readdir(learningsBase, { withFileTypes: true });
-      totalProjects = dirents.filter((d) => d.isDirectory()).length;
-    } catch {
-      // leave 0
-    }
-    if (entries.length > 0) {
-      console.log("");
-      console.log("MEMORY SYSTEM ACTIVE");
-      console.log("------------------------------------");
-      console.log("");
-      console.log(`Project: ${PROJECT_NAME}`);
-      console.log(
-        `Learnings: ${entries.length} for this project (${totalProjects} projects tracked)`,
-      );
-      console.log("");
-      console.log("Recent learnings:");
-      const recent = [...entries]
-        .sort((a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? ""))
-        .slice(0, 3);
-      for (const e of recent) console.log(`  - [${e.category ?? "?"}] ${e.learning ?? ""}`);
-      console.log("");
-      console.log("Run: bun src/scripts/learning.ts recall");
-      console.log("------------------------------------");
-    }
-  } catch {
-    // malformed learnings file — same as bash jq fallback: skip
-  }
-}
+// Auto-memory pointer (local tier retired in v11.1.0; auto-memory is the active store)
+console.log("");
+console.log("Auto-memory: say 'remember X' — saved to ~/.claude/projects/<hash>/memory/");
 
 // TLDR status
 if (hasCommand("tldr")) {

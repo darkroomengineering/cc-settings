@@ -58,6 +58,4 @@ Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 - Schemas (regenerate JSON Schema from zod sources): `bun run schemas:emit`
 - Preview composed settings.json: `bun run compose`
 - Upstream drift scan: `bun run upstream:scan`
-- Bench baseline: `bun run bench:baseline`
-- Bench regression: `bun run bench:check`
 - Commits: conventional — `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`.

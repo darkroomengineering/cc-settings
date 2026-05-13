@@ -3,7 +3,7 @@
 // prepend a system reminder pointing at Agent(maestro) before the model plans.
 // Fail-open: any error → silent success (never block the prompt).
 
-export {};
+import { readHookInput, runHook } from "../lib/hook-runtime.ts";
 
 const BREADTH_PHRASES: RegExp[] = [
   /do all\b/i,
@@ -26,14 +26,8 @@ const PATH_TOKEN = /\b[\w-]+\/[\w./-]+|\b[\w-]+\.(ts|tsx|js|jsx|md|json|css|scss
 const LIST_ITEM = /^\s*(?:[-*]|\d+\.)\s+/gm;
 
 async function main(): Promise<void> {
-  const raw = await Bun.stdin.text();
-  let prompt = "";
-  try {
-    const payload = JSON.parse(raw) as { prompt?: string };
-    prompt = payload.prompt ?? process.env.PROMPT ?? "";
-  } catch {
-    prompt = process.env.PROMPT ?? "";
-  }
+  const payload = await readHookInput<{ prompt: string }>({ prompt: "PROMPT" });
+  const prompt = payload.prompt ?? "";
 
   if (!prompt) return;
 
@@ -80,8 +74,4 @@ async function main(): Promise<void> {
   );
 }
 
-try {
-  await main();
-} catch {
-  // Fail open — never block a user prompt due to hook failure.
-}
+await runHook(main);

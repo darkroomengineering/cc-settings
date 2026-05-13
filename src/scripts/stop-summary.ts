@@ -21,8 +21,7 @@ try {
     console.log(
       `[Hook] Session had significant changes (${count} files) - consider storing learnings:`,
     );
-    console.log("  bun src/scripts/learning.ts store <category> <learning> [context]");
-    console.log("  Categories: bug | pattern | gotcha | tool | perf | config | arch | test");
+    console.log("  Say 'remember this' and Claude will save to ~/.claude/projects/<hash>/memory/");
   }
 } catch {
   // silent — learnings nudge is best-effort

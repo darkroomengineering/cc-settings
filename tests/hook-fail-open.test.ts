@@ -54,7 +54,10 @@ describe("hook scripts fail open", () => {
       }
       const hasTry = /\btry\s*\{/.test(src);
       const hasCatch = /\.catch\s*\(/.test(src);
-      if (!hasTry && !hasCatch) {
+      // `runHook(main)` from src/lib/hook-runtime.ts is the v11.1.1 shared
+      // fail-open wrapper — equivalent to an inline try/catch.
+      const hasRunHook = /\brunHook\s*\(/.test(src);
+      if (!hasTry && !hasCatch && !hasRunHook) {
         failures.push(rel);
       }
     }

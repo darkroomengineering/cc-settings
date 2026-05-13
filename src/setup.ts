@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.1.0"; // parallelmaxxing hooks + skill consolidation (38→36) + dr- prefix convention
+const VERSION = "11.1.1"; // accelerationist cleanup: retire bench/, retire learning.ts local tier, extract hook-runtime helper
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -6,12 +6,9 @@
 //
 // Fail-open: any error → silent success. Never block a Stop event.
 
-import { readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { readHookInput, readState, runHook, writeState } from "../lib/hook-runtime.ts";
 
-const COUNTER_PATH = join(homedir(), ".claude", "tmp", "parallelmax-counter.json");
-const JUDGE_PATH = join(homedir(), ".claude", "tmp", "parallelmax-judge.json");
 const COUNTER_THRESHOLD = 5;
 const DEBOUNCE_MS = 600_000;
 const HAIKU_TIMEOUT_MS = 8_000;
@@ -26,14 +23,6 @@ interface Counter {
 interface JudgeState {
   lastFiredAt?: number;
   lastReason?: string;
-}
-
-async function readJson<T>(path: string, fallback: T): Promise<T> {
-  try {
-    return JSON.parse(await readFile(path, "utf8")) as T;
-  } catch {
-    return fallback;
-  }
 }
 
 async function transcriptExcerpt(path: string): Promise<string> {
@@ -118,20 +107,16 @@ async function askHaiku(
 }
 
 async function main(): Promise<void> {
-  const raw = await Bun.stdin.text();
-  let transcriptPath = "";
-  try {
-    const payload = JSON.parse(raw) as { transcript_path?: string };
-    transcriptPath = payload.transcript_path ?? "";
-  } catch {
-    transcriptPath = process.env.TRANSCRIPT_PATH ?? "";
-  }
+  const payload = await readHookInput<{ transcript_path: string }>({
+    transcript_path: "TRANSCRIPT_PATH",
+  });
+  const transcriptPath = payload.transcript_path ?? "";
   if (!transcriptPath) return;
 
-  const counter = await readJson<Counter>(COUNTER_PATH, { count: 0, lastTool: "" });
+  const counter = await readState<Counter>("parallelmax-counter.json", { count: 0, lastTool: "" });
   if (counter.count < COUNTER_THRESHOLD) return;
 
-  const state = await readJson<JudgeState>(JUDGE_PATH, {});
+  const state = await readState<JudgeState>("parallelmax-judge.json", {});
   const now = Date.now();
   if (state.lastFiredAt && now - state.lastFiredAt < DEBOUNCE_MS) return;
 
@@ -142,7 +127,7 @@ async function main(): Promise<void> {
   if (!judgment || !judgment.verdict) return;
   if (state.lastReason === judgment.reason) return;
 
-  await writeFile(JUDGE_PATH, JSON.stringify({ lastFiredAt: now, lastReason: judgment.reason }));
+  await writeState("parallelmax-judge.json", { lastFiredAt: now, lastReason: judgment.reason });
 
   const msg =
     `parallelmax-judge (Haiku verdict): your last turn ran ${counter.count} ` +
@@ -157,8 +142,4 @@ async function main(): Promise<void> {
   );
 }
 
-try {
-  await main();
-} catch {
-  // Fail open — never block a Stop event due to hook failure.
-}
+await runHook(main);

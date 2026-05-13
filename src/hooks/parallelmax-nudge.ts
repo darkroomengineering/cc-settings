@@ -3,12 +3,8 @@
 // When count reaches 8, nudges the model toward delegation.
 // Fail-open: any error → silent success (never break the tool call).
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { readHookInput, readState, runHook, writeState } from "../lib/hook-runtime.ts";
 
-const STATE_DIR = join(homedir(), ".claude", "tmp");
-const STATE_FILE = join(STATE_DIR, "parallelmax-counter.json");
 const THRESHOLD = 8;
 const DEBOUNCE_MS = 60_000;
 
@@ -18,34 +14,18 @@ interface State {
   firedAt?: number;
 }
 
-async function readState(): Promise<State> {
-  try {
-    const raw = await readFile(STATE_FILE, "utf8");
-    return JSON.parse(raw) as State;
-  } catch {
-    return { count: 0, lastTool: "" };
-  }
-}
-
-async function writeState(state: State): Promise<void> {
-  await mkdir(STATE_DIR, { recursive: true });
-  await writeFile(STATE_FILE, JSON.stringify(state));
-}
-
 async function main(): Promise<void> {
-  const raw = await Bun.stdin.text();
-  let toolName = "";
-  try {
-    const payload = JSON.parse(raw) as { tool_name?: string };
-    toolName = payload.tool_name ?? process.env.TOOL_NAME ?? "";
-  } catch {
-    toolName = process.env.TOOL_NAME ?? "";
-  }
+  const payload = await readHookInput<{ tool_name: string }>({ tool_name: "TOOL_NAME" });
+  const toolName = payload.tool_name ?? "";
 
-  const state = await readState();
+  const state = await readState<State>("parallelmax-counter.json", { count: 0, lastTool: "" });
 
   if (toolName === "Agent") {
-    await writeState({ count: 0, lastTool: toolName, firedAt: state.firedAt });
+    await writeState("parallelmax-counter.json", {
+      count: 0,
+      lastTool: toolName,
+      firedAt: state.firedAt,
+    });
     return;
   }
 
@@ -74,11 +54,7 @@ async function main(): Promise<void> {
     }
   }
 
-  await writeState(state);
+  await writeState("parallelmax-counter.json", state);
 }
 
-try {
-  await main();
-} catch {
-  // Fail open — never interrupt a tool call due to hook failure.
-}
+await runHook(main);

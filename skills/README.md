@@ -172,6 +172,6 @@ The old `skill-rules.json` and `commands/*.md` formats have been replaced by `*/
 # Manually invoke a skill
 /fix "the auth bug"
 
-# Check shared team learnings
-bun ~/.claude/src/scripts/learning.ts recall shared
+# Check auto-memory entries for this project
+find ~/.claude/projects/*/memory -name "*.md" -not -name "MEMORY.md" 2>/dev/null
 ```
