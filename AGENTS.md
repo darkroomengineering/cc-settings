@@ -273,6 +273,17 @@ This prevents context bloat from accumulating tool outputs (which comprise ~84% 
 ### Information Placement
 Place critical information at the **beginning** and **end** of context. The middle receives less attention (lost-in-middle effect). When constructing prompts or structured output, put the most important facts first and last.
 
+### Cache Discipline
+Anthropic prompt caches index by **exact prefix match**. A cache hit charges ~10% of input cost and returns faster; a miss pays full rate. The cache is the lever you have under flat-rate plans (Max 100/200) — hits don't save dollars but they preserve 5h-window quota and cut latency.
+
+- **Stable content first, volatile content last.** System prompt → CLAUDE.md → tools → conversation. Any edit to the stable prefix invalidates everything cached after it.
+- **Don't switch models mid-task.** Each model has its own cache namespace; switching trashes the existing entry. Decide the model at task start.
+- **Don't edit pinned files mid-session.** CLAUDE.md, AGENTS.md, and skill prompts are part of the cached prefix. Edit them between sessions, not during. If you must edit during, expect the next 1-2 turns to miss cache.
+- **Don't reorder tool definitions.** A new tool *appended* preserves the cache; a tool *inserted* in the middle invalidates everything after it.
+- **5-minute TTL.** Long pauses (lunch, meeting) blow the cache. Cluster related work into focused bursts.
+
+The compaction-at-65% rule (see `~/.claude/CLAUDE.md`) coexists with caching: compaction rewrites the prefix, so the next turn pays a one-time miss. That trade is correct — a single miss is cheaper than dragging stale context for 30 more turns.
+
 ---
 
 ## Safety

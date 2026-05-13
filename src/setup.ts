@@ -50,7 +50,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.0.4"; // security: SessionStart hook fingerprint + bun run audit:hooks (defense vs Shai-Hulud npm worm); SECURITY.md
+const VERSION = "11.0.5"; // statusline: 5h-window time-to-reset (↻2h14m); AGENTS.md: Cache Discipline section
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

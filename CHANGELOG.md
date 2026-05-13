@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.0.5] — 2026-05-13
+
+### statusline: 5h-window time-to-reset
+
+The statusline already displayed `⚡<pct>%` for the 5-hour rate-limit usage but didn't surface when the window resets. Most cc-settings users are on Claude Max 100/200 (flat-rate) plans where token cost is fixed but quota matters — knowing time-to-reset is the actionable metric, not dollars.
+
+- `src/hooks/statusline.ts` — reads `rate_limits.five_hour.resets_at` (already in the Payload type, was unused). Computes delta from now, formats as `2h14m` or `45m`. Suppresses when `resets_at` is missing or in the past. Dim-styled suffix appended after the existing percentage: `⚡63% ↻2h14m`.
+
+### agents.md: Cache Discipline section
+
+Added explicit guidance for prompt-cache hygiene under `Context Hygiene`. Anthropic caches index by exact prefix match — small habits (model switching mid-task, editing CLAUDE.md during a session, reordering tool defs) silently trash cache hits. On flat-rate plans cache misses don't cost dollars but burn 5h-window quota and add latency. The section names the five most common patterns to avoid and notes how the existing compact-at-65% rule interacts with caching.
+
+**Files changed**
+- `src/hooks/statusline.ts`
+- `AGENTS.md`
+- `src/setup.ts` (VERSION 11.0.4 → 11.0.5)
+- `CHANGELOG.md`
+
+---
+
 ## [11.0.4] — 2026-05-12
 
 ### security: supply-chain hook defense (Shai-Hulud / npm worm pattern)

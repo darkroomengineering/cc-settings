@@ -101,6 +101,18 @@ const dirName = currentDir ? basename(currentDir) : "";
 const gitStatus = currentDir ? await buildGitStatus(currentDir) : null;
 
 const rateUsed = input.rate_limits?.five_hour?.used_percentage;
+const rateResetsAt = input.rate_limits?.five_hour?.resets_at;
+
+function formatTimeToReset(iso: string): string | null {
+  const resetMs = Date.parse(iso);
+  if (Number.isNaN(resetMs)) return null;
+  const deltaMs = resetMs - Date.now();
+  if (deltaMs <= 0) return null;
+  const totalMin = Math.round(deltaMs / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h${m.toString().padStart(2, "0")}m` : `${m}m`;
+}
 
 const effortLevel = input.effort?.level;
 const thinkingEnabled = input.thinking?.enabled === true;
@@ -132,9 +144,12 @@ if (rateUsed !== undefined) {
   const red = "\x1b[31m";
   const yellow = "\x1b[33m";
   const green = "\x1b[32m";
+  const dim = "\x1b[2m";
   const reset = "\x1b[0m";
   const color = rInt >= 80 ? red : rInt >= 50 ? yellow : green;
-  parts.push(`${color}⚡${rInt}%${reset}`);
+  const ttr = rateResetsAt ? formatTimeToReset(rateResetsAt) : null;
+  const suffix = ttr ? `${dim} ↻${ttr}${reset}` : "";
+  parts.push(`${color}⚡${rInt}%${reset}${suffix}`);
 }
 
 const dimSep = "\x1b[2m | \x1b[0m";
