@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.1.3"; // 4 React rules folded in from react-doctor research: cascading setState, useState-in-RSC, async Client Component, inline JSX literal context for Compiler
+const VERSION = "11.1.4"; // statusline ↻time-to-reset suffix renders against Claude Code 2.1.140 (resets_at is epoch seconds, not ISO)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

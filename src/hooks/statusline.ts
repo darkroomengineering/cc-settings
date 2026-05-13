@@ -17,7 +17,14 @@ type Payload = {
   rate_limits?: {
     five_hour?: {
       used_percentage?: number;
-      resets_at?: string;
+      // Unix epoch seconds (per Claude Code statusline docs). Tolerate ISO
+      // strings too — older Claude Code builds emitted them and our tests
+      // used to mock with ISO.
+      resets_at?: number | string;
+    };
+    seven_day?: {
+      used_percentage?: number;
+      resets_at?: number | string;
     };
   };
   // 2.1.119 — effort level + thinking flag are now in statusline stdin.
@@ -103,8 +110,20 @@ const gitStatus = currentDir ? await buildGitStatus(currentDir) : null;
 const rateUsed = input.rate_limits?.five_hour?.used_percentage;
 const rateResetsAt = input.rate_limits?.five_hour?.resets_at;
 
-function formatTimeToReset(iso: string): string | null {
-  const resetMs = Date.parse(iso);
+function formatTimeToReset(value: number | string): string | null {
+  // Claude Code emits Unix epoch *seconds* (integer). Anything ≥ 1e9 is
+  // clearly seconds, not milliseconds, and not a meaningful ISO date.
+  let resetMs: number;
+  if (typeof value === "number") {
+    resetMs = value > 1e12 ? value : value * 1000;
+  } else {
+    const asNum = Number(value);
+    if (Number.isFinite(asNum) && asNum > 1e9) {
+      resetMs = asNum > 1e12 ? asNum : asNum * 1000;
+    } else {
+      resetMs = Date.parse(value);
+    }
+  }
   if (Number.isNaN(resetMs)) return null;
   const deltaMs = resetMs - Date.now();
   if (deltaMs <= 0) return null;

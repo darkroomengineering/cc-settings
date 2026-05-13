@@ -4,6 +4,32 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.1.4] — 2026-05-13
+
+### fix: statusline ↻time-to-reset suffix renders again
+
+The `↻Xh:XXm` reset countdown next to the ⚡ rate-limit segment had been silently missing since Claude Code's statusline payload settled on Unix epoch *seconds* for `rate_limits.five_hour.resets_at`. Our hook called `Date.parse()` on that integer — `Date.parse(1738425600)` returns `NaN`, so `formatTimeToReset` returned `null` and the suffix was dropped without warning. v11.0.5 shipped the feature with an ISO-string mock and never caught the type mismatch against real Claude Code output.
+
+**Fix**
+
+- `src/hooks/statusline.ts`:
+  - `formatTimeToReset` now detects epoch-second input (`> 1e9`), multiplies to ms, and falls back to `Date.parse` for ISO strings (legacy/test compatibility).
+  - `Payload.rate_limits.five_hour.resets_at` widened to `number | string`. Added `seven_day` block alongside `five_hour` — the official statusline docs list both windows.
+
+**Verified against three payload shapes**
+
+```
+epoch seconds (current)   → ⚡30% ↻3h20m
+ISO string (legacy)        → ⚡30% ↻3h20m
+past timestamp             → ⚡30%        (suffix correctly suppressed)
+```
+
+**Files changed**
+
+- Modified: `src/hooks/statusline.ts`, `src/setup.ts` (VERSION 11.1.3 → 11.1.4)
+
+---
+
 ## [11.1.3] — 2026-05-13
 
 ### feat: 4 React rules folded in from react-doctor research
