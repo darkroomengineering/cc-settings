@@ -33,7 +33,7 @@
 | Package manager | `bun` (never npm/yarn) |
 | Dev server | `bun dev` |
 | Performance monitor | `r3f-perf` component |
-| Fetch docs | `/docs three`, `/docs gsap`, `/docs lenis` |
+| Fetch docs | Context7 MCP — resolve then fetch (three, gsap, lenis) |
 | Visual QA | `/qa` (chrome-devtools MCP) |
 | Linting/formatting | `bun biome check --fix` |
 
@@ -435,11 +435,13 @@ function Loader() {
 
 ## Documentation Sources
 
-- **React Three Fiber**: `/docs react-three-fiber` or [docs.pmnd.rs/react-three-fiber](https://docs.pmnd.rs/react-three-fiber)
-- **Three.js**: `/docs three`
-- **GSAP**: `/docs gsap`
-- **Lenis**: `/docs lenis`
-- **@react-three/drei**: `/docs drei`
+Fetch current API surface via Context7 MCP (`mcp__context7__resolve-library-id` → `mcp__context7__get-library-docs`):
+
+- **React Three Fiber** — [docs.pmnd.rs/react-three-fiber](https://docs.pmnd.rs/react-three-fiber)
+- **Three.js** — `three`
+- **GSAP** — `gsap`
+- **Lenis** — `lenis`
+- **@react-three/drei** — `drei`
 
 ---
 

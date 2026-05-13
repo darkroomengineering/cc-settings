@@ -45,7 +45,7 @@ Create a feature agent when:
 Do NOT create a feature agent when:
 
 - A role agent already handles the task well without extra context.
-- The domain knowledge fits better as a learning (`/learn`) or a rule (`rules/*.md`).
+- The domain knowledge fits better as auto-memory (personal) or `/share-learning` (team-wide), or as a rule (`rules/*.md`).
 - The agent would be so broad it duplicates the Maestro.
 
 ---

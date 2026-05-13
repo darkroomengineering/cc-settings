@@ -18,7 +18,7 @@ Re-installs are non-destructive: hand-added permission rules, custom hooks, loca
 **2. Start a new Darkroom project** (or skip if you have one):
 
 ```
-> /init my-project
+> /dr-init my-project
 ```
 
 You'll be asked to pick a starter — **satus** (Next.js, content sites) or **novus** (React Router 7, app-leaning SPAs). cc-settings auto-detects which one each project uses from `package.json` for everything that follows.
@@ -30,12 +30,12 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"fix the login redirect"* | `/fix` — explore → tester → implementer → reviewer |
 | *"add a dashboard with stats"* | `/build` — research gate → plan → scaffold → implement → test |
 | *"create a Button component"* | `/component` — stack-aware scaffold (Next.js or RR shape) |
-| *"how do I use react-router loaders?"* | `/docs` — fetches current docs via Context7 (always before adding new deps) |
+| *"how do I use react-router loaders?"* | Context7 MCP — fetches current docs (always before adding new deps) |
 | *"ship it"* / *"create a PR"* | `/ship` — typecheck → build → test → lint → review → commit → PR |
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `/audit` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 42, scroll to [All Skills](#all-skills) below.
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 36 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/simplify`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -165,7 +165,7 @@ Triggers `/qa` — screenshot + accessibility snapshot + structured visual revie
 
 Say: *"compare to the figma design"* or *"design fidelity check"*
 
-Triggers `/figma` — connects to Figma desktop, screenshots the design, compares against implementation.
+Routes directly to the Figma MCP — `mcp__figma__get_design_context` returns structured specs (tokens, dimensions, component props) and the MCP server's built-in instructions cover URL parsing and the design-to-code workflow. No cc-settings slash command needed (the dedicated `/figma` skill was retired May 2026 — the MCP server handled the workflow on its own).
 
 ### Performance Audit
 
@@ -246,7 +246,7 @@ Triggers `/hook` — scaffolds `lib/hooks/use-local-storage.ts` with typed optio
 
 Say: *"start a new project"*
 
-Triggers `/init` — clones Satus starter template with full Darkroom stack.
+Triggers `/dr-init` — clones Satus starter template with full Darkroom stack.
 
 ### Design Tokens
 
@@ -290,15 +290,13 @@ Triggers `/consolidate` — audits rules, skills, and learnings for contradictio
 
 ### Store a Learning
 
-Say: *"remember this"* or happens automatically after non-obvious fixes.
-
-Triggers `/learn` — stores learnings that persist across sessions. Supports `--shared` for team knowledge via GitHub Projects.
+Say: *"remember this"* — the auto-memory system in `~/.claude/CLAUDE.md` captures personal notes automatically (types: `user`, `feedback`, `project`, `reference`). For team-wide gotchas, decisions, and conventions: *"share this with the team"* → triggers `/share-learning`, posts to the GitHub Project board.
 
 ### Fetch Docs & Check Versions
 
 Say: *"how do I use GSAP ScrollTrigger?"* or *"what's the latest version of gsap?"* — triggered automatically before implementing with or installing a library.
 
-Triggers `/docs` — fetches current documentation via Context7 MCP and surfaces latest version info. Never codes from memory. The `PreToolUse` install hook (`check-docs-before-install.ts`) also nudges you to fetch docs before `bun add` / `npm install`.
+Handled directly by the Context7 MCP server, which prompts itself in for any library question. The `PreToolUse` install hook (`check-docs-before-install.ts`) nudges you to fetch docs before `bun add` / `npm install`. (The dedicated `/docs` skill was retired May 2026 — Context7's own instructions cover the trigger.)
 
 ### Optimize a Skill
 
@@ -349,7 +347,7 @@ Activate specialized workflows in `settings.json`:
 
 ### Stack-aware skills
 
-Scaffolding skills (`/component`, `/hook`, `/init`, `/build`, `/lenis`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`web-vitals`, `react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
+Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`, `/lenis`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`web-vitals`, `react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
 
 The detector lives in `src/lib/stack.ts` if you need to extend it to a new framework.
 
@@ -371,10 +369,10 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 
 | Server | Purpose | Used by |
 |---|---|---|
-| `context7` | Library / framework documentation lookup | `/docs`, every skill that fetches docs before adding deps |
+| `context7` | Library / framework documentation lookup | Auto-triggered by the server's own instructions on any library question; every skill that fetches docs before adding deps |
 | `tldr` | Semantic codebase analysis (call graphs, impact) | `/tldr`, `/explore` |
-| `figma` | Figma Dev Mode MCP — design tokens, component props | `/figma` |
-| `chrome-devtools` | Chrome DevTools (perf traces, network, console, screenshots, a11y tree, click/fill, lighthouse) | `/lighthouse`, `/qa`, `/figma`, `/fix`, `tester` agent |
+| `figma` | Figma Dev Mode MCP — design tokens, component props | Auto-triggered by the server's own instructions on figma.com URLs; `/qa` for design-fidelity checks |
+| `chrome-devtools` | Chrome DevTools (perf traces, network, console, screenshots, a11y tree, click/fill, lighthouse) | `/lighthouse`, `/qa`, `/fix`, `tester` agent, Figma-MCP design-vs-implementation diffs |
 | `Sanity` | Sanity CMS operations (GROQ queries, etc.) | satus / novus projects with Sanity integration |
 
 **Optional** servers — not installed by default; add manually to `~/.claude.json` if you want them. Listed in `mcp-configs/recommended.json`:
@@ -416,8 +414,6 @@ These are enforced automatically — no skill needed:
 | `refactor` | refactor, clean up, reorganize |
 | `test` | test, write tests, coverage |
 | `verify` | verify, double check, prove it, audit |
-| `explore` | how does, where is, find, understand |
-| `docs` | how to use X, X docs, X API |
 | `ask` | advice, guidance, what should I |
 | `discovery` | requirements, scope, figure out |
 | `prd` | PRD, requirements document, product spec |
@@ -429,17 +425,16 @@ These are enforced automatically — no skill needed:
 | `tldr` | who calls, dependencies, semantic search |
 | `component` | create component, new component |
 | `hook` | create hook, custom hook |
-| `init` | new project, initialize, setup |
+| `dr-init` | new darkroom project, satus, novus, scaffold from starter (`dr-` prefix = Darkroom-specific) |
 | `design-tokens` | type scale, color palette, spacing system |
 | `lenis` | smooth scroll, lenis |
-| `figma` | compare to design, figma |
 | `qa` | visual QA, accessibility, contrast, touch target |
 | `lighthouse` | lighthouse, performance audit, page speed, web vitals |
 | `checkpoint` | snapshot, before risky op, restore checkpoint, rollback to |
 | `create-handoff` | done for today, ending session, context window, running out of context |
 | `resume-handoff` | resume, continue, last session |
 | `explore` | how does, where is, find, understand, zoom out, bigger picture |
-| `learn` | remember this, store learning (also auto-triggers) |
+| `share-learning` | share with team, post to knowledge base, everyone should know |
 | `consolidate` | clean up rules, contradictions, spa day |
 | `cc-sync` | sync with claude code, changelog sync, upstream sync |
 | `cc-update` | update cc-settings, upgrade cc-settings, pull the latest |
@@ -464,7 +459,7 @@ These are enforced automatically — no skill needed:
 | `deslopper` | Dead code removal, cleanup | scanners (team mode) |
 | `maestro` | Multi-agent orchestration | all of the above |
 
-### Hooks (Automatic — 26 Events)
+### Hooks (Automatic — 27 Events)
 
 Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook to URL).
 
@@ -472,17 +467,18 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 |-------|-------------|
 | Session start | Load learnings, check TLDR index |
 | Setup | Runs on `--init`, `--init-only`, or `--maintenance` CLI flags |
-| User prompt | Skill activation, correction detection |
+| User prompt | Delegation breadth detection (`delegation-detector.ts`), session title |
 | Pre-tool (Bash) | Safety net, pre-commit TSC, docs check before install |
 | Pre-tool (Edit) | Stale file detection |
 | Permission request | When a tool needs user permission |
 | Post-tool (Write/Edit) | Post-edit validation, async TSC |
 | Post-tool (TLDR) | Usage tracking |
 | Post-tool (Bash) | Command audit log |
+| Post-tool (all) | Consecutive non-Agent call counter (`parallelmax-nudge.ts`) |
 | Tool failure | Failure tracking |
 | Pre-compact | Auto-handoff save |
 | Post-compact | After context compaction completes |
-| Stop | Learning reminder, compact reminder |
+| Stop | Learning reminder; Haiku delegation judge (`parallelmax-judge.ts`) |
 | Stop failure | Turn ends due to API error (rate limit, auth failure) |
 | Session end | TLDR stats, auto-handoff |
 | Subagent start/stop | Swarm logging |

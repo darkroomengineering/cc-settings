@@ -75,6 +75,12 @@ For each phase:
 4. **Checkpoint**: Save state if milestone reached
 5. **Monitor**: Check context usage, checkpoint if threshold hit
 
+To drive this loop unattended, set a `/goal` whose condition matches the
+completion promise — e.g. `/goal all phases complete, tsc + lint + tests
+exit 0, git status is clean`. The goal evaluator runs after every turn and
+keeps the session going until the condition holds; it survives `--resume`
+so a goal set before a handoff carries into the next session.
+
 ### Phase 3: Completion
 
 ```markdown

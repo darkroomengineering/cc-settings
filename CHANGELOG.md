@@ -4,6 +4,98 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.1.0] — 2026-05-13
+
+### feat: parallelmaxxing hooks — counter the Opus 4.7 self-execution bias
+
+Opus 4.7 spawns fewer subagents by default than 4.6 and prefers internal reasoning over delegation. The existing CLAUDE.md delegation rules are rules-as-documentation — read once, then drift. This release wires three runtime hooks that surface the bias in real time rather than relying on the model to police itself.
+
+**Added — `src/hooks/parallelmax-nudge.ts`** (PostToolUse, no matcher)
+
+- File-based counter at `~/.claude/tmp/parallelmax-counter.json`. Increments on every tool call, resets when the `Agent` tool fires (delegation observed).
+- At threshold `N=8`, emits a `hookSpecificOutput.additionalContext` payload pointing at `Agent(implementer)` / `Agent(explore)` / `Agent(maestro)` with the live count.
+- 60s debounce, then resets the counter so a single nudge doesn't repeat for the next eight calls.
+- Pure heuristic — zero LLM cost, microsecond runtime. Fail-open on any read/parse error.
+
+**Added — `src/hooks/delegation-detector.ts`** (UserPromptSubmit)
+
+- Regex-scores the incoming prompt for breadth signals: phrases like "do all", "execute the plan", "across the repo", "every file", "fan out"; path-shaped tokens (`dir/file.ext`); numbered/bulleted lists with 4+ items.
+- Phrases score `+2` each; ≥3 path tokens add `+1`; ≥4 list items add `+1`.
+- At score ≥ 2, injects a system reminder *before* the model commits to a plan, naming the matched reasons and pointing at maestro / multi-agent delegation.
+- Pure regex — zero LLM cost.
+
+**Added — `src/hooks/parallelmax-judge.ts`** (Stop event, counter-gated)
+
+- Reads the parallelmax counter first; returns silently if `count < 5`. Avoids burning Haiku + latency on every turn — only fires on already-suspicious turns.
+- Parses the last ~25 events from `transcript_path` (JSONL), extracts the most recent user prompt + the assistant's tool sequence.
+- Spawns `claude -p --model claude-haiku-4-5-20251001` with the excerpt + the cc-settings delegation rules; Haiku returns `DELEGATE: <reason>` or `OK`.
+- On `DELEGATE`, posts the verdict + reason as `additionalContext`. 10-min debounce; suppresses duplicate reasons; state at `~/.claude/tmp/parallelmax-judge.json`.
+- Uses the user's existing Claude Code auth (OAuth on Max plans where Haiku usage is bundled into the subscription — Anthropic's `/goal` docs call this "negligible compared to main-turn spend"). 8s timeout on the spawn; fail-open on any error.
+
+All three hooks follow the cc-settings trusted-command convention (`bun "$HOME/.claude/src/hooks/<name>.ts"`) so the supply-chain auditor classifies them as `trusted`. Verified: `bun run audit:hooks` reports 51 trusted, 0 unknown, 0 suspicious after install.
+
+### refactor: skill consolidation — 38 → 36, plus the `dr-` prefix convention
+
+The user's effective skill count is around 70+ once native Claude Code skills (`loop`, `schedule`, `simplify`, `review`, `init`, `security-review`, `claude-api`, …) and plugins (`sanity:*`, `vercel:*`) load on top of cc-settings. Anthropic's Skills guide flags 20–50 descriptions as the band where the Skill selector starts struggling. The 40 soft cap on cc-settings was protecting our slice while the user already sat past the upper bound. This release tightens our slice and clarifies the cap's scope.
+
+**Deleted — `skills/docs/`**
+
+The Context7 MCP server's own server-level instructions already prompt Claude to use it on any library question. Our `/docs <library>` slash was a re-statement. Updated all cross-references (8 files) to point at the MCP server directly. The "MANDATORY before adding any external dep" rule migrated to natural-language guidance in the affected skills.
+
+**Deleted — `skills/figma/`**
+
+Same shape as `docs` — the Figma MCP server's instructions cover URL parsing, the design-to-code workflow, and `get_design_context` as the primary tool. The `/figma` slash duplicated without adding routing. Updated `skills/qa/SKILL.md` and `MANUAL.md` to route directly to the MCP.
+
+**Renamed — `skills/learn/` → `skills/share-learning/`**
+
+The `learn` skill had two tiers. The local tier wrote to `~/.claude/learnings/<project>/learnings.json` — fully redundant with the auto-memory system in `~/.claude/CLAUDE.md` which writes typed memories (`user`, `feedback`, `project`, `reference`) to `~/.claude/projects/<hash>/memory/`. The shared tier (GitHub Project board, team-wide) is genuinely orthogonal. Narrowed `share-learning` to the shared tier only; local notes defer to auto-memory.
+
+**Renamed — `skills/init/` → `skills/darkroom-init/` → `skills/dr-init/`**
+
+Two consecutive renames in this release. The native Claude Code `/init` (writes a CLAUDE.md file) collides on the slash command. First rename added "darkroom-" to disambiguate; second rename adopts the **new `dr-` prefix convention** for Darkroom-specific cc-settings skills. The `dr-` prefix mirrors the studio's CSS class namespace. Generic skills (`fix`, `build`, `review`, `lenis`, …) stay unprefixed because they apply outside Darkroom; only skills that are useless at a non-Darkroom shop carry the prefix.
+
+**Tightened descriptions (no rename) — `review` and `refactor`**
+
+Both names collide with native Claude Code skills. Rather than rename them (the slashes are well-established), descriptions now disambiguate by scope:
+
+- `review` — "local pre-commit review of unstaged/staged diff against the Darkroom quality checklist; distinct from native `/review` which inspects open PRs."
+- `refactor` — "behavior-preserving restructuring of code that is NOT in your current diff; for tightening just-changed code use native `/simplify` instead."
+
+The selector now has a clear signal for which to pick.
+
+**Net change**
+
+38 → 36 cc-settings skills. Four below the 40 cap, headroom for the next two additions before re-evaluating. `bun run lint:skills` passes; the soft-cap warning stays silent.
+
+### feat: `/goal` cross-references in the loop-shaped skills
+
+Anthropic shipped `/goal` (a session-scoped wrapper around a prompt-based Stop hook) — Claude keeps turning until a small/fast model judges a stated condition met. Four cc-settings skills are loop-shaped and now point at it with worked conditions:
+
+- `skills/lighthouse/SKILL.md` — `/goal mobile and desktop scores in all four categories meet their targets, or stop after 20 rounds`
+- `skills/tdd/SKILL.md` — `/goal every planned behavior has a passing test and the full suite exits 0`
+- `skills/fix/SKILL.md` — `/goal the reproducer test passes and the full suite is green, or stop after 5 attempts`
+- `skills/long-task/SKILL.md` — `/goal all phases complete, tsc + lint + tests exit 0, git status is clean`
+
+### security: SECURITY.md — "Don't disable hooks wholesale"
+
+`/goal` is implemented as a session-scoped prompt-based Stop hook and reports itself unavailable if `disableAllHooks` or `allowManagedHooksOnly` is set at any settings level. The new parallelmaxxing hooks have the same dependency. Users who panic-disable hooks after a `verify-hooks` warning would lose both. Added a section to SECURITY.md and a caveat to `docs/settings-reference.md`'s `disableAllHooks` documentation telling users to remove suspicious entries surgically instead. The fingerprint and the in-memory session hooks (`/goal`, custom prompt hooks) coexist cleanly — the fingerprint only hashes the persisted `hooks` block.
+
+### chore: documentation pass — 10 files updated to match the new surface
+
+33 stale references fixed across `README.md`, `MANUAL.md`, `CLAUDE-FULL.md`, `skills/README.md`, `hooks/README.md`, `mcp-configs/README.md`, `docs/frontmatter-reference.md`, `docs/hooks-reference.md`, `docs/settings-reference.md`, and `docs/consolidation-audits/2026-05.md` (addendum block; historical record left intact). Counts, skill rows, hook tables, frontmatter examples, and tree diagrams all reflect the new state. Auto-memory pointers replace `/learn` invocations; the `dr-` prefix convention is now documented wherever Darkroom-specific skill naming comes up.
+
+### infra: VERSION 11.0.5 → 11.1.0
+
+Minor bump for the new hook layer and the consolidation. Installer behavior unchanged. The `MANAGED_SKILLS` array in `src/setup.ts` adds `dr-init` and `share-learning` and keeps `docs`, `figma`, `init`, `learn`, `darkroom-init` in the upgrade-cleanup section so existing installs prune the orphaned directories on next `setup.sh`.
+
+**Files changed**
+
+- New: `src/hooks/parallelmax-nudge.ts`, `src/hooks/delegation-detector.ts`, `src/hooks/parallelmax-judge.ts`, `skills/dr-init/SKILL.md`, `skills/share-learning/SKILL.md`
+- Deleted: `skills/docs/`, `skills/figma/`, `skills/learn/` (renamed), `skills/init/` (renamed), `skills/darkroom-init/` (renamed)
+- Modified: `config/40-hooks.json`, `src/setup.ts`, `README.md`, `MANUAL.md`, `CLAUDE-FULL.md`, `SECURITY.md`, `AGENTS.md` indirectly, `skills/README.md`, `hooks/README.md`, `mcp-configs/README.md`, `docs/frontmatter-reference.md`, `docs/hooks-reference.md`, `docs/settings-reference.md`, `docs/consolidation-audits/2026-05.md`, `docs/feature-agents-guide.md`, `docs/github-workflow.md`, `docs/knowledge-system.md`, `contexts/web.md`, `contexts/webgl.md`, `profiles/webgl.md`, `skills/build/SKILL.md`, `skills/component/SKILL.md`, `skills/fix/SKILL.md`, `skills/hook/SKILL.md`, `skills/lenis/SKILL.md`, `skills/lighthouse/SKILL.md`, `skills/long-task/SKILL.md`, `skills/qa/SKILL.md`, `skills/refactor/SKILL.md`, `skills/review/SKILL.md`, `skills/tdd/SKILL.md`
+
+---
+
 ## [11.0.5] — 2026-05-13
 
 ### statusline: 5h-window time-to-reset

@@ -58,7 +58,7 @@ These create files directly in main context:
 | `component` | create component, new component |
 | `design-tokens` | design tokens, type scale, color palette, spacing system, theme setup |
 | `hook` | create hook, custom hook |
-| `init` | new project, initialize, setup |
+| `dr-init` | new project, initialize, setup |
 
 ### Research (Forked Context)
 These fork context for clean exploration:
@@ -66,7 +66,6 @@ These fork context for clean exploration:
 | Skill | Triggers On |
 |-------|-------------|
 | `explore` | how does, where is, find, understand, zoom out, bigger picture, where does this fit |
-| `docs` | documentation, how to use, library API |
 | `ask` | advice, guidance, what should I |
 | `tldr` | who calls, dependencies, semantic search |
 | `premortem` | risks, what could go wrong |
@@ -77,7 +76,6 @@ These fork context for clean exploration:
 ### Tools
 | Skill | Triggers On |
 |-------|-------------|
-| `figma` | figma, compare to design, design fidelity, extract tokens from figma |
 | `qa` | visual QA, accessibility, contrast, touch target |
 | `lenis` | smooth scroll, lenis setup |
 
@@ -90,23 +88,16 @@ These fork context for clean exploration:
 ### Session Management
 | Skill | Triggers On |
 |-------|-------------|
-| `learn` | **AUTO**: after non-obvious fix, pattern, gotcha |
+| `share-learning` | explicit invocation for team-wide learnings (personal/local notes go to auto-memory) |
 | `checkpoint` | snapshot, before risky op, rollback to |
 | `create-handoff` | done for today, ending session, context window, running out of context |
 | `resume-handoff` | resume, continue, last session |
 
-## The `learn` Skill (Auto-Applied)
+### The `share-learning` Skill (Manual, Team-Only)
 
-**Claude automatically stores learnings when it should remember something.**
+This skill posts architectural decisions, cross-cutting gotchas, and conventions to the shared GitHub Project board so other team members' AI agents pick them up on session start. It is manually invoked — there is no auto-trigger.
 
-Auto-triggers when:
-- Fixing a non-obvious bug
-- Discovering a useful pattern
-- Encountering a gotcha or edge case
-- Finding a tool/library feature
-- Making an architecture decision
-
-Learnings persist across sessions and are recalled on session start.
+For personal notes, the cc-settings auto-memory system (stored under `~/.claude/projects/<hash>/memory/`) captures them automatically. See the "auto memory" section of `~/.claude/CLAUDE.md` for how that works. The rule of thumb: if another team member's AI agent would benefit from knowing it, use `/share-learning`; otherwise let auto-memory handle it.
 
 ## Skill Structure
 
@@ -118,7 +109,7 @@ skills/
 │   └── SKILL.md
 ├── explore/
 │   └── SKILL.md
-├── learn/
+├── share-learning/
 │   └── SKILL.md
 └── ...
 ```
@@ -181,6 +172,6 @@ The old `skill-rules.json` and `commands/*.md` formats have been replaced by `*/
 # Manually invoke a skill
 /fix "the auth bug"
 
-# Check learnings
-bun ~/.claude/src/scripts/learning.ts recall all
+# Check shared team learnings
+bun ~/.claude/src/scripts/learning.ts recall shared
 ```

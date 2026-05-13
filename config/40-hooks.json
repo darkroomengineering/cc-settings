@@ -10,6 +10,15 @@
 						"timeout": 3
 					}
 				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/delegation-detector.ts\"",
+						"timeout": 3
+					}
+				]
 			}
 		],
 		"PreToolUse": [
@@ -92,6 +101,15 @@
 						"timeout": 10
 					}
 				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/parallelmax-nudge.ts\"",
+						"timeout": 3
+					}
+				]
 			}
 		],
 		"PostCompact": [
@@ -169,6 +187,11 @@
 					{
 						"type": "command",
 						"command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
+					},
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/parallelmax-judge.ts\"",
+						"timeout": 10
 					}
 				]
 			}

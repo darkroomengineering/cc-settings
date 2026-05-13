@@ -144,13 +144,15 @@ These servers are configured automatically by `setup.sh`:
 - **context7** - Live documentation lookup (crucial for current APIs)
 - **Sanity** - CMS content and schema operations (OAuth on first use)
 - **tldr** - Semantic codebase analysis and search (requires `pipx install llm-tldr`)
+- **figma** - Design-to-code and Figma file inspection (MCP server's own instructions handle URL parsing and design-to-code)
+- **chrome-devtools** - Browser automation (navigate, screenshot, a11y snapshot, click/fill, Lighthouse)
 
 ### Optional (`recommended.json` — `optionalMcpServers`)
 
 Additional servers you can add manually to `~/.claude.json`:
 - **github** - GitHub integration for issues, PRs, projects (alternative: use `gh` CLI)
 - **vercel** - Deployment management
-- **memory** - Persistent knowledge across sessions
+- **memory** - Persistent knowledge across sessions (cc-settings ships its own auto-memory system at `~/.claude/projects/<hash>/memory/` — this server is redundant unless you prefer a different memory UX)
 
 ### Adding Project-Specific Servers
 

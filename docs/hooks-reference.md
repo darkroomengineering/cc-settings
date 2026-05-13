@@ -310,6 +310,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
+| `delegation-detector.ts` | Regex-scores incoming prompt for breadth signals (phrases like "do all", "across the repo", path-shaped tokens, large numbered lists). At score ≥ 2, injects a system reminder via `additionalContext` pointing at maestro / multi-agent delegation | No |
 
 > Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
@@ -352,6 +353,12 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 |--------|---------|-------|
 | `track-tldr.ts "$TOOL_NAME"` | Tracks TLDR MCP usage statistics | Yes |
 
+### PostToolUse (no matcher — every tool)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `parallelmax-nudge.ts` | Counts consecutive non-Agent tool calls in main context. At N=8, emits a system reminder pointing at the delegation rules. State at `~/.claude/tmp/parallelmax-counter.json`; resets when an Agent tool fires. 60s debounce | No |
+
 ### PostToolUseFailure
 
 | Script | Purpose | Async |
@@ -375,6 +382,7 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `stop-summary.ts` | End-of-turn summary; if >5 files were changed, reminds to store learnings | No |
+| `parallelmax-judge.ts` | Gated by the parallelmax counter — only fires when count ≥ 5 in the just-ended turn. Spawns `claude -p --model claude-haiku-4-5-20251001` with a transcript excerpt; if Haiku verdicts "should have delegated", injects the reason via `additionalContext`. 10-min debounce, suppresses duplicate reasons. Uses bundled Haiku on Max plans (negligible billing) | No |
 
 ### StopFailure
 

@@ -129,9 +129,9 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
 | `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
 
-Skills using `fork`: `ask`, `autoresearch`, `build`, `checkpoint`, `compare-approaches`, `consolidate`, `design-tokens`, `discovery`, `docs`, `explore`, `figma`, `fix`, `lighthouse`, `long-task`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `test`, `tldr`, `verify`.
+Skills using `fork`: `ask`, `autoresearch`, `build`, `checkpoint`, `compare-approaches`, `consolidate`, `design-tokens`, `discovery`, `explore`, `fix`, `lighthouse`, `long-task`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `test`, `tldr`, `verify`.
 
-Skills using `inherit` (default): `audit`, `component`, `create-handoff`, `hook`, `init`, `learn`, `lenis`, `project`, `resume-handoff`, `versions`.
+Skills using `inherit` (default): `audit`, `component`, `create-handoff`, `dr-init`, `hook`, `lenis`, `project`, `resume-handoff`, `share-learning`, `versions`.
 
 ### Agent Delegation
 
@@ -202,13 +202,10 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | `create-handoff` | -- | -- | -- | -- |
 | `design-tokens` | fork | -- | -- | -- |
 | `discovery` | fork | planner | -- | -- |
-| `docs` | fork | -- | MCP context7 tools, WebFetch, WebSearch | -- |
+| `dr-init` | -- | -- | -- | `[project-name]` |
 | `explore` | fork | explore | -- | -- |
-| `figma` | fork | -- | Bash, MCP figma tools | -- |
 | `fix` | fork | -- | -- | -- |
 | `hook` | -- | -- | -- | -- |
-| `init` | -- | -- | -- | `[project-name]` |
-| `learn` | -- | -- | -- | -- |
 | `lenis` | -- | -- | -- | -- |
 | `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
 | `long-task` | fork | -- | -- | -- |
@@ -220,6 +217,7 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | `refactor` | fork | -- | -- | -- |
 | `resume-handoff` | -- | -- | -- | -- |
 | `review` | fork | reviewer | -- | -- |
+| `share-learning` | -- | -- | -- | -- |
 | `ship` | fork | -- | -- | -- |
 | `test` | fork | tester | -- | -- |
 | `tldr` | fork | -- | -- | -- |

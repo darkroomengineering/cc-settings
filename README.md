@@ -124,7 +124,7 @@ These run constantly. Get fluent with them first.
 - **[`/ship`](./skills/ship/SKILL.md)** — typecheck → build → test → lint → web quality gate → commit → PR
 - **[`/review`](./skills/review/SKILL.md)** — review against Darkroom standards (TS, React, a11y, performance)
 - **[`/explore`](./skills/explore/SKILL.md)** — read-only codebase navigation, returns file locations and summaries
-- **[`/docs`](./skills/docs/SKILL.md)** — fetches current library docs via Context7 MCP. Auto-runs before `bun add` / `npm install`
+- **Context7 MCP** — fetches current library docs automatically on any library question. The `PreToolUse` install hook also nudges before `bun add` / `npm install`. (The dedicated `/docs` skill was retired May 2026 — the MCP server's own instructions cover the trigger.)
 - **[`/refactor`](./skills/refactor/SKILL.md)** — explore → plan → implement → test → review with behavior preserved
 - **[`/test`](./skills/test/SKILL.md)** — write/run tests, surface coverage gaps
 - **[`/tdd`](./skills/tdd/SKILL.md)** — strict red → green → refactor when you want tests to drive the design
@@ -135,7 +135,7 @@ Reach for these before merging or whenever stakes are high.
 
 - **[`/verify`](./skills/verify/SKILL.md)** — three-agent adversarial pattern: finder → adversary → referee
 - **[`/qa`](./skills/qa/SKILL.md)** — visual + a11y review (layout, typography, contrast, hierarchy)
-- **[`/figma`](./skills/figma/SKILL.md)** — compares implementation against Figma designs
+- **Figma MCP** — `mcp__figma__get_design_context` returns structured specs; auto-triggered on figma.com URLs. (The `/figma` skill was retired May 2026.)
 - **[`/lighthouse`](./skills/lighthouse/SKILL.md)** — Lighthouse audits with median-of-3 averaging, optimizes scores
 - **`chrome-devtools` MCP** — browser automation (navigate, screenshot, a11y snapshot, click/fill, lighthouse). Tools called directly by any agent / skill; not a dedicated slash command.
 - **[`/audit`](./skills/audit/SKILL.md)** — runs the cc-settings audit script
@@ -160,7 +160,7 @@ For long sessions and multi-day work.
 - **[`/checkpoint`](./skills/checkpoint/SKILL.md)** — mid-task rollback points before risky operations (multi-snapshot)
 - **[`/create-handoff`](./skills/create-handoff/SKILL.md)** — end-of-session transfer with GitHub Issue sync; includes context-window runbook (merged in `/context`)
 - **[`/resume-handoff`](./skills/resume-handoff/SKILL.md)** — load handoff + linked issue context
-- **[`/learn`](./skills/learn/SKILL.md)** — store learnings (local or `--shared` to team via GitHub Projects)
+- **[`/share-learning`](./skills/share-learning/SKILL.md)** — post team-wide gotchas, decisions, conventions to GitHub Project board. Personal notes are captured automatically by the auto-memory system.
 
 ### Maintenance
 
@@ -176,7 +176,7 @@ Run weekly or when entropy hits.
 
 For starting fresh or adding common pieces.
 
-- **[`/init`](./skills/init/SKILL.md)** — clone Satus starter template (full Darkroom stack)
+- **[`/dr-init`](./skills/dr-init/SKILL.md)** — clone Satus or Novus starter template (full Darkroom stack). The `dr-` prefix marks Darkroom-specific skills (CSS-class convention).
 - **[`/component`](./skills/component/SKILL.md)** — scaffold React component with CSS module
 - **[`/hook`](./skills/hook/SKILL.md)** — scaffold typed custom React hook
 - **[`/design-tokens`](./skills/design-tokens/SKILL.md)** — generate type scale / color palette as Tailwind or CSS vars
@@ -220,14 +220,13 @@ Opus for judgment, Sonnet for execution. Read-only agents (`explore`, `oracle`, 
 ├── AGENTS.md           # Portable coding standards (reference copy)
 ├── settings.json       # Permissions, hooks, MCP servers
 ├── agents/             # 10 specialized agents
-├── skills/             # 42 auto-invocable skills
+├── skills/             # 36 auto-invocable skills
 ├── profiles/           # Workflow profiles (maestro, nextjs, etc.)
 ├── rules/              # Path-conditioned rules (load on-demand)
 ├── contexts/           # Ecosystem contexts
 ├── src/                # TypeScript: hooks, scripts, libs, schemas
 ├── docs/               # Reference documentation
 ├── backups/            # Install backups (rollback target)
-├── learnings/          # Local persistent memory
 └── handoffs/           # Session state backups
 ```
 
@@ -288,8 +287,8 @@ Two-tier knowledge management:
 | **Local** | Auto-memory + learnings | Personal preferences, session context |
 
 ```bash
-/learn store bug "useAuth causes hydration — use dynamic import"        # local
-/learn store --shared gotcha "Sanity API returns UTC dates"              # team
+# personal notes captured automatically by auto-memory system
+/share-learning "Sanity API returns UTC dates"                          # team → GitHub Project board
 ```
 
 See [docs/knowledge-system.md](./docs/knowledge-system.md) for setup.

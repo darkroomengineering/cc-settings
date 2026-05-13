@@ -15,7 +15,7 @@ Before any implementation, complete this research phase:
 1. **Detect stack** — read `package.json`. `next` dep → satus / Next.js; `react-router` dep → novus / React Router. Note any starter signal (`name` field, `darkroom.starter` marker).
 2. **Understand requirements** — parse what the user actually needs.
 3. **Explore codebase** — find existing patterns, similar implementations.
-4. **Fetch docs** — run `/docs <library>` for any external library. Never code from memory.
+4. **Fetch docs** — use Context7 MCP for any external library. Never code from memory.
 5. **Check versions** — run `bun info <package>` for the latest version.
 6. **Assess feasibility** — can this be done cleanly within existing architecture?
 

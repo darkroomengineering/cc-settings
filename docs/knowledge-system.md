@@ -57,8 +57,8 @@ gh project item-list NUMBER --owner ORG --format json
 
 **Adding shared knowledge:**
 ```bash
-# Via the learn skill
-/learn store --shared gotcha "Biome ignores .mdx files by default"
+# Via the share-learning skill
+/share-learning gotcha "Biome ignores .mdx files by default"
 
 # Manually via gh CLI
 gh project item-create NUMBER --owner ORG --title "gotcha: Biome ignores .mdx" --body "Add .mdx to biome.json includes array"
@@ -78,43 +78,34 @@ gh project item-create NUMBER --owner ORG --title "gotcha: Biome ignores .mdx" -
 
 ### How It Works
 
-Claude Code's auto-memory stores learnings at:
+Claude Code's auto-memory is the single local store. Memories live at:
 ```
 ~/.claude/projects/<project-hash>/memory/
 ```
 
-The `learn` skill stores structured learnings at:
-```
-~/.claude/learnings/<project>/learnings.json
-```
-
-Both persist across sessions and are recalled on session start.
+Each memory is a markdown file with frontmatter (`name`, `description`, `type`)
+indexed from `MEMORY.md`. The auto-memory contract in `~/.claude/CLAUDE.md`
+specifies four memory types (`user`, `feedback`, `project`, `reference`) and
+when to write each. Memories persist across sessions and are recalled
+automatically.
 
 ### What Goes in Local Knowledge
 
-- Personal workflow preferences ("I prefer verbose commit messages")
-- Environment-specific notes ("My dev server runs on port 3001")
-- Session context ("Working on checkout, coupon validation pending")
-- Individual debugging insights specific to your setup
+- Personal workflow preferences ("I prefer verbose commit messages") → `user`
+- Corrections the user made to your approach → `feedback`
+- Active project state, deadlines, blockers → `project`
+- Pointers to external systems (Linear projects, dashboards) → `reference`
 
 ### Usage
 
-```bash
-# Store locally (default)
-/learn store bug "useAuth causes hydration - use dynamic import"
+The auto-memory writes on its own when triggers fire (see `~/.claude/CLAUDE.md`
+"auto memory" section). To force a write, say "remember that ..." — Claude
+files it under the matching type. To inspect or delete, edit the markdown
+files in `~/.claude/projects/<project-hash>/memory/` directly.
 
-# Recall
-/learn recall all
-/learn recall category bug
-/learn recall search hydration
-
-# Delete
-/learn delete <id>
-```
-
-### Categories
-
-`bug`, `pattern`, `gotcha`, `tool`, `perf`, `config`, `arch`, `test`
+The previous `/learn` skill (which wrote to `~/.claude/learnings/<project>/learnings.json`)
+has been retired. Auto-memory replaces the local tier; `/share-learning` covers
+the team-wide tier (above).
 
 ---
 

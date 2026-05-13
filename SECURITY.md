@@ -135,6 +135,19 @@ If you maintain personal hooks alongside cc-settings:
    script and propose a `config/40-hooks.json` entry — it then ships as
    "trusted" without needing per-user fingerprint refresh.
 
+## Don't disable hooks wholesale
+
+When the fingerprint warns, surgically remove the suspicious entries from
+`~/.claude/settings.json` (Step 3 above) rather than flipping
+`disableAllHooks` or `allowManagedHooksOnly`. Wholesale-disabling hooks
+also disables features built on the hooks system — most visibly
+[`/goal`](https://code.claude.com/docs/en/goal), which is a session-scoped
+prompt-based `Stop` hook and reports itself unavailable if hooks are off
+at any settings level. The verify-hooks fingerprint and the `/goal`
+evaluator coexist cleanly: the fingerprint hashes only the persisted
+`hooks` block in `settings.json`, not the in-memory session-scoped hook
+that `/goal` installs for its lifetime.
+
 ## What cc-settings deliberately does not do
 
 - **Auto-quarantine on suspicious match.** The session-start hook only

@@ -1,6 +1,6 @@
 ---
-name: init
-description: Initialize new Darkroom project. Triggers "new project", "start project", "initialize", "setup project", "satus", "novus".
+name: dr-init
+description: Initialize new Darkroom project from a satus or novus starter (NOT the same as native /init which writes CLAUDE.md). Triggers "new darkroom project", "satus", "novus", "scaffold from starter".
 argument-hint: "[project-name]"
 ---
 
@@ -15,7 +15,7 @@ Create a new project using a Darkroom starter. Darkroom maintains two:
 
 ## Step 1 — Pick the starter
 
-If the user already specified ("/init satus", "/init novus", "create new react-router project"), use that. Otherwise ask:
+If the user already specified ("/dr-init satus", "/dr-init novus", "create new react-router project"), use that. Otherwise ask:
 
 ```
 Which starter?

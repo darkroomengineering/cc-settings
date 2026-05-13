@@ -125,6 +125,6 @@ useLenis(() => {
 
 ## Remember
 
-- Always run `/docs lenis` before implementing — APIs change.
+- Always fetch current Lenis docs via Context7 MCP before implementing — APIs change.
 - Both starters pre-wire this; only do it manually for non-Darkroom projects.
 - Store any gotchas as learnings.

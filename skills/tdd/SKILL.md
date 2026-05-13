@@ -59,6 +59,11 @@ RED:   next test → fails
 GREEN: minimal code to pass → passes
 ```
 
+To run the red→green cycle autonomously across turns, set
+`/goal every planned behavior has a passing test and the full suite exits 0`.
+The evaluator reads the test output from the transcript after each turn — don't
+phrase the condition as something only the runtime can prove (file flags, etc.).
+
 Rules:
 
 - One test at a time

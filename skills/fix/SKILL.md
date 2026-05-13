@@ -22,13 +22,18 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 3. **Diagnose** - Analyze findings to identify root cause
 4. **Implement** - Spawn `implementer` agent to fix the issue
 5. **Verify** - Spawn `tester` agent to confirm the fix
-6. **Learn** - If this was a non-obvious fix, auto-invoke `/learn store bug "..."` to remember it
+6. **Learn** - If this was a non-obvious fix, the auto-memory system in `~/.claude/CLAUDE.md` captures it; for team-wide gotchas use `/share-learning` to post to the GitHub Project board
 
 ## Scope Rules
 
 Follow CLAUDE.md Guardrails (scope constraint, 2-iteration limit). Only modify files directly related to the bug.
 
 **Build after every fix**: Run the build after each individual fix attempt. Never stack multiple untested fixes -- verify green before moving on. If the build breaks, fix *that* before continuing.
+
+**Autonomous fix-verify loop**: once the reproducer exists, set
+`/goal the reproducer test passes and the full suite is green, or stop after 5 attempts`
+to keep iterating without re-prompting. Keep the 2-iteration scope rule in mind when
+choosing the stop clause.
 
 ## Agent Delegation
 
@@ -50,7 +55,7 @@ Return a concise summary:
 
 ## Remember
 
-- If the fix involves a library API, **fetch docs first** via `/docs <library>` — APIs change between versions
+- If the fix involves a library API, **fetch docs first** via Context7 MCP — APIs change between versions
 - Always store non-obvious bug fixes as learnings
 - Check if similar bugs were fixed before (recall learnings)
 - Run tests after fixing

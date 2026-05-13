@@ -130,6 +130,11 @@ Sort by impact (lowest scores first). These drive the improvement loop.
 
 ## Improvement Loop
 
+> **Autonomous mode:** to drive this loop turn-by-turn without re-prompting, set
+> `/goal mobile and desktop scores in all four categories meet their targets, or stop after 20 rounds`.
+> A goal evaluator (Haiku by default) reads the audit table after each turn and decides whether to continue.
+> See [/goal docs](https://code.claude.com/docs/en/goal).
+
 ```
 LOOP until all scores >= 90 or user interrupts:
 

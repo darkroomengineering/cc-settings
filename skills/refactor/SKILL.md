@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Improve code quality/readability/perf without changing behavior. Triggers "refactor", "clean up", "reorganize", "restructure", tech debt.
+description: Behavior-preserving restructuring of code that is NOT in your current diff — extract modules, rename across files, untangle abstractions, pay down tech debt. For tightening just-changed code use native /simplify instead. Triggers "refactor X", "reorganize this module", "restructure", "extract Y from Z", "pay down tech debt".
 context: fork
 ---
 

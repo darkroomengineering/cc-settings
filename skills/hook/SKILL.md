@@ -91,12 +91,12 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
 ## Before you start
 
 If this hook uses an external library, **fetch docs first**:
-1. Run `/docs <library>` to get current API via context7.
+1. Use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) for the current API.
 2. Run `bun info <package>` to check the latest version.
 
 ## Consider Using Hamo
 
-For common use cases, prefer `hamo` hooks (run `/docs hamo` first):
+For common use cases, prefer `hamo` hooks (fetch `hamo` docs via Context7 first):
 
 ```tsx
 import { useWindowSize, useRect, useIntersectionObserver } from 'hamo'

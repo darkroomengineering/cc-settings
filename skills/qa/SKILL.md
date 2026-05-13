@@ -178,7 +178,7 @@ Use `mcp__chrome-devtools__resize_page` to switch between desktop (1440×900), t
 ### Comparing to a Mockup
 
 1. Get the mockup image:
-   - **From Figma (preferred):** Use `/figma` — the Figma MCP returns structured design specs (tokens, dimensions, component props) instead of pixel-pushing screenshots
+   - **From Figma (preferred):** Use the Figma MCP directly — `mcp__figma__get_design_context` returns structured design specs (tokens, dimensions, component props) instead of pixel-pushing screenshots. The MCP server's own instructions cover URL parsing and the design-to-code workflow.
    - **Manual:** Figma export, screenshot, or user-provided image
 2. Screenshot the implementation at the same viewport size
 3. Run comparison review

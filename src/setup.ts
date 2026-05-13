@@ -41,7 +41,6 @@ import {
 } from "./lib/mcp.ts";
 import {
   detectPackageManagers,
-  ensureNpmGlobal,
   ensurePythonPackage,
   ensureSystemPackage,
   getInstallHint,
@@ -50,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.0.5"; // statusline: 5h-window time-to-reset (↻2h14m); AGENTS.md: Cache Discipline section
+const VERSION = "11.1.0"; // parallelmaxxing hooks + skill consolidation (38→36) + dr- prefix convention
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -214,17 +213,14 @@ const MANAGED_SKILLS = [
   "context-doc",
   "create-handoff",
   "debug",
+  "dr-init",
   "design-tokens",
   "discovery",
-  "docs",
   "explore",
   "f-thread",
-  "figma",
   "fix",
   "hook",
-  "init",
   "l-thread",
-  "learn",
   "lenis",
   "lighthouse",
   "orchestrate",
@@ -235,6 +231,7 @@ const MANAGED_SKILLS = [
   "refactor",
   "resume-handoff",
   "review",
+  "share-learning",
   "ship",
   "tdd",
   "teams",
@@ -245,6 +242,16 @@ const MANAGED_SKILLS = [
   "zoom-out",
   // Kept for upgrade cleanup; skill was removed (superseded by `docs` + `check-docs-before-install` hook).
   "versions",
+  // Kept for upgrade cleanup; skills retired May 2026 — `docs` and `figma`
+  // fully covered by the Context7 and Figma MCP server instructions; `learn`
+  // local tier folded into auto-memory (the shared tier moved to `share-learning`);
+  // `init` renamed via `darkroom-init` → `dr-init` to avoid colliding with
+  // native `/init` and to follow the studio's `dr-` prefix convention.
+  "darkroom-init",
+  "docs",
+  "figma",
+  "init",
+  "learn",
 ];
 
 async function cleanOldConfig(): Promise<void> {

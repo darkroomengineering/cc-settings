@@ -82,7 +82,7 @@ export function <Name>({ children, className }: <Name>Props) {
 ## Before you start
 
 If this component wraps or uses an external library (Radix, Framer Motion, GSAP, etc.):
-1. **Fetch docs first** — run `/docs <library>` to get current API via context7.
+1. **Fetch docs first** — use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) for the current API.
 2. **Check version** — run `bun info <package>` before installing.
 
 Never implement against external library APIs from memory.
