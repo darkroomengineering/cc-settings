@@ -130,29 +130,6 @@ export async function ensureSystemPackage(pkg: string, checkCmd = pkg): Promise<
   return ok;
 }
 
-export async function ensureNpmGlobal(pkg: string, checkCmd = pkg): Promise<boolean> {
-  if (hasCommand(checkCmd)) {
-    progressOk(checkCmd);
-    return true;
-  }
-  const pms = detectPackageManagers();
-  if (!pms.node) {
-    progressWarn(`${pkg} - npm/bun not available`);
-    return false;
-  }
-  progressArrow(`Installing ${pkg} via ${pms.node}...`);
-  const installCmd: Record<NonNullable<NodePM>, string[]> = {
-    bun: ["bun", "add", "--global", pkg],
-    pnpm: ["pnpm", "add", "-g", pkg],
-    yarn: ["yarn", "global", "add", pkg],
-    npm: ["npm", "install", "-g", pkg],
-  };
-  const ok = await runSilent(installCmd[pms.node]);
-  if (ok) progressOk(`${pkg} installed`);
-  else progressFail(`Failed to install ${pkg}`);
-  return ok;
-}
-
 export async function ensurePythonPackage(pkg: string, checkCmd = pkg): Promise<boolean> {
   if (hasCommand(checkCmd)) {
     progressOk(checkCmd);

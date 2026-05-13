@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.1.1"; // accelerationist cleanup: retire bench/, retire learning.ts local tier, extract hook-runtime helper
+const VERSION = "11.1.2"; // doc pass + deslop residue: ensureNpmGlobal function body removed, stale session-start description fixed, hook-runtime.ts surfaced in docs/hooks-reference.md
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

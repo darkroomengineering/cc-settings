@@ -29,7 +29,7 @@ Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 - `CLAUDE-FULL.md` — Claude-Code config (installed to `~/.claude/CLAUDE.md`)
 - `src/setup.ts` — The installer
 - `src/hooks/` — Hot-path hook implementations (PreToolUse, statusLine, …)
-- `src/scripts/` — One-shot scripts (post-edit, handoff, learning, …)
+- `src/scripts/` — One-shot scripts (post-edit, handoff, …)
 - `src/lib/` — Shared libs (colors, mcp, packages, platform, prompts, …)
 - `src/schemas/` — zod schemas for settings.json, hooks, skills, MCP
 - `src/upstream/` — Claude Code version-drift scanner
@@ -41,7 +41,7 @@ Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 - `hooks/` — Hook documentation (markdown)
 - `mcp-configs/` — MCP server reference config
 - `docs/` — Reference documentation
-- `bench/` — Performance benchmarks + regression gate
+- `bench/prototype/` — Exploratory compile prototype (full benchmark harness retired in v11.1.1)
 - `tests/` — bun:test suites
 - `setup.sh` / `setup.ps1` — Tiny bootstraps (install Bun, exec `bun src/setup.ts`)
 - `config/` — Settings fragments (source of truth; `10-core.json`, `20-mcp.json`, `30-permissions.json`, `40-hooks.json`). Composed into `~/.claude/settings.json` at install time. Run `bun run compose` to preview the composed output.

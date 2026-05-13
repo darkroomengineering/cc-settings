@@ -352,7 +352,7 @@ profiles/              # Workflow + platform profiles
 rules/                 # Path-conditioned rules
 contexts/              # Ecosystem contexts
 docs/                  # Reference docs
-bench/                 # Performance benchmarks + regression gate
+bench/prototype/       # Exploratory compile prototype (harness retired in v11.1.1)
 tests/                 # bun:test suites
 schemas/               # Generated JSON Schemas (bun run schemas:emit)
 ```

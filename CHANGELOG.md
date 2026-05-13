@@ -4,6 +4,34 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.1.2] — 2026-05-13
+
+### chore: doc pass + deslop residue from v11.1.1
+
+Post-v11.1.1 audit pass caught documentation drift the consolidation left behind, plus residual dead code the deslopper found on a deeper sweep. All structural — no behavior changes.
+
+**Documentation — stale references after v11.1.0 + v11.1.1 cuts**
+
+- `CLAUDE.md` — `src/scripts/` description listed "learning" as an example one-shot script; that file was deleted in v11.1.1.
+- `CLAUDE.md`, `README.md` — `bench/` description still claimed "Performance benchmarks + regression gate"; only `bench/prototype/` survives. Updated both to name the surviving directory and note the v11.1.1 retirement.
+- `hooks/README.md` — `session-start.ts` row described "recalls learnings"; the script now surfaces an auto-memory pointer (the `learning.ts` recall path was retired in v11.1.1).
+- `docs/hooks-reference.md` — same `session-start.ts` row update.
+- `docs/hooks-reference.md` "Adding New Hooks" → Best Practices — added a bullet pointing hook authors at the new `src/lib/hook-runtime.ts` helpers (`readHookInput`, `readState`, `writeState`, `runHook`) with the three parallelmax hooks named as reference implementations.
+
+**Dead code — `ensureNpmGlobal` function body**
+
+v11.1.1 removed the unused `ensureNpmGlobal` import from `src/setup.ts` but left the function body alive in `src/lib/packages.ts` (~22 lines). Confirmed zero callers across the repo (the only consumer was the retired `docs` skill's install hook). Deleted.
+
+**Files changed**
+
+- Modified: `CLAUDE.md`, `README.md`, `hooks/README.md`, `docs/hooks-reference.md`, `src/lib/packages.ts`, `src/setup.ts` (VERSION 11.1.1 → 11.1.2)
+
+**Sessional learning — worktree base-ref gotcha**
+
+The implementer agent dispatched for this doc pass with `isolation: "worktree"` worked off `origin/main` (still at v11.0.5 since this session's work hadn't been pushed), then overwrote the v11.1.0 doc cleanup on copy-back. Caught it via `git diff HEAD` and restored before committing. Lesson: ALWAYS commit current state before dispatching a worktree-isolated agent so the agent's base ref reflects unpushed work. For truly excellent worktree use, `isolation: "worktree"` + push-or-commit-first is the only safe pattern when local HEAD is ahead of `origin`.
+
+---
+
 ## [11.1.1] — 2026-05-13
 
 ### refactor: accelerationist cleanup — retire bash-era bench, retire local-tier learning, extract hook-runtime helper

@@ -11,7 +11,7 @@ For full hook documentation (all 27 events, configuration format, matchers, debu
 
 | Event | Trigger | Script | Async |
 |-------|---------|--------|-------|
-| `SessionStart` | New session begins | `session-start.ts` (recalls learnings, auto-warms TLDR) | No |
+| `SessionStart` | New session begins | `session-start.ts` (auto-memory pointer, auto-warms TLDR) | No |
 | `UserPromptSubmit` | Before Claude sees prompt | `session-title.ts` (sets session title from prompt for `--resume`) | **Yes** |
 | `UserPromptSubmit` | Before Claude sees prompt | `delegation-detector.ts` (regex-scores prompt for breadth signals; at score ≥ 2 injects delegation reminder via `additionalContext`) | No |
 | `PreToolUse` | Before Bash commands (Bash matcher) | `safety-net.ts` (blocks destructive commands) | No |
