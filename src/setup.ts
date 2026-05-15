@@ -239,6 +239,7 @@ const MANAGED_SKILLS = [
   "tldr",
   "verify",
   "write-a-skill",
+  "zero-tech-debt",
   "zoom-out",
   // Kept for upgrade cleanup; skill was removed (superseded by `docs` + `check-docs-before-install` hook).
   "versions",
