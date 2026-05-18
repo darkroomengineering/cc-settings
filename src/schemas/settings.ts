@@ -60,9 +60,13 @@ export const ModelOverrides = z.record(z.string(), z.unknown());
 // Worktree config (2.1.133). `baseRef` chooses whether new worktrees branch
 // from origin/<default> (`fresh`, the post-2.1.133 default) or local HEAD
 // (`head`, the 2.1.128–2.1.132 default). Use `head` to keep unpushed commits.
+// `bgIsolation: "none"` (added 2.1.143) lets background sessions edit the
+// working copy directly without EnterWorktree, for repos where worktrees are
+// impractical.
 export const Worktree = z
   .object({
     baseRef: z.enum(["fresh", "head"]).optional(),
+    bgIsolation: z.enum(["none"]).optional(),
   })
   .passthrough();
 

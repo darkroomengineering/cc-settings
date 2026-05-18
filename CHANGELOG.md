@@ -4,6 +4,38 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.2.0] — 2026-05-18
+
+### feat: sync with Claude Code v2.1.143
+
+Routine upstream sync covering 2.1.140 → 2.1.143. Adopts the new contracts (env vars, settings field, hook output field) so the zod schemas accept them and the docs reference them. Most of the upstream churn in this window is UI/plugin/Windows fixes that have no cc-settings surface.
+
+**Adopted**
+
+- `worktree.bgIsolation: "none"` setting (v2.1.143) — `src/schemas/settings.ts`. Lets background sessions edit the working copy directly without `EnterWorktree`. For repos where worktrees are impractical.
+- `terminalSequence` hook output field (v2.1.141) — `docs/hooks-reference.md`. Hooks can emit desktop notifications, window titles, and terminal bells through their JSON output without a controlling terminal. (Docs-only; the zod schema models hook input, not output.)
+- 6 new env vars in `knownEnvVars` (manifest) + env-vars table:
+  - `ANTHROPIC_WORKSPACE_ID` (v2.1.141) — workspace-scoped workload identity federation
+  - `CLAUDE_CODE_PLUGIN_PREFER_HTTPS` (v2.1.141) — HTTPS clone for plugin sources behind SSH-blocking proxies
+  - `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE` (v2.1.142) — pin fast mode to Opus 4.6 (default is now Opus 4.7)
+  - `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` (v2.1.143) — cap Stop-hook block-loop length (default: 8)
+  - `CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY` (v2.1.143) — opt out of PowerShell ExecutionPolicy Bypass default
+  - `CLAUDE_CODE_USE_POWERSHELL_TOOL` — already in the manifest; documentation added for the new Windows-default-on behavior
+
+**Deletions / Native-now-redundant**
+
+None this cycle. The `/loop` redundant-wakeup fix (v2.1.140) and the case-insensitive `subagent_type` matching (v2.1.140) are pure upstream improvements; we have no compensating shims to remove.
+
+**Skipped**
+
+~25 upstream entries: plugin-management UX, Windows-only fixes, `claude agents` CLI flag additions, `/feedback`/`/plugin`/`/web-setup` UI, rewind menu, `MCP_TOOL_TIMEOUT` fix, reactive-compaction internal improvement, hook config error wording, agent color palette, settings hot-reload symlink fix, plugin folder-shadowing warnings — none affect schemas, hooks, or our config surface.
+
+**Files changed**
+
+- Modified: `upstream/claude-code-manifest.json`, `src/schemas/settings.ts`, `docs/settings-reference.md`, `docs/hooks-reference.md`, `src/setup.ts` (VERSION 11.1.4 → 11.2.0), `CHANGELOG.md`
+
+---
+
 ## [11.1.4] — 2026-05-13
 
 ### fix: statusline ↻time-to-reset suffix renders again

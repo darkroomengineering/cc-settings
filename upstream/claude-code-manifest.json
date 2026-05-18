@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cc-settings.darkroom/upstream/claude-code-manifest.json",
   "description": "Snapshot of Claude Code upstream surface area as known to the cc-settings zod schemas. Updated by src/upstream/scan.ts (daily GH Action). Drift triggers a PR that extends the schemas and this manifest atomically. See docs/migration-coexistence.md and ~/Desktop/cc-settings-MIGRATION.md v2.",
-  "lastScan": "2026-05-12T00:00:00Z",
-  "claudeCodeVersion": "2.1.139",
+  "lastScan": "2026-05-18T00:00:00Z",
+  "claudeCodeVersion": "2.1.143",
   "manifestSchemaVersion": 1,
   "source": "manual sync (cc-settings v11.0.1). From 2.1.115 onward, upstream-sync bot owns this file.",
   "knownSettingsKeys": [
@@ -82,6 +82,7 @@
   "knownEnvVars": [
     "AI_AGENT",
     "ANTHROPIC_BEDROCK_SERVICE_TIER",
+    "ANTHROPIC_WORKSPACE_ID",
     "CLAUDE_CODE_CERT_STORE",
     "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN",
     "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK",
@@ -96,11 +97,15 @@
     "CLAUDE_CODE_MCP_SERVER_NAME",
     "CLAUDE_CODE_MCP_SERVER_URL",
     "CLAUDE_CODE_NO_FLICKER",
+    "CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE",
     "CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE",
     "CLAUDE_CODE_PERFORCE_MODE",
+    "CLAUDE_CODE_PLUGIN_PREFER_HTTPS",
+    "CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY",
     "CLAUDE_CODE_SCRIPT_CAPS",
     "CLAUDE_CODE_SESSION_ID",
     "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS",
+    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
     "CLAUDE_CODE_USE_POWERSHELL_TOOL",
     "CLAUDE_EFFORT",
@@ -130,6 +135,7 @@
     "knownEnvVars lists CC env vars that affect CC itself — application env vars set in settings.json are out of scope.",
     "knownBuiltinTools is used by the zod schemas when validating permission rules by shape (e.g., `Tool(pattern)`). Updated when upstream adds tools.",
     "knownHookTypes includes `mcp_tool` (added 2.1.118) for hooks that invoke MCP tools directly.",
-    "v2.1.139 added two hook fields (not enumerated here, see src/schemas/hooks.ts): `args: string[]` on command hooks (exec form, no shell) and `continueOnBlock: boolean` on PostToolUse hooks."
+    "v2.1.139 added two hook fields (not enumerated here, see src/schemas/hooks.ts): `args: string[]` on command hooks (exec form, no shell) and `continueOnBlock: boolean` on PostToolUse hooks.",
+    "v2.1.143 added `worktree.bgIsolation: \"none\"` to disable background-session worktree isolation — see src/schemas/settings.ts."
   ]
 }

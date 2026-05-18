@@ -49,7 +49,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.1.4"; // statusline ↻time-to-reset suffix renders against Claude Code 2.1.140 (resets_at is epoch seconds, not ISO)
+const VERSION = "11.2.0"; // sync with Claude Code v2.1.143 — new env vars, worktree.bgIsolation, terminalSequence hook output
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -203,6 +203,7 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | `timeout` | number | `600` | Timeout in seconds (max: 600) |
 | `once` | boolean | `false` | Run exactly once per session, then disable |
 | `continueOnBlock` | boolean | `false` | (v2.1.139, `PostToolUse` only) When the hook returns a block signal, the turn continues — the block surfaces in context but doesn't abort. Use for soft warnings. |
+| `terminalSequence` | string | -- | (v2.1.141, hook output) Raw terminal escape sequence the hook returns in its JSON output. Lets hooks emit desktop notifications, set window titles, or ring the bell without owning a controlling terminal. |
 
 ### Hook Types
 

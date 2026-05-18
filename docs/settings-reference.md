@@ -74,6 +74,12 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE` | `"1"` or unset | On Homebrew or WinGet installs, Claude Code runs the upgrade command in the background and prompts to restart (v2.1.129) |
 | `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY` | `"1"` or unset | Opt in to `/v1/models` discovery for the `/model` picker on third-party gateways (was automatic 2.1.126–2.1.128) (v2.1.129) |
 | `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` | `"1"` or unset | Re-enable the session quality survey for enterprises capturing responses through OpenTelemetry (v2.1.136) |
+| `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` | integer (string) | Caps consecutive Stop-hook block cycles before the turn ends with a warning (default: 8) (v2.1.143) |
+| `CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY` | `"1"` or unset | Opt out of the new PowerShell `-ExecutionPolicy Bypass` default. Windows only (v2.1.143) |
+| `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE` | `"1"` or unset | Pin fast mode to Opus 4.6 (default is now Opus 4.7) (v2.1.142) |
+| `CLAUDE_CODE_PLUGIN_PREFER_HTTPS` | `"1"` or unset | Clone GitHub plugin sources over HTTPS instead of SSH. For environments without a GitHub SSH key (v2.1.141) |
+| `ANTHROPIC_WORKSPACE_ID` | UUID string | Scopes the workload-identity-federation minted token to a specific workspace (v2.1.141) |
+| `CLAUDE_CODE_USE_POWERSHELL_TOOL` | `"0"` to opt out, unset for default | Now defaults on for Windows Bedrock/Vertex/Foundry users (v2.1.143) |
 
 ### `model`
 
@@ -255,6 +261,7 @@ Configuration for git worktree operations.
 | Field | Type | Description |
 |-------|------|-------------|
 | `baseRef` | `"fresh"` \| `"head"` | What `--worktree`, `EnterWorktree`, and agent-isolation worktrees branch from. `fresh` (default since v2.1.133) → `origin/<default-branch>`. `head` → local `HEAD` (the 2.1.128–2.1.132 default). Use `head` to keep unpushed commits in new worktrees |
+| `bgIsolation` | `"none"` | Lets background sessions edit the working copy directly without `EnterWorktree`. For repos where worktrees are impractical (v2.1.143) |
 | `sparsePaths` | list | Directories to check out in each worktree via git sparse-checkout. Useful for large monorepos |
 
 ### `skillOverrides`
