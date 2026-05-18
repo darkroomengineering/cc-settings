@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
 import {
   boxEnd,
   boxLine,
@@ -707,6 +708,7 @@ async function main(): Promise<number> {
   } else {
     info("Installing dependencies...");
     await installDependencies();
+    printPreflightReport(checkCliTools());
 
     info("Creating backup...");
     await createBackup();

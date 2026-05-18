@@ -181,6 +181,86 @@ function analyze(label: string, files: string[]): void {
       console.log(`    ${count}x  ${cmd.slice(0, 55)}`);
     }
   }
+
+  // Sessions — split commands into 15-min idle sessions, show top 3 by volume.
+  {
+    type Session = { start: string; end: string; count: number; projects: Map<string, number> };
+    const SESSION_GAP_MS = 15 * 60 * 1000;
+
+    const timeToMs = (t: string): number => {
+      const parts = t.split(":").map(Number);
+      return ((parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0)) * 1000;
+    };
+
+    const fmtDuration = (ms: number): string => {
+      const m = Math.floor(ms / 60000);
+      if (m < 60) return `${m}m`;
+      return `${Math.floor(m / 60)}h ${m % 60}m`;
+    };
+
+    const sessions: Session[] = [];
+    let cur: Session | null = null;
+    let prevMs = -1;
+
+    for (const l of lines) {
+      const ms = timeToMs(l.time);
+      if (cur === null || ms - prevMs > SESSION_GAP_MS) {
+        cur = { start: l.time, end: l.time, count: 0, projects: new Map() };
+        sessions.push(cur);
+      }
+      cur.end = l.time;
+      cur.count++;
+      cur.projects.set(l.project, (cur.projects.get(l.project) ?? 0) + 1);
+      prevMs = ms;
+    }
+
+    if (sessions.length > 0) {
+      console.log("");
+      console.log(`  ⏱ sessions (${sessions.length} total, 15-min idle threshold)`);
+      const top = [...sessions].sort((a, b) => b.count - a.count).slice(0, 3);
+      const smax = top[0]?.count ?? 0;
+      for (const s of top) {
+        const domProject = [...s.projects.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+        const durationMs = timeToMs(s.end) - timeToMs(s.start);
+        const dur = durationMs >= 0 ? fmtDuration(durationMs) : "< 1m";
+        const bar = padBar(s.count, smax, 8);
+        console.log(`    ${s.start}  ${bar}  ${s.count} cmds  ${dur}  ${padRight(domProject, 20)}`);
+      }
+    }
+  }
+
+  // Context-heavy operations — proxies for excessive context window burn.
+  {
+    type CtxHit = { time: string; cmd: string; reason: string };
+    const hits: CtxHit[] = [];
+
+    for (const l of lines) {
+      const c = l.cmd.trim();
+      let reason = "";
+      if (/^(cat|head|tail|less)\b/.test(c)) reason = "file reader (prefer Read tool)";
+      else if (/^find\s+[./~]/.test(c)) reason = "broad find scan";
+      else if (/^grep\s.*-r\b(?!.*\s\S+\s*$)/.test(c) || /^grep\s+-r\b/.test(c))
+        reason = "recursive grep without explicit scope";
+      else if (/^ls\s.*-[a-zA-Z]*R/.test(c) || /^ls\s+-R\b/.test(c)) reason = "recursive ls";
+      else if (/^tree\b(?!.*--depth\b)(?!.*-L\b)/.test(c)) reason = "tree without depth limit";
+      if (reason) hits.push({ time: l.time, cmd: c, reason });
+    }
+
+    const ctxMax = hits.length;
+    if (hits.length > 0) {
+      console.log("");
+      console.log(`  📄 context-heavy ops (${hits.length})`);
+      const bar = padBar(hits.length, ctxMax > 0 ? ctxMax : 1, 8);
+      console.log(`    ${bar}  ${hits.length} total`);
+      for (const h of hits.slice(0, 5)) {
+        console.log(`    [${h.time}] ${h.reason}`);
+        console.log(`           ${h.cmd.slice(0, 65)}`);
+      }
+      console.log(
+        `    → ${hits.length} context-heavy op${hits.length === 1 ? "" : "s"}; prefer Read/Grep tools or scope these to specific paths`,
+      );
+    }
+  }
 }
 
 // --- Main -----------------------------------------------------------------
