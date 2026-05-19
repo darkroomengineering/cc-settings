@@ -37,6 +37,8 @@ The Edit tool uses exact string matching. Follow these rules:
 - **Expert second opinions on hard trade-offs** → `Agent(oracle, "...")`
 - **Full-feature orchestration across 3+ agents** → `Agent(maestro, "...")`
 
+> **Briefing contract for `implementer`**: this agent runs with `isolation: worktree` — a fresh checkout of `origin/main` with no in-session file context. Every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command, and a scope boundary. Thin prompts cause regressions; the agent will refuse them. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
+
 ### Act directly ONLY when:
 
 - Reading a specific file you already know the path to

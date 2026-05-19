@@ -40,7 +40,7 @@ User Request
     │
 [3] Agent(scaffolder, "...") [if new files needed]
     │
-[4] Agent(implementer, "implement based on plan")
+[4] Agent(implementer, "<paste the planner output verbatim: file paths, exact changes, verification command, scope boundary — see agents/implementer.md REQUIRED BRIEFING>")
     │
 [5] Agent(deslopper, "clean up dead code")
     │

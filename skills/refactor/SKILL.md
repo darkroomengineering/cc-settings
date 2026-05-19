@@ -21,10 +21,28 @@ You are in **Maestro orchestration mode**. Delegate immediately.
 
 ## Agent Delegation
 
+Spawn explore and planner first — they accept thin prompts because they
+discover what they need from the codebase:
+
 ```
 Agent(explore, "Analyze the code to refactor: $ARGUMENTS. Identify patterns, issues, dependencies.")
 Agent(planner, "Design refactoring approach based on analysis. Keep behavior unchanged.")
-Agent(implementer, "Refactor according to plan. Preserve all functionality.")
+```
+
+**Then assemble the implementer prompt from the actual planner output.**
+Implementer runs in an isolated worktree with no access to prior agent
+results, so paste the real plan — not "according to plan":
+
+- The user's refactor target (`$ARGUMENTS`) verbatim
+- The planner's step-by-step plan, including file paths and each move/rename/extract operation
+- Any "preserve behavior" invariants the planner called out
+- The test command that must remain green
+- Scope: "only the files in the plan; do not touch anything else"
+
+Now spawn:
+
+```
+Agent(implementer, "<the assembled briefing above — all five items inline>")
 Agent(tester, "Verify refactored code behaves identically to original.")
 Agent(reviewer, "Review refactoring for quality and completeness.")
 ```
