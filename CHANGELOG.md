@@ -4,6 +4,37 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.2.1] — 2026-05-19
+
+### fix: implementer briefing contract + sync with Claude Code v2.1.144
+
+The upstream v2.1.144 release is a pure bug-fix window — terminal renderer fixes, background-session crashes, MCP pagination, Windows-only fixes — with no new settings keys, hook types, env vars, or agent contracts to adopt. Patch bump on the manifest only.
+
+The substantive change this release is local: **the `implementer` agent now refuses thin prompts and the skills that orchestrate it now construct real briefings instead of emitting unresolved placeholders.**
+
+**Fixed**
+
+- `agents/implementer.md`: added a `REQUIRED BRIEFING` block to the `description:` (visible to orchestrators at delegation time) and a `Briefing Gate` to the system prompt. The agent now audits its own prompt against a 5-item checklist (user ask verbatim, file paths + line ranges, the concrete change to make, verification command, scope boundary) and refuses to start work with a structured "Briefing incomplete: missing X" reply rather than guessing. `isolation: worktree` means implementer boots in a fresh `origin/main` checkout with zero in-session context — a thin prompt was the dominant cause of regressions.
+- `skills/fix/SKILL.md`: the Agent Delegation block previously sent the literal string `[summary from explore]` to implementer — a placeholder no harness interpolated. Replaced with orchestrator instructions that build the briefing from prior agent output before invocation.
+- `skills/refactor/SKILL.md`: same anti-pattern (`"Refactor according to plan."`) — same treatment, now instructs the caller to paste the actual planner output.
+- `profiles/maestro.md`: replaced `[4] Agent(implementer, "implement based on plan")` with explicit "paste the planner output verbatim" wording.
+- `CLAUDE-FULL.md` Delegation section: added a briefing-contract callout under the `implementer` rule pointing at the full contract in the agent definition.
+
+**Skipped (upstream bug fixes, no cc-settings surface)**
+
+Captive-portal startup hang (75s → 15s), terminal rendering corruption fixes (window-resize garble, progressive corruption, VS Code spinner glitches, Windows CJK ghost chars), macOS background-session Full Disk Access regression, image-extension-mismatch crash, `head`/`tail` satisfying read-before-edit, `egrep`/`fgrep`/`git grep`/`git diff` exit-code 1 no longer reported as failure, `/branch` in worktrees, Escape in AskUserQuestion notes, IDE / `applyFlagSettings` model selection, resumed-session model retention, Bedrock/Vertex Opus 1M regression (v2.1.129), `forceLoginMethod`/`forceLoginOrgUUID` remote login, MCP paginated `tools/list` dropping pages, MCP SVG MIME fallback, file-descriptor exhaustion in skill dirs (non-`.md` no longer triggers reloads — beneficial side effect for cc-settings), session-title-from-plugin-monitor, Skill tool headless permission regression (v2.1.141), `claude mcp list` silent failure on bad `.mcp.json`, custom `ANTHROPIC_BASE_URL` Haiku fallback, Windows scrolling in attached bg sessions, terminal-close crash, `!` exec Ctrl+C, agent view shell-command rows, Windows arrow-key in `claude agents`, `/bg` / ←-detach preserving `/add-dir`, in-place-edit Edit/Write refusal after detach, `claude respawn` status, `/resume` forked-from-bg, `claude agents`/`claude logs` hang on unresponsive bg service (10s timeout), bg Bash tasks stuck Running, wake-fail marked as startup crash, markdown links in agents, `spinnerVerbs` post-turn restoration, `claude --bg --name` echo, Ctrl+R rename banner, non-git VCS worktree-isolation guard, `CLAUDE_CODE_PLUGIN_PREFER_HTTPS` add/update regression, `/plugin` post-action navigation, `/doctor` exec-form hint, skill-listing truncation moved to `/doctor`, pre-response stream-stall retry, SDK/headless MCP startup overlap (~2s faster), `/extra-usage` → `/usage-credits` rename (we reference neither), survey follow-up hint.
+
+**Files changed**
+
+- `agents/implementer.md`
+- `skills/fix/SKILL.md`
+- `skills/refactor/SKILL.md`
+- `profiles/maestro.md`
+- `CLAUDE-FULL.md`
+- `upstream/claude-code-manifest.json`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.2.0] — 2026-05-18
 
 ### feat: sync with Claude Code v2.1.143
