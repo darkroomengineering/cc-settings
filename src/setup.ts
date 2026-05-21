@@ -14,7 +14,7 @@
 //   --help, -h         Usage.
 
 import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
@@ -37,9 +37,11 @@ import {
   CLAUDE_JSON_PATH,
   installMcpToClaudeJson,
   type McpParseError,
-  mergeSettingsWithMcpPreservation,
   readJsonOrNull,
 } from "./lib/mcp.ts";
+import { mergeSettingsWithMcpPreservation } from "./lib/settings-merge.ts";
+import { gatherStatus } from "./lib/status.ts";
+import type { StatusData } from "./lib/status-types.ts";
 import {
   detectPackageManagers,
   ensurePythonPackage,
@@ -504,165 +506,84 @@ async function cmdDryRun(source: string): Promise<void> {
 
 // --- Status --------------------------------------------------------------
 
-interface VersionSentinel {
-  version?: string;
-  installed_at?: string;
-  installer?: string;
-}
-
-async function gitHeadInfo(sourceDir: string): Promise<{ sha: string; behind: number | null }> {
-  const sha = await runCapture(["git", "-C", sourceDir, "rev-parse", "--short", "HEAD"]);
-  // How many commits has HEAD advanced since the last install? We count with the
-  // sentinel file's mtime as a rough lower bound — there's no installed-sha,
-  // so this answers "anything changed since the sentinel was written?"
-  const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
-  let behind: number | null = null;
-  if (existsSync(sentinelPath)) {
-    const since = (await Bun.file(sentinelPath).stat()).mtime.toISOString();
-    const count = await runCapture([
-      "git",
-      "-C",
-      sourceDir,
-      "rev-list",
-      "--count",
-      `HEAD`,
-      `--since=${since}`,
-    ]);
-    const n = Number.parseInt(count, 10);
-    behind = Number.isFinite(n) ? n : null;
-  }
-  return { sha, behind };
-}
-
-async function runCapture(cmd: string[]): Promise<string> {
-  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "ignore" });
-  const out = await new Response(proc.stdout).text();
-  await proc.exited;
-  return proc.exitCode === 0 ? out.trim() : "";
-}
-
-async function cmdStatus(sourceDir: string): Promise<number> {
-  console.log(`cc-settings --status`);
+function printStatus(data: StatusData): void {
+  console.log("cc-settings --status");
   console.log("");
 
   // Installed version
-  const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
-  let sentinel: VersionSentinel | null = null;
-  if (existsSync(sentinelPath)) {
-    try {
-      sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as VersionSentinel;
-    } catch {
-      // malformed — treat as absent
-    }
-  }
-  if (sentinel?.version) {
-    console.log(`  installed: v${sentinel.version}  (${sentinel.installed_at ?? "unknown"})`);
+  if (data.sentinel.version) {
+    console.log(
+      `  installed: v${data.sentinel.version}  (${data.sentinel.installedAt ?? "unknown"})`,
+    );
   } else {
     console.log(
       `  installed: ${palette.yellow}none${palette.reset}  (no sentinel at ~/.claude/.cc-settings-version)`,
     );
   }
-  console.log(`  packaged:  v${VERSION}`);
+  console.log(`  packaged:  v${data.packagedVersion}`);
 
-  // Git drift — only if source is a git checkout.
-  if (existsSync(join(sourceDir, ".git"))) {
-    const { sha, behind } = await gitHeadInfo(sourceDir);
-    if (sha) {
-      const driftNote =
-        behind === null
-          ? "(sentinel absent — can't compute drift)"
-          : behind === 0
-            ? `${palette.green}up to date${palette.reset}`
-            : `${palette.yellow}${behind} commit(s) since install${palette.reset}`;
-      console.log(`  repo HEAD: ${sha}  ${driftNote}`);
-    }
+  // Git drift
+  if (data.git?.sha) {
+    const g = data.git;
+    const driftNote =
+      g.behind === null
+        ? "(sentinel absent — can't compute drift)"
+        : g.behind === 0
+          ? `${palette.green}up to date${palette.reset}`
+          : `${palette.yellow}${g.behind} commit(s) since install${palette.reset}`;
+    console.log(`  repo HEAD: ${g.sha}  ${driftNote}`);
   }
 
   console.log("");
   console.log("Managed skills:");
-  const skillsDir = join(CLAUDE_DIR, "skills");
-  const installedSkills = existsSync(skillsDir)
-    ? new Set(await readdir(skillsDir).catch(() => []))
-    : new Set<string>();
-  // Filter out skills that are in MANAGED_SKILLS only for cleanup (not shipped).
-  const shippedSkills = MANAGED_SKILLS.filter((s) => existsSync(join(sourceDir, "skills", s)));
-  const missing = shippedSkills.filter((s) => !installedSkills.has(s));
-  console.log(`  present: ${shippedSkills.length - missing.length}/${shippedSkills.length}`);
-  if (missing.length > 0) {
-    console.log(`  missing: ${missing.join(", ")}`);
+  console.log(`  present: ${data.skills.presentCount}/${data.skills.shippedCount}`);
+  if (data.skills.missing.length > 0) {
+    console.log(`  missing: ${data.skills.missing.join(", ")}`);
   }
 
-  // Settings.json inspection
-  const userSettingsPath = join(CLAUDE_DIR, "settings.json");
-  const userSettings = (await readJsonOrNull<Record<string, unknown>>(userSettingsPath)) ?? {};
-
-  const hooks = (userSettings.hooks ?? {}) as Record<string, unknown>;
-  const hookEvents = Object.keys(hooks);
-  const hookCount = hookEvents.reduce(
-    (n, ev) => n + (Array.isArray(hooks[ev]) ? (hooks[ev] as unknown[]).length : 0),
-    0,
-  );
   console.log("");
   console.log("Hooks:");
-  console.log(`  events registered: ${hookEvents.length}  (${hookCount} group(s) total)`);
-  if (hookEvents.length > 0) {
-    console.log(`  ${hookEvents.sort().join(", ")}`);
+  console.log(
+    `  events registered: ${data.hooks.events.length}  (${data.hooks.groupCount} group(s) total)`,
+  );
+  if (data.hooks.events.length > 0) {
+    console.log(`  ${data.hooks.events.sort().join(", ")}`);
   }
 
-  // Env var audit — surface the ones CLAUDE-FULL.md promises.
-  const env = (userSettings.env ?? {}) as Record<string, unknown>;
-  const expectedEnv = [
-    "CLAUDE_CODE_EFFORT_LEVEL",
-    "ENABLE_PROMPT_CACHING_1H",
-    "ENABLE_TOOL_SEARCH",
-    "CLAUDE_CODE_NO_FLICKER",
-    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
-  ];
   console.log("");
   console.log("Env vars:");
-  for (const k of expectedEnv) {
-    const v = env[k];
+  for (const { key, value } of data.envVars) {
     const mark =
-      v === undefined ? `${palette.yellow}✗${palette.reset}` : `${palette.green}✓${palette.reset}`;
-    const val = v === undefined ? "(unset)" : String(v);
-    console.log(`  ${mark} ${k}=${val}`);
+      value === undefined
+        ? `${palette.yellow}✗${palette.reset}`
+        : `${palette.green}✓${palette.reset}`;
+    const val = value === undefined ? "(unset)" : value;
+    console.log(`  ${mark} ${key}=${val}`);
   }
 
-  // Permissions
-  const perms = (userSettings.permissions ?? {}) as Record<string, unknown>;
-  const allow = Array.isArray(perms.allow) ? (perms.allow as unknown[]).length : 0;
-  const deny = Array.isArray(perms.deny) ? (perms.deny as unknown[]).length : 0;
   console.log("");
   console.log("Permissions:");
-  console.log(`  allow: ${allow}  deny: ${deny}`);
+  console.log(`  allow: ${data.permissions.allowCount}  deny: ${data.permissions.denyCount}`);
 
-  // MCP servers from ~/.claude.json
-  const claudeJson = await readJsonOrNull<{ mcpServers?: Record<string, unknown> }>(
-    CLAUDE_JSON_PATH,
-  );
-  const servers = Object.keys(claudeJson?.mcpServers ?? {});
   console.log("");
   console.log("MCP servers:");
+  const { servers } = data.mcp;
   console.log(
     `  configured: ${servers.length}${servers.length > 0 ? `  (${servers.join(", ")})` : ""}`,
   );
 
   console.log("");
 
-  // Summary row — was anything worth flagging?
-  const warnings: string[] = [];
-  if (missing.length > 0) warnings.push(`${missing.length} skill(s) missing`);
-  if (sentinel?.version && sentinel.version !== VERSION) {
-    warnings.push(`installed v${sentinel.version} ≠ packaged v${VERSION} (re-run to update)`);
-  }
-  const missingEnv = expectedEnv.filter((k) => env[k] === undefined);
-  if (missingEnv.length > 0) warnings.push(`${missingEnv.length} env var(s) unset`);
-
-  if (warnings.length === 0) {
+  if (data.warnings.length === 0) {
     success("all checks passed");
   } else {
-    for (const w of warnings) warn(w);
+    for (const { message } of data.warnings) warn(message);
   }
+}
+
+async function cmdStatus(sourceDir: string): Promise<number> {
+  const data = await gatherStatus(sourceDir, CLAUDE_DIR, VERSION);
+  printStatus(data);
   return 0; // status is informational; never fail
 }
 
