@@ -33,9 +33,9 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"how do I use react-router loaders?"* | Context7 MCP — fetches current docs (always before adding new deps) |
 | *"ship it"* / *"create a PR"* | `/ship` — typecheck → build → test → lint → review → commit → PR |
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
-| *"audit my recent activity"* | `/audit` — analyzes Bash command logs |
+| *"audit my recent activity"* | `bun ~/.claude/src/scripts/claude-audit.ts` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 37 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/simplify`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 26 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/simplify`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -91,47 +91,32 @@ Say: *"how does auth work?"* or *"where is the routing logic?"*
 
 Triggers `/explore` — read-only investigation, returns file locations and summaries.
 
-### Compare Approaches
+### Plan a Feature
 
-Say: *"compare Zustand vs Jotai"* or *"which approach is better?"*
+Say: *"help me figure out what we need"* or *"write a PRD for X"* or *"define requirements"*
 
-Triggers `/compare-approaches` — spawns parallel oracle agents, builds weighted scoring matrix, outputs ADR. (Renamed from `/f-thread`.)
+Triggers `/plan-feature` — two-phase: structured discovery interview to clarify scope, then compiles a full PRD with user stories, task breakdown, and parallel execution plan.
 
-### Write a PRD
+### Get Expert Advice / Risks / Compare
 
-Say: *"write a PRD for the notification system"*
+Say: *"what should I use for state management?"* / *"what could go wrong?"* / *"compare Zustand vs Jotai"*
 
-Triggers `/prd` — clarifying questions → scope → user stories → task breakdown → execution plan.
-
-### Get Expert Advice
-
-Say: *"what should I use for state management?"* or *"advice on caching strategy"*
-
-Triggers `/ask` — delegates to the oracle agent for evidence-based guidance.
-
-### Discover Requirements
-
-Say: *"help me figure out what we need"*
-
-Triggers `/discovery` — structured interview to turn vague ideas into clear requirements.
+Triggers `/oracle` — three modes:
+- **Advice** (`what should I`, `how should I`, `advice on`) — authoritative architectural guidance
+- **Risks** (`what could go wrong`, `premortem`, `potential issues`) — failure-mode analysis before you build
+- **Compare** (`compare approaches`, `which is better`, `trade-off analysis`) — parallel oracle agents + weighted scoring matrix → ADR
 
 ### Build the Domain Glossary
 
 Say: *"set up a context doc"* or *"create a glossary"* or *"record this as an ADR"*
 
-Triggers `/context-doc` — grilling interview that produces a project-level `CONTEXT.md` (domain language) and `docs/adr/` (architecture decisions). Other skills (`/explore`, `/tdd`) read these files so agent output stays aligned with your project's vocabulary across sessions. Stops agent drift toward generic terminology.
+Triggers `/context-doc` — grilling interview that produces a project-level `CONTEXT.md` (domain language) and `docs/adr/` (architecture decisions). Other skills (`/explore`, `/test`) read these files so agent output stays aligned with your project's vocabulary across sessions. Stops agent drift toward generic terminology.
 
 ### Zoom Out
 
 Say: *"zoom out"* or *"give me the bigger picture"* or *"where does this fit"*
 
 Triggers `/explore` (upward-zoom mode) — focused map listing immediate callers, sibling modules, and where this area sits in the system, using `CONTEXT.md` vocabulary when present. (Folded in from former `/zoom-out`.)
-
-### Premortem
-
-Say: *"what could go wrong with this approach?"*
-
-Triggers `/premortem` — analyzes failure modes before they happen.
 
 ---
 
@@ -143,17 +128,11 @@ Say: *"double check this is correct"* or *"verify the auth logic"* or *"prove it
 
 Triggers `/verify` — three-agent adversarial pattern: finder (finds issues) → adversary (disproves them) → referee (judges). For high-stakes code.
 
-### Run Tests
+### Run Tests / TDD
 
-Say: *"test the payment module"* or *"add test coverage"*
+Say: *"test the payment module"* / *"add test coverage"* / *"TDD this"* / *"red-green-refactor"*
 
-Triggers `/test` — delegates to tester agent for writing and running tests.
-
-### Test-Driven Development
-
-Say: *"TDD this"* or *"red-green-refactor"* or *"test-first"*
-
-Triggers `/tdd` — strict red → green → refactor discipline. Sibling to `/build` (which scaffolds tests after impl). Use this when you want tests to drive the design, or when the failure mode is "tests pass but behavior is wrong."
+Triggers `/test` — delegates to tester agent for writing and running tests. Includes a TDD variant (strict red → green → refactor, test-first discipline) for when tests should drive the design or when the failure mode is "tests pass but behavior is wrong."
 
 ### Security Review
 
@@ -193,7 +172,7 @@ Use the `chrome-devtools` MCP directly (`mcp__chrome-devtools__navigate_page`, `
 
 Say: *"how's my context?"* or *"context usage"* or *"running out of context"*
 
-Triggers `/create-handoff` (context-window runbook now lives inside the handoff skill). Watch the statusline:
+Triggers `/handoff` (context-window runbook lives inside the handoff skill). Watch the statusline:
 
 ```
 Opus 4.7 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
@@ -203,7 +182,7 @@ Opus 4.7 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 |-------|--------|
 | 70-79% | Consider wrapping up or handing off |
 | 80-89% | Start wrapping up |
-| 90%+ | Run `/create-handoff` now |
+| 90%+ | Run `/handoff` now |
 
 ### Save Progress (Checkpoint)
 
@@ -215,13 +194,13 @@ Triggers `/checkpoint` — lightweight JSON snapshot of task state. Used mid-ses
 
 Say: *"done for today"* or *"save state"*
 
-Triggers `/create-handoff` — full markdown session transfer with decisions, files, next steps. Syncs with GitHub Issues if branch is linked.
+Triggers `/handoff` (save mode) — full markdown session transfer with decisions, files, next steps. Syncs with GitHub Issues if branch is linked.
 
 ### Resume Work
 
 Say: *"resume"* or *"continue where we left off"*
 
-Triggers `/resume-handoff` — loads handoff + checks linked GitHub Issue for shared context.
+Triggers `/handoff` (resume mode) — loads handoff + checks linked GitHub Issue for shared context.
 
 ### Checkpoint vs Handoff
 
@@ -262,31 +241,39 @@ Triggers `/design-tokens` — generates tokens as Tailwind config or CSS custom 
 
 ### Smooth Scroll
 
-Say: *"set up Lenis"* or *"add smooth scrolling"*
-
-Triggers `/lenis` — installs and configures Lenis smooth scroll.
+Both satus and novus starters ship Lenis pre-wired — no setup needed for Darkroom projects. For non-Darkroom projects, see the Lenis note in `/dr-init` or check `git log --all -- skills/lenis/` for the retired skill's implementation guide.
 
 ---
 
 ## Maintenance
 
+### Audit Bash Logs
+
+```bash
+bun ~/.claude/src/scripts/claude-audit.ts
+```
+
+Analyzes Claude's Bash command logs — categories, repeats, security signals.
+
 ### Sync with Claude Code Releases
 
 Say: *"sync with claude code"* or *"changelog sync"* or *"upstream sync"*
 
-Triggers `/cc-sync` — audits cc-settings against the official Claude Code changelog, identifies new features to adopt and native functionality that now duplicates our code, and produces a categorized plan for human review. Stops for approval before any edits, then executes the approved subset, runs validation, and commits + pushes.
+Triggers `/cc` (sync mode) — audits cc-settings against the official Claude Code changelog, identifies new features to adopt and native functionality that now duplicates our code, and produces a categorized plan for human review. Stops for approval before any edits, then executes the approved subset, runs validation, and commits + pushes.
 
 ### Update Your cc-settings Install
 
 Say: *"update cc-settings"* or *"upgrade cc-settings"* or *"pull the latest"*
 
-Triggers `/cc-update` — compares your installed version against the latest on `origin/main`, shows the commits and CHANGELOG entries that you'd be applying, warns about uncommitted changes in your cc-settings checkout, runs the installer with non-destructive merge, and prompts you to restart Claude Code. Pairs with `/cc-sync`: `/cc-sync` keeps the repo in sync with Claude Code upstream (maintainers); `/cc-update` keeps your local install in sync with the repo (everyone).
+Triggers `/cc` (update mode) — compares your installed version against the latest on `origin/main`, shows the commits and CHANGELOG entries that you'd be applying, warns about uncommitted changes in your cc-settings checkout, runs the installer with non-destructive merge, and prompts you to restart Claude Code. Pairs with sync mode: sync keeps the repo in sync with Claude Code upstream (maintainers); update keeps your local install in sync with the repo (everyone).
 
 ### Create a New Skill
 
-Say: *"create a skill"* or *"write a new skill"*
+```bash
+bun run new-skill <skill-name>
+```
 
-Triggers `/write-a-skill` — scaffolds a new cc-settings skill with the right frontmatter, file layout, and registration. Writes `skills/<name>/SKILL.md`, optional reference docs, and updates `MANAGED_SKILLS` + `MANUAL.md` so the installer ships it.
+Scaffolds `skills/<name>/SKILL.md` with valid frontmatter. Then edit the description and body per `docs/skill-authoring.md`. After editing, run `bun run lint:skills` and register in `MANAGED_SKILLS` + `MANUAL.md`.
 
 ### Consolidate Rules & Skills
 
@@ -296,7 +283,7 @@ Triggers `/consolidate` — audits rules, skills, and learnings for contradictio
 
 ### Store a Learning
 
-Say: *"remember this"* — the auto-memory system in `~/.claude/CLAUDE.md` captures personal notes automatically (types: `user`, `feedback`, `project`, `reference`). For team-wide gotchas, decisions, and conventions: *"share this with the team"* → triggers `/share-learning`, posts to the GitHub Project board.
+Say: *"remember this"* — the auto-memory system in `~/.claude/CLAUDE.md` captures personal notes automatically (types: `user`, `feedback`, `project`, `reference`). For team-wide gotchas, decisions, and conventions: post directly with `gh project item-create` (see `AGENTS.md` Knowledge Routing section) or describe what to share and the agent will format and post it.
 
 ### Fetch Docs & Check Versions
 
@@ -314,17 +301,11 @@ Triggers `/autoresearch` — autonomous skill optimization loop. Mutates a SKILL
 
 ## Advanced
 
-### Long-Running Tasks
+### Long-Running or Parallel Tasks
 
-Say: *"this is going to be a long task"* or *"overnight refactor"*
+Say: *"this is going to be a long task"* / *"overnight refactor"* / *"use teams"* / *"split this across parallel agents"*
 
-Triggers `/long-task` — phased execution with automatic checkpoints, verification stack, and recovery from interruption. (Renamed from `/l-thread`.)
-
-### Parallel Agent Teams
-
-Say: *"use teams"* or *"split this across parallel agents"*
-
-Triggers `/orchestrate` (teams mode) — coordinates multiple independent Claude Code instances for true parallelism. Use when 3+ independent workstreams. (Merged in from former `/teams`.)
+Triggers `/orchestrate` — handles both multi-agent fan-out (3+ independent workstreams) and phased long-running execution (checkpoints, verification stack, recovery from interruption).
 
 ### Full Orchestration
 
@@ -419,36 +400,25 @@ These are enforced automatically — no skill needed:
 | `review` | review, check, PR, changes |
 | `refactor` | refactor, clean up, reorganize |
 | `zero-tech-debt` | rewrite as if from scratch, delete compat layer, kill legacy path, too many flags |
-| `test` | test, write tests, coverage |
-| `verify` | verify, double check, prove it, audit |
-| `ask` | advice, guidance, what should I |
-| `discovery` | requirements, scope, figure out |
-| `prd` | PRD, requirements document, product spec |
-| `premortem` | risks, what could go wrong |
-| `compare-approaches` | compare approaches, architecture decision, decide between, trade-off analysis |
-| `long-task` | overnight, long running, autonomous task, marathon |
-| `orchestrate` | complex task, coordinate, parallel agents, split work, fan out, multi-instance |
+| `test` | test, write tests, coverage, TDD, test-first, red-green-refactor |
+| `verify` | verify, double check, prove it |
+| `oracle` | advice, what should I, risks, what could go wrong, compare approaches, trade-off analysis |
+| `plan-feature` | help me figure out, vague scope, define requirements, PRD, requirements document, product spec |
+| `orchestrate` | complex task, coordinate, parallel agents, overnight, long running, autonomous task, marathon |
 | `project` | project status, update the issue |
 | `tldr` | who calls, dependencies, semantic search |
 | `component` | create component, new component |
 | `hook` | create hook, custom hook |
 | `dr-init` | new darkroom project, satus, novus, scaffold from starter (`dr-` prefix = Darkroom-specific) |
 | `design-tokens` | type scale, color palette, spacing system |
-| `lenis` | smooth scroll, lenis |
 | `qa` | visual QA, accessibility, contrast, touch target |
 | `lighthouse` | lighthouse, performance audit, page speed, web vitals |
 | `checkpoint` | snapshot, before risky op, restore checkpoint, rollback to |
-| `create-handoff` | done for today, ending session, context window, running out of context |
-| `resume-handoff` | resume, continue, last session |
+| `handoff` | done for today, ending session, context window, running out of context, resume, continue, last session |
 | `explore` | how does, where is, find, understand, zoom out, bigger picture |
-| `share-learning` | share with team, post to knowledge base, everyone should know |
 | `consolidate` | clean up rules, contradictions, spa day |
-| `cc-sync` | sync with claude code, changelog sync, upstream sync |
-| `cc-update` | update cc-settings, upgrade cc-settings, pull the latest |
+| `cc` | sync with claude code, changelog sync, update cc-settings, upgrade cc-settings, pull the latest |
 | `context-doc` | domain glossary, ADR, shared vocabulary, context doc |
-| `tdd` | TDD, test-first, red-green-refactor |
-| `write-a-skill` | create a skill, write a new skill |
-| `audit` | slash-only (`/audit`) |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 
 ### All Agents

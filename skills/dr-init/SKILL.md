@@ -112,3 +112,7 @@ After initialization:
 - Confirm project created and which starter was used
 - List the next steps (env, dev server)
 - Offer to start the dev server
+
+## Lenis smooth scroll
+
+Both satus and novus starters ship Lenis wired up. For non-Darkroom projects needing Lenis setup, see commit history of the retired `lenis` skill (`git log --all -- skills/lenis/`).

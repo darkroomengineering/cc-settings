@@ -17,7 +17,7 @@ for standards.
 
 ## About This Repo
 
-**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.1.30`.
+**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.1.30`. Skills: 26 cc-settings skills (Tier P1 cleanup May 2026: retired 3, merged 7 pairs into 4, demoted 1 to CLI).
 Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 `@types/bun`.
 

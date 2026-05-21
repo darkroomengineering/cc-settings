@@ -1,16 +1,98 @@
 ---
-name: prd
-description: Write feature PRD/requirements/spec end-to-end before implementation. Triggers "PRD", "requirements document", "product spec", "feature spec", "write requirements".
+name: plan-feature
+description: Pre-implementation planning — interview to clarify scope, then compile into a PRD. Triggers "help me figure out", "vague scope", "define requirements" (discovery phase); "PRD", "requirements document", "product spec", "feature spec", "write requirements" (PRD phase).
 context: fork
+agent: planner
 ---
 
-# PRD Generation: Product Requirements Document
+# Plan Feature
+
+Two-phase pre-implementation planning: clarify requirements via interview, then compile a complete PRD.
+
+## Phase 1: Discovery
+
+Help clarify requirements and scope through structured questioning.
+
+### Purpose
+
+Turn vague requests into clear, actionable requirements.
+
+### Interview Framework
+
+#### 1. Understand the Goal
+- What problem are you solving?
+- Who is this for?
+- What does success look like?
+
+#### 2. Define Scope
+- What must be included (MVP)?
+- What's nice to have (future)?
+- What's explicitly out of scope?
+
+#### 3. Identify Constraints
+- Timeline constraints?
+- Technical constraints?
+- Resource constraints?
+
+#### 4. Clarify Details
+- What are the inputs/outputs?
+- What are the edge cases?
+- What are the error scenarios?
+
+#### 5. Validate Understanding
+- Summarize back what you heard
+- Confirm priorities
+- Identify open questions
+
+### Output
+
+```
+## Discovery Summary: [Feature/Project]
+
+### Goal
+[Clear statement of what we're building and why]
+
+### Requirements
+**Must Have (MVP)**
+- [ ] Requirement 1
+- [ ] Requirement 2
+
+**Nice to Have**
+- [ ] Feature A
+- [ ] Feature B
+
+**Out of Scope**
+- Not doing X
+- Not doing Y
+
+### Technical Approach
+[High-level approach]
+
+### Open Questions
+- [ ] Need to clarify: ...
+- [ ] Decision needed: ...
+
+### Next Steps
+1. [First action]
+2. [Second action]
+```
+
+### Remember
+
+- Ask, don't assume
+- Summarize frequently
+- Document decisions
+- Store requirements as learnings
+
+---
+
+## Phase 2: PRD Compilation
 
 Structured 6-phase process to produce a complete PRD from a feature idea, including user stories, task breakdown, and parallel execution plan.
 
-## Workflow
+### Workflow
 
-### Phase 1: Clarifying Questions
+#### Phase 1: Clarifying Questions
 
 Ask 5-8 targeted questions to fill gaps. Use smart defaults so the user can skip.
 
@@ -29,7 +111,7 @@ Ask 5-8 targeted questions to fill gaps. Use smart defaults so the user can skip
 Press enter to accept all defaults, or answer specific questions.
 ```
 
-### Phase 2: Scope Definition
+#### Phase 2: Scope Definition
 
 Define what is IN and OUT of scope.
 
@@ -49,7 +131,7 @@ Define what is IN and OUT of scope.
 - [assumption 2]
 ```
 
-### Phase 3: User Stories
+#### Phase 3: User Stories
 
 Write user stories with acceptance criteria.
 
@@ -69,7 +151,7 @@ Write user stories with acceptance criteria.
 **Complexity:** trivial | small | medium | large | epic
 ```
 
-### Phase 4: Task Breakdown
+#### Phase 4: Task Breakdown
 
 Break into implementable tasks with metadata.
 
@@ -91,7 +173,7 @@ Break into implementable tasks with metadata.
 - ...
 ```
 
-### Phase 5: Parallel Batch Detection
+#### Phase 5: Parallel Batch Detection
 
 Analyze task dependencies to find parallel execution groups using topological sorting.
 
@@ -118,7 +200,7 @@ Total estimated tokens: 100k
 Estimated context windows: 2
 ```
 
-### Phase 6: Final PRD
+#### Phase 6: Final PRD
 
 Compile everything into the final document.
 
@@ -168,7 +250,7 @@ Compile everything into the final document.
 - Phase 2: [dates] — [deliverable]
 ```
 
-## Smart Defaults
+### Smart Defaults
 
 When the user provides minimal input, apply these defaults:
 - **Platform:** Web — detect from `package.json` (`next` → Next.js / satus, `react-router` → RR / novus)
@@ -178,6 +260,6 @@ When the user provides minimal input, apply these defaults:
 - **Testing:** Unit + integration, no E2E unless requested
 - **Styling:** Project's existing system (Tailwind if detected)
 
-## Task Sizing Reference
+### Task Sizing Reference
 
 See `docs/enhanced-todos.md` for the complexity/token sizing reference table.

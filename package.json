@@ -19,7 +19,8 @@
     "schemas:check": "bun src/schemas/emit.ts && git diff --exit-code schemas/",
     "upstream:scan": "bun src/upstream/scan.ts",
     "compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'",
-    "check:cli-tools": "bun src/scripts/check-cli-tools.ts"
+    "check:cli-tools": "bun src/scripts/check-cli-tools.ts",
+    "new-skill": "bun src/scripts/new-skill.ts"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.2",

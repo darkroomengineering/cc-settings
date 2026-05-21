@@ -74,7 +74,7 @@ User → Define criteria
 
 **Verification:** Not code-level; validates scoring methodology and completeness.
 
-See: `skills/compare-approaches/SKILL.md` for full specification.
+See: `skills/oracle/SKILL.md` (Compare mode) for full specification.
 
 ## L-Thread: Long-Duration
 
@@ -95,7 +95,7 @@ User → Agent(planner, "phase the work")
 
 **Verification:** Full stack (Levels 1-5) at completion, Levels 1-3 at each checkpoint.
 
-See: `skills/long-task/SKILL.md` for full specification.
+See: `skills/orchestrate/SKILL.md` (Phased Long-Running Execution variant) for full specification.
 
 ## Decision Tree
 

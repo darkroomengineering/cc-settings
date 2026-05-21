@@ -126,8 +126,7 @@ These run constantly. Get fluent with them first.
 - **[`/explore`](./skills/explore/SKILL.md)** — read-only codebase navigation, returns file locations and summaries
 - **Context7 MCP** — fetches current library docs automatically on any library question. The `PreToolUse` install hook also nudges before `bun add` / `npm install`. (The dedicated `/docs` skill was retired May 2026 — the MCP server's own instructions cover the trigger.)
 - **[`/refactor`](./skills/refactor/SKILL.md)** — explore → plan → implement → test → review with behavior preserved
-- **[`/test`](./skills/test/SKILL.md)** — write/run tests, surface coverage gaps
-- **[`/tdd`](./skills/tdd/SKILL.md)** — strict red → green → refactor when you want tests to drive the design
+- **[`/test`](./skills/test/SKILL.md)** — write/run tests, surface coverage gaps; includes TDD variant (red → green → refactor)
 
 ### Verification & quality
 
@@ -138,56 +137,49 @@ Reach for these before merging or whenever stakes are high.
 - **Figma MCP** — `mcp__figma__get_design_context` returns structured specs; auto-triggered on figma.com URLs. (The `/figma` skill was retired May 2026.)
 - **[`/lighthouse`](./skills/lighthouse/SKILL.md)** — Lighthouse audits with median-of-3 averaging, optimizes scores
 - **`chrome-devtools` MCP** — browser automation (navigate, screenshot, a11y snapshot, click/fill, lighthouse). Tools called directly by any agent / skill; not a dedicated slash command.
-- **[`/audit`](./skills/audit/SKILL.md)** — runs the cc-settings audit script
+- **`bun ~/.claude/src/scripts/claude-audit.ts`** — runs the cc-settings audit script (retired `/audit` skill)
 - **`security-reviewer`** *(agent)* — OWASP Top 10, secret scanning, auth flow audit
 
 ### Planning & research
 
 Before writing code on anything non-trivial.
 
-- **[`/discovery`](./skills/discovery/SKILL.md)** — turn vague ideas into concrete requirements
-- **[`/prd`](./skills/prd/SKILL.md)** — clarifying interview → scope → user stories → task breakdown
+- **[`/plan-feature`](./skills/plan-feature/SKILL.md)** — discovery interview to clarify scope, then full PRD (merged `/discovery` + `/prd`)
 - **[`/context-doc`](./skills/context-doc/SKILL.md)** — build the project's `CONTEXT.md` (domain glossary) and `docs/adr/`. Stops agent drift toward generic vocabulary
 - **[`/explore`](./skills/explore/SKILL.md)** — broad codebase navigation; also handles upward-zoom for unfamiliar regions (merged in `/zoom-out`)
-- **[`/ask`](./skills/ask/SKILL.md)** — delegate to the oracle agent for evidence-based guidance
-- **[`/premortem`](./skills/premortem/SKILL.md)** — failure-mode analysis before implementing
-- **[`/compare-approaches`](./skills/compare-approaches/SKILL.md)** — compare approaches with weighted scoring matrix → ADR (renamed from `/f-thread`)
+- **[`/oracle`](./skills/oracle/SKILL.md)** — advice, risk analysis (premortem), or weighted approach comparison → ADR (merged `/ask` + `/premortem` + `/compare-approaches`)
 
 ### Session management
 
 For long sessions and multi-day work.
 
 - **[`/checkpoint`](./skills/checkpoint/SKILL.md)** — mid-task rollback points before risky operations (multi-snapshot)
-- **[`/create-handoff`](./skills/create-handoff/SKILL.md)** — end-of-session transfer with GitHub Issue sync; includes context-window runbook (merged in `/context`)
-- **[`/resume-handoff`](./skills/resume-handoff/SKILL.md)** — load handoff + linked issue context
-- **[`/share-learning`](./skills/share-learning/SKILL.md)** — post team-wide gotchas, decisions, conventions to GitHub Project board. Personal notes are captured automatically by the auto-memory system.
+- **[`/handoff`](./skills/handoff/SKILL.md)** — save mode: end-of-session transfer with GitHub Issue sync + context-window runbook; resume mode: load handoff + linked issue context (merged `/create-handoff` + `/resume-handoff`)
+- **Team knowledge** — post team-wide gotchas, decisions, conventions directly with `gh project item-create` (see `AGENTS.md` Knowledge Routing). Personal notes captured automatically by auto-memory.
 
 ### Maintenance
 
 Run weekly or when entropy hits.
 
-- **[`/cc-sync`](./skills/cc-sync/SKILL.md)** — sync cc-settings with the official Claude Code changelog (maintainers)
-- **[`/cc-update`](./skills/cc-update/SKILL.md)** — pull the latest cc-settings into your local install (users)
+- **[`/cc`](./skills/cc/SKILL.md)** — sync mode: audit cc-settings vs Claude Code changelog (maintainers); update mode: pull latest into local install (users) (merged `/cc-sync` + `/cc-update`)
 - **[`/consolidate`](./skills/consolidate/SKILL.md)** — audit rules, skills, learnings for contradictions and bloat
 - **[`/autoresearch`](./skills/autoresearch/SKILL.md)** — autonomous skill optimization loop
-- **[`/write-a-skill`](./skills/write-a-skill/SKILL.md)** — scaffold a new cc-settings skill with the right frontmatter and registration
+- **`bun run new-skill <name>`** — scaffold a new skill with valid frontmatter; see `docs/skill-authoring.md` (demoted from `/write-a-skill`)
 
 ### Scaffolding
 
 For starting fresh or adding common pieces.
 
-- **[`/dr-init`](./skills/dr-init/SKILL.md)** — clone Satus or Novus starter template (full Darkroom stack). The `dr-` prefix marks Darkroom-specific skills (CSS-class convention).
+- **[`/dr-init`](./skills/dr-init/SKILL.md)** — clone Satus or Novus starter template (full Darkroom stack). The `dr-` prefix marks Darkroom-specific skills (CSS-class convention). Both starters ship Lenis pre-wired.
 - **[`/component`](./skills/component/SKILL.md)** — scaffold React component with CSS module
 - **[`/hook`](./skills/hook/SKILL.md)** — scaffold typed custom React hook
 - **[`/design-tokens`](./skills/design-tokens/SKILL.md)** — generate type scale / color palette as Tailwind or CSS vars
-- **[`/lenis`](./skills/lenis/SKILL.md)** — install and configure Lenis smooth scroll
 
 ### Advanced orchestration
 
 Niche but powerful — reach for these when the simpler skills fall short.
 
-- **[`/orchestrate`](./skills/orchestrate/SKILL.md)** — delegate multi-agent coordination to Maestro; includes parallel team fan-out for 3+ independent workstreams (merged in `/teams`)
-- **[`/long-task`](./skills/long-task/SKILL.md)** — phased execution with checkpoints and recovery; for overnight or multi-hour tasks (renamed from `/l-thread`)
+- **[`/orchestrate`](./skills/orchestrate/SKILL.md)** — multi-agent fan-out for 3+ workstreams AND phased long-running execution with checkpoints + recovery (merged `/long-task` + `/teams`)
 - **[`/tldr`](./skills/tldr/SKILL.md)** — token-efficient codebase analysis (95% fewer tokens than reading files)
 - **[`/project`](./skills/project/SKILL.md)** — read/update linked GitHub issues from branch name
 

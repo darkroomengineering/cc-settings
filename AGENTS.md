@@ -302,6 +302,42 @@ The compaction-at-65% rule (see `~/.claude/CLAUDE.md`) coexists with caching: co
 
 ---
 
+## Knowledge Routing
+
+Use this table to decide where a piece of knowledge belongs:
+
+| Situation | Where it belongs |
+|---|---|
+| Personal workflow preference ("I want terse responses") | auto-memory (`user` or `feedback`) |
+| Active project state, deadlines, blockers | auto-memory (`project`) |
+| Pointer to external system (Linear board, dashboard URL) | auto-memory (`reference`) |
+| Architecture decision the team must follow | **GitHub Project** (`gh project item-create`) |
+| Library gotcha that affects everyone | **GitHub Project** (`gh project item-create`) |
+| Convention ("All API routes return `{ data, error }`") | **GitHub Project** (`gh project item-create`) |
+| Incident postmortem worth team awareness | **GitHub Project** (`gh project item-create`) |
+
+**Rule of thumb:** if another team member's AI agent would benefit from knowing it, post it to the GitHub Project. Otherwise let auto-memory handle it.
+
+Examples of team-wide entries:
+```bash
+# Architecture decision
+gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
+  --title "decision: Lenis over native smooth-scroll" \
+  --body "Cross-browser consistency. Native smooth-scroll diverges on Safari/Firefox; Lenis normalizes inertia + delta math. See ADR-007."
+
+# Team convention
+gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
+  --title "convention: API response shape" \
+  --body "All API routes return { data, error } — never throw to the caller."
+
+# Cross-cutting gotcha
+gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
+  --title "gotcha: Sanity UTC dates" \
+  --body "Sanity API returns UTC dates — always convert to local before display."
+```
+
+See `docs/knowledge-system.md` for full setup instructions and `gh api graphql` recall patterns.
+
 ## Knowledge System
 
 This project uses a two-tier knowledge system:

@@ -123,3 +123,22 @@ the team-wide tier (above).
 | Performance gotcha in a shared library | **Shared** |
 
 **When in doubt:** if another team member's AI agent would benefit from knowing it, make it shared.
+
+### Routing examples
+
+```bash
+# Architecture decision
+gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
+  --title "decision: Lenis over native smooth-scroll" \
+  --body "Cross-browser consistency. Native smooth-scroll diverges on Safari/Firefox; Lenis normalizes inertia + delta math. See ADR-007."
+
+# Team convention
+gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
+  --title "convention: API response shape" \
+  --body "All API routes return { data, error } — never throw to the caller. Enforced by Biome rule in services/api/."
+
+# Cross-cutting gotcha
+gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
+  --title "gotcha: Sanity UTC dates" \
+  --body "Sanity API returns UTC dates — always convert to local before display. Affects all date renderers."
+```
