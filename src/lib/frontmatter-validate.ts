@@ -11,10 +11,10 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
 import { AgentFrontmatter } from "../schemas/agent.ts";
 import { SkillFrontmatter } from "../schemas/skill.ts";
+import { parseFrontmatter } from "./frontmatter.ts";
 
 export interface FrontmatterIssue {
   kind: "agent" | "skill";
@@ -22,18 +22,6 @@ export interface FrontmatterIssue {
   path: string;
   /** Human-readable list of validation errors */
   errors: string[];
-}
-
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
-
-function parseFrontmatter(md: string): unknown {
-  const match = FRONTMATTER_RE.exec(md);
-  if (!match) return null;
-  try {
-    return parseYaml(match[1] ?? "");
-  } catch {
-    return null;
-  }
 }
 
 function formatZodError(err: z.ZodError): string[] {

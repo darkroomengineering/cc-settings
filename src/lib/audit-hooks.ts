@@ -23,6 +23,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { Hook, HookGroup } from "../schemas/hooks.ts";
 
 export type Severity = "trusted" | "unknown" | "suspicious";
 
@@ -125,19 +126,8 @@ export function classify(cmd: string): { severity: Severity; reasons: string[] }
 }
 
 // Settings.json shape we care about: top-level `hooks` is `{ [event]: HookGroup[] }`
-// where each group has `hooks: HookEntry[]`. We tolerate unknown shapes silently
+// where each group has `hooks: Hook[]`. We tolerate unknown shapes silently
 // (return empty findings) — a malformed settings.json is a different problem.
-interface RawHookEntry {
-  type?: string;
-  command?: string;
-  prompt?: string;
-  url?: string;
-  [k: string]: unknown;
-}
-interface RawHookGroup {
-  hooks?: RawHookEntry[];
-  [k: string]: unknown;
-}
 
 export function auditHooks(settings: unknown): HookFinding[] {
   if (!settings || typeof settings !== "object") return [];
@@ -149,13 +139,13 @@ export function auditHooks(settings: unknown): HookFinding[] {
     if (!Array.isArray(groups)) continue;
     groups.forEach((group: unknown, gi: number) => {
       if (!group || typeof group !== "object") return;
-      const entries = (group as RawHookGroup).hooks;
+      const entries = (group as HookGroup).hooks;
       if (!Array.isArray(entries)) return;
-      entries.forEach((entry: RawHookEntry, hi: number) => {
+      entries.forEach((entry: Hook, hi: number) => {
         // Only `command`-type hooks have a string command. Prompt/agent/http/
         // mcp_tool hooks don't run arbitrary shell, so out of scope here.
         if (entry?.type !== "command") return;
-        const cmd = typeof entry.command === "string" ? entry.command.trim() : "";
+        const cmd = entry.command.trim();
         if (!cmd) return;
         const { severity, reasons } = classify(cmd);
         findings.push({

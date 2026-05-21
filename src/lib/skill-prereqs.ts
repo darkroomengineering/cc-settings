@@ -12,8 +12,8 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { parse as parseYaml } from "yaml";
 import { type SkillFrontmatter, SkillFrontmatter as SkillSchema } from "../schemas/skill.ts";
+import { parseFrontmatter } from "./frontmatter.ts";
 import { hasCommand } from "./platform.ts";
 
 export interface MissingPrereq {
@@ -25,18 +25,6 @@ export interface MissingPrereq {
 export interface SkillPrereqReport {
   skill: string;
   missing: MissingPrereq[];
-}
-
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
-
-function parseFrontmatter(md: string): unknown {
-  const match = FRONTMATTER_RE.exec(md);
-  if (!match) return null;
-  try {
-    return parseYaml(match[1] ?? "");
-  } catch {
-    return null;
-  }
 }
 
 /** Read every skills/*\/SKILL.md, return the parsed + validated frontmatters. */
@@ -90,19 +78,17 @@ export function checkSkillRequirements(
   frontmatter: SkillFrontmatter,
   configuredMcps: Set<string>,
 ): MissingPrereq[] {
-  const requires = (frontmatter as { requires?: unknown }).requires;
-  if (!Array.isArray(requires)) return [];
+  const requires = frontmatter.requires;
+  if (!requires) return [];
   const missing: MissingPrereq[] = [];
   for (const req of requires) {
-    if (!req || typeof req !== "object") continue;
-    const r = req as { command?: string; mcp?: string; install?: string };
-    if (r.command) {
-      if (!hasCommand(r.command)) {
-        missing.push({ kind: "command", name: r.command, install: r.install });
+    if ("command" in req) {
+      if (!hasCommand(req.command)) {
+        missing.push({ kind: "command", name: req.command, install: req.install });
       }
-    } else if (r.mcp) {
-      if (!configuredMcps.has(r.mcp)) {
-        missing.push({ kind: "mcp", name: r.mcp, install: r.install });
+    } else if ("mcp" in req) {
+      if (!configuredMcps.has(req.mcp)) {
+        missing.push({ kind: "mcp", name: req.mcp, install: req.install });
       }
     }
   }

@@ -11,6 +11,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { SkillFrontmatter } from "../schemas/skill.ts";
+import { extractFrontmatterBlock } from "./frontmatter.ts";
 
 export type Severity = "error" | "warning";
 
@@ -37,18 +38,11 @@ const KEBAB_CASE = /^[a-z][a-z0-9-]*$/;
 // Reserved per the guide — Claude.ai rejects uploads named these.
 const RESERVED_PREFIXES = ["claude", "anthropic"];
 
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
-
 // Heuristic: a "good" description per the guide includes BOTH what + when.
 // We approximate "when" by looking for trigger language: explicit "Triggers",
 // "Use when", "Use for", "Used for", "when user", "when you". Doesn't catch
 // every valid phrasing but flags the obvious misses ("Helps with projects").
 const TRIGGER_PATTERN = /(triggers?|use (when|for)|used for|when (user|you)|after\b)/i;
-
-function extractFrontmatterBlock(md: string): string | null {
-  const m = FRONTMATTER_RE.exec(md);
-  return m ? (m[1] ?? "") : null;
-}
 
 async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> {
   const findings: LintFinding[] = [];
