@@ -166,9 +166,9 @@ async function createBackup(): Promise<void> {
   // Keep last 5.
   const kept = (await readdir(backupDir)).filter((e) => /^backup-.*\.tar\.gz$/.test(e)).sort();
   if (kept.length > 5) {
-    for (const old of kept.slice(0, kept.length - 5)) {
-      await rm(join(backupDir, old), { force: true }).catch(() => {});
-    }
+    await Promise.all(
+      kept.slice(0, kept.length - 5).map((old) => rm(join(backupDir, old), { force: true }).catch(() => {})),
+    );
   }
 }
 

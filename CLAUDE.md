@@ -17,8 +17,7 @@ for standards.
 
 ## About This Repo
 
-**TypeScript on Bun** (migrated from bash in April 2026; see
-`docs/migration-coexistence.md` for history). Runtime: `bun >=1.1.30`.
+**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.1.30`.
 Deps: `zod`, `@inquirer/prompts`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 `@types/bun`.
 

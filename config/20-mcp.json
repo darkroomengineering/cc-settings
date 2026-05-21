@@ -7,8 +7,6 @@
 				"@upstash/context7-mcp"
 			],
 			"alwaysLoad": true,
-			"_status": "core",
-			"_comment": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts. alwaysLoad=true (v2.1.121) opts out of tool-search deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution.",
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
 		"tldr": {
@@ -17,15 +15,11 @@
 				"--project",
 				"."
 			],
-			"_status": "core",
-			"_comment": "Requires: pipx install llm-tldr (v1.5+). Run 'tldr warm .' in project to index.",
 			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred."
 		},
 		"figma": {
 			"type": "http",
 			"url": "https://mcp.figma.com/mcp",
-			"_status": "core",
-			"_comment": "Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use.",
 			"serverInstructions": "Figma design inspection and extraction: tokens, styles, component props, variables, and file structure. Use for design-to-code workflows, design fidelity checks, and extracting design tokens. Prefer this over screenshot-based workflows when structured design data is needed."
 		},
 		"chrome-devtools": {
@@ -34,8 +28,6 @@
 				"-y",
 				"chrome-devtools-mcp@latest"
 			],
-			"_status": "core",
-			"_comment": "Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution.",
 			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
 		}
 	}

@@ -33,37 +33,41 @@ export interface PackageManagers {
 let aptUpdated = false;
 
 function detectSystemPM(): SystemPM {
-  const probe = (platform: typeof os, order: Array<{ cmd: string; pm: NonNullable<SystemPM> }>) => {
-    if (os !== platform) return null;
+  const probe = (
+    platforms: Array<typeof os>,
+    order: Array<{ cmd: string; pm: NonNullable<SystemPM> }>,
+  ) => {
+    if (!platforms.includes(os)) return null;
     for (const { cmd, pm } of order) if (hasCommand(cmd)) return pm;
     return null;
   };
   return (
-    probe("macos", [
-      { cmd: "brew", pm: "brew" },
-      { cmd: "port", pm: "port" },
-    ]) ??
-    probe("linux", [
-      { cmd: "apt-get", pm: "apt" },
-      { cmd: "dnf", pm: "dnf" },
-      { cmd: "yum", pm: "yum" },
-      { cmd: "pacman", pm: "pacman" },
-      { cmd: "zypper", pm: "zypper" },
-      { cmd: "apk", pm: "apk" },
-    ]) ??
-    probe("wsl", [
-      { cmd: "apt-get", pm: "apt" },
-      { cmd: "dnf", pm: "dnf" },
-      { cmd: "yum", pm: "yum" },
-      { cmd: "pacman", pm: "pacman" },
-      { cmd: "zypper", pm: "zypper" },
-      { cmd: "apk", pm: "apk" },
-    ]) ??
-    probe("windows", [
-      { cmd: "choco", pm: "choco" },
-      { cmd: "scoop", pm: "scoop" },
-      { cmd: "winget", pm: "winget" },
-    ])
+    probe(
+      ["macos"],
+      [
+        { cmd: "brew", pm: "brew" },
+        { cmd: "port", pm: "port" },
+      ],
+    ) ??
+    probe(
+      ["linux", "wsl"],
+      [
+        { cmd: "apt-get", pm: "apt" },
+        { cmd: "dnf", pm: "dnf" },
+        { cmd: "yum", pm: "yum" },
+        { cmd: "pacman", pm: "pacman" },
+        { cmd: "zypper", pm: "zypper" },
+        { cmd: "apk", pm: "apk" },
+      ],
+    ) ??
+    probe(
+      ["windows"],
+      [
+        { cmd: "choco", pm: "choco" },
+        { cmd: "scoop", pm: "scoop" },
+        { cmd: "winget", pm: "winget" },
+      ],
+    )
   );
 }
 
