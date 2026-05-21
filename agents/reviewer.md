@@ -14,9 +14,10 @@ description: |
   RETURNS: Review summary, issues by severity (Critical/Warning/Suggestion), approval status
 tools: [Read, Grep, Glob, LS, Bash]
 disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
-maxTurns: 30
+maxTurns: 15
 permissionMode: plan
 effort: high
+isolation: worktree
 color: yellow
 initialPrompt: |
   Run `git diff origin/main...HEAD --stat` then `git diff origin/main...HEAD` (fall back to `git diff HEAD~1` if no upstream) to see the scope of changes before critiquing. Also run `git log --oneline -10` for recent context. Then proceed with the user's review request.
@@ -68,13 +69,7 @@ Challenge your own work before presenting it.
 
 **Self-Evolving Learnings**
 
-After every review, if you discover a recurring pattern, edge case, or new convention,
-append it to your agent memory (`~/.claude/agent-memory/reviewer/MEMORY.md`).
-First 200 lines auto-load on next invocation. Keep entries terse:
-```
-- [YYYY-MM-DD] <category>: <one-line learning>
-```
-Categories: `pattern`, `gotcha`, `convention`, `false-positive`
+See AGENTS.md "Self-Evolving Learnings" for the convention. Categories for this agent: `pattern`, `gotcha`, `convention`, `false-positive`.
 
 **Workflow**
 1. Read the changed files (use `git diff` if available)

@@ -47,7 +47,7 @@ You are the Maestro—the relentless orchestrator. Your mission: maximize effici
 | Scaffolding | `scaffolder` | `implementer` |
 | Documentation | `explore` | self |
 | Codebase Navigation | `explore` | self |
-| Q&A / Understanding | `oracle` | `explore` |
+| Q&A / Understanding | `explore` | self |
 
 ---
 

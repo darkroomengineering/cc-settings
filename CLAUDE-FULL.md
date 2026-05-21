@@ -34,7 +34,7 @@ The Edit tool uses exact string matching. Follow these rules:
 - **Architecture decisions or upfront planning** → `Agent(planner, "...")`
 - **Scaffolding new components/hooks/pages** → `Agent(scaffolder, "...")`
 - **Code review on changes touching 3+ files** → `Agent(reviewer, "...")`
-- **Expert second opinions on hard trade-offs** → `Agent(oracle, "...")`
+- **Expert second opinions / blast-radius / "why is this here" questions** → `Agent(explore, "...")`
 - **Full-feature orchestration across 3+ agents** → `Agent(maestro, "...")`
 
 > **Briefing contract for `implementer`**: this agent runs with `isolation: worktree` — a fresh checkout of `origin/main` with no in-session file context. Every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command, and a scope boundary. Thin prompts cause regressions; the agent will refuse them. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
@@ -97,7 +97,7 @@ Scope: consumer hardware and platform-integration questions specifically. Librar
 
 ## Reference
 
-- **Profiles** (specialized workflows: `nextjs`, `react-native`, `tauri`, `webgl`, `maestro`) — see `docs/profiles.md`
+- **Profiles** (specialized workflows: `nextjs`, `react-native`, `tauri`, `webgl`, `maestro`, `react-router`) — see `docs/profiles.md`
 - **TLDR** (token-efficient codebase exploration via `llm-tldr`) — see `docs/tldr-cheatsheet.md`
 - **Hooks** (27 events, 8 categories, conditional `if` filtering) — see `docs/hooks-reference.md`
 - **Agent frontmatter** (`tools`, `disallowedTools`, `maxTurns`, `permissionMode`, `effort`, `isolation`, `hooks`, `mcpServers`, `initialPrompt`) — see `docs/frontmatter-reference.md`

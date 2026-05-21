@@ -59,7 +59,7 @@ Adversary filters aggressively but cautiously — this is the **subset** of like
 Takes both inputs and produces the final verdict.
 
 ```
-Agent(oracle, "You are a neutral referee scoring two reviewers.
+Agent(explore, "You are a neutral referee scoring two reviewers.
 You will get +1 for each correct judgment and -1 for each incorrect one.
 The ground truth exists and will be checked against your answers.
 

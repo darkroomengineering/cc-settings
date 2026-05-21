@@ -64,7 +64,7 @@ Parallel evaluation of alternatives, then merge into a decision.
 
 ```
 User → Define criteria
-     → Agent(oracle, "evaluate A") + Agent(oracle, "evaluate B") + Agent(oracle, "evaluate C")
+     → Agent(explore, "evaluate A") + Agent(explore, "evaluate B") + Agent(explore, "evaluate C")
      → Scoring matrix
      → ADR recommendation
      → Done

@@ -95,14 +95,7 @@ Prioritize clean, maintainable code following project standards. Seek approval o
 
 ## Self-Evolving Learnings
 
-After completing an implementation, if you hit a non-obvious bug, discovered a useful
-pattern, or found an edge case, append it to your agent memory
-(`~/.claude/agent-memory/implementer/MEMORY.md`). First 200 lines auto-load on next invocation.
-Keep entries terse:
-```
-- [YYYY-MM-DD] <category>: <one-line learning>
-```
-Categories: `bug`, `pattern`, `edge-case`, `tool-tip`, `perf`
+See AGENTS.md "Self-Evolving Learnings" for the convention. Categories for this agent: `bug`, `pattern`, `edge-case`, `tool-tip`, `perf`.
 
 ## Guardrails
 

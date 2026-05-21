@@ -9,3 +9,4 @@ Activate for specialized workflows. Profiles live in `~/.claude/profiles/` (inst
 | `react-native` | Expo mobile apps |
 | `tauri` | Tauri desktop apps (Rust + Web) |
 | `webgl` | 3D web (R3F, Three.js, GSAP) |
+| `react-router` | React Router 7+ / Novus projects |

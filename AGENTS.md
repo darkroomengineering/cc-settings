@@ -338,6 +338,19 @@ gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
 
 See `docs/knowledge-system.md` for full setup instructions and `gh api graphql` recall patterns.
 
+## Self-Evolving Learnings (agent convention)
+
+After completing a session, if you hit a non-obvious bug, discovered a useful
+pattern, or found an edge case, append it to your agent memory
+(`~/.claude/agent-memory/<agent-name>/MEMORY.md`). First 200 lines auto-load on next invocation.
+Keep entries terse:
+```
+- [YYYY-MM-DD] <category>: <one-line learning>
+```
+Categories: [categories vary per agent]
+
+---
+
 ## Knowledge System
 
 This project uses a two-tier knowledge system:
