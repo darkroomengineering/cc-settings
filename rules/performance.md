@@ -110,12 +110,9 @@ import MonacoEditor from '@monaco-editor/react'  // 300KB+
 useEffect(() => { fetch(user.id) }, [user])      // runs on any user change
 // CORRECT
 useEffect(() => { fetch(user.id) }, [user.id])
-
-// WRONG (any stack): && with numbers
-{count && <Badge count={count} />}  // renders "0"
-// CORRECT
-{count > 0 ? <Badge count={count} /> : null}
 ```
+
+> Conditional rendering with numbers: see `rules/react.md`.
 
 ---
 
@@ -317,3 +314,90 @@ elements.forEach((el, i) => {
 
 - IntersectionObserver to lazy-load below-fold widgets (any stack)
 - Budget: < 200 KB total third-party JS
+
+---
+
+## CLS (Cumulative Layout Shift) — target < 0.1
+
+Stack-agnostic. The CSS-level patterns work everywhere.
+
+### DO
+
+#### Explicit dimensions on media
+```tsx
+<img src="/photo.jpg" width={800} height={600} alt="Photo" />
+<video width={1280} height={720} />
+
+<div style={{ aspectRatio: '16/9' }}>
+  <iframe src="..." />
+</div>
+```
+
+#### Font fallback metrics
+```css
+@font-face {
+  font-family: 'Custom';
+  src: url('custom.woff2') format('woff2');
+  font-display: swap;
+  size-adjust: 105%;
+  ascent-override: 95%;
+  descent-override: 20%;
+}
+```
+
+#### Reserve space for dynamic content
+```tsx
+<div style={{ minHeight: 250 }}>{ad && <AdUnit />}</div>
+```
+
+#### CSS containment for independent widgets
+```css
+.widget { contain: layout style paint; }
+```
+
+### DON'T
+
+```tsx
+// WRONG: Injecting content above existing content
+{banner && <Banner />}
+<MainContent />
+
+// WRONG: Web fonts without fallback metrics
+@font-face { font-family: 'Custom'; src: url('custom.woff2'); /* nothing else */ }
+
+// WRONG: Dynamically resizing containers after paint
+useEffect(() => {
+  ref.current.style.height = calculatedHeight + 'px'  // shift!
+}, [calculatedHeight])
+```
+
+### Measuring CLS
+
+```ts
+import { onCLS } from 'web-vitals'
+onCLS(console.log)
+```
+
+#### Debug CLS sources
+```ts
+new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (!entry.hadRecentInput) {
+      console.log('CLS:', entry.value, entry.sources?.map((s) => s.node))
+    }
+  }
+}).observe({ type: 'layout-shift', buffered: true })
+```
+
+---
+
+## Performance Budgets
+
+| Resource | Budget |
+|---|---|
+| Total page weight | < 1.5 MB |
+| JavaScript (compressed) | < 300 KB |
+| CSS (compressed) | < 100 KB |
+| Images (above-fold) | < 500 KB |
+| Fonts | < 100 KB |
+| Third-party scripts | < 200 KB |

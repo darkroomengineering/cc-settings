@@ -82,11 +82,8 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 ```
 
 ### Never Commit Secrets
-```bash
-# These must be in .gitignore
-.env  .env.local  .env.production
-*.pem  *.key  credentials.json
-```
+
+See `rules/security.md` for the secret file list and rationale.
 
 ---
 

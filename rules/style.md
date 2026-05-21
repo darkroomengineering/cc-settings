@@ -81,11 +81,8 @@ import '@/styles/globals.css'  // Only in layout.tsx
 ---
 
 ## Typography
-```tsx
-<h1 className="text-balance">
-<p className="text-pretty">
-<span className="tabular-nums">1,234.56</span>
-```
+
+> Typography utilities (`text-balance`, `text-pretty`, `tabular-nums`): see `rules/ui-skills.md`.
 
 ## Z-Index Scale
 | Layer | Value |

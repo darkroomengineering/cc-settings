@@ -84,13 +84,7 @@ const [data, setData] = useState(() => computeExpensiveValue(props))
 
 ## DON'T
 
-### Never use manual memoization (React Compiler handles it)
-```tsx
-// WRONG
-const memoized = useMemo(() => compute(data), [data])
-// CORRECT
-const result = compute(data)
-```
+> See `rules/react-perf.md` "React Compiler Note" for the full useMemo/useCallback/React.memo rule.
 
 ### Never mutate state
 ```tsx
@@ -135,6 +129,14 @@ function handleSubmit() {
 ```
 
 Cascading setters fight React's batching, create stale-closure bugs in async paths, and obscure intent. One state object > four boolean toggles.
+
+### Conditional rendering with numbers
+```tsx
+// WRONG: renders "0" when count is 0
+{count && <Badge count={count} />}
+// CORRECT
+{count > 0 ? <Badge count={count} /> : null}
+```
 
 ### Don't put `useState` / `useEffect` / refs in a Server Component
 ```tsx

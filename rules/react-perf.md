@@ -70,20 +70,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 // BETTER: Split across nested routes — each loader runs in parallel by default
 ```
 
-### Defer await past early exits (any stack)
-```tsx
-// WRONG: always fetches even if returning early
-async function handler(req: Request) {
-  const user = await getUser(req)
-  if (!req.query.id) return { error: 'Missing ID' }
-}
-
-// CORRECT
-async function handler(req: Request) {
-  if (!req.query.id) return { error: 'Missing ID' }
-  const user = await getUser(req)
-}
-```
+> Defer awaits past early exits: see `rules/performance.md`.
 
 ---
 
@@ -267,14 +254,7 @@ onScroll={() => startTransition(() => setScrollY(window.scrollY))}
 
 ## MEDIUM: Rendering Performance
 
-### Explicit conditional rendering
-```tsx
-// WRONG: renders "0" when count is 0
-{count && <Badge count={count} />}
-
-// CORRECT
-{count > 0 ? <Badge count={count} /> : null}
-```
+> Conditional rendering with numbers: see `rules/react.md`.
 
 ---
 
