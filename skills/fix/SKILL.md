@@ -1,6 +1,6 @@
 ---
 name: fix
-description: Debug and fix bugs/errors/failures. Triggers "fix", "broken", "not working", "bug", "error", "failing", console errors, build/test failures, regression.
+description: Debug and fix bugs/errors/failures, including merge conflicts and failing PR CI checks. Triggers "fix", "broken", "not working", "bug", "error", "failing", "merge conflict", "fix CI", "checks failing", console errors, build/test failures, regression.
 context: fork
 ---
 
@@ -80,3 +80,37 @@ Return a concise summary:
 - Always store non-obvious bug fixes as learnings
 - Check if similar bugs were fixed before (recall learnings)
 - Run tests after fixing
+
+---
+
+## Variant: Merge Conflicts
+
+If the failure is unresolved git merge conflicts (not a code bug), skip the explore/tester loop:
+
+1. Detect conflicts: `git diff --name-only --diff-filter=U` lists conflicted paths.
+2. Resolve each conflict with minimal, correctness-first edits. Prefer preserving both sides when safe; otherwise choose the variant that compiles and keeps public behavior stable.
+3. Regenerate lockfiles with the package manager (`bun install`, `npm install`, etc.) rather than hand-editing.
+4. Run compile, lint, and relevant tests.
+5. Stage resolved files and summarize key decisions in the commit message.
+
+Guardrails:
+
+- Avoid broad refactors while resolving conflicts — separate PR for cleanup.
+
+## Variant: Failing PR CI
+
+If the failure is on a pushed branch with an open PR (not a local bug), use `gh pr checks` as the source of truth — it covers all PR-attached checks, not just GitHub Actions:
+
+1. Resolve the PR: `gh pr view --json number,url,headRefName`.
+2. Inspect attached checks: `gh pr checks --json name,bucket,state,workflow,link`.
+3. For each failed check, fetch logs:
+   - GitHub Actions: `gh run view RUN_ID --log-failed`.
+   - External services: follow the check `link` to the provider.
+4. Extract the first actionable error. Apply the smallest safe fix.
+5. Push and re-check. The check set can change between runs — re-read `gh pr checks` after every push.
+
+Guardrails:
+
+- Fix one actionable failure at a time.
+- If the failure is clearly unrelated to the PR and already fixed on main, merge main into the branch instead of bloating the PR with unrelated fixes.
+- For flaky checks, retry once and report flake evidence rather than chasing a phantom fix.

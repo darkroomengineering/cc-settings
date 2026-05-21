@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Verify and publish changes — push + PR. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR".
+description: Verify and publish changes — push, open PR, watch CI until green. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR", "watch the PR", "babysit CI", "loop until green".
 context: fork
 ---
 
@@ -84,6 +84,28 @@ git commit -m "<type>: <description>"
 git push origin HEAD
 gh pr create --fill
 ```
+
+### Step 8: Watch CI Until Green (post-push)
+
+After `gh pr create`, watch the PR-attached checks until all pass. Use `gh pr checks` as the source of truth — it covers all PR checks, not just GitHub Actions runs (which `gh run list` would miss).
+
+```bash
+gh pr checks --json name,bucket,state,workflow,link
+gh pr checks --watch --fail-fast
+```
+
+If a check fails:
+
+1. Identify the failing job and fetch logs (`gh run view RUN_ID --log-failed` for GHA; follow the `link` for external services).
+2. Apply the smallest fix. Use the `fix` skill's "Variant: Failing PR CI" if the failure is non-trivial.
+3. Push, then re-read `gh pr checks` — the check set can change between runs.
+4. Repeat until green.
+
+Guardrails:
+
+- Scope each fix to a single failure cause.
+- If failures are flaky, retry once and report flake evidence rather than chasing a phantom fix.
+- If the failure is unrelated to the PR and already fixed on main, merge main into the branch instead of bloating the PR.
 
 ## Rules
 - NEVER skip the type check or build step
