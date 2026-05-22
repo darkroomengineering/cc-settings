@@ -23,6 +23,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { HooksBlock } from "../schemas/hooks.ts";
 import type { Hook, HookGroup } from "../schemas/hooks.ts";
 
 export type Severity = "trusted" | "unknown" | "suspicious";
@@ -163,6 +164,9 @@ export function auditHooks(settings: unknown): HookFinding[] {
   return findings;
 }
 
+/** Sentinel message used when the hooks block doesn't match the schema. */
+export const HOOKS_SCHEMA_VALIDATION_FAILED = "hooks config failed schema validation";
+
 export async function auditSettingsFile(path?: string): Promise<AuditResult> {
   const settingsPath = path ?? join(homedir(), ".claude", "settings.json");
   if (!existsSync(settingsPath)) {
@@ -177,7 +181,36 @@ export async function auditSettingsFile(path?: string): Promise<AuditResult> {
     // to defend against; a broken file is its own problem).
     return { settingsPath, exists: true, totalHooks: 0, findings: [] };
   }
-  const findings = auditHooks(parsed);
+
+  // Validate the hooks block against the schema before walking it. A failure
+  // doesn't stop the audit — we surface it as an `unknown` finding and then
+  // fall through to auditHooks (which degrades gracefully on malformed input).
+  // Using `unknown` rather than `suspicious` because a schema mismatch alone
+  // doesn't prove malice — it might be forward-compat drift from a newer
+  // Claude Code version.
+  const extraFindings: HookFinding[] = [];
+  if (parsed !== null && typeof parsed === "object") {
+    const hooksRaw = (parsed as Record<string, unknown>).hooks;
+    if (hooksRaw !== undefined) {
+      const schemaResult = HooksBlock.safeParse(hooksRaw);
+      if (!schemaResult.success) {
+        const issueSummary = schemaResult.error.issues
+          .map((i) => `${i.path.join(".")}: ${i.message}`)
+          .join("; ");
+        extraFindings.push({
+          event: "schema",
+          groupIndex: -1,
+          hookIndex: -1,
+          type: "schema-validation",
+          command: HOOKS_SCHEMA_VALIDATION_FAILED,
+          severity: "unknown",
+          reasons: [issueSummary],
+        });
+      }
+    }
+  }
+
+  const findings = [...extraFindings, ...auditHooks(parsed)];
   return { settingsPath, exists: true, totalHooks: findings.length, findings };
 }
 

@@ -6,6 +6,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  HOOKS_SCHEMA_VALIDATION_FAILED,
   auditHooks,
   auditSettingsFile,
   classify,
@@ -282,6 +283,76 @@ describe("formatAuditReport", () => {
       const out = formatAuditReport(result);
       expect(out).not.toContain("SUSPICIOUS");
       expect(out).toContain("Summary: 1 trusted");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("auditSettingsFile — schema validation finding", () => {
+  test("malformed hooks block produces a schema-validation finding (unknown severity)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-audit-schema-"));
+    try {
+      const path = join(dir, "settings.json");
+      // hooks value is a plain string instead of a record of arrays — definitely invalid.
+      await writeFile(path, JSON.stringify({ hooks: "not-a-hooks-record" }));
+      const result = await auditSettingsFile(path);
+      expect(result.exists).toBe(true);
+      const schemaFinding = result.findings.find((f) => f.type === "schema-validation");
+      expect(schemaFinding).toBeDefined();
+      expect(schemaFinding?.severity).toBe("unknown");
+      expect(schemaFinding?.command).toBe(HOOKS_SCHEMA_VALIDATION_FAILED);
+      expect(schemaFinding?.reasons[0]).toBeTruthy(); // includes zod issue paths
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("hooks block with invalid hook type produces a schema-validation finding", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-audit-schema2-"));
+    try {
+      const path = join(dir, "settings.json");
+      await writeFile(
+        path,
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  // "unknown-type" is not a valid Hook discriminant
+                  { type: "unknown-type", command: "echo hi" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      const result = await auditSettingsFile(path);
+      const schemaFinding = result.findings.find((f) => f.type === "schema-validation");
+      expect(schemaFinding).toBeDefined();
+      expect(schemaFinding?.severity).toBe("unknown");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("valid hooks block does NOT produce a schema-validation finding", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-audit-schema3-"));
+    try {
+      const path = join(dir, "settings.json");
+      await writeFile(
+        path,
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              { hooks: [{ type: "command", command: 'bun "$HOME/.claude/src/hooks/verify-hooks.ts"' }] },
+            ],
+          },
+        }),
+      );
+      const result = await auditSettingsFile(path);
+      const schemaFinding = result.findings.find((f) => f.type === "schema-validation");
+      expect(schemaFinding).toBeUndefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

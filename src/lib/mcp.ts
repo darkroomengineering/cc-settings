@@ -25,7 +25,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { z } from "zod";
 import { ClaudeJson } from "../schemas/claude-json.ts";
-import type { McpServers as McpServersSchema } from "../schemas/mcp.ts";
+import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { debug, error, info, success, warn } from "./colors.ts";
 import { promptYn } from "./prompts.ts";
 
@@ -75,9 +75,18 @@ export async function readJsonOrNull<T>(path: string): Promise<T | null> {
 
 /** Read MCP servers from a settings.json. Throws McpParseError on bad JSON. */
 export async function readMcpFromSettings(path: string): Promise<McpServers> {
-  const data = (await readJsonOrNull(path)) as { mcpServers?: McpServers } | null;
-  if (!data) return {};
-  return data.mcpServers ?? {};
+  const raw = await readJsonOrNull(path);
+  if (raw === null || typeof raw !== "object") return {};
+  const mcp = (raw as Record<string, unknown>).mcpServers;
+  if (mcp === undefined) return {};
+  const result = McpServersSchema.safeParse(mcp);
+  if (!result.success) {
+    debug(
+      `MCP servers in ${path} failed schema validation: ${result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+    );
+    return {};
+  }
+  return result.data;
 }
 
 export function findUserOnlyServers(userServers: McpServers, teamServers: McpServers): string[] {
@@ -141,14 +150,25 @@ export async function installMcpToClaudeJson(
   teamSettingsPath: string,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
 ): Promise<void> {
-  const team = (await readJsonOrNull(teamSettingsPath)) as {
-    mcpServers?: McpServers;
-  } | null;
-  if (!team) {
+  const teamRaw = await readJsonOrNull(teamSettingsPath);
+  if (!teamRaw || typeof teamRaw !== "object") {
     warn(`Team settings not found: ${teamSettingsPath}`);
     return;
   }
-  const teamMcp = team.mcpServers ?? {};
+  const teamMcpRaw = (teamRaw as Record<string, unknown>).mcpServers;
+  // Validate team MCP servers from disk — bad team config should fail loudly.
+  let teamMcp: McpServers = {};
+  if (teamMcpRaw !== undefined) {
+    const teamResult = McpServersSchema.safeParse(teamMcpRaw);
+    if (!teamResult.success) {
+      debug(
+        `Team MCP servers in ${teamSettingsPath} failed schema validation: ${teamResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      );
+      // Don't abort — fall through with empty teamMcp so we don't wipe user servers.
+    } else {
+      teamMcp = teamResult.data;
+    }
+  }
   if (Object.keys(teamMcp).length === 0) {
     debug("No MCP servers in team config");
     return;
@@ -165,7 +185,24 @@ export async function installMcpToClaudeJson(
   }
   current = validated.data as Record<string, unknown>;
 
-  const currentMcp = (current.mcpServers as McpServers | undefined) ?? {};
+  // Validate existing servers from ~/.claude.json. On schema failure we log a
+  // warning but keep the raw value — forward-compat drift (new Claude Code
+  // server shapes we don't know yet) should NOT cause us to silently drop user
+  // servers. Safety > strict correctness at a write-back boundary.
+  const currentMcpRaw = current.mcpServers;
+  let currentMcp: McpServers = {};
+  if (currentMcpRaw !== undefined) {
+    const currentResult = McpServersSchema.safeParse(currentMcpRaw);
+    if (!currentResult.success) {
+      debug(
+        `Existing MCP servers in ${claudeJsonPath} failed schema validation (preserving raw to avoid data loss): ${currentResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      );
+      // Preserve raw — see comment above.
+      currentMcp = currentMcpRaw as McpServers;
+    } else {
+      currentMcp = currentResult.data;
+    }
+  }
   // Team provides a baseline; user entries shadow on conflict (so the user's
   // local tweak to a shared server wins). Same semantics as the bash merge.
   const mergedMcp: McpServers = { ...teamMcp, ...currentMcp };
