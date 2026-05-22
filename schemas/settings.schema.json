@@ -224,6 +224,12 @@
                         "type": "string",
                         "minLength": 1
                       },
+                      "args": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
                       "if": {
                         "type": "string"
                       },
@@ -239,6 +245,9 @@
                         "type": "string"
                       },
                       "once": {
+                        "type": "boolean"
+                      },
+                      "continueOnBlock": {
                         "type": "boolean"
                       }
                     },
@@ -290,6 +299,9 @@
                       },
                       "once": {
                         "type": "boolean"
+                      },
+                      "continueOnBlock": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -328,6 +340,9 @@
                       },
                       "once": {
                         "type": "boolean"
+                      },
+                      "continueOnBlock": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -365,6 +380,9 @@
                         "type": "string"
                       },
                       "once": {
+                        "type": "boolean"
+                      },
+                      "continueOnBlock": {
                         "type": "boolean"
                       }
                     },
@@ -411,6 +429,9 @@
                         "type": "string"
                       },
                       "once": {
+                        "type": "boolean"
+                      },
+                      "continueOnBlock": {
                         "type": "boolean"
                       }
                     },
@@ -672,6 +693,12 @@
           "enum": [
             "fresh",
             "head"
+          ]
+        },
+        "bgIsolation": {
+          "type": "string",
+          "enum": [
+            "none"
           ]
         }
       },

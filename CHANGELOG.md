@@ -6,9 +6,24 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
-### feat: nuclear-review skill — whole-codebase audit + context7 dependency check
+### feat: nuclear-review skill — whole-codebase audit + context7 dependency check + Phase 4 docs pass
 
-New `/nuclear-review` skill — unusually strict **whole-codebase** maintainability audit. Structural rubric adapted from `cursor/plugins/cursor-team-kit/skills/thermo-nuclear-code-quality-review` (reported by Eric Zakariasson as Cursor's most-used internal skill); cc-settings extends Cursor's per-diff scope to the whole repo and adds a **context7-driven dependency audit** phase that checks currency, deprecated API usage, role-duplication, and maintainer-recommended usage patterns for every direct dependency. Flags every 1k-line file, thin wrapper, leaked-logic boundary, and pushes "code-judo" moves that delete whole branches instead of rearranging them. Frontmatter declares `requires: [{ mcp: context7 }]` so the installer warns when the MCP server is missing. Sibling to `/review` (per-PR Darkroom checklist) and `/zero-tech-debt` (rework patch to end-state). Skill count 26 → 27 (soft cap still 40). Triggers include "nuclear review", "thermonuclear review", "code judo", "whole codebase review", "harsh maintainability review". Wired into `MANAGED_SKILLS`, `MANUAL.md`, and skill-count references in `CLAUDE.md` / `CLAUDE-FULL.md`.
+New `/nuclear-review` skill — unusually strict **whole-codebase** maintainability audit. Structural rubric adapted from `cursor/plugins/cursor-team-kit/skills/thermo-nuclear-code-quality-review` (reported by Eric Zakariasson as Cursor's most-used internal skill); cc-settings extends Cursor's per-diff scope to the whole repo and adds a **context7-driven dependency audit** phase that checks currency, deprecated API usage, role-duplication, and maintainer-recommended usage patterns for every direct dependency, plus a **Phase 4 documentation updates** that keeps CHANGELOG / MANUAL / derived schemas in sync whenever audit findings turn into commits (so audit-driven refactors don't ship as anonymous history). Flags every 1k-line file, thin wrapper, leaked-logic boundary, and pushes "code-judo" moves that delete whole branches instead of rearranging them. Frontmatter declares `requires: [{ mcp: context7 }]` so the installer warns when the MCP server is missing. Sibling to `/review` (per-PR Darkroom checklist) and `/zero-tech-debt` (rework patch to end-state). Skill count 26 → 27 (soft cap still 40). Triggers include "nuclear review", "thermonuclear review", "code judo", "whole codebase review", "harsh maintainability review". Wired into `MANUAL.md` and skill-count references in `CLAUDE.md` / `CLAUDE-FULL.md`.
+
+### refactor: extract MANAGED_SKILLS to src/lib/managed-skills.ts
+
+The 50-entry `MANAGED_SKILLS` array (active list + upgrade-cleanup tombstones) was duplicated verbatim across `src/setup.ts` and `src/lib/status.ts` — every new skill required edits in two places and the duplication had already drifted in prior commits. Extracted to a single `src/lib/managed-skills.ts`; `status.ts` re-exports for callers that already import from it. Net: −114 LOC removed, +70 added, drift risk eliminated. First nuclear-review code-judo finding.
+
+### refactor: nuclear-review hygiene — z.url() + pad() consolidation
+
+Two findings from the first nuclear-review audit applied in one commit:
+
+1. **zod v4 idioms.** Two call sites still used `z.string().url()`, deprecated in zod 4 in favor of the top-level `z.url()`. Swapped `src/schemas/mcp.ts:39` and `src/schemas/hooks.ts:68`.
+2. **`pad()` consolidation.** A one-line zero-pad helper was reimplemented in `src/scripts/checkpoint.ts`, `src/scripts/handoff.ts`, and `src/scripts/log-bash.ts`. Lifted from `src/lib/platform.ts` (previously buried as a local inside `getTimestamp`) to a module-level export; the three scripts now import it. Net: −9 LOC across the scripts, single canonical helper.
+
+### refactor: drop readJsonOrNull&lt;T&gt; type-lie
+
+The `<T>` generic on `src/lib/mcp.ts:readJsonOrNull` was a fiction — callers got `T | null` but the value was actually `unknown` dressed as `T` via a cast inside the function. Every meaningful caller did its own pattern-match or safeParse anyway, so the type parameter only obscured the boundary that v11.3.1's safeParse closure work was meant to guard. Dropped the generic; signature is now `(path: string) => Promise<unknown>`. The four meaningful callers (`src/setup.ts`, `src/lib/status.ts` ×2, `src/lib/settings-merge.ts` ×2 already cast) cast at the call site, making the unsafety visible. Closes finding 3 from the nuclear-review audit. No behavior change.
 
 ## [11.3.1] — 2026-05-22
 

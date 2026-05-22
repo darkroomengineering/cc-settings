@@ -1,6 +1,6 @@
 ---
 name: nuclear-review
-description: Extremely strict whole-codebase maintainability audit — checks structural quality, 1k-line file sprawl, thin wrappers, leaked logic, spaghetti growth, and dependency freshness + usage quality via context7. Pushes "code-judo" moves that delete whole branches instead of rearranging them. Triggers "nuclear review", "thermonuclear review", "thermo-nuclear code quality review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review". Sibling to `/review` (per-diff Darkroom checklist) and `/zero-tech-debt` (rework patch to end-state).
+description: Extremely strict whole-codebase maintainability audit — checks structural quality, 1k-line file sprawl, thin wrappers, leaked logic, spaghetti growth, and dependency freshness + usage quality via context7. Pushes "code-judo" moves that delete whole branches instead of rearranging them. When fixes land, the same pass updates CHANGELOG, MANUAL, and derived schemas so the docs don't drift. Triggers "nuclear review", "thermonuclear review", "thermo-nuclear code quality review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review". Sibling to `/review` (per-diff Darkroom checklist) and `/zero-tech-debt` (rework patch to end-state).
 context: main
 requires:
   - mcp: context7
@@ -90,6 +90,37 @@ Apply the non-negotiable standards below to the codebase as a whole. Walk the la
 ### Phase 3 — Synthesis
 
 Produce the output in the format below. Prioritize ruthlessly — a smaller number of high-conviction findings beats a long list.
+
+### Phase 4 — Documentation updates (after fixes land)
+
+A nuclear-review that produces fixes but leaves the docs stale is half-done. Whenever findings from this skill turn into code changes, the same pass must touch the docs that describe them. If you only produce the report (no fixes in this session), skip this phase — but flag it for whoever applies the fixes.
+
+For each commit that lands from the audit, update the docs in scope for the change:
+
+| Type of change | What to update |
+|---|---|
+| New skill / agent / hook / profile | `MANUAL.md` (the "All Skills" / "All Agents" table + the appropriate prose section), `CHANGELOG.md`, skill-count references in `CLAUDE.md` / `CLAUDE-FULL.md` if the count moves |
+| Structural refactor (dedup, extract module, rename across files) | `CHANGELOG.md` — a one-paragraph entry under `[Unreleased]` explaining what moved and why |
+| Dependency upgrade or deprecated-API swap | `CHANGELOG.md` — note the package, the old vs new pattern, and any caller-visible behavior |
+| New canonical helper that supersedes inline duplicates | `CHANGELOG.md`, and `rules/*.md` if the helper is now the project-wide recommended pattern |
+| Type/boundary cleanup at a JSON or external-input boundary | `CHANGELOG.md`, and `docs/security-reference.md` if the change affects validation |
+| API surface change (exported function signature, public schema) | `CHANGELOG.md`, `docs/*-reference.md` for any reference docs that mention the symbol, schemas via `bun run schemas:emit` if the zod surface moved |
+
+Rules for the doc pass:
+
+- **One `[Unreleased]` entry per landed commit, or one consolidated entry if multiple commits ship together.** Don't leave audit-driven refactors anonymous in git history.
+- **Skill / agent / rule counts must match reality.** If you added or removed one, update every reference (`MANUAL.md` intro, `CLAUDE.md`, `CLAUDE-FULL.md`).
+- **Don't pad.** Each entry is one short paragraph naming the file(s) changed and the why. Skip prose victory laps.
+- **Regenerate derived docs.** If you changed a zod schema in `src/schemas/`, run `bun run schemas:emit` and commit the resulting `schemas/*.schema.json` diff alongside the source change.
+- **Update `MANUAL.md` triggers tables** when a skill's invocation phrasing changes or when a new skill goes in.
+
+Verify the doc pass landed correctly before finishing:
+
+```bash
+bun run lint:skills            # frontmatter sanity
+bun run schemas:check          # derived schemas in sync with sources
+git diff --stat HEAD~N HEAD    # confirm doc files are in the diff
+```
 
 ## Non-Negotiable Standards
 
