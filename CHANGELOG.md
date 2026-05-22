@@ -4,7 +4,9 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [11.4.0] — 2026-05-22
+
+New `/nuclear-review` skill ships alongside a self-applied audit pass that closes 11 findings across both audits — MANAGED_SKILLS duplication, `runGit` triplicate, `pad()` consolidation, `readJsonOrNull<T>` type-lie, `Strategy` key threading, safety-net spaghetti, zod-4 deprecations, dead code. Net: −150 LOC of duplication/cruft, +1 skill, +1 lib module, +1 lib export, +2 safety-net helpers. No behavior change in any common path; one interactive-merge UX bug (`"<scalar>"` placeholder) fixed.
 
 ### feat: nuclear-review skill — whole-codebase audit + context7 dependency check + Phase 4 docs pass
 
@@ -41,7 +43,7 @@ Seven mechanical findings from the second-pass `/nuclear-review`:
 6. Deleted stale "Phase 3 will replace…" comment from `src/scripts/session-start.ts` — the replacement shipped in v10.x.
 7. Made `cmdList` / `cmdClean` in `checkpoint.ts` async-consistent (`readdir` / `unlink` instead of `*Sync` variants; matches `cmdSave`'s existing pattern).
 
-Deferred (separate concerns): `settings-merge.ts` `<scalar>` placeholder fix needs a judgment call on whether to thread the key through the Strategy registry or stop prompting for unknown-key scalars. `claude-audit.ts` date helpers (`timeToMs`, `fmtDuration`, `ymd`, `weekdayIdx`) stay in-file — single consumer, premature to extract.
+The `<scalar>` placeholder fix called out as "deferred" in the commit message landed in the next commit (see *thread key through Strategy* entry above). The other deferred item — `claude-audit.ts` date helpers — stays in-file (single consumer; premature to extract).
 
 No behavior change. Typecheck clean, biome clean, lint:skills clean.
 

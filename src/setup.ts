@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.3.1"; // dep review (inquirer/yaml/zod), safeParse boundaries (setup/settings-merge/status), CC sync 2.1.148, lint sweep
+const VERSION = "11.4.0"; // nuclear-review skill + audit-driven hardening pass (MANAGED_SKILLS dedup, runGit consolidation, readJsonOrNull type-lie, Strategy key threading, pad/zod hygiene)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
