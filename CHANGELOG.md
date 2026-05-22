@@ -4,6 +4,58 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.3.0] — 2026-05-21
+
+### refactor: thermonuclear cleanup — skills 37→26, oracle→explore, mcp.ts split, +unit tests
+
+A six-tier cleanup pass across the whole codebase. Behavior-preserving where it mattered (the golden-migration tests still gate everything); ambitious about structural simplification everywhere else.
+
+**Skills consolidation (37 → 26, freed 11 slots)**
+
+- Retired: `audit` (CLI alias), `lenis` (narrow third-party setup), `share-learning` (gh-CLI wrapper; routing rules relocated to `AGENTS.md`).
+- Merged: `create-handoff` + `resume-handoff` → `handoff`; `discovery` + `prd` → `plan-feature`; `ask` + `premortem` + `compare-approaches` → `oracle` (three modes); `tdd` folded into `test`; `cc-sync` + `cc-update` → `cc`; `long-task` folded into `orchestrate`.
+- Demoted: `write-a-skill` → `bun run new-skill <name>` CLI + `docs/skill-authoring.md`.
+
+**Agents**
+
+- `agents/oracle.md` merged into `agents/explore.md` (blast-radius workflow, evidence-based answer template, never-speculate principles preserved). `Agent(oracle, …)` references across skills/profiles/docs swept to `Agent(explore, …)`.
+- `profiles/maestro.md` slimmed 108 → ~40 lines (deep reference is `agents/maestro.md`).
+- `agents/planner.md` inline ADR/trade-off/plan templates replaced with pointers to `docs/architecture-reference.md`, `docs/thread-types.md`, `docs/enhanced-todos.md`.
+- Self-Evolving Learnings block centralized in `AGENTS.md`; implementer/planner/reviewer reference it instead of duplicating.
+- Frontmatter drift: `maxTurns` caps added to scaffolder/tester/deslopper/reviewer; reviewer gains `isolation: worktree`.
+
+**src/ refactor**
+
+- `src/lib/mcp.ts` split 611 → 177 lines. New `src/lib/settings-merge.ts` exports the 5 merge strategies (`permissionsStrategy`, `hooksStrategy`, `envStrategy`, `statusLineStrategy`, `userWinsScalarStrategy`) and the orchestrator individually — previously private closures.
+- `cmdStatus` in `setup.ts` (125-line monolith) refactored into `gatherStatus(): StatusData` (new `src/lib/status.ts` + `status-types.ts`) and `printStatus(data)`.
+- Shared `src/lib/frontmatter.ts` extracted — was duplicated across `lint-skills.ts`, `skill-prereqs.ts`, `frontmatter-validate.ts`.
+- `src/lib/audit-hooks.ts` now uses `Hook`/`HookGroup` from `src/schemas/hooks.ts` instead of local `RawHook*` interfaces (schema-drift fix).
+- `src/lib/skill-prereqs.ts` drops the `unknown` cast on `requires` — uses typed `SkillFrontmatter.requires` directly.
+- `src/scripts/lint-skills.ts` slimmed to match `audit-hooks.ts` 5-line CLI wrapper style.
+- 34 new unit tests across `tests/settings-merge.test.ts` (per-strategy coverage) and `tests/status.test.ts` (gatherStatus on temp fixtures).
+
+**Rules**
+
+- `rules/web-vitals.md` absorbed into `rules/performance.md` (CLS font fallback metrics, PerformanceObserver debug, budgets table); web-vitals deleted. Cluster went 3 files → 2.
+- 5 drift instances canonicalized with 1-line pointers at non-canonical locations: React Compiler memoization rule (`rules/react-perf.md`), `&&` with numbers (`rules/react.md`), defer-awaits (`rules/performance.md`), secret file list (`rules/security.md`), typography utilities (`rules/ui-skills.md`).
+
+**Housekeeping**
+
+- `docs/migration-coexistence.md` deleted (self-archived).
+- `config/20-mcp.json` `_comment`/`_status` keys stripped (non-standard JSON); relocated to `docs/settings-reference.md`.
+- `src/setup.ts` backup-prune loop parallelized.
+- `src/lib/packages.ts` linux/wsl probe branches deduplicated.
+
+**README**
+
+- Tightened 356 → 84 lines. Cut marketing prose, comparison table, philosophy, FAQ. Kept: one-sentence pitch, install, what-gets-installed map, common commands, doc pointers.
+
+**Net**
+
+- 38 files modified, ~720 LOC removed from production code/docs.
+- 34 new unit tests (303 → 338 passing).
+- Skill library at 26/40 with 14 slots of runway.
+
 ## [11.2.1] — 2026-05-19
 
 ### fix: implementer briefing contract + sync with Claude Code v2.1.144

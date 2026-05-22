@@ -52,7 +52,7 @@ import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
-const VERSION = "11.2.1"; // sync with Claude Code v2.1.144 — manifest-only bump (bug-fix release, no new contracts) + implementer briefing contract
+const VERSION = "11.3.0"; // thermonuclear cleanup: skills 37→26, oracle→explore, mcp.ts split, +unit tests, rules de-drift, README tighten
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
