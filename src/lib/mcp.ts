@@ -61,10 +61,10 @@ export async function atomicWriteJson(path: string, data: unknown): Promise<void
   await atomicWriteString(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
-export async function readJsonOrNull<T>(path: string): Promise<T | null> {
+export async function readJsonOrNull(path: string): Promise<unknown> {
   try {
     const raw = await readFile(path, "utf8");
-    return JSON.parse(raw) as T;
+    return JSON.parse(raw);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new McpParseError(path, err);

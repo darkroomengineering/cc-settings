@@ -401,9 +401,9 @@ async function showSummary(): Promise<void> {
   boxLine("ok", "memory/");
   boxEnd();
 
-  const claudeJson = await readJsonOrNull<{
+  const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
     mcpServers?: Record<string, { _status?: unknown }>;
-  }>(CLAUDE_JSON_PATH);
+  } | null;
   const servers = Object.entries(claudeJson?.mcpServers ?? {});
   if (servers.length > 0) {
     console.log("");

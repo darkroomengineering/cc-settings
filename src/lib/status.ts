@@ -136,7 +136,7 @@ export async function gatherStatus(
 
   // --- Settings.json ---
   const userSettingsPath = join(claudeDir, "settings.json");
-  const userSettings = (await readJsonOrNull<Record<string, unknown>>(userSettingsPath)) ?? {};
+  const userSettings = ((await readJsonOrNull(userSettingsPath)) ?? {}) as Record<string, unknown>;
 
   // Hooks
   const hooksObj = (userSettings.hooks ?? {}) as Record<string, unknown>;
@@ -162,9 +162,9 @@ export async function gatherStatus(
   };
 
   // MCP servers from ~/.claude.json
-  const claudeJson = await readJsonOrNull<{ mcpServers?: Record<string, unknown> }>(
-    CLAUDE_JSON_PATH,
-  );
+  const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
+    mcpServers?: Record<string, unknown>;
+  } | null;
   const mcp: McpData = { servers: Object.keys(claudeJson?.mcpServers ?? {}) };
 
   // --- Warnings ---
