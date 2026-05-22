@@ -35,7 +35,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun ~/.claude/src/scripts/claude-audit.ts` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 26 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 27 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -68,6 +68,12 @@ Triggers `/ship` — type check → build → test → lint → web quality gate
 Say: *"review my changes"* or *"check this before merge"*
 
 Triggers `/review` — reviews against Darkroom standards (TypeScript, React, a11y, performance).
+
+### Nuclear Review (Whole-Codebase Code-Judo Pass)
+
+Say: *"nuclear review"* / *"thermonuclear review"* / *"code judo"* / *"harsh maintainability review"* / *"whole codebase review"*
+
+Triggers `/nuclear-review` — unusually strict **whole-codebase** structural audit. Structural rubric adapted from Cursor's internal `thermo-nuclear-code-quality-review` (their most-used skill); cc-settings extends it with whole-codebase scope and a **context7-driven dependency audit** (currency, deprecated API usage, redundant deps, missed maintainer-recommended patterns). Flags every 1k-line file, every thin wrapper, every leaked-logic boundary, and pushes "code-judo" moves that delete whole branches instead of rearranging them. Run on major version cuts, after extended velocity sprints, or before load-bearing migrations. Distinct from `/review` (per-PR Darkroom checklist) and `/zero-tech-debt` (edits a single patch); nuclear-review is read-only and covers the whole repo.
 
 ### Refactor
 
@@ -398,6 +404,7 @@ These are enforced automatically — no skill needed:
 | `build` | build, create, implement, add feature |
 | `ship` | ship it, create PR, /pr |
 | `review` | review, check, PR, changes |
+| `nuclear-review` | nuclear review, thermonuclear, code judo, whole codebase review, harsh maintainability review, 1k-line, thin wrapper, stale dependencies |
 | `refactor` | refactor, clean up, reorganize |
 | `zero-tech-debt` | rewrite as if from scratch, delete compat layer, kill legacy path, too many flags |
 | `test` | test, write tests, coverage, TDD, test-first, red-green-refactor |

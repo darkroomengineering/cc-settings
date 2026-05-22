@@ -33,6 +33,7 @@ import {
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./lib/hooks-fingerprint.ts";
+import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
 import {
   atomicWriteJson,
   CLAUDE_JSON_PATH,
@@ -203,65 +204,6 @@ async function createDirectories(): Promise<void> {
   ];
   for (const d of dirs) await mkdir(join(CLAUDE_DIR, d), { recursive: true });
 }
-
-// Managed skill directories — only these are wiped on re-install so users
-// can keep hand-authored skills in skills/ without losing them.
-const MANAGED_SKILLS = [
-  "autoresearch",
-  "build",
-  "cc",
-  "checkpoint",
-  "component",
-  "consolidate",
-  "context-doc",
-  "design-tokens",
-  "dr-init",
-  "explore",
-  "fix",
-  "handoff",
-  "hook",
-  "lighthouse",
-  "oracle",
-  "orchestrate",
-  "plan-feature",
-  "project",
-  "qa",
-  "refactor",
-  "review",
-  "ship",
-  "test",
-  "tldr",
-  "verify",
-  "zero-tech-debt",
-  // Kept for upgrade cleanup only — these skills were removed and must be wiped on re-install.
-  "ask",
-  "audit",
-  "cc-sync",
-  "cc-update",
-  "compare-approaches",
-  "context",
-  "create-handoff",
-  "darkroom-init",
-  "debug",
-  "discovery",
-  "docs",
-  "f-thread",
-  "figma",
-  "init",
-  "l-thread",
-  "learn",
-  "lenis",
-  "long-task",
-  "prd",
-  "premortem",
-  "resume-handoff",
-  "share-learning",
-  "tdd",
-  "teams",
-  "versions",
-  "write-a-skill",
-  "zoom-out",
-];
 
 async function cleanOldConfig(): Promise<void> {
   const removeGlob = async (dir: string, pattern: RegExp) => {

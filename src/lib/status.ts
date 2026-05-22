@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { MANAGED_SKILLS } from "./managed-skills.ts";
 import { CLAUDE_JSON_PATH, readJsonOrNull } from "./mcp.ts";
 import type {
   EnvVarEntry,
@@ -43,65 +44,10 @@ export const EXPECTED_ENV_VARS = [
   "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
 ];
 
-// Managed skill directories — mirrored from src/setup.ts so gatherStatus
-// can compute which shipped skills are present/missing without importing
-// the entire setup module.
-export const MANAGED_SKILLS = [
-  "autoresearch",
-  "build",
-  "cc",
-  "checkpoint",
-  "component",
-  "consolidate",
-  "context-doc",
-  "design-tokens",
-  "dr-init",
-  "explore",
-  "fix",
-  "handoff",
-  "hook",
-  "lighthouse",
-  "oracle",
-  "orchestrate",
-  "plan-feature",
-  "project",
-  "qa",
-  "refactor",
-  "review",
-  "ship",
-  "test",
-  "tldr",
-  "verify",
-  "zero-tech-debt",
-  // Kept for upgrade cleanup only.
-  "ask",
-  "audit",
-  "cc-sync",
-  "cc-update",
-  "compare-approaches",
-  "context",
-  "create-handoff",
-  "darkroom-init",
-  "debug",
-  "discovery",
-  "docs",
-  "f-thread",
-  "figma",
-  "init",
-  "l-thread",
-  "learn",
-  "lenis",
-  "long-task",
-  "prd",
-  "premortem",
-  "resume-handoff",
-  "share-learning",
-  "tdd",
-  "teams",
-  "versions",
-  "write-a-skill",
-  "zoom-out",
-];
+// Re-export the canonical MANAGED_SKILLS list. Defined in ./managed-skills.ts;
+// re-exported here so existing callers (and tests) that import from status.ts
+// keep working without a coordinated rename.
+export { MANAGED_SKILLS };
 
 async function runCapture(cmd: string[]): Promise<string> {
   const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "ignore" });

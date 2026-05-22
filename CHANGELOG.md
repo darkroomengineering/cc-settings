@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+### feat: nuclear-review skill — whole-codebase audit + context7 dependency check
+
+New `/nuclear-review` skill — unusually strict **whole-codebase** maintainability audit. Structural rubric adapted from `cursor/plugins/cursor-team-kit/skills/thermo-nuclear-code-quality-review` (reported by Eric Zakariasson as Cursor's most-used internal skill); cc-settings extends Cursor's per-diff scope to the whole repo and adds a **context7-driven dependency audit** phase that checks currency, deprecated API usage, role-duplication, and maintainer-recommended usage patterns for every direct dependency. Flags every 1k-line file, thin wrapper, leaked-logic boundary, and pushes "code-judo" moves that delete whole branches instead of rearranging them. Frontmatter declares `requires: [{ mcp: context7 }]` so the installer warns when the MCP server is missing. Sibling to `/review` (per-PR Darkroom checklist) and `/zero-tech-debt` (rework patch to end-state). Skill count 26 → 27 (soft cap still 40). Triggers include "nuclear review", "thermonuclear review", "code judo", "whole codebase review", "harsh maintainability review". Wired into `MANAGED_SKILLS`, `MANUAL.md`, and skill-count references in `CLAUDE.md` / `CLAUDE-FULL.md`.
+
 ## [11.3.1] — 2026-05-22
 
 ### refactor: dependency review + safeParse boundary closure + upstream sync 2.1.148
