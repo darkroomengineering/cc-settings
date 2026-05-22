@@ -15,7 +15,7 @@ Rework the change from the intended end-state, not from the historical path that
 - You catch yourself preserving an old shape "just in case" with no concrete caller in mind
 - The diff is bigger than the change it represents because it's making the old structure better instead of removing it
 
-For tightening just-written code use native `/simplify`. For restructuring code outside the current diff use `/refactor`. This skill is for the patch in front of you.
+For restructuring code outside the current diff use `/refactor`. This skill is for the patch in front of you. (Claude Code 2.1.147 renamed `/simplify` to `/code-review` and removed the old cleanup-and-fix behavior; the native command is now a correctness reporter, not a code tightener.)
 
 ## Steps
 

@@ -35,7 +35,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun ~/.claude/src/scripts/claude-audit.ts` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 26 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/simplify`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 26 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -79,7 +79,7 @@ Triggers `/refactor` — explore → plan → implement → test → review. Pre
 
 Say: *"rewrite this as if from scratch"* or *"delete the compat layer"* or *"too many flags"*
 
-Triggers `/zero-tech-debt` — rework a patch from the intended end-state, not from the historical path. Deletes compatibility cruft and mode flags no one calls. Sibling to `/refactor` (out-of-diff restructuring) and native `/simplify` (just-changed tightening) — this one targets the patch in front of you.
+Triggers `/zero-tech-debt` — rework a patch from the intended end-state, not from the historical path. Deletes compatibility cruft and mode flags no one calls. Sibling to `/refactor` (out-of-diff restructuring) — this one targets the patch in front of you. (Note: Claude Code 2.1.147 renamed native `/simplify` to `/code-review`, dropping the cleanup-and-fix behavior.)
 
 ---
 
