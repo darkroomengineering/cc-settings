@@ -12,6 +12,7 @@ import { mkdir, readlink, stat, symlink, unlink, writeFile } from "node:fs/promi
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { palette } from "../lib/colors.ts";
+import { pad } from "../lib/platform.ts";
 
 async function getProjectName(): Promise<string> {
   const proc = Bun.spawn(["git", "rev-parse", "--show-toplevel"], {
@@ -27,10 +28,6 @@ async function runGit(args: string[]): Promise<{ exit: number; stdout: string }>
   const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "ignore" });
   const stdout = (await new Response(proc.stdout).text()).trim();
   return { exit: await proc.exited, stdout };
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
 }
 
 function checkpointId(d: Date = new Date()): string {

@@ -37,9 +37,14 @@ export function isWindows(): boolean {
   return os === "windows";
 }
 
+// Zero-pad a number to two characters. Shared across timestamp / date / time
+// formatters that need stable filename-safe output.
+export function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 // YYYYMMDDHHMMSS — used for backup filenames. Stable across locales.
 export function getTimestamp(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 

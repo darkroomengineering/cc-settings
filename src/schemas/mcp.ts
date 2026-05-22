@@ -36,7 +36,7 @@ export const McpStdioServer = z.object({
 
 export const McpHttpServer = z.object({
   type: z.literal("http"),
-  url: z.string().url(),
+  url: z.url(),
   headers: z.record(z.string(), z.string()).optional(),
   ...mcpCommon,
   ...mcpCommentary,

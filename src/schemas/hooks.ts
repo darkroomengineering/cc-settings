@@ -65,7 +65,7 @@ export const CommandHook = z.object({
 
 export const HttpHook = z.object({
   type: z.literal("http"),
-  url: z.string().url(),
+  url: z.url(),
   headers: z.record(z.string(), z.string()).optional(),
   allowedEnvVars: z.array(z.string()).optional(),
   ...HookCommon,

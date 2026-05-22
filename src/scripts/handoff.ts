@@ -12,12 +12,9 @@ import { mkdir, readlink, stat, symlink, unlink, writeFile } from "node:fs/promi
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { runGit } from "../lib/git.ts";
+import { pad } from "../lib/platform.ts";
 
 const HANDOFF_DIR = join(homedir(), ".claude", "handoffs");
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
-}
 
 function timestamp(d: Date = new Date()): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
