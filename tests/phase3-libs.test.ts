@@ -15,9 +15,9 @@ import {
   readJsonOrNull,
   readMcpFromSettings,
 } from "../src/lib/mcp.ts";
-import { mergeSettingsWithMcpPreservation } from "../src/lib/settings-merge.ts";
 import { getInstallHint } from "../src/lib/packages.ts";
 import { getTimestamp, hasCommand, os } from "../src/lib/platform.ts";
+import { mergeSettingsWithMcpPreservation } from "../src/lib/settings-merge.ts";
 
 describe("platform", () => {
   test("os is one of the known values", () => {

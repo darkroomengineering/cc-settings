@@ -210,4 +210,3 @@ export async function installMcpToClaudeJson(
   await atomicWriteJson(claudeJsonPath, next);
   debug(`Installed MCP servers to ${claudeJsonPath}`);
 }
-

@@ -39,7 +39,9 @@ function main() {
   const skillDir = join(repoRoot, "skills", name);
 
   if (existsSync(skillDir)) {
-    console.error(`Error: skills/${name}/ already exists. Choose a different name or edit the existing skill.`);
+    console.error(
+      `Error: skills/${name}/ already exists. Choose a different name or edit the existing skill.`,
+    );
     process.exit(1);
   }
 
@@ -62,11 +64,13 @@ See \`docs/skill-authoring.md\` for structure guidance, frontmatter rules, and r
   console.log(`Created skills/${name}/SKILL.md`);
   console.log("");
   console.log("Next steps:");
-  console.log(`  1. Edit skills/${name}/SKILL.md — write the description (trigger phrases) and body`);
-  console.log('  2. bun run lint:skills          — validate frontmatter (0 errors required)');
-  console.log('  3. Add to MANAGED_SKILLS in src/setup.ts (alphabetical order)');
+  console.log(
+    `  1. Edit skills/${name}/SKILL.md — write the description (trigger phrases) and body`,
+  );
+  console.log("  2. bun run lint:skills          — validate frontmatter (0 errors required)");
+  console.log("  3. Add to MANAGED_SKILLS in src/setup.ts (alphabetical order)");
   console.log('  4. Add a row to MANUAL.md in the appropriate section and the "All Skills" table');
-  console.log('  5. bun test && bun run typecheck — verify nothing broke');
+  console.log("  5. bun test && bun run typecheck — verify nothing broke");
 }
 
 main();

@@ -23,8 +23,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { HooksBlock } from "../schemas/hooks.ts";
 import type { Hook, HookGroup } from "../schemas/hooks.ts";
+import { HooksBlock } from "../schemas/hooks.ts";
 
 export type Severity = "trusted" | "unknown" | "suspicious";
 

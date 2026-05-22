@@ -124,7 +124,7 @@ async function main(): Promise<void> {
   if (!excerpt) return;
 
   const judgment = await askHaiku(excerpt, counter.count);
-  if (!judgment || !judgment.verdict) return;
+  if (!judgment?.verdict) return;
   if (state.lastReason === judgment.reason) return;
 
   await writeState("parallelmax-judge.json", { lastFiredAt: now, lastReason: judgment.reason });

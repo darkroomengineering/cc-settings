@@ -6,11 +6,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  HOOKS_SCHEMA_VALIDATION_FAILED,
   auditHooks,
   auditSettingsFile,
   classify,
   formatAuditReport,
+  HOOKS_SCHEMA_VALIDATION_FAILED,
   hasSuspicious,
   hasUnknown,
 } from "../src/lib/audit-hooks.ts";
@@ -21,7 +21,9 @@ describe("classify — trusted patterns", () => {
     expect(r.severity).toBe("trusted");
   });
 
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${HOME} expansion is exactly the Bash form under test
   test("braced ${HOME} bun command", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${HOME} expansion is exactly the Bash form under test
     const r = classify('bun "${HOME}/.claude/src/scripts/handoff.ts" create');
     expect(r.severity).toBe("trusted");
   });
@@ -345,7 +347,11 @@ describe("auditSettingsFile — schema validation finding", () => {
         JSON.stringify({
           hooks: {
             SessionStart: [
-              { hooks: [{ type: "command", command: 'bun "$HOME/.claude/src/hooks/verify-hooks.ts"' }] },
+              {
+                hooks: [
+                  { type: "command", command: 'bun "$HOME/.claude/src/hooks/verify-hooks.ts"' },
+                ],
+              },
             ],
           },
         }),

@@ -3,6 +3,7 @@
 // and asserts on the result — no file I/O needed.
 
 import { describe, expect, test } from "bun:test";
+import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 import {
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
@@ -12,7 +13,6 @@ import {
   statusLineStrategy,
   userWinsScalarStrategy,
 } from "../src/lib/settings-merge.ts";
-import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 
 function makeCtx(opts: MergeOptions = {}): StrategyContext {
   const accounting: MergeAccounting = {
@@ -138,7 +138,9 @@ describe("hooksStrategy", () => {
   test("team hook groups survive (they're not user-only)", async () => {
     const ctx = makeCtx();
     const team = {
-      SessionStart: [{ hooks: [{ type: "command", command: `bun "$HOME/.claude/src/hooks/start.ts"` }] }],
+      SessionStart: [
+        { hooks: [{ type: "command", command: `bun "$HOME/.claude/src/hooks/start.ts"` }] },
+      ],
     };
     const user = {};
     const result = await hooksStrategy(team, user, ctx);

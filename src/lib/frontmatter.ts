@@ -1,4 +1,4 @@
-import { parse as parseYaml, parseDocument } from "yaml";
+import { parseDocument, parse as parseYaml } from "yaml";
 
 export const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
 

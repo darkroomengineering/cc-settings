@@ -58,7 +58,11 @@ export interface StrategyContext {
  */
 export type StrategyResult = { keep: false } | { keep: true; value: unknown };
 
-export type Strategy = (team: unknown, user: unknown, ctx: StrategyContext) => Promise<StrategyResult>;
+export type Strategy = (
+  team: unknown,
+  user: unknown,
+  ctx: StrategyContext,
+) => Promise<StrategyResult>;
 
 // --- Strategy helpers (shared) -------------------------------------------
 
@@ -189,7 +193,9 @@ export const permissionsStrategy: Strategy = async (team, user, ctx) => {
 // the bash → TypeScript migration (cc-settings v10.0.0, April 2026) deleted
 // that directory wholesale; replacements live under `~/.claude/src/scripts/`
 // or `~/.claude/src/hooks/` and are invoked via `bun ...`.
-export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [/[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/];
+export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
+  /[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/,
+];
 
 export function commandIsDeprecated(value: unknown): boolean {
   if (typeof value !== "string") return false;

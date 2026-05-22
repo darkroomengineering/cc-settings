@@ -25,7 +25,8 @@ name: foo
     const result = parseFrontmatterStrict(md);
     expect(result.data).toBeNull();
     expect(result.errors.length).toBeGreaterThan(0);
-    const err = result.errors[0]!;
+    const err = result.errors[0];
+    if (!err) throw new Error("expected at least one error");
     expect(err.message).toBeTruthy();
     expect(err.code).toBeTruthy();
     expect(typeof err.line).toBe("number");

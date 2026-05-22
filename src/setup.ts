@@ -39,9 +39,6 @@ import {
   type McpParseError,
   readJsonOrNull,
 } from "./lib/mcp.ts";
-import { mergeSettingsWithMcpPreservation } from "./lib/settings-merge.ts";
-import { gatherStatus } from "./lib/status.ts";
-import type { StatusData } from "./lib/status-types.ts";
 import {
   detectPackageManagers,
   ensurePythonPackage,
@@ -49,7 +46,10 @@ import {
   getInstallHint,
 } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
+import { mergeSettingsWithMcpPreservation } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
+import { gatherStatus } from "./lib/status.ts";
+import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 
 const VERSION = "11.3.0"; // thermonuclear cleanup: skills 37→26, oracle→explore, mcp.ts split, +unit tests, rules de-drift, README tighten
@@ -169,7 +169,9 @@ async function createBackup(): Promise<void> {
   const kept = (await readdir(backupDir)).filter((e) => /^backup-.*\.tar\.gz$/.test(e)).sort();
   if (kept.length > 5) {
     await Promise.all(
-      kept.slice(0, kept.length - 5).map((old) => rm(join(backupDir, old), { force: true }).catch(() => {})),
+      kept
+        .slice(0, kept.length - 5)
+        .map((old) => rm(join(backupDir, old), { force: true }).catch(() => {})),
     );
   }
 }
