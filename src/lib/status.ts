@@ -10,6 +10,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
 import { CLAUDE_JSON_PATH, readJsonOrNull } from "./mcp.ts";
 import type {
   EnvVarEntry,
@@ -21,6 +22,17 @@ import type {
   StatusData,
   VersionSentinelData,
 } from "./status-types.ts";
+
+// Zod schema for the version sentinel file (~/.claude/.cc-settings-version).
+// passthrough() allows future fields added by newer installers without breaking
+// reads. Kept here (module level) rather than inside gatherStatus so it is
+// defined once regardless of how often gatherStatus is called.
+export const VersionSentinel = z
+  .object({
+    version: z.string().optional(),
+    installed_at: z.string().optional(),
+  })
+  .passthrough();
 
 // The env vars that CLAUDE-FULL.md promises are always set after install.
 export const EXPECTED_ENV_VARS = [
@@ -133,22 +145,28 @@ export async function gatherStatus(
   packagedVersion: string,
 ): Promise<StatusData> {
   // --- Sentinel ---
-  interface RawSentinel {
-    version?: string;
-    installed_at?: string;
-  }
   const sentinelPath = join(claudeDir, ".cc-settings-version");
-  let sentinelRaw: RawSentinel | null = null;
+  let sentinelVersion: string | null = null;
+  let sentinelInstalledAt: string | null = null;
   if (existsSync(sentinelPath)) {
     try {
-      sentinelRaw = JSON.parse(await readFile(sentinelPath, "utf8")) as RawSentinel;
+      const parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
+      const result = VersionSentinel.safeParse(parsed);
+      if (result.success) {
+        sentinelVersion = result.data.version ?? null;
+        sentinelInstalledAt = result.data.installed_at ?? null;
+      }
+      // On validation failure, sentinelVersion / sentinelInstalledAt stay null
+      // (treated as absent). The sentinel file has only 3 known fields and
+      // is written by writeVersionSentinel() in setup.ts, so a schema failure
+      // means the file is corrupt or tampered — falling back to null is safe.
     } catch {
-      // malformed — treat as absent
+      // JSON.parse threw — malformed file, treat as absent
     }
   }
   const sentinel: VersionSentinelData = {
-    version: sentinelRaw?.version ?? null,
-    installedAt: sentinelRaw?.installed_at ?? null,
+    version: sentinelVersion,
+    installedAt: sentinelInstalledAt,
   };
 
   // --- Git drift ---

@@ -3,11 +3,15 @@
 // and asserts on the result — no file I/O needed.
 
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 import {
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
   hooksStrategy,
+  mergeSettingsWithMcpPreservation,
   permissionsStrategy,
   pruneDeprecatedHooks,
   statusLineStrategy,
@@ -297,5 +301,120 @@ describe("userWinsScalarStrategy", () => {
     if (!result.keep) return;
     expect(result.value).toBe("dark");
     expect(ctx.accounting.scalarsAdopted).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mergeSettingsWithMcpPreservation — safeParse validation of userRaw/teamRaw
+// ---------------------------------------------------------------------------
+//
+// These tests verify the forward-compat safety: when userRaw or teamRaw
+// contains keys unknown to the Settings schema (e.g. a new Claude Code
+// version added a field), the merger logs a debug message and proceeds with
+// the raw objects rather than aborting.
+
+async function makeTmpDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), "cc-merge-test-"));
+}
+async function cleanup(dir: string): Promise<void> {
+  await rm(dir, { recursive: true, force: true });
+}
+
+describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
+  test("valid user + team settings → merges without error", async () => {
+    const dir = await makeTmpDir();
+    try {
+      const team = { env: { CLAUDE_CODE_EFFORT_LEVEL: "xhigh" }, model: "claude-opus-4-5" };
+      const user = { env: { MY_FLAG: "1" }, model: "claude-sonnet-4-5" };
+      const teamPath = join(dir, "team.json");
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(teamPath, JSON.stringify(team));
+      await writeFile(userPath, JSON.stringify(user));
+
+      await expect(
+        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+      ).resolves.toBeUndefined();
+
+      const merged = JSON.parse(await Bun.file(outPath).text());
+      // user model wins
+      expect(merged.model).toBe("claude-sonnet-4-5");
+      // env is unioned (user wins on conflict)
+      expect(merged.env.MY_FLAG).toBe("1");
+      expect(merged.env.CLAUDE_CODE_EFFORT_LEVEL).toBe("xhigh");
+    } finally {
+      await cleanup(dir);
+    }
+  });
+
+  test("userRaw with unknown key (schema validation failure) → merger proceeds, output written", async () => {
+    // Simulates a newer Claude Code version adding a settings key not yet in
+    // the Settings schema. The safeParse validation logs debug + proceeds.
+    const dir = await makeTmpDir();
+    try {
+      const team = { model: "claude-opus-4-5" };
+      // unknownFutureKey is not in the Settings schema (it uses .strict())
+      const user = { model: "claude-sonnet-4-5", unknownFutureKey: "value-from-new-cc" };
+      const teamPath = join(dir, "team.json");
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(teamPath, JSON.stringify(team));
+      await writeFile(userPath, JSON.stringify(user));
+
+      // Must not throw — forward-compat safety
+      await expect(
+        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+      ).resolves.toBeUndefined();
+
+      // The unknown key should be preserved in the output (user wins via
+      // userWinsScalarStrategy fallback)
+      const merged = JSON.parse(await Bun.file(outPath).text());
+      expect(merged.unknownFutureKey).toBe("value-from-new-cc");
+    } finally {
+      await cleanup(dir);
+    }
+  });
+
+  test("teamRaw with unknown key → merger proceeds, output written", async () => {
+    const dir = await makeTmpDir();
+    try {
+      const team = { model: "claude-opus-4-5", teamNewFeature: "enabled" };
+      const user = { model: "claude-sonnet-4-5" };
+      const teamPath = join(dir, "team.json");
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(teamPath, JSON.stringify(team));
+      await writeFile(userPath, JSON.stringify(user));
+
+      await expect(
+        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+      ).resolves.toBeUndefined();
+
+      // teamNewFeature should be present (user has no value → team wins)
+      const merged = JSON.parse(await Bun.file(outPath).text());
+      expect(merged.teamNewFeature).toBe("enabled");
+    } finally {
+      await cleanup(dir);
+    }
+  });
+
+  test("missing user settings file → writes team settings as-is", async () => {
+    const dir = await makeTmpDir();
+    try {
+      const team = { model: "claude-opus-4-5", env: { CLAUDE_CODE_EFFORT_LEVEL: "xhigh" } };
+      const teamPath = join(dir, "team.json");
+      const userPath = join(dir, "user.json"); // does not exist
+      const outPath = join(dir, "out.json");
+      await writeFile(teamPath, JSON.stringify(team));
+
+      await expect(
+        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+      ).resolves.toBeUndefined();
+
+      const out = JSON.parse(await Bun.file(outPath).text());
+      expect(out.model).toBe("claude-opus-4-5");
+    } finally {
+      await cleanup(dir);
+    }
   });
 });

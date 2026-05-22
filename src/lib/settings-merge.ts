@@ -9,6 +9,7 @@
 
 import type { z } from "zod";
 import type { McpServers as McpServersSchema } from "../schemas/mcp.ts";
+import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
 import {
   atomicWriteJson,
@@ -386,6 +387,26 @@ export async function mergeSettingsWithMcpPreservation(
   if (!userRaw) {
     await atomicWriteJson(outputPath, teamRaw);
     return;
+  }
+
+  // Validate userRaw and teamRaw against the Settings schema. On failure we
+  // log a debug message and proceed with the raw objects — forward-compat
+  // safety: a new Claude Code settings key not yet in the schema must not
+  // block the merger. This mirrors the pattern in readMcpFromSettings
+  // (src/lib/mcp.ts) which returns {} + debug-logs on schema failure.
+  const teamValidation = Settings.safeParse(teamRaw);
+  if (!teamValidation.success) {
+    const issues = teamValidation.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    debug(`Team settings.json failed schema validation (proceeding with raw): ${issues}`);
+  }
+  const userValidation = Settings.safeParse(userRaw);
+  if (!userValidation.success) {
+    const issues = userValidation.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    debug(`User settings.json failed schema validation (proceeding with raw): ${issues}`);
   }
 
   // mcpServers needs the preservation prompt to run BEFORE the per-key loop —

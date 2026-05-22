@@ -150,6 +150,92 @@ describe("gatherStatus", () => {
     }
   });
 
+  // --- safeParse validation boundary tests ---
+
+  test("sentinel with extra unknown fields → still reads version (passthrough schema)", async () => {
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    try {
+      // The VersionSentinel schema uses .passthrough() so unknown keys are
+      // allowed and the known fields are still extracted correctly.
+      await writeFile(
+        join(claude, ".cc-settings-version"),
+        JSON.stringify({
+          version: "11.1.0",
+          installed_at: "2026-05-01T00:00:00Z",
+          future_field: "some-new-value",
+        }),
+      );
+      const data = await gatherStatus(src, claude, "11.2.1");
+      expect(data.sentinel.version).toBe("11.1.0");
+      expect(data.sentinel.installedAt).toBe("2026-05-01T00:00:00Z");
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+    }
+  });
+
+  test("sentinel with version as non-string → version is null (schema validation failure)", async () => {
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    try {
+      // version should be a string; passing a number causes schema failure.
+      // On failure, sentinelVersion stays null (treated as absent).
+      await writeFile(
+        join(claude, ".cc-settings-version"),
+        JSON.stringify({ version: 1234, installed_at: "2026-05-01T00:00:00Z" }),
+      );
+      const data = await gatherStatus(src, claude, "11.2.1");
+      expect(data.sentinel.version).toBeNull();
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+    }
+  });
+
+  test("sentinel with valid version but missing installed_at → installedAt is null", async () => {
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    try {
+      await writeFile(
+        join(claude, ".cc-settings-version"),
+        JSON.stringify({ version: "11.2.0" }), // no installed_at
+      );
+      const data = await gatherStatus(src, claude, "11.2.1");
+      expect(data.sentinel.version).toBe("11.2.0");
+      expect(data.sentinel.installedAt).toBeNull();
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+    }
+  });
+
+  test("settings.json with unknown keys → hooks/env/permissions still read correctly", async () => {
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    try {
+      // readJsonOrNull returns the raw object; status.ts reads fields directly
+      // without schema validation (by design — it just accesses known fields).
+      const settings = {
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo hi" }] }],
+        },
+        env: { CLAUDE_CODE_EFFORT_LEVEL: "xhigh" },
+        permissions: { allow: ["Bash(*)", "Read(*)"], deny: [] },
+        unknownFutureKey: "should not break anything",
+      };
+      await writeFile(join(claude, "settings.json"), JSON.stringify(settings, null, 2));
+      const data = await gatherStatus(src, claude, "11.2.1");
+      expect(data.hooks.events).toContain("SessionStart");
+      expect(data.hooks.groupCount).toBe(1);
+      expect(data.permissions.allowCount).toBe(2);
+      expect(data.permissions.denyCount).toBe(0);
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+    }
+  });
+
   test("settings.json with hooks → hooks.events and groupCount populated", async () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();

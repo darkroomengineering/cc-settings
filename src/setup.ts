@@ -22,6 +22,7 @@ import {
   boxEnd,
   boxLine,
   boxStart,
+  debug,
   error,
   info,
   palette,
@@ -51,6 +52,7 @@ import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.
 import { gatherStatus } from "./lib/status.ts";
 import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
+import { Settings } from "./schemas/settings.ts";
 
 const VERSION = "11.3.0"; // thermonuclear cleanup: skills 37→26, oracle→explore, mcp.ts split, +unit tests, rules de-drift, README tighten
 const CLAUDE_DIR = join(homedir(), ".claude");
@@ -371,7 +373,20 @@ async function installSettings(source: string, interactive: boolean): Promise<vo
     // add custom hooks. See SECURITY.md.
     try {
       const mergedText = await Bun.file(userSettingsPath).text();
-      const mergedSettings = JSON.parse(mergedText);
+      const mergedParsed = JSON.parse(mergedText);
+      // Validate the merged result against Settings before hashing its hooks
+      // block. Use safeParse + forward-compat fallback: if a new Claude Code
+      // version added a key the schema doesn't know yet, we still fingerprint
+      // the raw object so the hook-integrity check isn't silently skipped.
+      // A strict-parse failure here is non-fatal — the fingerprint is best-effort.
+      const validated = Settings.safeParse(mergedParsed);
+      const mergedSettings = validated.success ? validated.data : mergedParsed;
+      if (!validated.success) {
+        const issues = validated.error.issues
+          .map((i) => `${i.path.join(".")}: ${i.message}`)
+          .join("; ");
+        debug(`settings.json failed schema validation after merge (fingerprinting raw): ${issues}`);
+      }
       await writeHooksFingerprint(mergedSettings, CLAUDE_DIR);
     } catch {
       // Fingerprint write is best-effort. A failed write means verify-hooks.ts
