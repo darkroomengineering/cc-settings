@@ -42,10 +42,9 @@ async function loadManifest(): Promise<Manifest> {
 }
 
 // Enumerate the top-level keys from the Settings schema. zod 4 exposes the
-// object shape at runtime via `.shape` on ZodObject.
+// object shape at runtime via `.shape` on ZodObject — no cast needed.
 function settingsKeysFromSchema(): string[] {
-  const shape = (Settings as unknown as { shape: Record<string, unknown> }).shape;
-  return Object.keys(shape).sort();
+  return Object.keys(Settings.shape).sort();
 }
 
 function hookEventsFromSchema(): string[] {

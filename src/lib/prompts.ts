@@ -1,9 +1,11 @@
 // Interactive prompts — port of lib/prompts.sh.
 //
-// Wraps @inquirer/prompts so callers don't import it directly. Falls back to
-// defaults when stdin isn't a TTY (CI, piped input).
+// Wraps @inquirer/confirm so callers don't import it directly. Falls back to
+// defaults when stdin isn't a TTY (CI, piped input). We use the standalone
+// @inquirer/confirm subpackage rather than @inquirer/prompts because we only
+// need yes/no.
 
-import { confirm } from "@inquirer/prompts";
+import confirm from "@inquirer/confirm";
 
 export function isInteractive(): boolean {
   return process.stdin.isTTY === true;
