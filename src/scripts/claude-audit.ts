@@ -8,6 +8,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { pad } from "../lib/platform.ts";
 
 const LOG_DIR = join(homedir(), ".claude", "logs");
 
@@ -266,7 +267,6 @@ function analyze(label: string, files: string[]): void {
 // --- Main -----------------------------------------------------------------
 
 function ymd(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 

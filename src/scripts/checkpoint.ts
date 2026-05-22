@@ -7,11 +7,12 @@
 //
 // Usage: checkpoint.ts <save|list|show|restore|clean> [args]
 
-import { existsSync, lstatSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
-import { mkdir, readlink, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { mkdir, readdir, readlink, symlink, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { palette } from "../lib/colors.ts";
+import { runGitFull } from "../lib/git.ts";
 import { pad } from "../lib/platform.ts";
 
 async function getProjectName(): Promise<string> {
@@ -22,12 +23,6 @@ async function getProjectName(): Promise<string> {
   const out = (await new Response(proc.stdout).text()).trim();
   if ((await proc.exited) === 0 && out) return basename(out);
   return basename(process.cwd());
-}
-
-async function runGit(args: string[]): Promise<{ exit: number; stdout: string }> {
-  const proc = Bun.spawn(["git", ...args], { stdout: "pipe", stderr: "ignore" });
-  const stdout = (await new Response(proc.stdout).text()).trim();
-  return { exit: await proc.exited, stdout };
 }
 
 function checkpointId(d: Date = new Date()): string {
@@ -58,10 +53,10 @@ async function cmdSave(description = "Checkpoint"): Promise<void> {
   const id = checkpointId();
   const file = join(checkpointDir, `${id}.json`);
   const [branchRes, shaRes, diffRes, filesRes] = await Promise.all([
-    runGit(["branch", "--show-current"]),
-    runGit(["rev-parse", "--short", "HEAD"]),
-    runGit(["diff", "--quiet"]),
-    runGit(["diff", "--name-only", "HEAD"]),
+    runGitFull(["branch", "--show-current"]),
+    runGitFull(["rev-parse", "--short", "HEAD"]),
+    runGitFull(["diff", "--quiet"]),
+    runGitFull(["diff", "--name-only", "HEAD"]),
   ]);
   const chk: Checkpoint = {
     id,
@@ -69,10 +64,12 @@ async function cmdSave(description = "Checkpoint"): Promise<void> {
     project,
     description,
     git: {
-      branch: branchRes.stdout || "unknown",
-      sha: shaRes.stdout || "unknown",
+      branch: branchRes.stdout.trim() || "unknown",
+      sha: shaRes.stdout.trim() || "unknown",
       dirty: diffRes.exit !== 0,
-      modifiedFiles: filesRes.stdout ? filesRes.stdout.split("\n").filter(Boolean) : [],
+      modifiedFiles: filesRes.stdout.trim()
+        ? filesRes.stdout.trim().split("\n").filter(Boolean)
+        : [],
     },
   };
   await writeFile(file, `${JSON.stringify(chk, null, 2)}\n`);
@@ -94,9 +91,7 @@ async function cmdList(): Promise<void> {
   await ensureDir(checkpointDir);
   let entries: string[];
   try {
-    entries = readdirSync(checkpointDir)
-      .filter((e) => e.endsWith(".json"))
-      .sort();
+    entries = (await readdir(checkpointDir)).filter((e) => e.endsWith(".json")).sort();
   } catch {
     entries = [];
   }
@@ -170,11 +165,11 @@ async function cmdRestore(target: string): Promise<number> {
   console.log(`${palette.blue}Branch:${palette.reset} ${chk.git.branch} @ ${chk.git.sha}`);
   console.log("");
   const [curBranchRes, curShaRes] = await Promise.all([
-    runGit(["branch", "--show-current"]),
-    runGit(["rev-parse", "--short", "HEAD"]),
+    runGitFull(["branch", "--show-current"]),
+    runGitFull(["rev-parse", "--short", "HEAD"]),
   ]);
-  const curBranch = curBranchRes.stdout || "unknown";
-  const curSha = curShaRes.stdout || "unknown";
+  const curBranch = curBranchRes.stdout.trim() || "unknown";
+  const curSha = curShaRes.stdout.trim() || "unknown";
   if (curBranch !== chk.git.branch) {
     console.log(
       `${palette.yellow}WARNING: Current branch (${curBranch}) differs from checkpoint (${chk.git.branch})${palette.reset}`,
@@ -200,7 +195,7 @@ async function cmdClean(keepStr: string): Promise<void> {
   await ensureDir(checkpointDir);
   let entries: Array<{ file: string; mtime: number }>;
   try {
-    entries = readdirSync(checkpointDir)
+    entries = (await readdir(checkpointDir))
       .filter((e) => e.endsWith(".json"))
       .map((e) => {
         const full = join(checkpointDir, e);
@@ -222,7 +217,7 @@ async function cmdClean(keepStr: string): Promise<void> {
   );
   for (const e of toDelete) {
     try {
-      unlinkSync(e.file);
+      await unlink(e.file);
     } catch {
       // ignore
     }
@@ -261,6 +256,3 @@ switch (cmd) {
   default:
     usage();
 }
-
-// Suppress unused-import diagnostic for `stat` (reserved for future schema check).
-void stat;

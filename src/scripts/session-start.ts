@@ -5,8 +5,6 @@
 // Hook contract: no stdin shape required, no arguments. Output goes to stdout
 // for Claude Code to show; side effects touch ~/.claude/{sessions.log,
 // handoffs,tldr-cache,tmp}.
-//
-// Phase 3 will replace the inlined hooks-config.json read with src/lib/hook-config.ts.
 
 import { existsSync } from "node:fs";
 import {

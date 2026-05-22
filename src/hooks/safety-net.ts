@@ -93,6 +93,22 @@ function extractRmTarget(args: string): string {
   return result;
 }
 
+// Six literal forms of "the user's home dir" that rm -rf must reject. Used
+// both for the explicit BLOCK list (equality) and the ALLOW list (startsWith).
+// biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
+const HOME_PATH_PREFIXES = ["$HOME", "${HOME}"] as const;
+
+function isExactHomePath(target: string): boolean {
+  for (const p of HOME_PATH_PREFIXES) {
+    if (target === p || target === `${p}/` || target === `${p}/*`) return true;
+  }
+  return false;
+}
+
+function startsWithHomePath(target: string): boolean {
+  return HOME_PATH_PREFIXES.some((p) => target.startsWith(p));
+}
+
 function checkRmRf(cmd: string): void {
   if (!/(^|\s)rm\s/.test(cmd)) return;
 
@@ -118,17 +134,7 @@ function checkRmRf(cmd: string): void {
     block("rm -rf targeting home directory", cmd);
   if (target === "." || target === "./") block("rm -rf targeting current directory", cmd);
   if (target === ".." || target === "../") block("rm -rf targeting parent directory", cmd);
-  if (
-    target === "$HOME" ||
-    target === "$HOME/" ||
-    target === "$HOME/*" ||
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
-    target === "${HOME}" ||
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
-    target === "${HOME}/" ||
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
-    target === "${HOME}/*"
-  ) {
+  if (isExactHomePath(target)) {
     block("rm -rf targeting home directory", cmd);
   }
 
@@ -158,9 +164,7 @@ function checkRmRf(cmd: string): void {
   if (
     !target.startsWith("/") &&
     !target.startsWith("~") &&
-    !target.startsWith("$HOME") &&
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: bash var string
-    !target.startsWith("${HOME}") &&
+    !startsWithHomePath(target) &&
     target !== "." &&
     target !== "./" &&
     target !== ".." &&
@@ -200,28 +204,22 @@ function checkAiAttribution(cmd: string): void {
 
 // --- Rule: git destructive ops --------------------------------------------
 
+const GIT_GLOBAL_OPT_PATTERNS = [
+  /^-[Cc]\s+\S+\s*/, // -C <path>
+  /^--(git-dir|work-tree)=\S+\s*/, // --git-dir=<path> / --work-tree=<path>
+  /^--(git-dir|work-tree)\s+\S+\s*/, // --git-dir <path> / --work-tree <path>
+  /^(--bare|--no-pager|--no-replace-objects)\s*/, // boolean flags
+];
+
 function stripGitGlobalOpts(rest: string): string {
   let r = rest;
-  while (true) {
-    const m1 = r.match(/^-[Cc]\s+\S+\s*/);
-    if (m1) {
-      r = r.slice(m1[0].length);
-      continue;
-    }
-    const m2 = r.match(/^--(git-dir|work-tree)=\S+\s*/);
-    if (m2) {
-      r = r.slice(m2[0].length);
-      continue;
-    }
-    const m3 = r.match(/^--(git-dir|work-tree)\s+\S+\s*/);
-    if (m3) {
-      r = r.slice(m3[0].length);
-      continue;
-    }
-    const m4 = r.match(/^(--bare|--no-pager|--no-replace-objects)\s*/);
-    if (m4) {
-      r = r.slice(m4[0].length);
-      continue;
+  outer: while (r.length > 0) {
+    for (const pat of GIT_GLOBAL_OPT_PATTERNS) {
+      const m = r.match(pat);
+      if (m) {
+        r = r.slice(m[0].length);
+        continue outer;
+      }
     }
     break;
   }

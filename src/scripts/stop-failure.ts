@@ -8,6 +8,7 @@ import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readStdin } from "../lib/io.ts";
+import { pad } from "../lib/platform.ts";
 
 const LOG_FILE = join(homedir(), ".claude", "api-failures.log");
 
@@ -20,7 +21,6 @@ type StopFailureInput = {
 
 function formatTimestamp(d: Date): string {
   // Bash parity: `date '+%Y-%m-%d %H:%M:%S'` — local time, space separator.
-  const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
