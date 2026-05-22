@@ -9,9 +9,8 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse as parseYaml } from "yaml";
 import { SkillFrontmatter } from "../schemas/skill.ts";
-import { extractFrontmatterBlock } from "./frontmatter.ts";
+import { extractFrontmatterBlock, parseFrontmatterStrict } from "./frontmatter.ts";
 
 export type Severity = "error" | "warning";
 
@@ -115,16 +114,16 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
     });
   }
 
-  let parsed: unknown;
-  try {
-    parsed = parseYaml(block);
-  } catch (err) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "yaml-parse",
-      message: `YAML parse failed: ${err instanceof Error ? err.message : String(err)}`,
-    });
+  const { data: parsed, errors: yamlErrors } = parseFrontmatterStrict(text);
+  if (yamlErrors.length > 0) {
+    for (const e of yamlErrors) {
+      findings.push({
+        skill: name,
+        severity: "error",
+        rule: "yaml-parse",
+        message: `${e.code ?? "YAML"} at line ${e.line ?? "?"}, col ${e.col ?? "?"}: ${e.message}`,
+      });
+    }
     return findings;
   }
 

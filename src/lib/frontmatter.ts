@@ -1,4 +1,4 @@
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, parseDocument } from "yaml";
 
 export const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
 
@@ -15,4 +15,35 @@ export function parseFrontmatter(md: string): unknown {
   } catch {
     return null;
   }
+}
+
+export interface FrontmatterParseError {
+  message: string;
+  code?: string;
+  line?: number;
+  col?: number;
+}
+
+export interface FrontmatterParseResult {
+  data: unknown; // null if no frontmatter or all-error
+  errors: FrontmatterParseError[];
+}
+
+/**
+ * Parse YAML frontmatter and report structured errors (line/col/code) when
+ * available. Use this when you want to surface actionable error info to a
+ * skill/agent author. For loose use (just want the parsed object or null),
+ * `parseFrontmatter` is still fine.
+ */
+export function parseFrontmatterStrict(md: string): FrontmatterParseResult {
+  const block = extractFrontmatterBlock(md);
+  if (block === null) return { data: null, errors: [] };
+  const doc = parseDocument(block);
+  const errors: FrontmatterParseError[] = doc.errors.map((e) => ({
+    message: e.message,
+    code: e.code,
+    line: e.linePos?.[0]?.line,
+    col: e.linePos?.[0]?.col,
+  }));
+  return { data: doc.errors.length ? null : doc.toJS(), errors };
 }

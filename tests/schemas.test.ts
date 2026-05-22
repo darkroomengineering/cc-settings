@@ -5,25 +5,14 @@
 import { describe, expect, test } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
 import { composeSettings } from "../src/lib/compose-settings.ts";
+import { parseFrontmatter } from "../src/lib/frontmatter.ts";
 import { HooksConfig } from "../src/schemas/hooks-config.ts";
 import { Settings } from "../src/schemas/settings.ts";
 import { SkillFrontmatter } from "../src/schemas/skill.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
-
-// Real YAML parser (Phase 3 upgrade). Returns the parsed frontmatter object
-// or null if no frontmatter block is present.
-function parseFrontmatter(md: string): Record<string, unknown> | null {
-  const match = md.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return null;
-  const body = match[1] ?? "";
-  const parsed = parseYaml(body) as unknown;
-  if (parsed === null || typeof parsed !== "object") return null;
-  return parsed as Record<string, unknown>;
-}
 
 function formatZodError(err: z.ZodError): string {
   return err.issues.map((i) => `  ${i.path.join(".") || "<root>"}: ${i.message}`).join("\n");
