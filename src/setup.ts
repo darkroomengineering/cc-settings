@@ -54,7 +54,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.3.0"; // thermonuclear cleanup: skills 37→26, oracle→explore, mcp.ts split, +unit tests, rules de-drift, README tighten
+const VERSION = "11.3.1"; // dep review (inquirer/yaml/zod), safeParse boundaries (setup/settings-merge/status), CC sync 2.1.148, lint sweep
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -4,6 +4,49 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.3.1] — 2026-05-22
+
+### refactor: dependency review + safeParse boundary closure + upstream sync 2.1.148
+
+Post-11.3.0 cleanup pass driven by a context7 audit of every runtime dependency.
+
+**Dependency review (`@inquirer/prompts`, `yaml`, `zod`)**
+
+- `@inquirer/prompts` ^8.4.2 → `@inquirer/confirm` ^6.0.13. We only ever used `confirm`; the standalone subpackage has a smaller install footprint with no API change beyond the default-import form.
+- `yaml`: 3 call sites collapsed through the canonical `src/lib/frontmatter.ts:parseFrontmatter`. New `parseFrontmatterStrict` uses `parseDocument` so the skill linter now reports YAML errors with line, column, and zod error code — e.g. `"BLOCK_AS_IMPLICIT_KEY at line 3, col 14: Nested mappings are not allowed in compact mappings"` instead of a bare message.
+- `zod`: dropped the `(Settings as unknown as { shape: ... }).shape` cast in `src/upstream/scan.ts` — zod 4 types `.shape` publicly, no cast needed.
+
+**safeParse at JSON-deserialize boundaries (two commits)**
+
+`~/.claude/settings.json` and `~/.claude.json` are user-controlled. Hot read paths previously cast `JSON.parse(...)` as the expected type without validation. Closed the gap at five sites:
+
+- `src/lib/mcp.ts` — `readMcpFromSettings` validates via `McpServers.safeParse`; logs debug + returns `{}` on failure. `installMcpToClaudeJson` validates team + current reads; logs debug and preserves raw on failure to avoid data loss on forward-compat drift (design choice documented inline).
+- `src/lib/audit-hooks.ts` — `auditSettingsFile` validates the hooks block against `HooksBlock`; schema mismatch surfaces as an audit finding (severity `unknown`) instead of crashing the audit.
+- `src/setup.ts` — `installSettings` validates via `Settings.safeParse`; fingerprint best-effort on schema failure (forward-compat).
+- `src/lib/settings-merge.ts` — `mergeSettingsWithMcpPreservation` validates `userRaw` and `teamRaw` at the top; on schema failure logs debug and proceeds with the raw object.
+- `src/lib/status.ts` — sentinel file (`.cc-settings-version`) validates against new exported `VersionSentinel` schema; null fields on failure (treat as absent).
+
+zod 4 string parsing is 14.7× faster than zod 3 per the official benchmark, so the perf cost of validation is negligible at these boundaries.
+
+**Upstream sync 2.1.146 → 2.1.148**
+
+Reviewed every change in Claude Code 2.1.147 and 2.1.148:
+
+- 2.1.148: single Bash exit-code-127 regression fix. Inert for cc-settings.
+- 2.1.147: ~35 bug fixes (background sessions, auto-updater, hook `if`-pattern parser, PowerShell, MCP pagination, agent view, slash-command edge cases). Inert.
+- 2.1.147 single breaking rename: `/simplify` → `/code-review` with semantics changed (now reports correctness bugs at chosen effort, no longer the cleanup-and-fix command). References updated in `skills/refactor/SKILL.md`, `skills/zero-tech-debt/SKILL.md`, `MANUAL.md` to point at `/zero-tech-debt` (in-diff tightening niche).
+
+Schema surface: no new settings keys, hook events, env vars, agent contracts, or MCP fields. Upstream scanner reports no drift after the bump.
+
+**Other**
+
+- Lint cluster: `bun run lint` now reports 0 warnings (was 4 pre-existing — `parallelmax-judge` optional chain, two template-literal-in-string warnings, one non-null assertion). Auto-fix swept imports + formatting across 10 files.
+- Stale doc fix: `docs/consolidation-audits/2026-05.md` marks the web-vitals/performance row as superseded by v11.3.0.
+
+**Tests**
+
+303 (pre-11.3.0) → 349 (after 11.3.0 dep work) → 363 (after safeParse extension). +60 across the post-11.3.0 cycle.
+
 ## [11.3.0] — 2026-05-21
 
 ### refactor: thermonuclear cleanup — skills 37→26, oracle→explore, mcp.ts split, +unit tests
