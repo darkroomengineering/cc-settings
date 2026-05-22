@@ -21,6 +21,22 @@ Two findings from the first nuclear-review audit applied in one commit:
 1. **zod v4 idioms.** Two call sites still used `z.string().url()`, deprecated in zod 4 in favor of the top-level `z.url()`. Swapped `src/schemas/mcp.ts:39` and `src/schemas/hooks.ts:68`.
 2. **`pad()` consolidation.** A one-line zero-pad helper was reimplemented in `src/scripts/checkpoint.ts`, `src/scripts/handoff.ts`, and `src/scripts/log-bash.ts`. Lifted from `src/lib/platform.ts` (previously buried as a local inside `getTimestamp`) to a module-level export; the three scripts now import it. Net: −9 LOC across the scripts, single canonical helper.
 
+### refactor: nuclear-review batch 2 — runGit consolidation + pad mop-up + safety-net cleanup
+
+Seven mechanical findings from the second-pass `/nuclear-review`:
+
+1. **`runGitFull` lifted to `src/lib/git.ts`.** New rich-shape variant returns `{ exit, stdout, stderr }` so scripts that need failure inspection or stderr stop rolling their own. Removed the two local copies in `src/scripts/checkpoint.ts` and `src/upstream/scan.ts`. The string-returning `runGit` is unchanged; common-path callers stay simple.
+2. **`pad()` consolidation finished.** Two more inline reimplementations dropped from `src/scripts/stop-failure.ts` and `src/scripts/claude-audit.ts` in favor of the canonical export from `src/lib/platform.ts` (the morning pass caught 3; this pass catches the remaining 2).
+3. **`safety-net.ts checkRmRf`** — six `$HOME` / `${HOME}` literal comparisons collapsed into `HOME_PATH_PREFIXES` + `isExactHomePath` / `startsWithHomePath` helpers, used in both the BLOCK and ALLOW paths.
+4. **`safety-net.ts stripGitGlobalOpts`** — four near-identical regex branches collapsed into a `GIT_GLOBAL_OPT_PATTERNS` array + single loop.
+5. Dropped unused `stat` import from `src/scripts/checkpoint.ts`.
+6. Deleted stale "Phase 3 will replace…" comment from `src/scripts/session-start.ts` — the replacement shipped in v10.x.
+7. Made `cmdList` / `cmdClean` in `checkpoint.ts` async-consistent (`readdir` / `unlink` instead of `*Sync` variants; matches `cmdSave`'s existing pattern).
+
+Deferred (separate concerns): `settings-merge.ts` `<scalar>` placeholder fix needs a judgment call on whether to thread the key through the Strategy registry or stop prompting for unknown-key scalars. `claude-audit.ts` date helpers (`timeToMs`, `fmtDuration`, `ymd`, `weekdayIdx`) stay in-file — single consumer, premature to extract.
+
+No behavior change. Typecheck clean, biome clean, lint:skills clean.
+
 ### refactor: drop readJsonOrNull&lt;T&gt; type-lie
 
 The `<T>` generic on `src/lib/mcp.ts:readJsonOrNull` was a fiction — callers got `T | null` but the value was actually `unknown` dressed as `T` via a cast inside the function. Every meaningful caller did its own pattern-match or safeParse anyway, so the type parameter only obscured the boundary that v11.3.1's safeParse closure work was meant to guard. Dropped the generic; signature is now `(path: string) => Promise<unknown>`. The four meaningful callers (`src/setup.ts`, `src/lib/status.ts` ×2, `src/lib/settings-merge.ts` ×2 already cast) cast at the call site, making the unsafety visible. Closes finding 3 from the nuclear-review audit. No behavior change.
