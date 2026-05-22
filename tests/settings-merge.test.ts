@@ -41,14 +41,14 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
 describe("permissionsStrategy", () => {
   test("both undefined → keep:false", async () => {
     const ctx = makeCtx();
-    const result = await permissionsStrategy(undefined, undefined, ctx);
+    const result = await permissionsStrategy("permissions", undefined, undefined, ctx);
     expect(result.keep).toBe(false);
   });
 
   test("empty user + non-empty team → all team allow rules present", async () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)", "Read(*)"] };
-    const result = await permissionsStrategy(team, {}, ctx);
+    const result = await permissionsStrategy("permissions", team, {}, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
@@ -60,7 +60,7 @@ describe("permissionsStrategy", () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)"] };
     const user = { allow: ["Bash(*)", "Write(*)", "Edit(*)"] };
-    const result = await permissionsStrategy(team, user, ctx);
+    const result = await permissionsStrategy("permissions", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
@@ -74,7 +74,7 @@ describe("permissionsStrategy", () => {
   test("null permissions on both sides → keep:false", async () => {
     const ctx = makeCtx();
     // null coerces to {} — no arrays, no fields
-    const result = await permissionsStrategy(null, null, ctx);
+    const result = await permissionsStrategy("permissions", null, null, ctx);
     // null is treated as present (not undefined), so keep:true with empty-ish object
     expect(result.keep).toBe(true);
   });
@@ -83,7 +83,7 @@ describe("permissionsStrategy", () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)", "Read(*)"] };
     const user = { allow: ["Read(*)", "Edit(*)"] };
-    const result = await permissionsStrategy(team, user, ctx);
+    const result = await permissionsStrategy("permissions", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const allow = (result.value as Record<string, unknown>).allow as string[];
@@ -101,7 +101,7 @@ describe("permissionsStrategy", () => {
 describe("hooksStrategy", () => {
   test("both undefined → keep:false", async () => {
     const ctx = makeCtx();
-    const result = await hooksStrategy(undefined, undefined, ctx);
+    const result = await hooksStrategy("hooks", undefined, undefined, ctx);
     expect(result.keep).toBe(false);
   });
 
@@ -112,7 +112,7 @@ describe("hooksStrategy", () => {
     const user = {
       PostToolUse: [{ hooks: [{ type: "command", command: deprecatedCmd }] }],
     };
-    const result = await hooksStrategy(team, user, ctx);
+    const result = await hooksStrategy("hooks", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
@@ -129,7 +129,7 @@ describe("hooksStrategy", () => {
     const user = {
       PreToolUse: [{ hooks: [{ type: "command", command: validCmd }] }],
     };
-    const result = await hooksStrategy(team, user, ctx);
+    const result = await hooksStrategy("hooks", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
@@ -147,7 +147,7 @@ describe("hooksStrategy", () => {
       ],
     };
     const user = {};
-    const result = await hooksStrategy(team, user, ctx);
+    const result = await hooksStrategy("hooks", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
@@ -185,7 +185,7 @@ describe("pruneDeprecatedHooks", () => {
 describe("statusLineStrategy", () => {
   test("both undefined → keep:false", async () => {
     const ctx = makeCtx();
-    const result = await statusLineStrategy(undefined, undefined, ctx);
+    const result = await statusLineStrategy("statusLine", undefined, undefined, ctx);
     expect(result.keep).toBe(false);
   });
 
@@ -193,7 +193,7 @@ describe("statusLineStrategy", () => {
     const ctx = makeCtx();
     const team = { command: `bun "$HOME/.claude/src/hooks/status-line.ts"` };
     const user = { command: `bun "$HOME/.claude/src/hooks/my-status.ts"` };
-    const result = await statusLineStrategy(team, user, ctx);
+    const result = await statusLineStrategy("statusLine", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     expect(result.value).toEqual(user);
@@ -204,7 +204,7 @@ describe("statusLineStrategy", () => {
     const ctx = makeCtx();
     const team = { command: `bun "$HOME/.claude/src/hooks/status-line.ts"` };
     const user = { command: `/Users/alice/.claude/scripts/status-line.sh` };
-    const result = await statusLineStrategy(team, user, ctx);
+    const result = await statusLineStrategy("statusLine", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     expect(result.value).toEqual(team);
@@ -214,7 +214,7 @@ describe("statusLineStrategy", () => {
   test("user command deprecated and no team value → keep:false", async () => {
     const ctx = makeCtx();
     const user = { command: `/Users/alice/.claude/scripts/status-line.sh` };
-    const result = await statusLineStrategy(undefined, user, ctx);
+    const result = await statusLineStrategy("statusLine", undefined, user, ctx);
     expect(result.keep).toBe(false);
     expect(ctx.accounting.statusLineReset).toBe(true);
   });
@@ -227,7 +227,7 @@ describe("statusLineStrategy", () => {
 describe("envStrategy", () => {
   test("both undefined → keep:false", async () => {
     const ctx = makeCtx();
-    const result = await envStrategy(undefined, undefined, ctx);
+    const result = await envStrategy("env", undefined, undefined, ctx);
     expect(result.keep).toBe(false);
   });
 
@@ -235,7 +235,7 @@ describe("envStrategy", () => {
     const ctx = makeCtx();
     const team = { CLAUDE_CODE_EFFORT_LEVEL: "xhigh", DEBUG: "0" };
     const user = { CLAUDE_CODE_EFFORT_LEVEL: "max" };
-    const result = await envStrategy(team, user, ctx);
+    const result = await envStrategy("env", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
@@ -248,7 +248,7 @@ describe("envStrategy", () => {
     const ctx = makeCtx();
     const team = { SHARED: "1" };
     const user = { MY_CUSTOM: "hello" };
-    const result = await envStrategy(team, user, ctx);
+    const result = await envStrategy("env", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
@@ -265,13 +265,13 @@ describe("envStrategy", () => {
 describe("userWinsScalarStrategy", () => {
   test("both undefined → keep:false", async () => {
     const ctx = makeCtx();
-    const result = await userWinsScalarStrategy(undefined, undefined, ctx);
+    const result = await userWinsScalarStrategy("model", undefined, undefined, ctx);
     expect(result.keep).toBe(false);
   });
 
   test("user value wins over team for scalar key (non-interactive)", async () => {
     const ctx = makeCtx();
-    const result = await userWinsScalarStrategy("light", "dark", ctx);
+    const result = await userWinsScalarStrategy("model", "light", "dark", ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     expect(result.value).toBe("dark"); // user wins
@@ -280,7 +280,7 @@ describe("userWinsScalarStrategy", () => {
 
   test("team-only scalar passes through when user is undefined", async () => {
     const ctx = makeCtx();
-    const result = await userWinsScalarStrategy("xhigh", undefined, ctx);
+    const result = await userWinsScalarStrategy("model", "xhigh", undefined, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     expect(result.value).toBe("xhigh");
@@ -288,7 +288,7 @@ describe("userWinsScalarStrategy", () => {
 
   test("user-only scalar passes through when team is undefined", async () => {
     const ctx = makeCtx();
-    const result = await userWinsScalarStrategy(undefined, "custom-value", ctx);
+    const result = await userWinsScalarStrategy("model", undefined, "custom-value", ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     expect(result.value).toBe("custom-value");
@@ -296,7 +296,7 @@ describe("userWinsScalarStrategy", () => {
 
   test("identical scalar values → user value returned, no accounting", async () => {
     const ctx = makeCtx();
-    const result = await userWinsScalarStrategy("dark", "dark", ctx);
+    const result = await userWinsScalarStrategy("model", "dark", "dark", ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     expect(result.value).toBe("dark");

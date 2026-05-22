@@ -60,6 +60,7 @@ export interface StrategyContext {
 export type StrategyResult = { keep: false } | { keep: true; value: unknown };
 
 export type Strategy = (
+  key: string,
   team: unknown,
   user: unknown,
   ctx: StrategyContext,
@@ -123,7 +124,7 @@ export async function resolveScalarConflict(
 
 // permissions: deep object with array unions (allow/deny/ask/additionalDirectories)
 // + scalar fields (defaultMode/autoMode). deny is always additive (never prompts).
-export const permissionsStrategy: Strategy = async (team, user, ctx) => {
+export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
   const t = (team as UnknownRecord | undefined) ?? {};
   const u = (user as UnknownRecord | undefined) ?? {};
@@ -224,7 +225,7 @@ export function pruneDeprecatedHooks(group: unknown): unknown | null {
 // interactive mode; user-only groups survive UNLESS their command references
 // a script in DEPRECATED_COMMAND_PATTERNS (see v10.3.2). Mixed groups keep
 // their non-deprecated hooks.
-export const hooksStrategy: Strategy = async (team, user, ctx) => {
+export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
   const t = (team as UnknownRecord | undefined) ?? {};
   const u = (user as UnknownRecord | undefined) ?? {};
@@ -277,7 +278,7 @@ export const hooksStrategy: Strategy = async (team, user, ctx) => {
 
 // env: shallow merge, user wins on key conflict (cache flags, debug toggles
 // stick across re-installs). Interactive prompts on each conflict.
-export const envStrategy: Strategy = async (team, user, ctx) => {
+export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
   const t = (team as UnknownRecord | undefined) ?? {};
   const u = (user as UnknownRecord | undefined) ?? {};
@@ -301,7 +302,7 @@ export const envStrategy: Strategy = async (team, user, ctx) => {
 // command points at a removed cc-settings script (see DEPRECATED_COMMAND_PATTERNS),
 // reset to team. Other custom statuslines (pointing at the user's own scripts)
 // are preserved unchanged.
-export const statusLineStrategy: Strategy = async (team, user, ctx) => {
+export const statusLineStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
   const u = user as { command?: unknown } | undefined;
   if (u && commandIsDeprecated(u.command)) {
@@ -317,7 +318,7 @@ export const statusLineStrategy: Strategy = async (team, user, ctx) => {
 // Default fallback for any key not in STRATEGIES. User-wins on values
 // declared in both; team-only and user-only keys pass through. Scalar
 // conflicts can prompt in interactive mode.
-export const userWinsScalarStrategy: Strategy = async (team, user, ctx) => {
+export const userWinsScalarStrategy: Strategy = async (key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
   if (user === undefined) return { keep: true, value: team };
   if (team === undefined) return { keep: true, value: user };
@@ -329,11 +330,9 @@ export const userWinsScalarStrategy: Strategy = async (team, user, ctx) => {
   if (!tIsScalar || !uIsScalar) return { keep: true, value: user };
   if (team === user) return { keep: true, value: user };
 
-  // Scalar conflict: prompt or silent user-wins. We don't know the key here;
-  // pass a placeholder. The strategy registry could be extended to inject the
-  // key, but the prompt's framing ("differs between your settings and team")
-  // doesn't strictly require it.
-  const { value, adopted } = await resolveScalarConflict("<scalar>", team, user, ctx.opts);
+  // Scalar conflict: prompt or silent user-wins. The orchestrator passes the
+  // real key (e.g. "model", "theme") so the interactive prompt can name it.
+  const { value, adopted } = await resolveScalarConflict(key, team, user, ctx.opts);
   if (adopted) ctx.accounting.scalarsAdopted++;
   return { keep: true, value };
 };
@@ -448,7 +447,7 @@ export async function mergeSettingsWithMcpPreservation(
 
   for (const key of allKeys) {
     const strategy = STRATEGIES[key] ?? userWinsScalarStrategy;
-    const result = await strategy(teamRaw[key], userRaw[key], ctx);
+    const result = await strategy(key, teamRaw[key], userRaw[key], ctx);
     if (result.keep) merged[key] = result.value;
   }
 

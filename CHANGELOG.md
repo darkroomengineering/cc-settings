@@ -21,6 +21,14 @@ Two findings from the first nuclear-review audit applied in one commit:
 1. **zod v4 idioms.** Two call sites still used `z.string().url()`, deprecated in zod 4 in favor of the top-level `z.url()`. Swapped `src/schemas/mcp.ts:39` and `src/schemas/hooks.ts:68`.
 2. **`pad()` consolidation.** A one-line zero-pad helper was reimplemented in `src/scripts/checkpoint.ts`, `src/scripts/handoff.ts`, and `src/scripts/log-bash.ts`. Lifted from `src/lib/platform.ts` (previously buried as a local inside `getTimestamp`) to a module-level export; the three scripts now import it. Net: −9 LOC across the scripts, single canonical helper.
 
+### refactor: thread key through Strategy in settings-merge
+
+Closes the last deferred finding from the second-pass `/nuclear-review`. `userWinsScalarStrategy` previously called `resolveScalarConflict` with a literal `"<scalar>"` placeholder because the orchestrator didn't pass the key it was iterating over. Visible to anyone running `setup.sh --interactive` with a top-level scalar conflict on an unknown key — the prompt read "<scalar> differs between your settings and team" instead of e.g. "model differs…".
+
+Threaded `key: string` as the first parameter of the `Strategy` type. The orchestrator at `src/lib/settings-merge.ts:451` now passes the current key. `userWinsScalarStrategy` uses it in the `resolveScalarConflict` call; the other four strategies (`permissions`, `hooks`, `env`, `statusLine`) accept it as `_key` because they label their internal sub-prompts with hardcoded paths like `permissions.${k}` already. 20 test call sites in `tests/settings-merge.test.ts` updated to pass the strategy's registered key (`"permissions"`, `"hooks"`, `"env"`, `"statusLine"`, `"model"` for the generic scalar tests).
+
+No behavior change for non-interactive merges. Interactive merge prompts now name the conflicting key.
+
 ### refactor: nuclear-review batch 2 — runGit consolidation + pad mop-up + safety-net cleanup
 
 Seven mechanical findings from the second-pass `/nuclear-review`:
