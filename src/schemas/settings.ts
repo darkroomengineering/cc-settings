@@ -115,10 +115,14 @@ export const Settings = z
     disableDeepLinkRegistration: z.boolean().optional(), // 2.1.103
     autoScrollEnabled: z.boolean().optional(), // 2.1.102
     autoMemoryDirectory: z.string().optional(), // 2.1.101
+    cleanupPeriodDays: z.number().int().min(1).optional(), // transcript + orphaned-worktree retention; default 30, min 1 (0 rejected upstream)
     channelsEnabled: z.boolean().optional(), // 2.1.128: also gates `--channels` for console (API key) auth in managed-settings orgs
     allowedChannelPlugins: z.array(z.string()).optional(), // 2.1.107 (team/enterprise)
     allowedMcpServers: z.array(z.string()).optional(), // 2.1.112
     deniedMcpServers: z.array(z.string()).optional(), // 2.1.112
+    allowAllClaudeAiMcps: z.boolean().optional(), // 2.1.149 — load claude.ai cloud MCP connectors alongside managed-mcp.json
+    enabledMcpjsonServers: z.array(z.string()).optional(), // allowlist for project .mcp.json server names
+    disabledMcpjsonServers: z.array(z.string()).optional(), // blocklist for project .mcp.json server names
     modelOverrides: ModelOverrides.optional(), // 2.1.105
     feedbackSurveyRate: z.number().optional(), // 2.1.106 (enterprise)
     sandbox: Sandbox.optional(), // 2.1.98–2.1.108 nested

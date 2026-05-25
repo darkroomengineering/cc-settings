@@ -399,6 +399,33 @@ Managed MCP server policy lists (v2.1.112). Patterns are matched against MCP ser
 }
 ```
 
+### `allowAllClaudeAiMcps`
+
+Managed setting (v2.1.149) that loads the claude.ai cloud MCP connectors alongside the locally-configured `managed-mcp.json`. Set `true` when an org wants the full claude.ai-distributed MCP catalogue in addition to its own allow/deny lists.
+
+```json
+{ "allowAllClaudeAiMcps": true }
+```
+
+### `enabledMcpjsonServers` / `disabledMcpjsonServers`
+
+Per-server policy lists for MCP servers declared in project-level `.mcp.json` files. Values are server names (not URL patterns — that's `allowedMcpServers` / `deniedMcpServers`). Use to approve or reject specific entries from a checked-in `.mcp.json` without editing it.
+
+```json
+{
+  "enabledMcpjsonServers": ["memory", "github"],
+  "disabledMcpjsonServers": ["filesystem"]
+}
+```
+
+### `cleanupPeriodDays`
+
+Retention window (days) for session transcripts and orphaned subagent worktrees. Default `30`, minimum `1`; upstream rejects `0` with a validation error. Increase if you rely on past-chat search or long-window analysis; decrease to reclaim disk. To disable transcript writes entirely, set the `CLAUDE_CODE_SKIP_PROMPT_HISTORY` env var instead.
+
+```json
+{ "cleanupPeriodDays": 180 }
+```
+
 ### `feedbackSurveyRate`
 
 Sampling rate (0.0–1.0) for the in-session feedback survey (v2.1.106, enterprise). Set `0` to disable the prompt entirely. The OTel equivalent is gated by `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` (v2.1.136).

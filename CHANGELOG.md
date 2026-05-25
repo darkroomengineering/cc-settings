@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.5.0] — 2026-05-25
+
+Sync with Claude Code v2.1.150 plus an audit-driven gap-fill that adds three previously-missing real settings keys our schema didn't accept yet. v2.1.150 itself was internal infrastructure only.
+
+### Adopted
+
+- **`allowAllClaudeAiMcps` managed setting (upstream v2.1.149)** — boolean that loads the claude.ai cloud MCP connectors alongside the locally-configured `managed-mcp.json`. Added to `src/schemas/settings.ts` (sits next to `allowedMcpServers` / `deniedMcpServers`), enumerated in `upstream/claude-code-manifest.json` `knownSettingsKeys`, and documented in `docs/settings-reference.md` with a JSON example. Lets orgs opt into the full claude.ai MCP catalogue without enumerating each connector locally.
+- **`cleanupPeriodDays`** — real upstream key (number, default 30, min 1) controlling transcript and orphaned-worktree retention at startup. Previously missing from cc-settings schema so user configs that set it failed the `.strict()` parse. Schema gap-fill flagged during a settings-audit pass against the upstream docs.
+- **`enabledMcpjsonServers` / `disabledMcpjsonServers`** — real upstream string-array keys that allow/block specific MCP servers declared in project-level `.mcp.json` files. Distinct from `allowedMcpServers` / `deniedMcpServers` (URL patterns); these match by server name. Same audit-pass gap-fill — both were missing from our schema and manifest.
+
+### Deletions / Native-now-redundant
+
+_None this cycle._ The remaining v2.1.149 bullets are upstream bug fixes (PowerShell `cd` bypass, sandbox worktree allowlist, `find` macOS vnode crash, status-bar effort display, several UI freezes) — no cc-settings code wrapped or asserted on the affected behavior, so nothing to remove.
+
+### Files changed
+
+- `src/schemas/settings.ts`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.4.0] — 2026-05-22
 
 New `/nuclear-review` skill ships alongside a self-applied audit pass that closes 11 findings across both audits — MANAGED_SKILLS duplication, `runGit` triplicate, `pad()` consolidation, `readJsonOrNull<T>` type-lie, `Strategy` key threading, safety-net spaghetti, zod-4 deprecations, dead code. Net: −150 LOC of duplication/cruft, +1 skill, +1 lib module, +1 lib export, +2 safety-net helpers. No behavior change in any common path; one interactive-merge UX bug (`"<scalar>"` placeholder) fixed.

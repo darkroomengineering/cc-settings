@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.4.0"; // nuclear-review skill + audit-driven hardening pass (MANAGED_SKILLS dedup, runGit consolidation, readJsonOrNull type-lie, Strategy key threading, pad/zod hygiene)
+const VERSION = "11.5.0"; // sync with Claude Code v2.1.150 — adopts allowAllClaudeAiMcps managed setting
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
