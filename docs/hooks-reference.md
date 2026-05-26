@@ -383,7 +383,6 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `stop-summary.ts` | End-of-turn summary; if >5 files were changed, reminds to store learnings | No |
-| `parallelmax-judge.ts` | Gated by the parallelmax counter — only fires when count ≥ 5 in the just-ended turn. Spawns `claude -p --model claude-haiku-4-5-20251001` with a transcript excerpt; if Haiku verdicts "should have delegated", injects the reason via `additionalContext`. 10-min debounce, suppresses duplicate reasons. Uses bundled Haiku on Max plans (negligible billing) | No |
 
 ### StopFailure
 
@@ -467,7 +466,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 
 ### Best Practices
 
-- **Use the shared runtime.** Import from `src/lib/hook-runtime.ts` — `readHookInput<T>()` (reads stdin JSON with env-var fallback), `readState<T>(name, fallback)` / `writeState(name, data)` (atomic IO against `~/.claude/tmp/<name>.json`), and `runHook(main)` (top-level fail-open wrapper). The three parallelmax hooks (`parallelmax-nudge.ts`, `delegation-detector.ts`, `parallelmax-judge.ts`) are the reference implementations.
+- **Use the shared runtime.** Import from `src/lib/hook-runtime.ts` — `readHookInput<T>()` (reads stdin JSON with env-var fallback), `readState<T>(name, fallback)` / `writeState(name, data)` (atomic IO against `~/.claude/tmp/<name>.json`), and `runHook(main)` (top-level fail-open wrapper). The parallelmax hooks (`parallelmax-nudge.ts`, `delegation-detector.ts`) are the reference implementations.
 - Always quote `$HOME` paths in the `command` string.
 - Use `async: true` for non-blocking operations (logging, metrics).
 - Set reasonable `timeout` values (default 600s is often too long for simple scripts).

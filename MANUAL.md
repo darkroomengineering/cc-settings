@@ -462,7 +462,7 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Tool failure | Failure tracking |
 | Pre-compact | Auto-handoff save |
 | Post-compact | After context compaction completes |
-| Stop | Learning reminder; Haiku delegation judge (`parallelmax-judge.ts`) |
+| Stop | Learning reminder (`stop-summary.ts`) |
 | Stop failure | Turn ends due to API error (rate limit, auth failure) |
 | Session end | TLDR stats, auto-handoff |
 | Subagent start/stop | Swarm logging |

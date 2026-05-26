@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.5.0"; // sync with Claude Code v2.1.150 — adopts allowAllClaudeAiMcps managed setting
+const VERSION = "11.5.1"; // remove parallelmax-judge Stop hook (leaked nested claude -p session into the terminal)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -187,11 +187,6 @@
 					{
 						"type": "command",
 						"command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
-					},
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/parallelmax-judge.ts\"",
-						"timeout": 10
 					}
 				]
 			}

@@ -343,7 +343,7 @@ Master kill-switch for the entire hooks subsystem. When `true`, no hook of any e
 { "disableAllHooks": true }
 ```
 
-**Caveat:** Disabling hooks wholesale also silences `/goal` (which is implemented as a Stop hook) and the cc-settings `parallelmax-nudge` / `delegation-detector` / `parallelmax-judge` delegation guardrails. If `verify-hooks` warns you about suspicious hooks, remove the suspicious entries surgically rather than flipping this kill switch — see SECURITY.md "Don't disable hooks wholesale" for the full guidance.
+**Caveat:** Disabling hooks wholesale also silences `/goal` (which is implemented as a Stop hook) and the cc-settings `parallelmax-nudge` / `delegation-detector` delegation guardrails. If `verify-hooks` warns you about suspicious hooks, remove the suspicious entries surgically rather than flipping this kill switch — see SECURITY.md "Don't disable hooks wholesale" for the full guidance.
 
 ### `disableAutoMode`
 

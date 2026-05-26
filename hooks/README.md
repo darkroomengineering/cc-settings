@@ -26,8 +26,7 @@ For full hook documentation (all 27 events, configuration format, matchers, debu
 | `PostToolUseFailure` | Tool execution fails | `post-failure.ts` (logs failures, warns on repeats) | No |
 | `PreCompact` | Before context compaction | `handoff.ts create` (saves state) | No |
 | `PostCompact` | After context compaction | `post-compact.ts` (recovery steps reminder) | No |
-| `Stop` | Claude finishes | Learning reminder if >5 files changed | No |
-| `Stop` | Claude finishes | `parallelmax-judge.ts` (fires when turn count ≥ 5; Haiku judges transcript; injects reason if "should have delegated"; 10-min debounce) | No |
+| `Stop` | Claude finishes | `stop-summary.ts` (learning reminder if >5 files changed) | No |
 | `StopFailure` | Turn ends due to API error | `stop-failure.ts` (logs, surfaces rate limit info) | No |
 | `SessionEnd` | Session ending | `tldr-stats.ts` + `handoff.ts create` | **Yes** |
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |

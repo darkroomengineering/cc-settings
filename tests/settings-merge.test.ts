@@ -154,6 +154,33 @@ describe("hooksStrategy", () => {
     const sessionStart = merged.SessionStart as unknown[];
     expect(sessionStart.length).toBe(1);
   });
+
+  test("removed managed hook in a shared group is pruned without duplicating the surviving team hook", async () => {
+    const ctx = makeCtx();
+    const stopSummary = {
+      type: "command",
+      command: `bun "$HOME/.claude/src/scripts/stop-summary.ts"`,
+    };
+    const judge = {
+      type: "command",
+      command: `bun "$HOME/.claude/src/hooks/parallelmax-judge.ts"`,
+      timeout: 10,
+    };
+    // Team now ships only stop-summary on Stop; the user still carries the old
+    // pre-v11.5.1 group that bundled stop-summary + the removed judge.
+    const team = { Stop: [{ hooks: [stopSummary] }] };
+    const user = { Stop: [{ hooks: [stopSummary, judge] }] };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    const stop = merged.Stop as Array<{ hooks: unknown[] }>;
+    // Exactly one group with one hook (stop-summary): judge gone, no duplicate.
+    expect(stop.length).toBe(1);
+    expect(stop[0]?.hooks.length).toBe(1);
+    expect(JSON.stringify(stop)).not.toContain("parallelmax-judge");
+    expect(ctx.accounting.hooksPruned).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -174,6 +201,11 @@ describe("pruneDeprecatedHooks", () => {
 
   test("DEPRECATED_COMMAND_PATTERNS matches .sh scripts in .claude/scripts/", () => {
     const badCmd = `/Users/alice/.claude/scripts/post-edit.sh`;
+    expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches the removed parallelmax-judge hook", () => {
+    const badCmd = `bun "$HOME/.claude/src/hooks/parallelmax-judge.ts"`;
     expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
   });
 });

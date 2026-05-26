@@ -197,6 +197,11 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
 // or `~/.claude/src/hooks/` and are invoked via `bun ...`.
 export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   /[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/,
+  // cc-settings v11.5.1 removed the parallelmax-judge Stop hook: it spawned a
+  // nested `claude -p` session whose prompt + SessionStart banner leaked into
+  // the user's terminal. Prune any lingering reference so upgraders stop firing
+  // it. As a shared `Stop` group with stop-summary.ts, this is a partial prune.
+  /parallelmax-judge\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {
@@ -250,7 +255,13 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
         ctx.accounting.hooksPruned++;
         continue;
       }
-      if (cleaned !== g) ctx.accounting.hooksPruned++; // partial prune
+      if (cleaned !== g) {
+        ctx.accounting.hooksPruned++; // partial prune
+        // A partial prune can collapse a user group into one the team already
+        // provides (e.g. [stop-summary, removed-hook] → [stop-summary]). Drop it
+        // rather than emit a duplicate of the team-provided group.
+        if (teamJson.has(JSON.stringify(cleaned))) continue;
+      }
       userExtras.push(cleaned);
     }
 

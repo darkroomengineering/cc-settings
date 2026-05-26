@@ -4,6 +4,21 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.5.1] — 2026-05-26
+
+Bug fix: remove the `parallelmax-judge.ts` Stop hook. It spawned a nested `claude -p --model haiku` session on every turn that tripped the parallelmax counter (≥ 5 non-Agent tool calls). That nested session ran the full SessionStart hook chain — so its `PROJECT CONTEXT` banner and the judge's own `<conversation-excerpt> … DELEGATE/OK` prompt leaked onto the user's terminal, looking like "every new terminal starts with this." It was also the only place in the codebase that spawned a nested `claude`, and cost a full extra Claude session per tripped Stop with only debounce-bounded recursion protection.
+
+### Removed
+
+- **`src/hooks/parallelmax-judge.ts`** and its `Stop` wiring in `config/40-hooks.json` (the `Stop` event now runs only `stop-summary.ts`). Delegation enforcement is unchanged in intent: the deterministic, zero-cost `parallelmax-nudge.ts` (PostToolUse, N=8) and `delegation-detector.ts` remain. Docs updated in `docs/hooks-reference.md`, `docs/settings-reference.md`, `MANUAL.md`, and `hooks/README.md`.
+
+### Fixed
+
+- **Installer prunes the stale judge reference automatically.** Added `parallelmax-judge.ts` to `DEPRECATED_COMMAND_PATTERNS` in `src/lib/settings-merge.ts`, so upgraders whose live `settings.json` still carries the old `Stop` group (`stop-summary` + judge) get the judge pruned on the next install rather than firing a dangling reference forever.
+- **No duplicate `stop-summary` after a partial prune.** The hook merger previously re-added a partially-pruned user group as a "user extra" even when pruning had collapsed it into a group the team already provides — leaving two `stop-summary` entries. `hooksStrategy` now drops a pruned group that matches a team-provided group. Covered by new cases in `tests/settings-merge.test.ts`.
+
+> Re-run `setup.sh` after upgrading so the installer drops the stale `~/.claude/src/hooks/parallelmax-judge.ts`, prunes the dangling `Stop` reference, and refreshes the `verify-hooks` fingerprint for the new `Stop` block.
+
 ## [11.5.0] — 2026-05-25
 
 Sync with Claude Code v2.1.150 plus an audit-driven gap-fill that adds three previously-missing real settings keys our schema didn't accept yet. v2.1.150 itself was internal infrastructure only.
