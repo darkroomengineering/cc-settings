@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.7.0] — 2026-05-26
+
+Security hardening of the permission allowlist (`config/30-permissions.json`) — the manual equivalent of a `/less-permission-prompts` consolidation pass, done as a security-reviewer audit.
+
+### Removed from `allow`
+
+- **Five arbitrary-execution backdoors** — `Bash(curl:*)`, `Bash(find:*)`, `Bash(env:*)`, `Bash(xargs:*)`, `Bash(awk:*)`. Each let an adversarially-constructed command bypass *every other* restriction in the file (`find -exec`, `env VAR=x cmd`, `xargs cmd`, `awk 'system()'`, and curl's write/exfil flags), and the deny list — a string/glob blocklist — could not reliably close those gaps. Removing them means those commands now **prompt** instead of running silently; `Glob`/`Grep`/`LS`/`jq`/`printenv` cover the legitimate uses.
+- **`Bash(vitest:*)`** — dead entry; the repo runs `bun test`, vitest isn't installed. (`Bash(lighthouse:*)` was intentionally kept — the lighthouse skill shells out to it.)
+
+### Added to `deny` (defense-in-depth)
+
+- **cp/mv worm-gap** — `Bash(cp|mv * → ~/.claude/settings.json | ~/.claude.json | ~/.zshrc | ~/.bashrc | ~/.bash_profile)`. The `Write` tool is denied on these paths, but shell `cp`/`mv` (still allowed) bypassed that — the exact Shai-Hulud persistence vector `SECURITY.md` targets.
+- **curl flag hardening** — `-o`/`-O` (write-to-disk), `-H`/`--header`/`--cookie` (header/cookie exfil), `-X DELETE`/`-X PATCH` (mutating methods), mirroring the existing POST/PUT denies.
+- **`gh api --method DELETE`** (complements the existing `-X DELETE` deny), **`find * -exec`**, and **`git push --force-with-lease`** (the force-push denies missed the lease variant).
+
+> **Note on caveats:** allow *removals* are deterministic (unmatched → prompt). Deny *additions* match by string/glob, so mid-command flag patterns are best-effort defense-in-depth — they never reduce safety, but shouldn't be relied on as the sole guard. The removals are the robust fix.
+>
+> **Live reconcile:** the installer's merger preserves user-only `allow` rules, so re-running `setup.sh` will NOT drop the five backdoors from an existing `~/.claude/settings.json` — they must be removed from the live file directly (the new denies *do* propagate via merge). Fresh installs get the hardened set automatically.
+
 ## [11.6.1] — 2026-05-26
 
 Hotfix: revert the `WorktreeCreate` / `WorktreeRemove` hooks shipped in v11.6.0. They broke worktree creation. In Claude Code's harness, `WorktreeCreate` is a **provisioning** hook — it is expected to create the worktree and return its path (echo the path to stdout / `hookSpecificOutput.worktreePath`). The v11.6.0 scripts were logging-only and returned nothing, so worktree creation failed with "hook succeeded but returned no worktree path," which broke agent spawning and any `EnterWorktree` flow. A passive, observability-only `WorktreeCreate` hook is not viable in this harness.
