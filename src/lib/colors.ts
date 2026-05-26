@@ -101,7 +101,7 @@ export function boxEnd(): void {
   console.log(`${palette.bold}+-------------------------------------------+${palette.reset}`);
 }
 
-export function showBanner(version = "8.0"): void {
+export function showBanner(version: string): void {
   const cyan = palette.cyan;
   const bold = palette.bold;
   const reset = palette.reset;

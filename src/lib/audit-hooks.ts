@@ -93,8 +93,10 @@ const SUSPICIOUS_PATTERNS: Array<{ rx: RegExp; reason: string }> = [
 // Quick "is this obviously a one-liner blob of opaque code?" check.
 function looksOpaque(cmd: string): boolean {
   if (cmd.length < 250) return false;
-  // No spaces in long runs → likely obfuscated/encoded
-  const longestRun = Math.max(...cmd.split(/\s/).map((s) => s.length));
+  // No spaces in long runs → likely obfuscated/encoded. reduce (not spread)
+  // because `cmd` is arbitrary settings.json text — a pathological token count
+  // would blow the call stack with Math.max(...tokens).
+  const longestRun = cmd.split(/\s/).reduce((m, s) => Math.max(m, s.length), 0);
   if (longestRun > 200) return true;
   // High density of base64 alphabet → encoded payload
   const b64Chars = (cmd.match(/[A-Za-z0-9+/=]/g) ?? []).length;
@@ -210,8 +212,11 @@ export async function auditSettingsFile(path?: string): Promise<AuditResult> {
     }
   }
 
-  const findings = [...extraFindings, ...auditHooks(parsed)];
-  return { settingsPath, exists: true, totalHooks: findings.length, findings };
+  // totalHooks counts audited command hooks (the "hook command(s) total" the
+  // CLI prints) — NOT findings, which also include the schema pseudo-finding.
+  const hookFindings = auditHooks(parsed);
+  const findings = [...extraFindings, ...hookFindings];
+  return { settingsPath, exists: true, totalHooks: hookFindings.length, findings };
 }
 
 export function hasSuspicious(result: AuditResult): boolean {

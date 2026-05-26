@@ -48,6 +48,11 @@ export function getTimestamp(d: Date = new Date()): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
+// YYYY-MM-DD — used for daily log filenames and date grouping. Stable across locales.
+export function ymd(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 // Returns true if `cmd` is resolvable on PATH. Uses Bun.which which already
 // handles Windows `PATHEXT` + `.cmd`/`.exe` suffixes.
 export function hasCommand(cmd: string): boolean {
