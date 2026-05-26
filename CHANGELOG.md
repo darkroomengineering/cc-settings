@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.8.1] — 2026-05-26
+
+Process hardening prompted by two recurring implementer failures observed while shipping v11.6.0 and v11.8.0: the agent (1) hand-wrote a generated file (`schemas/settings.schema.json`) instead of running the emitter — and got it wrong — and (2) reported "commands to run" instead of actually running its verification gate. Both slipped past local checks and would only have been caught by post-push CI.
+
+### Added
+
+- **Schema-freshness test** — `tests/schemas.test.ts` now asserts every committed `schemas/*.schema.json` is byte-identical to emitter output. A stale or hand-written generated schema now fails the normal `bun test` run, not just the post-push CI `schemas` job. `src/schemas/emit.ts` was refactored to export `buildSchema()` / `targets` / `OUT` and guard its disk writes behind `import.meta.main`, so importing it (from the test) no longer writes files.
+
+### Changed
+
+- **`agents/implementer.md` guardrails** — the Verification Checklist now requires the agent to (a) run verification commands itself and paste real pass/fail counts + commit SHA (a list of "commands to run" is explicitly NOT acceptance), and (b) regenerate generated files via their generator and never hand-write them (`bun run schemas:check` must be clean).
+- **`src/schemas/settings.ts`** — added a schema-authoring note: prefer permissive enum supersets over doc-literal values, since Claude Code persists values its docs omit (`effortLevel: "max"`, `teammateMode: "in-process"`) and passthrough tolerates unknown keys but not invalid values of known keys. Codifies the v11.7.1/v11.8.0 lesson.
+
 ## [11.8.0] — 2026-05-26
 
 Reconcile the `Settings` zod schema with the full documented Claude Code settings surface and relax `.strict()` → `.passthrough()`. Claude Code writes undocumented keys (`theme`, `agentPushNotifEnabled`, `enabledPlugins`) to `settings.json`, so `.strict()` could never validate a real live file — installs worked only because `setup.ts` uses `safeParse` with a raw fallback. This release fixes the schema to reflect reality: passthrough tolerance for undocumented keys, typed coverage expanded from ~39 → 96 keys (the documented surface is ~104; the remainder are tolerated via passthrough), and a new fragment typo-guard test that replaces the old strict check for our own `config/*.json` fragments. `TeammateMode` gains the doc-canonical `in-process` and `tmux` variants. Schema re-emitted so `schemas/settings.schema.json` matches (`additionalProperties` flips `false` → `{}`).

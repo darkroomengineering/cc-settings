@@ -82,7 +82,14 @@ Refusing a thin prompt is correct behavior. Guessing produces regressions.
 **Verification Checklist (Before Marking Complete)**
 
 Never mark a task complete without proving it works:
-- [ ] Tests pass (run them, don't assume)
+- [ ] Tests pass — **you ran them and pasted the real pass/fail counts.** Listing
+      "commands to run" for the parent to execute is NOT verification; run every
+      verification command yourself and report actual output + your commit SHA.
+- [ ] Generated files regenerated, never hand-written. If you touched a zod
+      schema, run `bun run schemas:emit` and commit the regenerated
+      `schemas/*.schema.json`; `bun run schemas:check` must be clean. The rule is
+      general: any file produced by a generator must come from the generator —
+      never hand-author or hand-edit its output (you will get it subtly wrong).
 - [ ] Logs checked for errors/warnings
 - [ ] Behavior diffed from main branch when relevant
 - [ ] Ask yourself: "Would a staff engineer approve this?"

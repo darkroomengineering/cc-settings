@@ -3,6 +3,12 @@ import { HooksBlock } from "./hooks.ts";
 import { McpServers } from "./mcp.ts";
 import { Permissions } from "./permissions.ts";
 
+// Schema-authoring note: when typing an enum SETTING, prefer a permissive
+// superset over the doc-literal values. Claude Code persists values its own
+// docs omit (e.g. effortLevel "max", teammateMode "in-process"). The root is
+// passthrough, which tolerates unknown KEYS — but NOT invalid VALUES of known
+// keys — so a too-literal enum rejects a real live settings.json.
+
 // --- Sub-schemas ----------------------------------------------------------
 
 export const SpinnerVerbs = z.object({

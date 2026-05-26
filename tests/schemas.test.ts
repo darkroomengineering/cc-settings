@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import type { z } from "zod";
 import { composeSettings } from "../src/lib/compose-settings.ts";
 import { parseFrontmatter } from "../src/lib/frontmatter.ts";
+import { buildSchema, OUT, targets } from "../src/schemas/emit.ts";
 import { HookEvent } from "../src/schemas/hooks.ts";
 import { HooksConfig } from "../src/schemas/hooks-config.ts";
 import { Settings } from "../src/schemas/settings.ts";
@@ -18,6 +19,18 @@ const ROOT = resolve(import.meta.dir, "..");
 function formatZodError(err: z.ZodError): string {
   return err.issues.map((i) => `  ${i.path.join(".") || "<root>"}: ${i.message}`).join("\n");
 }
+
+describe("emitted JSON schemas are committed fresh", () => {
+  // A stale OR hand-written schemas/*.schema.json fails here. Fix by running
+  // `bun run schemas:emit` and committing the output — never hand-edit them.
+  for (const t of targets) {
+    test(`${t.file} matches emitter output`, async () => {
+      const expected = buildSchema(t);
+      const actual = await readFile(resolve(OUT, t.file), "utf8");
+      expect(actual).toBe(expected);
+    });
+  }
+});
 
 describe("Settings schema vs the composed config/ fragments", () => {
   test("composed fragments parse without errors", async () => {
