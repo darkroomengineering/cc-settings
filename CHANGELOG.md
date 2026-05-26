@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.9.0] — 2026-05-26
+
+Whole-codebase maintainability pass from a `/nuclear-review` audit. Behavior-preserving across the board — full test suite (380) and typecheck stay green. No file exceeded 1000 lines and all six direct dependencies are within one minor of current with idiomatic usage (native `z.toJSONSchema`, no redundant deps), so this batch is structural cleanup only.
+
+### Changed
+
+- **`src/hooks/safety-net.ts`** — the four full-string rules (AI attribution, find/xargs, shell + interpreter unwrap) ran once on the whole command and again per split segment, doubling work on every single-segment command. Reframed into two tiers: `analyzeFullString` (rules that need the un-split command) runs once; `analyzeSegment` runs only rm/git, which must see each `;`/`&&`/`||` segment so a safe leading subcommand can't mask a destructive trailing one. `analyzeCommand` remains the depth-bounded recursion target.
+- **`src/lib/git.ts`** — extracted `runProcessFull(bin, args)`; `runGitFull` delegates to it and `src/upstream/scan.ts`'s byte-identical local `runGh` is gone. `runGit` gains an optional `{ cwd }` so `src/hooks/statusline.ts` drops its copied spawn body (its local adapter now only binds `--no-optional-locks` + cwd).
+- **`src/lib/platform.ts`** — added `ymd()` (YYYY-MM-DD); removed three private copies in `log-bash.ts`, `claude-audit.ts`, and `session-start.ts`.
+- **`src/setup.ts`** — parallelized independent install I/O (`createDirectories`, the disjoint removals in `cleanOldConfig`, the lockfile copies, the two disjoint-tree install phases, and summary counts). Clean-then-install ordering preserved.
+- **`src/scripts/handoff.ts`** — single-flag arg loop collapsed to a `findIndex`; the two `latest.*` symlink updates now run concurrently.
+- **`src/hooks/pre-edit-validate.ts`** — reads `file_path` + `old_string` from the single `TOOL_INPUT` JSON blob, dropping the redundant per-field-env source asymmetry.
+- **`src/lib/colors.ts`** — `showBanner` version param is now required (stale `"8.0"` default removed).
+
+### Fixed
+
+- **`src/lib/audit-hooks.ts`** — `totalHooks` now counts audited command hooks (the value the CLI prints as "hook command(s) total") instead of `findings.length`, which over-counted by the schema pseudo-finding whenever schema validation failed. `looksOpaque` uses `reduce` instead of `Math.max(...spread)` to avoid a call-stack blowout on pathological settings.json input.
+
+### Notes
+
+- The audit flagged the discarded `safeParse` result in `mergeSettingsWithMcpPreservation` (`settings-merge.ts`). Investigated and **intentionally left as-is**: the root `Settings` schema is `passthrough` but nested objects (`StatusLine`, `Attribution`, …) strip unknown keys, so merging validated `.data` would silently drop forward-compat fields. The raw-based merge is correct; the validation is a deliberate diagnostic.
+
 ## [11.8.3] — 2026-05-26
 
 Audit-driven documentation fixes and a permission-listing generator that keeps the allow/deny rules exhaustive and self-syncing.
