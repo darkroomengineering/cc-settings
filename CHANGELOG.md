@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.8.2] — 2026-05-26
+
+Documentation reconciliation — bring docs in line with the v11.5.0–v11.8.1 releases. (The obvious churn — `parallelmax-judge`, worktree-hook scripts, the `strict→passthrough` prose, version/skill counts — was already kept current in-flight; this catches what drifted.)
+
+### Fixed
+
+- **Hook-event count** corrected to **29** in `CLAUDE-FULL.md`, `MANUAL.md`, `hooks/README.md`, and `docs/hooks-reference.md` (was a mix of stale `27` and an off-by-one `30`). 29 = the manifest `knownHookEvents` and the official docs.
+- **`docs/settings-reference.md` permission snapshot** was a hand-maintained mirror that had drifted (it listed `Bash(curl|find|env|xargs|awk|vitest):*` as allowed — all removed in v11.7.0 — and even showed `node -e`/`node -p` under *allow* when they're *denied*). Replaced the enumerated allow/deny copy with a drift-resistant categorical summary that names `config/30-permissions.json` as authoritative (`bun run compose` shows the live set) and documents the v11.7.0 hardening + cp/mv worm-gap denies.
+
+### Changed
+
+- **`docs/agent-models.md`** now documents `CLAUDE_CODE_SUBAGENT_MODEL` (the session-level Agent-Teams teammate model lever, set to `sonnet` in v11.6.0) alongside the per-agent routing table.
+
 ## [11.8.1] — 2026-05-26
 
 Process hardening prompted by two recurring implementer failures observed while shipping v11.6.0 and v11.8.0: the agent (1) hand-wrote a generated file (`schemas/settings.schema.json`) instead of running the emitter — and got it wrong — and (2) reported "commands to run" instead of actually running its verification gate. Both slipped past local checks and would only have been caught by post-push CI.

@@ -16,3 +16,5 @@ Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical w
 | `deslopper` | **sonnet** | Pattern matching for dead code is straightforward |
 
 Override per-invocation when needed: `Agent(implementer, "...", model: "opus")` for complex implementations.
+
+**Agent Teams teammates** route separately from the table above: the `CLAUDE_CODE_SUBAGENT_MODEL` env var (set to `sonnet` in `config/10-core.json`, upstream v2.1.147) picks the model for teammate subprocesses spawned under `teammateMode: "auto"` — independent of both the per-agent rationale table and the main session's pinned model.

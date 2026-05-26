@@ -12,7 +12,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
-## Hook Events (30 total)
+## Hook Events (29 total)
 
 ### Session Lifecycle
 

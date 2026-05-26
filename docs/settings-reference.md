@@ -599,145 +599,32 @@ Patterns follow the format `ToolName(argument-pattern)`:
 
 The `:*` suffix means "followed by anything". Without it, the match is exact.
 
-### Configured Allow Rules
+### Configured Allow / Deny Rules
 
-**Package managers and build tools:**
+> **Authoritative source:** the live allow/deny lists live in `config/30-permissions.json` (composed into `~/.claude/settings.json` at install). Run `bun run compose` to print the exact current set. This section summarizes the *shape and intent* — it intentionally does not re-list every rule, which drifts.
 
-```
-Bash(bun:*)           # All bun commands
-Bash(bunx:*)          # All bunx commands
-Bash(npm run:*)       # npm run scripts
-Bash(biome:*)         # Biome linter/formatter
-Bash(vitest:*)        # Vitest test runner
-```
+**Allow (runs without a prompt)** — a curated set of safe, non-interactive commands:
 
-**Git operations:**
+- **Runtime / build:** `bun`, `bunx`, `npm run`, `biome`
+- **Git (read + common write):** `git status|diff|log|show|branch|add|commit|checkout|stash|push|blame|rev-parse|remote`, `gh`
+- **Read-only / inspection:** `cat`, `head`, `tail`, `less`, `file`, `stat`, `which`, `type`, `echo`, `ls`, `pwd`, `tree`, `wc`
+- **Search / text:** `grep`, `rg`, `diff`, `sort`, `uniq`, `cut`, `jq`
+- **System info:** `du`, `df`, `printenv`, `date`, `uname`, `whoami`, `basename`, `dirname`, `realpath`
+- **File ops:** `mkdir`, `cp`, `mv`, and scoped `rm` (`rm -rf node_modules|.next|dist|.turbo`, `rm *.tmp`)
+- **Claude Code tools:** `Read`, `Write`, `Edit`, `MultiEdit`, `Glob`, `Grep`, `LS`, `TodoWrite`, `NotebookEdit`
+- **External:** `lighthouse` (CLI; complemented by the chrome-devtools MCP), `open -a`
 
-```
-Bash(git status:*)    Bash(git diff:*)      Bash(git log:*)
-Bash(git show:*)      Bash(git branch:*)    Bash(git add:*)
-Bash(git commit:*)    Bash(git checkout:*)  Bash(git stash:*)
-Bash(git push:*)      Bash(git blame:*)     Bash(git rev-parse:*)
-Bash(git remote:*)    Bash(gh:*)
-```
+> **Deliberately NOT allowed (v11.7.0 hardening):** `curl`, `find`, `env`, `xargs`, `awk` are not in the allow list — each can invoke arbitrary commands (`find -exec`, `env VAR=x cmd`, `xargs cmd`, `awk 'system()'`, curl write/exfil flags) and would bypass every other rule, so they prompt instead. `vitest` was dropped too (the repo uses `bun test`).
 
-**Read-only commands:**
+**Deny (always blocked; overrides allow)** — grouped by intent:
 
-```
-Bash(cat:*)       Bash(head:*)      Bash(tail:*)      Bash(less:*)
-Bash(file:*)      Bash(stat:*)      Bash(which:*)     Bash(type:*)
-Bash(echo:*)
-```
-
-**Search and text processing:**
-
-```
-Bash(grep:*)      Bash(rg:*)        Bash(find:*)      Bash(diff:*)
-Bash(sort:*)      Bash(uniq:*)      Bash(cut:*)       Bash(awk:*)
-Bash(sed -n:*)    Bash(jq:*)        Bash(xargs:*)
-```
-
-**System info:**
-
-```
-Bash(du:*)        Bash(df:*)        Bash(env:*)       Bash(printenv:*)
-Bash(date:*)      Bash(uname:*)     Bash(whoami:*)    Bash(basename:*)
-Bash(dirname:*)   Bash(realpath:*)  Bash(node -e:*)   Bash(node -p:*)
-```
-
-**File operations:**
-
-```
-Bash(ls:*)    Bash(pwd:*)    Bash(tree:*)    Bash(wc:*)
-Bash(mkdir:*) Bash(cp:*)     Bash(mv:*)      Bash(curl:*)
-```
-
-**Safe cleanup:**
-
-```
-Bash(rm -rf node_modules)    Bash(rm -rf .next)
-Bash(rm -rf dist)            Bash(rm -rf .turbo)
-Bash(rm *.tmp)
-```
-
-**Claude Code tools:**
-
-```
-Read(*)    Write(*)    Edit(*)    MultiEdit(*)
-Glob(*)    Grep(*)     LS(*)      TodoWrite(*)
-NotebookEdit(*)
-```
-
-**External tools:**
-
-```
-Bash(lighthouse:*)        # Lighthouse performance audits (CLI; complemented by chrome-devtools MCP)
-Bash(open -a:*)          # Launch macOS apps
-```
-
-### Configured Deny Rules
-
-**Catastrophic file deletion:**
-
-```
-Bash(rm -rf /)         Bash(rm -rf /*)        Bash(rm -rf ~)
-Bash(rm -rf ~/*)       Bash(rm -rf ~/.ssh)    Bash(rm -rf ~/.gnupg)
-Bash(rm -rf ~/.aws)    Bash(rm -rf $HOME:*)
-Bash(rm -fr /:*)       Bash(rm -Rf /:*)       # Alternate flag variants
-Bash(find * -delete:*) Bash(xargs rm:*)
-```
-
-**Credential access:**
-
-```
-Read(~/.ssh/*)          Read(~/.aws/*)          Read(~/.gnupg/*)
-Read(~/.config/gh/*)    Read(~/.netrc)
-Bash(cat ~/.ssh/*)      Bash(cat ~/.aws/*)      Bash(cat ~/.gnupg/*)
-Bash(cp ~/.ssh/*:*)     Bash(cp ~/.aws/*:*)
-Write(~/.ssh/*)         Write(~/.aws/*)         Write(~/.gnupg/*)
-```
-
-**Data exfiltration:**
-
-```
-Bash(curl * --data:*)      Bash(curl * -d :*)
-Bash(curl * -F :*)         Bash(curl * --upload-file:*)
-Bash(curl * -T :*)
-```
-
-**Destructive git operations:**
-
-```
-Bash(git push --force:*)     Bash(git push -f:*)
-Bash(git reset --hard:*)     Bash(git clean -f:*)
-Bash(git checkout -- .:*)    Bash(git checkout -- *)
-Bash(git stash drop:*)       Bash(git stash clear:*)
-Bash(git restore .:*)        Bash(git restore --staged .:*)
-```
-
-**Remote code execution:**
-
-```
-Bash(curl * | bash)     Bash(curl * | sh)
-Bash(wget * | bash)     Bash(wget * | sh)
-```
-
-**Privilege escalation and dangerous operations:**
-
-```
-Bash(sudo:*)            Bash(chmod 777:*)
-Bash(gh repo delete:*)  Bash(gh secret:*)
-```
-
-**Shell and config modification:**
-
-```
-Read(~/.bashrc)         Read(~/.zshrc)          Read(~/.bash_profile)
-Read(~/.npmrc)          Read(~/.docker/config.json)
-Read(~/.kube/config)
-Write(~/.bashrc)        Write(~/.zshrc)         Write(~/.bash_profile)
-Write(~/.claude/settings.json)                  Write(~/.claude.json)
-```
+- **Catastrophic deletion:** `rm -rf` of `/`, `/*`, `~`, `~/*`, `$HOME`, `~/.ssh|.gnupg|.aws` (plus `-fr`/`-Rf` variants); `find * -delete`, `xargs rm`.
+- **Credential access:** read/copy/move/write of `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.netrc`, `~/.npmrc`, `~/.docker/config.json`, `~/.kube/config`.
+- **Data exfiltration:** `curl` with `--data|-d|-F|-T|--upload-file|--json|--data-raw|--data-binary|-o|-O|-H|--header|--cookie|-X POST|PUT|DELETE|PATCH`; `curl|wget … | bash|sh`.
+- **Config tampering (Shai-Hulud vector):** shell `cp`/`mv` *into* `~/.claude/settings.json`, `~/.claude.json`, `~/.bashrc`, `~/.zshrc`, `~/.bash_profile` — closes the gap where shell copy bypasses the `Write(...)` deny.
+- **Destructive git:** `git push --force|-f|--force-with-lease`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git stash drop|clear`, `git restore .`.
+- **Privilege / dangerous:** `sudo`, `chmod 777`, `gh repo delete`, `gh secret`, `gh api -X DELETE|--method DELETE`, `gh release delete`.
+- **Remote code execution:** `node -e|-p|--eval|--print`, `awk … system(`, `find * -exec`.
 
 ### `permissions.autoMode`
 

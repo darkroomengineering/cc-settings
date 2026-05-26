@@ -443,7 +443,7 @@ These are enforced automatically — no skill needed:
 | `deslopper` | Dead code removal, cleanup | scanners (team mode) |
 | `maestro` | Multi-agent orchestration | all of the above |
 
-### Hooks (Automatic — 27 Events)
+### Hooks (Automatic — 29 Events)
 
 Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook to URL).
 

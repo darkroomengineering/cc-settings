@@ -99,7 +99,7 @@ Scope: consumer hardware and platform-integration questions specifically. Librar
 
 - **Profiles** (specialized workflows: `nextjs`, `react-native`, `tauri`, `webgl`, `maestro`, `react-router`) — see `docs/profiles.md`
 - **TLDR** (token-efficient codebase exploration via `llm-tldr`) — see `docs/tldr-cheatsheet.md`
-- **Hooks** (27 events, 8 categories, conditional `if` filtering) — see `docs/hooks-reference.md`
+- **Hooks** (29 events, 8 categories, conditional `if` filtering) — see `docs/hooks-reference.md`
 - **Agent frontmatter** (`tools`, `disallowedTools`, `maxTurns`, `permissionMode`, `effort`, `isolation`, `hooks`, `mcpServers`, `initialPrompt`) — see `docs/frontmatter-reference.md`
 - **Knowledge system** (shared GitHub Project board + local auto-memory) — see `docs/knowledge-system.md`
 - **Agent teams** (parallel independent workstreams, `teammateMode: "auto"`) — see `docs/feature-agents-guide.md`
