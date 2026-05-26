@@ -2,6 +2,7 @@
 // setup.ts gates main() behind `if (import.meta.main)`.
 
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 import { parseArgs } from "../src/setup.ts";
 
 describe("parseArgs", () => {
@@ -44,7 +45,9 @@ describe("parseArgs", () => {
 
   test("--source=<path> sets sourceDir", () => {
     const a = parseArgs(["--source=/tmp/cc"]);
-    expect(a.sourceDir).toBe("/tmp/cc");
+    // parseArgs resolves the path; assert against the resolved form so this
+    // holds on Windows too (resolve("/tmp/cc") → "C:\\tmp\\cc" there).
+    expect(a.sourceDir).toBe(resolve("/tmp/cc"));
   });
 
   test("--help / -h both set help", () => {
@@ -56,6 +59,6 @@ describe("parseArgs", () => {
     const a = parseArgs(["--migrate-only", "--interactive", "--source=/tmp/x"]);
     expect(a.migrateOnly).toBe(true);
     expect(a.interactive).toBe(true);
-    expect(a.sourceDir).toBe("/tmp/x");
+    expect(a.sourceDir).toBe(resolve("/tmp/x"));
   });
 });

@@ -29,6 +29,9 @@ async function runInstall(home: string): Promise<InstallResult> {
     env: {
       ...process.env,
       HOME: home,
+      // os.homedir() reads USERPROFILE on Windows, not HOME — set both so the
+      // installer targets the tmpdir on every platform.
+      USERPROFILE: home,
       CC_SKIP_DEPS: "1",
       // Avoid color codes / banner art bleeding into assertion strings.
       NO_COLOR: "1",
@@ -140,7 +143,7 @@ describe("install E2E — fresh HOME", () => {
       const home = await mkdtemp(join(tmpdir(), "cc-e2e-mig-"));
       try {
         const proc = Bun.spawn(["bun", SETUP_TS, `--source=${REPO}`, "--migrate-only"], {
-          env: { ...process.env, HOME: home, CC_SKIP_DEPS: "1", NO_COLOR: "1" },
+          env: { ...process.env, HOME: home, USERPROFILE: home, CC_SKIP_DEPS: "1", NO_COLOR: "1" },
           stdout: "pipe",
           stderr: "pipe",
         });
