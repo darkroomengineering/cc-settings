@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.7.0"; // harden permission allowlist: drop 5 arbitrary-exec backdoors + dead vitest, add cp/mv worm-gap + curl/gh/find denies
+const VERSION = "11.7.1"; // add effortLevel + skipDangerousModePermissionPrompt settings keys (doc-verified; 3 live keys rejected as undocumented)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

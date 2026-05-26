@@ -4,6 +4,21 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.7.1] — 2026-05-26
+
+Schema gap-fill: two settings keys Claude Code writes to `settings.json` were missing from our `Settings` schema, so the `.strict()` parse rejected real configs (the `safeParse` forward-compat fallback in `setup.ts` kept installs working, but the schema was wrong). Surfaced when the live `~/.claude/settings.json` failed a strict parse with five unrecognized keys; each was verified against the official settings docs before adding — three were **not** documented and deliberately left out.
+
+### Adopted
+
+- **`effortLevel`** (string: `low` | `medium` | `high` | `xhigh`) — persists the effort level across sessions; the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var. Note the key's docs omit `max`, which only the env var accepts. Added to `src/schemas/settings.ts`, `knownSettingsKeys`, and `docs/settings-reference.md`.
+- **`skipDangerousModePermissionPrompt`** (boolean) — skips the confirmation before entering bypass-permissions mode; ignored in project settings so untrusted repos can't auto-bypass. Same three files.
+
+### Verified but NOT added
+
+- **`theme`**, **`agentPushNotifEnabled`**, **`enabledPlugins`** — present in the live settings.json (written by the app) but **absent from the official settings reference**, so not added to the strict schema. (`enabledPlugins` was rejected as undocumented in the v11.5.0 article audit too — that call stands.) The `safeParse` fallback continues to tolerate them at install time.
+
+> **Larger finding (not addressed here):** the official settings reference now documents ~90 top-level keys; our schema tracks ~39. The `.strict()` schema is therefore narrower than reality for many real (mostly enterprise/managed/UX) keys — installs are unaffected thanks to the `safeParse` fallback, but a fuller schema/manifest reconciliation is worth a dedicated pass.
+
 ## [11.7.0] — 2026-05-26
 
 Security hardening of the permission allowlist (`config/30-permissions.json`) — the manual equivalent of a `/less-permission-prompts` consolidation pass, done as a security-reviewer audit.

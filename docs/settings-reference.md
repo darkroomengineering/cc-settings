@@ -365,6 +365,22 @@ Disable the `bypassPermissions` mode (admin-tier). With this set, `--permission-
 { "disableBypassPermissionsMode": "disable" }
 ```
 
+### `skipDangerousModePermissionPrompt`
+
+Skip the confirmation prompt shown before entering bypass-permissions mode (via `--dangerously-skip-permissions` or `defaultMode: "bypassPermissions"`). **Ignored when set in project settings** (`.claude/settings.json`) so an untrusted repo can't auto-bypass the prompt.
+
+```json
+{ "skipDangerousModePermissionPrompt": true }
+```
+
+### `effortLevel`
+
+Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `xhigh` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`. The docs for this key omit `"max"` — only the env var accepts it.
+
+```json
+{ "effortLevel": "xhigh" }
+```
+
 ### `disableSkillShellExecution`
 
 Disable the Skill tool's ability to run inline shell commands (v2.1.98). Skills can still load text and prompt the model, but `bun ~/.claude/...` invocations from within a skill are blocked.
