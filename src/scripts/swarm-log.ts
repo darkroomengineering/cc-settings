@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
-// SubagentStart / SubagentStop / TaskCreated hook: append a line to
+// SubagentStart / SubagentStop / TaskCreated / TaskCompleted hook: append a line to
 // ~/.claude/swarm.log. Extracted from inline `bash -c '…'` — Phase 6.2.
 //
 // Usage: bun swarm-log.ts <event>
-//   event = start | stop | task
+//   event = start | stop | task | complete
 // Env:
 //   AGENT_TYPE, AGENT_ID — populated by CC for subagent events
 //   TASK_SUBJECT         — populated by CC for task events
@@ -29,6 +29,9 @@ switch (event) {
     break;
   case "task":
     line = `[Swarm] Task created: ${taskSubject}`;
+    break;
+  case "complete":
+    line = `[Swarm] Task completed: ${taskSubject}`;
     break;
   default:
     // Unknown event — silent no-op rather than fail a hook.

@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import type { z } from "zod";
 import { composeSettings } from "../src/lib/compose-settings.ts";
 import { parseFrontmatter } from "../src/lib/frontmatter.ts";
+import { HookEvent } from "../src/schemas/hooks.ts";
 import { HooksConfig } from "../src/schemas/hooks-config.ts";
 import { Settings } from "../src/schemas/settings.ts";
 import { SkillFrontmatter } from "../src/schemas/skill.ts";
@@ -84,6 +85,17 @@ describe("Published JSON Schemas vs zod sources", () => {
     const composed = await composeSettings(ROOT);
     const result = Settings.safeParse(composed);
     expect(result.success).toBe(true);
+  });
+});
+
+describe("HookEvent schema — v11.6.0 new events", () => {
+  for (const event of ["Setup", "UserPromptExpansion", "PostToolBatch"] as const) {
+    test(`accepts "${event}"`, () => {
+      expect(HookEvent.safeParse(event).success).toBe(true);
+    });
+  }
+  test("rejects an unknown event name", () => {
+    expect(HookEvent.safeParse("TotallyBogusEvent").success).toBe(false);
   });
 });
 

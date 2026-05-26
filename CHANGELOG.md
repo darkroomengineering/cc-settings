@@ -4,6 +4,43 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.6.0] — 2026-05-26
+
+Gap-fill bundle adopting verified Claude Code capabilities (v2.1.117–v2.1.147) and closing manifest/schema/doc drift: subagent model routing, TaskCompleted + WorktreeCreate/Remove hooks, three new tracked hook events, three new env vars, `duration_ms` docs, sandbox schema fields.
+
+### Adopted
+
+- **`CLAUDE_CODE_SUBAGENT_MODEL` env var (upstream v2.1.147)** — routes Agent Teams teammate subprocess sessions to Sonnet while the main session keeps its pinned Opus model. Set to `"sonnet"` in `config/10-core.json`; documented in `docs/settings-reference.md` and added to `upstream/claude-code-manifest.json` `knownEnvVars`.
+- **`TaskCompleted` hook (upstream)** — wired in `config/40-hooks.json` to `swarm-log.ts complete`, logging task completion to `~/.claude/swarm.log`. Mirrors the existing `TaskCreated` handler. `swarm-log.ts` updated with the new `complete` arg.
+- **`WorktreeCreate` / `WorktreeRemove` hooks (upstream)** — new async, fail-open scripts (`src/scripts/worktree-create.ts`, `src/scripts/worktree-remove.ts`) log worktree lifecycle events to `~/.claude/logs/worktree.log`. Pure observability; always exit 0, emit no output that could alter worktree behavior. Wired in `config/40-hooks.json`.
+- **`Setup`, `UserPromptExpansion`, `PostToolBatch` hook events** — three events documented upstream but absent from our schema. Added to `HookEvent` enum in `src/schemas/hooks.ts` and to `knownHookEvents` in `upstream/claude-code-manifest.json` (alphabetical order).
+- **`CLAUDE_CODE_SHELL_PREFIX` (v2.1.128)**, **`CLAUDE_CODE_SUBAGENT_MODEL` (v2.1.147)**, **`OTEL_LOG_TOOL_DETAILS` (v2.1.117)** — three env vars tracked upstream but missing from our manifest. Added to `knownEnvVars` (alphabetical) and documented in `docs/settings-reference.md`.
+
+### Fixed
+
+- **`duration_ms` in `PostToolUse` / `PostToolUseFailure` docs** — upstream added `duration_ms` (tool execution time, excluding permission prompts and PreToolUse) to both hook payloads in v2.1.119. Documented in the event-specific-variables table in `docs/hooks-reference.md`.
+- **Sandbox schema fields** — `src/schemas/settings.ts` `Sandbox` schema was missing `enableWeakerNetworkIsolation` (macOS weaker network isolation for MITM proxy verification) and `filesystem.allowWrite` (list of paths re-allowed inside denyWrite regions). Both were referenced in `docs/settings-reference.md` but rejected by the schema. Added with inline comments.
+- **`CLAUDE_CODE_ENABLE_AWAY_SUMMARY` docs** — already in `knownEnvVars` but undocumented. Added row to the env table in `docs/settings-reference.md` (v2.1.110; on by default; set `=0` to opt out).
+- **`setup-args` test robustness** — `parseArgs > defaults` asserted `sourceDir` matched `/cc-settings$/`, which failed whenever the suite ran inside a git worktree (path ends in `agent-<hash>`, not `cc-settings`). Loosened to a `toContain("cc-settings")` substring check that holds in both a normal checkout and a worktree.
+
+### Files changed
+
+- `config/10-core.json`
+- `config/40-hooks.json`
+- `docs/hooks-reference.md`
+- `docs/settings-reference.md`
+- `src/schemas/hooks.ts`
+- `src/schemas/settings.ts`
+- `src/scripts/swarm-log.ts`
+- `src/scripts/worktree-create.ts` (new)
+- `src/scripts/worktree-remove.ts` (new)
+- `src/setup.ts`
+- `upstream/claude-code-manifest.json`
+- `tests/schemas.test.ts`
+- `tests/phase2-scripts.test.ts`
+- `tests/setup-args.test.ts`
+- `CHANGELOG.md`
+
 ## [11.5.1] — 2026-05-26
 
 Bug fix: remove the `parallelmax-judge.ts` Stop hook. It spawned a nested `claude -p --model haiku` session on every turn that tripped the parallelmax counter (≥ 5 non-Agent tool calls). That nested session ran the full SessionStart hook chain — so its `PROJECT CONTEXT` banner and the judge's own `<conversation-excerpt> … DELEGATE/OK` prompt leaked onto the user's terminal, looking like "every new terminal starts with this." It was also the only place in the codebase that spawned a nested `claude`, and cost a full extra Claude session per tripped Stop with only debounce-bounded recursion protection.

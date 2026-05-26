@@ -12,7 +12,10 @@ describe("parseArgs", () => {
     expect(a.status).toBe(false);
     expect(a.help).toBe(false);
     expect(a.migrateOnly).toBe(false);
-    expect(a.sourceDir).toMatch(/cc-settings$/);
+    // Not end-anchored: when the suite runs inside a git worktree, sourceDir is
+    // `.../cc-settings/.claude/worktrees/agent-<hash>` — still inside the
+    // cc-settings project, but not ending in it. A substring check holds in both.
+    expect(a.sourceDir).toContain("cc-settings");
   });
 
   test("--rollback (no value) sets rollback to true", () => {

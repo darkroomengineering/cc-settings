@@ -268,3 +268,79 @@ describe("claude-audit.ts", () => {
     }
   });
 });
+
+describe("swarm-log.ts", () => {
+  test("complete arg writes '[Swarm] Task completed' line to swarm.log", async () => {
+    const { mkdtempSync, rmSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-swarmlog-test-"));
+    try {
+      const r = await run("swarm-log.ts", {
+        env: { HOME: sandbox, TASK_SUBJECT: "implement feature X" },
+        args: ["complete"],
+      });
+      expect(r.exit).toBe(0);
+      const logPath = join(sandbox, ".claude", "swarm.log");
+      const content = readFileSync(logPath, "utf8");
+      expect(content).toContain("[Swarm] Task completed: implement feature X");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("unknown arg → exit 0, no log written", async () => {
+    const { mkdtempSync, rmSync, existsSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-swarmlog-unknown-"));
+    try {
+      const r = await run("swarm-log.ts", {
+        env: { HOME: sandbox },
+        args: ["bogus"],
+      });
+      expect(r.exit).toBe(0);
+      expect(existsSync(join(sandbox, ".claude", "swarm.log"))).toBe(false);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("worktree-create.ts", () => {
+  test("logs WorktreeCreate entry to worktree.log", async () => {
+    const { mkdtempSync, rmSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-wt-create-test-"));
+    try {
+      const stdin = JSON.stringify({ path: "/tmp/my-worktree" });
+      const r = await run("worktree-create.ts", { env: { HOME: sandbox }, stdin });
+      expect(r.exit).toBe(0);
+      const logPath = join(sandbox, ".claude", "logs", "worktree.log");
+      const content = readFileSync(logPath, "utf8");
+      expect(content).toContain("WorktreeCreate: /tmp/my-worktree");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("worktree-remove.ts", () => {
+  test("logs WorktreeRemove entry to worktree.log", async () => {
+    const { mkdtempSync, rmSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-wt-remove-test-"));
+    try {
+      const stdin = JSON.stringify({ path: "/tmp/my-worktree" });
+      const r = await run("worktree-remove.ts", { env: { HOME: sandbox }, stdin });
+      expect(r.exit).toBe(0);
+      const logPath = join(sandbox, ".claude", "logs", "worktree.log");
+      const content = readFileSync(logPath, "utf8");
+      expect(content).toContain("WorktreeRemove: /tmp/my-worktree");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});

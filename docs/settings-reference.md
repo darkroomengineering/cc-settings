@@ -80,6 +80,10 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_PLUGIN_PREFER_HTTPS` | `"1"` or unset | Clone GitHub plugin sources over HTTPS instead of SSH. For environments without a GitHub SSH key (v2.1.141) |
 | `ANTHROPIC_WORKSPACE_ID` | UUID string | Scopes the workload-identity-federation minted token to a specific workspace (v2.1.141) |
 | `CLAUDE_CODE_USE_POWERSHELL_TOOL` | `"0"` to opt out, unset for default | Now defaults on for Windows Bedrock/Vertex/Foundry users (v2.1.143) |
+| `CLAUDE_CODE_ENABLE_AWAY_SUMMARY` | `"0"` to opt out, unset for default | On by default; produces a session recap on re-entry after background work. Set `=0` to opt out (v2.1.110) |
+| `CLAUDE_CODE_SHELL_PREFIX` | shell prefix string | Custom shell prefix for MCP stdio server launches; overrides the default shell used to spawn stdio MCP processes (v2.1.128) |
+| `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet` (v2.1.147) |
+| `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans; values are redacted unless this is set (v2.1.117) |
 
 ### `model`
 

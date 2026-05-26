@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.5.1"; // remove parallelmax-judge Stop hook (leaked nested claude -p session into the terminal)
+const VERSION = "11.6.0"; // adopt subagent-model routing, task/worktree hooks, +3 hook events, env-var/schema gaps
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

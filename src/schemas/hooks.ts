@@ -1,17 +1,20 @@
 import { z } from "zod";
 
 // --- Hook events ---------------------------------------------------------
-// Complete list as of Claude Code 2.1.97 per docs.claude.com/en/docs/claude-code/hooks.
+// Complete list as of Claude Code 2.1.150 per docs.claude.com/en/docs/claude-code/hooks.
 // Kept in sync with upstream/claude-code-manifest.json by the upstream scanner.
 
 export const HookEvent = z.enum([
   // Lifecycle
   "SessionStart",
+  "Setup", // v2.1.x — triggered via --init, --init-only, or --maintenance CLI flags
   "UserPromptSubmit",
+  "UserPromptExpansion", // v2.1.x — user prompt expansion events
   "PreToolUse",
   "PermissionRequest",
   "PermissionDenied",
   "PostToolUse",
+  "PostToolBatch", // v2.1.x — fires after a batch of tool calls completes
   "PostToolUseFailure",
   "Notification",
   "Stop",

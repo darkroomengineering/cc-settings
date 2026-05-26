@@ -12,7 +12,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
-## Hook Events (27 total)
+## Hook Events (30 total)
 
 ### Session Lifecycle
 
@@ -27,6 +27,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
 | `UserPromptSubmit` | User submits a prompt, before Claude sees it | -- | Yes |
+| `UserPromptExpansion` | User prompt expansion events (e.g., skill or template expansion) | -- | Yes |
 | `Notification` | Claude sends a notification to the user | Notification type | No |
 | `Stop` | Claude finishes generating a response | -- | Yes |
 | `StopFailure` | Turn ends due to API error (rate limit, auth failure) | -- | No |
@@ -37,6 +38,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 |-------|------|----------------|----------|
 | `PreToolUse` | Before a tool executes | Tool name (e.g., `Bash`, `Edit`, `Write`) | Yes |
 | `PostToolUse` | After a tool executes successfully | Tool name | Optional (supports async) |
+| `PostToolBatch` | After a batch of tool calls completes | -- | No |
 | `PostToolUseFailure` | After a tool execution fails | Tool name | Optional |
 | `PermissionRequest` | When a tool needs user permission | Tool name | Yes |
 | `PermissionDenied` | After auto mode classifier denies a tool | Tool name | No |
@@ -104,9 +106,11 @@ Available in all hooks:
 | `PreToolUse` | `$TOOL_NAME` | Name of the tool about to execute |
 | `PreToolUse` | `$TOOL_INPUT` | JSON string of tool input parameters |
 | `PostToolUse` | `$TOOL_NAME` | Name of the tool that executed |
-| `PostToolUse` | stdin (JSON) | Full hook context: `tool_input`, `tool_response`, `tool_name`, `session_id`, `cwd` |
+| `PostToolUse` | stdin (JSON) | Full hook context: `tool_input`, `tool_response`, `tool_name`, `session_id`, `cwd`, `duration_ms` |
+| `PostToolUse` | `duration_ms` (JSON) | Tool execution time in ms, excluding permission prompts and PreToolUse (v2.1.119) |
 | `PostToolUseFailure` | `$TOOL_NAME` | Name of the tool that failed |
 | `PostToolUseFailure` | `$TOOL_ERROR` | Error message from the failure |
+| `PostToolUseFailure` | `duration_ms` (JSON stdin) | Tool execution time in ms up to failure point (v2.1.119) |
 | `SubagentStart` | `$AGENT_ID` | Unique identifier for the subagent |
 | `SubagentStart` | `$AGENT_TYPE` | Agent type (e.g., `explore`, `planner`) |
 | `SubagentStop` | `$AGENT_ID` | Unique identifier for the subagent |
@@ -390,11 +394,18 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 |--------|---------|-------|
 | `stop-failure.ts` | Logs API errors to `~/.claude/api-failures.log`; surfaces rate limit guidance on 429/capacity errors | No |
 
-### SubagentStart / SubagentStop / TaskCreated
+### SubagentStart / SubagentStop / TaskCreated / TaskCompleted
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| Log to `~/.claude/swarm.log` | Records agent spawn/stop events with agent type and ID; logs task creation with subject | Yes |
+| Log to `~/.claude/swarm.log` | Records agent spawn/stop events with agent type and ID; logs task creation and completion with subject | Yes |
+
+### WorktreeCreate / WorktreeRemove
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `worktree-create.ts` | Logs worktree creation events (path + timestamp) to `~/.claude/logs/worktree.log`. Pure observability — always exits 0, emits no output that could alter worktree creation | Yes |
+| `worktree-remove.ts` | Logs worktree removal events (path + timestamp) to `~/.claude/logs/worktree.log` | Yes |
 
 ### Notification
 
@@ -482,7 +493,8 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | Log File | Contents |
 |----------|----------|
 | `~/.claude/hooks.log` | General hook execution output |
-| `~/.claude/swarm.log` | Subagent start/stop events |
+| `~/.claude/swarm.log` | Subagent start/stop and task created/completed events |
+| `~/.claude/logs/worktree.log` | Worktree create/remove events |
 | `~/.claude/sessions.log` | Session lifecycle events |
 | `~/.claude/session-titles/` | Per-session title flags (set once per session by `session-title.ts`) |
 | `~/.claude/tldr-session-stats.json` | TLDR tool usage statistics per session |

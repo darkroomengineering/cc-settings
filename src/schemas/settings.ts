@@ -38,6 +38,7 @@ export const TeammateMode = z.enum(["auto", "manual", "disabled"]);
 export const Sandbox = z
   .object({
     failIfUnavailable: z.boolean().optional(),
+    enableWeakerNetworkIsolation: z.boolean().optional(), // macOS: weaker network isolation for MITM proxy verification
     network: z
       .object({
         deniedDomains: z.array(z.string()).optional(),
@@ -46,6 +47,7 @@ export const Sandbox = z
     filesystem: z
       .object({
         allowRead: z.array(z.string()).optional(),
+        allowWrite: z.array(z.string()).optional(), // re-allow write paths inside denyWrite regions
       })
       .optional(),
     bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
