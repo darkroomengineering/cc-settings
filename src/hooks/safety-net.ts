@@ -355,30 +355,53 @@ function checkInterpreterOneliners(cmd: string, depth: number): void {
 }
 
 // --- Rule: multi-command splitting ---------------------------------------
+//
+// Rules fall into two tiers with opposite scope requirements:
+//
+//   • Full-string rules (attribution, find/xargs, shell + interpreter unwrap)
+//     must see the command BEFORE the lossy split. Multi-line commit bodies
+//     and quoted `bash -c '...'` / `python -c '...'` payloads routinely span
+//     `;`/`&&`/`||`, and these patterns are detected anywhere in the string —
+//     they never benefit from splitting, only suffer from it.
+//
+//   • Per-segment rules (rm, git) must run on EACH segment, because their
+//     parsers latch onto the first subcommand: `git checkout -b x &&
+//     git checkout -- .` looks safe to checkGitDestructive on the full string
+//     (it sees `checkout -b`) but is destructive in its second segment.
+//
+// Splitting on quotes-unaware delimiters is intentional: full-string rules
+// already ran on the intact command, so a mangled segment can only ever cause
+// an additional rm/git match, never miss one.
 
-function splitCommands(cmd: string): void {
-  // Pipe to xargs (full-pipeline check).
-  if (/\|\s*xargs\s/.test(cmd)) checkFindXargs(cmd);
-
-  // AI attribution runs on the full string (covers multi-line commit bodies).
+function analyzeFullString(cmd: string): void {
   checkAiAttribution(cmd);
+  checkFindXargs(cmd);
   unwrapAndAnalyze(cmd, 0);
   checkInterpreterOneliners(cmd, 0);
+}
 
-  // Split on ; && || and analyze each segment.
-  const segments = cmd.split(/\s*(?:&&|\|\||;)\s*/);
-  for (const raw of segments) {
+function analyzeSegment(cmd: string): void {
+  checkRmRf(cmd);
+  checkGitDestructive(cmd);
+}
+
+function splitCommands(cmd: string): void {
+  analyzeFullString(cmd);
+  for (const raw of cmd.split(/\s*(?:&&|\|\||;)\s*/)) {
     const seg = raw.trim();
-    if (!seg) continue;
-    analyzeCommand(seg, 0);
+    if (seg) analyzeSegment(seg);
   }
 }
 
-// --- Core analysis --------------------------------------------------------
+// --- Recursion target -----------------------------------------------------
+//
+// Inner commands extracted from `bash -c '...'` or interpreter one-liners are
+// fresh command strings with quotes intact, so the full destructive battery is
+// re-run on them (depth-bounded by MAX_DEPTH). Attribution is omitted: it has
+// already matched against the outer string, which contains the inner verbatim.
 
 function analyzeCommand(cmd: string, depth: number): void {
   checkRmRf(cmd);
-  checkAiAttribution(cmd);
   checkGitDestructive(cmd);
   checkFindXargs(cmd);
   unwrapAndAnalyze(cmd, depth);
