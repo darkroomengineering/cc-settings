@@ -400,13 +400,6 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 |--------|---------|-------|
 | Log to `~/.claude/swarm.log` | Records agent spawn/stop events with agent type and ID; logs task creation and completion with subject | Yes |
 
-### WorktreeCreate / WorktreeRemove
-
-| Script | Purpose | Async |
-|--------|---------|-------|
-| `worktree-create.ts` | Logs worktree creation events (path + timestamp) to `~/.claude/logs/worktree.log`. Pure observability — always exits 0, emits no output that could alter worktree creation | Yes |
-| `worktree-remove.ts` | Logs worktree removal events (path + timestamp) to `~/.claude/logs/worktree.log` | Yes |
-
 ### Notification
 
 | Script | Purpose | Async |
@@ -494,7 +487,6 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 |----------|----------|
 | `~/.claude/hooks.log` | General hook execution output |
 | `~/.claude/swarm.log` | Subagent start/stop and task created/completed events |
-| `~/.claude/logs/worktree.log` | Worktree create/remove events |
 | `~/.claude/sessions.log` | Session lifecycle events |
 | `~/.claude/session-titles/` | Per-session title flags (set once per session by `session-title.ts`) |
 | `~/.claude/tldr-session-stats.json` | TLDR tool usage statistics per session |

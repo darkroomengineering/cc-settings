@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.6.1] — 2026-05-26
+
+Hotfix: revert the `WorktreeCreate` / `WorktreeRemove` hooks shipped in v11.6.0. They broke worktree creation. In Claude Code's harness, `WorktreeCreate` is a **provisioning** hook — it is expected to create the worktree and return its path (echo the path to stdout / `hookSpecificOutput.worktreePath`). The v11.6.0 scripts were logging-only and returned nothing, so worktree creation failed with "hook succeeded but returned no worktree path," which broke agent spawning and any `EnterWorktree` flow. A passive, observability-only `WorktreeCreate` hook is not viable in this harness.
+
+### Removed
+
+- **`WorktreeCreate` / `WorktreeRemove` hook wiring** in `config/40-hooks.json` and the scripts `src/scripts/worktree-create.ts` / `worktree-remove.ts`. Both command patterns were added to `DEPRECATED_COMMAND_PATTERNS` (`src/lib/settings-merge.ts`) so the merger prunes any lingering reference from an upgrader's live `settings.json`. Docs reverted in `docs/hooks-reference.md` (the generic event-table rows describing the upstream events remain; only the "we wire these scripts" claims were removed). The worktree tests in `tests/phase2-scripts.test.ts` were removed.
+
+Everything else from v11.6.0 stands: `CLAUDE_CODE_SUBAGENT_MODEL`, the `TaskCompleted` hook, the three new tracked hook events, the three new env vars, the `duration_ms` docs, and the sandbox schema fields are unaffected.
+
 ## [11.6.0] — 2026-05-26
 
 Gap-fill bundle adopting verified Claude Code capabilities (v2.1.117–v2.1.147) and closing manifest/schema/doc drift: subagent model routing, TaskCompleted + WorktreeCreate/Remove hooks, three new tracked hook events, three new env vars, `duration_ms` docs, sandbox schema fields.

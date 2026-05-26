@@ -202,6 +202,13 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // the user's terminal. Prune any lingering reference so upgraders stop firing
   // it. As a shared `Stop` group with stop-summary.ts, this is a partial prune.
   /parallelmax-judge\.ts\b/,
+  // cc-settings v11.6.1 removed the WorktreeCreate/WorktreeRemove hooks added in
+  // v11.6.0. In this harness WorktreeCreate is a *provisioning* hook expected to
+  // return the new worktree path; our logging-only script returned nothing, so
+  // worktree creation failed ("hook succeeded but returned no worktree path").
+  // Prune both so upgraders don't keep a broken worktree hook wired.
+  /worktree-create\.ts\b/,
+  /worktree-remove\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {
