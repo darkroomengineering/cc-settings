@@ -202,7 +202,7 @@ async function createDirectories(): Promise<void> {
     "src/lib",
     "src/schemas",
   ];
-  for (const d of dirs) await mkdir(join(CLAUDE_DIR, d), { recursive: true });
+  await Promise.all(dirs.map((d) => mkdir(join(CLAUDE_DIR, d), { recursive: true })));
 }
 
 async function cleanOldConfig(): Promise<void> {
@@ -210,38 +210,40 @@ async function cleanOldConfig(): Promise<void> {
     const full = join(CLAUDE_DIR, dir);
     if (!existsSync(full)) return;
     const entries = await readdir(full).catch(() => []);
-    for (const e of entries) if (pattern.test(e)) await rm(join(full, e), { force: true });
+    await Promise.all(
+      entries.filter((e) => pattern.test(e)).map((e) => rm(join(full, e), { force: true })),
+    );
   };
 
-  // Wipe previously-installed bash artifacts (for upgraders from <10.0).
-  await rm(join(CLAUDE_DIR, "scripts"), { recursive: true, force: true }).catch(() => {});
-  await rm(join(CLAUDE_DIR, "lib"), { recursive: true, force: true }).catch(() => {});
-  await rm(join(CLAUDE_DIR, "hooks-config.json"), { force: true }).catch(() => {});
-  await rm(join(CLAUDE_DIR, "hooks-config.local.json"), { force: true }).catch(() => {});
-
-  // Fresh wipe of managed content (we re-install it below).
-  await removeGlob("agents", /\.md$/);
-  await removeGlob("skills", /\.(json|md)$/);
-  await removeGlob("profiles", /\.md$/);
-  await removeGlob("rules", /\.md$/);
-  await removeGlob("contexts", /\.md$/);
-  await removeGlob("hooks", /\.md$/);
-  await removeGlob("docs", /\.md$/);
-
-  for (const s of MANAGED_SKILLS) {
-    await rm(join(CLAUDE_DIR, "skills", s), { recursive: true, force: true });
-  }
-
-  for (const junk of [
+  const junkFiles = [
     "skill-rules.cache",
     "skill-activation.out",
     "skill-index.compiled",
     "skill-index.checksum",
     "CLAUDE.md",
     "AGENTS.md",
-  ]) {
-    await rm(join(CLAUDE_DIR, junk), { force: true }).catch(() => {});
-  }
+  ];
+
+  // Every removal below targets a disjoint path, so they run concurrently:
+  // legacy bash artifacts, fresh wipes of managed content (re-installed after),
+  // managed skill directories, and stale caches + legacy top-level docs.
+  await Promise.all([
+    rm(join(CLAUDE_DIR, "scripts"), { recursive: true, force: true }).catch(() => {}),
+    rm(join(CLAUDE_DIR, "lib"), { recursive: true, force: true }).catch(() => {}),
+    rm(join(CLAUDE_DIR, "hooks-config.json"), { force: true }).catch(() => {}),
+    rm(join(CLAUDE_DIR, "hooks-config.local.json"), { force: true }).catch(() => {}),
+    removeGlob("agents", /\.md$/),
+    removeGlob("skills", /\.(json|md)$/),
+    removeGlob("profiles", /\.md$/),
+    removeGlob("rules", /\.md$/),
+    removeGlob("contexts", /\.md$/),
+    removeGlob("hooks", /\.md$/),
+    removeGlob("docs", /\.md$/),
+    ...MANAGED_SKILLS.map((s) =>
+      rm(join(CLAUDE_DIR, "skills", s), { recursive: true, force: true }),
+    ),
+    ...junkFiles.map((junk) => rm(join(CLAUDE_DIR, junk), { force: true }).catch(() => {})),
+  ]);
 }
 
 async function copyIfPresent(src: string, dst: string): Promise<boolean> {
@@ -279,9 +281,11 @@ async function installTsSources(source: string): Promise<void> {
   await copyDirContents(srcTs, dstTs);
 
   // Dep resolution: copy lockfile + config, link node_modules back to source.
-  await copyIfPresent(join(source, "package.json"), join(dstTs, "package.json"));
-  await copyIfPresent(join(source, "tsconfig.json"), join(dstTs, "tsconfig.json"));
-  await copyIfPresent(join(source, "bun.lock"), join(dstTs, "bun.lock"));
+  await Promise.all([
+    copyIfPresent(join(source, "package.json"), join(dstTs, "package.json")),
+    copyIfPresent(join(source, "tsconfig.json"), join(dstTs, "tsconfig.json")),
+    copyIfPresent(join(source, "bun.lock"), join(dstTs, "bun.lock")),
+  ]);
 
   const srcNm = join(source, "node_modules");
   const dstNm = join(dstTs, "node_modules");
@@ -385,16 +389,22 @@ async function countEntries(dir: string, pattern: RegExp): Promise<number> {
 }
 
 async function showSummary(): Promise<void> {
+  const [agentCount, profileCount, ruleCount, contextCount] = await Promise.all([
+    countEntries("agents", /\.md$/),
+    countEntries("profiles", /\.md$/),
+    countEntries("rules", /\.md$/),
+    countEntries("contexts", /\.md$/),
+  ]);
   console.log("");
   boxStart("Installed");
   boxLine("ok", "CLAUDE.md (Claude-Code config)");
   boxLine("ok", "AGENTS.md (portable standards)");
   boxLine("ok", "settings.json (TS hooks)");
   boxLine("ok", "~/.claude.json (MCP servers)");
-  boxLine("ok", `agents/ (${await countEntries("agents", /\.md$/)})`);
-  boxLine("ok", `profiles/ (${await countEntries("profiles", /\.md$/)})`);
-  boxLine("ok", `rules/ (${await countEntries("rules", /\.md$/)})`);
-  boxLine("ok", `contexts/ (${await countEntries("contexts", /\.md$/)})`);
+  boxLine("ok", `agents/ (${agentCount})`);
+  boxLine("ok", `profiles/ (${profileCount})`);
+  boxLine("ok", `rules/ (${ruleCount})`);
+  boxLine("ok", `contexts/ (${contextCount})`);
   boxLine("ok", "skills/");
   boxLine("ok", "src/      (TS; hooks + scripts + libs + schemas)");
   boxLine("ok", "docs/");
@@ -597,8 +607,9 @@ async function main(): Promise<number> {
     info("Installing configuration...");
     await createDirectories();
     await cleanOldConfig();
-    await installConfigFiles(args.sourceDir);
-    await installTsSources(args.sourceDir);
+    // Disjoint destination trees (config dirs vs ~/.claude/src), so install both
+    // in parallel. Both must follow the clean above.
+    await Promise.all([installConfigFiles(args.sourceDir), installTsSources(args.sourceDir)]);
   }
 
   try {
