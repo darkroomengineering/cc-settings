@@ -83,6 +83,8 @@
       "type": "string",
       "enum": [
         "auto",
+        "in-process",
+        "tmux",
         "manual",
         "disabled"
       ]
@@ -170,11 +172,14 @@
         "type": "string",
         "enum": [
           "SessionStart",
+          "Setup",
           "UserPromptSubmit",
+          "UserPromptExpansion",
           "PreToolUse",
           "PermissionRequest",
           "PermissionDenied",
           "PostToolUse",
+          "PostToolBatch",
           "PostToolUseFailure",
           "Notification",
           "Stop",
@@ -597,6 +602,19 @@
         "disable"
       ]
     },
+    "skipDangerousModePermissionPrompt": {
+      "type": "boolean"
+    },
+    "effortLevel": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
     "disableSkillShellExecution": {
       "type": "boolean"
     },
@@ -608,6 +626,11 @@
     },
     "autoMemoryDirectory": {
       "type": "string"
+    },
+    "cleanupPeriodDays": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
     },
     "channelsEnabled": {
       "type": "boolean"
@@ -630,6 +653,21 @@
         "type": "string"
       }
     },
+    "allowAllClaudeAiMcps": {
+      "type": "boolean"
+    },
+    "enabledMcpjsonServers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "disabledMcpjsonServers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "modelOverrides": {
       "type": "object",
       "propertyNames": {
@@ -644,6 +682,9 @@
       "type": "object",
       "properties": {
         "failIfUnavailable": {
+          "type": "boolean"
+        },
+        "enableWeakerNetworkIsolation": {
           "type": "boolean"
         },
         "network": {
@@ -662,6 +703,12 @@
           "type": "object",
           "properties": {
             "allowRead": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowWrite": {
               "type": "array",
               "items": {
                 "type": "string"
@@ -724,7 +771,270 @@
         "first-wins",
         "merge"
       ]
+    },
+    "agent": {
+      "type": "string"
+    },
+    "alwaysThinkingEnabled": {
+      "type": "boolean"
+    },
+    "autoMemoryEnabled": {
+      "type": "boolean"
+    },
+    "autoMode": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "autoUpdatesChannel": {
+      "type": "string",
+      "enum": [
+        "stable",
+        "latest"
+      ]
+    },
+    "claudeMdExcludes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "defaultShell": {
+      "type": "string",
+      "enum": [
+        "bash",
+        "powershell"
+      ]
+    },
+    "enableAllProjectMcpServers": {
+      "type": "boolean"
+    },
+    "fastModePerSessionOptIn": {
+      "type": "boolean"
+    },
+    "fileSuggestion": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "includeCoAuthoredBy": {
+      "type": "boolean"
+    },
+    "language": {
+      "type": "string"
+    },
+    "maxSkillDescriptionChars": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "otelHeadersHelper": {
+      "type": "string"
+    },
+    "outputStyle": {
+      "type": "string"
+    },
+    "respectGitignore": {
+      "type": "boolean"
+    },
+    "skillListingBudgetFraction": {
+      "type": "number"
+    },
+    "skipWebFetchPreflight": {
+      "type": "boolean"
+    },
+    "sshConfigs": {
+      "type": "array",
+      "items": {}
+    },
+    "useAutoModeDuringPlan": {
+      "type": "boolean"
+    },
+    "voice": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "voiceEnabled": {
+      "type": "boolean"
+    },
+    "allowedHttpHookUrls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowManagedHooksOnly": {
+      "type": "boolean"
+    },
+    "allowManagedMcpServersOnly": {
+      "type": "boolean"
+    },
+    "allowManagedPermissionRulesOnly": {
+      "type": "boolean"
+    },
+    "availableModels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blockedMarketplaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "claudeMd": {
+      "type": "string"
+    },
+    "companyAnnouncements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "disableAgentView": {
+      "type": "boolean"
+    },
+    "disableRemoteControl": {
+      "type": "boolean"
+    },
+    "forceRemoteSettingsRefresh": {
+      "type": "boolean"
+    },
+    "httpHookAllowedEnvVars": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "minimumVersion": {
+      "type": "string"
+    },
+    "pluginTrustMessage": {
+      "type": "string"
+    },
+    "policyHelper": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "strictKnownMarketplaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "strictPluginOnlyCustomization": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "skills",
+              "agents",
+              "hooks",
+              "mcp"
+            ]
+          }
+        }
+      ]
+    },
+    "wslInheritsWindowsSettings": {
+      "type": "boolean"
+    },
+    "apiKeyHelper": {
+      "type": "string"
+    },
+    "awsAuthRefresh": {
+      "type": "string"
+    },
+    "awsCredentialExport": {
+      "type": "string"
+    },
+    "forceLoginMethod": {
+      "type": "string",
+      "enum": [
+        "claudeai",
+        "console"
+      ]
+    },
+    "forceLoginOrgUUID": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "gcpAuthRefresh": {
+      "type": "string"
+    },
+    "awaySummaryEnabled": {
+      "type": "boolean"
+    },
+    "editorMode": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "vim"
+      ]
+    },
+    "preferredNotifChannel": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "terminal_bell",
+        "iterm2",
+        "iterm2_with_bell",
+        "kitty",
+        "ghostty",
+        "notifications_disabled"
+      ]
+    },
+    "prefersReducedMotion": {
+      "type": "boolean"
+    },
+    "showClearContextOnPlanAccept": {
+      "type": "boolean"
+    },
+    "showTurnDuration": {
+      "type": "boolean"
+    },
+    "spinnerTipsEnabled": {
+      "type": "boolean"
+    },
+    "syntaxHighlightingDisabled": {
+      "type": "boolean"
+    },
+    "terminalProgressBarEnabled": {
+      "type": "boolean"
+    },
+    "tui": {
+      "type": "string",
+      "enum": [
+        "fullscreen",
+        "default"
+      ]
+    },
+    "viewMode": {
+      "type": "string",
+      "enum": [
+        "default",
+        "verbose",
+        "focus"
+      ]
     }
   },
-  "additionalProperties": false
+  "additionalProperties": {}
 }

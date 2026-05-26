@@ -4,6 +4,43 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.8.0] — 2026-05-26
+
+Reconcile the `Settings` zod schema with the full documented Claude Code settings surface and relax `.strict()` → `.passthrough()`. Claude Code writes undocumented keys (`theme`, `agentPushNotifEnabled`, `enabledPlugins`) to `settings.json`, so `.strict()` could never validate a real live file — installs worked only because `setup.ts` uses `safeParse` with a raw fallback. This release fixes the schema to reflect reality: passthrough tolerance for undocumented keys, typed coverage expanded from ~39 → 96 keys (the documented surface is ~104; the remainder are tolerated via passthrough), and a new fragment typo-guard test that replaces the old strict check for our own `config/*.json` fragments. `TeammateMode` gains the doc-canonical `in-process` and `tmux` variants. Schema re-emitted so `schemas/settings.schema.json` matches (`additionalProperties` flips `false` → `{}`).
+
+### Changed
+
+- `src/schemas/settings.ts`: root `.strict()` → `.passthrough()` with explanatory comment
+- `src/schemas/settings.ts`: `TeammateMode` enum extended to `auto | in-process | tmux | manual | disabled`
+- `upstream/claude-code-manifest.json`: `knownSettingsKeys` updated to mirror full `Settings.shape` (39 → 96 keys)
+- `schemas/settings.schema.json`: re-emitted; `additionalProperties` is now `{}` (passthrough)
+- `tests/schemas.test.ts`: "rejects unknown top-level keys (strict)" → "accepts unknown top-level keys (forward-compat passthrough)"
+- `tests/setup.test.ts`: "unknown top-level key → success:false" → "success:true"; `safeParse failure` test switched to type-error input
+
+### Added
+
+- `src/schemas/settings.ts`: ~65 new optional fields covering GENERAL, ENTERPRISE/MANAGED, AUTH/PROVIDER, and UX key groups (see schema comments for per-field descriptions)
+- `tests/schemas.test.ts`: "composed fragments contain only known keys" — typo-guard replacing the old strict check
+- `tests/schemas.test.ts`: positive test asserting `tui:"fullscreen"`, `editorMode:"vim"`, `autoUpdatesChannel:"latest"`, `teammateMode:"in-process"` → success:true
+- `tests/schemas.test.ts`: negative test asserting `tui:"bogus"` → success:false (enum still validates known keys)
+- `docs/settings-reference.md`: "## Complete settings.json key reference" table (all ~104 keys with type, class, description)
+
+### Fixed
+
+- `Settings.safeParse` on a real live `~/.claude/settings.json` now returns `success:true` instead of failing on undocumented keys written by Claude Code
+- `effortLevel` enum widened to include `"max"` — real live configs persist `effortLevel: "max"` (the env var's full range), which the key's docs omit. Passthrough tolerates unknown *keys* but not invalid *values* of known keys, so without this the live file still failed validation on this one field. Verified: the actual live `~/.claude/settings.json` now validates end-to-end.
+
+### Files changed
+
+- `src/schemas/settings.ts`
+- `upstream/claude-code-manifest.json`
+- `schemas/settings.schema.json`
+- `tests/schemas.test.ts`
+- `tests/setup.test.ts`
+- `docs/settings-reference.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.7.1] — 2026-05-26
 
 Schema gap-fill: two settings keys Claude Code writes to `settings.json` were missing from our `Settings` schema, so the `.strict()` parse rejected real configs (the `safeParse` forward-compat fallback in `setup.ts` kept installs working, but the schema was wrong). Surfaced when the live `~/.claude/settings.json` failed a strict parse with five unrecognized keys; each was verified against the official settings docs before adding — three were **not** documented and deliberately left out.

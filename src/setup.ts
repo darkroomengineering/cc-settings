@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.7.1"; // add effortLevel + skipDangerousModePermissionPrompt settings keys (doc-verified; 3 live keys rejected as undocumented)
+const VERSION = "11.8.0"; // reconcile Settings schema with full documented surface; strict→passthrough; typed surface 39→~104 keys
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

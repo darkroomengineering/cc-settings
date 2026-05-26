@@ -3,10 +3,9 @@
 // installSettings() is internal (not exported), so we test the validation
 // boundary it relies on: Settings.safeParse() behavior on inputs that
 // represent the range of real-world settings.json files the installer will
-// encounter. The forward-compat fallback (schema failure → log + use raw)
-// is also exercised here by confirming safeParse returns success:false for
-// files with unknown keys (which the .strict() schema catches) and that
-// the raw object is still a usable fallback.
+// encounter. The schema is .passthrough() (not .strict()), so unknown keys
+// are accepted — a real live settings.json written by Claude Code (with
+// undocumented keys like theme/enabledPlugins) now parses successfully.
 
 import { describe, expect, test } from "bun:test";
 import { Settings } from "../src/schemas/settings.ts";
@@ -26,15 +25,15 @@ describe("Settings.safeParse — installSettings validation boundary", () => {
     expect(result.success).toBe(true);
   });
 
-  test("unknown top-level key → success:false (strict schema catches forward-compat drift)", () => {
-    // Settings uses .strict() — unknown keys fail.
-    // When this happens in installSettings, the raw object is used as fallback
-    // so fingerprinting still works. This test documents that invariant.
+  test("unknown top-level key → success:true (passthrough tolerates undocumented CC keys)", () => {
+    // Settings uses .passthrough() — unknown keys are passed through, not rejected.
+    // This means a live settings.json that CC has written undocumented keys into
+    // (theme, enabledPlugins, agentPushNotifEnabled) now parses successfully.
+    // The installer's safeParse fallback is retained for other failures (type errors etc.).
     const input = { unknownFutureKey: "some-value", model: "claude-sonnet-4-5" };
     const result = Settings.safeParse(input);
-    expect(result.success).toBe(false);
-    // On failure the installer logs a debug message and falls back to raw.
-    // The raw object must still be usable:
+    expect(result.success).toBe(true);
+    // The known field is still accessible in the result:
     expect(input.model).toBe("claude-sonnet-4-5");
   });
 
@@ -63,7 +62,10 @@ describe("Settings.safeParse — installSettings validation boundary", () => {
   });
 
   test("safeParse failure exposes issues for debug logging", () => {
-    const input = { badKey: true };
+    // Type errors on known fields still produce structured issues — the installer
+    // logs them for debugging. Use a type violation (model must be string) rather
+    // than an unknown key, since passthrough now accepts unknown keys.
+    const input = { model: 42 };
     const result = Settings.safeParse(input);
     expect(result.success).toBe(false);
     if (!result.success) {

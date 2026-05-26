@@ -30,7 +30,9 @@ export const Attribution = z.object({
   pr: z.string().optional(),
 });
 
-export const TeammateMode = z.enum(["auto", "manual", "disabled"]);
+// doc-canonical values are auto|in-process|tmux; manual|disabled kept as a
+// superset to not reject older configs.
+export const TeammateMode = z.enum(["auto", "in-process", "tmux", "manual", "disabled"]);
 
 // Sandbox config (introduced 2.1.98–2.1.108). Not yet in any user config in
 // this repo; fields verified via docs + changelog. passthrough() on the root
@@ -114,7 +116,7 @@ export const Settings = z
     disableAutoMode: z.enum(["disable"]).optional(),
     disableBypassPermissionsMode: z.enum(["disable"]).optional(),
     skipDangerousModePermissionPrompt: z.boolean().optional(), // skip the confirmation before entering bypass-permissions mode; ignored in project settings (per docs)
-    effortLevel: z.enum(["low", "medium", "high", "xhigh"]).optional(), // persist /effort across sessions; settings.json counterpart of CLAUDE_CODE_EFFORT_LEVEL (docs list 4 values, no "max")
+    effortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // persist /effort across sessions; settings.json counterpart of CLAUDE_CODE_EFFORT_LEVEL. The key's docs list 4 values, but the env var + real live configs also use "max" — superset to not reject observed values.
     disableSkillShellExecution: z.boolean().optional(), // 2.1.98
     disableDeepLinkRegistration: z.boolean().optional(), // 2.1.103
     autoScrollEnabled: z.boolean().optional(), // 2.1.102
@@ -135,7 +137,88 @@ export const Settings = z
     worktree: Worktree.optional(), // 2.1.133
     skillOverrides: SkillOverrides.optional(), // 2.1.129 (now functional)
     parentSettingsBehavior: z.enum(["first-wins", "merge"]).optional(), // 2.1.133 (admin-tier)
+
+    // --- GENERAL ---
+    agent: z.string().optional(), // default agent name for subagent invocations
+    alwaysThinkingEnabled: z.boolean().optional(), // always show extended thinking even on short turns
+    autoMemoryEnabled: z.boolean().optional(), // enable/disable the auto-memory system
+    autoMode: z.object({}).passthrough().optional(), // auto-mode configuration object (shape evolving)
+    autoUpdatesChannel: z.enum(["stable", "latest"]).optional(), // which release channel to track for updates
+    claudeMdExcludes: z.array(z.string()).optional(), // glob patterns for CLAUDE.md files to exclude
+    defaultShell: z.enum(["bash", "powershell"]).optional(), // shell used by the Bash tool
+    enableAllProjectMcpServers: z.boolean().optional(), // auto-enable every server listed in .mcp.json
+    fastModePerSessionOptIn: z.boolean().optional(), // per-session fast-mode opt-in flag
+    fileSuggestion: z.object({}).passthrough().optional(), // file-suggestion UI configuration object
+    includeCoAuthoredBy: z.boolean().optional(), // deprecated: use attribution instead
+    language: z.string().optional(), // UI language / locale override (e.g. "en", "ja")
+    maxSkillDescriptionChars: z.number().int().positive().optional(), // per-skill description character cap for the model
+    otelHeadersHelper: z.string().optional(), // shell command that emits OTEL auth headers
+    outputStyle: z.string().optional(), // output rendering style override
+    respectGitignore: z.boolean().optional(), // honour .gitignore when listing files
+    skillListingBudgetFraction: z.number().optional(), // fraction of context budget reserved for skill listings
+    skipWebFetchPreflight: z.boolean().optional(), // skip the preflight check before web-fetch tool calls
+    sshConfigs: z.array(z.unknown()).optional(), // SSH tunnel/proxy configuration entries
+    useAutoModeDuringPlan: z.boolean().optional(), // run auto-mode during the plan phase
+    voice: z.object({}).passthrough().optional(), // voice input/output configuration object
+    voiceEnabled: z.boolean().optional(), // enable the voice interface
+
+    // --- ENTERPRISE/MANAGED ---
+    allowedHttpHookUrls: z.array(z.string()).optional(), // allowlist of HTTP endpoints hooks may call
+    allowManagedHooksOnly: z.boolean().optional(), // block user-defined hooks; only managed hooks run
+    allowManagedMcpServersOnly: z.boolean().optional(), // block user-defined MCP servers
+    allowManagedPermissionRulesOnly: z.boolean().optional(), // block user-defined permission rules
+    availableModels: z.array(z.string()).optional(), // restrict the model picker to this list
+    blockedMarketplaces: z.array(z.string()).optional(), // marketplace IDs that users cannot install from
+    claudeMd: z.string().optional(), // managed system-prompt override (replaces CLAUDE.md lookup)
+    companyAnnouncements: z.array(z.string()).optional(), // banner messages shown at session start
+    disableAgentView: z.boolean().optional(), // hide the agent-activity panel in the TUI
+    disableRemoteControl: z.boolean().optional(), // prevent remote-control / programmatic session takeover
+    forceRemoteSettingsRefresh: z.boolean().optional(), // force a settings reload from the managed settings URL
+    httpHookAllowedEnvVars: z.array(z.string()).optional(), // env vars forwarded to HTTP hooks
+    minimumVersion: z.string().optional(), // minimum Claude Code version required; older clients are blocked
+    pluginTrustMessage: z.string().optional(), // custom trust-confirmation message shown when installing plugins
+    policyHelper: z.object({}).passthrough().optional(), // policy-helper configuration object (enterprise)
+    strictKnownMarketplaces: z.array(z.string()).optional(), // allowlist of marketplace IDs considered trusted
+    strictPluginOnlyCustomization: z
+      .union([z.boolean(), z.array(z.enum(["skills", "agents", "hooks", "mcp"]))])
+      .optional(), // restrict customization to plugin-provided items only; true = all categories
+    wslInheritsWindowsSettings: z.boolean().optional(), // WSL sessions inherit the Windows-side managed settings
+
+    // --- AUTH/PROVIDER ---
+    apiKeyHelper: z.string().optional(), // shell command that emits an Anthropic API key
+    awsAuthRefresh: z.string().optional(), // shell command called to refresh AWS credentials
+    awsCredentialExport: z.string().optional(), // shell command that exports AWS credential env vars
+    forceLoginMethod: z.enum(["claudeai", "console"]).optional(), // lock the login flow to a specific provider
+    forceLoginOrgUUID: z.union([z.string(), z.array(z.string())]).optional(), // restrict login to a specific org UUID (or list)
+    gcpAuthRefresh: z.string().optional(), // shell command called to refresh GCP credentials
+
+    // --- UX ---
+    awaySummaryEnabled: z.boolean().optional(), // show a session recap on re-entry after background work
+    editorMode: z.enum(["normal", "vim"]).optional(), // input editor keybindings
+    preferredNotifChannel: z
+      .enum([
+        "auto",
+        "terminal_bell",
+        "iterm2",
+        "iterm2_with_bell",
+        "kitty",
+        "ghostty",
+        "notifications_disabled",
+      ])
+      .optional(), // preferred desktop/terminal notification channel
+    prefersReducedMotion: z.boolean().optional(), // suppress animations in the TUI
+    showClearContextOnPlanAccept: z.boolean().optional(), // offer context-clear prompt after accepting a plan
+    showTurnDuration: z.boolean().optional(), // show per-turn elapsed time in the TUI
+    spinnerTipsEnabled: z.boolean().optional(), // show tips in the thinking spinner
+    syntaxHighlightingDisabled: z.boolean().optional(), // disable syntax highlighting in code blocks
+    terminalProgressBarEnabled: z.boolean().optional(), // show a progress bar for long-running operations
+    tui: z.enum(["fullscreen", "default"]).optional(), // TUI rendering mode (fullscreen uses alternate screen)
+    viewMode: z.enum(["default", "verbose", "focus"]).optional(), // controls how much detail the TUI shows
   })
-  .strict(); // strict: unknown keys fail parse, so drift is caught at install time.
+  // passthrough, not strict: Claude Code writes undocumented keys (theme,
+  // enabledPlugins, agentPushNotifEnabled) to settings.json, so strict can
+  // never validate a real live file. Typos in OUR config/*.json fragments are
+  // caught by a dedicated test in tests/schemas.test.ts instead.
+  .passthrough();
 
 export type Settings = z.infer<typeof Settings>;

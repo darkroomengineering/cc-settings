@@ -29,9 +29,43 @@ describe("Settings schema vs the composed config/ fragments", () => {
     expect(result.success).toBe(true);
   });
 
-  test("rejects unknown top-level keys (strict)", () => {
-    const bad = Settings.safeParse({ env: {}, totallyUnknownKey: 1 });
-    expect(bad.success).toBe(false);
+  // Schema is now passthrough, not strict — unknown keys are tolerated so a
+  // real live settings.json (which CC writes undocumented keys into) can parse.
+  test("accepts unknown top-level keys (forward-compat passthrough)", () => {
+    const result = Settings.safeParse({ env: {}, totallyUnknownKey: 1 });
+    expect(result.success).toBe(true);
+  });
+
+  // Typo guard: replaces the old strict() check for OUR fragments. Every key
+  // we ship in config/*.json must be a known typed key in the schema so typos
+  // surface here rather than silently at install time.
+  test("composed fragments contain only known keys", async () => {
+    const composed = await composeSettings(ROOT);
+    const knownKeys = new Set(Object.keys(Settings.shape));
+    const unknownKeys = Object.keys(composed).filter((k) => !knownKeys.has(k));
+    if (unknownKeys.length > 0) {
+      throw new Error(
+        `config/*.json fragments contain keys not in Settings.shape (typo?): ${unknownKeys.join(", ")}`,
+      );
+    }
+    expect(unknownKeys.length).toBe(0);
+  });
+
+  // Positive: new documented keys accepted under passthrough + typed fields.
+  test("accepts representative new documented keys", () => {
+    const result = Settings.safeParse({
+      tui: "fullscreen",
+      editorMode: "vim",
+      autoUpdatesChannel: "latest",
+      teammateMode: "in-process",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // Negative: enum validation still catches bad values on known keys.
+  test("rejects invalid enum value on known key (tui: bogus)", () => {
+    const result = Settings.safeParse({ tui: "bogus" });
+    expect(result.success).toBe(false);
   });
 });
 

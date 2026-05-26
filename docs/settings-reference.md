@@ -375,7 +375,7 @@ Skip the confirmation prompt shown before entering bypass-permissions mode (via 
 
 ### `effortLevel`
 
-Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `xhigh` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`. The docs for this key omit `"max"` — only the env var accepts it.
+Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `xhigh` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`. The official docs for this key list only the first four, but the env var and real live configs also persist `"max"` — our schema accepts it as a superset so a live `settings.json` validates.
 
 ```json
 { "effortLevel": "xhigh" }
@@ -453,6 +453,109 @@ Sampling rate (0.0–1.0) for the in-session feedback survey (v2.1.106, enterpri
 ```json
 { "feedbackSurveyRate": 0 }
 ```
+
+## Complete settings.json key reference
+
+All ~104 documented top-level keys. Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider, **U** = UX.
+
+| Key | Type | Class | Description |
+|-----|------|-------|-------------|
+| `$schema` | string | G | JSON Schema URL for editor IntelliSense |
+| `agent` | string | G | Default agent name for subagent invocations |
+| `allowAllClaudeAiMcps` | boolean | E | Load claude.ai cloud MCP connectors alongside managed-mcp.json (v2.1.149) |
+| `allowManagedHooksOnly` | boolean | E | Block user-defined hooks; only managed hooks run |
+| `allowManagedMcpServersOnly` | boolean | E | Block user-defined MCP servers |
+| `allowManagedPermissionRulesOnly` | boolean | E | Block user-defined permission rules |
+| `allowedChannelPlugins` | string[] | E | Allowlist of plugin identifiers channel admins can push (v2.1.107) |
+| `allowedHttpHookUrls` | string[] | E | Allowlist of HTTP endpoints hooks may call |
+| `allowedMcpServers` | string[] | E | Managed allowlist of MCP server URLs/identifiers (v2.1.112) |
+| `alwaysThinkingEnabled` | boolean | G | Always show extended thinking even on short turns |
+| `apiKeyHelper` | string | A | Shell command that emits an Anthropic API key |
+| `attribution` | object | G | AI attribution in git commits/PRs (`commit`, `pr` string fields) |
+| `autoMemoryDirectory` | string | G | Custom directory for auto-memory storage (v2.1.101) |
+| `autoMemoryEnabled` | boolean | G | Enable/disable the auto-memory system |
+| `autoMode` | object | G | Auto-mode configuration object (shape evolving) |
+| `autoScrollEnabled` | boolean | U | Auto-scroll to bottom as output streams in (v2.1.102) |
+| `autoUpdatesChannel` | `"stable"` \| `"latest"` | G | Release channel to track for automatic updates |
+| `availableModels` | string[] | E | Restrict the model picker to this list |
+| `awaySummaryEnabled` | boolean | U | Show a session recap on re-entry after background work |
+| `awsAuthRefresh` | string | A | Shell command called to refresh AWS credentials |
+| `awsCredentialExport` | string | A | Shell command that exports AWS credential env vars |
+| `blockedMarketplaces` | string[] | E | Marketplace IDs users cannot install from |
+| `changelogUrl` | string | G | Override the URL `/release-notes` fetches from |
+| `channelsEnabled` | boolean | E | Opt into channel-based plugin distribution (v2.1.128) |
+| `cleanupPeriodDays` | integer ≥ 1 | G | Retention window for transcripts and orphaned worktrees (default 30) |
+| `claudeMd` | string | E | Managed system-prompt override (replaces CLAUDE.md lookup) |
+| `claudeMdExcludes` | string[] | G | Glob patterns for CLAUDE.md files to exclude |
+| `companyAnnouncements` | string[] | E | Banner messages shown at session start |
+| `defaultShell` | `"bash"` \| `"powershell"` | G | Shell used by the Bash tool |
+| `deniedMcpServers` | string[] | E | Managed blocklist of MCP server URLs/identifiers (v2.1.112) |
+| `disableAgentView` | boolean | E | Hide the agent-activity panel in the TUI |
+| `disableAllHooks` | boolean | G | Master kill-switch for the entire hooks subsystem |
+| `disableAutoMode` | `"disable"` | E | Disable auto-mode entirely (admin-tier) |
+| `disableBypassPermissionsMode` | `"disable"` | E | Disable bypassPermissions mode (admin-tier) |
+| `disableDeepLinkRegistration` | boolean | G | Disable deep-link URL handler registration on first launch (v2.1.103) |
+| `disableRemoteControl` | boolean | E | Prevent remote-control / programmatic session takeover |
+| `disableSkillShellExecution` | boolean | G | Block Skill tool inline shell execution (v2.1.98) |
+| `disabledMcpjsonServers` | string[] | G | Blocklist for project .mcp.json server names |
+| `editorMode` | `"normal"` \| `"vim"` | U | Input editor keybindings |
+| `effortLevel` | `"low"` \| `"medium"` \| `"high"` \| `"xhigh"` \| `"max"` | G | Persist effort level across sessions (counterpart of `CLAUDE_CODE_EFFORT_LEVEL`; `max` is a superset beyond the key's docs) |
+| `enableAllProjectMcpServers` | boolean | G | Auto-enable every server listed in .mcp.json |
+| `enabledMcpjsonServers` | string[] | G | Allowlist for project .mcp.json server names |
+| `env` | Record\<string,string\> | G | Environment variables injected into every session |
+| `fastModePerSessionOptIn` | boolean | G | Per-session fast-mode opt-in flag |
+| `feedbackSurveyRate` | number 0–1 | E | Sampling rate for in-session feedback survey; 0 = disabled (v2.1.106) |
+| `fileSuggestion` | object | G | File-suggestion UI configuration object |
+| `forceLoginMethod` | `"claudeai"` \| `"console"` | A | Lock the login flow to a specific provider |
+| `forceLoginOrgUUID` | string \| string[] | A | Restrict login to a specific org UUID or list of UUIDs |
+| `forceRemoteSettingsRefresh` | boolean | E | Force a settings reload from the managed settings URL |
+| `gcpAuthRefresh` | string | A | Shell command called to refresh GCP credentials |
+| `hooks` | object | G | Hook event handlers (PreToolUse, PostToolUse, etc.) |
+| `httpHookAllowedEnvVars` | string[] | E | Env vars forwarded to HTTP hooks |
+| `includeCoAuthoredBy` | boolean | G | Deprecated: use `attribution` instead |
+| `includeGitInstructions` | boolean | G | Inject built-in git workflow instructions into the system prompt |
+| `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
+| `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
+| `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports) |
+| `minimumVersion` | string | E | Minimum Claude Code version required; older clients are blocked |
+| `model` | string | G | Default model for all sessions (e.g. `"opus"`, `"sonnet"`) |
+| `modelOverrides` | Record\<string,unknown\> | G | Map model picker entries to custom provider model IDs (v2.1.105) |
+| `otelHeadersHelper` | string | G | Shell command that emits OTEL auth headers |
+| `outputStyle` | string | G | Output rendering style override |
+| `parentSettingsBehavior` | `"first-wins"` \| `"merge"` | E | How managed settings participate in the policy merge (admin-tier, v2.1.133) |
+| `permissions` | object | G | Allow/deny/ask permission rules for tool invocations |
+| `plansDirectory` | string | G | Directory where plan output files are written |
+| `pluginTrustMessage` | string | E | Custom trust-confirmation message shown when installing plugins |
+| `policyHelper` | object | E | Policy-helper configuration object (enterprise) |
+| `prUrlTemplate` | string | G | Custom PR badge URL template; substitutes `{host}`, `{owner}`, `{repo}`, `{number}`, `{url}` (v2.1.119) |
+| `preferredNotifChannel` | enum | U | Preferred desktop/terminal notification channel (`auto`, `terminal_bell`, `iterm2`, …) |
+| `prefersReducedMotion` | boolean | U | Suppress animations in the TUI |
+| `respectGitignore` | boolean | G | Honour .gitignore when listing files |
+| `sandbox` | object | G | Sandbox configuration for secure command execution (v2.1.98–2.1.108) |
+| `showClearContextOnPlanAccept` | boolean | U | Offer context-clear prompt after accepting a plan |
+| `showThinkingSummaries` | boolean | U | Show inline thinking summaries in the conversation |
+| `showTurnDuration` | boolean | U | Show per-turn elapsed time in the TUI |
+| `skillListingBudgetFraction` | number | G | Fraction of context budget reserved for skill listings |
+| `skillOverrides` | Record\<string,enum\> | G | Hide or trim individual skills from model/picker (v2.1.129) |
+| `skipDangerousModePermissionPrompt` | boolean | G | Skip bypass-permissions confirmation prompt (ignored in project settings) |
+| `skipWebFetchPreflight` | boolean | G | Skip preflight check before web-fetch tool calls |
+| `spinnerTipsEnabled` | boolean | U | Show tips in the thinking spinner |
+| `spinnerTipsOverride` | object | U | Suppress built-in spinner tips (`excludeDefault` boolean) (v2.1.122) |
+| `spinnerVerbs` | object | U | Customize animated spinner verbs (`mode`, `verbs` fields) |
+| `sshConfigs` | unknown[] | G | SSH tunnel/proxy configuration entries |
+| `statusLine` | object | G | Custom status bar command displayed in the terminal |
+| `strictKnownMarketplaces` | string[] | E | Allowlist of marketplace IDs considered trusted |
+| `strictPluginOnlyCustomization` | boolean \| string[] | E | Restrict customization to plugin-provided items; `true` = all categories |
+| `syntaxHighlightingDisabled` | boolean | U | Disable syntax highlighting in code blocks |
+| `teammateMode` | `"auto"` \| `"in-process"` \| `"tmux"` | G | Agent Teams coordination mode |
+| `terminalProgressBarEnabled` | boolean | U | Show a progress bar for long-running operations |
+| `tui` | `"fullscreen"` \| `"default"` | U | TUI rendering mode (`fullscreen` uses alternate screen) |
+| `useAutoModeDuringPlan` | boolean | G | Run auto-mode during the plan phase |
+| `viewMode` | `"default"` \| `"verbose"` \| `"focus"` | U | Controls how much detail the TUI shows |
+| `voice` | object | U | Voice input/output configuration object |
+| `voiceEnabled` | boolean | U | Enable the voice interface |
+| `worktree` | object | G | Git worktree configuration (`baseRef`, `bgIsolation` fields) (v2.1.133) |
+| `wslInheritsWindowsSettings` | boolean | E | WSL sessions inherit the Windows-side managed settings |
 
 ---
 
