@@ -20,7 +20,7 @@ import {
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
-import { hasCommand } from "../lib/platform.ts";
+import { hasCommand, pad, ymd } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
@@ -137,8 +137,7 @@ async function autoWarmTldr(): Promise<void> {
 }
 
 function formatDate(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 // --- Phase 1: background tasks --------------------------------------------

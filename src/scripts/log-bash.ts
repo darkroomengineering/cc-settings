@@ -9,17 +9,13 @@ import { appendFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { readStdin } from "../lib/io.ts";
-import { pad } from "../lib/platform.ts";
+import { pad, ymd } from "../lib/platform.ts";
 
 const LOG_DIR = join(homedir(), ".claude", "logs");
 const RETENTION = Number.parseInt(process.env.CLAUDE_LOG_RETENTION_DAYS ?? "1", 10) || 1;
 
 function hms(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 async function pruneOldLogs(): Promise<void> {

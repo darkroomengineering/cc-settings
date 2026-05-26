@@ -8,7 +8,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { pad } from "../lib/platform.ts";
+import { ymd } from "../lib/platform.ts";
 
 const LOG_DIR = join(homedir(), ".claude", "logs");
 
@@ -265,10 +265,6 @@ function analyze(label: string, files: string[]): void {
 }
 
 // --- Main -----------------------------------------------------------------
-
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 function weekdayIdx(d: Date): number {
   // Bash `date +%u` is 1..7 Monday..Sunday. JS getDay is 0..6 Sunday..Saturday.

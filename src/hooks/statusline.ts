@@ -5,6 +5,7 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { runGit as runGitLib } from "../lib/git.ts";
 import { readStdin } from "../lib/io.ts";
 
 type Payload = {
@@ -37,14 +38,11 @@ function formatTokens(n: number): string {
   return `${Math.round(n / 1000)}k`;
 }
 
+// Statusline git reads are hot-path and read-only: --no-optional-locks avoids
+// contending with a concurrent git process holding the index lock. The spawn
+// itself lives in lib/git.ts; this adapter just binds the flag + working tree.
 async function runGit(args: string[], cwd: string): Promise<string> {
-  const proc = Bun.spawn(["git", "-C", cwd, "--no-optional-locks", ...args], {
-    stdout: "pipe",
-    stderr: "ignore",
-  });
-  const out = await new Response(proc.stdout).text();
-  await proc.exited;
-  return out.trim();
+  return runGitLib(["--no-optional-locks", ...args], { cwd });
 }
 
 async function buildGitStatus(cwd: string): Promise<string | null> {

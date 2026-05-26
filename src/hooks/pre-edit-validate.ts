@@ -19,19 +19,18 @@ type EditInput = {
 };
 
 async function main(): Promise<number> {
-  const filePath = process.env.TOOL_INPUT_file_path ?? "";
+  // Claude Code passes the Edit tool input as a JSON blob in TOOL_INPUT; both
+  // file_path and old_string are read from it. (The per-field TOOL_INPUT_*
+  // scalars carry the same data — one source avoids the file_path/old_string
+  // asymmetry.)
   let parsed: EditInput = {};
-
-  const toolInput = process.env.TOOL_INPUT;
-  if (toolInput) {
-    try {
-      parsed = JSON.parse(toolInput) as EditInput;
-    } catch {
-      // fail-open on bad JSON
-    }
+  try {
+    parsed = JSON.parse(process.env.TOOL_INPUT ?? "{}") as EditInput;
+  } catch {
+    // fail-open on bad JSON
   }
 
-  const resolvedPath = filePath || parsed.file_path || "";
+  const resolvedPath = parsed.file_path ?? "";
   if (!resolvedPath) return 0;
 
   // Check 1: file exists.

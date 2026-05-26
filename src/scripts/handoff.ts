@@ -21,19 +21,12 @@ function timestamp(d: Date = new Date()): string {
 }
 
 async function cmdCreate(args: string[]): Promise<void> {
-  let summary = "";
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === "--summary" || a === "--message" || a === "-m") {
-      const next = args[i + 1];
-      if (next === undefined) {
-        console.error(`Error: ${a} requires a value`);
-        process.exit(1);
-      }
-      summary = next;
-      i++;
-    }
+  const flagIdx = args.findIndex((a) => a === "--summary" || a === "--message" || a === "-m");
+  if (flagIdx !== -1 && args[flagIdx + 1] === undefined) {
+    console.error(`Error: ${args[flagIdx]} requires a value`);
+    process.exit(1);
   }
+  const summary = flagIdx === -1 ? "" : (args[flagIdx + 1] ?? "");
 
   await mkdir(HANDOFF_DIR, { recursive: true });
 
@@ -114,17 +107,16 @@ ${summary || "<!-- Add summary of what was accomplished -->"}
 `;
   await writeFile(handoffMd, md);
 
-  for (const [sym, target] of [
+  const symlinks = [
     [join(HANDOFF_DIR, "latest.json"), basename(handoffJson)],
     [join(HANDOFF_DIR, "latest.md"), basename(handoffMd)],
-  ] as const) {
-    try {
-      await unlink(sym);
-    } catch {
-      // ignore
-    }
-    await symlink(target, sym);
-  }
+  ] as const;
+  await Promise.all(
+    symlinks.map(async ([sym, target]) => {
+      await unlink(sym).catch(() => {});
+      await symlink(target, sym);
+    }),
+  );
 
   console.log("");
   console.log("HANDOFF CREATED");

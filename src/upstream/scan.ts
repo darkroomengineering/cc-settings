@@ -16,7 +16,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { runGitFull as runGit } from "../lib/git.ts";
+import { runGitFull as runGit, runProcessFull } from "../lib/git.ts";
 import { HookEvent } from "../schemas/hooks.ts";
 import { Settings } from "../schemas/settings.ts";
 
@@ -94,15 +94,6 @@ async function saveManifest(manifest: Manifest): Promise<void> {
   await writeFile(MANIFEST, content);
 }
 
-async function runGh(args: string[]): Promise<{ exit: number; stdout: string; stderr: string }> {
-  const proc = Bun.spawn(["gh", ...args], { stdout: "pipe", stderr: "pipe" });
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-  return { exit: await proc.exited, stdout, stderr };
-}
-
 async function openSyncPr(summary: string, body: string, newVersion: string): Promise<void> {
   const branch = `upstream-sync/${newVersion}-${Date.now()}`;
   await runGit(["config", "user.name", "upstream-sync-bot"]);
@@ -120,7 +111,7 @@ async function openSyncPr(summary: string, body: string, newVersion: string): Pr
     console.error("git push failed:", pushRes.stderr);
     return;
   }
-  const prRes = await runGh([
+  const prRes = await runProcessFull("gh", [
     "pr",
     "create",
     "--title",
