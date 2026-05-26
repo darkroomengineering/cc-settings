@@ -340,7 +340,7 @@ Activate specialized workflows in `settings.json`:
 
 ### Stack-aware skills
 
-Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`, `/lenis`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`web-vitals`, `react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
+Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`web-vitals`, `react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
 
 The detector lives in `src/lib/stack.ts` if you need to extend it to a new framework.
 
@@ -438,12 +438,13 @@ These are enforced automatically — no skill needed:
 | `tester` | Write and run tests | — |
 | `scaffolder` | Boilerplate generation | — |
 | `explore` | Read-only codebase navigation | — |
-| `oracle` | Expert Q&A, deep analysis | — |
 | `security-reviewer` | OWASP, secrets, auth audit | — |
 | `deslopper` | Dead code removal, cleanup | scanners (team mode) |
 | `maestro` | Multi-agent orchestration | all of the above |
 
-### Hooks (Automatic — 29 Events)
+### Hooks (Automatic)
+
+cc-settings wires scripts into a subset of Claude Code's 29 hook events — see `docs/hooks-reference.md` for the full taxonomy.
 
 Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools), `http` (webhook to URL).
 

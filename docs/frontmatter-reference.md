@@ -45,14 +45,14 @@ The `description` field serves double duty. Beyond appearing in agent selection,
 | `project` | Sessions in this project | `~/.claude/memory/project/` |
 | `local` | Current machine only | `~/.claude/memory/local/` |
 
-Agents with `memory` enabled: `explore`, `reviewer`, `planner`, `oracle`.
+Agents with `memory` enabled: `explore`, `reviewer`, `planner`.
 
 ### Example: Minimal Agent
 
 ```yaml
 ---
 name: implementer
-model: opus
+model: sonnet
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
 tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]
@@ -65,7 +65,7 @@ color: green
 ```yaml
 ---
 name: explore
-model: opus
+model: sonnet
 memory: project
 description: |
   Fast codebase exploration, navigation, and documentation fetching.
@@ -81,15 +81,14 @@ color: purple
 
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
-| `explore` | opus | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
+| `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
+| `implementer` | sonnet | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
 | `maestro` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
 | `reviewer` | opus | project | Read, Grep, Glob, LS, Bash | yellow |
 | `planner` | opus | project | Read, Grep, Glob, LS | blue |
-| `oracle` | opus | project | Read, Grep, Glob, LS, WebFetch, Bash | gold |
-| `tester` | opus | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
-| `scaffolder` | opus | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
-| `deslopper` | opus | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
+| `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
+| `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
+| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
 | `security-reviewer` | opus | -- | Read, Grep, Glob, Bash | red |
 
 ---

@@ -93,11 +93,11 @@ MCP servers consume context window tokens. Each active server adds:
 
 ## Disabling Per-Project
 
-Use `disabledMcpServers` in `.claude/settings.json` to disable servers for specific projects:
+Use `disabledMcpjsonServers` in `.claude/settings.json` to disable servers for specific projects:
 
 ```json
 {
-  "disabledMcpServers": [
+  "disabledMcpjsonServers": [
     "memory",
     "vercel"
   ]
@@ -176,7 +176,7 @@ For client projects that need additional MCP servers (databases, hosting, comms 
 
 ### Context Window Exhaustion
 
-1. Disable unused servers with `disabledMcpServers`
+1. Disable unused servers with `disabledMcpjsonServers`
 2. Remove servers from global config
 3. Use project-specific configs instead of global
 

@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.8.2"; // docs reconciliation: hook-event counts (→29), permission allow/deny summary (drift-resistant), subagent-model note
+const VERSION = "11.8.3"; // audit-driven doc fixes + permission-listing generator
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

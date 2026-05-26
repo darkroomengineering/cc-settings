@@ -27,9 +27,9 @@ Restart Claude Code after install.
 ├── AGENTS.md           # Portable coding standards (read by all AI tools)
 ├── CLAUDE.md           # Claude-Code-specific config
 ├── settings.json       # Composed from config/*.json (permissions, hooks, MCP)
-├── agents/             # 10 specialized subagents
-├── skills/             # 26 auto-invocable skills
-├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro
+├── agents/             # 9 specialized subagents
+├── skills/             # 27 auto-invocable skills
+├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro, react-router
 ├── rules/              # Path-conditioned rules (load on-demand by file type)
 ├── contexts/           # Ecosystem contexts
 └── src/                # Hook + script implementations (TypeScript)
@@ -69,7 +69,7 @@ bun test                       # Run all tests
 | [MANUAL.md](./MANUAL.md) | Every skill — how to invoke it, what it does |
 | [AGENTS.md](./AGENTS.md) | Coding standards and guardrails (source of truth) |
 | [CLAUDE.md](./CLAUDE.md) | Claude-Code config, delegation rules, effort levels |
-| [docs/profiles.md](./docs/profiles.md) | Stack-specific profiles (Next.js, RN, Tauri, WebGL) |
+| [docs/profiles.md](./docs/profiles.md) | Stack-specific profiles (Next.js, RN, Tauri, WebGL, React Router) |
 | [docs/skill-authoring.md](./docs/skill-authoring.md) | Writing new skills |
 | [CHANGELOG.md](./CHANGELOG.md) | Release history |
 

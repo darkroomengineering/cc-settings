@@ -308,6 +308,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 
 | Script | Purpose | Async |
 |--------|---------|-------|
+| `verify-hooks.ts` | Validates the hooks-block fingerprint on session start; warns on tampering | No |
 | `session-start.ts` | Surfaces auto-memory pointer, auto-warms TLDR index | No |
 
 ### UserPromptSubmit

@@ -33,6 +33,7 @@ For full hook documentation (all 29 events, configuration format, matchers, debu
 | `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |
 | `Notification` | Task completion | `notify.ts` (macOS/Linux notification) | **Yes** |
 | `TaskCreated` | Task created via TaskCreate | Logs to `~/.claude/swarm.log` | **Yes** |
+| `TaskCompleted` | Task marked completed | `swarm-log.ts complete` | **Yes** |
 
 ## Behavioral Guidelines
 

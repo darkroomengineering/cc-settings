@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.8.3] — 2026-05-26
+
+Audit-driven documentation fixes and a permission-listing generator that keeps the allow/deny rules exhaustive and self-syncing.
+
+### Fixed
+
+- **CLAUDE.md** dep name: `@inquirer/prompts` → `@inquirer/confirm` (matches package.json).
+- **README.md** skill count: 26 → 27; agent count: 10 → 9; profiles listing: added `react-router` in two places.
+- **MANUAL.md** stack-aware skills list: removed retired `/lenis`; removed `oracle` from the All Agents table (it is a skill, not an agent); hooks section header changed from "Hooks (Automatic — 29 Events)" to "Hooks (Automatic)" with a one-line lead pointing to `docs/hooks-reference.md`.
+- **docs/settings-reference.md** context7 tool name: `mcp__context7__get-library-docs` → `mcp__context7__query-docs`; `modelOverrides` ARN version suffixes: `4-6` → `4-7`.
+- **docs/hooks-reference.md** SessionStart table: added missing `verify-hooks.ts` row (fingerprint validation, sync, runs before `session-start.ts`).
+- **hooks/README.md** hooks table: added missing `TaskCompleted` row (`swarm-log.ts complete`, async).
+- **mcp-configs/README.md** key name: all three occurrences of `disabledMcpServers` → `disabledMcpjsonServers` (the correct key; the old name silently no-ops).
+- **docs/frontmatter-reference.md** All Agents table: `explore`, `implementer`, `tester`, `scaffolder`, `deslopper` corrected to `sonnet` (were incorrectly listed as `opus`); `oracle` row removed (no `agents/oracle.md`); "Agents with memory enabled" note updated to remove `oracle`.
+
+### Added
+
+- **`src/scripts/gen-permissions-doc.ts`** — exports `buildPermissionsBlock(repoRoot)` and marker constants `BEGIN`/`END`; CLI (`bun run docs:permissions`) injects the generated allow/deny listing into the `<!-- BEGIN/END AUTOGEN:permissions -->` markers in `docs/settings-reference.md`.
+- **`docs/settings-reference.md`** — "Complete current rule list" subsection with `<!-- BEGIN/END AUTOGEN:permissions -->` markers, populated by the generator.
+- **`tests/docs-permissions.test.ts`** — freshness test: asserts the committed block equals `buildPermissionsBlock()` output; a hand-edit or permissions change without regen fails `bun test`.
+- **`package.json`** script `docs:permissions`.
+
 ## [11.8.2] — 2026-05-26
 
 Documentation reconciliation — bring docs in line with the v11.5.0–v11.8.1 releases. (The obvious churn — `parallelmax-judge`, worktree-hook scripts, the `strict→passthrough` prose, version/skill counts — was already kept current in-flight; this catches what drifted.)
