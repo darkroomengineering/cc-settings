@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.9.0"; // nuclear-review maintainability pass — dedup, two-tier safety-net, parallel install
+const VERSION = "11.9.1"; // write-agents: drop worktree default, block commits — changes land as a reviewable diff
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
