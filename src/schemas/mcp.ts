@@ -54,8 +54,10 @@ export const McpSseServer = z.object({
 });
 
 // The stdio branch omits `type`, so we can't use a discriminated union keyed
-// on `type`. A standard union is correct here — http and sse discriminate via
-// `type`, stdio is detected by presence of `command`.
+// on `type`. A standard union is correct here — http/sse discriminate via the
+// `type` literal, stdio by presence of `command`. The three are mutually
+// exclusive on their required fields, so member order is cosmetic (it only
+// affects error-message quality, not which valid input matches).
 export const McpServer = z.union([McpHttpServer, McpSseServer, McpStdioServer]);
 
 export const McpServers = z.record(z.string(), McpServer);
