@@ -527,6 +527,63 @@
             "properties": {
               "type": {
                 "type": "string",
+                "const": "sse"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "headers": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "alwaysLoad": {
+                "type": "boolean"
+              },
+              "_comment": {
+                "type": "string"
+              },
+              "_description": {
+                "type": "string"
+              },
+              "_usage": {
+                "type": "string"
+              },
+              "_contextCost": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "_status": {
+                "type": "string",
+                "enum": [
+                  "core",
+                  "optional"
+                ]
+              },
+              "serverInstructions": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
                 "const": "stdio"
               },
               "command": {
