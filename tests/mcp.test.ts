@@ -36,6 +36,30 @@ describe("readMcpFromSettings — safeParse validation", () => {
     });
   });
 
+  test("SSE transport server is accepted", async () => {
+    await withTmp(async (dir) => {
+      const path = join(dir, "settings.json");
+      await writeFile(
+        path,
+        JSON.stringify({
+          mcpServers: {
+            "figma-local": {
+              type: "sse",
+              url: "http://127.0.0.1:3845/sse",
+              serverInstructions: "Local Figma design integration.",
+            },
+          },
+        }),
+      );
+      const result = await readMcpFromSettings(path);
+      expect(Object.keys(result)).toEqual(["figma-local"]);
+      expect(result["figma-local"]).toMatchObject({
+        type: "sse",
+        url: "http://127.0.0.1:3845/sse",
+      });
+    });
+  });
+
   test("missing mcpServers key returns empty object", async () => {
     await withTmp(async (dir) => {
       const path = join(dir, "settings.json");

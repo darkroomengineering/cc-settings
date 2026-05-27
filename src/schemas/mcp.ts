@@ -42,14 +42,28 @@ export const McpHttpServer = z.object({
   ...mcpCommentary,
 });
 
+// SSE transport: server-sent events. Same shape as HTTP — distinguished only
+// by the `type` discriminator. Used by local desktop MCPs (e.g. Figma at
+// http://127.0.0.1:3845/sse) that stream events instead of using request/response.
+export const McpSseServer = z.object({
+  type: z.literal("sse"),
+  url: z.url(),
+  headers: z.record(z.string(), z.string()).optional(),
+  ...mcpCommon,
+  ...mcpCommentary,
+});
+
 // The stdio branch omits `type`, so we can't use a discriminated union keyed
-// on `type`. A standard union is correct here — Claude Code detects stdio by
-// the presence of `command`.
-export const McpServer = z.union([McpHttpServer, McpStdioServer]);
+// on `type`. A standard union is correct here — http/sse discriminate via the
+// `type` literal, stdio by presence of `command`. The three are mutually
+// exclusive on their required fields, so member order is cosmetic (it only
+// affects error-message quality, not which valid input matches).
+export const McpServer = z.union([McpHttpServer, McpSseServer, McpStdioServer]);
 
 export const McpServers = z.record(z.string(), McpServer);
 
 export type McpStdioServer = z.infer<typeof McpStdioServer>;
 export type McpHttpServer = z.infer<typeof McpHttpServer>;
+export type McpSseServer = z.infer<typeof McpSseServer>;
 export type McpServer = z.infer<typeof McpServer>;
 export type McpServers = z.infer<typeof McpServers>;
