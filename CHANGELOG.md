@@ -4,6 +4,21 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.9.1] — 2026-05-27
+
+Delegation tuning in response to studio feedback that `implementer` spawned too eagerly and that worktree isolation hid its changes from pre-commit review. The write-agents now run in the live working tree and leave an uncommitted diff for review instead of working in an isolated `origin/main` checkout.
+
+### Changed
+
+- **`agents/{implementer,scaffolder,tester,deslopper}.md`** — removed the `isolation: worktree` default. These agents now run in the caller's live working tree, so edits land as a reviewable diff rather than commits on a hidden worktree branch. Each also blocks `Bash(git commit:*)` (tester already did) so work is left uncommitted for the caller to review before it lands. `reviewer` / `security-reviewer` keep worktree isolation — they produce reports, not diffs.
+- **`agents/implementer.md`** — reframed the Briefing Gate and `REQUIRED BRIEFING` rationale off the worktree premise. The briefing contract still holds (a subagent receives only its prompt, with no conversation context), but the justification is context isolation, not a fresh checkout. The "commit logical chunks" workflow step and "report your commit SHA" verification line became "leave an uncommitted diff."
+- **CLAUDE-FULL.md** — raised the `implementer` delegation threshold from "2+ files" to "3+ files, or 10+ tool calls"; widened "act directly" to cover 1–2 file / sub-10-tool-call edits; replaced the "Don't self-override" enforcement rule (which pushed the model to spawn even for small work) with "Match the tool to the size"; reframed the briefing-contract callout off worktree.
+- **docs/feature-agents-guide.md** — updated the "base ref overwrites in-session edits" gotcha: the write-agents no longer default to worktree, so the footgun only applies when worktree isolation is explicitly opted into.
+
+### Notes
+
+- Behavior change: orchestrations that relied on `implementer` (or the other write-agents) committing their own chunks now receive an uncommitted diff; the dispatching session is responsible for committing after review.
+
 ## [11.9.0] — 2026-05-26
 
 Whole-codebase maintainability pass from a `/nuclear-review` audit. Behavior-preserving across the board — full test suite (380) and typecheck stay green. No file exceeded 1000 lines and all six direct dependencies are within one minor of current with idiomatic usage (native `z.toJSONSchema`, no redundant deps), so this batch is structural cleanup only.

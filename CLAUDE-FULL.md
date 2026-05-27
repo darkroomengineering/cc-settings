@@ -30,20 +30,20 @@ The Edit tool uses exact string matching. Follow these rules:
 
 ### You SHOULD prefer delegation for:
 
-- **Complex multi-step implementation touching 2+ files** → `Agent(implementer, "...")`
+- **Genuinely complex implementation — 3+ files, or 10+ sequential tool calls** → `Agent(implementer, "...")`
 - **Architecture decisions or upfront planning** → `Agent(planner, "...")`
 - **Scaffolding new components/hooks/pages** → `Agent(scaffolder, "...")`
 - **Code review on changes touching 3+ files** → `Agent(reviewer, "...")`
 - **Expert second opinions / blast-radius / "why is this here" questions** → `Agent(explore, "...")`
 - **Full-feature orchestration across 3+ agents** → `Agent(maestro, "...")`
 
-> **Briefing contract for `implementer`**: this agent runs with `isolation: worktree` — a fresh checkout of `origin/main` with no in-session file context. Every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command, and a scope boundary. Thin prompts cause regressions; the agent will refuse them. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
+> **Briefing contract for `implementer`**: as a subagent it gets only your prompt — no conversation context, none of the files you've read — so every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command, and a scope boundary. Thin prompts cause regressions; the agent will refuse them. It runs in the live working tree and leaves changes **uncommitted** for you to review before they land. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
 
 ### Act directly ONLY when:
 
 - Reading a specific file you already know the path to
-- Single-file edits under 20 lines
-- Running a single build or test command
+- Small or medium edits spanning 1–2 files, or any change you can finish in under ~10 tool calls
+- Running build or test commands
 - Simple searches (one grep for a string, one glob for a file pattern)
 - Answering a conversational question with no code change
 
@@ -51,7 +51,7 @@ The Edit tool uses exact string matching. Follow these rules:
 
 1. **Parallelize**: when multiple delegations have no dependencies, send all `Agent` calls in a single message — they run concurrently.
 2. **Don't narrate the decision**: if a trigger fires, call the Agent tool directly. Don't explain why you're delegating — just delegate.
-3. **Don't self-override**: if you catch yourself thinking "I could just do this myself instead of spawning an agent," re-read the triggers above. The triggers exist because 4.7 biases toward self-execution.
+3. **Match the tool to the size**: the MUST/SHOULD triggers fire only for genuinely heavy work (3+ files, 10+ tool calls, security-sensitive code, new test files). Small and medium edits staying in the main session is the correct default — it keeps the diff reviewable in the working tree before commit. Don't spawn an `implementer` just to prove you delegated.
 
 For full orchestration mode, activate `profiles/maestro.md`. Model routing per agent: see `docs/agent-models.md`.
 

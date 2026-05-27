@@ -356,10 +356,10 @@ Cross-cutting issues that bite when dispatching role agents from feature agents 
 
 ### Base ref overwrites in-session edits
 
-The `implementer` agent defaults to `isolation: "worktree"`, which branches from `origin/main`. Uncommitted in-session edits do not exist on that base ref, so when the subagent writes back, those edits are gone. This has happened twice.
+As of May 2026 the write-agents (`implementer`, `scaffolder`, `tester`, `deslopper`) no longer default to `isolation: "worktree"` — they run in the live working tree and leave changes uncommitted for review (see each agent's frontmatter). This gotcha only bites when you explicitly opt an agent into `isolation: "worktree"`: that branches from `origin/main`, so uncommitted in-session edits do not exist on that base ref and are gone when the subagent writes back. This happened twice before the default was changed.
 
-Mitigation:
-- Commit (or stash) in-session changes before dispatching `implementer` for code edits that need to build on them.
+Mitigation (when you do opt into `isolation: "worktree"`):
+- Commit (or stash) in-session changes before dispatching, for code edits that need to build on them.
 - Or pass `isolation: "head"` / omit isolation entirely so the subagent runs against the live worktree.
 - When in doubt, tell the subagent explicitly: "base off the current worktree HEAD, not origin/main."
 
