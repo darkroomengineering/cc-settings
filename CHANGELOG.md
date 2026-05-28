@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.10.0] — 2026-05-28
+
+Tracks Anthropic's Opus 4.8 release and surfaces Claude Code's new dynamic workflows / `ultracode` mode without coupling the orchestration layer to the (still preview-stage) `Workflow` tool API.
+
+### Changed
+
+- **`.claude-plugin/plugin.json`** — keyword `opus-4.7` → `opus-4.8`; `requires.claude_code` bumped `>=2.1.116` → `>=2.1.154` (minimum version for Opus 4.8 + dynamic workflows).
+- **`CLAUDE-FULL.md`** — "Opus 4.7 note" → "Opus 4.8 note"; rewrote the effort calibration paragraph: default effort on 4.8 is `high` (was `xhigh` on 4.7); cc-settings still pins `xhigh` via `CLAUDE_CODE_EFFORT_LEVEL`, but the `xhigh` ladder allocates more thinking tokens per turn on 4.8, so the compact-at-65% rationale was updated accordingly. Added `ultracode` to the effort ladder as a session-only mode that combines `xhigh` reasoning with automatic workflow orchestration.
+- **`AGENTS.md`** — response-calibration + literal-prompt notes updated 4.7 → 4.8.
+- **`docs/settings-reference.md`** — model table now shows Opus 4.8 / Sonnet 4.6 with a provider-resolution callout for AWS / Bedrock / Vertex / Foundry; Bedrock ARN example updated to `claude-opus-4-8` / `claude-sonnet-4-6`; legacy `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE` flagged "two generations stale"; added a note clarifying that `ultracode` is session-only and **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL` / `effortLevel` / `--effort`.
+- **`skills/orchestrate/SKILL.md`** — added "Alternative: dynamic workflows" callout pointing users at `/effort ultracode` and the `workflow` keyword for tasks matching the large-codebase-analysis / wide-blast-radius-migration shapes, while keeping maestro `Agent()` fan-out as the default.
+- **`skills/nuclear-review/SKILL.md`** — added a tip in "When to use" pointing reviewers at `/effort ultracode` for whole-codebase audits; the workflow runtime holds phase state outside Claude's context window, freeing room for actual review findings.
+- **`skills/handoff/SKILL.md`** — statusline example + degradation-threshold table updated to Opus 4.8 / Sonnet 4.6.
+- **`MANUAL.md` / `USAGE.md`** — statusline screenshots updated.
+- **`rules/git.md`** — co-author DON'T example updated.
+- **`tests/safety-net.test.ts`** — co-author block-list test string updated (the rule still blocks any "Claude" co-author; the assertion string was 4.7-specific).
+- **`src/hooks/parallelmax-nudge.ts` / `src/hooks/statusline.ts`** — copy / example-string comment updated.
+
+### Notes
+
+- No structural changes to `maestro`, `planner`, `implementer`, or `orchestrate`. The `Workflow` tool's API is research preview; coupling the cc-settings orchestration layer to it now would constrain us when it stabilizes. The default delegation path stays `Agent()` fan-out.
+- Provider note: On the Anthropic API and claude.ai Max, the `opus` alias resolves to Opus 4.8 with no further config. On Claude Platform on AWS, `opus` still resolves to 4.7; on Bedrock / Vertex / Foundry it resolves to 4.6 — pin `claude-opus-4-8` via `ANTHROPIC_DEFAULT_OPUS_MODEL` on those providers.
+
 ## [11.9.1] — 2026-05-27
 
 Delegation tuning in response to studio feedback that `implementer` spawned too eagerly and that worktree isolation hid its changes from pre-commit review. The write-agents now run in the live working tree and leave an uncommitted diff for review instead of working in an isolated `origin/main` checkout.

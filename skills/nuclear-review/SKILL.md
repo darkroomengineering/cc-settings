@@ -22,6 +22,8 @@ Above all, this skill should push the reviewer to be **ambitious** about code st
 
 A typical sequence: `/nuclear-review` produces findings → engineers cherry-pick the highest-leverage ones → `/zero-tech-debt` or `/refactor` to execute.
 
+> **Tip (Claude Code v2.1.154+)**: run `/effort ultracode` before invoking this skill. The whole-codebase audit is the canonical shape that benefits from dynamic workflows — phase state lives in the workflow script rather than Claude's context window, individual modules can be reviewed in parallel (up to 16 concurrent), and the run can resume from cached agent results within the session.
+
 ## Scope
 
 The audit covers the **entire codebase**, not the current diff. That includes:
