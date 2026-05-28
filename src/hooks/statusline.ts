@@ -136,7 +136,7 @@ const thinkingEnabled = input.thinking?.enabled === true;
 
 const parts: string[] = [];
 if (model) {
-  // Suffix model with effort marker — e.g. "Opus 4.7 ⚙xhigh" or "Opus 4.7 ⚙xhigh+".
+  // Suffix model with effort marker — e.g. "Opus 4.8 ⚙xhigh" or "Opus 4.8 ⚙xhigh+".
   // `+` = thinking enabled. Used `+` instead of `†` (dagger) because the dagger
   // glyph reads as a "t" in many monospace terminal fonts, making "xhigh†" look
   // like "xhight".

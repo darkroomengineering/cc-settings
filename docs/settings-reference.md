@@ -49,7 +49,7 @@ Environment variables injected into every Claude Code session.
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings uses `xhigh` — Anthropic's recommended setting for coding and agentic workflows on Opus 4.7 ([migration guide](https://platform.claude.com/docs/en/about-claude/models/migration-guide)) |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings uses `xhigh` — Anthropic's recommended setting for coding and agentic workflows on Opus 4.7/4.8. On 4.8 the model default is `high`; this env var overrides it ([model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)) |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
@@ -76,7 +76,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` | `"1"` or unset | Re-enable the session quality survey for enterprises capturing responses through OpenTelemetry (v2.1.136) |
 | `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` | integer (string) | Caps consecutive Stop-hook block cycles before the turn ends with a warning (default: 8) (v2.1.143) |
 | `CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY` | `"1"` or unset | Opt out of the new PowerShell `-ExecutionPolicy Bypass` default. Windows only (v2.1.143) |
-| `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE` | `"1"` or unset | Pin fast mode to Opus 4.6 (default is now Opus 4.7) (v2.1.142) |
+| `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE` | `"1"` or unset | Pin fast mode to Opus 4.6. Two generations stale as of Opus 4.8 (default is now Opus 4.8) (v2.1.142) |
 | `CLAUDE_CODE_PLUGIN_PREFER_HTTPS` | `"1"` or unset | Clone GitHub plugin sources over HTTPS instead of SSH. For environments without a GitHub SSH key (v2.1.141) |
 | `ANTHROPIC_WORKSPACE_ID` | UUID string | Scopes the workload-identity-federation minted token to a specific workspace (v2.1.141) |
 | `CLAUDE_CODE_USE_POWERSHELL_TOOL` | `"0"` to opt out, unset for default | Now defaults on for Windows Bedrock/Vertex/Foundry users (v2.1.143) |
@@ -84,6 +84,8 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SHELL_PREFIX` | shell prefix string | Custom shell prefix for MCP stdio server launches; overrides the default shell used to spawn stdio MCP processes (v2.1.128) |
 | `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet` (v2.1.147) |
 | `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans; values are redacted unless this is set (v2.1.117) |
+
+> **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 
 ### `model`
 
@@ -97,9 +99,11 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `opus` | Claude Opus 4.7 | Default. Full capability, adaptive thinking. 1M context on Max |
-| `sonnet` | Claude Sonnet 4.7 | Faster, lower cost. 1M context on Max |
+| `opus` | Claude Opus 4.8 | Default on Anthropic API / claude.ai Max. Full capability, adaptive thinking. 1M context on Max. Requires Claude Code v2.1.154+ |
+| `sonnet` | Claude Sonnet 4.6 | Faster, lower cost. 1M context on Max |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
+
+> **Provider notes**: On Claude Platform on AWS, `opus` resolves to Opus 4.7. On Bedrock, Vertex, and Foundry, `opus` resolves to Opus 4.6 — pin `claude-opus-4-8` explicitly via `ANTHROPIC_DEFAULT_OPUS_MODEL` to get the latest model on those providers.
 
 ### `teammateMode`
 
@@ -233,8 +237,8 @@ Maps model picker entries to custom provider model IDs (e.g., Bedrock ARNs, Vert
 ```json
 {
   "modelOverrides": {
-    "opus": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-opus-4-7-v1",
-    "sonnet": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-sonnet-4-7-v1"
+    "opus": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-opus-4-8",
+    "sonnet": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-sonnet-4-6"
   }
 }
 ```

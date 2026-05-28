@@ -13,7 +13,7 @@
     "orchestration",
     "maestro",
     "agent-teams",
-    "opus-4.7",
+    "opus-4.8",
     "adaptive-thinking",
     "persistent-memory",
     "react",
@@ -22,7 +22,7 @@
     "darkroom"
   ],
   "requires": {
-    "claude_code": ">=2.1.116"
+    "claude_code": ">=2.1.154"
   },
   "features": [
     "agent-teams",

@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     if (!state.firedAt || now - state.firedAt >= DEBOUNCE_MS) {
       const msg =
         `You have made ${state.count} consecutive tool calls without delegating to an Agent. ` +
-        `Opus 4.7 defaults to self-execution, but CLAUDE.md requires delegation when tasks span ` +
+        `Opus 4.8 defaults to self-execution, but CLAUDE.md requires delegation when tasks span ` +
         `3+ files or 10+ tool calls. Consider Agent(implementer), Agent(explore), or Agent(maestro) ` +
         `to parallelize work, reduce context pressure, and follow the project guardrails.`;
       console.log(

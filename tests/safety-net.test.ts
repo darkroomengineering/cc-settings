@@ -122,7 +122,7 @@ describe("TS safety-net — git safe → ALLOW", () => {
 describe("TS safety-net — AI attribution → BLOCK", () => {
   test("commit Co-Authored-By Claude", () =>
     expectBlock(
-      'git commit -m "feat: add login form\n\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"',
+      'git commit -m "feat: add login form\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"',
     ));
   test("commit Co-Authored-By Anthropic", () =>
     expectBlock(

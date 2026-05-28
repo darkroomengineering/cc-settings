@@ -17,7 +17,7 @@ The Edit tool uses exact string matching. Follow these rules:
 
 ## Delegation
 
-> **Opus 4.7 note**: Claude Opus 4.7 spawns fewer subagents by default than 4.6 and prefers internal reasoning over tool/agent use. The rules below are **not suggestions** — they are explicit triggers to counter that bias. When a trigger fires, delegate. Do not reason your way out of delegating "because you could do it yourself."
+> **Opus 4.8 note**: Claude Opus 4.8 (and 4.7 before it) spawns fewer subagents by default than 4.6 and prefers internal reasoning over tool/agent use. The rules below are **not suggestions** — they are explicit triggers to counter that bias. When a trigger fires, delegate. Do not reason your way out of delegating "because you could do it yourself."
 
 ### You MUST delegate (non-negotiable) when:
 
@@ -65,13 +65,14 @@ For full orchestration mode, activate `profiles/maestro.md`. Model routing per a
 - `medium` — routine edits where depth isn't required
 - `high` — non-coding intelligence (writing, analysis)
 - `max` — extreme cases only; often overthinks
+- `ultracode` — session-only; `xhigh` reasoning plus automatic [dynamic workflow](https://code.claude.com/docs/en/workflows) orchestration. Useful for codebase audits, large migrations, deep research. Set via `/effort ultracode`. Resets on session end. Requires Claude Code v2.1.154+.
 
-**4.7 calibration is stricter**: at `low`/`medium` the model scopes strictly and may under-think. Raise effort rather than prompting around shallow reasoning. Use `ultrathink` keyword for one-turn maximum depth on hard multi-file debugging.
+**4.8 calibration**: default effort dropped to `high` (was `xhigh` on 4.7). cc-settings pins `xhigh` via `CLAUDE_CODE_EFFORT_LEVEL` so behavior is preserved — but the `xhigh` ladder allocates more thinking tokens on 4.8 than on 4.7 (per-model calibration; see [model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)). At `low`/`medium` the model still scopes strictly and may under-think. Raise effort rather than prompting around shallow reasoning. Use `ultrathink` keyword for one-turn maximum depth on hard multi-file debugging.
 
 **Context window** — 1M tokens default on Max. Subagents inherit. Use `opus[1m]` / `sonnet[1m]` aliases in settings.json to pin.
 
-- **Manual `/compact` at 65%** — Opus 4.7's tokenizer is ~1-1.35x heavier per text vs 4.6 (was 70% on 4.6). Auto-compaction triggers at 95%; don't wait for it.
-- **Break subtasks to complete within 45%** — conservative budget for 4.7 tokenization. Prevents context rot mid-task.
+- **Manual `/compact` at 65%** — Opus 4.7/4.8's tokenizer is ~1-1.35x heavier per text vs 4.6 (was 70% on 4.6); on 4.8, `xhigh` also allocates more thinking tokens per turn, so context burns faster. Auto-compaction triggers at 95%; don't wait for it.
+- **Break subtasks to complete within 45%** — conservative budget for 4.7/4.8 tokenization. Prevents context rot mid-task.
 - **After compaction**: re-read task plan + active files (see AGENTS.md "Post-Compaction Recovery").
 
 Output token limits: 64K default, 128K upper bound.

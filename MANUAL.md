@@ -181,7 +181,7 @@ Say: *"how's my context?"* or *"context usage"* or *"running out of context"*
 Triggers `/handoff` (context-window runbook lives inside the handoff skill). Watch the statusline:
 
 ```
-Opus 4.7 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
+Opus 4.8 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |

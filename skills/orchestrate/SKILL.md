@@ -50,6 +50,15 @@ Use full parallel team fan-out instead of sequential subagent delegation when:
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` must be set (enabled by default in cc-settings)
 - For split panes: tmux or iTerm2 recommended
 
+### Alternative: dynamic workflows (research preview, v2.1.154+)
+
+Tasks that match the **Large codebase analysis** or **wide-blast-radius migration** shapes above can alternatively be expressed as a [dynamic workflow](https://code.claude.com/docs/en/workflows) — a JavaScript orchestration script that holds plan state outside Claude's context window, supports up to 16 concurrent agents per script (1000 total), and resumes from cached agent results within a session. Two entry points:
+
+- One-shot: include the word `workflow` in your prompt (e.g. _"Run a workflow to audit all SVG icons for accessibility issues"_) — Claude generates and runs the script.
+- Session-wide: `/effort ultracode` — Claude auto-orchestrates a workflow for every substantive task in the session.
+
+The maestro `Agent()` fan-out documented above is the **default** orchestration mode in cc-settings; workflows are an option to reach for when you need replayability or scale beyond what subagent fan-out provides. Don't rewire skills to depend on the Workflow tool — its API is still preview-stage.
+
 ## Output
 
 Report: team composition (when fan-out chosen), task assignments, coordination strategy, and progress.

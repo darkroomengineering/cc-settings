@@ -87,7 +87,7 @@ Confirms:
 The statusline shows live context usage:
 
 ```
-Opus 4.7 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
+Opus 4.8 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |
@@ -102,8 +102,8 @@ Degradation is not gradual — it follows a step function. Place critical inform
 
 | Model | Noticeable degradation | Severe degradation |
 |-------|------------------------|--------------------|
-| Claude Opus 4.7 | ~100K tokens | ~180K tokens |
-| Claude Sonnet 4.7 | ~80K tokens | ~150K tokens |
+| Claude Opus 4.8 | ~100K tokens | ~180K tokens |
+| Claude Sonnet 4.6 | ~80K tokens | ~150K tokens |
 | Claude Haiku 4.5 | ~50K tokens | ~90K tokens |
 
 **Key patterns:**

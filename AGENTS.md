@@ -25,7 +25,7 @@ Don't over-engineer your workflow. Start simple, add complexity only when you fe
 
 ## Response Calibration
 
-Claude Opus 4.7 calibrates response length to task complexity rather than defaulting to fixed verbosity. Match your output to what was asked:
+Claude Opus 4.8 calibrates response length to task complexity rather than defaulting to fixed verbosity. Match your output to what was asked:
 
 - **Simple questions** (1-2 sentences): direct answer, no preamble, no trailing summary
 - **Lookups ("where is X", "what does Y do")**: one short paragraph + file:line reference
@@ -39,7 +39,7 @@ Claude Opus 4.7 calibrates response length to task complexity rather than defaul
 - Use "I'll now..." / "Let me..." preambles; just do the thing and announce completion
 - Pad responses with caveats or qualifications that don't change the outcome
 
-**Positive guidance beats negative**: state how to respond (concise, direct) rather than what to avoid. 4.7 interprets prompts literally — a rule like "don't be verbose" is weaker than "respond in 1-2 sentences for simple questions."
+**Positive guidance beats negative**: state how to respond (concise, direct) rather than what to avoid. 4.8 interprets prompts literally — a rule like "don't be verbose" is weaker than "respond in 1-2 sentences for simple questions."
 
 ---
 
