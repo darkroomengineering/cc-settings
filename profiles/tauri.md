@@ -1,3 +1,10 @@
+---
+name: tauri
+description: Tauri desktop apps (Rust + Web)
+model: opus
+skills: [build]
+---
+
 # Tauri Profile (Desktop Apps)
 
 > Patterns for Tauri desktop applications with Rust backend and web frontend.

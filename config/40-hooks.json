@@ -110,6 +110,16 @@
 						"timeout": 3
 					}
 				]
+			},
+			{
+				"matcher": "Write|Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/promote-memory.ts\"",
+						"timeout": 3
+					}
+				]
 			}
 		],
 		"PostCompact": [
