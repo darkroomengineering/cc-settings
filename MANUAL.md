@@ -35,7 +35,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun ~/.claude/src/scripts/claude-audit.ts` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 28 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 30 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -425,6 +425,8 @@ These are enforced automatically — no skill needed:
 | `zero-tech-debt` | rewrite as if from scratch, delete compat layer, kill legacy path, too many flags |
 | `test` | test, write tests, coverage, TDD, test-first, red-green-refactor |
 | `verify` | verify, double check, prove it |
+| `proof-of-work` | proof of work, review-ready, verify before review, prove it is green |
+| `review-batch` | review batch, review all the agents, what's pending review, catch up on agent work |
 | `oracle` | advice, what should I, risks, what could go wrong, compare approaches, trade-off analysis |
 | `plan-feature` | help me figure out, vague scope, define requirements, PRD, requirements document, product spec |
 | `orchestrate` | complex task, coordinate, parallel agents, overnight, long running, autonomous task, marathon |
