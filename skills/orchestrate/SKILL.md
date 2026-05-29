@@ -16,10 +16,13 @@ Before delegating to agents:
 1. **Parse requirements** - Break down what needs to happen
 2. **Identify workstreams** - Which are independent? Which have dependencies?
 3. **Assess scope** - Is this actually multi-agent work, or simpler than it looks?
+4. **Sort into two piles** (the Orchestration Tax — your review attention is the serial bottleneck and it doesn't parallelize):
+   - **Delegate-async** — isolated, well-specified work where your judgment lands at the *gate* (you review the finished result): scaffolding, mechanical refactors, test writing, doc generation, independent file areas. Fan these out.
+   - **Hold-the-lock** — work where the judgment *is* the work: a subtle bug, an architecture decision, anything that needs your evolving mental model of the system. Parallelizing these doesn't scale output — it thrashes the one serial resource and everything comes back worse. Do them yourself, serially, one at a time.
 
 **GO/NO-GO Verdict**:
-- **GO** - Task has 3+ workstreams, clear boundaries, and agents can work independently. Proceed.
-- **SIMPLIFY** - Task has <3 workstreams. Use direct Agent() delegation instead.
+- **GO** - 3+ *delegate-async* workstreams, clear boundaries, agents work independently. Proceed — fan out the first pile only.
+- **SIMPLIFY** - <3 workstreams, OR the work is mostly *hold-the-lock* regardless of size. Delegate the isolated bits with direct Agent() calls and keep the judgment-heavy parts yourself.
 - **NO-GO** - Requirements unclear, scope too large, or high risk of file conflicts. Report and stop.
 
 Do not proceed past this gate without an explicit verdict.
