@@ -4,6 +4,7 @@
 // Fail-open: any error → silent success (never break the tool call).
 
 import { readHookInput, readState, runHook, writeState } from "../lib/hook-runtime.ts";
+import { maxUnreviewed } from "../lib/review-queue.ts";
 
 const THRESHOLD = 8;
 const DEBOUNCE_MS = 60_000;
@@ -36,19 +37,26 @@ async function main(): Promise<void> {
     const now = Date.now();
     // Debounce: skip if we fired recently to avoid spamming.
     if (!state.firedAt || now - state.firedAt >= DEBOUNCE_MS) {
-      const msg =
-        `You have made ${state.count} consecutive tool calls without delegating to an Agent. ` +
-        `Opus 4.8 defaults to self-execution, but CLAUDE.md requires delegation when tasks span ` +
-        `3+ files or 10+ tool calls. Consider Agent(implementer), Agent(explore), or Agent(maestro) ` +
-        `to parallelize work, reduce context pressure, and follow the project guardrails.`;
-      console.log(
-        JSON.stringify({
-          hookSpecificOutput: {
-            hookEventName: "PostToolUse",
-            additionalContext: msg,
-          },
-        }),
-      );
+      // Suppress the "delegate more" nudge when the review queue is already at/
+      // over capacity: pushing more production when review is the bottleneck is
+      // the orchestration-tax failure mode (review-queue-nudge covers the other
+      // direction). Still debounce + reset so we don't re-check on every call.
+      const rq = await readState<{ awaiting: number }>("review-queue.json", { awaiting: 0 });
+      if (rq.awaiting < maxUnreviewed()) {
+        const msg =
+          `You have made ${state.count} consecutive tool calls without delegating to an Agent. ` +
+          `Opus 4.8 defaults to self-execution, but CLAUDE.md requires delegation when tasks span ` +
+          `3+ files or 10+ tool calls. Consider Agent(implementer), Agent(explore), or Agent(maestro) ` +
+          `to parallelize work, reduce context pressure, and follow the project guardrails.`;
+        console.log(
+          JSON.stringify({
+            hookSpecificOutput: {
+              hookEventName: "PostToolUse",
+              additionalContext: msg,
+            },
+          }),
+        );
+      }
       state.firedAt = now;
       state.count = 0;
     }

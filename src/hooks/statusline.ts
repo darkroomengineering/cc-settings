@@ -8,7 +8,7 @@ import { basename } from "node:path";
 import { runGit as runGitLib } from "../lib/git.ts";
 import { readState } from "../lib/hook-runtime.ts";
 import { readStdin } from "../lib/io.ts";
-import { maxUnreviewed } from "../lib/review-queue.ts";
+import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
 
 type Payload = {
   model?: { display_name?: string };
@@ -174,13 +174,15 @@ if (rateUsed !== undefined) {
 // Review-queue backpressure: agents spawned since the last commit, awaiting
 // your review (written by review-queue-nudge.ts). Suppressed at 0 — yellow
 // under the threshold, red at/over CC_MAX_UNREVIEWED.
-const reviewQueue = await readState<{ awaiting: number }>("review-queue.json", { awaiting: 0 });
+const reviewQueue = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
 if (reviewQueue.awaiting > 0) {
   const yellow = "\x1b[33m";
   const red = "\x1b[31m";
   const reset = "\x1b[0m";
   const color = reviewQueue.awaiting >= maxUnreviewed() ? red : yellow;
-  parts.push(`${color}⚠ ${reviewQueue.awaiting} review${reset}`);
+  const age = ageMs(reviewQueue, Date.now());
+  const ageLabel = age > 0 ? ` (${formatAge(age)})` : "";
+  parts.push(`${color}⚠ ${reviewQueue.awaiting} review${ageLabel}${reset}`);
 }
 
 const dimSep = "\x1b[2m | \x1b[0m";

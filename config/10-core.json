@@ -11,7 +11,8 @@
 		"CC_CLAUDE_MD_MONITOR_ENABLED": "true",
 		"CC_CLAUDE_MD_WARN_LINES": "400",
 		"CC_CLAUDE_MD_CRITICAL_LINES": "600",
-		"CC_MAX_UNREVIEWED": "5"
+		"CC_MAX_UNREVIEWED": "5",
+		"CC_MIN_REVIEW_SECONDS": "60"
 	},
 	"sandbox": {
 		"failIfUnavailable": false
