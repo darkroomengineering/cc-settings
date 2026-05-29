@@ -1,6 +1,6 @@
 import { parseDocument, parse as parseYaml } from "yaml";
 
-export const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
 
 export function extractFrontmatterBlock(md: string): string | null {
   const m = FRONTMATTER_RE.exec(md);
@@ -17,14 +17,14 @@ export function parseFrontmatter(md: string): unknown {
   }
 }
 
-export interface FrontmatterParseError {
+interface FrontmatterParseError {
   message: string;
   code?: string;
   line?: number;
   col?: number;
 }
 
-export interface FrontmatterParseResult {
+interface FrontmatterParseResult {
   data: unknown; // null if no frontmatter or all-error
   errors: FrontmatterParseError[];
 }

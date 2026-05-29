@@ -30,11 +30,11 @@ Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), p
 ### Removed
 
 - **`isStack()` (`src/lib/stack.ts`)** — dead export, zero references repo-wide.
+- **`runGitFull` (`src/lib/git.ts`)** — the thin `runProcessFull("git", …)` wrapper is gone; its 8 callers in `checkpoint.ts` and `upstream/scan.ts` now call `runProcessFull("git", …)` directly. (Initially kept as a `runGit`/`runGitFull` pair; removed by maintainer decision — one fewer indirection, at the cost of more verbose call sites.)
+- **Exports narrowed** — `FRONTMATTER_RE`, `FrontmatterParseError`, `FrontmatterParseResult` (`frontmatter.ts`) and `isInteractive` (`prompts.ts`) are no longer exported; each was used only within its own module. (Also initially left exported, then narrowed by maintainer decision.)
 
 ### Notes
 
-- `runGitFull` was evaluated for removal (the audit first flagged it as a thin identity wrapper) but **kept**: it has 8 callers across `checkpoint.ts` and `upstream/scan.ts` that need the full `{exit, stdout, stderr}` shape and forms a clear `runGit`/`runGitFull` pair — inlining `runProcessFull("git", …)` at 8 sites would be worse, not better.
-- The over-exported internal symbols the audit flagged (`FrontmatterParseResult`/`FrontmatterParseError`, `FRONTMATTER_RE`, `isInteractive`) were **left exported** — the first two are the legitimate typed contract of the exported `parseFrontmatterStrict`, and un-exporting the others is cosmetic, not clearly correct.
 - `tests/phase2-scripts.test.ts` (`prune-mcp-auth-cache`) now writes its fixture under `os.tmpdir()` with an `afterAll` cleanup, instead of leaving an untracked `.tmp-mcp-auth-cache-test/` at the repo root.
 
 ## [11.11.0] — 2026-05-29

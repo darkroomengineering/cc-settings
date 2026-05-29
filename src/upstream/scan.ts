@@ -16,7 +16,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { runGitFull as runGit, runProcessFull } from "../lib/git.ts";
+import { runProcessFull } from "../lib/git.ts";
 import { HookEvent } from "../schemas/hooks.ts";
 import { Settings } from "../schemas/settings.ts";
 
@@ -96,17 +96,21 @@ async function saveManifest(manifest: Manifest): Promise<void> {
 
 async function openSyncPr(summary: string, body: string, newVersion: string): Promise<void> {
   const branch = `upstream-sync/${newVersion}-${Date.now()}`;
-  await runGit(["config", "user.name", "upstream-sync-bot"]);
-  await runGit(["config", "user.email", "upstream-sync-bot@users.noreply.github.com"]);
-  await runGit(["checkout", "-b", branch]);
-  await runGit(["add", "upstream/claude-code-manifest.json"]);
+  await runProcessFull("git", ["config", "user.name", "upstream-sync-bot"]);
+  await runProcessFull("git", [
+    "config",
+    "user.email",
+    "upstream-sync-bot@users.noreply.github.com",
+  ]);
+  await runProcessFull("git", ["checkout", "-b", branch]);
+  await runProcessFull("git", ["add", "upstream/claude-code-manifest.json"]);
   const commitTitle = `chore(upstream-sync): bump manifest to ${newVersion}`;
-  const commitRes = await runGit(["commit", "-m", commitTitle]);
+  const commitRes = await runProcessFull("git", ["commit", "-m", commitTitle]);
   if (commitRes.exit !== 0) {
     console.error("git commit failed:", commitRes.stderr);
     return;
   }
-  const pushRes = await runGit(["push", "-u", "origin", branch]);
+  const pushRes = await runProcessFull("git", ["push", "-u", "origin", branch]);
   if (pushRes.exit !== 0) {
     console.error("git push failed:", pushRes.stderr);
     return;

@@ -7,7 +7,7 @@
 
 import confirm from "@inquirer/confirm";
 
-export function isInteractive(): boolean {
+function isInteractive(): boolean {
   return process.stdin.isTTY === true;
 }
 

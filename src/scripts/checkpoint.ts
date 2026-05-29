@@ -12,7 +12,7 @@ import { mkdir, readdir, readlink, symlink, unlink, writeFile } from "node:fs/pr
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { palette } from "../lib/colors.ts";
-import { runGit, runGitFull } from "../lib/git.ts";
+import { runGit, runProcessFull } from "../lib/git.ts";
 import { pad } from "../lib/platform.ts";
 
 async function getProjectName(): Promise<string> {
@@ -48,10 +48,10 @@ async function cmdSave(description = "Checkpoint"): Promise<void> {
   const id = checkpointId();
   const file = join(checkpointDir, `${id}.json`);
   const [branchRes, shaRes, diffRes, filesRes] = await Promise.all([
-    runGitFull(["branch", "--show-current"]),
-    runGitFull(["rev-parse", "--short", "HEAD"]),
-    runGitFull(["diff", "--quiet"]),
-    runGitFull(["diff", "--name-only", "HEAD"]),
+    runProcessFull("git", ["branch", "--show-current"]),
+    runProcessFull("git", ["rev-parse", "--short", "HEAD"]),
+    runProcessFull("git", ["diff", "--quiet"]),
+    runProcessFull("git", ["diff", "--name-only", "HEAD"]),
   ]);
   const chk: Checkpoint = {
     id,
@@ -160,8 +160,8 @@ async function cmdRestore(target: string): Promise<number> {
   console.log(`${palette.blue}Branch:${palette.reset} ${chk.git.branch} @ ${chk.git.sha}`);
   console.log("");
   const [curBranchRes, curShaRes] = await Promise.all([
-    runGitFull(["branch", "--show-current"]),
-    runGitFull(["rev-parse", "--short", "HEAD"]),
+    runProcessFull("git", ["branch", "--show-current"]),
+    runProcessFull("git", ["rev-parse", "--short", "HEAD"]),
   ]);
   const curBranch = curBranchRes.stdout.trim() || "unknown";
   const curSha = curShaRes.stdout.trim() || "unknown";

@@ -1,7 +1,7 @@
-// Tiny git CLI wrappers.
-//   runGit      — trimmed stdout only, swallows errors. Common path.
-//   runGitFull  — full {exit, stdout, stderr} shape. For scripts that need
-//                 to inspect failures or stderr.
+// Tiny process/git wrappers.
+//   runGit         — trimmed git stdout only, swallows errors. Common path.
+//   runProcessFull — full {exit, stdout, stderr} for any binary. Callers that
+//                    need the exit code or stderr use runProcessFull("git", …).
 
 /**
  * Run `git <args>` and return trimmed stdout. Failures yield "" rather than
@@ -29,14 +29,4 @@ export async function runProcessFull(
     new Response(proc.stderr).text(),
   ]);
   return { exit: await proc.exited, stdout, stderr };
-}
-
-/**
- * Like `runGit` but returns the full result shape. Use when you need the
- * exit code, stderr, or both.
- */
-export function runGitFull(
-  args: string[],
-): Promise<{ exit: number; stdout: string; stderr: string }> {
-  return runProcessFull("git", args);
 }
