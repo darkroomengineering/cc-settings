@@ -11,12 +11,8 @@ import type { z } from "zod";
 import type { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
-import {
-  atomicWriteJson,
-  findUserOnlyServers,
-  promptPreserveUserServers,
-  readJsonOrNull,
-} from "./mcp.ts";
+import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
+import { findUserOnlyServers, promptPreserveUserServers } from "./mcp.ts";
 import { promptYn } from "./prompts.ts";
 
 type StringArray = string[] | undefined;

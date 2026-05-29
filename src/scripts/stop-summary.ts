@@ -5,15 +5,13 @@
 // Fail-open: git not on PATH, not in a repo, or any spawn failure must not
 // break the Stop hook (which would interrupt the user's natural turn end).
 
-export {};
+import { runGit } from "../lib/git.ts";
 
 try {
-  const proc = Bun.spawn(["git", "diff", "--stat"], { stdout: "pipe", stderr: "ignore" });
-  const out = await new Response(proc.stdout).text();
-  await proc.exited;
+  const out = await runGit(["diff", "--stat"]);
 
   // Last line of `git diff --stat` looks like "N files changed, M insertions(+)".
-  const lastLine = out.trimEnd().split("\n").pop() ?? "";
+  const lastLine = out.split("\n").pop() ?? "";
   const match = lastLine.match(/(\d+)\s+files?\s+changed/);
   const count = match ? Number(match[1]) : 0;
 

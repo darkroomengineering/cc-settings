@@ -10,10 +10,11 @@
 // or re-run setup.sh to refresh the fingerprint.
 
 import { existsSync } from "node:fs";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
+import { atomicWriteJson } from "./json-io.ts";
 
 export const FINGERPRINT_FILENAME = ".cc-settings-hooks-fingerprint";
 
@@ -69,7 +70,6 @@ export async function writeFingerprint(
 ): Promise<FingerprintRecord> {
   const dir = claudeDir ?? join(homedir(), ".claude");
   const path = join(dir, FINGERPRINT_FILENAME);
-  const tmp = `${path}.tmp`;
 
   const hooks =
     settings && typeof settings === "object"
@@ -91,8 +91,7 @@ export async function writeFingerprint(
     installedAt: new Date().toISOString(),
     hooksCount,
   };
-  await writeFile(tmp, `${JSON.stringify(record, null, 2)}\n`);
-  await rename(tmp, path);
+  await atomicWriteJson(path, record);
   return record;
 }
 

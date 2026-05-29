@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29). Behavior-preserving — no feature or interface change; full suite 399 pass, typecheck + lint clean.
+
+### Changed
+
+- **`src/lib/json-io.ts` (new)** — extracted the generic JSON + atomic-file I/O (`atomicWriteString`, `atomicWriteJson`, `readJsonOrNull`) plus the parse-error class out of `src/lib/mcp.ts`, which had stranded these in a domain module that `setup.ts`, `settings-merge.ts`, `status.ts`, and `scripts/track-tldr.ts` all imported purely for I/O. `mcp.ts` is now MCP-only. The error class is renamed `McpParseError` → `JsonParseError` to match its new home (`setup.ts` + `tests/phase3-libs.test.ts` updated). No re-export shim left behind.
+- **`src/lib/hooks-fingerprint.ts`** — `writeFingerprint` now calls the canonical `atomicWriteJson` instead of hand-rolling its own tmp-file + rename (byte-identical output).
+- **`src/lib/project-awareness.ts`, `src/lib/status.ts`, `src/scripts/checkpoint.ts`, `src/scripts/stop-summary.ts`** — replaced private `run`/`runCapture` spawn-stdout copies and inline `git` spawns with the canonical `runGit` from `src/lib/git.ts`. Behavior-preserving: these git commands emit no stdout on failure, so `runGit`'s trimmed-stdout result matches the old exit-code-gated `""`.
+
+### Removed
+
+- **`isStack()` (`src/lib/stack.ts`)** — dead export, zero references repo-wide.
+
+### Notes
+
+- `runGitFull` was evaluated for removal (the audit first flagged it as a thin identity wrapper) but **kept**: it has 8 callers across `checkpoint.ts` and `upstream/scan.ts` that need the full `{exit, stdout, stderr}` shape and forms a clear `runGit`/`runGitFull` pair — inlining `runProcessFull("git", …)` at 8 sites would be worse, not better.
+
 ## [11.11.0] — 2026-05-29
 
 Three ideas ported from Shopify Engineering's ["Under the River"](https://shopify.engineering/under-the-river) (May 2026), scoped to what actually maps onto a config repo (its monorepo/Nix/Postgres-session infrastructure does not). The post's load-bearing claim — *private agent sessions plateau; public corpora compound* — surfaced a real gap: `share-learning` was retired in `[11.3.0]`, leaving the shared knowledge board with no invocation UI and nothing to prompt its use, so every learning died in one developer's private auto-memory.

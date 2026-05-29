@@ -11,8 +11,10 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { runGit } from "./git.ts";
+import { readJsonOrNull } from "./json-io.ts";
 import { MANAGED_SKILLS } from "./managed-skills.ts";
-import { CLAUDE_JSON_PATH, readJsonOrNull } from "./mcp.ts";
+import { CLAUDE_JSON_PATH } from "./mcp.ts";
 import type {
   EnvVarEntry,
   GitDriftData,
@@ -49,28 +51,15 @@ export const EXPECTED_ENV_VARS = [
 // keep working without a coordinated rename.
 export { MANAGED_SKILLS };
 
-async function runCapture(cmd: string[]): Promise<string> {
-  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "ignore" });
-  const out = await new Response(proc.stdout).text();
-  await proc.exited;
-  return proc.exitCode === 0 ? out.trim() : "";
-}
-
 async function gatherGitDrift(sourceDir: string, claudeDir: string): Promise<GitDriftData> {
-  const sha = await runCapture(["git", "-C", sourceDir, "rev-parse", "--short", "HEAD"]);
+  const sha = await runGit(["rev-parse", "--short", "HEAD"], { cwd: sourceDir });
   const sentinelPath = join(claudeDir, ".cc-settings-version");
   let behind: number | null = null;
   if (existsSync(sentinelPath)) {
     const since = (await Bun.file(sentinelPath).stat()).mtime.toISOString();
-    const count = await runCapture([
-      "git",
-      "-C",
-      sourceDir,
-      "rev-list",
-      "--count",
-      "HEAD",
-      `--since=${since}`,
-    ]);
+    const count = await runGit(["rev-list", "--count", "HEAD", `--since=${since}`], {
+      cwd: sourceDir,
+    });
     const n = Number.parseInt(count, 10);
     behind = Number.isFinite(n) ? n : null;
   }

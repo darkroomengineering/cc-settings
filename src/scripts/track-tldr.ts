@@ -7,7 +7,7 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { atomicWriteString } from "../lib/mcp.ts";
+import { atomicWriteString } from "../lib/json-io.ts";
 
 const STATS_FILE = join(homedir(), ".claude", "tldr-session-stats.json");
 const toolName = process.argv[2] ?? "unknown";

@@ -7,12 +7,10 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { atomicWriteJson, JsonParseError, readJsonOrNull } from "../src/lib/json-io.ts";
 import {
-  atomicWriteJson,
   findUserOnlyServers,
   installMcpToClaudeJson,
-  McpParseError,
-  readJsonOrNull,
   readMcpFromSettings,
 } from "../src/lib/mcp.ts";
 import { getInstallHint } from "../src/lib/packages.ts";
@@ -63,12 +61,12 @@ describe("mcp — atomic IO", () => {
     expect(v).toBeNull();
   });
 
-  test("readJsonOrNull throws McpParseError on bad JSON", async () => {
+  test("readJsonOrNull throws JsonParseError on bad JSON", async () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-bad-"));
     try {
       const target = join(sandbox, "bad.json");
       await writeFile(target, "{this is not valid json");
-      await expect(readJsonOrNull(target)).rejects.toBeInstanceOf(McpParseError);
+      await expect(readJsonOrNull(target)).rejects.toBeInstanceOf(JsonParseError);
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }
@@ -111,7 +109,7 @@ describe("mcp — settings.json extraction", () => {
     try {
       const settings = join(sandbox, "settings.json");
       await writeFile(settings, "{broken");
-      await expect(readMcpFromSettings(settings)).rejects.toBeInstanceOf(McpParseError);
+      await expect(readMcpFromSettings(settings)).rejects.toBeInstanceOf(JsonParseError);
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }
@@ -199,7 +197,7 @@ describe("mcp — merge + preserve", () => {
       await writeFile(existing, "{broken}");
       await writeFile(team, JSON.stringify({ mcpServers: { a: { command: "b" } } }));
       await expect(mergeSettingsWithMcpPreservation(existing, team, out)).rejects.toBeInstanceOf(
-        McpParseError,
+        JsonParseError,
       );
       const { existsSync } = await import("node:fs");
       expect(existsSync(out)).toBe(false);

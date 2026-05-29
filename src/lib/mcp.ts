@@ -12,21 +12,20 @@
 //   - ~/.claude.json uses passthrough (Claude-Code-owned state we don't edit).
 //
 // Responsibilities of this file:
-//   1. Atomic I/O helpers (atomicWriteString, atomicWriteJson, readJsonOrNull)
-//   2. MCP-from-settings extraction (readMcpFromSettings, findUserOnlyServers)
-//   3. User-server preservation prompt (promptPreserveUserServers)
-//   5. ~/.claude.json installation (installMcpToClaudeJson)
+//   1. MCP-from-settings extraction (readMcpFromSettings, findUserOnlyServers)
+//   2. User-server preservation prompt (promptPreserveUserServers)
+//   3. ~/.claude.json installation (installMcpToClaudeJson)
 //
-// Responsibility 4 (the settings.json merge strategies + orchestrator) has
-// been moved to src/lib/settings-merge.ts.
+// Generic JSON/atomic-file I/O moved to src/lib/json-io.ts; the settings.json
+// merge strategies + orchestrator moved to src/lib/settings-merge.ts.
 
-import { readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { z } from "zod";
 import { ClaudeJson } from "../schemas/claude-json.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { debug, error, info, success, warn } from "./colors.ts";
+import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { promptYn } from "./prompts.ts";
 
 type McpServer = z.infer<typeof McpServersSchema>[string];
@@ -34,46 +33,9 @@ type McpServers = Record<string, McpServer>;
 
 export const CLAUDE_JSON_PATH = join(homedir(), ".claude.json");
 
-/** Raised when JSON is unparseable. Callers MUST treat this as a hard failure. */
-export class McpParseError extends Error {
-  constructor(
-    public readonly path: string,
-    cause: unknown,
-  ) {
-    super(`${path} is not valid JSON. Fix it or restore a backup before re-running setup.`);
-    this.name = "McpParseError";
-    if (cause instanceof Error) this.cause = cause;
-  }
-}
-
-// --- Atomic IO helpers ----------------------------------------------------
-
-/** Stage + rename in the same directory so crashes don't leave a half-written target. */
-export async function atomicWriteString(path: string, content: string): Promise<void> {
-  const dir = dirname(path);
-  const tmp = join(dir, `.${process.pid}-${Date.now()}.tmp`);
-  await writeFile(tmp, content);
-  await rename(tmp, path);
-}
-
-/** atomicWriteString helper that JSON-serializes (2-space indent, trailing newline). */
-export async function atomicWriteJson(path: string, data: unknown): Promise<void> {
-  await atomicWriteString(path, `${JSON.stringify(data, null, 2)}\n`);
-}
-
-export async function readJsonOrNull(path: string): Promise<unknown> {
-  try {
-    const raw = await readFile(path, "utf8");
-    return JSON.parse(raw);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw new McpParseError(path, err);
-  }
-}
-
 // --- Settings.json MCP extraction -----------------------------------------
 
-/** Read MCP servers from a settings.json. Throws McpParseError on bad JSON. */
+/** Read MCP servers from a settings.json. Throws JsonParseError on bad JSON. */
 export async function readMcpFromSettings(path: string): Promise<McpServers> {
   const raw = await readJsonOrNull(path);
   if (raw === null || typeof raw !== "object") return {};

@@ -177,11 +177,6 @@ export async function detectStack(cwd: string = process.cwd()): Promise<Stack> {
   };
 }
 
-/** Convenience predicate used by skills that only need a yes/no on the primary kind. */
-export function isStack(stack: Stack, kind: StackKind): boolean {
-  return stack.kind === kind;
-}
-
 /**
  * Format a Stack for human consumption — used by skills that want to tell the
  * user what they detected before generating output.

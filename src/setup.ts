@@ -33,14 +33,9 @@ import {
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./lib/hooks-fingerprint.ts";
+import { atomicWriteJson, type JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
 import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
-import {
-  atomicWriteJson,
-  CLAUDE_JSON_PATH,
-  installMcpToClaudeJson,
-  type McpParseError,
-  readJsonOrNull,
-} from "./lib/mcp.ts";
+import { CLAUDE_JSON_PATH, installMcpToClaudeJson } from "./lib/mcp.ts";
 import {
   detectPackageManagers,
   ensurePythonPackage,
@@ -615,8 +610,8 @@ async function main(): Promise<number> {
   try {
     await installSettings(args.sourceDir, args.interactive);
   } catch (err) {
-    // McpParseError is the one we want to surface loudly — see lib/mcp.ts.
-    if ((err as McpParseError).name === "McpParseError") {
+    // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
+    if ((err as JsonParseError).name === "JsonParseError") {
       error(String((err as Error).message));
       error("Aborting. Fix the corrupt JSON or rollback: bun src/setup.ts --rollback");
       return 1;

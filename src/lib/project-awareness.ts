@@ -4,16 +4,10 @@
 import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-
-async function run(cmd: string[], cwd: string): Promise<string> {
-  const proc = Bun.spawn(cmd, { cwd, stdout: "pipe", stderr: "ignore" });
-  const out = await new Response(proc.stdout).text();
-  await proc.exited;
-  return proc.exitCode === 0 ? out.trim() : "";
-}
+import { runGit } from "./git.ts";
 
 async function gitRoot(cwd: string): Promise<string> {
-  return run(["git", "rev-parse", "--show-toplevel"], cwd);
+  return runGit(["rev-parse", "--show-toplevel"], { cwd });
 }
 
 async function countMd(dir: string): Promise<number> {
@@ -44,8 +38,8 @@ export async function projectAwareness(cwd: string): Promise<string[]> {
   if (!root) return [];
 
   const [branch, log, rulesCount, localSubdirs] = await Promise.all([
-    run(["git", "branch", "--show-current"], root),
-    run(["git", "log", "--oneline", "-3"], root),
+    runGit(["branch", "--show-current"], { cwd: root }),
+    runGit(["log", "--oneline", "-3"], { cwd: root }),
     countMd(join(root, "rules")),
     localClaudeSubdirs(root),
   ]);

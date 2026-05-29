@@ -12,17 +12,12 @@ import { mkdir, readdir, readlink, symlink, unlink, writeFile } from "node:fs/pr
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { palette } from "../lib/colors.ts";
-import { runGitFull } from "../lib/git.ts";
+import { runGit, runGitFull } from "../lib/git.ts";
 import { pad } from "../lib/platform.ts";
 
 async function getProjectName(): Promise<string> {
-  const proc = Bun.spawn(["git", "rev-parse", "--show-toplevel"], {
-    stdout: "pipe",
-    stderr: "ignore",
-  });
-  const out = (await new Response(proc.stdout).text()).trim();
-  if ((await proc.exited) === 0 && out) return basename(out);
-  return basename(process.cwd());
+  const out = await runGit(["rev-parse", "--show-toplevel"]);
+  return out ? basename(out) : basename(process.cwd());
 }
 
 function checkpointId(d: Date = new Date()): string {
