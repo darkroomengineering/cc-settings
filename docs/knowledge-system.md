@@ -64,6 +64,13 @@ gh project item-list NUMBER --owner ORG --format json
 gh project item-create NUMBER --owner ORG --title "gotcha: Biome ignores .mdx" --body "Add .mdx to biome.json includes array"
 ```
 
+### Consumers
+
+Two kinds of agents read this board:
+
+- **Dev-machine agents** (Claude Code) — read with the `gh project item-list` command above and post via `/share-learning`, which dedups against the board before creating an item.
+- **darky** (the studio Slack bot) — reads the board **on-demand** through its `search_team_knowledge` tool (GraphQL `organization{projectV2}`), gated to questions that touch a team convention/decision/gotcha rather than fulltime ingestion. Wired in [darky PR #474](https://github.com/darkroomengineering/darky/pull/474); requires `DARKY_KNOWLEDGE_PROJECT_NUMBER` in darky's environment. darky keeps its own internal knowledge brain (`search_knowledge`) separate — this board is the cross-studio tier only.
+
 ### Best Practices
 
 - Keep entries atomic — one learning per entry
