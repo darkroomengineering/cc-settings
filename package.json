@@ -22,7 +22,8 @@
     "compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'",
     "check:cli-tools": "bun src/scripts/check-cli-tools.ts",
     "new-skill": "bun src/scripts/new-skill.ts",
-    "proof": "bun src/scripts/proof.ts"
+    "proof": "bun src/scripts/proof.ts",
+    "review-batch": "bun src/scripts/review-batch.ts"
   },
   "dependencies": {
     "@inquirer/confirm": "6.1.0",
