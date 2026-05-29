@@ -319,6 +319,12 @@ Say: *"orchestrate this"* or *"coordinate all the agents"*
 
 Triggers `/orchestrate` — delegates to Maestro for multi-agent coordination.
 
+### Review-Queue Backpressure
+
+The statusline shows `⚠ N review` when you've spawned **N agents since your last commit** — your unreviewed-work queue. It's yellow under your review rate and red at/over it, and Claude gets a nudge to stop fanning out and close the loop once you hit the threshold. Committing resets it to 0 (a commit = you reviewed + integrated).
+
+The idea (from the "Orchestration Tax"): your review throughput is the real bottleneck, not how many agents you can spawn — so this applies backpressure when production outruns review. It's the consumer-side counterpart to the delegation nudges. Tune the threshold with `CC_MAX_UNREVIEWED` (default `5`) in the `env` block of `config/10-core.json`.
+
 ### Effort Level
 
 Say: *"think harder"* or *"quick fix"*

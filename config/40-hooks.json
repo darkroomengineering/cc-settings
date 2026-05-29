@@ -112,6 +112,15 @@
 				]
 			},
 			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/review-queue-nudge.ts\"",
+						"timeout": 3
+					}
+				]
+			},
+			{
 				"matcher": "Write|Edit",
 				"hooks": [
 					{

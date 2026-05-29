@@ -6,7 +6,11 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
-Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29). Behavior-preserving — no runtime behavior change (some internal export names were renamed for clarity); full suite 399 pass, typecheck + lint clean.
+Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), plus the first feature built from the audit's orchestration-tax findings. The cleanup is behavior-preserving (internal export renames aside); the new hook is additive. Full suite 408 pass, typecheck + lint clean.
+
+### Added
+
+- **Review-queue backpressure** — `src/lib/review-queue.ts` + `src/hooks/review-queue-nudge.ts` (PostToolUse) count agents spawned since your last commit and nudge Claude when the queue reaches `CC_MAX_UNREVIEWED` (default `5`); a `git commit` drains it. The statusline (`src/hooks/statusline.ts`) shows `⚠ N review` — yellow under the threshold, red at/over. The consumer-side counterpart to `parallelmax-nudge`: where the existing hooks push toward *more* delegation, this models the constraint the "Orchestration Tax" essay names — human review throughput, not agent count — and applies backpressure when production outruns review. Knob: `CC_MAX_UNREVIEWED` in `config/10-core.json`. 9 new tests.
 
 ### Changed
 

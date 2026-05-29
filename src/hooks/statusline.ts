@@ -6,7 +6,9 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { runGit as runGitLib } from "../lib/git.ts";
+import { readState } from "../lib/hook-runtime.ts";
 import { readStdin } from "../lib/io.ts";
+import { maxUnreviewed } from "../lib/review-queue.ts";
 
 type Payload = {
   model?: { display_name?: string };
@@ -167,6 +169,18 @@ if (rateUsed !== undefined) {
   const ttr = rateResetsAt ? formatTimeToReset(rateResetsAt) : null;
   const suffix = ttr ? `${dim} ↻${ttr}${reset}` : "";
   parts.push(`${color}⚡${rInt}%${reset}${suffix}`);
+}
+
+// Review-queue backpressure: agents spawned since the last commit, awaiting
+// your review (written by review-queue-nudge.ts). Suppressed at 0 — yellow
+// under the threshold, red at/over CC_MAX_UNREVIEWED.
+const reviewQueue = await readState<{ awaiting: number }>("review-queue.json", { awaiting: 0 });
+if (reviewQueue.awaiting > 0) {
+  const yellow = "\x1b[33m";
+  const red = "\x1b[31m";
+  const reset = "\x1b[0m";
+  const color = reviewQueue.awaiting >= maxUnreviewed() ? red : yellow;
+  parts.push(`${color}⚠ ${reviewQueue.awaiting} review${reset}`);
 }
 
 const dimSep = "\x1b[2m | \x1b[0m";
