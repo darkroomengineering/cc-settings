@@ -23,6 +23,8 @@ Above all, this skill should push the reviewer to be **ambitious** about code st
 A typical sequence: `/nuclear-review` produces findings → engineers cherry-pick the highest-leverage ones → `/zero-tech-debt` or `/refactor` to execute.
 
 > **Tip (Claude Code v2.1.154+)**: run `/effort ultracode` before invoking this skill. The whole-codebase audit is the canonical shape that benefits from dynamic workflows — phase state lives in the workflow script rather than Claude's context window, individual modules can be reviewed in parallel (up to 16 concurrent), and the run can resume from cached agent results within the session.
+>
+> A ready-made example ships at `references/nuclear-review.workflow.js` (installed to `~/.claude/skills/nuclear-review/references/`). It is **opt-in, not a dependency** — the skill above works with no Workflow tool. Run it with `Workflow({ scriptPath: "~/.claude/skills/nuclear-review/references/nuclear-review.workflow.js" })`, or copy it into `.claude/workflows/`. It maps the repo, fans out one structural reviewer per module, audits dependencies, and synthesizes one report.
 
 ## Scope
 

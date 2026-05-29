@@ -60,7 +60,7 @@ Tasks that match the **Large codebase analysis** or **wide-blast-radius migratio
 - One-shot: include the word `workflow` in your prompt (e.g. _"Run a workflow to audit all SVG icons for accessibility issues"_) — Claude generates and runs the script.
 - Session-wide: `/effort ultracode` — Claude auto-orchestrates a workflow for every substantive task in the session.
 
-The maestro `Agent()` fan-out documented above is the **default** orchestration mode in cc-settings; workflows are an option to reach for when you need replayability or scale beyond what subagent fan-out provides. Don't rewire skills to depend on the Workflow tool — its API is still preview-stage.
+The maestro `Agent()` fan-out documented above is the **default** orchestration mode in cc-settings; workflows are an option to reach for when you need replayability or scale beyond what subagent fan-out provides. Don't rewire skills to *depend* on the Workflow tool — its API is still preview-stage — but a skill may ship an *opt-in* example workflow (see `nuclear-review`'s `references/nuclear-review.workflow.js`): an example you run by choice, never a runtime dependency.
 
 ## Output
 
