@@ -6,11 +6,12 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
-Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), plus the first feature built from the audit's orchestration-tax findings. The cleanup is behavior-preserving (internal export renames aside); the new hook is additive. Full suite 408 pass, typecheck + lint clean.
+Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), plus a suite of orchestration-tax features built from the audit and the "Orchestration Tax" essay (review-queue backpressure, proof-of-work gate, and more below). The cleanup is behavior-preserving (internal export renames aside); the new hooks/skills are additive. Full suite green, typecheck + lint clean.
 
 ### Added
 
-- **Review-queue backpressure** — `src/lib/review-queue.ts` + `src/hooks/review-queue-nudge.ts` (PostToolUse) count agents spawned since your last commit and nudge Claude when the queue reaches `CC_MAX_UNREVIEWED` (default `5`); a `git commit` drains it. The statusline (`src/hooks/statusline.ts`) shows `⚠ N review` — yellow under the threshold, red at/over. The consumer-side counterpart to `parallelmax-nudge`: where the existing hooks push toward *more* delegation, this models the constraint the "Orchestration Tax" essay names — human review throughput, not agent count — and applies backpressure when production outruns review. Knob: `CC_MAX_UNREVIEWED` in `config/10-core.json`. 9 new tests.
+- **Review-queue backpressure** — `src/lib/review-queue.ts` + `src/hooks/review-queue-nudge.ts` (PostToolUse) count agents spawned since your last commit and nudge when the queue reaches `CC_MAX_UNREVIEWED` (default `5`); a `git commit` drains it. The statusline shows `⚠ N review (age)` — yellow under the threshold, red at/over — and a fast commit of a deep queue is flagged as **cognitive surrender** (committed faster than `CC_MIN_REVIEW_SECONDS`, default `60`, plausibly allows for real review). The consumer-side counterpart to `parallelmax-nudge`, which now **suppresses its own "delegate more" nudge when the queue is saturated** so the two don't give opposing advice. Models the constraint the "Orchestration Tax" essay names: review throughput, not agent count. Knobs: `CC_MAX_UNREVIEWED`, `CC_MIN_REVIEW_SECONDS`.
+- **Proof-of-work gate** — `bun run proof` (`src/lib/proof-of-work.ts`, `src/scripts/proof.ts`, `skills/proof-of-work/`) runs the verification battery (typecheck/test/lint, detected from `package.json`, cheapest-first) and prints one `review-ready ✓ / ✗` verdict. The Amdahl-shrink move: make the machine prove the boring 80% so human review spends the lock on judgment, not on confirming what a machine can. The `implementer` agent now attaches a proof report before handing back. Pairs with the review-queue — backpressure limits *unproven* diffs; the gate makes each cheaper to close.
 
 ### Changed
 

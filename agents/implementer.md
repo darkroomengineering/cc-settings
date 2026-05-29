@@ -86,6 +86,9 @@ Never mark a task complete without proving it works:
 - [ ] Tests pass — **you ran them and pasted the real pass/fail counts.** Listing
       "commands to run" for the parent to execute is NOT verification; run every
       verification command yourself and report the actual output.
+- [ ] Proof of work attached — run `bun run proof` (typecheck/test/lint) and paste
+      the `review-ready ✓` verdict (plus a screenshot for UI). A diff without green
+      proof isn't "done"; it just shifts the verification onto the reviewer's lock.
 - [ ] Generated files regenerated, never hand-written. If you touched a zod
       schema, run `bun run schemas:emit` and leave the regenerated
       `schemas/*.schema.json` in your diff; `bun run schemas:check` must be clean. The rule is
