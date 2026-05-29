@@ -17,6 +17,7 @@ Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29). B
 - **`src/lib/hook-config.ts`** — converted `readFileSync` → async `readFile` through `getHookConfig`/`getClaudeMdMonitor`, removing the lone sync I/O in the otherwise-async SessionStart hook layer (`session-start.ts` now awaits). The env-var fast path still short-circuits before any file read.
 - **`src/lib/settings-merge.ts`** — documented a removal policy for the append-only `DEPRECATED_COMMAND_PATTERNS` list (drop a pattern ~6 minor releases after its target script was removed) so it doesn't grow unbounded.
 - **Dependencies** — bumped to latest and normalized to exact pins (dropped the two stray carets): `zod` 4.3.6→4.4.3, `@biomejs/biome` 2.4.12→2.4.16 (plus the `biome.json` `$schema` URL), `@types/bun` 1.3.12→1.3.14, `yaml` →2.9.0, `@inquirer/confirm` →6.1.0. All within the same major; generated schemas unchanged; 399 tests still pass.
+- **`MANUAL.md`** — corrected the Effort Level section (listed `low/medium/high (default)`; the real pinned default is `xhigh`, the ladder also has `max`, plus the session-only `ultracode` mode) and added a "Model on AWS / Bedrock / Vertex / Foundry" note to pin `ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8` — surfacing a footgun previously documented only in the changelog (`opus` silently resolves to 4.7 on AWS, 4.6 on Bedrock/Vertex/Foundry).
 
 ### Removed
 

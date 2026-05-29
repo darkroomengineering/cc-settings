@@ -323,7 +323,17 @@ Triggers `/orchestrate` — delegates to Maestro for multi-agent coordination.
 
 Say: *"think harder"* or *"quick fix"*
 
-Triggers `/effort` — adjusts reasoning depth. Levels: `low`, `medium`, `high` (default).
+Triggers `/effort` — adjusts reasoning depth. Levels: `low`, `medium`, `high`, `xhigh`, `max`. cc-settings pins **`xhigh`** as the default via `CLAUDE_CODE_EFFORT_LEVEL` — on Opus 4.8 the model's own default is `high`, and the pin overrides it to hold reasoning depth steady across model upgrades. `ultracode` is a session-only mode (`/effort ultracode`) that layers automatic [dynamic-workflow](https://code.claude.com/docs/en/workflows) orchestration on top of `xhigh`; it can't be persisted as an effort level.
+
+### Model on AWS / Bedrock / Vertex / Foundry
+
+The `xhigh` default above only buys you Opus 4.8's deeper reasoning if you're actually *on* 4.8. On the Anthropic API and claude.ai Max, the `opus` alias resolves to 4.8 automatically. On Claude Platform on **AWS** `opus` still resolves to 4.7, and on **Bedrock / Vertex / Foundry** to 4.6 — pin it explicitly:
+
+```bash
+ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8
+```
+
+Without the pin you silently run an older model whose `xhigh` thinking-token behavior differs. Full model table + ARN examples: `docs/settings-reference.md`.
 
 ### Profiles
 
