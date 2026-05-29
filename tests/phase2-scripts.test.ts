@@ -7,7 +7,8 @@
 //
 // Run: bun test tests/phase2-scripts.test.ts
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 const SRC = resolve(import.meta.dir, "..", "src", "scripts");
@@ -47,8 +48,13 @@ describe("notify.ts", () => {
 });
 
 describe("prune-mcp-auth-cache.ts", () => {
-  const tmp = resolve(import.meta.dir, "..", ".tmp-mcp-auth-cache-test");
+  const tmp = resolve(tmpdir(), "cc-mcp-auth-cache-test");
   const cachePath = resolve(tmp, "cache.json");
+
+  afterAll(async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(tmp, { recursive: true, force: true });
+  });
 
   async function seed(shape: unknown): Promise<void> {
     const { mkdir, writeFile } = await import("node:fs/promises");

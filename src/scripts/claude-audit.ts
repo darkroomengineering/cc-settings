@@ -23,7 +23,7 @@ function padRight(s: string, width: number): string {
   return s.length >= width ? s.slice(0, width) : s + " ".repeat(width - s.length);
 }
 
-function classify(cmd: string): string {
+function classifyBashCommand(cmd: string): string {
   const c = cmd.trim();
   if (/^git\b/.test(c)) {
     const sub = c.match(/^git\s+([a-z-]+)/)?.[1] ?? "";
@@ -113,7 +113,7 @@ function analyze(label: string, files: string[]): void {
   }
   console.log(`  ${label} (${lines.length} commands)`);
 
-  const classified = lines.map((l) => ({ ...l, klass: classify(l.cmd) }));
+  const classified = lines.map((l) => ({ ...l, klass: classifyBashCommand(l.cmd) }));
   const groups = countBy(classified, (v) => v.klass.split(":")[0] ?? "other");
   const sortedGroups = sortDesc(groups);
   const globalMax = sortedGroups[0]?.[1] ?? 0;

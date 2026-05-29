@@ -6,8 +6,12 @@
 //
 // Validated against the HooksConfig zod schema on read; invalid files fall
 // back to the next tier rather than poisoning the whole hook stack.
+//
+// Async throughout: this runs in the SessionStart hook layer (all async), and
+// the file reads are awaited rather than blocking with readFileSync. In the
+// common case the env-var path below short-circuits before any file is touched.
 
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { HooksConfig } from "../schemas/hooks-config.ts";
@@ -18,9 +22,9 @@ const TEAM = join(CLAUDE_DIR, "hooks-config.json");
 
 type Config = Record<string, unknown>;
 
-function readValidated(path: string): Config | null {
+async function readValidated(path: string): Promise<Config | null> {
   try {
-    const raw = readFileSync(path, "utf8");
+    const raw = await readFile(path, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     const validated = HooksConfig.safeParse(parsed);
     if (!validated.success) return null;
@@ -42,11 +46,11 @@ function getDot(cfg: Config, path: string): unknown {
  * Read a config value using dot-notation. Returns the first defined value
  * found (local → team). Returns `defaultValue` if neither file has the key.
  */
-function getHookConfig<T>(keyPath: string, defaultValue: T): T;
-function getHookConfig(keyPath: string): unknown;
-function getHookConfig(keyPath: string, defaultValue?: unknown): unknown {
+function getHookConfig<T>(keyPath: string, defaultValue: T): Promise<T>;
+function getHookConfig(keyPath: string): Promise<unknown>;
+async function getHookConfig(keyPath: string, defaultValue?: unknown): Promise<unknown> {
   for (const path of [LOCAL, TEAM]) {
-    const cfg = readValidated(path);
+    const cfg = await readValidated(path);
     if (!cfg) continue;
     const v = getDot(cfg, keyPath);
     if (v !== undefined && v !== null) return v;
@@ -62,11 +66,11 @@ function getHookConfig(keyPath: string, defaultValue?: unknown): unknown {
  *      before the env-var collapse; safe no-op when files don't exist
  *   3. hardcoded defaults
  */
-export function getClaudeMdMonitor(): {
+export async function getClaudeMdMonitor(): Promise<{
   enabled: boolean;
   warnLines: number;
   criticalLines: number;
-} {
+}> {
   // Env var path (preferred). `true`/`false`/`1`/`0` accepted.
   const envEnabled = process.env.CC_CLAUDE_MD_MONITOR_ENABLED;
   const envWarn = process.env.CC_CLAUDE_MD_WARN_LINES;
@@ -74,14 +78,14 @@ export function getClaudeMdMonitor(): {
   const enabled =
     envEnabled !== undefined
       ? envEnabled === "true" || envEnabled === "1"
-      : getHookConfig<boolean>("claude_md_monitor.enabled", true);
+      : await getHookConfig<boolean>("claude_md_monitor.enabled", true);
   const warnLines =
     envWarn !== undefined
       ? Number.parseInt(envWarn, 10) || 400
-      : getHookConfig<number>("claude_md_monitor.warn_lines", 400);
+      : await getHookConfig<number>("claude_md_monitor.warn_lines", 400);
   const criticalLines =
     envCrit !== undefined
       ? Number.parseInt(envCrit, 10) || 600
-      : getHookConfig<number>("claude_md_monitor.critical_lines", 600);
+      : await getHookConfig<number>("claude_md_monitor.critical_lines", 600);
   return { enabled, warnLines, criticalLines };
 }

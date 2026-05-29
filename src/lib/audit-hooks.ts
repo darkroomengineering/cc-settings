@@ -26,7 +26,7 @@ import { join } from "node:path";
 import type { Hook, HookGroup } from "../schemas/hooks.ts";
 import { HooksBlock } from "../schemas/hooks.ts";
 
-export type Severity = "trusted" | "unknown" | "suspicious";
+export type HookSeverity = "trusted" | "unknown" | "suspicious";
 
 export interface HookFinding {
   event: string;
@@ -34,7 +34,7 @@ export interface HookFinding {
   hookIndex: number;
   type: string;
   command: string;
-  severity: Severity;
+  severity: HookSeverity;
   reasons: string[];
 }
 
@@ -103,7 +103,7 @@ function looksOpaque(cmd: string): boolean {
   return b64Chars / cmd.length > 0.85;
 }
 
-export function classify(cmd: string): { severity: Severity; reasons: string[] } {
+export function classifyHookCommand(cmd: string): { severity: HookSeverity; reasons: string[] } {
   const reasons: string[] = [];
 
   // Trust first.
@@ -150,7 +150,7 @@ export function auditHooks(settings: unknown): HookFinding[] {
         if (entry?.type !== "command") return;
         const cmd = entry.command.trim();
         if (!cmd) return;
-        const { severity, reasons } = classify(cmd);
+        const { severity, reasons } = classifyHookCommand(cmd);
         findings.push({
           event,
           groupIndex: gi,
@@ -237,7 +237,7 @@ export function formatAuditReport(result: AuditResult): string {
   lines.push(`  ${result.totalHooks} hook command(s) total.`);
   lines.push("");
 
-  const grouped: Record<Severity, HookFinding[]> = {
+  const grouped: Record<HookSeverity, HookFinding[]> = {
     suspicious: [],
     unknown: [],
     trusted: [],

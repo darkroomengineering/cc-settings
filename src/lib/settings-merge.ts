@@ -191,6 +191,14 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
 // the bash → TypeScript migration (cc-settings v10.0.0, April 2026) deleted
 // that directory wholesale; replacements live under `~/.claude/src/scripts/`
 // or `~/.claude/src/hooks/` and are invoked via `bun ...`.
+//
+// Removal policy — this list is append-only by necessity but not permanent. A
+// pattern may be dropped once it's implausible any active install still carries
+// the dangling reference: as a rule of thumb, ~6 minor releases after the script
+// it targets was removed (anyone who skipped that many upgrades re-pins on their
+// next install anyway). Delete the pattern together with its dated comment. The
+// v10.0.0 `scripts/*.sh` sweep is load-bearing for the bash→TS migration and
+// should outlive the per-script entries below it.
 export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   /[/\\]\.claude[/\\]scripts[/\\][^"'\s]*\.sh\b/,
   // cc-settings v11.5.1 removed the parallelmax-judge Stop hook: it spawned a

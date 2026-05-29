@@ -205,7 +205,7 @@ for (const l of await projectAwareness(PROJECT_DIR)) console.log(l);
 // CLAUDE.md size monitoring (thresholds read via hook-config lib).
 const claudeMd = join(CLAUDE_DIR, "CLAUDE.md");
 if (existsSync(claudeMd)) {
-  const monitor = getClaudeMdMonitor();
+  const monitor = await getClaudeMdMonitor();
   if (monitor.enabled) {
     try {
       const text = await readFile(claudeMd, "utf8");

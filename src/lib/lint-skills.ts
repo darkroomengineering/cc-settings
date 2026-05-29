@@ -2,7 +2,7 @@
 // "Complete Guide to Building Skills for Claude" (Reference A) plus Darkroom-
 // specific conventions. Walks skills/<name>/SKILL.md and reports problems.
 //
-// Severity:
+// SkillSeverity:
 //   error   — blocks (CI fails, lint:skills exits non-zero)
 //   warning — surfaced but non-blocking
 
@@ -12,11 +12,11 @@ import { join } from "node:path";
 import { SkillFrontmatter } from "../schemas/skill.ts";
 import { extractFrontmatterBlock, parseFrontmatterStrict } from "./frontmatter.ts";
 
-export type Severity = "error" | "warning";
+export type SkillSeverity = "error" | "warning";
 
 export interface LintFinding {
   skill: string;
-  severity: Severity;
+  severity: SkillSeverity;
   rule: string;
   message: string;
 }

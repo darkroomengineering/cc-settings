@@ -6,13 +6,17 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
-Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29). Behavior-preserving — no feature or interface change; full suite 399 pass, typecheck + lint clean.
+Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29). Behavior-preserving — no runtime behavior change (some internal export names were renamed for clarity); full suite 399 pass, typecheck + lint clean.
 
 ### Changed
 
 - **`src/lib/json-io.ts` (new)** — extracted the generic JSON + atomic-file I/O (`atomicWriteString`, `atomicWriteJson`, `readJsonOrNull`) plus the parse-error class out of `src/lib/mcp.ts`, which had stranded these in a domain module that `setup.ts`, `settings-merge.ts`, `status.ts`, and `scripts/track-tldr.ts` all imported purely for I/O. `mcp.ts` is now MCP-only. The error class is renamed `McpParseError` → `JsonParseError` to match its new home (`setup.ts` + `tests/phase3-libs.test.ts` updated). No re-export shim left behind.
 - **`src/lib/hooks-fingerprint.ts`** — `writeFingerprint` now calls the canonical `atomicWriteJson` instead of hand-rolling its own tmp-file + rename (byte-identical output).
 - **`src/lib/project-awareness.ts`, `src/lib/status.ts`, `src/scripts/checkpoint.ts`, `src/scripts/stop-summary.ts`** — replaced private `run`/`runCapture` spawn-stdout copies and inline `git` spawns with the canonical `runGit` from `src/lib/git.ts`. Behavior-preserving: these git commands emit no stdout on failure, so `runGit`'s trimmed-stdout result matches the old exit-code-gated `""`.
+- **Name collisions resolved** — `audit-hooks.ts`'s exported `classify`/`Severity` → `classifyHookCommand`/`HookSeverity`; `lint-skills.ts`'s `Severity` → `SkillSeverity`; `claude-audit.ts`'s private `classify` → `classifyBashCommand`. No two modules export the same identifier with different semantics anymore (`tests/audit-hooks.test.ts` updated).
+- **`src/lib/hook-config.ts`** — converted `readFileSync` → async `readFile` through `getHookConfig`/`getClaudeMdMonitor`, removing the lone sync I/O in the otherwise-async SessionStart hook layer (`session-start.ts` now awaits). The env-var fast path still short-circuits before any file read.
+- **`src/lib/settings-merge.ts`** — documented a removal policy for the append-only `DEPRECATED_COMMAND_PATTERNS` list (drop a pattern ~6 minor releases after its target script was removed) so it doesn't grow unbounded.
+- **Dependencies** — bumped to latest and normalized to exact pins (dropped the two stray carets): `zod` 4.3.6→4.4.3, `@biomejs/biome` 2.4.12→2.4.16 (plus the `biome.json` `$schema` URL), `@types/bun` 1.3.12→1.3.14, `yaml` →2.9.0, `@inquirer/confirm` →6.1.0. All within the same major; generated schemas unchanged; 399 tests still pass.
 
 ### Removed
 
@@ -21,6 +25,8 @@ Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29). B
 ### Notes
 
 - `runGitFull` was evaluated for removal (the audit first flagged it as a thin identity wrapper) but **kept**: it has 8 callers across `checkpoint.ts` and `upstream/scan.ts` that need the full `{exit, stdout, stderr}` shape and forms a clear `runGit`/`runGitFull` pair — inlining `runProcessFull("git", …)` at 8 sites would be worse, not better.
+- The over-exported internal symbols the audit flagged (`FrontmatterParseResult`/`FrontmatterParseError`, `FRONTMATTER_RE`, `isInteractive`) were **left exported** — the first two are the legitimate typed contract of the exported `parseFrontmatterStrict`, and un-exporting the others is cosmetic, not clearly correct.
+- `tests/phase2-scripts.test.ts` (`prune-mcp-auth-cache`) now writes its fixture under `os.tmpdir()` with an `afterAll` cleanup, instead of leaving an untracked `.tmp-mcp-auth-cache-test/` at the repo root.
 
 ## [11.11.0] — 2026-05-29
 
