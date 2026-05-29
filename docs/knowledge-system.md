@@ -24,7 +24,7 @@ Two-tier knowledge management for AI-assisted development teams.
 1. Create a GitHub Project on your repository:
    - Name: `Knowledge Base` (or similar)
    - Add custom fields:
-     - **Type** (single select): `decision`, `convention`, `gotcha`, `incident`, `pattern`
+     - **Kind** (single select): `decision`, `convention`, `gotcha`, `incident`, `pattern` — name it `Kind`, **not** `Type`; GitHub reserves the field name `Type`. The agent flow keys off the `<kind>:` title prefix regardless, so this field is for board grouping/filtering.
      - **Tags** (text): free-form tags like `auth`, `api`, `css`, `performance`
      - **Added By** (text): who added it
 

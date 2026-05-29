@@ -3,6 +3,9 @@ name: maestro
 description: |
   Full orchestration mode for power users. Coordinates agents instead of executing directly.
   Activate when you want maximum delegation and parallel agent workflows.
+model: opus
+skills: [orchestrate]
+effort: xhigh
 ---
 
 # Maestro Orchestration Profile

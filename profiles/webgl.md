@@ -1,3 +1,10 @@
+---
+name: webgl
+description: 3D web (R3F, Three.js, GSAP)
+model: opus
+skills: [component, qa]
+---
+
 # WebGL/3D Profile (R3F, GSAP, Lenis)
 
 > Patterns for 3D web applications with React Three Fiber, GSAP animations, and Lenis smooth scroll.

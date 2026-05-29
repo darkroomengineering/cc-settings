@@ -55,7 +55,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.10.0"; // target Opus 4.8; document ultracode + dynamic workflows; requires claude_code >=2.1.154
+const VERSION = "11.11.0"; // "Under the River" port: revived share-learning + dedup, promote-memory nudge hook, profile frontmatter schema, AGENTS.md legibility principle
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

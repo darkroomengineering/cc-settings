@@ -1,3 +1,10 @@
+---
+name: react-router
+description: React Router 7+ / Novus projects
+model: opus
+skills: [build, component, hook]
+---
+
 # React Router Profile (v7+)
 
 > Patterns for React Router 7+ projects with SSR via Vite.

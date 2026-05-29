@@ -225,6 +225,53 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 
 ---
 
+## Profile Frontmatter
+
+**Location:** `~/.claude/profiles/*.md`
+
+Profile files inject specialized instructions for a particular workflow context. They are activated via `@profile-name` references in CLAUDE.md or per-project setup.
+
+All frontmatter fields in profiles are **advisory** — validated at install time for well-formedness and readable as documented intent. They are not enforced at runtime: cc-settings does not switch the active model, gate skills, or restrict tools based on a profile.
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Profile identifier (kebab-case, must match the filename stem) |
+| `description` | string | Yes | Short description of the profile's purpose |
+| `model` | string | No | Advisory: intended model alias (`opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
+| `skills` | list | No | Advisory: skill names expected to be active in this context |
+| `tools` | list | No | Advisory: tool subset relevant to this workflow |
+| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
+| `effort` | string | No | Advisory: default effort level (`low`, `medium`, `high`, `xhigh`, `max`) |
+
+### Example: Profile with Advisory Fields
+
+```yaml
+---
+name: maestro
+description: |
+  Full orchestration mode for power users. Coordinates agents instead of executing directly.
+  Activate when you want maximum delegation and parallel agent workflows.
+model: opus
+skills: [orchestrate]
+effort: xhigh
+---
+```
+
+### Profiles in cc-settings
+
+| Profile | Model (advisory) | Skills (advisory) | Effort (advisory) |
+|---------|-----------------|-------------------|-------------------|
+| `maestro` | opus | orchestrate | xhigh |
+| `nextjs` | opus | build, component, hook, lighthouse | — |
+| `react-native` | opus | build, component | — |
+| `tauri` | opus | build | — |
+| `webgl` | opus | component, qa | — |
+| `react-router` | opus | build, component, hook | — |
+
+---
+
 ## Rules Frontmatter
 
 **Location:** `~/.claude/rules/*.md`

@@ -10,6 +10,10 @@
 This codebase will outlive any single contributor. Every shortcut becomes someone else's burden.
 Fight entropy. Leave the codebase better than you found it.
 
+Make the codebase legible to agents. The work to make a codebase legible to an agent — written-down
+conventions, skills, rules, intent docs — is simply the debt you owe to your human engineers; every
+entry pays it down for both audiences at once.
+
 ---
 
 ## Getting Started

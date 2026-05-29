@@ -1,3 +1,10 @@
+---
+name: nextjs
+description: Next.js web apps
+model: opus
+skills: [build, component, hook, lighthouse]
+---
+
 # Next.js Profile (App Router)
 
 > Patterns for Next.js 16+ App Router projects with React Server Components.

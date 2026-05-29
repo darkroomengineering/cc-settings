@@ -4,6 +4,32 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.11.0] — 2026-05-29
+
+Three ideas ported from Shopify Engineering's ["Under the River"](https://shopify.engineering/under-the-river) (May 2026), scoped to what actually maps onto a config repo (its monorepo/Nix/Postgres-session infrastructure does not). The post's load-bearing claim — *private agent sessions plateau; public corpora compound* — surfaced a real gap: `share-learning` was retired in `[11.3.0]`, leaving the shared knowledge board with no invocation UI and nothing to prompt its use, so every learning died in one developer's private auto-memory.
+
+### Added
+
+- **`skills/share-learning/` (revived, improved)** — restores the `/share-learning <type> "<text>"` UI for the shared GitHub Project knowledge board. Unlike the `[11.3.0]`-retired wrapper, it now **dedups against the board** (`gh project item-list` → semantic near-duplicate check → confirm with the user) before `gh project item-create`, so the value is agent judgment, not a thin CLI shim. Skill count 27 → 28 (under the 40 soft-cap).
+- **`src/hooks/promote-memory.ts` (new `PostToolUse` hook)** — when a `project`- or `feedback`-type auto-memory is written, emits one gentle `additionalContext` nudge suggesting `/share-learning` if the learning is team-relevant. Deduped per memory file (seen-set under `~/.claude/.cache/`); silent for `user`/`reference` types and non-memory writes. Makes promotion proactive instead of relying on the developer to remember the board exists.
+- **`src/schemas/profile.ts` (`ProfileFrontmatter`)** — profiles gain a validated frontmatter convention (`name`, `description`, advisory `model` / `skills` / `tools` / `permissionMode` / `effort`), reusing the agent schema's `AgentModel` / `AgentEffort` / `AgentPermissionMode` to prevent drift. **Advisory only** — validated for well-formedness and read as a manifest of intent, *not* runtime-enforced (whether Claude Code consumes profile frontmatter at runtime is intentionally not relied upon). Emits `schemas/profile.schema.json`.
+- **`tests/profile-schema.test.ts`** — `ProfileFrontmatter` accept/reject cases plus a check that all six shipped profiles validate. Full suite 399 pass.
+
+### Changed
+
+- **`AGENTS.md`** — added a third `## Philosophy` principle: the work to make a codebase legible to an agent is the debt you owe your human engineers; every skill/rule/intent-doc entry pays it down for both audiences at once.
+- **`profiles/*.md` (all 6)** — added the new frontmatter block. The five tech profiles (`nextjs`, `react-native`, `tauri`, `webgl`, `react-router`) previously had none; `maestro` gained advisory `model`/`skills`/`effort`.
+- **`config/40-hooks.json`** — registered `promote-memory.ts` under `PostToolUse` (`Write|Edit`, sync, 3s timeout).
+- **`src/lib/managed-skills.ts`** — moved `share-learning` from the upgrade-cleanup tombstones back into the active list.
+- **`src/lib/frontmatter-validate.ts`** — `validateFrontmatters` now also walks `profiles/*.md` (new `kind: "profile"`, mirroring `validateAgents`); install warning wording → "agents/skills/profiles".
+- **`docs/profiles.md` / `docs/frontmatter-reference.md`** — document the profile frontmatter convention and its advisory caveat.
+- **Skill-count references** — `CLAUDE.md`, `CLAUDE-FULL.md`, `MANUAL.md`, `skills/README.md` updated 27 → 28 and de-listed `share-learning` from "retired".
+
+### Notes
+
+- The shared-board mechanism (`docs/knowledge-system.md`, env `KNOWLEDGE_PROJECT_NUMBER`) was unchanged; this batch only restores its UI and makes promotion proactive.
+- Pre-existing `lint/style/useTemplate` info on `src/scripts/gen-permissions-doc.ts:65` is unrelated to this batch and was left untouched.
+
 ## [11.10.0] — 2026-05-28
 
 Tracks Anthropic's Opus 4.8 release and surfaces Claude Code's new dynamic workflows / `ultracode` mode without coupling the orchestration layer to the (still preview-stage) `Workflow` tool API.

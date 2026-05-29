@@ -61,8 +61,7 @@ if (import.meta.main) {
   }
 
   const block = buildPermissionsBlock(root);
-  const updated =
-    original.slice(0, beginIdx + BEGIN.length) + `\n${block}\n` + original.slice(endIdx);
+  const updated = `${original.slice(0, beginIdx + BEGIN.length)}\n${block}\n${original.slice(endIdx)}`;
 
   await writeFile(docPath, updated, "utf8");
   console.log(`docs:permissions — wrote generated block to ${docPath}`);

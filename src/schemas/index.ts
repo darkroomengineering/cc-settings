@@ -7,5 +7,6 @@ export * from "./hooks.ts";
 export * from "./hooks-config.ts";
 export * from "./mcp.ts";
 export * from "./permissions.ts";
+export * from "./profile.ts";
 export * from "./settings.ts";
 export * from "./skill.ts";
