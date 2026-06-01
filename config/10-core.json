@@ -18,6 +18,7 @@
 		"failIfUnavailable": false
 	},
 	"model": "opus[1m]",
+	"fastModePerSessionOptIn": true,
 	"showThinkingSummaries": true,
 	"teammateMode": "auto",
 	"includeGitInstructions": false,
