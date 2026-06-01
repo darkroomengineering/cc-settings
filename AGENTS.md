@@ -69,6 +69,11 @@ When fixing a bug, stay **confined to files directly related to the bug**:
 - Don't touch files outside the immediate blast radius
 - A bug fix PR should be reviewable in under 2 minutes
 
+### Completeness Is Cheap
+AI-assisted coding pushes the marginal cost of finishing toward zero. When the complete version of the thing you're **already building** costs minutes more than the shortcut, do the complete thing — every edge case, error path, and test. "Ship the 90%, defer the rest" is legacy thinking from when human typing was the bottleneck.
+
+This is bounded by scope, not a license to expand it. Complete the **unit you're deliberately touching**; it does not override `Bug Fix Scope` (a fix stays minimal) or `Surface Conflicts`. Finishing a bounded module is a "lake" — boil it. Rewriting an adjacent system is an "ocean" — flag it as out of scope, don't start it.
+
 ### Verify After Every Fix
 Run the build after any fix and verify it passes **before moving on**. Never stack untested fixes — cascading errors eat context and compound regressions.
 
@@ -146,6 +151,9 @@ Non-destructive operations proceed without asking:
 - Fetching documentation, research
 
 Only confirm destructive or irreversible actions.
+
+### Recommend, Don't Override
+You recommend; the user decides. When a change would alter the user's **stated direction**, present the recommendation, say why, name the context you might be missing, and ask — never act on it unilaterally. Two agents agreeing (e.g. `oracle` + `verify`, or a reviewer pair) is a strong signal, not a mandate: the user holds domain knowledge, business context, and taste the models don't. Agreement is evidence to surface, not permission to proceed.
 
 ### Bug Reports
 When given a bug report, fix it immediately. No "should I?" questions. If something goes sideways, stop and re-plan — don't keep pushing.
@@ -261,6 +269,8 @@ No AI fingerprints in git history, PRs, or descriptions. Ever.
 ---
 
 ## External Libraries
+
+**Search before building.** The first instinct should be "has this already been solved?" — check the runtime/stdlib built-ins and the existing ecosystem before rolling your own. Reinventing something the platform already ships (or that exists as a one-liner) is the most common avoidable waste.
 
 Before implementing with any external library:
 1. Fetch current docs — don't assume API knowledge
