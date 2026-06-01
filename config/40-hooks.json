@@ -58,6 +58,15 @@
 						"command": "bun \"$HOME/.claude/src/hooks/pre-edit-validate.ts\""
 					}
 				]
+			},
+			{
+				"matcher": "Edit|Write|MultiEdit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/freeze-guard.ts\""
+					}
+				]
 			}
 		],
 		"PostToolUse": [
