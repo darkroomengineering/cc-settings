@@ -1,6 +1,6 @@
 # Agent Model Routing
 
-Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical work to conserve Opus quota. Both get 1M context on Max plans.
+Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical work to conserve Opus quota. `inherit` tracks the main session's model — used for agents whose tasks span both (cheap on a Sonnet session, strong on an Opus one). Both get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
@@ -12,7 +12,7 @@ Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical w
 | `implementer` | **opus** | Plans land clean but Sonnet implementation was too often subpar — the workhorse needs strong reasoning |
 | `tester` | **sonnet** | Test writing follows clear patterns |
 | `scaffolder` | **sonnet** | Boilerplate generation is mechanical |
-| `explore` | **sonnet** | File search/read doesn't need deep reasoning |
+| `explore` | **inherit** | Simple lookups are Sonnet-fine, but blast-radius/architecture synthesis isn't — inherit tracks the session so deep investigations on an Opus session get Opus synthesis, routine greps stay cheap |
 | `deslopper` | **sonnet** | Pattern matching for dead code is straightforward |
 
 Override per-invocation when needed: drop `implementer` to `Agent(implementer, "...", model: "sonnet")` for trivial mechanical edits to save Opus quota, or bump a mechanical agent up — `Agent(explore, "...", model: "opus")` — for a genuinely hard investigation.

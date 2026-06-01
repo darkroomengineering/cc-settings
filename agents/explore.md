@@ -1,6 +1,6 @@
 ---
 name: explore
-model: sonnet
+model: inherit
 memory: project
 description: |
   Fast codebase exploration, navigation, and documentation fetching. Read-only research agent.
