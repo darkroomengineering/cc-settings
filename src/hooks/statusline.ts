@@ -185,5 +185,19 @@ if (reviewQueue.awaiting > 0) {
   parts.push(`${color}⚠ ${reviewQueue.awaiting} review${ageLabel}${reset}`);
 }
 
+// cc-settings install staleness — surfaced only when the cached SessionStart
+// drift check found the repo's packaged version ahead of what's installed.
+// Suppressed otherwise (like the review queue), so it costs nothing when current.
+const drift = await readState<{ stale?: boolean; installed?: string | null }>(
+  "version-drift.json",
+  { stale: false },
+);
+if (drift.stale && drift.installed) {
+  const yellow = "\x1b[33m";
+  const dim = "\x1b[2m";
+  const reset = "\x1b[0m";
+  parts.push(`${yellow}⬆ cc v${drift.installed}${dim} stale${reset}`);
+}
+
 const dimSep = "\x1b[2m | \x1b[0m";
 process.stdout.write(`${parts.join(dimSep)}\n`);

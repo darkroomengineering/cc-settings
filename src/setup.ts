@@ -359,11 +359,14 @@ async function installDependencies(): Promise<void> {
   }
 }
 
-async function writeVersionSentinel(): Promise<void> {
+async function writeVersionSentinel(sourceDir: string): Promise<void> {
   const payload = {
     version: VERSION,
     installed_at: new Date().toISOString(),
     installer: "src/setup.ts",
+    // Where this install came from — lets the SessionStart drift check locate
+    // the repo and compare the installed version against the packaged one.
+    repo_path: sourceDir,
   };
   const tmp = join(CLAUDE_DIR, ".cc-settings-version.tmp");
   await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`);
@@ -619,7 +622,7 @@ async function main(): Promise<number> {
     throw err;
   }
 
-  await writeVersionSentinel();
+  await writeVersionSentinel(args.sourceDir);
   if (!args.migrateOnly) await showSummary();
 
   // Version delta: surface what just landed (prev → current + per-version

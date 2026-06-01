@@ -20,8 +20,10 @@ import {
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
+import { writeState } from "../lib/hook-runtime.ts";
 import { hasCommand, pad, ymd } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
+import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/version-drift.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
 const PROJECT_DIR = process.cwd();
@@ -225,4 +227,17 @@ if (existsSync(claudeMd)) {
       // unreadable CLAUDE.md — skip
     }
   }
+}
+
+// cc-settings install-staleness check, cached for the statusline (which can't
+// compute it on the hot path from an arbitrary cwd). Compares the installed
+// sentinel version against the repo's packaged VERSION and writes a flag the
+// statusline reads. Fail-soft: any problem ⇒ not stale, so this never disrupts
+// session start.
+try {
+  const { version: installed, repoPath } = await readSentinelInfo(CLAUDE_DIR);
+  const packaged = await readPackagedVersion(repoPath);
+  await writeState("version-drift.json", computeDrift(installed, packaged));
+} catch {
+  // never let the drift check disrupt session start
 }
