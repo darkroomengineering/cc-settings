@@ -6,7 +6,9 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
-Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), plus a suite of orchestration-tax features built from the audit and the "Orchestration Tax" essay (review-queue backpressure, proof-of-work gate, and more below). The cleanup is behavior-preserving (internal export renames aside); the new hooks/skills are additive. Full suite green, typecheck + lint clean.
+## [11.12.0] — 2026-06-01
+
+Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), plus a suite of orchestration-tax features built from the audit and the "Orchestration Tax" essay (review-queue backpressure, proof-of-work gate, and more below), released together with an upstream sync to Claude Code v2.1.159. The cleanup is behavior-preserving (internal export renames aside); the new hooks/skills are additive. Full suite green, typecheck + lint clean.
 
 ### Added
 
@@ -15,6 +17,13 @@ Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), p
 - **Two-pile triage in orchestration** — `skills/orchestrate/SKILL.md` Phase 1 and `agents/maestro.md` now sort work before fanning out: *delegate-async* (isolated, judgment at the gate) fans out; *hold-the-lock* (judgment IS the work) stays serial — parallelizing the second pile thrashes the one resource that can't be cloned. A judgment-heavy task is a SIMPLIFY/NO-GO for orchestration regardless of size.
 - **`/review-batch` + re-entry cards** — `skills/review-batch/` + `bun run review-batch` (`src/scripts/review-batch.ts`) assemble the pending-review picture (queue depth + age, working-tree diff stat, recent agents from `swarm.log`) so you batch-review in one sitting instead of cold-reloading one agent at a time. Each change gets a re-entry card (what / why / decide / proof) that reloads *your* context cheaply. Attacks the context-switch tax.
 - **Opt-in nuclear-review workflow** — `skills/nuclear-review/references/nuclear-review.workflow.js`, a runnable dynamic-workflow version of the whole-codebase audit (map → per-module reviewers in parallel → dependency audit → synthesis). It deliberately uses the preview Workflow API, which is exactly why it ships as an *example* in `references/` rather than wired into the skill — `/nuclear-review` itself still depends on nothing. Softened the orchestrate rule from "don't couple to the Workflow tool" to "don't *depend* on it; an opt-in example is fine."
+
+### Synced (Claude Code v2.1.156 → v2.1.159)
+
+- **Adopted `CLAUDE_CODE_ENABLE_AUTO_MODE` (v2.1.158)** — opt-in (`=1`) for auto mode on Bedrock, Vertex, and Foundry for Opus 4.7/4.8 (native on the first-party API). Added to `upstream/claude-code-manifest.json` `knownEnvVars` (alphabetical) and the `docs/settings-reference.md` env table so the scanner stops re-flagging it as drift.
+- **Docs refinements (v2.1.157)** — the `OTEL_LOG_TOOL_DETAILS` env row now notes it also adds `tool_parameters` to `tool_decision` telemetry events; the `agent` settings-key row notes it's now honored by `claude agents` dispatched sessions.
+- **Manifest** — `claudeCodeVersion` 2.1.156 → 2.1.159, `lastScan` refreshed. Scanner reports no drift.
+- **Skipped** — v2.1.159 internal-only changes; `.claude/skills` plugin auto-loading + `claude plugin init` (cc-settings installs skills directly, not via marketplace); `/plugin` autocomplete; `EnterWorktree` mid-session switching; worktree unlock-on-completion; and assorted image-paste / sandbox-prompt / `/model`-picker / terminal-UI bugfixes.
 
 ### Changed
 

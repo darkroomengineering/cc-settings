@@ -81,9 +81,10 @@ Environment variables injected into every Claude Code session.
 | `ANTHROPIC_WORKSPACE_ID` | UUID string | Scopes the workload-identity-federation minted token to a specific workspace (v2.1.141) |
 | `CLAUDE_CODE_USE_POWERSHELL_TOOL` | `"0"` to opt out, unset for default | Now defaults on for Windows Bedrock/Vertex/Foundry users (v2.1.143) |
 | `CLAUDE_CODE_ENABLE_AWAY_SUMMARY` | `"0"` to opt out, unset for default | On by default; produces a session recap on re-entry after background work. Set `=0` to opt out (v2.1.110) |
+| `CLAUDE_CODE_ENABLE_AUTO_MODE` | `"1"` or unset | Opt in to auto mode on Bedrock, Vertex, and Foundry for Opus 4.7/4.8 (native on the first-party API) (v2.1.158) |
 | `CLAUDE_CODE_SHELL_PREFIX` | shell prefix string | Custom shell prefix for MCP stdio server launches; overrides the default shell used to spawn stdio MCP processes (v2.1.128) |
 | `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet` (v2.1.147) |
-| `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans; values are redacted unless this is set (v2.1.117) |
+| `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157) |
 
 > **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 
@@ -465,7 +466,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | Key | Type | Class | Description |
 |-----|------|-------|-------------|
 | `$schema` | string | G | JSON Schema URL for editor IntelliSense |
-| `agent` | string | G | Default agent name for subagent invocations |
+| `agent` | string | G | Default agent name for subagent invocations; also honored by `claude agents` dispatched sessions (v2.1.157) |
 | `allowAllClaudeAiMcps` | boolean | E | Load claude.ai cloud MCP connectors alongside managed-mcp.json (v2.1.149) |
 | `allowManagedHooksOnly` | boolean | E | Block user-defined hooks; only managed hooks run |
 | `allowManagedMcpServersOnly` | boolean | E | Block user-defined MCP servers |

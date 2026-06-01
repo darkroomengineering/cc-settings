@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.11.0"; // "Under the River" port: revived share-learning + dedup, promote-memory nudge hook, profile frontmatter schema, AGENTS.md legibility principle
+const VERSION = "11.12.0"; // sync with Claude Code v2.1.159 (CLAUDE_CODE_ENABLE_AUTO_MODE env var); cuts the accumulated nuclear-review/orchestration-tax batch
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
