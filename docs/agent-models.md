@@ -13,7 +13,7 @@ Opus is reserved for tasks requiring deep reasoning. Sonnet handles mechanical w
 | `tester` | **sonnet** | Test writing follows clear patterns |
 | `scaffolder` | **sonnet** | Boilerplate generation is mechanical |
 | `explore` | **inherit** | Simple lookups are Sonnet-fine, but blast-radius/architecture synthesis isn't — inherit tracks the session so deep investigations on an Opus session get Opus synthesis, routine greps stay cheap |
-| `deslopper` | **sonnet** | Pattern matching for dead code is straightforward |
+| `deslopper` | **inherit** | Deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix), so no Opus floor needed — but the dynamic-usage false-positive check benefits from session-level reasoning on serious pre-push cleanup |
 
 Override per-invocation when needed: drop `implementer` to `Agent(implementer, "...", model: "sonnet")` for trivial mechanical edits to save Opus quota, or bump a mechanical agent up — `Agent(explore, "...", model: "opus")` — for a genuinely hard investigation.
 
