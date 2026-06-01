@@ -10,10 +10,13 @@
 
 import { readHookInput, readState, runHook, writeState } from "../lib/hook-runtime.ts";
 import {
+  type BashResult,
   buildNudge,
   buildSurrenderNudge,
+  commitSucceeded,
   isCognitiveSurrender,
   isGitCommit,
+  isReviewableAgent,
   maxUnreviewed,
   minReviewSeconds,
   onAgentSpawn,
@@ -35,15 +38,18 @@ function emit(context: string): void {
 async function main(): Promise<void> {
   const payload = await readHookInput<{
     tool_name: string;
-    tool_input: { command?: string };
+    tool_input: { command?: string; subagent_type?: string };
+    tool_response: BashResult;
   }>({ tool_name: "TOOL_NAME" });
   const toolName = payload.tool_name ?? "";
 
-  // Drain: a commit closes the loop. Run the cognitive-surrender check on the
-  // pre-reset state, then reset.
+  // Drain: a SUCCESSFUL commit closes the loop. A failed commit (nothing to
+  // commit, a rejecting pre-commit hook, a blocked merge) must not reset the
+  // queue — that would silently clear backpressure for a loop that never closed.
+  // Run the cognitive-surrender check on the pre-reset state, then reset.
   if (toolName === "Bash") {
     const command = payload.tool_input?.command ?? "";
-    if (command && isGitCommit(command)) {
+    if (command && isGitCommit(command) && commitSucceeded(payload.tool_response)) {
       const state = await readState<ReviewQueueState>(STATE_FILE, { awaiting: 0 });
       const now = Date.now();
       if (isCognitiveSurrender(state, now, maxUnreviewed(), minReviewSeconds() * 1000)) {
@@ -55,8 +61,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Producer: every agent spawned is one more unit awaiting review.
+  // Producer: every agent spawned is one more unit awaiting review — except
+  // read-only agents (explore, oracle, …) that leave no diff to commit.
   if (toolName !== "Agent") return;
+  if (!isReviewableAgent(payload.tool_input?.subagent_type)) return;
 
   const now = Date.now();
   const next = onAgentSpawn(await readState<ReviewQueueState>(STATE_FILE, { awaiting: 0 }), now);

@@ -9,15 +9,21 @@ import { join, resolve } from "node:path";
 import {
   ageMs,
   buildNudge,
+  commitSucceeded,
   formatAge,
   isCognitiveSurrender,
   isGitCommit,
+  isReviewableAgent,
   maxUnreviewed,
   minReviewSeconds,
   onAgentSpawn,
   onCommit,
   shouldNudge,
 } from "../src/lib/review-queue.ts";
+
+// A Bash tool_response that looks like a successful `git commit` (the
+// locale-independent `[branch sha]` summary line git prints on success).
+const OK_COMMIT = { stdout: "[main 1a2b3c4] wip\n 1 file changed, 2 insertions(+)", stderr: "" };
 
 describe("review-queue lib", () => {
   test("onAgentSpawn increments and stamps firstSpawnAt on the first spawn", () => {
@@ -110,6 +116,29 @@ describe("review-queue lib", () => {
     expect(isGitCommit("echo commit")).toBe(false);
     expect(isGitCommit("npm run build")).toBe(false);
   });
+
+  test("commitSucceeded: true only on the git success summary line", () => {
+    // Success summaries (default, amend, root, merge, detached HEAD).
+    expect(commitSucceeded({ stdout: "[main 1a2b3c4] msg" })).toBe(true);
+    expect(commitSucceeded({ stdout: "[main (root-commit) 0a1b2c3] init" })).toBe(true);
+    expect(commitSucceeded({ stdout: "[detached HEAD 9f8e7d6] hot" })).toBe(true);
+    // Common failures that must NOT drain the queue.
+    expect(commitSucceeded({ stdout: "nothing to commit, working tree clean" })).toBe(false);
+    expect(commitSucceeded({ stderr: "husky - pre-commit hook exited with code 1" })).toBe(false);
+    expect(commitSucceeded({ stdout: "error: cannot commit during a merge" })).toBe(false);
+    // Interrupted or absent → unverified → false.
+    expect(commitSucceeded({ stdout: "[main 1a2b3c4] msg", interrupted: true })).toBe(false);
+    expect(commitSucceeded(undefined)).toBe(false);
+  });
+
+  test("isReviewableAgent: read-only agents don't count, writers/unknown do", () => {
+    expect(isReviewableAgent("explore")).toBe(false);
+    expect(isReviewableAgent("oracle")).toBe(false);
+    expect(isReviewableAgent("security-reviewer")).toBe(false);
+    expect(isReviewableAgent("implementer")).toBe(true);
+    expect(isReviewableAgent("tester")).toBe(true);
+    expect(isReviewableAgent(undefined)).toBe(true); // defaults to general-purpose (can edit)
+  });
 });
 
 function restore(name: string, saved: string | undefined): void {
@@ -166,7 +195,11 @@ describe("review-queue-nudge hook (e2e)", () => {
       await runHook({ tool_name: "Agent", tool_input: {} }, home);
       await runHook({ tool_name: "Agent", tool_input: {} }, home);
       const commit = await runHook(
-        { tool_name: "Bash", tool_input: { command: "git commit -m wip" } },
+        {
+          tool_name: "Bash",
+          tool_input: { command: "git commit -m wip" },
+          tool_response: OK_COMMIT,
+        },
         home,
       );
       expect(commit.stdout).toContain("cognitive-surrender");
@@ -181,11 +214,50 @@ describe("review-queue-nudge hook (e2e)", () => {
     try {
       await runHook({ tool_name: "Agent", tool_input: {} }, home);
       const commit = await runHook(
-        { tool_name: "Bash", tool_input: { command: "git commit -m wip" } },
+        {
+          tool_name: "Bash",
+          tool_input: { command: "git commit -m wip" },
+          tool_response: OK_COMMIT,
+        },
         home,
       );
       expect(commit.stdout).not.toContain("cognitive-surrender");
       expect((await readQueue(home))?.awaiting).toBe(0);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a FAILED commit does not drain the queue (no success summary)", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
+    try {
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      // "nothing to commit" exits non-zero and prints no `[branch sha]` line.
+      await runHook(
+        {
+          tool_name: "Bash",
+          tool_input: { command: "git commit -m wip" },
+          tool_response: { stdout: "nothing to commit, working tree clean", stderr: "" },
+        },
+        home,
+      );
+      expect((await readQueue(home))?.awaiting).toBe(2); // unchanged — loop never closed
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("read-only agents (explore) do not add to the review queue", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
+    try {
+      await runHook({ tool_name: "Agent", tool_input: { subagent_type: "explore" } }, home);
+      await runHook({ tool_name: "Agent", tool_input: { subagent_type: "oracle" } }, home);
+      // No state written at all → still null (nothing awaiting).
+      expect(await readQueue(home)).toBeNull();
+      // A writer agent does count.
+      await runHook({ tool_name: "Agent", tool_input: { subagent_type: "implementer" } }, home);
+      expect((await readQueue(home))?.awaiting).toBe(1);
     } finally {
       await rm(home, { recursive: true, force: true });
     }

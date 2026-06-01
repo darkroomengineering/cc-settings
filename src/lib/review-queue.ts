@@ -50,6 +50,52 @@ function positiveIntEnv(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/** Agent types that cannot leave a working-tree diff, so spawning one adds
+ *  nothing to review + commit. Conservative on purpose: only agents with no
+ *  write/edit capability are listed. `reviewer` and `planner` CAN write (review
+ *  notes, plan docs, ADRs) that you might commit, so they intentionally still
+ *  count — under-counting real review debt is the failure we most want to avoid. */
+export const READ_ONLY_AGENTS = new Set([
+  "explore",
+  "Explore",
+  "oracle",
+  "Plan",
+  "security-reviewer",
+]);
+
+/** Does spawning this agent type produce work that lands in your diff? Unknown
+ *  or omitted types default to the general-purpose agent (which can edit), so
+ *  they count. */
+export function isReviewableAgent(subagentType: string | undefined): boolean {
+  if (!subagentType) return true;
+  return !READ_ONLY_AGENTS.has(subagentType);
+}
+
+/** The relevant slice of a Bash tool_response on PostToolUse. There is no
+ *  exit-code field — a non-zero exit surfaces only as `is_error` on the wrapping
+ *  tool_result block, which hooks don't receive — so commit success is inferred
+ *  from output instead (see commitSucceeded). */
+export interface BashResult {
+  stdout?: string;
+  stderr?: string;
+  interrupted?: boolean;
+}
+
+/** Git prints a `[branch abcdef0] subject` summary on a SUCCESSFUL commit —
+ *  including --amend, root, merge, and detached-HEAD commits. It is not
+ *  localized, so it's a reliable positive signal, and it's absent on the three
+ *  common failures that must NOT drain the queue: "nothing to commit", a
+ *  rejecting pre-commit hook, and a blocked merge. Only consulted for commands
+ *  already classified by isGitCommit, so false positives are near-impossible.
+ *  Caveat: `git commit -q` prints nothing, so a quiet commit won't drain — a
+ *  deliberate fail-safe (keep backpressure up rather than clear it unverified). */
+const COMMIT_SUMMARY = /\[.+\s[0-9a-f]{7,40}\]/;
+
+export function commitSucceeded(result: BashResult | undefined): boolean {
+  if (!result || result.interrupted) return false;
+  return COMMIT_SUMMARY.test(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+}
+
 /** An agent spawned — one more unit of work awaiting your review. Stamps the
  *  oldest-unreviewed marker when the queue was empty. */
 export function onAgentSpawn(state: ReviewQueueState, now: number): ReviewQueueState {
