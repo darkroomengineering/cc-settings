@@ -1,6 +1,6 @@
 ---
 name: implementer
-model: sonnet
+model: opus
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
 
