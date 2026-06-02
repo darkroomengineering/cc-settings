@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.15.1"; // close session drift: proof-of-work skill documents react-doctor probe; reviewer agent carries plain-English standard
+const VERSION = "11.15.2"; // freeze: cross-platform boundary check (path.sep, not hardcoded /) — fixes Windows
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
