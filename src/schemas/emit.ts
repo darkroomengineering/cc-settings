@@ -13,6 +13,7 @@ import { z } from "zod";
 import { AgentFrontmatter } from "./agent.ts";
 import { ClaudeJson } from "./claude-json.ts";
 import { HooksConfig } from "./hooks-config.ts";
+import { KnowledgeFrontmatter } from "./knowledge.ts";
 import { ProfileFrontmatter } from "./profile.ts";
 import { Settings } from "./settings.ts";
 import { SkillFrontmatter } from "./skill.ts";
@@ -64,6 +65,12 @@ export const targets: Target[] = [
     schema: ProfileFrontmatter,
     id: `${SCHEMA_BASE}/profile.schema.json`,
     title: "Darkroom profile frontmatter",
+  },
+  {
+    file: "knowledge.schema.json",
+    schema: KnowledgeFrontmatter,
+    id: `${SCHEMA_BASE}/knowledge.schema.json`,
+    title: "Darkroom knowledge note frontmatter",
   },
 ];
 

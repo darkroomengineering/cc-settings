@@ -95,7 +95,7 @@ These fork context for clean exploration:
 
 ### The `share-learning` Skill (Manual, Team-Only)
 
-This skill posts architectural decisions, cross-cutting gotchas, and conventions to the shared GitHub Project board so other team members' AI agents pick them up on session start. Invoke it manually or follow the `promote-memory` hook nudge that fires when a `project` or `feedback` auto-memory is written.
+This skill posts architectural decisions, cross-cutting gotchas, and conventions to the shared team-knowledge repo so other team members' AI agents can find them via `rg`/`cat` on a local clone. Invoke it manually or follow the `promote-memory` hook nudge that fires when a `project` or `feedback` auto-memory is written.
 
 For personal notes, the cc-settings auto-memory system (stored under `~/.claude/projects/<hash>/memory/`) captures them automatically. See the "auto memory" section of `~/.claude/CLAUDE.md` for how that works. The rule of thumb: if another team member's AI agent would benefit from knowing it, use `/share-learning`; otherwise let auto-memory handle it.
 

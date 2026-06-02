@@ -199,15 +199,16 @@ Use TLDR when files are large or you need meaning-based search. Use Read/Grep fo
 ### Shared (Team Knowledge Base)
 
 ```bash
-# Store to the project's GitHub Project board
-/learn store --shared gotcha "Biome ignores .mdx files by default"
-/learn store --shared decision "Chose Lenis over native smooth-scroll"
+# Post to the team-knowledge repo (handles dedup automatically)
+/share-learning gotcha "Biome ignores .mdx files by default"
+/share-learning decision "Chose Lenis over native smooth-scroll"
 
-# Recall shared knowledge
-/learn recall shared
+# Recall shared knowledge (requires local clone at $KNOWLEDGE_REPO_PATH)
+cat $KNOWLEDGE_REPO_PATH/INDEX.md
+rg "biome" $KNOWLEDGE_REPO_PATH/
 ```
 
-See `docs/knowledge-system.md` for GitHub Projects setup.
+See `docs/knowledge-system.md` for setup.
 
 ---
 

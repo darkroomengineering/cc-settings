@@ -6,6 +6,13 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Shared team-knowledge migrated from GitHub Project #7 to a markdown repo** (`darkroomengineering/team-knowledge`). The board was structurally hostile to its primary consumers (agents): network-gated GraphQL reads, not greppable offline, and no linter-enforced structure — `gh project item-create` never set the `Kind` field, so every `/share-learning` post landed `kind: None` and was invisible to a Kind-filtered query. The repo is one note per file + a generated `INDEX.md`, mirroring the local auto-memory tier. Decision + roadmap: `docs/plans/knowledge-repo-migration.md` (weighted comparison scored repo 795 vs board 515).
+  - **New** — `src/schemas/knowledge.ts` (zod frontmatter contract: `name`/`kind`/`tags`/`added-by`/`supersedes`), `src/lib/lint-knowledge.ts` + `src/scripts/lint-knowledge.ts` (`bun run lint:knowledge`), `src/scripts/new-note.ts` (`bun run new-note`), `tests/lint-knowledge.test.ts`, emitted `schemas/knowledge.schema.json`.
+  - **Changed** — `/share-learning` now reads `INDEX.md` for dedup and writes notes via `gh api` (was `gh project item-list`/`item-create`); `docs/knowledge-system.md`, the `AGENTS.md` Knowledge Routing section, and assorted docs retargeted; env `KNOWLEDGE_PROJECT_NUMBER` → `KNOWLEDGE_REPO`.
+  - **Companion** — darky's `search_team_knowledge` reader rewritten for the repo substrate (darkroom-os#18); env `DARKY_KNOWLEDGE_PROJECT_NUMBER` → `DARKY_KNOWLEDGE_REPO`.
+
 ## [11.16.0] — 2026-06-02
 
 Two additions: a **deslop advisory probe** in the proof-of-work gate (the framework-agnostic sibling to react-doctor), and a shift to **PR-by-default** as the standard workflow (with a repo PR template that dogfoods the plain-English standard).
