@@ -22,6 +22,8 @@
     "compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'",
     "check:cli-tools": "bun src/scripts/check-cli-tools.ts",
     "new-skill": "bun src/scripts/new-skill.ts",
+    "lint:knowledge": "bun src/scripts/lint-knowledge.ts",
+    "new-note": "bun src/scripts/new-note.ts",
     "proof": "bun src/scripts/proof.ts",
     "review-batch": "bun src/scripts/review-batch.ts"
   },
