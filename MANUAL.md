@@ -289,7 +289,7 @@ Triggers `/consolidate` — audits rules, skills, and learnings for contradictio
 
 ### Store a Learning
 
-Say: *"remember this"* — the auto-memory system in `~/.claude/CLAUDE.md` captures personal notes automatically (types: `user`, `feedback`, `project`, `reference`). For team-wide gotchas, decisions, and conventions: post directly with `gh project item-create` (see `AGENTS.md` Knowledge Routing section) or describe what to share and the agent will format and post it.
+Say: *"remember this"* — the auto-memory system in `~/.claude/CLAUDE.md` captures personal notes automatically (types: `user`, `feedback`, `project`, `reference`). For team-wide gotchas, decisions, and conventions: use `/share-learning` (see `AGENTS.md` Knowledge Routing section) or describe what to share and the agent will format and post it to the team-knowledge repo.
 
 ### Fetch Docs & Check Versions
 

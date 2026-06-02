@@ -102,7 +102,7 @@ Scope: consumer hardware and platform-integration questions specifically. Librar
 - **TLDR** (token-efficient codebase exploration via `llm-tldr`) — see `docs/tldr-cheatsheet.md`
 - **Hooks** (29 events, 8 categories, conditional `if` filtering) — see `docs/hooks-reference.md`
 - **Agent frontmatter** (`tools`, `disallowedTools`, `maxTurns`, `permissionMode`, `effort`, `isolation`, `hooks`, `mcpServers`, `initialPrompt`) — see `docs/frontmatter-reference.md`
-- **Knowledge system** (shared GitHub Project board + local auto-memory) — see `docs/knowledge-system.md`
+- **Knowledge system** (shared team-knowledge repo + local auto-memory) — see `docs/knowledge-system.md`
 - **Agent teams** (parallel independent workstreams, `teammateMode: "auto"`) — see `docs/feature-agents-guide.md`
 
 Skill matching is handled by the native `Skill` tool (v2.1.108).

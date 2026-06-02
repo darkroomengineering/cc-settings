@@ -325,32 +325,30 @@ Use this table to decide where a piece of knowledge belongs:
 | Personal workflow preference ("I want terse responses") | auto-memory (`user` or `feedback`) |
 | Active project state, deadlines, blockers | auto-memory (`project`) |
 | Pointer to external system (Linear board, dashboard URL) | auto-memory (`reference`) |
-| Architecture decision the team must follow | **GitHub Project** (`gh project item-create`) |
-| Library gotcha that affects everyone | **GitHub Project** (`gh project item-create`) |
-| Convention ("All API routes return `{ data, error }`") | **GitHub Project** (`gh project item-create`) |
-| Incident postmortem worth team awareness | **GitHub Project** (`gh project item-create`) |
+| Architecture decision the team must follow | **team-knowledge repo** (`/share-learning`) |
+| Library gotcha that affects everyone | **team-knowledge repo** (`/share-learning`) |
+| Convention ("All API routes return `{ data, error }`") | **team-knowledge repo** (`/share-learning`) |
+| Incident postmortem worth team awareness | **team-knowledge repo** (`/share-learning`) |
 
-**Rule of thumb:** if another team member's AI agent would benefit from knowing it, post it to the GitHub Project. Otherwise let auto-memory handle it.
+**Rule of thumb:** if another team member's AI agent would benefit from knowing it, post it to the team-knowledge repo. Otherwise let auto-memory handle it.
 
 Examples of team-wide entries:
 ```bash
+# Read: browse index or search across notes
+cat $KNOWLEDGE_REPO_PATH/INDEX.md
+rg "smooth-scroll" $KNOWLEDGE_REPO_PATH/
+
 # Architecture decision
-gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
-  --title "decision: Lenis over native smooth-scroll" \
-  --body "Cross-browser consistency. Native smooth-scroll diverges on Safari/Firefox; Lenis normalizes inertia + delta math. See ADR-007."
+/share-learning decision "Lenis over native smooth-scroll for cross-browser consistency"
 
 # Team convention
-gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
-  --title "convention: API response shape" \
-  --body "All API routes return { data, error } — never throw to the caller."
+/share-learning convention "All API routes return { data, error } — never throw to the caller"
 
 # Cross-cutting gotcha
-gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
-  --title "gotcha: Sanity UTC dates" \
-  --body "Sanity API returns UTC dates — always convert to local before display."
+/share-learning gotcha "Sanity API returns UTC dates — always convert to local before display"
 ```
 
-See `docs/knowledge-system.md` for full setup instructions and `gh api graphql` recall patterns.
+See `docs/knowledge-system.md` for full setup instructions and recall patterns.
 
 ## Self-Evolving Learnings (agent convention)
 
@@ -369,7 +367,7 @@ Categories: [categories vary per agent]
 
 This project uses a two-tier knowledge system:
 
-**Shared (Team)** — Stored in the project's GitHub Project board. Architecture decisions, team conventions, cross-cutting gotchas. Accessible to any team member's AI agent via `gh` CLI.
+**Shared (Team)** — Stored in the team-knowledge repo (`darkroomengineering/team-knowledge`). Architecture decisions, team conventions, cross-cutting gotchas. Accessible to any team member's AI agent via `rg`/`cat` on a local clone or via `gh api`.
 
 **Local (Personal)** — Stored in auto-memory and local config files. Workflow preferences, individual learnings, session context. Private to each developer.
 

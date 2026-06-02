@@ -22,7 +22,7 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 3. **Diagnose** - Analyze findings to identify root cause
 4. **Implement** - Spawn `implementer` agent to fix the issue
 5. **Verify** - Spawn `tester` agent to confirm the fix
-6. **Learn** - If this was a non-obvious fix, the auto-memory system in `~/.claude/CLAUDE.md` captures it; for team-wide gotchas use `/share-learning` to post to the GitHub Project board
+6. **Learn** - If this was a non-obvious fix, the auto-memory system in `~/.claude/CLAUDE.md` captures it; for team-wide gotchas use `/share-learning` to post to the team-knowledge repo
 
 ## Scope Rules
 

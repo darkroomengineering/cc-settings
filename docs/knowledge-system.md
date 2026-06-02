@@ -8,7 +8,7 @@ Two-tier knowledge management for AI-assisted development teams.
 
 | Tier | Storage | Scope | Access |
 |------|---------|-------|--------|
-| **Shared** | GitHub Project board | Team-wide | `gh api graphql` |
+| **Shared** | team-knowledge repo | Team-wide | `gh api` + `rg` |
 | **Local** | Auto-memory + learnings | Per-developer | File system |
 
 **Shared knowledge** is for things the whole team benefits from knowing — architecture decisions, cross-cutting gotchas, resolved incidents, team conventions.
@@ -17,27 +17,43 @@ Two-tier knowledge management for AI-assisted development teams.
 
 ---
 
-## Shared Knowledge (GitHub Projects)
+## Shared Knowledge (team-knowledge repo)
 
 ### Setup
 
-1. Create a GitHub Project on your repository:
-   - Name: `Knowledge Base` (or similar)
-   - Add custom fields:
-     - **Kind** (single select): `decision`, `convention`, `gotcha`, `incident`, `pattern` — name it `Kind`, **not** `Type`; GitHub reserves the field name `Type`. The agent flow keys off the `<kind>:` title prefix regardless, so this field is for board grouping/filtering.
-     - **Tags** (text): free-form tags like `auth`, `api`, `css`, `performance`
-     - **Added By** (text): who added it
+The shared corpus lives at `darkroomengineering/team-knowledge`. One markdown file per note, plus a generated `INDEX.md`.
 
-2. Note the Project number (visible in the URL: `github.com/orgs/ORG/projects/NUMBER`)
+**For `/share-learning` (write path):** no local clone needed — the skill writes via `gh api`. Set the repo slug in your environment if you want to override the default:
+```
+KNOWLEDGE_REPO=darkroomengineering/team-knowledge
+```
 
-3. Add to your project's `CLAUDE.local.md` or environment:
-   ```
-   Knowledge base: gh project #NUMBER on ORG/REPO
-   ```
+**For dev CLIs (`bun run lint:knowledge`, `bun run new-note`):** these tools operate on a local clone. Point them at it:
+```
+KNOWLEDGE_REPO_PATH=/path/to/your/clone/of/team-knowledge
+```
+
+Clone once with:
+```bash
+git clone https://github.com/darkroomengineering/team-knowledge ~/team-knowledge
+```
+
+### Note frontmatter contract
+
+```
+---
+name: <kebab-case slug; equals filename without .md>
+kind: decision | convention | gotcha | incident | pattern
+tags: [kebab, strings]        # optional
+added-by: <github login or name>
+supersedes: <name>            # optional
+---
+<body: what + why + how to apply>
+```
 
 ### What Goes in Shared Knowledge
 
-| Type | Example |
+| Kind | Example |
 |------|---------|
 | `decision` | "Chose Lenis over native smooth-scroll for cross-browser consistency" |
 | `convention` | "All API routes return `{ data, error }` shape" |
@@ -47,37 +63,38 @@ Two-tier knowledge management for AI-assisted development teams.
 
 ### Agent Usage
 
-**Reading shared knowledge:**
+**Reading shared knowledge (agents on dev machines):**
 ```bash
-# List all entries
-gh project item-list NUMBER --owner ORG --format json
+# Browse the index
+cat $KNOWLEDGE_REPO_PATH/INDEX.md
 
-# AI agents can query this on session start or when exploring a new area
+# Search across all notes
+rg "biome" $KNOWLEDGE_REPO_PATH/
+
+# Read a specific note
+cat $KNOWLEDGE_REPO_PATH/biome-mdx-ignored.md
 ```
 
 **Adding shared knowledge:**
 ```bash
-# Via the share-learning skill
+# Via the share-learning skill (preferred — handles dedup + gh api write)
 /share-learning gotcha "Biome ignores .mdx files by default"
-
-# Manually via gh CLI
-gh project item-create NUMBER --owner ORG --title "gotcha: Biome ignores .mdx" --body "Add .mdx to biome.json includes array"
 ```
 
 ### Consumers
 
-Two kinds of agents read this board:
+Two kinds of agents read this corpus:
 
-- **Dev-machine agents** (Claude Code) — read with the `gh project item-list` command above and post via `/share-learning`, which dedups against the board before creating an item.
-- **darky** (the studio Slack bot) — reads the board **on-demand** through its `search_team_knowledge` tool (GraphQL `organization{projectV2}`), gated to questions that touch a team convention/decision/gotcha rather than fulltime ingestion. Wired in [darky PR #474](https://github.com/darkroomengineering/darky/pull/474); requires `DARKY_KNOWLEDGE_PROJECT_NUMBER` in darky's environment. darky keeps its own internal knowledge brain (`search_knowledge`) separate — this board is the cross-studio tier only.
+- **Dev-machine agents** (Claude Code) — read via `cat INDEX.md` + `rg` across a local clone of the repo and post via `/share-learning`, which fetches INDEX.md for dedup before writing via `gh api`.
+- **darky** (the studio Slack bot, now in `darkroomengineering/darkroom-os` under `darky-hermes/`; standalone `darky` repo frozen 2026-06-01) — reads team-knowledge **on-demand** via the GitHub REST contents API, gated to questions that touch a team convention/decision/gotcha.
 
 ### Best Practices
 
-- Keep entries atomic — one learning per entry
+- Keep notes atomic — one learning per file
 - Include the **why**, not just the **what**
 - Add tags for discoverability
-- Review periodically — remove outdated entries
-- If a gotcha gets fixed upstream, archive the entry
+- Review periodically — remove outdated notes
+- If a gotcha gets fixed upstream, supersede the note with a new one
 
 ---
 
@@ -135,17 +152,11 @@ the team-wide tier (above).
 
 ```bash
 # Architecture decision
-gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
-  --title "decision: Lenis over native smooth-scroll" \
-  --body "Cross-browser consistency. Native smooth-scroll diverges on Safari/Firefox; Lenis normalizes inertia + delta math. See ADR-007."
+/share-learning decision "Lenis over native smooth-scroll for cross-browser consistency"
 
 # Team convention
-gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
-  --title "convention: API response shape" \
-  --body "All API routes return { data, error } — never throw to the caller. Enforced by Biome rule in services/api/."
+/share-learning convention "All API routes return { data, error } — never throw to the caller"
 
 # Cross-cutting gotcha
-gh project item-create "$KNOWLEDGE_PROJECT_NUMBER" --owner darkroomengineering \
-  --title "gotcha: Sanity UTC dates" \
-  --body "Sanity API returns UTC dates — always convert to local before display. Affects all date renderers."
+/share-learning gotcha "Sanity API returns UTC dates — always convert to local before display"
 ```
