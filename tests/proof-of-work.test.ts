@@ -6,9 +6,11 @@
 import { describe, expect, test } from "bun:test";
 import {
   allGreen,
+  detectDeslop,
   detectGates,
   detectReactDoctor,
   formatReport,
+  sumDeslopFindings,
 } from "../src/lib/proof-of-work.ts";
 
 describe("proof-of-work lib", () => {
@@ -62,5 +64,34 @@ describe("proof-of-work lib", () => {
     ]);
     expect(report).toContain("ℹ react-doctor — score 87/100 (advisory)");
     expect(report).toContain("review-ready ✓");
+  });
+
+  test("detectDeslop: true only when deslop-cli is a dependency", () => {
+    expect(detectDeslop({ "deslop-cli": "0.0.14", typescript: "6" })).toBe(true);
+    // deslop-js (the lib) is not the bin package — only deslop-cli counts
+    expect(detectDeslop({ "deslop-js": "0.0.14" })).toBe(false);
+    expect(detectDeslop({})).toBe(false);
+  });
+
+  test("sumDeslopFindings: sums finding arrays, ignores scalar metadata", () => {
+    const report = JSON.stringify({
+      unusedFiles: [{ path: "a" }, { path: "b" }],
+      unusedExports: [{ name: "x" }],
+      circularDependencies: [],
+      totalFiles: 120,
+      analysisTimeMs: 42,
+    });
+    expect(sumDeslopFindings(report)).toBe(3);
+    expect(sumDeslopFindings("{}")).toBe(0);
+    expect(sumDeslopFindings("not json")).toBeNull();
+  });
+
+  test("deslop advisory: rendered with (advisory), never blocks the verdict", () => {
+    const results = [
+      { gate: "typecheck" as const, status: "pass" as const },
+      { gate: "deslop" as const, status: "pass" as const, detail: "12 findings", advisory: true },
+    ];
+    expect(allGreen(results)).toBe(true);
+    expect(formatReport(results)).toContain("ℹ deslop — 12 findings (advisory)");
   });
 });

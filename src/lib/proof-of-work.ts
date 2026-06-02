@@ -12,7 +12,7 @@
 export type GateName = "typecheck" | "test" | "lint";
 
 // Advisory probes run alongside the hard gates but never flip the verdict.
-export type ProbeName = GateName | "react-doctor";
+export type ProbeName = GateName | "react-doctor" | "deslop";
 
 export interface GateResult {
   gate: ProbeName;
@@ -44,6 +44,15 @@ export function detectGates(scripts: Record<string, string>): GateName[] {
  *  opted in by adding the dependency. Pass the merged deps + devDeps map. */
 export function detectReactDoctor(deps: Record<string, string>): boolean {
   return "react-doctor" in deps;
+}
+
+/** deslop is an OPTIONAL advisory probe — a framework-agnostic cross-file
+ *  dead-code / unused-export scanner (millionco `deslop-cli`) that catches what
+ *  Biome's per-file linting can't. Same opt-in rule as react-doctor: runs only
+ *  when the project depends on `deslop-cli`, so local `npx` resolves the pinned
+ *  binary with no network fetch. Pass the merged deps + devDeps map. */
+export function detectDeslop(deps: Record<string, string>): boolean {
+  return "deslop-cli" in deps;
 }
 
 /** Overall verdict: green iff no NON-ADVISORY gate FAILED. Skips are allowed (a
@@ -102,4 +111,36 @@ export async function runReactDoctor(cwd: string): Promise<GateResult> {
     return { gate: "react-doctor", status: "skip", detail: "unavailable", advisory: true };
   }
   return { gate: "react-doctor", status: "pass", detail: `score ${score}/100`, advisory: true };
+}
+
+/** Run the deslop advisory probe. Local `npx` resolves the project's pinned
+ *  binary; `--json` returns a flat object of finding-category arrays plus scalar
+ *  metadata (`totalFiles`, `analysisTimeMs`, …). Total findings = the sum of the
+ *  array-valued fields, so the scalars are naturally excluded. Always advisory:
+ *  any non-zero exit or unparseable output is a SKIP, never a fail. */
+export async function runDeslop(cwd: string): Promise<GateResult> {
+  const proc = Bun.spawn(["npx", "deslop", "--json"], {
+    cwd,
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const [out, exit] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  const total = sumDeslopFindings(out);
+  if (exit !== 0 || total === null) {
+    return { gate: "deslop", status: "skip", detail: "unavailable", advisory: true };
+  }
+  return { gate: "deslop", status: "pass", detail: `${total} findings`, advisory: true };
+}
+
+/** Sum the finding-category arrays in a deslop `--json` report. Returns null if
+ *  the text isn't a parseable JSON object (pure, so it's unit-testable without a
+ *  subprocess). */
+export function sumDeslopFindings(jsonText: string): number | null {
+  try {
+    const report = JSON.parse(jsonText) as Record<string, unknown>;
+    if (typeof report !== "object" || report === null) return null;
+    return Object.values(report).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : 0), 0);
+  } catch {
+    return null;
+  }
 }
