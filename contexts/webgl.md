@@ -9,4 +9,4 @@ Activates WebGL/3D development mode. See full reference: `profiles/webgl.md`
 - Performance budgets: 60fps target, <10ms JS per frame
 - Always dispose geometries/materials on unmount
 
-For detailed patterns and examples: `/docs three`, `/docs gsap`, `/docs lenis`
+For detailed patterns and examples: fetch `three`, `gsap`, `lenis` via Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`).

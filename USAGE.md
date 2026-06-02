@@ -63,8 +63,8 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 | "ship it", "create PR" | `ship` | test → review → PR |
 | "coordinate", "complex task" | `orchestrate` | maestro multi-agent delegation |
 | "new project", "initialize" | `init` | scaffolds from Satus starter template |
-| "compare approaches", "which is better" | `f-thread` | parallel evaluation → scoring matrix |
-| "overnight", "long running" | `l-thread` | phased execution with checkpoints |
+| "compare approaches", "which is better" | `compare-approaches` | parallel evaluation → scoring matrix |
+| "overnight", "long running" | `long-task` | phased execution with checkpoints |
 
 ### Research
 
@@ -83,31 +83,33 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 
 | Trigger | Skill |
 |---------|-------|
-| "done for today" | `create-handoff` — saves state |
+| "done for today", "context window", "running out of context" | `create-handoff` — end-of-session state save (incl. context-window runbook) |
 | "resume", "continue" | `resume-handoff` — loads previous state |
 | Non-obvious bug fix discovered | `learn` — **auto-stores** the insight |
-| "save progress", "checkpoint" | `checkpoint` — saves/restores task state |
-| "context window", "running out of context" | `context` — context window management |
+| "snapshot", "before risky op", "rollback to" | `checkpoint` — mid-task rollback points |
 
 ### Tools
 
 | Trigger | Skill |
 |---------|-------|
 | "compare to design", "inspect in figma" | `figma` — Figma desktop + MCP integration |
-| screenshot, visual bug | `debug` — browser debugging with pinchtab |
+| screenshot, visual bug | `chrome-devtools` MCP — `mcp__chrome-devtools__*` tools, no dedicated slash command |
 | "QA check", accessibility | `qa` — visual QA validation |
 | "design tokens", "type scale", "color palette" | `design-tokens` — generates token systems with math |
 | "smooth scroll", "lenis" | `lenis` — Lenis smooth scroll setup |
 | "create hook", "custom hook" | `hook` — scaffolds React hook with standards |
+| "lighthouse", "page speed", "core web vitals" | `lighthouse` — performance audit + optimization loop |
 
 ### Utility
 
 | Trigger | Skill |
 |---------|-------|
-| "think harder", "max effort" | `effort` — adjusts reasoning depth |
-| "check version of X" | `versions` — checks before installing |
 | "create component X" | `component` — scaffolds with standards |
-| "parallel agents", "split work", "fan out" | `teams` — multi-instance parallel work |
+| "parallel agents", "split work", "fan out" | `orchestrate` (teams mode) — multi-instance parallel work |
+| "verify", "double check", "are you sure" | `verify` — adversarial multi-agent verification |
+| "consolidate", "clean up rules", "maintenance" | `consolidate` — prunes rules, skills, learnings |
+| "audit commands", "what did it run" | `audit` — analyzes logged Bash commands |
+| "optimize skill", "autoresearch" | `autoresearch` — iterative skill prompt optimization |
 
 ---
 
@@ -116,12 +118,12 @@ Skills auto-invoke based on your words. You can also call them directly with `/s
 For complex tasks, delegate to specialized agents:
 
 ```
-Task(explore, "how does the auth module work?")
-Task(planner, "break down the checkout redesign")
-Task(implementer, "implement coupon validation based on the plan")
-Task(reviewer, "review these changes for quality and edge cases")
-Task(tester, "write tests for the payment module")
-Task(security-reviewer, "audit the auth flow for vulnerabilities")
+Agent(explore, "how does the auth module work?")
+Agent(planner, "break down the checkout redesign")
+Agent(implementer, "implement coupon validation based on the plan")
+Agent(reviewer, "review these changes for quality and edge cases")
+Agent(tester, "write tests for the payment module")
+Agent(security-reviewer, "audit the auth flow for vulnerabilities")
 ```
 
 ### When to Delegate
@@ -129,18 +131,18 @@ Task(security-reviewer, "audit the auth flow for vulnerabilities")
 | Situation | Approach |
 |-----------|----------|
 | Know the file, small change | Edit directly |
-| Need to understand a large area | `Task(explore, "...")` |
-| Multi-file implementation | `Task(planner, "...")` then `Task(implementer, "...")` |
-| Need a second opinion | `Task(reviewer, "...")` |
+| Need to understand a large area | `Agent(explore, "...")` |
+| Multi-file implementation | `Agent(planner, "...")` then `Agent(implementer, "...")` |
+| Need a second opinion | `Agent(reviewer, "...")` |
 | 3+ independent workstreams | Use Agent Teams |
 
 ### Parallelization
 
-When spawning multiple agents for independent work, send all Task calls in one message:
+When spawning multiple agents for independent work, send all Agent calls in one message:
 
 ```
-EFFICIENT:  Task(explore, "auth") + Task(explore, "routing")  ← one message
-WASTEFUL:   Task(explore, "auth") → wait → Task(explore, "routing")  ← two messages
+EFFICIENT:  Agent(explore, "auth") + Agent(explore, "routing")  ← one message
+WASTEFUL:   Agent(explore, "auth") → wait → Agent(explore, "routing")  ← two messages
 ```
 
 ---
@@ -197,15 +199,16 @@ Use TLDR when files are large or you need meaning-based search. Use Read/Grep fo
 ### Shared (Team Knowledge Base)
 
 ```bash
-# Store to the project's GitHub Project board
-/learn store --shared gotcha "Biome ignores .mdx files by default"
-/learn store --shared decision "Chose Lenis over native smooth-scroll"
+# Post to the team-knowledge repo (handles dedup automatically)
+/share-learning gotcha "Biome ignores .mdx files by default"
+/share-learning decision "Chose Lenis over native smooth-scroll"
 
-# Recall shared knowledge
-/learn recall shared
+# Recall shared knowledge (requires local clone at $KNOWLEDGE_REPO_PATH)
+cat $KNOWLEDGE_REPO_PATH/INDEX.md
+rg "biome" $KNOWLEDGE_REPO_PATH/
 ```
 
-See `docs/knowledge-system.md` for GitHub Projects setup.
+See `docs/knowledge-system.md` for setup.
 
 ---
 
@@ -214,7 +217,7 @@ See `docs/knowledge-system.md` for GitHub Projects setup.
 Watch the statusline for context usage:
 
 ```
-Opus 4.6 | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/200K)
+Opus 4.8 | my-project | main✱↑ | █░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |

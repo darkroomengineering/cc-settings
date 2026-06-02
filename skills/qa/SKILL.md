@@ -1,22 +1,16 @@
 ---
 name: qa
-description: |
-  Visual QA validation with pinchtab. Use when:
-  - User asks to "validate", "check visually", "QA check"
-  - After creating or modifying components
-  - Before PR submission
-  - User mentions "accessibility", "a11y", "contrast", "touch targets"
-  - User wants to verify UI looks correct
-  - User asks to "review this design" or "check this screenshot"
-  - User wants to compare implementation vs mockup/reference
-  - User asks "does this look right?" or "what's off about this?"
+description: Visual + a11y QA — screenshot-first critique, contrast, touch targets, mockup-vs-impl diff. For adversarial logic checks use `/verify`. Triggers "visual QA", "QA check", "does this look right", "a11y check", "contrast check", post-component changes.
 context: fork
-allowed-tools: [Bash]
+allowed-tools: [mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__evaluate_script]
+requires:
+  - mcp: chrome-devtools
+    install: "Configure chrome-devtools MCP — see mcp-configs/recommended.json"
 ---
 
 # Visual QA Validation
 
-Visual and accessibility validation using pinchtab. Combines automated tooling with structured design review methodology.
+Visual and accessibility validation using the Chrome DevTools MCP. Combines automated tooling with structured design review methodology.
 
 ## Core Philosophy
 
@@ -27,13 +21,12 @@ Visual and accessibility validation using pinchtab. Combines automated tooling w
 
 ## Quick Start
 
-```bash
-# Validate dev server
-pinchtab nav http://localhost:3000
-pinchtab text        # Token-efficient content check (~800 tokens)
-pinchtab screenshot  # Visual inspection
-pinchtab snap -i -c  # Interactive compact accessibility tree
-```
+The Chrome DevTools MCP exposes browser automation as tool calls. Typical sequence:
+
+1. `mcp__chrome-devtools__navigate_page` (type: "url", url: "http://localhost:3000") — load the page
+2. `mcp__chrome-devtools__take_snapshot` — text-based a11y tree with element `uid`s (cheap, preferred first step)
+3. `mcp__chrome-devtools__take_screenshot` — visual capture for review
+4. Interact via `click` / `fill` / `hover` / `press_key` using the `uid`s from the snapshot
 
 ---
 
@@ -145,7 +138,7 @@ pinchtab snap -i -c  # Interactive compact accessibility tree
 - Abrupt content shifts when data loads
 - No empty state -- just a blank area
 
-### 8. Responsive Issues (if multiple viewports available)
+### 8. Responsive Issues
 
 **Check for:**
 - Content readable on mobile (not too small)
@@ -154,14 +147,16 @@ pinchtab snap -i -c  # Interactive compact accessibility tree
 - Images not overflowing containers
 - Horizontal scroll (almost always a bug)
 
+Use `mcp__chrome-devtools__resize_page` to switch between desktop (1440×900), tablet (768×1024), and mobile (375×667) viewports.
+
 ---
 
 ## Workflow
 
 1. **Navigate** to target URL
-2. **Screenshot** current state
-3. **Snapshot** accessibility tree
-4. **Analyze** against review categories above
+2. **Snapshot** the a11y tree (text-based, returns `uid`s for interactive elements)
+3. **Screenshot** the current state
+4. **Analyze** against the review categories above
 5. **Score** using the output format below
 6. **Report** issues with actionable fixes
 
@@ -175,7 +170,7 @@ pinchtab snap -i -c  # Interactive compact accessibility tree
 
 ### After Building a Full Page
 
-1. Screenshot at desktop (1440px), tablet (768px), and mobile (375px)
+1. Screenshot at desktop (1440px), tablet (768px), and mobile (375px) — use `resize_page` between captures
 2. Run responsive review across all three
 3. Run full review on the desktop version
 4. Fix issues, prioritizing critical ones
@@ -183,7 +178,7 @@ pinchtab snap -i -c  # Interactive compact accessibility tree
 ### Comparing to a Mockup
 
 1. Get the mockup image:
-   - **From Figma (preferred):** Use `/figma` to launch Figma desktop, navigate to the frame, and screenshot it directly
+   - **From Figma (preferred):** Use the Figma MCP directly — `mcp__figma__get_design_context` returns structured design specs (tokens, dimensions, component props) instead of pixel-pushing screenshots. The MCP server's own instructions cover URL parsing and the design-to-code workflow.
    - **Manual:** Figma export, screenshot, or user-provided image
 2. Screenshot the implementation at the same viewport size
 3. Run comparison review
@@ -191,36 +186,19 @@ pinchtab snap -i -c  # Interactive compact accessibility tree
 
 ---
 
-## Commands
+## Tool Cheat-Sheet
 
-```bash
-# Navigate
-pinchtab nav http://localhost:3000/page
-
-# Token-efficient page text (~800 tokens — preferred first step)
-pinchtab text
-
-# Screenshot
-pinchtab screenshot
-
-# Interactive compact accessibility tree
-pinchtab snap -i -c
-
-# Interact with elements
-pinchtab click e5
-pinchtab fill e3 "test input"
-
-# Hover states and scroll for below-fold content
-pinchtab hover e5
-pinchtab scroll down
-pinchtab scroll up
-
-# Keyboard interaction
-pinchtab press Enter
-pinchtab press Tab
-```
-
-**Multi-instance parallel QA:** Test multiple viewports simultaneously using separate pinchtab instances for desktop, tablet, and mobile widths.
+| Action | Tool |
+|---|---|
+| Load a URL | `mcp__chrome-devtools__navigate_page` `{ type: "url", url }` |
+| Text a11y tree with `uid`s (cheap) | `mcp__chrome-devtools__take_snapshot` |
+| Screenshot | `mcp__chrome-devtools__take_screenshot` |
+| Click an element | `mcp__chrome-devtools__click` `{ uid }` |
+| Fill input / select option | `mcp__chrome-devtools__fill` `{ uid, value }` |
+| Hover an element | `mcp__chrome-devtools__hover` `{ uid }` |
+| Press key (Enter, Tab, Escape, …) | `mcp__chrome-devtools__press_key` `{ key }` |
+| Resize viewport | `mcp__chrome-devtools__resize_page` `{ width, height }` |
+| Run JS in page | `mcp__chrome-devtools__evaluate_script` |
 
 ---
 
@@ -300,4 +278,4 @@ Looks good: [What's working]
 
 ## Prerequisites
 
-Requires `pinchtab` (installed by `setup.sh`).
+Requires the `chrome-devtools` MCP server (shipped in `mcp-configs/recommended.json` and installed by `setup.sh`).

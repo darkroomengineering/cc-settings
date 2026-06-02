@@ -6,13 +6,13 @@ Complete reference for Claude Code hook events, configuration, and debugging.
 
 ## Overview
 
-Hooks are shell scripts that execute at specific points in the Claude Code lifecycle. They are configured in `settings.json` under the `hooks` key and are installed automatically by `setup.sh`.
+Hooks are TypeScript scripts (executed via Bun) that run at specific points in the Claude Code lifecycle. They are configured in `settings.json` under the `hooks` key and are installed automatically by `setup.sh`.
 
 Hooks can validate input, block operations, inject context, log activity, and trigger side effects.
 
 ---
 
-## Hook Events (14 total)
+## Hook Events (29 total)
 
 ### Session Lifecycle
 
@@ -20,14 +20,17 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 |-------|------|----------------|----------|
 | `SessionStart` | Session begins (new, resume, compact, clear) | `startup`, `resume`, `clear`, `compact` | Yes |
 | `SessionEnd` | Session is ending | -- | No (always async) |
+| `Setup` | Triggered via `--init`, `--init-only`, or `--maintenance` CLI flags | -- | Yes |
 
 ### User Interaction
 
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
 | `UserPromptSubmit` | User submits a prompt, before Claude sees it | -- | Yes |
+| `UserPromptExpansion` | User prompt expansion events (e.g., skill or template expansion) | -- | Yes |
 | `Notification` | Claude sends a notification to the user | Notification type | No |
 | `Stop` | Claude finishes generating a response | -- | Yes |
+| `StopFailure` | Turn ends due to API error (rate limit, auth failure) | -- | No |
 
 ### Tool Lifecycle
 
@@ -35,23 +38,50 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 |-------|------|----------------|----------|
 | `PreToolUse` | Before a tool executes | Tool name (e.g., `Bash`, `Edit`, `Write`) | Yes |
 | `PostToolUse` | After a tool executes successfully | Tool name | Optional (supports async) |
+| `PostToolBatch` | After a batch of tool calls completes | -- | No |
 | `PostToolUseFailure` | After a tool execution fails | Tool name | Optional |
 | `PermissionRequest` | When a tool needs user permission | Tool name | Yes |
+| `PermissionDenied` | After auto mode classifier denies a tool | Tool name | No |
 
 ### Agent Lifecycle
 
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
-| `SubagentStart` | A subagent spawns | Agent type (e.g., `explore`, `Plan`) |  No |
+| `SubagentStart` | A subagent spawns | Agent type (e.g., `explore`, `planner`) |  No |
 | `SubagentStop` | A subagent finishes | Agent type | No |
 | `TeammateIdle` | An Agent Teams teammate goes idle | -- | No |
 | `TaskCompleted` | A task is marked completed | -- | No |
+| `TaskCreated` | A task is created via `TaskCreate` | -- | No |
+
+### Environment Events
+
+| Event | When | Matcher Values | Blocking |
+|-------|------|----------------|----------|
+| `CwdChanged` | Working directory changes during session | -- | No |
+| `FileChanged` | A watched file changes on disk | -- | No |
 
 ### Context Management
 
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
 | `PreCompact` | Before context compaction | `manual` or `auto` | Yes |
+| `PostCompact` | After context compaction completes | -- | No |
+| `InstructionsLoaded` | CLAUDE.md or `.claude/rules/*.md` loaded | -- | No |
+| `ConfigChange` | Configuration file changes during session | `user_settings`, `project_settings`, `local_settings`, `policy_settings`, `skills` | Yes |
+
+### MCP Events
+
+| Event | When | Matcher Values | Blocking |
+|-------|------|----------------|----------|
+| `Elicitation` | MCP server requests structured user input mid-task | -- | Yes |
+| `ElicitationResult` | User responds to MCP elicitation dialog | -- | No |
+
+### Worktree Events
+
+| Event | When | Matcher Values | Blocking |
+|-------|------|----------------|----------|
+| `WorktreeCreate` | Worktree being created (can replace default git behavior) | -- | Yes |
+| `WorktreeRemove` | Worktree being removed | -- | No |
 
 ---
 
@@ -76,18 +106,38 @@ Available in all hooks:
 | `PreToolUse` | `$TOOL_NAME` | Name of the tool about to execute |
 | `PreToolUse` | `$TOOL_INPUT` | JSON string of tool input parameters |
 | `PostToolUse` | `$TOOL_NAME` | Name of the tool that executed |
-| `PostToolUse` | `$TOOL_INPUT` | JSON string of tool input parameters |
-| `PostToolUse` | `$TOOL_OUTPUT` | Output from the tool execution |
+| `PostToolUse` | stdin (JSON) | Full hook context: `tool_input`, `tool_response`, `tool_name`, `session_id`, `cwd`, `duration_ms` |
+| `PostToolUse` | `duration_ms` (JSON) | Tool execution time in ms, excluding permission prompts and PreToolUse (v2.1.119) |
 | `PostToolUseFailure` | `$TOOL_NAME` | Name of the tool that failed |
 | `PostToolUseFailure` | `$TOOL_ERROR` | Error message from the failure |
+| `PostToolUseFailure` | `duration_ms` (JSON stdin) | Tool execution time in ms up to failure point (v2.1.119) |
 | `SubagentStart` | `$AGENT_ID` | Unique identifier for the subagent |
 | `SubagentStart` | `$AGENT_TYPE` | Agent type (e.g., `explore`, `planner`) |
 | `SubagentStop` | `$AGENT_ID` | Unique identifier for the subagent |
 | `SubagentStop` | `$AGENT_TYPE` | Agent type (e.g., `explore`, `planner`) |
+| `Notification` | `$NOTIFICATION_MESSAGE` | The notification text |
+| `PermissionDenied` | `$TOOL_NAME` | Name of the tool that was denied |
+| `PermissionDenied` | `$PERMISSION_DECISION_REASON` | Reason for the denial |
+| _all events_ | `$CLAUDE_EFFORT` | Active effort level (`low`, `medium`, `high`, `xhigh`, `max`) — also available to Bash tool subprocesses (v2.1.133) |
+
+### Effort Level in JSON Input
+
+As of v2.1.133, hooks that receive JSON on stdin also see the active effort level under `effort.level`:
+
+```json
+{
+  "session_id": "…",
+  "cwd": "…",
+  "tool_input": { /* … */ },
+  "effort": { "level": "xhigh" }
+}
+```
+
+Use this when a hook should change behavior based on effort — e.g., skip an expensive lint pass on `low`, run a stricter validator on `max`.
 
 ### Flattened Tool Input Variables
 
-For `PreToolUse` and `PostToolUse` hooks, Claude Code also provides **flattened** versions of the `$TOOL_INPUT` JSON object as individual environment variables. Each top-level key in the tool input becomes `TOOL_INPUT_<key>`.
+For `PreToolUse` hooks, Claude Code also provides **flattened** versions of the `$TOOL_INPUT` JSON object as individual environment variables. **Note: these are NOT available in `PostToolUse` hooks** — PostToolUse receives data on stdin instead. Each top-level key in the tool input becomes `TOOL_INPUT_<key>`.
 
 This is more convenient than parsing the raw `$TOOL_INPUT` JSON string in shell scripts.
 
@@ -141,17 +191,23 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `matcher` | string | -- | Filter which tools/events trigger the hook (see Matcher Patterns below) |
+| `if` | string | -- | Conditional filter using permission rule syntax (e.g., `"Bash(git commit*)"`, `"Bash(bun add*) Bash(npm install*)"`) — more precise than `matcher` for command-level filtering |
 | `hooks` | list | (required) | Array of hook actions to execute |
+
+**`if` vs `matcher`**: Use `matcher` to filter by tool name (`"Bash"`, `"Edit"`, `"Write|Edit"`). Use `if` to filter by specific command patterns within a tool, avoiding the need for shell-script grep matching. Space-separated patterns are OR'd together.
 
 ### Hook Action Fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | (required) | `"command"` (shell), `"prompt"` (LLM yes/no), or `"agent"` (subagent with tools) |
+| `type` | string | (required) | `"command"` (shell), `"prompt"` (LLM yes/no), `"agent"` (subagent with tools), or `"http"` (webhook) |
 | `command` | string | (required for command type) | Shell command to execute |
+| `args` | string[] | -- | (v2.1.139, `command` type) Exec form. When set, CC spawns `command` directly with this argv — no shell. Safer for paths with spaces; no quoting needed in `command`. |
 | `async` | boolean | `false` | Run in background without blocking Claude |
 | `timeout` | number | `600` | Timeout in seconds (max: 600) |
 | `once` | boolean | `false` | Run exactly once per session, then disable |
+| `continueOnBlock` | boolean | `false` | (v2.1.139, `PostToolUse` only) When the hook returns a block signal, the turn continues — the block surfaces in context but doesn't abort. Use for soft warnings. |
+| `terminalSequence` | string | -- | (v2.1.141, hook output) Raw terminal escape sequence the hook returns in its JSON output. Lets hooks emit desktop notifications, set window titles, or ring the bell without owning a controlling terminal. |
 
 ### Hook Types
 
@@ -160,6 +216,7 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | `command` | Executes a shell command. Exit code 0 = pass, non-zero = block (for PreToolUse). stdout is injected into Claude's context. | Validation, logging, context injection |
 | `prompt` | Sends a single-turn prompt to Claude for yes/no evaluation. | Complex validation requiring LLM judgment |
 | `agent` | Spawns a subagent with tool access (Read, Grep, Glob) for verification. | Multi-step validation requiring code inspection |
+| `http` | Sends a webhook to a URL. Configure with `url`, `headers`, `allowedEnvVars`. Controlled by `allowedHttpHookUrls` setting. | Remote validation, external integrations, audit logging |
 
 ---
 
@@ -251,114 +308,142 @@ Matchers filter which specific tool invocations or events trigger a hook.
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `session-start.sh` | Recalls relevant learnings, auto-warms TLDR index | No |
-| `notify-sound.sh session_start` | Plays audio notification on session start (when audio enabled) | Yes |
+| `verify-hooks.ts` | Validates the hooks-block fingerprint on session start; warns on tampering | No |
+| `session-start.ts` | Surfaces auto-memory pointer, auto-warms TLDR index | No |
 
 ### UserPromptSubmit
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `skill-activation.sh "$PROMPT"` | Matches prompt against skill patterns, injects skill context | No |
-| Inline correction detection | Detects correction phrases ("no,", "wrong", "actually,") and reminds to store learnings | No |
+| `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
+| `delegation-detector.ts` | Regex-scores incoming prompt for breadth signals (phrases like "do all", "across the repo", path-shaped tokens, large numbered lists). At score ≥ 2, injects a system reminder via `additionalContext` pointing at maestro / multi-agent delegation | No |
+
+> Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
 ### PreToolUse (Bash matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `safety-net.sh` | Blocks destructive shell commands (rm -rf /, force push, etc.) | No |
+| `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.) | No |
 | Inline pre-commit tsc check | Runs `tsc --noEmit` before any `git commit` command. Blocks commit if TypeScript errors found | No |
-| `check-docs-before-install.sh` | Reminds to fetch docs before installing new packages | No |
+| `check-docs-before-install.ts` | Reminds to fetch docs before installing new packages | No |
 
 ### PreToolUse (Edit matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `pre-edit-validate.sh` | Validates edit strategy (file recently read, edit size appropriate) | No |
+| `pre-edit-validate.ts` | Validates edit strategy (file recently read, edit size appropriate) | No |
 
 ### PostToolUse (Write|Edit matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-edit.sh` | Auto-formats edited files with Biome | No |
-| `post-edit-tsc.sh` | Runs TypeScript type check on edited files | Yes |
+| `post-edit.ts` | Auto-formats edited files with Biome | No |
+| `post-edit-tsc.ts` | Runs TypeScript type check on edited files | Yes |
 
-### PostToolUse (Bash matcher — commit sound)
+### PostToolUse (Bash matcher — command logging)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `notify-sound.sh commit` | Plays audio notification on git commit (when audio enabled) | Yes |
+| `log-bash.ts` | Logs every Bash command to `~/.claude/logs/bash-YYYY-MM-DD.log` | Yes |
+
+Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
+
+**Log format:** `[HH:MM:SS] [project] command`
+
+**Retention:** Controlled by `CLAUDE_LOG_RETENTION_DAYS` env var (default: 1 day, today only). Old logs are pruned automatically on each hook fire.
 
 ### PostToolUse (mcp__tldr matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `track-tldr.sh "$TOOL_NAME"` | Tracks TLDR MCP usage statistics | Yes |
+| `track-tldr.ts "$TOOL_NAME"` | Tracks TLDR MCP usage statistics | Yes |
+
+### PostToolUse (no matcher — every tool)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `parallelmax-nudge.ts` | Counts consecutive non-Agent tool calls in main context. At N=8, emits a system reminder pointing at the delegation rules. State at `~/.claude/tmp/parallelmax-counter.json`; resets when an Agent tool fires. 60s debounce | No |
 
 ### PostToolUseFailure
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-failure.sh` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
-| `notify-sound.sh error` | Plays audio notification on tool failure (when audio enabled) | Yes |
+| `post-failure.ts` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
 
 ### PreCompact
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `handoff.sh create` | Saves current task state to handoff file before context is compacted | No |
-| `notify-sound.sh compact` | Plays audio notification before compaction (when audio enabled) | Yes |
+| `handoff.ts create` | Saves current task state to handoff file before context is compacted | No |
+
+### PostCompact
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `post-compact.ts` | Injects recovery steps (re-read plan, key files, check TaskList) and surfaces latest handoff path | No |
 
 ### Stop
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| Inline learning reminder | If >5 files were changed, reminds to store learnings | No |
-| `compact-reminder.sh` | Suggests `/compact` after context-heavy skill operations | No |
-| `notify-sound.sh task_complete` | Plays audio notification on task completion (when audio enabled) | Yes |
+| `stop-summary.ts` | End-of-turn summary; if >5 files were changed, reminds to store learnings | No |
 
-### SubagentStart / SubagentStop
+### StopFailure
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| Log to `~/.claude/swarm.log` | Records agent spawn/stop events with agent type and ID | Yes |
+| `stop-failure.ts` | Logs API errors to `~/.claude/api-failures.log`; surfaces rate limit guidance on 429/capacity errors | No |
+
+### SubagentStart / SubagentStop / TaskCreated / TaskCompleted
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| Log to `~/.claude/swarm.log` | Records agent spawn/stop events with agent type and ID; logs task creation and completion with subject | Yes |
 
 ### Notification
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `notify.sh` | Sends desktop notification (macOS/Linux) when tasks complete | Yes |
+| `notify.ts` | Sends desktop notification (macOS/Linux) when tasks complete | Yes |
 
 ### SessionEnd
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `tldr-stats.sh` + `handoff.sh create` | Prints TLDR session stats and saves final handoff state | Yes |
+| `tldr-stats.ts` + `handoff.ts create` | Prints TLDR session stats and saves final handoff state | Yes |
+
+### CwdChanged
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `cwd-changed.ts` | Surfaces project context (CLAUDE.md size, recent commits, branch, untracked files) when the working directory changes mid-session | Yes |
 
 ---
 
 ## Adding New Hooks
 
+cc-settings hooks are TypeScript executed by Bun (since v8.0.0). Land the script under `src/scripts/` or `src/hooks/` in the repo — the installer copies it to `~/.claude/src/...`.
+
 ### Step 1: Create the Script
 
-```bash
-#!/bin/bash
-# ~/.claude/scripts/my-hook.sh
-# Description of what this hook does
+```ts
+#!/usr/bin/env bun
+// src/scripts/my-hook.ts — description of what this hook does
 
-# Access environment variables
-echo "[Hook] Processing: $TOOL_NAME"
+const toolName = process.env.TOOL_NAME ?? "";
+if (!toolName) process.exit(0);
 
-# Exit 0 to allow, non-zero to block (PreToolUse only)
-exit 0
+console.log(`[Hook] Processing: ${toolName}`);
+
+// Exit 0 to allow, non-zero to block (PreToolUse only).
+// To emit structured hook output, write a JSON object to stdout:
+//   console.log(JSON.stringify({ hookSpecificOutput: { sessionTitle: "…" } }));
+
+export {};
 ```
 
-### Step 2: Make Executable
-
-```bash
-chmod +x ~/.claude/scripts/my-hook.sh
-```
-
-### Step 3: Add to settings.json
+### Step 2: Register in `settings.json`
 
 ```json
 {
@@ -369,7 +454,7 @@ chmod +x ~/.claude/scripts/my-hook.sh
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$HOME/.claude/scripts/my-hook.sh\"",
+            "command": "bun \"$HOME/.claude/src/scripts/my-hook.ts\"",
             "async": true,
             "timeout": 30
           }
@@ -380,12 +465,13 @@ chmod +x ~/.claude/scripts/my-hook.sh
 }
 ```
 
-### Step 4: Test
+### Step 3: Test
 
-Run a Claude Code session and trigger the relevant event. Check logs for output.
+Run a Claude Code session and trigger the relevant event. Check logs for output (see "Debugging Hooks" below).
 
 ### Best Practices
 
+- **Use the shared runtime.** Import from `src/lib/hook-runtime.ts` — `readHookInput<T>()` (reads stdin JSON with env-var fallback), `readState<T>(name, fallback)` / `writeState(name, data)` (atomic IO against `~/.claude/tmp/<name>.json`), and `runHook(main)` (top-level fail-open wrapper). The parallelmax hooks (`parallelmax-nudge.ts`, `delegation-detector.ts`) are the reference implementations.
 - Always quote `$HOME` paths in the `command` string.
 - Use `async: true` for non-blocking operations (logging, metrics).
 - Set reasonable `timeout` values (default 600s is often too long for simple scripts).
@@ -401,12 +487,13 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 | Log File | Contents |
 |----------|----------|
 | `~/.claude/hooks.log` | General hook execution output |
-| `~/.claude/swarm.log` | Subagent start/stop events |
+| `~/.claude/swarm.log` | Subagent start/stop and task created/completed events |
 | `~/.claude/sessions.log` | Session lifecycle events |
-| `~/.claude/skill-activation.out` | Skill pattern matching results |
+| `~/.claude/session-titles/` | Per-session title flags (set once per session by `session-title.ts`) |
 | `~/.claude/tldr-session-stats.json` | TLDR tool usage statistics per session |
-| `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.sh`) |
-| `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.sh`) |
+| `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.ts`) |
+| `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.ts`) |
+| `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.ts`, analyzed by `/audit`) |
 
 ### Common Issues
 
@@ -418,7 +505,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 | Hook output not visible | Hook is async | Async hooks don't inject into context; switch to sync if needed |
 | Hook causes timeout | Script hangs | Add timeout to the script itself; reduce `timeout` value |
 | `$TOOL_INPUT` is empty | Wrong event | `TOOL_INPUT` is only available in `PreToolUse` and `PostToolUse` |
-| Path not found | Missing quotes | Always use `bash "$HOME/.claude/scripts/..."` with quotes |
+| Path not found | Missing quotes | Always quote the path: `bun "$HOME/.claude/src/scripts/..."` (or `src/hooks/...`) |
 
 ### Testing a Hook Manually
 
@@ -426,7 +513,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output.
 # Simulate PreToolUse environment
 export TOOL_NAME="Bash"
 export TOOL_INPUT='{"command":"git commit -m test"}'
-bash ~/.claude/scripts/safety-net.sh
+bun ~/.claude/src/hooks/safety-net.ts
 
 # Check exit code
 echo $?  # 0 = allow, 1 = block
@@ -440,9 +527,6 @@ tail -f ~/.claude/swarm.log
 
 # Watch all hook-related logs
 tail -f ~/.claude/hooks.log
-
-# Check recent skill activations
-cat ~/.claude/skill-activation.out
 
 # List handoff files
 ls -lt ~/.claude/handoffs/*.md | head -5

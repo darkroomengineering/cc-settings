@@ -1,8 +1,6 @@
 # Darkroom Engineering — Claude Code
 
-> Claude-Code-specific configuration. For coding standards and guardrails, see AGENTS.md.
-
-**Read and follow `AGENTS.md`** in the project root for all coding standards, guardrails, and conventions. This file contains only Claude-Code-specific settings.
+Read `AGENTS.md` for coding standards and guardrails. This file is Claude-Code-specific only.
 
 ---
 
@@ -19,126 +17,115 @@ The Edit tool uses exact string matching. Follow these rules:
 
 ## Delegation
 
-Use agents for complex tasks. Use tools directly for simple ones.
+> **Opus 4.8 note**: Claude Opus 4.8 (and 4.7 before it) spawns fewer subagents by default than 4.6 and prefers internal reasoning over tool/agent use. The rules below are **not suggestions** — they are explicit triggers to counter that bias. When a trigger fires, delegate. Do not reason your way out of delegating "because you could do it yourself."
 
-**Delegate when:**
-- Multi-file exploration → `Task(explore, "...")`
-- Breaking down complex work → `Task(planner, "...")`
-- Multi-file implementation → `Task(implementer, "...")`
-- Code review → `Task(reviewer, "...")`
-- Writing tests → `Task(tester, "...")`
-- Security-sensitive code → `Task(security-reviewer, "...")`
-- Dead code cleanup → `Task(deslopper, "...")`
-- Expert Q&A / second opinions → `Task(oracle, "...")`
-- Scaffolding new components → `Task(scaffolder, "...")`
-- Complex multi-step tasks → `Task(maestro, "...")`
+### You MUST delegate (non-negotiable) when:
 
-**Act directly when:**
-- Reading a specific file you know the path to
-- Single-file edits under 20 lines
-- Running a build or test command
-- Simple searches (grep for a string, glob for a file)
+- **Multi-file exploration spanning 3+ files** → `Agent(explore, "...")`
+- **Any task that would require 10+ sequential tool calls** → break into agent tasks
+- **Security-sensitive code** (auth, payments, crypto, input validation) → `Agent(security-reviewer, "...")`
+- **Writing new test files** → `Agent(tester, "...")`
+- **Dead code cleanup or codebase deslop** → `Agent(deslopper, "...")`
+- **Parallel independent workstreams** (3+ with no file conflicts) → spawn agents in a single message
 
-**Parallelize**: when spawning multiple agents for independent work, send all Task calls in a single message.
+### You SHOULD prefer delegation for:
 
-For full orchestration mode (power users), activate `profiles/maestro.md`.
+- **Genuinely complex implementation — 3+ files, or 10+ sequential tool calls** → `Agent(implementer, "...")`
+- **Architecture decisions or upfront planning** → `Agent(planner, "...")`
+- **Scaffolding new components/hooks/pages** → `Agent(scaffolder, "...")`
+- **Code review on changes touching 3+ files** → `Agent(reviewer, "...")`
+- **Expert second opinions / blast-radius / "why is this here" questions** → `Agent(explore, "...")`
+- **Full-feature orchestration across 3+ agents** → `Agent(maestro, "...")`
 
----
+> **Briefing contract for `implementer`**: as a subagent it gets only your prompt — no conversation context, none of the files you've read — so every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command, and a scope boundary. Thin prompts cause regressions; the agent will refuse them. It runs in the live working tree and leaves changes **uncommitted** for you to review before they land. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
 
-## Model & Context
+### Act directly ONLY when:
 
-### Opus 4.6 (Default)
-- Adaptive reasoning depth based on complexity
-- 128K max output per response
-- Fast mode: same model, faster output (`/fast`)
-- Effort levels: `low`, `medium`, `high` (default), `max`
+- Reading a specific file you already know the path to
+- Small or medium edits spanning 1–2 files, or any change you can finish in under ~10 tool calls
+- Running build or test commands
+- Simple searches (one grep for a string, one glob for a file pattern)
+- Answering a conversational question with no code change
 
-### Context Window
-- Default: 200K tokens
-- 1M available in beta: use `opus[1m]` in settings.json
-- Skill character budget: 25K chars (`SLASH_COMMAND_TOOL_CHAR_BUDGET`)
-- **Manual `/compact` at 50% context utilization** — do not wait for automatic compaction
-- **Break subtasks to complete within 50% context** — prevents context rot mid-task
-- **After compaction**: re-read task plan + active files before continuing (see AGENTS.md "Post-Compaction Recovery")
+### Enforcement Rules
+
+1. **Parallelize**: when multiple delegations have no dependencies, send all `Agent` calls in a single message — they run concurrently.
+2. **Don't narrate the decision**: if a trigger fires, call the Agent tool directly. Don't explain why you're delegating — just delegate.
+3. **Match the tool to the size**: the MUST/SHOULD triggers fire only for genuinely heavy work (3+ files, 10+ tool calls, security-sensitive code, new test files). Small and medium edits staying in the main session is the correct default — it keeps the diff reviewable in the working tree before commit. Don't spawn an `implementer` just to prove you delegated.
+
+For full orchestration mode, activate `profiles/maestro.md`. Model routing per agent: see `docs/agent-models.md`.
 
 ---
 
-## Profiles
+## Effort & Context
 
-Activate for specialized workflows:
+**Effort levels** — `low`, `medium`, `high`, `xhigh`, `max`. Default `xhigh` (pinned via `CLAUDE_CODE_EFFORT_LEVEL` in settings.json — guard against silent downgrades). Per-session: `/effort`. Per-agent: `effort` frontmatter.
 
-| Profile | Use Case |
-|---------|----------|
-| `maestro` | Full orchestration mode — agent delegation for everything |
-| `nextjs` | Next.js web apps |
-| `react-native` | Expo mobile apps |
-| `tauri` | Tauri desktop apps (Rust + Web) |
-| `webgl` | 3D web (R3F, Three.js, GSAP) |
+- `low` — trivial lookups, latency-sensitive
+- `medium` — routine edits where depth isn't required
+- `high` — non-coding intelligence (writing, analysis)
+- `max` — extreme cases only; often overthinks
+- `ultracode` — session-only; `xhigh` reasoning plus automatic [dynamic workflow](https://code.claude.com/docs/en/workflows) orchestration. Useful for codebase audits, large migrations, deep research. Set via `/effort ultracode`. Resets on session end. Requires Claude Code v2.1.154+.
 
----
+**4.8 calibration**: default effort dropped to `high` (was `xhigh` on 4.7). cc-settings pins `xhigh` via `CLAUDE_CODE_EFFORT_LEVEL` so behavior is preserved — but the `xhigh` ladder allocates more thinking tokens on 4.8 than on 4.7 (per-model calibration; see [model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)). At `low`/`medium` the model still scopes strictly and may under-think. Raise effort rather than prompting around shallow reasoning. Use `ultrathink` keyword for one-turn maximum depth on hard multi-file debugging.
 
-## Agent Teams
+**Context window** — 1M tokens default on Max. Subagents inherit. Use `opus[1m]` / `sonnet[1m]` aliases in settings.json to pin.
 
-For 3+ independent workstreams with no file conflicts:
-- Enable: `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` in settings.json
-- Display: `in-process` (Shift+Up/Down) or split panes
-- Delegate mode: Shift+Tab to toggle
-- File locking built-in
+- **Manual `/compact` at 65%** — Opus 4.7/4.8's tokenizer is ~1-1.35x heavier per text vs 4.6 (was 70% on 4.6); on 4.8, `xhigh` also allocates more thinking tokens per turn, so context burns faster. Auto-compaction triggers at 95%; don't wait for it.
+- **Break subtasks to complete within 45%** — conservative budget for 4.7/4.8 tokenization. Prevents context rot mid-task.
+- **After compaction**: re-read task plan + active files (see AGENTS.md "Post-Compaction Recovery").
 
-Use subagents (Task) for dependent sequential tasks.
-Use teams for independent parallel work.
+Output token limits: 64K default, 128K upper bound.
 
 ---
 
-## TLDR (Token-Efficient Exploration)
+## Verification Before Recommendation
 
-When `llm-tldr` is installed (v1.5+), prefer TLDR for large codebases. Language is auto-detected across 17 languages — no need to specify `--lang`.
+For hardware, firmware, OS-level, dock, or filesystem-compatibility tasks, web-search the exact model number and platform **before** recommending tooling or steps. Three things must be verified upfront:
 
-| Instead of... | Use |
-|---|---|
-| Reading a large file | `tldr context functionName --project .` |
-| Searching by meaning | `tldr semantic "description" .` |
-| Finding callers | `tldr impact functionName .` |
-| Architecture overview | `tldr arch .` |
-| File tree | `tldr tree .` |
-| Dead code | `tldr dead .` |
+1. **The tool exists on the user's platform.** Apple Silicon macOS support is not implied by a Windows or Intel Mac listing.
+2. **The hardware actually supports the assumed feature.** exFAT, NTFS, PCIe passthrough, and similar capabilities are licensed or chipset-gated — they are not universal.
+3. **Documented platform restrictions.** Apple Silicon's Hypervisor.framework blocks PCIe passthrough required for many firmware flashers; macOS rejects unsigned kexts; iOS blocks raw USB.
 
-Use TLDR when it saves tokens. Use Read/Grep when you need exact content or small files.
+Real incidents this rule encodes:
+- **TCL C845** lacks exFAT licensing — hours of reformatting wasted before discovery.
+- **Dell macOS firmware updater** searched for does not exist on macOS; only Windows and Linux builds ship.
+- **WD19TB dock firmware flash** blocked by Hypervisor.framework on Apple Silicon — the vendor tool requires PCIe passthrough that the platform forbids.
 
----
-
-## Cache-Friendly Context Ordering
-
-Context ordering affects KV-cache hit rates. For maximum prefix cache reuse:
-
-1. **Stable elements first** — system prompt, tool definitions, AGENTS.md rules
-2. **Semi-stable next** — skill content, project context, loaded rules
-3. **Dynamic elements last** — user messages, tool outputs, timestamps
-
-Placing dynamic content (timestamps, user-specific data) early in context invalidates the cache prefix for everything after it. This ordering is mostly handled by Claude Code automatically, but be aware when constructing custom prompts or skill content.
+Scope: consumer hardware and platform-integration questions specifically. Library and framework questions still go through context7.
 
 ---
 
-## MCP Tool Deferral
+## Reference
 
-When MCP tool descriptions exceed 10% of context, tools are auto-deferred.
-Discovered on-demand via `ToolSearch`. Configure: `ENABLE_TOOL_SEARCH=auto:N`
+- **Profiles** (specialized workflows: `nextjs`, `react-native`, `tauri`, `webgl`, `maestro`, `react-router`) — see `docs/profiles.md`
+- **TLDR** (token-efficient codebase exploration via `llm-tldr`) — see `docs/tldr-cheatsheet.md`
+- **Hooks** (29 events, 8 categories, conditional `if` filtering) — see `docs/hooks-reference.md`
+- **Agent frontmatter** (`tools`, `disallowedTools`, `maxTurns`, `permissionMode`, `effort`, `isolation`, `hooks`, `mcpServers`, `initialPrompt`) — see `docs/frontmatter-reference.md`
+- **Knowledge system** (shared team-knowledge repo + local auto-memory) — see `docs/knowledge-system.md`
+- **Agent teams** (parallel independent workstreams, `teammateMode: "auto"`) — see `docs/feature-agents-guide.md`
 
----
+Skill matching is handled by the native `Skill` tool (v2.1.108).
 
-## Hook Events
+### Supply-chain hook defense
 
-14 events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`,
-`PostToolUse`, `PostToolUseFailure`, `Notification`, `SubagentStart`, `SubagentStop`,
-`Stop`, `TeammateIdle`, `TaskCompleted`, `PreCompact`, `SessionEnd`
+cc-settings detects post-install tampering of `~/.claude/settings.json` — the
+Shai-Hulud worm pattern that compromised 172 npm/PyPI packages in May 2026
+by injecting a persistent `SessionStart` hook. Two layers:
 
-Types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with tools)
+- **Fingerprint** — `setup.sh` writes a SHA256 of the merged hooks block. The
+  `verify-hooks.ts` SessionStart hook re-hashes on every session and warns
+  on mismatch. Silent when fingerprint matches.
+- **Audit** — `bun run audit:hooks` classifies every hook command in
+  `~/.claude/settings.json` as trusted / unknown / suspicious. Exit 1 on
+  suspicious findings, suitable for CI.
 
----
+Custom hooks are preserved by the installer's merger; after intentionally
+adding one, re-run `setup.sh` to refresh the fingerprint. The auditor never
+self-refreshes the fingerprint — that would let malware whitelist itself.
 
-## Knowledge System
+Full threat model + remediation: see `SECURITY.md`.
 
-Two-tier knowledge. See `docs/knowledge-system.md` for full details.
+### Skill library soft cap — 40
 
-- **Shared** → GitHub Project board (team-wide decisions, gotchas, conventions)
-- **Local** → Auto-memory + learnings (personal preferences, session context)
+Anthropic's Skills guide flags 20–50 skills as the point where the Skill selector starts struggling to read every description per turn. We sit at 31 cc-settings skills (Tier P1 cleanup May 2026: retired `audit`, `lenis`; merged `create-handoff`+`resume-handoff` → `handoff`, `discovery`+`prd` → `plan-feature`, `ask`+`premortem`+`compare-approaches` → `oracle`, `tdd` folded into `test`, `cc-sync`+`cc-update` → `cc`; folded `long-task` into `orchestrate`; demoted `write-a-skill` to `bun run new-skill` CLI; `nuclear-review` ported from Cursor team-kit May 2026; `share-learning` revived May 2026; `proof-of-work` + `review-batch` added May 2026 from the Orchestration Tax; `freeze` edit-scope lock ported from gstack June 2026). **Adding a new skill past 40 requires removing one** — re-evaluate `skills/` for consolidation candidates first. Validate the library with `bun run lint:skills`, which enforces the spec (kebab-case folders, frontmatter contract, no angle brackets, …) and surfaces the cap as a warning when crossed. Drift hides easily; let the linter catch it.

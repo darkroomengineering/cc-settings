@@ -1,3 +1,10 @@
+---
+name: nextjs
+description: Next.js web apps
+model: opus
+skills: [build, component, hook, lighthouse]
+---
+
 # Next.js Profile (App Router)
 
 > Patterns for Next.js 16+ App Router projects with React Server Components.
@@ -85,7 +92,7 @@ async function Page() {
 
 // With fetch and caching
 async function Page() {
-  const res = await fetch('https://api.example.com/data', {
+  const res = await fetch('https://api.your-site.example/data', {
     next: { revalidate: 3600 } // Revalidate every hour
   })
   const data = await res.json()
@@ -392,7 +399,7 @@ Configure remote patterns in `next.config.js`:
 module.exports = {
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'cdn.example.com' }
+      { protocol: 'https', hostname: 'cdn.your-site.example' }
     ]
   }
 }

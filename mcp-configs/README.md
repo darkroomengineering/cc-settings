@@ -26,7 +26,7 @@ Add MCP servers to `~/.claude.json`:
 {
   "mcpServers": {
     "context7": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@upstash/context7-mcp"],
       "env": {}
     },
@@ -35,12 +35,14 @@ Add MCP servers to `~/.claude.json`:
       "url": "https://mcp.vercel.com"
     },
     "memory": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@modelcontextprotocol/server-memory"]
     }
   }
 }
 ```
+
+> **Why `bunx` over `npx`?** `npx` resolves from the current working directory's `package.json` and fails (`EOVERRIDE`) inside monorepos that use Bun's `catalog:` protocol alongside `overrides`. `bunx` understands `catalog:` natively and is guaranteed available on Darkroom machines (cc-settings requires `bun >=1.1.30`).
 
 ### Server Types
 
@@ -48,7 +50,7 @@ Add MCP servers to `~/.claude.json`:
 ```json
 {
   "server-name": {
-    "command": "npx",
+    "command": "bunx",
     "args": ["-y", "package-name"],
     "env": {
       "API_KEY": "your-key"
@@ -62,7 +64,7 @@ Add MCP servers to `~/.claude.json`:
 {
   "server-name": {
     "type": "http",
-    "url": "https://mcp.example.com"
+    "url": "https://mcp.your-host.example"
   }
 }
 ```
@@ -91,11 +93,11 @@ MCP servers consume context window tokens. Each active server adds:
 
 ## Disabling Per-Project
 
-Use `disabledMcpServers` in `.claude/settings.json` to disable servers for specific projects:
+Use `disabledMcpjsonServers` in `.claude/settings.json` to disable servers for specific projects:
 
 ```json
 {
-  "disabledMcpServers": [
+  "disabledMcpjsonServers": [
     "memory",
     "vercel"
   ]
@@ -142,13 +144,15 @@ These servers are configured automatically by `setup.sh`:
 - **context7** - Live documentation lookup (crucial for current APIs)
 - **Sanity** - CMS content and schema operations (OAuth on first use)
 - **tldr** - Semantic codebase analysis and search (requires `pipx install llm-tldr`)
+- **figma** - Design-to-code and Figma file inspection (MCP server's own instructions handle URL parsing and design-to-code)
+- **chrome-devtools** - Browser automation (navigate, screenshot, a11y snapshot, click/fill, Lighthouse)
 
 ### Optional (`recommended.json` — `optionalMcpServers`)
 
 Additional servers you can add manually to `~/.claude.json`:
 - **github** - GitHub integration for issues, PRs, projects (alternative: use `gh` CLI)
 - **vercel** - Deployment management
-- **memory** - Persistent knowledge across sessions
+- **memory** - Persistent knowledge across sessions (cc-settings ships its own auto-memory system at `~/.claude/projects/<hash>/memory/` — this server is redundant unless you prefer a different memory UX)
 
 ### Adding Project-Specific Servers
 
@@ -162,7 +166,7 @@ For client projects that need additional MCP servers (databases, hosting, comms 
 
 1. Check `~/.claude.json` syntax (valid JSON)
 2. Restart Claude Code
-3. Verify package exists: `npx -y package-name --help`
+3. Verify package exists: `bunx -y package-name --help`
 
 ### Authentication Errors
 
@@ -172,7 +176,7 @@ For client projects that need additional MCP servers (databases, hosting, comms 
 
 ### Context Window Exhaustion
 
-1. Disable unused servers with `disabledMcpServers`
+1. Disable unused servers with `disabledMcpjsonServers`
 2. Remove servers from global config
 3. Use project-specific configs instead of global
 
@@ -182,7 +186,7 @@ Some servers need longer startup time:
 ```json
 {
   "server-name": {
-    "command": "npx",
+    "command": "bunx",
     "args": ["-y", "package-name"],
     "timeout": 30000
   }
@@ -221,4 +225,4 @@ See [MCP SDK docs](https://modelcontextprotocol.io/docs) for full guide.
 
 - [MCP Specification](https://modelcontextprotocol.io)
 - [MCP SDK (TypeScript)](https://github.com/modelcontextprotocol/typescript-sdk)
-- [Claude Code MCP Docs](https://docs.anthropic.com/en/docs/claude-code/mcp)
+- [Claude Code MCP Docs](https://code.claude.com/docs/en/mcp)

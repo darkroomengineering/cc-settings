@@ -8,18 +8,26 @@ Complete reference for YAML frontmatter fields in agent definitions and skill fi
 
 **Location:** `~/.claude/agents/*.md`
 
-Agent files define reusable personas that Claude Code can delegate work to via `Task(agentName, "...")`.
+Agent files define reusable personas that Claude Code can delegate work to via `Agent(agentName, "...")`.
 
 ### Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Agent identifier, used in `Task(name, "...")` invocations |
+| `name` | string | Yes | Agent identifier, used in `Agent(name, "...")` invocations |
 | `model` | string | No | Model to use: `opus` (default), `sonnet`, `haiku` |
 | `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions |
 | `description` | string | Yes | Multi-line description shown in agent selection. Controls auto-invocation behavior (see below) |
-| `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, LS, Task, ...]` |
+| `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, LS, Agent, ...]` |
 | `color` | string | No | Display color in the UI: `purple`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gold` |
+| `skills` | list | No | Skills to preload into the subagent context at startup |
+| `mcpServers` | object | No | MCP servers scoped to this agent (inline definitions or references) |
+| `hooks` | object | No | Lifecycle hooks scoped to this specific subagent |
+| `maxTurns` | number | No | Maximum agentic turns before the subagent stops |
+| `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |
+| `background` | boolean | No | When `true`, always run this subagent as a background task |
+| `isolation` | string | No | Set to `worktree` to run in a temporary git worktree for isolated repo access |
+| `effort` | string | No | Effort level for this agent: `low`, `medium`, `high` |
 
 ### Auto-Invocation via `description`
 
@@ -37,14 +45,14 @@ The `description` field serves double duty. Beyond appearing in agent selection,
 | `project` | Sessions in this project | `~/.claude/memory/project/` |
 | `local` | Current machine only | `~/.claude/memory/local/` |
 
-Agents with `memory` enabled: `explore`, `reviewer`, `planner`, `oracle`.
+Agents with `memory` enabled: `explore`, `reviewer`, `planner`.
 
 ### Example: Minimal Agent
 
 ```yaml
 ---
 name: implementer
-model: opus
+model: sonnet
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
 tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]
@@ -57,7 +65,7 @@ color: green
 ```yaml
 ---
 name: explore
-model: opus
+model: sonnet
 memory: project
 description: |
   Fast codebase exploration, navigation, and documentation fetching.
@@ -73,15 +81,14 @@ color: purple
 
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
-| `explore` | opus | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
-| `maestro` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Task | red |
+| `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
+| `implementer` | sonnet | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
+| `maestro` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
 | `reviewer` | opus | project | Read, Grep, Glob, LS, Bash | yellow |
 | `planner` | opus | project | Read, Grep, Glob, LS | blue |
-| `oracle` | opus | project | Read, Grep, Glob, LS, WebFetch, Bash | gold |
-| `tester` | opus | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
-| `scaffolder` | opus | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
-| `deslopper` | opus | -- | Read, Edit, Grep, Glob, LS, Bash, Task, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
+| `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
+| `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
+| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
 | `security-reviewer` | opus | -- | Read, Grep, Glob, Bash | red |
 
 ---
@@ -121,9 +128,9 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
 | `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
 
-Skills using `fork`: `ask`, `build`, `checkpoint`, `debug`, `design-tokens`, `discovery`, `docs`, `explore`, `f-thread`, `fix`, `l-thread`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `teams`, `test`, `tldr`.
+Skills using `fork`: `ask`, `autoresearch`, `build`, `checkpoint`, `compare-approaches`, `consolidate`, `design-tokens`, `discovery`, `explore`, `fix`, `lighthouse`, `long-task`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `test`, `tldr`, `verify`.
 
-Skills using `inherit` (default): `component`, `context`, `create-handoff`, `effort`, `hook`, `init`, `learn`, `lenis`, `project`, `resume-handoff`, `versions`.
+Skills using `inherit` (default): `audit`, `component`, `create-handoff`, `dr-init`, `hook`, `lenis`, `project`, `resume-handoff`, `share-learning`, `versions`.
 
 ### Agent Delegation
 
@@ -137,7 +144,6 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 | `orchestrate` | `maestro` |
 | `premortem` | `oracle` |
 | `review` | `reviewer` |
-| `teams` | `maestro` |
 | `test` | `tester` |
 
 ### Example: Skill with Fork and Agent Delegation
@@ -157,13 +163,13 @@ agent: explore
 
 ```yaml
 ---
-name: effort
+name: checkpoint
 description: |
-  Dynamic effort level management. Use when:
-  - User mentions "think harder", "be thorough", "quick fix"
+  Save session state snapshots. Use when:
+  - User says "checkpoint", "save state", "save progress"
 allowed-tools:
   - Bash
-argument-hint: "[low|medium|high|max]"
+argument-hint: "[save|restore|list] [name]"
 ---
 ```
 
@@ -185,24 +191,23 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | Skill | Context | Agent | Allowed Tools | Argument Hint |
 |-------|---------|-------|---------------|---------------|
 | `ask` | fork | oracle | -- | -- |
+| `audit` | -- | -- | -- | -- |
+| `autoresearch` | fork | -- | -- | `<skill-name>` |
 | `build` | fork | -- | -- | -- |
 | `checkpoint` | fork | -- | Bash | -- |
+| `compare-approaches` | fork | -- | -- | -- |
 | `component` | -- | -- | -- | -- |
-| `context` | -- | -- | -- | -- |
+| `consolidate` | fork | -- | -- | -- |
 | `create-handoff` | -- | -- | -- | -- |
-| `debug` | fork | -- | Bash | -- |
 | `design-tokens` | fork | -- | -- | -- |
 | `discovery` | fork | planner | -- | -- |
-| `docs` | fork | -- | MCP context7 tools, WebFetch, WebSearch | -- |
-| `effort` | -- | -- | Bash | `[low\|medium\|high\|max]` |
+| `dr-init` | -- | -- | -- | `[project-name]` |
 | `explore` | fork | explore | -- | -- |
-| `f-thread` | fork | -- | -- | -- |
 | `fix` | fork | -- | -- | -- |
 | `hook` | -- | -- | -- | -- |
-| `init` | -- | -- | -- | `[project-name]` |
-| `l-thread` | fork | -- | -- | -- |
-| `learn` | -- | -- | -- | -- |
 | `lenis` | -- | -- | -- | -- |
+| `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
+| `long-task` | fork | -- | -- | -- |
 | `orchestrate` | fork | maestro | -- | -- |
 | `prd` | fork | -- | -- | -- |
 | `premortem` | fork | oracle | -- | -- |
@@ -211,11 +216,59 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 | `refactor` | fork | -- | -- | -- |
 | `resume-handoff` | -- | -- | -- | -- |
 | `review` | fork | reviewer | -- | -- |
+| `share-learning` | -- | -- | -- | -- |
 | `ship` | fork | -- | -- | -- |
-| `teams` | fork | maestro | -- | -- |
 | `test` | fork | tester | -- | -- |
 | `tldr` | fork | -- | -- | -- |
+| `verify` | fork | -- | -- | -- |
 | `versions` | -- | -- | -- | -- |
+
+---
+
+## Profile Frontmatter
+
+**Location:** `~/.claude/profiles/*.md`
+
+Profile files inject specialized instructions for a particular workflow context. They are activated via `@profile-name` references in CLAUDE.md or per-project setup.
+
+All frontmatter fields in profiles are **advisory** — validated at install time for well-formedness and readable as documented intent. They are not enforced at runtime: cc-settings does not switch the active model, gate skills, or restrict tools based on a profile.
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Profile identifier (kebab-case, must match the filename stem) |
+| `description` | string | Yes | Short description of the profile's purpose |
+| `model` | string | No | Advisory: intended model alias (`opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
+| `skills` | list | No | Advisory: skill names expected to be active in this context |
+| `tools` | list | No | Advisory: tool subset relevant to this workflow |
+| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
+| `effort` | string | No | Advisory: default effort level (`low`, `medium`, `high`, `xhigh`, `max`) |
+
+### Example: Profile with Advisory Fields
+
+```yaml
+---
+name: maestro
+description: |
+  Full orchestration mode for power users. Coordinates agents instead of executing directly.
+  Activate when you want maximum delegation and parallel agent workflows.
+model: opus
+skills: [orchestrate]
+effort: xhigh
+---
+```
+
+### Profiles in cc-settings
+
+| Profile | Model (advisory) | Skills (advisory) | Effort (advisory) |
+|---------|-----------------|-------------------|-------------------|
+| `maestro` | opus | orchestrate | xhigh |
+| `nextjs` | opus | build, component, hook, lighthouse | — |
+| `react-native` | opus | build, component | — |
+| `tauri` | opus | build | — |
+| `webgl` | opus | component, qa | — |
+| `react-router` | opus | build, component, hook | — |
 
 ---
 

@@ -1,0 +1,8 @@
+{
+  "model": "opus",
+  "statusLine": {
+    "type": "command",
+    "command": "bun \"$HOME/.claude/src/hooks/statusline.ts\"",
+    "refreshInterval": 30
+  }
+}

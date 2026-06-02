@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "_description": "MCP server reference for Darkroom projects. 'installed' servers are configured by setup.sh. 'optional' servers can be added manually to ~/.claude.json.",
+  "_description": "MCP server reference for Darkroom projects. `_status: \"core\"` servers are configured automatically by setup.sh. `_status: \"optional\"` servers can be added manually to ~/.claude.json.",
 
-  "_installed": "These servers are installed automatically by setup.sh into settings.json and ~/.claude.json.",
+  "_core": "These servers are installed automatically by setup.sh into settings.json and ~/.claude.json.",
 
   "mcpServers": {
     "context7": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@upstash/context7-mcp"],
-      "_description": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts.",
+      "_description": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts. bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
       "_usage": "Triggered by: 'how to use X', 'X docs', 'api reference for Y'",
       "_contextCost": "low",
-      "_status": "installed"
+      "_status": "core"
     },
 
     "Sanity": {
@@ -20,7 +20,7 @@
       "_description": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server",
       "_usage": "Sanity projects, GROQ queries, CMS-driven content workflows",
       "_contextCost": "medium",
-      "_status": "installed"
+      "_status": "core"
     },
 
     "tldr": {
@@ -29,7 +29,25 @@
       "_description": "Semantic codebase analysis and repository-level search. Requires: pipx install llm-tldr",
       "_usage": "Find implementations, understand large codebases, semantic search across files",
       "_contextCost": "low",
-      "_status": "installed"
+      "_status": "core"
+    },
+
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "_description": "Figma Dev Mode MCP (remote). OAuth on first use. Requires Dev or Full Figma seat.",
+      "_usage": "Design tokens, styles, component props, variables, file structure — design-to-code workflows",
+      "_contextCost": "medium",
+      "_status": "core"
+    },
+
+    "chrome-devtools": {
+      "command": "bunx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "_description": "Chrome DevTools via CDP. Performance traces, network, console, user simulation. bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
+      "_usage": "Performance tracing, network inspection, console logs, Core Web Vitals measurement",
+      "_contextCost": "medium",
+      "_status": "core"
     }
   },
 
@@ -37,7 +55,7 @@
 
   "optionalMcpServers": {
     "github": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@anthropic/github-mcp-server"],
       "env": {
         "GITHUB_TOKEN": "<your-github-token>"
@@ -45,6 +63,7 @@
       "_description": "GitHub integration for issues, PRs, projects, and repos.",
       "_usage": "Project management, issue tracking, PR creation, code review",
       "_contextCost": "medium",
+      "_status": "optional",
       "_note": "Alternative: use 'gh' CLI directly via Bash (no MCP server needed, lower context cost)."
     },
 
@@ -53,16 +72,18 @@
       "url": "https://mcp.vercel.com",
       "_description": "Vercel deployment management. View deployments, logs, environment variables.",
       "_usage": "Deploy, check build status, view logs, manage env vars",
-      "_contextCost": "low"
+      "_contextCost": "low",
+      "_status": "optional"
     },
 
     "memory": {
-      "command": "npx",
+      "command": "bunx",
       "args": ["-y", "@modelcontextprotocol/server-memory"],
       "env": {},
       "_description": "Persistent memory across sessions. Stores facts, preferences, and context.",
       "_usage": "Remember project decisions, user preferences, learned patterns",
-      "_contextCost": "medium"
+      "_contextCost": "medium",
+      "_status": "optional"
     }
   }
 }

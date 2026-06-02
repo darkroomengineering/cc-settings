@@ -1,0 +1,77 @@
+{
+  "$id": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/skill.schema.json",
+  "title": "Darkroom skill frontmatter",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "type": "string",
+      "enum": [
+        "fork",
+        "main"
+      ]
+    },
+    "agent": {
+      "type": "string"
+    },
+    "allowed-tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "minLength": 1
+              },
+              "install": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mcp": {
+                "type": "string",
+                "minLength": 1
+              },
+              "install": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mcp"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "name",
+    "description"
+  ],
+  "additionalProperties": {}
+}

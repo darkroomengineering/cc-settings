@@ -1,14 +1,6 @@
 ---
 name: consolidate
-description: |
-  Clean up and consolidate rules, skills, and learnings. Use when:
-  - User says "consolidate", "clean up rules", "simplify config"
-  - User mentions "contradictions", "too many rules", "bloated"
-  - User says "spa day", "maintenance", "spring cleaning"
-  - User asks to "review skills", "audit rules", "prune learnings"
-  - Agent performance seems to have degraded
-  - Rules or skills have been added incrementally over time
-  - User says "what's redundant", "what can we remove"
+description: Audit and prune rules/skills/learnings to prevent context bloat. Triggers "consolidate", "clean up rules", "spa day", "what's redundant", degraded agent perf.
 context: fork
 ---
 
@@ -22,7 +14,7 @@ Prevent context bloat and contradictions by periodically auditing, merging, and 
 ```bash
 echo "Rules:" && ls ~/.claude/rules/*.md 2>/dev/null | wc -l
 echo "Skills:" && ls -d ~/.claude/skills/*/SKILL.md 2>/dev/null | wc -l
-echo "Learnings:" && bash ~/.claude/scripts/learning.sh recall all 2>/dev/null | wc -l
+echo "Auto-memory entries:" && find ~/.claude/projects/*/memory -name "*.md" -not -name "MEMORY.md" 2>/dev/null | wc -l
 echo "CLAUDE.md lines:" && wc -l ~/.claude/CLAUDE.md 2>/dev/null
 echo "AGENTS.md lines:" && wc -l ~/.claude/AGENTS.md 2>/dev/null
 ```
@@ -54,13 +46,11 @@ Read all skill descriptions and flag:
 - Update outdated instructions
 - Ensure distinct, non-overlapping trigger phrases
 
-### Learnings
-```bash
-bash ~/.claude/scripts/learning.sh prune 90
-```
-- Remove learnings about long-fixed bugs
-- Remove learnings about deprecated patterns
-- Consolidate similar learnings into one
+### Auto-memory
+- Review entries under `~/.claude/projects/<hash>/memory/`
+- Remove entries about long-fixed bugs
+- Remove entries about deprecated patterns
+- Consolidate similar entries into one
 
 ## Phase 3: Simplify CLAUDE.md
 

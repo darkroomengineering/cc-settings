@@ -1,0 +1,71 @@
+{
+  "$id": "https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/profile.schema.json",
+  "title": "Darkroom profile frontmatter",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "opus",
+            "sonnet",
+            "haiku"
+          ]
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "permissionMode": {
+      "type": "string",
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "auto",
+        "dontAsk",
+        "bypassPermissions"
+      ]
+    },
+    "effort": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    }
+  },
+  "required": [
+    "name",
+    "description"
+  ],
+  "additionalProperties": {}
+}

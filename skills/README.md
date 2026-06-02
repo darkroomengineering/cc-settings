@@ -46,8 +46,8 @@ These fork context and delegate to specialized agents:
 | `test` | test, write tests, coverage | tester |
 | `orchestrate` | complex task, coordinate | maestro |
 | `ship` | ship it, create PR, /pr, /ship | tester → reviewer → implementer |
-| `f-thread` | compare approaches, architecture decision | parallel oracles → scoring matrix |
-| `l-thread` | overnight, long running, autonomous task | phased execution with checkpoints |
+| `compare-approaches` | compare approaches, architecture decision | parallel oracles → scoring matrix |
+| `long-task` | overnight, long running, autonomous task | phased execution with checkpoints |
 | `verify` | verify, double check, prove it, adversarial, audit | finder → adversary → referee |
 
 ### Creation (Direct Output)
@@ -58,15 +58,14 @@ These create files directly in main context:
 | `component` | create component, new component |
 | `design-tokens` | design tokens, type scale, color palette, spacing system, theme setup |
 | `hook` | create hook, custom hook |
-| `init` | new project, initialize, setup |
+| `dr-init` | new project, initialize, setup |
 
 ### Research (Forked Context)
 These fork context for clean exploration:
 
 | Skill | Triggers On |
 |-------|-------------|
-| `explore` | how does, where is, find, understand |
-| `docs` | documentation, how to use, library API |
+| `explore` | how does, where is, find, understand, zoom out, bigger picture, where does this fit |
 | `ask` | advice, guidance, what should I |
 | `tldr` | who calls, dependencies, semantic search |
 | `premortem` | risks, what could go wrong |
@@ -77,40 +76,28 @@ These fork context for clean exploration:
 ### Tools
 | Skill | Triggers On |
 |-------|-------------|
-| `debug` | screenshot, visual bug, inspect element |
-| `figma` | figma, compare to design, design fidelity, extract tokens from figma |
-| `qa` | visual check, accessibility, validate |
-| `versions` | package version, before installing |
+| `qa` | visual QA, accessibility, contrast, touch target |
 | `lenis` | smooth scroll, lenis setup |
 
 ### Utility
 | Skill | Triggers On |
 |-------|-------------|
-| `effort` | think harder, max effort, quick fix, slow down |
-| `teams` | parallel agents, split work, fan out |
+| `audit` | /audit — analyzes Claude's Bash command log (categories, security, repeats) |
 | `consolidate` | clean up rules, simplify config, contradictions, spa day, prune |
 
 ### Session Management
 | Skill | Triggers On |
 |-------|-------------|
-| `learn` | **AUTO**: after non-obvious fix, pattern, gotcha |
-| `context` | context window, running out of context |
-| `checkpoint` | save state, save progress, checkpoint |
-| `create-handoff` | done for today, save state |
+| `share-learning` | explicit invocation for team-wide learnings (personal/local notes go to auto-memory) |
+| `checkpoint` | snapshot, before risky op, rollback to |
+| `create-handoff` | done for today, ending session, context window, running out of context |
 | `resume-handoff` | resume, continue, last session |
 
-## The `learn` Skill (Auto-Applied)
+### The `share-learning` Skill (Manual, Team-Only)
 
-**Claude automatically stores learnings when it should remember something.**
+This skill posts architectural decisions, cross-cutting gotchas, and conventions to the shared team-knowledge repo so other team members' AI agents can find them via `rg`/`cat` on a local clone. Invoke it manually or follow the `promote-memory` hook nudge that fires when a `project` or `feedback` auto-memory is written.
 
-Auto-triggers when:
-- Fixing a non-obvious bug
-- Discovering a useful pattern
-- Encountering a gotcha or edge case
-- Finding a tool/library feature
-- Making an architecture decision
-
-Learnings persist across sessions and are recalled on session start.
+For personal notes, the cc-settings auto-memory system (stored under `~/.claude/projects/<hash>/memory/`) captures them automatically. See the "auto memory" section of `~/.claude/CLAUDE.md` for how that works. The rule of thumb: if another team member's AI agent would benefit from knowing it, use `/share-learning`; otherwise let auto-memory handle it.
 
 ## Skill Structure
 
@@ -122,7 +109,7 @@ skills/
 │   └── SKILL.md
 ├── explore/
 │   └── SKILL.md
-├── learn/
+├── share-learning/
 │   └── SKILL.md
 └── ...
 ```
@@ -183,8 +170,8 @@ The old `skill-rules.json` and `commands/*.md` formats have been replaced by `*/
 /skills
 
 # Manually invoke a skill
-/darkroom:fix "the auth bug"
+/fix "the auth bug"
 
-# Check learnings
-bash ~/.claude/scripts/learning.sh recall all
+# Check auto-memory entries for this project
+find ~/.claude/projects/*/memory -name "*.md" -not -name "MEMORY.md" 2>/dev/null
 ```

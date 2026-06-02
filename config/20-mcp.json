@@ -1,0 +1,34 @@
+{
+	"mcpServers": {
+		"context7": {
+			"command": "bunx",
+			"args": [
+				"-y",
+				"@upstash/context7-mcp"
+			],
+			"alwaysLoad": true,
+			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
+		},
+		"tldr": {
+			"command": "tldr-mcp",
+			"args": [
+				"--project",
+				"."
+			],
+			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred."
+		},
+		"figma": {
+			"type": "http",
+			"url": "https://mcp.figma.com/mcp",
+			"serverInstructions": "Figma design inspection and extraction: tokens, styles, component props, variables, and file structure. Use for design-to-code workflows, design fidelity checks, and extracting design tokens. Prefer this over screenshot-based workflows when structured design data is needed."
+		},
+		"chrome-devtools": {
+			"command": "bunx",
+			"args": [
+				"-y",
+				"chrome-devtools-mcp@latest"
+			],
+			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
+		}
+	}
+}

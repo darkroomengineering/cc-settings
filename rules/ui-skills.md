@@ -36,7 +36,7 @@ paths:
 
 ### Accessibility
 
-See `rules/accessibility.md` and `skills/accessibility.md` for full rules.
+See `rules/accessibility.md` and `docs/accessibility.md` for full rules.
 
 ### Dialogs & Modals
 - Use `AlertDialog` (not `Dialog`) for destructive/irreversible actions

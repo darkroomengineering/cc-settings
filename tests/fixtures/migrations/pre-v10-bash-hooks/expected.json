@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "opus",
+  "hooks": {
+    "Stop": [],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {}
+}

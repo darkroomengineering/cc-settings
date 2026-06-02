@@ -1,3 +1,10 @@
+---
+name: react-native
+description: Expo mobile apps
+model: opus
+skills: [build, component]
+---
+
 # React Native Profile (Expo)
 
 > Patterns for React Native mobile applications with Expo SDK and Expo Router.

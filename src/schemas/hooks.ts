@@ -1,0 +1,121 @@
+import { z } from "zod";
+
+// --- Hook events ---------------------------------------------------------
+// Complete list as of Claude Code 2.1.150 per docs.claude.com/en/docs/claude-code/hooks.
+// Kept in sync with upstream/claude-code-manifest.json by the upstream scanner.
+
+export const HookEvent = z.enum([
+  // Lifecycle
+  "SessionStart",
+  "Setup", // v2.1.x — triggered via --init, --init-only, or --maintenance CLI flags
+  "UserPromptSubmit",
+  "UserPromptExpansion", // v2.1.x — user prompt expansion events
+  "PreToolUse",
+  "PermissionRequest",
+  "PermissionDenied",
+  "PostToolUse",
+  "PostToolBatch", // v2.1.x — fires after a batch of tool calls completes
+  "PostToolUseFailure",
+  "Notification",
+  "Stop",
+  "StopFailure",
+  "SessionEnd",
+  // Subagent + task
+  "SubagentStart",
+  "SubagentStop",
+  "TaskCreated",
+  "TaskCompleted",
+  "TeammateIdle",
+  // Config + file
+  "ConfigChange",
+  "CwdChanged",
+  "FileChanged",
+  "InstructionsLoaded",
+  // Worktree
+  "WorktreeCreate",
+  "WorktreeRemove",
+  // Context
+  "PreCompact",
+  "PostCompact",
+  // MCP
+  "Elicitation",
+  "ElicitationResult",
+]);
+export type HookEvent = z.infer<typeof HookEvent>;
+
+// --- Hook entry (discriminated union on `type`) --------------------------
+
+const HookCommon = {
+  if: z.string().optional(), // permission-rule syntax; PreToolUse/PostToolUse/PermissionRequest
+  timeout: z.number().int().positive().optional(),
+  async: z.boolean().optional(),
+  statusMessage: z.string().optional(),
+  once: z.boolean().optional(), // skills/agents only
+  // v2.1.139 — PostToolUse only. When the hook returns a block signal, the
+  // turn continues anyway (the block surfaces in context but doesn't abort).
+  continueOnBlock: z.boolean().optional(),
+};
+
+// v2.1.139 — `args` opts a command hook into exec form: CC spawns the binary
+// at `command` directly with the given argv, no shell. Safer for paths with
+// spaces; removes the need to quote in `command`.
+export const CommandHook = z.object({
+  type: z.literal("command"),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  ...HookCommon,
+});
+
+export const HttpHook = z.object({
+  type: z.literal("http"),
+  url: z.url(),
+  headers: z.record(z.string(), z.string()).optional(),
+  allowedEnvVars: z.array(z.string()).optional(),
+  ...HookCommon,
+});
+
+export const PromptHook = z.object({
+  type: z.literal("prompt"),
+  prompt: z.string().min(1),
+  model: z.string().optional(),
+  ...HookCommon,
+});
+
+export const AgentHook = z.object({
+  type: z.literal("agent"),
+  prompt: z.string().min(1),
+  model: z.string().optional(),
+  ...HookCommon,
+});
+
+// v2.1.118 — invoke an MCP tool directly. The named server must already be
+// connected; the hook never triggers OAuth or a connection flow.
+export const McpToolHook = z.object({
+  type: z.literal("mcp_tool"),
+  server: z.string().min(1),
+  tool: z.string().min(1),
+  input: z.record(z.string(), z.unknown()).optional(), // string values support ${path} substitution
+  ...HookCommon,
+});
+
+export const Hook = z.discriminatedUnion("type", [
+  CommandHook,
+  HttpHook,
+  PromptHook,
+  AgentHook,
+  McpToolHook,
+]);
+export type Hook = z.infer<typeof Hook>;
+
+export const HookGroup = z.object({
+  matcher: z.string().optional(),
+  if: z.string().optional(), // rule syntax at the group level (current settings.json uses this)
+  hooks: z.array(Hook).min(1),
+});
+export type HookGroup = z.infer<typeof HookGroup>;
+
+// The `hooks` field of settings.json: partial record keyed by event name.
+// zod 4's `partialRecord` makes every enum key optional — users only need to
+// declare events they actually wire up. The strict enum still catches typos.
+export const HooksBlock = z.partialRecord(HookEvent, z.array(HookGroup));
+export type HooksBlock = z.infer<typeof HooksBlock>;

@@ -1,0 +1,23 @@
+{
+  "model": "opus",
+  "env": {
+    "ENABLE_PROMPT_CACHING_1H": "1",
+    "CLAUDE_CODE_NO_FLICKER": "1"
+  },
+  "permissions": {
+    "allow": ["Bash(bun:*)", "Bash(git status:*)"],
+    "deny": ["Bash(rm -rf:*)"]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
+          }
+        ]
+      }
+    ]
+  }
+}

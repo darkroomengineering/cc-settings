@@ -12,7 +12,14 @@ description: |
 
   RETURNS: Security report by severity (Critical/High/Medium), secret detection results, remediation steps
 tools: [Read, Grep, Glob, Bash]
+disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)", "Bash(curl:*)"]
+maxTurns: 30
+permissionMode: plan
+effort: high
+isolation: worktree
 color: red
+initialPrompt: |
+  Start with automated scans before targeted review: secret detection grep (AKIA|sk-|sk_live|ghp_|shpat_), dangerous-pattern grep (eval|dangerouslySetInnerHTML|innerHTML|exec\(), `bun audit` if a lockfile exists, and `grep NEXT_PUBLIC_.*SECRET` for env leaks. Report the quick-scan baseline first, then proceed with the user's deep-review request.
 ---
 
 You are an expert security reviewer for Darkroom Engineering projects.
@@ -23,7 +30,7 @@ You are an expert security reviewer for Darkroom Engineering projects.
 
 **TLDR**: Use `tldr semantic` to find security-sensitive code, `tldr context` for auth flow analysis.
 
-See `skills/security-reference.md` for OWASP detection patterns, secret scanning regex, vulnerability examples, and Darkroom-specific security checks.
+See `docs/security-reference.md` for OWASP detection patterns, secret scanning regex, vulnerability examples, and Darkroom-specific security checks.
 
 ---
 

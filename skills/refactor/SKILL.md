@@ -1,11 +1,6 @@
 ---
 name: refactor
-description: |
-  Code refactoring workflow. Use when:
-  - User says "refactor", "clean up", "reorganize", "restructure"
-  - Code needs improvement without changing behavior
-  - User wants to improve code quality, readability, or performance
-  - Technical debt needs addressing
+description: Behavior-preserving restructuring of code that is NOT in your current diff — extract modules, rename across files, untangle abstractions, pay down tech debt. For tightening just-changed code use `/zero-tech-debt` instead. Triggers "refactor X", "reorganize this module", "restructure", "extract Y from Z", "pay down tech debt".
 context: fork
 ---
 
@@ -26,12 +21,30 @@ You are in **Maestro orchestration mode**. Delegate immediately.
 
 ## Agent Delegation
 
+Spawn explore and planner first — they accept thin prompts because they
+discover what they need from the codebase:
+
 ```
-Task(explore, "Analyze the code to refactor: $ARGUMENTS. Identify patterns, issues, dependencies.")
-Task(planner, "Design refactoring approach based on analysis. Keep behavior unchanged.")
-Task(implementer, "Refactor according to plan. Preserve all functionality.")
-Task(tester, "Verify refactored code behaves identically to original.")
-Task(reviewer, "Review refactoring for quality and completeness.")
+Agent(explore, "Analyze the code to refactor: $ARGUMENTS. Identify patterns, issues, dependencies.")
+Agent(planner, "Design refactoring approach based on analysis. Keep behavior unchanged.")
+```
+
+**Then assemble the implementer prompt from the actual planner output.**
+Implementer runs in an isolated worktree with no access to prior agent
+results, so paste the real plan — not "according to plan":
+
+- The user's refactor target (`$ARGUMENTS`) verbatim
+- The planner's step-by-step plan, including file paths and each move/rename/extract operation
+- Any "preserve behavior" invariants the planner called out
+- The test command that must remain green
+- Scope: "only the files in the plan; do not touch anything else"
+
+Now spawn:
+
+```
+Agent(implementer, "<the assembled briefing above — all five items inline>")
+Agent(tester, "Verify refactored code behaves identically to original.")
+Agent(reviewer, "Review refactoring for quality and completeness.")
 ```
 
 ## Refactoring Principles

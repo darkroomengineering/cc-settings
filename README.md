@@ -1,182 +1,84 @@
-# Darkroom Claude Code Settings
+# cc-settings
 
-Open-source AI coding configuration for [darkroom.engineering](https://darkroom.engineering) projects.
-
-**v8.0** — Layered config, portable standards, progressive complexity.
-
----
-
-## What Changed in v8
-
-Previous versions shipped a 538-line monolithic CLAUDE.md loaded into every conversation and every agent spawn — ~5,000 tokens of config overhead per agent, compounding to ~198K tokens across a full orchestration pipeline. A third of API spend was re-reading configuration.
-
-v8 splits this into layers:
-
-| Layer | File | Approx. Tokens | Loaded |
-|-------|------|----------------|--------|
-| **Standards** | `AGENTS.md` | ~1,500 | Per-project, all AI tools |
-| **Claude Config** | `CLAUDE.md` | ~1,200 | Claude Code only |
-| **Orchestration** | `profiles/maestro.md` | ~1,000 | Opt-in, power users |
-| **Rules** | `rules/*.md` | ~500 each | On-demand by file type |
-
-**Before:** Every agent loaded 5,000+ tokens of config. 9-agent pipeline = 45K tokens just for config.
-**After:** Base cost is ~2,700 tokens. Orchestration is opt-in. Rules load contextually.
+Claude Code configuration for the Darkroom team — installs agents, skills, hooks, and coding standards into `~/.claude/`.
 
 ---
 
 ## Install
 
 ```bash
+# macOS / Linux
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
+
+# Windows (PowerShell)
+.\setup.ps1
 ```
 
-Restart Claude Code.
+Requires [Bun](https://bun.sh) ≥ 1.1.30 — the bootstrap installs it automatically if missing. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
 
-<details>
-<summary>Alternative methods</summary>
+Restart Claude Code after install.
 
-**Clone and run locally:**
-```bash
-git clone https://github.com/darkroomengineering/cc-settings.git /tmp/darkroom-claude
-bash /tmp/darkroom-claude/setup.sh
-```
+---
 
-**Plugin install (requires GitHub SSH keys):**
-```
-/plugin install darkroomengineering/cc-settings
-```
-</details>
-
-### What Gets Installed
+## What gets installed
 
 ```
 ~/.claude/
-├── CLAUDE.md           # Claude-Code-specific config (slim)
-├── AGENTS.md           # Portable coding standards (reference copy)
-├── settings.json       # Permissions, hooks, MCP servers
-├── agents/             # 10 specialized agents
-├── skills/             # 33 auto-invocable skills
-├── profiles/           # Workflow profiles (maestro, nextjs, etc.)
-├── rules/              # Path-conditioned rules (load on-demand)
+├── AGENTS.md           # Portable coding standards (read by all AI tools)
+├── CLAUDE.md           # Claude-Code-specific config
+├── settings.json       # Composed from config/*.json (permissions, hooks, MCP)
+├── agents/             # 9 specialized subagents
+├── skills/             # 27 auto-invocable skills
+├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro, react-router
+├── rules/              # Path-conditioned rules (load on-demand by file type)
 ├── contexts/           # Ecosystem contexts
-├── scripts/            # Hook and utility scripts
-├── lib/                # Shared bash utilities
-├── docs/               # Reference documentation
-├── learnings/          # Local persistent memory
-└── handoffs/           # Session state backups
+└── src/                # Hook + script implementations (TypeScript)
 ```
 
----
+Repo → install mapping:
 
-## Getting Started
-
-See **[USAGE.md](./USAGE.md)** for the progressive onboarding guide (Level 0-4: from "just talk" to full orchestration).
-
----
-
-## Cross-Tool Compatibility
-
-`AGENTS.md` is the [open standard](https://agents.md) for AI coding instructions, supported by Codex, Cursor, Copilot, Windsurf, and 20+ other tools.
-
-For projects using multiple AI tools:
-```bash
-# Symlink so both Claude Code and other tools read the same file
-ln -s AGENTS.md CLAUDE.md
-```
-
-Claude Code reads `CLAUDE.md`. Other tools read `AGENTS.md`. The symlink gives both the same content.
+| Repo dir | Installs to |
+|----------|-------------|
+| `agents/` | `~/.claude/agents/` |
+| `skills/` | `~/.claude/skills/` |
+| `rules/` | `~/.claude/rules/` |
+| `profiles/` | `~/.claude/profiles/` |
+| `config/*.json` | `~/.claude/settings.json` (composed) |
 
 ---
 
-## Knowledge System
-
-Two-tier knowledge management:
-
-| Tier | Storage | Scope |
-|------|---------|-------|
-| **Shared** | GitHub Project board | Team-wide decisions, conventions, gotchas |
-| **Local** | Auto-memory + learnings | Personal preferences, session context |
+## Common commands
 
 ```bash
-# Store locally (default)
-/learn store bug "useAuth causes hydration — use dynamic import"
-
-# Store to team knowledge base
-/learn store --shared gotcha "Sanity API returns UTC dates"
-```
-
-See [docs/knowledge-system.md](./docs/knowledge-system.md) for setup.
-
----
-
-## Profiles
-
-| Profile | When To Use |
-|---------|-------------|
-| `maestro` | Full orchestration — delegate everything to agents |
-| `nextjs` | Next.js App Router web apps |
-| `react-native` | Expo mobile apps |
-| `tauri` | Tauri desktop apps (Rust + Web) |
-| `webgl` | 3D web (R3F, Three.js, GSAP) |
-
----
-
-## Documentation
-
-| Doc | Content |
-|-----|---------|
-| [AGENTS.md](./AGENTS.md) | Portable coding standards and guardrails |
-| [USAGE.md](./USAGE.md) | Progressive onboarding guide |
-| [docs/knowledge-system.md](./docs/knowledge-system.md) | Two-tier knowledge setup |
-| [skills/README.md](./skills/README.md) | Skill system |
-| [hooks/README.md](./hooks/README.md) | Hook configuration |
-| [docs/hooks-reference.md](./docs/hooks-reference.md) | All 14 hook events |
-| [docs/settings-reference.md](./docs/settings-reference.md) | settings.json fields |
-| [docs/frontmatter-reference.md](./docs/frontmatter-reference.md) | YAML frontmatter fields for agents, skills, rules |
-| [docs/feature-agents-guide.md](./docs/feature-agents-guide.md) | Creating project-specific feature agents |
-| [docs/github-workflow.md](./docs/github-workflow.md) | GitHub-native workflow with Issues and Projects |
-| [docs/thread-types.md](./docs/thread-types.md) | Thread type decision tree for orchestration |
-| [docs/enhanced-todos.md](./docs/enhanced-todos.md) | Todo complexity sizing and token budgeting |
-| [docs/parallel-batch-detection.md](./docs/parallel-batch-detection.md) | Parallel batch detection algorithm |
-
----
-
-## Platform Support
-
-- **macOS** — Native (Homebrew)
-- **Linux** — Native (apt, dnf, pacman)
-- **Windows** — Via Git Bash, WSL, or MSYS2
-
----
-
-## Contributing
-
-1. Fork the repo
-2. Edit configs locally
-3. Test: `bash setup.sh`
-4. Validate: `bash tests/safety-net-test.sh`
-5. Submit PR with conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`)
-
-### Project Structure
-
-```
-AGENTS.md              # Portable coding standards (source of truth)
-CLAUDE-FULL.md         # Claude-Code config (installed as ~/.claude/CLAUDE.md)
-setup.sh               # Installer
-settings.json          # Permissions, hooks, MCP
-agents/                # Agent definitions
-skills/                # Skill definitions
-profiles/              # Workflow + platform profiles
-rules/                 # Path-conditioned rules
-contexts/              # Ecosystem contexts
-scripts/               # Bash scripts
-lib/                   # Shared bash libraries
-docs/                  # Reference docs
-tests/                 # Validation tests
+bash setup.sh                  # Install / update
+bun src/setup.ts --rollback    # Restore the previous backup
+bun src/setup.ts --dry-run     # Preview what would change
+bun run compose                # Preview the composed settings.json
+bun run lint:skills            # Validate skill frontmatter + cap (≤40)
+bun run audit:hooks            # Classify hooks as trusted/unknown/suspicious
+bun run typecheck              # TypeScript check
+bun test                       # Run all tests
 ```
 
 ---
 
-## License
+## Docs
 
-MIT
+| Doc | What's in it |
+|-----|-------------|
+| [MANUAL.md](./MANUAL.md) | Every skill — how to invoke it, what it does |
+| [AGENTS.md](./AGENTS.md) | Coding standards and guardrails (source of truth) |
+| [CLAUDE.md](./CLAUDE.md) | Claude-Code config, delegation rules, effort levels |
+| [docs/profiles.md](./docs/profiles.md) | Stack-specific profiles (Next.js, RN, Tauri, WebGL, React Router) |
+| [docs/skill-authoring.md](./docs/skill-authoring.md) | Writing new skills |
+| [CHANGELOG.md](./CHANGELOG.md) | Release history |
+
+---
+
+## Why
+
+Shared config means every engineer on the team runs the same agents, the same guardrails, and the same coding standards — no per-machine drift. `AGENTS.md` is the [open standard](https://agents.md) for AI coding instructions and is also read by Codex, Cursor, Copilot, and Windsurf, so the rules follow you across tools.
+
+---
+
+[darkroom.engineering](https://darkroom.engineering) · MIT

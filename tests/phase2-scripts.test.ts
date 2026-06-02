@@ -1,0 +1,314 @@
+// Smoke tests for Phase 2 leaf-script TS ports. Confirms:
+//   - Scripts exit 0 on expected inputs.
+//   - Scripts produce their documented stdout.
+// Not a bit-for-bit parity suite with the bash versions; parity was validated
+// manually during port (see commit message). These tests lock in behavior so
+// Phase 4/6 doesn't regress during hook cutover.
+//
+// Run: bun test tests/phase2-scripts.test.ts
+
+import { afterAll, describe, expect, test } from "bun:test";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+
+const SRC = resolve(import.meta.dir, "..", "src", "scripts");
+
+async function run(
+  script: string,
+  opts: { env?: Record<string, string>; stdin?: string; args?: string[] } = {},
+): Promise<{ exit: number; stdout: string; stderr: string }> {
+  const env = { ...process.env, ...opts.env };
+  // node:os `homedir()` reads USERPROFILE on Windows, not HOME. When a test
+  // sandboxes HOME, mirror it to USERPROFILE so child scripts resolve into
+  // the sandbox on every platform.
+  if (opts.env?.HOME) env.USERPROFILE = opts.env.HOME;
+  const proc = Bun.spawn(["bun", resolve(SRC, script), ...(opts.args ?? [])], {
+    env,
+    stdin: opts.stdin !== undefined ? "pipe" : undefined,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  if (opts.stdin !== undefined) {
+    proc.stdin.write(opts.stdin);
+    proc.stdin.end();
+  }
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+  const exit = await proc.exited;
+  return { exit, stdout, stderr };
+}
+
+describe("notify.ts", () => {
+  test("no message → no-op, exit 0", async () => {
+    const r = await run("notify.ts", { env: { NOTIFICATION_MESSAGE: "" } });
+    expect(r.exit).toBe(0);
+  });
+});
+
+describe("prune-mcp-auth-cache.ts", () => {
+  const tmp = resolve(tmpdir(), "cc-mcp-auth-cache-test");
+  const cachePath = resolve(tmp, "cache.json");
+
+  afterAll(async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(tmp, { recursive: true, force: true });
+  });
+
+  async function seed(shape: unknown): Promise<void> {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    await mkdir(tmp, { recursive: true });
+    await writeFile(cachePath, JSON.stringify(shape), "utf8");
+  }
+
+  async function readCache(): Promise<string | null> {
+    const { readFile } = await import("node:fs/promises");
+    try {
+      return await readFile(cachePath, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  test("missing cache → no-op, exit 0", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(tmp, { recursive: true, force: true });
+    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    expect(r.exit).toBe(0);
+  });
+
+  test("stale entries pruned, fresh entries kept", async () => {
+    const now = Date.now();
+    await seed({
+      stale: { timestamp: now - 2 * 60 * 60 * 1000 }, // 2h old
+      fresh: { timestamp: now - 60 * 1000 }, // 1 min old
+    });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_TTL_MS: "3600000" },
+    });
+    expect(r.exit).toBe(0);
+    const contents = await readCache();
+    expect(contents).not.toBeNull();
+    const parsed = JSON.parse(contents ?? "{}") as Record<string, unknown>;
+    expect(Object.keys(parsed)).toEqual(["fresh"]);
+  });
+
+  test("all stale → file removed", async () => {
+    await seed({ a: { timestamp: 1 }, b: { timestamp: 2 } });
+    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    expect(r.exit).toBe(0);
+    expect(await readCache()).toBeNull();
+  });
+
+  test("malformed cache removed, exits 0", async () => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    await mkdir(tmp, { recursive: true });
+    await writeFile(cachePath, "{not json", "utf8");
+    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    expect(r.exit).toBe(0);
+    expect(await readCache()).toBeNull();
+  });
+});
+
+describe("post-compact.ts", () => {
+  test("prints recovery steps", async () => {
+    const r = await run("post-compact.ts");
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toContain("[PostCompact]");
+    expect(r.stdout).toContain("1. Re-read your active task plan");
+  });
+});
+
+describe("stop-failure.ts", () => {
+  test("rate-limit message produces rate-limit branch", async () => {
+    const payload = JSON.stringify({ error: { type: "rate_limit", message: "429 overloaded" } });
+    const r = await run("stop-failure.ts", { stdin: payload });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toContain("Rate limit hit");
+  });
+  test("generic error produces generic branch", async () => {
+    const payload = JSON.stringify({ error: { type: "server", message: "boom" } });
+    const r = await run("stop-failure.ts", { stdin: payload });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toContain("API error");
+  });
+  test("empty stdin → unknown/Unknown error", async () => {
+    const r = await run("stop-failure.ts", { stdin: "" });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toContain("API error");
+    expect(r.stdout).toContain("unknown");
+  });
+});
+
+describe("check-docs-before-install.ts", () => {
+  test("bun add react → prompts", async () => {
+    const r = await run("check-docs-before-install.ts", {
+      env: { TOOL_INPUT_command: "bun add react" },
+    });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toContain("Installing 'react'");
+  });
+  test("bun add -D typescript → flags skipped", async () => {
+    // The first non-flag arg after `bun add` is `-D`, which we skip.
+    const r = await run("check-docs-before-install.ts", {
+      env: { TOOL_INPUT_command: "bun add -D typescript" },
+    });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toBe("");
+  });
+  test("empty command → no-op", async () => {
+    const r = await run("check-docs-before-install.ts", { env: { TOOL_INPUT_command: "" } });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toBe("");
+  });
+  test("non-install command → no-op", async () => {
+    const r = await run("check-docs-before-install.ts", {
+      env: { TOOL_INPUT_command: "ls -la" },
+    });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).toBe("");
+  });
+});
+
+describe("post-edit-tsc.ts", () => {
+  test("non-TS file → no-op", async () => {
+    const r = await run("post-edit-tsc.ts", { env: { TOOL_INPUT_file_path: "foo.py" } });
+    expect(r.exit).toBe(0);
+  });
+  test("empty file_path → no-op", async () => {
+    const r = await run("post-edit-tsc.ts", { env: { TOOL_INPUT_file_path: "" } });
+    expect(r.exit).toBe(0);
+  });
+});
+
+describe("post-edit.ts", () => {
+  test("empty file_path → no-op", async () => {
+    const r = await run("post-edit.ts", { env: { TOOL_INPUT_file_path: "" } });
+    expect(r.exit).toBe(0);
+  });
+});
+
+describe("track-tldr.ts + tldr-stats.ts", () => {
+  test("track increments a stats file, stats reads + clears it", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-tldr-test-"));
+    try {
+      // We can't easily redirect HOME per spawn — just call the scripts in sequence
+      // with HOME overridden.
+      const env = { HOME: sandbox };
+      const rTrack = await run("track-tldr.ts", { env, args: ["mcp__tldr__semantic"] });
+      expect(rTrack.exit).toBe(0);
+      const rStats = await run("tldr-stats.ts", { env });
+      expect(rStats.exit).toBe(0);
+      expect(rStats.stdout).toContain("Calls: 1");
+      expect(rStats.stdout).toContain("1000"); // semantic = 1000 saved
+      // After stats runs, file should be deleted.
+      const rStats2 = await run("tldr-stats.ts", { env });
+      expect(rStats2.exit).toBe(0);
+      expect(rStats2.stdout).toBe("");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("log-bash.ts", () => {
+  test("logs a bash command line to dated file", async () => {
+    const { mkdtempSync, rmSync, readdirSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-logbash-test-"));
+    try {
+      const env = { HOME: sandbox };
+      const payload = JSON.stringify({ tool_input: { command: "echo hello" } });
+      const r = await run("log-bash.ts", { env, stdin: payload });
+      expect(r.exit).toBe(0);
+      const logDir = join(sandbox, ".claude", "logs");
+      const files = readdirSync(logDir).filter((f) => f.startsWith("bash-"));
+      expect(files.length).toBe(1);
+      const first = files[0];
+      if (!first) throw new Error("expected a log file");
+      const content = readFileSync(join(logDir, first), "utf8");
+      expect(content).toContain("echo hello");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("post-failure.ts", () => {
+  test("3rd failure emits warn line", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-postfail-test-"));
+    try {
+      const env = { HOME: sandbox, TOOL_NAME: "Grep", TOOL_ERROR: "no such file" };
+      await run("post-failure.ts", { env });
+      await run("post-failure.ts", { env });
+      const r = await run("post-failure.ts", { env });
+      expect(r.exit).toBe(0);
+      expect(r.stdout).toContain("failed 3 times");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("claude-audit.ts", () => {
+  test("no logs → prints header + 'no data'", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-audit-test-"));
+    try {
+      const r = await run("claude-audit.ts", { env: { HOME: sandbox } });
+      expect(r.exit).toBe(0);
+      expect(r.stdout).toContain("Claude Audit");
+      expect(r.stdout).toContain("Today: no data");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("swarm-log.ts", () => {
+  test("complete arg writes '[Swarm] Task completed' line to swarm.log", async () => {
+    const { mkdtempSync, rmSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-swarmlog-test-"));
+    try {
+      const r = await run("swarm-log.ts", {
+        env: { HOME: sandbox, TASK_SUBJECT: "implement feature X" },
+        args: ["complete"],
+      });
+      expect(r.exit).toBe(0);
+      const logPath = join(sandbox, ".claude", "swarm.log");
+      const content = readFileSync(logPath, "utf8");
+      expect(content).toContain("[Swarm] Task completed: implement feature X");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("unknown arg → exit 0, no log written", async () => {
+    const { mkdtempSync, rmSync, existsSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-swarmlog-unknown-"));
+    try {
+      const r = await run("swarm-log.ts", {
+        env: { HOME: sandbox },
+        args: ["bogus"],
+      });
+      expect(r.exit).toBe(0);
+      expect(existsSync(join(sandbox, ".claude", "swarm.log"))).toBe(false);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});

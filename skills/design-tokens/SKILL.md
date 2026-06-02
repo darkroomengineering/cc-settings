@@ -1,13 +1,6 @@
 ---
 name: design-tokens
-description: |
-  Design token generation and management. Use when:
-  - User asks for "design tokens", "type scale", "color palette", "spacing system"
-  - Setting up a new project's design system or theme
-  - User needs WCAG-compliant color combinations
-  - User wants dark mode colors derived from a light palette
-  - Building a Tailwind config or CSS custom properties
-  - User asks for "theme setup", "design system", "color scale"
+description: Generate OR consolidate design tokens — type scales, color palettes, spacing systems, dark-mode derivations with WCAG checks (generate); or audit-and-reduce an over-grown Tailwind v4 token set with identical render (consolidate). Outputs CSS/Tailwind. Triggers "design tokens", "type scale", "color palette", "theme setup", "reduce tokens", "dedupe tokens", "too many tokens", "consolidate tokens".
 context: fork
 ---
 
@@ -331,6 +324,31 @@ neutral-950 (heading) -> neutral-50 (heading)
 ```
 
 Components reference semantic tokens, never raw shades. Switching themes means swapping the token mapping.
+
+---
+
+## Consolidation (reducing an over-grown token set)
+
+The inverse of generation: a `globals.css` has accreted too many near-duplicate tokens. Goal — **fewer tokens, identical render.** (Method adapted from millionco/skills, MIT.)
+
+REQUIRED order — audit first, edit never-first:
+
+1. **Audit, don't edit.** Parse `globals.css` into blocks (`@theme inline`, `:root`, `.dark`, every scoped block). Count tokens.
+2. **Compute the LIVE set transitively.** A token is live if its suffix appears as a Tailwind class anywhere, OR it's referenced as `var(--name)` anywhere (scan every `.ts/.tsx/.css/.mdx` except `globals.css`), OR it's referenced inside another live token's value. Iterate to a fixed point.
+3. **Count globals.css's own utility classes.** A `var(--…)` inside a `.x { … }` block (outside `:root`/`.dark`/`@theme inline`) is a hard dependency. Strip the theme blocks from the text first, then collect every remaining `var()` ref — those tokens MUST stay.
+4. **Build a rename map as data** (`old → new`, or `DELETE`) and apply it to globals.css AND the codebase in ONE codegen pass. Never hand-edit class names across files — the next run reverts hand-fixes.
+5. **Verify after every pass:** `bun run typecheck` (or `tsgo --noEmit`) · `biome check --write` · `bun run build`. All green before "done". (pnpm monorepos: `pnpm … --filter <app>` and the real `apps/<app>/app/globals.css` path.)
+
+**Two levers, in order:** (1) **dead deletion** — zero code usage + zero intra-globals demand → safe; (2) **value-similar collapse** — rename `--a → --b` only when the values are within ~5% in BOTH light and dark. Realistic reduction is 50–60%, not 70%.
+
+**Do NOT inline tokens into Tailwind arbitrary values** (`px-[17px]`, `shadow-[#000_0px_1px]`). That relocates noise — named tokens carry intent, arbitrary values destroy it. If asked for a bigger number, push back: fewer named tokens beats the same noise in className strings.
+
+**Collapse-safety checks (the bugs that bite):**
+- **Scoped overrides stay.** A token set in `.dashboard { --x: … }` is load-bearing; deleting it silently breaks the scoped override.
+- **Same-side rule.** Diff a token's light vs dark value. If both sit on the same side of L=0.5 (an always-light or always-dark surface — dropdowns, tooltips), it CANNOT collapse into a flipping token like `--foreground`/`--icon`.
+- **Transparent-in-one-mode stays.** A token that's `transparent` in one mode and concrete in the other is intentionally see-through; don't merge it with an always-opaque token.
+- **Canonical value must win.** When N tokens collapse to one name, parse-order "first-write-wins" picks the wrong color. Keep an explicit `CANONICAL_SOURCE` map naming which source token's value the merged token takes.
+- **Name-collision check.** Before collapsing a color to name `X`, grep for `--background-image-X` and `bg-X` usage — a new `--color-X` alias can paint a background-color over a gradient.
 
 ---
 

@@ -21,7 +21,7 @@ Activates web development mode. See full reference: `profiles/nextjs.md`
 | Dev server | `bun dev` |
 | Lint/format | `bun biome check --fix` |
 | Type check | `bun tsc --noEmit` |
-| Fetch docs | `/docs <library>` |
+| Fetch docs | Context7 MCP — `mcp__context7__resolve-library-id` then `mcp__context7__get-library-docs` |
 | Visual QA | `/qa` |
 
 For detailed patterns, data fetching, routing, and more, see the full profile.

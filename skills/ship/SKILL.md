@@ -1,11 +1,6 @@
 ---
 name: ship
-description: |
-  Shipping pipeline: build, verify, and create PR. Use when:
-  - User says "ship it", "create PR", "open PR", "ready to merge"
-  - User says "/pr", "/ship", "push and PR"
-  - After implementation is complete and needs to be shipped
-  - User wants to verify and publish changes
+description: Verify and publish changes — push, open PR, watch CI until green. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR", "watch the PR", "babysit CI", "loop until green".
 context: fork
 ---
 
@@ -22,9 +17,17 @@ You are in **Maestro orchestration mode**. Execute the shipping checklist in ord
 
 ## Pipeline (All Steps Mandatory)
 
+### Step 0: Preflight
+```bash
+ssh-add -l
+```
+If no identities loaded: **Unlock 1Password and retry — git signing will fail otherwise.** Agent drops mid-flow are a recurring cause of failed pushes; catch it now, not after the commit.
+
+Do not commit until Steps 1–4 (typecheck/build/test/lint) are green. Skipping ahead is where amend churn comes from — `--amend` to fix a lint error you would have caught in 30 seconds invalidates signatures and CI runs.
+
 ### Step 1: Type Check
 ```bash
-npx tsc --noEmit
+bunx tsc --noEmit
 ```
 If errors: fix them. Do not proceed until clean.
 
@@ -35,10 +38,22 @@ bun run build
 If errors: fix them. Do not proceed until clean.
 
 ### Step 3: Test (if tests exist)
+
+**3a. Affected tests first (when `tldr` is available).** Run only the tests touched by your changes, before the full suite. Fast feedback if you broke something obvious:
+
+```bash
+tldr change-impact --project . 2>/dev/null
+```
+
+If TLDR returns a list, run those tests first (`bun test <file>` or `vitest run <file>`). If they fail, fix before the full run — don't waste cycles on the rest.
+
+**3b. Full suite.**
+
 ```bash
 bun test || vitest run
 ```
-If test runner is not configured, skip this step. If tests exist and fail: fix them. Do not proceed until green.
+
+If test runner is not configured, skip this step. If tests fail: fix them. Do not proceed until green.
 
 ### Step 4: Lint
 ```bash
@@ -59,7 +74,7 @@ If issues found: fix them before proceeding to review.
 ### Step 6: Review Changes
 Spawn `reviewer` agent:
 ```
-Task(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
+Agent(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
 ```
 
 ### Step 7: Commit (Bisectable)
@@ -99,10 +114,54 @@ If a commit would break either check in isolation, merge it with the next commit
 ### Step 8: Push and PR
 ```bash
 git push origin HEAD
-gh pr create --fill
 ```
 
 If `gh` is not available, provide the push command and instruct the user to create the PR manually.
+
+**Author the PR body — do NOT use `--fill`.** `--fill` dumps the commit messages
+into the description, which reads as technical and over-engineered. Lead with a
+plain-English "What this does" (see `rules/git.md` "Signal, not spam"):
+
+```bash
+gh pr create --title "<type>: <concise, plain-English title>" --body "$(cat <<'EOF'
+## What this does
+<2–3 plain sentences: what changed and why it matters — the real-world effect,
+not the mechanism. A teammate who didn't write it should get it on one read.>
+
+## Summary
+- <technical bullet — the how>
+
+## Test Plan
+- [ ] <how it was verified>
+EOF
+)"
+```
+
+Write "What this does" from the *diff and its purpose*, not by pasting commit
+subjects. If you can't explain it plainly, the change is unclear — say so, don't
+reach for bigger words.
+
+### Step 8: Watch CI Until Green (post-push)
+
+After `gh pr create`, watch the PR-attached checks until all pass. Use `gh pr checks` as the source of truth — it covers all PR checks, not just GitHub Actions runs (which `gh run list` would miss).
+
+```bash
+gh pr checks --json name,bucket,state,workflow,link
+gh pr checks --watch --fail-fast
+```
+
+If a check fails:
+
+1. Identify the failing job and fetch logs (`gh run view RUN_ID --log-failed` for GHA; follow the `link` for external services).
+2. Apply the smallest fix. Use the `fix` skill's "Variant: Failing PR CI" if the failure is non-trivial.
+3. Push, then re-read `gh pr checks` — the check set can change between runs.
+4. Repeat until green.
+
+Guardrails:
+
+- Scope each fix to a single failure cause.
+- If failures are flaky, retry once and report flake evidence rather than chasing a phantom fix.
+- If the failure is unrelated to the PR and already fixed on main, merge main into the branch instead of bloating the PR.
 
 ## Rules
 - NEVER skip the type check or build step

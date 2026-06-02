@@ -1,15 +1,6 @@
 ---
 name: verify
-description: |
-  Adversarial multi-agent verification for high-stakes code. Use when:
-  - User says "verify", "double check", "are you sure", "prove it"
-  - User asks to "stress test", "find holes", "poke holes"
-  - User mentions "adversarial review", "devil's advocate"
-  - User says "audit", "validate thoroughly", "high confidence"
-  - After a critical fix (auth, payments, data integrity)
-  - Before deploying to production
-  - User says "triple check", "verify this is correct"
-  - Migrating data, schemas, or APIs
+description: Adversarial verification — three competing agents (issue-finder, disprover, judge). Triggers "verify", "double check", "are you sure", "poke holes"; pre-prod, post-critical-fix.
 context: fork
 ---
 
@@ -31,7 +22,7 @@ Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "verify" 
 ### Agent 1: Finder
 
 ```
-Task(reviewer, "You are a bug finder. Analyze the following code/changes thoroughly.
+Agent(reviewer, "You are a bug finder. Analyze the following code/changes thoroughly.
 Score yourself: +1 for low-impact issues, +5 for medium-impact, +10 for critical.
 Report every potential issue you find — edge cases, race conditions, missing validation,
 security holes, logic errors, performance problems.
@@ -48,7 +39,7 @@ Finder over-reports by design — this is the **superset** of all possible issue
 Takes the finder's output and tries to disprove each issue.
 
 ```
-Task(reviewer, "You are an adversarial reviewer. For each issue below, try to DISPROVE it.
+Agent(reviewer, "You are an adversarial reviewer. For each issue below, try to DISPROVE it.
 Score yourself: +points of the bug for each you successfully disprove,
 but -2x the points if you wrongly disprove a real issue.
 
@@ -68,7 +59,7 @@ Adversary filters aggressively but cautiously — this is the **subset** of like
 Takes both inputs and produces the final verdict.
 
 ```
-Task(oracle, "You are a neutral referee scoring two reviewers.
+Agent(explore, "You are a neutral referee scoring two reviewers.
 You will get +1 for each correct judgment and -1 for each incorrect one.
 The ground truth exists and will be checked against your answers.
 
@@ -129,11 +120,37 @@ Finder: N issues. Adversary disproved: M. Referee confirmed: K.
 For smaller changes, skip the referee:
 
 ```
-Task(reviewer, "Find all issues in [target]. Be thorough.")
-Task(reviewer, "Challenge each issue: [paste output]. Disprove what you can.")
+Agent(reviewer, "Find all issues in [target]. Be thorough.")
+Agent(reviewer, "Challenge each issue: [paste output]. Disprove what you can.")
 ```
 
 Review surviving issues yourself.
+
+## Rationalization Counters
+
+If you catch yourself thinking any of the following, STOP — you are rationalizing skipping verification:
+
+| Rationalization | Why It's Wrong |
+|---|---|
+| "The change is too simple to need three agents" | Simple changes to auth/payments have caused the worst production incidents |
+| "I already reviewed it myself" | Self-review has a known blind spot for logic errors you just wrote |
+| "It's just a refactor, behavior doesn't change" | Refactors that "don't change behavior" are the #1 source of subtle regressions |
+| "Tests are passing, that's enough" | Tests verify expected behavior; adversarial review finds unexpected behavior |
+| "This would take too long" | A 5-minute verification is cheaper than a production incident |
+| "The reviewer agent already checked it" | The reviewer checks quality; verification checks correctness under adversarial pressure |
+
+## Red-Flag Phrases
+
+If any agent (including yourself) uses these phrases, verification is NOT complete — restart the verification step:
+
+- "should work" / "should be fine"
+- "probably" / "likely" / "most likely"
+- "I believe" / "I think" (without evidence)
+- "Done!" / "All good!" / "Looks great!"
+- "I don't see any issues"
+- "This is straightforward"
+
+Each of these must be replaced with evidence: a specific test, a concrete trace through the code, or a cited invariant.
 
 ## Remember
 

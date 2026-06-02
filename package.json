@@ -1,0 +1,40 @@
+{
+  "name": "cc-settings",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bun": ">=1.1.30"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:safety-net": "bun test tests/safety-net.test.ts",
+    "prototype:compile": "bun bench/prototype/compile.ts",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "lint:skills": "bun src/scripts/lint-skills.ts",
+    "audit:hooks": "bun src/scripts/audit-hooks.ts",
+    "format": "biome format --write .",
+    "schemas:emit": "bun src/schemas/emit.ts",
+    "schemas:check": "bun src/schemas/emit.ts && git diff --exit-code schemas/",
+    "docs:permissions": "bun src/scripts/gen-permissions-doc.ts",
+    "upstream:scan": "bun src/upstream/scan.ts",
+    "compose": "bun -e 'import { composeSettings } from \"./src/lib/compose-settings.ts\"; console.log(JSON.stringify(await composeSettings(\".\"), null, \"\\t\"))'",
+    "check:cli-tools": "bun src/scripts/check-cli-tools.ts",
+    "new-skill": "bun src/scripts/new-skill.ts",
+    "lint:knowledge": "bun src/scripts/lint-knowledge.ts",
+    "new-note": "bun src/scripts/new-note.ts",
+    "proof": "bun src/scripts/proof.ts",
+    "review-batch": "bun src/scripts/review-batch.ts"
+  },
+  "dependencies": {
+    "@inquirer/confirm": "6.1.0",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.16",
+    "@types/bun": "1.3.14",
+    "typescript": "6.0.3"
+  }
+}
