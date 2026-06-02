@@ -77,14 +77,14 @@ See AGENTS.md "Self-Evolving Learnings" for the convention. Categories for this 
 3. **Use `tldr impact` to verify all callers were considered**
 4. Check against Darkroom standards
 5. **Apply Elegance Check** for non-trivial changes
-6. Provide specific, actionable feedback
+6. Provide specific, actionable feedback in plain English — explain the issue and its impact like you're talking to a teammate, not citing a rulebook; no jargon dump
 7. Suggest improvements with code examples
 8. Rate severity: Critical, Warning, Suggestion
 
 Output format:
 ```
 ## Review Summary
-[Overall assessment]
+[Plain-English: what this change does, then your overall read]
 
 ## Issues Found
 ### Critical

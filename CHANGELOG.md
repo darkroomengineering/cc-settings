@@ -6,6 +6,15 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.15.1] — 2026-06-02
+
+Close two doc/wiring drifts left by this session's feature releases — surfaced by an audit of "what does each change touch vs what should it touch".
+
+### Fixed
+
+- **`skills/proof-of-work/SKILL.md`** was out of sync with the gate it documents: it described `bun run proof` as detecting only typecheck/test/lint, with no mention of the **react-doctor advisory probe** added to the gate in v11.13.0. Added a paragraph documenting it (advisory, pinned binary, telemetry off, never flips the verdict, silent when absent).
+- **`agents/reviewer.md`** never received the plain-English standard from v11.15.0 — that landed only in the `review` *skill*. Since the reviewer agent runs both via that skill (`agent: reviewer`) AND via direct `Agent(reviewer, …)` delegation, direct invocations bypassed the standard. Its Review Summary now leads with plain-English ("what this change does"), and feedback step 6 now requires plain-English comments ("like you're talking to a teammate, not citing a rulebook").
+
 ## [11.15.0] — 2026-06-02
 
 Make PR descriptions and review comments lead with a **plain-English summary of what the change does** — fixing the recurring failure mode where our PRs read as technical and over-engineered (the diff restated in jargon). Inspired by the "explain the why, plainly" spirit of a teaching-prompt gist, minus its quiz/tutor machinery, with an explicit "signal, not spam" bar so the summary is useful, not filler.
