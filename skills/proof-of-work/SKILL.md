@@ -20,7 +20,7 @@ It detects `typecheck` / `test` / `lint` from `package.json`, runs them cheapest
 - exit 0 → `review-ready ✓`
 - exit 1 → `NOT review-ready ✗` — fix the failing gate before a human looks
 
-For React projects that depend on `react-doctor`, the gate also runs it as an **advisory** probe (the project's pinned binary, telemetry off): the score is reported but never flips the verdict — a deterministic signal alongside the hard gates, not a blocker. It stays silent for projects that don't depend on it.
+Projects can opt into **advisory** probes by depending on the tool — the gate then runs the project's pinned binary: **react-doctor** (React render/quality score, telemetry off) and/or **deslop** (framework-agnostic cross-file dead-code count). Advisory results are reported but never flip the verdict — deterministic signals alongside the hard gates, not blockers. Silent for projects that don't depend on them.
 
 For UI changes, attach a screenshot (`/qa` or the chrome-devtools MCP) as the visual half of the proof — tests can't prove "looks right".
 

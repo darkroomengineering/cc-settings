@@ -89,3 +89,4 @@ function get<T>(obj: T, key: keyof T) { return obj[key] }
 ## Tools
 - **Biome** - Linting and formatting
 - **tsc --noEmit** - Type checking
+- **deslop** *(optional — when `deslop-cli` is in the project's deps)* — framework-agnostic cross-file dead-code / unused-export / circular-import scanner that catches what Biome's per-file linting can't. Run pinned: `npx deslop` (`--json` for a machine-readable report, `--fail-on-issues` to gate CI). `bun run proof` auto-includes it as an advisory signal when present.

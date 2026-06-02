@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.15.2"; // freeze: cross-platform boundary check (path.sep, not hardcoded /) — fixes Windows
+const VERSION = "11.16.0"; // deslop advisory probe in proof-of-work; PR-by-default workflow + PULL_REQUEST_TEMPLATE
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

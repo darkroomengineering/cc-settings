@@ -8,14 +8,17 @@
 // scarce serial resource (human attention) on judgment, not on confirming what
 // a machine could.
 //
-// For React projects that depend on react-doctor, an extra ADVISORY probe runs
-// its deterministic scan. It reports a score but never flips the verdict.
+// Projects can opt into extra ADVISORY probes by depending on the tool:
+// react-doctor (React render/quality) and deslop (framework-agnostic cross-file
+// dead code). They report a signal but never flip the verdict.
 
 import {
   allGreen,
+  detectDeslop,
   detectGates,
   detectReactDoctor,
   formatReport,
+  runDeslop,
   runGates,
   runReactDoctor,
 } from "../lib/proof-of-work.ts";
@@ -28,16 +31,24 @@ const pkg = (await Bun.file("package.json")
   devDependencies?: Record<string, string>;
 };
 const gates = detectGates(pkg.scripts ?? {});
-const hasReactDoctor = detectReactDoctor({ ...pkg.dependencies, ...pkg.devDependencies });
+const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+const hasReactDoctor = detectReactDoctor(deps);
+const hasDeslop = detectDeslop(deps);
 
-if (gates.length === 0 && !hasReactDoctor) {
+const advisoryLabels = [
+  ...(hasReactDoctor ? ["react-doctor (advisory)"] : []),
+  ...(hasDeslop ? ["deslop (advisory)"] : []),
+];
+
+if (gates.length === 0 && advisoryLabels.length === 0) {
   console.log("Proof of work: no verify scripts (typecheck/test/lint) in package.json — skipping.");
   process.exit(0);
 }
 
-const labels = [...gates, ...(hasReactDoctor ? ["react-doctor (advisory)"] : [])];
-console.log(`Running proof-of-work gates: ${labels.join(", ")} …\n`);
-const results = await runGates(gates, process.cwd());
-if (hasReactDoctor) results.push(await runReactDoctor(process.cwd()));
+console.log(`Running proof-of-work gates: ${[...gates, ...advisoryLabels].join(", ")} …\n`);
+const cwd = process.cwd();
+const results = await runGates(gates, cwd);
+if (hasReactDoctor) results.push(await runReactDoctor(cwd));
+if (hasDeslop) results.push(await runDeslop(cwd));
 console.log(formatReport(results));
 process.exit(allGreen(results) ? 0 : 1);

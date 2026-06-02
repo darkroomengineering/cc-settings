@@ -114,6 +114,12 @@ Technical bullets — the *how*, for reviewers reading the code.
 - No jargon dump, no restating the diff, no filler ("This PR introduces a comprehensive…").
 - If you can't say what it does in plain English, that's a signal the change is unclear — not a reason to reach for bigger words.
 
+### Open a PR by default
+Default to a feature branch + PR, even for small changes — most Darkroom client
+projects protect `main` and review through PRs. Direct `git push origin main` is
+the exception, reserved for repos that explicitly allow it and changes that are
+trivial and self-evident. When unsure, open a PR.
+
 ### Before Merging
 - CI passes, code reviewed, no conflicts, branch up to date
 

@@ -6,6 +6,22 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.16.0] — 2026-06-02
+
+Two additions: a **deslop advisory probe** in the proof-of-work gate (the framework-agnostic sibling to react-doctor), and a shift to **PR-by-default** as the standard workflow (with a repo PR template that dogfoods the plain-English standard).
+
+### Added
+
+- **deslop advisory probe** — `src/lib/proof-of-work.ts` gains `detectDeslop()`, `runDeslop()`, and the pure, unit-tested `sumDeslopFindings()`; `bun run proof` appends a deslop pass when the project depends on `deslop-cli`. Same shape as the react-doctor probe: **advisory** (never flips the verdict or exit code), and **opt-in by dependency** so local `npx` resolves the pinned binary with no network fetch. deslop (millionco, MIT) is a framework-agnostic cross-file dead-code / unused-export / circular-import scanner — the deterministic floor under the `deslopper` agent, catching what Biome's per-file linting can't. Reports total findings across categories (`X findings`). Silent for projects without it.
+- **`config/30-permissions.json`** — narrow `Bash(npx deslop:*)` allow rule (not a blanket `npx`). `docs/settings-reference.md` permissions block regenerated.
+- **`rules/typescript.md`** — Tools bullet documenting the pinned deslop invocation as an advisory pre-filter.
+- **`.github/PULL_REQUEST_TEMPLATE.md`** — a repo PR template embodying the v11.15.0 plain-English standard ("What this does" → Summary → Test Plan).
+
+### Changed
+
+- **PR-by-default workflow** — `rules/git.md` adds an "Open a PR by default" note: feature-branch + PR is the norm (most Darkroom client projects protect `main`), and direct `git push origin main` is the reserved exception for repos that explicitly allow it. Corrects the prior assumption that direct-to-main was a standing default.
+- **`skills/proof-of-work/SKILL.md`** — the advisory-probe paragraph now covers both react-doctor and deslop (was react-doctor only).
+
 ## [11.15.2] — 2026-06-02
 
 Fix a pre-existing **Windows** bug in the `/freeze` edit-scope lock. It was latent on `main` since `/freeze` shipped (`ee74a4e`) because changes had been direct-pushed without watching the Windows CI jobs — and it surfaced the moment a PR's CI matrix was actually watched to completion (a payoff of moving to PR-by-default).
