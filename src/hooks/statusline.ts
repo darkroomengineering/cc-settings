@@ -6,8 +6,7 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { runGit as runGitLib } from "../lib/git.ts";
-import { readState } from "../lib/hook-runtime.ts";
-import { readStdin } from "../lib/io.ts";
+import { readHookInput, readState } from "../lib/hook-runtime.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
 
 type Payload = {
@@ -90,13 +89,7 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   return `${cyan}${branch}${reset}${dirty}${upstream}`;
 }
 
-const raw = await readStdin();
-let input: Payload = {};
-try {
-  input = JSON.parse(raw) as Payload;
-} catch {
-  // Bad stdin — skip with minimal output.
-}
+const input = await readHookInput<Payload>();
 
 const model = input.model?.display_name ?? "";
 const currentDir = input.workspace?.current_dir ?? "";

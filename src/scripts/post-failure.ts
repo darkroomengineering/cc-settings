@@ -29,7 +29,7 @@ if (toolError.length > 200) toolError = `${toolError.slice(0, 200)}...`;
 const logLine = `${JSON.stringify({
   timestamp,
   tool: toolName,
-  error: toolError.slice(0, 200),
+  error: toolError, // already bounded to 200 chars + ellipsis above
 })}\n`;
 await appendFile(LOG_FILE, logLine).catch(() => {});
 

@@ -46,11 +46,6 @@ export const EXPECTED_ENV_VARS = [
   "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
 ];
 
-// Re-export the canonical MANAGED_SKILLS list. Defined in ./managed-skills.ts;
-// re-exported here so existing callers (and tests) that import from status.ts
-// keep working without a coordinated rename.
-export { MANAGED_SKILLS };
-
 async function gatherGitDrift(sourceDir: string, claudeDir: string): Promise<GitDriftData> {
   const sha = await runGit(["rev-parse", "--short", "HEAD"], { cwd: sourceDir });
   const sentinelPath = join(claudeDir, ".cc-settings-version");

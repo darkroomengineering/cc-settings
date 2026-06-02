@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { readHookInput } from "../lib/hook-runtime.ts";
 
 const STOPWORDS = new Set([
   "the",
@@ -43,8 +44,15 @@ const STOPWORDS = new Set([
 ]);
 
 async function main(): Promise<void> {
-  const SESSION_ID = process.env.CLAUDE_SESSION_ID ?? "";
-  const PROMPT = process.env.PROMPT ?? "";
+  // UserPromptSubmit delivers the prompt as stdin JSON ({ session_id, prompt });
+  // older Claude Code builds set PROMPT / CLAUDE_SESSION_ID env vars instead.
+  // Read stdin first, fall back to env — the same pattern delegation-detector.ts
+  // (the sibling hook on this event) uses. Reading env only would silently
+  // no-op whenever Claude Code delivers the prompt via stdin.
+  const { session_id: SESSION_ID = "", prompt: PROMPT = "" } = await readHookInput<{
+    session_id: string;
+    prompt: string;
+  }>({ session_id: "CLAUDE_SESSION_ID", prompt: "PROMPT" });
 
   if (!SESSION_ID || !PROMPT) return;
 

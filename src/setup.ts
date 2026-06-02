@@ -134,8 +134,16 @@ async function cmdRollback(target: string | true): Promise<number> {
     return 1;
   }
   info(`Rolling back from: ${match}`);
-  const proc = Bun.spawn(["tar", "-xzf", join(backupDir, match)], {
-    cwd: CLAUDE_DIR,
+  const archivePath = join(backupDir, match);
+  // Newer archives are $HOME-relative (entries prefixed with ".claude/", plus a
+  // top-level ".claude.json"); pre-MCP-backup archives are ~/.claude-relative
+  // (bare "settings.json"). Detect the layout so each restores to the right place.
+  const listing = Bun.spawn(["tar", "-tzf", archivePath], { stdout: "pipe", stderr: "ignore" });
+  const archiveEntries = (await new Response(listing.stdout).text()).trim().split("\n");
+  await listing.exited;
+  const homeRelative = archiveEntries.some((e) => e.startsWith(".claude/") || e === ".claude.json");
+  const proc = Bun.spawn(["tar", "-xzf", archivePath], {
+    cwd: homeRelative ? homedir() : CLAUDE_DIR,
     stdout: "inherit",
     stderr: "inherit",
   });
@@ -150,14 +158,25 @@ async function createBackup(): Promise<void> {
   const backupDir = join(CLAUDE_DIR, "backups");
   await mkdir(backupDir, { recursive: true });
 
-  const candidates = ["settings.json", "CLAUDE.md", "AGENTS.md"];
-  const existing = candidates.filter((f) => existsSync(join(CLAUDE_DIR, f)));
+  const home = homedir();
+  // Home-relative paths so the archive can include ~/.claude.json — it holds the
+  // MCP server config that installMcpToClaudeJson rewrites and lives alongside
+  // ~/.claude, not inside it. Without it, --rollback could not restore a user's
+  // MCP setup. cmdRollback detects this layout (".claude/"-prefixed entries) and
+  // extracts from $HOME; older ~/.claude-relative archives still restore correctly.
+  const candidates = [
+    ".claude/settings.json",
+    ".claude/CLAUDE.md",
+    ".claude/AGENTS.md",
+    ".claude.json",
+  ];
+  const existing = candidates.filter((f) => existsSync(join(home, f)));
   if (existing.length === 0) return;
 
   const stamp = getTimestamp();
   const archive = join(backupDir, `backup-${stamp}.tar.gz`);
   const proc = Bun.spawn(["tar", "-czf", archive, ...existing], {
-    cwd: CLAUDE_DIR,
+    cwd: home,
     stdout: "ignore",
     stderr: "ignore",
   });

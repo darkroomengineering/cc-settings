@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { computeDrift, readPackagedVersion, readSentinelInfo } from "../src/lib/version-drift.ts";
+import { readSentinelInfo } from "../src/lib/version-delta.ts";
+import { computeDrift, readPackagedVersion } from "../src/lib/version-drift.ts";
 
 async function tmp(): Promise<string> {
   return mkdtemp(join(tmpdir(), "ccver-"));

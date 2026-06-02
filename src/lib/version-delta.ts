@@ -20,20 +20,40 @@ export interface ChangelogEntry {
 
 const VERSION_HEADING_RE = /^##\s*\[(\d+\.\d+\.\d+)\](?:\s*—\s*(\d{4}-\d{2}-\d{2}))?/;
 
+export interface SentinelInfo {
+  version: string | null;
+  repoPath: string | null;
+}
+
 /**
- * Read the previous installer's recorded version from `~/.claude/.cc-settings-version`.
- * Returns null on first install or malformed sentinel. Never throws.
+ * Read the installer's recorded version + repo path from
+ * `~/.claude/.cc-settings-version`. Each field falls back to null on a missing
+ * sentinel (first install), a sentinel written before that field existed, or
+ * malformed JSON. Never throws. This is the single sentinel reader — both the
+ * install-summary delta and version-drift detection build on it.
  */
-export async function readInstalledVersion(claudeDir: string): Promise<string | null> {
+export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo> {
   const sentinelPath = join(claudeDir, ".cc-settings-version");
-  if (!existsSync(sentinelPath)) return null;
+  if (!existsSync(sentinelPath)) return { version: null, repoPath: null };
   try {
     const raw = await readFile(sentinelPath, "utf8");
-    const parsed = JSON.parse(raw) as { version?: unknown };
-    return typeof parsed.version === "string" ? parsed.version : null;
+    const parsed = JSON.parse(raw) as { version?: unknown; repo_path?: unknown };
+    return {
+      version: typeof parsed.version === "string" ? parsed.version : null,
+      repoPath: typeof parsed.repo_path === "string" ? parsed.repo_path : null,
+    };
   } catch {
-    return null;
+    return { version: null, repoPath: null };
   }
+}
+
+/**
+ * The previous installer's recorded version, for the install-summary delta.
+ * Convenience over {@link readSentinelInfo}; null on first install or a
+ * malformed sentinel.
+ */
+export async function readInstalledVersion(claudeDir: string): Promise<string | null> {
+  return (await readSentinelInfo(claudeDir)).version;
 }
 
 /**

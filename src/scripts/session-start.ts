@@ -23,7 +23,8 @@ import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 import { writeState } from "../lib/hook-runtime.ts";
 import { hasCommand, pad, ymd } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
-import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/version-drift.ts";
+import { readSentinelInfo } from "../lib/version-delta.ts";
+import { computeDrift, readPackagedVersion } from "../lib/version-drift.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
 const PROJECT_DIR = process.cwd();

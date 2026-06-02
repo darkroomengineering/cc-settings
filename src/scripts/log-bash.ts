@@ -8,7 +8,7 @@
 import { appendFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { readStdin } from "../lib/io.ts";
+import { readHookInput } from "../lib/hook-runtime.ts";
 import { pad, ymd } from "../lib/platform.ts";
 
 const LOG_DIR = join(homedir(), ".claude", "logs");
@@ -48,13 +48,7 @@ type HookInput = { tool_input?: { command?: string } };
 await mkdir(LOG_DIR, { recursive: true }).catch(() => {});
 await pruneOldLogs();
 
-const raw = await readStdin();
-let parsed: HookInput = {};
-try {
-  parsed = JSON.parse(raw) as HookInput;
-} catch {
-  // fall through; no command to log
-}
+const parsed = await readHookInput<HookInput>();
 const command = parsed.tool_input?.command ?? "";
 if (!command) process.exit(0);
 

@@ -12,6 +12,17 @@ All notable changes to cc-settings are documented here.
   - **New** — `src/schemas/knowledge.ts` (zod frontmatter contract: `name`/`kind`/`tags`/`added-by`/`supersedes`), `src/lib/lint-knowledge.ts` + `src/scripts/lint-knowledge.ts` (`bun run lint:knowledge`), `src/scripts/new-note.ts` (`bun run new-note`), `tests/lint-knowledge.test.ts`, emitted `schemas/knowledge.schema.json`.
   - **Changed** — `/share-learning` now reads `INDEX.md` for dedup and writes notes via `gh api` (was `gh project item-list`/`item-create`); `docs/knowledge-system.md`, the `AGENTS.md` Knowledge Routing section, and assorted docs retargeted; env `KNOWLEDGE_PROJECT_NUMBER` → `KNOWLEDGE_REPO`.
   - **Companion** — darky's `search_team_knowledge` reader rewritten for the repo substrate (darkroom-os#18); env `DARKY_KNOWLEDGE_PROJECT_NUMBER` → `DARKY_KNOWLEDGE_REPO`.
+- **Nuclear-review maintainability pass** — whole-codebase audit findings landed as behavior-preserving cleanups (467 tests green, no behavior change):
+  - **`src/lib/io.ts` deleted** — its lone `readStdin` helper duplicated `hook-runtime.ts`'s `readHookInput` (stdin drain + `JSON.parse` with fallback). The three callers — `src/hooks/statusline.ts`, `src/scripts/stop-failure.ts`, `src/scripts/log-bash.ts` — now use the canonical helper; barrel export dropped from `src/lib/index.ts`.
+  - **Version sentinel reader consolidated** — `~/.claude/.cc-settings-version` was read by two functions with their own parse+guard. `src/lib/version-delta.ts` now owns the single reader (`readSentinelInfo` + `SentinelInfo` type); `readInstalledVersion` delegates to it; `src/lib/version-drift.ts` drops its copy; `src/scripts/session-start.ts` and `tests/version-drift.test.ts` import from delta.
+  - **`src/lib/status.ts`** — removed the back-compat `MANAGED_SKILLS` re-export (no external consumers; callers already import from `managed-skills.ts`).
+  - **`src/lib/settings-merge.ts`** — replaced the `as UnknownRecord` + eight `as StringArray` casts in `permissionsStrategy` with runtime-guarded `asRecord` / `stringArrayField` helpers, so a corrupt `settings.json` degrades to empty rules instead of handing a bad shape to the union.
+  - **`src/upstream/scan.ts`** validates the npm `latest` response with a zod `safeParse` instead of a raw cast; **`src/scripts/post-failure.ts`** drops a redundant second `.slice(0, 200)` that was eating the truncation ellipsis; **`src/scripts/pre-commit-tsc.ts`** drops an unnecessary `Promise.all` tuple cast.
+
+### Fixed
+
+- **`--rollback` now restores `~/.claude.json`** — `createBackup`/`cmdRollback` in `src/setup.ts` archived only `settings.json`/`CLAUDE.md`/`AGENTS.md` under `~/.claude`, so the MCP config `installMcpToClaudeJson` rewrites (at `~/.claude.json`, *outside* `~/.claude`) had no rollback path. Backups are now `$HOME`-relative and include it; `cmdRollback` sniffs the archive layout so older `~/.claude`-relative backups still restore to the right place.
+- **`src/scripts/session-title.ts`** read the prompt from `process.env.PROMPT` only, silently no-op'ing whenever Claude Code delivered `UserPromptSubmit` data via stdin JSON (the primary path). It now reads via `readHookInput<{ session_id, prompt }>` with env fallback, matching the sibling `delegation-detector.ts` hook on the same event.
 
 ## [11.16.0] — 2026-06-02
 

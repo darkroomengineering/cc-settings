@@ -7,7 +7,7 @@
 import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { readStdin } from "../lib/io.ts";
+import { readHookInput } from "../lib/hook-runtime.ts";
 import { pad } from "../lib/platform.ts";
 
 const LOG_FILE = join(homedir(), ".claude", "api-failures.log");
@@ -24,13 +24,7 @@ function formatTimestamp(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-const raw = await readStdin();
-let input: StopFailureInput = {};
-try {
-  input = JSON.parse(raw) as StopFailureInput;
-} catch {
-  // Malformed stdin — same as bash `jq ... // "unknown"`: keep defaults.
-}
+const input = await readHookInput<StopFailureInput>();
 
 const errorType = input.error?.type ?? "unknown";
 const errorMessage = input.error?.message ?? "Unknown error";

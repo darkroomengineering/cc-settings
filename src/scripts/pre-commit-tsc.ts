@@ -28,11 +28,11 @@ async function main(): Promise<number> {
     stdout: "pipe",
     stderr: "pipe",
   });
-  const [stdout, stderr, code] = (await Promise.all([
+  const [stdout, stderr, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
-  ])) as [string, string, number];
+  ]);
 
   const combined = stdout + stderr;
   const hasErrors = code !== 0 || /error TS/.test(combined);

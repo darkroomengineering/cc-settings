@@ -64,6 +64,21 @@ export type Strategy = (
 
 // --- Strategy helpers (shared) -------------------------------------------
 
+// Read fields off unvalidated settings JSON (the team/user objects may not have
+// passed the Settings schema). A non-object resolves to an empty record; a
+// non-array field to undefined. unionPermissionArray treats undefined as "no
+// rules", so a corrupt settings.json degrades to empty instead of throwing on a
+// bad shape — these replace scattered `as UnknownRecord` / `as StringArray` casts
+// that used to assert those shapes without checking them.
+function asRecord(v: unknown): UnknownRecord {
+  return typeof v === "object" && v !== null ? (v as UnknownRecord) : {};
+}
+
+function stringArrayField(rec: UnknownRecord, key: string): StringArray {
+  const v = rec[key];
+  return Array.isArray(v) ? v : undefined;
+}
+
 // Union two string arrays, preserving team order. Team-only entries can be
 // declined in interactive mode (they're the ones team added since last install).
 export async function unionPermissionArray(
@@ -122,32 +137,32 @@ export async function resolveScalarConflict(
 // + scalar fields (defaultMode/autoMode). deny is always additive (never prompts).
 export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
-  const t = (team as UnknownRecord | undefined) ?? {};
-  const u = (user as UnknownRecord | undefined) ?? {};
+  const t = asRecord(team);
+  const u = asRecord(user);
   const { opts } = ctx;
 
   const allow = await unionPermissionArray(
-    t.allow as StringArray,
-    u.allow as StringArray,
+    stringArrayField(t, "allow"),
+    stringArrayField(u, "allow"),
     opts,
     "allow rule",
   );
   const deny = await unionPermissionArray(
-    t.deny as StringArray,
-    u.deny as StringArray,
+    stringArrayField(t, "deny"),
+    stringArrayField(u, "deny"),
     opts,
     "deny rule",
     true, // deny always accepts team additions — guardrail
   );
   const ask = await unionPermissionArray(
-    t.ask as StringArray,
-    u.ask as StringArray,
+    stringArrayField(t, "ask"),
+    stringArrayField(u, "ask"),
     opts,
     "ask rule",
   );
   const dirs = await unionPermissionArray(
-    t.additionalDirectories as StringArray,
-    u.additionalDirectories as StringArray,
+    stringArrayField(t, "additionalDirectories"),
+    stringArrayField(u, "additionalDirectories"),
     opts,
     "additionalDirectory",
   );

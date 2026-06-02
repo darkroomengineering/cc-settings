@@ -14,10 +14,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { compareVersion } from "./version-delta.ts";
 
-export interface SentinelInfo {
-  version: string | null;
-  repoPath: string | null;
-}
+// The sentinel reader (readSentinelInfo) and its SentinelInfo type live in
+// version-delta.ts — the single source for ~/.claude/.cc-settings-version reads.
+// This module composes that with the repo's packaged VERSION to detect drift.
 
 export interface DriftResult {
   stale: boolean;
@@ -28,22 +27,6 @@ export interface DriftResult {
 // Match `const VERSION = "11.12.0"` in the repo's src/setup.ts. Anchored on
 // `const VERSION` so a stray `VERSION = ...` in a comment can't shadow it.
 const VERSION_CONST_RE = /\bconst VERSION\s*=\s*["'](\d+\.\d+\.\d+)["']/;
-
-/** Read installed version + repo path from ~/.claude/.cc-settings-version. Never throws. */
-export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo> {
-  const sentinelPath = join(claudeDir, ".cc-settings-version");
-  if (!existsSync(sentinelPath)) return { version: null, repoPath: null };
-  try {
-    const raw = await readFile(sentinelPath, "utf8");
-    const parsed = JSON.parse(raw) as { version?: unknown; repo_path?: unknown };
-    return {
-      version: typeof parsed.version === "string" ? parsed.version : null,
-      repoPath: typeof parsed.repo_path === "string" ? parsed.repo_path : null,
-    };
-  } catch {
-    return { version: null, repoPath: null };
-  }
-}
 
 /** Read the repo's packaged VERSION constant from <repoPath>/src/setup.ts.
  *  Returns null if the repo is gone or the constant can't be parsed. Never throws. */

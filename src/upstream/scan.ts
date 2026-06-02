@@ -69,8 +69,8 @@ async function fetchLatestClaudeCodeVersion(): Promise<string | null> {
       headers: { accept: "application/json" },
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { version?: string };
-    return json.version ?? null;
+    const parsed = z.object({ version: z.string() }).safeParse(await res.json());
+    return parsed.success ? parsed.data.version : null;
   } catch {
     return null;
   }
