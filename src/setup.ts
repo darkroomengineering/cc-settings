@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.13.0"; // react-doctor as an optional advisory probe in the proof-of-work gate (React projects)
+const VERSION = "11.14.0"; // design-tokens: fold in Tailwind v4 token consolidation (ported/adapted from millionco/skills)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

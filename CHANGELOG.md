@@ -6,6 +6,20 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.14.0] — 2026-06-02
+
+Fold **Tailwind v4 token consolidation** into the existing `design-tokens` skill — the inverse of its generation modes (audit-and-reduce an over-grown token set to fewer tokens with identical render). Method ported and **adapted** from [millionco/skills](https://github.com/millionco/skills) (MIT), not installed via their `npx skills add` (same curation reasons as the react-doctor installer). `bun run lint:skills` clean; still **31 skills** (folded, not added — honours the 40-skill soft cap).
+
+### Added
+
+- **`skills/design-tokens/SKILL.md`** — new "Consolidation" section: the required audit-first order (parse blocks → compute the LIVE set transitively → count globals.css's own utility-class `var()` deps → rename-map-as-data codegen → verify), the two reduction levers (dead deletion, value-similar collapse), the "don't inline into arbitrary values" rule, and the five collapse-safety checks most likely to bite (scoped overrides, same-side L=0.5 rule, transparent-in-one-mode, canonical-source precedence, `bg-X`/`--background-image-X` name collisions). Frontmatter `description` extended with consolidation triggers ("reduce tokens", "dedupe tokens", "too many tokens", "consolidate tokens").
+- **`MANUAL.md`** — `/design-tokens` blurb + skills-table row updated to cover consolidation.
+
+### Notes on the port (deliberate constraints)
+
+- **Adapted, not copied.** The source assumes `pnpm typecheck/lint/format/build` and a `pnpm --filter web` monorepo; the ported verify loop is Darkroom-native (`bun run typecheck` / `tsgo --noEmit` · `biome check --write` · `bun run build`), with a one-line note for pnpm-monorepo paths. Distilled to ~45 lines (from ~150) — the essential method + highest-value gotchas, authored in our voice.
+- **Folded, not a new skill.** Consolidation is the exact inverse of generation and shares the same domain (Tailwind v4 tokens / `globals.css`), so it belongs in `design-tokens` rather than a 32nd skill — keeping the selector lean.
+
 ## [11.13.0] — 2026-06-02
 
 Integrate [react-doctor](https://github.com/millionco/react-doctor) (millionco, MIT) into the proof-of-work gate as an **optional advisory probe** for React projects. react-doctor is a deterministic scanner (oxlint + `eslint-plugin-react-hooks`) that scores security/perf/correctness/a11y/bundle/architecture 0–100 — the deterministic floor under `rules/react.md` / `react-perf.md`, complementary to the LLM-driven `/review` and `/nuclear-review` (mechanical vs judgment, the same line proof-of-work already draws). Typecheck + full suite green.

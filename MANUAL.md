@@ -241,9 +241,9 @@ Triggers `/dr-init` — clones Satus starter template with full Darkroom stack.
 
 ### Design Tokens
 
-Say: *"generate a type scale"* or *"create a color palette"*
+Say: *"generate a type scale"*, *"create a color palette"*, or *"reduce/dedupe our tokens"*
 
-Triggers `/design-tokens` — generates tokens as Tailwind config or CSS custom properties.
+Triggers `/design-tokens` — generates tokens as Tailwind config or CSS custom properties, or **consolidates** an over-grown Tailwind v4 token set (audit → live-set → rename-map → verify) for fewer tokens with identical render.
 
 ### Smooth Scroll
 
@@ -435,7 +435,7 @@ These are enforced automatically — no skill needed:
 | `component` | create component, new component |
 | `hook` | create hook, custom hook |
 | `dr-init` | new darkroom project, satus, novus, scaffold from starter (`dr-` prefix = Darkroom-specific) |
-| `design-tokens` | type scale, color palette, spacing system |
+| `design-tokens` | type scale, color palette, spacing system, reduce/dedupe/consolidate tokens |
 | `qa` | visual QA, accessibility, contrast, touch target |
 | `lighthouse` | lighthouse, performance audit, page speed, web vitals |
 | `checkpoint` | snapshot, before risky op, restore checkpoint, rollback to |
