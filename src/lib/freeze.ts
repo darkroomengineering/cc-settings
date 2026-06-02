@@ -4,7 +4,7 @@
 // module. State lives in ~/.claude/tmp/freeze.json so it persists across tool
 // calls within a session.
 
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { readState, writeState } from "./hook-runtime.ts";
 
 export const FREEZE_STATE = "freeze.json";
@@ -29,11 +29,13 @@ export function toAbsolute(p: string, cwd: string): string {
 
 /** Is `filePath` inside (or equal to) the freeze `root`? A null/empty root means
  *  no freeze is active, so everything is allowed. Both sides are resolved to
- *  absolute paths first, and the boundary match requires a `/` separator so that
- *  e.g. `/repo/src-extra` is NOT considered inside `/repo/src`. */
+ *  absolute paths first, and the boundary match requires a path separator so that
+ *  e.g. `/repo/src-extra` is NOT considered inside `/repo/src`. The separator is
+ *  the platform's (`node:path` `sep`) — `resolve` emits `\` on Windows, so a
+ *  hard-coded `/` would never match there and the check would reject everything. */
 export function isWithinBoundary(filePath: string, root: string | null, cwd: string): boolean {
   if (!root) return true;
   const absRoot = resolve(cwd, root);
   const absFile = resolve(cwd, filePath);
-  return absFile === absRoot || absFile.startsWith(`${absRoot}/`);
+  return absFile === absRoot || absFile.startsWith(`${absRoot}${sep}`);
 }
