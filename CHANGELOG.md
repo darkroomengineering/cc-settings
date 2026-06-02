@@ -6,6 +6,15 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.15.2] — 2026-06-02
+
+Fix a pre-existing **Windows** bug in the `/freeze` edit-scope lock. It was latent on `main` since `/freeze` shipped (`ee74a4e`) because changes had been direct-pushed without watching the Windows CI jobs — and it surfaced the moment a PR's CI matrix was actually watched to completion (a payoff of moving to PR-by-default).
+
+### Fixed
+
+- **`src/lib/freeze.ts`** — `isWithinBoundary` hard-coded a forward-slash separator (`absFile.startsWith(\`${absRoot}/\`)`). `node:path`'s `resolve` emits `\` paths on Windows, so the subtree match never fired there — freeze would have rejected *every* in-boundary edit at runtime, and the tests failed. Now uses the platform separator (`sep`). Behaviour is identical on macOS/Linux (`sep === "/"`).
+- **`tests/freeze.test.ts`** — the two `toAbsolute` assertions hard-coded POSIX output strings (`"/repo/src/a.ts"`), which can't hold on Windows (`resolve` yields `C:\…\`). They now derive expectations through `resolve`, so they're platform-agnostic. The `isWithinBoundary` boolean tests needed no change — they assert containment, which the `sep` fix makes correct on every OS.
+
 ## [11.15.1] — 2026-06-02
 
 Close two doc/wiring drifts left by this session's feature releases — surfaced by an audit of "what does each change touch vs what should it touch".

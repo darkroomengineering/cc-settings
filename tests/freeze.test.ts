@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 import { isWithinBoundary, toAbsolute } from "../src/lib/freeze.ts";
 
 const CWD = "/repo";
@@ -32,11 +33,13 @@ describe("isWithinBoundary", () => {
   });
 });
 
+// Expectations go through `resolve` rather than POSIX string literals so the
+// assertions hold on Windows too (where `resolve` emits `C:\…\` backslash paths).
 describe("toAbsolute", () => {
   test("relative resolves against cwd", () => {
-    expect(toAbsolute("src/a.ts", CWD)).toBe("/repo/src/a.ts");
+    expect(toAbsolute("src/a.ts", CWD)).toBe(resolve(CWD, "src/a.ts"));
   });
   test("absolute unchanged", () => {
-    expect(toAbsolute("/x/y.ts", CWD)).toBe("/x/y.ts");
+    expect(toAbsolute("/x/y.ts", CWD)).toBe(resolve(CWD, "/x/y.ts"));
   });
 });
