@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.12.0"; // sync with Claude Code v2.1.159 (CLAUDE_CODE_ENABLE_AUTO_MODE env var); cuts the accumulated nuclear-review/orchestration-tax batch
+const VERSION = "11.12.1"; // sync with Claude Code v2.1.160 (drop removed CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE env var)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

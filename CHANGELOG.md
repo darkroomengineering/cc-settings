@@ -6,6 +6,24 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.12.1] — 2026-06-02
+
+Upstream sync to Claude Code v2.1.160 — a cleanup-only release. v2.1.160 is almost entirely platform/feature bug fixes (Windows/WSL, background sessions, vim/voice/IME, `claude agents`) that cc-settings never worked around, plus native security hardening with no config surface. The one actionable change is a removed env var. Typecheck + full suite green; scanner reports no drift.
+
+### Synced (Claude Code v2.1.159 → v2.1.160)
+
+- **Removed `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE` (v2.1.160)** — upstream deleted this env var (pinned fast mode to Opus 4.6; already flagged "two generations stale" since Opus 4.8). Dropped from `upstream/claude-code-manifest.json` `knownEnvVars` and the `docs/settings-reference.md` env table so the scanner stops vouching for a var that no longer exists. Historical `CHANGELOG.md` mentions are left intact as a record.
+- **Already aligned** — the v2.1.160 rename of the dynamic-workflow trigger keyword from `workflow` to `ultracode` needs no change: cc-settings adopted `ultracode` everywhere in 11.x (2.1.154+) and carried no stale `workflow`-keyword references.
+- **Manifest** — `claudeCodeVersion` 2.1.159 → 2.1.160, `lastScan` refreshed. Scanner reports no drift.
+- **Skipped** — native hardening with no cc-settings surface (prompt before writing shell startup files / `~/.config/git/`; `acceptEdits` prompts before build-tool configs; Edit-after-grep no longer needs Read); removed JetBrains plugin suggestion; and the v2.1.160 bug-fix batch (WSL clipboard, `claude agents` history/freeze, `claude --bg` socket, Windows dir-deletion/keys/links, CJK IME, voice non-ASCII, vim `p`, SDK `--model` hint, brief-mode resume, `/effort ultracode` workflow-blame, auto-mode latency, SIGTERM teardown).
+
+### Files changed
+
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.12.0] — 2026-06-01
 
 Structural cleanup from a `/nuclear-review` whole-codebase audit (2026-05-29), plus a suite of orchestration-tax features built from the audit and the "Orchestration Tax" essay (review-queue backpressure, proof-of-work gate, and more below), released together with an upstream sync to Claude Code v2.1.159. The cleanup is behavior-preserving (internal export renames aside); the new hooks/skills are additive. Full suite green, typecheck + lint clean.

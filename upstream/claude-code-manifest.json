@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-06-01T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.159",
+  "lastScan": "2026-06-02T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.160",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -156,7 +156,6 @@
     "CLAUDE_CODE_MCP_SERVER_NAME",
     "CLAUDE_CODE_MCP_SERVER_URL",
     "CLAUDE_CODE_NO_FLICKER",
-    "CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE",
     "CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE",
     "CLAUDE_CODE_PERFORCE_MODE",
     "CLAUDE_CODE_PLUGIN_PREFER_HTTPS",
