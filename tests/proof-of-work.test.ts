@@ -4,7 +4,12 @@
 // `bun run proof` manually.
 
 import { describe, expect, test } from "bun:test";
-import { allGreen, detectGates, formatReport } from "../src/lib/proof-of-work.ts";
+import {
+  allGreen,
+  detectGates,
+  detectReactDoctor,
+  formatReport,
+} from "../src/lib/proof-of-work.ts";
 
 describe("proof-of-work lib", () => {
   test("detectGates: picks runnable gates, cheapest-first", () => {
@@ -31,5 +36,31 @@ describe("proof-of-work lib", () => {
   test("formatReport: verdict reflects pass/fail", () => {
     expect(formatReport([{ gate: "typecheck", status: "pass" }])).toContain("review-ready ✓");
     expect(formatReport([{ gate: "test", status: "fail" }])).toContain("NOT review-ready");
+  });
+
+  test("detectReactDoctor: true only when react-doctor is a dependency", () => {
+    expect(detectReactDoctor({ "react-doctor": "0.2.16", react: "19" })).toBe(true);
+    expect(detectReactDoctor({ react: "19", "react-dom": "19" })).toBe(false);
+    expect(detectReactDoctor({})).toBe(false);
+  });
+
+  test("allGreen: advisory probes never flip the verdict", () => {
+    expect(
+      allGreen([
+        { gate: "typecheck", status: "pass" },
+        { gate: "react-doctor", status: "skip", advisory: true },
+      ]),
+    ).toBe(true);
+    // even a non-pass advisory status is non-blocking
+    expect(allGreen([{ gate: "react-doctor", status: "fail", advisory: true }])).toBe(true);
+  });
+
+  test("formatReport: advisory entries render with ℹ and an (advisory) tag", () => {
+    const report = formatReport([
+      { gate: "typecheck", status: "pass" },
+      { gate: "react-doctor", status: "pass", detail: "score 87/100", advisory: true },
+    ]);
+    expect(report).toContain("ℹ react-doctor — score 87/100 (advisory)");
+    expect(report).toContain("review-ready ✓");
   });
 });

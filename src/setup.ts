@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.12.1"; // sync with Claude Code v2.1.160 (drop removed CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE env var)
+const VERSION = "11.13.0"; // react-doctor as an optional advisory probe in the proof-of-work gate (React projects)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

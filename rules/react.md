@@ -204,3 +204,4 @@ export async function loader() {
 - **React Compiler** — automatic memoization
 - **React DevTools** — inspection
 - **Biome** — linting
+- **react-doctor** *(optional — only when it's in the project's deps)* — deterministic scan (oxlint + `eslint-plugin-react-hooks`) scoring security/perf/correctness/a11y/bundle/architecture 0–100. Use as a fast **pre-filter before** LLM review, never the authority. Run pinned with telemetry off: `npx react-doctor --diff --verbose --no-telemetry` (resolves the lockfile-pinned binary, never `@latest`). `bun run proof` auto-includes it as an advisory signal when present.

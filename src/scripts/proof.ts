@@ -7,20 +7,37 @@
 // human reviewer until the machine-verifiable checks are green — that keeps the
 // scarce serial resource (human attention) on judgment, not on confirming what
 // a machine could.
+//
+// For React projects that depend on react-doctor, an extra ADVISORY probe runs
+// its deterministic scan. It reports a score but never flips the verdict.
 
-import { detectGates, formatReport, runGates } from "../lib/proof-of-work.ts";
+import {
+  allGreen,
+  detectGates,
+  detectReactDoctor,
+  formatReport,
+  runGates,
+  runReactDoctor,
+} from "../lib/proof-of-work.ts";
 
 const pkg = (await Bun.file("package.json")
   .json()
-  .catch(() => ({}))) as { scripts?: Record<string, string> };
+  .catch(() => ({}))) as {
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
 const gates = detectGates(pkg.scripts ?? {});
+const hasReactDoctor = detectReactDoctor({ ...pkg.dependencies, ...pkg.devDependencies });
 
-if (gates.length === 0) {
+if (gates.length === 0 && !hasReactDoctor) {
   console.log("Proof of work: no verify scripts (typecheck/test/lint) in package.json — skipping.");
   process.exit(0);
 }
 
-console.log(`Running proof-of-work gates: ${gates.join(", ")} …\n`);
+const labels = [...gates, ...(hasReactDoctor ? ["react-doctor (advisory)"] : [])];
+console.log(`Running proof-of-work gates: ${labels.join(", ")} …\n`);
 const results = await runGates(gates, process.cwd());
+if (hasReactDoctor) results.push(await runReactDoctor(process.cwd()));
 console.log(formatReport(results));
-process.exit(results.every((r) => r.status !== "fail") ? 0 : 1);
+process.exit(allGreen(results) ? 0 : 1);

@@ -6,6 +6,23 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.13.0] — 2026-06-02
+
+Integrate [react-doctor](https://github.com/millionco/react-doctor) (millionco, MIT) into the proof-of-work gate as an **optional advisory probe** for React projects. react-doctor is a deterministic scanner (oxlint + `eslint-plugin-react-hooks`) that scores security/perf/correctness/a11y/bundle/architecture 0–100 — the deterministic floor under `rules/react.md` / `react-perf.md`, complementary to the LLM-driven `/review` and `/nuclear-review` (mechanical vs judgment, the same line proof-of-work already draws). Typecheck + full suite green.
+
+### Added
+
+- **react-doctor advisory probe** — `src/lib/proof-of-work.ts` gains `detectReactDoctor()` + `runReactDoctor()`, and `bun run proof` (`src/scripts/proof.ts`) now appends a react-doctor pass when the project depends on it. The probe is **advisory**: `allGreen()` ignores advisory results, so a low score (or a missing/broken binary) reports a signal but never flips the review-ready verdict or the exit code. Rendered with `ℹ … (advisory)` to read distinctly from the hard gates. (`tests/proof-of-work.test.ts` covers detection, advisory-ignored verdict, and advisory rendering.)
+- **`rules/react.md`** — one Tools bullet documenting the pinned, telemetry-off invocation as a pre-filter *before* LLM review, not the authority.
+- **`config/30-permissions.json`** — narrow `Bash(npx react-doctor:*)` allow rule (deliberately not a blanket `Bash(npx:*)`), so the probe runs without a prompt while every other `npx` still requires one.
+
+### Notes on the integration (deliberate constraints)
+
+- **Pinned, never `@latest`.** The probe runs only when react-doctor is already a project dependency, so local `npx` resolves the lockfile-pinned binary from `node_modules/.bin` with no network fetch. cc-settings never pulls an unpinned `@latest` — consistent with the supply-chain posture (hooks fingerprint, `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`).
+- **Telemetry off.** `runReactDoctor()` always passes `--no-telemetry` (react-doctor reports anonymous usage to Sentry by default); the documented invocation in `rules/react.md` does too.
+- **No third-party installer.** We did *not* adopt `npx react-doctor install` — it writes an opaque agent artifact that would bypass cc-settings' curation (skill linter, `dr-` naming, 40-skill cap, hooks fingerprint). The knowledge lives in a rule we author and version ourselves.
+- **No new skill.** Wired into the existing gate rather than a parallel `/react-doctor` skill, keeping the selector lean (still 31 skills) and the surface aligned with the 11.12.0 Amdahl-shrink work.
+
 ## [11.12.1] — 2026-06-02
 
 Upstream sync to Claude Code v2.1.160 — a cleanup-only release. v2.1.160 is almost entirely platform/feature bug fixes (Windows/WSL, background sessions, vim/voice/IME, `claude agents`) that cc-settings never worked around, plus native security hardening with no config surface. The one actionable change is a removed env var. Typecheck + full suite green; scanner reports no drift.

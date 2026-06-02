@@ -20,6 +20,7 @@
 			"Bash(gh:*)",
 			"Bash(biome:*)",
 			"Bash(lighthouse:*)",
+			"Bash(npx react-doctor:*)",
 			"Bash(open -a:*)",
 			"Bash(ls:*)",
 			"Bash(pwd:*)",
