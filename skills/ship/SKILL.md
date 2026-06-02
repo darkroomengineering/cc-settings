@@ -82,8 +82,30 @@ Agent(reviewer, "Review all staged changes for quality, TypeScript strictness, a
 git add <relevant files>
 git commit -m "<type>: <description>"
 git push origin HEAD
-gh pr create --fill
 ```
+
+**Author the PR body — do NOT use `--fill`.** `--fill` dumps the commit messages
+into the description, which reads as technical and over-engineered. Lead with a
+plain-English "What this does" (see `rules/git.md` "Signal, not spam"):
+
+```bash
+gh pr create --title "<type>: <concise, plain-English title>" --body "$(cat <<'EOF'
+## What this does
+<2–3 plain sentences: what changed and why it matters — the real-world effect,
+not the mechanism. A teammate who didn't write it should get it on one read.>
+
+## Summary
+- <technical bullet — the how>
+
+## Test Plan
+- [ ] <how it was verified>
+EOF
+)"
+```
+
+Write "What this does" from the *diff and its purpose*, not by pasting commit
+subjects. If you can't explain it plainly, the change is unclear — say so, don't
+reach for bigger words.
 
 ### Step 8: Watch CI Until Green (post-push)
 

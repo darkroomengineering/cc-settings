@@ -6,6 +6,21 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.15.0] — 2026-06-02
+
+Make PR descriptions and review comments lead with a **plain-English summary of what the change does** — fixing the recurring failure mode where our PRs read as technical and over-engineered (the diff restated in jargon). Inspired by the "explain the why, plainly" spirit of a teaching-prompt gist, minus its quiz/tutor machinery, with an explicit "signal, not spam" bar so the summary is useful, not filler.
+
+### Changed
+
+- **`rules/git.md`** — the canonical PR template now leads with a `## What this does` section (2–3 plain sentences naming the real-world effect, not the mechanism) above the technical `## Summary` and `## Test Plan`. Added a **"Signal, not spam"** rubric: every sentence earns its place, explain the *why* not just the *what*, don't make a small change sound big, no jargon dump / diff-restating / AI filler, and — if you can't say it plainly, that's a sign the change is unclear, not a cue for bigger words.
+- **`skills/ship/SKILL.md`** — Step 7 no longer uses `gh pr create --fill` (which dumps commit messages into the body and is the root cause of the technical-sounding PRs). It now authors the body via `--body` with a heredoc that leads with "What this does", and instructs writing that summary from the diff's *purpose*, not by pasting commit subjects.
+- **`skills/review/SKILL.md`** — the review Summary line now models the standard (plain-English "what this change does" first), and a new "Remember" bullet asks for comments written like you're talking to a teammate, not citing a rulebook.
+
+### Notes
+
+- No new skill — this is a writing standard threaded through the existing PR/review surfaces (still 31 skills).
+- Deliberately dropped the gist's interactive elements (quizzes, ELI5/14 levels, comprehension checkpoints): the goal is a useful description on the PR, not a tutoring session.
+
 ## [11.14.0] — 2026-06-02
 
 Fold **Tailwind v4 token consolidation** into the existing `design-tokens` skill — the inverse of its generation modes (audit-and-reduce an over-grown token set to fewer tokens with identical render). Method ported and **adapted** from [millionco/skills](https://github.com/millionco/skills) (MIT), not installed via their `npx skills add` (same curation reasons as the react-doctor installer). `bun run lint:skills` clean; still **31 skills** (folded, not added — honours the 40-skill soft cap).

@@ -33,7 +33,7 @@ git diff path/to/file
 
 ```
 ## Summary
-[1-2 sentence overview]
+[1-2 plain-English sentences: what this change does, then your overall read]
 
 ## Critical Issues
 - [Must fix before merge]
@@ -52,6 +52,7 @@ git diff path/to/file
 
 - Be constructive, not just critical
 - Explain WHY something is an issue
+- Comments in plain English — explain the issue and its impact like you're talking to a teammate, not citing a rulebook. No jargon dump.
 - Suggest specific fixes
 - If you find a pattern worth remembering, save it via auto-memory (personal) or `/share-learning` (team-wide).
 

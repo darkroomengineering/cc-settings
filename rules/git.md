@@ -89,14 +89,30 @@ See `rules/security.md` for the secret file list and rationale.
 
 ## PR Guidelines
 
+Lead every PR with a plain-English summary. Our default failure mode is
+descriptions that read as technical and over-engineered — the diff restated in
+jargon. Write for a teammate who didn't write the code (and for future you).
+
 ```markdown
+## What this does
+2–3 plain sentences: what changed and why it matters — the problem it solves or
+the behaviour it changes. Name the real-world effect ("login now survives a
+refresh"), not the mechanism ("refactored the auth persistence layer").
+
 ## Summary
-Brief description of changes.
+Technical bullets — the *how*, for reviewers reading the code.
 
 ## Test Plan
 - [ ] Unit tests pass
 - [ ] Manual testing completed
 ```
+
+**Signal, not spam** — the bar for "What this does":
+- Every sentence earns its place. If a line only narrates the code, cut it.
+- Explain the *why*, not just the *what*. One why is good; the why behind it is better.
+- Don't make a small change sound big. Plain beats impressive.
+- No jargon dump, no restating the diff, no filler ("This PR introduces a comprehensive…").
+- If you can't say what it does in plain English, that's a signal the change is unclear — not a reason to reach for bigger words.
 
 ### Before Merging
 - CI passes, code reviewed, no conflicts, branch up to date
