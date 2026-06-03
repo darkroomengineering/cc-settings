@@ -90,17 +90,6 @@
 				]
 			},
 			{
-				"matcher": "mcp__tldr",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/track-tldr.ts\" \"$TOOL_NAME\"",
-						"async": true,
-						"timeout": 10
-					}
-				]
-			},
-			{
 				"matcher": "Bash",
 				"hooks": [
 					{
@@ -202,7 +191,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/tldr-stats.ts\"; bun \"$HOME/.claude/src/scripts/handoff.ts\" create",
+						"command": "bun \"$HOME/.claude/src/scripts/handoff.ts\" create",
 						"async": true,
 						"timeout": 30
 					}

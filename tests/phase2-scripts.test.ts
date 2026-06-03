@@ -189,32 +189,6 @@ describe("post-edit.ts", () => {
   });
 });
 
-describe("track-tldr.ts + tldr-stats.ts", () => {
-  test("track increments a stats file, stats reads + clears it", async () => {
-    const { mkdtempSync, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const sandbox = mkdtempSync(join(tmpdir(), "cc-tldr-test-"));
-    try {
-      // We can't easily redirect HOME per spawn — just call the scripts in sequence
-      // with HOME overridden.
-      const env = { HOME: sandbox };
-      const rTrack = await run("track-tldr.ts", { env, args: ["mcp__tldr__semantic"] });
-      expect(rTrack.exit).toBe(0);
-      const rStats = await run("tldr-stats.ts", { env });
-      expect(rStats.exit).toBe(0);
-      expect(rStats.stdout).toContain("Calls: 1");
-      expect(rStats.stdout).toContain("1000"); // semantic = 1000 saved
-      // After stats runs, file should be deleted.
-      const rStats2 = await run("tldr-stats.ts", { env });
-      expect(rStats2.exit).toBe(0);
-      expect(rStats2.stdout).toBe("");
-    } finally {
-      rmSync(sandbox, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("log-bash.ts", () => {
   test("logs a bash command line to dated file", async () => {
     const { mkdtempSync, rmSync, readdirSync, readFileSync } = await import("node:fs");
