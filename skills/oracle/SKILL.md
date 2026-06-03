@@ -208,6 +208,8 @@ Produce the final output in ADR format.
 Score format: raw (weighted) where weighted = raw * weight
 ```
 
+> **When the call is close or taste-heavy, prefer pairwise judgment over absolute scores.** Absolute 1–10 scoring drifts and compresses — everything clusters at 6–8, and the "winner" can hinge on one evaluator's mood. Comparative judgment is more reliable: have evaluators judge A-vs-B head-to-head and run a small tournament (each comparison its own call). The weighted matrix above stays right for criteria-driven calls with hard trade-offs; reach for pairwise when the totals land within a few points of each other or the decision is about taste (naming, design, API feel).
+
 > This extends the base ADR template from `agents/planner.md` with scoring matrix and detailed risk sections.
 
 #### ADR Template

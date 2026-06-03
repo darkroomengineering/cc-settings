@@ -36,6 +36,7 @@ The Edit tool uses exact string matching. Follow these rules:
 - **Code review on changes touching 3+ files** → `Agent(reviewer, "...")`
 - **Expert second opinions / blast-radius / "why is this here" questions** → `Agent(explore, "...")`
 - **Full-feature orchestration across 3+ agents** → `Agent(maestro, "...")`
+- **Tasks structurally prone to single-window failure** — agentic laziness (quitting at 20 of 50 items), self-preferential bias (judging your own output), goal drift across compaction → a [dynamic workflow](https://code.claude.com/docs/en/workflows) / `/effort ultracode` (see `skills/orchestrate/SKILL.md`)
 
 > **Briefing contract for `implementer`**: as a subagent it gets only your prompt — no conversation context, none of the files you've read — so every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command, and a scope boundary. Thin prompts cause regressions; the agent will refuse them. It runs in the live working tree and leaves changes **uncommitted** for you to review before they land. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
 

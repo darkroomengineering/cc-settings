@@ -141,7 +141,7 @@ Write "What this does" from the *diff and its purpose*, not by pasting commit
 subjects. If you can't explain it plainly, the change is unclear — say so, don't
 reach for bigger words.
 
-### Step 8: Watch CI Until Green (post-push)
+### Step 9: Watch CI Until Green (post-push)
 
 After `gh pr create`, watch the PR-attached checks until all pass. Use `gh pr checks` as the source of truth — it covers all PR checks, not just GitHub Actions runs (which `gh run list` would miss).
 
