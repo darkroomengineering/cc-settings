@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.16.0"; // deslop advisory probe in proof-of-work; PR-by-default workflow + PULL_REQUEST_TEMPLATE
+const VERSION = "11.17.0"; // retire upstream-sync cron + CC 2.1.161 sync; dynamic-workflow guidance + dead-telemetry removal; docs accuracy pass + USAGE.md removal
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
