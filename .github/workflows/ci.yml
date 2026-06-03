@@ -65,8 +65,9 @@ jobs:
       - run: git diff --exit-code schemas/
 
   upstream-scan:
-    # Dry-run in CI so any drift shows up in the PR. This is not a gate —
-    # the scheduled upstream-sync workflow proposes fixes.
+    # Dry-run in CI so any drift surfaces in the PR logs. Not a gate, and not
+    # automated beyond this — run `/cc sync` by hand to triage the changelog
+    # and land a bump.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
