@@ -55,12 +55,22 @@ Use full parallel team fan-out instead of sequential subagent delegation when:
 
 ### Alternative: dynamic workflows (research preview, v2.1.154+)
 
-Tasks that match the **Large codebase analysis** or **wide-blast-radius migration** shapes above can alternatively be expressed as a [dynamic workflow](https://code.claude.com/docs/en/workflows) — a JavaScript orchestration script that holds plan state outside Claude's context window, supports up to 16 concurrent agents per script (1000 total), and resumes from cached agent results within a session. Two entry points:
+A [dynamic workflow](https://code.claude.com/docs/en/workflows) is a JS harness that spawns subagents, holds plan state *outside* your context window, runs up to 16 agents concurrently (1000 total), and resumes from cached results within a session. The trigger isn't task *size* — it's whether the task risks one of three failure modes a single context window is prone to:
 
-- One-shot: include the word `workflow` in your prompt (e.g. _"Run a workflow to audit all SVG icons for accessibility issues"_) — Claude generates and runs the script.
-- Session-wide: `/effort ultracode` — Claude auto-orchestrates a workflow for every substantive task in the session.
+- **Agentic laziness** — stopping at 20 of 50 items and declaring done. → *fan-out-and-synthesize*: one agent per item, barrier-join the results.
+- **Self-preferential bias** — preferring your own output when you're also the judge. → *adversarial verification*: a separate agent refutes each finding; or a *tournament* of pairwise comparisons (more reliable than absolute scoring for ranking or taste).
+- **Goal drift** — losing "don't do X" constraints across compaction. → each subagent gets a focused, isolated goal that can't drift.
 
-The maestro `Agent()` fan-out documented above is the **default** orchestration mode in cc-settings; workflows are an option to reach for when you need replayability or scale beyond what subagent fan-out provides. Don't rewire skills to *depend* on the Workflow tool — its API is still preview-stage — but a skill may ship an *opt-in* example workflow (see `nuclear-review`'s `references/nuclear-review.workflow.js`): an example you run by choice, never a runtime dependency.
+Shapes worth naming when you build one: **classify-and-act**, **fan-out-and-synthesize**, **generate-and-filter**, **tournament**, **loop-until-done** (spawn until a stop condition, not a fixed count). Not only for marathons — a **quick workflow** is valid: _"quick workflow to adversarially check this one assumption."_
+
+- **Budget** — workflows burn more tokens; cap with _"…budget 10k tokens"_ and the harness enforces it.
+- **Quarantine** — for triage over untrusted input, agents that read public/untrusted content must not also take privileged actions; split reading from acting so an injected page can't trigger a privileged step.
+
+Two entry points:
+- One-shot: say _"use a workflow to …"_ or the keyword `ultracode` in your prompt (the force-keyword was renamed `workflow` → `ultracode` in v2.1.160). Pair with `/loop` for repeatable triage/verification/research.
+- Session-wide: `/effort ultracode` — auto-orchestrates a workflow for every substantive task.
+
+The maestro `Agent()` fan-out above is the **default** in cc-settings; workflows are for replayability or scale beyond subagent fan-out. Don't rewire skills to *depend* on the Workflow tool — its API is still preview-stage — but a skill may ship an *opt-in* example (see `nuclear-review`'s `references/nuclear-review.workflow.js`): a template you adapt, never a runtime dependency.
 
 ## Output
 

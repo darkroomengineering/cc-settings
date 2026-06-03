@@ -353,12 +353,6 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 
 **Retention:** Controlled by `CLAUDE_LOG_RETENTION_DAYS` env var (default: 1 day, today only). Old logs are pruned automatically on each hook fire.
 
-### PostToolUse (mcp__tldr matcher)
-
-| Script | Purpose | Async |
-|--------|---------|-------|
-| `track-tldr.ts "$TOOL_NAME"` | Tracks TLDR MCP usage statistics | Yes |
-
 ### PostToolUse (no matcher — every tool)
 
 | Script | Purpose | Async |
@@ -411,7 +405,7 @@ Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patte
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `tldr-stats.ts` + `handoff.ts create` | Prints TLDR session stats and saves final handoff state | Yes |
+| `handoff.ts create` | Saves final handoff state at session end | Yes |
 
 ### CwdChanged
 
@@ -490,7 +484,6 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | `~/.claude/swarm.log` | Subagent start/stop and task created/completed events |
 | `~/.claude/sessions.log` | Session lifecycle events |
 | `~/.claude/session-titles/` | Per-session title flags (set once per session by `session-title.ts`) |
-| `~/.claude/tldr-session-stats.json` | TLDR tool usage statistics per session |
 | `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.ts`) |
 | `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.ts`) |
 | `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.ts`, analyzed by `/audit`) |

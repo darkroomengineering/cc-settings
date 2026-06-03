@@ -35,7 +35,7 @@ describe("classifyHookCommand — trusted patterns", () => {
 
   test("compound of two trusted commands", () => {
     const r = classifyHookCommand(
-      'bun "$HOME/.claude/src/scripts/tldr-stats.ts"; bun "$HOME/.claude/src/scripts/handoff.ts" create',
+      'bun "$HOME/.claude/src/scripts/session-start.ts"; bun "$HOME/.claude/src/scripts/handoff.ts" create',
     );
     expect(r.severity).toBe("trusted");
   });

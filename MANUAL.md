@@ -329,7 +329,7 @@ The idea (from the "Orchestration Tax"): your review throughput is the real bott
 
 Say: *"think harder"* or *"quick fix"*
 
-Triggers `/effort` — adjusts reasoning depth. Levels: `low`, `medium`, `high`, `xhigh`, `max`. cc-settings pins **`xhigh`** as the default via `CLAUDE_CODE_EFFORT_LEVEL` — on Opus 4.8 the model's own default is `high`, and the pin overrides it to hold reasoning depth steady across model upgrades. `ultracode` is a session-only mode (`/effort ultracode`) that layers automatic [dynamic-workflow](https://code.claude.com/docs/en/workflows) orchestration on top of `xhigh`; it can't be persisted as an effort level.
+Triggers `/effort` — adjusts reasoning depth. Levels: `low`, `medium`, `high`, `xhigh`, `max`. cc-settings pins **`xhigh`** as the default via `CLAUDE_CODE_EFFORT_LEVEL` — on Opus 4.8 the model's own default is `high`, and the pin overrides it to hold reasoning depth steady across model upgrades. `ultracode` is a session-only mode (`/effort ultracode`) that layers automatic [dynamic-workflow](https://code.claude.com/docs/en/workflows) orchestration on top of `xhigh`; it can't be persisted as an effort level. Workflows use more tokens than a single window — cap one by prompting a budget (e.g. _"use a workflow, budget 10k tokens"_).
 
 ### Model on AWS / Bedrock / Vertex / Foundry
 

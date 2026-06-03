@@ -20,7 +20,6 @@ For full hook documentation (all 29 events, configuration format, matchers, debu
 | `PreToolUse` | Before Edit calls (Edit matcher) | `pre-edit-validate.ts` (harness optimization) | No |
 | `PostToolUse` | After Write/Edit | `post-edit.ts` (auto-format with Biome) | No |
 | `PostToolUse` | After Write/Edit | `post-edit-tsc.ts` (async TypeScript type check) | **Yes** |
-| `PostToolUse` | After TLDR MCP calls | `track-tldr.ts` (usage stats) | **Yes** |
 | `PostToolUse` | After Bash commands | `log-bash.ts` (command audit log) | **Yes** |
 | `PostToolUse` | After every tool (no matcher) | `parallelmax-nudge.ts` (counts consecutive non-Agent calls; at N=8 injects delegation reminder; resets on Agent tool; 60s debounce) | No |
 | `PostToolUseFailure` | Tool execution fails | `post-failure.ts` (logs failures, warns on repeats) | No |
@@ -28,7 +27,7 @@ For full hook documentation (all 29 events, configuration format, matchers, debu
 | `PostCompact` | After context compaction | `post-compact.ts` (recovery steps reminder) | No |
 | `Stop` | Claude finishes | `stop-summary.ts` (learning reminder if >5 files changed) | No |
 | `StopFailure` | Turn ends due to API error | `stop-failure.ts` (logs, surfaces rate limit info) | No |
-| `SessionEnd` | Session ending | `tldr-stats.ts` + `handoff.ts create` | **Yes** |
+| `SessionEnd` | Session ending | `handoff.ts create` | **Yes** |
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
 | `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |
 | `Notification` | Task completion | `notify.ts` (macOS/Linux notification) | **Yes** |
