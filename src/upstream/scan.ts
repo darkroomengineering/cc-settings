@@ -1,22 +1,20 @@
 #!/usr/bin/env bun
-// Upstream-sync scanner. Phases:
-//   dry-run (default): compares the current manifest against
-//     (a) npm's @anthropic-ai/claude-code latest version
-//     (b) the zod schema's enumerated keys (our local source of truth)
-//     and prints a delta.
-//   --open-pr: write an updated manifest + open a GitHub PR (requires `gh`
-//     CLI + a token with PR-write scope; used by .github/workflows/upstream-sync.yml).
+// Upstream-sync scanner (dry-run detector). Compares the current manifest against
+//   (a) npm's @anthropic-ai/claude-code latest version
+//   (b) the zod schema's enumerated keys (our local source of truth)
+// and prints the delta. Run it (`bun run upstream:scan`) to find out whether
+// Claude Code has shipped a new release.
 //
-// Phase 2 adds the mutation path. It is deliberately low-blast-radius: the
-// scanner only updates upstream/claude-code-manifest.json when the live
-// npm version differs from the committed one. Schema edits stay human-
-// reviewed — the PR body lists the delta and we let the reviewer wire the
-// new keys into the zod schemas.
+// The scanner never writes. The actual sync — changelog triage
+// (ADOPT/DEDUPE/SKIP), schema + doc edits, and the manifest + CHANGELOG bumps —
+// is the human-reviewed `/cc sync` skill, run on demand. (There was once a daily
+// GH Action that auto-bumped the manifest version, but it could only ever change
+// a version number — it never read the changelog — so it was retired in favor of
+// the manual skill.)
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { runProcessFull } from "../lib/git.ts";
 import { HookEvent } from "../schemas/hooks.ts";
 import { Settings } from "../schemas/settings.ts";
 
@@ -87,61 +85,13 @@ function diffSets(label: string, manifest: string[], live: string[]): string[] {
   return out;
 }
 
-async function saveManifest(manifest: Manifest): Promise<void> {
-  // Preserve the existing on-disk key order as much as we can; stable keys
-  // keep diffs small when nothing substantive changed.
-  const content = `${JSON.stringify(manifest, null, 2)}\n`;
-  await writeFile(MANIFEST, content);
-}
-
-async function openSyncPr(summary: string, body: string, newVersion: string): Promise<void> {
-  const branch = `upstream-sync/${newVersion}-${Date.now()}`;
-  await runProcessFull("git", ["config", "user.name", "upstream-sync-bot"]);
-  await runProcessFull("git", [
-    "config",
-    "user.email",
-    "upstream-sync-bot@users.noreply.github.com",
-  ]);
-  await runProcessFull("git", ["checkout", "-b", branch]);
-  await runProcessFull("git", ["add", "upstream/claude-code-manifest.json"]);
-  const commitTitle = `chore(upstream-sync): bump manifest to ${newVersion}`;
-  const commitRes = await runProcessFull("git", ["commit", "-m", commitTitle]);
-  if (commitRes.exit !== 0) {
-    console.error("git commit failed:", commitRes.stderr);
-    return;
-  }
-  const pushRes = await runProcessFull("git", ["push", "-u", "origin", branch]);
-  if (pushRes.exit !== 0) {
-    console.error("git push failed:", pushRes.stderr);
-    return;
-  }
-  const prRes = await runProcessFull("gh", [
-    "pr",
-    "create",
-    "--title",
-    summary,
-    "--body",
-    body,
-    "--label",
-    "upstream-sync",
-  ]);
-  if (prRes.exit !== 0) {
-    console.error("gh pr create failed:", prRes.stderr);
-    return;
-  }
-  console.log(`opened PR for ${newVersion}: ${prRes.stdout.trim()}`);
-}
-
 async function main() {
-  const args = process.argv.slice(2);
-  const openPr = args.includes("--open-pr");
-
   const manifest = await loadManifest();
   const liveSettingsKeys = settingsKeysFromSchema();
   const liveHookEvents = hookEventsFromSchema();
   const liveVersion = await fetchLatestClaudeCodeVersion();
 
-  console.log(`cc-settings upstream scan (${openPr ? "open-pr" : "dry-run"})`);
+  console.log("cc-settings upstream scan");
   console.log(`  manifest version: ${manifest.claudeCodeVersion} (scanned ${manifest.lastScan})`);
   console.log(`  live version:     ${liveVersion ?? "<unknown — network offline>"}`);
 
@@ -161,48 +111,7 @@ async function main() {
 
   console.log("\ndrift detected:");
   for (const line of findings) console.log(line);
-
-  if (!openPr) {
-    console.log("\nre-run with --open-pr to propose the manifest update as a PR.");
-    return;
-  }
-
-  if (!versionDrift) {
-    // Schema-only drift is interesting but we don't auto-edit schemas; surface
-    // via CI logs and let a human wire the new keys.
-    console.log("\nschema-only drift — no manifest update proposed. Review the findings above.");
-    return;
-  }
-
-  // Mutate the manifest version + lastScan, keep key lists untouched (schema
-  // additions are human work). If schema keys drift too, we note them in the
-  // PR body.
-  const updated: Manifest = {
-    ...manifest,
-    claudeCodeVersion: versionDrift,
-    lastScan: new Date().toISOString(),
-  };
-  await saveManifest(updated);
-
-  const summary = `chore(upstream-sync): bump claude-code manifest to ${versionDrift}`;
-  const body = [
-    "Automated upstream-sync PR.",
-    "",
-    `- manifest: \`${manifest.claudeCodeVersion}\` → \`${versionDrift}\``,
-    "",
-    "## Findings",
-    "",
-    "```",
-    findings.join("\n"),
-    "```",
-    "",
-    "If the findings list schema-key drift, wire the new keys into the appropriate",
-    "zod schemas in `src/schemas/` and push onto this branch.",
-    "",
-    "Generated by `src/upstream/scan.ts --open-pr`.",
-  ].join("\n");
-
-  await openSyncPr(summary, body, versionDrift);
+  console.log("\nrun `/cc sync` to triage the changelog and land the bump.");
 }
 
 main().catch((err) => {

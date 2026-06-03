@@ -42,8 +42,8 @@ export const SkillFrontmatter = z
 
     // Allow unknown keys — the skills ecosystem is fast-moving and we'd rather
     // accept an unrecognized field than reject a skill that works in newer CC.
-    // Contrast with settings.ts which is strict because drift there is the
-    // whole reason we have an upstream-sync bot.
+    // Contrast with settings.ts which is strict because drift there is what
+    // the `bun run upstream:scan` detector exists to catch.
   })
   .passthrough();
 

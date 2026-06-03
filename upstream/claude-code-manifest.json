@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-06-02T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.160",
+  "lastScan": "2026-06-03T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.161",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -167,6 +167,7 @@
     "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP",
     "CLAUDE_CODE_SUBAGENT_MODEL",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+    "CLAUDE_CODE_TMPDIR",
     "CLAUDE_CODE_USE_POWERSHELL_TOOL",
     "CLAUDE_EFFORT",
     "DISABLE_UPDATES",
@@ -193,9 +194,9 @@
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cc-settings.darkroom/upstream/claude-code-manifest.json",
-  "description": "Snapshot of Claude Code upstream surface area as known to the cc-settings zod schemas. Updated by src/upstream/scan.ts (daily GH Action). Drift triggers a PR that extends the schemas and this manifest atomically. See docs/migration-coexistence.md and ~/Desktop/cc-settings-MIGRATION.md v2.",
+  "description": "Snapshot of Claude Code upstream surface area as known to the cc-settings zod schemas. Updated by hand via the /cc sync skill; bun run upstream:scan reports drift but never writes. See docs/migration-coexistence.md.",
   "manifestSchemaVersion": 1,
-  "source": "manual sync (cc-settings v11.0.1). From 2.1.115 onward, upstream-sync bot owns this file.",
+  "source": "manual sync via the /cc sync skill (the automated upstream-sync bot was retired June 2026).",
   "knownPermissionModes": [
     "default",
     "acceptEdits",
