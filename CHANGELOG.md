@@ -6,6 +6,10 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.17.0] — 2026-06-03
+
+Versions the work merged in #38–#42, which had accumulated in `[Unreleased]` without a version bump: the team-knowledge repo migration, a nuclear-review maintainability pass, retirement of the automated upstream-sync cron + sync to Claude Code 2.1.161, dynamic-workflow guidance fold-ins paid for by removing a dead-telemetry loop (net −107), and a docs-accuracy pass that purged retired skill names and deleted the redundant `USAGE.md`.
+
 ### Changed
 
 - **Docs accuracy pass (post-session).** Skill counts updated to 34 across `CLAUDE-FULL.md`, `CLAUDE.md`, and `MANUAL.md`. Dead skill names (`ask`, `premortem`, `compare-approaches`, `discovery`, `prd`, `create-handoff`, `resume-handoff`, `long-task`, `lenis`, `audit`, `versions`) removed from `MANUAL.md`, `skills/README.md`, `docs/frontmatter-reference.md`. Added missing skills (`freeze`, `plan-ceo-review`, `retro`, `strategist`) to the MANUAL.md All Skills table. Removed deleted TLDR telemetry hook rows from `MANUAL.md` and `docs/hooks-reference.md` (`track-tldr`, `mcp__tldr`). Regenerated fork/main/inherit skill lists and agent-delegation table in `docs/frontmatter-reference.md` to match ground truth. Fixed retired-skill references (`/compare-approaches`, `/long-task`) in `agents/maestro.md` and `docs/github-workflow.md`. **Removed `USAGE.md`** — an uninstalled, unlinked onboarding doc that duplicated `MANUAL.md` and had drifted badly (its skill tables had been swept for dead names repeatedly; the recurring drift was the signal it was redundant). Also removed two empty local dirs (`.claude/worktrees`, `.claude/agent-memory/oracle`).
