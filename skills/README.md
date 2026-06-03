@@ -27,10 +27,10 @@ Claude automatically:
 | "How does auth work?" | `explore` | Codebase investigation, returns summary |
 | "Review my changes" | `review` | Code review against Darkroom standards |
 | "Create a Button component" | `component` | Scaffolds component with CSS module |
-| "What could go wrong?" | `premortem` | Risk analysis before implementing |
+| "What could go wrong?" | `oracle` | Risk analysis before implementing |
 | "Double check this is correct" | `verify` | finder → adversary → referee |
 | "Clean up our rules" | `consolidate` | Audit and merge rules/skills/learnings |
-| "Done for today" | `create-handoff` | Saves session state |
+| "Done for today" | `handoff` | Saves session state |
 
 ## Skill Categories
 
@@ -46,8 +46,6 @@ These fork context and delegate to specialized agents:
 | `test` | test, write tests, coverage | tester |
 | `orchestrate` | complex task, coordinate | maestro |
 | `ship` | ship it, create PR, /pr, /ship | tester → reviewer → implementer |
-| `compare-approaches` | compare approaches, architecture decision | parallel oracles → scoring matrix |
-| `long-task` | overnight, long running, autonomous task | phased execution with checkpoints |
 | `verify` | verify, double check, prove it, adversarial, audit | finder → adversary → referee |
 
 ### Creation (Direct Output)
@@ -66,23 +64,19 @@ These fork context for clean exploration:
 | Skill | Triggers On |
 |-------|-------------|
 | `explore` | how does, where is, find, understand, zoom out, bigger picture, where does this fit |
-| `ask` | advice, guidance, what should I |
+| `oracle` | advice, guidance, what should I, risks, what could go wrong, compare approaches |
 | `tldr` | who calls, dependencies, semantic search |
-| `premortem` | risks, what could go wrong |
-| `discovery` | requirements, scope, figure out |
-| `prd` | PRD, requirements document, product spec |
+| `plan-feature` | requirements, scope, figure out, PRD, requirements document, product spec |
 | `project` | project status, update the issue, sync with github, show my tasks |
 
 ### Tools
 | Skill | Triggers On |
 |-------|-------------|
 | `qa` | visual QA, accessibility, contrast, touch target |
-| `lenis` | smooth scroll, lenis setup |
 
 ### Utility
 | Skill | Triggers On |
 |-------|-------------|
-| `audit` | /audit — analyzes Claude's Bash command log (categories, security, repeats) |
 | `consolidate` | clean up rules, simplify config, contradictions, spa day, prune |
 
 ### Session Management
@@ -90,8 +84,7 @@ These fork context for clean exploration:
 |-------|-------------|
 | `share-learning` | explicit invocation for team-wide learnings (personal/local notes go to auto-memory) |
 | `checkpoint` | snapshot, before risky op, rollback to |
-| `create-handoff` | done for today, ending session, context window, running out of context |
-| `resume-handoff` | resume, continue, last session |
+| `handoff` | done for today, ending session, context window, running out of context, resume, continue, last session |
 
 ### The `share-learning` Skill (Manual, Team-Only)
 
@@ -155,9 +148,9 @@ allowed-tools: [...]   # Restrict available tools
 |-----------|---------|--------|
 | 70-79% | Notice | Save checkpoint, consider handoff |
 | 80-89% | Warning | Save checkpoint + commit work, create handoff soon |
-| 90%+ | **Critical** | Save checkpoint, `create-handoff` auto-suggested |
+| 90%+ | **Critical** | Save checkpoint, `handoff` auto-suggested |
 
-> Checkpoints (`/checkpoint save`) are lightweight task snapshots. Handoffs (`/create-handoff`) are full session transfers. Use both at thresholds.
+> Checkpoints (`/checkpoint save`) are lightweight task snapshots. Handoffs (`/handoff`) are full session transfers. Use both at thresholds.
 
 ## Legacy
 

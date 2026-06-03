@@ -241,7 +241,6 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `Edit` | File edit operations |
 | `Write\|Edit` | Either writes or edits |
 | `Read` | File read operations |
-| `mcp__tldr` | TLDR MCP server tool calls |
 
 ### Matcher Values for SubagentStart/SubagentStop
 
@@ -347,7 +346,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `log-bash.ts` | Logs every Bash command to `~/.claude/logs/bash-YYYY-MM-DD.log` | Yes |
 
-Logs are used by the `/audit` skill (`claude-audit.ts`) to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
+Logs are used by `bun ~/.claude/src/scripts/claude-audit.ts` to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
 
 **Log format:** `[HH:MM:SS] [project] command`
 

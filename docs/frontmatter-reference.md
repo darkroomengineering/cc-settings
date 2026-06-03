@@ -128,9 +128,11 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
 | `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
 
-Skills using `fork`: `ask`, `autoresearch`, `build`, `checkpoint`, `compare-approaches`, `consolidate`, `design-tokens`, `discovery`, `explore`, `fix`, `lighthouse`, `long-task`, `orchestrate`, `prd`, `premortem`, `qa`, `refactor`, `review`, `ship`, `test`, `tldr`, `verify`.
+Skills using `fork` (21): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `verify`.
 
-Skills using `inherit` (default): `audit`, `component`, `create-handoff`, `dr-init`, `hook`, `lenis`, `project`, `resume-handoff`, `share-learning`, `versions`.
+Skills using `main` (3): `freeze`, `nuclear-review`, `zero-tech-debt`.
+
+Skills using `inherit` (default, 10): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
 
 ### Agent Delegation
 
@@ -138,11 +140,10 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 
 | Skill | Delegates to Agent |
 |-------|--------------------|
-| `ask` | `oracle` |
-| `discovery` | `planner` |
 | `explore` | `explore` |
+| `oracle` | `explore` |
 | `orchestrate` | `maestro` |
-| `premortem` | `oracle` |
+| `plan-feature` | `planner` |
 | `review` | `reviewer` |
 | `test` | `tester` |
 
@@ -177,12 +178,13 @@ argument-hint: "[save|restore|list] [name]"
 
 ```yaml
 ---
-name: docs
+name: autoresearch
 description: |
-  Fetch latest documentation for libraries and frameworks.
-  CRITICAL - AUTO-INVOKE when user wants to implement with ANY external library.
+  Optimize or improve a skill prompt via automated research.
+  CRITICAL - AUTO-INVOKE when user says "autoresearch", "optimize skill", "improve skill prompt".
 context: fork
-allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-docs, WebFetch, WebSearch]
+allowed-tools: [Read, Grep, Glob, Bash]
+argument-hint: "<skill-name>"
 ---
 ```
 
@@ -190,38 +192,40 @@ allowed-tools: [mcp__context7__resolve-library-id, mcp__context7__get-library-do
 
 | Skill | Context | Agent | Allowed Tools | Argument Hint |
 |-------|---------|-------|---------------|---------------|
-| `ask` | fork | oracle | -- | -- |
-| `audit` | -- | -- | -- | -- |
 | `autoresearch` | fork | -- | -- | `<skill-name>` |
 | `build` | fork | -- | -- | -- |
+| `cc` | -- | -- | -- | -- |
 | `checkpoint` | fork | -- | Bash | -- |
-| `compare-approaches` | fork | -- | -- | -- |
 | `component` | -- | -- | -- | -- |
 | `consolidate` | fork | -- | -- | -- |
-| `create-handoff` | -- | -- | -- | -- |
+| `context-doc` | -- | -- | -- | -- |
 | `design-tokens` | fork | -- | -- | -- |
-| `discovery` | fork | planner | -- | -- |
 | `dr-init` | -- | -- | -- | `[project-name]` |
 | `explore` | fork | explore | -- | -- |
 | `fix` | fork | -- | -- | -- |
+| `freeze` | main | -- | Bash, AskUserQuestion | -- |
+| `handoff` | fork | -- | -- | -- |
 | `hook` | -- | -- | -- | -- |
-| `lenis` | -- | -- | -- | -- |
 | `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
-| `long-task` | fork | -- | -- | -- |
+| `nuclear-review` | main | -- | -- | -- |
+| `oracle` | fork | explore | -- | -- |
 | `orchestrate` | fork | maestro | -- | -- |
-| `prd` | fork | -- | -- | -- |
-| `premortem` | fork | oracle | -- | -- |
+| `plan-ceo-review` | fork | -- | Read, Grep, Glob, Bash, AskUserQuestion | -- |
+| `plan-feature` | fork | planner | -- | -- |
 | `project` | -- | -- | -- | -- |
+| `proof-of-work` | -- | -- | -- | -- |
 | `qa` | fork | -- | Bash | -- |
 | `refactor` | fork | -- | -- | -- |
-| `resume-handoff` | -- | -- | -- | -- |
+| `retro` | fork | -- | Bash, Read, Write, Glob | -- |
 | `review` | fork | reviewer | -- | -- |
+| `review-batch` | -- | -- | -- | -- |
 | `share-learning` | -- | -- | -- | -- |
 | `ship` | fork | -- | -- | -- |
+| `strategist` | -- | -- | Read, Grep, Glob, Bash | -- |
 | `test` | fork | tester | -- | -- |
 | `tldr` | fork | -- | -- | -- |
 | `verify` | fork | -- | -- | -- |
-| `versions` | -- | -- | -- | -- |
+| `zero-tech-debt` | main | -- | -- | -- |
 
 ---
 

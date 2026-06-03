@@ -35,7 +35,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun ~/.claude/src/scripts/claude-audit.ts` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 30 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 34 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -445,6 +445,11 @@ These are enforced automatically — no skill needed:
 | `cc` | sync with claude code, changelog sync, update cc-settings, upgrade cc-settings, pull the latest |
 | `context-doc` | domain glossary, ADR, shared vocabulary, context doc |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
+| `share-learning` | share this learning, post to team knowledge, team-wide finding |
+| `freeze` | freeze edits, lock editing scope, restrict edits to, only edit this folder, unfreeze |
+| `plan-ceo-review` | ceo review, founder review, product review, is this the right approach, should we even build this |
+| `retro` | retro, retrospective, weekly review, how was my week, engineering metrics, what did I ship |
+| `strategist` | strategist, product strategy, market positioning, what should we build, product direction |
 
 ### All Agents
 
@@ -475,7 +480,6 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Pre-tool (Edit) | Stale file detection |
 | Permission request | When a tool needs user permission |
 | Post-tool (Write/Edit) | Post-edit validation, async TSC |
-| Post-tool (TLDR) | Usage tracking |
 | Post-tool (Bash) | Command audit log |
 | Post-tool (all) | Consecutive non-Agent call counter (`parallelmax-nudge.ts`) |
 | Tool failure | Failure tracking |
@@ -483,7 +487,7 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Post-compact | After context compaction completes |
 | Stop | Learning reminder (`stop-summary.ts`) |
 | Stop failure | Turn ends due to API error (rate limit, auth failure) |
-| Session end | TLDR stats, auto-handoff |
+| Session end | Auto-handoff |
 | Subagent start/stop | Swarm logging |
 | Teammate idle | Agent Teams teammate goes idle |
 | Task completed | Task marked completed |
