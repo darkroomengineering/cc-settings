@@ -6,6 +6,14 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.17.1] — 2026-06-04
+
+Upstream sync to Claude Code 2.1.162 — a bug-fix / UI-polish release with **no cc-settings surface**. Manifest bumped `2.1.161` → `2.1.162`; version bumped patch.
+
+### Changed
+
+- **Upstream sync to Claude Code 2.1.162.** Triaged all 28 changelog bullets: every one is a bug fix (read-only config-dir startup hang, WebFetch preapproved-domain permission rules, Windows backslash/case-variant permission matching, Esc-at-turn-start drop in stream-json/SDK, emoji-in-MCP-description API 400s, MCP per-server `timeout` <1000 ms watchdog floor, LSP `workspaceSymbol`, ~10 `claude agents` rendering/attach/paste fixes, `SendMessage` deep-dir, stale-model background sessions, Write-result crash, `EADDRINUSE`), a UI/startup-polish tweak (`/effort` persist confirmation, slash-command-click-to-fill, Remote Control footer pill, quieter startup, removed Chrome/marketplace startup messages), or CLI-output/internal plumbing (`claude agents --json waitingFor`, spawn-failure error-class reporting). None add a settings key, hook event/type, env var, agent frontmatter field, MCP field, builtin tool, or permission mode. `Grep`/`Glob` (the `--tools` change) and the MCP `timeout` field already exist in our manifest/schema unchanged. The Windsurf → "Devin Desktop" rename applies to Claude Code's `/ide` menu labeling, not the external editor or the still-valid `.windsurfrules` interop that `src/scripts/project-init.ts` generates — deliberately left as-is.
+
 ## [11.17.0] — 2026-06-03
 
 Versions the work merged in #38–#42, which had accumulated in `[Unreleased]` without a version bump: the team-knowledge repo migration, a nuclear-review maintainability pass, retirement of the automated upstream-sync cron + sync to Claude Code 2.1.161, dynamic-workflow guidance fold-ins paid for by removing a dead-telemetry loop (net −107), and a docs-accuracy pass that purged retired skill names and deleted the redundant `USAGE.md`.

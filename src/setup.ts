@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.17.0"; // retire upstream-sync cron + CC 2.1.161 sync; dynamic-workflow guidance + dead-telemetry removal; docs accuracy pass + USAGE.md removal
+const VERSION = "11.17.1"; // sync with Claude Code 2.1.162 (bug-fix/UI release, no cc-settings surface)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
