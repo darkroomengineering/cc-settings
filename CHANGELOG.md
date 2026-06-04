@@ -6,6 +6,19 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.18.0] — 2026-06-04
+
+Fixes the review-queue statusline nag (`⚠ N review`) staying red forever in PR / fast-forward-merge workflows. The `awaiting` counter incremented per writeable agent spawn but **only drained on a local `git commit` that Claude itself ran** (`isGitCommit` + `commitSucceeded` in `src/hooks/review-queue-nudge.ts`). Work that landed any other way — pushing a branch for a PR, a fast-forward `git pull`, a pulled-down PR merge, or a commit made in another terminal — never reset it, so it accumulated permanent false "review debt". The drain now recognizes how work actually advances.
+
+### Changed
+
+- **Review-queue drains on more than a local commit.** Three new drain/reconcile paths, on top of the existing commit drain:
+  - **Successful `git push`** (`isGitPush` + `pushSucceeded`) — pushing a batch off for review/CI is a clean "done with this" boundary. `pushSucceeded` requires a positive ref-update signal (`->`, `[new branch]`/`[new tag]`, or "Everything up-to-date") and no failure marker (`rejected`/`fatal:`/`error:`/`failed to push`), so a rejected push does **not** drain.
+  - **HEAD advanced** — a new `lastHead` SHA on `ReviewQueueState` is the baseline; when a HEAD-moving Bash command (`pull`/`merge`/`rebase`/`reset`/`checkout`/`switch`/`cherry-pick`/`am`/`revert`, via `movesHead`) leaves HEAD past the baseline, the queue drains (`onHeadObserved`). This catches fast-forward pulls and pulled-down PR merges. The first observation only records a baseline — never a spurious drain.
+  - **SessionStart reconcile** — folded into the existing `src/scripts/session-start.ts` (no new hook registration). On a non-empty queue it re-reads HEAD and drains if it advanced since last session, catching commits made in another terminal between sessions. Fail-soft: any git error leaves the queue untouched.
+  - HEAD reads use the existing `runGit` helper (`src/lib/git.ts`, already trims + fails soft) and only fire on git-ish Bash commands, never on the statusline hot path. The cognitive-surrender check and read-only-agent exemption are unchanged.
+  - **Files changed:** `src/lib/review-queue.ts` (state field + `onCommit(head?)`, `isGitPush`, `pushSucceeded`, `movesHead`, `onHeadObserved`), `src/hooks/review-queue-nudge.ts` (push + HEAD-reconcile branches, `currentHead`), `src/scripts/session-start.ts` (reconcile block), `tests/review-queue.test.ts` (+7 unit/e2e tests, 24 in-file).
+
 ## [11.17.1] — 2026-06-04
 
 Upstream sync to Claude Code 2.1.162 — a bug-fix / UI-polish release with **no cc-settings surface**. Manifest bumped `2.1.161` → `2.1.162`; version bumped patch.

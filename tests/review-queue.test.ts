@@ -13,11 +13,15 @@ import {
   formatAge,
   isCognitiveSurrender,
   isGitCommit,
+  isGitPush,
   isReviewableAgent,
   maxUnreviewed,
   minReviewSeconds,
+  movesHead,
   onAgentSpawn,
   onCommit,
+  onHeadObserved,
+  pushSucceeded,
   shouldNudge,
 } from "../src/lib/review-queue.ts";
 
@@ -34,8 +38,9 @@ describe("review-queue lib", () => {
     expect(second).toEqual({ awaiting: 2, firstSpawnAt: 1000 });
   });
 
-  test("onCommit resets to zero (drops markers)", () => {
+  test("onCommit resets to zero; records HEAD baseline when given", () => {
     expect(onCommit()).toEqual({ awaiting: 0 });
+    expect(onCommit("abc1234")).toEqual({ awaiting: 0, lastHead: "abc1234" });
   });
 
   test("maxUnreviewed / minReviewSeconds: defaults, override, bad value falls back", () => {
@@ -138,6 +143,75 @@ describe("review-queue lib", () => {
     expect(isReviewableAgent("implementer")).toBe(true);
     expect(isReviewableAgent("tester")).toBe(true);
     expect(isReviewableAgent(undefined)).toBe(true); // defaults to general-purpose (can edit)
+  });
+
+  test("isGitPush: matches real pushes, ignores lookalikes and dry-run", () => {
+    expect(isGitPush("git push")).toBe(true);
+    expect(isGitPush("git push origin main")).toBe(true);
+    expect(isGitPush("git -C /repo push --force-with-lease")).toBe(true);
+    expect(isGitPush("git push --dry-run")).toBe(false);
+    expect(isGitPush("git pushup")).toBe(false);
+    expect(isGitPush("git status")).toBe(false);
+    expect(isGitPush("echo push")).toBe(false);
+  });
+
+  test("pushSucceeded: positive ref-update signal and no failure marker", () => {
+    expect(pushSucceeded({ stderr: "   1a2b3c4..5d6e7f8  main -> main" })).toBe(true);
+    expect(pushSucceeded({ stderr: " * [new branch]      feat -> feat" })).toBe(true);
+    expect(pushSucceeded({ stdout: "Everything up-to-date" })).toBe(true);
+    expect(pushSucceeded({ stderr: " ! [rejected]        main -> main (non-fast-forward)" })).toBe(
+      false,
+    );
+    expect(pushSucceeded({ stderr: "fatal: Authentication failed" })).toBe(false);
+    expect(pushSucceeded({ stderr: "   a..b main -> main", interrupted: true })).toBe(false);
+    expect(pushSucceeded(undefined)).toBe(false);
+    // No positive signal at all → not a confirmed success.
+    expect(pushSucceeded({ stdout: "", stderr: "" })).toBe(false);
+  });
+
+  test("movesHead: HEAD-moving subcommands only", () => {
+    for (const c of [
+      "git pull",
+      "git pull --ff-only",
+      "git merge feat",
+      "git rebase main",
+      "git reset --hard HEAD~1",
+      "git checkout main",
+      "git switch -c feat",
+      "git cherry-pick abc",
+    ]) {
+      expect(movesHead(c)).toBe(true);
+    }
+    for (const c of [
+      "git status",
+      "git log",
+      "git diff",
+      "git push",
+      "git commit -m x",
+      "npm run build",
+    ]) {
+      expect(movesHead(c)).toBe(false);
+    }
+  });
+
+  test("onHeadObserved: baseline first, drain on change, no-op when same/unreadable", () => {
+    // First observation → record baseline, no drain.
+    expect(onHeadObserved({ awaiting: 3 }, "head1")).toEqual({ awaiting: 3, lastHead: "head1" });
+    // Same HEAD → unchanged.
+    expect(onHeadObserved({ awaiting: 3, lastHead: "head1" }, "head1")).toEqual({
+      awaiting: 3,
+      lastHead: "head1",
+    });
+    // HEAD advanced → drain + rebaseline.
+    expect(onHeadObserved({ awaiting: 3, lastHead: "head1" }, "head2")).toEqual({
+      awaiting: 0,
+      lastHead: "head2",
+    });
+    // Unreadable HEAD (undefined) → leave untouched.
+    expect(onHeadObserved({ awaiting: 3, lastHead: "head1" }, undefined)).toEqual({
+      awaiting: 3,
+      lastHead: "head1",
+    });
   });
 });
 
@@ -269,6 +343,60 @@ describe("review-queue-nudge hook (e2e)", () => {
       await runHook({ tool_name: "Agent", tool_input: {} }, home);
       await runHook({ tool_name: "Read", tool_input: {} }, home);
       await runHook({ tool_name: "Bash", tool_input: { command: "git status" } }, home);
+      expect((await readQueue(home))?.awaiting).toBe(1);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a successful git push drains the queue", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
+    try {
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook(
+        {
+          tool_name: "Bash",
+          tool_input: { command: "git push origin main" },
+          tool_response: { stdout: "", stderr: "   1a2b3c4..5d6e7f8  main -> main" },
+        },
+        home,
+      );
+      expect((await readQueue(home))?.awaiting).toBe(0);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a REJECTED push does not drain the queue", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
+    try {
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook(
+        {
+          tool_name: "Bash",
+          tool_input: { command: "git push origin main" },
+          tool_response: { stdout: "", stderr: " ! [rejected]  main -> main (non-fast-forward)" },
+        },
+        home,
+      );
+      expect((await readQueue(home))?.awaiting).toBe(2);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a HEAD-moving command with no HEAD change leaves the queue (baseline only)", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
+    try {
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      // `git pull` reconciles HEAD; the test repo's HEAD doesn't change between
+      // calls, so the first observation only records a baseline — no drain.
+      await runHook(
+        { tool_name: "Bash", tool_input: { command: "git pull --ff-only" }, tool_response: {} },
+        home,
+      );
       expect((await readQueue(home))?.awaiting).toBe(1);
     } finally {
       await rm(home, { recursive: true, force: true });

@@ -19,10 +19,12 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
-import { writeState } from "../lib/hook-runtime.ts";
+import { readState, writeState } from "../lib/hook-runtime.ts";
 import { hasCommand, pad, ymd } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
+import { onHeadObserved, type ReviewQueueState } from "../lib/review-queue.ts";
 import { readSentinelInfo } from "../lib/version-delta.ts";
 import { computeDrift, readPackagedVersion } from "../lib/version-drift.ts";
 
@@ -241,4 +243,19 @@ try {
   await writeState("version-drift.json", computeDrift(installed, packaged));
 } catch {
   // never let the drift check disrupt session start
+}
+
+// Review-queue HEAD reconcile: if committed work advanced since the queue was
+// last touched (a commit in another terminal, a fast-forward pull, a pulled-down
+// PR merge), drain it — the commit-based drain in review-queue-nudge.ts can't
+// see commits Claude didn't run. Only runs git when there's a non-empty queue to
+// avoid a rev-parse on every session start. Fail-soft: any problem ⇒ untouched.
+try {
+  const rq = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
+  if (rq.awaiting > 0) {
+    const head = (await runGit(["rev-parse", "HEAD"], { cwd: PROJECT_DIR })).trim() || undefined;
+    await writeState("review-queue.json", onHeadObserved(rq, head));
+  }
+} catch {
+  // never let the reconcile disrupt session start
 }

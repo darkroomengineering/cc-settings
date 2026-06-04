@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.17.1"; // sync with Claude Code 2.1.162 (bug-fix/UI release, no cc-settings surface)
+const VERSION = "11.18.0"; // review-queue drains on push/HEAD-advance, not just local commit
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -24,6 +24,11 @@ export interface ReviewQueueState {
   firstSpawnAt?: number;
   /** Epoch ms of the last nudge — debounce so we don't nag on every spawn. */
   firedAt?: number;
+  /** Git HEAD SHA recorded at the last drain/observation. When HEAD advances
+   *  past this — a commit Claude didn't run (another terminal), a fast-forward
+   *  pull, or a pulled-down PR merge — the queue drains even without a local
+   *  `git commit` event. */
+  lastHead?: string;
 }
 
 export const DEBOUNCE_MS = 60_000;
@@ -106,9 +111,11 @@ export function onAgentSpawn(state: ReviewQueueState, now: number): ReviewQueueS
   };
 }
 
-/** A commit closed the loop — reset the queue (and the markers). */
-export function onCommit(): ReviewQueueState {
-  return { awaiting: 0 };
+/** A commit closed the loop — reset the queue (and the markers). Records the
+ *  post-commit HEAD as the new baseline when known, so the subsequent push of
+ *  the same commit is a no-op rather than a spurious re-drain. */
+export function onCommit(head?: string): ReviewQueueState {
+  return head ? { awaiting: 0, lastHead: head } : { awaiting: 0 };
 }
 
 /** Nudge when the queue is at/over the review rate and we haven't nudged
@@ -177,4 +184,52 @@ export function isGitCommit(cmd: string): boolean {
   if (!/\bgit\b/.test(cmd)) return false;
   if (/--no-commit\b/.test(cmd)) return false;
   return /\bgit\b[^|&;]*\bcommit\b(?!-)/.test(cmd);
+}
+
+/** Does this Bash command perform a `git push`? Mirrors isGitCommit's
+ *  intentionally-simple shape. Excludes `--dry-run` (sends nothing). */
+export function isGitPush(cmd: string): boolean {
+  if (!/\bgit\b/.test(cmd)) return false;
+  if (/--dry-run\b/.test(cmd)) return false;
+  return /\bgit\b[^|&;]*\bpush\b/.test(cmd);
+}
+
+/** A push that wasn't interrupted, shows a positive ref-update signal, and no
+ *  failure marker. Git writes push results to stderr: success prints a `->`
+ *  ref line, `[new branch]`/`[new tag]`, or "Everything up-to-date"; failure
+ *  prints "rejected"/"fatal:"/"error:"/"failed to push". A looser bar than
+ *  commitSucceeded — a push is a weaker review boundary and the cost of a
+ *  false drain is only a mis-timed nudge. */
+const PUSH_SUCCESS = /(->|\[new branch\]|\[new tag\]|Everything up-to-date)/;
+const PUSH_FAILURE = /\b(rejected|fatal:|error:|failed to push)\b/i;
+export function pushSucceeded(result: BashResult | undefined): boolean {
+  if (!result || result.interrupted) return false;
+  const text = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  if (PUSH_FAILURE.test(text)) return false;
+  return PUSH_SUCCESS.test(text);
+}
+
+/** A git subcommand that can move HEAD without a Claude `git commit` event:
+ *  pull/merge/rebase/reset/checkout/switch/cherry-pick/am/revert. Used to
+ *  decide when to reconcile HEAD. Deliberately excludes status/log/diff/push
+ *  (push is handled separately) so we don't run git on every status check. */
+const HEAD_MOVING =
+  /\bgit\b[^|&;]*\b(pull|merge|rebase|reset|checkout|switch|cherry-pick|am|revert)\b/;
+export function movesHead(cmd: string): boolean {
+  if (!/\bgit\b/.test(cmd)) return false;
+  return HEAD_MOVING.test(cmd);
+}
+
+/** Reconcile the queue against the real git HEAD. The first observation only
+ *  records a baseline (we can't tell if work advanced). Afterwards, a changed
+ *  HEAD means committed work advanced by SOME path → drain. An unreadable HEAD
+ *  (no repo / git failure → undefined) leaves the queue untouched. */
+export function onHeadObserved(
+  state: ReviewQueueState,
+  head: string | undefined,
+): ReviewQueueState {
+  if (!head) return state;
+  if (state.lastHead === undefined) return { ...state, lastHead: head };
+  if (state.lastHead === head) return state;
+  return { awaiting: 0, lastHead: head };
 }
