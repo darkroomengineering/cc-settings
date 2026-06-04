@@ -6,13 +6,13 @@ Claude Code configuration for the Darkroom team — installs agents, skills, hoo
 
 ## Features
 
-- Installs shared agents, skills, hooks, and coding standards into `~/.claude/`
-- Nine specialized subagents and a curated, auto-invocable skill library
-- `settings.json` composed from modular config: permissions, hooks, and MCP servers
-- Non-destructive installs, so existing permissions, custom hooks, and local overrides survive
-- One-command rollback to the previous backup
-- Hook-tampering detection (fingerprint + audit) against supply-chain attacks
-- `AGENTS.md` follows the open standard, also read by Codex, Cursor, Copilot, and Windsurf
+- **One-command install** — drops shared agents, skills, hooks, and standards into ~/.claude
+- **Subagents & skills** — nine specialized subagents and a curated, auto-invocable skill library
+- **Composed settings** — settings.json assembled from modular config: permissions, hooks, and MCP servers
+- **Non-destructive** — existing permissions, custom hooks, and local overrides survive re-installs
+- **One-command rollback** — restore the previous backup if anything looks off
+- **Tamper detection** — a fingerprint plus audit guard the hooks against supply-chain attacks
+- **Open standard** — AGENTS.md is read by Codex, Cursor, Copilot, and Windsurf too
 
 ---
 
