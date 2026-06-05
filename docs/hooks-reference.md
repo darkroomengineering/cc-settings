@@ -382,6 +382,8 @@ Logs are used by `bun ~/.claude/src/scripts/claude-audit.ts` to analyze command 
 |--------|---------|-------|
 | `stop-summary.ts` | End-of-turn summary; if >5 files were changed, reminds to store learnings | No |
 
+> **v2.1.163:** `Stop` and `SubagentStop` hooks may return `hookSpecificOutput.additionalContext` to feed text back to Claude and keep the turn going — it surfaces as context rather than being treated as a hook error.
+
 ### StopFailure
 
 | Script | Purpose | Async |

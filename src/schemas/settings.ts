@@ -184,6 +184,8 @@ export const Settings = z
     minimumVersion: z.string().optional(), // minimum Claude Code version required; older clients are blocked
     pluginTrustMessage: z.string().optional(), // custom trust-confirmation message shown when installing plugins
     policyHelper: z.object({}).passthrough().optional(), // policy-helper configuration object (enterprise)
+    requiredMaximumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is above this
+    requiredMinimumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is below this; pairs with requiredMaximumVersion to define an allowed range
     strictKnownMarketplaces: z.array(z.string()).optional(), // allowlist of marketplace IDs considered trusted
     strictPluginOnlyCustomization: z
       .union([z.boolean(), z.array(z.enum(["skills", "agents", "hooks", "mcp"]))])

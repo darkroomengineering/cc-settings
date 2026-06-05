@@ -977,6 +977,12 @@
       "properties": {},
       "additionalProperties": {}
     },
+    "requiredMaximumVersion": {
+      "type": "string"
+    },
+    "requiredMinimumVersion": {
+      "type": "string"
+    },
     "strictKnownMarketplaces": {
       "type": "array",
       "items": {
