@@ -535,6 +535,8 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `prUrlTemplate` | string | G | Custom PR badge URL template; substitutes `{host}`, `{owner}`, `{repo}`, `{number}`, `{url}` (v2.1.119) |
 | `preferredNotifChannel` | enum | U | Preferred desktop/terminal notification channel (`auto`, `terminal_bell`, `iterm2`, …) |
 | `prefersReducedMotion` | boolean | U | Suppress animations in the TUI |
+| `requiredMaximumVersion` | string | E | Managed: refuse to start if the Claude Code version is above this (v2.1.163) |
+| `requiredMinimumVersion` | string | E | Managed: refuse to start if the Claude Code version is below this; pairs with `requiredMaximumVersion` to define an allowed range (v2.1.163) |
 | `respectGitignore` | boolean | G | Honour .gitignore when listing files |
 | `sandbox` | object | G | Sandbox configuration for secure command execution (v2.1.98–2.1.108) |
 | `showClearContextOnPlanAccept` | boolean | U | Offer context-clear prompt after accepting a plan |

@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-06-04T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.162",
+  "lastScan": "2026-06-05T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.165",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -72,6 +72,8 @@
     "prUrlTemplate",
     "preferredNotifChannel",
     "prefersReducedMotion",
+    "requiredMaximumVersion",
+    "requiredMinimumVersion",
     "respectGitignore",
     "sandbox",
     "showClearContextOnPlanAccept",
@@ -215,6 +217,7 @@
     "knownBuiltinTools is used by the zod schemas when validating permission rules by shape (e.g., `Tool(pattern)`). Updated when upstream adds tools.",
     "knownHookTypes includes `mcp_tool` (added 2.1.118) for hooks that invoke MCP tools directly.",
     "v2.1.139 added two hook fields (not enumerated here, see src/schemas/hooks.ts): `args: string[]` on command hooks (exec form, no shell) and `continueOnBlock: boolean` on PostToolUse hooks.",
-    "v2.1.143 added `worktree.bgIsolation: \"none\"` to disable background-session worktree isolation — see src/schemas/settings.ts."
+    "v2.1.143 added `worktree.bgIsolation: \"none\"` to disable background-session worktree isolation — see src/schemas/settings.ts.",
+    "v2.1.163 added two managed settings keys: requiredMinimumVersion/requiredMaximumVersion (version-range gate, distinct from the older minimumVersion). It also let Stop/SubagentStop hooks return hookSpecificOutput.additionalContext (runtime output, not a config field — see docs/hooks-reference.md)."
   ]
 }

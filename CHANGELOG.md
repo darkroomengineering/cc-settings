@@ -6,6 +6,28 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.19.0] — 2026-06-05
+
+Upstream sync to Claude Code 2.1.165. Two of the three releases (2.1.164, 2.1.165) are bug-fixes-only; the one surface-area change is in 2.1.163. Manifest bumped `2.1.162` → `2.1.165`; version bumped minor for the new settings keys.
+
+### Added
+
+- **`requiredMinimumVersion` + `requiredMaximumVersion` managed settings (2.1.163).** Claude Code refuses to start if its version falls outside the allowed range. New keys, distinct from the older `minimumVersion` (which they pair with conceptually but do not replace). Both `string`, enterprise/managed scope. Added to `src/schemas/settings.ts` (ENTERPRISE/MANAGED block), `upstream/claude-code-manifest.json` `knownSettingsKeys`, and the `docs/settings-reference.md` table. The schema is `passthrough`, so live configs carrying these keys already parsed — enumerating keeps the manifest honest and documents the surface.
+
+### Changed
+
+- **Upstream sync to Claude Code 2.1.165.** Triaged all of 2.1.163 (2.1.164/2.1.165 are "Bug fixes and reliability improvements" with no detail). Beyond the two settings keys above, only one bullet touches a surface cc-settings ships: `Stop` and `SubagentStop` hooks may now return `hookSpecificOutput.additionalContext` to feed Claude context and keep the turn going without being labeled a hook error. This is a runtime-output capability, not a config field, so there's no zod change — documented as a one-line note in `docs/hooks-reference.md` (cc-settings already ships `stop-summary.ts` + SubagentStop logging). Everything else skipped: `/plugin list` and `/btw` "c to copy" (native UI/commands), the Skills `\$` literal-`$`-before-digit escape (no skill emits `$N`), stdio MCP receiving `CLAUDE_CODE_SESSION_ID` on `--resume` (env var already tracked), and ~17 bug fixes. One bug fix is a quiet win with no action on our side: `if: "Bash(...)"` hook conditions were firing on every command containing `$()`/`$VAR` (and `$HOME` deny-rule paths weren't blocking) — 2.1.163 fixes both upstream, making our existing `if:`-conditioned hooks and home-dir deny rules more correct for free.
+
+### Files changed
+
+- `src/schemas/settings.ts`
+- `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.18.0] — 2026-06-04
 
 Fixes the review-queue statusline nag (`⚠ N review`) staying red forever in PR / fast-forward-merge workflows. The `awaiting` counter incremented per writeable agent spawn but **only drained on a local `git commit` that Claude itself ran** (`isGitCommit` + `commitSucceeded` in `src/hooks/review-queue-nudge.ts`). Work that landed any other way — pushing a branch for a PR, a fast-forward `git pull`, a pulled-down PR merge, or a commit made in another terminal — never reset it, so it accumulated permanent false "review debt". The drain now recognizes how work actually advances.
