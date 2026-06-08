@@ -866,6 +866,19 @@
     "enableAllProjectMcpServers": {
       "type": "boolean"
     },
+    "fallbackModel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "fastModePerSessionOptIn": {
       "type": "boolean"
     },
