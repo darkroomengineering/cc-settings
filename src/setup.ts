@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.19.0"; // sync to Claude Code 2.1.165: requiredMin/MaxVersion settings keys
+const VERSION = "11.20.0"; // sync to Claude Code 2.1.168: fallbackModel settings key (2.1.166)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

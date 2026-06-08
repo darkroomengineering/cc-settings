@@ -6,6 +6,27 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.20.0] — 2026-06-08
+
+Upstream sync to Claude Code 2.1.168. Two of the three releases (2.1.167, 2.1.168) are bug-fixes-only; the one surface-area change is the `fallbackModel` settings key in 2.1.166. Manifest bumped `2.1.165` → `2.1.168`; version bumped minor for the new settings key.
+
+### Added
+
+- **`fallbackModel` settings key (2.1.166).** Configures up to three fallback models tried in order when the primary model is overloaded or unavailable; the same release made the `--fallback-model` CLI flag apply to interactive sessions too, so the setting is its persistent counterpart. Not yet in upstream docs, so the shape is inferred from the changelog ("up to three… tried in order") and modeled as `string | string[]` — a permissive superset mirroring `forceLoginOrgUUID` (the flag takes one model, the setting allows three). Added to `src/schemas/settings.ts` (GENERAL block), `upstream/claude-code-manifest.json` `knownSettingsKeys`, and the `docs/settings-reference.md` table. The schema is `passthrough`, so live configs carrying the key already parsed — enumerating keeps the manifest honest and documents the surface.
+
+### Changed
+
+- **Upstream sync to Claude Code 2.1.168.** Triaged all of 2.1.166 (2.1.167/2.1.168 are "Bug fixes and reliability improvements" with no detail). Beyond `fallbackModel`, nothing else touches a surface cc-settings ships. Notable skips, with reasons: the **deny-rule glob** change (`"*"` denies all tools; allow rules reject non-MCP globs; unknown deny tool-names warn at startup) needs no work — `src/schemas/permissions.ts` deliberately validates only rule *keys*, not rule strings, and our allow/deny rules are all concrete `Tool(pattern)` form with no bare tool-name globs or unknown tools; cross-session `SendMessage` authority hardening is native security behavior; `MAX_THINKING_TOKENS=0` / `--thinking disabled` / per-model thinking toggle is behavioral on a pre-existing env var we don't set; the fallback-model retry on non-retryable errors is native runtime behavior; the managed `allowedMcpServers`/`deniedMcpServers` `${VAR}` predicate fix needs nothing (our schema already accepts arbitrary string values); and ~17 CLI/TUI/bug fixes have no config surface.
+
+### Files changed
+
+- `src/schemas/settings.ts`
+- `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.19.0] — 2026-06-05
 
 Upstream sync to Claude Code 2.1.165. Two of the three releases (2.1.164, 2.1.165) are bug-fixes-only; the one surface-area change is in 2.1.163. Manifest bumped `2.1.162` → `2.1.165`; version bumped minor for the new settings keys.

@@ -508,6 +508,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `enableAllProjectMcpServers` | boolean | G | Auto-enable every server listed in .mcp.json |
 | `enabledMcpjsonServers` | string[] | G | Allowlist for project .mcp.json server names |
 | `env` | Record\<string,string\> | G | Environment variables injected into every session |
+| `fallbackModel` | string \| string[] | G | Up to three fallback models tried in order when the primary is overloaded/unavailable; settings.json counterpart of `--fallback-model` (v2.1.166) |
 | `fastModePerSessionOptIn` | boolean | G | Per-session fast-mode opt-in flag |
 | `feedbackSurveyRate` | number 0–1 | E | Sampling rate for in-session feedback survey; 0 = disabled (v2.1.106) |
 | `fileSuggestion` | object | G | File-suggestion UI configuration object |
