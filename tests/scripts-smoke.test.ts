@@ -1,11 +1,10 @@
-// Smoke tests for Phase 2 leaf-script TS ports. Confirms:
+// Smoke tests for the leaf scripts in src/scripts/. Confirms:
 //   - Scripts exit 0 on expected inputs.
 //   - Scripts produce their documented stdout.
-// Not a bit-for-bit parity suite with the bash versions; parity was validated
-// manually during port (see commit message). These tests lock in behavior so
-// Phase 4/6 doesn't regress during hook cutover.
+// Not a bit-for-bit parity suite with the original bash versions; parity was
+// validated manually during the bash→TS port (April 2026).
 //
-// Run: bun test tests/phase2-scripts.test.ts
+// Run: bun test tests/scripts-smoke.test.ts
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { tmpdir } from "node:os";

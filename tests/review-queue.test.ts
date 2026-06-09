@@ -1,6 +1,6 @@
 // Review-queue backpressure tests. Pure-lib decision logic + the hook end-to-end
 // (spawned with a sandboxed HOME so its ~/.claude/tmp/ state is isolated — the
-// HOME-sandbox pattern from tests/phase2-scripts.test.ts).
+// HOME-sandbox pattern from tests/scripts-smoke.test.ts).
 
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";

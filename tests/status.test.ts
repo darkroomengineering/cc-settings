@@ -214,8 +214,8 @@ describe("gatherStatus", () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
-      // readJsonOrNull returns the raw object; status.ts reads fields directly
-      // without schema validation (by design — it just accesses known fields).
+      // status.ts parses settings.json once with the Settings schema
+      // (fail-soft: an unparseable file reads as absent).
       const settings = {
         hooks: {
           SessionStart: [{ hooks: [{ type: "command", command: "echo hi" }] }],
