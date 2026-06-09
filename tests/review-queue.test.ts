@@ -220,7 +220,7 @@ function restore(name: string, saved: string | undefined): void {
   else process.env[name] = saved;
 }
 
-const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "review-queue-nudge.ts");
+const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "tool-cadence.ts");
 
 async function runHook(payload: unknown, home: string): Promise<{ stdout: string; exit: number }> {
   const proc = Bun.spawn(["bun", HOOK], {
@@ -246,7 +246,7 @@ async function readQueue(home: string): Promise<{ awaiting: number } | null> {
   }
 }
 
-describe("review-queue-nudge hook (e2e)", () => {
+describe("tool-cadence hook — review-queue branch (e2e)", () => {
   test("Agent spawns accumulate and nudge at the threshold", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
     try {

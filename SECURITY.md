@@ -24,7 +24,7 @@ the base product. Anything that can write `settings.json` can persist.
 
 ## How cc-settings defends
 
-Three layers, all installed by `setup.sh`:
+Four layers, all installed by `setup.sh`:
 
 ### 1. Hooks-block fingerprint (`SessionStart` integrity check)
 
@@ -38,29 +38,55 @@ with remediation steps. Match is silent.
 
 Source: `src/lib/hooks-fingerprint.ts`, `src/hooks/verify-hooks.ts`.
 
-### 2. Command auditor (`bun run audit:hooks`)
+### 2. Installed-src content manifest
+
+The fingerprint covers hook *entries*, not the *content* of the scripts
+they point at. Two bypasses motivated this layer:
+
+- **Dropped payload** — malware writes `~/.claude/src/hooks/evil.ts` and
+  registers it. The fingerprint trips, but a path-shape-only auditor would
+  have classified the new hook "trusted" and downgraded the alarm.
+- **Patched payload** — malware appends code to an already-registered
+  shipped script. `settings.json` is untouched, so the fingerprint never
+  trips at all.
+
+At install time, right after the TS sources are copied, `setup.sh` writes a
+SHA256 manifest of every `~/.claude/src/**/*.ts` file to
+`~/.claude/.cc-settings-src-manifest`. On every `SessionStart`,
+`verify-hooks.ts` re-hashes the installed tree and **warns loudly on any
+modified, removed, or unexpected new file**. The auditor (layer 3) also
+gates its "trusted" classification on this manifest.
+
+Like the fingerprint, the manifest is refreshed only by `setup.sh` — never
+by the auditor or the verify hook — so malware can't whitelist itself.
+
+Source: `src/lib/hooks-fingerprint.ts` (manifest write/verify),
+`src/hooks/verify-hooks.ts`, `src/setup.ts`.
+
+### 3. Command auditor (`bun run audit:hooks`)
 
 A standalone scanner that classifies every hook command in
 `~/.claude/settings.json` into:
 
 | Severity | Meaning |
 |---|---|
-| **trusted** | Matches the cc-settings shipped pattern: `bun "$HOME/.claude/src/{scripts,hooks,lib}/<name>.ts"`. Or a compound of those. |
-| **unknown** | Doesn't match the trusted pattern. User-added hooks land here — review manually, then either remove or re-run `setup.sh` to fingerprint them. |
-| **suspicious** | Matches a known supply-chain malware signature: `curl \| sh`, `wget \| bash`, base64 decode + exec, `eval $(...)`, `node -e`, `python -c`, `/tmp/<exec>`, hidden `node_modules/.bin/`, `atob(...)`, opaque base64 blob (>250 char single-token). Exit code 1. |
+| **trusted** | Matches the cc-settings shipped pattern `bun "$HOME/.claude/src/{scripts,hooks,lib}/<name>.ts"` (or a compound of those) **and** the referenced file's content hash matches the install manifest. Path shape alone is never enough. |
+| **unknown** | Doesn't match the trusted pattern — user-added hooks land here; review manually, then either remove or re-run `setup.sh` to fingerprint them. Shipped-pattern commands also land here when no install manifest exists yet (pre-manifest install): content can't be verified, so they are not promoted to trusted. |
+| **suspicious** | Matches a known supply-chain malware signature: `curl \| sh`, `wget \| bash`, base64 decode + exec, `eval $(...)`, `node -e`, `python -c`, `/tmp/<exec>`, hidden `node_modules/.bin/`, `atob(...)`, opaque base64 blob (>250 char single-token). Also: a shipped-pattern command whose file is missing from the install manifest (possible dropped payload) or whose content hash differs from it (possible patched payload). Exit code 1. |
 
 Exit code is non-zero on any suspicious finding so CI can gate on this.
 
 Source: `src/lib/audit-hooks.ts`, `src/scripts/audit-hooks.ts`.
 
-### 3. The allowlist convention
+### 4. The allowlist convention
 
 Every hook command that cc-settings ships starts with
 `bun "$HOME/.claude/src/{scripts,hooks,lib}/<name>.ts"`. This is the
-structural invariant the auditor and fingerprint rely on. Injected hooks
-from compromised packages do not match this shape — they call inline
-Node/Python, decoded base64, or `/tmp/` payloads. The asymmetry is the
-defense.
+structural invariant the auditor keys on — but since the content manifest
+landed, the shape only *selects* the verification path; trust comes from
+the content hash. Injected hooks from compromised packages either don't
+match this shape (inline Node/Python, decoded base64, `/tmp/` payloads) or
+match it and fail content verification. Either way they surface.
 
 Future hook additions to `config/40-hooks.json` must follow the same
 convention. If a third-party tool needs a hook, wrap it in a cc-settings
@@ -118,9 +144,9 @@ If the unknown/suspicious entry is something you added intentionally:
 cd ~/.claude/cc-settings && bash setup.sh
 ```
 
-The fingerprint is deliberately refreshed only by `setup.sh`, never by the
-auditor itself. If `audit:hooks` could update the fingerprint, malware
-could call it to whitelist itself.
+The fingerprint and the src manifest are deliberately refreshed only by
+`setup.sh`, never by the auditor itself. If `audit:hooks` could update
+either, malware could call it to whitelist itself.
 
 ## Adding custom hooks safely
 
@@ -158,10 +184,27 @@ that `/goal` installs for its lifetime.
   problem with better-suited tools (`snyk`, `socket.dev`, `osv-scanner`).
   Use one of those in CI; cc-settings catches what gets past it.
 - **Cryptographic hook signing.** Claude Code doesn't ship a signing
-  primitive yet; signing would require upstream support. The fingerprint
-  is the practical alternative.
+  primitive yet; signing would require upstream support. The fingerprint +
+  content manifest pair is the practical alternative.
 - **Sandbox hook execution.** Hooks run with the user's full privileges
   by Claude Code's design. cc-settings doesn't subvert that.
+
+What the content manifest does **not** cover:
+
+- **The `bun` binary itself** (or `git`, or anything else on PATH). A
+  compromised runtime executes whatever it likes regardless of what the
+  manifest says about the scripts it runs.
+- **`node_modules`.** The installed src tree symlinks `node_modules` back
+  to the source repo; dependency content is the territory of `snyk` /
+  `socket.dev` / lockfile auditing, not this manifest.
+- **Non-`.ts` files** under `~/.claude/src` (e.g. `package.json`,
+  `tsconfig.json`, `bun.lock`).
+- **Coordinated tampering of the manifest + fingerprint + settings
+  together.** Anything that can rewrite all three sentinels can forge a
+  consistent state. The defense holds because the sentinels are refreshed
+  only by `setup.sh` (the auditor never self-refreshes them) and because
+  worms automate against defaults — but a targeted attacker with full
+  user-privilege write access is outside this threat model.
 
 ## Reporting
 

@@ -12,7 +12,6 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { AgentFrontmatter } from "./agent.ts";
 import { ClaudeJson } from "./claude-json.ts";
-import { HooksConfig } from "./hooks-config.ts";
 import { KnowledgeFrontmatter } from "./knowledge.ts";
 import { ProfileFrontmatter } from "./profile.ts";
 import { Settings } from "./settings.ts";
@@ -35,12 +34,6 @@ export const targets: Target[] = [
     schema: Settings,
     id: `${SCHEMA_BASE}/settings.schema.json`,
     title: "Claude Code settings.json (cc-settings)",
-  },
-  {
-    file: "hooks-config.schema.json",
-    schema: HooksConfig,
-    id: `${SCHEMA_BASE}/hooks-config.schema.json`,
-    title: "cc-settings hooks-config.json",
   },
   {
     file: "skill.schema.json",

@@ -525,7 +525,7 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Permission request | When a tool needs user permission |
 | Post-tool (Write/Edit) | Post-edit validation, async TSC |
 | Post-tool (Bash) | Command audit log |
-| Post-tool (all) | Consecutive non-Agent call counter (`parallelmax-nudge.ts`) |
+| Post-tool (all) | Tool cadence: non-Agent call counter + review-queue backpressure (`tool-cadence.ts`) |
 | Tool failure | Failure tracking |
 | Pre-compact | Auto-handoff save |
 | Post-compact | After context compaction completes |

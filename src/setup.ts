@@ -35,7 +35,10 @@ import {
 } from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
-import { writeFingerprint as writeHooksFingerprint } from "./lib/hooks-fingerprint.ts";
+import {
+  writeFingerprint as writeHooksFingerprint,
+  writeSrcManifest,
+} from "./lib/hooks-fingerprint.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
 import {
   applyLightProfile,
@@ -812,6 +815,12 @@ async function main(): Promise<number> {
       installConfigFiles(args.sourceDir, args.profile),
       installTsSources(args.sourceDir),
     ]);
+    // Content manifest of the just-installed ~/.claude/src tree — the
+    // supply-chain layer that catches dropped/patched script content
+    // (verify-hooks.ts re-checks it at SessionStart; audit-hooks.ts gates
+    // "trusted" on it). Refreshed ONLY here, never by the auditor. Best-effort:
+    // a failed write just downgrades audit classifications to "unknown".
+    await writeSrcManifest(join(CLAUDE_DIR, "src"), CLAUDE_DIR).catch(() => {});
   }
 
   try {

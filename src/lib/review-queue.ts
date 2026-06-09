@@ -1,6 +1,6 @@
-// Review-queue backpressure — the consumer-side counterpart to parallelmax-nudge.
+// Review-queue backpressure — the consumer-side counterpart to the parallelmax counter.
 //
-// The producer-side hooks (delegation-detector, parallelmax-nudge) push toward
+// The producer-side hooks (delegation-detector, tool-cadence parallelmax branch) push toward
 // spawning MORE agents. This models the constraint the "Orchestration Tax"
 // essay names: human review throughput. We count agent spawns since the last
 // commit and nudge when that exceeds your review rate (CC_MAX_UNREVIEWED).
@@ -15,7 +15,7 @@
 // the statusline) and a cognitive-surrender proxy — committing a deep queue
 // faster than a real review could plausibly take is flagged on commit.
 //
-// Pure logic only (no I/O) so it's unit-testable; review-queue-nudge.ts wraps it.
+// Pure logic only (no I/O) so it's unit-testable; tool-cadence.ts wraps it.
 
 export interface ReviewQueueState {
   /** Agent tool calls since the last commit. */

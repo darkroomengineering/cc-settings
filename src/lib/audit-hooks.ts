@@ -7,12 +7,19 @@
 // Classification rules:
 //   trusted    — matches cc-settings' shipped command pattern
 //                (`bun "$HOME/.claude/src/{scripts,hooks,lib}/<name>.ts"`)
-//                or a recognized harmless built-in pattern.
+//                AND the referenced file's content hash matches the install
+//                manifest written by setup.ts. Trust is content-based, not
+//                path-based: a path-shaped match alone proves nothing, since
+//                malware can drop ~/.claude/src/hooks/evil.ts or patch a
+//                shipped script in place (see SECURITY.md).
 //   suspicious — matches a high-confidence malware signature (curl|wget piping
 //                to a shell, base64 decode + exec, eval, /tmp/ exec, node/python
-//                -e or -c, long single-line opaque commands).
-//   unknown    — neither. User-added custom hooks land here. They're not
-//                inherently bad; they just haven't been vouched for.
+//                -e or -c, long single-line opaque commands), OR is path-shaped
+//                but fails content verification against the install manifest.
+//   unknown    — neither. User-added custom hooks land here, as do shipped-
+//                pattern commands when no install manifest exists (pre-manifest
+//                install). They're not inherently bad; they just haven't been
+//                vouched for.
 //
 // Exit code policy (CLI):
 //   suspicious findings → exit 1
@@ -25,6 +32,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Hook, HookGroup } from "../schemas/hooks.ts";
 import { HooksBlock } from "../schemas/hooks.ts";
+import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
 
 export type HookSeverity = "trusted" | "unknown" | "suspicious";
 
@@ -45,18 +53,100 @@ export interface AuditResult {
   findings: HookFinding[];
 }
 
+/** Content-integrity view consumed by the classifier: rel path under
+ *  ~/.claude/src → does the on-disk content hash match the install manifest?
+ *  `null`/absent means no manifest exists — classification degrades to
+ *  "unknown" for shipped-pattern commands rather than trusting path shape. */
+export interface SrcIntegrity {
+  files: Map<string, boolean>;
+}
+
+/** Build the SrcIntegrity view: every manifested file, hashed on disk and
+ *  compared. Returns null when no manifest exists (pre-manifest install) or
+ *  on any read error — fail-soft, never throws. */
+export async function loadSrcIntegrity(claudeDir?: string): Promise<SrcIntegrity | null> {
+  try {
+    const dir = claudeDir ?? join(homedir(), ".claude");
+    const manifest = await readSrcManifest(dir);
+    if (!manifest) return null;
+    const files = new Map<string, boolean>();
+    for (const [rel, expected] of Object.entries(manifest.files)) {
+      files.set(rel, (await hashFileOrNull(join(dir, "src", rel))) === expected);
+    }
+    return { files };
+  } catch {
+    return null;
+  }
+}
+
 // `bun "$HOME/.claude/src/<dir>/<name>.ts"` — accept quoted and unquoted
 // `$HOME` and `${HOME}` forms. Allow an optional trailing arg list (some
-// hooks invoke a script with positional args).
+// hooks invoke a script with positional args). Capture group 1 is the path
+// relative to ~/.claude/src — the install-manifest key.
 const TRUSTED_BUN_CC =
-  /^bun\s+"?\$\{?HOME\}?\/\.claude\/src\/(scripts|hooks|lib)\/[a-zA-Z0-9_-]+\.ts"?(\s.*)?$/;
+  /^bun\s+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks|lib)\/[a-zA-Z0-9_-]+\.ts)"?(\s.*)?$/;
+
+/** Classify a single shipped-pattern command against the install manifest. */
+function classifyShippedPath(
+  rel: string,
+  integrity: SrcIntegrity | null | undefined,
+): { severity: HookSeverity; reasons: string[] } {
+  if (integrity === undefined || integrity === null) {
+    return {
+      severity: "unknown",
+      reasons: [
+        "matches cc-settings shipped script pattern, but no install manifest — cannot verify content",
+      ],
+    };
+  }
+  const verified = integrity.files.get(rel);
+  if (verified === undefined) {
+    return {
+      severity: "suspicious",
+      reasons: [`src/${rel}: file not in install manifest (possible dropped payload)`],
+    };
+  }
+  if (!verified) {
+    return {
+      severity: "suspicious",
+      reasons: [`src/${rel}: file hash differs from install manifest (possible patched payload)`],
+    };
+  }
+  return {
+    severity: "trusted",
+    reasons: ["matches cc-settings shipped script pattern; content matches install manifest"],
+  };
+}
 
 // Compound commands that chain multiple trusted bun scripts with `;` or `&&`.
-// We check each sub-command against TRUSTED_BUN_CC.
-function isTrustedCompound(cmd: string): boolean {
+// Each sub-command must match TRUSTED_BUN_CC *and* pass content verification;
+// the compound's severity is the worst of its parts.
+function classifyCompound(
+  cmd: string,
+  integrity: SrcIntegrity | null | undefined,
+): { severity: HookSeverity; reasons: string[] } | null {
   const parts = cmd.split(/\s*(?:;|&&|\|\|)\s*/).filter((p) => p.length > 0);
-  if (parts.length < 2) return false;
-  return parts.every((p) => TRUSTED_BUN_CC.test(p));
+  if (parts.length < 2) return null;
+  const matches = parts.map((p) => p.match(TRUSTED_BUN_CC));
+  if (!matches.every((m) => m?.[1])) return null;
+
+  const results = matches.map((m) => classifyShippedPath(m?.[1] ?? "", integrity));
+  const suspicious = results.filter((r) => r.severity === "suspicious");
+  if (suspicious.length > 0) {
+    return { severity: "suspicious", reasons: suspicious.flatMap((r) => r.reasons) };
+  }
+  if (results.some((r) => r.severity === "unknown")) {
+    return {
+      severity: "unknown",
+      reasons: [
+        "chains cc-settings shipped scripts, but no install manifest — cannot verify content",
+      ],
+    };
+  }
+  return {
+    severity: "trusted",
+    reasons: ["chains multiple cc-settings shipped scripts; content matches install manifest"],
+  };
 }
 
 // Strong signals of supply-chain malware in a hook command. These are
@@ -103,23 +193,36 @@ function looksOpaque(cmd: string): boolean {
   return b64Chars / cmd.length > 0.85;
 }
 
-export function classifyHookCommand(cmd: string): { severity: HookSeverity; reasons: string[] } {
+function matchSuspicious(cmd: string): string[] {
   const reasons: string[] = [];
-
-  // Trust first.
-  if (TRUSTED_BUN_CC.test(cmd)) {
-    return { severity: "trusted", reasons: ["matches cc-settings shipped script pattern"] };
-  }
-  if (isTrustedCompound(cmd)) {
-    return { severity: "trusted", reasons: ["chains multiple cc-settings shipped scripts"] };
-  }
-
-  // Then explicit suspicion.
   for (const { rx, reason } of SUSPICIOUS_PATTERNS) {
     if (rx.test(cmd)) reasons.push(reason);
   }
   if (looksOpaque(cmd)) reasons.push("long single-token blob (likely obfuscated payload)");
+  return reasons;
+}
 
+export function classifyHookCommand(
+  cmd: string,
+  integrity?: SrcIntegrity | null,
+): { severity: HookSeverity; reasons: string[] } {
+  // Shipped-pattern commands first. Trust is CONTENT-based (install manifest),
+  // not path-based. When there's no manifest we can't promote to "trusted" —
+  // but a malware-signature hit in the command still wins over "unknown".
+  const m = cmd.match(TRUSTED_BUN_CC);
+  if (m?.[1]) {
+    const result = classifyShippedPath(m[1], integrity);
+    if (result.severity === "unknown") {
+      const sus = matchSuspicious(cmd);
+      if (sus.length > 0) return { severity: "suspicious", reasons: sus };
+    }
+    return result;
+  }
+  const compound = classifyCompound(cmd, integrity);
+  if (compound) return compound;
+
+  // Then explicit suspicion.
+  const reasons = matchSuspicious(cmd);
   if (reasons.length > 0) return { severity: "suspicious", reasons };
 
   return {
@@ -132,7 +235,7 @@ export function classifyHookCommand(cmd: string): { severity: HookSeverity; reas
 // where each group has `hooks: Hook[]`. We tolerate unknown shapes silently
 // (return empty findings) — a malformed settings.json is a different problem.
 
-export function auditHooks(settings: unknown): HookFinding[] {
+export function auditHooks(settings: unknown, integrity?: SrcIntegrity | null): HookFinding[] {
   if (!settings || typeof settings !== "object") return [];
   const hooks = (settings as Record<string, unknown>).hooks;
   if (!hooks || typeof hooks !== "object") return [];
@@ -150,7 +253,7 @@ export function auditHooks(settings: unknown): HookFinding[] {
         if (entry?.type !== "command") return;
         const cmd = entry.command.trim();
         if (!cmd) return;
-        const { severity, reasons } = classifyHookCommand(cmd);
+        const { severity, reasons } = classifyHookCommand(cmd, integrity);
         findings.push({
           event,
           groupIndex: gi,
@@ -169,7 +272,7 @@ export function auditHooks(settings: unknown): HookFinding[] {
 /** Sentinel message used when the hooks block doesn't match the schema. */
 export const HOOKS_SCHEMA_VALIDATION_FAILED = "hooks config failed schema validation";
 
-export async function auditSettingsFile(path?: string): Promise<AuditResult> {
+export async function auditSettingsFile(path?: string, claudeDir?: string): Promise<AuditResult> {
   const settingsPath = path ?? join(homedir(), ".claude", "settings.json");
   if (!existsSync(settingsPath)) {
     return { settingsPath, exists: false, totalHooks: 0, findings: [] };
@@ -212,9 +315,14 @@ export async function auditSettingsFile(path?: string): Promise<AuditResult> {
     }
   }
 
+  // Content verification against the install manifest — shipped-pattern
+  // commands are only "trusted" when the file they point at hashes to what
+  // setup.ts installed.
+  const integrity = await loadSrcIntegrity(claudeDir);
+
   // totalHooks counts audited command hooks (the "hook command(s) total" the
   // CLI prints) — NOT findings, which also include the schema pseudo-finding.
-  const hookFindings = auditHooks(parsed);
+  const hookFindings = auditHooks(parsed, integrity);
   const findings = [...extraFindings, ...hookFindings];
   return { settingsPath, exists: true, totalHooks: hookFindings.length, findings };
 }

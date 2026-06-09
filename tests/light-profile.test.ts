@@ -169,7 +169,7 @@ describe("stripManagedSettings", () => {
           hooks: [
             {
               type: "command",
-              command: 'bun "$HOME/.claude/src/hooks/review-queue-nudge.ts"',
+              command: 'bun "$HOME/.claude/src/hooks/tool-cadence.ts"',
               timeout: 3,
             },
           ],
@@ -224,7 +224,7 @@ describe("stripManagedSettings", () => {
           hooks: [
             {
               type: "command",
-              command: 'bun "$HOME/.claude/src/hooks/review-queue-nudge.ts"',
+              command: 'bun "$HOME/.claude/src/hooks/tool-cadence.ts"',
               timeout: 3,
             },
           ],

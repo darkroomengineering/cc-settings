@@ -346,7 +346,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `log-bash.ts` | Logs every Bash command to `~/.claude/logs/bash-YYYY-MM-DD.log` | Yes |
 
-Logs are used by `bun ~/.claude/src/scripts/claude-audit.ts` to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
+Logs are used by `bun run claude-audit` to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
 
 **Log format:** `[HH:MM:SS] [project] command`
 
@@ -356,7 +356,7 @@ Logs are used by `bun ~/.claude/src/scripts/claude-audit.ts` to analyze command 
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `parallelmax-nudge.ts` | Counts consecutive non-Agent tool calls in main context. At N=8, emits a system reminder pointing at the delegation rules. State at `~/.claude/tmp/parallelmax-counter.json`; resets when an Agent tool fires. 60s debounce | No |
+| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls in main context. At N=8, emits a system reminder pointing at the delegation rules. State at `~/.claude/tmp/parallelmax-counter.json`; resets when an Agent tool fires. 60s debounce | No |
 
 ### PostToolUseFailure
 
@@ -466,7 +466,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 
 ### Best Practices
 
-- **Use the shared runtime.** Import from `src/lib/hook-runtime.ts` — `readHookInput<T>()` (reads stdin JSON with env-var fallback), `readState<T>(name, fallback)` / `writeState(name, data)` (atomic IO against `~/.claude/tmp/<name>.json`), and `runHook(main)` (top-level fail-open wrapper). The parallelmax hooks (`parallelmax-nudge.ts`, `delegation-detector.ts`) are the reference implementations.
+- **Use the shared runtime.** Import from `src/lib/hook-runtime.ts` — `readHookInput<T>()` (reads stdin JSON with env-var fallback), `readState<T>(name, fallback)` / `writeState(name, data)` (atomic IO against `~/.claude/tmp/<name>.json`), and `runHook(main)` (top-level fail-open wrapper). The cadence hooks (`tool-cadence.ts`, `delegation-detector.ts`) are the reference implementations.
 - Always quote `$HOME` paths in the `command` string.
 - Use `async: true` for non-blocking operations (logging, metrics).
 - Set reasonable `timeout` values (default 600s is often too long for simple scripts).

@@ -27,7 +27,8 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/safety-net.ts\""
+						"command": "bun \"$HOME/.claude/src/hooks/safety-net.ts\"",
+						"timeout": 5
 					}
 				]
 			},
@@ -55,7 +56,8 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-edit-validate.ts\""
+						"command": "bun \"$HOME/.claude/src/hooks/pre-edit-validate.ts\"",
+						"timeout": 5
 					}
 				]
 			},
@@ -64,7 +66,8 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/freeze-guard.ts\""
+						"command": "bun \"$HOME/.claude/src/hooks/freeze-guard.ts\"",
+						"timeout": 5
 					}
 				]
 			}
@@ -104,16 +107,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/parallelmax-nudge.ts\"",
-						"timeout": 3
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/review-queue-nudge.ts\"",
+						"command": "bun \"$HOME/.claude/src/hooks/tool-cadence.ts\"",
 						"timeout": 3
 					}
 				]

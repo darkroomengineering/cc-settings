@@ -1,7 +1,7 @@
 // Proof-of-work gate — the Amdahl-shrink move from the "Orchestration Tax".
 //
 // Human review is the serial bottleneck. The way to raise throughput isn't only
-// to throttle agents (review-queue-nudge) — it's to shrink the serial fraction:
+// to throttle agents (tool-cadence) — it's to shrink the serial fraction:
 // make the machine prove the boring 80% (types, tests, lint) so the human lock
 // is spent only on the 20% that needs judgment. A diff is "review-ready" when
 // the verification battery is green; what a machine can verify shouldn't cost a

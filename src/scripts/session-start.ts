@@ -272,7 +272,7 @@ try {
 
 // Review-queue HEAD reconcile: if committed work advanced since the queue was
 // last touched (a commit in another terminal, a fast-forward pull, a pulled-down
-// PR merge), drain it — the commit-based drain in review-queue-nudge.ts can't
+// PR merge), drain it — the commit-based drain in tool-cadence.ts can't
 // see commits Claude didn't run. Only runs git when there's a non-empty queue to
 // avoid a rev-parse on every session start. Fail-soft: any problem ⇒ untouched.
 try {
