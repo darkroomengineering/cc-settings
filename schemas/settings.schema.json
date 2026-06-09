@@ -675,6 +675,9 @@
     "disableSkillShellExecution": {
       "type": "boolean"
     },
+    "disableBundledSkills": {
+      "type": "boolean"
+    },
     "disableDeepLinkRegistration": {
       "type": "boolean"
     },

@@ -124,6 +124,7 @@ export const Settings = z
     skipDangerousModePermissionPrompt: z.boolean().optional(), // skip the confirmation before entering bypass-permissions mode; ignored in project settings (per docs)
     effortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // persist /effort across sessions; settings.json counterpart of CLAUDE_CODE_EFFORT_LEVEL. The key's docs list 4 values, but the env var + real live configs also use "max" — superset to not reject observed values.
     disableSkillShellExecution: z.boolean().optional(), // 2.1.98
+    disableBundledSkills: z.boolean().optional(), // 2.1.169 — hide Anthropic's bundled skills, workflows, and built-in slash commands from the model; env counterpart CLAUDE_CODE_DISABLE_BUNDLED_SKILLS
     disableDeepLinkRegistration: z.boolean().optional(), // 2.1.103
     autoScrollEnabled: z.boolean().optional(), // 2.1.102
     autoMemoryDirectory: z.string().optional(), // 2.1.101

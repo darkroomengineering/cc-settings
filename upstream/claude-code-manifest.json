@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-06-08T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.168",
+  "lastScan": "2026-06-09T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.169",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -35,6 +35,7 @@
     "disableAgentView",
     "disableAllHooks",
     "disableAutoMode",
+    "disableBundledSkills",
     "disableBypassPermissionsMode",
     "disableDeepLinkRegistration",
     "disableRemoteControl",
@@ -144,8 +145,10 @@
     "AI_AGENT",
     "ANTHROPIC_BEDROCK_SERVICE_TIER",
     "ANTHROPIC_WORKSPACE_ID",
+    "API_FORCE_IDLE_TIMEOUT",
     "CLAUDE_CODE_CERT_STORE",
     "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN",
+    "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS",
     "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK",
     "CLAUDE_CODE_EFFORT_LEVEL",
     "CLAUDE_CODE_ENABLE_AUTO_MODE",
@@ -163,6 +166,7 @@
     "CLAUDE_CODE_PERFORCE_MODE",
     "CLAUDE_CODE_PLUGIN_PREFER_HTTPS",
     "CLAUDE_CODE_POWERSHELL_RESPECT_EXECUTION_POLICY",
+    "CLAUDE_CODE_SAFE_MODE",
     "CLAUDE_CODE_SCRIPT_CAPS",
     "CLAUDE_CODE_SESSION_ID",
     "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS",
@@ -220,6 +224,7 @@
     "v2.1.139 added two hook fields (not enumerated here, see src/schemas/hooks.ts): `args: string[]` on command hooks (exec form, no shell) and `continueOnBlock: boolean` on PostToolUse hooks.",
     "v2.1.143 added `worktree.bgIsolation: \"none\"` to disable background-session worktree isolation — see src/schemas/settings.ts.",
     "v2.1.163 added two managed settings keys: requiredMinimumVersion/requiredMaximumVersion (version-range gate, distinct from the older minimumVersion). It also let Stop/SubagentStop hooks return hookSpecificOutput.additionalContext (runtime output, not a config field — see docs/hooks-reference.md).",
-    "v2.1.166 added the fallbackModel settings key (string | string[]; up to three fallback models tried in order when the primary is overloaded/unavailable) — see src/schemas/settings.ts. 2.1.167/2.1.168 were bug-fixes-only."
+    "v2.1.166 added the fallbackModel settings key (string | string[]; up to three fallback models tried in order when the primary is overloaded/unavailable) — see src/schemas/settings.ts. 2.1.167/2.1.168 were bug-fixes-only.",
+    "v2.1.169 added the disableBundledSkills settings key (hide Anthropic's bundled skills/workflows/built-in slash commands from the model) plus three env vars: CLAUDE_CODE_DISABLE_BUNDLED_SKILLS (env counterpart), CLAUDE_CODE_SAFE_MODE (counterpart of the new --safe-mode troubleshooting flag), and API_FORCE_IDLE_TIMEOUT (=0 opts out of the restored 5-min Vertex/Foundry idle-stream timeout). The rest of 2.1.169 was bug-fixes and runtime/UI tweaks (managed-MCP reconnect enforcement, /cd command, history-row navigation, perf)."
   ]
 }

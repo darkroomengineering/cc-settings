@@ -50,7 +50,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.20.0"; // sync to Claude Code 2.1.168: fallbackModel settings key (2.1.166)
+const VERSION = "11.21.0"; // sync to Claude Code 2.1.169: disableBundledSkills key + CLAUDE_CODE_DISABLE_BUNDLED_SKILLS / CLAUDE_CODE_SAFE_MODE / API_FORCE_IDLE_TIMEOUT env vars
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

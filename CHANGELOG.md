@@ -6,6 +6,31 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.21.0] — 2026-06-09
+
+Upstream sync to Claude Code 2.1.169. One surface-area release — 2.1.169 adds a new settings key and a handful of env vars alongside a large batch of bug fixes. Manifest bumped `2.1.168` → `2.1.169`; version bumped minor for the new settings key + env vars.
+
+### Added
+
+- **`disableBundledSkills` settings key (2.1.169).** Hides Anthropic's *bundled* skills, workflows, and built-in slash commands from the model — the upstream-shipped set only; cc-settings' own skills/agents/rules are unaffected. Useful when the bundled surface competes with project skills for the selector's attention (relevant to the 40-skill soft cap). Boolean, global scope. Added to `src/schemas/settings.ts` (global-toggles block, next to `disableSkillShellExecution`), `upstream/claude-code-manifest.json` `knownSettingsKeys`, and `docs/settings-reference.md` (table + a detailed `###` section mirroring `disableSkillShellExecution`). The schema is `passthrough`, so live configs carrying the key already parsed — enumerating keeps the manifest honest and documents the surface.
+- **Three env vars (2.1.169)** added to `upstream/claude-code-manifest.json` `knownEnvVars` and the `docs/settings-reference.md` env table:
+  - `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` — per-session counterpart of the `disableBundledSkills` setting.
+  - `CLAUDE_CODE_SAFE_MODE` — counterpart of the new `--safe-mode` flag; boots with all customizations (CLAUDE.md, plugins, skills, hooks, MCP) disabled for troubleshooting.
+  - `API_FORCE_IDLE_TIMEOUT` — `=0` opts out of the restored default 5-minute Vertex/Foundry idle-stream timeout (a stalled stream now aborts instead of hanging).
+
+### Changed
+
+- **Upstream sync to Claude Code 2.1.169.** Triaged the full 2.1.169 changelog. Beyond the key + env vars above, nothing touches a surface cc-settings ships. Notable skips, with reasons: the new **`/cd` command** and **`--safe-mode` flag** are native (the env-var counterpart is captured); the **"CLAUDE.md is too long" threshold now scales with the model's context window** is a native warning orthogonal to our line-based `CC_CLAUDE_MD_*` monitor (different mechanism — not a dedupe); the **managed `allowedMcpServers`/`deniedMcpServers` reconnect-enforcement fix** needs nothing (our schema already accepts these keys); and the remaining ~25 bullets are bug fixes and runtime/UI tweaks (Up/Down history-row navigation, macOS claude.ai startup stall, Windows `claude -p` hang, Remote Control reconnect, `claude agents --json` fields, background-session flag preservation, OTEL cert-path trust gating, CPU/streaming perf, skill-tag contrast) with no config surface.
+
+### Files changed
+
+- `src/schemas/settings.ts`
+- `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.20.0] — 2026-06-08
 
 Upstream sync to Claude Code 2.1.168. Two of the three releases (2.1.167, 2.1.168) are bug-fixes-only; the one surface-area change is the `fallbackModel` settings key in 2.1.166. Manifest bumped `2.1.165` → `2.1.168`; version bumped minor for the new settings key.
