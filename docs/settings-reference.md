@@ -85,6 +85,9 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet` (v2.1.147) |
 | `CLAUDE_CODE_TMPDIR` | directory path | Overrides the temp directory used for Unix sockets and scratch files; set it shallow to avoid `EADDRINUSE` from over-long socket paths (v2.1.161) |
 | `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157) |
+| `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` | `"1"` or unset | Hide Anthropic's bundled skills, workflows, and built-in slash commands from the model. Env counterpart of the `disableBundledSkills` setting (v2.1.169) |
+| `CLAUDE_CODE_SAFE_MODE` | `"1"` or unset | Start Claude Code with all customizations disabled (CLAUDE.md, plugins, skills, hooks, MCP servers) for troubleshooting. Env counterpart of the `--safe-mode` flag (v2.1.169) |
+| `API_FORCE_IDLE_TIMEOUT` | `"0"` to opt out, unset for default | Restores a default 5-minute idle timeout on Vertex/Foundry so a stalled stream aborts instead of hanging; set `=0` to opt out (v2.1.169) |
 
 > **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 
@@ -394,6 +397,14 @@ Disable the Skill tool's ability to run inline shell commands (v2.1.98). Skills 
 { "disableSkillShellExecution": true }
 ```
 
+### `disableBundledSkills`
+
+Hide Anthropic's *bundled* skills, workflows, and built-in slash commands from the model (v2.1.169). Affects only the upstream-shipped set — cc-settings' own skills, agents, and rules are unaffected. Useful when the bundled surface competes with project skills for the selector's attention. The env var `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1` is the per-session counterpart.
+
+```json
+{ "disableBundledSkills": true }
+```
+
 ### `disableDeepLinkRegistration`
 
 Disable Claude Code's deep-link URL handler registration on first launch (v2.1.103). Use in environments where the OS-level handler would conflict with another tool.
@@ -498,6 +509,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `disableAgentView` | boolean | E | Hide the agent-activity panel in the TUI |
 | `disableAllHooks` | boolean | G | Master kill-switch for the entire hooks subsystem |
 | `disableAutoMode` | `"disable"` | E | Disable auto-mode entirely (admin-tier) |
+| `disableBundledSkills` | boolean | G | Hide Anthropic's bundled skills, workflows, and built-in slash commands from the model (v2.1.169; env counterpart `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS`) |
 | `disableBypassPermissionsMode` | `"disable"` | E | Disable bypassPermissions mode (admin-tier) |
 | `disableDeepLinkRegistration` | boolean | G | Disable deep-link URL handler registration on first launch (v2.1.103) |
 | `disableRemoteControl` | boolean | E | Prevent remote-control / programmatic session takeover |
