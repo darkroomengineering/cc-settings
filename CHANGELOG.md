@@ -6,6 +6,22 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.22.0] — 2026-06-09
+
+Adds a `--light` install profile: a **permanent, beginner-friendly tier** for teammates who don't want the full cc-settings surface. Light is raw Claude Code with exactly two cc-settings additions — the statusLine and the `share-learning` skill — and nothing else.
+
+### Added
+
+- **`--light` install flag (`bash setup.sh --light`).** Installs raw Claude Code plus only the statusLine and the `share-learning` skill. Drops everything else cc-settings normally ships: no CLAUDE.md, no AGENTS.md, no agents, rules, profiles, contexts, or docs; no MCP servers (including context7); no hooks beyond the statusLine command; no effort override (Claude Code default); no permission rules (Claude Code defaults). The two tiers are both permanently supported — re-run `setup.sh` without `--light` to upgrade to full, or with `--light` to downgrade.
+- **`src/lib/light-profile.ts`** — single manifest expressing light as a declarative subtractive diff over the full source (`LIGHT_SKILLS`), plus two pure transforms: `applyLightProfile` (reduces composed settings to `$schema` + `statusLine`) and `stripManagedSettings` (removes the full cc-settings footprint from an existing `settings.json` on a full→light switch, while preserving genuinely user-authored env vars, MCP servers, permission rules, and hook groups).
+- **Profile recorded in the install sentinel** (`.cc-settings-version` `profile` field) and surfaced in `--status`; light installs no longer report the ~27 full-tier skills as "missing."
+- Parity-guard + transform unit tests (`tests/light-profile.test.ts`) and install-e2e coverage for fresh light, full→light (footprint fully stripped to `$schema` + `statusLine`), and light→full (everything restored).
+
+### Changed
+
+- **Idempotent tier switching.** `installConfigFiles`/`installSettings` are profile-aware; a full→light switch strips cc-settings-managed MCP servers (from both `settings.json` and `~/.claude.json`), hooks, env overrides, permission rules, scalar settings, and removes CLAUDE.md/AGENTS.md/agents/rules/profiles/contexts/docs. `installDependencies` skips the `llm-tldr`/jq/pipx setup for light (it runs no hooks needing them).
+- Docs: README "Install" + "Common commands", project `CLAUDE.md` Development section, and a new MANUAL "Light vs Full" section all document `--light`.
+
 ## [11.21.0] — 2026-06-09
 
 Upstream sync to Claude Code 2.1.169. One surface-area release — 2.1.169 adds a new settings key and a handful of env vars alongside a large batch of bug fixes. Manifest bumped `2.1.168` → `2.1.169`; version bumped minor for the new settings key + env vars.

@@ -30,6 +30,16 @@ Requires [Bun](https://bun.sh) ≥ 1.1.30 — the bootstrap installs it automati
 
 Restart Claude Code after install.
 
+### Light profile (for newcomers)
+
+New to Claude Code and don't want the full surface? Install the **light** profile — raw Claude Code with only two additions: the statusline and the `share-learning` skill.
+
+```bash
+bash setup.sh --light
+```
+
+No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the statusline), or effort overrides — just vanilla Claude Code so you're not overwhelmed. Re-run `bash setup.sh` without `--light` any time to upgrade to the full config; both tiers are permanently supported. See [MANUAL.md](MANUAL.md#light-vs-full) for the full comparison.
+
 ---
 
 ## What gets installed
@@ -62,7 +72,8 @@ Repo → install mapping:
 ## Common commands
 
 ```bash
-bash setup.sh                  # Install / update
+bash setup.sh                  # Install / update (full profile)
+bash setup.sh --light          # Light profile: raw CC + statusline + share-learning only
 bun src/setup.ts --rollback    # Restore the previous backup
 bun src/setup.ts --dry-run     # Preview what would change
 bun run compose                # Preview the composed settings.json

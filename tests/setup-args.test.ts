@@ -61,4 +61,24 @@ describe("parseArgs", () => {
     expect(a.interactive).toBe(true);
     expect(a.sourceDir).toBe(resolve("/tmp/x"));
   });
+
+  test("default profile is 'full'", () => {
+    expect(parseArgs([]).profile).toBe("full");
+  });
+
+  test("--light sets profile to 'light'", () => {
+    expect(parseArgs(["--light"]).profile).toBe("light");
+  });
+
+  test("--light composes with --dry-run", () => {
+    const a = parseArgs(["--light", "--dry-run"]);
+    expect(a.profile).toBe("light");
+    expect(a.dryRun).toBe(true);
+  });
+
+  test("--light composes with --source", () => {
+    const a = parseArgs(["--light", "--source=/tmp/cc"]);
+    expect(a.profile).toBe("light");
+    expect(a.sourceDir).toBe(resolve("/tmp/cc"));
+  });
 });

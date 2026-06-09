@@ -8,6 +8,8 @@ export interface VersionSentinelData {
   version: string | null;
   /** ISO timestamp from the sentinel's installed_at field. Null when absent. */
   installedAt: string | null;
+  /** Install profile ("full" | "light"). Absent in sentinels written before v11.21.0. */
+  profile?: "full" | "light";
 }
 
 export interface GitDriftData {

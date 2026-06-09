@@ -11,9 +11,10 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SETUP_TS = join(REPO, "src", "setup.ts");
@@ -24,8 +25,8 @@ interface InstallResult {
   stderr: string;
 }
 
-async function runInstall(home: string): Promise<InstallResult> {
-  const proc = Bun.spawn(["bun", SETUP_TS, `--source=${REPO}`], {
+async function runInstall(home: string, extraArgs: string[] = []): Promise<InstallResult> {
+  const proc = Bun.spawn(["bun", SETUP_TS, `--source=${REPO}`, ...extraArgs], {
     env: {
       ...process.env,
       HOME: home,
@@ -53,7 +54,7 @@ describe("install E2E — fresh HOME", () => {
     async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-e2e-"));
       try {
-        const result = await runInstall(home);
+        const result = await runInstall(home, []);
         if (result.exitCode !== 0) {
           throw new Error(
             `installer exited with ${result.exitCode}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
@@ -170,5 +171,246 @@ describe("install E2E — fresh HOME", () => {
       }
     },
     { timeout: 60_000 },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Light install E2E
+// ---------------------------------------------------------------------------
+
+describe("install E2E — light profile", () => {
+  test(
+    "--light fresh install: only share-learning skill, no CLAUDE.md/AGENTS.md, settings=$schema+statusLine only",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-light-"));
+      try {
+        const result = await runInstall(home, ["--light"]);
+        if (result.exitCode !== 0) {
+          throw new Error(
+            `light installer failed (${result.exitCode})\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+          );
+        }
+
+        const claudeDir = join(home, ".claude");
+
+        // Skills: ONLY share-learning.
+        const skillsDir = join(claudeDir, "skills");
+        const installedSkills = new Set(await readdir(skillsDir).catch(() => []));
+        for (const skill of LIGHT_SKILLS) {
+          expect(installedSkills.has(skill), `skill "${skill}" should be installed`).toBe(true);
+        }
+        for (const installed of installedSkills) {
+          expect(
+            (LIGHT_SKILLS as readonly string[]).includes(installed),
+            `"${installed}" should NOT be in a light install`,
+          ).toBe(true);
+        }
+
+        // No agents dir (or empty).
+        const agentsDir = join(claudeDir, "agents");
+        if (existsSync(agentsDir)) {
+          const agentFiles = (await readdir(agentsDir).catch(() => [])).filter((f) =>
+            f.endsWith(".md"),
+          );
+          expect(agentFiles.length).toBe(0);
+        }
+
+        // No CLAUDE.md.
+        expect(existsSync(join(claudeDir, "CLAUDE.md"))).toBe(false);
+        // No AGENTS.md.
+        expect(existsSync(join(claudeDir, "AGENTS.md"))).toBe(false);
+        // No rules/.
+        expect(existsSync(join(claudeDir, "rules"))).toBe(false);
+        // No contexts/.
+        expect(existsSync(join(claudeDir, "contexts"))).toBe(false);
+        // No profiles/.
+        expect(existsSync(join(claudeDir, "profiles"))).toBe(false);
+        // No docs/ (or empty).
+        if (existsSync(join(claudeDir, "docs"))) {
+          const docFiles = (await readdir(join(claudeDir, "docs")).catch(() => [])).filter((f) =>
+            f.endsWith(".md"),
+          );
+          expect(docFiles.length).toBe(0);
+        }
+
+        // settings.json: only $schema + statusLine — no mcpServers, no hooks, no env,
+        // no permissions.
+        const settingsRaw = await readFile(join(claudeDir, "settings.json"), "utf8");
+        const settings = JSON.parse(settingsRaw) as Record<string, unknown>;
+        expect(settings.$schema).toBeTruthy();
+        expect(settings.statusLine).toBeTruthy();
+        expect(
+          "mcpServers" in settings && Object.keys(settings.mcpServers as object).length > 0,
+        ).toBe(false);
+        expect("hooks" in settings && Object.keys(settings.hooks as object).length > 0).toBe(false);
+        expect(
+          "env" in settings &&
+            (settings.env as Record<string, unknown>).CLAUDE_CODE_EFFORT_LEVEL !== undefined,
+        ).toBe(false);
+        expect(
+          "permissions" in settings &&
+            ((settings.permissions as Record<string, unknown[]>).allow?.length ?? 0) > 0,
+        ).toBe(false);
+
+        // src/ is present (statusLine command references it).
+        expect(existsSync(join(claudeDir, "src"))).toBe(true);
+
+        // Sentinel profile === "light".
+        const sentinel = JSON.parse(
+          await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
+        ) as { profile?: string };
+        expect(sentinel.profile).toBe("light");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 60_000 },
+  );
+
+  test(
+    "full → light switch: cc-settings footprint gone, only share-learning remains",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-switch-fl-"));
+      try {
+        // First: full install.
+        const full = await runInstall(home, []);
+        expect(full.exitCode).toBe(0);
+
+        // Verify full install has CLAUDE.md before the switch.
+        expect(existsSync(join(home, ".claude", "CLAUDE.md"))).toBe(true);
+
+        // Second: switch to light.
+        const light = await runInstall(home, ["--light"]);
+        if (light.exitCode !== 0) {
+          throw new Error(
+            `light switch failed (${light.exitCode})\nstdout:\n${light.stdout}\nstderr:\n${light.stderr}`,
+          );
+        }
+
+        const claudeDir = join(home, ".claude");
+
+        // skills: only share-learning.
+        const skillsDir = join(claudeDir, "skills");
+        const installedSkills = new Set(await readdir(skillsDir).catch(() => []));
+        for (const skill of LIGHT_SKILLS) {
+          expect(installedSkills.has(skill), `skill "${skill}" should be present`).toBe(true);
+        }
+        for (const installed of installedSkills) {
+          expect(
+            (LIGHT_SKILLS as readonly string[]).includes(installed),
+            `"${installed}" should NOT be present after full→light switch`,
+          ).toBe(true);
+        }
+
+        // No CLAUDE.md / AGENTS.md after switch.
+        expect(existsSync(join(claudeDir, "CLAUDE.md"))).toBe(false);
+        expect(existsSync(join(claudeDir, "AGENTS.md"))).toBe(false);
+        // No agents dir files.
+        if (existsSync(join(claudeDir, "agents"))) {
+          const agentFiles = (await readdir(join(claudeDir, "agents")).catch(() => [])).filter(
+            (f) => f.endsWith(".md"),
+          );
+          expect(agentFiles.length).toBe(0);
+        }
+        // No rules.
+        expect(existsSync(join(claudeDir, "rules"))).toBe(false);
+        // No contexts.
+        expect(existsSync(join(claudeDir, "contexts"))).toBe(false);
+        // No profiles.
+        expect(existsSync(join(claudeDir, "profiles"))).toBe(false);
+
+        // settings.json: no cc-settings env, no cc-settings permissions, no cc-settings hooks.
+        const settings = JSON.parse(
+          await readFile(join(claudeDir, "settings.json"), "utf8"),
+        ) as Record<string, unknown>;
+        // No CLAUDE_CODE_EFFORT_LEVEL.
+        const env = (settings.env ?? {}) as Record<string, unknown>;
+        expect(env.CLAUDE_CODE_EFFORT_LEVEL).toBeUndefined();
+        // No mcpServers with cc-settings content.
+        const mcp = (settings.mcpServers ?? {}) as Record<string, unknown>;
+        expect("context7" in mcp).toBe(false);
+        // No cc-settings hooks.
+        const hooks = (settings.hooks ?? {}) as Record<string, unknown>;
+        const allHookCommands = Object.values(hooks)
+          .flat()
+          .flatMap((g: unknown) => {
+            const gr = g as { hooks?: Array<{ command?: string }> };
+            return (gr.hooks ?? []).map((h) => h.command ?? "");
+          });
+        expect(
+          allHookCommands.some(
+            (c) => c.includes("/.claude/src/hooks/") || c.includes("/.claude/src/scripts/"),
+          ),
+        ).toBe(false);
+
+        // No cc-settings scalar/object settings leaked from the full install
+        // (sandbox, teammateMode, spinnerVerbs, attribution, …). A clean full→light
+        // switch with no user-authored settings must reduce to exactly $schema + statusLine.
+        expect(Object.keys(settings).sort()).toEqual(["$schema", "statusLine"]);
+
+        // Sentinel profile === "light".
+        const sentinel = JSON.parse(
+          await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
+        ) as { profile?: string };
+        expect(sentinel.profile).toBe("light");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 120_000 },
+  );
+
+  test(
+    "light → full switch: CLAUDE.md present, agents present, all skills present, sentinel=full",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-switch-lf-"));
+      try {
+        // First: light install.
+        const light = await runInstall(home, ["--light"]);
+        expect(light.exitCode).toBe(0);
+
+        // Second: switch to full.
+        const full = await runInstall(home, []);
+        if (full.exitCode !== 0) {
+          throw new Error(
+            `full switch failed (${full.exitCode})\nstdout:\n${full.stdout}\nstderr:\n${full.stderr}`,
+          );
+        }
+
+        const claudeDir = join(home, ".claude");
+
+        // CLAUDE.md and AGENTS.md restored.
+        expect(existsSync(join(claudeDir, "CLAUDE.md"))).toBe(true);
+        expect(existsSync(join(claudeDir, "AGENTS.md"))).toBe(true);
+
+        // agents/ has content.
+        const agentsDir = join(claudeDir, "agents");
+        expect(existsSync(agentsDir)).toBe(true);
+        const agentFiles = (await readdir(agentsDir).catch(() => [])).filter((f) =>
+          f.endsWith(".md"),
+        );
+        expect(agentFiles.length).toBeGreaterThan(0);
+
+        // skills has more than just share-learning.
+        const skillsDir = join(claudeDir, "skills");
+        const installedSkills = await readdir(skillsDir).catch(() => []);
+        expect(installedSkills.length).toBeGreaterThan(1);
+
+        // settings.json has statusLine (full inherits it).
+        const settings = JSON.parse(
+          await readFile(join(claudeDir, "settings.json"), "utf8"),
+        ) as Record<string, unknown>;
+        expect(settings.statusLine).toBeTruthy();
+
+        // Sentinel profile === "full".
+        const sentinel = JSON.parse(
+          await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
+        ) as { profile?: string };
+        expect(sentinel.profile).toBe("full");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 120_000 },
   );
 });

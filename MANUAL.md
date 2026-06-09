@@ -3,6 +3,50 @@
 > Everything you can do with Darkroom's Claude Code setup.
 > You don't need to memorize this — just describe what you want and Claude will invoke the right skill.
 
+## Light vs Full
+
+cc-settings ships two install tiers. Both are **supported permanent lanes** — not just onboarding vs advanced.
+
+### Which tier should I use?
+
+| | Light (`--light`) | Full (default) |
+|--|---|---|
+| **Skills** | `share-learning` only | All 28 headline skills |
+| **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
+| **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
+| **Hooks** | StatusLine only | All hooks active |
+| **Effort** | Claude Code default | `xhigh` |
+| **CLAUDE.md / AGENTS.md** | Not installed | Full delegation matrix, effort calibration, coding standards |
+| **Permissions** | Claude Code defaults | cc-settings allow-list |
+
+**Light is raw Claude Code** with exactly two cc-settings additions: the `statusLine` (shows branch + git status in the prompt bar) and the `share-learning` skill (lets you contribute learnings back to the team knowledge board). Everything else is the Claude Code you get without any configuration.
+
+### How to install
+
+```bash
+# Light tier (raw Claude Code + statusLine + share-learning)
+bash setup.sh --light
+
+# Full tier (default — full team config)
+bash setup.sh
+```
+
+### Switching tiers
+
+Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, contexts, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
+
+```bash
+# Switch from full → light
+bash setup.sh --light
+
+# Switch from light → full
+bash setup.sh
+```
+
+**Note**: A full→light switch preserves any settings.json content you added yourself (custom MCP servers, custom hook groups, custom env vars you set to a different value than the full baseline). Only cc-settings-managed entries are removed.
+
+---
+
 ## Quickstart
 
 **1. Install** (one command, idempotent — re-run it any time):

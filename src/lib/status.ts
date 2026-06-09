@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { runGit } from "./git.ts";
 import { readJsonOrNull } from "./json-io.ts";
+import { LIGHT_SKILLS } from "./light-profile.ts";
 import { MANAGED_SKILLS } from "./managed-skills.ts";
 import { CLAUDE_JSON_PATH } from "./mcp.ts";
 import type {
@@ -34,6 +35,7 @@ export const VersionSentinel = z
   .object({
     version: z.string().optional(),
     installed_at: z.string().optional(),
+    profile: z.enum(["full", "light"]).optional(),
   })
   .passthrough();
 
@@ -78,6 +80,7 @@ export async function gatherStatus(
   const sentinelPath = join(claudeDir, ".cc-settings-version");
   let sentinelVersion: string | null = null;
   let sentinelInstalledAt: string | null = null;
+  let sentinelProfile: "full" | "light" | undefined;
   if (existsSync(sentinelPath)) {
     try {
       const parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
@@ -85,6 +88,7 @@ export async function gatherStatus(
       if (result.success) {
         sentinelVersion = result.data.version ?? null;
         sentinelInstalledAt = result.data.installed_at ?? null;
+        sentinelProfile = result.data.profile;
       }
       // On validation failure, sentinelVersion / sentinelInstalledAt stay null
       // (treated as absent). The sentinel file has only 3 known fields and
@@ -97,6 +101,7 @@ export async function gatherStatus(
   const sentinel: VersionSentinelData = {
     version: sentinelVersion,
     installedAt: sentinelInstalledAt,
+    profile: sentinelProfile,
   };
 
   // --- Git drift ---
@@ -106,11 +111,23 @@ export async function gatherStatus(
   }
 
   // --- Skills ---
+  // For a light install, compare against LIGHT_SKILLS (share-learning only)
+  // rather than MANAGED_SKILLS — otherwise all intentionally absent skills
+  // would be reported as "missing".
+  const effectiveProfile = sentinel.profile ?? "full";
   const skillsDir = join(claudeDir, "skills");
   const installedSkills = existsSync(skillsDir)
     ? new Set(await readdir(skillsDir).catch(() => []))
     : new Set<string>();
-  const shippedSkills = MANAGED_SKILLS.filter((s) => existsSync(join(sourceDir, "skills", s)));
+  const candidateSkills =
+    effectiveProfile === "light"
+      ? [...LIGHT_SKILLS]
+      : MANAGED_SKILLS.filter((s) => existsSync(join(sourceDir, "skills", s)));
+  // For light, only count skills that actually exist in the source repo.
+  const shippedSkills =
+    effectiveProfile === "light"
+      ? candidateSkills.filter((s) => existsSync(join(sourceDir, "skills", s)))
+      : candidateSkills;
   const missing = shippedSkills.filter((s) => !installedSkills.has(s));
   const skills: SkillsData = {
     shippedCount: shippedSkills.length,

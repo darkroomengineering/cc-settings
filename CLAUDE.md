@@ -49,6 +49,7 @@ Deps: `zod`, `@inquirer/confirm`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
 ### Development
 
 - Install: `bash setup.sh` (macOS/Linux) or `.\setup.ps1` (Windows)
+- Light install: `bash setup.sh --light` (raw Claude Code + statusline + `share-learning` skill only; permanent beginner tier — re-run without `--light` to upgrade)
 - Rollback: `bun src/setup.ts --rollback` (restores newest backup)
 - Dry-run: `bun src/setup.ts --dry-run`
 - Tests: `bun test`

@@ -11,6 +11,9 @@
 //   --source=<dir>     Explicit source directory (defaults to ../ from this file).
 //   --rollback[=TS]    Restore newest backup (or a timestamp match) from ~/.claude/backups.
 //   --dry-run          Print planned actions without touching disk.
+//   --light            Install raw Claude Code + statusLine + share-learning skill only.
+//                      No CLAUDE.md, AGENTS.md, agents, rules, profiles, contexts, docs,
+//                      MCP servers, effort override, or permission rules.
 //   --help, -h         Usage.
 
 import { existsSync } from "node:fs";
@@ -34,6 +37,12 @@ import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./lib/hooks-fingerprint.ts";
 import { atomicWriteJson, type JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
+import {
+  applyLightProfile,
+  LIGHT_SKILLS,
+  type Profile,
+  stripManagedSettings,
+} from "./lib/light-profile.ts";
 import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
 import { CLAUDE_JSON_PATH, installMcpToClaudeJson } from "./lib/mcp.ts";
 import {
@@ -50,7 +59,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.21.0"; // sync to Claude Code 2.1.169: disableBundledSkills key + CLAUDE_CODE_DISABLE_BUNDLED_SKILLS / CLAUDE_CODE_SAFE_MODE / API_FORCE_IDLE_TIMEOUT env vars
+const VERSION = "11.22.0"; // add --light install profile: raw Claude Code + statusLine + share-learning skill only (permanent beginner tier)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
@@ -63,6 +72,7 @@ type Args = {
   sourceDir: string;
   interactive: boolean;
   migrateOnly: boolean;
+  profile: Profile;
 };
 
 export function parseArgs(argv: string[]): Args {
@@ -75,6 +85,7 @@ export function parseArgs(argv: string[]): Args {
     // CC_INTERACTIVE=1 opts in for scripts/CI without argv juggling.
     interactive: process.env.CC_INTERACTIVE === "1",
     migrateOnly: false,
+    profile: "full",
   };
   for (const a of argv) {
     if (a === "--rollback") args.rollback = true;
@@ -85,6 +96,7 @@ export function parseArgs(argv: string[]): Args {
     else if (a === "--migrate-only") args.migrateOnly = true;
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
+    else if (a === "--light") args.profile = "light";
   }
   return args;
 }
@@ -98,6 +110,13 @@ Flags:
   --source=<dir>     Source repo path (default: parent of setup.ts).
   --rollback[=TS]    Restore newest backup, or one matching timestamp TS.
   --dry-run          Print planned actions; do not touch disk.
+  --light            Install raw Claude Code + statusLine + share-learning only:
+                       • skills: share-learning (only)
+                       • settings.json: $schema + statusLine only
+                       • no MCP servers, no hooks, no effort override
+                       • no CLAUDE.md, AGENTS.md, agents, rules, profiles,
+                         contexts, docs, or permission rules
+                     Re-run without --light to upgrade to full.
   --status           Report installed version, drift vs repo HEAD, missing
                      managed skills, hooks, key env vars, and MCP servers.
   --interactive      Prompt on settings.json conflicts (scalar overrides, team
@@ -266,23 +285,85 @@ async function copyIfPresent(src: string, dst: string): Promise<boolean> {
   return true;
 }
 
-async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
+/**
+ * Copy entries from srcDir to dstDir, filtering by the keep predicate.
+ * Skips entries where keep(name) returns false.
+ */
+async function copyDirContentsFiltered(
+  srcDir: string,
+  dstDir: string,
+  keep: (name: string) => boolean,
+): Promise<void> {
   if (!existsSync(srcDir)) return;
   await mkdir(dstDir, { recursive: true });
   const entries = await readdir(srcDir, { withFileTypes: true });
   for (const e of entries) {
+    if (!keep(e.name)) continue;
     const src = join(srcDir, e.name);
     const dst = join(dstDir, e.name);
     await cp(src, dst, { recursive: true, force: true });
   }
 }
 
-async function installConfigFiles(source: string): Promise<void> {
-  await copyIfPresent(join(source, "CLAUDE-FULL.md"), join(CLAUDE_DIR, "CLAUDE.md"));
-  await copyIfPresent(join(source, "AGENTS.md"), join(CLAUDE_DIR, "AGENTS.md"));
-  for (const d of ["agents", "skills", "profiles", "rules", "contexts", "hooks", "docs"]) {
-    await copyDirContents(join(source, d), join(CLAUDE_DIR, d));
+/** Copy all entries from srcDir to dstDir (no filtering). */
+async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
+  return copyDirContentsFiltered(srcDir, dstDir, () => true);
+}
+
+async function installConfigFiles(source: string, profile: Profile): Promise<void> {
+  if (profile === "light") {
+    // Light = raw Claude Code. Install ONLY share-learning skill.
+    // No CLAUDE.md, no AGENTS.md, no agents, no rules, no profiles, no contexts,
+    // no hooks docs, no docs.
+
+    // skills: only LIGHT_SKILLS (share-learning)
+    const lightSkillSet = new Set(LIGHT_SKILLS);
+    await copyDirContentsFiltered(join(source, "skills"), join(CLAUDE_DIR, "skills"), (name) =>
+      lightSkillSet.has(name),
+    );
+
+    // Prune cc-settings skills left over from a prior full install that are
+    // not in the light set. Scope removal to skill folders that exist in the
+    // source repo — never touch user-authored skills.
+    const sourceSkillDirs = (await readdir(join(source, "skills"), { withFileTypes: true }))
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
+    await Promise.all(
+      sourceSkillDirs
+        .filter((name) => !lightSkillSet.has(name))
+        .map((name) => rm(join(CLAUDE_DIR, "skills", name), { recursive: true, force: true })),
+    );
+  } else {
+    // Full profile: CLAUDE.md, AGENTS.md, and all dirs.
+    await copyIfPresent(join(source, "CLAUDE-FULL.md"), join(CLAUDE_DIR, "CLAUDE.md"));
+    await copyIfPresent(join(source, "AGENTS.md"), join(CLAUDE_DIR, "AGENTS.md"));
+
+    for (const d of ["rules", "contexts", "hooks", "docs"]) {
+      await copyDirContents(join(source, d), join(CLAUDE_DIR, d));
+    }
+
+    for (const d of ["agents", "profiles", "skills"]) {
+      await copyDirContents(join(source, d), join(CLAUDE_DIR, d));
+    }
   }
+}
+
+/**
+ * Remove files/dirs that cc-settings full installs but light does NOT install.
+ * Called before the light file-copy phase so a prior full install is cleaned up.
+ * Never removes src/ or skills/share-learning (user-authored skills untouched).
+ */
+async function removeLightIncompatibleFiles(): Promise<void> {
+  const removeIfExists = (p: string) => rm(p, { recursive: true, force: true }).catch(() => {});
+  await Promise.all([
+    removeIfExists(join(CLAUDE_DIR, "CLAUDE.md")),
+    removeIfExists(join(CLAUDE_DIR, "AGENTS.md")),
+    removeIfExists(join(CLAUDE_DIR, "agents")),
+    removeIfExists(join(CLAUDE_DIR, "rules")),
+    removeIfExists(join(CLAUDE_DIR, "profiles")),
+    removeIfExists(join(CLAUDE_DIR, "contexts")),
+    removeIfExists(join(CLAUDE_DIR, "docs")),
+  ]);
 }
 
 async function installTsSources(source: string): Promise<void> {
@@ -314,18 +395,64 @@ async function installTsSources(source: string): Promise<void> {
 
 // --- Settings + MCP install ---------------------------------------------
 
-async function installSettings(source: string, interactive: boolean): Promise<void> {
+async function installSettings(
+  source: string,
+  interactive: boolean,
+  profile: Profile,
+): Promise<void> {
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
-  // Compose team settings from config/ fragments, stage to a temp file so the
-  // existing merger (path-based) can consume them without API churn.
-  const teamComposed = await composeSettings(source);
+  // Compose team settings from config/ fragments (always the full baseline).
+  const fullComposed = await composeSettings(source);
+
+  if (profile === "light") {
+    // Light = raw Claude Code. Build the target settings:
+    //   - Start from the light baseline ($schema + statusLine only).
+    //   - If an existing settings.json is present, strip cc-settings' managed
+    //     footprint from it first (so a prior full install doesn't survive the
+    //     switch), then overlay $schema + statusLine.
+    const lightBaseline = applyLightProfile(fullComposed);
+    const existingRaw = await readJsonOrNull(userSettingsPath);
+    let result: Record<string, unknown>;
+    if (existingRaw === null || typeof existingRaw !== "object") {
+      // Fresh install — write the light baseline directly.
+      result = lightBaseline;
+    } else {
+      // Existing settings.json: strip cc-settings footprint, then overlay light.
+      const cleaned = stripManagedSettings(existingRaw as Record<string, unknown>, fullComposed);
+      result = {
+        ...cleaned,
+        // Always write $schema and statusLine from the light baseline.
+        ...(lightBaseline["$schema"] !== undefined ? { $schema: lightBaseline["$schema"] } : {}),
+        ...(lightBaseline.statusLine !== undefined ? { statusLine: lightBaseline.statusLine } : {}),
+      };
+    }
+    await atomicWriteJson(userSettingsPath, result);
+
+    // Light has no team MCP servers. Remove any cc-settings-managed servers
+    // that may have been written to ~/.claude.json by a prior full install.
+    await removeManagedMcpServers(fullComposed);
+
+    // Fingerprint the (empty/light) hooks block for the integrity check.
+    try {
+      const mergedParsed = JSON.parse(await Bun.file(userSettingsPath).text());
+      const validated = Settings.safeParse(mergedParsed);
+      const mergedSettings = validated.success ? validated.data : mergedParsed;
+      await writeHooksFingerprint(mergedSettings, CLAUDE_DIR);
+    } catch {
+      // Best-effort — see comment in full path below.
+    }
+    return;
+  }
+
+  // Full profile path: use the existing merger as before.
   const teamStaged = join(CLAUDE_DIR, ".team-settings.staged.json");
-  await atomicWriteJson(teamStaged, teamComposed);
+  await atomicWriteJson(teamStaged, fullComposed);
   try {
     await mergeSettingsWithMcpPreservation(userSettingsPath, teamStaged, userSettingsPath, {
       interactive,
     });
     await installMcpToClaudeJson(teamStaged);
+
     // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
     // SessionStart integrity check) can detect post-install tampering — the
     // Shai-Hulud worm attack pattern (May 2026). Re-running setup.sh refreshes
@@ -357,13 +484,54 @@ async function installSettings(source: string, interactive: boolean): Promise<vo
   }
 }
 
+/**
+ * Remove cc-settings-managed MCP servers from ~/.claude.json, preserving
+ * any user-only servers. Called during a light install — light has no team
+ * MCP servers, so the full install's context7 etc. must be removed.
+ */
+async function removeManagedMcpServers(fullComposed: Record<string, unknown>): Promise<void> {
+  const fullMcp = (
+    fullComposed.mcpServers !== null && typeof fullComposed.mcpServers === "object"
+      ? fullComposed.mcpServers
+      : {}
+  ) as Record<string, unknown>;
+  if (Object.keys(fullMcp).length === 0) return;
+
+  const parsed = await readJsonOrNull(CLAUDE_JSON_PATH);
+  if (!parsed || typeof parsed !== "object") return;
+  const current = parsed as Record<string, unknown>;
+  const currentMcp = (
+    current.mcpServers !== null && typeof current.mcpServers === "object" ? current.mcpServers : {}
+  ) as Record<string, unknown>;
+
+  // Remove only the keys that are cc-settings-managed (present in full baseline).
+  const next: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(currentMcp)) {
+    if (!(key in fullMcp)) {
+      next[key] = val;
+    }
+  }
+
+  const updated = { ...current };
+  if (Object.keys(next).length === 0) {
+    delete updated.mcpServers;
+  } else {
+    updated.mcpServers = next;
+  }
+  await atomicWriteJson(CLAUDE_JSON_PATH, updated);
+}
+
 // --- Dependencies --------------------------------------------------------
 
-async function installDependencies(): Promise<void> {
+async function installDependencies(profile: Profile): Promise<void> {
   // CC_SKIP_DEPS=1 — used by E2E tests to avoid touching system-wide install
   // locations (npm global, pipx, etc.) when running setup.sh against a tmp
   // HOME. Setting HOME to tmpdir doesn't isolate `npm i -g` writes.
   if (process.env.CC_SKIP_DEPS === "1") return;
+
+  // Light is raw Claude Code + statusLine (pure Bun) + share-learning skill.
+  // No hooks require jq, pipx, or llm-tldr — skip all system deps.
+  if (profile === "light") return;
 
   detectPackageManagers();
 
@@ -378,7 +546,7 @@ async function installDependencies(): Promise<void> {
   }
 }
 
-async function writeVersionSentinel(sourceDir: string): Promise<void> {
+async function writeVersionSentinel(sourceDir: string, profile: Profile): Promise<void> {
   const payload = {
     version: VERSION,
     installed_at: new Date().toISOString(),
@@ -386,6 +554,7 @@ async function writeVersionSentinel(sourceDir: string): Promise<void> {
     // Where this install came from — lets the SessionStart drift check locate
     // the repo and compare the installed version against the packaged one.
     repo_path: sourceDir,
+    profile,
   };
   const tmp = join(CLAUDE_DIR, ".cc-settings-version.tmp");
   await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`);
@@ -405,28 +574,47 @@ async function countEntries(dir: string, pattern: RegExp): Promise<number> {
   }
 }
 
-async function showSummary(): Promise<void> {
-  const [agentCount, profileCount, ruleCount, contextCount] = await Promise.all([
-    countEntries("agents", /\.md$/),
-    countEntries("profiles", /\.md$/),
-    countEntries("rules", /\.md$/),
-    countEntries("contexts", /\.md$/),
-  ]);
+async function showSummary(profile: Profile): Promise<void> {
+  const profileLabel = profile === "light" ? " [light]" : "";
   console.log("");
-  boxStart("Installed");
-  boxLine("ok", "CLAUDE.md (Claude-Code config)");
-  boxLine("ok", "AGENTS.md (portable standards)");
-  boxLine("ok", "settings.json (TS hooks)");
-  boxLine("ok", "~/.claude.json (MCP servers)");
-  boxLine("ok", `agents/ (${agentCount})`);
-  boxLine("ok", `profiles/ (${profileCount})`);
-  boxLine("ok", `rules/ (${ruleCount})`);
-  boxLine("ok", `contexts/ (${contextCount})`);
-  boxLine("ok", "skills/");
-  boxLine("ok", "src/      (TS; hooks + scripts + libs + schemas)");
-  boxLine("ok", "docs/");
-  boxLine("ok", "memory/");
+  boxStart(`Installed${profileLabel}`);
+  if (profile === "light") {
+    boxLine("ok", "settings.json ($schema + statusLine only)");
+    boxLine("ok", "skills/share-learning");
+    boxLine("ok", "src/      (TS; statusLine + libs)");
+    boxLine("ok", "memory/");
+  } else {
+    const [agentCount, profileCount, ruleCount, contextCount] = await Promise.all([
+      countEntries("agents", /\.md$/),
+      countEntries("profiles", /\.md$/),
+      countEntries("rules", /\.md$/),
+      countEntries("contexts", /\.md$/),
+    ]);
+    boxLine("ok", "CLAUDE.md (Claude-Code config)");
+    boxLine("ok", "AGENTS.md (portable standards)");
+    boxLine("ok", "settings.json (TS hooks)");
+    boxLine("ok", "~/.claude.json (MCP servers)");
+    boxLine("ok", `agents/ (${agentCount})`);
+    boxLine("ok", `profiles/ (${profileCount})`);
+    boxLine("ok", `rules/ (${ruleCount})`);
+    boxLine("ok", `contexts/ (${contextCount})`);
+    boxLine("ok", "skills/");
+    boxLine("ok", "src/      (TS; hooks + scripts + libs + schemas)");
+    boxLine("ok", "docs/");
+    boxLine("ok", "memory/");
+  }
   boxEnd();
+
+  if (profile === "light") {
+    console.log("");
+    console.log(
+      `${palette.dim}Light profile: raw Claude Code · statusLine · share-learning skill only${palette.reset}`,
+    );
+    console.log(
+      `${palette.dim}No CLAUDE.md, AGENTS.md, MCP servers, hooks, or effort override.${palette.reset}`,
+    );
+    console.log(`${palette.dim}Re-run without --light to upgrade to full.${palette.reset}`);
+  }
 
   const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
     mcpServers?: Record<string, { _status?: unknown }>;
@@ -463,29 +651,49 @@ async function showSummary(): Promise<void> {
 
 // --- Dry run -------------------------------------------------------------
 
-async function cmdDryRun(source: string): Promise<void> {
-  console.log(`cc-settings installer v${VERSION} — dry-run`);
+async function cmdDryRun(source: string, profile: Profile): Promise<void> {
+  const profileLabel = profile === "light" ? " [light profile]" : "";
+  console.log(`cc-settings installer v${VERSION} — dry-run${profileLabel}`);
   console.log(`source: ${source}`);
   console.log(`target: ${CLAUDE_DIR}`);
   console.log("");
-  console.log("Would install:");
-  const items: Array<[string, string]> = [
-    ["CLAUDE-FULL.md", "→ ~/.claude/CLAUDE.md"],
-    ["AGENTS.md", "→ ~/.claude/AGENTS.md"],
-    ["config/", "→ ~/.claude/settings.json (composed + MCP-merged)"],
-    ["src/", "→ ~/.claude/src/ (all TS)"],
-    ["agents/", "→ ~/.claude/agents/"],
-    ["skills/", "→ ~/.claude/skills/"],
-    ["profiles/", "→ ~/.claude/profiles/"],
-    ["rules/", "→ ~/.claude/rules/"],
-    ["contexts/", "→ ~/.claude/contexts/"],
-    ["hooks/", "→ ~/.claude/hooks/"],
-    ["docs/", "→ ~/.claude/docs/"],
-  ];
-  for (const [rel, effect] of items) {
-    const mark = existsSync(join(source, rel)) ? "✓" : " ";
-    console.log(`  ${mark} ${rel.padEnd(22)} ${effect}`);
+
+  if (profile === "light") {
+    console.log("Would install (light = raw Claude Code + statusLine + share-learning):");
+    const items: Array<[string, string]> = [
+      ["skills/share-learning/", "→ ~/.claude/skills/share-learning/"],
+      ["src/", "→ ~/.claude/src/ (all TS)"],
+      ["config/", "→ ~/.claude/settings.json ($schema + statusLine only)"],
+    ];
+    for (const [rel, effect] of items) {
+      const mark = existsSync(join(source, rel)) ? "✓" : " ";
+      console.log(`  ${mark} ${rel.padEnd(28)} ${effect}`);
+    }
+    console.log("");
+    console.log("Light profile: no CLAUDE.md · no AGENTS.md · no MCP servers · no hooks");
+    console.log("               no agents · no rules · no profiles · no contexts · no docs");
+    console.log("               default Claude Code permissions · default effort");
+  } else {
+    console.log("Would install:");
+    const items: Array<[string, string]> = [
+      ["CLAUDE-FULL.md", "→ ~/.claude/CLAUDE.md"],
+      ["AGENTS.md", "→ ~/.claude/AGENTS.md"],
+      ["config/", "→ ~/.claude/settings.json (composed + MCP-merged)"],
+      ["src/", "→ ~/.claude/src/ (all TS)"],
+      ["agents/", "→ ~/.claude/agents/"],
+      ["skills/", "→ ~/.claude/skills/"],
+      ["profiles/", "→ ~/.claude/profiles/"],
+      ["rules/", "→ ~/.claude/rules/"],
+      ["contexts/", "→ ~/.claude/contexts/"],
+      ["hooks/", "→ ~/.claude/hooks/"],
+      ["docs/", "→ ~/.claude/docs/"],
+    ];
+    for (const [rel, effect] of items) {
+      const mark = existsSync(join(source, rel)) ? "✓" : " ";
+      console.log(`  ${mark} ${rel.padEnd(22)} ${effect}`);
+    }
   }
+
   console.log("");
   console.log("No files written. Re-run without --dry-run to install.");
 }
@@ -498,8 +706,9 @@ function printStatus(data: StatusData): void {
 
   // Installed version
   if (data.sentinel.version) {
+    const profileLabel = data.sentinel.profile ? ` [${data.sentinel.profile}]` : "";
     console.log(
-      `  installed: v${data.sentinel.version}  (${data.sentinel.installedAt ?? "unknown"})`,
+      `  installed: v${data.sentinel.version}${profileLabel}  (${data.sentinel.installedAt ?? "unknown"})`,
     );
   } else {
     console.log(
@@ -588,7 +797,7 @@ async function main(): Promise<number> {
     return await cmdRollback(args.rollback);
   }
   if (args.dryRun) {
-    await cmdDryRun(args.sourceDir);
+    await cmdDryRun(args.sourceDir, args.profile);
     return 0;
   }
 
@@ -615,7 +824,7 @@ async function main(): Promise<number> {
     await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
   } else {
     info("Installing dependencies...");
-    await installDependencies();
+    await installDependencies(args.profile);
     printPreflightReport(checkCliTools());
 
     info("Creating backup...");
@@ -624,13 +833,22 @@ async function main(): Promise<number> {
     info("Installing configuration...");
     await createDirectories();
     await cleanOldConfig();
+    // For light: remove dirs that full installs but light must not have
+    // (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, contexts/, docs/).
+    // Must run AFTER cleanOldConfig so any leftover full-install content is gone.
+    if (args.profile === "light") {
+      await removeLightIncompatibleFiles();
+    }
     // Disjoint destination trees (config dirs vs ~/.claude/src), so install both
     // in parallel. Both must follow the clean above.
-    await Promise.all([installConfigFiles(args.sourceDir), installTsSources(args.sourceDir)]);
+    await Promise.all([
+      installConfigFiles(args.sourceDir, args.profile),
+      installTsSources(args.sourceDir),
+    ]);
   }
 
   try {
-    await installSettings(args.sourceDir, args.interactive);
+    await installSettings(args.sourceDir, args.interactive, args.profile);
   } catch (err) {
     // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
     if ((err as JsonParseError).name === "JsonParseError") {
@@ -641,8 +859,8 @@ async function main(): Promise<number> {
     throw err;
   }
 
-  await writeVersionSentinel(args.sourceDir);
-  if (!args.migrateOnly) await showSummary();
+  await writeVersionSentinel(args.sourceDir, args.profile);
+  if (!args.migrateOnly) await showSummary(args.profile);
 
   // Version delta: surface what just landed (prev → current + per-version
   // titles from CHANGELOG.md). Uses prevInstalledVersion captured BEFORE
