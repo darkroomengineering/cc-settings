@@ -17,7 +17,7 @@
 //   --help, -h         Usage.
 
 import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
@@ -40,11 +40,17 @@ import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.t
 import {
   applyLightProfile,
   LIGHT_SKILLS,
+  PROFILE_MANIFEST,
   type Profile,
   stripManagedSettings,
 } from "./lib/light-profile.ts";
 import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
-import { CLAUDE_JSON_PATH, installMcpToClaudeJson } from "./lib/mcp.ts";
+import {
+  CLAUDE_JSON_PATH,
+  installMcpToClaudeJson,
+  type McpServers,
+  removeManagedMcpServers,
+} from "./lib/mcp.ts";
 import { ensurePythonPackage, ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { mergeSettingsWithMcpPreservation } from "./lib/settings-merge.ts";
@@ -192,9 +198,17 @@ async function createBackup(): Promise<void> {
   const proc = Bun.spawn(["tar", "-czf", archive, ...existing], {
     cwd: home,
     stdout: "ignore",
-    stderr: "ignore",
+    stderr: "pipe",
   });
-  await proc.exited;
+  const [stderrText, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+  if (code !== 0) {
+    // A silent backup failure would let the install proceed into cleanOldConfig
+    // (which rm -rf's managed dirs) with no restore point — the advertised
+    // --rollback safety net would be quietly disabled. Abort instead.
+    error(`Backup failed (tar exited ${code}): ${stderrText.trim()}`);
+    error("Aborting so --rollback stays possible. Fix the tar error above and re-run.");
+    throw new Error(`backup failed — tar exited ${code}`);
+  }
 
   // Keep last 5.
   const kept = (await readdir(backupDir)).filter((e) => /^backup-.*\.tar\.gz$/.test(e)).sort();
@@ -292,12 +306,12 @@ async function copyDirContentsFiltered(
   if (!existsSync(srcDir)) return;
   await mkdir(dstDir, { recursive: true });
   const entries = await readdir(srcDir, { withFileTypes: true });
-  for (const e of entries) {
-    if (!keep(e.name)) continue;
-    const src = join(srcDir, e.name);
-    const dst = join(dstDir, e.name);
-    await cp(src, dst, { recursive: true, force: true });
-  }
+  // Each entry copies to a distinct destination path — run them concurrently.
+  await Promise.all(
+    entries
+      .filter((e) => keep(e.name))
+      .map((e) => cp(join(srcDir, e.name), join(dstDir, e.name), { recursive: true, force: true })),
+  );
 }
 
 /** Copy all entries from srcDir to dstDir (no filtering). */
@@ -307,9 +321,9 @@ async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
 
 async function installConfigFiles(source: string, profile: Profile): Promise<void> {
   if (profile === "light") {
-    // Light = raw Claude Code. Install ONLY share-learning skill.
-    // No CLAUDE.md, no AGENTS.md, no agents, no rules, no profiles,
-    // no hooks docs, no docs.
+    // Light = raw Claude Code: the manifest has no rootFiles/dirs for light.
+    // Install ONLY the LIGHT_SKILLS subset (share-learning) — the skill
+    // filter stays as code; only the file/dir lists live in the manifest.
 
     // skills: only LIGHT_SKILLS (share-learning)
     const lightSkillSet = new Set(LIGHT_SKILLS);
@@ -329,35 +343,36 @@ async function installConfigFiles(source: string, profile: Profile): Promise<voi
         .map((name) => rm(join(CLAUDE_DIR, "skills", name), { recursive: true, force: true })),
     );
   } else {
-    // Full profile: CLAUDE.md, AGENTS.md, and all dirs.
-    await copyIfPresent(join(source, "CLAUDE-FULL.md"), join(CLAUDE_DIR, "CLAUDE.md"));
-    await copyIfPresent(join(source, "AGENTS.md"), join(CLAUDE_DIR, "AGENTS.md"));
-
-    for (const d of ["rules", "hooks", "docs"]) {
-      await copyDirContents(join(source, d), join(CLAUDE_DIR, d));
-    }
-
-    for (const d of ["agents", "profiles", "skills"]) {
-      await copyDirContents(join(source, d), join(CLAUDE_DIR, d));
-    }
+    // Full profile: every rootFile + dir from the manifest. Destinations are
+    // disjoint, so all copies run in parallel.
+    const manifest = PROFILE_MANIFEST.full;
+    await Promise.all([
+      ...manifest.rootFiles.map(([src, dest]) =>
+        copyIfPresent(join(source, src), join(CLAUDE_DIR, dest)),
+      ),
+      ...manifest.dirs.map((d) => copyDirContents(join(source, d), join(CLAUDE_DIR, d))),
+    ]);
   }
 }
 
 /**
- * Remove files/dirs that cc-settings full installs but light does NOT install.
- * Called before the light file-copy phase so a prior full install is cleaned up.
- * Never removes src/ or skills/share-learning (user-authored skills untouched).
+ * Remove files/dirs that cc-settings full installs but light does NOT install —
+ * computed from PROFILE_MANIFEST as full minus light (dirs light retains, like
+ * skills/ and the provisioned hooks/ dir, are excluded; see the manifest).
+ * Called before the light file-copy phase so a prior full install is cleaned
+ * up. Never removes src/ or user-authored skills.
  */
 async function removeLightIncompatibleFiles(): Promise<void> {
+  const { full, light } = PROFILE_MANIFEST;
+  const lightFiles = new Set(light.rootFiles.map(([, dest]) => dest));
+  const lightDirs = new Set([...light.dirs, ...light.retainedDirs]);
   const removeIfExists = (p: string) => rm(p, { recursive: true, force: true }).catch(() => {});
   await Promise.all([
-    removeIfExists(join(CLAUDE_DIR, "CLAUDE.md")),
-    removeIfExists(join(CLAUDE_DIR, "AGENTS.md")),
-    removeIfExists(join(CLAUDE_DIR, "agents")),
-    removeIfExists(join(CLAUDE_DIR, "rules")),
-    removeIfExists(join(CLAUDE_DIR, "profiles")),
+    ...full.rootFiles
+      .filter(([, dest]) => !lightFiles.has(dest))
+      .map(([, dest]) => removeIfExists(join(CLAUDE_DIR, dest))),
+    ...full.dirs.filter((d) => !lightDirs.has(d)).map((d) => removeIfExists(join(CLAUDE_DIR, d))),
     removeIfExists(join(CLAUDE_DIR, "contexts")), // legacy; contexts/ retired
-    removeIfExists(join(CLAUDE_DIR, "docs")),
   ]);
 }
 
@@ -397,6 +412,8 @@ async function installSettings(
 ): Promise<void> {
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
   // Compose team settings from config/ fragments (always the full baseline).
+  // composeSettings schema-validates the composed object and throws on a bad
+  // fragment, so everything below can trust the in-memory object.
   const fullComposed = await composeSettings(source);
 
   if (profile === "light") {
@@ -412,14 +429,11 @@ async function installSettings(
       // Fresh install — write the light baseline directly.
       result = lightBaseline;
     } else {
-      // Existing settings.json: strip cc-settings footprint, then overlay light.
+      // Existing settings.json: strip cc-settings footprint, then overlay the
+      // light baseline. applyLightProfile emits ONLY $schema + statusLine, and
+      // only when present in the composed settings, so a plain spread is exact.
       const cleaned = stripManagedSettings(existingRaw as Record<string, unknown>, fullComposed);
-      result = {
-        ...cleaned,
-        // Always write $schema and statusLine from the light baseline.
-        ...(lightBaseline["$schema"] !== undefined ? { $schema: lightBaseline["$schema"] } : {}),
-        ...(lightBaseline.statusLine !== undefined ? { statusLine: lightBaseline.statusLine } : {}),
-      };
+      result = { ...cleaned, ...lightBaseline };
     }
     await atomicWriteJson(userSettingsPath, result);
 
@@ -427,93 +441,54 @@ async function installSettings(
     // that may have been written to ~/.claude.json by a prior full install.
     await removeManagedMcpServers(fullComposed);
 
-    // Fingerprint the (empty/light) hooks block for the integrity check.
-    try {
-      const mergedParsed = JSON.parse(await Bun.file(userSettingsPath).text());
-      const validated = Settings.safeParse(mergedParsed);
-      const mergedSettings = validated.success ? validated.data : mergedParsed;
-      await writeHooksFingerprint(mergedSettings, CLAUDE_DIR);
-    } catch {
-      // Best-effort — see comment in full path below.
-    }
+    // Fingerprint the (empty/light) hooks block for the integrity check —
+    // straight from the in-memory object, no disk re-read.
+    await fingerprintSettingsHooks(result);
     return;
   }
 
-  // Full profile path: use the existing merger as before.
-  const teamStaged = join(CLAUDE_DIR, ".team-settings.staged.json");
-  await atomicWriteJson(teamStaged, fullComposed);
-  try {
-    await mergeSettingsWithMcpPreservation(userSettingsPath, teamStaged, userSettingsPath, {
-      interactive,
-    });
-    await installMcpToClaudeJson(teamStaged);
+  // Full profile path: merge the in-memory composed settings into the user's
+  // settings.json, then install the team MCP block into ~/.claude.json. The
+  // MCP block was validated exactly once — by composeSettings, whose Settings
+  // schema types mcpServers with the McpServers schema.
+  const teamMcp = (fullComposed.mcpServers ?? {}) as McpServers;
+  await mergeSettingsWithMcpPreservation(userSettingsPath, fullComposed, userSettingsPath, {
+    interactive,
+  });
+  await installMcpToClaudeJson(teamMcp);
 
-    // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
-    // SessionStart integrity check) can detect post-install tampering — the
-    // Shai-Hulud worm attack pattern (May 2026). Re-running setup.sh refreshes
-    // the fingerprint, which is the intended workflow when users intentionally
-    // add custom hooks. See SECURITY.md.
-    try {
-      const mergedText = await Bun.file(userSettingsPath).text();
-      const mergedParsed = JSON.parse(mergedText);
-      // Validate the merged result against Settings before hashing its hooks
-      // block. Use safeParse + forward-compat fallback: if a new Claude Code
-      // version added a key the schema doesn't know yet, we still fingerprint
-      // the raw object so the hook-integrity check isn't silently skipped.
-      // A strict-parse failure here is non-fatal — the fingerprint is best-effort.
-      const validated = Settings.safeParse(mergedParsed);
-      const mergedSettings = validated.success ? validated.data : mergedParsed;
-      if (!validated.success) {
-        const issues = validated.error.issues
-          .map((i) => `${i.path.join(".")}: ${i.message}`)
-          .join("; ");
-        debug(`settings.json failed schema validation after merge (fingerprinting raw): ${issues}`);
-      }
-      await writeHooksFingerprint(mergedSettings, CLAUDE_DIR);
-    } catch {
-      // Fingerprint write is best-effort. A failed write means verify-hooks.ts
-      // prints a "missing fingerprint" nudge on next session; it never blocks.
-    }
-  } finally {
-    await rm(teamStaged, { force: true }).catch(() => {});
-  }
+  // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
+  // SessionStart integrity check) can detect post-install tampering — the
+  // Shai-Hulud worm attack pattern (May 2026). Re-running setup.sh refreshes
+  // the fingerprint, which is the intended workflow when users intentionally
+  // add custom hooks. See SECURITY.md. Read back the merged file the merger
+  // just wrote; best-effort, so a read failure only skips the fingerprint.
+  const mergedReadBack = await readJsonOrNull(userSettingsPath).catch(() => null);
+  if (mergedReadBack !== null) await fingerprintSettingsHooks(mergedReadBack);
 }
 
 /**
- * Remove cc-settings-managed MCP servers from ~/.claude.json, preserving
- * any user-only servers. Called during a light install — light has no team
- * MCP servers, so the full install's context7 etc. must be removed.
+ * Hash + persist the hooks block of a settings object for the SessionStart
+ * integrity check. Validates against Settings first, with a forward-compat
+ * fallback: if a new Claude Code version added a key the schema doesn't know
+ * yet, the raw object is fingerprinted so the check isn't silently skipped.
+ * Schema issues are debug-logged. The write is best-effort — a failed write
+ * means verify-hooks.ts prints a "missing fingerprint" nudge on the next
+ * session; it never blocks.
  */
-async function removeManagedMcpServers(fullComposed: Record<string, unknown>): Promise<void> {
-  const fullMcp = (
-    fullComposed.mcpServers !== null && typeof fullComposed.mcpServers === "object"
-      ? fullComposed.mcpServers
-      : {}
-  ) as Record<string, unknown>;
-  if (Object.keys(fullMcp).length === 0) return;
-
-  const parsed = await readJsonOrNull(CLAUDE_JSON_PATH);
-  if (!parsed || typeof parsed !== "object") return;
-  const current = parsed as Record<string, unknown>;
-  const currentMcp = (
-    current.mcpServers !== null && typeof current.mcpServers === "object" ? current.mcpServers : {}
-  ) as Record<string, unknown>;
-
-  // Remove only the keys that are cc-settings-managed (present in full baseline).
-  const next: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(currentMcp)) {
-    if (!(key in fullMcp)) {
-      next[key] = val;
+async function fingerprintSettingsHooks(settings: unknown): Promise<void> {
+  try {
+    const validated = Settings.safeParse(settings);
+    if (!validated.success) {
+      const issues = validated.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      debug(`settings.json failed schema validation after merge (fingerprinting raw): ${issues}`);
     }
+    await writeHooksFingerprint(validated.success ? validated.data : settings, CLAUDE_DIR);
+  } catch {
+    // Best-effort — see JSDoc above.
   }
-
-  const updated = { ...current };
-  if (Object.keys(next).length === 0) {
-    delete updated.mcpServers;
-  } else {
-    updated.mcpServers = next;
-  }
-  await atomicWriteJson(CLAUDE_JSON_PATH, updated);
 }
 
 // --- Dependencies --------------------------------------------------------
@@ -549,9 +524,7 @@ async function writeVersionSentinel(sourceDir: string, profile: Profile): Promis
     repo_path: sourceDir,
     profile,
   };
-  const tmp = join(CLAUDE_DIR, ".cc-settings-version.tmp");
-  await writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`);
-  await rename(tmp, join(CLAUDE_DIR, ".cc-settings-version"));
+  await atomicWriteJson(join(CLAUDE_DIR, ".cc-settings-version"), payload);
 }
 
 // --- Summary -------------------------------------------------------------
@@ -573,25 +546,30 @@ async function showSummary(profile: Profile): Promise<void> {
   boxStart(`Installed${profileLabel}`);
   if (profile === "light") {
     boxLine("ok", "settings.json ($schema + statusLine only)");
-    boxLine("ok", "skills/share-learning");
+    for (const skill of LIGHT_SKILLS) boxLine("ok", `skills/${skill}`);
     boxLine("ok", "src/      (TS; statusLine + libs)");
     boxLine("ok", "memory/");
   } else {
-    const [agentCount, profileCount, ruleCount] = await Promise.all([
-      countEntries("agents", /\.md$/),
-      countEntries("profiles", /\.md$/),
-      countEntries("rules", /\.md$/),
-    ]);
-    boxLine("ok", "CLAUDE.md (Claude-Code config)");
-    boxLine("ok", "AGENTS.md (portable standards)");
+    // Rendered from PROFILE_MANIFEST so the summary can't drift from what
+    // installConfigFiles actually copies. Dirs with installed .md files show
+    // a count; container dirs (skills/) just list.
+    const ROOT_FILE_LABELS: Record<string, string> = {
+      "CLAUDE.md": "(Claude-Code config)",
+      "AGENTS.md": "(portable standards)",
+    };
+    const manifest = PROFILE_MANIFEST.full;
+    for (const [, dest] of manifest.rootFiles) {
+      const label = ROOT_FILE_LABELS[dest];
+      boxLine("ok", label ? `${dest} ${label}` : dest);
+    }
     boxLine("ok", "settings.json (TS hooks)");
     boxLine("ok", "~/.claude.json (MCP servers)");
-    boxLine("ok", `agents/ (${agentCount})`);
-    boxLine("ok", `profiles/ (${profileCount})`);
-    boxLine("ok", `rules/ (${ruleCount})`);
-    boxLine("ok", "skills/");
+    const counts = await Promise.all(manifest.dirs.map((d) => countEntries(d, /\.md$/)));
+    manifest.dirs.forEach((d, i) => {
+      const n = counts[i] ?? 0;
+      boxLine("ok", n > 0 ? `${d}/ (${n})` : `${d}/`);
+    });
     boxLine("ok", "src/      (TS; hooks + scripts + libs + schemas)");
-    boxLine("ok", "docs/");
     boxLine("ok", "memory/");
   }
   boxEnd();
@@ -652,7 +630,7 @@ async function cmdDryRun(source: string, profile: Profile): Promise<void> {
   if (profile === "light") {
     console.log("Would install (light = raw Claude Code + statusLine + share-learning):");
     const items: Array<[string, string]> = [
-      ["skills/share-learning/", "→ ~/.claude/skills/share-learning/"],
+      ...LIGHT_SKILLS.map((s): [string, string] => [`skills/${s}/`, `→ ~/.claude/skills/${s}/`]),
       ["src/", "→ ~/.claude/src/ (all TS)"],
       ["config/", "→ ~/.claude/settings.json ($schema + statusLine only)"],
     ];
@@ -666,17 +644,16 @@ async function cmdDryRun(source: string, profile: Profile): Promise<void> {
     console.log("               default Claude Code permissions · default effort");
   } else {
     console.log("Would install:");
+    // Rendered from PROFILE_MANIFEST so the dry-run table can't drift from
+    // what installConfigFiles actually copies.
     const items: Array<[string, string]> = [
-      ["CLAUDE-FULL.md", "→ ~/.claude/CLAUDE.md"],
-      ["AGENTS.md", "→ ~/.claude/AGENTS.md"],
+      ...PROFILE_MANIFEST.full.rootFiles.map(([src, dest]): [string, string] => [
+        src,
+        `→ ~/.claude/${dest}`,
+      ]),
       ["config/", "→ ~/.claude/settings.json (composed + MCP-merged)"],
       ["src/", "→ ~/.claude/src/ (all TS)"],
-      ["agents/", "→ ~/.claude/agents/"],
-      ["skills/", "→ ~/.claude/skills/"],
-      ["profiles/", "→ ~/.claude/profiles/"],
-      ["rules/", "→ ~/.claude/rules/"],
-      ["hooks/", "→ ~/.claude/hooks/"],
-      ["docs/", "→ ~/.claude/docs/"],
+      ...PROFILE_MANIFEST.full.dirs.map((d): [string, string] => [`${d}/`, `→ ~/.claude/${d}/`]),
     ];
     for (const [rel, effect] of items) {
       const mark = existsSync(join(source, rel)) ? "✓" : " ";

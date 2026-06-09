@@ -358,14 +358,12 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
     try {
       const team = { env: { CLAUDE_CODE_EFFORT_LEVEL: "xhigh" }, model: "claude-opus-4-5" };
       const user = { env: { MY_FLAG: "1" }, model: "claude-sonnet-4-5" };
-      const teamPath = join(dir, "team.json");
       const userPath = join(dir, "user.json");
       const outPath = join(dir, "out.json");
-      await writeFile(teamPath, JSON.stringify(team));
       await writeFile(userPath, JSON.stringify(user));
 
       await expect(
-        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+        mergeSettingsWithMcpPreservation(userPath, team, outPath),
       ).resolves.toBeUndefined();
 
       const merged = JSON.parse(await Bun.file(outPath).text());
@@ -387,15 +385,13 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const team = { model: "claude-opus-4-5" };
       // unknownFutureKey is not in the Settings schema (it uses .strict())
       const user = { model: "claude-sonnet-4-5", unknownFutureKey: "value-from-new-cc" };
-      const teamPath = join(dir, "team.json");
       const userPath = join(dir, "user.json");
       const outPath = join(dir, "out.json");
-      await writeFile(teamPath, JSON.stringify(team));
       await writeFile(userPath, JSON.stringify(user));
 
       // Must not throw — forward-compat safety
       await expect(
-        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+        mergeSettingsWithMcpPreservation(userPath, team, outPath),
       ).resolves.toBeUndefined();
 
       // The unknown key should be preserved in the output (user wins via
@@ -412,14 +408,12 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
     try {
       const team = { model: "claude-opus-4-5", teamNewFeature: "enabled" };
       const user = { model: "claude-sonnet-4-5" };
-      const teamPath = join(dir, "team.json");
       const userPath = join(dir, "user.json");
       const outPath = join(dir, "out.json");
-      await writeFile(teamPath, JSON.stringify(team));
       await writeFile(userPath, JSON.stringify(user));
 
       await expect(
-        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+        mergeSettingsWithMcpPreservation(userPath, team, outPath),
       ).resolves.toBeUndefined();
 
       // teamNewFeature should be present (user has no value → team wins)
@@ -434,13 +428,11 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
     const dir = await makeTmpDir();
     try {
       const team = { model: "claude-opus-4-5", env: { CLAUDE_CODE_EFFORT_LEVEL: "xhigh" } };
-      const teamPath = join(dir, "team.json");
       const userPath = join(dir, "user.json"); // does not exist
       const outPath = join(dir, "out.json");
-      await writeFile(teamPath, JSON.stringify(team));
 
       await expect(
-        mergeSettingsWithMcpPreservation(userPath, teamPath, outPath),
+        mergeSettingsWithMcpPreservation(userPath, team, outPath),
       ).resolves.toBeUndefined();
 
       const out = JSON.parse(await Bun.file(outPath).text());

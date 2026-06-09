@@ -14,7 +14,8 @@
 // Responsibilities of this file:
 //   1. MCP-from-settings extraction (readMcpFromSettings, findUserOnlyServers)
 //   2. User-server preservation prompt (promptPreserveUserServers)
-//   3. ~/.claude.json installation (installMcpToClaudeJson)
+//   3. ~/.claude.json installation (installMcpToClaudeJson) and removal of
+//      cc-settings-managed servers on light installs (removeManagedMcpServers)
 //
 // Generic JSON/atomic-file I/O moved to src/lib/json-io.ts; the settings.json
 // merge strategies + orchestrator moved to src/lib/settings-merge.ts.
@@ -26,10 +27,11 @@ import { ClaudeJson } from "../schemas/claude-json.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { debug, error, info, success, warn } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
+import { subtractByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type McpServer = z.infer<typeof McpServersSchema>[string];
-type McpServers = Record<string, McpServer>;
+export type McpServers = Record<string, McpServer>;
 
 export const CLAUDE_JSON_PATH = join(homedir(), ".claude.json");
 
@@ -105,32 +107,18 @@ export async function promptPreserveUserServers(
  * already present. Conflicts: user servers win for existing keys, team
  * definitions fill in missing ones. Atomic.
  *
+ * `teamMcp` is the already-extracted team MCP block. It is validated ONCE
+ * upstream: composeSettings schema-checks the composed config/ fragments
+ * (Settings.mcpServers = McpServers) and throws on failure, so no re-read or
+ * re-validation happens here.
+ *
  * Uses ClaudeJson (passthrough) so fields we don't know about (Claude-Code-
  * owned state) round-trip untouched.
  */
 export async function installMcpToClaudeJson(
-  teamSettingsPath: string,
+  teamMcp: McpServers,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
 ): Promise<void> {
-  const teamRaw = await readJsonOrNull(teamSettingsPath);
-  if (!teamRaw || typeof teamRaw !== "object") {
-    warn(`Team settings not found: ${teamSettingsPath}`);
-    return;
-  }
-  const teamMcpRaw = (teamRaw as Record<string, unknown>).mcpServers;
-  // Validate team MCP servers from disk — bad team config should fail loudly.
-  let teamMcp: McpServers = {};
-  if (teamMcpRaw !== undefined) {
-    const teamResult = McpServersSchema.safeParse(teamMcpRaw);
-    if (!teamResult.success) {
-      debug(
-        `Team MCP servers in ${teamSettingsPath} failed schema validation: ${teamResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
-      );
-      // Don't abort — fall through with empty teamMcp so we don't wipe user servers.
-    } else {
-      teamMcp = teamResult.data;
-    }
-  }
   if (Object.keys(teamMcp).length === 0) {
     debug("No MCP servers in team config");
     return;
@@ -171,4 +159,40 @@ export async function installMcpToClaudeJson(
   const next = { ...current, mcpServers: mergedMcp };
   await atomicWriteJson(claudeJsonPath, next);
   debug(`Installed MCP servers to ${claudeJsonPath}`);
+}
+
+/**
+ * Remove cc-settings-managed MCP servers from ~/.claude.json, preserving
+ * any user-only servers. Called during a light install — light has no team
+ * MCP servers, so the full install's context7 etc. must be removed.
+ */
+export async function removeManagedMcpServers(
+  fullComposed: Record<string, unknown>,
+  claudeJsonPath: string = CLAUDE_JSON_PATH,
+): Promise<void> {
+  const fullMcp = (
+    fullComposed.mcpServers !== null && typeof fullComposed.mcpServers === "object"
+      ? fullComposed.mcpServers
+      : {}
+  ) as Record<string, unknown>;
+  if (Object.keys(fullMcp).length === 0) return;
+
+  const parsed = await readJsonOrNull(claudeJsonPath);
+  if (!parsed || typeof parsed !== "object") return;
+  const current = parsed as Record<string, unknown>;
+  const currentMcp = (
+    current.mcpServers !== null && typeof current.mcpServers === "object" ? current.mcpServers : {}
+  ) as Record<string, unknown>;
+
+  // Keep only the servers that are NOT cc-settings-managed (absent from the
+  // full baseline) — keyed subtraction on the server name.
+  const kept = subtractByKey(Object.entries(currentMcp), Object.entries(fullMcp), ([key]) => key);
+
+  const updated = { ...current };
+  if (kept.length === 0) {
+    delete updated.mcpServers;
+  } else {
+    updated.mcpServers = Object.fromEntries(kept);
+  }
+  await atomicWriteJson(claudeJsonPath, updated);
 }

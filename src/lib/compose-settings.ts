@@ -23,6 +23,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { Settings } from "../schemas/settings.ts";
 
 const PREFIX_RE = /^(\d+)-/;
 
@@ -75,6 +76,17 @@ export async function composeSettings(sourceDir: string): Promise<Record<string,
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
       merged[k] = v;
     }
+  }
+
+  // The fragments are repo-controlled config — a typo here must fail the
+  // install loudly, not debug-log. (User settings.json stays tolerant in
+  // settings-merge.ts; forward-compat is deliberate THERE, not here.)
+  // Return the raw merged object, not `result.data`: nested sub-schemas strip
+  // unknown keys, and the composed output must round-trip byte-identical.
+  const result = Settings.safeParse(merged);
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n  ");
+    throw new Error(`config/ fragments compose to an invalid settings.json:\n  ${issues}`);
   }
   return merged;
 }

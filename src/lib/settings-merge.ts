@@ -13,6 +13,7 @@ import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { findUserOnlyServers, promptPreserveUserServers } from "./mcp.ts";
+import { subtractByKey, unionByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type StringArray = string[] | undefined;
@@ -93,26 +94,25 @@ export async function unionPermissionArray(
   if (teamArr.length === 0 && userArr.length === 0)
     return { merged: undefined, added: 0, declined: 0 };
 
-  const userSet = new Set(userArr);
-  const teamOnly = teamArr.filter((r) => !userSet.has(r));
-  const teamSet = new Set(teamArr);
-  const userExtras = userArr.filter((r) => !teamSet.has(r));
+  const id = (r: string) => r;
+  const teamOnly = subtractByKey(teamArr, userArr, id);
+  const userExtras = subtractByKey(userArr, teamArr, id);
 
-  let acceptedTeamOnly = new Set(teamOnly);
+  let teamKept = teamArr;
   let declined = 0;
   if (opts.interactive && !alwaysAccept && teamOnly.length > 0) {
     info(`Team added ${teamOnly.length} new ${label}(s) since your last install:`);
     for (const r of teamOnly) console.log(`  + ${r}`);
     const adopt = await promptYn("Adopt these?", true);
     if (!adopt) {
-      acceptedTeamOnly = new Set<string>();
+      // Drop declined team-only entries; entries the user already has survive.
+      teamKept = subtractByKey(teamArr, teamOnly, id);
       declined = teamOnly.length;
     }
   }
 
-  // Preserve team order, drop declined team-only entries, append user extras.
-  const teamFiltered = teamArr.filter((r) => userSet.has(r) || acceptedTeamOnly.has(r));
-  const merged = [...teamFiltered, ...userExtras];
+  // Preserve team order, append user extras.
+  const merged = unionByKey(teamKept, userExtras, id);
   return { merged, added: userExtras.length, declined };
 }
 
@@ -258,20 +258,20 @@ export function pruneDeprecatedHooks(group: unknown): unknown | null {
 // their non-deprecated hooks.
 export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
-  const t = (team as UnknownRecord | undefined) ?? {};
-  const u = (user as UnknownRecord | undefined) ?? {};
+  const t = asRecord(team);
+  const u = asRecord(user);
   const { opts } = ctx;
 
+  const keyOf = (g: unknown) => JSON.stringify(g);
   const events = new Set([...Object.keys(t), ...Object.keys(u)]);
   const merged: UnknownRecord = {};
 
   for (const ev of events) {
     const teamGroups = Array.isArray(t[ev]) ? (t[ev] as unknown[]) : [];
     const userGroups = Array.isArray(u[ev]) ? (u[ev] as unknown[]) : [];
-    const userJson = new Set(userGroups.map((g) => JSON.stringify(g)));
-    const teamJson = new Set(teamGroups.map((g) => JSON.stringify(g)));
-    const teamOnly = teamGroups.filter((g) => !userJson.has(JSON.stringify(g)));
-    const rawUserExtras = userGroups.filter((g) => !teamJson.has(JSON.stringify(g)));
+    const teamJson = new Set(teamGroups.map(keyOf));
+    const teamOnly = subtractByKey(teamGroups, userGroups, keyOf);
+    const rawUserExtras = subtractByKey(userGroups, teamGroups, keyOf);
 
     // Drop user extras whose commands point at scripts cc-settings has removed.
     const userExtras: unknown[] = [];
@@ -286,28 +286,25 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
         // A partial prune can collapse a user group into one the team already
         // provides (e.g. [stop-summary, removed-hook] → [stop-summary]). Drop it
         // rather than emit a duplicate of the team-provided group.
-        if (teamJson.has(JSON.stringify(cleaned))) continue;
+        if (teamJson.has(keyOf(cleaned))) continue;
       }
       userExtras.push(cleaned);
     }
 
-    let acceptedTeamOnly = new Set(teamOnly.map((g) => JSON.stringify(g)));
+    let teamKept = teamGroups;
     if (opts.interactive && teamOnly.length > 0) {
       info(`Team added ${teamOnly.length} hook group(s) for ${ev}:`);
       for (const g of teamOnly) console.log(`  + ${JSON.stringify(g)}`);
       const adopt = await promptYn("Adopt these?", true);
       if (!adopt) {
-        acceptedTeamOnly = new Set<string>();
+        // Drop declined team-only groups; groups the user already has survive.
+        teamKept = subtractByKey(teamGroups, teamOnly, keyOf);
         ctx.accounting.hooksDeclined += teamOnly.length;
       }
     }
 
-    const teamFiltered = teamGroups.filter((g) => {
-      const j = JSON.stringify(g);
-      return userJson.has(j) || acceptedTeamOnly.has(j);
-    });
     ctx.accounting.hooksAdded += userExtras.length;
-    merged[ev] = [...teamFiltered, ...userExtras];
+    merged[ev] = unionByKey(teamKept, userExtras, keyOf);
   }
 
   return { keep: true, value: merged };
@@ -317,8 +314,8 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
 // stick across re-installs). Interactive prompts on each conflict.
 export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
-  const t = (team as UnknownRecord | undefined) ?? {};
-  const u = (user as UnknownRecord | undefined) ?? {};
+  const t = asRecord(team);
+  const u = asRecord(user);
   const merged: UnknownRecord = { ...t, ...u };
 
   for (const k of Object.keys(u)) {
@@ -389,7 +386,9 @@ export const STRATEGIES: Record<string, Strategy> = {
 // --- Orchestrator --------------------------------------------------------
 
 /**
- * Merge user's existing settings.json with the team settings.json.
+ * Merge user's existing settings.json with the in-memory team settings object
+ * (the composed config/ fragments — already schema-validated by composeSettings,
+ * so there is no team-side file read or re-validation here).
  *
  * Non-interactive policy (default):
  *   - User-declared keys win for top-level scalars (model, theme, …).
@@ -410,12 +409,11 @@ export const STRATEGIES: Record<string, Strategy> = {
  */
 export async function mergeSettingsWithMcpPreservation(
   existingPath: string,
-  teamPath: string,
+  teamSettings: Record<string, unknown>,
   outputPath: string,
   opts: MergeOptions = {},
 ): Promise<void> {
-  const teamRaw = (await readJsonOrNull(teamPath)) as UnknownRecord | null;
-  if (!teamRaw) throw new Error(`Team settings not found: ${teamPath}`);
+  const teamRaw: UnknownRecord = teamSettings;
 
   const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
@@ -447,8 +445,10 @@ export async function mergeSettingsWithMcpPreservation(
 
   // mcpServers needs the preservation prompt to run BEFORE the per-key loop —
   // the prompt is shared across the whole merge, not scoped to one strategy.
-  const userServers = (userRaw.mcpServers as McpServers | undefined) ?? {};
-  const teamServers = (teamRaw.mcpServers as McpServers | undefined) ?? {};
+  // asRecord: a corrupt string-valued mcpServers degrades to {} instead of
+  // leaking a string into the server merge.
+  const userServers = asRecord(userRaw.mcpServers) as McpServers;
+  const teamServers = asRecord(teamRaw.mcpServers) as McpServers;
   const userOnly = findUserOnlyServers(userServers, teamServers);
   let preserved: McpServers = {};
   if (userOnly.length > 0) {

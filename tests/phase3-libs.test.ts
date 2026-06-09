@@ -2,6 +2,10 @@
 // MCP merge, which is the migration's biggest correctness win (data-loss
 // risk — hardened here with coverage for the scenarios the bash version
 // burned colleagues on).
+//
+// Team settings are passed to the merger as in-memory objects — the merger's
+// signature takes the composed object, not a staged-file path (the staged-file
+// indirection was removed from src/setup.ts).
 
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -71,6 +75,25 @@ describe("mcp — atomic IO", () => {
       await rm(sandbox, { recursive: true, force: true });
     }
   });
+
+  test("readJsonOrNull rethrows non-parse I/O errors as-is (EISDIR is not 'invalid JSON')", async () => {
+    // Reading a directory fails with EISDIR — that's an I/O problem, not a
+    // corrupt file. It must NOT be wrapped as JsonParseError, which would
+    // misdiagnose ("fix it or restore a backup") a permissions/path mistake.
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-eisdir-"));
+    try {
+      let caught: unknown;
+      try {
+        await readJsonOrNull(sandbox); // a directory, not a file
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeDefined();
+      expect(caught).not.toBeInstanceOf(JsonParseError);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("mcp — user-only detection", () => {
@@ -121,7 +144,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-merge-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(
         existing,
@@ -132,16 +154,13 @@ describe("mcp — merge + preserve", () => {
           },
         }),
       );
-      await writeFile(
-        team,
-        JSON.stringify({
-          $schema: "https://json.schemastore.org/claude-code-settings.json",
-          mcpServers: {
-            shared: { command: "team-shared" },
-            context7: { command: "team-context7" },
-          },
-        }),
-      );
+      const team = {
+        $schema: "https://json.schemastore.org/claude-code-settings.json",
+        mcpServers: {
+          shared: { command: "team-shared" },
+          context7: { command: "team-context7" },
+        },
+      };
       // Non-interactive: default is preserve.
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
@@ -165,13 +184,12 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-wipe-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(
         existing,
         JSON.stringify({ mcpServers: { "my-custom-mcp": { command: "foo" } } }),
       );
-      await writeFile(team, JSON.stringify({ mcpServers: { a: { command: "b" } } }));
+      const team = { mcpServers: { a: { command: "b" } } };
 
       const prev = process.env.CC_WIPE_CUSTOM_MCP;
       process.env.CC_WIPE_CUSTOM_MCP = "1";
@@ -192,10 +210,9 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-bad-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(existing, "{broken}");
-      await writeFile(team, JSON.stringify({ mcpServers: { a: { command: "b" } } }));
+      const team = { mcpServers: { a: { command: "b" } } };
       await expect(mergeSettingsWithMcpPreservation(existing, team, out)).rejects.toBeInstanceOf(
         JsonParseError,
       );
@@ -210,9 +227,8 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-new-"));
     try {
       const existing = join(sandbox, "does-not-exist.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
-      await writeFile(team, JSON.stringify({ mcpServers: { a: { command: "b" } } }));
+      const team = { mcpServers: { a: { command: "b" } } };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged).toEqual({ mcpServers: { a: { command: "b" } } });
@@ -225,10 +241,9 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-idem-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(existing, JSON.stringify({ mcpServers: { custom: { command: "c" } } }));
-      await writeFile(team, JSON.stringify({ mcpServers: { a: { command: "b" } } }));
+      const team = { mcpServers: { a: { command: "b" } } };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const first = await readFile(out, "utf8");
       // Second run: feed the merged output back as "existing" (what a re-install would see).
@@ -244,7 +259,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-perms-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(
         existing,
@@ -257,16 +271,13 @@ describe("mcp — merge + preserve", () => {
           },
         }),
       );
-      await writeFile(
-        team,
-        JSON.stringify({
-          permissions: {
-            allow: ["Bash(bun:*)", "Bash(git:*)"],
-            deny: ["Bash(rm -rf /)"],
-            defaultMode: "default",
-          },
-        }),
-      );
+      const team = {
+        permissions: {
+          allow: ["Bash(bun:*)", "Bash(git:*)"],
+          deny: ["Bash(rm -rf /)"],
+          defaultMode: "default",
+        },
+      };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       // Union: team baseline + user extras, no dupes.
@@ -291,16 +302,12 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-deny-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       // User has deleted all team denies locally.
       await writeFile(existing, JSON.stringify({ permissions: { deny: [] } }));
-      await writeFile(
-        team,
-        JSON.stringify({
-          permissions: { deny: ["Bash(rm -rf /)", "Bash(rm -rf ~)"] },
-        }),
-      );
+      const team = {
+        permissions: { deny: ["Bash(rm -rf /)", "Bash(rm -rf ~)"] },
+      };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(rm -rf ~)"]);
@@ -313,7 +320,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-hooks-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       const teamHook = { hooks: [{ type: "command", command: "team-hook" }] };
       const userHook = { hooks: [{ type: "command", command: "user-hook" }] };
@@ -327,7 +333,7 @@ describe("mcp — merge + preserve", () => {
           },
         }),
       );
-      await writeFile(team, JSON.stringify({ hooks: { PreToolUse: [teamHook] } }));
+      const team = { hooks: { PreToolUse: [teamHook] } };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       // Team hook kept, user's new group appended, no dupes.
@@ -349,7 +355,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-statusline-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
 
       await writeFile(
@@ -361,16 +366,13 @@ describe("mcp — merge + preserve", () => {
           },
         }),
       );
-      await writeFile(
-        team,
-        JSON.stringify({
-          statusLine: {
-            type: "command",
-            command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
-            refreshInterval: 30,
-          },
-        }),
-      );
+      const team = {
+        statusLine: {
+          type: "command",
+          command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
+          refreshInterval: 30,
+        },
+      };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged.statusLine.command).toBe('bun "$HOME/.claude/src/hooks/statusline.ts"');
@@ -384,7 +386,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-statusline-keep-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
 
       // User's statusLine points at their own custom script (not a removed
@@ -398,15 +399,12 @@ describe("mcp — merge + preserve", () => {
           },
         }),
       );
-      await writeFile(
-        team,
-        JSON.stringify({
-          statusLine: {
-            type: "command",
-            command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
-          },
-        }),
-      );
+      const team = {
+        statusLine: {
+          type: "command",
+          command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
+        },
+      };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged.statusLine.command).toBe('node "$HOME/scripts/my-status.js"');
@@ -424,7 +422,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-stale-hooks-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
 
       // User has the broken bash refs (entire group + a partial group with a
@@ -460,7 +457,7 @@ describe("mcp — merge + preserve", () => {
           },
         }),
       );
-      await writeFile(team, JSON.stringify({ hooks: { PreToolUse: [teamPre] } }));
+      const team = { hooks: { PreToolUse: [teamPre] } };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
 
@@ -486,10 +483,9 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-fallback-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(existing, JSON.stringify({ futureField: "user-side" }));
-      await writeFile(team, JSON.stringify({ teamOnlyField: "team-side", model: "opus" }));
+      const team = { teamOnlyField: "team-side", model: "opus" };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged.futureField).toBe("user-side"); // user-only survives
@@ -504,7 +500,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-env-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(
         existing,
@@ -512,12 +507,9 @@ describe("mcp — merge + preserve", () => {
           env: { ENABLE_PROMPT_CACHING_1H: "0", USER_ONLY: "yes" },
         }),
       );
-      await writeFile(
-        team,
-        JSON.stringify({
-          env: { ENABLE_PROMPT_CACHING_1H: "1", TEAM_ONLY: "yes" },
-        }),
-      );
+      const team = {
+        env: { ENABLE_PROMPT_CACHING_1H: "1", TEAM_ONLY: "yes" },
+      };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged.env.ENABLE_PROMPT_CACHING_1H).toBe("0"); // user wins
@@ -537,7 +529,6 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-interactive-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const autoOut = join(sandbox, "auto.json");
       const interactiveOut = join(sandbox, "interactive.json");
       await writeFile(
@@ -551,18 +542,15 @@ describe("mcp — merge + preserve", () => {
           env: { DEBUG: "1", LOCAL_ONLY: "yes" },
         }),
       );
-      await writeFile(
-        team,
-        JSON.stringify({
-          model: "sonnet",
-          statusLine: "team-bar",
-          permissions: {
-            allow: ["Bash(bun:*)", "Bash(git:*)"],
-            deny: ["Bash(rm -rf /)"],
-          },
-          env: { DEBUG: "0", TEAM_ONLY: "yes" },
-        }),
-      );
+      const team = {
+        model: "sonnet",
+        statusLine: "team-bar",
+        permissions: {
+          allow: ["Bash(bun:*)", "Bash(git:*)"],
+          deny: ["Bash(rm -rf /)"],
+        },
+        env: { DEBUG: "0", TEAM_ONLY: "yes" },
+      };
       await mergeSettingsWithMcpPreservation(existing, team, autoOut);
       await mergeSettingsWithMcpPreservation(existing, team, interactiveOut, { interactive: true });
       expect(await readFile(interactiveOut, "utf8")).toBe(await readFile(autoOut, "utf8"));
@@ -578,15 +566,11 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-deny-interactive-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(existing, JSON.stringify({ permissions: { deny: [] } }));
-      await writeFile(
-        team,
-        JSON.stringify({
-          permissions: { deny: ["Bash(rm -rf /)", "Bash(sudo:*)"] },
-        }),
-      );
+      const team = {
+        permissions: { deny: ["Bash(rm -rf /)", "Bash(sudo:*)"] },
+      };
       await mergeSettingsWithMcpPreservation(existing, team, out, { interactive: true });
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(sudo:*)"]);
@@ -599,10 +583,9 @@ describe("mcp — merge + preserve", () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-scalar-"));
     try {
       const existing = join(sandbox, "user-settings.json");
-      const team = join(sandbox, "team-settings.json");
       const out = join(sandbox, "merged.json");
       await writeFile(existing, JSON.stringify({ model: "opus[1m]", theme: "dark" }));
-      await writeFile(team, JSON.stringify({ model: "sonnet", statusLine: "team" }));
+      const team = { model: "sonnet", statusLine: "team" };
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
       expect(merged.model).toBe("opus[1m]"); // user wins
@@ -618,16 +601,13 @@ describe("mcp — claude.json installer", () => {
   test("installs team MCPs while preserving user-defined ones", async () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-"));
     try {
-      const teamSettings = join(sandbox, "team-settings.json");
-      await writeFile(
-        teamSettings,
-        JSON.stringify({
-          mcpServers: {
-            context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] },
-            tldr: { command: "tldr-mcp", args: ["--project", "."] },
-          },
-        }),
-      );
+      // The already-extracted team MCP block — installMcpToClaudeJson takes
+      // the in-memory servers object (validated upstream by composeSettings),
+      // not a settings-file path.
+      const teamMcp = {
+        context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] },
+        tldr: { command: "tldr-mcp", args: ["--project", "."] },
+      };
       const claudeJsonPath = join(sandbox, ".claude.json");
       await writeFile(
         claudeJsonPath,
@@ -641,7 +621,7 @@ describe("mcp — claude.json installer", () => {
         }),
       );
 
-      await installMcpToClaudeJson(teamSettings, claudeJsonPath);
+      await installMcpToClaudeJson(teamMcp, claudeJsonPath);
       const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
       expect(Object.keys(result.mcpServers).sort()).toEqual(["context7", "tldr", "user-only"]);
       // User override wins for shared key.

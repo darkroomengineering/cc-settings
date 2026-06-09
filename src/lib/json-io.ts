@@ -34,11 +34,18 @@ export async function atomicWriteJson(path: string, data: unknown): Promise<void
 }
 
 export async function readJsonOrNull(path: string): Promise<unknown> {
+  let raw: string;
   try {
-    const raw = await readFile(path, "utf8");
-    return JSON.parse(raw);
+    raw = await readFile(path, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    // EACCES, EISDIR, … — an I/O problem, not a JSON problem. Rethrow as-is
+    // so callers don't misdiagnose a permissions error as a corrupt file.
+    throw err;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
     throw new JsonParseError(path, err);
   }
 }
