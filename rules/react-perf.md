@@ -33,23 +33,7 @@ The model picks the right one by reading visible imports in the file you're edit
 
 ### Server-side waterfalls (Next.js Server Components)
 
-```tsx
-// WRONG: Nested async creates waterfall
-async function Page() {
-  const header = await fetchHeader()
-  return <Layout header={header}><Sidebar /></Layout>
-}
-
-// CORRECT: Sibling composition enables parallel
-function Page() {
-  return (
-    <Layout>
-      <Header />   {/* fetches independently */}
-      <Sidebar />  {/* fetches independently */}
-    </Layout>
-  )
-}
-```
+> Nested-async WRONG/CORRECT pattern: see `rules/performance.md` (DON'T block) — prefer sibling composition so each child fetches in parallel.
 
 ### Loader waterfalls (React Router)
 
@@ -78,32 +62,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 
 ### Defer third-party libraries
 
-| Stack | Pattern |
-|---|---|
-| Next.js | `next/dynamic` with `ssr: false` |
-| React Router | `React.lazy()` + `<Suspense>` |
-| Either | Plain `import()` inside an event handler |
-
-```tsx
-// Next.js
-import dynamic from 'next/dynamic'
-const Analytics = dynamic(
-  () => import('@vercel/analytics/react').then((m) => m.Analytics),
-  { ssr: false },
-)
-
-// React Router (or any Vite-based React app)
-import { lazy, Suspense } from 'react'
-const HeavyChart = lazy(() => import('~/components/heavy-chart'))
-
-function Page() {
-  return (
-    <Suspense fallback={<ChartSkeleton />}>
-      <HeavyChart />
-    </Suspense>
-  )
-}
-```
+> Dynamic-import patterns: see `rules/performance.md` — this section only adds the WRONG example below.
 
 ```tsx
 // WRONG (any stack): loads in initial bundle
@@ -227,13 +186,10 @@ function UserAvatar({ user }: { user: User }) {
 ```
 
 ### Narrow effect dependencies
+
+> Basic narrowing (`[user]` → `[user.id]`): see `rules/performance.md`.
+
 ```tsx
-// WRONG
-useEffect(() => { fetchPosts(user.id) }, [user])
-
-// CORRECT
-useEffect(() => { fetchPosts(user.id) }, [user.id])
-
 // BETTER: derive boolean for thresholds
 const isMobile = width < 768
 useEffect(() => { /* … */ }, [isMobile])

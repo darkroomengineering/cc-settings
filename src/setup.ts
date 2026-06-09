@@ -12,7 +12,7 @@
 //   --rollback[=TS]    Restore newest backup (or a timestamp match) from ~/.claude/backups.
 //   --dry-run          Print planned actions without touching disk.
 //   --light            Install raw Claude Code + statusLine + share-learning skill only.
-//                      No CLAUDE.md, AGENTS.md, agents, rules, profiles, contexts, docs,
+//                      No CLAUDE.md, AGENTS.md, agents, rules, profiles, docs,
 //                      MCP servers, effort override, or permission rules.
 //   --help, -h         Usage.
 
@@ -36,7 +36,7 @@ import {
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./lib/hooks-fingerprint.ts";
-import { atomicWriteJson, type JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
+import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
 import {
   applyLightProfile,
   LIGHT_SKILLS,
@@ -45,12 +45,7 @@ import {
 } from "./lib/light-profile.ts";
 import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
 import { CLAUDE_JSON_PATH, installMcpToClaudeJson } from "./lib/mcp.ts";
-import {
-  detectPackageManagers,
-  ensurePythonPackage,
-  ensureSystemPackage,
-  getInstallHint,
-} from "./lib/packages.ts";
+import { ensurePythonPackage, ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { mergeSettingsWithMcpPreservation } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
@@ -115,7 +110,7 @@ Flags:
                        • settings.json: $schema + statusLine only
                        • no MCP servers, no hooks, no effort override
                        • no CLAUDE.md, AGENTS.md, agents, rules, profiles,
-                         contexts, docs, or permission rules
+                         docs, or permission rules
                      Re-run without --light to upgrade to full.
   --status           Report installed version, drift vs repo HEAD, missing
                      managed skills, hooks, key env vars, and MCP servers.
@@ -218,7 +213,6 @@ async function createDirectories(): Promise<void> {
     "skills",
     "profiles",
     "rules",
-    "contexts",
     "handoffs",
     "learnings",
     "hooks",
@@ -269,7 +263,8 @@ async function cleanOldConfig(): Promise<void> {
     removeGlob("skills", /\.(json|md)$/),
     removeGlob("profiles", /\.md$/),
     removeGlob("rules", /\.md$/),
-    removeGlob("contexts", /\.md$/),
+    // contexts/ retired (folded into profiles/); prune the legacy installed dir.
+    rm(join(CLAUDE_DIR, "contexts"), { recursive: true, force: true }).catch(() => {}),
     removeGlob("hooks", /\.md$/),
     removeGlob("docs", /\.md$/),
     ...MANAGED_SKILLS.map((s) =>
@@ -313,7 +308,7 @@ async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
 async function installConfigFiles(source: string, profile: Profile): Promise<void> {
   if (profile === "light") {
     // Light = raw Claude Code. Install ONLY share-learning skill.
-    // No CLAUDE.md, no AGENTS.md, no agents, no rules, no profiles, no contexts,
+    // No CLAUDE.md, no AGENTS.md, no agents, no rules, no profiles,
     // no hooks docs, no docs.
 
     // skills: only LIGHT_SKILLS (share-learning)
@@ -338,7 +333,7 @@ async function installConfigFiles(source: string, profile: Profile): Promise<voi
     await copyIfPresent(join(source, "CLAUDE-FULL.md"), join(CLAUDE_DIR, "CLAUDE.md"));
     await copyIfPresent(join(source, "AGENTS.md"), join(CLAUDE_DIR, "AGENTS.md"));
 
-    for (const d of ["rules", "contexts", "hooks", "docs"]) {
+    for (const d of ["rules", "hooks", "docs"]) {
       await copyDirContents(join(source, d), join(CLAUDE_DIR, d));
     }
 
@@ -361,7 +356,7 @@ async function removeLightIncompatibleFiles(): Promise<void> {
     removeIfExists(join(CLAUDE_DIR, "agents")),
     removeIfExists(join(CLAUDE_DIR, "rules")),
     removeIfExists(join(CLAUDE_DIR, "profiles")),
-    removeIfExists(join(CLAUDE_DIR, "contexts")),
+    removeIfExists(join(CLAUDE_DIR, "contexts")), // legacy; contexts/ retired
     removeIfExists(join(CLAUDE_DIR, "docs")),
   ]);
 }
@@ -533,8 +528,6 @@ async function installDependencies(profile: Profile): Promise<void> {
   // No hooks require jq, pipx, or llm-tldr — skip all system deps.
   if (profile === "light") return;
 
-  detectPackageManagers();
-
   if (!hasCommand("jq")) {
     const ok = await ensureSystemPackage("jq");
     if (!ok) warn(`Install jq manually: ${getInstallHint("jq")}`);
@@ -584,11 +577,10 @@ async function showSummary(profile: Profile): Promise<void> {
     boxLine("ok", "src/      (TS; statusLine + libs)");
     boxLine("ok", "memory/");
   } else {
-    const [agentCount, profileCount, ruleCount, contextCount] = await Promise.all([
+    const [agentCount, profileCount, ruleCount] = await Promise.all([
       countEntries("agents", /\.md$/),
       countEntries("profiles", /\.md$/),
       countEntries("rules", /\.md$/),
-      countEntries("contexts", /\.md$/),
     ]);
     boxLine("ok", "CLAUDE.md (Claude-Code config)");
     boxLine("ok", "AGENTS.md (portable standards)");
@@ -597,7 +589,6 @@ async function showSummary(profile: Profile): Promise<void> {
     boxLine("ok", `agents/ (${agentCount})`);
     boxLine("ok", `profiles/ (${profileCount})`);
     boxLine("ok", `rules/ (${ruleCount})`);
-    boxLine("ok", `contexts/ (${contextCount})`);
     boxLine("ok", "skills/");
     boxLine("ok", "src/      (TS; hooks + scripts + libs + schemas)");
     boxLine("ok", "docs/");
@@ -671,7 +662,7 @@ async function cmdDryRun(source: string, profile: Profile): Promise<void> {
     }
     console.log("");
     console.log("Light profile: no CLAUDE.md · no AGENTS.md · no MCP servers · no hooks");
-    console.log("               no agents · no rules · no profiles · no contexts · no docs");
+    console.log("               no agents · no rules · no profiles · no docs");
     console.log("               default Claude Code permissions · default effort");
   } else {
     console.log("Would install:");
@@ -684,7 +675,6 @@ async function cmdDryRun(source: string, profile: Profile): Promise<void> {
       ["skills/", "→ ~/.claude/skills/"],
       ["profiles/", "→ ~/.claude/profiles/"],
       ["rules/", "→ ~/.claude/rules/"],
-      ["contexts/", "→ ~/.claude/contexts/"],
       ["hooks/", "→ ~/.claude/hooks/"],
       ["docs/", "→ ~/.claude/docs/"],
     ];
@@ -834,7 +824,7 @@ async function main(): Promise<number> {
     await createDirectories();
     await cleanOldConfig();
     // For light: remove dirs that full installs but light must not have
-    // (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, contexts/, docs/).
+    // (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, docs/).
     // Must run AFTER cleanOldConfig so any leftover full-install content is gone.
     if (args.profile === "light") {
       await removeLightIncompatibleFiles();
@@ -851,7 +841,7 @@ async function main(): Promise<number> {
     await installSettings(args.sourceDir, args.interactive, args.profile);
   } catch (err) {
     // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
-    if ((err as JsonParseError).name === "JsonParseError") {
+    if (err instanceof JsonParseError) {
       error(String((err as Error).message));
       error("Aborting. Fix the corrupt JSON or rollback: bun src/setup.ts --rollback");
       return 1;

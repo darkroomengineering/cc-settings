@@ -97,16 +97,17 @@ function RotatingBox() {
 ### Performance: Instancing
 ```tsx
 import { Instances, Instance } from '@react-three/drei'
+import { useRef } from 'react'
 
 function ManyBoxes({ count = 1000 }) {
-  const positions = useMemo(() =>
+  // useRef for one-time object instantiation — no useMemo (React Compiler; see Gotchas)
+  const positions = useRef(
     Array.from({ length: count }, () => [
       Math.random() * 10 - 5,
       Math.random() * 10 - 5,
       Math.random() * 10 - 5
-    ] as [number, number, number]),
-    [count]
-  )
+    ] as [number, number, number])
+  ).current
 
   return (
     <Instances limit={count}>

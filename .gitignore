@@ -6,6 +6,3 @@
 hooks-config.local.json
 plans/
 node_modules/
-bench/prototype/dist/
-bench/prototype/result.json
-bench/tmp/

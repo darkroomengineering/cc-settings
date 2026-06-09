@@ -33,7 +33,7 @@ bash setup.sh
 
 ### Switching tiers
 
-Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, contexts, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
+Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
 
 ```bash
 # Switch from full → light
@@ -402,9 +402,7 @@ Activate specialized workflows in `settings.json`:
 
 ### Stack-aware skills
 
-Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`web-vitals`, `react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
-
-The detector lives in `src/lib/stack.ts` if you need to extend it to a new framework.
+Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
 
 ### GitHub Project Sync
 

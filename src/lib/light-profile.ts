@@ -5,7 +5,7 @@
 //   2. The share-learning skill
 //
 // Everything else is stripped: no CLAUDE.md, no AGENTS.md, no agents, no rules,
-// no profiles, no contexts, no docs, no MCP servers, no hooks (except statusLine),
+// no profiles, no docs, no MCP servers, no hooks (except statusLine),
 // no effort override, no permission rules.
 //
 // Callers:
