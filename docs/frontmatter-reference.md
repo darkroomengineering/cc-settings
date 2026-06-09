@@ -15,7 +15,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Agent identifier, used in `Agent(name, "...")` invocations |
-| `model` | string | No | Model to use: `opus` (default), `sonnet`, `haiku` |
+| `model` | string | No | Model to use: `fable`, `opus`, `sonnet`, `haiku` |
 | `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions |
 | `description` | string | Yes | Multi-line description shown in agent selection. Controls auto-invocation behavior (see below) |
 | `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, LS, Agent, ...]` |
@@ -243,7 +243,7 @@ All frontmatter fields in profiles are **advisory** — validated at install tim
 |-------|------|----------|-------------|
 | `name` | string | Yes | Profile identifier (kebab-case, must match the filename stem) |
 | `description` | string | Yes | Short description of the profile's purpose |
-| `model` | string | No | Advisory: intended model alias (`opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
+| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
 | `skills` | list | No | Advisory: skill names expected to be active in this context |
 | `tools` | list | No | Advisory: tool subset relevant to this workflow |
 | `permissionMode` | string | No | Advisory: intended permission mode (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |

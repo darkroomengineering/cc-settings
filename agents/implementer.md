@@ -1,6 +1,6 @@
 ---
 name: implementer
-model: opus
+model: fable
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
 

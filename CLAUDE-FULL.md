@@ -70,7 +70,7 @@ For full orchestration mode, activate `profiles/maestro.md`. Model routing per a
 
 **4.8 calibration**: default effort dropped to `high` (was `xhigh` on 4.7). cc-settings pins `xhigh` via `CLAUDE_CODE_EFFORT_LEVEL` so behavior is preserved — but the `xhigh` ladder allocates more thinking tokens on 4.8 than on 4.7 (per-model calibration; see [model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)). At `low`/`medium` the model still scopes strictly and may under-think. Raise effort rather than prompting around shallow reasoning. Use `ultrathink` keyword for one-turn maximum depth on hard multi-file debugging.
 
-**Context window** — 1M tokens default on Max. Subagents inherit. Use `opus[1m]` / `sonnet[1m]` aliases in settings.json to pin.
+**Context window** — 1M tokens default on Max. Subagents inherit. The cc-settings default model is `fable` (Claude Fable 5), 1M-native so no pin is needed; `opus[1m]` / `sonnet[1m]` pin the 1M variant of those tiers.
 
 - **Manual `/compact` at 65%** — Opus 4.7/4.8's tokenizer is ~1-1.35x heavier per text vs 4.6 (was 70% on 4.6); on 4.8, `xhigh` also allocates more thinking tokens per turn, so context burns faster. Auto-compaction triggers at 95%; don't wait for it.
 - **Break subtasks to complete within 45%** — conservative budget for 4.7/4.8 tokenization. Prevents context rot mid-task.

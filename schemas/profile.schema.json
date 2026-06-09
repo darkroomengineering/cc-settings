@@ -20,7 +20,8 @@
           "enum": [
             "opus",
             "sonnet",
-            "haiku"
+            "haiku",
+            "fable"
           ]
         },
         {

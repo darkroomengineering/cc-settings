@@ -59,7 +59,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.22.0"; // add --light install profile: raw Claude Code + statusLine + share-learning skill only (permanent beginner tier)
+const VERSION = "11.23.0"; // adopt Claude Fable 5 as default model + deep-reasoning agent tier (temporary CLAUDE_CODE_SUBAGENT_MODEL boost through 2026-06-21)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

@@ -11,7 +11,7 @@ export const AgentEffort = z.enum(["low", "medium", "high", "xhigh", "max"]);
 // loose (string fallback) — Anthropic ships new aliases between cc-settings
 // releases and we'd rather accept than reject.
 export const AgentModel = z.union([
-  z.enum(["opus", "sonnet", "haiku"]),
+  z.enum(["opus", "sonnet", "haiku", "fable"]),
   z.string().min(1), // pinned variants like "opus[1m]" or full IDs
 ]);
 

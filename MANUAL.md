@@ -225,7 +225,7 @@ Say: *"how's my context?"* or *"context usage"* or *"running out of context"*
 Triggers `/handoff` (context-window runbook lives inside the handoff skill). Watch the statusline:
 
 ```
-Opus 4.8 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
+Fable 5 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |
@@ -384,6 +384,8 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8
 ```
 
 Without the pin you silently run an older model whose `xhigh` thinking-token behavior differs. Full model table + ARN examples: `docs/settings-reference.md`.
+
+The cc-settings default model is now `fable` (`claude-fable-5`), available on the first-party API and claude.ai Max. On AWS / Bedrock / Vertex / Foundry, where Fable 5 may not yet be offered, set `model` to `opus` and pin `claude-opus-4-8` (as above) until Fable is available there.
 
 ### Profiles
 

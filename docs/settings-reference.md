@@ -103,7 +103,8 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `opus` | Claude Opus 4.8 | Default on Anthropic API / claude.ai Max. Full capability, adaptive thinking. 1M context on Max. Requires Claude Code v2.1.154+ |
+| `fable` | Claude Fable 5 | **cc-settings default.** Top tier, above Opus — agentic/SWE-tuned. 1M context (native; no `[1m]` pin needed). ~2× Opus token cost ($10/$50 per Mtok). First-party API / claude.ai Max. |
+| `opus` | Claude Opus 4.8 | `opus` resolves to Claude Opus 4.8 on Anthropic API / claude.ai Max. Full capability, adaptive thinking. 1M context on Max. Requires Claude Code v2.1.154+ |
 | `sonnet` | Claude Sonnet 4.6 | Faster, lower cost. 1M context on Max |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 

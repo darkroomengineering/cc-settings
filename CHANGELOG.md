@@ -6,6 +6,23 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [11.23.0] — 2026-06-09
+
+Adopts **Claude Fable 5** (`claude-fable-5`) — Anthropic's new top tier above Opus, tuned for agentic/software-engineering work — as the cc-settings default model.
+
+### Added
+
+- `fable` recognized as a first-class model alias in the agent/profile schema (`src/schemas/agent.ts`, regenerated `schemas/agent.schema.json`) and documented in the settings, profiles, and frontmatter alias tables. Fable 5 is 1M-context natively, so no `[1m]` pin is needed (unlike `opus[1m]`/`sonnet[1m]`).
+
+### Changed
+
+- **Default session model `opus[1m]` → `fable`** (`config/10-core.json`).
+- **Deep-reasoning agents → `fable`**: `maestro`, `planner`, `reviewer`, `security-reviewer`, `implementer` (were `opus`). Mechanical agents (`tester`, `scaffolder`) stay `sonnet`; `explore`/`deslopper` stay `inherit` (now riding a Fable session).
+- **Temporary rollout boost**: `CLAUDE_CODE_SUBAGENT_MODEL` `sonnet` → `fable` **through 2026-06-21**. On 2026-06-21, revert this single value back to `sonnet` (the "session + heavy agents" steady state) — session + heavy agents stay on Fable, teammate fan-out drops back to Sonnet. This is the only delta between the boost and the steady state.
+
+> ⚠️ **Cost**: Fable 5 is ~2× Opus token cost ($10/$50 per Mtok). The default + agent-routing changes raise team-wide spend accordingly.
+> 🌐 **Providers**: Fable 5 is first-party API / claude.ai Max. On AWS / Bedrock / Vertex / Foundry, fall back to `opus` (pin `claude-opus-4-8`) until Fable is offered there.
+
 ## [11.22.0] — 2026-06-09
 
 Adds a `--light` install profile: a **permanent, beginner-friendly tier** for teammates who don't want the full cc-settings surface. Light is raw Claude Code with exactly two cc-settings additions — the statusLine and the `share-learning` skill — and nothing else.

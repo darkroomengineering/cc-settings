@@ -1,6 +1,6 @@
 ---
 name: planner
-model: opus
+model: fable
 memory: project
 description: |
   Task breakdown and architecture planning. Creates detailed implementation roadmaps.
