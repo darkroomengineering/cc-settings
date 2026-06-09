@@ -21,17 +21,15 @@ import { Settings } from "../schemas/settings.ts";
 const ROOT = resolve(import.meta.dir, "..", "..");
 const MANIFEST = resolve(ROOT, "upstream", "claude-code-manifest.json");
 
-const Manifest = z
-  .object({
-    lastScan: z.string(),
-    claudeCodeVersion: z.string(),
-    knownSettingsKeys: z.array(z.string()),
-    knownHookEvents: z.array(z.string()),
-    knownHookTypes: z.array(z.string()),
-    knownEnvVars: z.array(z.string()),
-    knownBuiltinTools: z.array(z.string()),
-  })
-  .passthrough();
+const Manifest = z.looseObject({
+  lastScan: z.string(),
+  claudeCodeVersion: z.string(),
+  knownSettingsKeys: z.array(z.string()),
+  knownHookEvents: z.array(z.string()),
+  knownHookTypes: z.array(z.string()),
+  knownEnvVars: z.array(z.string()),
+  knownBuiltinTools: z.array(z.string()),
+});
 
 type Manifest = z.infer<typeof Manifest>;
 

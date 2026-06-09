@@ -15,11 +15,9 @@ export const ClaudeMdMonitor = z.object({
   critical_lines: z.number().int().positive(),
 });
 
-export const HooksConfig = z
-  .object({
-    _comment: z.string().optional(),
-    claude_md_monitor: ClaudeMdMonitor.optional(),
-  })
-  .strict();
+export const HooksConfig = z.strictObject({
+  _comment: z.string().optional(),
+  claude_md_monitor: ClaudeMdMonitor.optional(),
+});
 
 export type HooksConfig = z.infer<typeof HooksConfig>;

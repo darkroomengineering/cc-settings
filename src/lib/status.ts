@@ -28,16 +28,14 @@ import type {
 } from "./status-types.ts";
 
 // Zod schema for the version sentinel file (~/.claude/.cc-settings-version).
-// passthrough() allows future fields added by newer installers without breaking
-// reads. Kept here (module level) rather than inside gatherStatus so it is
-// defined once regardless of how often gatherStatus is called.
-export const VersionSentinel = z
-  .object({
-    version: z.string().optional(),
-    installed_at: z.string().optional(),
-    profile: z.enum(["full", "light"]).optional(),
-  })
-  .passthrough();
+// Loose so future fields added by newer installers don't break reads. Kept
+// here (module level) rather than inside gatherStatus so it is defined once
+// regardless of how often gatherStatus is called.
+export const VersionSentinel = z.looseObject({
+  version: z.string().optional(),
+  installed_at: z.string().optional(),
+  profile: z.enum(["full", "light"]).optional(),
+});
 
 // The env vars that CLAUDE-FULL.md promises are always set after install.
 export const EXPECTED_ENV_VARS = [
