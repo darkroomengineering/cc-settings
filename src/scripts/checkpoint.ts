@@ -7,45 +7,69 @@
 //
 // Usage: checkpoint.ts <save|list|show|restore|clean> [args]
 
-import { existsSync, lstatSync, readFileSync } from "node:fs";
-import { mkdir, readdir, readlink, symlink, unlink, writeFile } from "node:fs/promises";
+import { lstatSync, readFileSync } from "node:fs";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { z } from "zod";
+import {
+  listArtifacts,
+  pointLatest,
+  readLatestTarget,
+  resolveArtifact,
+  timestampId,
+} from "../lib/artifact-store.ts";
 import { palette } from "../lib/colors.ts";
 import { runGit, runProcessFull } from "../lib/git.ts";
-import { pad } from "../lib/platform.ts";
 
 async function getProjectName(): Promise<string> {
   const out = await runGit(["rev-parse", "--show-toplevel"]);
   return out ? basename(out) : basename(process.cwd());
 }
 
-function checkpointId(d: Date = new Date()): string {
-  return `chk-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-}
-
 async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
 }
 
-type Checkpoint = {
-  id: string;
-  timestamp: string;
-  project: string;
-  description: string;
-  git: {
-    branch: string;
-    sha: string;
-    dirty: boolean;
-    modifiedFiles: string[];
-  };
+// Checkpoint files live under the user's home and can be hand-edited —
+// validate on read instead of trusting a cast. Loose so future fields don't
+// break older readers.
+const CheckpointSchema = z.looseObject({
+  id: z.string(),
+  timestamp: z.string(),
+  project: z.string(),
+  description: z.string(),
+  git: z.looseObject({
+    branch: z.string(),
+    sha: z.string(),
+    dirty: z.boolean(),
+    modifiedFiles: z.array(z.string()),
+  }),
+});
+type Checkpoint = z.infer<typeof CheckpointSchema>;
+
+/** Parse + validate a checkpoint file. Null on malformed JSON or bad shape. */
+function readCheckpoint(file: string): Checkpoint | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+  const result = CheckpointSchema.safeParse(parsed);
+  return result.success ? result.data : null;
+}
+
+const RESOLVE_SPEC = {
+  latestLink: "latest",
+  idToName: (id: string) => `${id}.json`,
 };
 
 async function cmdSave(description = "Checkpoint"): Promise<void> {
   const project = await getProjectName();
   const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
   await ensureDir(checkpointDir);
-  const id = checkpointId();
+  const id = timestampId("chk-", "-");
   const file = join(checkpointDir, `${id}.json`);
   const [branchRes, shaRes, diffRes, filesRes] = await Promise.all([
     runProcessFull("git", ["branch", "--show-current"]),
@@ -68,13 +92,7 @@ async function cmdSave(description = "Checkpoint"): Promise<void> {
     },
   };
   await writeFile(file, `${JSON.stringify(chk, null, 2)}\n`);
-  const latest = join(checkpointDir, "latest");
-  try {
-    await unlink(latest);
-  } catch {
-    // ignore
-  }
-  await symlink(basename(file), latest);
+  await pointLatest(checkpointDir, file, "latest");
   console.log(`${palette.green}Checkpoint saved:${palette.reset} ${id}`);
   console.log(`${palette.cyan}Description:${palette.reset} ${description}`);
   console.log(`${palette.blue}Location:${palette.reset} ${file}`);
@@ -84,35 +102,21 @@ async function cmdList(): Promise<void> {
   const project = await getProjectName();
   const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
   await ensureDir(checkpointDir);
-  let entries: string[];
-  try {
-    entries = (await readdir(checkpointDir)).filter((e) => e.endsWith(".json")).sort();
-  } catch {
-    entries = [];
-  }
+  const entries = await listArtifacts(checkpointDir, /\.json$/);
   if (entries.length === 0) {
     console.log(`${palette.yellow}No checkpoints found for project: ${project}${palette.reset}`);
     return;
   }
   console.log(`${palette.blue}Checkpoints for ${palette.cyan}${project}${palette.reset}:`);
   console.log("");
-  let latestTarget = "";
-  try {
-    latestTarget = await readlink(join(checkpointDir, "latest"));
-  } catch {
-    // ignore
-  }
+  const latestTarget = await readLatestTarget(checkpointDir, "latest");
   for (const name of entries) {
-    const full = join(checkpointDir, name);
-    try {
-      const chk = JSON.parse(readFileSync(full, "utf8")) as Checkpoint;
-      const marker = name === latestTarget ? ` ${palette.green}(latest)${palette.reset}` : "";
-      console.log(
-        `  ${palette.cyan}${chk.id}${palette.reset}  ${chk.timestamp}  ${chk.description}${marker}`,
-      );
-    } catch {
-      // skip corrupt files
-    }
+    const chk = readCheckpoint(join(checkpointDir, name));
+    if (!chk) continue; // skip corrupt files
+    const marker = name === latestTarget ? ` ${palette.green}(latest)${palette.reset}` : "";
+    console.log(
+      `  ${palette.cyan}${chk.id}${palette.reset}  ${chk.timestamp}  ${chk.description}${marker}`,
+    );
   }
   console.log("");
 }
@@ -120,17 +124,7 @@ async function cmdList(): Promise<void> {
 async function resolveTarget(target: string): Promise<string | null> {
   const project = await getProjectName();
   const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
-  if (!target) {
-    try {
-      const linkTarget = await readlink(join(checkpointDir, "latest"));
-      const full = join(checkpointDir, linkTarget);
-      return existsSync(full) ? full : null;
-    } catch {
-      return null;
-    }
-  }
-  const full = join(checkpointDir, `${target}.json`);
-  return existsSync(full) ? full : null;
+  return resolveArtifact(checkpointDir, target, RESOLVE_SPEC);
 }
 
 async function cmdShow(target: string): Promise<number> {
@@ -154,7 +148,14 @@ async function cmdRestore(target: string): Promise<number> {
     );
     return 1;
   }
-  const chk = JSON.parse(readFileSync(file, "utf8")) as Checkpoint;
+  const chk = readCheckpoint(file);
+  if (!chk) {
+    console.log(`${palette.red}Malformed checkpoint file: ${file}${palette.reset}`);
+    console.log(
+      `${palette.yellow}Expected JSON with id, timestamp, project, description, and git fields. Was it hand-edited?${palette.reset}`,
+    );
+    return 1;
+  }
   console.log(`${palette.green}Restoring checkpoint:${palette.reset} ${chk.id}`);
   console.log(`${palette.cyan}Description:${palette.reset} ${chk.description}`);
   console.log(`${palette.blue}Branch:${palette.reset} ${chk.git.branch} @ ${chk.git.sha}`);
@@ -188,10 +189,10 @@ async function cmdClean(keepStr: string): Promise<void> {
   const project = await getProjectName();
   const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
   await ensureDir(checkpointDir);
+  const names = await listArtifacts(checkpointDir, /\.json$/);
   let entries: Array<{ file: string; mtime: number }>;
   try {
-    entries = (await readdir(checkpointDir))
-      .filter((e) => e.endsWith(".json"))
+    entries = names
       .map((e) => {
         const full = join(checkpointDir, e);
         return { file: full, mtime: lstatSync(full).mtimeMs };

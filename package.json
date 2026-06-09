@@ -13,6 +13,7 @@
     "lint:fix": "biome check --write .",
     "lint:skills": "bun src/scripts/lint-skills.ts",
     "audit:hooks": "bun src/scripts/audit-hooks.ts",
+    "claude-audit": "bun src/scripts/claude-audit.ts",
     "format": "biome format --write .",
     "schemas:emit": "bun src/schemas/emit.ts",
     "schemas:check": "bun src/schemas/emit.ts && git diff --exit-code schemas/",

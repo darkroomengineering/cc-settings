@@ -7,20 +7,14 @@
 // or tsc itself crashes — diagnostic, not a guard rail.
 
 import { existsSync } from "node:fs";
+import { runTsc } from "../lib/tsc.ts";
 
 try {
   const filePath = process.env.TOOL_INPUT_file_path ?? "";
   if (filePath && /\.tsx?$/.test(filePath) && existsSync("tsconfig.json")) {
-    // Spawn tsc, filter to lines mentioning the edited file. Bash version used:
+    // Run tsc, filter to lines mentioning the edited file. Bash version used:
     //   bunx tsc --noEmit 2>&1 | grep -E "$FILE_PATH" || true
-    const proc = Bun.spawn(["bunx", "tsc", "--noEmit"], { stdout: "pipe", stderr: "pipe" });
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-    await proc.exited;
-
-    const combined = `${stdout}${stderr}`;
+    const { combined } = await runTsc();
     // Escape regex metacharacters in the file path, then match line-by-line.
     const escaped = filePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(escaped);

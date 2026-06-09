@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { Settings } from "../schemas/settings.ts";
 import { runGit } from "./git.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { LIGHT_SKILLS } from "./light-profile.ts";
@@ -134,30 +135,34 @@ export async function gatherStatus(
   };
 
   // --- Settings.json ---
+  // Parse once with the Settings schema instead of bare-casting each field.
+  // Fail-soft exactly like the sentinel above: an unparseable settings.json is
+  // treated as absent. Settings is a loose schema, so unknown root keys pass
+  // through and never fail the parse.
   const userSettingsPath = join(claudeDir, "settings.json");
-  const userSettings = ((await readJsonOrNull(userSettingsPath)) ?? {}) as Record<string, unknown>;
+  const settingsResult = Settings.safeParse((await readJsonOrNull(userSettingsPath)) ?? {});
+  const userSettings: Settings = settingsResult.success ? settingsResult.data : {};
 
   // Hooks
-  const hooksObj = (userSettings.hooks ?? {}) as Record<string, unknown>;
-  const hookEvents = Object.keys(hooksObj);
-  const hookGroupCount = hookEvents.reduce(
-    (n, ev) => n + (Array.isArray(hooksObj[ev]) ? (hooksObj[ev] as unknown[]).length : 0),
+  const hooksBlock = userSettings.hooks ?? {};
+  const hookEvents = Object.keys(hooksBlock);
+  const hookGroupCount = Object.values(hooksBlock).reduce(
+    (n, groups) => n + (groups?.length ?? 0),
     0,
   );
   const hooks: HooksData = { events: hookEvents, groupCount: hookGroupCount };
 
   // Env vars
-  const envObj = (userSettings.env ?? {}) as Record<string, unknown>;
+  const envObj = userSettings.env ?? {};
   const envVars: EnvVarEntry[] = EXPECTED_ENV_VARS.map((key) => ({
     key,
-    value: envObj[key] !== undefined ? String(envObj[key]) : undefined,
+    value: envObj[key],
   }));
 
   // Permissions
-  const perms = (userSettings.permissions ?? {}) as Record<string, unknown>;
   const permissions: PermissionsData = {
-    allowCount: Array.isArray(perms.allow) ? (perms.allow as unknown[]).length : 0,
-    denyCount: Array.isArray(perms.deny) ? (perms.deny as unknown[]).length : 0,
+    allowCount: userSettings.permissions?.allow?.length ?? 0,
+    denyCount: userSettings.permissions?.deny?.length ?? 0,
   };
 
   // MCP servers from ~/.claude.json

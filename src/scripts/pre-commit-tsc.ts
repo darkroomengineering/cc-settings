@@ -9,6 +9,7 @@
 // guard rail we want to preserve.
 
 import { existsSync } from "node:fs";
+import { runTsc } from "../lib/tsc.ts";
 
 async function main(): Promise<number> {
   // Self-gate: only run on `git commit` Bash invocations. The group-level
@@ -24,18 +25,8 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const proc = Bun.spawn(["bunx", "tsc", "--noEmit", "--pretty"], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-
-  const combined = stdout + stderr;
-  const hasErrors = code !== 0 || /error TS/.test(combined);
+  const { combined, exitCode } = await runTsc({ pretty: true });
+  const hasErrors = exitCode !== 0 || /error TS/.test(combined);
   if (hasErrors) {
     console.error("[Pre-commit Hook] TypeScript errors found - fix before committing");
     // Tail the last 20 lines for the user to act on.

@@ -25,8 +25,7 @@ import { readState, writeState } from "../lib/hook-runtime.ts";
 import { hasCommand, pad, ymd } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import { onHeadObserved, type ReviewQueueState } from "../lib/review-queue.ts";
-import { readSentinelInfo } from "../lib/version-delta.ts";
-import { computeDrift, readPackagedVersion } from "../lib/version-drift.ts";
+import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/version-delta.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
 const PROJECT_DIR = process.cwd();
@@ -67,6 +66,31 @@ async function cleanupHandoffs(dir: string, keep = 20): Promise<void> {
     await Promise.all(toDrop.map((m) => unlink(m.full).catch(() => {})));
   };
   await Promise.all([prune(/^handoff_.*\.json$/), prune(/^handoff_.*\.md$/)]);
+}
+
+// ~/.claude/session-titles/ gains one .flag file per titled session (written
+// by session-title.ts) and otherwise grows unboundedly. Prune flags older
+// than maxAgeDays — same mtime pattern as cleanupHandoffs, fail-soft.
+async function pruneSessionTitles(dir: string, maxAgeDays = 30): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return;
+  }
+  const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  await Promise.all(
+    entries.map(async (name) => {
+      if (!name.endsWith(".flag")) return;
+      const full = join(dir, name);
+      try {
+        const st = await stat(full);
+        if (st.mtimeMs < cutoffMs) await unlink(full);
+      } catch {
+        // ignore
+      }
+    }),
+  );
 }
 
 async function startTldrDaemon(): Promise<void> {
@@ -170,6 +194,7 @@ const logRotations = [
   rotateLog(join(CLAUDE_DIR, "logs", "tool-failures.log")),
 ];
 const handoffCleanup = cleanupHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
+const sessionTitlePrune = pruneSessionTitles(join(CLAUDE_DIR, "session-titles"), 30);
 
 // --- Phase 2: wait for sessions.log rotation, then log session start ------
 
@@ -185,7 +210,7 @@ await autoWarmTldr();
 
 // --- Phase 4: wait for remaining background tasks ------------------------
 
-await Promise.all([...logRotations.slice(1), handoffCleanup]);
+await Promise.all([...logRotations.slice(1), handoffCleanup, sessionTitlePrune]);
 
 // --- Phase 5: display output ----------------------------------------------
 

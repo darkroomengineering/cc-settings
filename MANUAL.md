@@ -77,7 +77,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"how do I use react-router loaders?"* | Context7 MCP — fetches current docs (always before adding new deps) |
 | *"ship it"* / *"create a PR"* | `/ship` — typecheck → build → test → lint → review → commit → PR |
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
-| *"audit my recent activity"* | `bun ~/.claude/src/scripts/claude-audit.ts` — analyzes Bash command logs |
+| *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
 
 **4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 34 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
@@ -300,7 +300,7 @@ Both satus and novus starters ship Lenis pre-wired — no setup needed for Darkr
 ### Audit Bash Logs
 
 ```bash
-bun ~/.claude/src/scripts/claude-audit.ts
+bun run claude-audit
 ```
 
 Analyzes Claude's Bash command logs — categories, repeats, security signals.

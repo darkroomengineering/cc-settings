@@ -7,18 +7,25 @@
 //   handoff.ts resume [id]
 //   handoff.ts list
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, readlink, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import {
+  listArtifacts,
+  pointLatest,
+  readLatestTarget,
+  resolveArtifact,
+  timestampId,
+} from "../lib/artifact-store.ts";
 import { runGit } from "../lib/git.ts";
-import { pad } from "../lib/platform.ts";
 
 const HANDOFF_DIR = join(homedir(), ".claude", "handoffs");
 
-function timestamp(d: Date = new Date()): string {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-}
+const RESOLVE_SPEC = {
+  latestLink: "latest.md",
+  idToName: (id: string) => `handoff_${id}.md`,
+};
 
 async function cmdCreate(args: string[]): Promise<void> {
   const flagIdx = args.findIndex((a) => a === "--summary" || a === "--message" || a === "-m");
@@ -49,7 +56,7 @@ async function cmdCreate(args: string[]): Promise<void> {
     }
   }
 
-  const ts = timestamp();
+  const ts = timestampId("", "_");
   const handoffJson = join(HANDOFF_DIR, `handoff_${ts}.json`);
   const handoffMd = join(HANDOFF_DIR, `handoff_${ts}.md`);
   const projectDir = process.cwd();
@@ -107,16 +114,10 @@ ${summary || "<!-- Add summary of what was accomplished -->"}
 `;
   await writeFile(handoffMd, md);
 
-  const symlinks = [
-    [join(HANDOFF_DIR, "latest.json"), basename(handoffJson)],
-    [join(HANDOFF_DIR, "latest.md"), basename(handoffMd)],
-  ] as const;
-  await Promise.all(
-    symlinks.map(async ([sym, target]) => {
-      await unlink(sym).catch(() => {});
-      await symlink(target, sym);
-    }),
-  );
+  await Promise.all([
+    pointLatest(HANDOFF_DIR, handoffJson, "latest.json"),
+    pointLatest(HANDOFF_DIR, handoffMd, "latest.md"),
+  ]);
 
   console.log("");
   console.log("HANDOFF CREATED");
@@ -134,36 +135,23 @@ ${summary || "<!-- Add summary of what was accomplished -->"}
 }
 
 async function cmdResume(id: string): Promise<number> {
-  if (!id) {
-    const latestMd = join(HANDOFF_DIR, "latest.md");
-    if (!existsSync(latestMd)) {
-      console.log("");
+  const file = await resolveArtifact(HANDOFF_DIR, id, RESOLVE_SPEC);
+  if (!file) {
+    console.log("");
+    if (id) {
+      console.log("HANDOFF NOT FOUND");
+      console.log("------------------------------------");
+      console.log(`Handoff '${id}' not found.`);
+    } else {
       console.log("NO HANDOFF FOUND");
       console.log("------------------------------------");
       console.log("No previous handoff found.");
-      console.log("------------------------------------");
-      return 1;
     }
-    console.log("");
-    console.log("RESUMING LATEST SESSION");
-    console.log("------------------------------------");
-    console.log("");
-    console.log(readFileSync(latestMd, "utf8"));
-    console.log("");
-    console.log("------------------------------------");
-    return 0;
-  }
-  const file = join(HANDOFF_DIR, `handoff_${id}.md`);
-  if (!existsSync(file)) {
-    console.log("");
-    console.log("HANDOFF NOT FOUND");
-    console.log("------------------------------------");
-    console.log(`Handoff '${id}' not found.`);
     console.log("------------------------------------");
     return 1;
   }
   console.log("");
-  console.log(`RESUMING SESSION: ${id}`);
+  console.log(id ? `RESUMING SESSION: ${id}` : "RESUMING LATEST SESSION");
   console.log("------------------------------------");
   console.log("");
   console.log(readFileSync(file, "utf8"));
@@ -183,15 +171,8 @@ async function cmdList(): Promise<void> {
     console.log("------------------------------------");
     return;
   }
-  let latestTarget = "";
-  try {
-    latestTarget = await readlink(join(HANDOFF_DIR, "latest.md"));
-  } catch {
-    // ignore
-  }
-  const entries = readdirSync(HANDOFF_DIR)
-    .filter((e) => /^handoff_.*\.md$/.test(e))
-    .sort();
+  const latestTarget = await readLatestTarget(HANDOFF_DIR, "latest.md");
+  const entries = await listArtifacts(HANDOFF_DIR, /^handoff_.*\.md$/);
   for (const entry of entries) {
     const full = join(HANDOFF_DIR, entry);
     const id = entry.replace(/^handoff_|\.md$/g, "");
