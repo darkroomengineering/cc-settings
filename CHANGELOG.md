@@ -64,6 +64,21 @@ Whole-codebase `/nuclear-review` audit pass (June 2026): ~1,100 lines of dead or
 - `stop-summary` wording now says what it measures (working-tree modified files, not "session touched").
 - `MANUAL.md` no longer references the nonexistent `web-vitals` rule; `@inquirer/confirm` bumped 6.1.0 → 6.1.1.
 
+## [11.23.1] — 2026-06-10
+
+Manifest-only sync with Claude Code **v2.1.170**. No schema, config, hook, or doc changes.
+
+**Adopted:** nothing — v2.1.170's headline (Claude Fable 5 GA) was already adopted in cc-settings 11.23.0 (default model, agent schema alias, docs).
+
+**Skipped:**
+- Fable 5 announcement bullets — already adopted (see 11.23.0).
+- Fix for sessions launched from the VS Code integrated terminal not saving transcripts / appearing in `--resume` — upstream bug fix, no cc-settings surface.
+
+**Files changed:**
+- `upstream/claude-code-manifest.json` (claudeCodeVersion 2.1.169 → 2.1.170, lastScan 2026-06-10)
+- `src/setup.ts` (VERSION 11.23.0 → 11.23.1)
+- `CHANGELOG.md`
+
 ## [11.23.0] — 2026-06-09
 
 Adopts **Claude Fable 5** (`claude-fable-5`) — Anthropic's new top tier above Opus, tuned for agentic/software-engineering work — as the cc-settings default model.
