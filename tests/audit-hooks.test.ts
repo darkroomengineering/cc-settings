@@ -168,6 +168,33 @@ describe("classifyHookCommand — shipped pattern vs install manifest", () => {
     );
     expect(r.severity).not.toBe("trusted");
   });
+
+  test("verified command with a newline-chained second command is not trusted", () => {
+    // `\s` treats `\n` as an arg separator but the shell treats it as a
+    // command separator — a word-only path token on the next line must not
+    // ride the shipped-pattern match to trusted.
+    const r = classifyHookCommand(
+      'bun "$HOME/.claude/src/hooks/safety-net.ts"\n/Users/victim/.cache/evilbin',
+      integrityOf({ "hooks/safety-net.ts": true }),
+    );
+    expect(r.severity).not.toBe("trusted");
+  });
+
+  test("verified command with a CRLF-chained second command is not trusted", () => {
+    const r = classifyHookCommand(
+      'bun "$HOME/.claude/src/hooks/safety-net.ts"\r\nbun /Users/victim/.cache/evil.ts',
+      integrityOf({ "hooks/safety-net.ts": true }),
+    );
+    expect(r.severity).not.toBe("trusted");
+  });
+
+  test("newline-chained pair of verified shipped commands verifies per-part", () => {
+    const r = classifyHookCommand(
+      'bun "$HOME/.claude/src/scripts/session-start.ts"\nbun "$HOME/.claude/src/scripts/handoff.ts" create',
+      integrityOf({ "scripts/session-start.ts": true, "scripts/handoff.ts": true }),
+    );
+    expect(r.severity).toBe("trusted");
+  });
 });
 
 describe("classifyHookCommand — suspicious malware patterns", () => {
