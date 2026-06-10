@@ -12,10 +12,14 @@
 //                path-based: a path-shaped match alone proves nothing, since
 //                malware can drop ~/.claude/src/hooks/evil.ts or patch a
 //                shipped script in place (see SECURITY.md).
+//   stale      — matches the shipped pattern, but the script file no longer
+//                exists on disk. Leftover from a hook rename/removal in a past
+//                cc-settings release. Harmless but noisy; re-run setup.sh.
 //   suspicious — matches a high-confidence malware signature (curl|wget piping
 //                to a shell, base64 decode + exec, eval, /tmp/ exec, node/python
 //                -e or -c, long single-line opaque commands), OR is path-shaped
-//                but fails content verification against the install manifest.
+//                and the file EXISTS on disk but fails content verification
+//                against the install manifest (possible dropped/patched payload).
 //   unknown    — neither. User-added custom hooks land here, as do shipped-
 //                pattern commands when no install manifest exists (pre-manifest
 //                install). They're not inherently bad; they just haven't been
@@ -23,7 +27,7 @@
 //
 // Exit code policy (CLI):
 //   suspicious findings → exit 1
-//   only unknown findings → exit 0, but surface for review
+//   stale-only or unknown-only findings → exit 0, but surface for review
 //   nothing found → exit 0
 
 import { existsSync } from "node:fs";
@@ -34,7 +38,7 @@ import type { Hook, HookGroup } from "../schemas/hooks.ts";
 import { HooksBlock } from "../schemas/hooks.ts";
 import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
 
-export type HookSeverity = "trusted" | "unknown" | "suspicious";
+export type HookSeverity = "trusted" | "unknown" | "stale" | "suspicious";
 
 export interface HookFinding {
   event: string;
@@ -56,9 +60,13 @@ export interface AuditResult {
 /** Content-integrity view consumed by the classifier: rel path under
  *  ~/.claude/src → does the on-disk content hash match the install manifest?
  *  `null`/absent means no manifest exists — classification degrades to
- *  "unknown" for shipped-pattern commands rather than trusting path shape. */
+ *  "unknown" for shipped-pattern commands rather than trusting path shape.
+ *  `fileExists` answers whether a given rel path is currently present on disk
+ *  (independent of the manifest), used to distinguish stale entries (file gone)
+ *  from dropped-payload entries (file exists but isn't manifested). */
 export interface SrcIntegrity {
   files: Map<string, boolean>;
+  fileExists: (rel: string) => boolean;
 }
 
 /** Build the SrcIntegrity view: every manifested file, hashed on disk and
@@ -73,7 +81,7 @@ export async function loadSrcIntegrity(claudeDir?: string): Promise<SrcIntegrity
     for (const [rel, expected] of Object.entries(manifest.files)) {
       files.set(rel, (await hashFileOrNull(join(dir, "src", rel))) === expected);
     }
-    return { files };
+    return { files, fileExists: (rel) => existsSync(join(dir, "src", rel)) };
   } catch {
     return null;
   }
@@ -107,6 +115,14 @@ function classifyShippedPath(
   }
   const verified = integrity.files.get(rel);
   if (verified === undefined) {
+    if (!integrity.fileExists(rel)) {
+      return {
+        severity: "stale",
+        reasons: [
+          `src/${rel}: references a cc-settings script that no longer exists on disk — stale entry from a hook rename/removal; re-run setup.sh to prune it`,
+        ],
+      };
+    }
     return {
       severity: "suspicious",
       reasons: [`src/${rel}: file not in install manifest (possible dropped payload)`],
@@ -143,6 +159,10 @@ function classifyCompound(
   const suspicious = results.filter((r) => r.severity === "suspicious");
   if (suspicious.length > 0) {
     return { severity: "suspicious", reasons: suspicious.flatMap((r) => r.reasons) };
+  }
+  const staleResults = results.filter((r) => r.severity === "stale");
+  if (staleResults.length > 0) {
+    return { severity: "stale", reasons: staleResults.flatMap((r) => r.reasons) };
   }
   if (results.some((r) => r.severity === "unknown")) {
     return {
@@ -342,6 +362,10 @@ export function hasUnknown(result: AuditResult): boolean {
   return result.findings.some((f) => f.severity === "unknown");
 }
 
+export function hasStale(result: AuditResult): boolean {
+  return result.findings.some((f) => f.severity === "stale");
+}
+
 export function formatAuditReport(result: AuditResult): string {
   if (!result.exists) {
     return `No settings.json at ${result.settingsPath} — nothing to audit.`;
@@ -354,6 +378,7 @@ export function formatAuditReport(result: AuditResult): string {
 
   const grouped: Record<HookSeverity, HookFinding[]> = {
     suspicious: [],
+    stale: [],
     unknown: [],
     trusted: [],
   };
@@ -368,6 +393,17 @@ export function formatAuditReport(result: AuditResult): string {
     lines.push("");
   }
 
+  if (grouped.stale.length > 0) {
+    lines.push(`⚠ STALE (${grouped.stale.length}) — leftovers from cc-settings hook renames:`);
+    for (const f of grouped.stale) {
+      lines.push(`  [${f.event}] ${f.command}`);
+    }
+    lines.push(
+      "  Stale entries are harmless but noisy. Re-run setup.sh to prune them and refresh the fingerprint.",
+    );
+    lines.push("");
+  }
+
   if (grouped.unknown.length > 0) {
     lines.push(`⚠ UNKNOWN (${grouped.unknown.length}) — review manually:`);
     for (const f of grouped.unknown) {
@@ -377,7 +413,7 @@ export function formatAuditReport(result: AuditResult): string {
   }
 
   lines.push(
-    `Summary: ${grouped.trusted.length} trusted, ${grouped.unknown.length} unknown, ${grouped.suspicious.length} suspicious.`,
+    `Summary: ${grouped.trusted.length} trusted, ${grouped.stale.length} stale, ${grouped.unknown.length} unknown, ${grouped.suspicious.length} suspicious.`,
   );
 
   if (grouped.suspicious.length > 0) {

@@ -18,6 +18,7 @@ import {
   classifyHookCommand,
   formatAuditReport,
   HOOKS_SCHEMA_VALIDATION_FAILED,
+  hasStale,
   hasSuspicious,
   hasUnknown,
   loadSrcIntegrity,
@@ -25,8 +26,18 @@ import {
 } from "../src/lib/audit-hooks.ts";
 import { writeSrcManifest } from "../src/lib/hooks-fingerprint.ts";
 
-function integrityOf(entries: Record<string, boolean>): SrcIntegrity {
-  return { files: new Map(Object.entries(entries)) };
+/**
+ * Build a SrcIntegrity from a manifest entries map.
+ * @param entries  rel → verified (true = hash matches, false = hash differs)
+ * @param existingFiles  rel paths that exist on disk (default: all manifest keys)
+ */
+function integrityOf(entries: Record<string, boolean>, existingFiles?: string[]): SrcIntegrity {
+  const manifestKeys = Object.keys(entries);
+  const existSet = new Set(existingFiles ?? manifestKeys);
+  return {
+    files: new Map(Object.entries(entries)),
+    fileExists: (rel) => existSet.has(rel),
+  };
 }
 
 /** Write real files under claudeDir/src and a matching install manifest. */
@@ -68,12 +79,52 @@ describe("classifyHookCommand — shipped pattern vs install manifest", () => {
   });
 
   test("suspicious when the file is missing from the manifest (dropped payload)", () => {
+    // evil.ts EXISTS on disk but is not in the manifest — true dropped payload.
     const r = classifyHookCommand(
       'bun "$HOME/.claude/src/hooks/evil.ts"',
-      integrityOf({ "hooks/safety-net.ts": true }),
+      integrityOf({ "hooks/safety-net.ts": true }, ["hooks/safety-net.ts", "hooks/evil.ts"]),
     );
     expect(r.severity).toBe("suspicious");
     expect(r.reasons.join(" ")).toMatch(/not in install manifest/);
+  });
+
+  test("stale when the file no longer exists on disk (hook rename/removal)", () => {
+    // parallelmax-nudge.ts was renamed to tool-cadence.ts — the file is gone.
+    const r = classifyHookCommand(
+      'bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"',
+      integrityOf({ "hooks/tool-cadence.ts": true }, ["hooks/tool-cadence.ts"]),
+    );
+    expect(r.severity).toBe("stale");
+    expect(r.reasons.join(" ")).toMatch(/re-run setup/);
+  });
+
+  test("stale findings alone do not make hasSuspicious return true", () => {
+    const settings = {
+      hooks: {
+        PostToolUse: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: 'bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"',
+              },
+            ],
+          },
+        ],
+      },
+    };
+    // Integrity has the new tool-cadence.ts but not the old parallelmax-nudge.ts.
+    const integrity = integrityOf({ "hooks/tool-cadence.ts": true }, ["hooks/tool-cadence.ts"]);
+    const findings = auditHooks(settings, integrity);
+    const fakeResult = {
+      settingsPath: "/fake/settings.json",
+      exists: true,
+      totalHooks: findings.length,
+      findings,
+    };
+    expect(findings[0]?.severity).toBe("stale");
+    expect(hasSuspicious(fakeResult)).toBe(false);
+    expect(hasStale(fakeResult)).toBe(true);
   });
 
   test("suspicious when the file hash differs from the manifest (patched payload)", () => {
@@ -102,10 +153,14 @@ describe("classifyHookCommand — shipped pattern vs install manifest", () => {
     expect(r.severity).toBe("trusted");
   });
 
-  test("compound is suspicious when one part fails verification", () => {
+  test("compound is suspicious when one part fails verification (file exists but not in manifest)", () => {
+    // evil.ts EXISTS on disk but is not in the manifest — dropped payload scenario.
     const r = classifyHookCommand(
       'bun "$HOME/.claude/src/scripts/session-start.ts"; bun "$HOME/.claude/src/scripts/evil.ts"',
-      integrityOf({ "scripts/session-start.ts": true }),
+      integrityOf({ "scripts/session-start.ts": true }, [
+        "scripts/session-start.ts",
+        "scripts/evil.ts",
+      ]),
     );
     expect(r.severity).toBe("suspicious");
     expect(r.reasons.join(" ")).toMatch(/evil\.ts/);
@@ -291,6 +346,63 @@ describe("loadSrcIntegrity", () => {
       expect(integrity?.files.get("hooks/ok.ts")).toBe(true);
       expect(integrity?.files.get("hooks/patched.ts")).toBe(false);
       expect(integrity?.files.get("hooks/deleted.ts")).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("fileExists returns false for a file absent from disk (stale detection)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-audit-int-"));
+    try {
+      // Seed manifest with tool-cadence.ts (the rename target), but settings.json
+      // references parallelmax-nudge.ts which was removed and is not on disk.
+      await seedManifest(dir, { "hooks/tool-cadence.ts": "// new\n" });
+      const integrity = await loadSrcIntegrity(dir);
+      // tool-cadence.ts exists and is manifested
+      expect(integrity?.fileExists("hooks/tool-cadence.ts")).toBe(true);
+      // parallelmax-nudge.ts does not exist on disk at all
+      expect(integrity?.fileExists("hooks/parallelmax-nudge.ts")).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("auditSettingsFile — stale hook detection", () => {
+  test("settings.json referencing parallelmax-nudge.ts (absent from disk) yields stale, not suspicious", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-audit-stale-"));
+    try {
+      // Only ship tool-cadence.ts in the manifest — parallelmax-nudge.ts is gone.
+      await seedManifest(dir, { "hooks/tool-cadence.ts": "// merged\n" });
+      const path = join(dir, "settings.json");
+      await writeFile(
+        path,
+        JSON.stringify({
+          hooks: {
+            PostToolUse: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: 'bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"',
+                  },
+                  {
+                    type: "command",
+                    command: 'bun "$HOME/.claude/src/hooks/tool-cadence.ts"',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      const result = await auditSettingsFile(path, dir);
+      const staleFindings = result.findings.filter((f) => f.severity === "stale");
+      const suspiciousFindings = result.findings.filter((f) => f.severity === "suspicious");
+      expect(staleFindings).toHaveLength(1);
+      expect(staleFindings[0]?.command).toContain("parallelmax-nudge.ts");
+      expect(suspiciousFindings).toHaveLength(0);
+      expect(hasSuspicious(result)).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
