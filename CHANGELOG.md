@@ -6,6 +6,14 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+### Delegation guidance — high-agency heuristic (issue #44)
+
+- **`CLAUDE-FULL.md`**: replaced the "repeated nag" MUST/SHOULD list with a per-decision heuristic table (3+ files / 10+ calls / security-sensitive → delegate, route by shape; NO → act directly). Four closing rules replace the old enforcement list; the briefing-contract blockquote is preserved verbatim.
+- **`src/hooks/tool-cadence.ts` (parallelmax branch)**: one nudge per streak (fires at 12+ calls OR 3+ distinct files edited, whichever comes first), followed by one escalation (soft block via `continueOnBlock`) if the streak continues past the reminder. Net: at most 2 signals per streak, down from one every 12 calls indefinitely. State tracks `files`, `nudged`, `countAtNudge`, `filesAtNudge`, `escalated`; old-shape state files handled with defensive defaults.
+- **`config/40-hooks.json`**: `continueOnBlock: true` on the tool-cadence PostToolUse hook so the escalation block surfaces as a hard-to-ignore signal without aborting the turn.
+- **`src/hooks/delegation-detector.ts`**: message compressed — single-line format with score, matched signals, and routing guide; overriding requires a stated reason.
+
+
 ### Cost tuning — "explore/execute cheap, decide on Fable"
 
 Fable stays the session default and the tier for judgment agents, but the high-volume read/execute agents move off it, since they were the bulk of the burn (each subagent re-reads the repo, and on a Fable session the inheriting agents all ran Fable).

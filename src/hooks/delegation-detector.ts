@@ -56,13 +56,11 @@ async function main(): Promise<void> {
 
   if (score < 2) return;
 
-  const reasonList = reasons.map((r) => `  • ${r}`).join("\n");
   const msg =
-    `Breadth signals detected in this prompt (score ${score}):\n${reasonList}\n\n` +
-    `This prompt likely spans multiple files or requires parallel workstreams. ` +
-    `Per CLAUDE.md delegation rules: use Agent(maestro) for full-feature orchestration, ` +
-    `Agent(implementer) for multi-file implementation, or spawn multiple parallel agents ` +
-    `in a SINGLE message. Do not self-execute tasks that trigger the 3+ file or 10+ tool-call thresholds.`;
+    `Breadth signals in this prompt (score ${score}): ${reasons.join("; ")}. ` +
+    `Likely 3+ files / parallel workstreams — per CLAUDE.md: route to Agent(maestro) for orchestration, ` +
+    `Agent(implementer) for multi-file changes, or parallel agents in ONE message. ` +
+    `Overriding requires a one-line stated reason.`;
 
   console.log(
     JSON.stringify({
