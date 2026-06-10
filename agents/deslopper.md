@@ -1,6 +1,6 @@
 ---
 name: deslopper
-model: inherit
+model: sonnet
 description: |
   Code cleanup agent that suggests improvements and auto-removes dead code only.
   Reviews codebase for consolidation opportunities, reports findings for approval.
