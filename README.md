@@ -18,15 +18,21 @@ Claude Code configuration for the Darkroom team — installs agents, skills, hoo
 
 ## Install
 
-```bash
-# macOS / Linux
-bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
+**macOS / Linux:**
 
-# Windows (PowerShell)
-.\setup.ps1
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
 ```
 
-Requires [Bun](https://bun.sh) ≥ 1.1.30 — the bootstrap installs it automatically if missing. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
+**Windows (PowerShell):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
+```
+
+Both one-liners clone the repo and run the installer. To pass flags (`--light`, `--dry-run`, …), clone first and run the bootstrap from the checkout: `bash setup.sh --light` or `.\setup.ps1 --light`.
+
+Requires [Bun](https://bun.sh) ≥ 1.1.30 and git — the bootstrap installs Bun automatically if missing. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
 
 Restart Claude Code after install.
 
@@ -35,7 +41,8 @@ Restart Claude Code after install.
 New to Claude Code and don't want the full surface? Install the **light** profile — raw Claude Code with only two additions: the statusline and the `share-learning` skill.
 
 ```bash
-bash setup.sh --light
+bash setup.sh --light    # macOS / Linux
+.\setup.ps1 --light      # Windows (PowerShell)
 ```
 
 No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the statusline), or effort overrides — just vanilla Claude Code so you're not overwhelmed. Re-run `bash setup.sh` without `--light` any time to upgrade to the full config; both tiers are permanently supported. See [MANUAL.md](MANUAL.md#light-vs-full) for the full comparison.

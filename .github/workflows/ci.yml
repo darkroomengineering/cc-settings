@@ -85,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -102,9 +102,8 @@ jobs:
     # the planned actions without writing — enough to validate setup.sh
     # parses and dispatches correctly.
     #
-    # Linux + macOS only. Windows users go through setup.ps1, which has
-    # its own (currently untested) bootstrap; that gap is documented in
-    # docs/migration-coexistence.md.
+    # Linux + macOS only. Windows goes through setup.ps1, smoke-tested by
+    # the install-ps1-bootstrap job below.
     strategy:
       fail-fast: false
       matrix:
@@ -121,4 +120,27 @@ jobs:
         env:
           # Use the runner's HOME so we don't accidentally pollute it with
           # cc-settings artifacts (--dry-run wouldn't, but defense-in-depth).
+          CC_SKIP_DEPS: "1"
+
+  install-ps1-bootstrap:
+    # Smoke test setup.ps1's bootstrap path (PowerShell mirror of setup.sh):
+    # validates it resolves the repo dir, finds Bun, installs deps, and
+    # dispatches to src/setup.ts. --dry-run prints planned actions only.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ">=1.1.30"
+      - run: bun install --frozen-lockfile
+      - name: setup.ps1 --dry-run (pwsh)
+        run: .\setup.ps1 --dry-run
+        env:
+          CC_SKIP_DEPS: "1"
+      - name: setup.ps1 --dry-run (Windows PowerShell 5.1)
+        # The default shell on most Windows boxes is still powershell.exe —
+        # run the bootstrap there too so PS-5.1-only breakage gets caught.
+        run: powershell -ExecutionPolicy Bypass -File setup.ps1 --dry-run
+        shell: cmd
+        env:
           CC_SKIP_DEPS: "1"

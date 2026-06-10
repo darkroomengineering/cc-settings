@@ -6,6 +6,7 @@
 #   3. exec `bun "$REPO/src/setup.ts" --source="$REPO" "$@"`.
 #
 # Flags (all forwarded to src/setup.ts):
+#   --light           light tier: raw CC + statusline + share-learning only
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
 #   --dry-run         print planned actions only
 #   --interactive     prompt on settings.json conflicts (also: CC_INTERACTIVE=1)
