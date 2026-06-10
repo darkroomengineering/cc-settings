@@ -63,7 +63,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.23.0"; // adopt Claude Fable 5 as default model + deep-reasoning agent tier (temporary CLAUDE_CODE_SUBAGENT_MODEL boost through 2026-06-21)
+const VERSION = "11.23.1"; // manifest sync with Claude Code v2.1.170 (Fable 5 GA — already adopted in 11.23.0)
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
