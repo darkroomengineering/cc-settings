@@ -36,7 +36,11 @@ import {
   shouldNudge,
 } from "../lib/review-queue.ts";
 
-const THRESHOLD = 8;
+// Consecutive non-Agent tool calls before the delegation nudge fires.
+// Env-overridable (CC_PARALLELMAX_THRESHOLD); default 12 — high enough that
+// routine multi-step edits don't trip it, low enough to catch genuine
+// "should have fanned out" runs.
+const THRESHOLD = Number(process.env.CC_PARALLELMAX_THRESHOLD) || 12;
 const DEBOUNCE_MS = 60_000;
 const COUNTER_STATE = "parallelmax-counter.json";
 const QUEUE_STATE = "review-queue.json";

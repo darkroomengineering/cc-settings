@@ -60,7 +60,7 @@ For full orchestration mode, activate `profiles/maestro.md`. Model routing per a
 
 ## Effort & Context
 
-**Effort levels** — `low`, `medium`, `high`, `xhigh`, `max`. Default `xhigh` (pinned via `CLAUDE_CODE_EFFORT_LEVEL` in settings.json — guard against silent downgrades). Per-session: `/effort`. Per-agent: `effort` frontmatter.
+**Effort levels** — `low`, `medium`, `high`, `xhigh`, `max`. Default `high` (pinned via `CLAUDE_CODE_EFFORT_LEVEL` in settings.json — matches Anthropic's 4.8 default; a deliberate cost choice over the old `xhigh` pin). Per-session: `/effort xhigh` for deep work; `ultrathink` keyword for one-turn max depth. Per-agent: `effort` frontmatter.
 
 - `low` — trivial lookups, latency-sensitive
 - `medium` — routine edits where depth isn't required
@@ -68,11 +68,11 @@ For full orchestration mode, activate `profiles/maestro.md`. Model routing per a
 - `max` — extreme cases only; often overthinks
 - `ultracode` — session-only; `xhigh` reasoning plus automatic [dynamic workflow](https://code.claude.com/docs/en/workflows) orchestration. Useful for codebase audits, large migrations, deep research. Set via `/effort ultracode`. Resets on session end. Requires Claude Code v2.1.154+.
 
-**4.8 calibration**: default effort dropped to `high` (was `xhigh` on 4.7). cc-settings pins `xhigh` via `CLAUDE_CODE_EFFORT_LEVEL` so behavior is preserved — but the `xhigh` ladder allocates more thinking tokens on 4.8 than on 4.7 (per-model calibration; see [model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)). At `low`/`medium` the model still scopes strictly and may under-think. Raise effort rather than prompting around shallow reasoning. Use `ultrathink` keyword for one-turn maximum depth on hard multi-file debugging.
+**4.8/Fable calibration**: Anthropic's 4.8 default effort is `high` (was `xhigh` on 4.7). cc-settings now pins `high` too — the `xhigh` ladder allocates materially more thinking tokens per turn on 4.8/Fable (per-model calibration; see [model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)), and on a Fable session that cost compounds across every inheriting agent. `high` is the cost-conscious default; raise to `/effort xhigh` per-session for audits/migrations/hard debugging, or use the `ultrathink` keyword for a single deep turn. At `low`/`medium` the model scopes strictly and may under-think — reach for `xhigh`, not prompt workarounds, when depth is missing.
 
 **Context window** — 1M tokens default on Max. Subagents inherit. The cc-settings default model is `fable` (Claude Fable 5), 1M-native so no pin is needed; `opus[1m]` / `sonnet[1m]` pin the 1M variant of those tiers.
 
-- **Manual `/compact` at 65%** — Opus 4.7/4.8's tokenizer is ~1-1.35x heavier per text vs 4.6 (was 70% on 4.6); on 4.8, `xhigh` also allocates more thinking tokens per turn, so context burns faster. Auto-compaction triggers at 95%; don't wait for it.
+- **Manual `/compact` at 65%** — Opus 4.7/4.8's tokenizer is ~1-1.35x heavier per text vs 4.6 (was 70% on 4.6), so context burns faster. Auto-compaction triggers at 95%; don't wait for it. The prompt cache has a 5-minute TTL — idling past it re-ingests the whole window at full price, so `/clear` between unrelated tasks and `/handoff` instead of marathon sessions both save real tokens on long 1M contexts.
 - **Break subtasks to complete within 45%** — conservative budget for 4.7/4.8 tokenization. Prevents context rot mid-task.
 - **After compaction**: re-read task plan + active files (see AGENTS.md "Post-Compaction Recovery").
 

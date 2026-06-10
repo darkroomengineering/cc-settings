@@ -1,9 +1,9 @@
 {
 	"$schema": "https://json.schemastore.org/claude-code-settings.json",
 	"env": {
-		"CLAUDE_CODE_EFFORT_LEVEL": "xhigh",
+		"CLAUDE_CODE_EFFORT_LEVEL": "high",
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
-		"CLAUDE_CODE_SUBAGENT_MODEL": "fable",
+		"CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
 		"CLAUDE_CODE_NO_FLICKER": "1",
 		"CLAUDE_CODE_SCRIPT_CAPS": "500",
 		"ENABLE_PROMPT_CACHING_1H": "1",
@@ -12,7 +12,8 @@
 		"CC_CLAUDE_MD_WARN_LINES": "400",
 		"CC_CLAUDE_MD_CRITICAL_LINES": "600",
 		"CC_MAX_UNREVIEWED": "5",
-		"CC_MIN_REVIEW_SECONDS": "60"
+		"CC_MIN_REVIEW_SECONDS": "60",
+		"CC_PARALLELMAX_THRESHOLD": "12"
 	},
 	"sandbox": {
 		"failIfUnavailable": false

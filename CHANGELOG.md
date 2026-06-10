@@ -6,6 +6,16 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+### Cost tuning — "explore/execute cheap, decide on Fable"
+
+Fable stays the session default and the tier for judgment agents, but the high-volume read/execute agents move off it, since they were the bulk of the burn (each subagent re-reads the repo, and on a Fable session the inheriting agents all ran Fable).
+
+- **Per-agent routing** (`agents/*.md`, `docs/agent-models.md`): `explore` and `deslopper` `inherit`→`sonnet` (they rode Fable on every Fable session); `implementer` `fable`→`opus` (biggest single consumer; Opus lands clean code at ~half the cost and was the pre-Fable workhorse); `security-reviewer` `fable`→`opus` (Fable's safety classifier routes security content to Opus anyway — pin it rather than pay Fable and get downgraded). `maestro`/`planner`/`reviewer`/`oracle` stay Fable.
+- **Teammate fan-out** (`CLAUDE_CODE_SUBAGENT_MODEL` in `config/10-core.json`): `fable`→`sonnet`, the planned steady state, applied early (was scheduled for 2026-06-21).
+- **Effort pin** (`CLAUDE_CODE_EFFORT_LEVEL`): `xhigh`→`high` — Anthropic's 4.8 default, a deliberate cost choice. The `xhigh` ladder allocates materially more thinking tokens per turn on 4.8/Fable and that compounds across inheriting agents. Escape hatches: `/effort xhigh` per session, `ultrathink` per turn. `CLAUDE-FULL.md` Effort section updated.
+- **Delegation nudge** (`src/hooks/tool-cadence.ts`): consecutive-non-Agent threshold `8`→`12`, now env-overridable via `CC_PARALLELMAX_THRESHOLD` — routine multi-step edits no longer trip the "should have delegated" reminder (delegating spawns a fresh agent that re-reads context, so the nudge was pushing toward *more* tokens, not fewer).
+- **Rule scope** (`rules/react-perf.md`): dropped the `**/*.ts` glob so the React-only perf rule stops injecting into every TypeScript session (it was loading in non-React repos like this one); kept `**/*.tsx`/`components/`/`app/`.
+
 Whole-codebase `/nuclear-review` audit pass (June 2026): ~1,100 lines of dead or duplicated code removed, installer bash-era ceremony deleted, zod v4 idioms adopted. Behavior-preserving except where noted.
 
 ### Security
