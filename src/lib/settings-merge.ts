@@ -13,7 +13,7 @@ import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { findUserOnlyServers, promptPreserveUserServers } from "./mcp.ts";
-import { asRecord, subtractByKey, unionByKey } from "./merge-keyed.ts";
+import { asRecord, canonicalKey, subtractByKey, unionByKey, uniqueByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type StringArray = string[] | undefined;
@@ -38,6 +38,7 @@ export interface MergeAccounting {
   hooksAdded: number;
   hooksDeclined: number;
   hooksPruned: number;
+  hooksSuperseded: number;
   envUserWins: number;
   envAdoptedScalars: number;
   scalarsAdopted: number;
@@ -247,6 +248,22 @@ export function isDeprecatedHook(hook: unknown): boolean {
   return commandIsDeprecated((hook as { command?: unknown }).command);
 }
 
+// Commands of every hook in a group, for the supersede check below.
+function commandsOf(group: unknown): string[] {
+  if (!group || typeof group !== "object") return [];
+  const hooks = (group as { hooks?: unknown[] }).hooks;
+  if (!Array.isArray(hooks)) return [];
+  return hooks
+    .map((h) => (h && typeof h === "object" ? (h as { command?: unknown }).command : undefined))
+    .filter((c): c is string => typeof c === "string");
+}
+
+// cc-settings-managed hook implementations all live under ~/.claude/src/.
+// User-authored custom hooks point elsewhere (their own scripts).
+function isManagedCommand(command: string): boolean {
+  return /[/\\]\.claude[/\\]src[/\\]/.test(command);
+}
+
 // A group is deprecated only if every hook inside it is deprecated. Mixed
 // groups keep their non-deprecated hooks (we filter the inner array).
 export function pruneDeprecatedHooks(group: unknown): unknown | null {
@@ -269,14 +286,19 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
   const u = asRecord(user);
   const { opts } = ctx;
 
-  const keyOf = (g: unknown) => JSON.stringify(g);
+  // canonicalKey, not JSON.stringify: Claude Code rewrites hook entries in its
+  // own field order, and a key-order-sensitive identity made every rewritten
+  // group look user-added — one fresh duplicate per setup run. uniqueByKey on
+  // both inputs also collapses duplicates already accumulated by past installs.
+  const keyOf = canonicalKey;
   const events = new Set([...Object.keys(t), ...Object.keys(u)]);
   const merged: UnknownRecord = {};
 
   for (const ev of events) {
-    const teamGroups = Array.isArray(t[ev]) ? (t[ev] as unknown[]) : [];
-    const userGroups = Array.isArray(u[ev]) ? (u[ev] as unknown[]) : [];
+    const teamGroups = uniqueByKey(Array.isArray(t[ev]) ? (t[ev] as unknown[]) : [], keyOf);
+    const userGroups = uniqueByKey(Array.isArray(u[ev]) ? (u[ev] as unknown[]) : [], keyOf);
     const teamJson = new Set(teamGroups.map(keyOf));
+    const teamCommands = new Set(teamGroups.flatMap(commandsOf));
     const teamOnly = subtractByKey(teamGroups, userGroups, keyOf);
     const rawUserExtras = subtractByKey(userGroups, teamGroups, keyOf);
 
@@ -294,6 +316,16 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
         // provides (e.g. [stop-summary, removed-hook] → [stop-summary]). Drop it
         // rather than emit a duplicate of the team-provided group.
         if (teamJson.has(keyOf(cleaned))) continue;
+      }
+      // Supersede stale variants: when the team evolves a hook group (adds a
+      // timeout, an `if` filter, …), the old shape survives the union as a
+      // "user extra" forever. A user extra whose hooks are all cc-settings-
+      // managed scripts the team already wires for this event is that stale
+      // old shape, not a customization — the team definition supersedes it.
+      const cmds = commandsOf(cleaned);
+      if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamCommands.has(c))) {
+        ctx.accounting.hooksSuperseded++;
+        continue;
       }
       userExtras.push(cleaned);
     }
@@ -466,6 +498,7 @@ export async function mergeSettingsWithMcpPreservation(
       hooksAdded: 0,
       hooksDeclined: 0,
       hooksPruned: 0,
+      hooksSuperseded: 0,
       envUserWins: 0,
       envAdoptedScalars: 0,
       scalarsAdopted: 0,
@@ -498,6 +531,9 @@ export async function mergeSettingsWithMcpPreservation(
 
   if (a.hooksPruned > 0) {
     info(`Pruned ${a.hooksPruned} stale hook reference(s) pointing at removed cc-settings scripts`);
+  }
+  if (a.hooksSuperseded > 0) {
+    info(`Dropped ${a.hooksSuperseded} stale variant(s) of team-managed hook groups`);
   }
   if (a.statusLineReset) {
     info("Reset stale statusLine command (pointed at a removed cc-settings script)");

@@ -26,6 +26,7 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
     hooksAdded: 0,
     hooksDeclined: 0,
     hooksPruned: 0,
+    hooksSuperseded: 0,
     envUserWins: 0,
     envAdoptedScalars: 0,
     scalarsAdopted: 0,
@@ -139,6 +140,144 @@ describe("hooksStrategy", () => {
     expect(ctx.accounting.hooksAdded).toBe(1);
   });
 
+  test("user copy of a team group with reordered keys is not duplicated", async () => {
+    const ctx = makeCtx();
+    const team = {
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: "command",
+              command: `bun "$HOME/.claude/src/scripts/x.ts"`,
+              async: true,
+              timeout: 3,
+            },
+          ],
+        },
+      ],
+    };
+    // Same group as Claude Code re-serializes it: trailing fields reordered.
+    const user = {
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: "command",
+              command: `bun "$HOME/.claude/src/scripts/x.ts"`,
+              timeout: 3,
+              async: true,
+            },
+          ],
+        },
+      ],
+    };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const groups = (result.value as Record<string, unknown>).UserPromptSubmit as unknown[];
+    expect(groups.length).toBe(1);
+    expect(ctx.accounting.hooksAdded).toBe(0);
+  });
+
+  test("duplicate user groups collapse to one (heals prior duplication)", async () => {
+    const ctx = makeCtx();
+    const group = {
+      hooks: [
+        {
+          type: "command",
+          command: `bun "$HOME/.claude/src/scripts/x.ts"`,
+          timeout: 3,
+          async: true,
+        },
+      ],
+    };
+    const team = {
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: "command",
+              command: `bun "$HOME/.claude/src/scripts/x.ts"`,
+              async: true,
+              timeout: 3,
+            },
+          ],
+        },
+      ],
+    };
+    // An install that already accumulated 7 copies via the old key-order bug.
+    const user = { UserPromptSubmit: [group, group, group, group, group, group, group] };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const groups = (result.value as Record<string, unknown>).UserPromptSubmit as unknown[];
+    expect(groups.length).toBe(1);
+    expect(ctx.accounting.hooksAdded).toBe(0);
+  });
+
+  test("stale variant of a team-managed group is superseded by the team copy", async () => {
+    const ctx = makeCtx();
+    const team = {
+      PreToolUse: [
+        {
+          matcher: "Bash",
+          if: "Bash(git commit*)",
+          hooks: [
+            { type: "command", command: `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"` },
+          ],
+        },
+      ],
+    };
+    // Old team shape (no `if` filter) lingering from a previous install.
+    const user = {
+      PreToolUse: [
+        {
+          matcher: "Bash",
+          hooks: [
+            { type: "command", command: `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"` },
+          ],
+        },
+      ],
+    };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const groups = (result.value as Record<string, unknown>).PreToolUse as Array<
+      Record<string, unknown>
+    >;
+    expect(groups.length).toBe(1);
+    expect(groups[0]?.if).toBe("Bash(git commit*)");
+    expect(ctx.accounting.hooksSuperseded).toBe(1);
+    expect(ctx.accounting.hooksAdded).toBe(0);
+  });
+
+  test("user group wiring their own (non-managed) script is never superseded", async () => {
+    const ctx = makeCtx();
+    const team = {
+      PreToolUse: [
+        {
+          matcher: "Bash",
+          hooks: [{ type: "command", command: `bun "$HOME/.claude/src/hooks/safety-net.ts"` }],
+        },
+      ],
+    };
+    const user = {
+      PreToolUse: [
+        {
+          matcher: "Bash",
+          hooks: [{ type: "command", command: `bun "$HOME/my-scripts/audit.ts"` }],
+        },
+      ],
+    };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const groups = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+    expect(groups.length).toBe(2);
+    expect(ctx.accounting.hooksSuperseded).toBe(0);
+    expect(ctx.accounting.hooksAdded).toBe(1);
+  });
+
   test("team hook groups survive (they're not user-only)", async () => {
     const ctx = makeCtx();
     const team = {
@@ -242,7 +381,9 @@ describe("hooksStrategy", () => {
     // Both duplicates dropped; only team's group survives.
     expect(postToolUse.length).toBe(1);
     expect(JSON.stringify(postToolUse)).not.toContain("parallelmax-nudge");
-    expect(ctx.accounting.hooksPruned).toBeGreaterThanOrEqual(2);
+    // uniqueByKey collapses the duplicates before pruning, so the prune
+    // accounting sees the group once.
+    expect(ctx.accounting.hooksPruned).toBe(1);
   });
 });
 

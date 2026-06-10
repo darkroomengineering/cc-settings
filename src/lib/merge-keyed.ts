@@ -30,6 +30,43 @@ export function subtractByKey<T>(items: T[], baseline: T[], keyOf: (t: T) => str
 }
 
 /**
+ * Within-array dedup keyed by `keyOf`: first occurrence wins, order preserved.
+ * Opt-in companion to unionByKey/subtractByKey, which dedup across sides only.
+ */
+export function uniqueByKey<T>(items: T[], keyOf: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((t) => {
+    const k = keyOf(t);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/**
+ * Canonical JSON identity: stringify with object keys sorted recursively, so
+ * structurally-equal values hash identically regardless of key order. Claude
+ * Code rewrites settings.json hook entries in its own field order (e.g.
+ * `{async, timeout}` → `{timeout, async}`), so a raw JSON.stringify identity
+ * treats the rewrite as a brand-new entry — the merger then re-appends it on
+ * every install, one duplicate per setup run.
+ */
+export function canonicalKey(v: unknown): string {
+  return JSON.stringify(sortKeysDeep(v));
+}
+
+function sortKeysDeep(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(sortKeysDeep);
+  if (v !== null && typeof v === "object") {
+    const rec = v as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(rec).sort()) out[k] = sortKeysDeep(rec[k]);
+    return out;
+  }
+  return v;
+}
+
+/**
  * Coercion guard used across the installer's merge/strip paths: read a value
  * off unvalidated settings JSON as a record. Non-objects (including null and
  * undefined) degrade to an empty record instead of throwing on a bad shape;
