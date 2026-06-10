@@ -152,11 +152,11 @@ describe("gatherStatus", () => {
 
   // --- safeParse validation boundary tests ---
 
-  test("sentinel with extra unknown fields → still reads version (passthrough schema)", async () => {
+  test("sentinel with extra unknown fields → still reads version (loose schema)", async () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
-      // The VersionSentinel schema uses .passthrough() so unknown keys are
+      // The VersionSentinel schema is loose (z.looseObject) so unknown keys are
       // allowed and the known fields are still extracted correctly.
       await writeFile(
         join(claude, ".cc-settings-version"),

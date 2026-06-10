@@ -9,9 +9,8 @@
 // Fail-open: any unexpected error → exit 0. Only intentional block() calls
 // surface exit 2.
 //
-// Reads TOOL_INPUT_command from env to match the bash contract. The shadow
-// wrapper (scripts/safety-net-shadow.sh) runs both implementations for 7
-// days before cutover; see docs/migration-coexistence.md.
+// Reads TOOL_INPUT_command from env (the PreToolUse delivery contract; see
+// docs/hooks-reference.md).
 
 import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";

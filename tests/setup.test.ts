@@ -3,7 +3,7 @@
 // installSettings() is internal (not exported), so we test the validation
 // boundary it relies on: Settings.safeParse() behavior on inputs that
 // represent the range of real-world settings.json files the installer will
-// encounter. The schema is .passthrough() (not .strict()), so unknown keys
+// encounter. The schema is loose (z.looseObject), so unknown keys
 // are accepted — a real live settings.json written by Claude Code (with
 // undocumented keys like theme/enabledPlugins) now parses successfully.
 
@@ -25,8 +25,8 @@ describe("Settings.safeParse — installSettings validation boundary", () => {
     expect(result.success).toBe(true);
   });
 
-  test("unknown top-level key → success:true (passthrough tolerates undocumented CC keys)", () => {
-    // Settings uses .passthrough() — unknown keys are passed through, not rejected.
+  test("unknown top-level key → success:true (loose schema tolerates undocumented CC keys)", () => {
+    // Settings is a loose schema — unknown keys are passed through, not rejected.
     // This means a live settings.json that CC has written undocumented keys into
     // (theme, enabledPlugins, agentPushNotifEnabled) now parses successfully.
     // The installer's safeParse fallback is retained for other failures (type errors etc.).
@@ -64,7 +64,7 @@ describe("Settings.safeParse — installSettings validation boundary", () => {
   test("safeParse failure exposes issues for debug logging", () => {
     // Type errors on known fields still produce structured issues — the installer
     // logs them for debugging. Use a type violation (model must be string) rather
-    // than an unknown key, since passthrough now accepts unknown keys.
+    // than an unknown key, since the loose schema accepts unknown keys.
     const input = { model: 42 };
     const result = Settings.safeParse(input);
     expect(result.success).toBe(false);

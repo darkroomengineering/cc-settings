@@ -28,7 +28,7 @@ For UI changes, attach a screenshot (`/qa` or the chrome-devtools MCP) as the vi
 
 - A diff-producing agent (implementer, scaffolder, maestro, deslopper) **attaches a proof report before handing back**. "Done" without green proof is not done.
 - The human/reviewer spends the lock on judgment — architecture, intent, edge cases — not on re-running what the gate already proved.
-- Pairs with the review-queue: backpressure (`review-queue-nudge`) limits how many *unproven* diffs pile up; this gate makes each one cheaper to close.
+- Pairs with the review-queue: backpressure (`the review-queue branch of tool-cadence.ts`) limits how many *unproven* diffs pile up; this gate makes each one cheaper to close.
 
 ## When NOT to gate
 

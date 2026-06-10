@@ -41,9 +41,9 @@ describe("Settings schema vs the composed config/ fragments", () => {
     expect(result.success).toBe(true);
   });
 
-  // Schema is now passthrough, not strict — unknown keys are tolerated so a
+  // Schema is loose, not strict — unknown keys are tolerated so a
   // real live settings.json (which CC writes undocumented keys into) can parse.
-  test("accepts unknown top-level keys (forward-compat passthrough)", () => {
+  test("accepts unknown top-level keys (forward-compat loose schema)", () => {
     const result = Settings.safeParse({ env: {}, totallyUnknownKey: 1 });
     expect(result.success).toBe(true);
   });
@@ -63,7 +63,7 @@ describe("Settings schema vs the composed config/ fragments", () => {
     expect(unknownKeys.length).toBe(0);
   });
 
-  // Positive: new documented keys accepted under passthrough + typed fields.
+  // Positive: new documented keys accepted under the loose schema + typed fields.
   test("accepts representative new documented keys", () => {
     const result = Settings.safeParse({
       tui: "fullscreen",

@@ -31,7 +31,7 @@ Context-switching between agents is the hidden tax: every cold reload costs minu
 
 3. **Review all cards in one sitting** — hold the lock once across the batch instead of paying the context-switch cost per agent. Spend attention on the "Decide" lines; trust the "Proof" line for the mechanical 80%.
 
-4. **Commit what's good** — committing drains the review-queue (`review-queue-nudge`) and closes the loop. Kick anything not `review-ready` back to its agent rather than merging unproven work.
+4. **Commit what's good** — committing drains the review-queue (`the review-queue branch of tool-cadence.ts`) and closes the loop. Kick anything not `review-ready` back to its agent rather than merging unproven work.
 
 ## Why batch
 

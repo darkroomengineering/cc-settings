@@ -9,10 +9,10 @@
 //
 // Validation uses zod schemas:
 //   - McpServers shape from src/schemas/mcp.ts (discriminated stdio vs http).
-//   - ~/.claude.json uses passthrough (Claude-Code-owned state we don't edit).
+//   - ~/.claude.json uses a loose schema (Claude-Code-owned state we don't edit).
 //
 // Responsibilities of this file:
-//   1. MCP-from-settings extraction (readMcpFromSettings, findUserOnlyServers)
+//   1. User-only server detection (findUserOnlyServers)
 //   2. User-server preservation prompt (promptPreserveUserServers)
 //   3. ~/.claude.json installation (installMcpToClaudeJson) and removal of
 //      cc-settings-managed servers on light installs (removeManagedMcpServers)
@@ -27,7 +27,7 @@ import { ClaudeJson } from "../schemas/claude-json.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { debug, error, info, success, warn } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
-import { subtractByKey } from "./merge-keyed.ts";
+import { asRecord, subtractByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type McpServer = z.infer<typeof McpServersSchema>[string];
@@ -35,23 +35,7 @@ export type McpServers = Record<string, McpServer>;
 
 export const CLAUDE_JSON_PATH = join(homedir(), ".claude.json");
 
-// --- Settings.json MCP extraction -----------------------------------------
-
-/** Read MCP servers from a settings.json. Throws JsonParseError on bad JSON. */
-export async function readMcpFromSettings(path: string): Promise<McpServers> {
-  const raw = await readJsonOrNull(path);
-  if (raw === null || typeof raw !== "object") return {};
-  const mcp = (raw as Record<string, unknown>).mcpServers;
-  if (mcp === undefined) return {};
-  const result = McpServersSchema.safeParse(mcp);
-  if (!result.success) {
-    debug(
-      `MCP servers in ${path} failed schema validation: ${result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
-    );
-    return {};
-  }
-  return result.data;
-}
+// --- User-only server detection --------------------------------------------
 
 export function findUserOnlyServers(userServers: McpServers, teamServers: McpServers): string[] {
   return Object.keys(userServers).filter((name) => !(name in teamServers));
@@ -112,7 +96,7 @@ export async function promptPreserveUserServers(
  * (Settings.mcpServers = McpServers) and throws on failure, so no re-read or
  * re-validation happens here.
  *
- * Uses ClaudeJson (passthrough) so fields we don't know about (Claude-Code-
+ * Uses ClaudeJson (loose schema) so fields we don't know about (Claude-Code-
  * owned state) round-trip untouched.
  */
 export async function installMcpToClaudeJson(
@@ -170,19 +154,13 @@ export async function removeManagedMcpServers(
   fullComposed: Record<string, unknown>,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
 ): Promise<void> {
-  const fullMcp = (
-    fullComposed.mcpServers !== null && typeof fullComposed.mcpServers === "object"
-      ? fullComposed.mcpServers
-      : {}
-  ) as Record<string, unknown>;
+  const fullMcp = asRecord(fullComposed.mcpServers);
   if (Object.keys(fullMcp).length === 0) return;
 
   const parsed = await readJsonOrNull(claudeJsonPath);
   if (!parsed || typeof parsed !== "object") return;
   const current = parsed as Record<string, unknown>;
-  const currentMcp = (
-    current.mcpServers !== null && typeof current.mcpServers === "object" ? current.mcpServers : {}
-  ) as Record<string, unknown>;
+  const currentMcp = asRecord(current.mcpServers);
 
   // Keep only the servers that are NOT cc-settings-managed (absent from the
   // full baseline) — keyed subtraction on the server name.

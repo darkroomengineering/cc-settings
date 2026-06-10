@@ -12,7 +12,7 @@
 //   - src/setup.ts       — filters file copies, applies transform before staging
 //   - tests/light-profile.test.ts — parity guard + transform units
 
-import { subtractByKey } from "./merge-keyed.ts";
+import { asRecord, subtractByKey } from "./merge-keyed.ts";
 
 export type Profile = "full" | "light";
 
@@ -111,10 +111,7 @@ export function stripManagedSettings(
   const out = structuredClone(user) as Record<string, unknown>;
 
   // --- env ---
-  const fullEnv = (full.env !== null && typeof full.env === "object" ? full.env : {}) as Record<
-    string,
-    unknown
-  >;
+  const fullEnv = asRecord(full.env);
   if (out.env !== null && typeof out.env === "object") {
     const userEnv = out.env as Record<string, unknown>;
     for (const key of Object.keys(userEnv)) {
@@ -128,9 +125,7 @@ export function stripManagedSettings(
   }
 
   // --- permissions ---
-  const fullPerms = (
-    full.permissions !== null && typeof full.permissions === "object" ? full.permissions : {}
-  ) as Record<string, unknown>;
+  const fullPerms = asRecord(full.permissions);
   if (out.permissions !== null && typeof out.permissions === "object") {
     const userPerms = out.permissions as Record<string, unknown>;
     for (const field of ["allow", "deny", "ask", "additionalDirectories"] as const) {
@@ -153,9 +148,7 @@ export function stripManagedSettings(
   }
 
   // --- mcpServers ---
-  const fullMcp = (
-    full.mcpServers !== null && typeof full.mcpServers === "object" ? full.mcpServers : {}
-  ) as Record<string, unknown>;
+  const fullMcp = asRecord(full.mcpServers);
   if (out.mcpServers !== null && typeof out.mcpServers === "object") {
     const userMcp = out.mcpServers as Record<string, unknown>;
     // Keyed subtraction on the server name: any key present in the full
@@ -184,9 +177,7 @@ export function stripManagedSettings(
     return false;
   };
 
-  const fullHooks = (
-    full.hooks !== null && typeof full.hooks === "object" ? full.hooks : {}
-  ) as Record<string, unknown>;
+  const fullHooks = asRecord(full.hooks);
   if (out.hooks !== null && typeof out.hooks === "object") {
     const userHooks = out.hooks as Record<string, unknown>;
     for (const event of Object.keys(userHooks)) {

@@ -6,8 +6,10 @@
 //   - light-profile.ts   stripManagedSettings     (JSON.stringify / key identity)
 //   - mcp.ts             removeManagedMcpServers  (object-key identity)
 //
-// Both helpers are order-preserving and dedup ACROSS sides only: duplicates
-// within one input survive, matching the loops they replaced exactly.
+// Both keyed helpers are order-preserving and dedup ACROSS sides only:
+// duplicates within one input survive, matching the loops they replaced
+// exactly. `asRecord` lives here too — the shared coercion guard for reading
+// record fields off unvalidated settings JSON across the same paths.
 
 /**
  * Union keyed by `keyOf`: every `base` entry is kept in order, then every
@@ -25,4 +27,15 @@ export function unionByKey<T>(base: T[], additions: T[], keyOf: (t: T) => string
 export function subtractByKey<T>(items: T[], baseline: T[], keyOf: (t: T) => string): T[] {
   const baselineKeys = new Set(baseline.map(keyOf));
   return items.filter((t) => !baselineKeys.has(keyOf(t)));
+}
+
+/**
+ * Coercion guard used across the installer's merge/strip paths: read a value
+ * off unvalidated settings JSON as a record. Non-objects (including null and
+ * undefined) degrade to an empty record instead of throwing on a bad shape;
+ * arrays pass through (`typeof [] === "object"`), matching the inline
+ * ternaries this replaced.
+ */
+export function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
 }

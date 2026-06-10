@@ -13,7 +13,7 @@ import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { findUserOnlyServers, promptPreserveUserServers } from "./mcp.ts";
-import { subtractByKey, unionByKey } from "./merge-keyed.ts";
+import { asRecord, subtractByKey, unionByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type StringArray = string[] | undefined;
@@ -66,15 +66,12 @@ export type Strategy = (
 // --- Strategy helpers (shared) -------------------------------------------
 
 // Read fields off unvalidated settings JSON (the team/user objects may not have
-// passed the Settings schema). A non-object resolves to an empty record; a
-// non-array field to undefined. unionPermissionArray treats undefined as "no
-// rules", so a corrupt settings.json degrades to empty instead of throwing on a
-// bad shape — these replace scattered `as UnknownRecord` / `as StringArray` casts
-// that used to assert those shapes without checking them.
-function asRecord(v: unknown): UnknownRecord {
-  return typeof v === "object" && v !== null ? (v as UnknownRecord) : {};
-}
-
+// passed the Settings schema). `asRecord` (merge-keyed.ts) coerces a non-object
+// to an empty record; `stringArrayField` resolves a non-array field to
+// undefined. unionPermissionArray treats undefined as "no rules", so a corrupt
+// settings.json degrades to empty instead of throwing on a bad shape — these
+// replace scattered `as UnknownRecord` / `as StringArray` casts that used to
+// assert those shapes without checking them.
 function stringArrayField(rec: UnknownRecord, key: string): StringArray {
   const v = rec[key];
   return Array.isArray(v) ? v : undefined;
@@ -423,18 +420,11 @@ export async function mergeSettingsWithMcpPreservation(
     return;
   }
 
-  // Validate userRaw and teamRaw against the Settings schema. On failure we
-  // log a debug message and proceed with the raw objects — forward-compat
-  // safety: a new Claude Code settings key not yet in the schema must not
-  // block the merger. This mirrors the pattern in readMcpFromSettings
-  // (src/lib/mcp.ts) which returns {} + debug-logs on schema failure.
-  const teamValidation = Settings.safeParse(teamRaw);
-  if (!teamValidation.success) {
-    const issues = teamValidation.error.issues
-      .map((i) => `${i.path.join(".")}: ${i.message}`)
-      .join("; ");
-    debug(`Team settings.json failed schema validation (proceeding with raw): ${issues}`);
-  }
+  // Validate userRaw against the Settings schema. On failure we log a debug
+  // message and proceed with the raw object — forward-compat safety: a new
+  // Claude Code settings key not yet in the schema must not block the merger.
+  // teamSettings needs no validation here: composeSettings already
+  // schema-checked the composed fragments and throws on failure.
   const userValidation = Settings.safeParse(userRaw);
   if (!userValidation.success) {
     const issues = userValidation.error.issues

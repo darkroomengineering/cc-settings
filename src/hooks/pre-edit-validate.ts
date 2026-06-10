@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Pre-Edit Validation Hook — port of scripts/pre-edit-validate.sh.
+// Pre-Edit Validation Hook — PreToolUse guard for Edit/Write calls.
 //
 // Decision protocol (shared with safety-net.ts / freeze-guard.ts via
 // lib/hook-runtime.ts blockDecision):
