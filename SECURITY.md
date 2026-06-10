@@ -72,9 +72,10 @@ A standalone scanner that classifies every hook command in
 |---|---|
 | **trusted** | Matches the cc-settings shipped pattern `bun "$HOME/.claude/src/{scripts,hooks,lib}/<name>.ts"` (or a compound of those) **and** the referenced file's content hash matches the install manifest. Path shape alone is never enough. |
 | **unknown** | Doesn't match the trusted pattern — user-added hooks land here; review manually, then either remove or re-run `setup.sh` to fingerprint them. Shipped-pattern commands also land here when no install manifest exists yet (pre-manifest install): content can't be verified, so they are not promoted to trusted. |
-| **suspicious** | Matches a known supply-chain malware signature: `curl \| sh`, `wget \| bash`, base64 decode + exec, `eval $(...)`, `node -e`, `python -c`, `/tmp/<exec>`, hidden `node_modules/.bin/`, `atob(...)`, opaque base64 blob (>250 char single-token). Also: a shipped-pattern command whose file is missing from the install manifest (possible dropped payload) or whose content hash differs from it (possible patched payload). Exit code 1. |
+| **stale** | Matches the cc-settings shipped pattern but the script file no longer exists on disk — a leftover from a hook rename or removal in a past cc-settings release. Harmless but noisy. Re-run `setup.sh` to prune the entry and refresh the fingerprint. Exit code 0. |
+| **suspicious** | Matches a known supply-chain malware signature: `curl \| sh`, `wget \| bash`, base64 decode + exec, `eval $(...)`, `node -e`, `python -c`, `/tmp/<exec>`, hidden `node_modules/.bin/`, `atob(...)`, opaque base64 blob (>250 char single-token). Also: a shipped-pattern command whose file **exists on disk** but is missing from the install manifest (possible dropped payload) or whose content hash differs from it (possible patched payload). Exit code 1. |
 
-Exit code is non-zero on any suspicious finding so CI can gate on this.
+Exit code is non-zero on any suspicious finding so CI can gate on this. Stale-only results exit 0.
 
 Source: `src/lib/audit-hooks.ts`, `src/scripts/audit-hooks.ts`.
 

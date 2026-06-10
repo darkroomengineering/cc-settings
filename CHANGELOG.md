@@ -47,6 +47,7 @@ Whole-codebase `/nuclear-review` audit pass (June 2026): ~1,100 lines of dead or
 
 ### Fixed
 
+- **Stale-hook false positives in `audit:hooks`** — upgraders who carried renamed/removed hook scripts (`parallelmax-nudge.ts`, `review-queue-nudge.ts`, `track-tldr.ts`, `tldr-stats.ts`) saw them classified `suspicious` and `bun run audit:hooks` exited 1. Two-part fix: (1) the settings merger now prunes all four as deprecated patterns (same mechanism as `parallelmax-judge.ts`); (2) the auditor gains a `stale` severity (exit 0) for shipped-pattern commands whose script file no longer exists on disk — distinct from `suspicious` (dropped payload, file exists but is unmanifested). The `formatAuditReport` summary now reads `N stale` and includes a dedicated `⚠ STALE` section with a remediation line. `hasSuspicious` is unaffected by stale findings.
 - **Backup failure now aborts the install** (was: `tar` exit code ignored, install proceeded into `cleanOldConfig`'s `rm -rf` with no restore point — the advertised `--rollback` safety net silently didn't exist on backup failure).
 - **A typo in `config/*.json` now fails the install loudly** — `composeSettings` schema-validates the composed fragments and throws; previously team-config validation was debug-log-only. User-settings forward-compat tolerance is unchanged.
 - `readJsonOrNull` no longer mislabels `EACCES`/`EISDIR` as "not valid JSON" — only real parse failures wrap as `JsonParseError`.

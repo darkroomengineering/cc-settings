@@ -225,6 +225,16 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // Prune both so upgraders don't keep a broken worktree hook wired.
   /worktree-create\.ts\b/,
   /worktree-remove\.ts\b/,
+  // nuclear-review (June 2026) merged parallelmax-nudge.ts + review-queue-nudge.ts
+  // into a single tool-cadence.ts to halve the PostToolUse Bun spawn cost.
+  // Prune any lingering references so upgraders don't fire the dead scripts.
+  /parallelmax-nudge\.ts\b/,
+  /review-queue-nudge\.ts\b/,
+  // cc-settings v11.17.0 removed track-tldr.ts and tldr-stats.ts (dead telemetry
+  // that only emitted when tldr-cheatsheet was used — never wired in shipped
+  // config). Prune so upgraders stop seeing "No such file or directory".
+  /track-tldr\.ts\b/,
+  /tldr-stats\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {

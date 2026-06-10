@@ -181,6 +181,69 @@ describe("hooksStrategy", () => {
     expect(JSON.stringify(stop)).not.toContain("parallelmax-judge");
     expect(ctx.accounting.hooksPruned).toBe(1);
   });
+
+  test("user-extra PostToolUse group with only parallelmax-nudge/review-queue-nudge is dropped while team tool-cadence survives", async () => {
+    const ctx = makeCtx();
+    const toolCadence = {
+      type: "command",
+      command: `bun "$HOME/.claude/src/hooks/tool-cadence.ts"`,
+    };
+    const nudgeGroup = {
+      hooks: [
+        {
+          type: "command",
+          command: `bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"`,
+        },
+        {
+          type: "command",
+          command: `bun "$HOME/.claude/src/hooks/review-queue-nudge.ts"`,
+        },
+      ],
+    };
+    // Team ships only tool-cadence; user still carries the old nudge group.
+    const team = { PostToolUse: [{ hooks: [toolCadence] }] };
+    const user = { PostToolUse: [nudgeGroup] };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    const postToolUse = merged.PostToolUse as Array<{ hooks: unknown[] }>;
+    // Only the team's tool-cadence group remains.
+    expect(postToolUse.length).toBe(1);
+    expect(JSON.stringify(postToolUse)).not.toContain("parallelmax-nudge");
+    expect(JSON.stringify(postToolUse)).not.toContain("review-queue-nudge");
+    expect(JSON.stringify(postToolUse)).toContain("tool-cadence");
+    expect(ctx.accounting.hooksPruned).toBe(1); // the whole nudge group is dropped (one prune event)
+  });
+
+  test("duplicate accumulated copies of the same deprecated group all disappear", async () => {
+    const ctx = makeCtx();
+    const toolCadence = {
+      type: "command",
+      command: `bun "$HOME/.claude/src/hooks/tool-cadence.ts"`,
+    };
+    const nudgeGroup = {
+      hooks: [
+        {
+          type: "command",
+          command: `bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"`,
+        },
+      ],
+    };
+    // User has accumulated two copies of the nudge group (multiple upgrades that
+    // never pruned it). Team ships only tool-cadence.
+    const team = { PostToolUse: [{ hooks: [toolCadence] }] };
+    const user = { PostToolUse: [nudgeGroup, nudgeGroup] };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    const postToolUse = merged.PostToolUse as Array<{ hooks: unknown[] }>;
+    // Both duplicates dropped; only team's group survives.
+    expect(postToolUse.length).toBe(1);
+    expect(JSON.stringify(postToolUse)).not.toContain("parallelmax-nudge");
+    expect(ctx.accounting.hooksPruned).toBeGreaterThanOrEqual(2);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -206,6 +269,26 @@ describe("pruneDeprecatedHooks", () => {
 
   test("DEPRECATED_COMMAND_PATTERNS matches the removed parallelmax-judge hook", () => {
     const badCmd = `bun "$HOME/.claude/src/hooks/parallelmax-judge.ts"`;
+    expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches parallelmax-nudge.ts (merged into tool-cadence.ts)", () => {
+    const badCmd = `bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"`;
+    expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches review-queue-nudge.ts (merged into tool-cadence.ts)", () => {
+    const badCmd = `bun "$HOME/.claude/src/hooks/review-queue-nudge.ts"`;
+    expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches track-tldr.ts (dead telemetry removed v11.17.0)", () => {
+    const badCmd = `bun "$HOME/.claude/src/hooks/track-tldr.ts"`;
+    expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches tldr-stats.ts (dead telemetry removed v11.17.0)", () => {
+    const badCmd = `bun "$HOME/.claude/src/hooks/tldr-stats.ts"`;
     expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
   });
 });
