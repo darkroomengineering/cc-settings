@@ -3,7 +3,9 @@
 // unmatched on EVERY PostToolUse (two Bun spawns per tool call → one):
 //
 //   • parallelmax branch (was parallelmax-nudge.ts) — counts consecutive
-//     non-Agent tool calls; at 8, nudges the model toward delegation.
+//     non-Agent tool calls and tracked files; fires one soft nudge per streak
+//     at THRESHOLD calls or FILES_THRESHOLD distinct file edits, then one
+//     escalation (soft block via continueOnBlock) if the streak continues.
 //   • review-queue branch (was review-queue-nudge.ts) — backpressure, the
 //     consumer-side counterpart: counts Agent spawns since the last commit,
 //     nudges at CC_MAX_UNREVIEWED, drains on successful commit/push,
@@ -15,7 +17,13 @@
 // runHook — any error → silent success, never break a tool call.
 
 import { runGit } from "../lib/git.ts";
-import { readHookInput, readState, runHook, writeState } from "../lib/hook-runtime.ts";
+import {
+  blockDecision,
+  readHookInput,
+  readState,
+  runHook,
+  writeState,
+} from "../lib/hook-runtime.ts";
 import {
   type BashResult,
   buildNudge,
@@ -41,19 +49,39 @@ import {
 // routine multi-step edits don't trip it, low enough to catch genuine
 // "should have fanned out" runs.
 const THRESHOLD = Number(process.env.CC_PARALLELMAX_THRESHOLD) || 12;
+// Distinct file edits before the nudge fires (regardless of call count).
+const FILES_THRESHOLD = 3;
 const DEBOUNCE_MS = 60_000;
 const COUNTER_STATE = "parallelmax-counter.json";
 const QUEUE_STATE = "review-queue.json";
+
+// File-edit tools and the field carrying the path in tool_input.
+const FILE_EDIT_TOOLS: Record<string, string> = {
+  Write: "file_path",
+  Edit: "file_path",
+  MultiEdit: "file_path",
+  NotebookEdit: "notebook_path",
+};
 
 interface CounterState {
   count: number;
   lastTool: string;
   firedAt?: number;
+  files?: string[];
+  nudged?: boolean;
+  countAtNudge?: number;
+  filesAtNudge?: number;
+  escalated?: boolean;
 }
 
 type Payload = {
   tool_name: string;
-  tool_input: { command?: string; subagent_type?: string };
+  tool_input: {
+    command?: string;
+    subagent_type?: string;
+    file_path?: string;
+    notebook_path?: string;
+  };
   tool_response: BashResult;
   cwd?: string;
 };
@@ -74,14 +102,34 @@ async function currentHead(cwd: string): Promise<string | undefined> {
 
 // --- Branch 1: consecutive non-Agent call counter --------------------------
 
-async function parallelmaxBranch(toolName: string): Promise<void> {
-  const state = await readState<CounterState>(COUNTER_STATE, { count: 0, lastTool: "" });
+async function parallelmaxBranch(
+  toolName: string,
+  toolInput: Payload["tool_input"],
+): Promise<void> {
+  // Defensive defaults for old-shape state files.
+  const raw = await readState<CounterState>(COUNTER_STATE, { count: 0, lastTool: "" });
+  const state = {
+    count: raw.count ?? 0,
+    lastTool: raw.lastTool ?? "",
+    firedAt: raw.firedAt as number | undefined,
+    files: raw.files ?? ([] as string[]),
+    nudged: raw.nudged ?? false,
+    countAtNudge: raw.countAtNudge ?? 0,
+    filesAtNudge: raw.filesAtNudge ?? 0,
+    escalated: raw.escalated ?? false,
+  };
 
   if (toolName === "Agent") {
+    // Reset the whole streak on delegation; preserve firedAt for debounce.
     await writeState(COUNTER_STATE, {
       count: 0,
       lastTool: toolName,
       firedAt: state.firedAt,
+      files: [],
+      nudged: false,
+      countAtNudge: 0,
+      filesAtNudge: 0,
+      escalated: false,
     });
     return;
   }
@@ -89,26 +137,55 @@ async function parallelmaxBranch(toolName: string): Promise<void> {
   state.count += 1;
   state.lastTool = toolName;
 
-  if (state.count >= THRESHOLD) {
-    const now = Date.now();
-    // Debounce: skip if we fired recently to avoid spamming.
-    if (!state.firedAt || now - state.firedAt >= DEBOUNCE_MS) {
-      // Suppress the "delegate more" nudge when the review queue is already at/
-      // over capacity: pushing more production when review is the bottleneck is
-      // the orchestration-tax failure mode (the review-queue branch covers the
-      // other direction). Still debounce + reset so we don't re-check on every
-      // call.
-      const rq = await readState<{ awaiting: number }>(QUEUE_STATE, { awaiting: 0 });
-      if (rq.awaiting < maxUnreviewed()) {
-        const msg =
-          `You have made ${state.count} consecutive tool calls without delegating to an Agent. ` +
-          `Opus 4.8 defaults to self-execution, but CLAUDE.md requires delegation when tasks span ` +
-          `3+ files or 10+ tool calls. Consider Agent(implementer), Agent(explore), or Agent(maestro) ` +
-          `to parallelize work, reduce context pressure, and follow the project guardrails.`;
-        emit(msg);
-      }
+  // Track file edits (deduplicated, capped at 20).
+  const filePathField = FILE_EDIT_TOOLS[toolName];
+  if (filePathField) {
+    const fp = toolInput[filePathField as keyof typeof toolInput];
+    if (typeof fp === "string" && fp && !state.files.includes(fp)) {
+      state.files = [...state.files, fp].slice(0, 20);
+    }
+  }
+
+  const now = Date.now();
+  const debounceOk = !state.firedAt || now - state.firedAt >= DEBOUNCE_MS;
+
+  // --- Escalation (at most once per streak) ---------------------------------
+  // Fires AFTER nudge, when the streak continues past the reminder.
+  if (
+    state.nudged &&
+    !state.escalated &&
+    (state.count - state.countAtNudge >= THRESHOLD ||
+      state.files.length - state.filesAtNudge >= 2) &&
+    debounceOk
+  ) {
+    const rq = await readState<{ awaiting: number }>(QUEUE_STATE, { awaiting: 0 });
+    if (rq.awaiting < maxUnreviewed()) {
+      state.escalated = true;
       state.firedAt = now;
-      state.count = 0;
+      // Write state BEFORE calling blockDecision (never returns).
+      await writeState(COUNTER_STATE, state);
+      blockDecision(
+        `Delegation violation: ${state.count} tool calls and ${state.files.length} file(s) edited in this streak — past a prior reminder, still no Agent call. This matches a CLAUDE.md MUST-delegate trigger. Delegate the remainder (Agent(implementer) for changes, Agent(explore) for reads) or state a one-line justification before continuing.`,
+      );
+    }
+  }
+
+  // --- Soft nudge (at most once per streak) ---------------------------------
+  if (
+    !state.nudged &&
+    (state.count >= THRESHOLD || state.files.length >= FILES_THRESHOLD) &&
+    debounceOk
+  ) {
+    const rq = await readState<{ awaiting: number }>(QUEUE_STATE, { awaiting: 0 });
+    if (rq.awaiting < maxUnreviewed()) {
+      const filesClause = state.files.length > 0 ? ` and ${state.files.length} file(s) edited` : "";
+      emit(
+        `Delegation check — ${state.count} tool calls${filesClause} in this streak with no Agent call. Heuristic: 3+ files or 10+ calls → delegate (explore = read/map, implementer = multi-file change, parallel agents for independent work). Delegate the remainder now, or state a one-line reason for staying solo and continue.`,
+      );
+      state.nudged = true;
+      state.countAtNudge = state.count;
+      state.filesAtNudge = state.files.length;
+      state.firedAt = now;
     }
   }
 
@@ -180,17 +257,16 @@ async function main(): Promise<void> {
   const toolName = payload.tool_name ?? "";
 
   // Branch isolation: a crash in one branch must not silence the other —
-  // before the merge these were separate processes. Order matches the old
-  // config order (parallelmax first), so on the rare event where both nudge
-  // (e.g. an 8th consecutive call that is also a draining commit) the two
-  // JSON lines print in the same order as before.
+  // before the merge these were separate processes. reviewQueueBranch runs
+  // first because parallelmaxBranch may end the process via blockDecision()
+  // on escalation; the review-queue state must already be written by then.
   try {
-    await parallelmaxBranch(toolName);
+    await reviewQueueBranch(payload, toolName);
   } catch {
     // fail open
   }
   try {
-    await reviewQueueBranch(payload, toolName);
+    await parallelmaxBranch(toolName, payload.tool_input ?? {});
   } catch {
     // fail open
   }

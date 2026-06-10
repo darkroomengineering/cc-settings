@@ -315,7 +315,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
-| `delegation-detector.ts` | Regex-scores incoming prompt for breadth signals (phrases like "do all", "across the repo", path-shaped tokens, large numbered lists). At score ≥ 2, injects a system reminder via `additionalContext` pointing at maestro / multi-agent delegation | No |
+| `delegation-detector.ts` | Regex-scores incoming prompt for breadth signals (phrases like "do all", "across the repo", path-shaped tokens, large numbered lists). At score ≥ 2, injects a compact `additionalContext` reminder: score, matched signals, and a one-line routing guide (maestro / implementer / parallel agents in ONE message). Overriding requires a stated reason. | No |
 
 > Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
@@ -356,7 +356,7 @@ Logs are used by `bun run claude-audit` to analyze command patterns, security co
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls in main context. At N=8, emits a system reminder pointing at the delegation rules. State at `~/.claude/tmp/parallelmax-counter.json`; resets when an Agent tool fires. 60s debounce | No |
+| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls and distinct file edits per streak. **One nudge per streak**: fires at threshold 12 calls OR 3+ files edited — emits a compact `additionalContext` reminder with the delegation heuristic. **One escalation per streak**: if the streak continues past the nudge by another threshold-worth of calls or 2+ more files, emits a soft block (`continueOnBlock: true`) via `blockDecision` — the turn continues but the signal is hard to ignore. Both signals suppress when the review queue is at capacity. Resets on any Agent call. 60s debounce. State at `~/.claude/tmp/parallelmax-counter.json`. `CC_PARALLELMAX_THRESHOLD` env override (default 12). | No |
 
 ### PostToolUseFailure
 

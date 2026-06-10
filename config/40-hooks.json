@@ -108,7 +108,8 @@
 					{
 						"type": "command",
 						"command": "bun \"$HOME/.claude/src/hooks/tool-cadence.ts\"",
-						"timeout": 3
+						"timeout": 3,
+						"continueOnBlock": true
 					}
 				]
 			},

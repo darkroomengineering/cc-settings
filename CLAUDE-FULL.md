@@ -17,42 +17,36 @@ The Edit tool uses exact string matching. Follow these rules:
 
 ## Delegation
 
-> **Opus 4.8 note**: Claude Opus 4.8 (and 4.7 before it) spawns fewer subagents by default than 4.6 and prefers internal reasoning over tool/agent use. The rules below are **not suggestions** — they are explicit triggers to counter that bias. When a trigger fires, delegate. Do not reason your way out of delegating "because you could do it yourself."
+> **Opus 4.8 note**: Opus 4.8 (and 4.7) under-delegates — it prefers internal reasoning over spawning agents. The heuristic below is calibrated to counter that bias. Do not reason your way out of it "because you could do it yourself."
 
-### You MUST delegate (non-negotiable) when:
+### The per-decision heuristic
 
-- **Multi-file exploration spanning 3+ files** → `Agent(explore, "...")`
-- **Any task that would require 10+ sequential tool calls** → break into agent tasks
-- **Security-sensitive code** (auth, payments, crypto, input validation) → `Agent(security-reviewer, "...")`
-- **Writing new test files** → `Agent(tester, "...")`
-- **Dead code cleanup or codebase deslop** → `Agent(deslopper, "...")`
-- **Parallel independent workstreams** (3+ with no file conflicts) → spawn agents in a single message
+Before each unit of work, ask once: **3+ files, 10+ tool calls, or security-sensitive code?**
 
-### You SHOULD prefer delegation for:
+**YES → delegate first, then route by shape:**
 
-- **Genuinely complex implementation — 3+ files, or 10+ sequential tool calls** → `Agent(implementer, "...")`
-- **Architecture decisions or upfront planning** → `Agent(planner, "...")`
-- **Scaffolding new components/hooks/pages** → `Agent(scaffolder, "...")`
-- **Code review on changes touching 3+ files** → `Agent(reviewer, "...")`
-- **Expert second opinions / blast-radius / "why is this here" questions** → `Agent(explore, "...")`
-- **Full-feature orchestration across 3+ agents** → `Agent(maestro, "...")`
-- **Tasks structurally prone to single-window failure** — agentic laziness (quitting at 20 of 50 items), self-preferential bias (judging your own output), goal drift across compaction → a [dynamic workflow](https://code.claude.com/docs/en/workflows) / `/effort ultracode` (see `skills/orchestrate/SKILL.md`)
+| Shape | Agent |
+|---|---|
+| understand / find / map / blast-radius | `explore` |
+| build / change / fix across files | `implementer` |
+| plan / architecture | `planner` |
+| new test files | `tester` (MUST) |
+| auth, payments, crypto, input validation | `security-reviewer` (MUST) |
+| dead code / deslop | `deslopper` (MUST) |
+| 3+ independent workstreams | parallel `Agent` calls in ONE message (MUST) |
+| full feature spanning 3+ agents | `maestro` |
+| prone to single-window failure — agentic laziness (quitting at 20 of 50 items), self-preferential bias (judging your own output), goal drift across compaction | a [dynamic workflow](https://code.claude.com/docs/en/workflows) / `/effort ultracode` (see `skills/orchestrate/SKILL.md`) |
+
+**NO → act directly.** 1–2 file edits, known-path reads, single greps/globs, build/test runs, conversational answers. Keeping small diffs in the main session is correct — don't spawn an `implementer` to prove you delegated.
+
+**Rules that close the loop:**
+
+1. **Re-ask when scope grows.** Predicted small but it's now 3+ files or 10+ calls? Stop and delegate the remainder — sunk tool calls are not a reason to finish solo.
+2. **Overriding a YES requires a stated reason.** One line, in your response, before proceeding (e.g. "12 calls but all sequential edits to one file"). The `tool-cadence` hook escalates on streaks that continue past a reminder with no Agent call.
+3. **Delegating needs no narration** — just call the Agent tool.
+4. **Parallelize**: independent delegations go in a single message — they run concurrently.
 
 > **Briefing contract for `implementer`**: as a subagent it gets only your prompt — no conversation context, none of the files you've read — so every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command, and a scope boundary. Thin prompts cause regressions; the agent will refuse them. It runs in the live working tree and leaves changes **uncommitted** for you to review before they land. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
-
-### Act directly ONLY when:
-
-- Reading a specific file you already know the path to
-- Small or medium edits spanning 1–2 files, or any change you can finish in under ~10 tool calls
-- Running build or test commands
-- Simple searches (one grep for a string, one glob for a file pattern)
-- Answering a conversational question with no code change
-
-### Enforcement Rules
-
-1. **Parallelize**: when multiple delegations have no dependencies, send all `Agent` calls in a single message — they run concurrently.
-2. **Don't narrate the decision**: if a trigger fires, call the Agent tool directly. Don't explain why you're delegating — just delegate.
-3. **Match the tool to the size**: the MUST/SHOULD triggers fire only for genuinely heavy work (3+ files, 10+ tool calls, security-sensitive code, new test files). Small and medium edits staying in the main session is the correct default — it keeps the diff reviewable in the working tree before commit. Don't spawn an `implementer` just to prove you delegated.
 
 For full orchestration mode, activate `profiles/maestro.md`. Model routing per agent: see `docs/agent-models.md`.
 
