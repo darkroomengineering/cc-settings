@@ -1,12 +1,8 @@
-// Parity test suite for src/hooks/safety-net.ts — mirrors tests/safety-net.test.ts
-// exactly, but runs against the TS implementation. When the TS port reaches
-// zero divergences against the bash suite for 7 days (per docs/migration-
-// coexistence.md), Phase 6 flips the hook command to `bun src/hooks/safety-net.ts`.
+// Test suite for src/hooks/safety-net.ts, the PreToolUse hook that blocks
+// destructive Bash commands. The cases were originally derived from the bash
+// implementation's suite and lock in the same contract.
 //
-// The test cases are derived from the bash suite so both implementations are
-// held to the same contract. DO NOT drift — update both or neither.
-//
-// Run: bun test tests/safety-net-ts.test.ts
+// Run: bun test tests/safety-net.test.ts
 
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";

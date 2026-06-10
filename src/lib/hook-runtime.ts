@@ -8,7 +8,12 @@ import { join } from "node:path";
 
 const TMP_DIR = join(homedir(), ".claude", "tmp");
 
-/** Read a stdin JSON payload; on parse failure, fall back to env. */
+/** Read a stdin JSON payload; on parse failure, fall back to env.
+ *
+ *  Subtlety: the env fallback fires ONLY when stdin fails to parse as JSON.
+ *  A valid-but-empty payload (`{}`) parses fine and intentionally skips the
+ *  env fallbacks — well-formed input with missing fields means "the event
+ *  really had no fields", not "look elsewhere". */
 export async function readHookInput<T extends Record<string, unknown>>(
   envFallbacks?: Partial<Record<keyof T & string, string>>,
 ): Promise<Partial<T>> {
@@ -39,6 +44,26 @@ export async function readState<T>(name: string, fallback: T): Promise<T> {
 export async function writeState(name: string, data: unknown): Promise<void> {
   await mkdir(TMP_DIR, { recursive: true });
   await writeFile(join(TMP_DIR, name), JSON.stringify(data));
+}
+
+/** Parse the TOOL_INPUT env JSON blob (the full tool input Claude Code passes
+ *  to PreToolUse hooks). Returns {} on missing or malformed JSON — fail-open:
+ *  unparseable input must never produce a block. */
+export function readToolInputEnv<T>(): Partial<T> {
+  try {
+    return JSON.parse(process.env.TOOL_INPUT ?? "{}") as Partial<T>;
+  } catch {
+    return {};
+  }
+}
+
+/** Emit the documented PreToolUse block decision and exit 2.
+ *  Protocol (docs/hooks-reference.md): exit 2 + `{"decision":"block","reason":…}`
+ *  JSON on stdout. Shared by safety-net, freeze-guard, and pre-edit-validate so
+ *  the block grammar cannot drift between hooks. */
+export function blockDecision(reason: string): never {
+  process.stdout.write(`${JSON.stringify({ decision: "block", reason })}\n`);
+  process.exit(2);
 }
 
 /** Run a hook main() with the cc-settings fail-open convention. Catches and

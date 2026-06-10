@@ -128,6 +128,33 @@ describe("composeSettings — content errors", () => {
   });
 });
 
+describe("composeSettings — schema validation", () => {
+  test("throws with the issue list when a fragment sets an invalid value on a known key", async () => {
+    // config/*.json is repo-controlled — a typo must fail the install loudly,
+    // not debug-log. `model` must be a string; 42 fails the Settings schema.
+    const dir = await sandbox();
+    try {
+      await writeFragment(dir, "10-bad.json", { model: 42 });
+      await expect(composeSettings(dir)).rejects.toThrow(/invalid settings\.json[\s\S]*model/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("unknown top-level keys still compose (forward-compat looseObject)", async () => {
+    // The throw must not reject unknown KEYS — only invalid VALUES of known
+    // keys. Unknown-key typos are caught by tests/schemas.test.ts instead.
+    const dir = await sandbox();
+    try {
+      await writeFragment(dir, "10-future.json", { someFutureKey: true });
+      const merged = await composeSettings(dir);
+      expect(merged.someFutureKey).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("composeSettings — empty / missing", () => {
   test("rejects missing config/", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-compose-"));

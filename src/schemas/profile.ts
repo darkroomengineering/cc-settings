@@ -9,20 +9,18 @@ import { AgentEffort, AgentModel, AgentPermissionMode } from "./agent.ts";
 // a manifest of intent. They are NOT enforced at runtime: cc-settings does not
 // switch the active model, gate skills, or restrict tools based on a profile.
 
-export const ProfileFrontmatter = z
-  .object({
-    name: z
-      .string()
-      .min(1)
-      .regex(/^[a-z0-9][a-z0-9-]*$/, "name must be kebab-case (a-z, 0-9, -)"),
-    description: z.string().min(1),
-    // Advisory hints — see header note.
-    model: AgentModel.optional(),
-    skills: z.array(z.string()).optional(),
-    tools: z.array(z.string()).optional(),
-    permissionMode: AgentPermissionMode.optional(),
-    effort: AgentEffort.optional(),
-  })
-  .passthrough();
+export const ProfileFrontmatter = z.looseObject({
+  name: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9][a-z0-9-]*$/, "name must be kebab-case (a-z, 0-9, -)"),
+  description: z.string().min(1),
+  // Advisory hints — see header note.
+  model: AgentModel.optional(),
+  skills: z.array(z.string()).optional(),
+  tools: z.array(z.string()).optional(),
+  permissionMode: AgentPermissionMode.optional(),
+  effort: AgentEffort.optional(),
+});
 
 export type ProfileFrontmatter = z.infer<typeof ProfileFrontmatter>;

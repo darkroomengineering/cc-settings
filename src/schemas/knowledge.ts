@@ -12,24 +12,22 @@ import { z } from "zod";
 //   pattern   — a reusable solution pattern
 export const KnowledgeKind = z.enum(["decision", "convention", "gotcha", "incident", "pattern"]);
 
-export const KnowledgeFrontmatter = z
-  .object({
-    name: z
-      .string()
-      .min(1)
-      .regex(
-        /^[a-z0-9]+(-[a-z0-9]+)*$/,
-        "name must be kebab-case (a-z, 0-9, segments joined by single hyphens)",
-      ),
-    kind: KnowledgeKind,
-    tags: z.array(z.string()).optional(),
-    "added-by": z.string().min(1),
-    supersedes: z.string().optional(),
+export const KnowledgeFrontmatter = z.looseObject({
+  name: z
+    .string()
+    .min(1)
+    .regex(
+      /^[a-z0-9]+(-[a-z0-9]+)*$/,
+      "name must be kebab-case (a-z, 0-9, segments joined by single hyphens)",
+    ),
+  kind: KnowledgeKind,
+  tags: z.array(z.string()).optional(),
+  "added-by": z.string().min(1),
+  supersedes: z.string().optional(),
 
-    // Forward-compat: accept unknown keys rather than rejecting a note that
-    // uses a field added in a later schema revision.
-  })
-  .passthrough();
+  // Forward-compat: accept unknown keys rather than rejecting a note that
+  // uses a field added in a later schema revision.
+});
 
 export type KnowledgeFrontmatter = z.infer<typeof KnowledgeFrontmatter>;
 export type KnowledgeKind = z.infer<typeof KnowledgeKind>;

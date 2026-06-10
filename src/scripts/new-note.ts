@@ -11,6 +11,7 @@
 
 import { existsSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { runGit } from "../lib/git.ts";
 
 const VALID_KINDS = ["decision", "convention", "gotcha", "incident", "pattern"] as const;
 type KnowledgeKind = (typeof VALID_KINDS)[number];
@@ -25,15 +26,13 @@ function usage(): never {
   process.exit(1);
 }
 
-function getGitUserName(): string {
+async function getGitUserName(): Promise<string> {
   try {
-    const result = Bun.spawnSync(["git", "config", "user.name"]);
-    if (result.exitCode === 0) {
-      const name = new TextDecoder().decode(result.stdout).trim();
-      if (name) return name;
-    }
+    // runGit returns trimmed stdout and "" on a non-zero exit.
+    const name = await runGit(["config", "user.name"]);
+    if (name) return name;
   } catch {
-    // fall through
+    // fall through (git missing from PATH)
   }
   return process.env.USER ?? "unknown";
 }
@@ -52,7 +51,7 @@ function parseArgs(): { name: string; kind: KnowledgeKind; dir: string | null } 
   return { name: name ?? "", kind: (kind ?? "") as KnowledgeKind, dir };
 }
 
-function main() {
+async function main() {
   const { name, kind, dir: dirFlag } = parseArgs();
 
   if (!name) {
@@ -91,7 +90,7 @@ function main() {
     process.exit(1);
   }
 
-  const addedBy = getGitUserName();
+  const addedBy = await getGitUserName();
 
   const content = `---
 name: ${name}
@@ -123,4 +122,4 @@ TODO: describe how to put this knowledge into practice.
   console.log("  3. git add, commit, and push");
 }
 
-main();
+await main();

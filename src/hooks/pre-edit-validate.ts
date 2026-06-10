@@ -1,61 +1,61 @@
 #!/usr/bin/env bun
-// Pre-Edit Validation Hook — port of scripts/pre-edit-validate.sh.
+// Pre-Edit Validation Hook — PreToolUse guard for Edit/Write calls.
 //
-// Fail-open: any unexpected error → exit 0 (allow the edit).
-// Decision: exit 2 blocks the edit; exit 0 allows.
+// Decision protocol (shared with safety-net.ts / freeze-guard.ts via
+// lib/hook-runtime.ts blockDecision):
+//   exit 0               → ALLOW (stdout may carry advisory [Harness] warnings)
+//   exit 2 + JSON stdout → BLOCK {"decision":"block","reason":"[Harness] ..."}
+//
+// Fail-open: any unexpected error → exit 0 (allow the edit), and unparseable
+// TOOL_INPUT never blocks (readToolInputEnv returns {}).
 //
 // Checks:
-//   1. Target file exists.
-//   2. old_string exists in the target file.
-//   3. Warn on large old_string (>15 lines).
-//   4. Warn on ambiguous old_string (>1 occurrence).
+//   1. Target file exists.                           (block)
+//   2. old_string exists in the target file.         (block)
+//   3. Warn on large old_string (>15 lines).         (advisory, exit 0)
+//   4. Warn on ambiguous old_string (>1 occurrence). (advisory, exit 0)
 
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
+import { blockDecision, readToolInputEnv } from "../lib/hook-runtime.ts";
 
 type EditInput = {
   file_path?: string;
   old_string?: string;
 };
 
-async function main(): Promise<number> {
+async function main(): Promise<void> {
   // Claude Code passes the Edit tool input as a JSON blob in TOOL_INPUT; both
   // file_path and old_string are read from it. (The per-field TOOL_INPUT_*
   // scalars carry the same data — one source avoids the file_path/old_string
   // asymmetry.)
-  let parsed: EditInput = {};
-  try {
-    parsed = JSON.parse(process.env.TOOL_INPUT ?? "{}") as EditInput;
-  } catch {
-    // fail-open on bad JSON
-  }
+  const parsed = readToolInputEnv<EditInput>();
 
   const resolvedPath = parsed.file_path ?? "";
-  if (!resolvedPath) return 0;
+  if (!resolvedPath) return;
 
   // Check 1: file exists.
+  let isFile = false;
   try {
-    const st = await stat(resolvedPath);
-    if (!st.isFile()) {
-      console.log(`[Harness] File does not exist: ${resolvedPath}`);
-      console.log("[Harness] Use Write tool to create new files.");
-      return 2;
-    }
+    isFile = (await stat(resolvedPath)).isFile();
   } catch {
-    console.log(`[Harness] File does not exist: ${resolvedPath}`);
-    console.log("[Harness] Use Write tool to create new files.");
-    return 2;
+    isFile = false;
+  }
+  if (!isFile) {
+    blockDecision(
+      `[Harness] File does not exist: ${resolvedPath}. Use Write tool to create new files.`,
+    );
   }
 
   const oldString = parsed.old_string;
-  if (!oldString) return 0;
+  if (!oldString) return;
 
   let content = "";
   try {
     content = await readFile(resolvedPath, "utf8");
   } catch {
     // fail-open on read error
-    return 0;
+    return;
   }
 
   const base = basename(resolvedPath);
@@ -63,16 +63,14 @@ async function main(): Promise<number> {
   // Check 2: old_string exists in file.
   if (!content.includes(oldString)) {
     const firstLine = (oldString.split("\n")[0] ?? "").trim();
-    if (firstLine && content.includes(firstLine)) {
-      console.log(`[Harness] old_string not found as exact match in ${base}.`);
-      console.log("[Harness] First line exists — likely whitespace or character mismatch.");
-      console.log("[Harness] Re-read the file with Read tool, then retry.");
-    } else {
-      console.log(`[Harness] old_string not found in ${base}.`);
-      console.log("[Harness] File may have changed since last read. Re-read before editing.");
-    }
-    console.log("[Harness] For complex edits, use Write tool for full file replacement.");
-    return 2;
+    const diagnosis =
+      firstLine && content.includes(firstLine)
+        ? `[Harness] old_string not found as exact match in ${base}. ` +
+          "First line exists — likely whitespace or character mismatch. " +
+          "Re-read the file with Read tool, then retry."
+        : `[Harness] old_string not found in ${base}. ` +
+          "File may have changed since last read. Re-read before editing.";
+    blockDecision(`${diagnosis} For complex edits, use Write tool for full file replacement.`);
   }
 
   // Check 3: large old_string.
@@ -82,7 +80,7 @@ async function main(): Promise<number> {
     console.log(
       "[Harness] Large string-replace edits are error-prone. Consider Write tool for full file replacement.",
     );
-    return 0;
+    return;
   }
 
   // Check 4: ambiguous old_string.
@@ -99,10 +97,12 @@ async function main(): Promise<number> {
     console.log(
       "[Harness] Add more surrounding context to make old_string unique, or use replace_all.",
     );
-    return 0;
   }
-
-  return 0;
 }
 
-process.exit(await main());
+try {
+  await main();
+} catch {
+  // Fail-open: an unexpected throw must never block the edit. Intentional
+  // blocks exit(2) inside blockDecision and never reach this catch.
+}

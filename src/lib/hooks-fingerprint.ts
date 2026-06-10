@@ -10,7 +10,7 @@
 // or re-run setup.sh to refresh the fingerprint.
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
@@ -135,5 +135,124 @@ export async function verifyAgainstSettings(
     expected: record.hash,
     actual,
     installedAt: record.installedAt,
+  };
+}
+
+// --- Installed-src content manifest ----------------------------------------
+//
+// The hooks fingerprint above covers ONLY the `hooks` block of settings.json —
+// it says nothing about the CONTENT of the scripts those hooks point at. Two
+// bypasses motivated this second layer (see SECURITY.md):
+//   (a) malware drops a new file under ~/.claude/src/{hooks,scripts,lib}/ and
+//       registers it — path-shaped trust in audit-hooks would have called it
+//       "trusted" and downgraded the fingerprint alarm;
+//   (b) malware appends a payload to an already-registered shipped script —
+//       settings.json is untouched, so the hooks fingerprint never trips.
+// setup.ts writes a SHA256 manifest of every installed src/**/*.ts right after
+// installTsSources; verify-hooks.ts re-checks it at SessionStart and
+// audit-hooks.ts gates "trusted" on it. Like the fingerprint, the manifest is
+// refreshed ONLY by setup.sh — never by the auditor or the verify hook — so
+// malware can't whitelist itself.
+
+export const SRC_MANIFEST_FILENAME = ".cc-settings-src-manifest";
+
+export interface SrcManifestRecord {
+  /** Posix-style path relative to ~/.claude/src → SHA256 hex of file content. */
+  files: Record<string, string>;
+  installedAt: string;
+}
+
+/** SHA256 hex of a file's content, or null when it can't be read. */
+export async function hashFileOrNull(path: string): Promise<string | null> {
+  try {
+    const data = await readFile(path);
+    const hasher = new CryptoHasher("sha256");
+    hasher.update(data);
+    return hasher.digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+/** Recursively list .ts files under `dir` as sorted posix-style relative paths.
+ *  Skips node_modules — it is symlinked back to the source repo at install
+ *  time and is explicitly out of the manifest's threat coverage. */
+async function walkTsFiles(dir: string, prefix = ""): Promise<string[]> {
+  const out: string[] = [];
+  const entries = await readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === "node_modules") continue;
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      out.push(...(await walkTsFiles(join(dir, entry.name), rel)));
+    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      out.push(rel);
+    }
+  }
+  return out.sort();
+}
+
+/** Hash every .ts file under `installedSrcDir` and persist the manifest next
+ *  to the hooks fingerprint (atomic write, same convention). Called by
+ *  setup.ts immediately after installTsSources. */
+export async function writeSrcManifest(
+  installedSrcDir: string,
+  claudeDir?: string,
+): Promise<SrcManifestRecord> {
+  const dir = claudeDir ?? join(homedir(), ".claude");
+  const files: Record<string, string> = {};
+  for (const rel of await walkTsFiles(installedSrcDir)) {
+    const hash = await hashFileOrNull(join(installedSrcDir, rel));
+    if (hash) files[rel] = hash;
+  }
+  const record: SrcManifestRecord = { files, installedAt: new Date().toISOString() };
+  await atomicWriteJson(join(dir, SRC_MANIFEST_FILENAME), record);
+  return record;
+}
+
+export async function readSrcManifest(claudeDir?: string): Promise<SrcManifestRecord | null> {
+  const path = join(claudeDir ?? join(homedir(), ".claude"), SRC_MANIFEST_FILENAME);
+  if (!existsSync(path)) return null;
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as Partial<SrcManifestRecord>;
+    if (!parsed.files || typeof parsed.files !== "object" || Array.isArray(parsed.files)) {
+      return null;
+    }
+    return { files: parsed.files, installedAt: parsed.installedAt ?? "" };
+  } catch {
+    return null;
+  }
+}
+
+export interface SrcVerifyResult {
+  status: "ok" | "missing" | "mismatch";
+  /** Manifested files whose content changed — or disappeared — since install. */
+  changed: string[];
+  /** .ts files on disk under ~/.claude/src that the install never wrote. */
+  unmanifested: string[];
+}
+
+/** Re-hash the installed src tree against the manifest. "missing" = no
+ *  manifest yet (pre-manifest install) — callers treat that as a soft state,
+ *  not an alarm. Any read error on an individual file counts as changed. */
+export async function verifySrcManifest(claudeDir?: string): Promise<SrcVerifyResult> {
+  const dir = claudeDir ?? join(homedir(), ".claude");
+  const manifest = await readSrcManifest(dir);
+  if (!manifest) return { status: "missing", changed: [], unmanifested: [] };
+
+  const srcDir = join(dir, "src");
+  const onDisk = existsSync(srcDir) ? await walkTsFiles(srcDir) : [];
+
+  const changed: string[] = [];
+  for (const [rel, expected] of Object.entries(manifest.files)) {
+    const actual = await hashFileOrNull(join(srcDir, rel));
+    if (actual !== expected) changed.push(rel);
+  }
+  const unmanifested = onDisk.filter((rel) => !(rel in manifest.files));
+
+  return {
+    status: changed.length === 0 && unmanifested.length === 0 ? "ok" : "mismatch",
+    changed,
+    unmanifested,
   };
 }

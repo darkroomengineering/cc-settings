@@ -10,7 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { BEGIN, buildPermissionsBlock, END } from "../src/scripts/gen-permissions-doc.ts";
+import { BEGIN, buildPermissionsBlock, END } from "../src/lib/permissions-doc.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 

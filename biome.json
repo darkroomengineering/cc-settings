@@ -6,15 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": [
-      "src/**/*.ts",
-      "bench/**/*.ts",
-      "tests/**/*.ts",
-      "!bench/prototype/dist",
-      "!node_modules",
-      "!plans",
-      "!.claude"
-    ]
+    "includes": ["src/**/*.ts", "tests/**/*.ts", "!node_modules", "!plans", "!.claude"]
   },
   "formatter": {
     "enabled": true,

@@ -96,7 +96,7 @@ everything).
 
 - Script: `src/scripts/prune-mcp-auth-cache.ts`
 - Wired in: `src/scripts/session-start.ts` (Phase 1 background task)
-- Tests: `tests/phase2-scripts.test.ts` → `describe("prune-mcp-auth-cache.ts")`
+- Tests: `tests/scripts-smoke.test.ts` → `describe("prune-mcp-auth-cache.ts")`
 
 This is a client-side pure-Bun script and will be removed as soon as
 upstream gains a TTL.

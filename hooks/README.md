@@ -21,7 +21,7 @@ For full hook documentation (all 29 events, configuration format, matchers, debu
 | `PostToolUse` | After Write/Edit | `post-edit.ts` (auto-format with Biome) | No |
 | `PostToolUse` | After Write/Edit | `post-edit-tsc.ts` (async TypeScript type check) | **Yes** |
 | `PostToolUse` | After Bash commands | `log-bash.ts` (command audit log) | **Yes** |
-| `PostToolUse` | After every tool (no matcher) | `parallelmax-nudge.ts` (counts consecutive non-Agent calls; at N=8 injects delegation reminder; resets on Agent tool; 60s debounce) | No |
+| `PostToolUse` | After every tool (no matcher) | `tool-cadence.ts` (one spawn, two branches: parallelmax counter — consecutive non-Agent calls, N=8 delegation reminder, resets on Agent, 60s debounce — and review-queue backpressure) | No |
 | `PostToolUseFailure` | Tool execution fails | `post-failure.ts` (logs failures, warns on repeats) | No |
 | `PreCompact` | Before context compaction | `handoff.ts create` (saves state) | No |
 | `PostCompact` | After context compaction | `post-compact.ts` (recovery steps reminder) | No |

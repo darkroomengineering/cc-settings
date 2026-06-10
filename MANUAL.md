@@ -35,7 +35,7 @@ On Windows, substitute `.\setup.ps1` for `bash setup.sh` throughout — the Powe
 
 ### Switching tiers
 
-Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, contexts, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
+Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
 
 ```bash
 # Switch from full → light
@@ -85,7 +85,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"how do I use react-router loaders?"* | Context7 MCP — fetches current docs (always before adding new deps) |
 | *"ship it"* / *"create a PR"* | `/ship` — typecheck → build → test → lint → review → commit → PR |
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
-| *"audit my recent activity"* | `bun ~/.claude/src/scripts/claude-audit.ts` — analyzes Bash command logs |
+| *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
 
 **4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 34 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
@@ -308,7 +308,7 @@ Both satus and novus starters ship Lenis pre-wired — no setup needed for Darkr
 ### Audit Bash Logs
 
 ```bash
-bun ~/.claude/src/scripts/claude-audit.ts
+bun run claude-audit
 ```
 
 Analyzes Claude's Bash command logs — categories, repeats, security signals.
@@ -410,9 +410,7 @@ Activate specialized workflows in `settings.json`:
 
 ### Stack-aware skills
 
-Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`web-vitals`, `react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
-
-The detector lives in `src/lib/stack.ts` if you need to extend it to a new framework.
+Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
 
 ### GitHub Project Sync
 
@@ -535,7 +533,7 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Permission request | When a tool needs user permission |
 | Post-tool (Write/Edit) | Post-edit validation, async TSC |
 | Post-tool (Bash) | Command audit log |
-| Post-tool (all) | Consecutive non-Agent call counter (`parallelmax-nudge.ts`) |
+| Post-tool (all) | Tool cadence: non-Agent call counter + review-queue backpressure (`tool-cadence.ts`) |
 | Tool failure | Failure tracking |
 | Pre-compact | Auto-handoff save |
 | Post-compact | After context compaction completes |

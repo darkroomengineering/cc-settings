@@ -28,7 +28,7 @@ If you author a `~/.claude/settings.json` by hand (without re-running the instal
 }
 ```
 
-cc-settings publishes its own extended schemas at `raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/` for *non-settings* files: `agent.schema.json`, `hooks-config.schema.json`, `skill.schema.json`, `claude-json.schema.json`. They're regenerated from `src/schemas/*.ts` via `bun run schemas:emit` (CI fails if you change a zod source without re-emitting — see `bun run schemas:check`).
+cc-settings publishes its own extended schemas at `raw.githubusercontent.com/darkroomengineering/cc-settings/main/schemas/` for *non-settings* files: `agent.schema.json`, `skill.schema.json`, `claude-json.schema.json`. They're regenerated from `src/schemas/*.ts` via `bun run schemas:emit` (CI fails if you change a zod source without re-emitting — see `bun run schemas:check`).
 
 ---
 
@@ -356,7 +356,7 @@ Master kill-switch for the entire hooks subsystem. When `true`, no hook of any e
 { "disableAllHooks": true }
 ```
 
-**Caveat:** Disabling hooks wholesale also silences `/goal` (which is implemented as a Stop hook) and the cc-settings `parallelmax-nudge` / `delegation-detector` delegation guardrails. If `verify-hooks` warns you about suspicious hooks, remove the suspicious entries surgically rather than flipping this kill switch — see SECURITY.md "Don't disable hooks wholesale" for the full guidance.
+**Caveat:** Disabling hooks wholesale also silences `/goal` (which is implemented as a Stop hook) and the cc-settings `tool-cadence` / `delegation-detector` delegation guardrails. If `verify-hooks` warns you about suspicious hooks, remove the suspicious entries surgically rather than flipping this kill switch — see SECURITY.md "Don't disable hooks wholesale" for the full guidance.
 
 ### `disableAutoMode`
 

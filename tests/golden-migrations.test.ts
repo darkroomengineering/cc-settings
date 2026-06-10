@@ -48,13 +48,16 @@ describe("golden migration fixtures", () => {
 
     // Sandbox: copy the fixture's user-settings into a tmp dir, point the
     // merger at it, write to a fresh output. Don't mutate the fixture.
+    // Team settings are passed in-memory — the merger takes the composed
+    // object, not a path (the staged-file indirection was removed).
     const sandbox = await mkdtemp(join(tmpdir(), `cc-golden-${scenario}-`));
     try {
       const userPath = join(sandbox, "user-settings.json");
       const outPath = join(sandbox, "merged.json");
       await writeFile(userPath, await readFile(userInputPath, "utf8"));
+      const team = (await readJson(teamPath)) as Record<string, unknown>;
 
-      await mergeSettingsWithMcpPreservation(userPath, teamPath, outPath);
+      await mergeSettingsWithMcpPreservation(userPath, team, outPath);
 
       const got = await readJson(outPath);
       const want = await readJson(expectedPath);

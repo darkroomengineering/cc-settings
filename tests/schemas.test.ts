@@ -10,7 +10,6 @@ import { composeSettings } from "../src/lib/compose-settings.ts";
 import { parseFrontmatter } from "../src/lib/frontmatter.ts";
 import { buildSchema, OUT, targets } from "../src/schemas/emit.ts";
 import { HookEvent } from "../src/schemas/hooks.ts";
-import { HooksConfig } from "../src/schemas/hooks-config.ts";
 import { Settings } from "../src/schemas/settings.ts";
 import { SkillFrontmatter } from "../src/schemas/skill.ts";
 
@@ -42,9 +41,9 @@ describe("Settings schema vs the composed config/ fragments", () => {
     expect(result.success).toBe(true);
   });
 
-  // Schema is now passthrough, not strict — unknown keys are tolerated so a
+  // Schema is loose, not strict — unknown keys are tolerated so a
   // real live settings.json (which CC writes undocumented keys into) can parse.
-  test("accepts unknown top-level keys (forward-compat passthrough)", () => {
+  test("accepts unknown top-level keys (forward-compat loose schema)", () => {
     const result = Settings.safeParse({ env: {}, totallyUnknownKey: 1 });
     expect(result.success).toBe(true);
   });
@@ -64,7 +63,7 @@ describe("Settings schema vs the composed config/ fragments", () => {
     expect(unknownKeys.length).toBe(0);
   });
 
-  // Positive: new documented keys accepted under passthrough + typed fields.
+  // Positive: new documented keys accepted under the loose schema + typed fields.
   test("accepts representative new documented keys", () => {
     const result = Settings.safeParse({
       tui: "fullscreen",
@@ -82,17 +81,10 @@ describe("Settings schema vs the composed config/ fragments", () => {
   });
 });
 
-describe("HooksConfig schema", () => {
-  // hooks-config.json was collapsed into settings.json.env (CC_CLAUDE_MD_*)
-  // in Phase 4 and deleted in Phase 7. The schema stays callable in case a
-  // downstream project revives the file shape, but we no longer ship one.
-  test("HooksConfig parses an empty object", () => {
-    expect(HooksConfig.safeParse({}).success).toBe(true);
-  });
-  test("HooksConfig rejects unknown top-level keys (strict)", () => {
-    expect(HooksConfig.safeParse({ totally_unknown: true }).success).toBe(false);
-  });
-});
+// HooksConfig schema removed in the hooks-cluster audit cleanup: the
+// hooks-config.json file tier (collapsed into settings.json.env in Phase 4,
+// deleted from disk in Phase 7) lost its last consumer when
+// src/lib/hook-config.ts went env-vars-only.
 
 describe("Published JSON Schemas vs zod sources", () => {
   // The schemas/*.schema.json files are committed to git and referenced by
@@ -101,7 +93,6 @@ describe("Published JSON Schemas vs zod sources", () => {
   // them; CI fails if a commit changes a zod source without re-emitting.
   const schemas = [
     { file: "settings.schema.json", expectedTitle: "Claude Code settings.json (cc-settings)" },
-    { file: "hooks-config.schema.json", expectedTitle: "cc-settings hooks-config.json" },
     { file: "skill.schema.json", expectedTitle: "Darkroom skill frontmatter" },
     { file: "claude-json.schema.json", expectedTitle: "~/.claude.json (passthrough)" },
   ] as const;

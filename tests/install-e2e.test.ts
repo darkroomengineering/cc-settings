@@ -75,7 +75,6 @@ describe("install E2E — fresh HOME", () => {
           "skills",
           "profiles",
           "rules",
-          "contexts",
           "hooks",
           "docs",
           "memory",

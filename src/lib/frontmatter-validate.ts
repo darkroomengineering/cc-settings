@@ -30,71 +30,54 @@ function formatZodError(err: z.ZodError): string[] {
   return err.issues.map((i) => `  ${i.path.join(".") || "<root>"}: ${i.message}`);
 }
 
-async function validateAgents(sourceDir: string): Promise<FrontmatterIssue[]> {
-  const dir = join(sourceDir, "agents");
-  if (!existsSync(dir)) return [];
-  const issues: FrontmatterIssue[] = [];
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-    if (entry.name === "README.md") continue;
-    const path = `agents/${entry.name}`;
-    const text = await readFile(join(dir, entry.name), "utf8");
-    const fm = parseFrontmatter(text);
-    if (!fm || typeof fm !== "object") {
-      issues.push({ kind: "agent", path, errors: ["no parseable frontmatter"] });
-      continue;
-    }
-    const result = AgentFrontmatter.safeParse(fm);
-    if (!result.success) {
-      issues.push({ kind: "agent", path, errors: formatZodError(result.error) });
-    }
-  }
-  return issues;
+// One walker, three configurations. The per-kind walkers only ever differed
+// in directory, file layout, and schema — a table keeps them in lockstep.
+interface WalkSpec {
+  kind: FrontmatterIssue["kind"];
+  /** Directory under sourceDir to walk. */
+  dir: string;
+  /**
+   * "flat-md": top-level *.md files (README.md excluded).
+   * "skill-dirs": <name>/SKILL.md inside each subdirectory.
+   */
+  layout: "flat-md" | "skill-dirs";
+  schema: z.ZodType;
 }
 
-async function validateSkills(sourceDir: string): Promise<FrontmatterIssue[]> {
-  const dir = join(sourceDir, "skills");
-  if (!existsSync(dir)) return [];
-  const issues: FrontmatterIssue[] = [];
+const WALK_SPECS: WalkSpec[] = [
+  { kind: "agent", dir: "agents", layout: "flat-md", schema: AgentFrontmatter },
+  { kind: "skill", dir: "skills", layout: "skill-dirs", schema: SkillFrontmatter },
+  { kind: "profile", dir: "profiles", layout: "flat-md", schema: ProfileFrontmatter },
+];
+
+/** Candidate files as "/"-separated paths relative to the walked dir. */
+async function listCandidates(dir: string, layout: WalkSpec["layout"]): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const skillPath = join(dir, entry.name, "SKILL.md");
-    if (!existsSync(skillPath)) continue;
-    const path = `skills/${entry.name}/SKILL.md`;
-    const text = await readFile(skillPath, "utf8");
-    const fm = parseFrontmatter(text);
-    if (!fm || typeof fm !== "object") {
-      issues.push({ kind: "skill", path, errors: ["no parseable frontmatter"] });
-      continue;
-    }
-    const result = SkillFrontmatter.safeParse(fm);
-    if (!result.success) {
-      issues.push({ kind: "skill", path, errors: formatZodError(result.error) });
-    }
+  if (layout === "flat-md") {
+    return entries
+      .filter((e) => e.isFile() && e.name.endsWith(".md") && e.name !== "README.md")
+      .map((e) => e.name);
   }
-  return issues;
+  return entries
+    .filter((e) => e.isDirectory() && existsSync(join(dir, e.name, "SKILL.md")))
+    .map((e) => `${e.name}/SKILL.md`);
 }
 
-async function validateProfiles(sourceDir: string): Promise<FrontmatterIssue[]> {
-  const dir = join(sourceDir, "profiles");
+async function validateKind(sourceDir: string, spec: WalkSpec): Promise<FrontmatterIssue[]> {
+  const dir = join(sourceDir, spec.dir);
   if (!existsSync(dir)) return [];
   const issues: FrontmatterIssue[] = [];
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-    if (entry.name === "README.md") continue;
-    const path = `profiles/${entry.name}`;
-    const text = await readFile(join(dir, entry.name), "utf8");
+  for (const rel of await listCandidates(dir, spec.layout)) {
+    const path = `${spec.dir}/${rel}`;
+    const text = await readFile(join(dir, ...rel.split("/")), "utf8");
     const fm = parseFrontmatter(text);
     if (!fm || typeof fm !== "object") {
-      issues.push({ kind: "profile", path, errors: ["no parseable frontmatter"] });
+      issues.push({ kind: spec.kind, path, errors: ["no parseable frontmatter"] });
       continue;
     }
-    const result = ProfileFrontmatter.safeParse(fm);
+    const result = spec.schema.safeParse(fm);
     if (!result.success) {
-      issues.push({ kind: "profile", path, errors: formatZodError(result.error) });
+      issues.push({ kind: spec.kind, path, errors: formatZodError(result.error) });
     }
   }
   return issues;
@@ -105,12 +88,8 @@ async function validateProfiles(sourceDir: string): Promise<FrontmatterIssue[]> 
  * return the combined list of issues. Empty array means everything parsed cleanly.
  */
 export async function validateFrontmatters(sourceDir: string): Promise<FrontmatterIssue[]> {
-  const [agentIssues, skillIssues, profileIssues] = await Promise.all([
-    validateAgents(sourceDir),
-    validateSkills(sourceDir),
-    validateProfiles(sourceDir),
-  ]);
-  return [...agentIssues, ...skillIssues, ...profileIssues];
+  const perKind = await Promise.all(WALK_SPECS.map((spec) => validateKind(sourceDir, spec)));
+  return perKind.flat();
 }
 
 /**

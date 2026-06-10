@@ -3,7 +3,7 @@
 // Port of scripts/claude-audit.sh. Reads logs at
 // ~/.claude/logs/bash-YYYY-MM-DD.log (format: `[HH:MM:SS] [project] command`).
 //
-// Invoked as a one-shot from the /audit skill; no hook-protocol concerns.
+// Invoked as a one-shot CLI via `bun run claude-audit`; no hook-protocol concerns.
 
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";

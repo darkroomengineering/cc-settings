@@ -5,6 +5,10 @@ import { z } from "zod";
 // the string shape is validated at rule-enforcement time by Claude Code itself.
 // Schema's job is to catch typos in keys, not regex mistakes inside strings.
 
+// Mirrors the knownPermissionModes list in upstream/claude-code-manifest.json.
+// Drift here breaks agent loading silently — keep it strict so the upstream
+// scanner catches new values when Anthropic ships them. This is the single
+// source of truth; agent.ts re-exports it as AgentPermissionMode.
 export const PermissionMode = z.enum([
   "default",
   "acceptEdits",
@@ -14,18 +18,16 @@ export const PermissionMode = z.enum([
   "bypassPermissions",
 ]);
 
-export const AutoModeConfig = z
-  .object({
-    // Documented shape is loose; keep this permissive until the scanner
-    // pins it down. Any unknown keys are flagged by strict parents.
-    enabled: z.boolean().optional(),
-    allowAll: z.boolean().optional(),
-    // v2.1.136 — classifier rules that block unconditionally regardless of
-    // user intent or allow exceptions. Same rule-string syntax as
-    // `permissions.deny`.
-    hard_deny: z.array(z.string()).optional(),
-  })
-  .passthrough();
+export const AutoModeConfig = z.looseObject({
+  // Documented shape is loose; keep this permissive until the scanner
+  // pins it down. Any unknown keys are flagged by strict parents.
+  enabled: z.boolean().optional(),
+  allowAll: z.boolean().optional(),
+  // v2.1.136 — classifier rules that block unconditionally regardless of
+  // user intent or allow exceptions. Same rule-string syntax as
+  // `permissions.deny`.
+  hard_deny: z.array(z.string()).optional(),
+});
 
 export const Permissions = z.object({
   allow: z.array(z.string()).optional(),
