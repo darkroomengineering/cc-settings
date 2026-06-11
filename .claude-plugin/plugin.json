@@ -1,7 +1,7 @@
 {
   "name": "darkroom",
   "description": "Darkroom Engineering AI coding standards. Layered config with portable AGENTS.md, progressive complexity, and two-tier knowledge system.",
-  "version": "8.1.0",
+  "version": "11.23.1",
   "author": {
     "name": "Darkroom Engineering",
     "url": "https://darkroom.engineering"
@@ -28,5 +28,19 @@
     "agent-teams",
     "persistent-memory",
     "adaptive-effort"
-  ]
+  ],
+  "mcpServers": {
+    "context7": {
+      "command": "bunx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "chrome-devtools": {
+      "command": "bunx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    }
+  }
 }
