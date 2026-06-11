@@ -47,6 +47,17 @@ bash setup.sh
 
 **Note**: A full→light switch preserves any settings.json content you added yourself (custom MCP servers, custom hook groups, custom env vars you set to a different value than the full baseline). Only cc-settings-managed entries are removed.
 
+### Plugin install (Cowork and Claude Code)
+
+The repo is also installable as a Claude Code plugin — useful in Cowork (the desktop app), where `setup.sh` doesn't apply:
+
+```
+/plugin marketplace add darkroomengineering/cc-settings
+/plugin install darkroom@cc-settings
+```
+
+The plugin carries the **portable surface only**: all skills (namespaced as `/darkroom:<skill>`), agents, and the self-contained MCP connectors (`context7`, `figma`, `chrome-devtools`). It does **not** carry hooks, rules, profiles, CLAUDE.md/AGENTS.md, permission rules, or the `tldr` server (which needs a locally installed binary) — those remain `setup.sh` territory. If you already ran `setup.sh`, you don't need the plugin; installing both registers the MCP servers twice (harmless, but noisy).
+
 ---
 
 ## Quickstart

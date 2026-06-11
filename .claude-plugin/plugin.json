@@ -1,5 +1,6 @@
 {
   "name": "darkroom",
+  "displayName": "Darkroom Engineering",
   "description": "Darkroom Engineering AI coding standards. Layered config with portable AGENTS.md, progressive complexity, and two-tier knowledge system.",
   "version": "11.23.1",
   "author": {
@@ -20,14 +21,6 @@
     "nextjs",
     "typescript",
     "darkroom"
-  ],
-  "requires": {
-    "claude_code": ">=2.1.154"
-  },
-  "features": [
-    "agent-teams",
-    "persistent-memory",
-    "adaptive-effort"
   ],
   "mcpServers": {
     "context7": {

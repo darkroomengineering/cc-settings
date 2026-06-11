@@ -6,6 +6,13 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+### Plugin marketplace support — Cowork-installable (#54)
+
+- **`.claude-plugin/marketplace.json`** (new): self-referential marketplace (`cc-settings`) with one plugin entry (`darkroom`, `source: "./"`). Install via `/plugin marketplace add darkroomengineering/cc-settings` then `/plugin install darkroom@cc-settings`.
+- **`.claude-plugin/plugin.json`**: inline `mcpServers` for the portable connectors (`context7`, `figma`, `chrome-devtools`); `tldr` deliberately excluded (requires a locally installed `tldr-mcp` binary). Version bumped 8.1.0 → 11.23.1 — it had been stale since the v10 unification and now tracks the installer `VERSION` constant. Dropped inert `requires`/`features` fields (`claude plugin validate` flags them as unknown/ignored); added `displayName`.
+- **`tests/plugin-manifest.test.ts`** (new): pins `plugin.json` version to `src/setup.ts` `VERSION`, asserts plugin `mcpServers` is a field-exact subset of `config/20-mcp.json`, allows only documented manifest fields, and matches the marketplace entry to `plugin.json`.
+- **`MANUAL.md`**: new "Plugin install (Cowork and Claude Code)" subsection documenting what the plugin carries (skills/agents/connectors) vs what stays `setup.sh` territory (hooks, rules, profiles, CLAUDE.md/AGENTS.md, permissions, `tldr`).
+
 ### Delegation guidance — high-agency heuristic (issue #44)
 
 - **`CLAUDE-FULL.md`**: replaced the "repeated nag" MUST/SHOULD list with a per-decision heuristic table (3+ files / 10+ calls / security-sensitive → delegate, route by shape; NO → act directly). Four closing rules replace the old enforcement list; the briefing-contract blockquote is preserved verbatim.
