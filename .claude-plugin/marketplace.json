@@ -1,0 +1,21 @@
+{
+  "name": "cc-settings",
+  "owner": {
+    "name": "Darkroom Engineering",
+    "url": "https://darkroom.engineering"
+  },
+  "description": "Darkroom Engineering Claude Code marketplace — skills, agents, rules, and MCP connectors from the cc-settings harness.",
+  "plugins": [
+    {
+      "name": "darkroom",
+      "source": "./",
+      "description": "Darkroom Engineering AI coding standards. Layered config with portable AGENTS.md, progressive complexity, and two-tier knowledge system.",
+      "author": {
+        "name": "Darkroom Engineering",
+        "url": "https://darkroom.engineering"
+      },
+      "category": "workflow",
+      "tags": ["darkroom", "react", "nextjs", "typescript", "orchestration"]
+    }
+  ]
+}
