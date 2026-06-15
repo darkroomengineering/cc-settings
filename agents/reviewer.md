@@ -1,6 +1,6 @@
 ---
 name: reviewer
-model: fable
+model: opus[1m]
 memory: project
 description: |
   Code review and quality assurance. Checks against Darkroom standards.

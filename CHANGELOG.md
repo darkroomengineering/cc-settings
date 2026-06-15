@@ -4,7 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [11.24.0] — 2026-06-15
+
+### Fable 5 / Mythos 5 suspended — decision tier falls back to `opus[1m]`
+
+On 2026-06-12 a US government export-control directive suspended **all** access to Fable 5 and Mythos 5 for every customer ([announcement](https://www.anthropic.com/news/fable-mythos-access)); all other Claude models are unaffected, no restoration date given. cc-settings had routed the main session and judgment agents to Fable since the 2026-06-10 rollout, so those sessions/agents could no longer start. This reroutes the decision tier to Opus 4.8 with a 1M pin until Fable returns.
+
+- **Session default** (`config/10-core.json`): `"model"` `fable` → `opus[1m]`. The `[1m]` pin is required — Fable was 1M-native, Opus is not, so plain `opus` would silently drop to the smaller window.
+- **Judgment agents** (`agents/maestro.md`, `agents/planner.md`, `agents/reviewer.md`): `model` `fable` → `opus[1m]`, preserving the 1M context they had under Fable.
+- **Unchanged**: `CLAUDE_CODE_SUBAGENT_MODEL` (`sonnet`), `CLAUDE_CODE_EFFORT_LEVEL` (`high`), and the read/execute agents (`implementer`/`security-reviewer` on `opus`; `explore`/`tester`/`scaffolder`/`deslopper` on `sonnet`) — none touched Fable.
+- **`fable` kept as a valid alias** in `src/schemas/agent.ts`, `schemas/*.schema.json`, and the reference tables: the suspension is expected to be temporary, so the syntax stays parseable and the docs flag it `SUSPENDED` rather than removing it. When access is restored, revert the `opus[1m]` entries to `fable` and drop the pins.
+- **Docs**: `docs/agent-models.md` (suspension banner + reworked routing table/principle), `CLAUDE-FULL.md` (context-window paragraph), `MANUAL.md` (model section + statusline example), `docs/settings-reference.md` (model table). No `upstream/claude-code-manifest.json` bump — this is a model-availability event, not a Claude Code upstream sync.
+
+Files changed:
+- config/10-core.json
+- agents/maestro.md
+- agents/planner.md
+- agents/reviewer.md
+- docs/agent-models.md
+- CLAUDE-FULL.md
+- MANUAL.md
+- docs/settings-reference.md
+- src/setup.ts
 
 ### Plugin marketplace support — Cowork-installable (#54)
 
