@@ -1,6 +1,6 @@
 ---
 name: maestro
-model: fable
+model: opus[1m]
 description: |
   Multi-agent orchestrator. Coordinates complex tasks across multiple agents in parallel.
 

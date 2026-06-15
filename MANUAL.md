@@ -244,7 +244,7 @@ Say: *"how's my context?"* or *"context usage"* or *"running out of context"*
 Triggers `/handoff` (context-window runbook lives inside the handoff skill). Watch the statusline:
 
 ```
-Fable 5 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
+Opus 4.8 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |
@@ -404,7 +404,7 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8
 
 Without the pin you silently run an older model whose `xhigh` thinking-token behavior differs. Full model table + ARN examples: `docs/settings-reference.md`.
 
-The cc-settings default model is now `fable` (`claude-fable-5`), available on the first-party API and claude.ai Max. On AWS / Bedrock / Vertex / Foundry, where Fable 5 may not yet be offered, set `model` to `opus` and pin `claude-opus-4-8` (as above) until Fable is available there.
+The cc-settings default model is `opus[1m]` (`claude-opus-4-8`, 1M variant). It was `fable` (`claude-fable-5`), but **Fable 5 was suspended on 2026-06-12** by a US government export-control directive ([announcement](https://www.anthropic.com/news/fable-mythos-access)) — disabled for all customers, no restoration date. All other models are unaffected, so the decision tier falls back to Opus 4.8, pinned to `[1m]` since Opus is not 1M-native. When Fable access returns, set `model` back to `fable` and drop the pin. On AWS / Bedrock / Vertex / Foundry, `opus` may resolve to an older release — pin `claude-opus-4-8` (as above).
 
 ### Profiles
 
