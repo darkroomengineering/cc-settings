@@ -51,6 +51,20 @@ Claude Opus 4.8 calibrates response length to task complexity rather than defaul
 
 These rules exist because we've seen them violated repeatedly. Non-negotiable.
 
+### Laziness Ladder (Before Writing Code)
+The best code is the code you don't write. Before generating anything, stop at the **first rung that holds**:
+
+1. **Does this need to exist?** — if no, skip it (YAGNI). Question the request before solving it.
+2. **Does the standard library / runtime already do this?** — use it.
+3. **Does a native platform feature cover it?** — use it.
+4. **Does an already-installed dependency solve it?** — use it; don't add a new one.
+5. **Can it be one line?** — make it one line.
+6. **Only then** — write the minimum that works.
+
+Default to deletion over addition, boring over clever, fewest files possible. No abstractions, dependencies, or boilerplate nobody asked for. When two stdlib approaches tie on size, pick the edge-case-correct one.
+
+**Lazy, not negligent.** The ladder never applies to trust-boundary/input validation, error handling that prevents data loss, security, accessibility, or anything explicitly requested — those are always built in full. It also bends for real-world physical constraints (hardware drift, sensor inaccuracy) when the task involves them.
+
 ### Read Before Edit
 **Never change code you haven't read.** Research the codebase before editing — open the file, trace the callers, understand the context. Edit-first behavior produces shallow fixes and regressions. If you're about to modify something you haven't read in this session, stop and read it first.
 
@@ -73,6 +87,8 @@ When fixing a bug, stay **confined to files directly related to the bug**:
 AI-assisted coding pushes the marginal cost of finishing toward zero. When the complete version of the thing you're **already building** costs minutes more than the shortcut, do the complete thing — every edge case, error path, and test. "Ship the 90%, defer the rest" is legacy thinking from when human typing was the bottleneck.
 
 This is bounded by scope, not a license to expand it. Complete the **unit you're deliberately touching**; it does not override `Bug Fix Scope` (a fix stays minimal) or `Surface Conflicts`. Finishing a bounded module is a "lake" — boil it. Rewriting an adjacent system is an "ocean" — flag it as out of scope, don't start it.
+
+This is the **second gate, not a contradiction of the `Laziness Ladder`**: the ladder decides *whether* to build a thing; Completeness decides *how thoroughly* to finish what you've already decided to build. Clear the ladder first, then finish completely within scope. "Skip what isn't needed" and "fully finish what is" are sequential, not opposed.
 
 ### Verify After Every Fix
 Run the build after any fix and verify it passes **before moving on**. Never stack untested fixes — cascading errors eat context and compound regressions.
@@ -270,7 +286,7 @@ No AI fingerprints in git history, PRs, or descriptions. Ever.
 
 ## External Libraries
 
-**Search before building.** The first instinct should be "has this already been solved?" — check the runtime/stdlib built-ins and the existing ecosystem before rolling your own. Reinventing something the platform already ships (or that exists as a one-liner) is the most common avoidable waste.
+**Search before building** — rungs 2–4 of the `Laziness Ladder` applied to dependencies: stdlib, then platform, then already-installed deps, before anything new. Reinventing something the platform already ships (or that exists as a one-liner) is the most common avoidable waste; adding a dependency you didn't need is the second-most-common.
 
 Before implementing with any external library:
 1. Fetch current docs — don't assume API knowledge
