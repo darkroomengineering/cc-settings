@@ -63,7 +63,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.24.0"; // Fable 5 suspended (export control, 2026-06-12) — route decision tier to opus[1m]
+const VERSION = "11.25.0"; // sync w/ Claude Code 2.1.178 (3 new settings keys); Fable 5 still suspended — decision tier on opus[1m]
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

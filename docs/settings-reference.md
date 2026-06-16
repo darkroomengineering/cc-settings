@@ -520,11 +520,13 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `effortLevel` | `"low"` \| `"medium"` \| `"high"` \| `"xhigh"` \| `"max"` | G | Persist effort level across sessions (counterpart of `CLAUDE_CODE_EFFORT_LEVEL`; `max` is a superset beyond the key's docs) |
 | `enableAllProjectMcpServers` | boolean | G | Auto-enable every server listed in .mcp.json |
 | `enabledMcpjsonServers` | string[] | G | Allowlist for project .mcp.json server names |
+| `enforceAvailableModels` | boolean | E | Make the `availableModels` allowlist also constrain the Default model; user/project cannot widen a managed list (v2.1.175) |
 | `env` | Record\<string,string\> | G | Environment variables injected into every session |
 | `fallbackModel` | string \| string[] | G | Up to three fallback models tried in order when the primary is overloaded/unavailable; settings.json counterpart of `--fallback-model` (v2.1.166) |
 | `fastModePerSessionOptIn` | boolean | G | Per-session fast-mode opt-in flag |
 | `feedbackSurveyRate` | number 0–1 | E | Sampling rate for in-session feedback survey; 0 = disabled (v2.1.106) |
 | `fileSuggestion` | object | G | File-suggestion UI configuration object |
+| `footerLinksRegexes` | array | G | Regex-matched link badges in the footer row; user or managed settings (v2.1.176) |
 | `forceLoginMethod` | `"claudeai"` \| `"console"` | A | Lock the login flow to a specific provider |
 | `forceLoginOrgUUID` | string \| string[] | A | Restrict login to a specific org UUID or list of UUIDs |
 | `forceRemoteSettingsRefresh` | boolean | E | Force a settings reload from the managed settings URL |
@@ -575,6 +577,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `viewMode` | `"default"` \| `"verbose"` \| `"focus"` | U | Controls how much detail the TUI shows |
 | `voice` | object | U | Voice input/output configuration object |
 | `voiceEnabled` | boolean | U | Enable the voice interface |
+| `wheelScrollAccelerationEnabled` | boolean | U | Toggle mouse-wheel scroll acceleration in fullscreen mode (v2.1.174) |
 | `worktree` | object | G | Git worktree configuration (`baseRef`, `bgIsolation` fields) (v2.1.133) |
 | `wslInheritsWindowsSettings` | boolean | E | WSL sessions inherit the Windows-side managed settings |
 
@@ -617,8 +620,11 @@ Patterns follow the format `ToolName(argument-pattern)`:
 | `Write(~/.claude/settings.json)` | Writing to that specific file |
 | `Bash(curl * \| bash)` | Any curl-to-bash pipe pattern |
 | `Bash(sudo:*)` | Any command starting with `sudo` |
+| `Agent(model:opus)` | Match a tool's input *parameter* — here, block Opus subagents (v2.1.178) |
 
 The `:*` suffix means "followed by anything". Without it, the match is exact.
+
+As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:value)` syntax, where `value` supports the `*` wildcard — e.g. `Agent(model:opus)` matches subagent spawns requesting an Opus model. cc-settings does not yet ship any param-matched rules (`config/30-permissions.json` uses command/path patterns only), but the schema accepts them since permission rules are plain strings.
 
 ### Configured Allow / Deny Rules
 

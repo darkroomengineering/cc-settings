@@ -4,6 +4,35 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.25.0] — 2026-06-16
+
+### Sync with Claude Code v2.1.178 — three new settings keys
+
+Caught the schema up to upstream `2.1.171 → 2.1.178`. The drift was light: three new settings keys, plus behavior/permission notes; the rest of the range is bug fixes and UX for paths cc-settings doesn't configure.
+
+**Adopted:**
+- `enforceAvailableModels` (v2.1.175) — managed boolean; when set, the `availableModels` allowlist also constrains the Default model and user/project settings can't widen a managed list. Added to `src/schemas/settings.ts` (ENTERPRISE block) so strict parse accepts it. Matters because cc-settings already manages `availableModels`; this is the enforcement half.
+- `footerLinksRegexes` (v2.1.176) — array; regex-matched link badges in the footer row, user or managed. Added to `src/schemas/settings.ts` (general block) as `z.array(z.unknown())` since upstream hasn't pinned the entry shape.
+- `wheelScrollAccelerationEnabled` (v2.1.174) — boolean; toggles mouse-wheel scroll acceleration in fullscreen mode. Added to `src/schemas/settings.ts` (general block).
+
+**Docs:**
+- `docs/settings-reference.md` — three table rows for the keys above; new Permission Pattern Syntax note + `Agent(model:opus)` example for the `Tool(param:value)` parameter-matching syntax (v2.1.178). cc-settings ships no param-matched rules yet, but the string-based permission schema already accepts them.
+- `MANUAL.md` — new "Nested `.claude/` directories (monorepos)" subsection covering nested `.claude/skills` loading + directory-qualified names on clash, closest-to-cwd precedence for agents/workflows/output-styles (v2.1.178), and 5-level sub-agent nesting (v2.1.172).
+
+**Deletions / native-now-redundant:** none — nothing in this range subsumes a cc-settings workaround.
+
+**Manifest:** `upstream/claude-code-manifest.json` bumped to `claudeCodeVersion 2.1.178`, `lastScan 2026-06-16`, three keys added to `knownSettingsKeys` (`unique` also canonicalized one pre-existing mis-sort: `claudeMd` now precedes `cleanupPeriodDays`).
+
+**Skipped:** Fable `[1m]` auto-strip (v2.1.173 — docs already state Fable is 1M-native); auto-mode subagent classifier, `/doctor`/`/bug`/Remote Control/vim/statusline UX; all background-session, Bedrock, OAuth, compaction, VSCode, and Windows fixes. v2.1.171 was internal-only; v2.1.177 had no entry.
+
+Files changed:
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- MANUAL.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [11.24.0] — 2026-06-15
 
 ### Fable 5 / Mythos 5 suspended — decision tier falls back to `opus[1m]`

@@ -154,6 +154,7 @@ export const Settings = z.looseObject({
   fallbackModel: z.union([z.string(), z.array(z.string())]).optional(), // 2.1.166 — up to three fallback models tried in order when the primary is overloaded/unavailable; settings.json counterpart of --fallback-model (which now also applies to interactive sessions). string | string[] superset: the CLI flag takes one model, the setting allows up to three, and upstream docs don't yet pin the shape.
   fastModePerSessionOptIn: z.boolean().optional(), // per-session fast-mode opt-in flag
   fileSuggestion: z.looseObject({}).optional(), // file-suggestion UI configuration object
+  footerLinksRegexes: z.array(z.unknown()).optional(), // 2.1.176 — regex-matched link badges in the footer row (user or managed settings); entry shape not yet pinned upstream
   includeCoAuthoredBy: z.boolean().optional(), // deprecated: use attribution instead
   language: z.string().optional(), // UI language / locale override (e.g. "en", "ja")
   maxSkillDescriptionChars: z.number().int().positive().optional(), // per-skill description character cap for the model
@@ -166,6 +167,7 @@ export const Settings = z.looseObject({
   useAutoModeDuringPlan: z.boolean().optional(), // run auto-mode during the plan phase
   voice: z.looseObject({}).optional(), // voice input/output configuration object
   voiceEnabled: z.boolean().optional(), // enable the voice interface
+  wheelScrollAccelerationEnabled: z.boolean().optional(), // 2.1.174 — toggle mouse-wheel scroll acceleration in fullscreen mode
 
   // --- ENTERPRISE/MANAGED ---
   allowedHttpHookUrls: z.array(z.string()).optional(), // allowlist of HTTP endpoints hooks may call
@@ -178,6 +180,7 @@ export const Settings = z.looseObject({
   companyAnnouncements: z.array(z.string()).optional(), // banner messages shown at session start
   disableAgentView: z.boolean().optional(), // hide the agent-activity panel in the TUI
   disableRemoteControl: z.boolean().optional(), // prevent remote-control / programmatic session takeover
+  enforceAvailableModels: z.boolean().optional(), // 2.1.175 — managed: availableModels allowlist also constrains the Default model; user/project cannot widen a managed list
   forceRemoteSettingsRefresh: z.boolean().optional(), // force a settings reload from the managed settings URL
   httpHookAllowedEnvVars: z.array(z.string()).optional(), // env vars forwarded to HTTP hooks
   minimumVersion: z.string().optional(), // minimum Claude Code version required; older clients are blocked

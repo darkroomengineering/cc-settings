@@ -890,6 +890,10 @@
       "properties": {},
       "additionalProperties": {}
     },
+    "footerLinksRegexes": {
+      "type": "array",
+      "items": {}
+    },
     "includeCoAuthoredBy": {
       "type": "boolean"
     },
@@ -929,6 +933,9 @@
       "additionalProperties": {}
     },
     "voiceEnabled": {
+      "type": "boolean"
+    },
+    "wheelScrollAccelerationEnabled": {
       "type": "boolean"
     },
     "allowedHttpHookUrls": {
@@ -971,6 +978,9 @@
       "type": "boolean"
     },
     "disableRemoteControl": {
+      "type": "boolean"
+    },
+    "enforceAvailableModels": {
       "type": "boolean"
     },
     "forceRemoteSettingsRefresh": {

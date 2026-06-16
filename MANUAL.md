@@ -423,6 +423,10 @@ Activate specialized workflows in `settings.json`:
 
 Scaffolding skills (`/component`, `/hook`, `/dr-init`, `/build`) auto-detect your project's stack from `package.json` and emit the right shape — Next.js conventions for satus repos, React Router conventions for novus repos. Performance rules (`react-perf`, `performance`, `react`) lead with stack-agnostic principles and include framework-specific subsections; the model picks the right pattern from your file's visible imports.
 
+### Nested `.claude/` directories (monorepos)
+
+As of Claude Code v2.1.178, skills in a nested `.claude/skills` directory load when you work on files under that directory, and on a name clash with a root skill the nested one appears as `<dir>:<name>` so both stay reachable. For agents, workflows, and output-styles the **closest-to-cwd** definition wins on a name collision (v2.1.178). This matters in monorepos that keep a repo-level `.claude/` alongside cc-settings' user-level skills — a package-local skill of the same name no longer shadows silently; it coexists under a directory-qualified name. Sub-agents can also spawn their own sub-agents up to 5 levels deep (v2.1.172), so orchestration skills (`/orchestrate`, `maestro`) can nest fan-outs.
+
 ### GitHub Project Sync
 
 Say: *"what am I working on?"* or *"update the issue"*
