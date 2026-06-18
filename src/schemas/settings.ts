@@ -44,6 +44,7 @@ export const TeammateMode = z.enum(["auto", "in-process", "tmux", "manual", "dis
 export const Sandbox = z.looseObject({
   failIfUnavailable: z.boolean().optional(),
   enableWeakerNetworkIsolation: z.boolean().optional(), // macOS: weaker network isolation for MITM proxy verification
+  allowAppleEvents: z.boolean().optional(), // 2.1.181 — macOS: allow sandboxed commands to send Apple Events
   network: z
     .object({
       deniedDomains: z.array(z.string()).optional(),

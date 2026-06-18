@@ -747,6 +747,9 @@
         "enableWeakerNetworkIsolation": {
           "type": "boolean"
         },
+        "allowAppleEvents": {
+          "type": "boolean"
+        },
         "network": {
           "type": "object",
           "properties": {

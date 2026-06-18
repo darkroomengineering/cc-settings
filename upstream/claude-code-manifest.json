@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-06-16T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.178",
+  "lastScan": "2026-06-18T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.181",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -149,6 +149,7 @@
     "ANTHROPIC_BEDROCK_SERVICE_TIER",
     "ANTHROPIC_WORKSPACE_ID",
     "API_FORCE_IDLE_TIMEOUT",
+    "CLAUDE_CLIENT_PRESENCE_FILE",
     "CLAUDE_CODE_CERT_STORE",
     "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN",
     "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS",

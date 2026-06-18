@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.26.0] — 2026-06-18
+
+### Sync with Claude Code v2.1.181 — sandbox Apple Events + presence-file env var
+
+Caught the schema up to upstream `2.1.178 → 2.1.181` (2.1.180 was never published; 2.1.179 was bug-fixes only). Light drift: one nested sandbox field and one env var, both macOS-flavored.
+
+**Adopted:**
+- `sandbox.allowAppleEvents` (v2.1.181) — opt-in boolean that lets sandboxed Bash commands send Apple Events on macOS. Added explicitly to the `Sandbox` looseObject in `src/schemas/settings.ts`; the schema already accepted it, but the explicit field documents intent and keeps the upstream scanner aligned.
+- `CLAUDE_CLIENT_PRESENCE_FILE` (v2.1.181) — env var pointing at a presence file Claude Code touches while active, suppressing duplicate mobile push notifications when the desktop client is present. Added to `knownEnvVars` in the manifest and the env table in `docs/settings-reference.md`.
+
+**Native-now-noted (no cc-settings change):**
+- `/config key=value` (v2.1.181) — set any setting inline from the prompt. Native UI; the `update-config` skill already points users at `/config`, no repo surface to edit.
+- Bundled Bun runtime upgraded to 1.4 (v2.1.181) — affects Claude Code's vendored runtime, not cc-settings' `engines.bun >=1.1.30` dev requirement. No change.
+
+**Skipped:** all 2.1.179/2.1.181 bug fixes and UI/runtime tweaks (streaming line-by-line display, thinking-phase auto-retry, subagent panel auto-hide, MCP OAuth browser styling, fullscreen modifier+click, prompt-caching/network-drive/Apple-Events/startup/worktree/subagent fixes, WSL2 scroll, Linux sandbox glob perf, plugin-load perf) — no config surface.
+
+**Files changed:**
+src/schemas/settings.ts
+upstream/claude-code-manifest.json
+docs/settings-reference.md
+src/setup.ts
+CHANGELOG.md
+
 ## [11.25.0] — 2026-06-16
 
 ### Sync with Claude Code v2.1.178 — three new settings keys
