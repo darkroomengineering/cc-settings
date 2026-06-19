@@ -91,6 +91,16 @@ Output for each flagged dep: current version → recommended version, deprecated
 
 Apply the non-negotiable standards below to the codebase as a whole. Walk the largest files first, then the modules with the most outbound dependencies, then the entry points.
 
+### Phase 2b — Cross-model structural pass (when the Codex bridge is available)
+
+This audit is Claude judging structure alone — one model family, biased toward the abstractions it would have written. When the Codex bridge is available, get an independent read from a different family. There is **no diff** here (the audit spans the whole repo, not a change), so use `ask`, not `review`:
+
+```bash
+bun "$HOME/.claude/src/scripts/codex-run.ts" ask "Audit this repository for structural problems: files over ~1000 lines, thin wrappers that don't earn their keep, logic leaked across boundaries, and duplicated abstractions. Walk the largest files and the modules with the most outbound dependencies first. Report the highest-leverage 'code judo' restructurings — ones that delete whole branches rather than rearrange them — ordered by conviction."
+```
+
+Fold Codex's findings into Phase 3 as a second opinion: where Claude and Codex independently flag the same module, that's high-conviction; where they diverge, note it rather than silently dropping it. The bridge is gated and fails open — if Codex is unavailable, proceed with the Claude-only audit.
+
 ### Phase 3 — Synthesis
 
 Produce the output in the format below. Prioritize ruthlessly — a smaller number of high-conviction findings beats a long list.

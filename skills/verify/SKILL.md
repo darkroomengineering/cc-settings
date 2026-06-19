@@ -34,6 +34,16 @@ Files: [list files]")
 
 Finder over-reports by design — this is the **superset** of all possible issues.
 
+#### Cross-model finder (when the Codex bridge is available)
+
+All three agents here are Claude — one model family with shared blind spots, which is the exact self-preferential bias this skill exists to fight. When the Codex bridge is available, add a **non-Claude voice** to the panel by running, in parallel with Agent 1:
+
+```
+Agent(codex-verifier, "Independently find issues in the current diff. Report findings by severity.")
+```
+
+Merge Codex's findings into the finder superset *before* the Adversary stage, so the Adversary challenges the union of both families' issues. (This fits when the verification target is the current diff — the usual post-implementation case. For arbitrary non-diff code, fall back to the all-Claude panel.) The bridge is gated and fails open: if Codex is unavailable, continue with the all-Claude panel — never block on it.
+
 ### Agent 2: Adversary
 
 Takes the finder's output and tries to disprove each issue.
@@ -79,7 +89,7 @@ Adversary report:
 ## Workflow
 
 1. **Identify scope** — what code/changes need verification
-2. **Run Finder** — collect all potential issues
+2. **Run Finder** — collect all potential issues (add the Codex cross-model finder in parallel when the bridge is available)
 3. **Run Adversary** — challenge finder's output
 4. **Run Referee** — judge both outputs
 5. **Report** — present final verdicts

@@ -77,6 +77,14 @@ Spawn `reviewer` agent:
 Agent(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
 ```
 
+When the Codex bridge is available, run a cross-model review **in parallel** — a different model family catches what Claude self-review misses, and this is right before a commit lands, the cheapest place to catch a Critical:
+
+```
+Agent(codex-verifier, "Cross-model review of the staged diff. Report findings by severity.")
+```
+
+If Claude and Codex disagree on a Critical/HIGH finding, surface it to the user as a gate **before** Step 7 — don't auto-commit through a cross-model disagreement. The bridge is gated and fails open: if Codex is unavailable, proceed with the Claude review alone.
+
 ### Step 7: Commit (Bisectable)
 
 Analyze the diff to decide commit strategy:
