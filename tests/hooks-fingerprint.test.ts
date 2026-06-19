@@ -344,6 +344,96 @@ describe("src manifest — write + verify", () => {
     }
   });
 
+  test("readSrcManifest rejects a key containing a '..' path segment", async () => {
+    // Business rule: manifest keys are later join()'d under ~/.claude/src —
+    // a '..' segment must not let a tampered manifest point outside the tree.
+    // The whole manifest is rejected (fail-open to null / 'missing') rather
+    // than silently skipping the bad entry.
+    const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
+    try {
+      await writeFile(
+        join(dir, SRC_MANIFEST_FILENAME),
+        JSON.stringify({ files: { "../escape.ts": "abc" }, installedAt: "x" }),
+      );
+      expect(await readSrcManifest(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("readSrcManifest rejects an absolute key", async () => {
+    // An absolute path like '/etc/passwd' would let a read bypass the src tree.
+    const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
+    try {
+      await writeFile(
+        join(dir, SRC_MANIFEST_FILENAME),
+        JSON.stringify({ files: { "/etc/passwd": "abc" }, installedAt: "x" }),
+      );
+      expect(await readSrcManifest(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("readSrcManifest rejects a non-string hash value", async () => {
+    // Hash values are compared to the output of CryptoHasher (a string);
+    // a non-string value indicates a tampered manifest and must be rejected.
+    const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
+    try {
+      await writeFile(
+        join(dir, SRC_MANIFEST_FILENAME),
+        JSON.stringify({ files: { "hooks/x.ts": 123 }, installedAt: "x" }),
+      );
+      expect(await readSrcManifest(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("readSrcManifest returns a populated record for a clean manifest", async () => {
+    // A well-formed manifest with a valid relative key and string hash must
+    // be accepted and returned with files intact.
+    const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
+    try {
+      await writeFile(
+        join(dir, SRC_MANIFEST_FILENAME),
+        JSON.stringify({
+          files: { "hooks/safety-net.ts": "deadbeef" },
+          installedAt: "2026-06-19T00:00:00.000Z",
+        }),
+      );
+      const result = await readSrcManifest(dir);
+      expect(result).not.toBeNull();
+      expect(result?.files["hooks/safety-net.ts"]).toBe("deadbeef");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("readSrcManifest strips control chars from installedAt (ANSI injection defense)", async () => {
+    // installedAt is echoed verbatim into the terminal warning banner;
+    // a crafted value containing ESC sequences could disguise the alarm.
+    // The stripControl transform must remove all chars with codePoint <= 0x1f.
+    const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
+    try {
+      const poisoned = String.fromCharCode(27) + "[1mX";
+      await writeFile(
+        join(dir, SRC_MANIFEST_FILENAME),
+        JSON.stringify({
+          files: { "hooks/safety-net.ts": "deadbeef" },
+          installedAt: poisoned,
+        }),
+      );
+      const result = await readSrcManifest(dir);
+      expect(result).not.toBeNull();
+      // No char in installedAt should have codePoint <= 0x1f (C0 controls incl. ESC)
+      const codePoints = Array.from(result!.installedAt).map((c) => c.charCodeAt(0));
+      expect(codePoints.every((n) => n > 0x1f)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("node_modules and non-.ts files are excluded from the manifest", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
     try {

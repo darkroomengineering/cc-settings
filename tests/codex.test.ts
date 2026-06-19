@@ -371,6 +371,40 @@ describe("sanitizeOutput — multi-line credential redaction", () => {
     expect(result).not.toContain("secret_token_here");
     expect(result).toContain("Authorization: [redacted]");
   });
+
+  test("OPENAI_API_KEY=<value> is redacted — env-var pattern covers *_API_KEY names", () => {
+    // Business rule: env-var assignments exposing API keys must never reach
+    // the verdict file or the statusline. The pattern targets *_API_KEY,
+    // *_TOKEN, and *_SECRET names — common CI/CD credential conventions.
+    const result = sanitizeOutput("OPENAI_API_KEY=sk-abcd1234efgh5678ijkl");
+    expect(result).toContain("OPENAI_API_KEY=[redacted]");
+    expect(result).not.toContain("sk-abcd1234efgh5678ijkl");
+  });
+
+  test("MY_TOKEN=<value> is redacted — env-var pattern covers *_TOKEN names", () => {
+    const result = sanitizeOutput("MY_TOKEN=supersecretvalue");
+    expect(result).toBe("MY_TOKEN=[redacted]");
+  });
+
+  test("GITHUB_SECRET=<value> is redacted — env-var pattern covers *_SECRET names", () => {
+    const result = sanitizeOutput("GITHUB_SECRET=abc123");
+    expect(result).toBe("GITHUB_SECRET=[redacted]");
+  });
+
+  test("Bearer:<token> (colon, no space) is redacted — colon is treated as separator", () => {
+    // The regex uses [\s:]+ to capture both 'Bearer <tok>' and 'Bearer:<tok>'
+    // so colon-separated variants are also caught.
+    const result = sanitizeOutput("Bearer:tok_nospaces_here");
+    expect(result).toContain("Bearer [redacted]");
+    expect(result).not.toContain("tok_nospaces_here");
+  });
+
+  test("ordinary key=value pairs like count=5 or level=high are NOT mangled", () => {
+    // The env-var pattern only targets uppercase names ending in _API_KEY,
+    // _TOKEN, or _SECRET — lowercase or generic names must pass through.
+    const plain = "count=5 level=high status=ok";
+    expect(sanitizeOutput(plain)).toBe(plain);
+  });
 });
 
 describe("reconcile — live 'available' + cached available", () => {

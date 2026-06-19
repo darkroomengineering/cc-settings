@@ -163,6 +163,9 @@ function classifyCompound(
   if (parts.length < 2) return null;
 
   // Parse each part via the shared managed-command parser (drops lib/).
+  // SECURITY: trust requires EVERY part to be managed (incl. `||` branches — a
+  // failure-path command still runs). Never relax this `every` to `some`, or a
+  // `managed || evil` compound would classify as trusted.
   const parsed = parts.map((p) => parseHookCommand(p));
   if (!parsed.every((p) => p.managed && p.relPath)) return null;
 

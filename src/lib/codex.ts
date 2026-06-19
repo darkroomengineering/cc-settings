@@ -192,8 +192,9 @@ export function sanitizeOutput(s: string): string {
   return s
     .replace(ANSI_RE, "")
     .replace(/sk-[A-Za-z0-9_-]{16,}/g, "sk-[redacted]")
-    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
-    .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]");
+    .replace(/Bearer[\s:]+\S+/gi, "Bearer [redacted]")
+    .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]")
+    .replace(/\b([A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET))=\S+/gi, "$1=[redacted]");
 }
 
 /** First non-empty line of a subprocess stderr, sanitized before it's cached to

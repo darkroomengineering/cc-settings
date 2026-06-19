@@ -18,11 +18,22 @@ import { z } from "zod";
 import { iterCommandHooks } from "./hook-command.ts";
 import { atomicWriteJson } from "./json-io.ts";
 
+// `installedAt` is echoed verbatim into the terminal warning banner, and the
+// fingerprint file is exactly what the Shai-Hulud threat model lets an attacker
+// rewrite — so a crafted value could inject ANSI escapes to disguise the alarm.
+// Strip control characters (incl. ESC) on read.
+const stripControl = (s: string): string =>
+  Array.from(s)
+    .filter((c) => {
+      const n = c.charCodeAt(0);
+      return n > 0x1f && n !== 0x7f && (n < 0x80 || n > 0x9f); // drop C0/C1 controls
+    })
+    .join("");
+
 // Zod schema for the fingerprint record written to disk.
-// `installedAt` is echoed into the warning banner — validate it's a real string.
 const FingerprintRecordSchema = z.object({
   hash: z.string().min(1),
-  installedAt: z.string().default(""),
+  installedAt: z.string().default("").transform(stripControl),
   hooksCount: z.number().int().nonnegative().default(0),
 });
 
@@ -217,7 +228,16 @@ export async function readSrcManifest(claudeDir?: string): Promise<SrcManifestRe
     if (!parsed.files || typeof parsed.files !== "object" || Array.isArray(parsed.files)) {
       return null;
     }
-    return { files: parsed.files, installedAt: parsed.installedAt ?? "" };
+    // Each key is later join()'d under ~/.claude/src and read — a tampered
+    // manifest must not point outside the tree or carry non-string hashes.
+    // Reject the whole manifest (fail-open to "missing") if either holds.
+    const files: Record<string, string> = {};
+    for (const [rel, hash] of Object.entries(parsed.files)) {
+      if (typeof hash !== "string") return null;
+      if (rel.startsWith("/") || rel.split(/[/\\]/).includes("..")) return null;
+      files[rel] = hash;
+    }
+    return { files, installedAt: stripControl(parsed.installedAt ?? "") };
   } catch {
     return null;
   }
