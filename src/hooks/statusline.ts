@@ -10,6 +10,7 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { readCodexVerdict } from "../lib/codex.ts";
 import { runGit as runGitLib } from "../lib/git.ts";
 import { readHookInput, readState } from "../lib/hook-runtime.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
@@ -202,6 +203,24 @@ async function main(): Promise<void> {
     const dim = "\x1b[2m";
     const reset = "\x1b[0m";
     parts.push(`${yellow}⬆ cc v${drift.installed}${dim} stale${reset}`);
+  }
+
+  // Codex bridge availability badge — reads the cached verdict written by
+  // codex-verify.ts at SessionStart (no spawn here, hot-path safe).
+  // "not-installed" and "unknown" → silent (no clutter for teammates without Codex).
+  const codexVerdict = await readCodexVerdict();
+  {
+    const green = "\x1b[32m";
+    const yellow = "\x1b[33m";
+    const reset = "\x1b[0m";
+    if (codexVerdict.state === "available") {
+      parts.push(`${green}codex ✓${reset}`);
+    } else if (codexVerdict.state === "unauthenticated" || codexVerdict.state === "no-access") {
+      parts.push(`${yellow}codex auth?${reset}`);
+    } else if (codexVerdict.state === "rate-limited") {
+      parts.push(`${yellow}codex ⏳${reset}`);
+    }
+    // "not-installed" | "unknown" → push nothing
   }
 
   process.stdout.write(`${parts.join(dimSep)}\n`);

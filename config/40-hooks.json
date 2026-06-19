@@ -165,6 +165,12 @@
 					{
 						"type": "command",
 						"command": "bun \"$HOME/.claude/src/scripts/session-start.ts\""
+					},
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/codex-verify.ts\"",
+						"timeout": 3,
+						"async": true
 					}
 				]
 			}
