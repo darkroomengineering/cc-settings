@@ -188,6 +188,18 @@ const mcpPrune = Bun.spawn(["bun", join(CLAUDE_DIR, "src", "scripts", "prune-mcp
 });
 mcpPrune.unref?.();
 
+// Warm the team-knowledge TTL cache in the background. The TTL gate inside
+// refreshKnowledgeIndex means this only calls `gh api` when the cache is stale
+// (>6h), so spawning it every session is cheap.
+const knowledgeRefresh = Bun.spawn(
+  ["bun", join(CLAUDE_DIR, "src", "scripts", "refresh-knowledge-index.ts")],
+  {
+    stdout: "ignore",
+    stderr: "ignore",
+  },
+);
+knowledgeRefresh.unref?.();
+
 const logRotations = [
   rotateLog(join(CLAUDE_DIR, "sessions.log")),
   rotateLog(join(CLAUDE_DIR, "hooks.log")),
