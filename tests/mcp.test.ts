@@ -12,15 +12,6 @@ import {
   mergeSettingsWithMcpPreservation,
 } from "../src/lib/mcp.ts";
 
-async function withTmp(fn: (dir: string) => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "cc-mcp-schema-"));
-  try {
-    await fn(dir);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
 describe("mcp — user-only detection", () => {
   test("findUserOnlyServers returns names in user but not in team", () => {
     const only = findUserOnlyServers(

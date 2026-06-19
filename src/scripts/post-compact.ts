@@ -3,8 +3,8 @@
 // Port of scripts/post-compact.sh. Pure stdout; no state writes.
 
 import { readdir, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { claudePath } from "../lib/platform.ts";
 
 console.log("[PostCompact] Context was compacted. Recovery steps:");
 console.log("  1. Re-read your active task plan (check plans/ directory)");
@@ -12,7 +12,7 @@ console.log("  2. Re-read any files you were actively editing");
 console.log("  3. Check TaskList for current progress");
 console.log("  4. Resume from where you left off");
 
-const handoffDir = join(homedir(), ".claude", "handoffs");
+const handoffDir = claudePath("handoffs");
 try {
   const entries = await readdir(handoffDir);
   // Skip symlink aliases (latest.md etc.) so we return the canonical handoff

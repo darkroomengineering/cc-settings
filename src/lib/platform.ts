@@ -6,6 +6,8 @@
 // stay local.
 
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export type OS = "macos" | "linux" | "wsl" | "windows" | "unknown";
 
@@ -57,4 +59,28 @@ export function ymd(d: Date = new Date()): string {
 // handles Windows `PATHEXT` + `.cmd`/`.exe` suffixes.
 export function hasCommand(cmd: string): boolean {
   return Bun.which(cmd) !== null;
+}
+
+// Canonical ~/.claude directory. All code should use this rather than
+// joining homedir() + ".claude" inline — makes root overridable in tests
+// and keeps the derivation in one place.
+export const CLAUDE_DIR = join(homedir(), ".claude");
+
+// Join one or more path segments under CLAUDE_DIR.
+export function claudePath(...segments: string[]): string {
+  return join(CLAUDE_DIR, ...segments);
+}
+
+// ISO-8601 timestamp without milliseconds: "2026-06-19T12:34:56Z".
+// Replaces the five inline `new Date().toISOString().replace(/\.\d{3}Z$/, "Z")`
+// idioms scattered across scripts and hooks.
+export function isoNow(): string {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+// YYYY-MM-DD HH:MM:SS in local time — bash parity: `date '+%Y-%m-%d %H:%M:%S'`.
+// Replaces the three private formatters (formatTimestamp/formatDate/hms) that
+// produced identical output across stop-failure.ts, session-start.ts, log-bash.ts.
+export function localDatetime(d: Date = new Date()): string {
+  return `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }

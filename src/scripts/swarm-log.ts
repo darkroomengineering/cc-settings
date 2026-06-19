@@ -9,11 +9,11 @@
 //   TASK_SUBJECT         — populated by CC for task events
 
 import { appendFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
+import { claudePath } from "../lib/platform.ts";
 
 const event = process.argv[2] ?? "";
-const logPath = join(homedir(), ".claude", "swarm.log");
+const logPath = claudePath("swarm.log");
 
 const agentType = process.env.AGENT_TYPE ?? "?";
 const agentId = process.env.AGENT_ID ?? "?";

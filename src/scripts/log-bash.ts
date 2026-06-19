@@ -6,17 +6,12 @@
 // logs older than CLAUDE_LOG_RETENTION_DAYS (default 1).
 
 import { appendFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
-import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 import { readHookInput } from "../lib/hook-runtime.ts";
-import { pad, ymd } from "../lib/platform.ts";
+import { claudePath, localDatetime, ymd } from "../lib/platform.ts";
 
-const LOG_DIR = join(homedir(), ".claude", "logs");
+const LOG_DIR = claudePath("logs");
 const RETENTION = Number.parseInt(process.env.CLAUDE_LOG_RETENTION_DAYS ?? "1", 10) || 1;
-
-function hms(d: Date): string {
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 
 async function pruneOldLogs(): Promise<void> {
   // Bash used `find ... -mtime +$RETENTION -delete`. Mirror that: delete any
@@ -32,7 +27,7 @@ async function pruneOldLogs(): Promise<void> {
     entries
       .filter((f) => /^bash-.*\.log$/.test(f))
       .map(async (f) => {
-        const p = join(LOG_DIR, f);
+        const p = claudePath("logs", f);
         try {
           const st = await stat(p);
           if (st.mtimeMs < cutoff) await unlink(p);
@@ -54,6 +49,8 @@ if (!command) process.exit(0);
 
 const now = new Date();
 const project = basename(process.cwd());
-const line = `[${hms(now)}] [${project}] ${command}\n`;
-const target = join(LOG_DIR, `bash-${ymd(now)}.log`);
+// localDatetime gives "YYYY-MM-DD HH:MM:SS"; we only want the HH:MM:SS portion.
+const hms = localDatetime(now).slice(11);
+const line = `[${hms}] [${project}] ${command}\n`;
+const target = claudePath("logs", `bash-${ymd(now)}.log`);
 await appendFile(target, line).catch(() => {});

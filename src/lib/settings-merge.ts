@@ -498,7 +498,7 @@ export async function mergeSettings(
   outputPath: string,
   opts: MergeOptions = {},
   resolvedMcpServers?: Record<string, unknown>,
-): Promise<void> {
+): Promise<MergeAccounting | null> {
   const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
   // No existing file → write team as-is (atomic), injecting resolvedMcpServers
@@ -509,7 +509,7 @@ export async function mergeSettings(
         ? { ...teamSettings, mcpServers: resolvedMcpServers }
         : teamSettings;
     await atomicWriteJson(outputPath, out);
-    return;
+    return null;
   }
 
   // Validate userRaw against the Settings schema. On failure we log a debug
@@ -561,8 +561,16 @@ export async function mergeSettings(
     if (result.keep) merged[key] = result.value;
   }
 
-  // --- Build the user-facing summary ---
-  const a = ctx.accounting;
+  await atomicWriteJson(outputPath, merged);
+  // Return accounting so the caller (installSettings in setup.ts) can print
+  // the user-facing summary — §3.4: mergeSettings is a pure orchestrator.
+  return ctx.accounting;
+}
+
+/** Print the merge accounting summary. Called by installSettings after
+ *  mergeSettingsWithMcpPreservation returns. Separated from mergeSettings
+ *  so the orchestrator stays side-effect free (§3.4). */
+export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}): void {
   const bits: string[] = [];
   if (a.permissionsAdded > 0) bits.push(`${a.permissionsAdded} permission rule(s)`);
   if (a.hooksAdded > 0) bits.push(`${a.hooksAdded} hook group(s)`);
@@ -591,6 +599,4 @@ export async function mergeSettings(
     if (adopted > 0) ibits.push(`${adopted} team value(s) adopted over yours`);
     if (ibits.length > 0) info(`Interactive choices: ${ibits.join(", ")}`);
   }
-
-  await atomicWriteJson(outputPath, merged);
 }

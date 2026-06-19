@@ -9,7 +9,6 @@
 
 import { lstatSync, readFileSync } from "node:fs";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import {
@@ -21,6 +20,7 @@ import {
 } from "../lib/artifact-store.ts";
 import { palette } from "../lib/colors.ts";
 import { runGit, runProcessFull } from "../lib/git.ts";
+import { claudePath, isoNow } from "../lib/platform.ts";
 
 async function getProjectName(): Promise<string> {
   const out = await runGit(["rev-parse", "--show-toplevel"]);
@@ -67,7 +67,7 @@ const RESOLVE_SPEC = {
 
 async function cmdSave(description = "Checkpoint"): Promise<void> {
   const project = await getProjectName();
-  const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
+  const checkpointDir = claudePath("checkpoints", project);
   await ensureDir(checkpointDir);
   const id = timestampId("chk-", "-");
   const file = join(checkpointDir, `${id}.json`);
@@ -79,7 +79,7 @@ async function cmdSave(description = "Checkpoint"): Promise<void> {
   ]);
   const chk: Checkpoint = {
     id,
-    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    timestamp: isoNow(),
     project,
     description,
     git: {
@@ -100,7 +100,7 @@ async function cmdSave(description = "Checkpoint"): Promise<void> {
 
 async function cmdList(): Promise<void> {
   const project = await getProjectName();
-  const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
+  const checkpointDir = claudePath("checkpoints", project);
   await ensureDir(checkpointDir);
   const entries = await listArtifacts(checkpointDir, /\.json$/);
   if (entries.length === 0) {
@@ -123,7 +123,7 @@ async function cmdList(): Promise<void> {
 
 async function resolveTarget(target: string): Promise<string | null> {
   const project = await getProjectName();
-  const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
+  const checkpointDir = claudePath("checkpoints", project);
   return resolveArtifact(checkpointDir, target, RESOLVE_SPEC);
 }
 
@@ -187,7 +187,7 @@ async function cmdRestore(target: string): Promise<number> {
 async function cmdClean(keepStr: string): Promise<void> {
   const keep = Number.parseInt(keepStr, 10) || 10;
   const project = await getProjectName();
-  const checkpointDir = join(homedir(), ".claude", "checkpoints", project);
+  const checkpointDir = claudePath("checkpoints", project);
   await ensureDir(checkpointDir);
   const names = await listArtifacts(checkpointDir, /\.json$/);
   let entries: Array<{ file: string; mtime: number }>;

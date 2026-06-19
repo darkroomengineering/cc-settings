@@ -8,9 +8,9 @@
 
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { readHookInput } from "../lib/hook-runtime.ts";
+import { claudePath } from "../lib/platform.ts";
 
 const STOPWORDS = new Set([
   "the",
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
 
   if (!SESSION_ID || !PROMPT) return;
 
-  const STATE_DIR = join(homedir(), ".claude", "session-titles");
+  const STATE_DIR = claudePath("session-titles");
   const STATE_FILE = join(STATE_DIR, `${SESSION_ID}.flag`);
 
   // Already titled this session — skip.

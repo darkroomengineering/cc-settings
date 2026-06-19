@@ -13,12 +13,12 @@
 // docs/hooks-reference.md).
 
 import { appendFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { blockDecision } from "../lib/hook-runtime.ts";
+import { claudePath, isoNow } from "../lib/platform.ts";
 
 const HOOK_VERSION = "1.0.0";
-const LOG_FILE = join(homedir(), ".claude", "safety-net.log");
+const LOG_FILE = claudePath("safety-net.log");
 
 // --- Utilities ------------------------------------------------------------
 
@@ -35,7 +35,7 @@ function redactSecrets(text: string): string {
 
 async function logBlocked(cmd: string, reason: string): Promise<void> {
   const redacted = redactSecrets(cmd);
-  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const timestamp = isoNow();
   const cwd = process.cwd() || "unknown";
   const line = `${JSON.stringify({
     timestamp,

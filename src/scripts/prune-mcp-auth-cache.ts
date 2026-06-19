@@ -22,12 +22,10 @@
 //   MCP_NEEDS_AUTH_CACHE    cache file path (default ~/.claude/mcp-needs-auth-cache.json)
 
 import { readFile, unlink, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { claudePath } from "../lib/platform.ts";
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
-const CACHE_PATH =
-  process.env.MCP_NEEDS_AUTH_CACHE ?? join(homedir(), ".claude", "mcp-needs-auth-cache.json");
+const CACHE_PATH = process.env.MCP_NEEDS_AUTH_CACHE ?? claudePath("mcp-needs-auth-cache.json");
 const TTL_MS = Number.parseInt(process.env.MCP_NEEDS_AUTH_TTL_MS ?? "", 10) || DEFAULT_TTL_MS;
 
 type CacheEntry = { timestamp?: number };

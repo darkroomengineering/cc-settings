@@ -31,12 +31,12 @@
 //   nothing found → exit 0
 
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { HooksBlock } from "../schemas/hooks.ts";
 import { parseHookCommand } from "./hook-command.ts";
 import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
+import { readJsonOrNull } from "./json-io.ts";
+import { CLAUDE_DIR } from "./platform.ts";
 
 export type HookSeverity = "trusted" | "unknown" | "stale" | "suspicious";
 
@@ -88,7 +88,7 @@ export interface SrcIntegrity {
  *  on any read error - fail-soft, never throws. */
 export async function loadSrcIntegrity(claudeDir?: string): Promise<SrcIntegrity | null> {
   try {
-    const dir = claudeDir ?? join(homedir(), ".claude");
+    const dir = claudeDir ?? CLAUDE_DIR;
     const manifest = await readSrcManifest(dir);
     if (!manifest) return null;
     const files = new Map<string, boolean>();
@@ -317,15 +317,16 @@ export function auditHooks(settings: unknown, integrity?: SrcIntegrity | null): 
 export const HOOKS_SCHEMA_VALIDATION_FAILED = "hooks config failed schema validation";
 
 export async function auditSettingsFile(path?: string, claudeDir?: string): Promise<AuditResult> {
-  const settingsPath = path ?? join(homedir(), ".claude", "settings.json");
+  const settingsPath = path ?? join(CLAUDE_DIR, "settings.json");
   if (!existsSync(settingsPath)) {
     return { settingsPath, exists: false, totalHooks: 0, findings: [] };
   }
-  let parsed: unknown = null;
-  try {
-    const text = await readFile(settingsPath, "utf8");
-    parsed = JSON.parse(text);
-  } catch {
+
+  // Use canonical readJsonOrNull for ENOENT-vs-parse distinction and
+  // JsonParseError wrapping — the one settings.json reader that previously
+  // bypassed this. Returns null on ENOENT (already guarded above) or bad JSON.
+  const parsed = await readJsonOrNull(settingsPath).catch(() => null);
+  if (parsed === null) {
     // Malformed JSON - return empty audit (this is not the file we're trying
     // to defend against; a broken file is its own problem).
     return { settingsPath, exists: true, totalHooks: 0, findings: [] };
@@ -338,6 +339,7 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
   // alone doesn't prove malice - it might be forward-compat drift from a newer
   // Claude Code version.
   const extraFindings: SchemaFinding[] = [];
+  let validatedHooks: Record<string, unknown> | undefined;
   if (parsed !== null && typeof parsed === "object") {
     const hooksRaw = (parsed as Record<string, unknown>).hooks;
     if (hooksRaw !== undefined) {
@@ -355,6 +357,9 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
           severity: "unknown",
           reasons: [issueSummary],
         });
+      } else {
+        // §3.2: pass validated hooks data so auditHooks doesn't repeat defensive checks
+        validatedHooks = schemaResult.data as Record<string, unknown>;
       }
     }
   }
@@ -364,9 +369,16 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
   // setup.ts installed.
   const integrity = await loadSrcIntegrity(claudeDir);
 
+  // §3.2: When schema validation passed, inject the validated hooks block so
+  // auditHooks receives typed data and skips redundant typeof guards.
+  const auditInput =
+    validatedHooks !== undefined
+      ? { ...(parsed as Record<string, unknown>), hooks: validatedHooks }
+      : parsed;
+
   // totalHooks counts audited command hooks (the "hook command(s) total" the
   // CLI prints) - NOT findings, which also include the schema pseudo-finding.
-  const hookFindings = auditHooks(parsed, integrity);
+  const hookFindings = auditHooks(auditInput, integrity);
   const findings: AuditFinding[] = [...extraFindings, ...hookFindings];
   return { settingsPath, exists: true, totalHooks: hookFindings.length, findings };
 }
