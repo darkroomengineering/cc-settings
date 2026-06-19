@@ -510,6 +510,7 @@ These are enforced automatically — no skill needed:
 | `explore` | how does, where is, find, understand, zoom out, bigger picture |
 | `consolidate` | clean up rules, contradictions, spa day |
 | `cc` | sync with claude code, changelog sync, update cc-settings, upgrade cc-settings, pull the latest |
+| `codex` | codex exec, codex review, codex ask, cross-model verification, second opinion, bulk execution via Codex CLI — see `docs/codex-bridge.md` |
 | `context-doc` | domain glossary, ADR, shared vocabulary, context doc |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 | `share-learning` | share this learning, post to team knowledge, team-wide finding |

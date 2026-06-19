@@ -52,6 +52,20 @@ For full orchestration mode, activate `profiles/maestro.md`. Model routing per a
 
 ---
 
+## Codex pairing (Opus + Codex)
+
+The OpenAI Codex CLI runs as a second model alongside Claude via the `/codex` skill and the `codex-verifier` agent. It's gated — no-ops when `codex` isn't installed or logged in, and the statusline shows availability (`codex ✓ / auth? / ⏳`). Full design: `docs/codex-bridge.md`.
+
+**Quota-aware routing** — Claude meters Opus by wall-time/weekly (scarce, ~22–52h/wk on Max 5x, auto-downshifts to Sonnet); Codex (Pro-class) meters by messages per ~5-hour window (roomy). Route by headroom, not habit:
+
+- **Opus** → planning, synthesis, gate decisions. Never the body of a tight `/loop`.
+- **Sonnet** → loop bodies and most fan-out subagents (`CLAUDE_CODE_SUBAGENT_MODEL` is already `sonnet`). There's no `/loop` model setting — pin per-invocation.
+- **Codex** → mechanical/bulk execution (`/codex exec`) and independent cross-model verification (`/codex review`, or the `codex-verifier` agent fanned out in parallel). Batch into FEW LARGE calls — it's message-metered, so one whole task beats many steps. Always review Codex's diff before trusting it.
+
+Two roomy pools (Sonnet + Codex) carry volume; the one scarce pool (Opus) does the thinking. If a Codex window drains, fail over to Claude-only rather than stalling.
+
+---
+
 ## Effort & Context
 
 **Effort levels** — `low`, `medium`, `high`, `xhigh`, `max`. Default `high` (pinned via `CLAUDE_CODE_EFFORT_LEVEL` in settings.json — matches Anthropic's 4.8 default; a deliberate cost choice over the old `xhigh` pin). Per-session: `/effort xhigh` for deep work; `ultrathink` keyword for one-turn max depth. Per-agent: `effort` frontmatter.
