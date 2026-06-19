@@ -14,11 +14,18 @@
 // Responsibilities of this file:
 //   1. User-only server detection (findUserOnlyServers)
 //   2. User-server preservation prompt (promptPreserveUserServers)
-//   3. ~/.claude.json installation (installMcpToClaudeJson) and removal of
+//   3. MCP-preservation resolution (resolveMcpServers) — computes the final
+//      merged mcpServers object (team base + any user-only extras the user
+//      chose to keep). Extracted from the old settings-merge.ts orchestrator so
+//      settings-merge.ts stays free of MCP knowledge.
+//   4. settings.json merge entry point (mergeSettingsWithMcpPreservation) — the
+//      thin wrapper that calls resolveMcpServers then delegates to the pure
+//      mergeSettings function in settings-merge.ts.
+//   5. ~/.claude.json installation (installMcpToClaudeJson) and removal of
 //      cc-settings-managed servers on light installs (removeManagedMcpServers)
 //
-// Generic JSON/atomic-file I/O moved to src/lib/json-io.ts; the settings.json
-// merge strategies + orchestrator moved to src/lib/settings-merge.ts.
+// Generic JSON/atomic-file I/O moved to src/lib/json-io.ts; the pure settings.json
+// merge strategies + orchestrator live in src/lib/settings-merge.ts.
 
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -29,6 +36,7 @@ import { debug, error, info, success, warn } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { asRecord, subtractByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
+import { type MergeOptions, mergeSettings } from "./settings-merge.ts";
 
 type McpServer = z.infer<typeof McpServersSchema>[string];
 export type McpServers = Record<string, McpServer>;
@@ -173,4 +181,83 @@ export async function removeManagedMcpServers(
     updated.mcpServers = Object.fromEntries(kept);
   }
   await atomicWriteJson(claudeJsonPath, updated);
+}
+
+// --- MCP-preserving settings.json merge ----------------------------------
+
+/**
+ * Compute the final merged mcpServers value from a user's existing servers and
+ * the team's baseline servers. This encapsulates the MCP-preservation semantics
+ * that used to live inline in the settings merger:
+ *
+ *   - Team servers form the base.
+ *   - Servers present in the user's settings but absent from the team config
+ *     are "user-only" extras. The user is prompted to keep or drop them
+ *     (or CC_WIPE_CUSTOM_MCP=1 drops them silently).
+ *   - Kept user-only servers are overlaid onto the team base. Team wins on any
+ *     key that exists in both (shared server names use the team definition).
+ *
+ * @param userServers  McpServers extracted from the user's existing settings.json
+ * @param teamServers  McpServers from the composed team config (already validated)
+ * @returns            The resolved McpServers to write into the output file
+ */
+export async function resolveMcpServers(
+  userServers: McpServers,
+  teamServers: McpServers,
+): Promise<McpServers> {
+  const userOnly = findUserOnlyServers(userServers, teamServers);
+  let preserved: McpServers = {};
+  if (userOnly.length > 0) {
+    ({ preserved } = await promptPreserveUserServers(userOnly, userServers));
+  } else {
+    debug("No user-only MCP servers");
+  }
+  // Team is the base; user-only preserved extras are overlaid.
+  return { ...teamServers, ...preserved };
+}
+
+/**
+ * Merge user's existing settings.json with the in-memory team settings object,
+ * preserving user-only MCP servers via an interactive (or CC_WIPE_CUSTOM_MCP=1)
+ * preservation prompt.
+ *
+ * This is the thin orchestration wrapper that:
+ *   1. Reads + parses the user's mcpServers from the existing settings.json.
+ *   2. Calls resolveMcpServers to compute the final merged mcpServers.
+ *   3. Delegates the full settings merge to the pure `mergeSettings` function in
+ *      settings-merge.ts, passing the resolved mcpServers so the pure merger
+ *      doesn't need MCP knowledge.
+ *
+ * The observable output is byte-identical to the old combined function — same
+ * servers preserved, same precedence, same _status handling.
+ */
+export async function mergeSettingsWithMcpPreservation(
+  existingPath: string,
+  teamSettings: Record<string, unknown>,
+  outputPath: string,
+  opts: MergeOptions = {},
+): Promise<void> {
+  // Peek at the user's existing file to extract current mcpServers so we can
+  // run the preservation prompt before the per-key merge loop.
+  // readJsonOrNull throws on unparseable JSON (JsonParseError) — honored here
+  // so bad JSON always aborts rather than silently wiping user MCP config.
+  const userRaw = (await readJsonOrNull(existingPath)) as Record<string, unknown> | null;
+
+  if (!userRaw) {
+    // No existing file — delegate directly; the pure merger writes team as-is.
+    await mergeSettings(existingPath, teamSettings, outputPath, opts);
+    return;
+  }
+
+  // asRecord: a corrupt string-valued mcpServers degrades to {} instead of
+  // leaking a string into the server merge.
+  const userServers = asRecord(userRaw.mcpServers) as McpServers;
+  const teamServers = asRecord(teamSettings.mcpServers) as McpServers;
+
+  const resolvedMcp = await resolveMcpServers(userServers, teamServers);
+
+  // Delegate to the pure merger, supplying the already-resolved mcpServers.
+  // The pure merger skips the mcpServers key in its per-key strategy loop and
+  // uses the value we computed here instead.
+  await mergeSettings(existingPath, teamSettings, outputPath, opts, resolvedMcp);
 }

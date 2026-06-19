@@ -15,14 +15,25 @@
 // Imported by:
 //   - src/setup.ts            — to know what to wipe + reinstall
 //   - src/lib/status.ts       — to compute present/missing for `cc status`
+//   - src/lib/lint-skills.ts  — to assert ACTIVE_SKILLS matches skills/ on disk
 //
 // Previously duplicated across both files; the duplication caused real drift
 // risk (every new skill required edits in two places).
-export const MANAGED_SKILLS = [
+//
+// INVARIANT: ACTIVE_SKILLS must list exactly the directories under skills/.
+// lint-skills enforces this — a skill added to skills/ without an ACTIVE_SKILLS
+// entry fails `bun run lint:skills`. (This replaces the old installer-side prune
+// loop that re-read skills/ directly to cover the gap; the gap is now a lint
+// error instead of silent install drift.)
+
+/** Currently shipped skills — present in skills/<name>/SKILL.md, installed to
+ *  ~/.claude/skills/<name>/. Keep in sync with the skills/ directory. */
+export const ACTIVE_SKILLS = [
   "autoresearch",
   "build",
   "cc",
   "checkpoint",
+  "codex",
   "component",
   "consolidate",
   "context-doc",
@@ -30,24 +41,36 @@ export const MANAGED_SKILLS = [
   "dr-init",
   "explore",
   "fix",
+  "freeze",
   "handoff",
   "hook",
   "lighthouse",
   "nuclear-review",
   "oracle",
   "orchestrate",
+  "plan-ceo-review",
   "plan-feature",
   "project",
+  "proof-of-work",
   "qa",
   "refactor",
+  "retro",
   "review",
+  "review-batch",
   "share-learning",
   "ship",
+  "strategist",
   "test",
   "tldr",
   "verify",
   "zero-tech-debt",
-  // Kept for upgrade cleanup only — these skills were removed and must be wiped on re-install.
+];
+
+/** Upgrade-cleanup tombstones — skills removed in prior releases. Kept so a
+ *  re-install on an older user prunes the obsolete directories. Do not remove;
+ *  they are load-bearing for upgrades. When reviving one, move it to
+ *  ACTIVE_SKILLS and recreate its skills/<name>/ directory. */
+export const TOMBSTONE_SKILLS = [
   "ask",
   "audit",
   "cc-sync",
@@ -75,3 +98,7 @@ export const MANAGED_SKILLS = [
   "write-a-skill",
   "zoom-out",
 ];
+
+/** Everything the installer may wipe + reinstall: active skills plus tombstones
+ *  to prune. Consumers that only care about the wipe set use this. */
+export const MANAGED_SKILLS = [...ACTIVE_SKILLS, ...TOMBSTONE_SKILLS];

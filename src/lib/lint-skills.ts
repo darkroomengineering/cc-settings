@@ -10,7 +10,8 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SkillFrontmatter } from "../schemas/skill.ts";
-import { extractFrontmatterBlock, parseFrontmatterStrict } from "./frontmatter.ts";
+import { lintFrontmatterCore } from "./lint-frontmatter.ts";
+import { ACTIVE_SKILLS } from "./managed-skills.ts";
 
 export type SkillSeverity = "error" | "warning";
 
@@ -48,146 +49,124 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
   const dir = join(skillsDir, name);
   const skillPath = join(dir, "SKILL.md");
 
+  // Helper: attach the skill name to a base finding.
+  const push = (severity: SkillSeverity, rule: string, message: string) => {
+    findings.push({ skill: name, severity, rule, message });
+  };
+
   if (!KEBAB_CASE.test(name)) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "folder-kebab-case",
-      message: `folder "${name}" is not kebab-case (allowed: a-z, 0-9, -)`,
-    });
+    push("error", "folder-kebab-case", `folder "${name}" is not kebab-case (allowed: a-z, 0-9, -)`);
   }
 
   for (const prefix of RESERVED_PREFIXES) {
     if (name === prefix || name.startsWith(`${prefix}-`)) {
-      findings.push({
-        skill: name,
-        severity: "error",
-        rule: "reserved-name",
-        message: `name "${name}" uses reserved prefix "${prefix}" — Claude.ai rejects these`,
-      });
+      push(
+        "error",
+        "reserved-name",
+        `name "${name}" uses reserved prefix "${prefix}" — Claude.ai rejects these`,
+      );
     }
   }
 
   // The guide is explicit: no README.md inside a skill folder. All docs go in
   // SKILL.md or references/.
   if (existsSync(join(dir, "README.md"))) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "no-readme-inside",
-      message: "README.md found inside skill folder — move docs to SKILL.md or references/",
-    });
+    push(
+      "error",
+      "no-readme-inside",
+      "README.md found inside skill folder — move docs to SKILL.md or references/",
+    );
   }
 
   if (!existsSync(skillPath)) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "skill-md-missing",
-      message: "SKILL.md not found (exact case required)",
-    });
+    push("error", "skill-md-missing", "SKILL.md not found (exact case required)");
     return findings;
   }
 
   const text = await readFile(skillPath, "utf8");
-  const block = extractFrontmatterBlock(text);
-
-  if (!block) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "frontmatter-missing",
-      message: "no `---`-delimited YAML frontmatter at top of file",
-    });
-    return findings;
-  }
 
   // Raw-text scan: catches angle brackets in any field, including passthrough
   // ones like argument-hint where the schema doesn't validate the value.
+  // Must run before frontmatter parsing so we scan the raw block.
+  const block = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
   if (/[<>]/.test(block)) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "no-angle-brackets",
-      message:
-        "frontmatter contains `<` or `>` — security restriction, frontmatter is injected into the system prompt",
-    });
+    push(
+      "error",
+      "no-angle-brackets",
+      "frontmatter contains `<` or `>` — security restriction, frontmatter is injected into the system prompt",
+    );
   }
 
-  const { data: parsed, errors: yamlErrors } = parseFrontmatterStrict(text);
-  if (yamlErrors.length > 0) {
-    for (const e of yamlErrors) {
-      findings.push({
-        skill: name,
+  // Shared scaffolding: frontmatter-missing + yaml-parse errors.
+  const baseFindings = await lintFrontmatterCore(text, (parsed) => {
+    const domainFindings: Array<{ severity: SkillSeverity; rule: string; message: string }> = [];
+
+    const result = SkillFrontmatter.safeParse(parsed);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        domainFindings.push({
+          severity: "error",
+          rule: "schema",
+          message: `${issue.path.join(".") || "(root)"}: ${issue.message}`,
+        });
+      }
+      return domainFindings;
+    }
+
+    const fm = result.data;
+
+    if (fm.name !== name) {
+      domainFindings.push({
         severity: "error",
-        rule: "yaml-parse",
-        message: `${e.code ?? "YAML"} at line ${e.line ?? "?"}, col ${e.col ?? "?"}: ${e.message}`,
+        rule: "name-folder-mismatch",
+        message: `frontmatter name "${fm.name}" does not match folder "${name}"`,
       });
     }
-    return findings;
-  }
 
-  const result = SkillFrontmatter.safeParse(parsed);
-  if (!result.success) {
-    for (const issue of result.error.issues) {
-      findings.push({
-        skill: name,
+    const desc = fm.description;
+
+    // Guide: under 1024 chars. Hard limit (Claude.ai upload rejects past this).
+    if (desc.length > 1024) {
+      domainFindings.push({
         severity: "error",
-        rule: "schema",
-        message: `${issue.path.join(".") || "(root)"}: ${issue.message}`,
+        rule: "description-too-long",
+        message: `description is ${desc.length} chars (max 1024)`,
       });
     }
-    return findings;
-  }
 
-  const fm = result.data;
+    // Guide examples of "too vague" descriptions hover around 25-40 chars
+    // ("Helps with projects."). 50 is a soft floor — flag as warning, don't block.
+    if (desc.length < 50) {
+      domainFindings.push({
+        severity: "warning",
+        rule: "description-too-short",
+        message: `description is only ${desc.length} chars — likely too vague to trigger reliably`,
+      });
+    }
 
-  if (fm.name !== name) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "name-folder-mismatch",
-      message: `frontmatter name "${fm.name}" does not match folder "${name}"`,
-    });
-  }
+    if (!TRIGGER_PATTERN.test(desc)) {
+      domainFindings.push({
+        severity: "warning",
+        rule: "description-no-trigger-language",
+        message:
+          "description has no trigger language (`Triggers`, `Use when`, `Use for`, …) — the model can't tell when to load it",
+      });
+    }
 
-  const desc = fm.description;
+    return domainFindings;
+  });
 
-  // Guide: under 1024 chars. Hard limit (Claude.ai upload rejects past this).
-  if (desc.length > 1024) {
-    findings.push({
-      skill: name,
-      severity: "error",
-      rule: "description-too-long",
-      message: `description is ${desc.length} chars (max 1024)`,
-    });
-  }
-
-  // Guide examples of "too vague" descriptions hover around 25-40 chars
-  // ("Helps with projects."). 50 is a soft floor — flag as warning, don't block.
-  if (desc.length < 50) {
-    findings.push({
-      skill: name,
-      severity: "warning",
-      rule: "description-too-short",
-      message: `description is only ${desc.length} chars — likely too vague to trigger reliably`,
-    });
-  }
-
-  if (!TRIGGER_PATTERN.test(desc)) {
-    findings.push({
-      skill: name,
-      severity: "warning",
-      rule: "description-no-trigger-language",
-      message:
-        "description has no trigger language (`Triggers`, `Use when`, `Use for`, …) — the model can't tell when to load it",
-    });
+  for (const f of baseFindings) {
+    findings.push({ skill: name, severity: f.severity, rule: f.rule, message: f.message });
   }
 
   return findings;
 }
 
-export async function lintSkillsDir(skillsDir: string): Promise<LintResult> {
+export async function lintSkillsDir(
+  skillsDir: string,
+  opts: { checkManaged?: boolean } = {},
+): Promise<LintResult> {
   if (!existsSync(skillsDir)) {
     return { findings: [], skillCount: 0 };
   }
@@ -212,6 +191,38 @@ export async function lintSkillsDir(skillsDir: string): Promise<LintResult> {
       rule: "skill-count-cap",
       message: `${skillNames.length} skills — past ${SKILL_SOFT_CAP}-skill soft cap. Adding a new skill should require removing one.`,
     });
+  }
+
+  // ACTIVE_SKILLS must match skills/ on disk exactly. A skill present on disk but
+  // absent from ACTIVE_SKILLS won't be pruned on a full→light switch (cleanOldConfig
+  // iterates ACTIVE_SKILLS); an ACTIVE_SKILLS entry with no directory is stale.
+  // Repo-level invariant — only meaningful against the canonical skills/ dir, so
+  // it is opt-in (the CLI enables it for the default repo run, not custom dirs).
+  if (opts.checkManaged) {
+    const onDisk = new Set(skillNames);
+    const active = new Set(ACTIVE_SKILLS);
+    for (const name of skillNames) {
+      if (!active.has(name)) {
+        findings.push({
+          skill: name,
+          severity: "error",
+          rule: "managed-skills-missing",
+          message:
+            "present in skills/ but missing from ACTIVE_SKILLS (src/lib/managed-skills.ts) — the installer won't prune it on a full→light switch",
+        });
+      }
+    }
+    for (const name of ACTIVE_SKILLS) {
+      if (!onDisk.has(name)) {
+        findings.push({
+          skill: name,
+          severity: "error",
+          rule: "managed-skills-stale",
+          message:
+            "listed in ACTIVE_SKILLS but skills/<name>/ does not exist — remove it or move it to TOMBSTONE_SKILLS",
+        });
+      }
+    }
   }
 
   return { findings, skillCount: skillNames.length };

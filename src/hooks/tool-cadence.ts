@@ -66,12 +66,14 @@ const FILE_EDIT_TOOLS: Record<string, string> = {
 interface CounterState {
   count: number;
   lastTool: string;
+  /** Debounce timestamp; genuinely absent until the first fire. */
   firedAt?: number;
-  files?: string[];
-  nudged?: boolean;
-  countAtNudge?: number;
-  filesAtNudge?: number;
-  escalated?: boolean;
+  // The rest are always present once normalizeCounterState() has run.
+  files: string[];
+  nudged: boolean;
+  countAtNudge: number;
+  filesAtNudge: number;
+  escalated: boolean;
 }
 
 type Payload = {
@@ -100,24 +102,41 @@ async function currentHead(cwd: string): Promise<string | undefined> {
   return out || undefined;
 }
 
+/** Validate and default every field of CounterState from an unknown raw value.
+ *  Replaces the previous inline re-hydration + `as number | undefined` cast. */
+function normalizeCounterState(raw: unknown): CounterState {
+  if (raw === null || typeof raw !== "object") {
+    return {
+      count: 0,
+      lastTool: "",
+      files: [],
+      nudged: false,
+      countAtNudge: 0,
+      filesAtNudge: 0,
+      escalated: false,
+    };
+  }
+  const r = raw as Record<string, unknown>;
+  return {
+    count: typeof r.count === "number" ? r.count : 0,
+    lastTool: typeof r.lastTool === "string" ? r.lastTool : "",
+    firedAt: typeof r.firedAt === "number" ? r.firedAt : undefined,
+    files: Array.isArray(r.files) ? (r.files as string[]) : [],
+    nudged: typeof r.nudged === "boolean" ? r.nudged : false,
+    countAtNudge: typeof r.countAtNudge === "number" ? r.countAtNudge : 0,
+    filesAtNudge: typeof r.filesAtNudge === "number" ? r.filesAtNudge : 0,
+    escalated: typeof r.escalated === "boolean" ? r.escalated : false,
+  };
+}
+
 // --- Branch 1: consecutive non-Agent call counter --------------------------
 
 async function parallelmaxBranch(
   toolName: string,
   toolInput: Payload["tool_input"],
 ): Promise<void> {
-  // Defensive defaults for old-shape state files.
-  const raw = await readState<CounterState>(COUNTER_STATE, { count: 0, lastTool: "" });
-  const state = {
-    count: raw.count ?? 0,
-    lastTool: raw.lastTool ?? "",
-    firedAt: raw.firedAt as number | undefined,
-    files: raw.files ?? ([] as string[]),
-    nudged: raw.nudged ?? false,
-    countAtNudge: raw.countAtNudge ?? 0,
-    filesAtNudge: raw.filesAtNudge ?? 0,
-    escalated: raw.escalated ?? false,
-  };
+  const raw = await readState<unknown>(COUNTER_STATE, null);
+  const state = normalizeCounterState(raw);
 
   if (toolName === "Agent") {
     // Reset the whole streak on delegation; preserve firedAt for debounce.

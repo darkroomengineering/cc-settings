@@ -6,7 +6,7 @@
 //
 // Classification rules:
 //   trusted    — matches cc-settings' shipped command pattern
-//                (`bun "$HOME/.claude/src/{scripts,hooks,lib}/<name>.ts"`)
+//                (`bun "$HOME/.claude/src/{scripts,hooks}/<name>.ts"`)
 //                AND the referenced file's content hash matches the install
 //                manifest written by setup.ts. Trust is content-based, not
 //                path-based: a path-shaped match alone proves nothing, since
@@ -34,8 +34,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Hook, HookGroup } from "../schemas/hooks.ts";
 import { HooksBlock } from "../schemas/hooks.ts";
+import { parseHookCommand } from "./hook-command.ts";
 import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
 
 export type HookSeverity = "trusted" | "unknown" | "stale" | "suspicious";
@@ -50,16 +50,30 @@ export interface HookFinding {
   reasons: string[];
 }
 
+/** Schema-validation meta-finding — distinguishes schema failures from real hook findings. */
+export interface SchemaFinding {
+  event: "schema";
+  groupIndex: -1;
+  hookIndex: -1;
+  type: "schema-validation";
+  command: string;
+  severity: "unknown";
+  reasons: string[];
+}
+
+/** Discriminated union of audit findings. */
+export type AuditFinding = HookFinding | SchemaFinding;
+
 export interface AuditResult {
   settingsPath: string;
   exists: boolean;
   totalHooks: number;
-  findings: HookFinding[];
+  findings: AuditFinding[];
 }
 
 /** Content-integrity view consumed by the classifier: rel path under
- *  ~/.claude/src → does the on-disk content hash match the install manifest?
- *  `null`/absent means no manifest exists — classification degrades to
+ *  ~/.claude/src - does the on-disk content hash match the install manifest?
+ *  `null`/absent means no manifest exists - classification degrades to
  *  "unknown" for shipped-pattern commands rather than trusting path shape.
  *  `fileExists` answers whether a given rel path is currently present on disk
  *  (independent of the manifest), used to distinguish stale entries (file gone)
@@ -71,7 +85,7 @@ export interface SrcIntegrity {
 
 /** Build the SrcIntegrity view: every manifested file, hashed on disk and
  *  compared. Returns null when no manifest exists (pre-manifest install) or
- *  on any read error — fail-soft, never throws. */
+ *  on any read error - fail-soft, never throws. */
 export async function loadSrcIntegrity(claudeDir?: string): Promise<SrcIntegrity | null> {
   try {
     const dir = claudeDir ?? join(homedir(), ".claude");
@@ -87,18 +101,10 @@ export async function loadSrcIntegrity(claudeDir?: string): Promise<SrcIntegrity
   }
 }
 
-// `bun "$HOME/.claude/src/<dir>/<name>.ts"` — accept quoted and unquoted
-// `$HOME` and `${HOME}` forms. Allow an optional trailing arg list (some
-// hooks invoke a script with positional args, e.g. `swarm-log.ts start`),
-// but ONLY simple word-like tokens separated by spaces/tabs: shell
-// metacharacters (`;`, `|`, `&`, `$(`, backticks, redirects) are rejected,
-// and so are newlines — `\s` would treat `\n` as an arg separator while the
-// shell treats it as a command separator, letting a payload on the next line
-// (`bun .../x.ts\n/path/to/evilbin`) ride the shipped-pattern match.
-// Capture group 1 is the path relative to ~/.claude/src — the
-// install-manifest key.
-const TRUSTED_BUN_CC =
-  /^bun[ \t]+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks|lib)\/[a-zA-Z0-9_-]+\.ts)"?(?:[ \t]+[A-Za-z0-9_.:=/-]+)*[ \t]*$/;
+// NOTE: The managed pattern lives in hook-command.ts (MANAGED_HOOK_CMD).
+// It is (scripts|hooks) ONLY - lib/ files are support modules, not hooks,
+// and were dropped from the trusted surface in the nuclear-review refactor.
+// [ \t] (not \s) arg-separation is preserved from the original, see hook-command.ts.
 
 /** Classify a single shipped-pattern command against the install manifest. */
 function classifyShippedPath(
@@ -140,22 +146,30 @@ function classifyShippedPath(
   };
 }
 
+// Compound command separator regex. Splits on ; && || and newline variants
+// including U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR.
+// Built via new RegExp so \uNNNN escapes stay as explicit codepoints in the
+// source text rather than invisible literal characters (encoding-safe).
+const COMPOUND_SEP = /\s*(?:;|&&|\|\||\r?\n|\r|\u2028|\u2029)\s*/;
+
 // Compound commands that chain multiple trusted bun scripts with `;` or `&&`.
-// Each sub-command must match TRUSTED_BUN_CC *and* pass content verification;
+// Each sub-command must match MANAGED_HOOK_CMD *and* pass content verification;
 // the compound's severity is the worst of its parts.
 function classifyCompound(
   cmd: string,
   integrity: SrcIntegrity | null | undefined,
 ): { severity: HookSeverity; reasons: string[] } | null {
-  // Newlines (and the U+2028/U+2029 line separators) are command separators
-  // too — split on them like `;`/`&&` so a newline-chained pair still gets
-  // per-part manifest verification.
-  const parts = cmd.split(/\s*(?:;|&&|\|\||\r?\n|\r|\u2028|\u2029)\s*/).filter((p) => p.length > 0);
+  const parts = cmd.split(COMPOUND_SEP).filter((p) => p.length > 0);
   if (parts.length < 2) return null;
-  const matches = parts.map((p) => p.match(TRUSTED_BUN_CC));
-  if (!matches.every((m) => m?.[1])) return null;
 
-  const results = matches.map((m) => classifyShippedPath(m?.[1] ?? "", integrity));
+  // Parse each part via the shared managed-command parser (drops lib/).
+  // SECURITY: trust requires EVERY part to be managed (incl. `||` branches — a
+  // failure-path command still runs). Never relax this `every` to `some`, or a
+  // `managed || evil` compound would classify as trusted.
+  const parsed = parts.map((p) => parseHookCommand(p));
+  if (!parsed.every((p) => p.managed && p.relPath)) return null;
+
+  const results = parsed.map((p) => classifyShippedPath(p.relPath ?? "", integrity));
   const suspicious = results.filter((r) => r.severity === "suspicious");
   if (suspicious.length > 0) {
     return { severity: "suspicious", reasons: suspicious.flatMap((r) => r.reasons) };
@@ -212,12 +226,12 @@ const SUSPICIOUS_PATTERNS: Array<{ rx: RegExp; reason: string }> = [
 // Quick "is this obviously a one-liner blob of opaque code?" check.
 function looksOpaque(cmd: string): boolean {
   if (cmd.length < 250) return false;
-  // No spaces in long runs → likely obfuscated/encoded. reduce (not spread)
-  // because `cmd` is arbitrary settings.json text — a pathological token count
+  // No spaces in long runs -> likely obfuscated/encoded. reduce (not spread)
+  // because `cmd` is arbitrary settings.json text - a pathological token count
   // would blow the call stack with Math.max(...tokens).
   const longestRun = cmd.split(/\s/).reduce((m, s) => Math.max(m, s.length), 0);
   if (longestRun > 200) return true;
-  // High density of base64 alphabet → encoded payload
+  // High density of base64 alphabet -> encoded payload
   const b64Chars = (cmd.match(/[A-Za-z0-9+/=]/g) ?? []).length;
   return b64Chars / cmd.length > 0.85;
 }
@@ -235,19 +249,19 @@ export function classifyHookCommand(
   cmd: string,
   integrity?: SrcIntegrity | null,
 ): { severity: HookSeverity; reasons: string[] } {
-  // Malware signatures are checked FIRST and unconditionally — a hit always
+  // Malware signatures are checked FIRST and unconditionally - a hit always
   // wins, even when the command would otherwise match the shipped pattern and
-  // verify against the manifest. Defense in depth: TRUSTED_BUN_CC already
+  // verify against the manifest. Defense in depth: MANAGED_HOOK_CMD already
   // rejects shell metacharacters in trailing args, but pattern-match trust
   // must never suppress an explicit malware signal.
   const sus = matchSuspicious(cmd);
   if (sus.length > 0) return { severity: "suspicious", reasons: sus };
 
   // Shipped-pattern commands next. Trust is CONTENT-based (install manifest),
-  // not path-based.
-  const m = cmd.match(TRUSTED_BUN_CC);
-  if (m?.[1]) {
-    return classifyShippedPath(m[1], integrity);
+  // not path-based. lib/ files are NOT in the managed pattern (tightened).
+  const parsed = parseHookCommand(cmd);
+  if (parsed.managed && parsed.relPath) {
+    return classifyShippedPath(parsed.relPath, integrity);
   }
   const compound = classifyCompound(cmd, integrity);
   if (compound) return compound;
@@ -260,7 +274,7 @@ export function classifyHookCommand(
 
 // Settings.json shape we care about: top-level `hooks` is `{ [event]: HookGroup[] }`
 // where each group has `hooks: Hook[]`. We tolerate unknown shapes silently
-// (return empty findings) — a malformed settings.json is a different problem.
+// (return empty findings) - a malformed settings.json is a different problem.
 
 export function auditHooks(settings: unknown, integrity?: SrcIntegrity | null): HookFinding[] {
   if (!settings || typeof settings !== "object") return [];
@@ -272,13 +286,16 @@ export function auditHooks(settings: unknown, integrity?: SrcIntegrity | null): 
     if (!Array.isArray(groups)) continue;
     groups.forEach((group: unknown, gi: number) => {
       if (!group || typeof group !== "object") return;
-      const entries = (group as HookGroup).hooks;
-      if (!Array.isArray(entries)) return;
-      entries.forEach((entry: Hook, hi: number) => {
+      const hooksBlock = (group as Record<string, unknown>).hooks;
+      if (!Array.isArray(hooksBlock)) return;
+      hooksBlock.forEach((entry: unknown, hi: number) => {
+        if (!entry || typeof entry !== "object") return;
+        const e = entry as Record<string, unknown>;
         // Only `command`-type hooks have a string command. Prompt/agent/http/
         // mcp_tool hooks don't run arbitrary shell, so out of scope here.
-        if (entry?.type !== "command") return;
-        const cmd = entry.command.trim();
+        if (e.type !== "command") return;
+        if (typeof e.command !== "string") return;
+        const cmd = e.command.trim();
         if (!cmd) return;
         const { severity, reasons } = classifyHookCommand(cmd, integrity);
         findings.push({
@@ -309,18 +326,18 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
     const text = await readFile(settingsPath, "utf8");
     parsed = JSON.parse(text);
   } catch {
-    // Malformed JSON — return empty audit (this is not the file we're trying
+    // Malformed JSON - return empty audit (this is not the file we're trying
     // to defend against; a broken file is its own problem).
     return { settingsPath, exists: true, totalHooks: 0, findings: [] };
   }
 
   // Validate the hooks block against the schema before walking it. A failure
-  // doesn't stop the audit — we surface it as an `unknown` finding and then
-  // fall through to auditHooks (which degrades gracefully on malformed input).
-  // Using `unknown` rather than `suspicious` because a schema mismatch alone
-  // doesn't prove malice — it might be forward-compat drift from a newer
+  // doesn't stop the audit - we surface it as a SchemaFinding (unknown severity)
+  // and then fall through to auditHooks (which degrades gracefully on malformed
+  // input). Using `unknown` rather than `suspicious` because a schema mismatch
+  // alone doesn't prove malice - it might be forward-compat drift from a newer
   // Claude Code version.
-  const extraFindings: HookFinding[] = [];
+  const extraFindings: SchemaFinding[] = [];
   if (parsed !== null && typeof parsed === "object") {
     const hooksRaw = (parsed as Record<string, unknown>).hooks;
     if (hooksRaw !== undefined) {
@@ -342,15 +359,15 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
     }
   }
 
-  // Content verification against the install manifest — shipped-pattern
+  // Content verification against the install manifest - shipped-pattern
   // commands are only "trusted" when the file they point at hashes to what
   // setup.ts installed.
   const integrity = await loadSrcIntegrity(claudeDir);
 
   // totalHooks counts audited command hooks (the "hook command(s) total" the
-  // CLI prints) — NOT findings, which also include the schema pseudo-finding.
+  // CLI prints) - NOT findings, which also include the schema pseudo-finding.
   const hookFindings = auditHooks(parsed, integrity);
-  const findings = [...extraFindings, ...hookFindings];
+  const findings: AuditFinding[] = [...extraFindings, ...hookFindings];
   return { settingsPath, exists: true, totalHooks: hookFindings.length, findings };
 }
 
@@ -376,7 +393,7 @@ export function formatAuditReport(result: AuditResult): string {
   lines.push(`  ${result.totalHooks} hook command(s) total.`);
   lines.push("");
 
-  const grouped: Record<HookSeverity, HookFinding[]> = {
+  const grouped: Record<HookSeverity, AuditFinding[]> = {
     suspicious: [],
     stale: [],
     unknown: [],

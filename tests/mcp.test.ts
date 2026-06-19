@@ -6,8 +6,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { JsonParseError } from "../src/lib/json-io.ts";
-import { findUserOnlyServers, installMcpToClaudeJson } from "../src/lib/mcp.ts";
-import { mergeSettingsWithMcpPreservation } from "../src/lib/settings-merge.ts";
+import {
+  findUserOnlyServers,
+  installMcpToClaudeJson,
+  mergeSettingsWithMcpPreservation,
+} from "../src/lib/mcp.ts";
 
 async function withTmp(fn: (dir: string) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "cc-mcp-schema-"));

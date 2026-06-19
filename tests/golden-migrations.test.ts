@@ -21,7 +21,7 @@ import { readdirSync, statSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { mergeSettingsWithMcpPreservation } from "../src/lib/settings-merge.ts";
+import { mergeSettingsWithMcpPreservation } from "../src/lib/mcp.ts";
 
 const FIXTURES = resolve(import.meta.dir, "fixtures", "migrations");
 

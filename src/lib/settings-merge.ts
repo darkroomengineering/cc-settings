@@ -1,25 +1,26 @@
 // Settings.json merger — strategy-based merge of team + user settings.json.
 //
 // Extracted from src/lib/mcp.ts (was responsibility #4 of 5 in that file).
-// The orchestrator `mergeSettingsWithMcpPreservation` and its 5 strategies are
-// now individually exported so they can be unit-tested in isolation.
+// The orchestrator `mergeSettings` and its 5 strategies are now individually
+// exported so they can be unit-tested in isolation.
+//
+// MCP-preservation semantics live in src/lib/mcp.ts as `resolveMcpServers`.
+// The thin wrapper `mergeSettingsWithMcpPreservation` (which computes
+// resolveMcpServers then calls mergeSettings) lives there too — keeping this
+// file free of MCP knowledge.
 //
 // For the full merge algorithm and invariant documentation see the
-// JSDoc on `mergeSettingsWithMcpPreservation` below.
+// JSDoc on `mergeSettings` below.
 
-import type { z } from "zod";
-import type { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
+import { isManagedHookCommand } from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
-import { findUserOnlyServers, promptPreserveUserServers } from "./mcp.ts";
 import { asRecord, canonicalKey, subtractByKey, unionByKey, uniqueByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type StringArray = string[] | undefined;
 type UnknownRecord = Record<string, unknown>;
-type McpServer = z.infer<typeof McpServersSchema>[string];
-type McpServers = Record<string, McpServer>;
 
 /**
  * Merge policy options. Interactive mode only asks where auto-merge has a real
@@ -259,10 +260,11 @@ function commandsOf(group: unknown): string[] {
     .filter((c): c is string => typeof c === "string");
 }
 
-// cc-settings-managed hook implementations all live under ~/.claude/src/.
-// User-authored custom hooks point elsewhere (their own scripts).
+// cc-settings-managed hook implementations live under ~/.claude/src/{scripts,hooks}/.
+// Delegates to the single source of truth in hook-command.ts (scripts|hooks only,
+// lib/ excluded — tightened in nuclear-review).
 function isManagedCommand(command: string): boolean {
-  return /[/\\]\.claude[/\\]src[/\\]/.test(command);
+  return isManagedHookCommand(command);
 }
 
 // A group is deprecated only if every hook inside it is deprecated. Mixed
@@ -454,17 +456,21 @@ export const STRATEGIES: Record<string, Strategy> = {
   hooks: hooksStrategy,
   env: envStrategy,
   statusLine: statusLineStrategy,
-  // mcpServers is handled separately — it needs the user-server preservation
-  // prompt run BEFORE the per-key loop (the prompt is shared across the whole
-  // settings.json merge, not just the mcpServers field).
+  // mcpServers is handled by the caller (resolveMcpServers in mcp.ts) before
+  // this function is invoked — it is excluded from the per-key strategy loop.
 };
 
-// --- Orchestrator --------------------------------------------------------
+// --- Pure orchestrator ---------------------------------------------------
 
 /**
- * Merge user's existing settings.json with the in-memory team settings object
- * (the composed config/ fragments — already schema-validated by composeSettings,
- * so there is no team-side file read or re-validation here).
+ * Pure settings merge: reads existingPath, merges with teamSettings using the
+ * per-key strategy table, writes the result to outputPath.
+ *
+ * `resolvedMcpServers` is the already-computed mcpServers value (team base +
+ * any preserved user-only extras). The caller is responsible for running
+ * `resolveMcpServers` (from src/lib/mcp.ts) before calling this function and
+ * passing the result here. When undefined, mcpServers is merged via the
+ * userWinsScalarStrategy fallback like any other unknown key.
  *
  * Non-interactive policy (default):
  *   - User-declared keys win for top-level scalars (model, theme, …).
@@ -479,26 +485,30 @@ export const STRATEGIES: Record<string, Strategy> = {
  *   - `env` shallow-merges with user values winning.
  *   - `statusLine` user wins, except when the user's command targets a
  *     removed cc-settings script (then reset to team).
- *   - `mcpServers` uses the interactive preservation prompt.
+ *   - `mcpServers` is injected from resolvedMcpServers (caller responsibility).
  *
  * Interactive policy (`opts.interactive`):
  *   - Scalar conflicts prompt "keep your value / take team's".
  *   - Team-added permission rules (allow/ask) and hook groups prompt "adopt / skip".
  *   - `deny` rules and user-only entries stay automatic (guardrails / additive).
  */
-export async function mergeSettingsWithMcpPreservation(
+export async function mergeSettings(
   existingPath: string,
   teamSettings: Record<string, unknown>,
   outputPath: string,
   opts: MergeOptions = {},
+  resolvedMcpServers?: Record<string, unknown>,
 ): Promise<void> {
-  const teamRaw: UnknownRecord = teamSettings;
-
   const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
-  // No existing file → write team as-is (atomic).
+  // No existing file → write team as-is (atomic), injecting resolvedMcpServers
+  // if provided (callers may have already resolved servers even for a fresh install).
   if (!userRaw) {
-    await atomicWriteJson(outputPath, teamRaw);
+    const out =
+      resolvedMcpServers !== undefined
+        ? { ...teamSettings, mcpServers: resolvedMcpServers }
+        : teamSettings;
+    await atomicWriteJson(outputPath, out);
     return;
   }
 
@@ -506,27 +516,13 @@ export async function mergeSettingsWithMcpPreservation(
   // message and proceed with the raw object — forward-compat safety: a new
   // Claude Code settings key not yet in the schema must not block the merger.
   // teamSettings needs no validation here: composeSettings already
-  // schema-checked the composed fragments and throws on failure.
+  // schema-checked the composed config/ fragments and throws on failure.
   const userValidation = Settings.safeParse(userRaw);
   if (!userValidation.success) {
     const issues = userValidation.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
     debug(`User settings.json failed schema validation (proceeding with raw): ${issues}`);
-  }
-
-  // mcpServers needs the preservation prompt to run BEFORE the per-key loop —
-  // the prompt is shared across the whole merge, not scoped to one strategy.
-  // asRecord: a corrupt string-valued mcpServers degrades to {} instead of
-  // leaking a string into the server merge.
-  const userServers = asRecord(userRaw.mcpServers) as McpServers;
-  const teamServers = asRecord(teamRaw.mcpServers) as McpServers;
-  const userOnly = findUserOnlyServers(userServers, teamServers);
-  let preserved: McpServers = {};
-  if (userOnly.length > 0) {
-    ({ preserved } = await promptPreserveUserServers(userOnly, userServers));
-  } else {
-    debug("No user-only MCP servers");
   }
 
   const ctx: StrategyContext = {
@@ -550,15 +546,18 @@ export async function mergeSettingsWithMcpPreservation(
   // Walk every key in (team ∪ user). Strategy table picks the merge logic;
   // unknown keys fall through to user-wins-scalar.
   const merged: UnknownRecord = {};
-  const allKeys = new Set([...Object.keys(teamRaw), ...Object.keys(userRaw)]);
+  const allKeys = new Set([...Object.keys(teamSettings), ...Object.keys(userRaw)]);
 
-  // mcpServers gets a fixed result based on the prompt outcome above.
-  merged.mcpServers = { ...teamServers, ...preserved };
-  allKeys.delete("mcpServers");
+  // mcpServers: injected from the pre-resolved value when provided; otherwise
+  // falls through to the userWinsScalarStrategy like any unknown key.
+  if (resolvedMcpServers !== undefined) {
+    merged.mcpServers = resolvedMcpServers;
+    allKeys.delete("mcpServers");
+  }
 
   for (const key of allKeys) {
     const strategy = STRATEGIES[key] ?? userWinsScalarStrategy;
-    const result = await strategy(key, teamRaw[key], userRaw[key], ctx);
+    const result = await strategy(key, teamSettings[key], userRaw[key], ctx);
     if (result.keep) merged[key] = result.value;
   }
 

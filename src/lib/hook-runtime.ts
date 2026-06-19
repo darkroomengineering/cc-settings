@@ -2,7 +2,7 @@
 // duplicate: stdin-JSON parsing with env fallback, ~/.claude/tmp/<name>.json
 // state IO, top-level fail-open wrapper. Extracted in v11.1.1 — see CHANGELOG.
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -40,10 +40,14 @@ export async function readState<T>(name: string, fallback: T): Promise<T> {
   }
 }
 
-/** Atomic-ish write to ~/.claude/tmp/<name>.json. Creates the dir if missing. */
+/** Atomic write to ~/.claude/tmp/<name>.json. Creates the dir if missing.
+ *  Uses a tmp-file + rename so a crash never leaves a half-written target. */
 export async function writeState(name: string, data: unknown): Promise<void> {
   await mkdir(TMP_DIR, { recursive: true });
-  await writeFile(join(TMP_DIR, name), JSON.stringify(data));
+  const target = join(TMP_DIR, name);
+  const tmp = join(TMP_DIR, `.${process.pid}-${Date.now()}.tmp`);
+  await writeFile(tmp, JSON.stringify(data));
+  await rename(tmp, target);
 }
 
 /** Parse the TOOL_INPUT env JSON blob (the full tool input Claude Code passes

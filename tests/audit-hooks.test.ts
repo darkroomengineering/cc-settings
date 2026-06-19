@@ -305,6 +305,29 @@ describe("classifyHookCommand — suspicious malware patterns", () => {
   });
 });
 
+describe("classifyHookCommand — lib/ files are NOT auto-trusted", () => {
+  // lib/ files are support modules, not hooks — tightened in nuclear-review.
+  // A bun invocation of ~/.claude/src/lib/<x>.ts must NOT match the managed
+  // pattern: it falls to manifest-absent → unknown, or manifest-present → check
+  // manifest, not auto-trusted by path shape alone.
+  test("bun invocation of a lib/ file is not auto-trusted (unknown without manifest)", () => {
+    const r = classifyHookCommand('bun "$HOME/.claude/src/lib/colors.ts"');
+    // lib/ is excluded from MANAGED_HOOK_CMD — falls to unknown, not trusted
+    expect(r.severity).toBe("unknown");
+    expect(r.reasons.join(" ")).toMatch(/does not match cc-settings shipped pattern/);
+  });
+
+  test("lib/ file with a matching manifest entry is still not trusted via path alone", () => {
+    // Even if lib/colors.ts is in the install manifest with a valid hash, the
+    // auditor must not promote it to trusted — only scripts/ and hooks/ qualify.
+    const r = classifyHookCommand(
+      'bun "$HOME/.claude/src/lib/colors.ts"',
+      integrityOf({ "lib/colors.ts": true }),
+    );
+    expect(r.severity).toBe("unknown");
+  });
+});
+
 describe("classifyHookCommand — unknown (user-added, not malware)", () => {
   test("plain echo command", () => {
     const r = classifyHookCommand("echo 'hello'");

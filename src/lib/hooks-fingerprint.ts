@@ -14,7 +14,28 @@ import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
+import { z } from "zod";
+import { iterCommandHooks } from "./hook-command.ts";
 import { atomicWriteJson } from "./json-io.ts";
+
+// `installedAt` is echoed verbatim into the terminal warning banner, and the
+// fingerprint file is exactly what the Shai-Hulud threat model lets an attacker
+// rewrite — so a crafted value could inject ANSI escapes to disguise the alarm.
+// Strip control characters (incl. ESC) on read.
+const stripControl = (s: string): string =>
+  Array.from(s)
+    .filter((c) => {
+      const n = c.charCodeAt(0);
+      return n > 0x1f && n !== 0x7f && (n < 0x80 || n > 0x9f); // drop C0/C1 controls
+    })
+    .join("");
+
+// Zod schema for the fingerprint record written to disk.
+const FingerprintRecordSchema = z.object({
+  hash: z.string().min(1),
+  installedAt: z.string().default("").transform(stripControl),
+  hooksCount: z.number().int().nonnegative().default(0),
+});
 
 export const FINGERPRINT_FILENAME = ".cc-settings-hooks-fingerprint";
 
@@ -52,13 +73,13 @@ export async function readFingerprint(claudeDir?: string): Promise<FingerprintRe
   if (!existsSync(path)) return null;
   try {
     const text = await readFile(path, "utf8");
-    const parsed = JSON.parse(text) as Partial<FingerprintRecord>;
-    if (typeof parsed.hash !== "string") return null;
-    return {
-      hash: parsed.hash,
-      installedAt: parsed.installedAt ?? "",
-      hooksCount: typeof parsed.hooksCount === "number" ? parsed.hooksCount : 0,
-    };
+    const raw = JSON.parse(text);
+    // Validate through the zod schema. Mirrors status.ts:35 — field values are
+    // echoed into the session-start warning banner, so they must be validated
+    // strings, not trusted as-cast. On failure return null (treat as missing).
+    const result = FingerprintRecordSchema.safeParse(raw);
+    if (!result.success) return null;
+    return result.data;
   } catch {
     return null;
   }
@@ -71,20 +92,9 @@ export async function writeFingerprint(
   const dir = claudeDir ?? join(homedir(), ".claude");
   const path = join(dir, FINGERPRINT_FILENAME);
 
-  const hooks =
-    settings && typeof settings === "object"
-      ? ((settings as Record<string, unknown>).hooks ?? {})
-      : {};
-  let hooksCount = 0;
-  if (hooks && typeof hooks === "object") {
-    for (const groups of Object.values(hooks as Record<string, unknown>)) {
-      if (!Array.isArray(groups)) continue;
-      for (const group of groups) {
-        const entries = (group as { hooks?: unknown[] })?.hooks;
-        if (Array.isArray(entries)) hooksCount += entries.length;
-      }
-    }
-  }
+  // Count command hooks via the shared iterCommandHooks walk (fail-open:
+  // never throws on malformed input). This replaces the hand-rolled walk.
+  const hooksCount = [...iterCommandHooks(settings)].length;
 
   const record: FingerprintRecord = {
     hash: hashHooks(settings),
@@ -218,7 +228,16 @@ export async function readSrcManifest(claudeDir?: string): Promise<SrcManifestRe
     if (!parsed.files || typeof parsed.files !== "object" || Array.isArray(parsed.files)) {
       return null;
     }
-    return { files: parsed.files, installedAt: parsed.installedAt ?? "" };
+    // Each key is later join()'d under ~/.claude/src and read — a tampered
+    // manifest must not point outside the tree or carry non-string hashes.
+    // Reject the whole manifest (fail-open to "missing") if either holds.
+    const files: Record<string, string> = {};
+    for (const [rel, hash] of Object.entries(parsed.files)) {
+      if (typeof hash !== "string") return null;
+      if (rel.startsWith("/") || rel.split(/[/\\]/).includes("..")) return null;
+      files[rel] = hash;
+    }
+    return { files, installedAt: stripControl(parsed.installedAt ?? "") };
   } catch {
     return null;
   }

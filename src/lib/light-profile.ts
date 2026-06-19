@@ -12,6 +12,7 @@
 //   - src/setup.ts       — filters file copies, applies transform before staging
 //   - tests/light-profile.test.ts — parity guard + transform units
 
+import { isManagedHookCommand } from "./hook-command.ts";
 import { asRecord, subtractByKey } from "./merge-keyed.ts";
 
 export type Profile = "full" | "light";
@@ -166,13 +167,12 @@ export function stripManagedSettings(
   //   a) Its JSON string matches any group in the full baseline (keyed
   //      subtraction below), OR
   //   b) ALL hook commands in the group reference a cc-settings script path.
-  const CC_SCRIPT_PATHS = ["/.claude/src/hooks/", "/.claude/src/scripts/"];
-  const isCcScriptCommand = (cmd: unknown): boolean =>
-    typeof cmd === "string" && CC_SCRIPT_PATHS.some((p) => cmd.includes(p));
+  // Uses isManagedHookCommand (hook-command.ts) as the single source of truth:
+  // (scripts|hooks) only, lib/ excluded — tightened in nuclear-review.
   const isAllCcScriptGroup = (group: unknown): boolean => {
     const g = group as { hooks?: Array<{ command?: unknown }> };
     if (Array.isArray(g.hooks) && g.hooks.length > 0) {
-      return g.hooks.every((h) => isCcScriptCommand(h.command));
+      return g.hooks.every((h) => typeof h.command === "string" && isManagedHookCommand(h.command));
     }
     return false;
   };

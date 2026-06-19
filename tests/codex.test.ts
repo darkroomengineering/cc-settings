@@ -2,7 +2,12 @@
 // No filesystem I/O, no subprocess spawning — pure logic only.
 
 import { describe, expect, test } from "bun:test";
-import { type CodexVerdict, classifyCodexError, reconcile } from "../src/lib/codex.ts";
+import {
+  type CodexVerdict,
+  classifyCodexError,
+  reconcile,
+  sanitizeOutput,
+} from "../src/lib/codex.ts";
 
 // ---------------------------------------------------------------------------
 // classifyCodexError — state classification
@@ -319,6 +324,86 @@ describe("reconcile — live 'available' + stale sticky negatives expire", () =>
     const result = reconcile("available", cached);
     expect(result.state).toBe("available");
     expect(result.sticky).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeOutput — full-text redaction (no line/length limits)
+// ---------------------------------------------------------------------------
+
+describe("sanitizeOutput — multi-line credential redaction", () => {
+  test("strips ANSI escapes from full text", () => {
+    const ESC = String.fromCharCode(27);
+    const input = `line1\n${ESC}[31mred line${ESC}[0m\nline3`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).toContain("red line");
+    expect(result).toContain("line1");
+    expect(result).toContain("line3");
+  });
+
+  test("redacts sk- tokens across multiple lines", () => {
+    const token = "sk-ABCDEFGHIJKLMNOPabcdefghijklmnop";
+    const input = `line1\nerror: ${token}\nline3`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(token);
+    expect(result).toContain("sk-[redacted]");
+    expect(result).toContain("line1");
+    expect(result).toContain("line3");
+  });
+
+  test("does NOT cap length (operates on full text)", () => {
+    const long = "x".repeat(500);
+    const result = sanitizeOutput(long);
+    expect(result.length).toBe(500);
+  });
+
+  test("redacts Bearer tokens on any line", () => {
+    const input = `ok\nAuthorization header Bearer eyJhbGciOiJSUzI1NiJ9.pay.sig\ndone`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain("eyJhbGciOiJSUzI1NiJ9");
+    expect(result).toContain("Bearer [redacted]");
+  });
+
+  test("redacts Authorization: header value", () => {
+    const input = `Authorization: secret_token_here\nother line`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain("secret_token_here");
+    expect(result).toContain("Authorization: [redacted]");
+  });
+
+  test("OPENAI_API_KEY=<value> is redacted — env-var pattern covers *_API_KEY names", () => {
+    // Business rule: env-var assignments exposing API keys must never reach
+    // the verdict file or the statusline. The pattern targets *_API_KEY,
+    // *_TOKEN, and *_SECRET names — common CI/CD credential conventions.
+    const result = sanitizeOutput("OPENAI_API_KEY=sk-abcd1234efgh5678ijkl");
+    expect(result).toContain("OPENAI_API_KEY=[redacted]");
+    expect(result).not.toContain("sk-abcd1234efgh5678ijkl");
+  });
+
+  test("MY_TOKEN=<value> is redacted — env-var pattern covers *_TOKEN names", () => {
+    const result = sanitizeOutput("MY_TOKEN=supersecretvalue");
+    expect(result).toBe("MY_TOKEN=[redacted]");
+  });
+
+  test("GITHUB_SECRET=<value> is redacted — env-var pattern covers *_SECRET names", () => {
+    const result = sanitizeOutput("GITHUB_SECRET=abc123");
+    expect(result).toBe("GITHUB_SECRET=[redacted]");
+  });
+
+  test("Bearer:<token> (colon, no space) is redacted — colon is treated as separator", () => {
+    // The regex uses [\s:]+ to capture both 'Bearer <tok>' and 'Bearer:<tok>'
+    // so colon-separated variants are also caught.
+    const result = sanitizeOutput("Bearer:tok_nospaces_here");
+    expect(result).toContain("Bearer [redacted]");
+    expect(result).not.toContain("tok_nospaces_here");
+  });
+
+  test("ordinary key=value pairs like count=5 or level=high are NOT mangled", () => {
+    // The env-var pattern only targets uppercase names ending in _API_KEY,
+    // _TOKEN, or _SECRET — lowercase or generic names must pass through.
+    const plain = "count=5 level=high status=ok";
+    expect(sanitizeOutput(plain)).toBe(plain);
   });
 });
 
