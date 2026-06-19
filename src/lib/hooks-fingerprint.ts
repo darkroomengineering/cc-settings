@@ -14,7 +14,17 @@ import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
+import { z } from "zod";
+import { iterCommandHooks } from "./hook-command.ts";
 import { atomicWriteJson } from "./json-io.ts";
+
+// Zod schema for the fingerprint record written to disk.
+// `installedAt` is echoed into the warning banner — validate it's a real string.
+const FingerprintRecordSchema = z.object({
+  hash: z.string().min(1),
+  installedAt: z.string().default(""),
+  hooksCount: z.number().int().nonnegative().default(0),
+});
 
 export const FINGERPRINT_FILENAME = ".cc-settings-hooks-fingerprint";
 
@@ -52,13 +62,13 @@ export async function readFingerprint(claudeDir?: string): Promise<FingerprintRe
   if (!existsSync(path)) return null;
   try {
     const text = await readFile(path, "utf8");
-    const parsed = JSON.parse(text) as Partial<FingerprintRecord>;
-    if (typeof parsed.hash !== "string") return null;
-    return {
-      hash: parsed.hash,
-      installedAt: parsed.installedAt ?? "",
-      hooksCount: typeof parsed.hooksCount === "number" ? parsed.hooksCount : 0,
-    };
+    const raw = JSON.parse(text);
+    // Validate through the zod schema. Mirrors status.ts:35 — field values are
+    // echoed into the session-start warning banner, so they must be validated
+    // strings, not trusted as-cast. On failure return null (treat as missing).
+    const result = FingerprintRecordSchema.safeParse(raw);
+    if (!result.success) return null;
+    return result.data;
   } catch {
     return null;
   }
@@ -71,20 +81,9 @@ export async function writeFingerprint(
   const dir = claudeDir ?? join(homedir(), ".claude");
   const path = join(dir, FINGERPRINT_FILENAME);
 
-  const hooks =
-    settings && typeof settings === "object"
-      ? ((settings as Record<string, unknown>).hooks ?? {})
-      : {};
-  let hooksCount = 0;
-  if (hooks && typeof hooks === "object") {
-    for (const groups of Object.values(hooks as Record<string, unknown>)) {
-      if (!Array.isArray(groups)) continue;
-      for (const group of groups) {
-        const entries = (group as { hooks?: unknown[] })?.hooks;
-        if (Array.isArray(entries)) hooksCount += entries.length;
-      }
-    }
-  }
+  // Count command hooks via the shared iterCommandHooks walk (fail-open:
+  // never throws on malformed input). This replaces the hand-rolled walk.
+  const hooksCount = [...iterCommandHooks(settings)].length;
 
   const record: FingerprintRecord = {
     hash: hashHooks(settings),

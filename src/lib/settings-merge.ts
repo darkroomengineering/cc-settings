@@ -11,6 +11,7 @@ import type { z } from "zod";
 import type { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
+import { isManagedHookCommand } from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { findUserOnlyServers, promptPreserveUserServers } from "./mcp.ts";
 import { asRecord, canonicalKey, subtractByKey, unionByKey, uniqueByKey } from "./merge-keyed.ts";
@@ -259,10 +260,11 @@ function commandsOf(group: unknown): string[] {
     .filter((c): c is string => typeof c === "string");
 }
 
-// cc-settings-managed hook implementations all live under ~/.claude/src/.
-// User-authored custom hooks point elsewhere (their own scripts).
+// cc-settings-managed hook implementations live under ~/.claude/src/{scripts,hooks}/.
+// Delegates to the single source of truth in hook-command.ts (scripts|hooks only,
+// lib/ excluded — tightened in nuclear-review).
 function isManagedCommand(command: string): boolean {
-  return /[/\\]\.claude[/\\]src[/\\]/.test(command);
+  return isManagedHookCommand(command);
 }
 
 // A group is deprecated only if every hook inside it is deprecated. Mixed
@@ -492,13 +494,11 @@ export async function mergeSettingsWithMcpPreservation(
   outputPath: string,
   opts: MergeOptions = {},
 ): Promise<void> {
-  const teamRaw: UnknownRecord = teamSettings;
-
   const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
   // No existing file → write team as-is (atomic).
   if (!userRaw) {
-    await atomicWriteJson(outputPath, teamRaw);
+    await atomicWriteJson(outputPath, teamSettings);
     return;
   }
 
@@ -520,7 +520,7 @@ export async function mergeSettingsWithMcpPreservation(
   // asRecord: a corrupt string-valued mcpServers degrades to {} instead of
   // leaking a string into the server merge.
   const userServers = asRecord(userRaw.mcpServers) as McpServers;
-  const teamServers = asRecord(teamRaw.mcpServers) as McpServers;
+  const teamServers = asRecord(teamSettings.mcpServers) as McpServers;
   const userOnly = findUserOnlyServers(userServers, teamServers);
   let preserved: McpServers = {};
   if (userOnly.length > 0) {
@@ -550,7 +550,7 @@ export async function mergeSettingsWithMcpPreservation(
   // Walk every key in (team ∪ user). Strategy table picks the merge logic;
   // unknown keys fall through to user-wins-scalar.
   const merged: UnknownRecord = {};
-  const allKeys = new Set([...Object.keys(teamRaw), ...Object.keys(userRaw)]);
+  const allKeys = new Set([...Object.keys(teamSettings), ...Object.keys(userRaw)]);
 
   // mcpServers gets a fixed result based on the prompt outcome above.
   merged.mcpServers = { ...teamServers, ...preserved };
@@ -558,7 +558,7 @@ export async function mergeSettingsWithMcpPreservation(
 
   for (const key of allKeys) {
     const strategy = STRATEGIES[key] ?? userWinsScalarStrategy;
-    const result = await strategy(key, teamRaw[key], userRaw[key], ctx);
+    const result = await strategy(key, teamSettings[key], userRaw[key], ctx);
     if (result.keep) merged[key] = result.value;
   }
 
