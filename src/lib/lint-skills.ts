@@ -11,6 +11,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SkillFrontmatter } from "../schemas/skill.ts";
 import { lintFrontmatterCore } from "./lint-frontmatter.ts";
+import { ACTIVE_SKILLS } from "./managed-skills.ts";
 
 export type SkillSeverity = "error" | "warning";
 
@@ -162,7 +163,10 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
   return findings;
 }
 
-export async function lintSkillsDir(skillsDir: string): Promise<LintResult> {
+export async function lintSkillsDir(
+  skillsDir: string,
+  opts: { checkManaged?: boolean } = {},
+): Promise<LintResult> {
   if (!existsSync(skillsDir)) {
     return { findings: [], skillCount: 0 };
   }
@@ -187,6 +191,38 @@ export async function lintSkillsDir(skillsDir: string): Promise<LintResult> {
       rule: "skill-count-cap",
       message: `${skillNames.length} skills — past ${SKILL_SOFT_CAP}-skill soft cap. Adding a new skill should require removing one.`,
     });
+  }
+
+  // ACTIVE_SKILLS must match skills/ on disk exactly. A skill present on disk but
+  // absent from ACTIVE_SKILLS won't be pruned on a full→light switch (cleanOldConfig
+  // iterates ACTIVE_SKILLS); an ACTIVE_SKILLS entry with no directory is stale.
+  // Repo-level invariant — only meaningful against the canonical skills/ dir, so
+  // it is opt-in (the CLI enables it for the default repo run, not custom dirs).
+  if (opts.checkManaged) {
+    const onDisk = new Set(skillNames);
+    const active = new Set(ACTIVE_SKILLS);
+    for (const name of skillNames) {
+      if (!active.has(name)) {
+        findings.push({
+          skill: name,
+          severity: "error",
+          rule: "managed-skills-missing",
+          message:
+            "present in skills/ but missing from ACTIVE_SKILLS (src/lib/managed-skills.ts) — the installer won't prune it on a full→light switch",
+        });
+      }
+    }
+    for (const name of ACTIVE_SKILLS) {
+      if (!onDisk.has(name)) {
+        findings.push({
+          skill: name,
+          severity: "error",
+          rule: "managed-skills-stale",
+          message:
+            "listed in ACTIVE_SKILLS but skills/<name>/ does not exist — remove it or move it to TOMBSTONE_SKILLS",
+        });
+      }
+    }
   }
 
   return { findings, skillCount: skillNames.length };

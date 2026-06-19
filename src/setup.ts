@@ -175,6 +175,112 @@ async function cmdRollback(target: string | true): Promise<number> {
   return code;
 }
 
+// --- Install plan --------------------------------------------------------
+
+/**
+ * Describes one planned install action — either a file/dir copy or a prune.
+ * Produced once by buildInstallPlan; consumed by installConfigFiles (action),
+ * cmdDryRun (display), and showSummary (display).
+ */
+export interface InstallStep {
+  /** Path relative to both sourceDir (for "copy") and CLAUDE_DIR (for "prune"). */
+  rel: string;
+  /** "copy" = copy from source → target; "prune" = remove from target. */
+  action: "copy" | "prune";
+  /** Whether the source (for "copy") or target (for "prune") exists on disk. */
+  exists: boolean;
+  /** Human-readable annotation shown in dry-run / summary tables. */
+  label?: string;
+}
+
+/**
+ * Produce the complete planned footprint for an install: every file/dir that
+ * will be copied or pruned, derived from PROFILE_MANIFEST and LIGHT_SKILLS.
+ * All four traversal sites (installConfigFiles, removeLightIncompatibleFiles,
+ * showSummary, cmdDryRun) derive from this single list instead of re-walking
+ * the manifest independently.
+ *
+ * Does NOT touch disk — pure computation from the manifest + existsSync checks.
+ */
+export function buildInstallPlan(sourceDir: string, profile: "full" | "light"): InstallStep[] {
+  const steps: InstallStep[] = [];
+
+  if (profile === "light") {
+    // Copy the LIGHT_SKILLS subset of skills/.
+    for (const skill of LIGHT_SKILLS) {
+      const rel = `skills/${skill}`;
+      steps.push({
+        rel,
+        action: "copy",
+        exists: existsSync(join(sourceDir, rel)),
+        label: `→ ~/.claude/${rel}/`,
+      });
+    }
+
+    // Prune skills from a prior full install that are not in the light set.
+    // Scoped to MANAGED_SKILLS so user-authored skills are never touched.
+    const lightSkillSet = new Set(LIGHT_SKILLS);
+    for (const skill of MANAGED_SKILLS) {
+      if (!lightSkillSet.has(skill)) {
+        steps.push({
+          rel: `skills/${skill}`,
+          action: "prune",
+          exists: existsSync(join(CLAUDE_DIR, `skills/${skill}`)),
+        });
+      }
+    }
+
+    // Prune full-only rootFiles and dirs (CLAUDE.md, AGENTS.md, agents/, …).
+    const { full, light } = PROFILE_MANIFEST;
+    const lightFiles = new Set(light.rootFiles.map(([, dest]) => dest));
+    const lightDirs = new Set([...light.dirs, ...light.retainedDirs]);
+    for (const [, dest] of full.rootFiles) {
+      if (!lightFiles.has(dest)) {
+        steps.push({
+          rel: dest,
+          action: "prune",
+          exists: existsSync(join(CLAUDE_DIR, dest)),
+        });
+      }
+    }
+    for (const d of full.dirs) {
+      if (!lightDirs.has(d)) {
+        steps.push({
+          rel: d,
+          action: "prune",
+          exists: existsSync(join(CLAUDE_DIR, d)),
+        });
+      }
+    }
+  } else {
+    // Full profile: every rootFile + dir from the manifest.
+    const ROOT_FILE_LABELS: Record<string, string> = {
+      "CLAUDE.md": "(Claude-Code config)",
+      "AGENTS.md": "(portable standards)",
+    };
+    const manifest = PROFILE_MANIFEST.full;
+    for (const [src, dest] of manifest.rootFiles) {
+      const label = ROOT_FILE_LABELS[dest] ? `${dest} ${ROOT_FILE_LABELS[dest]}` : dest;
+      steps.push({
+        rel: src,
+        action: "copy",
+        exists: existsSync(join(sourceDir, src)),
+        label,
+      });
+    }
+    for (const d of manifest.dirs) {
+      steps.push({
+        rel: d,
+        action: "copy",
+        exists: existsSync(join(sourceDir, d)),
+        label: `${d}/`,
+      });
+    }
+  }
+
+  return steps;
+}
+
 // --- Install phases ------------------------------------------------------
 
 async function createBackup(): Promise<void> {
@@ -322,28 +428,27 @@ async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
   return copyDirContentsFiltered(srcDir, dstDir, () => true);
 }
 
+/**
+ * Execute the copy/prune steps from buildInstallPlan. cleanOldConfig must
+ * already have run so MANAGED_SKILLS dirs are wiped before copy.
+ */
 async function installConfigFiles(source: string, profile: Profile): Promise<void> {
-  if (profile === "light") {
-    // Light = raw Claude Code: the manifest has no rootFiles/dirs for light.
-    // Install ONLY the LIGHT_SKILLS subset (share-learning) — the skill
-    // filter stays as code; only the file/dir lists live in the manifest.
+  const plan = buildInstallPlan(source, profile);
 
-    // skills: only LIGHT_SKILLS (share-learning)
+  if (profile === "light") {
+    // Copy LIGHT_SKILLS subset.
     const lightSkillSet = new Set(LIGHT_SKILLS);
     await copyDirContentsFiltered(join(source, "skills"), join(CLAUDE_DIR, "skills"), (name) =>
       lightSkillSet.has(name),
     );
-
-    // Prune cc-settings skills left over from a prior full install that are
-    // not in the light set. Scope removal to skill folders that exist in the
-    // source repo — never touch user-authored skills.
-    const sourceSkillDirs = (await readdir(join(source, "skills"), { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
+    // Prune skill dirs from the plan that cleanOldConfig may have left behind
+    // (MANAGED_SKILLS sweep in cleanOldConfig covers the known list; skill-prune
+    // steps from the plan cover any that slipped through).
+    const pruneSteps = plan.filter((s) => s.action === "prune" && s.rel.startsWith("skills/"));
     await Promise.all(
-      sourceSkillDirs
-        .filter((name) => !lightSkillSet.has(name))
-        .map((name) => rm(join(CLAUDE_DIR, "skills", name), { recursive: true, force: true })),
+      pruneSteps.map((s) =>
+        rm(join(CLAUDE_DIR, s.rel), { recursive: true, force: true }).catch(() => {}),
+      ),
     );
   } else {
     // Full profile: every rootFile + dir from the manifest. Destinations are
@@ -360,21 +465,19 @@ async function installConfigFiles(source: string, profile: Profile): Promise<voi
 
 /**
  * Remove files/dirs that cc-settings full installs but light does NOT install —
- * computed from PROFILE_MANIFEST as full minus light (dirs light retains, like
- * skills/ and the provisioned hooks/ dir, are excluded; see the manifest).
+ * computed from buildInstallPlan as the prune steps for non-skill targets.
  * Called before the light file-copy phase so a prior full install is cleaned
  * up. Never removes src/ or user-authored skills.
  */
 async function removeLightIncompatibleFiles(): Promise<void> {
-  const { full, light } = PROFILE_MANIFEST;
-  const lightFiles = new Set(light.rootFiles.map(([, dest]) => dest));
-  const lightDirs = new Set([...light.dirs, ...light.retainedDirs]);
+  // buildInstallPlan for light already includes prune steps for full-only
+  // rootFiles and dirs. Re-use the plan here so there's one source of truth.
+  // We use an empty sourceDir because prune steps don't read the source.
+  const plan = buildInstallPlan("", "light");
+  const pruneNonSkill = plan.filter((s) => s.action === "prune" && !s.rel.startsWith("skills/"));
   const removeIfExists = (p: string) => rm(p, { recursive: true, force: true }).catch(() => {});
   await Promise.all([
-    ...full.rootFiles
-      .filter(([, dest]) => !lightFiles.has(dest))
-      .map(([, dest]) => removeIfExists(join(CLAUDE_DIR, dest))),
-    ...full.dirs.filter((d) => !lightDirs.has(d)).map((d) => removeIfExists(join(CLAUDE_DIR, d))),
+    ...pruneNonSkill.map((s) => removeIfExists(join(CLAUDE_DIR, s.rel))),
     removeIfExists(join(CLAUDE_DIR, "contexts")), // legacy; contexts/ retired
   ]);
 }
@@ -754,6 +857,55 @@ async function cmdStatus(sourceDir: string): Promise<number> {
 
 // --- Main ----------------------------------------------------------------
 
+/**
+ * Run the migrate-only path: backup + settings merger + version sentinel.
+ * Skips file copy, dependency install, and skill/agent refresh.
+ */
+async function runMigrateOnly(args: Args): Promise<void> {
+  info("Migrate-only: backup + merger + sentinel; skipping file copy");
+  await createBackup();
+  await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
+}
+
+/**
+ * Run the full install path: deps → backup → dirs → clean → light-incompatible
+ * removal → file copy → TS source copy → src manifest.
+ *
+ * PHASE ORDER IS CORRECTNESS-CRITICAL:
+ *   clean before copy; fingerprint after settings write; manifest write for
+ *   tamper defense. Do not reorder.
+ */
+async function runFullInstall(args: Args): Promise<void> {
+  info("Installing dependencies...");
+  await installDependencies(args.profile);
+  printPreflightReport(checkCliTools());
+
+  info("Creating backup...");
+  await createBackup();
+
+  info("Installing configuration...");
+  await createDirectories();
+  await cleanOldConfig();
+  // For light: remove dirs that full installs but light must not have
+  // (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, docs/).
+  // Must run AFTER cleanOldConfig so any leftover full-install content is gone.
+  if (args.profile === "light") {
+    await removeLightIncompatibleFiles();
+  }
+  // Disjoint destination trees (config dirs vs ~/.claude/src), so install both
+  // in parallel. Both must follow the clean above.
+  await Promise.all([
+    installConfigFiles(args.sourceDir, args.profile),
+    installTsSources(args.sourceDir),
+  ]);
+  // Content manifest of the just-installed ~/.claude/src tree — the
+  // supply-chain layer that catches dropped/patched script content
+  // (verify-hooks.ts re-checks it at SessionStart; audit-hooks.ts gates
+  // "trusted" on it). Refreshed ONLY here, never by the auditor. Best-effort:
+  // a failed write just downgrades audit classifications to "unknown".
+  await writeSrcManifest(join(CLAUDE_DIR, "src"), CLAUDE_DIR).catch(() => {});
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -788,39 +940,11 @@ async function main(): Promise<number> {
   const fmWarning = formatFrontmatterIssues(fmIssues);
   if (fmWarning) warn(fmWarning);
 
+  // Dispatch to migrate-only or full install path.
   if (args.migrateOnly) {
-    info("Migrate-only: backup + merger + sentinel; skipping file copy");
-    await createBackup();
-    await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
+    await runMigrateOnly(args);
   } else {
-    info("Installing dependencies...");
-    await installDependencies(args.profile);
-    printPreflightReport(checkCliTools());
-
-    info("Creating backup...");
-    await createBackup();
-
-    info("Installing configuration...");
-    await createDirectories();
-    await cleanOldConfig();
-    // For light: remove dirs that full installs but light must not have
-    // (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, docs/).
-    // Must run AFTER cleanOldConfig so any leftover full-install content is gone.
-    if (args.profile === "light") {
-      await removeLightIncompatibleFiles();
-    }
-    // Disjoint destination trees (config dirs vs ~/.claude/src), so install both
-    // in parallel. Both must follow the clean above.
-    await Promise.all([
-      installConfigFiles(args.sourceDir, args.profile),
-      installTsSources(args.sourceDir),
-    ]);
-    // Content manifest of the just-installed ~/.claude/src tree — the
-    // supply-chain layer that catches dropped/patched script content
-    // (verify-hooks.ts re-checks it at SessionStart; audit-hooks.ts gates
-    // "trusted" on it). Refreshed ONLY here, never by the auditor. Best-effort:
-    // a failed write just downgrades audit classifications to "unknown".
-    await writeSrcManifest(join(CLAUDE_DIR, "src"), CLAUDE_DIR).catch(() => {});
+    await runFullInstall(args);
   }
 
   try {
