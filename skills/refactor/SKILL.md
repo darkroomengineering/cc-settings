@@ -47,6 +47,14 @@ Agent(tester, "Verify refactored code behaves identically to original.")
 Agent(reviewer, "Review refactoring for quality and completeness.")
 ```
 
+Refactors are a top source of subtle regressions — behavior that "shouldn't change" quietly does. When the Codex bridge is available, run a cross-model review in parallel with the reviewer:
+
+```
+Agent(codex-verifier, "Cross-model review of the refactor diff. Confirm behavior is preserved; report findings by severity.")
+```
+
+The bridge is gated and fails open: if Codex is unavailable, the reviewer agent alone is fine.
+
 ## Refactoring Principles
 
 1. **Preserve behavior** - Tests should pass before AND after

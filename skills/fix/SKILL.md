@@ -62,6 +62,17 @@ Agent(implementer, "<the assembled briefing above — all five items inline>")
 Agent(reviewer, "Quick review of the fix for quality and edge cases")
 ```
 
+For security-sensitive fixes (auth, crypto, permissions, input validation), add a
+cross-model review in parallel with the reviewer — a non-Claude family is the
+cheapest insurance against a logic error you just wrote:
+
+```
+Agent(codex-verifier, "Cross-model review of the fix diff. Focus on correctness and security. Report findings by severity.")
+```
+
+The bridge is gated and fails open: if Codex is unavailable, the reviewer agent
+alone is fine.
+
 Skip the implementer step if `explore` reports the bug is non-reproducible or
 already fixed in current HEAD.
 
