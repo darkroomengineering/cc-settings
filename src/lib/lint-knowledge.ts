@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { KnowledgeFrontmatter } from "../schemas/knowledge.ts";
-import { extractFrontmatterBlock, parseFrontmatterStrict } from "./frontmatter.ts";
+import { lintFrontmatterCore } from "./lint-frontmatter.ts";
 
 export type KnowledgeSeverity = "error" | "warning";
 
@@ -43,76 +43,65 @@ async function lintOne(
   const stem = basename(filename, extname(filename));
   const notePath = join(dir, filename);
 
+  // Helper: attach the note filename to a base finding.
+  const push = (severity: KnowledgeSeverity, rule: string, message: string) => {
+    findings.push({ note: filename, severity, rule, message });
+  };
+
   const text = await readFile(notePath, "utf8");
-  const block = extractFrontmatterBlock(text);
 
-  if (!block) {
-    findings.push({
-      note: filename,
-      severity: "error",
-      rule: "frontmatter-missing",
-      message: "no `---`-delimited YAML frontmatter at top of file",
-    });
-    return findings;
-  }
+  // Shared scaffolding: frontmatter-missing + yaml-parse errors.
+  const baseFindings = await lintFrontmatterCore(text, (parsed) => {
+    const domainFindings: Array<{ severity: KnowledgeSeverity; rule: string; message: string }> =
+      [];
 
-  const { data: parsed, errors: yamlErrors } = parseFrontmatterStrict(text);
-  if (yamlErrors.length > 0) {
-    for (const e of yamlErrors) {
-      findings.push({
-        note: filename,
+    const result = KnowledgeFrontmatter.safeParse(parsed);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        domainFindings.push({
+          severity: "error",
+          rule: "schema",
+          message: `${issue.path.join(".") || "(root)"}: ${issue.message}`,
+        });
+      }
+      return domainFindings;
+    }
+
+    const fm = result.data;
+
+    // name must equal the filename stem.
+    if (fm.name !== stem) {
+      domainFindings.push({
         severity: "error",
-        rule: "yaml-parse",
-        message: `${e.code ?? "YAML"} at line ${e.line ?? "?"}, col ${e.col ?? "?"}: ${e.message}`,
+        rule: "name-filename-mismatch",
+        message: `frontmatter name "${fm.name}" does not match filename stem "${stem}"`,
       });
     }
-    return findings;
-  }
 
-  const result = KnowledgeFrontmatter.safeParse(parsed);
-  if (!result.success) {
-    for (const issue of result.error.issues) {
-      findings.push({
-        note: filename,
-        severity: "error",
-        rule: "schema",
-        message: `${issue.path.join(".") || "(root)"}: ${issue.message}`,
+    // supersedes must reference a name that exists in the directory.
+    if (fm.supersedes !== undefined && !allNames.has(fm.supersedes)) {
+      domainFindings.push({
+        severity: "warning",
+        rule: "supersedes-unknown",
+        message: `supersedes "${fm.supersedes}" does not match any note name in this directory`,
       });
     }
-    return findings;
-  }
 
-  const fm = result.data;
+    // Body must be non-empty (meaningful content after frontmatter).
+    const body = bodyAfterFrontmatter(text).trim();
+    if (!body) {
+      domainFindings.push({
+        severity: "error",
+        rule: "empty-body",
+        message: "note body is empty — add what/why/how-to-apply content",
+      });
+    }
 
-  // name must equal the filename stem.
-  if (fm.name !== stem) {
-    findings.push({
-      note: filename,
-      severity: "error",
-      rule: "name-filename-mismatch",
-      message: `frontmatter name "${fm.name}" does not match filename stem "${stem}"`,
-    });
-  }
+    return domainFindings;
+  });
 
-  // supersedes must reference a name that exists in the directory.
-  if (fm.supersedes !== undefined && !allNames.has(fm.supersedes)) {
-    findings.push({
-      note: filename,
-      severity: "warning",
-      rule: "supersedes-unknown",
-      message: `supersedes "${fm.supersedes}" does not match any note name in this directory`,
-    });
-  }
-
-  // Body must be non-empty (meaningful content after frontmatter).
-  const body = bodyAfterFrontmatter(text).trim();
-  if (!body) {
-    findings.push({
-      note: filename,
-      severity: "error",
-      rule: "empty-body",
-      message: "note body is empty — add what/why/how-to-apply content",
-    });
+  for (const f of baseFindings) {
+    push(f.severity, f.rule, f.message);
   }
 
   return findings;
