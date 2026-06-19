@@ -25,6 +25,7 @@ import { readState, writeState } from "../lib/hook-runtime.ts";
 import { hasCommand, pad, ymd } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import { onHeadObserved, type ReviewQueueState } from "../lib/review-queue.ts";
+import { teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
 import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/version-delta.ts";
 
 const CLAUDE_DIR = join(homedir(), ".claude");
@@ -217,6 +218,10 @@ await Promise.all([...logRotations.slice(1), handoffCleanup, sessionTitlePrune])
 // Auto-memory pointer (local tier retired in v11.1.0; auto-memory is the active store)
 console.log("");
 console.log("Auto-memory: say 'remember X' — saved to ~/.claude/projects/<hash>/memory/");
+
+// Shared team-knowledge corpus awareness (read counterpart to /share-learning).
+// Silent unless $KNOWLEDGE_REPO_PATH points at a non-empty local clone.
+for (const l of await teamKnowledgeAwareness()) console.log(l);
 
 // TLDR status
 if (hasCommand("tldr")) {
