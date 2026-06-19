@@ -208,6 +208,23 @@ describe("tool-cadence — parallelmax branch (e2e)", () => {
     }
   });
 
+  // ── Test 5a: Completely missing state file handled without crashing ────────
+  test("missing state file (null) handled without crashing", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-pm-"));
+    try {
+      // No state file written — readState returns null, normalizeCounterState defaults all fields.
+      const r = await runHook(readPayload(), home, "12");
+      expect(r.exit).toBe(0);
+      const state = await readCounterState(home);
+      expect(state?.count).toBe(1);
+      expect(state?.nudged).toBe(false);
+      expect(state?.escalated).toBe(false);
+      expect(Array.isArray(state?.files)).toBe(true);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   // ── Test 5: Old-shape state file handled without crashing ─────────────────
   test("old-shape state file (no new fields) handled without crashing", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-pm-"));
