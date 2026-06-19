@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+### Changed
+
+- Codex bridge hardening: `--force` escape bypasses a sticky rate-limited/no-access verdict (which Codex emits even on auth mismatch); a fresh `available` verdict skips the per-call `codex login status` probe for 60s; timeouts now report partial output + a split/raise hint instead of an opaque exit code; `exec` appends `git status`/`diff --stat` so the changed files are always surfaced; `sanitizeOutput` strips ANSI and redacts secrets (`sk-`/`Bearer`/`Authorization`/`*_API_KEY|TOKEN|SECRET=`) on all returned output.
+- Hook tamper-defense: the three divergent "managed `~/.claude/src` hook command" classifiers (settings-merge, light-profile, audit-hooks) are unified into `src/lib/hook-command.ts`; the trusted regex is tightened to `(scripts|hooks)` only (drops `lib/`); hook-block traversal goes through a `HooksBlock`-schema-driven `iterCommandHooks`. `readFingerprint`/`readSrcManifest` now validate through zod, strip control chars from `installedAt`, and reject manifest keys with `..`/absolute paths.
+- Installer: `buildInstallPlan` is the single source of truth for install/prune footprint; `main()` split into `runMigrateOnly`/`runFullInstall`; the in-installer skill-prune loop removed. `managed-skills.ts` split into `ACTIVE_SKILLS` (completed — 7 missing current skills added: `codex`, `freeze`, `plan-ceo-review`, `proof-of-work`, `retro`, `review-batch`, `strategist`) + `TOMBSTONE_SKILLS`; `lint:skills` now asserts `ACTIVE_SKILLS` matches `skills/` on disk.
+- Settings merger is now pure: MCP-server preservation moved out of `settings-merge.ts` into `mcp.ts` `resolveMcpServers` (behavior unchanged).
+
+### Internal
+
+- `claude-audit.ts` split into `analyzeCommands` (model) + `renderAudit` (render); shared frontmatter-lint core extracted from `lint-skills`/`lint-knowledge`; `writeState` is now atomic (tmp+rename); `tool-cadence` `CounterState` rehydration goes through `normalizeCounterState`.
+
 ## [11.27.1] — 2026-06-19
 
 ### Fix — installer merger now deep-merges object config defaults
