@@ -42,6 +42,7 @@ export interface MergeAccounting {
   envUserWins: number;
   envAdoptedScalars: number;
   scalarsAdopted: number;
+  defaultsAdded: number;
   statusLineReset: boolean;
 }
 
@@ -388,26 +389,62 @@ export const statusLineStrategy: Strategy = async (_key, team, user, ctx) => {
   return { keep: true, value: team };
 };
 
-// Default fallback for any key not in STRATEGIES. User-wins on values
-// declared in both; team-only and user-only keys pass through. Scalar
-// conflicts can prompt in interactive mode.
-export const userWinsScalarStrategy: Strategy = async (key, team, user, ctx) => {
-  if (team === undefined && user === undefined) return { keep: false };
-  if (user === undefined) return { keep: true, value: team };
-  if (team === undefined) return { keep: true, value: user };
+function isPlainObject(v: unknown): v is UnknownRecord {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
 
-  // Both present. For non-scalar values (objects/arrays), user wins silently
-  // — matches pre-refactor behavior of `{ ...teamRaw, ...userRaw }`.
+// Recursive deep-merge for the default strategy, user winning on every conflict.
+//
+// The both-objects case recurses so that team-only sub-keys (new config defaults
+// added by a sync — e.g. `attribution.sessionUrl` in v11.27.0) land *inside* a
+// block the user already has, instead of the user's whole block shadowing them.
+// Before this, `{ ...teamRaw, ...userRaw }` semantics meant a user's existing
+// `attribution: { commit, pr }` replaced the team's `{ commit, pr, sessionUrl }`
+// wholesale and the new default silently never reached the install.
+//
+// Arrays and object↔scalar shape mismatches keep user-wins-whole: an array or a
+// retyped field is a deliberate user replacement, not a partial override, so we
+// don't try to merge into it. Scalar conflicts use the shared interactive prompt.
+async function deepMergeUserWins(
+  key: string,
+  team: unknown,
+  user: unknown,
+  ctx: StrategyContext,
+): Promise<unknown> {
+  if (user === undefined) return team;
+  if (team === undefined) return user;
+
+  if (isPlainObject(team) && isPlainObject(user)) {
+    const out: UnknownRecord = {};
+    for (const k of new Set([...Object.keys(team), ...Object.keys(user)])) {
+      // A key the team provides but the user's block lacks is a new default
+      // landing into an existing block — count it so the install reports it.
+      if (!(k in user) && k in team) ctx.accounting.defaultsAdded++;
+      out[k] = await deepMergeUserWins(`${key}.${k}`, team[k], user[k], ctx);
+    }
+    return out;
+  }
+
+  // Arrays or mismatched shapes: user wins silently (preserves prior behavior).
   const tIsScalar = !(Array.isArray(team) || (team !== null && typeof team === "object"));
   const uIsScalar = !(Array.isArray(user) || (user !== null && typeof user === "object"));
-  if (!tIsScalar || !uIsScalar) return { keep: true, value: user };
-  if (team === user) return { keep: true, value: user };
+  if (!tIsScalar || !uIsScalar) return user;
+  if (team === user) return user;
 
-  // Scalar conflict: prompt or silent user-wins. The orchestrator passes the
-  // real key (e.g. "model", "theme") so the interactive prompt can name it.
+  // Scalar conflict: prompt or silent user-wins. The path (e.g. "model",
+  // "spinnerVerbs.mode") names the field in the interactive prompt.
   const { value, adopted } = await resolveScalarConflict(key, team, user, ctx.opts);
   if (adopted) ctx.accounting.scalarsAdopted++;
-  return { keep: true, value };
+  return value;
+}
+
+// Default fallback for any key not in STRATEGIES. Deep-merges objects so team
+// defaults land per-key (user wins on conflict); team-only and user-only keys
+// pass through; arrays and scalars are user-wins, with scalar conflicts able to
+// prompt in interactive mode.
+export const userWinsScalarStrategy: Strategy = async (key, team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  return { keep: true, value: await deepMergeUserWins(key, team, user, ctx) };
 };
 
 // --- Strategy registry ---------------------------------------------------
@@ -431,6 +468,9 @@ export const STRATEGIES: Record<string, Strategy> = {
  *
  * Non-interactive policy (default):
  *   - User-declared keys win for top-level scalars (model, theme, …).
+ *   - Object-valued keys with no dedicated strategy (attribution, sandbox, …)
+ *     deep-merge: team-only sub-keys (new defaults from a sync) land while the
+ *     user's customized sub-keys win. Arrays stay user-wins-whole.
  *   - `permissions.{allow,deny,ask,additionalDirectories}` are unioned so the
  *     team baseline (guardrails, common tool access) survives while user
  *     additions are preserved.
@@ -502,6 +542,7 @@ export async function mergeSettingsWithMcpPreservation(
       envUserWins: 0,
       envAdoptedScalars: 0,
       scalarsAdopted: 0,
+      defaultsAdded: 0,
       statusLineReset: false,
     },
   };
@@ -528,6 +569,10 @@ export async function mergeSettingsWithMcpPreservation(
   if (a.hooksAdded > 0) bits.push(`${a.hooksAdded} hook group(s)`);
   if (a.envUserWins > 0) bits.push(`${a.envUserWins} env override(s)`);
   if (bits.length > 0) success(`Preserved user customization: ${bits.join(", ")}`);
+
+  if (a.defaultsAdded > 0) {
+    info(`Added ${a.defaultsAdded} new team default(s) into existing settings block(s)`);
+  }
 
   if (a.hooksPruned > 0) {
     info(`Pruned ${a.hooksPruned} stale hook reference(s) pointing at removed cc-settings scripts`);

@@ -4,6 +4,43 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.27.1] — 2026-06-19
+
+### Fix — installer merger now deep-merges object config defaults
+
+The `setup.sh` settings.json merger preserved a user's existing object blocks
+**whole**, so a new *nested* config default added by a sync never reached
+existing installs. Surfaced installing v11.27.0: `attribution.sessionUrl: false`
+showed in `bun run compose` but not in the merged `~/.claude/settings.json` —
+the user's existing `attribution: { commit, pr }` shadowed the team's
+`{ commit, pr, sessionUrl }`. The version sentinel bumped while the setting
+silently never landed.
+
+**Fixed:**
+
+- `userWinsScalarStrategy` (the default strategy for keys with no dedicated
+  handler — `attribution`, `sandbox`, `spinnerVerbs`, …) now deep-merges plain
+  objects via a new recursive `deepMergeUserWins` helper: team-only sub-keys
+  (new defaults) land while the user's customized sub-keys win on conflict.
+  Arrays and object↔scalar shape mismatches keep user-wins-whole — an array or
+  retyped field is a deliberate replacement, not a partial override.
+- New `MergeAccounting.defaultsAdded` counter + install line ("Added N new team
+  default(s) into existing settings block(s)") so a landing default is visible,
+  not silent.
+
+**Tests:** 6 added to `tests/settings-merge.test.ts` (team-only sub-key lands;
+user sub-key wins on conflict; depth > 1 recursion; arrays stay whole;
+object↔scalar mismatch; end-to-end `attribution.sessionUrl` regression lock).
+539 pass / 0 fail.
+
+**Files changed:**
+
+- `src/lib/settings-merge.ts`
+- `tests/settings-merge.test.ts`
+- `src/setup.ts`
+- `.claude-plugin/plugin.json`
+- `CHANGELOG.md`
+
 ## [11.27.0] — 2026-06-19
 
 ### Sync with Claude Code v2.1.183 — `attribution.sessionUrl` (stealth)

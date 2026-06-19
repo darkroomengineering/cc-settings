@@ -30,6 +30,7 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
     envUserWins: 0,
     envAdoptedScalars: 0,
     scalarsAdopted: 0,
+    defaultsAdded: 0,
     statusLineReset: false,
   };
   return { opts, accounting };
@@ -557,6 +558,87 @@ describe("userWinsScalarStrategy", () => {
     if (!result.keep) return;
     expect(result.value).toBe("dark");
     expect(ctx.accounting.scalarsAdopted).toBe(0);
+  });
+
+  // Deep-merge: a team-only nested sub-key (a new config default from a sync)
+  // must land inside a block the user already has, instead of being shadowed by
+  // the user's whole block. This is the attribution.sessionUrl (v11.27.0) bug.
+  test("team-only nested sub-key lands while user sub-keys are preserved", async () => {
+    const ctx = makeCtx();
+    const team = { commit: "", pr: "", sessionUrl: false };
+    const user = { commit: "", pr: "" };
+    const result = await userWinsScalarStrategy("attribution", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({ commit: "", pr: "", sessionUrl: false });
+    expect(ctx.accounting.defaultsAdded).toBe(1);
+  });
+
+  test("user-customized nested sub-key wins over team on conflict", async () => {
+    const ctx = makeCtx();
+    const team = { commit: "", pr: "", sessionUrl: false };
+    const user = { commit: "Custom trailer", pr: "", sessionUrl: true };
+    const result = await userWinsScalarStrategy("attribution", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    // user's commit + sessionUrl win; no team-only keys to add
+    expect(result.value).toEqual({ commit: "Custom trailer", pr: "", sessionUrl: true });
+    expect(ctx.accounting.defaultsAdded).toBe(0);
+  });
+
+  test("nested objects recurse (defaults land at depth > 1)", async () => {
+    const ctx = makeCtx();
+    const team = { enabled: true, network: { allowAppleEvents: false, proxy: "team" } };
+    const user = { enabled: true, network: { proxy: "user" } };
+    const result = await userWinsScalarStrategy("sandbox", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({
+      enabled: true,
+      network: { allowAppleEvents: false, proxy: "user" },
+    });
+    expect(ctx.accounting.defaultsAdded).toBe(1); // network.allowAppleEvents
+  });
+
+  test("arrays stay user-wins-whole (no element merge)", async () => {
+    const ctx = makeCtx();
+    const team = { mode: "replace", verbs: ["A", "B", "C"] };
+    const user = { mode: "replace", verbs: ["X"] };
+    const result = await userWinsScalarStrategy("spinnerVerbs", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({ mode: "replace", verbs: ["X"] });
+    expect(ctx.accounting.defaultsAdded).toBe(0);
+  });
+
+  test("object↔scalar shape mismatch → user wins (no merge attempt)", async () => {
+    const ctx = makeCtx();
+    const result = await userWinsScalarStrategy("k", { a: 1 }, "scalar", ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toBe("scalar");
+  });
+});
+
+// Integration: the merger end-to-end must land a team-only nested default into a
+// user's existing block (regression lock for attribution.sessionUrl, v11.27.0).
+describe("mergeSettingsWithMcpPreservation — nested defaults", () => {
+  test("team attribution.sessionUrl lands into a user block that lacks it", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-merge-nested-"));
+    try {
+      const team = { attribution: { commit: "", pr: "", sessionUrl: false } };
+      const user = { attribution: { commit: "", pr: "" } };
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(userPath, JSON.stringify(user));
+
+      await mergeSettingsWithMcpPreservation(userPath, team, outPath);
+
+      const merged = JSON.parse(await Bun.file(outPath).text());
+      expect(merged.attribution).toEqual({ commit: "", pr: "", sessionUrl: false });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 
