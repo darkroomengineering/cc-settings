@@ -27,6 +27,9 @@ const NO_ACCESS_TTL_MS = 24 * 60 * 60 * 1000; // entitlement: re-check daily
 const RATE_LIMIT_TTL_MS = 5 * 60 * 60 * 1000; // Codex meters per ~5-hour window
 const DEFAULT_EXEC_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000; // hard cap so a hung call can't run unbounded
+// Skip the up-to-5s `codex login status` spawn when a recent "available" verdict
+// is still fresh. 60s is safe: the badge poll and exec preflight share this cache.
+const AVAILABLE_TTL_MS = 60_000;
 
 // ESC[…m built from charCode(27) rather than a literal control char, so the
 // regex doesn't trip biome's noControlCharactersInRegex rule.
@@ -84,6 +87,11 @@ export interface CodexRunOptions {
   sandbox?: CodexSandbox;
   cwd?: string;
   timeoutMs?: number;
+  /** When true, bypass a sticky rate-limited or no-access verdict and re-probe
+   *  with a real call. Useful when the quota message was a false positive (auth
+   *  mismatch). Does NOT bypass not-installed or unauthenticated — those can't
+   *  succeed regardless. */
+  force?: boolean;
 }
 
 export interface CodexRunResult {
@@ -157,15 +165,36 @@ export function reconcile(live: LiveAvailability, cached: CodexVerdict): CodexVe
 }
 
 /** Run the cheap check, reconcile with the cache, persist, and return the verdict.
- *  Shared by the SessionStart hook (for the badge) and the preflight gate. */
+ *  Shared by the SessionStart hook (for the badge) and the preflight gate.
+ *  When the cached verdict is "available" and still within AVAILABLE_TTL_MS, the
+ *  up-to-5s `codex login status` spawn is skipped entirely to avoid latency. */
 export async function refreshCodexVerdict(): Promise<CodexVerdict> {
-  const [live, cached] = await Promise.all([checkCodexAvailability(), readCodexVerdict()]);
+  const cached = await readCodexVerdict();
+  // Short-circuit: a recent "available" verdict doesn't need a fresh login-status
+  // spawn. Negative verdicts always go through the full reconcile path.
+  if (cached.state === "available" && ageMs(cached.checkedAt) < AVAILABLE_TTL_MS) {
+    return cached;
+  }
+  const live = await checkCodexAvailability();
   const v = reconcile(live, cached);
   await writeCodexVerdict(v);
   return v;
 }
 
 // ── L2: classify a real call's failure ─────────────────────────────────────────
+
+/**
+ * Strip ANSI escape codes and redact credentials from any string. Operates on
+ * the full text (no line capping, no length limit). Used by both `firstLine`
+ * (for cached detail snippets) and `sanitizeOutput` (for full output surfaces).
+ */
+export function sanitizeOutput(s: string): string {
+  return s
+    .replace(ANSI_RE, "")
+    .replace(/sk-[A-Za-z0-9_-]{16,}/g, "sk-[redacted]")
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]");
+}
 
 /** First non-empty line of a subprocess stderr, sanitized before it's cached to
  *  ~/.claude/tmp or echoed to the terminal: strip ANSI escapes, redact
@@ -177,12 +206,7 @@ function firstLine(s: string): string {
       .split("\n")
       .find((l) => l.trim().length > 0)
       ?.trim() ?? "";
-  return line
-    .replace(ANSI_RE, "")
-    .replace(/sk-[A-Za-z0-9_-]{16,}/g, "sk-[redacted]")
-    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
-    .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]")
-    .slice(0, 200);
+  return sanitizeOutput(line).slice(0, 200);
 }
 
 /** Map a failed `codex exec` to a verdict state. Codex's "Quota exceeded / you've
@@ -213,8 +237,12 @@ function blocked(state: CodexState, message: string): CodexRunResult {
 
 /** Is it worth attempting a Codex call right now? Returns a blocking result with
  *  guidance when not, or null when clear to proceed (including "unknown" — there
- *  the call itself is the probe). */
-export async function codexPreflight(): Promise<CodexRunResult | null> {
+ *  the call itself is the probe).
+ *
+ *  When `force` is true, sticky rate-limited and no-access verdicts are bypassed
+ *  so the real call can re-probe. not-installed and unauthenticated are never
+ *  bypassed — a call cannot succeed in those states regardless. */
+export async function codexPreflight(force = false): Promise<CodexRunResult | null> {
   const v = await refreshCodexVerdict();
   switch (v.state) {
     case "available":
@@ -230,14 +258,16 @@ export async function codexPreflight(): Promise<CodexRunResult | null> {
         "Codex is installed but not logged in. Run `codex login` (use your ChatGPT/Codex subscription) to enable the bridge. Continuing Claude-only.",
       );
     case "no-access":
+      if (force) return null; // re-probe: the sticky may be a false positive
       return blocked(
         v.state,
-        `This account showed no Codex access on its plan (checked ${v.checkedAt}). If that's wrong, run \`codex logout && codex login\` — the entitlement error is sometimes a stale/cross-workspace credential. Continuing Claude-only.`,
+        `This account showed no Codex access on its plan (checked ${v.checkedAt}). If that's wrong, run \`codex logout && codex login\` — the entitlement error is sometimes a stale/cross-workspace credential. Or pass --force to re-probe. Continuing Claude-only.`,
       );
     case "rate-limited":
+      if (force) return null; // re-probe: quota message is also emitted on auth mismatch
       return blocked(
         v.state,
-        `Codex hit its usage limit for this ~5-hour window (since ${v.checkedAt}). Failing over to Claude-only; retry after the window resets.`,
+        `Codex hit its usage limit for this ~5-hour window (since ${v.checkedAt}). Failing over to Claude-only; retry after the window resets, or pass --force to re-probe.`,
       );
     default:
       return null;
@@ -247,9 +277,16 @@ export async function codexPreflight(): Promise<CodexRunResult | null> {
 /** Run `codex exec` with the gate in front. On success the plain final message is
  *  returned (no --json, so stdout is the answer, not an event stream). On failure
  *  the error is classified and cached so repeated entitlement failures stop
- *  retrying while one-off errors don't poison the cache. */
+ *  retrying while one-off errors don't poison the cache.
+ *
+ *  Timeout: if the process is still running at the effective timeout limit, the
+ *  partial stdout is surfaced with a human-readable detail message. Timeouts are
+ *  NOT cached as sticky failures — the bridge stays "available" for the next call.
+ *
+ *  Output sanitization: both success and failure output paths run sanitizeOutput
+ *  before returning, so callers never need to strip credentials themselves. */
 export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResult> {
-  const gate = await codexPreflight();
+  const gate = await codexPreflight(opts.force ?? false);
   if (gate) return gate;
 
   const sandbox = opts.sandbox ?? "workspace-write";
@@ -262,6 +299,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   const timeout = Math.min(requested, MAX_EXEC_TIMEOUT_MS);
   // `--` ends Codex's option parsing: a prompt beginning with `-` can't be
   // re-read by its arg parser as a flag (e.g. a sandbox override). Security: H1.
+  const startedAt = Date.now();
   const proc = Bun.spawn(["codex", "exec", "--sandbox", sandbox, "--", opts.prompt], {
     cwd: opts.cwd,
     stdout: "pipe",
@@ -273,11 +311,26 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
     new Response(proc.stderr).text(),
   ]);
   const exit = await proc.exited;
+  const elapsed = Date.now() - startedAt;
   const now = new Date().toISOString();
 
   if (exit === 0) {
     await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
-    return { ok: true, output: stdout.trim(), state: "available" };
+    return { ok: true, output: sanitizeOutput(stdout.trim()), state: "available" };
+  }
+
+  // Detect timeout: non-zero exit after elapsed ≥ effective timeout. The partial
+  // stdout (already captured before the process was killed) is surfaced so the
+  // caller has context. Timeouts are not sticky-cached — the bridge stays open.
+  if (exit !== 0 && elapsed >= timeout) {
+    await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
+    const minutes = Math.round(timeout / 60_000);
+    return {
+      ok: false,
+      output: sanitizeOutput(stdout.trim()),
+      state: "unknown",
+      detail: `Codex timed out after ${minutes}m — split the task into smaller pieces or raise the timeout.`,
+    };
   }
 
   const cls = classifyCodexError(exit, stderr);
@@ -288,5 +341,5 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   } else {
     await writeCodexVerdict({ state: cls.state, checkedAt: now, sticky: true, detail: cls.detail });
   }
-  return { ok: false, output: stdout.trim(), state: cls.state, detail: cls.detail };
+  return { ok: false, output: sanitizeOutput(stdout.trim()), state: cls.state, detail: cls.detail };
 }

@@ -2,7 +2,12 @@
 // No filesystem I/O, no subprocess spawning — pure logic only.
 
 import { describe, expect, test } from "bun:test";
-import { type CodexVerdict, classifyCodexError, reconcile } from "../src/lib/codex.ts";
+import {
+  type CodexVerdict,
+  classifyCodexError,
+  reconcile,
+  sanitizeOutput,
+} from "../src/lib/codex.ts";
 
 // ---------------------------------------------------------------------------
 // classifyCodexError — state classification
@@ -319,6 +324,52 @@ describe("reconcile — live 'available' + stale sticky negatives expire", () =>
     const result = reconcile("available", cached);
     expect(result.state).toBe("available");
     expect(result.sticky).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeOutput — full-text redaction (no line/length limits)
+// ---------------------------------------------------------------------------
+
+describe("sanitizeOutput — multi-line credential redaction", () => {
+  test("strips ANSI escapes from full text", () => {
+    const ESC = String.fromCharCode(27);
+    const input = `line1\n${ESC}[31mred line${ESC}[0m\nline3`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).toContain("red line");
+    expect(result).toContain("line1");
+    expect(result).toContain("line3");
+  });
+
+  test("redacts sk- tokens across multiple lines", () => {
+    const token = "sk-ABCDEFGHIJKLMNOPabcdefghijklmnop";
+    const input = `line1\nerror: ${token}\nline3`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(token);
+    expect(result).toContain("sk-[redacted]");
+    expect(result).toContain("line1");
+    expect(result).toContain("line3");
+  });
+
+  test("does NOT cap length (operates on full text)", () => {
+    const long = "x".repeat(500);
+    const result = sanitizeOutput(long);
+    expect(result.length).toBe(500);
+  });
+
+  test("redacts Bearer tokens on any line", () => {
+    const input = `ok\nAuthorization header Bearer eyJhbGciOiJSUzI1NiJ9.pay.sig\ndone`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain("eyJhbGciOiJSUzI1NiJ9");
+    expect(result).toContain("Bearer [redacted]");
+  });
+
+  test("redacts Authorization: header value", () => {
+    const input = `Authorization: secret_token_here\nother line`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain("secret_token_here");
+    expect(result).toContain("Authorization: [redacted]");
   });
 });
 
