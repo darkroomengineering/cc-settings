@@ -21,24 +21,15 @@ import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
-import {
-  boxEnd,
-  boxLine,
-  boxStart,
-  debug,
-  error,
-  info,
-  palette,
-  showBanner,
-  success,
-  warn,
-} from "./lib/colors.ts";
+import { debug, error, info, palette, showBanner, success, warn } from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import {
   writeFingerprint as writeHooksFingerprint,
   writeSrcManifest,
 } from "./lib/hooks-fingerprint.ts";
+import { cmdRollback, printHelp } from "./lib/install-cmds.ts";
+import { cmdDryRun, printStatus, showSummary } from "./lib/install-display.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
 import {
   applyLightProfile,
@@ -49,22 +40,20 @@ import {
 } from "./lib/light-profile.ts";
 import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
 import {
-  CLAUDE_JSON_PATH,
   installMcpToClaudeJson,
   type McpServers,
   mergeSettingsWithMcpPreservation,
   removeManagedMcpServers,
 } from "./lib/mcp.ts";
 import { ensurePythonPackage, ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
-import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
+import { CLAUDE_DIR, getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
+import { printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
-import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
 const VERSION = "11.27.1"; // installer merger deep-merges object defaults — nested config keys (e.g. attribution.sessionUrl) now land into existing user blocks; Fable 5 still suspended — decision tier on opus[1m]
-const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -105,76 +94,6 @@ export function parseArgs(argv: string[]): Args {
   return args;
 }
 
-function printHelp(): void {
-  console.log(`cc-settings installer v${VERSION}
-
-Usage: bun src/setup.ts [flags]
-
-Flags:
-  --source=<dir>     Source repo path (default: parent of setup.ts).
-  --rollback[=TS]    Restore newest backup, or one matching timestamp TS.
-  --dry-run          Print planned actions; do not touch disk.
-  --light            Install raw Claude Code + statusLine + share-learning only:
-                       • skills: share-learning (only)
-                       • settings.json: $schema + statusLine only
-                       • no MCP servers, no hooks, no effort override
-                       • no CLAUDE.md, AGENTS.md, agents, rules, profiles,
-                         docs, or permission rules
-                     Re-run without --light to upgrade to full.
-  --status           Report installed version, drift vs repo HEAD, missing
-                     managed skills, hooks, key env vars, and MCP servers.
-  --interactive      Prompt on settings.json conflicts (scalar overrides, team
-                     additions to allow/ask rules, new hook groups). Also opt in
-                     via CC_INTERACTIVE=1.
-  --migrate-only     Run only the settings.json merger + version sentinel;
-                     skip file copy, dependency install, and skill/agent
-                     refresh. Use after a cc-settings update if you only
-                     want the merger's deprecation prune to apply.
-  --help, -h         Show this message.
-
-Rollback examples:
-  bun src/setup.ts --rollback
-  bun src/setup.ts --rollback=2026-04-20T10-00-00Z`);
-}
-
-// --- Rollback ------------------------------------------------------------
-
-async function cmdRollback(target: string | true): Promise<number> {
-  const backupDir = join(CLAUDE_DIR, "backups");
-  if (!existsSync(backupDir)) {
-    error(`No backups directory found at ${backupDir}`);
-    return 1;
-  }
-  const entries = (await readdir(backupDir))
-    .filter((e) => /^backup-.*\.tar\.gz$/.test(e))
-    .sort()
-    .reverse();
-  const match = target === true ? entries[0] : entries.find((e) => e.includes(target));
-  if (!match) {
-    error("No matching backup found.");
-    console.error("Available backups:");
-    for (const e of entries.slice(0, 5)) console.error(`  ${e}`);
-    return 1;
-  }
-  info(`Rolling back from: ${match}`);
-  const archivePath = join(backupDir, match);
-  // Newer archives are $HOME-relative (entries prefixed with ".claude/", plus a
-  // top-level ".claude.json"); pre-MCP-backup archives are ~/.claude-relative
-  // (bare "settings.json"). Detect the layout so each restores to the right place.
-  const listing = Bun.spawn(["tar", "-tzf", archivePath], { stdout: "pipe", stderr: "ignore" });
-  const archiveEntries = (await new Response(listing.stdout).text()).trim().split("\n");
-  await listing.exited;
-  const homeRelative = archiveEntries.some((e) => e.startsWith(".claude/") || e === ".claude.json");
-  const proc = Bun.spawn(["tar", "-xzf", archivePath], {
-    cwd: homeRelative ? homedir() : CLAUDE_DIR,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  const code = await proc.exited;
-  if (code === 0) success("Restored. Restart Claude Code to apply.");
-  return code;
-}
-
 // --- Install plan --------------------------------------------------------
 
 /**
@@ -196,9 +115,10 @@ export interface InstallStep {
 /**
  * Produce the complete planned footprint for an install: every file/dir that
  * will be copied or pruned, derived from PROFILE_MANIFEST and LIGHT_SKILLS.
- * All four traversal sites (installConfigFiles, removeLightIncompatibleFiles,
- * showSummary, cmdDryRun) derive from this single list instead of re-walking
- * the manifest independently.
+ * The display sites (showSummary, cmdDryRun) and the light-profile install path
+ * (installConfigFiles) consume this list instead of re-walking the manifest;
+ * the full-profile install reads PROFILE_MANIFEST directly (the plan is derived
+ * from the same manifest).
  *
  * Does NOT touch disk — pure computation from the manifest + existsSync checks.
  */
@@ -431,20 +351,21 @@ async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
 /**
  * Execute the copy/prune steps from buildInstallPlan. cleanOldConfig must
  * already have run so MANAGED_SKILLS dirs are wiped before copy.
+ *
+ * For the light profile, all plan steps (copy + prune) are executed directly
+ * from buildInstallPlan — making buildInstallPlan the honest single source of
+ * truth for what the light path touches (§1.3).
  */
 async function installConfigFiles(source: string, profile: Profile): Promise<void> {
-  const plan = buildInstallPlan(source, profile);
-
   if (profile === "light") {
-    // Copy LIGHT_SKILLS subset.
+    const plan = buildInstallPlan(source, profile);
+    // Execute copy steps: LIGHT_SKILLS subset via filtered copy.
     const lightSkillSet = new Set(LIGHT_SKILLS);
     await copyDirContentsFiltered(join(source, "skills"), join(CLAUDE_DIR, "skills"), (name) =>
       lightSkillSet.has(name),
     );
-    // Prune skill dirs from the plan that cleanOldConfig may have left behind
-    // (MANAGED_SKILLS sweep in cleanOldConfig covers the known list; skill-prune
-    // steps from the plan cover any that slipped through).
-    const pruneSteps = plan.filter((s) => s.action === "prune" && s.rel.startsWith("skills/"));
+    // Execute all prune steps from the plan (skill dirs + full-only rootFiles/dirs).
+    const pruneSteps = plan.filter((s) => s.action === "prune");
     await Promise.all(
       pruneSteps.map((s) =>
         rm(join(CLAUDE_DIR, s.rel), { recursive: true, force: true }).catch(() => {}),
@@ -461,25 +382,6 @@ async function installConfigFiles(source: string, profile: Profile): Promise<voi
       ...manifest.dirs.map((d) => copyDirContents(join(source, d), join(CLAUDE_DIR, d))),
     ]);
   }
-}
-
-/**
- * Remove files/dirs that cc-settings full installs but light does NOT install —
- * computed from buildInstallPlan as the prune steps for non-skill targets.
- * Called before the light file-copy phase so a prior full install is cleaned
- * up. Never removes src/ or user-authored skills.
- */
-async function removeLightIncompatibleFiles(): Promise<void> {
-  // buildInstallPlan for light already includes prune steps for full-only
-  // rootFiles and dirs. Re-use the plan here so there's one source of truth.
-  // We use an empty sourceDir because prune steps don't read the source.
-  const plan = buildInstallPlan("", "light");
-  const pruneNonSkill = plan.filter((s) => s.action === "prune" && !s.rel.startsWith("skills/"));
-  const removeIfExists = (p: string) => rm(p, { recursive: true, force: true }).catch(() => {});
-  await Promise.all([
-    ...pruneNonSkill.map((s) => removeIfExists(join(CLAUDE_DIR, s.rel))),
-    removeIfExists(join(CLAUDE_DIR, "contexts")), // legacy; contexts/ retired
-  ]);
 }
 
 async function installTsSources(source: string): Promise<void> {
@@ -558,9 +460,13 @@ async function installSettings(
   // MCP block was validated exactly once — by composeSettings, whose Settings
   // schema types mcpServers with the McpServers schema.
   const teamMcp = (fullComposed.mcpServers ?? {}) as McpServers;
-  await mergeSettingsWithMcpPreservation(userSettingsPath, fullComposed, userSettingsPath, {
-    interactive,
-  });
+  const accounting = await mergeSettingsWithMcpPreservation(
+    userSettingsPath,
+    fullComposed,
+    userSettingsPath,
+    { interactive },
+  );
+  if (accounting) printMergeAccounting(accounting, { interactive });
   await installMcpToClaudeJson(teamMcp);
 
   // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
@@ -633,221 +539,7 @@ async function writeVersionSentinel(sourceDir: string, profile: Profile): Promis
   await atomicWriteJson(join(CLAUDE_DIR, ".cc-settings-version"), payload);
 }
 
-// --- Summary -------------------------------------------------------------
-
-async function countEntries(dir: string, pattern: RegExp): Promise<number> {
-  const full = join(CLAUDE_DIR, dir);
-  if (!existsSync(full)) return 0;
-  try {
-    const entries = await readdir(full);
-    return entries.filter((e) => pattern.test(e)).length;
-  } catch {
-    return 0;
-  }
-}
-
-async function showSummary(profile: Profile): Promise<void> {
-  const profileLabel = profile === "light" ? " [light]" : "";
-  console.log("");
-  boxStart(`Installed${profileLabel}`);
-  if (profile === "light") {
-    boxLine("ok", "settings.json ($schema + statusLine only)");
-    for (const skill of LIGHT_SKILLS) boxLine("ok", `skills/${skill}`);
-    boxLine("ok", "src/      (TS; statusLine + libs)");
-    boxLine("ok", "memory/");
-  } else {
-    // Rendered from PROFILE_MANIFEST so the summary can't drift from what
-    // installConfigFiles actually copies. Dirs with installed .md files show
-    // a count; container dirs (skills/) just list.
-    const ROOT_FILE_LABELS: Record<string, string> = {
-      "CLAUDE.md": "(Claude-Code config)",
-      "AGENTS.md": "(portable standards)",
-    };
-    const manifest = PROFILE_MANIFEST.full;
-    for (const [, dest] of manifest.rootFiles) {
-      const label = ROOT_FILE_LABELS[dest];
-      boxLine("ok", label ? `${dest} ${label}` : dest);
-    }
-    boxLine("ok", "settings.json (TS hooks)");
-    boxLine("ok", "~/.claude.json (MCP servers)");
-    const counts = await Promise.all(manifest.dirs.map((d) => countEntries(d, /\.md$/)));
-    manifest.dirs.forEach((d, i) => {
-      const n = counts[i] ?? 0;
-      boxLine("ok", n > 0 ? `${d}/ (${n})` : `${d}/`);
-    });
-    boxLine("ok", "src/      (TS; hooks + scripts + libs + schemas)");
-    boxLine("ok", "memory/");
-  }
-  boxEnd();
-
-  if (profile === "light") {
-    console.log("");
-    console.log(
-      `${palette.dim}Light profile: raw Claude Code · statusLine · share-learning skill only${palette.reset}`,
-    );
-    console.log(
-      `${palette.dim}No CLAUDE.md, AGENTS.md, MCP servers, hooks, or effort override.${palette.reset}`,
-    );
-    console.log(`${palette.dim}Re-run without --light to upgrade to full.${palette.reset}`);
-  }
-
-  const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
-    mcpServers?: Record<string, { _status?: unknown }>;
-  } | null;
-  const servers = Object.entries(claudeJson?.mcpServers ?? {});
-  if (servers.length > 0) {
-    console.log("");
-    console.log(`${palette.bold}MCP servers in ~/.claude.json:${palette.reset}`);
-    // Group by `_status` annotation. Servers without a status are listed as
-    // "user-added" — they came from the user's machine, not the team config.
-    const core: string[] = [];
-    const optional: string[] = [];
-    const userAdded: string[] = [];
-    for (const [name, server] of servers) {
-      const status = (server as { _status?: unknown })._status;
-      if (status === "core") core.push(name);
-      else if (status === "optional") optional.push(name);
-      else userAdded.push(name);
-    }
-    if (core.length > 0) {
-      console.log(`  ${palette.dim}core:${palette.reset}`);
-      for (const s of core) console.log(`    - ${s}`);
-    }
-    if (optional.length > 0) {
-      console.log(`  ${palette.dim}optional (manually added):${palette.reset}`);
-      for (const s of optional) console.log(`    - ${s}`);
-    }
-    if (userAdded.length > 0) {
-      console.log(`  ${palette.dim}user-added:${palette.reset}`);
-      for (const s of userAdded) console.log(`    - ${s}`);
-    }
-  }
-}
-
-// --- Dry run -------------------------------------------------------------
-
-async function cmdDryRun(source: string, profile: Profile): Promise<void> {
-  const profileLabel = profile === "light" ? " [light profile]" : "";
-  console.log(`cc-settings installer v${VERSION} — dry-run${profileLabel}`);
-  console.log(`source: ${source}`);
-  console.log(`target: ${CLAUDE_DIR}`);
-  console.log("");
-
-  if (profile === "light") {
-    console.log("Would install (light = raw Claude Code + statusLine + share-learning):");
-    const items: Array<[string, string]> = [
-      ...LIGHT_SKILLS.map((s): [string, string] => [`skills/${s}/`, `→ ~/.claude/skills/${s}/`]),
-      ["src/", "→ ~/.claude/src/ (all TS)"],
-      ["config/", "→ ~/.claude/settings.json ($schema + statusLine only)"],
-    ];
-    for (const [rel, effect] of items) {
-      const mark = existsSync(join(source, rel)) ? "✓" : " ";
-      console.log(`  ${mark} ${rel.padEnd(28)} ${effect}`);
-    }
-    console.log("");
-    console.log("Light profile: no CLAUDE.md · no AGENTS.md · no MCP servers · no hooks");
-    console.log("               no agents · no rules · no profiles · no docs");
-    console.log("               default Claude Code permissions · default effort");
-  } else {
-    console.log("Would install:");
-    // Rendered from PROFILE_MANIFEST so the dry-run table can't drift from
-    // what installConfigFiles actually copies.
-    const items: Array<[string, string]> = [
-      ...PROFILE_MANIFEST.full.rootFiles.map(([src, dest]): [string, string] => [
-        src,
-        `→ ~/.claude/${dest}`,
-      ]),
-      ["config/", "→ ~/.claude/settings.json (composed + MCP-merged)"],
-      ["src/", "→ ~/.claude/src/ (all TS)"],
-      ...PROFILE_MANIFEST.full.dirs.map((d): [string, string] => [`${d}/`, `→ ~/.claude/${d}/`]),
-    ];
-    for (const [rel, effect] of items) {
-      const mark = existsSync(join(source, rel)) ? "✓" : " ";
-      console.log(`  ${mark} ${rel.padEnd(22)} ${effect}`);
-    }
-  }
-
-  console.log("");
-  console.log("No files written. Re-run without --dry-run to install.");
-}
-
 // --- Status --------------------------------------------------------------
-
-function printStatus(data: StatusData): void {
-  console.log("cc-settings --status");
-  console.log("");
-
-  // Installed version
-  if (data.sentinel.version) {
-    const profileLabel = data.sentinel.profile ? ` [${data.sentinel.profile}]` : "";
-    console.log(
-      `  installed: v${data.sentinel.version}${profileLabel}  (${data.sentinel.installedAt ?? "unknown"})`,
-    );
-  } else {
-    console.log(
-      `  installed: ${palette.yellow}none${palette.reset}  (no sentinel at ~/.claude/.cc-settings-version)`,
-    );
-  }
-  console.log(`  packaged:  v${data.packagedVersion}`);
-
-  // Git drift
-  if (data.git?.sha) {
-    const g = data.git;
-    const driftNote =
-      g.behind === null
-        ? "(sentinel absent — can't compute drift)"
-        : g.behind === 0
-          ? `${palette.green}up to date${palette.reset}`
-          : `${palette.yellow}${g.behind} commit(s) since install${palette.reset}`;
-    console.log(`  repo HEAD: ${g.sha}  ${driftNote}`);
-  }
-
-  console.log("");
-  console.log("Managed skills:");
-  console.log(`  present: ${data.skills.presentCount}/${data.skills.shippedCount}`);
-  if (data.skills.missing.length > 0) {
-    console.log(`  missing: ${data.skills.missing.join(", ")}`);
-  }
-
-  console.log("");
-  console.log("Hooks:");
-  console.log(
-    `  events registered: ${data.hooks.events.length}  (${data.hooks.groupCount} group(s) total)`,
-  );
-  if (data.hooks.events.length > 0) {
-    console.log(`  ${data.hooks.events.sort().join(", ")}`);
-  }
-
-  console.log("");
-  console.log("Env vars:");
-  for (const { key, value } of data.envVars) {
-    const mark =
-      value === undefined
-        ? `${palette.yellow}✗${palette.reset}`
-        : `${palette.green}✓${palette.reset}`;
-    const val = value === undefined ? "(unset)" : value;
-    console.log(`  ${mark} ${key}=${val}`);
-  }
-
-  console.log("");
-  console.log("Permissions:");
-  console.log(`  allow: ${data.permissions.allowCount}  deny: ${data.permissions.denyCount}`);
-
-  console.log("");
-  console.log("MCP servers:");
-  const { servers } = data.mcp;
-  console.log(
-    `  configured: ${servers.length}${servers.length > 0 ? `  (${servers.join(", ")})` : ""}`,
-  );
-
-  console.log("");
-
-  if (data.warnings.length === 0) {
-    success("all checks passed");
-  } else {
-    for (const { message } of data.warnings) warn(message);
-  }
-}
 
 async function cmdStatus(sourceDir: string): Promise<number> {
   const data = await gatherStatus(sourceDir, CLAUDE_DIR, VERSION);
@@ -856,16 +548,6 @@ async function cmdStatus(sourceDir: string): Promise<number> {
 }
 
 // --- Main ----------------------------------------------------------------
-
-/**
- * Run the migrate-only path: backup + settings merger + version sentinel.
- * Skips file copy, dependency install, and skill/agent refresh.
- */
-async function runMigrateOnly(args: Args): Promise<void> {
-  info("Migrate-only: backup + merger + sentinel; skipping file copy");
-  await createBackup();
-  await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
-}
 
 /**
  * Run the full install path: deps → backup → dirs → clean → light-incompatible
@@ -886,14 +568,10 @@ async function runFullInstall(args: Args): Promise<void> {
   info("Installing configuration...");
   await createDirectories();
   await cleanOldConfig();
-  // For light: remove dirs that full installs but light must not have
-  // (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, docs/).
-  // Must run AFTER cleanOldConfig so any leftover full-install content is gone.
-  if (args.profile === "light") {
-    await removeLightIncompatibleFiles();
-  }
   // Disjoint destination trees (config dirs vs ~/.claude/src), so install both
-  // in parallel. Both must follow the clean above.
+  // in parallel. Both must follow the clean above. For light, installConfigFiles
+  // owns the full footprint: it copies the LIGHT_SKILLS subset and prunes every
+  // full-only target (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, docs/).
   await Promise.all([
     installConfigFiles(args.sourceDir, args.profile),
     installTsSources(args.sourceDir),
@@ -909,7 +587,7 @@ async function runFullInstall(args: Args): Promise<void> {
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    printHelp();
+    printHelp(VERSION);
     return 0;
   }
   if (args.status) {
@@ -919,7 +597,7 @@ async function main(): Promise<number> {
     return await cmdRollback(args.rollback);
   }
   if (args.dryRun) {
-    await cmdDryRun(args.sourceDir, args.profile);
+    await cmdDryRun(args.sourceDir, args.profile, VERSION);
     return 0;
   }
 
@@ -942,7 +620,9 @@ async function main(): Promise<number> {
 
   // Dispatch to migrate-only or full install path.
   if (args.migrateOnly) {
-    await runMigrateOnly(args);
+    info("Migrate-only: backup + merger + sentinel; skipping file copy");
+    await createBackup();
+    await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
   } else {
     await runFullInstall(args);
   }

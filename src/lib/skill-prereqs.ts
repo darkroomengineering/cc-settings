@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type SkillFrontmatter, SkillFrontmatter as SkillSchema } from "../schemas/skill.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
-import { hasCommand } from "./platform.ts";
+import { CLAUDE_DIR, hasCommand } from "./platform.ts";
 
 export interface MissingPrereq {
   kind: "command" | "mcp";
@@ -54,7 +54,7 @@ export async function readAllSkillFrontmatters(
  * a Set of server names.
  */
 export async function readConfiguredMcpServers(claudeDir?: string): Promise<Set<string>> {
-  const dir = claudeDir ?? join(homedir(), ".claude");
+  const dir = claudeDir ?? CLAUDE_DIR;
   const sources = [join(dir, "settings.json"), join(homedir(), ".claude.json")];
   const names = new Set<string>();
   for (const path of sources) {

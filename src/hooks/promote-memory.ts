@@ -8,13 +8,12 @@
 // break a tool call).
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
 import { readHookInput, runHook } from "../lib/hook-runtime.ts";
+import { claudePath } from "../lib/platform.ts";
 
-const CLAUDE_DIR = join(homedir(), ".claude");
-const SEEN_SET_PATH = join(CLAUDE_DIR, ".cache", "share-nudge-seen.json");
+const SEEN_SET_PATH = claudePath(".cache", "share-nudge-seen.json");
 
 const TEAM_RELEVANT_TYPES = new Set(["project", "feedback"]);
 
@@ -29,7 +28,7 @@ async function readSeenSet(): Promise<string[]> {
 }
 
 async function writeSeenSet(seen: string[]): Promise<void> {
-  await mkdir(join(CLAUDE_DIR, ".cache"), { recursive: true });
+  await mkdir(claudePath(".cache"), { recursive: true });
   await writeFile(SEEN_SET_PATH, JSON.stringify(seen));
 }
 

@@ -6,11 +6,10 @@
 // Invoked as a one-shot CLI via `bun run claude-audit`; no hook-protocol concerns.
 
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { ymd } from "../lib/platform.ts";
+import { claudePath, ymd } from "../lib/platform.ts";
 
-const LOG_DIR = join(homedir(), ".claude", "logs");
+const LOG_DIR = claudePath("logs");
 
 // --- Helpers --------------------------------------------------------------
 

@@ -3,10 +3,10 @@
 // state IO, top-level fail-open wrapper. Extracted in v11.1.1 — see CHANGELOG.
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { claudePath } from "./platform.ts";
 
-const TMP_DIR = join(homedir(), ".claude", "tmp");
+const TMP_DIR = claudePath("tmp");
 
 /** Read a stdin JSON payload; on parse failure, fall back to env.
  *

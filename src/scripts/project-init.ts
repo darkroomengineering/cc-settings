@@ -6,13 +6,12 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { info, success, warn } from "../lib/colors.ts";
+import { claudePath, isoNow } from "../lib/platform.ts";
 
-const CLAUDE_DIR = join(homedir(), ".claude");
-const SOURCE_AGENTS = join(CLAUDE_DIR, "AGENTS.md");
-const VERSION_FILE = join(CLAUDE_DIR, ".cc-settings-version");
+const SOURCE_AGENTS = claudePath("AGENTS.md");
+const VERSION_FILE = claudePath(".cc-settings-version");
 
 function installedVersion(): string {
   if (!existsSync(VERSION_FILE)) return "unknown";
@@ -47,7 +46,7 @@ function isManaged(file: string): boolean {
 
 function stampAgents(): string {
   const version = installedVersion();
-  const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const ts = isoNow();
   const body = readFileSync(SOURCE_AGENTS, "utf8");
   return `<!-- cc-settings v${version} | ${ts} | DO NOT EDIT — managed by cc-settings -->\n${body}`;
 }

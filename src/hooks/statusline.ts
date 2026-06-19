@@ -11,6 +11,7 @@
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { readCodexVerdict } from "../lib/codex.ts";
+import { palette } from "../lib/colors.ts";
 import { runGit as runGitLib } from "../lib/git.ts";
 import { readHookInput, readState } from "../lib/hook-runtime.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
@@ -77,11 +78,8 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   ]);
   if (!branch) return null;
 
-  const cyan = "\x1b[36m";
-  const yellow = "\x1b[33m";
-  const reset = "\x1b[0m";
-
-  const dirty = dirtyUnstaged !== 0 || dirtyStaged !== 0 ? `${yellow}✱${reset}` : "";
+  const dirty =
+    dirtyUnstaged !== 0 || dirtyStaged !== 0 ? `${palette.yellow}✱${palette.reset}` : "";
 
   let upstream = "";
   if (counts) {
@@ -90,7 +88,7 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
     if (Number(behind) > 0) upstream += "↓";
   }
 
-  return `${cyan}${branch}${reset}${dirty}${upstream}`;
+  return `${palette.cyan}${branch}${palette.reset}${dirty}${upstream}`;
 }
 
 function formatTimeToReset(value: number | string): string | null {
@@ -116,7 +114,7 @@ function formatTimeToReset(value: number | string): string | null {
   return h > 0 ? `${h}h${m.toString().padStart(2, "0")}m` : `${m}m`;
 }
 
-const dimSep = "\x1b[2m | \x1b[0m";
+const dimSep = `${palette.dim} | ${palette.reset}`;
 
 // Degraded-path capture: filled as soon as the payload parses, so the catch
 // block at the bottom can still print the model/cwd segment.
@@ -148,9 +146,9 @@ async function main(): Promise<void> {
     // `+` = thinking enabled. Used `+` instead of `†` (dagger) because the dagger
     // glyph reads as a "t" in many monospace terminal fonts, making "xhigh†" look
     // like "xhight".
-    const dim = "\x1b[2m";
-    const reset = "\x1b[0m";
-    const marker = effortLevel ? `${dim} ⚙${effortLevel}${thinkingEnabled ? "+" : ""}${reset}` : "";
+    const marker = effortLevel
+      ? `${palette.dim} ⚙${effortLevel}${thinkingEnabled ? "+" : ""}${palette.reset}`
+      : "";
     parts.push(`${model}${marker}`);
   }
   if (dirName) parts.push(dirName);
@@ -166,15 +164,10 @@ async function main(): Promise<void> {
 
   if (rateUsed !== undefined) {
     const rInt = Math.round(rateUsed);
-    const red = "\x1b[31m";
-    const yellow = "\x1b[33m";
-    const green = "\x1b[32m";
-    const dim = "\x1b[2m";
-    const reset = "\x1b[0m";
-    const color = rInt >= 80 ? red : rInt >= 50 ? yellow : green;
+    const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
     const ttr = rateResetsAt ? formatTimeToReset(rateResetsAt) : null;
-    const suffix = ttr ? `${dim} ↻${ttr}${reset}` : "";
-    parts.push(`${color}⚡${rInt}%${reset}${suffix}`);
+    const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
+    parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
   }
 
   // Review-queue backpressure: agents spawned since the last commit, awaiting
@@ -182,13 +175,10 @@ async function main(): Promise<void> {
   // under the threshold, red at/over CC_MAX_UNREVIEWED.
   const reviewQueue = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
   if (reviewQueue.awaiting > 0) {
-    const yellow = "\x1b[33m";
-    const red = "\x1b[31m";
-    const reset = "\x1b[0m";
-    const color = reviewQueue.awaiting >= maxUnreviewed() ? red : yellow;
+    const color = reviewQueue.awaiting >= maxUnreviewed() ? palette.red : palette.yellow;
     const age = ageMs(reviewQueue, Date.now());
     const ageLabel = age > 0 ? ` (${formatAge(age)})` : "";
-    parts.push(`${color}⚠ ${reviewQueue.awaiting} review${ageLabel}${reset}`);
+    parts.push(`${color}⚠ ${reviewQueue.awaiting} review${ageLabel}${palette.reset}`);
   }
 
   // cc-settings install staleness — surfaced only when the cached SessionStart
@@ -199,29 +189,21 @@ async function main(): Promise<void> {
     { stale: false },
   );
   if (drift.stale && drift.installed) {
-    const yellow = "\x1b[33m";
-    const dim = "\x1b[2m";
-    const reset = "\x1b[0m";
-    parts.push(`${yellow}⬆ cc v${drift.installed}${dim} stale${reset}`);
+    parts.push(`${palette.yellow}⬆ cc v${drift.installed}${palette.dim} stale${palette.reset}`);
   }
 
   // Codex bridge availability badge — reads the cached verdict written by
   // codex-verify.ts at SessionStart (no spawn here, hot-path safe).
   // "not-installed" and "unknown" → silent (no clutter for teammates without Codex).
   const codexVerdict = await readCodexVerdict();
-  {
-    const green = "\x1b[32m";
-    const yellow = "\x1b[33m";
-    const reset = "\x1b[0m";
-    if (codexVerdict.state === "available") {
-      parts.push(`${green}codex ✓${reset}`);
-    } else if (codexVerdict.state === "unauthenticated" || codexVerdict.state === "no-access") {
-      parts.push(`${yellow}codex auth?${reset}`);
-    } else if (codexVerdict.state === "rate-limited") {
-      parts.push(`${yellow}codex ⏳${reset}`);
-    }
-    // "not-installed" | "unknown" → push nothing
+  if (codexVerdict.state === "available") {
+    parts.push(`${palette.green}codex ✓${palette.reset}`);
+  } else if (codexVerdict.state === "unauthenticated" || codexVerdict.state === "no-access") {
+    parts.push(`${palette.yellow}codex auth?${palette.reset}`);
+  } else if (codexVerdict.state === "rate-limited") {
+    parts.push(`${palette.yellow}codex ⏳${palette.reset}`);
   }
+  // "not-installed" | "unknown" → push nothing
 
   process.stdout.write(`${parts.join(dimSep)}\n`);
 }

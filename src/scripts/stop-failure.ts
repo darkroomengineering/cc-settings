@@ -5,12 +5,10 @@
 // Reads hook JSON from stdin, logs the failure, and surfaces to the user.
 
 import { appendFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { readHookInput } from "../lib/hook-runtime.ts";
-import { pad } from "../lib/platform.ts";
+import { claudePath, localDatetime } from "../lib/platform.ts";
 
-const LOG_FILE = join(homedir(), ".claude", "api-failures.log");
+const LOG_FILE = claudePath("api-failures.log");
 
 type StopFailureInput = {
   error?: {
@@ -19,16 +17,11 @@ type StopFailureInput = {
   };
 };
 
-function formatTimestamp(d: Date): string {
-  // Bash parity: `date '+%Y-%m-%d %H:%M:%S'` — local time, space separator.
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
 const input = await readHookInput<StopFailureInput>();
 
 const errorType = input.error?.type ?? "unknown";
 const errorMessage = input.error?.message ?? "Unknown error";
-const timestamp = formatTimestamp(new Date());
+const timestamp = localDatetime();
 
 await appendFile(LOG_FILE, `[${timestamp}] type=${errorType} msg=${errorMessage}\n`).catch(() => {
   // Never fail the hook on log write.

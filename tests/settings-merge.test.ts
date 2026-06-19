@@ -670,7 +670,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
 
       await expect(
         mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
 
       const merged = JSON.parse(await Bun.file(outPath).text());
       // user model wins
@@ -698,7 +698,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       // Must not throw — forward-compat safety
       await expect(
         mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
 
       // The unknown key should be preserved in the output (user wins via
       // userWinsScalarStrategy fallback)
@@ -720,7 +720,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
 
       await expect(
         mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeDefined();
 
       // teamNewFeature should be present (user has no value → team wins)
       const merged = JSON.parse(await Bun.file(outPath).text());
@@ -737,9 +737,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const userPath = join(dir, "user.json"); // does not exist
       const outPath = join(dir, "out.json");
 
-      await expect(
-        mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeUndefined();
+      await expect(mergeSettingsWithMcpPreservation(userPath, team, outPath)).resolves.toBeNull();
 
       const out = JSON.parse(await Bun.file(outPath).text());
       expect(out.model).toBe("claude-opus-4-5");

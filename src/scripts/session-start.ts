@@ -17,18 +17,16 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 import { readState, writeState } from "../lib/hook-runtime.ts";
-import { hasCommand, pad, ymd } from "../lib/platform.ts";
+import { CLAUDE_DIR, hasCommand, localDatetime } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import { onHeadObserved, type ReviewQueueState } from "../lib/review-queue.ts";
 import { teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
 import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/version-delta.ts";
 
-const CLAUDE_DIR = join(homedir(), ".claude");
 const PROJECT_DIR = process.cwd();
 const PROJECT_NAME = basename(PROJECT_DIR);
 
@@ -154,7 +152,7 @@ async function autoWarmTldr(): Promise<void> {
   void (async () => {
     try {
       await proc.exited;
-      const ts = formatDate(new Date());
+      const ts = localDatetime();
       await appendFile(
         join(CLAUDE_DIR, "sessions.log"),
         `${ts} - TLDR warmed: ${PROJECT_NAME}\n`,
@@ -164,10 +162,6 @@ async function autoWarmTldr(): Promise<void> {
       // ignore
     }
   })();
-}
-
-function formatDate(d: Date): string {
-  return `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 // --- Phase 1: background tasks --------------------------------------------
@@ -214,7 +208,7 @@ const sessionTitlePrune = pruneSessionTitles(join(CLAUDE_DIR, "session-titles"),
 await logRotations[0];
 await appendFile(
   join(CLAUDE_DIR, "sessions.log"),
-  `${formatDate(new Date())} - Session started in ${PROJECT_DIR}\n`,
+  `${localDatetime()} - Session started in ${PROJECT_DIR}\n`,
 ).catch(() => {});
 
 // --- Phase 3: fire-and-forget TLDR warming -------------------------------

@@ -6,10 +6,9 @@
 // (from ~/.claude/swarm.log). The /review-batch skill turns this into per-change
 // re-entry cards. Fail-soft: missing git/log just yields empty sections.
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { runGit } from "../lib/git.ts";
 import { readState } from "../lib/hook-runtime.ts";
+import { claudePath } from "../lib/platform.ts";
 import { ageMs, formatAge, type ReviewQueueState } from "../lib/review-queue.ts";
 
 const rq = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
@@ -20,7 +19,7 @@ const [unstaged, staged] = await Promise.all([
 
 let swarmTail = "";
 try {
-  const log = await Bun.file(join(homedir(), ".claude", "swarm.log")).text();
+  const log = await Bun.file(claudePath("swarm.log")).text();
   swarmTail = log.trimEnd().split("\n").slice(-12).join("\n");
 } catch {
   // no swarm log yet — fine

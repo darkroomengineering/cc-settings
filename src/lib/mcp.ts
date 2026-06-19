@@ -36,7 +36,7 @@ import { debug, error, info, success, warn } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { asRecord, subtractByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
-import { type MergeOptions, mergeSettings } from "./settings-merge.ts";
+import { type MergeAccounting, type MergeOptions, mergeSettings } from "./settings-merge.ts";
 
 type McpServer = z.infer<typeof McpServersSchema>[string];
 export type McpServers = Record<string, McpServer>;
@@ -236,7 +236,7 @@ export async function mergeSettingsWithMcpPreservation(
   teamSettings: Record<string, unknown>,
   outputPath: string,
   opts: MergeOptions = {},
-): Promise<void> {
+): Promise<MergeAccounting | null> {
   // Peek at the user's existing file to extract current mcpServers so we can
   // run the preservation prompt before the per-key merge loop.
   // readJsonOrNull throws on unparseable JSON (JsonParseError) — honored here
@@ -245,8 +245,7 @@ export async function mergeSettingsWithMcpPreservation(
 
   if (!userRaw) {
     // No existing file — delegate directly; the pure merger writes team as-is.
-    await mergeSettings(existingPath, teamSettings, outputPath, opts);
-    return;
+    return mergeSettings(existingPath, teamSettings, outputPath, opts);
   }
 
   // asRecord: a corrupt string-valued mcpServers degrades to {} instead of
@@ -259,5 +258,5 @@ export async function mergeSettingsWithMcpPreservation(
   // Delegate to the pure merger, supplying the already-resolved mcpServers.
   // The pure merger skips the mcpServers key in its per-key strategy loop and
   // uses the value we computed here instead.
-  await mergeSettings(existingPath, teamSettings, outputPath, opts, resolvedMcp);
+  return mergeSettings(existingPath, teamSettings, outputPath, opts, resolvedMcp);
 }

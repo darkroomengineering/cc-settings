@@ -25,9 +25,9 @@ export const LIGHT_SKILLS: readonly string[] = ["share-learning"] as const;
 // ---------------------------------------------------------------------------
 //
 // Consumed by src/setup.ts:
-//   - installConfigFiles            copies rootFiles + dirs for the profile
-//   - removeLightIncompatibleFiles  removes full-minus-light on a light install
-//   - cmdDryRun / showSummary       render the install tables from it
+//   - installConfigFiles      copies the profile's files; for light, also prunes
+//                             every full-only target (full-minus-light)
+//   - cmdDryRun / showSummary render the install tables from it
 //
 // The light skill-filter (LIGHT_SKILLS subset + source-scoped prune) stays as
 // code in setup.ts — only the file/dir lists live here.

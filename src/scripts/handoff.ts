@@ -9,7 +9,6 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, stat, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import {
   listArtifacts,
@@ -19,8 +18,9 @@ import {
   timestampId,
 } from "../lib/artifact-store.ts";
 import { runGit } from "../lib/git.ts";
+import { claudePath, isoNow } from "../lib/platform.ts";
 
-const HANDOFF_DIR = join(homedir(), ".claude", "handoffs");
+const HANDOFF_DIR = claudePath("handoffs");
 
 const RESOLVE_SPEC = {
   latestLink: "latest.md",
@@ -73,7 +73,7 @@ async function cmdCreate(args: string[]): Promise<void> {
   const pendingChanges = gitStatus ? gitStatus.split("\n").filter(Boolean).length : 0;
 
   const json = {
-    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    timestamp: isoNow(),
     project: { name: projectName, path: projectDir },
     git: { branch: gitBranch, pendingChanges },
     context: { summary, activeTodos: [], keyFiles: [], currentTask: "" },

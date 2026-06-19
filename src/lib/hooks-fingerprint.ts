@@ -11,12 +11,12 @@
 
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
 import { z } from "zod";
 import { iterCommandHooks } from "./hook-command.ts";
 import { atomicWriteJson } from "./json-io.ts";
+import { CLAUDE_DIR } from "./platform.ts";
 
 // `installedAt` is echoed verbatim into the terminal warning banner, and the
 // fingerprint file is exactly what the Shai-Hulud threat model lets an attacker
@@ -69,7 +69,7 @@ export interface FingerprintRecord {
 }
 
 export async function readFingerprint(claudeDir?: string): Promise<FingerprintRecord | null> {
-  const path = join(claudeDir ?? join(homedir(), ".claude"), FINGERPRINT_FILENAME);
+  const path = join(claudeDir ?? CLAUDE_DIR, FINGERPRINT_FILENAME);
   if (!existsSync(path)) return null;
   try {
     const text = await readFile(path, "utf8");
@@ -89,7 +89,7 @@ export async function writeFingerprint(
   settings: unknown,
   claudeDir?: string,
 ): Promise<FingerprintRecord> {
-  const dir = claudeDir ?? join(homedir(), ".claude");
+  const dir = claudeDir ?? CLAUDE_DIR;
   const path = join(dir, FINGERPRINT_FILENAME);
 
   // Count command hooks via the shared iterCommandHooks walk (fail-open:
@@ -117,7 +117,7 @@ export async function verifyAgainstSettings(
   settingsPath?: string,
   claudeDir?: string,
 ): Promise<VerifyResult> {
-  const dir = claudeDir ?? join(homedir(), ".claude");
+  const dir = claudeDir ?? CLAUDE_DIR;
   const sPath = settingsPath ?? join(dir, "settings.json");
   if (!existsSync(sPath)) {
     return { status: "missing-settings", expected: null, actual: null, installedAt: null };
@@ -172,6 +172,24 @@ export interface SrcManifestRecord {
   installedAt: string;
 }
 
+// Zod schema for the src manifest written by setup.ts. Validates on read to
+// close the Shai-Hulud attack vector: a tampered manifest must not point
+// outside the src tree or carry non-string hashes. The .refine() enforces the
+// path-traversal guard; sibling FingerprintRecordSchema does the same for the
+// hooks fingerprint.
+const SrcManifestRecordSchema = z.object({
+  files: z
+    .record(z.string(), z.string())
+    .refine(
+      (files) =>
+        Object.entries(files).every(
+          ([rel]) => !rel.startsWith("/") && !rel.split(/[/\\]/).includes(".."),
+        ),
+      { message: "manifest contains path traversal" },
+    ),
+  installedAt: z.string().default("").transform(stripControl),
+});
+
 /** SHA256 hex of a file's content, or null when it can't be read. */
 export async function hashFileOrNull(path: string): Promise<string | null> {
   try {
@@ -209,7 +227,7 @@ export async function writeSrcManifest(
   installedSrcDir: string,
   claudeDir?: string,
 ): Promise<SrcManifestRecord> {
-  const dir = claudeDir ?? join(homedir(), ".claude");
+  const dir = claudeDir ?? CLAUDE_DIR;
   const files: Record<string, string> = {};
   for (const rel of await walkTsFiles(installedSrcDir)) {
     const hash = await hashFileOrNull(join(installedSrcDir, rel));
@@ -221,23 +239,16 @@ export async function writeSrcManifest(
 }
 
 export async function readSrcManifest(claudeDir?: string): Promise<SrcManifestRecord | null> {
-  const path = join(claudeDir ?? join(homedir(), ".claude"), SRC_MANIFEST_FILENAME);
+  const path = join(claudeDir ?? CLAUDE_DIR, SRC_MANIFEST_FILENAME);
   if (!existsSync(path)) return null;
   try {
-    const parsed = JSON.parse(await readFile(path, "utf8")) as Partial<SrcManifestRecord>;
-    if (!parsed.files || typeof parsed.files !== "object" || Array.isArray(parsed.files)) {
-      return null;
-    }
-    // Each key is later join()'d under ~/.claude/src and read — a tampered
-    // manifest must not point outside the tree or carry non-string hashes.
-    // Reject the whole manifest (fail-open to "missing") if either holds.
-    const files: Record<string, string> = {};
-    for (const [rel, hash] of Object.entries(parsed.files)) {
-      if (typeof hash !== "string") return null;
-      if (rel.startsWith("/") || rel.split(/[/\\]/).includes("..")) return null;
-      files[rel] = hash;
-    }
-    return { files, installedAt: stripControl(parsed.installedAt ?? "") };
+    const raw = JSON.parse(await readFile(path, "utf8"));
+    // Route through SrcManifestRecordSchema: validates types, rejects path
+    // traversal (the .refine()), and strips control chars from installedAt.
+    // Mirrors readFingerprint's FingerprintRecordSchema.safeParse pattern.
+    const result = SrcManifestRecordSchema.safeParse(raw);
+    if (!result.success) return null;
+    return result.data;
   } catch {
     return null;
   }
@@ -255,7 +266,7 @@ export interface SrcVerifyResult {
  *  manifest yet (pre-manifest install) — callers treat that as a soft state,
  *  not an alarm. Any read error on an individual file counts as changed. */
 export async function verifySrcManifest(claudeDir?: string): Promise<SrcVerifyResult> {
-  const dir = claudeDir ?? join(homedir(), ".claude");
+  const dir = claudeDir ?? CLAUDE_DIR;
   const manifest = await readSrcManifest(dir);
   if (!manifest) return { status: "missing", changed: [], unmanifested: [] };
 
