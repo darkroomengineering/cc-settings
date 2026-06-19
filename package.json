@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "bun": ">=1.1.30"
+    "bun": ">=1.2.21"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -28,8 +28,6 @@
     "review-batch": "bun src/scripts/review-batch.ts"
   },
   "dependencies": {
-    "@inquirer/confirm": "6.1.1",
-    "yaml": "2.9.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

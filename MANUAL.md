@@ -74,7 +74,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
 ```
 
-> **Requires [Bun](https://bun.sh) ≥ 1.1.30.** The bootstrap auto-installs Bun via `curl -fsSL https://bun.sh/install | bash` (or `irm bun.sh/install.ps1 | iex` on Windows) if you don't have it. Hooks, scripts, and the installer itself all run on Bun — there's no Node.js fallback. If your environment blocks `curl`-installs (corporate sandboxes), install Bun manually first.
+> **Requires [Bun](https://bun.sh) ≥ 1.2.21.** The bootstrap auto-installs Bun via `curl -fsSL https://bun.sh/install | bash` (or `irm bun.sh/install.ps1 | iex` on Windows) if you don't have it. Hooks, scripts, and the installer itself all run on Bun — there's no Node.js fallback. If your environment blocks `curl`-installs (corporate sandboxes), install Bun manually first.
 
 Re-installs are non-destructive: hand-added permission rules, custom hooks, local env overrides, and custom MCP servers all survive. Update later via `cd ~/.claude/cc-settings && git pull && bash setup.sh`. Pass `--interactive` to be prompted on each settings conflict, or `--migrate-only` to run just the merger (settings.json clean-up) and skip the file-copy phase.
 
