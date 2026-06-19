@@ -39,6 +39,23 @@ describe("teamKnowledgeAwareness — no-op cases", () => {
   });
 });
 
+describe("teamKnowledgeAwareness — explicit repoPath bypasses cache", () => {
+  test("explicit repoPath uses local clone, not the TTL cache", async () => {
+    // Even if KNOWLEDGE_REPO_PATH is unset and the cache is cold, an explicit
+    // repoPath argument drives the local-clone code path (Branch A).
+    const dir = await sandbox();
+    try {
+      await writeFile(join(dir, "concept.md"), "# Concept");
+      const result = await teamKnowledgeAwareness(dir);
+      // Output must reference the local path (clone branch), not just a count.
+      expect(result.join("\n")).toContain(dir);
+      expect(result.join("\n")).toContain("1 shared note");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("teamKnowledgeAwareness — non-empty corpus", () => {
   test("1 note → output contains 'shared note' (singular) and the repo path", async () => {
     const dir = await sandbox();
