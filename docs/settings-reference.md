@@ -134,12 +134,13 @@ Controls AI attribution in git commits and PRs. Replaces the deprecated `coautho
 {
   "attribution": {
     "commit": "",
-    "pr": ""
+    "pr": "",
+    "sessionUrl": false
   }
 }
 ```
 
-Empty strings suppress attribution entirely. Darkroom policy: **no AI attribution**.
+Empty strings suppress the `commit`/`pr` attribution text. `sessionUrl` (boolean, added 2.1.183) controls the claude.ai session link appended to commits and PRs — empty strings do **not** suppress it, so `false` is required to omit it. Darkroom policy: **no AI attribution** — all three off.
 
 ### `statusLine`
 
@@ -489,7 +490,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `allowedMcpServers` | string[] | E | Managed allowlist of MCP server URLs/identifiers (v2.1.112) |
 | `alwaysThinkingEnabled` | boolean | G | Always show extended thinking even on short turns |
 | `apiKeyHelper` | string | A | Shell command that emits an Anthropic API key |
-| `attribution` | object | G | AI attribution in git commits/PRs (`commit`, `pr` string fields) |
+| `attribution` | object | G | AI attribution in git commits/PRs (`commit`, `pr` string fields; `sessionUrl` boolean — `false` omits the claude.ai session link, v2.1.183) |
 | `autoMemoryDirectory` | string | G | Custom directory for auto-memory storage (v2.1.101) |
 | `autoMemoryEnabled` | boolean | G | Enable/disable the auto-memory system |
 | `autoMode` | object | G | Auto-mode configuration object (shape evolving) |

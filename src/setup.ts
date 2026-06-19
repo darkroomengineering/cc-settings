@@ -63,7 +63,7 @@ import type { StatusData } from "./lib/status-types.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.26.0"; // sync w/ Claude Code 2.1.181 (sandbox.allowAppleEvents + CLAUDE_CLIENT_PRESENCE_FILE); Fable 5 still suspended — decision tier on opus[1m]
+const VERSION = "11.27.0"; // sync w/ Claude Code 2.1.183 (attribution.sessionUrl — omit claude.ai session link, stealth policy); Fable 5 still suspended — decision tier on opus[1m]
 const CLAUDE_DIR = join(homedir(), ".claude");
 
 // --- Arg parsing ---------------------------------------------------------

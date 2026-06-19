@@ -25,7 +25,8 @@
 	"includeGitInstructions": false,
 	"attribution": {
 		"commit": "",
-		"pr": ""
+		"pr": "",
+		"sessionUrl": false
 	},
 	"plansDirectory": "./plans",
 	"spinnerVerbs": {

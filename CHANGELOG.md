@@ -4,6 +4,34 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.27.0] — 2026-06-19
+
+### Sync with Claude Code v2.1.183 — `attribution.sessionUrl` (stealth)
+
+Caught the schema up to upstream `2.1.181 → 2.1.183` (2.1.182 was never published). One adopt; the rest of 2.1.183 is native UX and bug fixes with no cc-settings surface.
+
+**Adopted:**
+
+- **`attribution.sessionUrl` (2.1.183)** — new boolean sub-field on the `attribution` object that controls the claude.ai session link appended to commits and PRs. Empty `commit`/`pr` strings do **not** suppress this link, so it needs its own toggle. Modeled in `src/schemas/settings.ts` (`sessionUrl: z.boolean().optional()`), set to `false` in `config/10-core.json`, and documented in `docs/settings-reference.md`. Polarity confirmed against the live 2.1.183 binary (`if (attribution?.sessionUrl === false) return null`). This directly serves Darkroom's no-AI-attribution / stealth policy — all three attribution fields now off.
+
+**Deletions / native-now-redundant:**
+
+- None. The 2.1.183 auto-mode block of destructive git commands (`git reset --hard`, `git checkout -- .`, `git clean -fd`, `git stash drop`) overlaps `src/hooks/safety-net.ts`, but our PreToolUse hook fires in **all** permission modes (not just auto mode), so it stays — defense in depth, not redundant.
+
+**Skipped (noted for the record):**
+
+- The subagent `thinking.disabled` 400 fix and the "WebSearch empty in subagents" fix both benefit cc-settings' delegation-heavy workflow, but require no config change.
+- Remaining 2.1.183 entries (model-deprecation warning, `/config --help`, `/config` toggle behavior, startup-line removal, ~9 other bug fixes) are native UX/fixes with no cc-settings surface.
+
+**Files changed:**
+
+- `src/schemas/settings.ts`
+- `config/10-core.json`
+- `docs/settings-reference.md`
+- `upstream/claude-code-manifest.json`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [11.26.0] — 2026-06-18
 
 ### Sync with Claude Code v2.1.181 — sandbox Apple Events + presence-file env var

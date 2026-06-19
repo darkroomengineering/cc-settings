@@ -32,6 +32,7 @@ export const StatusLine = z.object({
 export const Attribution = z.object({
   commit: z.string().optional(),
   pr: z.string().optional(),
+  sessionUrl: z.boolean().optional(), // added 2.1.183: false omits the claude.ai session link from commits/PRs
 });
 
 // doc-canonical values are auto|in-process|tmux; manual|disabled kept as a

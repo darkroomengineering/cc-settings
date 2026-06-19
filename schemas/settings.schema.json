@@ -97,6 +97,9 @@
         },
         "pr": {
           "type": "string"
+        },
+        "sessionUrl": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
