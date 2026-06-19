@@ -17,6 +17,7 @@ All notable changes to cc-settings are documented here.
 ### Dependencies
 
 - `@biomejs/biome` 2.4.16 → 2.5.0 (+ `biome.json` `$schema` bump). The stricter 2.5.0 ruleset surfaced a dead test helper (`withTmp` in `tests/mcp.test.ts`) and an unused import, both removed; a handful of pre-existing non-blocking style warnings remain for a later sweep.
+- **Runtime dependencies cut from 3 to 1 (only `zod` remains).** `yaml` → `Bun.YAML` (`frontmatter.ts`) and `@inquirer/confirm` → `node:readline/promises` (`prompts.ts`). Removes ~12 installed packages (incl. the `@inquirer` tree) and ~1.5 MB from every `~/.claude` install, and shrinks the surface to keep fresh. `engines.bun` raised `>=1.1.30 → >=1.2.21` (the release that introduced `Bun.YAML`); `setup.sh` `BUN_MIN` and the docs bumped to match. Trade-off: `Bun.YAML` exposes no reliable block-relative line/col on parse errors, so `parseFrontmatterStrict` (used by `lint:skills`/`lint:knowledge`) now reports the error message without a position — acceptable since frontmatter blocks are a few lines.
 
 ### Internal
 

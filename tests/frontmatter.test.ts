@@ -15,8 +15,10 @@ Body text here.
     expect(result.data).toMatchObject({ name: "my-skill" });
   });
 
-  test("malformed YAML returns null data and structured errors with line/col/code", () => {
-    // "name: foo\n  bar: : :" produces a nested mapping error in compact context
+  test("malformed YAML returns null data and a structured error message", () => {
+    // "name: foo\n  bar: : :" produces a nested mapping error in compact context.
+    // Bun.YAML throws on the first error with a message but no reliable
+    // block-relative line/col (see frontmatter.ts), so we assert the message.
     const md = `---
 name: foo
   bar: : :
@@ -28,9 +30,6 @@ name: foo
     const err = result.errors[0];
     if (!err) throw new Error("expected at least one error");
     expect(err.message).toBeTruthy();
-    expect(err.code).toBeTruthy();
-    expect(typeof err.line).toBe("number");
-    expect(typeof err.col).toBe("number");
   });
 
   test("file with no frontmatter block returns null data and empty errors", () => {

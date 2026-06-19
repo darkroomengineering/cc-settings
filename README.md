@@ -32,7 +32,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/dar
 
 Both one-liners clone the repo and run the installer. To pass flags (`--light`, `--dry-run`, …), clone first and run the bootstrap from the checkout: `bash setup.sh --light` or `.\setup.ps1 --light`.
 
-Requires [Bun](https://bun.sh) ≥ 1.1.30 and git — the bootstrap installs Bun automatically if missing. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
+Requires [Bun](https://bun.sh) ≥ 1.2.21 and git — the bootstrap installs Bun automatically if missing. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
 
 Restart Claude Code after install.
 

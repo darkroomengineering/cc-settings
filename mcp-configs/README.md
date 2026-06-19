@@ -42,7 +42,7 @@ Add MCP servers to `~/.claude.json`:
 }
 ```
 
-> **Why `bunx` over `npx`?** `npx` resolves from the current working directory's `package.json` and fails (`EOVERRIDE`) inside monorepos that use Bun's `catalog:` protocol alongside `overrides`. `bunx` understands `catalog:` natively and is guaranteed available on Darkroom machines (cc-settings requires `bun >=1.1.30`).
+> **Why `bunx` over `npx`?** `npx` resolves from the current working directory's `package.json` and fails (`EOVERRIDE`) inside monorepos that use Bun's `catalog:` protocol alongside `overrides`. `bunx` understands `catalog:` natively and is guaranteed available on Darkroom machines (cc-settings requires `bun >=1.2.21`).
 
 ### Server Types
 

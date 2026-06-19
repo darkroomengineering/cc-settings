@@ -17,9 +17,9 @@ for standards.
 
 ## About This Repo
 
-**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.1.30`. Skills: 35 cc-settings skills (Tier P1 cleanup May 2026: retired 3, merged 7 pairs into 4, demoted 1 to CLI; `nuclear-review` ported from Cursor team-kit May 2026; share-learning revived May 2026; `freeze` edit-scope lock ported from gstack June 2026).
-Deps: `zod`, `@inquirer/confirm`, `yaml`. Dev: `@biomejs/biome`, `typescript`,
-`@types/bun`.
+**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.2.21`. Skills: 35 cc-settings skills (Tier P1 cleanup May 2026: retired 3, merged 7 pairs into 4, demoted 1 to CLI; `nuclear-review` ported from Cursor team-kit May 2026; share-learning revived May 2026; `freeze` edit-scope lock ported from gstack June 2026).
+Deps: `zod` (only — `yaml` and `@inquirer/confirm` were dropped for `Bun.YAML`
+and `node:readline`). Dev: `@biomejs/biome`, `typescript`, `@types/bun`.
 
 ### Structure
 

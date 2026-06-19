@@ -56,7 +56,10 @@ export async function lintFrontmatterCore(
       findings.push({
         severity: "error",
         rule: "yaml-parse",
-        message: `${e.code ?? "YAML"} at line ${e.line ?? "?"}, col ${e.col ?? "?"}: ${e.message}`,
+        message:
+          e.line != null
+            ? `${e.message} (line ${e.line}${e.col != null ? `, col ${e.col}` : ""})`
+            : e.message,
       });
     }
     return findings;

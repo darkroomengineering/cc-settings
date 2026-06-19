@@ -1,11 +1,10 @@
 // Interactive prompts — port of lib/prompts.sh.
 //
-// Wraps @inquirer/confirm so callers don't import it directly. Falls back to
-// defaults when stdin isn't a TTY (CI, piped input). We use the standalone
-// @inquirer/confirm subpackage rather than @inquirer/prompts because we only
-// need yes/no.
+// Uses node:readline/promises (built into Bun) for a yes/no confirm rather than
+// pulling @inquirer/confirm and its ~10-package transitive tree for a single
+// prompt. Falls back to defaults when stdin isn't a TTY (CI, piped input).
 
-import confirm from "@inquirer/confirm";
+import { createInterface } from "node:readline/promises";
 
 function isInteractive(): boolean {
   return process.stdin.isTTY === true;
@@ -14,10 +13,16 @@ function isInteractive(): boolean {
 /** Yes/No prompt. Defaults to yes. Returns true for yes. */
 export async function promptYn(message: string, defaultYes = true): Promise<boolean> {
   if (!isInteractive()) return defaultYes;
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return await confirm({ message, default: defaultYes });
+    const hint = defaultYes ? "(Y/n)" : "(y/N)";
+    const answer = (await rl.question(`${message} ${hint} `)).trim().toLowerCase();
+    if (answer === "") return defaultYes;
+    return answer === "y" || answer === "yes";
   } catch {
-    // Ctrl+C / stream closed → treat as "use default".
+    // EOF / stream closed (Ctrl+D, piped input ending) → use the default.
     return defaultYes;
+  } finally {
+    rl.close();
   }
 }
