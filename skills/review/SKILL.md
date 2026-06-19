@@ -29,6 +29,16 @@ git diff --staged
 git diff path/to/file
 ```
 
+## Cross-model review (when the Codex bridge is available)
+
+This skill runs as the Claude `reviewer` agent — often Claude reviewing a diff Claude just wrote, the self-preferential-bias case. Run an independent review from a different model family in parallel and reconcile (the reviewer has `Bash`, so call the bridge directly):
+
+```bash
+bun "$HOME/.claude/src/scripts/codex-run.ts" review
+```
+
+Codex reads the same diff and returns HIGH / MEDIUM / LOW findings. Fold them into the verdict below — map HIGH→Critical, MEDIUM→Warning, LOW→Suggestion. Agreement raises confidence; a finding only Codex raised goes under the matching section rather than being dropped (confirm it first before calling it Critical). The bridge is gated and fails open: if Codex is unavailable, proceed with the Claude review alone.
+
 ## Output Format
 
 ```
