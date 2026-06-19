@@ -24,6 +24,18 @@ Projects can opt into **advisory** probes by depending on the tool — the gate 
 
 For UI changes, attach a screenshot (`/qa` or the chrome-devtools MCP) as the visual half of the proof — tests can't prove "looks right".
 
+## Advisory: cross-model semantic probe (when the Codex bridge is available)
+
+The mechanical battery proves the diff is *self-consistent* — it compiles, tests pass, lint is clean. It cannot prove the diff is *correct*: a bug that typechecks and passes the tests you wrote sails straight through. When the Codex bridge is available, add a semantic probe from a different model family on top of the mechanical gate:
+
+```bash
+bun "$HOME/.claude/src/scripts/codex-run.ts" review
+```
+
+Treat it exactly like react-doctor and deslop: **advisory — reported alongside the verdict, never flips it.** A green mechanical gate stays review-ready even if Codex raises a finding; surface the finding for the human to weigh, don't block on it. The bridge is gated and fails open — silent when Codex isn't installed, authed, or has quota.
+
+Keep it **out of `bun run proof` itself.** That gate is cheapest-first and runs constantly; a remote model call would make every proof slow. Run this probe deliberately on non-trivial diffs — not on every typo fix — which also keeps it cheap regardless of how roomy the Codex window is.
+
 ## The contract
 
 - A diff-producing agent (implementer, scaffolder, maestro, deslopper) **attaches a proof report before handing back**. "Done" without green proof is not done.
