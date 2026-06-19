@@ -52,11 +52,11 @@ import {
   CLAUDE_JSON_PATH,
   installMcpToClaudeJson,
   type McpServers,
+  mergeSettingsWithMcpPreservation,
   removeManagedMcpServers,
 } from "./lib/mcp.ts";
 import { ensurePythonPackage, ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
 import { getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
-import { mergeSettingsWithMcpPreservation } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
 import type { StatusData } from "./lib/status-types.ts";

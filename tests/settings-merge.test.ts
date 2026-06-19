@@ -6,12 +6,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { mergeSettingsWithMcpPreservation } from "../src/lib/mcp.ts";
 import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 import {
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
   hooksStrategy,
-  mergeSettingsWithMcpPreservation,
   permissionsStrategy,
   pruneDeprecatedHooks,
   statusLineStrategy,
