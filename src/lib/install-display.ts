@@ -24,6 +24,40 @@ export async function countEntries(dir: string, pattern: RegExp): Promise<number
   }
 }
 
+/**
+ * Count installed skills. Unlike the other manifest dirs (flat `*.md` files),
+ * skills are subdirectories each holding a `SKILL.md`, so a `/\.md$/` match on
+ * the top level only ever finds `README.md` and reports 1. Count subdirs that
+ * actually contain a `SKILL.md` instead.
+ */
+export async function countSkillDirs(dir: string): Promise<number> {
+  const full = join(CLAUDE_DIR, dir);
+  if (!existsSync(full)) return 0;
+  try {
+    const entries = await readdir(full, { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory() && existsSync(join(full, e.name, "SKILL.md")))
+      .length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Count `*.md` files anywhere under `dir`. `docs/` keeps some files in subdirs
+ * (plans/, upstream-bugs/, …) that the installer copies recursively, so a
+ * top-level-only count undercounts what actually lands in ~/.claude.
+ */
+export async function countEntriesRecursive(dir: string, pattern: RegExp): Promise<number> {
+  const full = join(CLAUDE_DIR, dir);
+  if (!existsSync(full)) return 0;
+  try {
+    const entries = await readdir(full, { recursive: true });
+    return entries.filter((e) => pattern.test(e)).length;
+  } catch {
+    return 0;
+  }
+}
+
 export async function showSummary(profile: "full" | "light"): Promise<void> {
   const profileLabel = profile === "light" ? " [light]" : "";
   console.log("");
@@ -48,7 +82,13 @@ export async function showSummary(profile: "full" | "light"): Promise<void> {
     }
     boxLine("ok", "settings.json (TS hooks)");
     boxLine("ok", "~/.claude.json (MCP servers)");
-    const counts = await Promise.all(manifest.dirs.map((d) => countEntries(d, /\.md$/)));
+    const counts = await Promise.all(
+      manifest.dirs.map((d) => {
+        if (d === "skills") return countSkillDirs(d);
+        if (d === "docs") return countEntriesRecursive(d, /\.md$/);
+        return countEntries(d, /\.md$/);
+      }),
+    );
     manifest.dirs.forEach((d, i) => {
       const n = counts[i] ?? 0;
       boxLine("ok", n > 0 ? `${d}/ (${n})` : `${d}/`);
