@@ -14,13 +14,22 @@ function isInteractive(): boolean {
 export async function promptYn(message: string, defaultYes = true): Promise<boolean> {
   if (!isInteractive()) return defaultYes;
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  // Ctrl+C while the question is pending: abort the read so question() rejects
+  // and we fall back to the default. readline's close() alone does NOT unblock
+  // a pending question() — only an AbortSignal rejects it — so without this the
+  // prompt would hang on SIGINT (the behavior @inquirer/confirm gave for free).
+  const ac = new AbortController();
+  rl.once("SIGINT", () => ac.abort());
   try {
     const hint = defaultYes ? "(Y/n)" : "(y/N)";
-    const answer = (await rl.question(`${message} ${hint} `)).trim().toLowerCase();
+    const answer = (await rl.question(`${message} ${hint} `, { signal: ac.signal }))
+      .trim()
+      .toLowerCase();
     if (answer === "") return defaultYes;
     return answer === "y" || answer === "yes";
   } catch {
-    // EOF / stream closed (Ctrl+D, piped input ending) → use the default.
+    // EOF / closed stream (Ctrl+D, piped input ending) or SIGINT (AbortError)
+    // → use the default.
     return defaultYes;
   } finally {
     rl.close();

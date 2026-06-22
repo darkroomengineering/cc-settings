@@ -33,6 +33,25 @@ interface FrontmatterParseResult {
   errors: FrontmatterParseError[];
 }
 
+/** Top-level keys that appear more than once in a frontmatter block. Bun.YAML
+ *  (unlike the `yaml` package, which threw "Map keys must be unique") silently
+ *  keeps the last value on a duplicate key, so we detect it ourselves for the
+ *  lint path. Only column-0 keys are scanned: nested mappings, list items, and
+ *  block-scalar continuations are always indented, so they never match — which
+ *  keeps this false-positive-free without a full YAML parser. */
+function duplicateTopLevelKeys(block: string): string[] {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const line of block.split("\n")) {
+    const m = /^([A-Za-z0-9_$.-]+) *:/.exec(line);
+    const key = m?.[1];
+    if (!key) continue;
+    if (seen.has(key)) dupes.add(key);
+    else seen.add(key);
+  }
+  return [...dupes];
+}
+
 /**
  * Parse YAML frontmatter and report a structured error (line/col) when
  * available. Use this when you want to surface actionable error info to a
@@ -43,7 +62,15 @@ export function parseFrontmatterStrict(md: string): FrontmatterParseResult {
   const block = extractFrontmatterBlock(md);
   if (block === null) return { data: null, errors: [] };
   try {
-    return { data: Bun.YAML.parse(block), errors: [] };
+    const data = Bun.YAML.parse(block);
+    const dupes = duplicateTopLevelKeys(block);
+    if (dupes.length > 0) {
+      return {
+        data: null,
+        errors: [{ message: `duplicate frontmatter key(s): ${dupes.join(", ")}` }],
+      };
+    }
+    return { data, errors: [] };
   } catch (e) {
     // Bun.YAML's SyntaxError carries no reliable block-relative position
     // (line/column map to the JS call site; originalLine/Column aren't
