@@ -13,10 +13,12 @@ async function sandbox(): Promise<string> {
 }
 
 describe("teamKnowledgeAwareness — no-op cases", () => {
-  test("returns [] when no path is given (undefined)", async () => {
-    // Pass undefined explicitly — function defaults to $KNOWLEDGE_REPO_PATH,
-    // but we pass explicit undefined to bypass any real env var.
-    const result = await teamKnowledgeAwareness(undefined);
+  test("returns [] when no clone is configured and the cache is empty", async () => {
+    // undefined repoPath falls through to Branch B (the TTL cache). Inject a
+    // null reader so the test is isolated from this machine's real
+    // ~/.claude/tmp/knowledge-index.json — passing undefined alone does NOT
+    // bypass the cache, it triggers the cache read.
+    const result = await teamKnowledgeAwareness(undefined, async () => null);
     expect(result).toEqual([]);
   });
 
@@ -53,6 +55,19 @@ describe("teamKnowledgeAwareness — explicit repoPath bypasses cache", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("teamKnowledgeAwareness — TTL cache fallback (Branch B)", () => {
+  test("no clone configured → surfaces the injected cache's note count", async () => {
+    // The injected reader stands in for ~/.claude/tmp/knowledge-index.json.
+    const result = await teamKnowledgeAwareness(undefined, async () => ({
+      notes: ["alpha", "beta", "gamma"],
+      checkedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const text = result.join("\n");
+    expect(text).toContain("3 shared notes");
+    expect(text).toContain("consult before architecture");
   });
 });
 

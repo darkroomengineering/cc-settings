@@ -16,7 +16,7 @@
 //   3. No output.
 
 import { readdir } from "node:fs/promises";
-import { NON_NOTE_FILES, readKnowledgeIndex } from "./knowledge-index.ts";
+import { type KnowledgeIndex, NON_NOTE_FILES, readKnowledgeIndex } from "./knowledge-index.ts";
 
 // Re-export so external consumers (lint-knowledge, tests) can import from
 // team-knowledge.ts as before without knowing the source moved.
@@ -24,9 +24,13 @@ export { NON_NOTE_FILES } from "./knowledge-index.ts";
 
 /** Lines to print at session start advertising the shared corpus, or [] when
  *  there's nothing to surface (no clone configured, empty, or unreadable).
- *  `repoPath` defaults to $KNOWLEDGE_REPO_PATH. Never throws. */
+ *  `repoPath` defaults to $KNOWLEDGE_REPO_PATH. `readIndex` defaults to the
+ *  real TTL-cache reader and exists as a test seam — injecting it isolates the
+ *  Branch-B path from the developer machine's real `~/.claude/tmp` cache.
+ *  Never throws. */
 export async function teamKnowledgeAwareness(
   repoPath: string | undefined = process.env.KNOWLEDGE_REPO_PATH,
+  readIndex: () => Promise<KnowledgeIndex | null> = readKnowledgeIndex,
 ): Promise<string[]> {
   // Branch A: explicit repoPath — use the local clone directly (existing behavior,
   // preserves all current tests). Cache is bypassed in this branch.
@@ -49,7 +53,7 @@ export async function teamKnowledgeAwareness(
 
   // Branch B: no local clone — try the TTL cache written by refresh-knowledge-index.ts.
   try {
-    const index = await readKnowledgeIndex();
+    const index = await readIndex();
     if (index && index.notes.length > 0) {
       const count = index.notes.length;
       const label = count === 1 ? "note" : "notes";
