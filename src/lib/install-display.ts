@@ -13,8 +13,11 @@ import { CLAUDE_JSON_PATH } from "./mcp.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 import type { StatusData } from "./status-types.ts";
 
-export async function countEntries(dir: string, pattern: RegExp): Promise<number> {
-  const full = join(CLAUDE_DIR, dir);
+// The count helpers take an absolute directory so they're pure and unit-testable
+// against a temp dir (CLAUDE_DIR is fixed at import, so callers join it in).
+
+/** Count immediate entries of `full` whose name matches `pattern`. */
+export async function countEntries(full: string, pattern: RegExp): Promise<number> {
   if (!existsSync(full)) return 0;
   try {
     const entries = await readdir(full);
@@ -30,8 +33,7 @@ export async function countEntries(dir: string, pattern: RegExp): Promise<number
  * the top level only ever finds `README.md` and reports 1. Count subdirs that
  * actually contain a `SKILL.md` instead.
  */
-export async function countSkillDirs(dir: string): Promise<number> {
-  const full = join(CLAUDE_DIR, dir);
+export async function countSkillDirs(full: string): Promise<number> {
   if (!existsSync(full)) return 0;
   try {
     const entries = await readdir(full, { withFileTypes: true });
@@ -43,12 +45,11 @@ export async function countSkillDirs(dir: string): Promise<number> {
 }
 
 /**
- * Count `*.md` files anywhere under `dir`. `docs/` keeps some files in subdirs
- * (plans/, upstream-bugs/, …) that the installer copies recursively, so a
- * top-level-only count undercounts what actually lands in ~/.claude.
+ * Count entries matching `pattern` anywhere under `full`. `docs/` keeps some
+ * files in subdirs (plans/, upstream-bugs/, …) that the installer copies
+ * recursively, so a top-level-only count undercounts what lands in ~/.claude.
  */
-export async function countEntriesRecursive(dir: string, pattern: RegExp): Promise<number> {
-  const full = join(CLAUDE_DIR, dir);
+export async function countEntriesRecursive(full: string, pattern: RegExp): Promise<number> {
   if (!existsSync(full)) return 0;
   try {
     const entries = await readdir(full, { recursive: true });
@@ -84,9 +85,10 @@ export async function showSummary(profile: "full" | "light"): Promise<void> {
     boxLine("ok", "~/.claude.json (MCP servers)");
     const counts = await Promise.all(
       manifest.dirs.map((d) => {
-        if (d === "skills") return countSkillDirs(d);
-        if (d === "docs") return countEntriesRecursive(d, /\.md$/);
-        return countEntries(d, /\.md$/);
+        const full = join(CLAUDE_DIR, d);
+        if (d === "skills") return countSkillDirs(full);
+        if (d === "docs") return countEntriesRecursive(full, /\.md$/);
+        return countEntries(full, /\.md$/);
       }),
     );
     manifest.dirs.forEach((d, i) => {
