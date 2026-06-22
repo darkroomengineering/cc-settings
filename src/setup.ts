@@ -53,7 +53,7 @@ import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.27.1"; // installer merger deep-merges object defaults — nested config keys (e.g. attribution.sessionUrl) now land into existing user blocks; Fable 5 still suspended — decision tier on opus[1m]
+const VERSION = "11.28.0"; // nuclear-review structural pass (setup.ts split, helper dedup, boundary hardening) + runtime deps cut 3→1 (yaml→Bun.YAML, @inquirer→node:readline; engines bun>=1.2.21) + biome 2.5.0; upstream synced to Claude Code 2.1.185 (cosmetic-only, nothing adopted); Fable 5 still suspended — decision tier on opus[1m]
 
 // --- Arg parsing ---------------------------------------------------------
 
