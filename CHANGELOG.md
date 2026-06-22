@@ -4,6 +4,45 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.28.1] — 2026-06-22
+
+### Fix — follow-up to the Bun built-in swap (#68)
+
+An independent Codex cross-model review of the `yaml`→`Bun.YAML` and
+`@inquirer/confirm`→`node:readline` migration (#65, shipped in 11.28.0) surfaced
+two real Medium regressions, both reproduced and confirmed:
+
+- **`Bun.YAML` silently keeps the last value on duplicate mapping keys**, where
+  the `yaml` package threw `"Map keys must be unique"`. `parseFrontmatterStrict`
+  now detects duplicate top-level keys itself, so `lint:skills` / `lint:knowledge`
+  keep catching them. The scan is column-0 only — nested mappings, list items, and
+  block-scalar continuations are always indented, so they never false-trip.
+- **`promptYn` (readline) hung on Ctrl+C**: readline's `close()` does not unblock
+  a pending `question()` — only an `AbortSignal` rejects it. Wired a
+  SIGINT→`AbortController` so Ctrl+C falls back to the default, restoring the
+  behavior `@inquirer/confirm` gave for free.
+
+### Fix — install-summary skills/docs counts
+
+The post-install summary counted each manifest dir by top-level `*.md` files.
+That works for the flat dirs (`agents/`, `rules/`, …) but `skills/` is the only
+dir built as **subdirectories** — each skill is `skills/<name>/SKILL.md` — so the
+`/\.md$/` match only ever found `skills/README.md` and printed `skills/ (1)` for
+35 installed skills. `docs/` likewise undercounted, ignoring the `.md` files in
+its subdirs (`plans/`, `upstream-bugs/`, …) that the installer copies recursively.
+
+**Fixed** (display-only — installation was always correct):
+
+- Added `countSkillDirs` (counts subdirs containing a `SKILL.md`) and
+  `countEntriesRecursive`; `showSummary` routes `skills/` and `docs/` to them.
+  Now reports `skills/ (35)` and `docs/ (22)`.
+- The three count helpers now take an **absolute dir** (`CLAUDE_DIR` is fixed at
+  import, so `showSummary` joins it at the call site), making them pure and
+  unit-testable.
+- New `tests/install-display.test.ts` (8 cases) reproduces the exact bug layout
+  and pins the old `countEntries`-on-`skills/` path at `1` so the regression
+  can't silently return.
+
 ## [11.28.0] — 2026-06-22
 
 ### Changed

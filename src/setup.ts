@@ -53,7 +53,7 @@ import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.28.0"; // nuclear-review structural pass (setup.ts split, helper dedup, boundary hardening) + runtime deps cut 3→1 (yaml→Bun.YAML, @inquirer→node:readline; engines bun>=1.2.21) + biome 2.5.0; upstream synced to Claude Code 2.1.185 (cosmetic-only, nothing adopted); Fable 5 still suspended — decision tier on opus[1m]
+const VERSION = "11.28.1"; // follow-up fixes to the Bun built-in swap (#68: Bun.YAML duplicate-key detection, promptYn Ctrl+C via AbortController) + install-summary count fix (skills/ counted SKILL.md subdirs not top-level README → 35 not 1; docs/ counts recursively → 22) with regression tests
 
 // --- Arg parsing ---------------------------------------------------------
 
