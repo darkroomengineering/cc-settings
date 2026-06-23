@@ -53,7 +53,7 @@ import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.29.0"; // sync with Claude Code 2.1.186: adopt respondToBashCommands setting, teammateMode "iterm2", and CLAUDE_CODE_MAX_RETRIES / CLAUDE_CODE_RETRY_WATCHDOG env vars
+const VERSION = "11.29.1"; // harden the Codex bridge: graceful spawn-failure handling, cross-process verdict-cache race guard, broadened terminal-control sanitization, inconclusive-L1 fallback, SIGKILL hard cap, safer flag parsing
 
 // --- Arg parsing ---------------------------------------------------------
 

@@ -433,3 +433,106 @@ describe("reconcile — live 'available' + cached available", () => {
     expect(ts).toBeLessThanOrEqual(after);
   });
 });
+
+// ---------------------------------------------------------------------------
+// reconcile — inconclusive 'unknown' live state (L1 CLI drift / keychain error)
+// ---------------------------------------------------------------------------
+
+describe("reconcile — live 'unknown' (inconclusive L1) lets L2 probe", () => {
+  test("live unknown + no fresh sticky → unknown (gate proceeds to a real probe)", () => {
+    // An ambiguous login-status failure must NOT block L2 the way unauthenticated
+    // does — it falls through to 'unknown' so the real exec can classify it.
+    const cached: CodexVerdict = {
+      state: "available",
+      checkedAt: new Date(0).toISOString(),
+      sticky: false,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("unknown");
+    expect(result.sticky).toBe(false);
+  });
+
+  test("live unknown + fresh sticky rate-limited → cached kept (quota invisible to L1)", () => {
+    const cached: CodexVerdict = {
+      state: "rate-limited",
+      checkedAt: new Date().toISOString(),
+      sticky: true,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("rate-limited");
+    expect(result.sticky).toBe(true);
+    expect(result).toBe(cached);
+  });
+
+  test("live unknown + fresh sticky no-access → cached kept (entitlement invisible to L1)", () => {
+    const cached: CodexVerdict = {
+      state: "no-access",
+      checkedAt: new Date().toISOString(),
+      sticky: true,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("no-access");
+    expect(result).toBe(cached);
+  });
+
+  test("live unknown + stale sticky no-access → unknown (expired sticky no longer wins)", () => {
+    const cached: CodexVerdict = {
+      state: "no-access",
+      checkedAt: new Date(0).toISOString(),
+      sticky: true,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("unknown");
+    expect(result.sticky).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeOutput — broadened terminal-control stripping (CSI / OSC / C0)
+// A buggy or hostile Codex must not smuggle cursor moves, screen clears,
+// hyperlinks, or title-set payloads into cached details or echoed output.
+// ---------------------------------------------------------------------------
+
+describe("sanitizeOutput — terminal-control stripping beyond SGR colors", () => {
+  const ESC = String.fromCharCode(27);
+  const BEL = String.fromCharCode(7);
+
+  test("strips OSC 8 hyperlink sequences (BEL-terminated), keeps visible text", () => {
+    const input = `${ESC}]8;;https://evil.example/x${BEL}click me${ESC}]8;;${BEL}`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).not.toContain("https://evil.example");
+    expect(result).toContain("click me");
+  });
+
+  test("strips OSC window-title sequences (ST-terminated)", () => {
+    const input = `${ESC}]0;malicious title${ESC}\\visible`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).not.toContain("malicious title");
+    expect(result).toContain("visible");
+  });
+
+  test("strips non-SGR CSI sequences (screen clear + cursor move)", () => {
+    const input = `before${ESC}[2J${ESC}[1;1Hafter`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).toBe("beforeafter");
+  });
+
+  test("strips a bare BEL control byte", () => {
+    expect(sanitizeOutput(`ding${BEL}dong`)).toBe("dingdong");
+  });
+
+  test("preserves tab, newline, and carriage-return", () => {
+    const input = "a\tb\nc\rd";
+    expect(sanitizeOutput(input)).toBe(input);
+  });
+
+  test("strips a solitary ESC left by an incomplete sequence", () => {
+    const result = sanitizeOutput(`oops${ESC}tail`);
+    expect(result).not.toContain(ESC);
+    expect(result).toContain("oops");
+    expect(result).toContain("tail");
+  });
+});

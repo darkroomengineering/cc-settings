@@ -12,7 +12,7 @@
 //   real call. Useful when the quota message was a false positive (e.g. auth mismatch).
 //   Does NOT bypass not-installed or unauthenticated — those can't succeed regardless.
 
-import { runCodexExec } from "../lib/codex.ts";
+import { runCodexExec, sanitizeOutput } from "../lib/codex.ts";
 import { runGit } from "../lib/git.ts";
 
 function usage(): void {
@@ -30,11 +30,25 @@ function usage(): void {
   );
 }
 
-/** Strip --force from an argv array and return {force, rest}. */
+/** Consume a LEADING `--force` flag (and an optional `--` end-of-flags marker) from
+ *  the front of argv, returning {force, rest}. Only tokens before the first
+ *  positional (or before `--`) are treated as flags, so a literal `--force` inside
+ *  the prompt text — e.g. `ask "what does --force do"` — is preserved verbatim. */
 function parseForce(args: string[]): { force: boolean; rest: string[] } {
-  const force = args.includes("--force");
-  const rest = args.filter((a) => a !== "--force");
-  return { force, rest };
+  let force = false;
+  let i = 0;
+  for (; i < args.length; i++) {
+    if (args[i] === "--force") {
+      force = true;
+      continue;
+    }
+    if (args[i] === "--") {
+      i++; // explicit end-of-flags; the prompt starts after it
+      break;
+    }
+    break; // first positional → stop flag parsing
+  }
+  return { force, rest: args.slice(i) };
 }
 
 const [, , subcommand, ...rest] = process.argv;
@@ -61,9 +75,11 @@ switch (subcommand) {
         const status = await runGit(["status", "--porcelain"]);
         const stat = await runGit(["diff", "--stat"]);
         if (status || stat) {
+          // Sanitize: filenames in a hostile repo can carry escape/control bytes,
+          // and this is echoed straight to the terminal.
           console.log("\n── git summary ──────────────────────────────");
-          if (status) console.log(status);
-          if (stat) console.log(stat);
+          if (status) console.log(sanitizeOutput(status));
+          if (stat) console.log(sanitizeOutput(stat));
         }
       } catch {
         // Not a git repo or git unavailable — skip the summary gracefully.

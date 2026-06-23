@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.29.1] — 2026-06-23
+
+Harden the Codex bridge (`src/lib/codex.ts`, `src/scripts/codex-run.ts`) after a cross-model review pass — Codex reviewed the bridge, Opus triaged the findings, and Codex independently re-reviewed the resulting diff (clean). Six hardening fixes, no behavior change to the happy path. Existing 47-test suite grew to 57.
+
+**Fixed:**
+
+- **Graceful exec spawn-failure** — `runCodexExec` wraps `Bun.spawn` in try/catch. `Bun.spawn` throws synchronously on ENOENT (codex vanished from PATH inside the 60s `AVAILABLE_TTL_MS` window that skips the L0 check), on an invalid `cwd`, and on permission errors. Previously these crashed the `/codex` script with an unhandled exception; now they fail open with a classified verdict (ENOENT ⇒ `not-installed`, else `unknown`).
+- **Verdict-cache race guard** — new `commitReconciled` re-reads immediately before writing and refuses to let a cheap/inconclusive non-sticky `available`/`unknown` verdict clobber a newer fresh sticky L2 negative (`rate-limited`/`no-access`) a concurrent exec may have written. Routed `refreshCodexVerdict` and the unknown-failure write through it. Closes the cross-process read-check-write TOCTOU (there is no file lock).
+- **Broadened terminal-control sanitization** — `sanitizeOutput` stripped only SGR color codes (`ESC[…m`); now strips all CSI, OSC (hyperlinks `ESC]8`, title `ESC]0`, BEL/ST-terminated), and residual C0 control bytes (preserving tab/newline/CR). Defense-in-depth for cached details, the statusline, and echoed output.
+- **Inconclusive-L1 fallback** — `checkCodexAvailability` no longer maps *every* non-zero `codex login status` to `unauthenticated` (which blocked L2 forever on CLI drift / keychain errors). A positive "not logged in" signal still blocks; an unrecognized CLI error becomes the new `unknown` live state so the real exec can probe; empty output (incl. timeout) stays conservative.
+- **Real hard cap** — the exec `Bun.spawn` now sets `killSignal: "SIGKILL"` so a child ignoring SIGTERM (Bun's default) can't outrun the timeout ceiling; timeout detection now keys off `proc.signalCode` with the elapsed-time heuristic as a fallback.
+- **Safer flag parsing** — `parseForce` only consumes a *leading* `--force` (and an optional `--`), so a literal `--force` inside a prompt is preserved verbatim.
+
+**Files changed:**
+
+- src/lib/codex.ts
+- src/scripts/codex-run.ts
+- tests/codex.test.ts
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [11.29.0] — 2026-06-23
 
 Sync with Claude Code **2.1.186** — a bug-fix-heavy release with three additions that touch the cc-settings contract. Adopted all three; the ~20 upstream bug fixes and UI-only changes have no cc-settings surface.

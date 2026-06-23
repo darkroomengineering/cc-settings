@@ -31,9 +31,25 @@ const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000; // hard cap so a hung call can't run
 // is still fresh. 60s is safe: the badge poll and exec preflight share this cache.
 const AVAILABLE_TTL_MS = 60_000;
 
-// ESC[…m built from charCode(27) rather than a literal control char, so the
-// regex doesn't trip biome's noControlCharactersInRegex rule.
-const ANSI_RE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+// Terminal-control stripping. All patterns are built from charCode() rather than
+// literal control chars so the regexes don't trip biome's noControlCharactersInRegex
+// rule. We strip the full ANSI/control surface — not just SGR colors — so a buggy or
+// hostile Codex can't smuggle a cursor-move, screen-clear, hyperlink, or title-set
+// payload into a cached verdict detail, the statusline, or echoed CLI output.
+const ESC = String.fromCharCode(27); // \x1b
+const BEL = String.fromCharCode(7); // \x07
+// CSI: ESC [ <params 0x30-0x3F> <intermediates 0x20-0x2F> <final 0x40-0x7E>.
+// Superset of the old SGR-only `ESC[…m` — also covers cursor moves, erases, etc.
+const CSI_RE = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, "g");
+// OSC: ESC ] … terminated by BEL or ST (ESC \). Covers hyperlinks (ESC]8;;…) and
+// window-title sets (ESC]0;…). Non-greedy so adjacent sequences don't merge.
+const OSC_RE = new RegExp(`${ESC}\\][\\s\\S]*?(?:${BEL}|${ESC}\\\\)`, "g");
+// Remaining C0 controls (except tab/newline/CR) + DEL + any solitary ESC left by an
+// incomplete sequence. Run AFTER CSI/OSC so full sequences are removed as units.
+const CONTROL_RE = new RegExp(
+  `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}${String.fromCharCode(12)}${String.fromCharCode(14)}-${String.fromCharCode(31)}${String.fromCharCode(127)}]`,
+  "g",
+);
 
 /**
  * Codex usability, worst-to-usable. The cheap L0/L1 check only distinguishes the
@@ -68,7 +84,9 @@ const CodexVerdictSchema = z.object({
 
 export type CodexVerdict = z.infer<typeof CodexVerdictSchema>;
 
-export type LiveAvailability = "available" | "not-installed" | "unauthenticated";
+// "unknown" = an inconclusive L1 result (CLI drift, keychain hiccup, unrecognized
+// failure) that should NOT block L2 — the real exec probe gets to classify it.
+export type LiveAvailability = "available" | "not-installed" | "unauthenticated" | "unknown";
 export type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
 // Runtime allowlist — TypeScript already constrains CodexSandbox, but this guards
@@ -115,11 +133,31 @@ export async function checkCodexAvailability(): Promise<LiveAvailability> {
   try {
     const proc = Bun.spawn(["codex", "login", "status"], {
       stdout: "ignore",
-      stderr: "ignore",
+      stderr: "pipe",
       timeout: LOGIN_STATUS_TIMEOUT_MS,
     });
+    const stderr = await new Response(proc.stderr).text();
     const exit = await proc.exited; // on timeout Bun kills the process → non-zero
-    return exit === 0 ? "available" : "unauthenticated";
+    if (exit === 0) return "available";
+    // Non-zero: a positive "not logged in" signal blocks L2 (re-login fixes it).
+    // But CLI version drift, an unrecognized subcommand, or a keychain error must
+    // NOT be misread as "unauthenticated" — that would block L2 forever. Classify
+    // those as "unknown" so the real exec probe can decide. Empty/unrecognized
+    // output (includes a killed-on-timeout spawn) stays conservative → block fast.
+    const s = stderr.toLowerCase();
+    if (
+      /not logged in|logged out|run .*codex login|no credentials|please (?:log|sign)[ -]?in|not authenticated|unauthenticated/.test(
+        s,
+      )
+    ) {
+      return "unauthenticated";
+    }
+    if (
+      /error|unrecognized|unknown (?:sub)?command|unexpected|usage:|invalid|panic|not found/.test(s)
+    ) {
+      return "unknown";
+    }
+    return "unauthenticated";
   } catch {
     return "unauthenticated";
   }
@@ -159,9 +197,34 @@ function isStickyVerdictFresh(v: CodexVerdict): boolean {
  *  login-status cannot see entitlement (no-access) or quota (rate-limited). */
 export function reconcile(live: LiveAvailability, cached: CodexVerdict): CodexVerdict {
   const now = new Date().toISOString();
-  if (live !== "available") return { state: live, checkedAt: now, sticky: false };
+  // Definitive negatives (binary gone / logged out) always win — they override any
+  // stale sticky, because the cache can't express "the user just removed access".
+  if (live === "not-installed" || live === "unauthenticated") {
+    return { state: live, checkedAt: now, sticky: false };
+  }
+  // "available" or inconclusive "unknown": a still-fresh sticky L2 negative wins,
+  // since the cheap check can't observe entitlement (no-access) or quota (rate-limited).
   if (isStickyVerdictFresh(cached)) return cached;
-  return { state: "available", checkedAt: now, sticky: false };
+  if (live === "available") return { state: "available", checkedAt: now, sticky: false };
+  // Inconclusive L1 with no fresh sticky → let the real exec probe classify it.
+  return { state: "unknown", checkedAt: now, sticky: false };
+}
+
+/** Persist a reconciled verdict, guarding the cross-process read-check-write race:
+ *  a non-sticky "available"/"unknown" verdict is computed from a *cheap* or
+ *  *inconclusive* signal that can't see entitlement or quota, so it must not clobber
+ *  a newer fresh sticky L2 negative (rate-limited / no-access) that a concurrent
+ *  `runCodexExec` may have written after we read the cache. Definitive negatives and
+ *  real L2 verdicts always win. Re-reads immediately before writing to shrink the
+ *  TOCTOU window (there is no cross-process file lock). Returns the verdict that
+ *  ended up authoritative so callers reflect a concurrent L2 result. */
+async function commitReconciled(v: CodexVerdict): Promise<CodexVerdict> {
+  if (!v.sticky && (v.state === "available" || v.state === "unknown")) {
+    const current = await readCodexVerdict();
+    if (isStickyVerdictFresh(current)) return current;
+  }
+  await writeCodexVerdict(v);
+  return v;
 }
 
 /** Run the cheap check, reconcile with the cache, persist, and return the verdict.
@@ -176,9 +239,7 @@ export async function refreshCodexVerdict(): Promise<CodexVerdict> {
     return cached;
   }
   const live = await checkCodexAvailability();
-  const v = reconcile(live, cached);
-  await writeCodexVerdict(v);
-  return v;
+  return commitReconciled(reconcile(live, cached));
 }
 
 // ── L2: classify a real call's failure ─────────────────────────────────────────
@@ -190,7 +251,9 @@ export async function refreshCodexVerdict(): Promise<CodexVerdict> {
  */
 export function sanitizeOutput(s: string): string {
   return s
-    .replace(ANSI_RE, "")
+    .replace(OSC_RE, "")
+    .replace(CSI_RE, "")
+    .replace(CONTROL_RE, "")
     .replace(/sk-[A-Za-z0-9_-]{16,}/g, "sk-[redacted]")
     .replace(/Bearer[\s:]+\S+/gi, "Bearer [redacted]")
     .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]")
@@ -301,17 +364,50 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // `--` ends Codex's option parsing: a prompt beginning with `-` can't be
   // re-read by its arg parser as a flag (e.g. a sandbox override). Security: H1.
   const startedAt = Date.now();
-  const proc = Bun.spawn(["codex", "exec", "--sandbox", sandbox, "--", opts.prompt], {
-    cwd: opts.cwd,
-    stdout: "pipe",
-    stderr: "pipe",
-    timeout,
-  });
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-  const exit = await proc.exited;
+  let stdout: string;
+  let stderr: string;
+  let exit: number;
+  let signalCode: string | null;
+  try {
+    const proc = Bun.spawn(["codex", "exec", "--sandbox", sandbox, "--", opts.prompt], {
+      cwd: opts.cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout,
+      // Hard kill on the timeout: a child that ignores SIGTERM (Bun's default) could
+      // otherwise outrun the ceiling. SIGKILL guarantees the bound is real.
+      killSignal: "SIGKILL",
+    });
+    [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    exit = await proc.exited;
+    signalCode = proc.signalCode; // set when the process was killed by a signal
+  } catch (err) {
+    // Bun.spawn throws synchronously on ENOENT (codex vanished from PATH inside the
+    // AVAILABLE_TTL_MS window that skips the L0 check), on an invalid `cwd`, and on
+    // permission errors. Fail open with a classified verdict instead of letting the
+    // exception crash the /codex script.
+    const msg = err instanceof Error ? err.message : String(err);
+    const code = (err as { code?: string } | null)?.code;
+    const now2 = new Date().toISOString();
+    if (code === "ENOENT" || /\benoent\b|not found|no such file/i.test(msg)) {
+      await writeCodexVerdict({ state: "not-installed", checkedAt: now2, sticky: false });
+      return blocked(
+        "not-installed",
+        "Codex CLI could not be launched (not on PATH). Reinstall it and run `codex login`. Continuing Claude-only.",
+      );
+    }
+    // Any other launch failure is a one-off: don't sticky-disable the bridge.
+    await commitReconciled({ state: "available", checkedAt: now2, sticky: false });
+    return {
+      ok: false,
+      output: "",
+      state: "unknown",
+      detail: `Codex failed to launch: ${firstLine(msg)}`,
+    };
+  }
   const elapsed = Date.now() - startedAt;
   const now = new Date().toISOString();
 
@@ -320,10 +416,11 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
     return { ok: true, output: sanitizeOutput(stdout.trim()), state: "available" };
   }
 
-  // Detect timeout: non-zero exit after elapsed ≥ effective timeout. The partial
-  // stdout (already captured before the process was killed) is surfaced so the
-  // caller has context. Timeouts are not sticky-cached — the bridge stays open.
-  if (exit !== 0 && elapsed >= timeout) {
+  // Detect timeout: the process was killed by a signal (our SIGKILL hard cap), or —
+  // as a fallback if the runtime didn't surface a signal — a non-zero exit at/after
+  // the effective limit. The partial stdout (captured before the kill) is surfaced
+  // so the caller has context. Timeouts are not sticky-cached — the bridge stays open.
+  if (signalCode !== null || (exit !== 0 && elapsed >= timeout)) {
     await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
     const minutes = Math.round(timeout / 60_000);
     return {
@@ -336,9 +433,10 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
 
   const cls = classifyCodexError(exit, stderr);
   // An unclassified one-off failure must not sticky-disable the bridge: leave the
-  // cache reading "available" but report the failure to the caller.
+  // cache reading "available" but report the failure to the caller. Guarded so it
+  // can't clobber a fresher sticky L2 verdict a concurrent exec just wrote.
   if (cls.state === "unknown") {
-    await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
+    await commitReconciled({ state: "available", checkedAt: now, sticky: false });
   } else {
     await writeCodexVerdict({ state: cls.state, checkedAt: now, sticky: true, detail: cls.detail });
   }
