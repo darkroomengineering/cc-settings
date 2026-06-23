@@ -4,6 +4,31 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.29.0] — 2026-06-23
+
+Sync with Claude Code **2.1.186** — a bug-fix-heavy release with three additions that touch the cc-settings contract. Adopted all three; the ~20 upstream bug fixes and UI-only changes have no cc-settings surface.
+
+**Adopted:**
+
+- **`respondToBashCommands` setting** (2.1.186) — `src/schemas/settings.ts`, `upstream/claude-code-manifest.json` (`knownSettingsKeys`), `docs/settings-reference.md`. New top-level boolean. `!`-prefixed bash output now auto-triggers a Claude response by default; set `false` to restore the silent-insert behavior. The strict settings schema would have rejected the key, so tracking it is required.
+- **`teammateMode: "iterm2"`** (2.1.186) — `src/schemas/settings.ts` (`TeammateMode` enum), `docs/settings-reference.md`. Adds the iTerm2 split backend for Agent Teams (warns when the `it2` CLI is missing). `teammateMode` was already a known settings key; only the enum value was missing.
+- **`CLAUDE_CODE_MAX_RETRIES` + `CLAUDE_CODE_RETRY_WATCHDOG` env vars** (2.1.186) — `upstream/claude-code-manifest.json` (`knownEnvVars`), `docs/settings-reference.md`. `MAX_RETRIES` is now capped at 15; the watchdog keeps retrying past the cap for unattended sessions. Manifest + docs only — no config wiring.
+
+**Docs-only:**
+
+- `MANUAL.md` — noted that native `/review <pr>` now runs the same engine as `/code-review medium` (2.1.186).
+
+**Skipped:** ~20 upstream `Fixed …` bug fixes (no cc-settings code involved); skill-frontmatter kebab/snake/camelCase aliasing (upstream got more lenient — our kebab-only skills already pass); `claude mcp login/logout` CLI auth; `/workflows` status filter, `/plugin` Skills section, perm-prompt alignment (UI-only); background-subagent perm-prompt surfacing and agent-denial enforcement (behavioral, no schema). `awsAuthRefresh` was already tracked.
+
+**Files changed:**
+
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- MANUAL.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [11.28.1] — 2026-06-22
 
 ### Fix — follow-up to the Bun built-in swap (#68)

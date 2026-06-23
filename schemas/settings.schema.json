@@ -85,6 +85,7 @@
         "auto",
         "in-process",
         "tmux",
+        "iterm2",
         "manual",
         "disabled"
       ]
@@ -1076,6 +1077,9 @@
       "type": "string"
     },
     "awaySummaryEnabled": {
+      "type": "boolean"
+    },
+    "respondToBashCommands": {
       "type": "boolean"
     },
     "editorMode": {

@@ -35,9 +35,9 @@ export const Attribution = z.object({
   sessionUrl: z.boolean().optional(), // added 2.1.183: false omits the claude.ai session link from commits/PRs
 });
 
-// doc-canonical values are auto|in-process|tmux; manual|disabled kept as a
-// superset to not reject older configs.
-export const TeammateMode = z.enum(["auto", "in-process", "tmux", "manual", "disabled"]);
+// doc-canonical values are auto|in-process|tmux|iterm2 (iterm2 added 2.1.186);
+// manual|disabled kept as a superset to not reject older configs.
+export const TeammateMode = z.enum(["auto", "in-process", "tmux", "iterm2", "manual", "disabled"]);
 
 // Sandbox config (introduced 2.1.98–2.1.108). Not yet in any user config in
 // this repo; fields verified via docs + changelog. Loose on the root
@@ -206,6 +206,7 @@ export const Settings = z.looseObject({
 
   // --- UX ---
   awaySummaryEnabled: z.boolean().optional(), // show a session recap on re-entry after background work
+  respondToBashCommands: z.boolean().optional(), // 2.1.186 — `!` bash output auto-triggers a Claude response (default true); set false to restore prior behavior
   editorMode: z.enum(["normal", "vim"]).optional(), // input editor keybindings
   preferredNotifChannel: z
     .enum([

@@ -53,7 +53,7 @@ import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.28.1"; // follow-up fixes to the Bun built-in swap (#68: Bun.YAML duplicate-key detection, promptYn Ctrl+C via AbortController) + install-summary count fix (skills/ counted SKILL.md subdirs not top-level README → 35 not 1; docs/ counts recursively → 22) with regression tests
+const VERSION = "11.29.0"; // sync with Claude Code 2.1.186: adopt respondToBashCommands setting, teammateMode "iterm2", and CLAUDE_CODE_MAX_RETRIES / CLAUDE_CODE_RETRY_WATCHDOG env vars
 
 // --- Arg parsing ---------------------------------------------------------
 

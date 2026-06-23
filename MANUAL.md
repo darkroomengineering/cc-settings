@@ -148,7 +148,7 @@ Triggers `/refactor` — explore → plan → implement → test → review. Pre
 
 Say: *"rewrite this as if from scratch"* or *"delete the compat layer"* or *"too many flags"*
 
-Triggers `/zero-tech-debt` — rework a patch from the intended end-state, not from the historical path. Deletes compatibility cruft and mode flags no one calls. Sibling to `/refactor` (out-of-diff restructuring) — this one targets the patch in front of you. (Note: Claude Code 2.1.147 renamed native `/simplify` to `/code-review`, dropping the cleanup-and-fix behavior.)
+Triggers `/zero-tech-debt` — rework a patch from the intended end-state, not from the historical path. Deletes compatibility cruft and mode flags no one calls. Sibling to `/refactor` (out-of-diff restructuring) — this one targets the patch in front of you. (Note: Claude Code 2.1.147 renamed native `/simplify` to `/code-review`, dropping the cleanup-and-fix behavior. As of 2.1.186, native `/review <pr>` runs the same engine as `/code-review medium`.)
 
 ---
 

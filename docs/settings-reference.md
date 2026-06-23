@@ -89,6 +89,8 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SAFE_MODE` | `"1"` or unset | Start Claude Code with all customizations disabled (CLAUDE.md, plugins, skills, hooks, MCP servers) for troubleshooting. Env counterpart of the `--safe-mode` flag (v2.1.169) |
 | `CLAUDE_CLIENT_PRESENCE_FILE` | file path | Path to a presence file Claude Code touches while active; suppresses mobile push notifications when the desktop client is present (v2.1.181) |
 | `API_FORCE_IDLE_TIMEOUT` | `"0"` to opt out, unset for default | Restores a default 5-minute idle timeout on Vertex/Foundry so a stalled stream aborts instead of hanging; set `=0` to opt out (v2.1.169) |
+| `CLAUDE_CODE_MAX_RETRIES` | integer (string) | Max API retry attempts on transient failures; capped at `15` as of v2.1.186. For unattended sessions prefer `CLAUDE_CODE_RETRY_WATCHDOG` |
+| `CLAUDE_CODE_RETRY_WATCHDOG` | `"1"` or unset | Keeps retrying transient API failures past the `CLAUDE_CODE_MAX_RETRIES` cap for long unattended sessions (v2.1.186) |
 
 > **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 
@@ -124,7 +126,11 @@ Controls Agent Teams behavior when enabled.
 | Value | Behavior |
 |-------|----------|
 | `auto` | Teammates self-coordinate via shared task list |
+| `in-process` | Teammates run inside the main process |
+| `tmux` | Each teammate gets a tmux pane |
+| `iterm2` | Each teammate gets an iTerm2 split (2.1.186; warns if the `it2` CLI is missing) |
 | `manual` | Teammates require explicit direction |
+| `disabled` | Agent Teams off |
 
 ### `attribution`
 
@@ -340,6 +346,14 @@ Auto-scroll to the bottom of the conversation as new output streams in (v2.1.102
 
 ```json
 { "autoScrollEnabled": false }
+```
+
+### `respondToBashCommands`
+
+Whether `!`-prefixed bash command output automatically triggers a Claude response (v2.1.186). Defaults to `true` — Claude reacts to the output as if you'd asked about it. Set `false` to restore the prior behavior, where the output is inserted silently and Claude waits for your next prompt.
+
+```json
+{ "respondToBashCommands": false }
 ```
 
 ### `changelogUrl`
