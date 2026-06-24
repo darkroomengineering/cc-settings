@@ -18,8 +18,6 @@ allowed-tools:
 
 Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "retro" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
-Analyze commit history to produce velocity metrics, work patterns, and improvement suggestions with persistent history for trend tracking.
-
 **This skill is self-contained.** Do not read CLAUDE.md or agent definitions.
 
 ## Arguments

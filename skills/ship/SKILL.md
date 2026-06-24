@@ -115,7 +115,7 @@ npx tsc --noEmit && biome check .
 ```
 If a commit would break either check in isolation, merge it with the next commit in the sequence.
 
-**Commit messages:** Each gets a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`). Keep them descriptive of what that specific commit contains.
+**Commit messages:** Each gets a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`).
 
 **No AI attribution on any commit.**
 
@@ -176,7 +176,6 @@ Guardrails:
 - NEVER create a PR with failing tests
 - Conventional commit messages only (`feat:`, `fix:`, `refactor:`, etc.)
 - No AI attribution in commits or PR descriptions
-- If build fails, fix and re-run -- do not skip
 - Each bisectable commit must pass `tsc --noEmit` AND `biome check` independently
 - If total diff is small, single commit is fine -- don't over-split
 

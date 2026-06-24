@@ -6,8 +6,6 @@ context: fork
 
 # Design Tokens
 
-Generate type scales, color palettes, spacing systems, and dark mode derivations with math — not guessing. Includes WCAG contrast checking, systematic spacing grids, and production-ready CSS/Tailwind output.
-
 ## When to Use
 
 - User is setting up a new project's design system

@@ -82,5 +82,3 @@ The script handles all availability states gracefully. On failure it prints guid
 - `no-access` -- plan entitlement issue; try `codex logout && codex login`
 - `rate-limited` -- usage window exhausted; retry after the ~5-hour reset
 - `unknown` -- one-off error; safe to retry
-
-When any of these fire, Claude continues without Codex. The bridge is an enhancement, not a dependency.

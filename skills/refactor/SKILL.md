@@ -55,22 +55,6 @@ Agent(codex-verifier, "Cross-model review of the refactor diff. Confirm behavior
 
 The bridge is gated and fails open: if Codex is unavailable, the reviewer agent alone is fine.
 
-## Refactoring Principles
-
-1. **Preserve behavior** - Tests should pass before AND after
-2. **Small steps** - Make incremental changes
-3. **Run tests often** - Verify after each change
-4. **Document decisions** - Explain WHY, not just WHAT
-
-## Common Refactoring Tasks
-
-- Extract component/hook
-- Simplify complex logic
-- Remove duplication
-- Improve naming
-- Split large files
-- Optimize performance
-
 ## Output
 
 Return a summary:

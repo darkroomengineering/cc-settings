@@ -7,8 +7,6 @@ allowed-tools: [Bash]
 
 # Checkpoint: Save & Restore Task State
 
-Manage checkpoints for long-running tasks. Enables recovery from interruptions and context window exhaustion.
-
 ## Subcommands
 
 ### save [label]

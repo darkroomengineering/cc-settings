@@ -10,8 +10,6 @@ requires:
 
 # Visual QA Validation
 
-Visual and accessibility validation using the Chrome DevTools MCP. Combines automated tooling with structured design review methodology.
-
 ## Core Philosophy
 
 - **Screenshot first, then critique.** Always look at the actual rendered output, not just the code.

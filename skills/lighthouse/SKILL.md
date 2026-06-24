@@ -25,8 +25,6 @@ requires:
 
 # Lighthouse Optimization Loop
 
-Run Lighthouse audits, improve scores, verify UI isn't broken. Repeat until targets are met.
-
 **Method:** 3 mobile + 3 desktop runs per audit, averaged for reliability. After each code change, re-audit AND visually verify the page with chrome-devtools MCP to catch regressions.
 
 ---

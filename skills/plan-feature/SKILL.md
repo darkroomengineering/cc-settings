@@ -13,10 +13,6 @@ Two-phase pre-implementation planning: clarify requirements via interview, then 
 
 Help clarify requirements and scope through structured questioning.
 
-### Purpose
-
-Turn vague requests into clear, actionable requirements.
-
 ### Interview Framework
 
 #### 1. Understand the Goal

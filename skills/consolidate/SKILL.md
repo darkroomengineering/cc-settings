@@ -6,8 +6,6 @@ context: fork
 
 # Consolidate Rules, Skills, and Learnings
 
-Prevent context bloat and contradictions by periodically auditing, merging, and pruning.
-
 ## Phase 1: Audit
 
 ### Count everything
