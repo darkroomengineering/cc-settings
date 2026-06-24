@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-06-23T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.186",
+  "lastScan": "2026-06-24T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.190",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -167,6 +167,7 @@
     "CLAUDE_CODE_MAX_RETRIES",
     "CLAUDE_CODE_MCP_SERVER_NAME",
     "CLAUDE_CODE_MCP_SERVER_URL",
+    "CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT",
     "CLAUDE_CODE_NO_FLICKER",
     "CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE",
     "CLAUDE_CODE_PERFORCE_MODE",

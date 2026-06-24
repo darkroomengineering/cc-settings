@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.30.0] — 2026-06-24
+
+Sync with Claude Code v2.1.190 (from v2.1.186). Only v2.1.187 carried substantive changelog entries; v2.1.188/189 had none and v2.1.190 was reliability fixes. Two security-adjacent features adopted, no deduplications this cycle.
+
+**Adopted:**
+- **`sandbox.credentials` setting (Claude Code v2.1.187)** — extended the `Sandbox` schema in `src/schemas/settings.ts` with a `credentials` block: `files: [{ path, mode: "deny" }]` denies sandboxed reads of credential files (same enforcement as `filesystem.denyRead`), and `envVars: [{ name, mode: "deny" }]` unsets secret env vars before each sandboxed command. `"deny"` is the only supported mode today. Documented in `docs/settings-reference.md`. Why it matters: complements our existing process-wide `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` with a sandbox-scoped, declarative credential deny list (e.g. `~/.aws/credentials`, `GITHUB_TOKEN`).
+- **`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` env var (Claude Code v2.1.187)** — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. Why it matters: remote MCP tool calls that go idle now abort with an error instead of hanging ~5 minutes; this env var tunes the threshold.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Files changed:**
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [11.29.1] — 2026-06-23
 
 Harden the Codex bridge (`src/lib/codex.ts`, `src/scripts/codex-run.ts`) after a cross-model review pass — Codex reviewed the bridge, Opus triaged the findings, and Codex independently re-reviewed the resulting diff (clean). Six hardening fixes, no behavior change to the happy path. Existing 47-test suite grew to 57.

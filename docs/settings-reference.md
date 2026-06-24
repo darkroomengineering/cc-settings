@@ -82,6 +82,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_ENABLE_AWAY_SUMMARY` | `"0"` to opt out, unset for default | On by default; produces a session recap on re-entry after background work. Set `=0` to opt out (v2.1.110) |
 | `CLAUDE_CODE_ENABLE_AUTO_MODE` | `"1"` or unset | Opt in to auto mode on Bedrock, Vertex, and Foundry for Opus 4.7/4.8 (native on the first-party API) (v2.1.158) |
 | `CLAUDE_CODE_SHELL_PREFIX` | shell prefix string | Custom shell prefix for MCP stdio server launches; overrides the default shell used to spawn stdio MCP processes (v2.1.128) |
+| `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` | duration (ms) | Idle timeout for remote MCP tool calls; calls that go idle abort with an error instead of hanging (previously stuck for ~5 min) (v2.1.187) |
 | `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet` (v2.1.147) |
 | `CLAUDE_CODE_TMPDIR` | directory path | Overrides the temp directory used for Unix sockets and scratch files; set it shallow to avoid `EADDRINUSE` from over-long socket paths (v2.1.161) |
 | `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157) |
@@ -206,8 +207,12 @@ Sandbox configuration for secure command execution. cc-settings ships with `fail
 | `enableWeakerNetworkIsolation` | boolean | macOS: weaker network isolation for MITM proxy verification |
 | `filesystem.allowRead` / `allowWrite` | list | Re-allow paths inside `denyRead`/`denyWrite` regions (v2.1.77, v2.1.78) |
 | `network.deniedDomains` | list | Block specific domains despite broader `allowedDomains` wildcard (v2.1.113) |
+| `credentials.files` | list | Deny sandboxed reads of credential files: `[{ "path": "~/.aws/credentials", "mode": "deny" }]` (v2.1.187) |
+| `credentials.envVars` | list | Unset secret env vars before each sandboxed command: `[{ "name": "GITHUB_TOKEN", "mode": "deny" }]` (v2.1.187) |
 | `bwrapPath` | string | Linux/WSL: managed override for the bubblewrap binary location (v2.1.133) |
 | `socatPath` | string | Linux/WSL: managed override for the socat binary location (v2.1.133) |
+
+`credentials` is the dedicated block for keeping secrets out of sandboxed Bash commands — file paths are denied for reads (same enforcement as `filesystem.denyRead`) and env vars are unset per-command. `"deny"` is the only supported `mode`. There is no built-in deny list, so only listed entries are restricted, and entries merge across settings scopes (any scope can add restrictions, none can remove them). For a process-wide scrub of Anthropic/cloud credentials regardless of sandboxing, use `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` instead.
 
 ### `spinnerVerbs`
 

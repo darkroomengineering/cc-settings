@@ -784,6 +784,56 @@
           },
           "additionalProperties": false
         },
+        "credentials": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "deny"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "mode"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "envVars": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "deny"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "mode"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
         "bwrapPath": {
           "type": "string"
         },

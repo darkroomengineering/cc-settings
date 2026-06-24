@@ -57,6 +57,21 @@ export const Sandbox = z.looseObject({
       allowWrite: z.array(z.string()).optional(), // re-allow write paths inside denyWrite regions
     })
     .optional(),
+  // 2.1.187 — declare credential files + env vars sandboxed commands must not
+  // touch. Listed file paths are denied for reads; listed env vars are unset
+  // before each sandboxed command. `deny` is the only supported mode today
+  // (explicit field keeps the schema forward-compatible). Complements the
+  // process-wide CLAUDE_CODE_SUBPROCESS_ENV_SCRUB scrub.
+  credentials: z
+    .object({
+      files: z
+        .array(z.object({ path: z.string(), mode: z.enum(["deny"]) }))
+        .optional(),
+      envVars: z
+        .array(z.object({ name: z.string(), mode: z.enum(["deny"]) }))
+        .optional(),
+    })
+    .optional(),
   bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
   socatPath: z.string().optional(), // 2.1.133 — Linux/WSL socat binary override
 });
