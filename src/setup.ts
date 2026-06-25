@@ -53,7 +53,7 @@ import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.30.0"; // sync with Claude Code v2.1.190: adopt sandbox.credentials (deny credential-file reads + unset secret env vars for sandboxed commands) and the CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT env var
+const VERSION = "11.30.1"; // sync with Claude Code v2.1.191: pure upstream bug-fix/perf release (no actionable settings/hooks/MCP/env/frontmatter changes); manifest bump only
 
 // --- Arg parsing ---------------------------------------------------------
 

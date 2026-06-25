@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.30.1] — 2026-06-25
+
+Sync with Claude Code v2.1.191. Pure upstream bug-fix and performance release — no new settings keys, hook events, MCP fields, env vars, or agent frontmatter. Manifest bump only; no cc-settings code touched.
+
+**Adopted:**
+- None this cycle.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- The comma-separated hook-matcher fix (`"Bash,PowerShell"` silently never firing) does not apply — cc-settings uses regex alternation (`Edit|Write|MultiEdit`) throughout `config/40-hooks.json`, which was never affected.
+- Remaining entries are native TUI/CLI/MCP fixes (`/rewind`, scroll/CPU/memory perf, background-agent stop permanence, MCP retry/backoff & OAuth, `forceRemoteSettingsRefresh` via MDM) with no cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [11.30.0] — 2026-06-24
 
 Sync with Claude Code v2.1.190 (from v2.1.186). Only v2.1.187 carried substantive changelog entries; v2.1.188/189 had none and v2.1.190 was reliability fixes. Two security-adjacent features adopted, no deduplications this cycle.
