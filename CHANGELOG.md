@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.30.2] — 2026-06-26
+
+Sync with Claude Code v2.1.193 (v2.1.192 was skipped upstream). Tracks two new environment variables in the manifest and docs; no schema, hook, or wiring changes.
+
+**Adopted:**
+- `OTEL_LOG_ASSISTANT_RESPONSES` (v2.1.193) — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. Controls whether the new `claude_code.assistant_response` OTEL log event carries the model's response text. **Privacy gotcha worth surfacing:** when the var is unset it inherits `OTEL_LOG_USER_PROMPTS`, so OTEL deployments already logging prompt content begin logging response content on upgrade — set `=0` to keep prompts-only.
+- `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP` (v2.1.193) — added to manifest `knownEnvVars` and the docs env table. Opt-out for the new automatic memory-pressure reaping of idle background shell commands.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- `autoMode.classifyAllShell` (v2.1.193) needs no change — the settings schema already accepts it via `autoMode: z.looseObject({})` (shape intentionally opaque) and the manifest already tracks the top-level `autoMode` key.
+- Remaining entries are native client UX (auto-mode denial reasons, bash-mode path autocomplete, MCP-auth startup notice, `/add-dir` wording, plugin auto-rename) and bug fixes (`/model` stale-state after `/login`, backgrounding cancel/carry-over, pinned-agent re-prompt, phantom resumed subagent, agent-panel siblings, MCP `headersHelper` 401/403 reconnect) with no cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [11.30.1] — 2026-06-25
 
 Sync with Claude Code v2.1.191. Pure upstream bug-fix and performance release — no new settings keys, hook events, MCP fields, env vars, or agent frontmatter. Manifest bump only; no cc-settings code touched.
