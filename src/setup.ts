@@ -53,7 +53,7 @@ import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.30.1"; // sync with Claude Code v2.1.191: pure upstream bug-fix/perf release (no actionable settings/hooks/MCP/env/frontmatter changes); manifest bump only
+const VERSION = "11.30.2"; // sync with Claude Code v2.1.193: track two new env vars (OTEL_LOG_ASSISTANT_RESPONSES, CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP) in manifest + docs; no schema/wiring changes
 
 // --- Arg parsing ---------------------------------------------------------
 
