@@ -94,6 +94,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_RETRY_WATCHDOG` | `"1"` or unset | Keeps retrying transient API failures past the `CLAUDE_CODE_MAX_RETRIES` cap for long unattended sessions (v2.1.186) |
 | `OTEL_LOG_ASSISTANT_RESPONSES` | `"1"` / `"0"` / unset | Adds the model's response text to the `claude_code.assistant_response` OTEL log event. **Redacted unless `=1`; when unset it inherits `OTEL_LOG_USER_PROMPTS`** — so deployments already logging prompt content start logging response content on upgrade. Set `=0` to keep prompts-only (v2.1.193) |
 | `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP` | `"1"` or unset | Opt out of automatic memory-pressure reaping of idle background shell commands (v2.1.193) |
+| `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` | `"1"` or unset | Disable mouse click/drag/hover in the fullscreen renderer while keeping wheel scroll; for terminals where mouse capture interferes with native text selection (v2.1.195) |
 
 > **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 

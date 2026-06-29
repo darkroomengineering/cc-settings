@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.30.3] — 2026-06-29
+
+Sync with Claude Code v2.1.195 (v2.1.194 shipped with no changelog entries). Tracks one new environment variable in the manifest and docs; no schema, hook, or wiring changes.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` (v2.1.195) — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. Disables mouse click/drag/hover in the fullscreen renderer while keeping wheel scroll — a sibling of the already-tracked `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN`, useful where mouse capture interferes with native terminal text selection. Manifest-tracked only (env vars affecting CC itself are not part of the settings.json zod schema).
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- The hyphenated hook-matcher exact-match fix (v2.1.195 — matchers like `code-reviewer` / `mcp__brave-search` previously substring-matched, now exact-match) is **verified-safe** for cc-settings: every hook matcher in `config/40-hooks.json` is a non-hyphenated builtin tool name (`Bash`, `Edit`, `Write|Edit`, `Edit|Write|MultiEdit`), and no hyphenated MCP/agent matchers exist in `config/` or `agents/`. Zero impact.
+- Remaining entries are voice-dictation fixes (macOS silence on input-device change, spaceless-language auto-submit, Linux SoX detection), plugin-loader fixes (project-settings consent, `/plugin` name mismatch), and background-task/daemon/Remote-session UX and bug fixes — none touch cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [11.30.2] — 2026-06-26
 
 Sync with Claude Code v2.1.193 (v2.1.192 was skipped upstream). Tracks two new environment variables in the manifest and docs; no schema, hook, or wiring changes.

@@ -53,7 +53,7 @@ import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.30.2"; // sync with Claude Code v2.1.193: track two new env vars (OTEL_LOG_ASSISTANT_RESPONSES, CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP) in manifest + docs; no schema/wiring changes
+const VERSION = "11.30.3"; // sync with Claude Code v2.1.195: track CLAUDE_CODE_DISABLE_MOUSE_CLICKS env var in manifest + docs; hyphenated hook-matcher exact-match fix verified-safe (no hyphenated matchers); no schema/wiring changes
 
 // --- Arg parsing ---------------------------------------------------------
 
