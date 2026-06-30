@@ -5,14 +5,14 @@ context: fork
 allowed-tools: [mcp__tldr__semantic, mcp__tldr__context, mcp__tldr__impact, mcp__tldr__arch, mcp__tldr__slice, mcp__tldr__structure, mcp__tldr__calls, mcp__tldr__cfg, mcp__tldr__dfg, mcp__tldr__change_impact, mcp__tldr__dead, mcp__tldr__imports, mcp__tldr__importers, mcp__tldr__diagnostics, mcp__tldr__tree, mcp__tldr__search, mcp__tldr__extract, mcp__tldr__status]
 requires:
   - mcp: tldr
-    install: "pip install llm-tldr (pipx install llm-tldr) — TLDR MCP server"
+    install: "Provisioned by cc-settings (setup.sh). Default engine llm-tldr; override with CC_CODE_INTEL_ENGINE."
 ---
 
 # TLDR Code Analysis
 
-Token-efficient codebase analysis using llm-tldr v1.5+. **95% fewer tokens than reading raw files.**
+Token-efficient codebase analysis behind the `tldr` MCP server. **~95% fewer tokens than reading raw files.**
 
-Language is auto-detected (17 supported). No need to specify `--lang` unless overriding.
+The engine is provisioned by cc-settings — default **llm-tldr** (17 languages auto-detected). Override per-environment with `CC_CODE_INTEL_ENGINE` (e.g. `native-ts`, a zero-dependency TypeScript/JavaScript codemap with no semantic search). The tool names below are the stable contract; only the engine behind them changes. Language is auto-detected; no need to specify `--lang`.
 
 ## Quick Reference
 
@@ -173,10 +173,19 @@ mcp__tldr__status { "project": "." }
 
 ## Prerequisites
 
+The engine behind `tldr` is provisioned automatically by cc-settings (`setup.sh`).
+Default engine: **llm-tldr** (needs `pipx`). Override per-environment with
+`CC_CODE_INTEL_ENGINE` — e.g. `native-ts` for a zero-dependency TypeScript/JavaScript
+codemap. See `src/lib/code-intel-engine.ts`.
+
 ```bash
-pipx install llm-tldr
-tldr daemon start     # Background service (300x faster)
-tldr warm .           # Build indexes including embeddings
+# Default (llm-tldr): installed by setup.sh; daemon auto-starts each session.
+pipx install llm-tldr        # only if provisioning manually
+tldr daemon start            # background service (~100ms queries)
+tldr warm .                  # build indexes including embeddings
+
+# Or opt into the native engine (no Python, no semantic search):
+export CC_CODE_INTEL_ENGINE=native-ts
 ```
 
 ## CRITICAL RULES

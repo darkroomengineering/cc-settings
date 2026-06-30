@@ -7,6 +7,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
+import { resolveEngine } from "../lib/code-intel-engine.ts";
 import { hasCommand } from "../lib/platform.ts";
 
 const filePath = process.env.TOOL_INPUT_file_path ?? "";
@@ -51,11 +52,14 @@ if (JSTS.has(ext) && existsSync(filePath)) {
   }
 }
 
-// 3. Notify the TLDR daemon that this file changed, so semantic indexes stay
-//    fresh without manual `tldr warm` runs. Fire-and-forget; the daemon may not
-//    be running (no daemon = no-op exit code).
-if (hasCommand("tldr")) {
-  const proc = Bun.spawn(["tldr", "daemon", "notify", filePath, "--project", "."], {
+// 3. Notify the code-intel engine's daemon that this file changed, so indexes
+//    stay fresh without manual warm runs. Only a daemon-backed engine (e.g.
+//    llm-tldr) has a daemon to notify; native-ts has none, so this is skipped.
+//    Fire-and-forget; the daemon may not be running (no daemon = no-op exit).
+const engine = await resolveEngine();
+const daemonVerb = engine.cli.verbMap.daemon;
+if (engine.cli.supportsDaemon && daemonVerb && hasCommand(engine.cli.command)) {
+  const proc = Bun.spawn([engine.cli.command, daemonVerb, "notify", filePath, "--project", "."], {
     stdout: "ignore",
     stderr: "ignore",
   });

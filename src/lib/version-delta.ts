@@ -27,27 +27,37 @@ const VERSION_HEADING_RE = /^##\s*\[(\d+\.\d+\.\d+)\](?:\s*—\s*(\d{4}-\d{2}-\d
 export interface SentinelInfo {
   version: string | null;
   repoPath: string | null;
+  /** Code-intelligence engine id the install was provisioned with (e.g.
+   *  "llm-tldr", "native-ts"). Null on a pre-engine sentinel — resolveEngine
+   *  then falls back to the default engine. */
+  engine: string | null;
 }
 
 /**
- * Read the installer's recorded version + repo path from
+ * Read the installer's recorded version + repo path + engine from
  * `~/.claude/.cc-settings-version`. Each field falls back to null on a missing
  * sentinel (first install), a sentinel written before that field existed, or
- * malformed JSON. Never throws. This is the single sentinel reader — both the
- * install-summary delta and version-drift detection build on it.
+ * malformed JSON. Never throws. This is the single sentinel reader — the
+ * install-summary delta, version-drift detection, and engine resolution all
+ * build on it.
  */
 export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo> {
   const sentinelPath = join(claudeDir, ".cc-settings-version");
-  if (!existsSync(sentinelPath)) return { version: null, repoPath: null };
+  if (!existsSync(sentinelPath)) return { version: null, repoPath: null, engine: null };
   try {
     const raw = await readFile(sentinelPath, "utf8");
-    const parsed = JSON.parse(raw) as { version?: unknown; repo_path?: unknown };
+    const parsed = JSON.parse(raw) as {
+      version?: unknown;
+      repo_path?: unknown;
+      engine?: unknown;
+    };
     return {
       version: typeof parsed.version === "string" ? parsed.version : null,
       repoPath: typeof parsed.repo_path === "string" ? parsed.repo_path : null,
+      engine: typeof parsed.engine === "string" ? parsed.engine : null,
     };
   } catch {
-    return { version: null, repoPath: null };
+    return { version: null, repoPath: null, engine: null };
   }
 }
 

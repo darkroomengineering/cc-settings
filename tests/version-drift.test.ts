@@ -36,7 +36,7 @@ describe("readSentinelInfo", () => {
   test("missing sentinel ⇒ nulls", async () => {
     const dir = await tmp();
     try {
-      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null });
+      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null, engine: null });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -48,7 +48,27 @@ describe("readSentinelInfo", () => {
         join(dir, ".cc-settings-version"),
         JSON.stringify({ version: "11.12.0", repo_path: "/x/y", installer: "src/setup.ts" }),
       );
-      expect(await readSentinelInfo(dir)).toEqual({ version: "11.12.0", repoPath: "/x/y" });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "11.12.0",
+        repoPath: "/x/y",
+        engine: null,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("reads engine when present", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({ version: "11.30.3", repo_path: "/x/y", engine: "native-ts" }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "11.30.3",
+        repoPath: "/x/y",
+        engine: "native-ts",
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -57,7 +77,11 @@ describe("readSentinelInfo", () => {
     const dir = await tmp();
     try {
       await writeFile(join(dir, ".cc-settings-version"), JSON.stringify({ version: "11.0.0" }));
-      expect(await readSentinelInfo(dir)).toEqual({ version: "11.0.0", repoPath: null });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "11.0.0",
+        repoPath: null,
+        engine: null,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -66,7 +90,7 @@ describe("readSentinelInfo", () => {
     const dir = await tmp();
     try {
       await writeFile(join(dir, ".cc-settings-version"), "{not json");
-      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null });
+      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null, engine: null });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

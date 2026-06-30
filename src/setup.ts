@@ -21,6 +21,11 @@ import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
+import {
+  type EngineDescriptor,
+  ensureEngineInstalled,
+  resolveEngine,
+} from "./lib/code-intel-engine.ts";
 import { debug, error, info, palette, showBanner, success, warn } from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
@@ -45,12 +50,13 @@ import {
   mergeSettingsWithMcpPreservation,
   removeManagedMcpServers,
 } from "./lib/mcp.ts";
-import { ensurePythonPackage, ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
+import { ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
 import { CLAUDE_DIR, getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
 import { printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
+import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
 const VERSION = "11.30.3"; // sync with Claude Code v2.1.195: track CLAUDE_CODE_DISABLE_MOUSE_CLICKS env var in manifest + docs; hyphenated hook-matcher exact-match fix verified-safe (no hyphenated matchers); no schema/wiring changes
@@ -417,6 +423,7 @@ async function installSettings(
   source: string,
   interactive: boolean,
   profile: Profile,
+  engine: EngineDescriptor,
 ): Promise<void> {
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
   // Compose team settings from config/ fragments (always the full baseline).
@@ -459,7 +466,18 @@ async function installSettings(
   // settings.json, then install the team MCP block into ~/.claude.json. The
   // MCP block was validated exactly once — by composeSettings, whose Settings
   // schema types mcpServers with the McpServers schema.
-  const teamMcp = (fullComposed.mcpServers ?? {}) as McpServers;
+  //
+  // Clone before mutating: the settings.json merger below reads fullComposed,
+  // so the static `tldr` fragment must survive there unchanged. Only the
+  // ~/.claude.json copy gets the resolved engine's command/args/instructions —
+  // this is the single point where the engine swaps in behind the "tldr" name.
+  const teamMcp = structuredClone(fullComposed.mcpServers ?? {}) as McpServers;
+  const tldrEntry = teamMcp.tldr as McpStdioServer | undefined;
+  if (tldrEntry) {
+    tldrEntry.command = engine.mcp.command;
+    tldrEntry.args = engine.mcp.args;
+    tldrEntry.serverInstructions = engine.serverInstructions;
+  }
   const accounting = await mergeSettingsWithMcpPreservation(
     userSettingsPath,
     fullComposed,
@@ -505,14 +523,14 @@ async function fingerprintSettingsHooks(settings: unknown): Promise<void> {
 
 // --- Dependencies --------------------------------------------------------
 
-async function installDependencies(profile: Profile): Promise<void> {
+async function installDependencies(profile: Profile, engine: EngineDescriptor): Promise<void> {
   // CC_SKIP_DEPS=1 — used by E2E tests to avoid touching system-wide install
   // locations (npm global, pipx, etc.) when running setup.sh against a tmp
   // HOME. Setting HOME to tmpdir doesn't isolate `npm i -g` writes.
   if (process.env.CC_SKIP_DEPS === "1") return;
 
   // Light is raw Claude Code + statusLine (pure Bun) + share-learning skill.
-  // No hooks require jq, pipx, or llm-tldr — skip all system deps.
+  // No hooks require jq, pipx, or a code-intel engine — skip all system deps.
   if (profile === "light") return;
 
   if (!hasCommand("jq")) {
@@ -520,13 +538,27 @@ async function installDependencies(profile: Profile): Promise<void> {
     if (!ok) warn(`Install jq manually: ${getInstallHint("jq")}`);
   }
 
-  if (!hasCommand("pipx")) await ensureSystemPackage("pipx").catch(() => false);
-  if (!hasCommand("tldr") && !hasCommand("tldr-mcp")) {
-    await ensurePythonPackage("llm-tldr", "tldr").catch(() => false);
+  // pipx is a prerequisite only for a python-method engine (the llm-tldr shape).
+  // A native-ts or download engine needs no Python toolchain.
+  if (engine.install.method === "python" && !hasCommand("pipx")) {
+    await ensureSystemPackage("pipx").catch(() => false);
+  }
+
+  // Provision the resolved engine: python package, pinned binary, or nothing.
+  // Fail-soft — a provisioning error (e.g. an offline pinned-binary fetch) must
+  // not abort the install; the engine simply stays unprovisioned.
+  try {
+    await ensureEngineInstalled(engine, CLAUDE_DIR);
+  } catch (e) {
+    warn(`code-intel engine '${engine.id}' not provisioned: ${(e as Error).message}`);
   }
 }
 
-async function writeVersionSentinel(sourceDir: string, profile: Profile): Promise<void> {
+async function writeVersionSentinel(
+  sourceDir: string,
+  profile: Profile,
+  engine: EngineDescriptor,
+): Promise<void> {
   const payload = {
     version: VERSION,
     installed_at: new Date().toISOString(),
@@ -535,6 +567,9 @@ async function writeVersionSentinel(sourceDir: string, profile: Profile): Promis
     // the repo and compare the installed version against the packaged one.
     repo_path: sourceDir,
     profile,
+    // Resolved code-intel engine id — read back by resolveEngine() so every
+    // surface (hooks, next install) agrees on which engine backs `tldr`.
+    engine: engine.id,
   };
   await atomicWriteJson(join(CLAUDE_DIR, ".cc-settings-version"), payload);
 }
@@ -557,9 +592,9 @@ async function cmdStatus(sourceDir: string): Promise<number> {
  *   clean before copy; fingerprint after settings write; manifest write for
  *   tamper defense. Do not reorder.
  */
-async function runFullInstall(args: Args): Promise<void> {
+async function runFullInstall(args: Args, engine: EngineDescriptor): Promise<void> {
   info("Installing dependencies...");
-  await installDependencies(args.profile);
+  await installDependencies(args.profile, engine);
   printPreflightReport(checkCliTools());
 
   info("Creating backup...");
@@ -611,6 +646,11 @@ async function main(): Promise<number> {
   // — used to print the version-delta summary at the end of the install.
   const prevInstalledVersion = await readInstalledVersion(CLAUDE_DIR);
 
+  // Resolve the code-intel engine once (env > prior sentinel > default) and
+  // thread it through dependency install, settings, and the sentinel write.
+  // Default is "llm-tldr", so an install with no override is unchanged.
+  const engine = await resolveEngine(CLAUDE_DIR);
+
   // Frontmatter validation — catches typos in agents/*.md and skills/*/SKILL.md
   // before we ship them to ~/.claude/. Non-fatal; warn and continue so a single
   // bad agent doesn't block the rest of the install.
@@ -624,11 +664,11 @@ async function main(): Promise<number> {
     await createBackup();
     await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
   } else {
-    await runFullInstall(args);
+    await runFullInstall(args, engine);
   }
 
   try {
-    await installSettings(args.sourceDir, args.interactive, args.profile);
+    await installSettings(args.sourceDir, args.interactive, args.profile, engine);
   } catch (err) {
     // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
     if (err instanceof JsonParseError) {
@@ -639,7 +679,7 @@ async function main(): Promise<number> {
     throw err;
   }
 
-  await writeVersionSentinel(args.sourceDir, args.profile);
+  await writeVersionSentinel(args.sourceDir, args.profile, engine);
   if (!args.migrateOnly) await showSummary(args.profile);
 
   // Version delta: surface what just landed (prev → current + per-version
