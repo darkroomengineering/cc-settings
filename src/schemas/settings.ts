@@ -64,12 +64,8 @@ export const Sandbox = z.looseObject({
   // process-wide CLAUDE_CODE_SUBPROCESS_ENV_SCRUB scrub.
   credentials: z
     .object({
-      files: z
-        .array(z.object({ path: z.string(), mode: z.enum(["deny"]) }))
-        .optional(),
-      envVars: z
-        .array(z.object({ name: z.string(), mode: z.enum(["deny"]) }))
-        .optional(),
+      files: z.array(z.object({ path: z.string(), mode: z.enum(["deny"]) })).optional(),
+      envVars: z.array(z.object({ name: z.string(), mode: z.enum(["deny"]) })).optional(),
     })
     .optional(),
   bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
