@@ -18,6 +18,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { type EngineDescriptor, resolveEngine } from "../lib/code-intel-engine.ts";
 import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 import { readState, writeState } from "../lib/hook-runtime.ts";
@@ -29,6 +30,11 @@ import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/vers
 
 const PROJECT_DIR = process.cwd();
 const PROJECT_NAME = basename(PROJECT_DIR);
+
+// Resolve the active code-intel engine once (env > sentinel > default). Drives
+// the daemon/warm helpers and the status line below. Default is "llm-tldr", so
+// behavior is unchanged unless CC_CODE_INTEL_ENGINE / the sentinel says otherwise.
+const engine = await resolveEngine(CLAUDE_DIR);
 
 // --- Helpers --------------------------------------------------------------
 
@@ -92,11 +98,14 @@ async function pruneSessionTitles(dir: string, maxAgeDays = 30): Promise<void> {
   );
 }
 
-async function startTldrDaemon(): Promise<void> {
+async function startEngineDaemon(eng: EngineDescriptor): Promise<void> {
   // Daemon keeps indexes in memory: ~100ms queries instead of ~30s CLI spawns.
   // Auto-rebuilds embeddings once the dirty threshold (default 20 files) is hit;
-  // post-edit.ts notifies it on writes.
-  const proc = Bun.spawn(["tldr", "daemon", "start", "--project", "."], {
+  // post-edit.ts notifies it on writes. Only engines that declare a daemon verb
+  // reach here (gated by the caller); guard the verb for the type checker.
+  const daemonVerb = eng.cli.verbMap.daemon;
+  if (!daemonVerb) return;
+  const proc = Bun.spawn([eng.cli.command, daemonVerb, "start", "--project", "."], {
     cwd: PROJECT_DIR,
     stdout: "ignore",
     stderr: "ignore",
@@ -105,8 +114,9 @@ async function startTldrDaemon(): Promise<void> {
   void proc.exited.catch(() => {});
 }
 
-async function autoWarmTldr(): Promise<void> {
-  if (!hasCommand("tldr")) return;
+async function autoWarmEngine(eng: EngineDescriptor): Promise<void> {
+  // Native (and any non-daemon) engine has no index to warm or daemon to start.
+  if (!eng.cli.supportsDaemon || !hasCommand(eng.cli.command)) return;
   const markers = [
     "package.json",
     "Cargo.toml",
@@ -121,7 +131,7 @@ async function autoWarmTldr(): Promise<void> {
   const tldrIndex = join(PROJECT_DIR, ".tldr");
   // Index already exists — skip warming, but still ensure the daemon is up.
   if (existsSync(tldrIndex)) {
-    await startTldrDaemon();
+    await startEngineDaemon(eng);
     return;
   }
 
@@ -130,7 +140,7 @@ async function autoWarmTldr(): Promise<void> {
     const st = await stat(tldrCache);
     const ageSec = (Date.now() - st.mtimeMs) / 1000;
     if (ageSec < 3600) {
-      await startTldrDaemon();
+      await startEngineDaemon(eng);
       return;
     }
   } catch {
@@ -140,9 +150,16 @@ async function autoWarmTldr(): Promise<void> {
   await mkdir(join(CLAUDE_DIR, "tldr-cache"), { recursive: true }).catch(() => {});
   await writeFile(tldrCache, "").catch(() => {});
 
+  // No warm verb declared — start the daemon directly without a warm pass.
+  const warmVerb = eng.cli.verbMap.warm;
+  if (!warmVerb) {
+    await startEngineDaemon(eng);
+    return;
+  }
+
   // Fire and forget — equivalent of `( cd "$PROJECT_DIR" && tldr warm . ) & disown`.
   // Bun.spawn default is detached enough for our purposes; we do not await.
-  const proc = Bun.spawn(["tldr", "warm", "."], {
+  const proc = Bun.spawn([eng.cli.command, warmVerb, "."], {
     cwd: PROJECT_DIR,
     stdout: "ignore",
     stderr: "ignore",
@@ -155,9 +172,9 @@ async function autoWarmTldr(): Promise<void> {
       const ts = localDatetime();
       await appendFile(
         join(CLAUDE_DIR, "sessions.log"),
-        `${ts} - TLDR warmed: ${PROJECT_NAME}\n`,
+        `${ts} - ${eng.id} warmed: ${PROJECT_NAME}\n`,
       ).catch(() => {});
-      await startTldrDaemon();
+      await startEngineDaemon(eng);
     } catch {
       // ignore
     }
@@ -211,9 +228,9 @@ await appendFile(
   `${localDatetime()} - Session started in ${PROJECT_DIR}\n`,
 ).catch(() => {});
 
-// --- Phase 3: fire-and-forget TLDR warming -------------------------------
+// --- Phase 3: fire-and-forget code-intel engine warming ------------------
 
-await autoWarmTldr();
+await autoWarmEngine(engine);
 
 // --- Phase 4: wait for remaining background tasks ------------------------
 
@@ -229,8 +246,12 @@ console.log("Auto-memory: say 'remember X' — saved to ~/.claude/projects/<hash
 // Silent unless $KNOWLEDGE_REPO_PATH points at a non-empty local clone.
 for (const l of await teamKnowledgeAwareness()) console.log(l);
 
-// TLDR status
-if (hasCommand("tldr")) {
+// Code-intel engine status — engine-aware. The native engine has no index to
+// warm; a daemon-backed engine reports index/warming state as before.
+if (engine.id === "native-ts") {
+  console.log("");
+  console.log("Native TS codemap ready (TypeScript/JavaScript)");
+} else if (engine.cli.supportsDaemon && hasCommand(engine.cli.command)) {
   console.log("");
   if (existsSync(join(PROJECT_DIR, ".tldr"))) {
     console.log("TLDR index available for semantic search");
