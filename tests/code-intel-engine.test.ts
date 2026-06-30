@@ -52,9 +52,12 @@ describe("regression: getEngine('llm-tldr') reproduces config/20-mcp.json", () =
 
 describe("finalize", () => {
   test("native-ts points mcp.args at the install's codemap server", () => {
-    const engine = getEngine("native-ts", "/home/u/.claude");
+    const claudeDir = join("/home/u/.claude");
+    const engine = getEngine("native-ts", claudeDir);
     expect(engine.mcp.command).toBe("bun");
-    expect(engine.mcp.args).toEqual(["/home/u/.claude/src/codemap/mcp-server.ts"]);
+    // Build the expected path with join so the assertion holds on Windows too
+    // (nativeMcpServerPath uses path.join → backslashes there).
+    expect(engine.mcp.args).toEqual([join(claudeDir, "src", "codemap", "mcp-server.ts")]);
   });
 });
 
