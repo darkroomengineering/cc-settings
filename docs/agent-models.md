@@ -24,6 +24,8 @@ Routing principle: **explore and execute on the cheaper tiers, decide on the top
 | `explore` | **sonnet** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
 | `deslopper` | **sonnet** | Deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
 
+The `sonnet` tier is now Claude Sonnet 5 — near-Opus quality on coding/agentic work — which reinforces the split above: `tester`, `scaffolder`, `explore`, and `deslopper` stay on Sonnet for fan-out/mechanical work at a fraction of Opus cost, while the judgment-bearing agents (`maestro`, `planner`, `oracle`, `reviewer`, `implementer`, `security-reviewer`) stay on Opus for the decision.
+
 Override per-invocation when a specific task warrants it: bump a cheap agent up — `Agent(explore, "...", model: "opus")` for a hard investigation — or drop a decision agent down for a trivial pass. The table is the default, not a ceiling.
 
 **Agent Teams teammates** route separately from the table above: the `CLAUDE_CODE_SUBAGENT_MODEL` env var (in `config/10-core.json`, upstream v2.1.147) picks the model for teammate subprocesses spawned under `teammateMode: "auto"` — independent of both the per-agent table and the main session's pinned model. Set to **`sonnet`** (the steady state): the session and the deep-reasoning agents stay on the top tier while wide teammate fan-out — which re-reads the repo per teammate — drops to Sonnet for cost.

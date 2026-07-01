@@ -49,7 +49,7 @@ Environment variables injected into every Claude Code session.
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings uses `xhigh` — Anthropic's recommended setting for coding and agentic workflows on Opus 4.7/4.8. On 4.8 the model default is `high`; this env var overrides it ([model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)) |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings uses `xhigh` — Anthropic's recommended setting for coding and agentic workflows on Opus 4.7/4.8. On 4.8 the model default is `high`; this env var overrides it ([model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)). Sonnet 5 is the first Sonnet tier to support the full `low`→`xhigh` range (previous Sonnet releases capped below `xhigh`) — Sonnet subagents can now take `xhigh` for hard fan-out work |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
@@ -83,7 +83,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_ENABLE_AUTO_MODE` | `"1"` or unset | Opt in to auto mode on Bedrock, Vertex, and Foundry for Opus 4.7/4.8 (native on the first-party API) (v2.1.158) |
 | `CLAUDE_CODE_SHELL_PREFIX` | shell prefix string | Custom shell prefix for MCP stdio server launches; overrides the default shell used to spawn stdio MCP processes (v2.1.128) |
 | `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` | duration (ms) | Idle timeout for remote MCP tool calls; calls that go idle abort with an error instead of hanging (previously stuck for ~5 min) (v2.1.187) |
-| `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet` (v2.1.147) |
+| `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet`, which now resolves to Claude Sonnet 5 (v2.1.147) |
 | `CLAUDE_CODE_TMPDIR` | directory path | Overrides the temp directory used for Unix sockets and scratch files; set it shallow to avoid `EADDRINUSE` from over-long socket paths (v2.1.161) |
 | `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157) |
 | `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` | `"1"` or unset | Hide Anthropic's bundled skills, workflows, and built-in slash commands from the model. Env counterpart of the `disableBundledSkills` setting (v2.1.169) |
@@ -112,7 +112,7 @@ Default model for all sessions.
 |-------|-------|-------|
 | `fable` | Claude Fable 5 | **⚠ SUSPENDED 2026-06-12** (export-control directive; disabled for all customers, no restoration date — [details](https://www.anthropic.com/news/fable-mythos-access)). Still a valid alias for when access returns. Top tier, above Opus — agentic/SWE-tuned. 1M context (native; no `[1m]` pin needed). ~2× Opus token cost ($10/$50 per Mtok). First-party API / claude.ai Max. |
 | `opus` / `opus[1m]` | Claude Opus 4.8 | **cc-settings default (interim, while Fable is suspended): `opus[1m]`.** `opus` resolves to Claude Opus 4.8 on Anthropic API / claude.ai Max. Full capability, adaptive thinking. Not 1M-native — use the `[1m]` pin to force the 1M window. Requires Claude Code v2.1.154+ |
-| `sonnet` | Claude Sonnet 4.6 | Faster, lower cost. 1M context on Max |
+| `sonnet` | Claude Sonnet 5 | Near-Opus quality on coding/agentic work at a fraction of Opus cost. 1M context native (no `[1m]` pin needed) |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 
 > **Provider notes**: On Claude Platform on AWS, `opus` resolves to Opus 4.7. On Bedrock, Vertex, and Foundry, `opus` resolves to Opus 4.6 — pin `claude-opus-4-8` explicitly via `ANTHROPIC_DEFAULT_OPUS_MODEL` to get the latest model on those providers.
@@ -259,7 +259,7 @@ Maps model picker entries to custom provider model IDs (e.g., Bedrock ARNs, Vert
 {
   "modelOverrides": {
     "opus": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-opus-4-8",
-    "sonnet": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-sonnet-4-6"
+    "sonnet": "arn:aws:bedrock:us-west-2:...:foundation-model/anthropic.claude-sonnet-5"
   }
 }
 ```

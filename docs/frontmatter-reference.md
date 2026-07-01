@@ -82,7 +82,7 @@ color: purple
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | sonnet | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
+| `implementer` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
 | `maestro` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
 | `reviewer` | opus | project | Read, Grep, Glob, LS, Bash | yellow |
 | `planner` | opus | project | Read, Grep, Glob, LS | blue |

@@ -103,8 +103,10 @@ Degradation is not gradual — it follows a step function. Place critical inform
 | Model | Noticeable degradation | Severe degradation |
 |-------|------------------------|--------------------|
 | Claude Opus 4.8 | ~100K tokens | ~180K tokens |
-| Claude Sonnet 4.6 | ~80K tokens | ~150K tokens |
+| Claude Sonnet 5 | ~80K tokens | ~150K tokens |
 | Claude Haiku 4.5 | ~50K tokens | ~90K tokens |
+
+Sonnet 5's tokenizer is ~30% heavier than Sonnet 4.6's, so it reaches these thresholds on noticeably less actual text — the token counts above are unchanged, but the same conversation fills them faster.
 
 **Key patterns:**
 - **Lost-in-middle** — information in the center gets less attention
