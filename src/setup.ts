@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.30.3"; // sync with Claude Code v2.1.195: track CLAUDE_CODE_DISABLE_MOUSE_CLICKS env var in manifest + docs; hyphenated hook-matcher exact-match fix verified-safe (no hyphenated matchers); no schema/wiring changes
+const VERSION = "11.30.4"; // sync with Claude Code v2.1.197: track CLAUDE_ENABLE_STREAM_WATCHDOG env var (stream idle watchdog, on by default) in manifest + docs; Sonnet 5 default already covered by 4c1acff; rest of 2.1.196–197 bug-fix/UI churn; no schema/wiring changes
 
 // --- Arg parsing ---------------------------------------------------------
 

@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.30.4] — 2026-07-01
+
+Sync with Claude Code v2.1.197 (spans v2.1.196–197). Tracks one new environment variable in the manifest and docs; no schema, hook, or wiring changes.
+
+**Adopted:**
+- `CLAUDE_ENABLE_STREAM_WATCHDOG` (v2.1.196) — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. The streaming idle watchdog is now **on by default for all providers**: it aborts and retries a response stream that produces no events for 5 minutes. Set `=0` to disable. Distinct from the already-tracked `CLAUDE_CODE_RETRY_WATCHDOG` (retry cap, not stream idleness); relevant to cc-settings' unattended-session and `/loop` guidance. Manifest-tracked only (env vars affecting CC itself are not part of the settings.json zod schema).
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- Claude Sonnet 5 becoming the default model in Claude Code with a native 1M context and promotional $2/$10-per-Mtok pricing through Aug 31 (v2.1.197) is **already reflected** — commit `4c1acff` landed the Sonnet 5 launch across the model docs. The promo pricing is transient (expires 2026-08-31) and deliberately not encoded. cc-settings pins its own default (`opus[1m]`), so the upstream default change has no effect on this install.
+- `/code-review` merging five cleanup finders into one (~25% token cut, v2.1.196) touches native command internals; cc-settings documents no finder count, so nothing to update.
+- The MCP `list`/`get` hardening (no longer spawns `.mcp.json` servers a repo self-approved via committed `.claude/settings.json`; untrusted workspaces show `⏸ Pending approval`, v2.1.196) is a native security fix that complements — but requires no change to — cc-settings' supply-chain hook defense.
+- Remaining v2.1.196 entries are bug fixes and UX/runtime tweaks (background-session/agent resilience, `/deep-research` verifier-status labeling, MCP OAuth scope negotiation, `/context` on Bedrock, PowerShell git exit-1 parity, voice dictation, rewind-menu regression, agents-view navigation, per-frame render) — none touch cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [11.30.3] — 2026-06-29
 
 Sync with Claude Code v2.1.195 (v2.1.194 shipped with no changelog entries). Tracks one new environment variable in the manifest and docs; no schema, hook, or wiring changes.

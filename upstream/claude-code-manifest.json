@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-06-29T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.195",
+  "lastScan": "2026-07-01T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.197",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -187,6 +187,7 @@
     "CLAUDE_CODE_TMPDIR",
     "CLAUDE_CODE_USE_POWERSHELL_TOOL",
     "CLAUDE_EFFORT",
+    "CLAUDE_ENABLE_STREAM_WATCHDOG",
     "DISABLE_UPDATES",
     "ENABLE_PROMPT_CACHING_1H",
     "ENABLE_TOOL_SEARCH",
