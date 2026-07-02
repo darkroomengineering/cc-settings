@@ -18,7 +18,7 @@
 	"sandbox": {
 		"failIfUnavailable": false
 	},
-	"model": "opus[1m]",
+	"model": "fable",
 	"fastModePerSessionOptIn": true,
 	"showThinkingSummaries": true,
 	"teammateMode": "auto",
