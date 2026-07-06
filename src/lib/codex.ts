@@ -126,8 +126,10 @@ export interface CodexRunResult {
 /** PATH presence + `codex login status` exit code. `login status` only reads
  *  cached credentials (no network model call), so this is free to run often.
  *  Spawned directly (not via runProcessFull) so the call can be bounded — a hung
- *  CLI must not stall the preflight gate. Timeout/spawn error → fail open as
- *  unauthenticated (continue Claude-only), never throw into the hot path. */
+ *  CLI must not stall the preflight gate. A timeout kill → "unknown" (distinct
+ *  from "unauthenticated" — a hung status check is not a positive logged-out
+ *  signal). A synchronous spawn error → fail open as unauthenticated (continue
+ *  Claude-only), never throw into the hot path. */
 export async function checkCodexAvailability(): Promise<LiveAvailability> {
   if (!hasCommand("codex")) return "not-installed";
   try {
@@ -139,11 +141,16 @@ export async function checkCodexAvailability(): Promise<LiveAvailability> {
     const stderr = await new Response(proc.stderr).text();
     const exit = await proc.exited; // on timeout Bun kills the process → non-zero
     if (exit === 0) return "available";
+    // A timeout kill is surfaced via proc.signalCode (Bun sets it when it kills
+    // the process for exceeding `timeout`). That is NOT a "not logged in"
+    // signal — classify it as "unknown" (inconclusive, let L2 decide) rather
+    // than "unauthenticated", which would wrongly tell the user to `codex login`
+    // when the real problem was a hung/slow status check.
+    if (proc.signalCode !== null) return "unknown";
     // Non-zero: a positive "not logged in" signal blocks L2 (re-login fixes it).
     // But CLI version drift, an unrecognized subcommand, or a keychain error must
     // NOT be misread as "unauthenticated" — that would block L2 forever. Classify
-    // those as "unknown" so the real exec probe can decide. Empty/unrecognized
-    // output (includes a killed-on-timeout spawn) stays conservative → block fast.
+    // those as "unknown" so the real exec probe can decide.
     const s = stderr.toLowerCase();
     if (
       /not logged in|logged out|run .*codex login|no credentials|please (?:log|sign)[ -]?in|not authenticated|unauthenticated/.test(

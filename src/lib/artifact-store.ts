@@ -9,7 +9,7 @@
 // (missing dirs list as empty, missing links read as "").
 
 import { existsSync } from "node:fs";
-import { readdir, readlink, symlink, unlink } from "node:fs/promises";
+import { readdir, readlink, rename, rm, symlink } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { pad } from "./platform.ts";
 
@@ -27,8 +27,10 @@ export function timestampId(prefix: string, sep: string, d: Date = new Date()): 
 
 /**
  * Point `<dir>/<linkName>` at `targetFile` (a relative symlink to its
- * basename). Replaces an existing link; the unlink failure on first run is
- * swallowed.
+ * basename). Atomic: builds the new symlink at a temp name in the same dir,
+ * then renames it over `linkName` — a POSIX rename() is an atomic replace, so
+ * a concurrent reader never observes a transient "no latest" state (the old
+ * unlink-then-symlink dance had exactly that gap).
  */
 export async function pointLatest(
   dir: string,
@@ -36,8 +38,14 @@ export async function pointLatest(
   linkName: string,
 ): Promise<void> {
   const link = join(dir, linkName);
-  await unlink(link).catch(() => {});
-  await symlink(basename(targetFile), link);
+  const tmpLink = join(dir, `.${linkName}.${process.pid}-${Date.now()}.tmp`);
+  try {
+    await symlink(basename(targetFile), tmpLink);
+    await rename(tmpLink, link);
+  } catch (err) {
+    await rm(tmpLink, { force: true }).catch(() => {});
+    throw err;
+  }
 }
 
 /**

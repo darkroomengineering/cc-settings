@@ -17,7 +17,7 @@
 //   --help, -h         Usage.
 
 import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, rm } from "node:fs/promises";
+import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
@@ -281,6 +281,31 @@ async function createDirectories(): Promise<void> {
   await Promise.all(dirs.map((d) => mkdir(join(CLAUDE_DIR, d), { recursive: true })));
 }
 
+// Best-effort sweep of stale atomicWriteString/pointLatest staging files
+// (`.<pid>-<epoch-ms>.tmp` / `.<linkName>.<pid>-<epoch-ms>.tmp`) that survive a
+// hard kill between the staging write/symlink and the rename. Nothing else
+// sweeps these, so they'd otherwise accumulate forever; only entries older
+// than maxAgeMs are removed so an in-flight write from a concurrent process
+// is never touched.
+async function sweepStaleTmpFiles(dir: string, maxAgeMs: number): Promise<void> {
+  if (!existsSync(dir)) return;
+  const entries = await readdir(dir).catch(() => []);
+  const now = Date.now();
+  await Promise.all(
+    entries
+      .filter((e) => /^\..*\.tmp$/.test(e))
+      .map(async (e) => {
+        const full = join(dir, e);
+        try {
+          const st = await stat(full);
+          if (now - st.mtimeMs > maxAgeMs) await rm(full, { force: true });
+        } catch {
+          // vanished between readdir and stat, or a permissions blip — ignore
+        }
+      }),
+  );
+}
+
 async function cleanOldConfig(): Promise<void> {
   const removeGlob = async (dir: string, pattern: RegExp) => {
     const full = join(CLAUDE_DIR, dir);
@@ -320,6 +345,8 @@ async function cleanOldConfig(): Promise<void> {
       rm(join(CLAUDE_DIR, "skills", s), { recursive: true, force: true }),
     ),
     ...junkFiles.map((junk) => rm(join(CLAUDE_DIR, junk), { force: true }).catch(() => {})),
+    // Stale atomic-write staging files older than 1 day — see sweepStaleTmpFiles.
+    sweepStaleTmpFiles(CLAUDE_DIR, 24 * 60 * 60 * 1000),
   ]);
 }
 

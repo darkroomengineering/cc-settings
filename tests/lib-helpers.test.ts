@@ -1,10 +1,14 @@
 // Unit tests for the small shared libs: platform, packages, json-io.
 // (The MCP merge integration tests live in tests/mcp.test.ts.)
 
-import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { mkdtemp, readdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pointLatest } from "../src/lib/artifact-store.ts";
+import { getClaudeMdMonitor } from "../src/lib/hook-config.ts";
+import { isUnsafeTarEntry } from "../src/lib/install-cmds.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "../src/lib/json-io.ts";
 import { getInstallHint } from "../src/lib/packages.ts";
 import { getTimestamp, hasCommand, os } from "../src/lib/platform.ts";
@@ -78,6 +82,94 @@ describe("json-io — atomic IO", () => {
       }
       expect(caught).toBeDefined();
       expect(caught).not.toBeInstanceOf(JsonParseError);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("hook-config — falsy-zero regression", () => {
+  const ENV_KEYS = ["CC_CLAUDE_MD_WARN_LINES", "CC_CLAUDE_MD_CRITICAL_LINES"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  test("CC_CLAUDE_MD_WARN_LINES='0' is honored as 0, not the 400 default", async () => {
+    // A `parseInt(...) || fallback` bug would read explicit "0" as falsy and
+    // silently revive the 400 default.
+    saved.CC_CLAUDE_MD_WARN_LINES = process.env.CC_CLAUDE_MD_WARN_LINES;
+    process.env.CC_CLAUDE_MD_WARN_LINES = "0";
+    const { warnLines } = await getClaudeMdMonitor();
+    expect(warnLines).toBe(0);
+  });
+
+  test("CC_CLAUDE_MD_CRITICAL_LINES unset still falls back to the 600 default", async () => {
+    saved.CC_CLAUDE_MD_CRITICAL_LINES = process.env.CC_CLAUDE_MD_CRITICAL_LINES;
+    delete process.env.CC_CLAUDE_MD_CRITICAL_LINES;
+    const { criticalLines } = await getClaudeMdMonitor();
+    expect(criticalLines).toBe(600);
+  });
+
+  test("an unparseable value falls back to the default (NaN, not 0)", async () => {
+    saved.CC_CLAUDE_MD_WARN_LINES = process.env.CC_CLAUDE_MD_WARN_LINES;
+    process.env.CC_CLAUDE_MD_WARN_LINES = "not-a-number";
+    const { warnLines } = await getClaudeMdMonitor();
+    expect(warnLines).toBe(400);
+  });
+});
+
+describe("install-cmds — isUnsafeTarEntry (path-traversal guard)", () => {
+  test("absolute path entries are unsafe", () => {
+    expect(isUnsafeTarEntry("/etc/passwd")).toBe(true);
+  });
+
+  test("'..' path segments are unsafe", () => {
+    expect(isUnsafeTarEntry("../../etc/passwd")).toBe(true);
+    expect(isUnsafeTarEntry(".claude/../../etc/passwd")).toBe(true);
+  });
+
+  test("ordinary relative archive entries are safe", () => {
+    expect(isUnsafeTarEntry(".claude/settings.json")).toBe(false);
+    expect(isUnsafeTarEntry(".claude.json")).toBe(false);
+    expect(isUnsafeTarEntry("settings.json")).toBe(false);
+  });
+
+  test("a filename that merely contains '..' as a substring (not a segment) is safe", () => {
+    expect(isUnsafeTarEntry(".claude/weird..name.json")).toBe(false);
+  });
+});
+
+describe("artifact-store — pointLatest atomicity", () => {
+  test("creates a symlink pointing at the target's basename", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-artifact-pl-"));
+    try {
+      const target = join(sandbox, "chk-1.json");
+      await writeFile(target, "{}");
+      await pointLatest(sandbox, target, "latest");
+      expect(await readlink(join(sandbox, "latest"))).toBe("chk-1.json");
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("repointing an existing link leaves no leftover .tmp staging file", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-artifact-pl-"));
+    try {
+      const t1 = join(sandbox, "chk-1.json");
+      const t2 = join(sandbox, "chk-2.json");
+      await writeFile(t1, "{}");
+      await writeFile(t2, "{}");
+      await pointLatest(sandbox, t1, "latest");
+      await pointLatest(sandbox, t2, "latest"); // repoint — exercises the rename-over-existing-link path
+      expect(await readlink(join(sandbox, "latest"))).toBe("chk-2.json");
+      const entries = await readdir(sandbox);
+      expect(entries.filter((e) => e.endsWith(".tmp"))).toEqual([]);
+      expect(existsSync(join(sandbox, "latest"))).toBe(true);
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }

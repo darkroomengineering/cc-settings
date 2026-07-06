@@ -5,7 +5,7 @@
 // All writes are atomic (tmp + rename in the same directory) so a crash never
 // leaves a half-written target.
 
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 /** Raised when JSON is unparseable. Callers MUST treat this as a hard failure. */
@@ -20,12 +20,21 @@ export class JsonParseError extends Error {
   }
 }
 
-/** Stage + rename in the same directory so crashes don't leave a half-written target. */
+/** Stage + rename in the same directory so crashes don't leave a half-written
+ *  target. If the staging write or the rename itself fails, best-effort unlink
+ *  the tmp file before rethrowing so a failure here doesn't leak it — the
+ *  remaining leak surface (a hard process kill between writeFile and rename)
+ *  is swept later by cleanOldConfig's stale-tmp sweep. */
 export async function atomicWriteString(path: string, content: string): Promise<void> {
   const dir = dirname(path);
   const tmp = join(dir, `.${process.pid}-${Date.now()}.tmp`);
-  await writeFile(tmp, content);
-  await rename(tmp, path);
+  try {
+    await writeFile(tmp, content);
+    await rename(tmp, path);
+  } catch (err) {
+    await rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
 }
 
 /** atomicWriteString helper that JSON-serializes (2-space indent, trailing newline). */

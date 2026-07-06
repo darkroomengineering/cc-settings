@@ -28,7 +28,7 @@ import type { EngineDescriptor } from "./code-intel-engine.ts";
 import { progressWarn } from "./colors.ts";
 import { hashFileOrNull } from "./hooks-fingerprint.ts";
 import { atomicWriteJson } from "./json-io.ts";
-import { CLAUDE_DIR } from "./platform.ts";
+import { arch, CLAUDE_DIR, platform } from "./platform.ts";
 
 // Mirrors hooks-fingerprint.ts:stripControl — the pin record is the file the
 // supply-chain threat model lets an attacker rewrite, and its fields are echoed
@@ -66,7 +66,7 @@ export interface PinRecord {
 /** Platform discriminator for checksum lookup — matches the keys an engine
  *  descriptor pins its per-platform checksums under. */
 export function platformKey(): string {
-  return `${process.platform}-${process.arch}`;
+  return `${platform}-${arch}`;
 }
 
 /** Where a downloaded engine binary is installed:
@@ -89,9 +89,9 @@ function expandUrl(url: string, version: string): string {
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token, not a JS template
       .replaceAll("${version}", version)
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token, not a JS template
-      .replaceAll("${platform}", process.platform)
+      .replaceAll("${platform}", platform)
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token, not a JS template
-      .replaceAll("${arch}", process.arch)
+      .replaceAll("${arch}", arch)
   );
 }
 

@@ -185,7 +185,10 @@ async function cmdRestore(target: string): Promise<number> {
 }
 
 async function cmdClean(keepStr: string): Promise<void> {
-  const keep = Number.parseInt(keepStr, 10) || 10;
+  // `|| 10` would misread an explicit "0" (delete all checkpoints) as unset,
+  // silently reviving the default of 10. Only NaN (unparseable) falls back.
+  const parsedKeep = Number.parseInt(keepStr, 10);
+  const keep = Number.isNaN(parsedKeep) ? 10 : parsedKeep;
   const project = await getProjectName();
   const checkpointDir = claudePath("checkpoints", project);
   await ensureDir(checkpointDir);

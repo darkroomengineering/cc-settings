@@ -39,6 +39,14 @@ export function isWindows(): boolean {
   return os === "windows";
 }
 
+// Raw Node platform/arch triple (e.g. "darwin"/"arm64") — distinct from the
+// `OS` enum above (which normalizes "darwin" → "macos" etc). Callers that need
+// the literal Node strings (checksum-key lookups, download-URL templating)
+// import these instead of reaching for process.platform/process.arch
+// directly, preserving the "no process.platform outside this module" invariant.
+export const platform: NodeJS.Platform = process.platform;
+export const arch: string = process.arch;
+
 // Zero-pad a number to two characters. Shared across timestamp / date / time
 // formatters that need stable filename-safe output.
 export function pad(n: number): string {
