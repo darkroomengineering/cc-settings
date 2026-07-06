@@ -1,6 +1,6 @@
 ---
 name: reviewer
-model: opus[1m]
+model: sonnet
 memory: project
 description: |
   Code review and quality assurance. Checks against Darkroom standards.

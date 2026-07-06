@@ -64,6 +64,8 @@ The OpenAI Codex CLI runs as a second model alongside Claude via the `/codex` sk
 
 Two roomy pools (Sonnet + Codex) carry volume; the one scarce pool (Opus) does the thinking. If a Codex window drains, fail over to Claude-only rather than stalling.
 
+**Automated steering** — the statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json`, and the `quota-steer` hook injects routing guidance into the session when usage crosses thresholds (5h ≥ 60% / weekly ≥ 65%): route bulk work to Codex when the bridge is available, downshift subagents to Sonnet when it isn't. The prose above is the policy; the hook is the enforcement nudge.
+
 ---
 
 ## Effort & Context
