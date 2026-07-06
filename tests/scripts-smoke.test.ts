@@ -521,6 +521,9 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
     git(["init", "-q"]);
     git(["config", "user.email", "test@example.com"]);
     git(["config", "user.name", "Test"]);
+    // Windows runners default core.autocrlf=true, which rewrites the restored
+    // file to CRLF and breaks byte-exact content assertions.
+    git(["config", "core.autocrlf", "false"]);
     writeFileSync(join(dir, "foo.txt"), "original\n");
     git(["add", "."]);
     git(["commit", "-q", "-m", "init"]);
