@@ -188,6 +188,52 @@ describe("TS safety-net — edge cases → ALLOW", () => {
   test("npm install", () => expectAllow("npm install"));
 });
 
+describe("TS safety-net — issue #74 adversarial bypasses", () => {
+  // Bypass 1: newline-joined commands were never split, so the last-token-wins
+  // rm target parser latched onto the SECOND (safe-looking) rm invocation and
+  // let the first `rm -rf /` through.
+  test("rm -rf / \\n rm -rf node_modules (newline join) → BLOCK", () =>
+    expectBlock("rm -rf /\nrm -rf node_modules"));
+  test("rm -rf node_modules alone → ALLOW (neighbor safe)", () =>
+    expectAllow("rm -rf node_modules"));
+
+  // Bypass 2: checkGitDestructive's `cmd.match(/git\s+(.*)/)` has no /g and
+  // `.` doesn't cross newlines — a second `git checkout -- .` on a later line
+  // was invisible to the parser.
+  test("echo hi \\n git checkout -- . (second line) → BLOCK", () =>
+    expectBlock("echo hi\ngit checkout -- ."));
+  test("git checkout my-branch alone → ALLOW (neighbor safe)", () =>
+    expectAllow("git checkout my-branch"));
+
+  // Bypass 3: only the `--` form of checkout was blocked; the equally
+  // destructive bareword form (`git checkout .`) was allowed through.
+  test("git checkout . (bareword, no --) → BLOCK", () => expectBlock("git checkout ."));
+  test("git checkout my-branch (bareword branch) → ALLOW (neighbor safe)", () =>
+    expectAllow("git checkout my-branch"));
+
+  // Bypass 4: naive whitespace tokenizing split a quoted target across
+  // multiple "tokens", so the last-token-wins heuristic picked up a harmless
+  // trailing fragment instead of the real (dangerous) quoted path.
+  test('rm -rf "$HOME/Library/Application Support" (quoted target) → BLOCK', () =>
+    expectBlock('rm -rf "$HOME/Library/Application Support"'));
+  test('rm -rf "temp dir" (quoted relative target) → ALLOW (neighbor safe)', () =>
+    expectAllow('rm -rf "temp dir"'));
+
+  // Bypass 5: force-push detection matched literal `-f`/`--force` only;
+  // bundled short flags like `-uf` (set-upstream + force) rode through.
+  test("git push -uf (bundled force flag) → BLOCK", () => expectBlock("git push -uf"));
+  test("git push -u origin main → ALLOW (neighbor safe)", () =>
+    expectAllow("git push -u origin main"));
+
+  // Bypass 6: interpreter one-liner recursion only extracted a single quoted
+  // string argument (os.system("...")); a list-arg call
+  // (subprocess.run(["rm","-rf","/"])) was never recursed into.
+  test('python3 -c subprocess.run(["rm","-rf","/"]) (list arg) → BLOCK', () =>
+    expectBlock('python3 -c \'subprocess.run(["rm","-rf","/"])\''));
+  test('python3 -c subprocess.run(["ls","-la"]) (list arg, safe) → ALLOW (neighbor safe)', () =>
+    expectAllow('python3 -c \'subprocess.run(["ls","-la"])\''));
+});
+
 describe("TS safety-net — decision protocol", () => {
   test("allow = exit 0", async () => {
     const r = await runSafetyNet("ls");

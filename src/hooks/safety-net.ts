@@ -68,9 +68,42 @@ function block(reason: string, cmd = ""): never {
 
 // --- Rule: rm -rf detection -----------------------------------------------
 
+// Quote-aware tokenizer: groups double/single-quoted spans into a single
+// token (dequoted) instead of splitting on the whitespace inside them, so
+// `rm -rf "$HOME/Library/Application Support"` reads as ONE target token
+// instead of three naive whitespace-split fragments (the last of which would
+// otherwise win via extractRmTarget's last-token heuristic and be misread as
+// a harmless relative path).
+function tokenizeArgs(args: string): string[] {
+  const tokens: string[] = [];
+  let i = 0;
+  const n = args.length;
+  while (i < n) {
+    while (i < n && /\s/.test(args[i] as string)) i++;
+    if (i >= n) break;
+    let tok = "";
+    while (i < n && !/\s/.test(args[i] as string)) {
+      const c = args[i] as string;
+      if (c === '"' || c === "'") {
+        const quote = c;
+        i++;
+        const start = i;
+        while (i < n && args[i] !== quote) i++;
+        tok += args.slice(start, i);
+        if (i < n) i++; // skip closing quote
+      } else {
+        tok += c;
+        i++;
+      }
+    }
+    tokens.push(tok);
+  }
+  return tokens;
+}
+
 function extractRmTarget(args: string): string {
   let result = "";
-  for (const raw of args.split(/\s+/)) {
+  for (const raw of tokenizeArgs(args)) {
     const token = raw.trim();
     if (!token) continue;
     // Short flags (-rf, -r, -f)
@@ -109,13 +142,21 @@ function startsWithHomePath(target: string): boolean {
   return HOME_PATH_PREFIXES.some((p) => target.startsWith(p));
 }
 
-function checkRmRf(cmd: string): void {
-  if (!/(^|\s)rm\s/.test(cmd)) return;
+// Known build-artifact directories that are always safe to rm -rf. Hoisted
+// to module scope since it's identical across every occurrence analyzed.
+const ALLOWED_RM_BASES = new Set([
+  "node_modules",
+  ".next",
+  "dist",
+  ".turbo",
+  "build",
+  ".cache",
+  "__pycache__",
+  ".pytest_cache",
+  "coverage",
+]);
 
-  // Extract everything after 'rm' up to a command separator.
-  const m = cmd.match(/(^|\s)rm\s+([^;&|]+)/);
-  const rmPortion = m ? (m[2] ?? "").trim() : "";
-
+function analyzeRmPortion(rmPortion: string, cmd: string): void {
   // Need to detect recursive + force. The flags may be combined (-rf), split
   // (-r -f), or long (--recursive / --force).
   const hasRecursive =
@@ -143,18 +184,7 @@ function checkRmRf(cmd: string): void {
 
   // ALLOW: known build-artifact directories.
   const base = target.split(/[\\/]/).pop() ?? target;
-  const ALLOWED_BASES = new Set([
-    "node_modules",
-    ".next",
-    "dist",
-    ".turbo",
-    "build",
-    ".cache",
-    "__pycache__",
-    ".pytest_cache",
-    "coverage",
-  ]);
-  if (ALLOWED_BASES.has(base)) return;
+  if (ALLOWED_RM_BASES.has(base)) return;
 
   // ALLOW: absolute paths under PWD.
   const pwd = process.cwd();
@@ -175,6 +205,22 @@ function checkRmRf(cmd: string): void {
   }
 
   block(`rm -rf with unrecognized target path: ${target}`, cmd);
+}
+
+function checkRmRf(cmd: string): void {
+  // Evaluate EVERY 'rm' occurrence in the string, not just the first — a
+  // single-match `cmd.match(...)` latches onto the first invocation and lets
+  // a second `rm -rf /` later in the same (unsplit) string ride along
+  // unchecked. The capture excludes newlines so an embedded `\n` still acts
+  // as a hard stop between two rm invocations even if upstream splitting
+  // missed it.
+  const re = /(^|\s)rm\s+([^;&|\n]+)/g;
+  let m: RegExpExecArray | null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
+  while ((m = re.exec(cmd))) {
+    const rmPortion = (m[2] ?? "").trim();
+    if (rmPortion) analyzeRmPortion(rmPortion, cmd);
+  }
 }
 
 // --- Rule: AI attribution --------------------------------------------------
@@ -229,12 +275,25 @@ function stripGitGlobalOpts(rest: string): string {
   return r;
 }
 
-function checkGitDestructive(cmd: string): void {
-  if (!/(^|\s)git\s/.test(cmd)) return;
+// A bareword `git checkout <target>` argument that looks like a pathspec
+// (rather than a branch/ref name) is just as destructive as the explicit
+// `git checkout -- <target>` form: it silently discards uncommitted changes
+// to that path. Git itself disambiguates branch-vs-path by checking refs, a
+// distinction we can't replicate — so this is a heuristic, not a parser.
+// Accepted false-positive: branch names containing a dot near the end (e.g.
+// `release-1.0`) will be misread as a path and blocked; this trades a rare
+// annoyance for closing the common `git checkout .` / `git checkout <file>`
+// bypass.
+function looksLikePathspec(token: string): boolean {
+  if (token === "." || token === "..") return true;
+  if (token.startsWith("./") || token.startsWith("../") || token.startsWith("/")) return true;
+  if (token.includes("*") || token.includes("?")) return true;
+  const lastSegment = token.includes("/") ? (token.split("/").pop() ?? token) : token;
+  return /\.[a-zA-Z0-9]{1,10}$/.test(lastSegment);
+}
 
-  const m = cmd.match(/git\s+(.*)/);
-  if (!m) return;
-  const afterGlobal = stripGitGlobalOpts((m[1] ?? "").trimStart());
+function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
+  const afterGlobal = stripGitGlobalOpts(afterVerb.trimStart());
   if (!afterGlobal) return;
 
   const [sub = "", ...rest] = afterGlobal.split(/\s+/);
@@ -250,6 +309,13 @@ function checkGitDestructive(cmd: string): void {
       }
       if (subargs.includes("--pathspec-from-file")) {
         block("git checkout --pathspec-from-file discards uncommitted changes", cmd);
+      }
+      // BLOCK: bareword pathspec-looking targets (`git checkout .`,
+      // `git checkout src/file.ts`) — same hazard as the `--` form, just
+      // without the explicit separator.
+      const positional = subargs.split(/\s+/).filter((t) => t && !t.startsWith("-"));
+      if (positional.some((t) => looksLikePathspec(t))) {
+        block("git checkout <path> discards uncommitted changes without --", cmd);
       }
       return;
     }
@@ -282,9 +348,12 @@ function checkGitDestructive(cmd: string): void {
     }
     case "push": {
       if (subargs.includes("--force-with-lease")) return;
-      if (/\s(--force|-f)\s/.test(` ${subargs} `))
+      const padded = ` ${subargs} `;
+      if (/(^|\s)--force(\s|$)/.test(padded))
         block("git push --force can overwrite remote history", cmd);
-      if (/(--force|-f)$/.test(subargs))
+      // Bundled short flags: `-uf`, `-fu`, etc. all include a force flag
+      // even though the literal string "-f" never appears standalone.
+      if (/(^|\s)-[a-zA-Z]*f[a-zA-Z]*(\s|$)/.test(padded))
         block("git push --force can overwrite remote history", cmd);
       return;
     }
@@ -309,6 +378,20 @@ function checkGitDestructive(cmd: string): void {
     }
     default:
       return;
+  }
+}
+
+function checkGitDestructive(cmd: string): void {
+  // Evaluate EVERY 'git' occurrence in the string, not just the first —
+  // `cmd.match(/git\s+(.*)/)` (no /g, and `.` doesn't cross newlines without
+  // /s) only ever inspected the first invocation, letting a second
+  // `git checkout -- .` later in the same string ride along unchecked.
+  const re = /(^|\s)git\s+/g;
+  let m: RegExpExecArray | null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
+  while ((m = re.exec(cmd))) {
+    const afterVerb = cmd.slice(m.index + m[0].length);
+    analyzeGitAfterVerb(afterVerb, cmd);
   }
 }
 
@@ -347,14 +430,40 @@ function unwrapAndAnalyze(cmd: string, depth: number): void {
 
 // --- Rule: interpreter -c/-e with dangerous calls -------------------------
 
+function extractDashCPayload(cmd: string): string | null {
+  const sq = cmd.match(/-[ec]\s+'([^']*)'/);
+  if (sq) return sq[1] ?? null;
+  const dq = cmd.match(/-[ec]\s+"([^"]*)"/);
+  if (dq) return dq[1] ?? null;
+  const unq = cmd.match(/-[ec]\s+([^;&|\n]+)/);
+  if (unq) return unq[1] ?? null;
+  return null;
+}
+
 function checkInterpreterOneliners(cmd: string, depth: number): void {
   if (!/(python3?|node|ruby|perl)\s+-[ec]\s/.test(cmd)) return;
   const dangerous =
     /(os\.system\(|subprocess\.|child_process|execSync\(|system\(|exec\(|popen\(|spawn\()/;
   if (!dangerous.test(cmd)) return;
+  if (depth >= MAX_DEPTH) return;
 
-  const m = cmd.match(/(os\.system|subprocess\.(run|call|Popen)|execSync)\(['"]([^'"]+)['"]/);
-  if (m?.[3] && depth < MAX_DEPTH) analyzeCommand(m[3], depth + 1);
+  const payload = extractDashCPayload(cmd);
+  if (!payload) return;
+
+  // Preferred: extract the literal string argument to the call — covers the
+  // common single-string form: os.system("rm -rf /").
+  const m = payload.match(/(os\.system|subprocess\.(run|call|Popen)|execSync)\(['"]([^'"]+)['"]/);
+  if (m?.[3]) analyzeCommand(m[3], depth + 1);
+
+  // Best-effort: list-arg form, e.g. subprocess.run(["rm","-rf","/"]), where
+  // there's no single quoted string arg to extract. Normalize the call's
+  // punctuation (quotes/brackets/parens/commas) to spaces so the arg list
+  // reads like a shell command line, then recurse the whole payload. This is
+  // a net, not a parser: it will also re-scan payloads already handled above,
+  // which is harmless (checkRmRf/checkGitDestructive are idempotent no-ops on
+  // safe input).
+  const normalized = payload.replace(/["'[\](),]/g, " ");
+  if (normalized !== payload) analyzeCommand(normalized, depth + 1);
 }
 
 // --- Rule: multi-command splitting ---------------------------------------
@@ -375,6 +484,15 @@ function checkInterpreterOneliners(cmd: string, depth: number): void {
 // Splitting on quotes-unaware delimiters is intentional: full-string rules
 // already ran on the intact command, so a mangled segment can only ever cause
 // an additional rm/git match, never miss one.
+//
+// Bare newlines (and the Unicode line/paragraph separators) are treated as
+// command separators too — `rm -rf /\nrm -rf node_modules` is one string with
+// no `;`/`&&`/`||`, but two distinct shell commands. checkRmRf/checkGitDestructive
+// evaluate every occurrence within a segment regardless (defense in depth for
+// paths that reach them without going through this split, e.g. bash -c/-e
+// unwrap), but splitting here keeps segment boundaries as tight as possible.
+// checkAiAttribution intentionally still runs on the UNSPLIT full string
+// (analyzeFullString) since multi-line commit bodies rely on that.
 
 function analyzeFullString(cmd: string): void {
   checkAiAttribution(cmd);
@@ -388,9 +506,14 @@ function analyzeSegment(cmd: string): void {
   checkGitDestructive(cmd);
 }
 
+// Built via new RegExp so \uNNNN escapes stay as explicit codepoints in the
+// source text rather than invisible literal characters (encoding-safe;
+// mirrors src/lib/audit-hooks.ts's COMPOUND_SEP).
+const SEGMENT_SPLIT_RE = /\s*(?:&&|\|\||;|\r?\n|\r|\u2028|\u2029)\s*/;
+
 function splitCommands(cmd: string): void {
   analyzeFullString(cmd);
-  for (const raw of cmd.split(/\s*(?:&&|\|\||;)\s*/)) {
+  for (const raw of cmd.split(SEGMENT_SPLIT_RE)) {
     const seg = raw.trim();
     if (seg) analyzeSegment(seg);
   }
