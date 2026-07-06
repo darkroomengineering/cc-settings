@@ -72,6 +72,12 @@ Two roomy pools (Sonnet + Codex) carry volume. The one scarce pool (Opus) direct
 
 ---
 
+## Automated quota steering
+
+The routing convention above is enforced automatically, not just documented. The statusline writes `~/.claude/tmp/rate-limits.json` on every refresh, tagged with `updated_at` — the hook ignores the cache once it's older than 10 minutes. `src/hooks/quota-steer.ts` (a `UserPromptSubmit` hook) reads that cache, computes a band (normal / elevated / critical, at 60%/85% for the five-hour window and 65%/85% for the weekly window), reads the cached Codex verdict, and injects `additionalContext` steering bulk work to Codex when it's available. At critical it re-reminds every 30 minutes rather than every turn. Like all hooks here, it fails open — a missing or stale cache is silently skipped rather than blocking the prompt.
+
+---
+
 ## Usage
 
 ### `/codex` skill subcommands

@@ -516,11 +516,20 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const dir = mkdtempSync(join(tmpdir(), "cc-checkpoint-repo-"));
-    const git = (args: string[]) =>
-      Bun.spawnSync(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+    const git = (args: string[]) => {
+      const r = Bun.spawnSync(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+      if (r.exitCode !== 0) {
+        throw new Error(
+          `git ${args.join(" ")} failed: ${r.stderr.toString() || r.stdout.toString()}`,
+        );
+      }
+      return r;
+    };
     git(["init", "-q"]);
     git(["config", "user.email", "test@example.com"]);
     git(["config", "user.name", "Test"]);
+    git(["config", "commit.gpgsign", "false"]);
+    git(["config", "core.hooksPath", "/dev/null"]);
     // Windows runners default core.autocrlf=true, which rewrites the restored
     // file to CRLF and breaks byte-exact content assertions.
     git(["config", "core.autocrlf", "false"]);
