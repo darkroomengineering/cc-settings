@@ -76,6 +76,21 @@ type LogLine = { time: string; project: string; cmd: string };
 
 const LINE_RE = /^\[([^\]]*)\]\s+\[([^\]]*)\]\s+(.*)$/;
 
+/**
+ * Reverse log-bash.ts's `escapeForLog`: literal `\n`/`\r`/`\\` become real
+ * newlines/carriage-returns/backslashes again, so classifiers see the full
+ * multi-line command text (not just its first physical line). A single
+ * left-to-right pass avoids the `\\` + `n` ambiguity a two-pass replace would
+ * hit. Old log files that predate this escaping never contain a lone `\` next
+ * to `n`/`r` in a way that matches this pattern in practice, but even if they
+ * did, this only ever adds a newline/backslash to `cmd` — it can't make a
+ * well-formed LINE_RE match fail, so backward compat (`if (!m) continue`)
+ * is unaffected.
+ */
+function unescapeLog(s: string): string {
+  return s.replace(/\\\\|\\n|\\r/g, (m) => (m === "\\\\" ? "\\" : m === "\\n" ? "\n" : "\r"));
+}
+
 function parseLines(files: string[]): LogLine[] {
   const out: LogLine[] = [];
   for (const f of files) {
@@ -83,7 +98,7 @@ function parseLines(files: string[]): LogLine[] {
     for (const raw of readFileSync(f, "utf8").split(/\r?\n/)) {
       const m = raw.match(LINE_RE);
       if (!m) continue;
-      out.push({ time: m[1] ?? "", project: m[2] ?? "", cmd: m[3] ?? "" });
+      out.push({ time: m[1] ?? "", project: m[2] ?? "", cmd: unescapeLog(m[3] ?? "") });
     }
   }
   return out;
