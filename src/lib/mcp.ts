@@ -34,7 +34,7 @@ import { ClaudeJson } from "../schemas/claude-json.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { debug, error, info, success, warn } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
-import { asRecord, subtractByKey } from "./merge-keyed.ts";
+import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 import { type MergeAccounting, type MergeOptions, mergeSettings } from "./settings-merge.ts";
 
@@ -194,8 +194,14 @@ export async function removeManagedMcpServers(
  *   - Servers present in the user's settings but absent from the team config
  *     are "user-only" extras. The user is prompted to keep or drop them
  *     (or CC_WIPE_CUSTOM_MCP=1 drops them silently).
- *   - Kept user-only servers are overlaid onto the team base. Team wins on any
- *     key that exists in both (shared server names use the team definition).
+ *   - Kept user-only servers are overlaid onto the team base.
+ *   - Servers present in BOTH configs: if the user's definition differs from
+ *     the team's (deep-compared), the user's customization wins — same
+ *     "user wins" precedence as installMcpToClaudeJson's `{ ...teamMcp,
+ *     ...currentMcp }`. Identical definitions take the team value as-is (no
+ *     accounting noise; nothing was actually overridden). Without this, a
+ *     user's local tweak to a shared server (e.g. context7 env/args) would be
+ *     silently reverted to the team default on every re-install.
  *
  * @param userServers  McpServers extracted from the user's existing settings.json
  * @param teamServers  McpServers from the composed team config (already validated)
@@ -212,8 +218,29 @@ export async function resolveMcpServers(
   } else {
     debug("No user-only MCP servers");
   }
-  // Team is the base; user-only preserved extras are overlaid.
-  return { ...teamServers, ...preserved };
+
+  // Shared server names (present in both): preserve the user's definition
+  // when it diverges from the team's. Identical definitions are left to the
+  // team spread below (no-op, same value either way).
+  const diverged: string[] = [];
+  const userOverrides: McpServers = {};
+  for (const name of Object.keys(teamServers)) {
+    const userDef = userServers[name];
+    if (userDef === undefined) continue; // not shared — findUserOnlyServers handles it
+    if (canonicalKey(userDef) !== canonicalKey(teamServers[name])) {
+      diverged.push(name);
+      userOverrides[name] = userDef;
+    }
+  }
+  if (diverged.length > 0) {
+    info(
+      `Preserving your customization of ${diverged.length} shared MCP server(s): ${diverged.join(", ")}`,
+    );
+  }
+
+  // Team is the base; user-only preserved extras and diverged user overrides
+  // are overlaid on top (user wins on conflict).
+  return { ...teamServers, ...preserved, ...userOverrides };
 }
 
 /**
