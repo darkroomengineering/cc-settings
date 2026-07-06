@@ -193,25 +193,25 @@ argument-hint: "<skill-name>"
 
 | Skill | Context | Agent | Allowed Tools | Argument Hint |
 |-------|---------|-------|---------------|---------------|
-| `adversarial-audit` | main | -- | -- | -- |
+| `adversarial-audit` | main | -- | -- | `[codebase\|docs\|process]` |
 | `autoresearch` | fork | -- | -- | `<skill-name>` |
 | `build` | fork | -- | -- | -- |
-| `cc` | -- | -- | -- | -- |
-| `checkpoint` | fork | -- | Bash | -- |
-| `codex` | main | -- | -- | -- |
+| `cc` | -- | -- | -- | `[sync\|update]` |
+| `checkpoint` | fork | -- | Bash | `[save\|restore\|list\|clean] [name-or-id]` |
+| `codex` | main | -- | -- | `[exec\|review\|ask] [task]` |
 | `component` | -- | -- | -- | -- |
 | `consolidate` | fork | -- | -- | -- |
 | `context-doc` | -- | -- | -- | -- |
-| `design-tokens` | fork | -- | -- | -- |
+| `design-tokens` | fork | -- | -- | `[generate\|consolidate]` |
 | `dr-init` | -- | -- | -- | `[project-name]` |
 | `explore` | fork | explore | -- | -- |
 | `fix` | fork | -- | -- | -- |
-| `freeze` | main | -- | Bash, AskUserQuestion | -- |
-| `handoff` | fork | -- | -- | -- |
+| `freeze` | main | -- | Bash, AskUserQuestion | `[set\|off\|status] [dir]` |
+| `handoff` | fork | -- | -- | `[save\|resume]` |
 | `hook` | -- | -- | -- | -- |
 | `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
 | `nuclear-review` | main | -- | -- | -- |
-| `oracle` | fork | explore | -- | -- |
+| `oracle` | fork | explore | -- | `[advice\|risks\|compare] [question]` |
 | `orchestrate` | fork | maestro | -- | -- |
 | `plan-ceo-review` | fork | -- | Read, Grep, Glob, Bash, AskUserQuestion | -- |
 | `plan-feature` | fork | planner | -- | -- |

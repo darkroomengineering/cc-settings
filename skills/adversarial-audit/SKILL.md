@@ -1,5 +1,6 @@
 ---
 name: adversarial-audit
+argument-hint: "[codebase|docs|process]"
 description: Adversarial whole-repo audits in three goal-spec modes — hunt defects, drift, and dead ends rather than validate. Triggers "adversarial audit", "fable audit", "audit the codebase", "expectation gaps" (codebase mode - correctness, incoherences, affordance mismatches); "audit the docs", "docs audit", "documentation audit", "doc drift" (docs mode - accuracy vs code, inverted pyramid, doc sizing, diagram backlog); "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" (process mode - empirical journey walking, state-machine map, dead ends, re-run semantics). Sibling to /nuclear-review (maintainability + code-judo deletion) - this skill audits whether the system does what it promises, not whether it should exist.
 context: main
 ---

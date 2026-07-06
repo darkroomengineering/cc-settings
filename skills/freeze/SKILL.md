@@ -1,5 +1,6 @@
 ---
 name: freeze
+argument-hint: "[set|off|status] [dir]"
 description: Lock file edits to one directory for the session — Edit/Write/MultiEdit outside it are blocked, not just warned. Use when debugging to stop accidental edits to unrelated code, or to fence a parallel agent to one module. Triggers "freeze edits", "lock editing scope", "restrict edits to", "only edit this folder", "unfreeze", "lift the freeze".
 context: main
 allowed-tools: [Bash, AskUserQuestion]

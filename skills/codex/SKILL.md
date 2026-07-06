@@ -1,5 +1,6 @@
 ---
 name: codex
+argument-hint: "[exec|review|ask] [task]"
 description: Claude x Codex bridge — delegate mechanical or bulk implementation to the OpenAI Codex CLI, get an independent cross-model review of the current uncommitted diff, or ask Codex a read-only second-opinion question. Triggers "use codex", "have codex do", "have codex review", "have codex check", "codex exec", "second opinion from codex", "cross-check with codex", "delegate to codex", "ask codex". Use when you want a different model family to verify your own diff, parallelize bulk work, or get a fast read-only opinion without spending Claude turns.
 context: main
 ---
