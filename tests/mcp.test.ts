@@ -12,6 +12,44 @@ import {
   mergeSettingsWithMcpPreservation,
   resolveMcpServers,
 } from "../src/lib/mcp.ts";
+import { McpServer } from "../src/schemas/mcp.ts";
+
+describe("McpServer schema — cross-shape guard (issue #83)", () => {
+  test("rejects an entry mixing stdio `command` with http/sse `url`", () => {
+    // Repro: a plausible stdio→http migration typo. Before the guard this
+    // parsed successfully as stdio-only, silently dropping `url`.
+    const r = McpServer.safeParse({ command: "foo", url: "https://x" });
+    expect(r.success).toBe(false);
+  });
+
+  test("still accepts a valid stdio-only entry", () => {
+    const r = McpServer.safeParse({ command: "foo", args: ["--flag"] });
+    expect(r.success).toBe(true);
+  });
+
+  test("still accepts a valid http-only entry", () => {
+    const r = McpServer.safeParse({ type: "http", url: "https://example.com" });
+    expect(r.success).toBe(true);
+  });
+
+  test("still accepts a valid sse-only entry", () => {
+    const r = McpServer.safeParse({ type: "sse", url: "https://example.com/sse" });
+    expect(r.success).toBe(true);
+  });
+
+  test("rejects an entry mixing `command` with `headers`", () => {
+    const r = McpServer.safeParse({ command: "foo", headers: { Authorization: "x" } });
+    expect(r.success).toBe(false);
+  });
+
+  test("still accepts benign unknown fields alongside a valid shape (forward-compat)", () => {
+    // Documentation-only fields already modeled (mcpCommentary) plus a
+    // hypothetical future field should NOT be rejected by the cross-shape
+    // guard — only actual stdio/network key conflicts are rejected.
+    const r = McpServer.safeParse({ command: "foo", _description: "docs", alwaysLoad: true });
+    expect(r.success).toBe(true);
+  });
+});
 
 describe("mcp — user-only detection", () => {
   test("findUserOnlyServers returns names in user but not in team", () => {

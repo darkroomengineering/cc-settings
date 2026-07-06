@@ -84,6 +84,14 @@ describe("SkillRequirement schema", () => {
     const r = SkillRequirement.safeParse({ command: "" });
     expect(r.success).toBe(false);
   });
+
+  test("rejects entry with both `command` and `mcp` (issue #83)", () => {
+    // Repro: before the cross-shape guard, this parsed successfully as
+    // command-only, silently dropping `mcp` — the skill's MCP prerequisite
+    // was never checked.
+    const r = SkillRequirement.safeParse({ command: "foo", mcp: "context7" });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe("SkillFrontmatter accepts requires:", () => {
