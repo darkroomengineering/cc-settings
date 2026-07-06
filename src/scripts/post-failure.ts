@@ -2,12 +2,16 @@
 // PostToolUseFailure hook — log tool failures and warn on repeated failures per session.
 // Port of scripts/post-failure.sh.
 //
-// Fail-open: always exits 0. Reads TOOL_NAME / TOOL_ERROR from env.
-// Per-session failure tally lives at ~/.claude/tmp/tool-failure-counts.
+// Fail-open: always exits 0. Reads TOOL_NAME / TOOL_ERROR from env, session_id
+// from stdin JSON (falls back to CLAUDE_SESSION_ID env — same stdin+env
+// pattern as session-title.ts). The tally file is keyed by session id so
+// concurrent sessions never race on the same read-modify-write counter and a
+// fresh SessionStart never wipes another session's live tally (#85).
+// Per-session failure tally lives at ~/.claude/tmp/tool-failure-counts-<session>.
 
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { readState, writeState } from "../lib/hook-runtime.ts";
+import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 
 const LOG_DIR = claudePath("logs");
@@ -30,8 +34,11 @@ const logLine = `${JSON.stringify({
 })}\n`;
 await appendFile(LOG_FILE, logLine).catch(() => {});
 
-// Per-session tally: counts keyed by tool name.
-const STATE_FILE = "tool-failure-counts";
+// Per-session tally: counts keyed by tool name, file keyed by session id.
+const { session_id: sessionId = "unknown" } = await readHookInput<{ session_id: string }>({
+  session_id: "CLAUDE_SESSION_ID",
+});
+const STATE_FILE = `tool-failure-counts-${sessionId}`;
 const counts = await readState<Record<string, number>>(STATE_FILE, {});
 const currentCount = counts[toolName] ?? 0;
 counts[toolName] = currentCount + 1;

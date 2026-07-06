@@ -271,11 +271,45 @@ describe("post-failure.ts", () => {
     const sandbox = mkdtempSync(join(tmpdir(), "cc-postfail-test-"));
     try {
       const env = { HOME: sandbox, TOOL_NAME: "Grep", TOOL_ERROR: "no such file" };
-      await run("post-failure.ts", { env });
-      await run("post-failure.ts", { env });
-      const r = await run("post-failure.ts", { env });
+      await run("post-failure.ts", { env, stdin: "" });
+      await run("post-failure.ts", { env, stdin: "" });
+      const r = await run("post-failure.ts", { env, stdin: "" });
       expect(r.exit).toBe(0);
       expect(r.stdout).toContain("failed 3 times");
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("tally is session-keyed: a different CLAUDE_SESSION_ID gets its own counter (#85)", async () => {
+    const { mkdtempSync, rmSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-postfail-session-test-"));
+    try {
+      const envA = {
+        HOME: sandbox,
+        TOOL_NAME: "Grep",
+        TOOL_ERROR: "no such file",
+        CLAUDE_SESSION_ID: "session-a",
+      };
+      const envB = { ...envA, CLAUDE_SESSION_ID: "session-b" };
+
+      // Two failures on session-a — not yet at the warn threshold.
+      await run("post-failure.ts", { env: envA, stdin: "" });
+      const secondA = await run("post-failure.ts", { env: envA, stdin: "" });
+      expect(secondA.stdout).not.toContain("failed");
+
+      // session-b's first failure must NOT inherit session-a's count — if the
+      // state file were global (unkeyed), this would already read as the 3rd
+      // failure and emit the warn line.
+      const firstB = await run("post-failure.ts", { env: envB, stdin: "" });
+      expect(firstB.stdout).not.toContain("failed");
+
+      // Separate on-disk state files, one per session.
+      const tmpFiles = readdirSync(join(sandbox, ".claude", "tmp"));
+      expect(tmpFiles).toContain("tool-failure-counts-session-a");
+      expect(tmpFiles).toContain("tool-failure-counts-session-b");
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }
