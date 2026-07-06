@@ -6,9 +6,10 @@
 //   handoff.ts create [--summary "text"]
 //   handoff.ts resume [id]
 //   handoff.ts list
+//   handoff.ts clean [keep]
 
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   listArtifacts,
@@ -188,6 +189,50 @@ async function cmdList(): Promise<void> {
   console.log("------------------------------------");
 }
 
+// Mirrors checkpoint.ts's cmdClean shape, but prunes both the .json and .md
+// artifact per handoff (cleanupHandoffs in session-start.ts already does this
+// on every session start with keep=20 — this is the on-demand equivalent).
+// Falsy-zero guard: `clean 0` must delete everything, so `Number.isNaN` is
+// used instead of `parsed || DEFAULT` (which would treat 0 as "unset").
+const DEFAULT_KEEP = 20;
+
+async function cmdClean(keepStr: string): Promise<void> {
+  const parsed = Number.parseInt(keepStr, 10);
+  const keep = Number.isNaN(parsed) ? DEFAULT_KEEP : parsed;
+
+  await mkdir(HANDOFF_DIR, { recursive: true });
+
+  const stale = async (pattern: RegExp): Promise<string[]> => {
+    const names = await listArtifacts(HANDOFF_DIR, pattern);
+    const entries: Array<{ file: string; mtime: number }> = [];
+    for (const name of names) {
+      const full = join(HANDOFF_DIR, name);
+      try {
+        const st = await stat(full);
+        entries.push({ file: full, mtime: st.mtimeMs });
+      } catch {
+        // ignore
+      }
+    }
+    entries.sort((a, b) => b.mtime - a.mtime);
+    return entries.slice(keep).map((e) => e.file);
+  };
+
+  const [jsonDrop, mdDrop] = await Promise.all([
+    stale(/^handoff_.*\.json$/),
+    stale(/^handoff_.*\.md$/),
+  ]);
+  const toDelete = [...jsonDrop, ...mdDrop];
+
+  if (toDelete.length === 0) {
+    console.log(`Nothing to clean. (keep: ${keep})`);
+    return;
+  }
+  console.log(`Removing ${toDelete.length} old handoff files (keeping ${keep} of each type)...`);
+  await Promise.all(toDelete.map((f) => unlink(f).catch(() => {})));
+  console.log("Done.");
+}
+
 function cmdHelp(): void {
   console.log("");
   console.log("HANDOFF - Session State Management");
@@ -199,6 +244,7 @@ function cmdHelp(): void {
   console.log(`  create [--summary "text"]  Create a new handoff`);
   console.log("  resume [id]                Resume from a handoff (latest if no id)");
   console.log("  list                       List all available handoffs");
+  console.log("  clean [keep]               Remove old handoffs (default: keep 20)");
   console.log("  help                       Show this help");
   console.log("");
   console.log("------------------------------------");
@@ -214,6 +260,9 @@ switch (cmd) {
     break;
   case "list":
     await cmdList();
+    break;
+  case "clean":
+    await cmdClean(args[0] ?? "");
     break;
   case "help":
   case "--help":

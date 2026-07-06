@@ -235,6 +235,15 @@ Loads a specific handoff file.
 ```
 Shows available handoffs.
 
+#### Clean Old Handoffs
+```bash
+bun ~/.claude/src/scripts/handoff.ts clean [keep]
+```
+Removes old handoff files, keeping the most recent `keep` (default: 20) of
+each type (`.json` and `.md`). SessionStart already prunes down to 20
+automatically on every session, so this is only needed for on-demand cleanup
+(e.g. `clean 0` to wipe all handoffs).
+
 ### Workflow
 
 1. **Check GitHub Issue** - Read linked issue for shared project context

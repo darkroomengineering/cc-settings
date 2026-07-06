@@ -248,6 +248,80 @@ describe("claude-audit.ts", () => {
   });
 });
 
+describe("handoff.ts clean", () => {
+  async function seedHandoffs(dir: string, count: number): Promise<void> {
+    const { mkdir, writeFile, utimes } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    await mkdir(dir, { recursive: true });
+    for (let i = 0; i < count; i++) {
+      const id = `2026010${i}_000000`;
+      const jsonFile = join(dir, `handoff_${id}.json`);
+      const mdFile = join(dir, `handoff_${id}.md`);
+      await writeFile(jsonFile, "{}");
+      await writeFile(mdFile, "# handoff");
+      // Stagger mtimes so oldest-first pruning is deterministic.
+      const mtime = new Date(2026, 0, 1 + i);
+      await utimes(jsonFile, mtime, mtime);
+      await utimes(mdFile, mtime, mtime);
+    }
+  }
+
+  test("keep 0 deletes all handoff files (falsy-zero guard)", async () => {
+    const { mkdtempSync, rmSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-handoff-clean-test-"));
+    try {
+      const handoffDir = join(sandbox, ".claude", "handoffs");
+      await seedHandoffs(handoffDir, 3);
+      const r = await run("handoff.ts", { env: { HOME: sandbox }, args: ["clean", "0"] });
+      expect(r.exit).toBe(0);
+      const remaining = readdirSync(handoffDir).filter((f) => f.startsWith("handoff_"));
+      expect(remaining.length).toBe(0);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("keep 1 leaves only the newest handoff pair", async () => {
+    const { mkdtempSync, rmSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-handoff-clean-keep1-"));
+    try {
+      const handoffDir = join(sandbox, ".claude", "handoffs");
+      await seedHandoffs(handoffDir, 3);
+      const r = await run("handoff.ts", { env: { HOME: sandbox }, args: ["clean", "1"] });
+      expect(r.exit).toBe(0);
+      const remaining = readdirSync(handoffDir).filter((f) => f.startsWith("handoff_"));
+      expect(remaining.length).toBe(2); // 1 .json + 1 .md
+      // seedHandoffs ids run 20260100..20260102 (i=0..2); the newest pair by
+      // mtime is 20260102 (mtime Jan 3).
+      expect(remaining.every((f) => f.includes("20260102"))).toBe(true);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("no keep arg defaults to 20, nothing to clean with only 3 files", async () => {
+    const { mkdtempSync, rmSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-handoff-clean-default-"));
+    try {
+      const handoffDir = join(sandbox, ".claude", "handoffs");
+      await seedHandoffs(handoffDir, 3);
+      const r = await run("handoff.ts", { env: { HOME: sandbox }, args: ["clean"] });
+      expect(r.exit).toBe(0);
+      expect(r.stdout).toContain("Nothing to clean");
+      const remaining = readdirSync(handoffDir).filter((f) => f.startsWith("handoff_"));
+      expect(remaining.length).toBe(6); // 3 .json + 3 .md, all kept
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("swarm-log.ts", () => {
   test("complete arg writes '[Swarm] Task completed' line to swarm.log", async () => {
     const { mkdtempSync, rmSync, readFileSync } = await import("node:fs");

@@ -216,6 +216,8 @@ const logRotations = [
   rotateLog(join(CLAUDE_DIR, "hooks.log")),
   rotateLog(join(CLAUDE_DIR, "safety-net.log")),
   rotateLog(join(CLAUDE_DIR, "logs", "tool-failures.log")),
+  rotateLog(join(CLAUDE_DIR, "swarm.log")),
+  rotateLog(join(CLAUDE_DIR, "api-failures.log")),
 ];
 const handoffCleanup = cleanupHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
 const sessionTitlePrune = pruneSessionTitles(join(CLAUDE_DIR, "session-titles"), 30);
