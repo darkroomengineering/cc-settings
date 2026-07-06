@@ -7,10 +7,11 @@ import { mkdtemp, readdir, readFile, readlink, rm, writeFile } from "node:fs/pro
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pointLatest } from "../src/lib/artifact-store.ts";
+import { installHintForPM, RECOMMENDED_TOOLS } from "../src/lib/cli-preflight.ts";
 import { getClaudeMdMonitor } from "../src/lib/hook-config.ts";
 import { isUnsafeTarEntry } from "../src/lib/install-cmds.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "../src/lib/json-io.ts";
-import { getInstallHint } from "../src/lib/packages.ts";
+import { getInstallHint, getInstallHintForPM } from "../src/lib/packages.ts";
 import { getTimestamp, hasCommand, os } from "../src/lib/platform.ts";
 
 describe("platform", () => {
@@ -32,6 +33,53 @@ describe("packages", () => {
   test("getInstallHint returns a platform-appropriate hint", () => {
     const hint = getInstallHint("jq");
     expect(hint).toContain("jq");
+  });
+
+  test("getInstallHintForPM maps each detected system PM to its own command, not a hardcoded apt", () => {
+    expect(getInstallHintForPM("apt", "jq")).toBe("sudo apt install jq");
+    expect(getInstallHintForPM("dnf", "jq")).toBe("sudo dnf install jq");
+    expect(getInstallHintForPM("yum", "jq")).toBe("sudo yum install jq");
+    expect(getInstallHintForPM("pacman", "jq")).toBe("sudo pacman -S jq");
+    expect(getInstallHintForPM("zypper", "jq")).toBe("sudo zypper install jq");
+    expect(getInstallHintForPM("apk", "jq")).toBe("sudo apk add jq");
+    expect(getInstallHintForPM("brew", "jq")).toBe("brew install jq");
+  });
+
+  test("getInstallHintForPM falls back to an OS-based hint when no system PM was detected", () => {
+    expect(getInstallHintForPM(null, "jq")).toContain("jq");
+  });
+});
+
+describe("cli-preflight", () => {
+  const fd = RECOMMENDED_TOOLS.find((t) => t.name === "fd");
+  if (!fd) throw new Error("expected 'fd' in RECOMMENDED_TOOLS for this test");
+
+  test("installHintForPM picks the per-manager package name override (fd vs fd-find)", () => {
+    expect(installHintForPM(fd, "apt", "linux")).toBe("apt install fd-find");
+    expect(installHintForPM(fd, "dnf", "linux")).toBe("dnf install fd-find");
+    expect(installHintForPM(fd, "pacman", "linux")).toBe("pacman -S fd");
+    expect(installHintForPM(fd, "apk", "linux")).toBe("apk add fd");
+  });
+
+  test("installHintForPM never returns the apt hint on a non-apt Linux system PM", () => {
+    for (const tool of RECOMMENDED_TOOLS) {
+      const hint = installHintForPM(tool, "dnf", "linux");
+      expect(hint).not.toBe(tool.install.apt);
+    }
+  });
+
+  test("installHintForPM prefers brew on macOS regardless of a detected system PM", () => {
+    expect(installHintForPM(fd, "dnf", "macos")).toBe(fd.install.brew ?? "");
+  });
+
+  test("installHintForPM prefers winget on windows regardless of a detected system PM", () => {
+    expect(installHintForPM(fd, "dnf", "windows")).toBe(fd.install.winget ?? "");
+  });
+
+  test("installHintForPM falls back to apt when the detected PM has no explicit entry", () => {
+    // `port` (macOS MacPorts) has no Linux mapping in the CliTool.install shape;
+    // simulate an unmapped PM value reaching the Linux branch.
+    expect(installHintForPM(fd, "port", "linux")).toBe(fd.install.apt ?? "");
   });
 });
 

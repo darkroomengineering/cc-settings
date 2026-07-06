@@ -17,10 +17,20 @@ export interface TscOptions {
   pretty?: boolean;
 }
 
+// A cold `bunx` fetch (offline registry) or a pathological tsconfig (huge
+// project, circular references) can hang indefinitely. Both callers
+// (pre-commit gate + post-edit diagnostic) await this synchronously, so an
+// unbounded spawn freezes every commit / edit. Generous because a large
+// monorepo's tsc run can legitimately take a while.
+const TSC_TIMEOUT_MS = 120_000;
+
 /**
  * Run `bunx tsc --noEmit` (optionally `--pretty`) and return the combined
  * output plus exit code. Throws on spawn failure — callers keep their own
- * fail-open policy.
+ * fail-open policy. Bounded by TSC_TIMEOUT_MS: on timeout Bun hard-kills the
+ * process (SIGKILL, so a child that ignores SIGTERM can't outrun the cap)
+ * and this resolves with whatever partial output was captured plus a
+ * non-zero exit — callers already treat that as "fail open, don't block".
  */
 export async function runTsc(options: TscOptions = {}): Promise<TscResult> {
   const argv = ["bunx", "tsc", "--noEmit"];
@@ -29,6 +39,8 @@ export async function runTsc(options: TscOptions = {}): Promise<TscResult> {
     cwd: options.cwd,
     stdout: "pipe",
     stderr: "pipe",
+    timeout: TSC_TIMEOUT_MS,
+    killSignal: "SIGKILL",
   });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
