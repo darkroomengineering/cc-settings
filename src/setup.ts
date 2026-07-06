@@ -499,12 +499,14 @@ async function installSettings(
 
 /**
  * Hash + persist the hooks block of a settings object for the SessionStart
- * integrity check. Validates against Settings first, with a forward-compat
- * fallback: if a new Claude Code version added a key the schema doesn't know
- * yet, the raw object is fingerprinted so the check isn't silently skipped.
- * Schema issues are debug-logged. The write is best-effort — a failed write
- * means verify-hooks.ts prints a "missing fingerprint" nudge on the next
- * session; it never blocks.
+ * integrity check. Always fingerprints the RAW settings object — verify-hooks
+ * (verifyAgainstSettings) hashes the raw on-disk JSON too, so the two sides
+ * must agree on what "raw" means. Settings.safeParse is used only to
+ * debug-log validation issues; a zod-stripped object here (dropping keys the
+ * local schema doesn't model) would fingerprint a value verify-hooks can
+ * never reproduce, producing a permanent false "hooks tampered" alarm. The
+ * write is best-effort — a failed write means verify-hooks.ts prints a
+ * "missing fingerprint" nudge on the next session; it never blocks.
  */
 async function fingerprintSettingsHooks(settings: unknown): Promise<void> {
   try {
@@ -515,7 +517,7 @@ async function fingerprintSettingsHooks(settings: unknown): Promise<void> {
         .join("; ");
       debug(`settings.json failed schema validation after merge (fingerprinting raw): ${issues}`);
     }
-    await writeHooksFingerprint(validated.success ? validated.data : settings, CLAUDE_DIR);
+    await writeHooksFingerprint(settings, CLAUDE_DIR);
   } catch {
     // Best-effort — see JSDoc above.
   }

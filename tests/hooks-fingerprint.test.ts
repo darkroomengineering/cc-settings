@@ -18,6 +18,7 @@ import {
   writeFingerprint,
   writeSrcManifest,
 } from "../src/lib/hooks-fingerprint.ts";
+import { Settings } from "../src/schemas/settings.ts";
 
 const SETTINGS_A = {
   hooks: {
@@ -226,6 +227,70 @@ describe("verifyAgainstSettings — end-to-end", () => {
       const result = await verifyAgainstSettings(settingsPath, dir);
       expect(result.status).toBe("mismatch");
       expect(result.actual).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- Regression: install-path hash must match verify-path hash (#75) -------
+//
+// The install path (setup.ts's fingerprintSettingsHooks) used to fingerprint
+// `Settings.safeParse(settings).data` when validation succeeded. Zod's plain
+// z.object schemas for hooks (src/schemas/hooks.ts) silently strip unknown
+// keys, while the verify path (verifyAgainstSettings, below) always hashes
+// the RAW on-disk JSON. A hook entry carrying a field the local schema
+// doesn't model — e.g. one added by a newer Claude Code release — would
+// validate successfully, get stripped from the fingerprinted hash, and then
+// permanently mismatch on every SessionStart verify since the raw file always
+// includes that field. The fix: writeFingerprint must always be called with
+// the raw settings object, never the schema-validated/stripped one.
+
+describe("regression: raw hooks block hashes identically on install and verify (#75)", () => {
+  const settingsWithUnknownHookField = {
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: "command",
+              command: 'bun "$HOME/.claude/src/scripts/session-start.ts"',
+              // Not modeled by CommandHook in src/schemas/hooks.ts — simulates
+              // a future Claude Code field the local schema hasn't caught up to.
+              futureField: "added-by-a-newer-claude-code-release",
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  test("Settings.safeParse silently strips the unknown field (why fingerprinting validated.data was unsafe)", () => {
+    const validated = Settings.safeParse(settingsWithUnknownHookField);
+    expect(validated.success).toBe(true);
+    if (!validated.success) return;
+    // The stripped object hashes differently from the raw object — proving
+    // that fingerprinting `validated.data` instead of the raw settings would
+    // desync the install-time hash from what verify-time always re-derives.
+    expect(hashHooks(validated.data)).not.toBe(hashHooks(settingsWithUnknownHookField));
+  });
+
+  test("install (writeFingerprint) and verify (verifyAgainstSettings) hash the same raw object → match", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      // Install path: writeFingerprint is always given the raw settings
+      // object now (fingerprintSettingsHooks no longer branches on
+      // Settings.safeParse success).
+      const record = await writeFingerprint(settingsWithUnknownHookField, dir);
+
+      // Verify path: settings.json on disk has the same raw (unstripped)
+      // shape, since the installer never persists the validated/stripped copy.
+      const settingsPath = join(dir, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(settingsWithUnknownHookField));
+      const result = await verifyAgainstSettings(settingsPath, dir);
+
+      expect(result.status).toBe("match");
+      expect(result.actual).toBe(record.hash);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
