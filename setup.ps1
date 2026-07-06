@@ -11,8 +11,9 @@
 #   --light           light tier: raw CC + statusline + share-learning only
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
 #   --dry-run         print planned actions only
+#   --status          print installed vs packaged version info
+#   --migrate-only    backup + settings merge + sentinel; skip file copy
 #   --interactive     prompt on settings.json conflicts (also: $env:CC_INTERACTIVE=1)
-#   --ts-hooks        install with TS hook paths (also: $env:CC_USE_TS_HOOKS=1)
 #   --help, -h
 
 $ErrorActionPreference = "Stop"
