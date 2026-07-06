@@ -41,6 +41,8 @@ If you catch yourself thinking any of the following, STOP — you are skipping t
 - **Tests pass immediately on first write**: Suspicious. Verify the test would fail if the implementation were wrong.
 - **No assertions**: A test without assertions is not a test.
 - **Mocking everything**: If you mock the thing you're testing, you're testing the mock.
+- **A batch of tests written before any has run**: a batch against *imagined* behavior pins what you guessed — those tests fail on harmless changes and pass while the real path is broken. Write one, watch it go red, earn green, then write the next; each cycle tells you what the next test should actually assert.
+- **Asserting internals**: assert observable behavior through the outermost practical entry point (return values, exit codes, persisted rows, rendered output) — never which internal functions ran. A public-surface test survives a rewrite of everything underneath; an internals test breaks on every refactor and pins implementation, not behavior.
 
 ## Output
 

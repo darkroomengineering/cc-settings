@@ -106,6 +106,10 @@ Save checkpoints at these milestones:
 - Before risky operations (schema changes, large refactors)
 - After passing verification
 
+#### Maintenance Checkpoints
+
+A completed phase is a **commit checkpoint, not a stopping point** — the job is the whole plan, not the first green milestone; finishing a phase means starting the next, and you only hand back to the user on a genuine blocker. On long runs, spend one pass every few phases on maintenance before drift accumulates: prune plan bloat (tasks that no longer match what the code taught you), refresh the live handoff so a cold resume lands cleanly, delete dead TODOs, and reconcile the plan with the current architecture rather than preserving development-only shims the plan predates.
+
 #### Checkpoint Contents
 
 See `hooks/checkpoint.md` for the full checkpoint JSON schema, storage location, and recommended checkpoint threshold actions.

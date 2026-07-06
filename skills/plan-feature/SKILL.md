@@ -15,6 +15,8 @@ Help clarify requirements and scope through structured questioning.
 
 ### Interview Framework
 
+The interview is a fog-of-war walk across four quadrants of the unknown. Open by listing the **known knowns** (what the user has already decided), then work the questions below to surface **known unknowns** (open questions they're aware of), **unknown knowns** (constraints they hold but haven't said — the questions in 2–4 exist to shake these loose), and close by hunting **unknown unknowns** ("what would surprise us mid-build? what reference implementation should we read first?"). A discovery that ends with all four quadrants visited produces a PRD that doesn't get re-planned in week two.
+
 #### 1. Understand the Goal
 - What problem are you solving?
 - Who is this for?
@@ -259,3 +261,16 @@ When the user provides minimal input, apply these defaults:
 ### Task Sizing Reference
 
 See `docs/enhanced-todos.md` for the complexity/token sizing reference table.
+
+---
+
+## Phase 3: Close (plan → durable record)
+
+A PRD is a **build plan** while building and a **rationale record** once shipped — closing flips it from one to the other. When the feature lands (merged, gates green), rewrite the PRD instead of letting it rot as a stale plan:
+
+- Keep the **why**: the problem, the principles, the invariants that must never break, the approaches tried and rejected.
+- Cut every paragraph that restates what the code does — point at the code instead; it is the source of truth for *how*.
+- Record every **divergence from the plan** (dropped tasks, renamed seams, assumptions that broke). Divergences are the most valuable content: they're exactly what a future reader would otherwise re-derive the hard way.
+- Archive it where the project keeps finished plans (e.g. `docs/prd/done/`), and promote anything decision-shaped into an ADR via `/context-doc`.
+
+If the plan lives as GitHub issues (`/project`), the close pass is the closing comment on the epic: what shipped, what diverged, and why.

@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.0.0] — 2026-07-06
+
+Major cut capping the July 2026 wave: the adversarial audit fully remediated (28 findings across H/M/L severity + 6 open questions + the design-tensions epic, all closed — 12 PRs and 7 direct commits, see 11.31.x history and issues #74–#108), the `adversarial-audit` skill added (11.32.0), and this release's skill-library upgrades from reviewing `dzhng/skills`:
+
+**Folds (six mechanisms, no new skills — library stays at 36/40):**
+- `qa` — Fresh-Eyes Gate: an *unprimed* subagent (images + 2x–4x crops only, no thread history or expected answer) is now mandatory before declaring a visual bug fixed; judge "less wrong", not baseline-match. (from screenshot-critique / compare-screenshots)
+- `test` — two new Red Flags: batches of tests written against imagined behavior before any run red, and internals-assertions instead of observable behavior at the outermost entry point. (from write-tests)
+- `autoresearch` — Blind-run rule (sample agent never sees the checklist, judge never sees the transcript — leaking either teaches to the test) + "state the bar, not a parts list" checklist authoring. (from eval-skills)
+- `plan-feature` — discovery interview reframed as a four-quadrant unknowns walk; new Phase 3 "Close" that rewrites a shipped PRD from build-plan into durable rationale, recording divergences from plan. (from explore-unknowns / close-spec)
+- `orchestrate` — Maintenance Checkpoints: a phase is a commit checkpoint, not a stopping point; periodic passes prune plan bloat and refresh handoffs before drift accumulates. (from implement-spec)
+- `docs/skill-authoring.md` — two new pitfalls: mirroring the code instead of stating principles (the DT5 lesson), and orphan sibling skills without "Pairs with" cross-links. (from write-docs / write-skills)
+
+**Also:** argument-hints added to all eight multi-mode skills (2850437). Not adopted from dzhng/skills: standalone spec skills (overlap `/build`+`/plan-feature`+`/orchestrate`), `claude`/`preview-shots`/`implement-spec-with-codex` (covered natively); `graphics/renderer` flagged for a future `profiles/webgl` pass. Entire release cross-reviewed by Codex (see commit body).
+
 ## [11.32.0] — 2026-07-06
 
 New skill: `adversarial-audit` (35 → 36 skills, cap 40) — whole-repo honesty audits in three modes, adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`). **Codebase** mode is the spec that produced the July 2026 cc-settings audit (issues #74–#108: 28 findings, all confirmed and fixed); **docs** mode audits documentation as a product (drift vs code, inverted pyramid, sizing, diagram backlog); **process** mode walks documented journeys empirically in throwaway workspaces and maps the real state machine (generalized from the gist's project-specific spec). All modes share the report contract that made the July remediation executable: stable finding IDs, CONFIRMED/PLAUSIBLE status, concrete failure scenarios, disprove-before-reporting, design tensions vs line findings, optional GitHub-issue filing. Includes the gated fail-open Codex cross-model pass and team-knowledge reconciliation (reclassify, never delete), mirroring nuclear-review Phases 2b/2c. The gist's launcher file was not adopted — the skill system already does its job (distribute the spec, have the agent Read it).

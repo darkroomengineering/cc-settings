@@ -110,6 +110,12 @@ Any skill that deletes files, commits, pushes, or calls external APIs must have 
 ### Time-sensitive content in body
 Don't hardcode version numbers or dates in skill bodies. They go stale silently. Reference `bun info <pkg>` patterns or external docs instead.
 
+### Mirroring the code instead of stating principles
+A skill (or doc) that enumerates exact file lists, helper names, command matrices, or scenario inventories the code already holds will drift the moment the code moves. Write the **glossary of principles** — what the skill decides and why — and point at the code or a generated table for the inventory. (This is the same lesson as the July 2026 doc-drift audit finding: docs are an unguarded fourth source of truth unless they defer detail to the artifact that owns it.)
+
+### Orphan siblings
+When two skills are designed to hand off to each other (plan → implement, audit → fix, save → resume), say so in both bodies — a short "Pairs with `/other-skill` (what it contributes)" line. The selector reads descriptions in isolation; the pairing context otherwise lives only in the author's head.
+
 ---
 
 ## Review Checklist

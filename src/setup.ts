@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.32.0"; // add adversarial-audit skill (fable goal-spec trio: codebase/docs/process modes) + fold stable-ID/CONFIRMED-PLAUSIBLE/disprove-first report mechanics into nuclear-review
+const VERSION = "12.0.0"; // v12 milestone: July 2026 audit fully remediated (28 findings, 6 design tensions); adversarial-audit skill; dzhng/skills folds (fresh-eyes QA gate, tracer-bullet tests, blind skill evals, quadrant discovery, maintenance checkpoints); argument-hints for all multi-mode skills
 
 // --- Arg parsing ---------------------------------------------------------
 

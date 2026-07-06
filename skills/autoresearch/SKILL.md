@@ -148,6 +148,10 @@ Keep going (there may still be room for improvement or simplification).
 
 For each sample output, score against the checklist using strict binary evaluation.
 
+**Blind-run rule.** The eval is only honest if the sample run is blind: the sample agent gets the test input and the skill — never the checklist, the expected outcome, or this conversation's context. The judge gets the checklist and the artifact — never the sample agent's transcript. Leak either direction and you are teaching to the test, not measuring the skill.
+
+**State the bar, not a parts list.** Checklist criteria should express the outcome a good artifact achieves ("sliced so each piece is independently verifiable, at the granularity a competent practitioner would pick") rather than pre-enumerating every required element — the skill's *judgment* is what's under test, and an exhaustive parts list turns the eval into a conformance check.
+
 ### Scoring prompt
 
 ```

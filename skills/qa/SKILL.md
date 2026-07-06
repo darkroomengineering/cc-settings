@@ -173,6 +173,15 @@ Use `mcp__chrome-devtools__resize_page` to switch between desktop (1440×900), t
 3. Run full review on the desktop version
 4. Fix issues, prioritizing critical ones
 
+### Fresh-Eyes Gate (unprimed second look)
+
+**Mandatory before declaring a user-reported visual bug fixed or claiming a visual change verified.** Primed eyes pass defects that fresh eyes catch — after staring at the implementation, you see what you meant to render, not what rendered.
+
+1. Capture the exact screenshots under review, plus tight 2x–4x crops of every disputed area (if the complaint is "too faint", "wrong order", or "misaligned", the crop is mandatory).
+2. Spawn a fresh subagent and pass ONLY the images, the crops, and a short neutral task ("list concrete visible defects with confidence levels"). No thread history, no implementation details, no expected answer — leaking either teaches it your blind spot.
+3. When comparing two candidates, ask which is **less wrong**, not which matches a baseline.
+4. Treat overlap between its critique and yours as high-priority evidence; treat its novel high-confidence findings as bugs to inspect, not taste notes to dismiss.
+
 ### Comparing to a Mockup
 
 1. Get the mockup image:
