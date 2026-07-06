@@ -7,7 +7,7 @@ allowed-tools: [Bash, AskUserQuestion]
 
 # Freeze: Lock Edits to a Directory
 
-Restrict `Edit`, `Write`, and `MultiEdit` to a single directory. Any edit targeting a file outside the boundary is **blocked** by the `freeze-guard` PreToolUse hook. State persists for the session in `~/.claude/tmp/freeze.json`.
+Restrict `Edit`, `Write`, and `MultiEdit` to a single directory. Any edit targeting a file outside the boundary is **blocked** by the `freeze-guard` PreToolUse hook. State persists in `~/.claude/tmp/freeze.json`, tagged with the session that set it — a freeze forgotten from a different session or project self-heals away automatically instead of blocking the next session's edits.
 
 Note: notebook edits (`NotebookEdit`) and shell writes (`Bash`) are not gated — the boundary covers the file-editing tools only.
 

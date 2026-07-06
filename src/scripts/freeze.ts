@@ -4,12 +4,18 @@
 //   freeze.ts off         lift the boundary
 //   freeze.ts status      show the current boundary
 
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { readFreeze, writeFreeze } from "../lib/freeze.ts";
+import { getActiveFreeze, writeFreeze } from "../lib/freeze.ts";
 
 async function main(argv: string[]): Promise<number> {
   const [cmd, ...rest] = argv;
+  // Mirrors the session_id Claude Code passes to hooks; set automatically and
+  // available inside Bash tool subprocesses — this script always runs via the
+  // Bash tool (invoked by the /freeze skill). Tagging the freeze with it lets
+  // getActiveFreeze self-heal a boundary forgotten from a different session.
+  const sessionId = process.env.CLAUDE_CODE_SESSION_ID ?? null;
+
   switch (cmd) {
     case "set": {
       const dir = rest.join(" ").trim();
@@ -22,7 +28,11 @@ async function main(argv: string[]): Promise<number> {
         console.error(`freeze: directory does not exist: ${abs}`);
         return 1;
       }
-      await writeFreeze(abs);
+      if (!statSync(abs).isDirectory()) {
+        console.error(`freeze: not a directory: ${abs}`);
+        return 1;
+      }
+      await writeFreeze(abs, sessionId);
       console.log(`Freeze boundary set: ${abs}`);
       console.log(
         "Edit/Write/MultiEdit outside this directory will be blocked. Lift with: freeze.ts off",
@@ -30,13 +40,13 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case "off": {
-      const { root } = await readFreeze();
+      const { root } = await getActiveFreeze(sessionId);
       await writeFreeze(null);
       console.log(root ? `Freeze boundary cleared (was: ${root}).` : "No freeze boundary was set.");
       return 0;
     }
     case "status": {
-      const { root } = await readFreeze();
+      const { root } = await getActiveFreeze(sessionId);
       console.log(root ? `Freeze boundary: ${root}` : "No freeze boundary set.");
       return 0;
     }

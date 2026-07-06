@@ -11,9 +11,17 @@
 //
 // Only Edit/Write/MultiEdit are gated (all carry `file_path`). NotebookEdit
 // (notebook_path) and Bash writes are intentionally not covered.
+//
+// Session scoping: the freeze boundary is keyed to the session that set it,
+// so a freeze forgotten from a different session/project self-heals away
+// instead of silently blocking every edit here — see lib/freeze.ts
+// getActiveFreeze. The current session id arrives on stdin JSON (the field
+// Claude Code passes to hooks); CLAUDE_CODE_SESSION_ID is the env fallback
+// (mirrors the same value, set automatically) for builds that don't deliver
+// it that way — same fallback pattern as session-title.ts.
 
-import { isWithinBoundary, readFreeze } from "../lib/freeze.ts";
-import { blockDecision, readToolInputEnv } from "../lib/hook-runtime.ts";
+import { getActiveFreeze, isWithinBoundary } from "../lib/freeze.ts";
+import { blockDecision, readHookInput, readToolInputEnv } from "../lib/hook-runtime.ts";
 
 type EditLikeInput = { file_path?: string };
 
@@ -23,7 +31,11 @@ async function main(): Promise<void> {
   const filePath = parsed.file_path;
   if (!filePath) return;
 
-  const { root } = await readFreeze();
+  const { session_id: sessionId } = await readHookInput<{ session_id: string }>({
+    session_id: "CLAUDE_CODE_SESSION_ID",
+  });
+
+  const { root } = await getActiveFreeze(sessionId);
   if (isWithinBoundary(filePath, root, process.cwd())) return;
 
   blockDecision(
