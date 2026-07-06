@@ -246,7 +246,7 @@ All frontmatter fields in profiles are **advisory** — validated at install tim
 | `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
 | `skills` | list | No | Advisory: skill names expected to be active in this context |
 | `tools` | list | No | Advisory: tool subset relevant to this workflow |
-| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
+| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
 | `effort` | string | No | Advisory: default effort level (`low`, `medium`, `high`, `xhigh`, `max`) |
 
 ### Example: Profile with Advisory Fields

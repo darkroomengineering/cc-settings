@@ -268,6 +268,14 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `manual` | User triggered compaction |
 | `auto` | Automatic compaction (context threshold) |
 
+### Matcher Values for Notification
+
+| Matcher | Description |
+|---------|-------------|
+| `agent_needs_input` | Background agent (`claude agents`) session is waiting for input (v2.1.198) |
+| `agent_completed` | Background agent (`claude agents`) session finished (v2.1.198) |
+| (omit) | All notification types, including permission prompts |
+
 ---
 
 ## Sync vs Async Behavior

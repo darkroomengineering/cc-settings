@@ -142,6 +142,7 @@
           "type": "string",
           "enum": [
             "default",
+            "manual",
             "acceptEdits",
             "plan",
             "auto",

@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-07-01T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.197",
+  "lastScan": "2026-07-06T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.201",
   "knownSettingsKeys": [
     "$schema",
     "agent",
@@ -218,6 +218,7 @@
   "source": "manual sync via the /cc sync skill (the automated upstream-sync bot was retired June 2026).",
   "knownPermissionModes": [
     "default",
+    "manual",
     "acceptEdits",
     "plan",
     "auto",

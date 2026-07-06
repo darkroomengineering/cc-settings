@@ -11,6 +11,7 @@ import { z } from "zod";
 // source of truth; agent.ts re-exports it as AgentPermissionMode.
 export const PermissionMode = z.enum([
   "default",
+  "manual", // v2.1.200 — alias for "default" ("Manual" in the UI); both accepted
   "acceptEdits",
   "plan",
   "auto",

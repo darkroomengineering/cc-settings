@@ -4,6 +4,38 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.31.0] — 2026-07-06
+
+Sync with Claude Code v2.1.201 (spans v2.1.198–201). One schema adoption: the new `"manual"` permission mode (v2.1.200). Also documents the background-agent notification types on the `Notification` hook and the v2.1.199 retry env-var semantics.
+
+**Adopted:**
+- `"manual"` permission mode (v2.1.200) — upstream renamed the "default" permission mode to "Manual" across the CLI, `--help`, VS Code, and JetBrains; `--permission-mode manual` and `"defaultMode": "manual"` are accepted alongside `default`. Added `"manual"` to the strict `PermissionMode` enum in `src/schemas/permissions.ts` (which `agents/*.md` frontmatter and profiles inherit), `knownPermissionModes` in the manifest, and the mode lists in `docs/frontmatter-reference.md` and `docs/profiles.md`. Without this, a settings.json or agent using the new alias would fail strict parse.
+- Background agent notifications (v2.1.198) — sessions in `claude agents` that need input or finish now fire the `Notification` hook with types `agent_needs_input` / `agent_completed`. Added a "Matcher Values for Notification" section to `docs/hooks-reference.md`. cc-settings' async `notify.ts` Notification hook runs with no matcher, so it already picks these up — desktop notifications for background agents work out of the box; no wiring change needed.
+- Retry env-var semantics (v2.1.199) — `CLAUDE_CODE_RETRY_WATCHDOG` now raises the default retry count for non-capacity transient errors to 300 and lifts the `15` cap on `CLAUDE_CODE_MAX_RETRIES`. Updated both rows in `docs/settings-reference.md`; both vars were already tracked in the manifest, so no manifest key changes.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- Claude in Chrome GA, the `/dataviz` native skill, and the Gateway `anthropicAws` upstream provider (v2.1.198) touch product surfaces cc-settings doesn't configure — no settings key, schema, or doc table tracks gateway providers or native skill rosters.
+- The built-in Explore agent inheriting the session model (capped at opus) and subagents inheriting extended-thinking config are native behavior improvements; cc-settings' agent frontmatter and delegation docs make no contrary claims, so nothing to update.
+- Removal of the `/agents` wizard doesn't affect cc-settings docs — they reference the `agents/*.md` directory workflow, which is exactly what upstream now recommends.
+- Background agents auto-committing and opening draft PRs from worktrees, plus the remaining v2.1.198 entries, are bug fixes and UX/runtime tweaks (retry/backoff on transient network errors, task-panel stuck states, agent-teams failure reporting, `/diff` refresh, fullscreen rendering, `.claude/rules/` symlink resolution, plan-mode read-only auto-allow, highlight.js 11) — none touch cc-settings surface. The symlink rules fix benefits `rules/` users natively.
+- v2.1.199 is otherwise entirely bug fixes and UX polish (stacked slash-skill loading, SSL fail-fast guidance, partial-stream preservation, subagent error propagation, background-agent daemon stability on Linux/macOS/SSH, hook stderr surfaced on exit 2, config-reset backup, plan-mode browser-tool prompting, automatic 429 backoff for subscribers) — none touch cc-settings schemas, config, hooks, or agent frontmatter.
+- v2.1.200's `AskUserQuestion` dialogs no longer auto-continuing is a behavior default toggled via `/config`; the changelog names no settings key, so nothing to track yet. The `disabledMcpServers`/`enabledMcpServers` crash fix and the remaining v2.1.200 entries are background-agent daemon/roster fixes, screen-reader and tmux rendering improvements, and install-script messaging — no cc-settings surface.
+- v2.1.201's single entry (Sonnet 5 sessions dropping the mid-conversation system role for harness reminders) is native runtime behavior — nothing to adopt or document.
+
+**Files changed:**
+- src/schemas/permissions.ts
+- upstream/claude-code-manifest.json
+- docs/hooks-reference.md
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/profiles.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [11.30.4] — 2026-07-01
 
 Sync with Claude Code v2.1.197 (spans v2.1.196–197). Tracks one new environment variable in the manifest and docs; no schema, hook, or wiring changes.
