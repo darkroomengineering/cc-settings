@@ -10,6 +10,7 @@ import {
   findUserOnlyServers,
   installMcpToClaudeJson,
   mergeSettingsWithMcpPreservation,
+  resolveMcpServers,
 } from "../src/lib/mcp.ts";
 
 describe("mcp — user-only detection", () => {
@@ -22,6 +23,46 @@ describe("mcp — user-only detection", () => {
   });
   test("empty user → empty result", () => {
     expect(findUserOnlyServers({}, { a: { command: "y" } })).toEqual([]);
+  });
+});
+
+describe("mcp — resolveMcpServers precedence for shared server names", () => {
+  test("Issue #78 regression: divergent user definition of a team-known server wins", async () => {
+    // Both configs define `context7`, but the user has customized it (e.g.
+    // tweaked env/args). Before the fix, resolveMcpServers computed
+    // `{ ...teamServers, ...preserved }` where `preserved` only ever contains
+    // user-ONLY servers (findUserOnlyServers excludes anything present in
+    // teamServers) — so a same-named server's user customization was silently
+    // dropped in favor of the team value, inconsistent with
+    // installMcpToClaudeJson's documented user-wins precedence.
+    const userServers = {
+      context7: {
+        command: "npx",
+        args: ["-y", "@upstash/context7-mcp"],
+        env: { API_KEY: "user-key" },
+      },
+    };
+    const teamServers = {
+      context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] },
+    };
+    const resolved = await resolveMcpServers(userServers, teamServers);
+    expect(resolved.context7).toEqual(userServers.context7);
+    expect(resolved.context7).not.toEqual(teamServers.context7);
+  });
+
+  test("identical shared definitions take the team value (no divergence, no noise)", async () => {
+    const shared = { command: "npx", args: ["-y", "@upstash/context7-mcp"] };
+    const userServers = { context7: { ...shared } };
+    const teamServers = { context7: { ...shared } };
+    const resolved = await resolveMcpServers(userServers, teamServers);
+    expect(resolved.context7).toEqual(teamServers.context7);
+  });
+
+  test("key-order-only differences count as identical (canonical compare)", async () => {
+    const userServers = { context7: { args: ["-y"], command: "npx" } };
+    const teamServers = { context7: { command: "npx", args: ["-y"] } };
+    const resolved = await resolveMcpServers(userServers, teamServers);
+    expect(resolved.context7).toEqual(teamServers.context7);
   });
 });
 
@@ -50,14 +91,15 @@ describe("mcp — merge + preserve", () => {
       // Non-interactive: default is preserve.
       await mergeSettingsWithMcpPreservation(existing, team, out);
       const merged = JSON.parse(await readFile(out, "utf8"));
-      // Team keys are base; user-only MCPs preserved; team wins for shared keys
-      // (user's local override of `shared` is lost — spec: team base, user-only extras).
+      // Team keys are base; user-only MCPs preserved; user's customization of
+      // a shared server name wins over the team definition (user-wins
+      // precedence, consistent with installMcpToClaudeJson).
       expect(Object.keys(merged.mcpServers).sort()).toEqual([
         "context7",
         "my-custom-mcp",
         "shared",
       ]);
-      expect(merged.mcpServers.shared.command).toBe("team-shared");
+      expect(merged.mcpServers.shared.command).toBe("user-override");
       expect(merged.mcpServers["my-custom-mcp"].command).toBe("foo");
       // $schema and other team-root fields survive.
       expect(merged.$schema).toBe("https://json.schemastore.org/claude-code-settings.json");
