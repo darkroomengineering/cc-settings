@@ -16,7 +16,10 @@ const DEFAULT_CRITICAL_LINES = 600;
 function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined) return fallback;
-  return Number.parseInt(raw, 10) || fallback;
+  const parsed = Number.parseInt(raw, 10);
+  // `|| fallback` would misread a legitimate 0 (e.g. CC_CLAUDE_MD_WARN_LINES=0)
+  // as unset, silently reviving the default. Only NaN (unparseable) falls back.
+  return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 /** Typed read of the claude_md_monitor thresholds used by session-start.

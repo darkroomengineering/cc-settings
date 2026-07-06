@@ -100,6 +100,19 @@ describe("prune-mcp-auth-cache.ts", () => {
     expect(await readCache()).toBeNull();
   });
 
+  test("MCP_NEEDS_AUTH_TTL_MS='0' regression: falsy-zero must not fall back to the 1h default", async () => {
+    // A `|| DEFAULT_TTL_MS` bug would treat explicit "0" as unset and keep the
+    // 1h default, so a just-created (10ms old) entry would survive. With the
+    // fix, TTL_MS=0 means "prune everything immediately" — nothing survives.
+    const now = Date.now();
+    await seed({ justCreated: { timestamp: now - 10 } });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_TTL_MS: "0" },
+    });
+    expect(r.exit).toBe(0);
+    expect(await readCache()).toBeNull();
+  });
+
   test("malformed cache removed, exits 0", async () => {
     const { mkdir, writeFile } = await import("node:fs/promises");
     await mkdir(tmp, { recursive: true });
@@ -345,6 +358,39 @@ describe("swarm-log.ts", () => {
       });
       expect(r.exit).toBe(0);
       expect(existsSync(join(sandbox, ".claude", "swarm.log"))).toBe(false);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("checkpoint.ts clean — falsy-zero regression", () => {
+  test("clean 0 deletes every checkpoint (not kept at the default of 10)", async () => {
+    // A `|| 10` bug would treat explicit "0" as unset and keep the default of
+    // 10 checkpoints — i.e. `clean 0` would delete nothing. cmdClean doesn't
+    // validate JSON shape (only lists *.json and reads mtime), so minimal
+    // fake checkpoint files are enough to exercise the keep-count logic.
+    const { mkdtempSync, rmSync, readdirSync, mkdirSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join, basename } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-checkpoint-clean-"));
+    try {
+      const toplevel = Bun.spawnSync(["git", "rev-parse", "--show-toplevel"])
+        .stdout.toString()
+        .trim();
+      const project = toplevel ? basename(toplevel) : basename(process.cwd());
+      const checkpointDir = join(sandbox, ".claude", "checkpoints", project);
+      mkdirSync(checkpointDir, { recursive: true });
+      for (let i = 0; i < 3; i++) {
+        writeFileSync(join(checkpointDir, `chk-fake-${i}.json`), "{}");
+      }
+      const r = await run("checkpoint.ts", {
+        env: { HOME: sandbox },
+        args: ["clean", "0"],
+      });
+      expect(r.exit).toBe(0);
+      const remaining = readdirSync(checkpointDir).filter((e) => e.endsWith(".json"));
+      expect(remaining).toEqual([]);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }

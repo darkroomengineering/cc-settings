@@ -42,6 +42,14 @@ Rollback examples:
   bun src/setup.ts --rollback=2026-04-20T10-00-00Z`);
 }
 
+/** True when a `tar -tzf` listing entry is unsafe to extract: an absolute
+ *  path, or a path containing a ".." segment (path traversal). Pure/exported
+ *  for testing without spawning tar. */
+export function isUnsafeTarEntry(entry: string): boolean {
+  if (entry.startsWith("/")) return true;
+  return entry.split("/").some((segment) => segment === "..");
+}
+
 export async function cmdRollback(target: string | true): Promise<number> {
   const backupDir = `${CLAUDE_DIR}/backups`;
   if (!existsSync(backupDir)) {
@@ -68,6 +76,15 @@ export async function cmdRollback(target: string | true): Promise<number> {
   const archiveEntries = (await new Response(listing.stdout).text()).trim().split("\n");
   await listing.exited;
   const homeRelative = archiveEntries.some((e) => e.startsWith(".claude/") || e === ".claude.json");
+  // Path-traversal guard: reject the archive outright if any listed entry
+  // would extract outside the destination directory (absolute path, or a
+  // ".." segment escaping it). The listing was already fetched above for
+  // layout detection, so this costs no extra tar invocation.
+  const unsafeEntry = archiveEntries.find(isUnsafeTarEntry);
+  if (unsafeEntry) {
+    error(`Refusing to restore: archive contains an unsafe path entry: ${unsafeEntry}`);
+    return 1;
+  }
   const proc = Bun.spawn(["tar", "-xzf", archivePath], {
     cwd: homeRelative ? homedir() : CLAUDE_DIR,
     stdout: "inherit",

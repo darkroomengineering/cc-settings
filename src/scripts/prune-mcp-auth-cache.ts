@@ -21,12 +21,17 @@
 //   MCP_NEEDS_AUTH_TTL_MS   prune entries older than this (default 3_600_000)
 //   MCP_NEEDS_AUTH_CACHE    cache file path (default ~/.claude/mcp-needs-auth-cache.json)
 
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
+import { atomicWriteJson } from "../lib/json-io.ts";
 import { claudePath } from "../lib/platform.ts";
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
 const CACHE_PATH = process.env.MCP_NEEDS_AUTH_CACHE ?? claudePath("mcp-needs-auth-cache.json");
-const TTL_MS = Number.parseInt(process.env.MCP_NEEDS_AUTH_TTL_MS ?? "", 10) || DEFAULT_TTL_MS;
+// `|| DEFAULT_TTL_MS` would misread an explicit "0" (prune everything,
+// immediately) as unset, silently reviving the 1h default. Only NaN
+// (unparseable / unset) falls back.
+const rawTtl = Number.parseInt(process.env.MCP_NEEDS_AUTH_TTL_MS ?? "", 10);
+const TTL_MS = Number.isNaN(rawTtl) ? DEFAULT_TTL_MS : rawTtl;
 
 type CacheEntry = { timestamp?: number };
 type CacheShape = Record<string, CacheEntry>;
@@ -70,7 +75,9 @@ async function main(): Promise<number> {
   if (Object.keys(kept).length === 0) {
     await unlink(CACHE_PATH).catch(() => {});
   } else {
-    await writeFile(CACHE_PATH, JSON.stringify(kept), "utf8");
+    // Atomic write: Claude Code itself reads/writes this file concurrently,
+    // so a plain writeFile risked a reader observing a truncated/partial JSON.
+    await atomicWriteJson(CACHE_PATH, kept);
   }
   return 0;
 }

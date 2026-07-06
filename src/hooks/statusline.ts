@@ -211,8 +211,11 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch {
-  // Degraded statusline — never blank, never a non-zero exit.
+  // Degraded statusline — never blank, never a non-zero exit. If the error
+  // struck before model/dirName were populated (e.g. Bun.stdin.text() itself
+  // threw), fall back to a static label instead of an empty line.
   const parts = [model, dirName].filter((p) => p.length > 0);
-  process.stdout.write(`${parts.join(dimSep)}\n`);
+  const line = parts.length > 0 ? parts.join(dimSep) : "claude";
+  process.stdout.write(`${line}\n`);
   process.exit(0);
 }
