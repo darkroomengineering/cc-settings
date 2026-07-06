@@ -175,6 +175,25 @@ evaluator coexist cleanly: the fingerprint hashes only the persisted
 `hooks` block in `settings.json`, not the in-memory session-scoped hook
 that `/goal` installs for its lifetime.
 
+## Enforcement boundary: the permissions deny-list, not safety-net
+
+The enforcement boundary for dangerous Bash commands is the permission
+deny-list (`config/30-permissions.json`) evaluated by Claude Code's own
+permission matcher. That layer decides what is blocked.
+
+`src/hooks/safety-net.ts` is **advisory defense-in-depth, fail-open by
+design**: it pattern-matches on a best-effort regex parse of the command
+and nudges/blocks what it recognizes, but a hook crash, timeout, or parser
+gap allows the command through (`tests/hook-fail-open.test.ts` encodes
+this deliberately — a broken guard must not brick every Bash call).
+Consequences of that stance:
+
+- Parser gaps in safety-net are hardening opportunities, not security
+  holes; the deny-list and the human-in-the-loop permission prompt remain
+  the boundary.
+- Anything that MUST never run belongs in `config/30-permissions.json`,
+  not (only) in safety-net.
+
 ## What cc-settings deliberately does not do
 
 - **Auto-quarantine on suspicious match.** The session-start hook only
