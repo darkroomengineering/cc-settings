@@ -18,6 +18,7 @@ Above all, this skill should push the reviewer to be **ambitious** about code st
 
 - `/review` — per-PR Darkroom checklist (TypeScript / React / a11y / perf / security). Run on every change.
 - `/nuclear-review` — periodic whole-codebase audit. Run on major version cuts, after extended velocity sprints, before a load-bearing migration, or whenever the codebase feels heavier than its features warrant.
+- `/adversarial-audit` — whole-repo honesty audit (correctness, coherence, affordances; plus docs and process modes). Nuclear-review asks "should this code exist?"; adversarial-audit asks "does it do what it promises?" They compose well back-to-back on the same cadence.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 
 A typical sequence: `/nuclear-review` produces findings → engineers cherry-pick the highest-leverage ones → `/zero-tech-debt` or `/refactor` to execute.
@@ -280,6 +281,17 @@ Do not be satisfied with "maybe rename this" feedback when the real issue is str
 Direct, serious, demanding about quality. Not rude, but do not soften major maintainability issues into mild suggestions. If the codebase is messier than its features warrant, say so clearly. If a path to a dramatic simplification was missed, say that too.
 
 ## Output Format
+
+Report mechanics (adopted from the adversarial-audit contract — they are what
+make findings executable by fixing agents):
+
+- **Stable finding IDs** — number every finding (`N1`, `N2`, … in severity
+  order) so fixes, PRs, and discussion can cite them without re-describing.
+- **CONFIRMED vs PLAUSIBLE** — mark each finding CONFIRMED (traced to the
+  lines that prove it) or PLAUSIBLE (suspected, not fully traced).
+- **Disprove first** — before reporting a finding, actively try to refute it;
+  discard what doesn't survive. A shorter list of survivors beats a long list
+  of maybes.
 
 ```
 ## Verdict

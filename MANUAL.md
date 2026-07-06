@@ -11,7 +11,7 @@ cc-settings ships two install tiers. Both are **supported permanent lanes** — 
 
 | | Light (`--light`) | Full (default) |
 |--|---|---|
-| **Skills** | `share-learning` only | All 35 headline skills |
+| **Skills** | `share-learning` only | All 36 headline skills |
 | **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
 | **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
 | **Hooks** | StatusLine only | All hooks active |
@@ -98,7 +98,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 35 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 36 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -137,6 +137,12 @@ Triggers `/review` — reviews against Darkroom standards (TypeScript, React, a1
 Say: *"nuclear review"* / *"thermonuclear review"* / *"code judo"* / *"harsh maintainability review"* / *"whole codebase review"*
 
 Triggers `/nuclear-review` — unusually strict **whole-codebase** structural audit. Structural rubric adapted from Cursor's internal `thermo-nuclear-code-quality-review` (their most-used skill); cc-settings extends it with whole-codebase scope and a **context7-driven dependency audit** (currency, deprecated API usage, redundant deps, missed maintainer-recommended patterns). Flags every 1k-line file, every thin wrapper, every leaked-logic boundary, and pushes "code-judo" moves that delete whole branches instead of rearranging them. Run on major version cuts, after extended velocity sprints, or before load-bearing migrations. Distinct from `/review` (per-PR Darkroom checklist) and `/zero-tech-debt` (edits a single patch); nuclear-review is read-only and covers the whole repo.
+
+### Adversarial Audit
+
+Say: *"adversarial audit"* / *"audit the codebase"* / *"docs audit"* / *"process audit"* / *"walk the journeys"*
+
+Triggers `/adversarial-audit` — whole-repo **honesty** audit in three modes, adapted from the fable audit goal-spec trio. **Codebase** hunts correctness bugs, incoherences, affordance mismatches, and expectation gaps ("the code invites X but does Y"). **Docs** audits documentation as a product: drift vs the code, inverted-pyramid violations, oversized documents, missing diagrams. **Process** walks every documented journey empirically in throwaway workspaces — twice, as a human and as an agent — and maps the real state machine, dead ends included. All modes share the contract that made the July 2026 cc-settings audit land: stable finding IDs, CONFIRMED/PLAUSIBLE status, concrete failure scenarios, disprove-before-reporting, optional filing of findings as GitHub issues. Sibling to `/nuclear-review` (maintainability/deletion) — this one asks "does it do what it promises?", not "should it exist?".
 
 ### Refactor
 
@@ -488,6 +494,7 @@ These are enforced automatically — no skill needed:
 | `ship` | ship it, create PR, /pr |
 | `review` | review, check, PR, changes |
 | `nuclear-review` | nuclear review, thermonuclear, code judo, whole codebase review, harsh maintainability review, 1k-line, thin wrapper, stale dependencies |
+| `adversarial-audit` | adversarial audit, fable audit, audit the codebase, docs audit, doc drift, process audit, walk the journeys, expectation gaps |
 | `refactor` | refactor, clean up, reorganize |
 | `zero-tech-debt` | rewrite as if from scratch, delete compat layer, kill legacy path, too many flags |
 | `test` | test, write tests, coverage, TDD, test-first, red-green-refactor |

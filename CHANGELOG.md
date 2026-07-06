@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [11.32.0] — 2026-07-06
+
+New skill: `adversarial-audit` (35 → 36 skills, cap 40) — whole-repo honesty audits in three modes, adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`). **Codebase** mode is the spec that produced the July 2026 cc-settings audit (issues #74–#108: 28 findings, all confirmed and fixed); **docs** mode audits documentation as a product (drift vs code, inverted pyramid, sizing, diagram backlog); **process** mode walks documented journeys empirically in throwaway workspaces and maps the real state machine (generalized from the gist's project-specific spec). All modes share the report contract that made the July remediation executable: stable finding IDs, CONFIRMED/PLAUSIBLE status, concrete failure scenarios, disprove-before-reporting, design tensions vs line findings, optional GitHub-issue filing. Includes the gated fail-open Codex cross-model pass and team-knowledge reconciliation (reclassify, never delete), mirroring nuclear-review Phases 2b/2c. The gist's launcher file was not adopted — the skill system already does its job (distribute the spec, have the agent Read it).
+
+Folded into `nuclear-review`: the same three report mechanics (stable IDs, CONFIRMED/PLAUSIBLE, disprove-first) in its Output Format, and a cross-reference to the new sibling in "When to use vs other review skills" — nuclear-review asks "should this code exist?", adversarial-audit asks "does it do what it promises?".
+
 ## [11.31.0] — 2026-07-06
 
 Sync with Claude Code v2.1.201 (spans v2.1.198–201). One schema adoption: the new `"manual"` permission mode (v2.1.200). Also documents the background-agent notification types on the `Notification` hook and the v2.1.199 retry env-var semantics.

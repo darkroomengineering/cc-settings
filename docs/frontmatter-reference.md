@@ -131,7 +131,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 Skills using `fork` (21): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `verify`.
 
-Skills using `main` (4): `codex`, `freeze`, `nuclear-review`, `zero-tech-debt`.
+Skills using `main` (5): `adversarial-audit`, `codex`, `freeze`, `nuclear-review`, `zero-tech-debt`.
 
 Skills using `inherit` (default, 10): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
 
@@ -193,6 +193,7 @@ argument-hint: "<skill-name>"
 
 | Skill | Context | Agent | Allowed Tools | Argument Hint |
 |-------|---------|-------|---------------|---------------|
+| `adversarial-audit` | main | -- | -- | -- |
 | `autoresearch` | fork | -- | -- | `<skill-name>` |
 | `build` | fork | -- | -- | -- |
 | `cc` | -- | -- | -- | -- |

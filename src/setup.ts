@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "11.31.0"; // sync with Claude Code v2.1.201 (spans 2.1.198-201): add "manual" permission mode (v2.1.200 alias for "default") to PermissionMode enum + manifest + docs; document Notification hook matchers agent_needs_input/agent_completed + updated retry env-var semantics (RETRY_WATCHDOG lifts MAX_RETRIES cap, default 300); rest is bug-fix/UX churn
+const VERSION = "11.32.0"; // add adversarial-audit skill (fable goal-spec trio: codebase/docs/process modes) + fold stable-ID/CONFIRMED-PLAUSIBLE/disprove-first report mechanics into nuclear-review
 
 // --- Arg parsing ---------------------------------------------------------
 
