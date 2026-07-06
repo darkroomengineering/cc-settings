@@ -19,6 +19,15 @@
 						"timeout": 3
 					}
 				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/quota-steer.ts\"",
+						"timeout": 3
+					}
+				]
 			}
 		],
 		"PreToolUse": [

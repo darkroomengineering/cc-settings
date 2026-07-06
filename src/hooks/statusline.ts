@@ -14,6 +14,7 @@ import { readCodexVerdict } from "../lib/codex.ts";
 import { palette } from "../lib/colors.ts";
 import { runGit as runGitLib } from "../lib/git.ts";
 import { readHookInput, readState } from "../lib/hook-runtime.ts";
+import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
 
 type Payload = {
@@ -116,6 +117,10 @@ function formatTimeToReset(value: number | string): string | null {
 
 const dimSep = `${palette.dim} | ${palette.reset}`;
 
+function cacheResetValue(value: number | string | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
+}
+
 // Degraded-path capture: filled as soon as the payload parses, so the catch
 // block at the bottom can still print the model/cwd segment.
 let model = "";
@@ -136,6 +141,30 @@ async function main(): Promise<void> {
 
   const rateUsed = input.rate_limits?.five_hour?.used_percentage;
   const rateResetsAt = input.rate_limits?.five_hour?.resets_at;
+  const weeklyRateUsed = input.rate_limits?.seven_day?.used_percentage;
+
+  if (input.rate_limits) {
+    try {
+      const cache: RateLimitsCache = {
+        five_hour: input.rate_limits.five_hour
+          ? {
+              used_percentage: input.rate_limits.five_hour.used_percentage,
+              resets_at: cacheResetValue(input.rate_limits.five_hour.resets_at),
+            }
+          : undefined,
+        seven_day: input.rate_limits.seven_day
+          ? {
+              used_percentage: input.rate_limits.seven_day.used_percentage,
+              resets_at: cacheResetValue(input.rate_limits.seven_day.resets_at),
+            }
+          : undefined,
+        updated_at: Date.now(),
+      };
+      await writeRateLimitsCache(cache);
+    } catch {
+      // Statusline rendering must stay fail-open; quota steering can miss a sample.
+    }
+  }
 
   const effortLevel = input.effort?.level;
   const thinkingEnabled = input.thinking?.enabled === true;
@@ -168,6 +197,12 @@ async function main(): Promise<void> {
     const ttr = rateResetsAt ? formatTimeToReset(rateResetsAt) : null;
     const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
     parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
+  }
+
+  if (weeklyRateUsed !== undefined && weeklyRateUsed >= 50) {
+    const wInt = Math.round(weeklyRateUsed);
+    const color = wInt >= 80 ? palette.red : palette.yellow;
+    parts.push(`${color}wk${wInt}%${palette.reset}`);
   }
 
   // Review-queue backpressure: agents spawned since the last commit, awaiting
