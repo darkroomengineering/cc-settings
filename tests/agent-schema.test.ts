@@ -146,6 +146,35 @@ describe("validateFrontmatters — synthetic failures", () => {
     }
   });
 
+  test("duplicate top-level key in an agent is caught (strict routing, issue #88)", async () => {
+    const dir = await sandbox();
+    try {
+      await mkdir(join(dir, "agents"));
+      // Two `model:` keys — a bad-merge scenario. The loose parser used to
+      // silently take the last value; validateFrontmatters now routes
+      // through parseFrontmatterStrict and must flag this.
+      await writeFile(
+        join(dir, "agents", "broken.md"),
+        [
+          "---",
+          "name: broken",
+          "description: oops",
+          "model: opus",
+          "model: sonnet",
+          "---",
+          "",
+          "body",
+        ].join("\n"),
+      );
+      const issues = await validateFrontmatters(dir);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.kind).toBe("agent");
+      expect(issues[0]?.errors.some((e) => e.includes("model"))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("missing frontmatter delimiters surfaces clearly", async () => {
     const dir = await sandbox();
     try {
