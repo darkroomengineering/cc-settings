@@ -41,7 +41,7 @@ Environment variables injected into every Claude Code session.
 ```json
 {
   "env": {
-    "CLAUDE_CODE_EFFORT_LEVEL": "xhigh",
+    "CLAUDE_CODE_EFFORT_LEVEL": "high",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }
@@ -49,7 +49,7 @@ Environment variables injected into every Claude Code session.
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings uses `xhigh` — Anthropic's recommended setting for coding and agentic workflows on Opus 4.7/4.8. On 4.8 the model default is `high`; this env var overrides it ([model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)). Sonnet 5 is the first Sonnet tier to support the full `low`→`xhigh` range (previous Sonnet releases capped below `xhigh`) — Sonnet subagents can now take `xhigh` for hard fan-out work |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins `high` — matching Opus 4.8's own default ([model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)), a deliberate cost choice: the `xhigh` ladder allocates materially more thinking tokens per turn on 4.8/Fable and that compounds across every inheriting subagent. Raise to `/effort xhigh` per session for audits, migrations, or hard debugging. Sonnet 5 is the first Sonnet tier to support the full `low`→`xhigh` range (previous Sonnet releases capped below `xhigh`) — Sonnet subagents can take `xhigh` for hard fan-out work when explicitly raised |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
@@ -409,10 +409,10 @@ Skip the confirmation prompt shown before entering bypass-permissions mode (via 
 
 ### `effortLevel`
 
-Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `xhigh` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`. The official docs for this key list only the first four, but the env var and real live configs also persist `"max"` — our schema accepts it as a superset so a live `settings.json` validates.
+Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `high` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`. The official docs for this key list only the first four, but the env var and real live configs also persist `"max"` — our schema accepts it as a superset so a live `settings.json` validates.
 
 ```json
-{ "effortLevel": "xhigh" }
+{ "effortLevel": "high" }
 ```
 
 ### `disableSkillShellExecution`
@@ -1102,7 +1102,7 @@ Non-interactive "user wins when declared" has one known tradeoff: if the team fi
 
 Notes on the MCP servers shipped in `config/20-mcp.json`. These were previously stored as `_comment` / `_status` keys inline in the JSON (non-standard; removed to keep the composed `settings.json` schema-clean).
 
-- **context7**: Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts. alwaysLoad=true (v2.1.121) opts out of tool-search deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)
+- **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts (the dedicated `/docs` skill was retired May 2026). alwaysLoad=true (v2.1.121) opts out of tool-search deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)
 - **tldr**: Requires: pipx install llm-tldr (v1.5+). Run 'tldr warm .' in project to index. (status: core)
 - **figma**: Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use. (status: core)
 - **chrome-devtools**: Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)

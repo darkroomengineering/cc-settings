@@ -36,6 +36,19 @@ Sync with Claude Code v2.1.201 (spans v2.1.198–201). One schema adoption: the 
 - .claude-plugin/plugin.json
 - CHANGELOG.md
 
+## [11.30.5] — 2026-07-05
+
+### Temporary default-model swap — Fable 5 promo window (#72)
+
+Fable 5 redeployed 2026-07-01 as a promo-then-credit-gated tier. `config/10-core.json`'s session default (`"model"`) switched `opus[1m]` → `fable` for the promo window (commit `795fa1b`), so fresh installs and re-installs during this window ride Fable at no extra cost. This is a **temporary** swap, not a reversal of the 11.24.0 suspension decision: Fable is scheduled to revert back to `opus[1m]` on **2026-07-07** once the promo window ends and credit-gating kicks in.
+
+- **`config/10-core.json`**: `"model"` `opus[1m]` → `fable` (temporary, reverts 2026-07-07).
+- **Docs intentionally unchanged**: README.md, MANUAL.md, and `docs/*.md` continue to state `opus[1m]` as the standing/decision-tier default — the promo swap is a short-lived config value, not a documented default change. Teammates who want Fable for the promo window without waiting on the merger can run `/model fable` per session.
+
+**Files changed:**
+- config/10-core.json
+- CHANGELOG.md
+
 ## [11.30.4] — 2026-07-01
 
 Sync with Claude Code v2.1.197 (spans v2.1.196–197). Tracks one new environment variable in the manifest and docs; no schema, hook, or wiring changes.

@@ -495,7 +495,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | `~/.claude/session-titles/` | Per-session title flags (set once per session by `session-title.ts`) |
 | `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.ts`) |
 | `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.ts`) |
-| `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.ts`, analyzed by `/audit`) |
+| `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.ts`) |
 
 ### Common Issues
 

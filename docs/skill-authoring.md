@@ -96,7 +96,7 @@ Reference from the skill: `bun "$HOME/.claude/src/scripts/<name>.ts"`.
 ## Common Pitfalls
 
 ### Over-broad description
-"Helps with testing" matches every test-related question — including those already covered by `/test`, `/tdd`, `/verify`, `/build`. Be narrower: "Runs Lighthouse audits (3 mobile + 3 desktop, averaged) and fixes performance regressions."
+"Helps with testing" matches every test-related question — including those already covered by `/test`, `/verify`, `/build`. Be narrower: "Runs Lighthouse audits (3 mobile + 3 desktop, averaged) and fixes performance regressions."
 
 ### Trigger overlap with existing skills
 Check the "All Skills" table in `MANUAL.md` before writing triggers. If your skill's triggers overlap significantly with an existing one, either narrow your triggers or propose merging.
@@ -154,4 +154,4 @@ See `skills/cc/SKILL.md` (sync mode) as a canonical example of: phase headings, 
 
 ### Skill with supporting reference file
 
-See `skills/context-doc/` — `SKILL.md` is the entry point; `DOMAIN-AWARENESS.md` is a shared consumer doc that sibling skills (`/tdd`, `/explore`) reference.
+See `skills/context-doc/` — `SKILL.md` is the entry point; `DOMAIN-AWARENESS.md` is a shared consumer doc that sibling skills (`/test`, `/explore`) reference.

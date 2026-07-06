@@ -8,7 +8,7 @@
     "context7": {
       "command": "bunx",
       "args": ["-y", "@upstash/context7-mcp"],
-      "_description": "Library documentation lookup. Auto-triggered by /docs skill and documentation-related prompts. bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
+      "_description": "Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts (the dedicated /docs skill was retired May 2026). bunx is used so catalog:/overrides in monorepo package.json don't break resolution.",
       "_usage": "Triggered by: 'how to use X', 'X docs', 'api reference for Y'",
       "_contextCost": "low",
       "_status": "core"

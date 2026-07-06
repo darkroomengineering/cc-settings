@@ -83,13 +83,14 @@ color: purple
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
 | `implementer` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
-| `maestro` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
-| `reviewer` | opus | project | Read, Grep, Glob, LS, Bash | yellow |
-| `planner` | opus | project | Read, Grep, Glob, LS | blue |
+| `maestro` | opus[1m] | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
+| `reviewer` | opus[1m] | project | Read, Grep, Glob, LS, Bash | yellow |
+| `planner` | opus[1m] | project | Read, Grep, Glob, LS | blue |
 | `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
 | `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
 | `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
 | `security-reviewer` | opus | -- | Read, Grep, Glob, Bash | red |
+| `codex-verifier` | sonnet | -- | Bash | cyan |
 
 ---
 
@@ -130,7 +131,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 Skills using `fork` (21): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `verify`.
 
-Skills using `main` (3): `freeze`, `nuclear-review`, `zero-tech-debt`.
+Skills using `main` (4): `codex`, `freeze`, `nuclear-review`, `zero-tech-debt`.
 
 Skills using `inherit` (default, 10): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
 
@@ -196,6 +197,7 @@ argument-hint: "<skill-name>"
 | `build` | fork | -- | -- | -- |
 | `cc` | -- | -- | -- | -- |
 | `checkpoint` | fork | -- | Bash | -- |
+| `codex` | main | -- | -- | -- |
 | `component` | -- | -- | -- | -- |
 | `consolidate` | fork | -- | -- | -- |
 | `context-doc` | -- | -- | -- | -- |

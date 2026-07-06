@@ -7,7 +7,7 @@ Claude Code configuration for the Darkroom team — installs agents, skills, hoo
 ## Features
 
 - **One-command install** — drops shared agents, skills, hooks, and standards into ~/.claude
-- **Subagents & skills** — nine specialized subagents and a curated, auto-invocable skill library
+- **Subagents & skills** — 10 specialized subagents and a curated, auto-invocable skill library
 - **Composed settings** — settings.json assembled from modular config: permissions, hooks, and MCP servers
 - **Non-destructive** — existing permissions, custom hooks, and local overrides survive re-installs
 - **One-command rollback** — restore the previous backup if anything looks off
@@ -56,8 +56,8 @@ No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the sta
 ├── AGENTS.md           # Portable coding standards (read by all AI tools)
 ├── CLAUDE.md           # Claude-Code-specific config
 ├── settings.json       # Composed from config/*.json (permissions, hooks, MCP)
-├── agents/             # 9 specialized subagents
-├── skills/             # 34 auto-invocable skills
+├── agents/             # 10 specialized subagents
+├── skills/             # 35 auto-invocable skills
 ├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro, react-router
 ├── rules/              # Path-conditioned rules (load on-demand by file type)
 └── src/                # Hook + script implementations (TypeScript)
