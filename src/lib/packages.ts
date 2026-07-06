@@ -7,7 +7,7 @@
 import { progressArrow, progressFail, progressOk, progressWarn } from "./colors.ts";
 import { hasCommand, os } from "./platform.ts";
 
-type SystemPM =
+export type SystemPM =
   | "brew"
   | "port"
   | "apt"
@@ -32,7 +32,7 @@ export interface PackageManagers {
 
 let aptUpdated = false;
 
-function detectSystemPM(): SystemPM {
+export function detectSystemPM(): SystemPM {
   const probe = (
     platforms: Array<typeof os>,
     order: Array<{ cmd: string; pm: NonNullable<SystemPM> }>,
@@ -90,8 +90,22 @@ export function detectPackageManagers(): PackageManagers {
   return { system: detectSystemPM(), node: detectNodePM(), python: detectPythonPM() };
 }
 
+// Package installs (apt-get/brew/pip) can legitimately take minutes (cold
+// mirror, large dependency tree), so the cap is generous — but still bounded,
+// so a stalled installer (e.g. blocked on a sudo password prompt) can't hang
+// the setup script forever. stdin is "ignore" (not inherited) precisely to
+// prevent that sudo-prompt stall in a non-TTY context: with no stdin to read,
+// a prompting sudo fails/exits instead of blocking.
+const PACKAGE_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
+
 async function runSilent(cmd: string[]): Promise<boolean> {
-  const proc = Bun.spawn(cmd, { stdout: "ignore", stderr: "ignore" });
+  const proc = Bun.spawn(cmd, {
+    stdout: "ignore",
+    stderr: "ignore",
+    stdin: "ignore",
+    timeout: PACKAGE_INSTALL_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  });
   return (await proc.exited) === 0;
 }
 
@@ -156,9 +170,43 @@ export async function ensurePythonPackage(pkg: string, checkCmd = pkg): Promise<
   return ok;
 }
 
-export function getInstallHint(pkg: string): string {
+// Manual-copy hint commands (no -y/--noconfirm — the user reviews before
+// running), keyed by detected system package manager. Mirrors the argv map
+// in ensureSystemPackage's installCmd, minus the auto-confirm flags.
+const SYSTEM_HINT_CMD: Record<NonNullable<SystemPM>, (pkg: string) => string> = {
+  brew: (pkg) => `brew install ${pkg}`,
+  port: (pkg) => `sudo port install ${pkg}`,
+  apt: (pkg) => `sudo apt install ${pkg}`,
+  dnf: (pkg) => `sudo dnf install ${pkg}`,
+  yum: (pkg) => `sudo yum install ${pkg}`,
+  pacman: (pkg) => `sudo pacman -S ${pkg}`,
+  zypper: (pkg) => `sudo zypper install ${pkg}`,
+  apk: (pkg) => `sudo apk add ${pkg}`,
+  choco: (pkg) => `choco install ${pkg}`,
+  scoop: (pkg) => `scoop install ${pkg}`,
+  winget: (pkg) => `winget install --id ${pkg} -e --silent`,
+};
+
+/**
+ * Pure mapping from a (possibly already-detected) SystemPM to an install
+ * hint string, with an OS-based fallback when no system PM was detected
+ * (e.g. a minimal container with none of brew/apt/dnf/pacman/… on PATH).
+ * Split out from `getInstallHint` so callers/tests can supply an explicit
+ * `pm` without depending on real environment probing.
+ */
+export function getInstallHintForPM(pm: SystemPM, pkg: string): string {
+  if (pm) return SYSTEM_HINT_CMD[pm](pkg);
   if (os === "macos") return `brew install ${pkg}`;
   if (os === "linux" || os === "wsl") return `sudo apt install ${pkg}`;
   if (os === "windows") return `choco install ${pkg}`;
   return `Install ${pkg} using your package manager`;
+}
+
+/**
+ * Install hint for a missing tool, based on the *detected* system package
+ * manager (dnf/yum/pacman/zypper/apk on Linux, not just apt) so a Fedora/Arch/
+ * Alpine user doesn't get an apt command that fails outright.
+ */
+export function getInstallHint(pkg: string): string {
+  return getInstallHintForPM(detectSystemPM(), pkg);
 }
