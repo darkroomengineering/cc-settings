@@ -33,9 +33,25 @@ Show details of a specific checkpoint.
 bun ~/.claude/src/scripts/checkpoint.ts show chk-20240115-103000
 ```
 
-### restore [checkpoint-id]
+### restore [checkpoint-id] [--force]
 
-Restore from the latest checkpoint, or a specific one by ID.
+Real, opt-in rollback — restores tracked files (working tree + index) to
+exactly what they were at save time, then reapplies whatever uncommitted
+changes existed at that moment (captured as a patch when the checkpoint was
+saved). Untracked files are never touched or deleted; if any existed at save
+time they're just listed as a warning (their content was never captured).
+
+Safety rails:
+- **Auto safety-checkpoint first.** Before anything is touched, the current
+  state is saved as its own checkpoint and its id is printed — restore is
+  itself reversible by restoring that id (with `--force`).
+- **Branch/sha guard.** If the current branch or HEAD differs from what the
+  checkpoint recorded, restore refuses and tells you to check out that branch
+  or pass `--force`.
+- **Legacy checkpoints** (saved before this patch-capture feature existed)
+  have no recorded diff to restore from. Restoring one prints "legacy
+  checkpoint: metadata only, nothing restored" and falls back to the old
+  print-only behavior — review the dumped JSON and continue manually.
 
 ```bash
 # Restore latest
@@ -43,6 +59,9 @@ bun ~/.claude/src/scripts/checkpoint.ts restore
 
 # Restore specific
 bun ~/.claude/src/scripts/checkpoint.ts restore chk-20240115-103000
+
+# Restore across a branch/sha mismatch
+bun ~/.claude/src/scripts/checkpoint.ts restore chk-20240115-103000 --force
 ```
 
 ### clean
@@ -77,4 +96,4 @@ User: "clean up old checkpoints"
 
 ## Storage
 
-Checkpoints are stored at `~/.claude/checkpoints/<project-name>/` as JSON files with a `latest` symlink pointing to the most recent.
+Checkpoints are stored at `~/.claude/checkpoints/<project-name>/` as JSON files with a `latest` symlink pointing to the most recent. Each checkpoint with uncommitted changes at save time also gets a sibling `chk-<id>.patch` file (`git diff HEAD` output) — this is what makes `restore` a real rollback instead of a metadata dump. Checkpoints saved before this feature existed have no patch file and restore in metadata-only (legacy) mode.

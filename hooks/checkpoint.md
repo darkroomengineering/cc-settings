@@ -5,7 +5,9 @@ Save and restore state for long-running tasks. Enables recovery from interruptio
 ## When to Checkpoint
 
 - **Milestones**: After completing a logical phase of work
-- **Context Thresholds**: Automatically at 70%, 80%, 90% context usage
+- **Context Thresholds**: Recommended at 70%, 80%, 90% context usage — no hook
+  saves these automatically; the agent must invoke `checkpoint save` itself
+  when it notices context usage crossing a threshold
 - **Before Risky Operations**: Schema changes, large refactors, dependency upgrades
 - **After Verification Passes**: Lock in known-good state
 
@@ -62,7 +64,11 @@ Save and restore state for long-running tasks. Enables recovery from interruptio
 /checkpoint clean
 ```
 
-## Auto-Checkpoint Thresholds
+## Recommended Checkpoint Thresholds
+
+No hook watches context usage or saves checkpoints automatically — these are
+actions the agent itself is expected to take when it notices context usage
+crossing a threshold (e.g. from the statusline or its own tracking).
 
 | Context Used | Action |
 |-------------|--------|
@@ -87,9 +93,13 @@ On restore, todos are rebuilt from checkpoint state.
 
 ## Integration with Git
 
-- Checkpoints record the current branch, SHA, and dirty state
-- On restore, verify the git state matches (warn if diverged)
-- Auto-checkpoint at 80% includes a git commit
+- Checkpoints record the current branch, SHA, dirty state, and a `git diff
+  HEAD` patch of uncommitted changes — `restore` uses the sha + patch to put
+  tracked files back exactly as they were (see `skills/checkpoint/SKILL.md`
+  for the full restore semantics, safety checkpoint, and `--force` gate)
+- On restore, a branch/sha mismatch refuses unless `--force` is passed
+- Recommended: manually checkpoint at 80% and commit completed work to git
+  (no hook automates this)
 
 ## Storage Location
 
@@ -108,8 +118,8 @@ On restore, todos are rebuilt from checkpoint state.
 | **Purpose** | Pause/resume within a task | Transfer between sessions |
 | **Scope** | Single task state | Full session context |
 | **Storage** | `~/.claude/checkpoints/` | `~/.claude/handoffs/` |
-| **Auto-triggered** | Yes (context thresholds) | No (manual only) |
-| **Git state** | Records SHA + dirty | Records full diff |
+| **Auto-triggered** | No — agent-invoked (recommended at context thresholds) | No (manual only) |
+| **Git state** | Records SHA + dirty + a restorable patch | Records full diff |
 | **Todo state** | Full todo snapshot | Summary only |
 | **Use case** | Long task, context exhaustion | End of day, team handoff |
 

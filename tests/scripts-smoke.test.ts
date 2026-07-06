@@ -14,7 +14,7 @@ const SRC = resolve(import.meta.dir, "..", "src", "scripts");
 
 async function run(
   script: string,
-  opts: { env?: Record<string, string>; stdin?: string; args?: string[] } = {},
+  opts: { env?: Record<string, string>; stdin?: string; args?: string[]; cwd?: string } = {},
 ): Promise<{ exit: number; stdout: string; stderr: string }> {
   const env = { ...process.env, ...opts.env };
   // node:os `homedir()` reads USERPROFILE on Windows, not HOME. When a test
@@ -23,6 +23,7 @@ async function run(
   if (opts.env?.HOME) env.USERPROFILE = opts.env.HOME;
   const proc = Bun.spawn(["bun", resolve(SRC, script), ...(opts.args ?? [])], {
     env,
+    cwd: opts.cwd,
     stdin: opts.stdin !== undefined ? "pipe" : undefined,
     stdout: "pipe",
     stderr: "pipe",
@@ -501,6 +502,165 @@ describe("checkpoint.ts clean — falsy-zero regression", () => {
       expect(remaining).toEqual([]);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("checkpoint.ts save/restore — real rollback (#80)", () => {
+  // A real (throwaway) git repo, separate from the cc-settings repo that's
+  // actually running these tests — checkpoint.ts shells out to `git` against
+  // its inherited cwd, so mutating tracked files (as save/restore do) must
+  // never touch the real working tree.
+  async function initRepo(): Promise<string> {
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "cc-checkpoint-repo-"));
+    const git = (args: string[]) =>
+      Bun.spawnSync(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+    git(["init", "-q"]);
+    git(["config", "user.email", "test@example.com"]);
+    git(["config", "user.name", "Test"]);
+    writeFileSync(join(dir, "foo.txt"), "original\n");
+    git(["add", "."]);
+    git(["commit", "-q", "-m", "init"]);
+    return dir;
+  }
+
+  test("save creates a patch capturing a modified tracked file", async () => {
+    const { writeFileSync, readFileSync, readdirSync, mkdtempSync, rmSync } = await import(
+      "node:fs"
+    );
+    const { tmpdir } = await import("node:os");
+    const { join, basename } = await import("node:path");
+    const repoDir = await initRepo();
+    const homeDir = mkdtempSync(join(tmpdir(), "cc-checkpoint-home-"));
+    try {
+      writeFileSync(join(repoDir, "foo.txt"), "modified\n");
+      const r = await run("checkpoint.ts", {
+        env: { HOME: homeDir },
+        cwd: repoDir,
+        args: ["save", "test save"],
+      });
+      expect(r.exit).toBe(0);
+      expect(r.stdout).toContain("Checkpoint saved:");
+      expect(r.stdout).toContain("Patch:");
+
+      const project = basename(repoDir);
+      const checkpointDir = join(homeDir, ".claude", "checkpoints", project);
+      const jsonFiles = readdirSync(checkpointDir).filter((f) => f.endsWith(".json"));
+      expect(jsonFiles.length).toBe(1);
+      const first = jsonFiles[0];
+      if (!first) throw new Error("expected a checkpoint json file");
+      // biome-ignore lint/suspicious/noExplicitAny: reading back an on-disk JSON fixture in a test
+      const chk = JSON.parse(readFileSync(join(checkpointDir, first), "utf8")) as any;
+      expect(chk.hasPatch).toBe(true);
+      expect(typeof chk.patchFile).toBe("string");
+      const patchContent = readFileSync(join(checkpointDir, chk.patchFile), "utf8");
+      expect(patchContent).toContain("-original");
+      expect(patchContent).toContain("+modified");
+    } finally {
+      rmSync(repoDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  test("restore (same-sha case) brings the file content back and creates a safety checkpoint", async () => {
+    const { writeFileSync, readFileSync, readdirSync, mkdtempSync, rmSync } = await import(
+      "node:fs"
+    );
+    const { tmpdir } = await import("node:os");
+    const { join, basename } = await import("node:path");
+    const repoDir = await initRepo();
+    const homeDir = mkdtempSync(join(tmpdir(), "cc-checkpoint-home-"));
+    try {
+      writeFileSync(join(repoDir, "foo.txt"), "modified\n");
+      const saveR = await run("checkpoint.ts", {
+        env: { HOME: homeDir },
+        cwd: repoDir,
+        args: ["save", "before further edit"],
+      });
+      expect(saveR.exit).toBe(0);
+      const savedId = (saveR.stdout.match(/Checkpoint saved:\s*(\S+)/) ?? [])[1];
+      expect(savedId).toBeDefined();
+
+      const project = basename(repoDir);
+      const checkpointDir = join(homeDir, ".claude", "checkpoints", project);
+      const beforeRestoreCount = readdirSync(checkpointDir).filter((f) =>
+        f.endsWith(".json"),
+      ).length;
+
+      // timestampId() is second-granularity — cross a real second boundary so
+      // the restore's auto safety-checkpoint can't collide with (and
+      // overwrite) the checkpoint id just saved above.
+      await Bun.sleep(1100);
+
+      // Diverge further — this dirty state must be recoverable afterwards via
+      // the safety checkpoint, not silently clobbered by the restore.
+      writeFileSync(join(repoDir, "foo.txt"), "further edit\n");
+
+      const restoreR = await run("checkpoint.ts", {
+        env: { HOME: homeDir },
+        cwd: repoDir,
+        args: ["restore", savedId as string],
+      });
+      expect(restoreR.exit).toBe(0);
+      expect(restoreR.stdout).toContain("Safety checkpoint of current state saved:");
+      expect(restoreR.stdout).toContain("Restored tracked files to checkpoint");
+
+      // Working tree is back to what the patch captured ("modified"), not the
+      // "further edit" that existed right before restore ran.
+      expect(readFileSync(join(repoDir, "foo.txt"), "utf8")).toBe("modified\n");
+
+      // A safety checkpoint of the pre-restore ("further edit") state was
+      // created — restore is itself reversible.
+      const afterRestoreCount = readdirSync(checkpointDir).filter((f) =>
+        f.endsWith(".json"),
+      ).length;
+      expect(afterRestoreCount).toBe(beforeRestoreCount + 1);
+    } finally {
+      rmSync(repoDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  test("legacy JSON without patch → print-only path", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join, basename } = await import("node:path");
+    const repoDir = await initRepo();
+    const homeDir = mkdtempSync(join(tmpdir(), "cc-checkpoint-home-"));
+    try {
+      const project = basename(repoDir);
+      const checkpointDir = join(homeDir, ".claude", "checkpoints", project);
+      mkdirSync(checkpointDir, { recursive: true });
+      const legacyId = "chk-legacy-test";
+      // Pre-feature checkpoints never wrote hasPatch/patchFile/untrackedFiles
+      // — this is the exact shape cmdRestore must recognize as legacy (via
+      // hasPatch === undefined, not false).
+      const legacyChk = {
+        id: legacyId,
+        timestamp: "2024-01-15T10:30:00Z",
+        project,
+        description: "old checkpoint",
+        git: { branch: "main", sha: "0000000", dirty: false, modifiedFiles: [] },
+      };
+      writeFileSync(join(checkpointDir, `${legacyId}.json`), JSON.stringify(legacyChk));
+
+      const r = await run("checkpoint.ts", {
+        env: { HOME: homeDir },
+        cwd: repoDir,
+        args: ["restore", legacyId],
+      });
+      expect(r.exit).toBe(0);
+      expect(r.stdout).toContain("Legacy checkpoint: metadata only, nothing restored.");
+
+      // Print-only: no safety checkpoint, no new files created.
+      const jsonFiles = readdirSync(checkpointDir).filter((f) => f.endsWith(".json"));
+      expect(jsonFiles.length).toBe(1);
+    } finally {
+      rmSync(repoDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
     }
   });
 });

@@ -93,9 +93,11 @@ For tasks too large for a single context window. Implements checkpoint/restore, 
 
 ### Checkpoint Strategy
 
-#### Automatic Checkpoints
+#### Context-Threshold Checkpoints
 
-Checkpoints are saved automatically at context usage thresholds. See `hooks/checkpoint.md` for actions at 70% / 80% / 90%.
+No hook saves checkpoints automatically — the agent must invoke
+`checkpoint.ts save` itself when it notices context usage crossing a
+threshold. See `hooks/checkpoint.md` for the recommended actions at 70% / 80% / 90%.
 
 #### Manual Checkpoints
 
@@ -106,7 +108,7 @@ Save checkpoints at these milestones:
 
 #### Checkpoint Contents
 
-See `hooks/checkpoint.md` for the full checkpoint JSON schema, storage location, and auto-checkpoint threshold actions.
+See `hooks/checkpoint.md` for the full checkpoint JSON schema, storage location, and recommended checkpoint threshold actions.
 
 #### Save/Restore Commands
 
@@ -208,9 +210,9 @@ Phase 1: Core hooks (auth, routing)
   → Implement → Verify → Checkpoint at 30%
 Phase 2: Feature hooks (dashboard, settings)
   → Implement → Verify → Checkpoint at 55%
-  → Context at 70% → auto-checkpoint, continue
+  → Context at 70% → agent checkpoints, continue
 Phase 3: Shared components
-  → Context at 90% → auto-checkpoint, hand off
+  → Context at 90% → agent checkpoints, hands off
   [New session resumes from checkpoint]
 Phase 4-6: Continue...
   → Final verification → <promise>COMPLETE</promise>
