@@ -50,6 +50,16 @@ jobs:
           bun-version: ">=1.1.30"
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      - run: bun run lint:skills
+      - run: bun run lint:agents
+      - run: bun run lint:profiles
+      - name: lint:knowledge (no-op without KNOWLEDGE_REPO_PATH)
+        # No team-knowledge repo checkout lives in this CI job — the fixture
+        # question (a real knowledge-note dir to lint here) is deliberately
+        # left open, see issue #91 / PR body. Without KNOWLEDGE_REPO_PATH set
+        # this only proves the script runs cleanly (prints a "no directory
+        # specified" message and exits 0); it does not lint real notes yet.
+        run: bun run lint:knowledge
 
   schemas:
     # Fails if `bun run schemas:emit` would produce a diff — enforces that the

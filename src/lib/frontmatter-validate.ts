@@ -1,13 +1,18 @@
 // Install-time frontmatter validation. Walks `agents/*.md`,
-// `skills/*\/SKILL.md`, and `profiles/*.md`, parses each frontmatter,
-// validates against the corresponding zod schema. Catches typos like
-// `effort: xtreme`, `permissionMode: planning`, malformed kebab-case names,
-// etc. before the installer ships a broken agent, skill, or profile to
-// ~/.claude/.
+// `skills/*\/SKILL.md`, and `profiles/*.md`, parses each frontmatter with
+// `parseFrontmatterStrict` (the same strict YAML path CI's lint:skills /
+// lint:knowledge / lint:agents / lint:profiles use), validates against the
+// corresponding zod schema. Catches typos like `effort: xtreme`,
+// `permissionMode: planning`, malformed kebab-case names, AND duplicate
+// top-level keys (e.g. two `model:` lines from a bad merge) — the loose
+// parser silently took the last one, strict flags it — before the installer
+// ships a broken agent, skill, or profile to ~/.claude/.
 //
 // Non-fatal by design: a single bad agent shouldn't block install of the
-// other 9 — we surface the error and continue. Fatal-mode is opt-in via
-// the `strict` flag (used by tests).
+// other 9 — we surface the error (including strict parse failures) and
+// continue. There is no separate fatal-mode flag here; callers that want a
+// hard gate (CI) use the dedicated lint:* scripts instead, which exit
+// non-zero on error-severity findings.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -16,7 +21,7 @@ import type { z } from "zod";
 import { AgentFrontmatter } from "../schemas/agent.ts";
 import { ProfileFrontmatter } from "../schemas/profile.ts";
 import { SkillFrontmatter } from "../schemas/skill.ts";
-import { parseFrontmatter } from "./frontmatter.ts";
+import { parseFrontmatterStrict } from "./frontmatter.ts";
 
 export interface FrontmatterIssue {
   kind: "agent" | "skill" | "profile";
@@ -70,7 +75,16 @@ async function validateKind(sourceDir: string, spec: WalkSpec): Promise<Frontmat
   for (const rel of await listCandidates(dir, spec.layout)) {
     const path = `${spec.dir}/${rel}`;
     const text = await readFile(join(dir, ...rel.split("/")), "utf8");
-    const fm = parseFrontmatter(text);
+    // Strict path: catches duplicate top-level keys (last-wins is silent
+    // under the loose parser) and surfaces real YAML syntax errors instead
+    // of swallowing them into a generic "no parseable frontmatter". Still
+    // non-fatal here — degrade-with-warning, not abort-install (see header
+    // note); the caller only ever surfaces `issues` as a warning block.
+    const { data: fm, errors: parseErrors } = parseFrontmatterStrict(text);
+    if (parseErrors.length > 0) {
+      issues.push({ kind: spec.kind, path, errors: parseErrors.map((e) => e.message) });
+      continue;
+    }
     if (!fm || typeof fm !== "object") {
       issues.push({ kind: spec.kind, path, errors: ["no parseable frontmatter"] });
       continue;

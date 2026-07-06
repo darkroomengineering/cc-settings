@@ -12,6 +12,8 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "lint:skills": "bun src/scripts/lint-skills.ts",
+    "lint:agents": "bun src/scripts/lint-agents.ts",
+    "lint:profiles": "bun src/scripts/lint-profiles.ts",
     "audit:hooks": "bun src/scripts/audit-hooks.ts",
     "claude-audit": "bun src/scripts/claude-audit.ts",
     "format": "biome format --write .",
