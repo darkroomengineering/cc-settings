@@ -41,6 +41,9 @@ exactly what they were at save time, then reapplies whatever uncommitted
 changes existed at that moment (captured as a patch when the checkpoint was
 saved). Untracked files are never touched or deleted; if any existed at save
 time they're just listed as a warning (their content was never captured).
+Scope note: restore reconstructs file *content* only — anything that was
+staged at save time comes back as unstaged working-tree changes (the patch
+reapplies to the worktree; index state is intentionally not reconstructed).
 
 Safety rails:
 - **Auto safety-checkpoint first.** Before anything is touched, the current

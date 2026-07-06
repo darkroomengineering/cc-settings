@@ -593,10 +593,15 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
         f.endsWith(".json"),
       ).length;
 
-      // timestampId() is second-granularity — cross a real second boundary so
-      // the restore's auto safety-checkpoint can't collide with (and
-      // overwrite) the checkpoint id just saved above.
-      await Bun.sleep(1100);
+      // Full sha stored (not --short): restore drives `git restore --source=`
+      // with it, and short shas can grow ambiguous.
+      const savedChk = JSON.parse(readFileSync(join(checkpointDir, `${savedId}.json`), "utf8"));
+      expect(savedChk.git.sha).toMatch(/^[0-9a-f]{40}$/);
+
+      // No sleep here on purpose: save + restore within the SAME second used
+      // to collide on the second-granularity id, letting the safety
+      // checkpoint overwrite the checkpoint being restored. performSave now
+      // suffixes until free — this test exercises exactly that path.
 
       // Diverge further — this dirty state must be recoverable afterwards via
       // the safety checkpoint, not silently clobbered by the restore.
@@ -610,6 +615,14 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
       expect(restoreR.exit).toBe(0);
       expect(restoreR.stdout).toContain("Safety checkpoint of current state saved:");
       expect(restoreR.stdout).toContain("Restored tracked files to checkpoint");
+      // The safety checkpoint must get its OWN id — under a same-second
+      // collision the suffixing logic (not luck) is what guarantees it never
+      // overwrites the checkpoint being restored.
+      const safetyId = (restoreR.stdout.match(
+        /Safety checkpoint of current state saved:\s*(\S+)/,
+      ) ?? [])[1];
+      expect(safetyId).toBeDefined();
+      expect(safetyId).not.toBe(savedId);
 
       // Working tree is back to what the patch captured ("modified"), not the
       // "further edit" that existed right before restore ran.

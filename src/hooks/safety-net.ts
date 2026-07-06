@@ -214,7 +214,14 @@ function checkRmRf(cmd: string): void {
   // unchecked. The capture excludes newlines so an embedded `\n` still acts
   // as a hard stop between two rm invocations even if upstream splitting
   // missed it.
-  const re = /(^|\s)rm\s+([^;&|\n]+)/g;
+  // The optional path prefix catches /bin/rm, ./rm, and env /usr/bin/rm —
+  // a whitespace-bare `rm` matcher misses path-qualified invocations.
+  // Accepted residual (advisory posture, see SECURITY.md "Enforcement
+  // boundary"): a QUOTED executable ("/bin/rm" -rf /) is not matched —
+  // admitting quotes here would false-positive on quoted strings that merely
+  // contain rm (echo "rm -rf /"). Robust coverage needs the shared
+  // shell-aware tokenizer (DT1 follow-up), not a wider regex.
+  const re = /(^|[\s;&|])(?:[^\s;&|]*\/)?rm\s+([^;&|\n]+)/g;
   let m: RegExpExecArray | null;
   // biome-ignore lint/suspicious/noAssignInExpressions: regex exec loop idiom
   while ((m = re.exec(cmd))) {
@@ -253,10 +260,15 @@ function checkAiAttribution(cmd: string): void {
 
 // --- Rule: git destructive ops --------------------------------------------
 
+// Path values are quote-aware: `git -C "/repo with spaces" reset --hard`
+// must strip the whole quoted path, or the leftover fragment hides the verb
+// from the destructive-op matcher.
+// The double-quoted atom tolerates backslash-escaped quotes inside the value
+// ("/repo \" x") so an embedded escape can't split the strip mid-path.
 const GIT_GLOBAL_OPT_PATTERNS = [
-  /^-[Cc]\s+\S+\s*/, // -C <path>
-  /^--(git-dir|work-tree)=\S+\s*/, // --git-dir=<path> / --work-tree=<path>
-  /^--(git-dir|work-tree)\s+\S+\s*/, // --git-dir <path> / --work-tree <path>
+  /^-[Cc]\s+("(?:[^"\\]|\\.)*"|'[^']*'|\S+)\s*/, // -C <path>
+  /^--(git-dir|work-tree)=("(?:[^"\\]|\\.)*"|'[^']*'|\S+)\s*/, // --git-dir=<path> / --work-tree=<path>
+  /^--(git-dir|work-tree)\s+("(?:[^"\\]|\\.)*"|'[^']*'|\S+)\s*/, // --git-dir <path> / --work-tree <path>
   /^(--bare|--no-pager|--no-replace-objects)\s*/, // boolean flags
 ];
 

@@ -92,17 +92,36 @@ async function performSave(description: string): Promise<SaveResult> {
   const project = await getProjectName();
   const checkpointDir = claudePath("checkpoints", project);
   await ensureDir(checkpointDir);
-  const id = timestampId("chk-", "-");
+  // timestampId is second-granularity — a save and a restore's safety
+  // checkpoint landing in the same second would collide, and the safety save
+  // would OVERWRITE the checkpoint being restored (json + patch). Suffix
+  // until the filename is free.
+  const baseId = timestampId("chk-", "-");
+  let id = baseId;
+  for (let n = 2; existsSync(join(checkpointDir, `${id}.json`)); n++) {
+    id = `${baseId}-${n}`;
+  }
   const file = join(checkpointDir, `${id}.json`);
   const patchFileName = `${id}.patch`;
   const [branchRes, shaRes, diffQuietRes, filesRes, diffHeadRes, untrackedRes] = await Promise.all([
     runProcessFull("git", ["branch", "--show-current"]),
-    runProcessFull("git", ["rev-parse", "--short", "HEAD"]),
+    // Full sha, not --short: restore passes this to `git restore --source=`,
+    // and short shas can become ambiguous as the repo grows.
+    runProcessFull("git", ["rev-parse", "HEAD"]),
     runProcessFull("git", ["diff", "--quiet"]),
     runProcessFull("git", ["diff", "--name-only", "HEAD"]),
     runProcessFull("git", ["diff", "HEAD"]),
     runProcessFull("git", ["ls-files", "--others", "--exclude-standard"]),
   ]);
+  // If we're in a git repo (rev-parse worked) but the patch capture itself
+  // failed or timed out, refuse to write the checkpoint: a checkpoint that
+  // silently missed the dirty state would let a later restore clobber
+  // tracked files it never actually recorded.
+  if (shaRes.exit === 0 && diffHeadRes.exit !== 0) {
+    throw new Error(
+      `checkpoint: git diff HEAD failed (exit ${diffHeadRes.exit}) — refusing to save a checkpoint that may not capture the working tree. ${diffHeadRes.stderr.trim()}`,
+    );
+  }
   const hasPatch = diffHeadRes.stdout.trim().length > 0;
   if (hasPatch) {
     await writeFile(join(checkpointDir, patchFileName), diffHeadRes.stdout);
@@ -215,12 +234,15 @@ async function cmdRestore(target: string, opts: { force: boolean }): Promise<num
 
   const [curBranchRes, curShaRes] = await Promise.all([
     runProcessFull("git", ["branch", "--show-current"]),
-    runProcessFull("git", ["rev-parse", "--short", "HEAD"]),
+    runProcessFull("git", ["rev-parse", "HEAD"]),
   ]);
   const curBranch = curBranchRes.stdout.trim() || "unknown";
   const curSha = curShaRes.stdout.trim() || "unknown";
   const branchDiffers = curBranch !== chk.git.branch;
-  const shaDiffers = curSha !== chk.git.sha;
+  // Prefix-tolerant comparison: checkpoints written before the full-sha fix
+  // stored `rev-parse --short` output; treat short-vs-full of the same commit
+  // as equal.
+  const shaDiffers = !(curSha.startsWith(chk.git.sha) || chk.git.sha.startsWith(curSha));
 
   // Legacy checkpoint: saved before patch capture existed. There is nothing
   // to actually roll back to (no recorded diff), so keep the old print-only

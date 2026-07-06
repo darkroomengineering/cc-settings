@@ -234,6 +234,23 @@ describe("TS safety-net — issue #74 adversarial bypasses", () => {
     expectAllow('python3 -c \'subprocess.run(["ls","-la"])\''));
 });
 
+describe("TS safety-net — Codex cross-model review round (v12)", () => {
+  // Path-qualified rm bypassed the whitespace-bare `rm` matcher.
+  test("/bin/rm -rf / (path-qualified) → BLOCK", () => expectBlock("/bin/rm -rf /"));
+  test("env /usr/bin/rm -rf ~/ (env + path-qualified) → BLOCK", () =>
+    expectBlock("env /usr/bin/rm -rf ~/"));
+  test("echo confirm -rf / (rm as word fragment) → ALLOW (neighbor safe)", () =>
+    expectAllow("echo confirm -rf /"));
+
+  // Quoted -C path split the git global-option stripper, hiding the verb.
+  test('git -C "/tmp/repo with spaces" reset --hard (quoted -C) → BLOCK', () =>
+    expectBlock('git -C "/tmp/repo with spaces" reset --hard'));
+  test('git -C "/tmp/repo with spaces" status → ALLOW (neighbor safe)', () =>
+    expectAllow('git -C "/tmp/repo with spaces" status'));
+  test('git -C "/tmp/repo \\" esc" reset --hard (escaped quote in -C) → BLOCK', () =>
+    expectBlock('git -C "/tmp/repo \\" esc" reset --hard'));
+});
+
 describe("TS safety-net — decision protocol", () => {
   test("allow = exit 0", async () => {
     const r = await runSafetyNet("ls");
