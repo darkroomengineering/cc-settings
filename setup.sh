@@ -9,8 +9,9 @@
 #   --light           light tier: raw CC + statusline + share-learning only
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
 #   --dry-run         print planned actions only
+#   --status          print installed vs packaged version info
+#   --migrate-only    backup + settings merge + sentinel; skip file copy
 #   --interactive     prompt on settings.json conflicts (also: CC_INTERACTIVE=1)
-#   --ts-hooks        install with TS hook paths (also: CC_USE_TS_HOOKS=1)
 #   --help, -h
 
 set -euo pipefail
@@ -31,7 +32,11 @@ if [[ "$SCRIPT_DIR" == "/dev/fd" || "$SCRIPT_DIR" == /proc/self/fd* ]]; then
         echo "Install git or clone manually: git clone $REPO_URL && bash cc-settings/setup.sh" >&2
         exit 1
     fi
-    git clone --depth 1 "$REPO_URL" "$CLONE_DIR" 2>/dev/null
+    if ! git clone --depth 1 "$REPO_URL" "$CLONE_DIR"; then
+        echo "ERROR: git clone failed." >&2
+        echo "Clone manually: git clone $REPO_URL && bash cc-settings/setup.sh" >&2
+        exit 1
+    fi
     exec bash "$CLONE_DIR/setup.sh" "$@"
 fi
 
@@ -63,8 +68,8 @@ ensure_bun
 # --- delegate to src/setup.ts ------------------------------------------------
 
 # Install/refresh deps under the source repo (bun install is idempotent and
-# fast when the lockfile is already satisfied). This ensures zod, yaml, and
-# @inquirer/prompts are resolvable for the TS installer.
+# fast when the lockfile is already satisfied). This ensures zod (the sole
+# runtime dependency) is resolvable for the TS installer.
 (cd "$SCRIPT_DIR" && bun install --frozen-lockfile >/dev/null 2>&1) || (cd "$SCRIPT_DIR" && bun install >/dev/null 2>&1)
 
 exec bun "$SCRIPT_DIR/src/setup.ts" --source="$SCRIPT_DIR" "$@"
