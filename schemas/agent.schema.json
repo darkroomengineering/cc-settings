@@ -72,13 +72,16 @@
     "isolation": {
       "type": "string",
       "enum": [
-        "worktree"
+        "worktree",
+        "remote"
       ]
     },
     "memory": {
       "type": "string",
       "enum": [
-        "project"
+        "user",
+        "project",
+        "local"
       ]
     },
     "color": {

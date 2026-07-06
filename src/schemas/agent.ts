@@ -21,8 +21,14 @@ export const AgentModel = z.union([
 // under the agent-flavored name so existing importers keep working.
 export const AgentPermissionMode = PermissionMode;
 
-export const AgentIsolation = z.enum(["worktree"]);
-export const AgentMemory = z.enum(["project"]);
+// Mirrors knownAgentIsolation / knownAgentMemory in
+// upstream/claude-code-manifest.json — keep in sync so the upstream scanner
+// catches drift (see src/upstream/scan.ts). Widened 2026-07-06 (issue
+// #82/#104): "remote" isolation and "user"/"local" memory scopes are real,
+// documented values (see docs/frontmatter-reference.md) that were previously
+// rejected by these enums.
+export const AgentIsolation = z.enum(["worktree", "remote"]);
+export const AgentMemory = z.enum(["user", "project", "local"]);
 
 export const AgentFrontmatter = z.looseObject({
   name: z
@@ -52,3 +58,5 @@ export const AgentFrontmatter = z.looseObject({
 export type AgentFrontmatter = z.infer<typeof AgentFrontmatter>;
 export type AgentEffort = z.infer<typeof AgentEffort>;
 export type AgentPermissionMode = z.infer<typeof AgentPermissionMode>;
+export type AgentIsolation = z.infer<typeof AgentIsolation>;
+export type AgentMemory = z.infer<typeof AgentMemory>;

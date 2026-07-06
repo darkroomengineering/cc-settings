@@ -52,6 +52,31 @@ describe("AgentFrontmatter schema", () => {
     expect(r.success).toBe(false);
   });
 
+  // Widened 2026-07-06 (issue #82/#104) — "remote" isolation and "user"/"local"
+  // memory scopes are real, documented values that used to be rejected.
+  test("accepts all known isolation values", () => {
+    for (const isolation of ["worktree", "remote"]) {
+      const r = AgentFrontmatter.safeParse({ name: "x", description: "y", isolation });
+      expect(r.success).toBe(true);
+    }
+  });
+
+  test("accepts all known memory scopes", () => {
+    for (const memory of ["user", "project", "local"]) {
+      const r = AgentFrontmatter.safeParse({ name: "x", description: "y", memory });
+      expect(r.success).toBe(true);
+    }
+  });
+
+  test("rejects isolation typos", () => {
+    const r = AgentFrontmatter.safeParse({
+      name: "x",
+      description: "y",
+      isolation: "bogus-value",
+    });
+    expect(r.success).toBe(false);
+  });
+
   test("accepts pinned model variants like opus[1m]", () => {
     const r = AgentFrontmatter.safeParse({
       name: "x",

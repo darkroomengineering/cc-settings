@@ -7,14 +7,14 @@
 //   error   — blocks (CI fails, lint:agents exits non-zero)
 //   warning — surfaced but non-blocking
 //
-// Known narrow-schema gap (see open issue #82/#104): AgentIsolation only
-// accepts "worktree" and AgentMemory only accepts "project", but
-// `isolation: remote` and `memory: user` are real, discussed concepts that
-// just haven't landed in the schema yet. Rather than hard-fail an agent for
-// using one of those two specific values, this linter downgrades exactly
-// those to a warning and validates the rest of the frontmatter normally.
-// Any other schema violation (typo'd effort, bad permissionMode, etc.)
-// remains a hard error.
+// Historical note (issue #82/#104, resolved): AgentIsolation and AgentMemory
+// used to only accept "worktree" and "project" respectively, even though
+// "remote" isolation and "user"/"local" memory scopes were real, documented
+// values. This linter used to carry a `narrow-schema-enum` carve-out that
+// downgraded those two specific values to warnings instead of hard errors.
+// Now that AgentIsolation/AgentMemory are widened in src/schemas/agent.ts to
+// accept all of those values, the carve-out is gone — they're simply valid
+// and pass AgentFrontmatter.safeParse like every other field.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -40,13 +40,6 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-// field -> value considered a known-narrow-schema gap (warn, don't error).
-// See file header note and issue #82/#104.
-const NARROW_ENUM_WARNINGS: Record<string, unknown> = {
-  isolation: "remote",
-  memory: "user",
-};
-
 async function lintOne(agentsDir: string, filename: string): Promise<AgentFinding[]> {
   const findings: AgentFinding[] = [];
   const name = filename.replace(/\.md$/, "");
@@ -67,23 +60,7 @@ async function lintOne(agentsDir: string, filename: string): Promise<AgentFindin
       return domainFindings;
     }
 
-    // Downgrade known-narrow-schema enum gaps to warnings, then drop the
-    // field before schema validation — both isolation and memory are
-    // optional in AgentFrontmatter, so omitting is equivalent to a valid
-    // placeholder and the rest of validation still runs normally.
-    const adjusted: Record<string, unknown> = { ...parsed };
-    for (const [field, narrowValue] of Object.entries(NARROW_ENUM_WARNINGS)) {
-      if (adjusted[field] === narrowValue) {
-        domainFindings.push({
-          severity: "warning",
-          rule: "narrow-schema-enum",
-          message: `${field}: "${narrowValue}" is not yet in the schema (see open issue #82/#104) — accepted here as a warning, not an error`,
-        });
-        delete adjusted[field];
-      }
-    }
-
-    const result = AgentFrontmatter.safeParse(adjusted);
+    const result = AgentFrontmatter.safeParse(parsed);
     if (!result.success) {
       for (const issue of result.error.issues) {
         domainFindings.push({

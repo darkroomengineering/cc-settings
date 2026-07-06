@@ -26,7 +26,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `maxTurns` | number | No | Maximum agentic turns before the subagent stops |
 | `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |
 | `background` | boolean | No | When `true`, always run this subagent as a background task |
-| `isolation` | string | No | Set to `worktree` to run in a temporary git worktree for isolated repo access |
+| `isolation` | string | No | `worktree` runs the agent in a temporary git worktree for isolated repo access; `remote` runs it in a remote/sandboxed environment |
 | `effort` | string | No | Effort level for this agent: `low`, `medium`, `high` |
 
 ### Auto-Invocation via `description`

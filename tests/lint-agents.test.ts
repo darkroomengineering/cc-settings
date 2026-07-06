@@ -133,8 +133,8 @@ describe("lintAgentsDir — name/file mismatch", () => {
   });
 });
 
-describe("lintAgentsDir — narrow-schema enum carve-out (issue #82/#104)", () => {
-  test("isolation: remote is a warning, not an error", async () => {
+describe("lintAgentsDir — widened isolation/memory enums (issue #82/#104)", () => {
+  test("isolation: remote is fully valid, no findings", async () => {
     const dir = await sandbox();
     try {
       await writeAgent(
@@ -148,16 +148,14 @@ isolation: remote
 `,
       );
       const result = await lintAgentsDir(dir);
-      const finding = result.findings.find((f) => f.rule === "narrow-schema-enum");
-      expect(finding).toBeDefined();
-      expect(finding?.severity).toBe("warning");
+      expect(result.findings).toEqual([]);
       expect(hasAgentErrors(result)).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test("memory: user is a warning, not an error", async () => {
+  test("memory: user is fully valid, no findings", async () => {
     const dir = await sandbox();
     try {
       await writeAgent(
@@ -171,9 +169,28 @@ memory: user
 `,
       );
       const result = await lintAgentsDir(dir);
-      const finding = result.findings.find((f) => f.rule === "narrow-schema-enum");
-      expect(finding).toBeDefined();
-      expect(finding?.severity).toBe("warning");
+      expect(result.findings).toEqual([]);
+      expect(hasAgentErrors(result)).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("memory: local is fully valid, no findings", async () => {
+    const dir = await sandbox();
+    try {
+      await writeAgent(
+        dir,
+        "alpha",
+        `---
+name: alpha
+description: A description.
+memory: local
+---
+`,
+      );
+      const result = await lintAgentsDir(dir);
+      expect(result.findings).toEqual([]);
       expect(hasAgentErrors(result)).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
