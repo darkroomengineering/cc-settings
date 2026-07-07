@@ -19,7 +19,7 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 
 1. **Explore** - Spawn `explore` agent to understand the affected codebase area
 2. **Reproduce** - Spawn `tester` agent to create a failing test if possible
-3. **Diagnose** - Analyze findings to identify root cause
+3. **Diagnose** - Analyze findings to identify root cause. Commits named in the bug report are hypotheses, not conclusions — blame the actually-affected file's history before fixing; regressions often ride in earlier on the same branch as the change that got blamed
 4. **Implement** - Spawn `implementer` agent to fix the issue
 5. **Verify** - Spawn `tester` agent to confirm the fix
 6. **Learn** - If this was a non-obvious fix, the auto-memory system in `~/.claude/CLAUDE.md` captures it; for team-wide gotchas use `/share-learning` to post to the team-knowledge repo

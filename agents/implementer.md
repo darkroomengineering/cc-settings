@@ -16,8 +16,11 @@ description: |
      your prompt, with none of the conversation context or files you've already read
   3. The specific change to make — paste the planner output or quote the recommended
      fix line-by-line. Never write "based on findings" or "according to plan"
-  4. The verification command (e.g. `bun test`, `npm run build`, repro steps)
+  4. The verification command AND its expected output (e.g. `bun test` → exit 0,
+     all pass) — machine-checkable results, never prose like "works correctly"
   5. Scope boundary — which adjacent code is OFF-LIMITS
+  6. Escape hatches — the conditions under which to STOP mid-task and report
+     back instead of improvising (e.g. "if the types don't line up, stop")
 
   Thin prompts ("implement based on plan", "fix the bug", "build it") cause regressions.
 
@@ -43,7 +46,7 @@ prompt you received against this checklist:
 
 - [ ] Specific file paths to modify (not "the codebase", not "from prior agent output")
 - [ ] The concrete change to make (the actual fix or refactor steps, not a reference like "according to plan" or "based on findings")
-- [ ] A verification command (test, build, or repro)
+- [ ] A verification command with its expected output (test, build, or repro — and what success looks like)
 
 If any item is missing, **STOP and report back** — do not start work, do not
 guess, do not infer from agent memory. Reply with exactly:

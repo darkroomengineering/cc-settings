@@ -92,12 +92,12 @@ gh project item-list PROJECT_NUM --owner ORG --format json
 When the user describes a feature or task:
 
 ```bash
-gh issue create --title "feat: description" --body "$(cat <<'EOF'
+gh issue create --title "feat: description" --body "$(cat <<EOF
 ## Goal
 What we're building and why.
 
 ## Tasks
-- [ ] Task 1
+- [ ] Task 1 — verify: \`command\` → expected output
 - [ ] Task 2
 - [ ] Task 3
 
@@ -107,9 +107,36 @@ What we're building and why.
 
 ## Constraints
 - Any known constraints or requirements
+
+## Plan stamp
+Written against $(git rev-parse --short HEAD) on $(git branch --show-current).
 EOF
 )"
 ```
+
+The **plan stamp** anchors the issue to the commit it was written against —
+file paths, line refs, and task assumptions are only guaranteed valid at that
+SHA. Give tasks machine-checkable done criteria (command → expected output)
+where possible, not prose.
+
+### Reconcile a stale issue
+
+Before resuming an issue whose plan stamp is behind the current HEAD, reconcile
+instead of trusting it:
+
+```bash
+# What changed since the plan was written?
+git log --oneline PLAN_SHA..HEAD
+git diff --stat PLAN_SHA..HEAD
+```
+
+- **Verify checked tasks** — re-run their done-criteria commands; a task that
+  no longer passes gets unchecked with a comment, not silently trusted.
+- **Refresh drifted tasks** — file paths and line refs may have moved;
+  re-check them against HEAD and edit the body.
+- **Retire dead tasks** — work made obsolete by intervening merges gets
+  struck through with a one-line reason, so future audits don't re-litigate it.
+- Re-stamp the body with the new SHA once reconciled.
 
 ### Link commits to issues
 

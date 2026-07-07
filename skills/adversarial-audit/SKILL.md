@@ -40,6 +40,7 @@ Run codebase mode on the same cadence as nuclear-review (version cuts, post-spri
 3. Findings by hunt category, severity order. Each: stable ID (H1/M1/L1 by severity, or C/D/P prefix per mode), location, one-line issue, concrete scenario, status, recommended direction.
 4. Design tensions: the 3-5 deepest structural issues ("the approach, not a line"), each with the alternative you'd weigh.
 5. Open questions: what the artifact alone can't resolve — maintainer answers required.
+6. Considered & rejected: candidate findings you investigated and disproved (or reclassified as by-design), each with a one-line reason. This ledger is what stops the next audit from re-litigating them — check it before hunting.
 
 Chat reply = exec summary only: counts by severity + top 3-5 findings + report path.
 
