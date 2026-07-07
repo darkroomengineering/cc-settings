@@ -44,6 +44,7 @@ export const ACTIVE_SKILLS = [
   "fix",
   "freeze",
   "handoff",
+  "harvest",
   "hook",
   "lighthouse",
   "nuclear-review",

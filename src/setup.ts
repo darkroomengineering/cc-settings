@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.0.0"; // v12 milestone: July 2026 audit fully remediated (28 findings, 6 design tensions); adversarial-audit skill; dzhng/skills folds (fresh-eyes QA gate, tracer-bullet tests, blind skill evals, quadrant discovery, maintenance checkpoints); argument-hints for all multi-mode skills
+const VERSION = "12.1.0"; // harvest skill (workflow capture into reviewed artifacts); Fable promo default reverted to opus[1m] on schedule
 
 // --- Arg parsing ---------------------------------------------------------
 

@@ -1,14 +1,13 @@
 # Agent Model Routing
 
-> **Fable 5 redeployed 2026-07-01, promo-then-credit-gated.** The export-control
-> suspension (2026-06-12) has lifted; Fable is back as a promotional tier.
-> `config/10-core.json` temporarily defaults the session model to `fable` for
-> the promo window, reverting to **Opus 4.8 with 1M context (`opus[1m]`)** on
-> 2026-07-07 once the promo ends and credit-gating applies. The agent pins
-> below stay on `opus[1m]` as the steady-state top tier — swap to `fable`
-> per-session (`/model fable`) during the promo if you want it.
+> **Fable 5 is credit-gated as of 2026-07-07.** The export-control suspension
+> (2026-06-12) lifted on 2026-07-01 with a one-week promotional window, during
+> which `config/10-core.json` temporarily defaulted the session model to
+> `fable`. The promo has ended: the shipped default is back to **Opus 4.8 with
+> 1M context (`opus[1m]`)**, matching the agent pins below. Fable remains
+> available per-session (`/model fable`) for those with credits.
 
-Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (currently `opus[1m]`, normally `fable`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Opus or Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
+Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (`opus[1m]`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Opus or Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
