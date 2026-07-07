@@ -93,6 +93,26 @@ Reference from the skill: `bun "$HOME/.claude/src/scripts/<name>.ts"`.
 
 ---
 
+## Skills born from `/harvest`
+
+When a skill is captured by `/harvest` rather than authored from scratch, it arrives
+with two extra assets, and the same standards apply to both:
+
+- A **filled harvest contract** (`skills/harvest/CONTRACT.md` template) recording the
+  witnessed evidence and a PASS / FAIL / INCONCLUSIVE verdict. Only a PASS (or a
+  multi-witness PASS, for shared standards) justifies registering the skill here —
+  an INCONCLUSIVE harvest stays a personal draft, unregistered.
+- A **RESEARCH.md seed** at `skills/<name>/RESEARCH.md`, so `/autoresearch` can tune
+  the prompt later. Its `## Test Inputs` are the harvest trap prompts and its
+  `## Checklist` is the quality bar — kept blind (no expected answers, no scoring
+  rationale). Validate its shape with `bun run lint:research skills/<name>/RESEARCH.md`
+  before committing.
+
+RESEARCH.md is a sibling file, not a second skill — the skills linter ignores it, so
+it never trips the folder conventions above.
+
+---
+
 ## Common Pitfalls
 
 ### Over-broad description

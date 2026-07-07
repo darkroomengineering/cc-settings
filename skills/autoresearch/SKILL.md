@@ -21,11 +21,13 @@ Work with the user to configure, then go autonomous.
 
 1. **Parse target skill**: Get `<skill-name>` from `$ARGUMENTS`. Validate `skills/<skill-name>/SKILL.md` exists.
 
-2. **Load or create RESEARCH.md**: Check for `skills/<skill-name>/RESEARCH.md`. If it exists, read it. If not, generate one:
+2. **Load or create RESEARCH.md**: Check for `skills/<skill-name>/RESEARCH.md`. If it exists, read it — a skill born from `/harvest` arrives with a seeded RESEARCH.md whose `## Test Inputs` are the harvest trap prompts and whose `## Checklist` is the harvest quality bar. If not, generate one:
    - Read the target SKILL.md
    - Derive 3 test inputs from its description and use cases
    - Derive 5-7 checklist items from its workflow steps and output format
    - Write the generated RESEARCH.md and show it to the user for confirmation
+
+   Either way, validate the shape before measuring: `bun run lint:research skills/<skill-name>/RESEARCH.md` (required sections present, ≥2 test inputs, 3-7 checklist items, numeric settings). A seed that fails this parses wrong in the loop below.
 
 3. **Parse config from RESEARCH.md**:
    - `## Test Inputs` — each `### Test N:` heading is one test case (the text below is the prompt)
@@ -222,7 +224,7 @@ Lowest-scoring: #{item_number} "{item_text}" at {rate}%
 
 ## RESEARCH.md Format
 
-Users create this file at `skills/<skill-name>/RESEARCH.md` to configure the optimization.
+Users create this file at `skills/<skill-name>/RESEARCH.md` to configure the optimization — or `/harvest` seeds it automatically when it lands a new skill (its Phase 6). A harvest seed already respects the **blind-run rule**: it carries only the raw trap prompts and the binary criteria, never the expected answers or scoring rationale. Keep it that way when you edit — leaking either turns the eval into teaching-to-the-test. Validate any change with `bun run lint:research skills/<skill-name>/RESEARCH.md`.
 
 ```markdown
 # AutoResearch Config: <skill-name>
