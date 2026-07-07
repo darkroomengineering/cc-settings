@@ -11,7 +11,7 @@ cc-settings ships two install tiers. Both are **supported permanent lanes** — 
 
 | | Light (`--light`) | Full (default) |
 |--|---|---|
-| **Skills** | `share-learning` only | All 36 headline skills |
+| **Skills** | `share-learning` only | All 37 headline skills |
 | **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
 | **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
 | **Hooks** | StatusLine only | All hooks active |
@@ -98,7 +98,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 36 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 37 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -350,6 +350,12 @@ bun run new-skill <skill-name>
 
 Scaffolds `skills/<name>/SKILL.md` with valid frontmatter. Then edit the description and body per `docs/skill-authoring.md`. After editing, run `bun run lint:skills` and register in `MANAGED_SKILLS` + `MANUAL.md`.
 
+### Harvest a Workflow
+
+Say: *"harvest this workflow"* or *"turn this session into a skill"* or *"capture what the model did before we lose it"*
+
+Triggers `/harvest` — extracts the repeatable procedure behind an unusually good session (a stronger or temporary model, a one-off deep-dive, a teammate's transcript) and lands it as a reviewed artifact: skill, rule, profile section, AGENTS.md diff, or team learning. Interviews you or reads the transcript, distills procedure + failure modes + quality bar + self-tests, routes to the smallest artifact that carries it, then validates with 2–3 blind trap prompts. Stops for approval before touching shared standards or posting team knowledge. Pairs with `/autoresearch` (the traps seed its eval set) and `/share-learning` (single-note learnings).
+
 ### Consolidate Rules & Skills
 
 Say: *"clean up our rules"* or *"consolidate"* or *"spa day"*
@@ -410,7 +416,7 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8
 
 Without the pin you silently run an older model whose thinking-token behavior at a given effort level differs. Full model table + ARN examples: `docs/settings-reference.md`.
 
-The cc-settings standing default model is `opus[1m]` (`claude-opus-4-8`, 1M variant), pinned to `[1m]` since Opus is not 1M-native. History: Fable 5 (`claude-fable-5`) was suspended on 2026-06-12 by a US government export-control directive ([announcement](https://www.anthropic.com/news/fable-mythos-access)), then redeployed on 2026-07-01 behind a promo-then-credit-gated tier — `config/10-core.json` temporarily ships `model: "fable"` for the promo window and reverts to `opus[1m]` on 2026-07-07 (see CHANGELOG 11.30.5). Post-promo, Fable is per-session (`/model fable`), not the shipped default. On AWS / Bedrock / Vertex / Foundry, `opus` may resolve to an older release — pin `claude-opus-4-8` (as above).
+The cc-settings standing default model is `opus[1m]` (`claude-opus-4-8`, 1M variant), pinned to `[1m]` since Opus is not 1M-native. History: Fable 5 (`claude-fable-5`) was suspended on 2026-06-12 by a US government export-control directive ([announcement](https://www.anthropic.com/news/fable-mythos-access)), then redeployed on 2026-07-01 behind a promo-then-credit-gated tier — `config/10-core.json` temporarily shipped `model: "fable"` for the promo window and reverted to `opus[1m]` on 2026-07-07 as scheduled (see CHANGELOG). Post-promo, Fable is per-session (`/model fable`), not the shipped default. On AWS / Bedrock / Vertex / Foundry, `opus` may resolve to an older release — pin `claude-opus-4-8` (as above).
 
 ### Profiles
 
@@ -520,6 +526,7 @@ These are enforced automatically — no skill needed:
 | `codex` | codex exec, codex review, codex ask, cross-model verification, second opinion, bulk execution via Codex CLI — see `docs/codex-bridge.md` |
 | `context-doc` | domain glossary, ADR, shared vocabulary, context doc |
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
+| `harvest` | harvest this workflow, capture what the model did, turn this session into a skill, preserve this behavior, model handoff |
 | `share-learning` | share this learning, post to team knowledge, team-wide finding |
 | `freeze` | freeze edits, lock editing scope, restrict edits to, only edit this folder, unfreeze |
 | `plan-ceo-review` | ceo review, founder review, product review, is this the right approach, should we even build this |

@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.1.0] — 2026-07-07
+
+New skill: `harvest` (36 → 37 skills, cap 40) — captures an unusually good workflow (from a stronger or temporary model, a one-off session, or a teammate's transcript) into a durable, reviewed artifact instead of losing it when the session or model access ends. Six phases: identify what's harvestable (repeatable procedure, not raw intelligence — "the model was smarter" is explicitly not harvestable), gather evidence via interview or transcript analysis, extract four components (procedure / failure modes / quality bar / self-tests), route to the smallest artifact that carries it (skill, rule, profile section, AGENTS.md diff, or `/share-learning` note), write it per the target's own conventions, then validate with 2–3 blind trap prompts (autoresearch's blind-run rule; the traps seed a later `/autoresearch` eval set). Hard approval gate before touching shared standards (AGENTS.md, rules/, profiles/), posting team knowledge, or committing. Explicit non-goals: no model-API sampling, no "operating manual" prose output.
+
+Fable promo window closed on schedule: `config/10-core.json` session default reverted `fable` → `opus[1m]` (the revert pre-announced in 11.30.5). `docs/agent-models.md` header and the MANUAL.md default-model note updated to past tense; agent pins were already on the `opus[1m]` steady state and are unchanged.
+
 ## [12.0.0] — 2026-07-06
 
 Major cut capping the July 2026 wave: the adversarial audit fully remediated (28 findings across H/M/L severity + 6 open questions + the design-tensions epic, all closed — 12 PRs and 7 direct commits, see 11.31.x history and issues #74–#108), the `adversarial-audit` skill added (11.32.0), and this release's skill-library upgrades from reviewing `dzhng/skills`:
