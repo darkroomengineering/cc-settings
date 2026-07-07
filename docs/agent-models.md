@@ -1,11 +1,14 @@
 # Agent Model Routing
 
-> **Fable 5 is credit-gated as of 2026-07-07.** The export-control suspension
-> (2026-06-12) lifted on 2026-07-01 with a one-week promotional window, during
-> which `config/10-core.json` temporarily defaulted the session model to
-> `fable`. The promo has ended: the shipped default is back to **Opus 4.8 with
-> 1M context (`opus[1m]`)**, matching the agent pins below. Fable remains
-> available per-session (`/model fable`) for those with credits.
+> **Fable 5 is free per-session through 2026-07-12 (promo extended), then credit-gated.**
+> The export-control suspension (2026-06-12) lifted on 2026-07-01 with a promotional
+> window — Anthropic [extended it](https://support.claude.com/en/articles/15424964-claude-fable-5-promotional-access)
+> from July 7 to **2026-07-12 11:59 PM PT**: up to 50% of the weekly limit on `fable` at
+> no extra cost, drawn from the same shared pool. The **committed** default is deliberately
+> **Opus 4.8 with 1M context (`opus[1m]`)**, matching the agent pins below — not `fable`,
+> so fresh installs never silently spend usage credits when the promo ends. To ride the free
+> window, run **`/model fable` per session** (live, no reinstall) through July 12. After
+> July 12, Fable draws usage credits beyond the plan.
 
 Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (`opus[1m]`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Opus or Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
 
