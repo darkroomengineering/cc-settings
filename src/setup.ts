@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.1.0"; // harvest skill (workflow capture into reviewed artifacts); Fable promo default reverted to opus[1m] on schedule
+const VERSION = "12.2.0"; // shadcn/improve folds (plan stamps + reconcile, expected-output criteria, untrusted-diff rule, rejected-findings ledger); first /harvest run (verify-subagent-claims, CI-red loop, blame-before-blaming); CC v2.1.202 sync
 
 // --- Arg parsing ---------------------------------------------------------
 

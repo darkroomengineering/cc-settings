@@ -312,6 +312,9 @@ make findings executable by fixing agents):
 ## Documented / By-Design (verify still current)
 - [Findings that contradict a team-knowledge decision — escalated for team discussion, NOT auto-fixed. Cite the note; flag if the decision looks stale.]
 
+## Considered / Rejected
+- [Candidate findings investigated and disproved, one-line reason each — the ledger future reviews check first so disproved findings aren't re-litigated.]
+
 ## Notes
 - [Smaller maintainability concerns worth flagging]
 ```

@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.2.0] — 2026-07-07
+
+Three-part batch: shadcn/improve folds, first real `/harvest` run, and the v2.1.202 upstream sync.
+
+**Harvested from production transcripts** (first live run of the `/harvest` skill, v12.1.0 — evidence: two programa sessions from 2026-07-06, both independently exhibiting the top procedure):
+
+- **Verify subagent claims independently** (`orchestrate`) — a subagent's "done" is a claim: re-run its briefed verification against the real artifact; check its capability envelope (a no-Bash implementer zeroed files instead of deleting them and still reported done); fix-solo vs re-delegate rule for breaks found during verification; SendMessage-resume cut-off agents instead of respawning.
+- **When CI goes red** (`ship` Step 9) — reproduce the exact failing guard locally against the real built artifact before re-pushing; canonical bump scripts over hand-edited version fields; never trust a watcher pipeline's exit code — read `.conclusion` explicitly.
+- **Blame before blaming** (`fix` Diagnose step) — commits named in a bug report are hypotheses; blame the affected file's history first (the transcript's "regression" predated all three accused commits).
+
+**Sync with Claude Code v2.1.202:** docs-only. `MANUAL.md` `/review` note updated (v2.1.202 reverted native `/review <pr>` to fast single-pass; multi-agent review only via `/code-review <level> <pr#>`); manifest bumped. The new "Dynamic workflow size" `/config` setting is config-state, not a `settings.json` key — nothing for the strict schema to adopt; all other 2.1.202 entries are behavioral fixes with no cc-settings surface.
+
+Folds from reviewing `shadcn/improve` (audit-to-plans skill; same intelligence-plans/cheap-execution philosophy as our quota routing). No new skill adopted — its audit surface is already owned by `/adversarial-audit` + `/nuclear-review` + `/review`, its executor isolation by `isolation: worktree`, its false-positive vetting by disprove-before-reporting. Four mechanics folded instead:
+
+- **Plan stamps + reconcile** (`project`, `orchestrate`) — plans/issues record the commit SHA they were written against; a reconcile pass re-runs done-criteria of completed tasks (a "done" that no longer verifies gets reopened), refreshes drifted file/line refs, and retires obsoleted tasks with a reason. Kills silent plan drift.
+- **Expected-output done criteria + escape hatches** (`agents/implementer.md` REQUIRED BRIEFING items 4/6, CLAUDE-FULL briefing contract) — verification commands must state what success looks like (machine-checkable, never "works correctly"); briefings state the conditions to STOP and report back instead of improvising.
+- **Untrusted-diff rule** (`review-batch`) — verbatim posture adopted: verify every hunk traces to a step in the task that produced it; reject out-of-scope changes however plausible they look.
+- **Considered & rejected ledger** (`adversarial-audit` output §6, `nuclear-review` output format) — disproved candidate findings get recorded with a one-line reason so future audits check the ledger instead of re-litigating.
+
 ## [12.1.0] — 2026-07-07
 
 New skill: `harvest` (36 → 37 skills, cap 40) — captures an unusually good workflow (from a stronger or temporary model, a one-off session, or a teammate's transcript) into a durable, reviewed artifact instead of losing it when the session or model access ends. Six phases: identify what's harvestable (repeatable procedure, not raw intelligence — "the model was smarter" is explicitly not harvestable), gather evidence via interview or transcript analysis, extract four components (procedure / failure modes / quality bar / self-tests), route to the smallest artifact that carries it (skill, rule, profile section, AGENTS.md diff, or `/share-learning` note), write it per the target's own conventions, then validate with 2–3 blind trap prompts (autoresearch's blind-run rule; the traps seed a later `/autoresearch` eval set). Hard approval gate before touching shared standards (AGENTS.md, rules/, profiles/), posting team knowledge, or committing. Explicit non-goals: no model-API sampling, no "operating manual" prose output.

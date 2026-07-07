@@ -35,6 +35,30 @@ The Maestro agent handles: agent selection, parallel execution, workflow coordin
 
 For simple delegation (1-2 agents), use Agent() directly without invoking this skill.
 
+## Verify Subagent Claims Independently
+
+A subagent's "done" is a claim, not a result. Before building on it, committing,
+or reporting success:
+
+1. **Re-run the briefed verification yourself** against the real artifact —
+   the actual build, the actual binary's output, the actual grep sweep. Never
+   forward a subagent's self-reported pass as your own verification.
+2. **Check the capability envelope.** Subagents may lack tools you assume
+   (a no-Bash implementer cannot run builds or delete files — it will
+   improvise, e.g. zeroing a file instead of removing it, and still report
+   done). Read what the agent *says it couldn't do*, then absorb the gap
+   yourself: run the deletion, the build, the test.
+3. **Re-delegate vs fix solo.** A trivial break found during verification
+   (single file, few lines) — fix it solo with a one-line stated reason;
+   round-tripping to a fresh subagent costs more than the fix. Anything that
+   adds scope goes back out as a new, fully-briefed delegation.
+4. **Resume, don't respawn.** If a subagent's report was cut off or is
+   missing a section, SendMessage the same agent to finish — a respawn
+   rebuilds its context from nothing and re-does paid work.
+
+Failure mode this section exists to prevent: chaining on an unverified "done"
+and discovering three phases later that the build never ran.
+
 ## When to Fan Out (Teams mode)
 
 Use full parallel team fan-out instead of sequential subagent delegation when:
@@ -109,6 +133,8 @@ Save checkpoints at these milestones:
 #### Maintenance Checkpoints
 
 A completed phase is a **commit checkpoint, not a stopping point** — the job is the whole plan, not the first green milestone; finishing a phase means starting the next, and you only hand back to the user on a genuine blocker. On long runs, spend one pass every few phases on maintenance before drift accumulates: prune plan bloat (tasks that no longer match what the code taught you), refresh the live handoff so a cold resume lands cleanly, delete dead TODOs, and reconcile the plan with the current architecture rather than preserving development-only shims the plan predates.
+
+Stamp the plan with the commit it was written against (`git rev-parse --short HEAD`) and re-stamp on every maintenance pass. The reconcile semantics: re-run the done-criteria of tasks marked complete (a "done" that no longer verifies gets reopened, not trusted), refresh file/line refs that drifted since the stamp, and retire tasks obsoleted by intervening changes with a one-line reason so they aren't re-litigated later.
 
 #### Checkpoint Contents
 
