@@ -4,6 +4,10 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.2.1] — 2026-07-07
+
+Correction: the Fable 5 promo did **not** end July 7 — Anthropic [extended it](https://support.claude.com/en/articles/15424964-claude-fable-5-promotional-access) to **2026-07-12 11:59 PM PT** (up to 50% of the weekly limit on `fable`, shared pool, no extra cost). v12.1.0 reverted the committed default to `opus[1m]` on the July-7 assumption; that revert **stays** — the committed default is deliberately `opus[1m]` so fresh installs never silently spend usage credits, and the merger's user-wins behavior means the repo default never reaches existing installs anyway. The free window is reached the real way: **`/model fable` per session** through July 12. Only the guidance was wrong: `docs/agent-models.md` header and `MANUAL.md` default-model note corrected from "promo ended / credit-gated as of July 7" to "free per-session through July 12, then credit-gated." No config or agent-pin change.
+
 ## [12.2.0] — 2026-07-07
 
 Three-part batch: shadcn/improve folds, first real `/harvest` run, and the v2.1.202 upstream sync.

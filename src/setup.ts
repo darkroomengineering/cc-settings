@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.2.0"; // shadcn/improve folds (plan stamps + reconcile, expected-output criteria, untrusted-diff rule, rejected-findings ledger); first /harvest run (verify-subagent-claims, CI-red loop, blame-before-blaming); CC v2.1.202 sync
+const VERSION = "12.2.1"; // correction: Fable promo extended to 2026-07-12 (not July 7); committed default stays opus[1m], docs corrected to "free per-session /model fable through July 12"
 
 // --- Arg parsing ---------------------------------------------------------
 
