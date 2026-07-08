@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.2.1"; // correction: Fable promo extended to 2026-07-12 (not July 7); committed default stays opus[1m], docs corrected to "free per-session /model fable through July 12"
+const VERSION = "12.2.2"; // upstream sync 2.1.204: bug-fixes-only window; manifest tracks CLAUDE_CODE_DISABLE_MOUSE + advisorModel (scanner-warning fix)
 
 // --- Arg parsing ---------------------------------------------------------
 

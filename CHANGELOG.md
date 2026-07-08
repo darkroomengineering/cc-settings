@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.2.2] — 2026-07-08
+
+Upstream sync with Claude Code v2.1.204 (from v2.1.202). Both upstream versions are bug-fixes-only — background-agent/daemon reliability, TUI polish, and a headless SessionStart hook-streaming fix — so no schema or config changes; this release is manifest/docs tracking only.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_MOUSE` env var added to the manifest `knownEnvVars` and the `docs/settings-reference.md` env table. The v2.1.203 fix for attached background sessions ignoring it revealed this full mouse-capture opt-out (companion to `CLAUDE_CODE_DISABLE_MOUSE_CLICKS`, v2.1.195) was never tracked. Why this matters: the env table is the reference users grep when a TUI toggle misbehaves — an untracked opt-out is invisible.
+- Manifest housekeeping: `advisorModel` added to `knownSettingsKeys`. PR #126 added it to `src/schemas/settings.ts` but never updated the manifest, so `bun run upstream:scan` flagged a false-positive settings-key drift on every run. Why this matters: a scanner that always warns trains people to ignore it.
+
+**Deletions / Native-now-redundant:** none. Checked the v2.1.203 permission-mode footer badge against `src/hooks/statusline.ts` — the statusline doesn't render permission mode, so no overlap.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [12.2.1] — 2026-07-07
 
 Correction: the Fable 5 promo did **not** end July 7 — Anthropic [extended it](https://support.claude.com/en/articles/15424964-claude-fable-5-promotional-access) to **2026-07-12 11:59 PM PT** (up to 50% of the weekly limit on `fable`, shared pool, no extra cost). v12.1.0 reverted the committed default to `opus[1m]` on the July-7 assumption; that revert **stays** — the committed default is deliberately `opus[1m]` so fresh installs never silently spend usage credits, and the merger's user-wins behavior means the repo default never reaches existing installs anyway. The free window is reached the real way: **`/model fable` per session** through July 12. Only the guidance was wrong: `docs/agent-models.md` header and `MANUAL.md` default-model note corrected from "promo ended / credit-gated as of July 7" to "free per-session through July 12, then credit-gated." No config or agent-pin change.

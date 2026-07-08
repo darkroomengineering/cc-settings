@@ -1,8 +1,9 @@
 {
-  "lastScan": "2026-07-07T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.202",
+  "lastScan": "2026-07-08T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.204",
   "knownSettingsKeys": [
     "$schema",
+    "advisorModel",
     "agent",
     "allowAllClaudeAiMcps",
     "allowManagedHooksOnly",
@@ -155,6 +156,7 @@
     "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN",
     "CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP",
     "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS",
+    "CLAUDE_CODE_DISABLE_MOUSE",
     "CLAUDE_CODE_DISABLE_MOUSE_CLICKS",
     "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK",
     "CLAUDE_CODE_EFFORT_LEVEL",
@@ -271,6 +273,7 @@
     "v2.1.163 added two managed settings keys: requiredMinimumVersion/requiredMaximumVersion (version-range gate, distinct from the older minimumVersion). It also let Stop/SubagentStop hooks return hookSpecificOutput.additionalContext (runtime output, not a config field — see docs/hooks-reference.md).",
     "v2.1.166 added the fallbackModel settings key (string | string[]; up to three fallback models tried in order when the primary is overloaded/unavailable) — see src/schemas/settings.ts. 2.1.167/2.1.168 were bug-fixes-only.",
     "v2.1.169 added the disableBundledSkills settings key (hide Anthropic's bundled skills/workflows/built-in slash commands from the model) plus three env vars: CLAUDE_CODE_DISABLE_BUNDLED_SKILLS (env counterpart), CLAUDE_CODE_SAFE_MODE (counterpart of the new --safe-mode troubleshooting flag), and API_FORCE_IDLE_TIMEOUT (=0 opts out of the restored 5-min Vertex/Foundry idle-stream timeout). The rest of 2.1.169 was bug-fixes and runtime/UI tweaks (managed-MCP reconnect enforcement, /cd command, history-row navigation, perf).",
-    "v2.1.195 added the CLAUDE_CODE_DISABLE_MOUSE_CLICKS env var (disable mouse click/drag/hover in fullscreen mode while keeping wheel scroll) — a CC-itself TUI toggle, manifest-tracked only. It also fixed hook matchers with hyphenated identifiers (e.g. code-reviewer, mcp__brave-search) accidentally substring-matching — they now exact-match; use a `__.*` suffix to match all tools from a hyphenated MCP server. Verified-safe for cc-settings: every hook matcher in config/40-hooks.json is a non-hyphenated builtin tool name (Bash, Edit, Write|Edit, Edit|Write|MultiEdit). v2.1.194 shipped with no changelog entries (skipped). The rest of 2.1.195 was voice-dictation, plugin-loader, and background-task/remote-session bug fixes with no config surface."
+    "v2.1.195 added the CLAUDE_CODE_DISABLE_MOUSE_CLICKS env var (disable mouse click/drag/hover in fullscreen mode while keeping wheel scroll) — a CC-itself TUI toggle, manifest-tracked only. It also fixed hook matchers with hyphenated identifiers (e.g. code-reviewer, mcp__brave-search) accidentally substring-matching — they now exact-match; use a `__.*` suffix to match all tools from a hyphenated MCP server. Verified-safe for cc-settings: every hook matcher in config/40-hooks.json is a non-hyphenated builtin tool name (Bash, Edit, Write|Edit, Edit|Write|MultiEdit). v2.1.194 shipped with no changelog entries (skipped). The rest of 2.1.195 was voice-dictation, plugin-loader, and background-task/remote-session bug fixes with no config surface.",
+    "v2.1.203/2.1.204 were bug-fixes-only (background-agent/daemon reliability, TUI polish, headless SessionStart hook streaming) — no new config surface. The 2.1.203 notes surfaced CLAUDE_CODE_DISABLE_MOUSE (full mouse-capture opt-out, companion to CLAUDE_CODE_DISABLE_MOUSE_CLICKS), which we had never tracked; added to knownEnvVars. Also added advisorModel to knownSettingsKeys — it entered src/schemas/settings.ts in PR #126 (upstream 2.1.98) but the manifest was never updated, so the scanner flagged it every run."
   ]
 }
