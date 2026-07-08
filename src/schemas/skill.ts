@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KEBAB_CASE_RE } from "../lib/frontmatter.ts";
 
 // Skill frontmatter lives at the top of each skills/<name>/SKILL.md file.
 // The content between the `---` delimiters is YAML, parsed separately (Phase 3
@@ -47,7 +48,7 @@ export const SkillFrontmatter = z.looseObject({
   name: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9][a-z0-9-]*$/, "name must be kebab-case (a-z, 0-9, -)"),
+    .regex(KEBAB_CASE_RE, "name must be kebab-case (a-z, 0-9, single hyphens)"),
   description: z.string().min(1),
   context: SkillContext.optional(),
   agent: z.string().optional(), // delegates to an agent type by name

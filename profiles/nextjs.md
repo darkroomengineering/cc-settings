@@ -1,7 +1,7 @@
 ---
 name: nextjs
 description: Next.js web apps
-model: opus
+model: opus[1m]
 skills: [build, component, hook, lighthouse]
 ---
 

@@ -31,10 +31,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { z } from "zod";
 import { ClaudeJson } from "../schemas/claude-json.ts";
+import type { McpStdioServer } from "../schemas/mcp.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
+import { ENGINES, getEngine } from "./code-intel-engine.ts";
 import { debug, error, info, success, warn } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
+import { CLAUDE_DIR } from "./platform.ts";
 import { promptYn } from "./prompts.ts";
 import { type MergeAccounting, type MergeOptions, mergeSettings } from "./settings-merge.ts";
 
@@ -42,6 +45,49 @@ type McpServer = z.infer<typeof McpServersSchema>[string];
 export type McpServers = Record<string, McpServer>;
 
 export const CLAUDE_JSON_PATH = join(homedir(), ".claude.json");
+
+// Server names cc-settings can generate more than one on-disk shape for via
+// the code-intel engine indirection (src/lib/code-intel-engine.ts). Currently
+// only "tldr" — every ENGINES descriptor shares the same mcpServerName.
+const ENGINE_MANAGED_SERVER_NAMES: Set<string> = new Set(
+  Object.values(ENGINES).map((e) => e.mcpServerName),
+);
+
+function isStdioServer(s: McpServer): s is McpStdioServer {
+  return "command" in s;
+}
+
+/**
+ * True when `entry` (an existing ~/.claude.json server definition) is stale
+ * cc-settings output rather than a genuine user edit: it's byte-identical
+ * (canonically) to `teamEntry` itself, or — for engine-managed server names —
+ * to ANY code-intel engine variant cc-settings can generate for that server
+ * (llm-tldr, native-ts, codebase-memory, …).
+ *
+ * Without this distinction, installMcpToClaudeJson's `{ ...teamMcp,
+ * ...currentMcp }` user-wins-on-shared-key rule treats "cc-settings wrote
+ * this on a PRIOR install with a different engine" identically to "the user
+ * hand-edited this" — so switching CC_CODE_INTEL_ENGINE never actually
+ * changes what ~/.claude.json runs (H8). A genuinely user-edited entry (one
+ * that matches none of these candidates) still returns false and wins, same
+ * as before.
+ */
+function isStaleCcOutput(name: string, entry: McpServer, teamEntry: McpServer): boolean {
+  if (canonicalKey(entry) === canonicalKey(teamEntry)) return true;
+  if (!ENGINE_MANAGED_SERVER_NAMES.has(name)) return false;
+  if (!isStdioServer(entry) || !isStdioServer(teamEntry)) return false;
+  for (const id of Object.keys(ENGINES)) {
+    const finalized = getEngine(id, CLAUDE_DIR);
+    const candidate: McpStdioServer = {
+      ...teamEntry,
+      command: finalized.mcp.command,
+      args: finalized.mcp.args,
+      serverInstructions: finalized.serverInstructions,
+    };
+    if (canonicalKey(entry) === canonicalKey(candidate)) return true;
+  }
+  return false;
+}
 
 // --- User-only server detection --------------------------------------------
 
@@ -145,9 +191,22 @@ export async function installMcpToClaudeJson(
       currentMcp = currentResult.data;
     }
   }
+  // Drop currentMcp entries that are stale cc-settings output (this or a prior
+  // install's engine choice) before the user-wins spread below — otherwise a
+  // resolved engine change in teamMcp (e.g. CC_CODE_INTEL_ENGINE=native-ts)
+  // never reaches ~/.claude.json, because the stale entry always looks like a
+  // "user override" to the spread. Genuinely user-edited entries (matching
+  // neither the team entry nor any known engine variant) are left untouched.
+  const effectiveCurrentMcp: McpServers = {};
+  for (const [name, entry] of Object.entries(currentMcp)) {
+    const teamEntry = teamMcp[name];
+    if (teamEntry && isStaleCcOutput(name, entry, teamEntry)) continue;
+    effectiveCurrentMcp[name] = entry;
+  }
+
   // Team provides a baseline; user entries shadow on conflict (so the user's
   // local tweak to a shared server wins). Same semantics as the bash merge.
-  const mergedMcp: McpServers = { ...teamMcp, ...currentMcp };
+  const mergedMcp: McpServers = { ...teamMcp, ...effectiveCurrentMcp };
   const next = { ...current, mcpServers: mergedMcp };
   await atomicWriteJson(claudeJsonPath, next);
   debug(`Installed MCP servers to ${claudeJsonPath}`);

@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   const payload = await readHookInput<{
     tool_input?: { file_path?: string };
     session_id?: string;
-  }>({ session_id: "CLAUDE_SESSION_ID" });
+  }>({ session_id: "CLAUDE_CODE_SESSION_ID" });
   const filePath = payload.tool_input?.file_path;
 
   // No file_path → nothing to check.

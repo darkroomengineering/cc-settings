@@ -3,7 +3,6 @@ name: oracle
 argument-hint: "[advice|risks|compare] [question]"
 description: Expert opinions from the oracle agent — freeform advice, risk analysis, or weighted comparison of approaches. Triggers "what should I", "how should I", "advice on" (advice mode); "what could go wrong", "risks", "potential issues", "premortem" (risks mode); "compare approaches", "which is better", "evaluate options", "trade-off analysis", "tech selection", "decide between" (compare mode).
 context: fork
-agent: explore
 ---
 
 # Oracle
@@ -157,7 +156,7 @@ Establish evaluation criteria with weights (must sum to 100):
 
 #### 2. Spawn Parallel Evaluators
 
-Spawn one oracle agent per approach in a SINGLE message:
+This step needs the `Agent` tool, which is why oracle no longer binds to the `explore` agent (explore's own tools list has no Agent/Task) — the skill runs in its forked context with the default full toolset instead. Spawn one `explore` agent per approach in a SINGLE message:
 
 ```
 Agent(explore, "Evaluate [Approach A] against criteria: [criteria list with weights]. Score 1-10 per criterion. Include concrete examples, code samples, and evidence.")

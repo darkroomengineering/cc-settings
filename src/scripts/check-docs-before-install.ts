@@ -10,7 +10,11 @@ try {
   const cmd = process.env.TOOL_INPUT_command ?? "";
   if (cmd) {
     // Same regex shape as the bash version: match well-known install verbs.
-    const INSTALL = /(bun add|npm install|npx add|pnpm add|bun i |npm i )\s/;
+    // `bun i`/`npm i` must NOT include the trailing space here — the outer
+    // `\s` already supplies the single separator after the verb, same as the
+    // long-form alternatives. Including it (as before) required a SECOND
+    // whitespace char that a normal single-space invocation never has.
+    const INSTALL = /(bun add|npm install|npx add|pnpm add|bun i|npm i)\s/;
     if (INSTALL.test(cmd)) {
       // Strip everything up to and including the install verb, then take the first
       // arg. Mirrors the `sed | awk | sed` pipeline in the bash version.

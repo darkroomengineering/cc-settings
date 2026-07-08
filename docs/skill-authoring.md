@@ -47,6 +47,17 @@ context: fork
 
 - `agent: <name>` — delegate to a specific named agent (e.g. `agent: oracle`, `agent: tester`).
 - `argument-hint: "[arg]"` — displayed in the slash command picker.
+- `requires:` — a list of external prerequisites (CLIs or MCP servers) the skill needs at runtime. The installer warns about missing ones before a skill that would runtime-fail gets invoked. Each entry declares **exactly one** of `command` or `mcp` (never both — `SkillRequirementShapeGuard` in `src/schemas/skill.ts` rejects entries that declare both), plus an optional `install` hint string:
+
+  ```yaml
+  requires:
+    - command: lighthouse
+      install: "npm i -g lighthouse (CLI, used for batched 3x3 averaged audits)"
+    - mcp: chrome-devtools
+      install: "chrome-devtools MCP — provides on-demand audits + visual regression screenshots"
+  ```
+
+  See `skills/lighthouse/SKILL.md` (command + mcp), `skills/tldr/SKILL.md`, `skills/qa/SKILL.md`, and `skills/nuclear-review/SKILL.md` (mcp-only) for the 4 shipped examples.
 
 ---
 
@@ -88,7 +99,7 @@ Reference from the skill: `bun "$HOME/.claude/src/scripts/<name>.ts"`.
 
 ## Registration
 
-1. Add `"<name>"` to `MANAGED_SKILLS` in `src/setup.ts` (alphabetical order).
+1. Add `"<name>"` to `ACTIVE_SKILLS` in `src/lib/managed-skills.ts` (alphabetical order). `MANAGED_SKILLS` in `src/setup.ts` is just `[...ACTIVE_SKILLS, ...TOMBSTONE_SKILLS]` imported from that module — it isn't a list you edit directly, and `bun run lint:skills`'s `checkManaged` rule enforces `ACTIVE_SKILLS` specifically (a skill added to `TOMBSTONE_SKILLS` instead still fails as `managed-skills-missing`).
 2. Add a row to `MANUAL.md` in the appropriate section and the "All Skills" table.
 
 ---
@@ -148,7 +159,7 @@ Before committing a new skill:
 - [ ] `name` matches the directory name (kebab-case)
 - [ ] No overlap with existing skills (or overlap is intentional and noted)
 - [ ] Frontmatter passes `bun run lint:skills` (0 errors)
-- [ ] Skill registered in `MANAGED_SKILLS` (alphabetical)
+- [ ] Skill registered in `ACTIVE_SKILLS` (`src/lib/managed-skills.ts`, alphabetical)
 - [ ] Row added to `MANUAL.md`
 - [ ] Concrete examples or commands in the body
 - [ ] Approval gates marked for destructive operations

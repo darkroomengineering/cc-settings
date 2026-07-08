@@ -317,6 +317,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `verify-hooks.ts` | Validates the hooks-block fingerprint on session start; warns on tampering | No |
 | `session-start.ts` | Surfaces auto-memory pointer, auto-warms TLDR index | No |
+| `codex-verify.ts` | Cheap Codex CLI availability check (`codex login status`) for the statusline badge; persists the verdict to `~/.claude/tmp/codex-verdict.json`. Silent on success and error, fail-open | Yes |
 
 ### UserPromptSubmit
 
@@ -324,6 +325,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
 | `delegation-detector.ts` | Regex-scores incoming prompt for breadth signals (phrases like "do all", "across the repo", path-shaped tokens, large numbered lists). At score ≥ 2, injects a compact `additionalContext` reminder: score, matched signals, and a one-line routing guide (maestro / implementer / parallel agents in ONE message). Overriding requires a stated reason. | No |
+| `quota-steer.ts` | Reads the statusline's cached rate-limit percentages; injects quota-aware model-routing guidance (Codex bridge / Sonnet downshift) once usage crosses elevated/critical thresholds. Fail-open | No |
 
 > Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
@@ -341,12 +343,19 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `pre-edit-validate.ts` | Validates edit strategy (file recently read, edit size appropriate) | No |
 
+### PreToolUse (Edit|Write|MultiEdit matcher)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `freeze-guard.ts` | When a `/freeze` boundary is active, blocks Edit/Write/MultiEdit calls targeting any file outside the locked directory | No |
+
 ### PostToolUse (Write|Edit matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `post-edit.ts` | Auto-formats edited files with Biome | No |
 | `post-edit-tsc.ts` | Runs TypeScript type check on edited files | Yes |
+| `promote-memory.ts` | Nudges (once per file) when a team-relevant auto-memory file is written under `.../memory/`, for `project`/`feedback` memory types | No |
 
 ### PostToolUse (Bash matcher — command logging)
 

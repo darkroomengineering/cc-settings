@@ -105,10 +105,19 @@ function cmdCheck(dir: string): void {
   info(`Project: ${basename(dir)}`);
   console.log("");
 
+  // Managed/unmanaged is decided by isManaged() (same test used everywhere
+  // else in this file) — NOT by whether projectAgentsVersion() found a
+  // digits-only version. A dev checkout without ~/.claude/.cc-settings-version
+  // stamps "cc-settings vunknown" (installedVersion() falls back to the
+  // literal "unknown"), which projectAgentsVersion()'s digits-only regex
+  // can't parse — that must read as "managed, version unknown", not "not
+  // managed by cc-settings".
   if (!existsSync(agents)) {
     warn("AGENTS.md not found — run: project-init.ts");
-  } else if (!projVer) {
+  } else if (!isManaged(agents)) {
     info("AGENTS.md exists (not managed by cc-settings)");
+  } else if (!projVer) {
+    info(`AGENTS.md is managed by cc-settings (version unknown — installed: v${installed})`);
   } else if (projVer === installed) {
     success(`AGENTS.md is up to date (v${installed})`);
   } else {

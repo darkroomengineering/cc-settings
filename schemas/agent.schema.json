@@ -7,7 +7,7 @@
     "name": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^[a-z0-9][a-z0-9-]*$"
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
     },
     "description": {
       "type": "string",
@@ -31,6 +31,12 @@
       ]
     },
     "tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowedTools": {
       "type": "array",
       "items": {
         "type": "string"
@@ -89,6 +95,15 @@
     },
     "initialPrompt": {
       "type": "string"
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "background": {
+      "type": "boolean"
     },
     "hooks": {},
     "mcpServers": {

@@ -156,12 +156,14 @@ async function parallelmaxBranch(
   state.count += 1;
   state.lastTool = toolName;
 
-  // Track file edits (deduplicated, capped at 20).
+  // Track file edits (deduplicated, capped at the 20 MOST RECENT — slice(-20),
+  // not slice(0, 20), so the tracked set keeps rolling forward instead of
+  // freezing on the first 20 files ever seen in the streak).
   const filePathField = FILE_EDIT_TOOLS[toolName];
   if (filePathField) {
     const fp = toolInput[filePathField as keyof typeof toolInput];
     if (typeof fp === "string" && fp && !state.files.includes(fp)) {
-      state.files = [...state.files, fp].slice(0, 20);
+      state.files = [...state.files, fp].slice(-20);
     }
   }
 
@@ -199,7 +201,7 @@ async function parallelmaxBranch(
     if (rq.awaiting < maxUnreviewed()) {
       const filesClause = state.files.length > 0 ? ` and ${state.files.length} file(s) edited` : "";
       emit(
-        `Delegation check — ${state.count} tool calls${filesClause} in this streak with no Agent call. Heuristic: 3+ files or 10+ calls → delegate (explore = read/map, implementer = multi-file change, parallel agents for independent work). Delegate the remainder now, or state a one-line reason for staying solo and continue.`,
+        `Delegation check — ${state.count} tool calls${filesClause} in this streak with no Agent call. Heuristic: ${FILES_THRESHOLD}+ files or ${THRESHOLD}+ calls → delegate (explore = read/map, implementer = multi-file change, parallel agents for independent work). Delegate the remainder now, or state a one-line reason for staying solo and continue.`,
       );
       state.nudged = true;
       state.countAtNudge = state.count;

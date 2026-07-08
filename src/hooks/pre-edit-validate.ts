@@ -1,5 +1,11 @@
 #!/usr/bin/env bun
-// Pre-Edit Validation Hook — PreToolUse guard for Edit/Write calls.
+// Pre-Edit Validation Hook — PreToolUse guard for Edit calls.
+//
+// Write is intentionally excluded (config/40-hooks.json wires this hook to
+// matcher "Edit" only): Write's tool_input carries no old_string, so checks
+// 2-4 below never apply to it anyway, and check 1 (target file must exist)
+// would incorrectly block legitimate new-file creation via Write, which has
+// no existing file to check against.
 //
 // Decision protocol (shared with safety-net.ts / freeze-guard.ts via
 // lib/hook-runtime.ts blockDecision):

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KEBAB_CASE_RE } from "../lib/frontmatter.ts";
 import { PermissionMode } from "./permissions.ts";
 
 // Agent frontmatter lives at the top of each agents/<name>.md file.
@@ -34,10 +35,11 @@ export const AgentFrontmatter = z.looseObject({
   name: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9][a-z0-9-]*$/, "name must be kebab-case (a-z, 0-9, -)"),
+    .regex(KEBAB_CASE_RE, "name must be kebab-case (a-z, 0-9, single hyphens)"),
   description: z.string().min(1),
   model: AgentModel.optional(),
   tools: z.array(z.string()).optional(),
+  allowedTools: z.array(z.string()).optional(), // alias for `tools` (docs/frontmatter-reference.md)
   disallowedTools: z.array(z.string()).optional(),
   maxTurns: z.number().int().positive().optional(),
   permissionMode: AgentPermissionMode.optional(),
@@ -46,6 +48,8 @@ export const AgentFrontmatter = z.looseObject({
   memory: AgentMemory.optional(),
   color: z.string().optional(),
   initialPrompt: z.string().optional(),
+  skills: z.array(z.string()).optional(), // skills to preload into the subagent context
+  background: z.boolean().optional(), // always run this subagent as a background task
   // Future-leaning — accepted but not validated deeply.
   hooks: z.unknown().optional(),
   mcpServers: z.record(z.string(), z.unknown()).optional(),

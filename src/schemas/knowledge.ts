@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KEBAB_CASE_RE } from "../lib/frontmatter.ts";
 
 // Knowledge note frontmatter lives at the top of each <name>.md file in the
 // team-knowledge repo. The content between the `---` delimiters is YAML,
@@ -16,10 +17,7 @@ export const KnowledgeFrontmatter = z.looseObject({
   name: z
     .string()
     .min(1)
-    .regex(
-      /^[a-z0-9]+(-[a-z0-9]+)*$/,
-      "name must be kebab-case (a-z, 0-9, segments joined by single hyphens)",
-    ),
+    .regex(KEBAB_CASE_RE, "name must be kebab-case (a-z, 0-9, segments joined by single hyphens)"),
   kind: KnowledgeKind,
   tags: z.array(z.string()).optional(),
   "added-by": z.string().min(1),

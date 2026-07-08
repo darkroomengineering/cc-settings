@@ -16,7 +16,7 @@ Routing principle: **explore and execute on the cheaper tiers, decide on the top
 |-------|-------|-----------|
 | `maestro` | **opus[1m]** | Orchestration needs the strongest available reasoning (was `fable`) |
 | `planner` | **opus[1m]** | Architecture decisions need depth (was `fable`) |
-| `oracle` | **opus[1m]** | Expert Q&A needs nuance (was `fable`) |
+| `oracle` | *(session model)* (skill, not an agent — `skills/oracle/SKILL.md` runs as a `context: fork` of the main session, no agent binding) | Not a dedicated opus[1m] agent despite the name; the fork inherits the session's model, so on an `opus[1m]` session oracle already thinks at the top tier |
 | `reviewer` | **sonnet** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
 | `implementer` | **sonnet** | Executes already-made plans; Sonnet 5 is near-Opus on coding, and plans come from the top tier |
 | `security-reviewer` | **opus** | Analysis feeding the session's decision |
@@ -24,8 +24,9 @@ Routing principle: **explore and execute on the cheaper tiers, decide on the top
 | `scaffolder` | **sonnet** | Boilerplate generation is mechanical |
 | `explore` | **sonnet** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
 | `deslopper` | **sonnet** | Deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
+| `codex-verifier` | **sonnet** | Independent cross-model check via the Codex CLI — the value is a different model family reviewing the diff, not raw reasoning depth on the Claude side |
 
-The `sonnet` tier is now Claude Sonnet 5 — near-Opus quality on coding/agentic work — which reinforces the split above: `tester`, `scaffolder`, `explore`, `deslopper`, `implementer`, and `reviewer` stay on Sonnet for fan-out/mechanical/execution work at a fraction of Opus cost, while the judgment-bearing agents that gate a decision (`maestro`, `planner`, `oracle`, `security-reviewer`) stay on the top tier.
+The `sonnet` tier is now Claude Sonnet 5 — near-Opus quality on coding/agentic work — which reinforces the split above: `tester`, `scaffolder`, `explore`, `deslopper`, `implementer`, `reviewer`, and `codex-verifier` stay on Sonnet for fan-out/mechanical/execution/consult work at a fraction of Opus cost, while the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier.
 
 Override per-invocation when a specific task warrants it: bump a cheap agent up — `Agent(explore, "...", model: "opus")` for a hard investigation — or drop a decision agent down for a trivial pass. The table is the default, not a ceiling.
 

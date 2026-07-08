@@ -236,6 +236,8 @@ Customizes the animated spinner text shown while Claude is processing.
 | `mode` | `"replace"` or `"append"` | `replace` overrides default verbs entirely; `append` adds to them |
 | `verbs` | list of strings | Present-participle verbs shown in the spinner (e.g., "Analyzing", "Building") |
 
+> **Known limitation:** `verbs` is an array default nested inside an already-present `spinnerVerbs` block — new verbs added here in a future release do NOT propagate to existing installs on re-install (the merger keeps the user's on-disk array wholesale). See [Known limitation: array-valued defaults](#known-limitation-array-valued-defaults-inside-an-already-present-block-dont-propagate) below.
+
 ### `spinnerTipsOverride`
 
 Suppress the time-based tips that appear under the spinner (v2.1.122).
@@ -789,6 +791,10 @@ Write(~/.aws/*)
 Write(~/.gnupg/*)
 Bash(git push --force:*)
 Bash(git push -f:*)
+Bash(git push -uf:*)
+Bash(git push -fu:*)
+Bash(git branch -D:*)
+Bash(git branch -d -f:*)
 Bash(git reset --hard:*)
 Bash(git clean -f:*)
 Bash(git checkout -- .:*)
@@ -821,6 +827,10 @@ Write(~/.zshrc)
 Write(~/.bash_profile)
 Write(~/.claude/settings.json)
 Write(~/.claude.json)
+Edit(~/.claude/settings.json)
+MultiEdit(~/.claude/settings.json)
+Edit(~/.claude.json)
+MultiEdit(~/.claude.json)
 Bash(gh repo delete:*)
 Bash(gh secret:*)
 Bash(gh api -X DELETE:*)
@@ -1095,6 +1105,14 @@ Hitting Enter on every prompt accepts the default (take team addition / keep you
 ### Why `--interactive` exists
 
 Non-interactive "user wins when declared" has one known tradeoff: if the team file changes a scalar like `model` in a future release, users whose `settings.json` still contains the previous value won't pick up the update (the merger can't distinguish "user explicitly declared X" from "X is a stale copy from last install"). Interactive mode surfaces each such divergence so you can opt into team updates explicitly.
+
+### Known limitation: array-valued defaults inside an already-present block don't propagate
+
+The scalar tradeoff above has an array-shaped sibling that's easy to miss: `deepMergeUserWins` recurses into plain objects (so a brand-new sub-key of an existing object block *does* reach existing installs — that's the fix for the general nested-default gap), but for any key whose value is an array on **both** sides, it treats the pair as a scalar conflict and keeps the user's array wholesale, with no per-element reconciliation.
+
+Concretely: `spinnerVerbs.verbs` (`config/10-core.json`) is an array default nested inside an already-present `spinnerVerbs` block. If a future release adds a new verb to that list, every existing install's on-disk `spinnerVerbs.verbs` — byte-identical to the *old* team default, never touched by the user — is indistinguishable from a deliberately customized array. The merger keeps the stale array; the new verb silently never reaches any pre-existing install. Unlike the object-sub-key case, there's no log line for this — only object-shaped new-default landings are counted via `defaultsAdded`.
+
+This is a real gap, not yet fixed — a proper fix needs either a stored previous-team-default snapshot (to detect "unchanged since last install" for arrays) or per-array `STRATEGIES` entries with explicit team-adds/user-can-decline semantics, mirroring how `permissions.allow` already reconciles arrays. Until then: **after any release that changes an array default nested in an existing block, verify with `bun run compose` (the fresh-install shape) and `jq` against a real `~/.claude/settings.json` (the re-install shape) rather than assuming re-install parity.** See the team-knowledge note `cc-settings-installer-skips-nested-config-defaults` for the original (object sub-key) class of this bug.
 
 ---
 

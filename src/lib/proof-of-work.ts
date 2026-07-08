@@ -75,15 +75,35 @@ export function formatReport(results: GateResult[]): string {
   return ["Proof of work:", ...lines, "", verdict].join("\n");
 }
 
-/** Run one gate via `bun run <script>`; pass iff exit 0. */
+/** Last non-empty lines of combined stdout+stderr, trimmed — used as a failing
+ *  gate's diagnostic detail so a red verdict is actually diagnosable without a
+ *  separate manual re-run. Pure so it's unit-testable without a subprocess. */
+export function tailOutput(text: string, maxLines = 12): string {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+  return lines.slice(-maxLines).join("\n");
+}
+
+/** Run one gate via `bun run <script>`; pass iff exit 0. Captures stdout+stderr
+ *  (same as runReactDoctor/runDeslop) so a failing gate carries a `detail` tail
+ *  of its output instead of a bare pass/fail — formatReport only prints
+ *  `detail` when set, so a red verdict was otherwise undiagnosable without a
+ *  separate manual re-run of the failing script. */
 export async function runGate(gate: GateName, cwd: string): Promise<GateResult> {
   const proc = Bun.spawn(["bun", "run", GATE_SCRIPTS[gate]], {
     cwd,
-    stdout: "ignore",
-    stderr: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
   });
-  const exit = await proc.exited;
-  return { gate, status: exit === 0 ? "pass" : "fail" };
+  const [stdout, stderr, exit] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  if (exit === 0) return { gate, status: "pass" };
+  return { gate, status: "fail", detail: tailOutput(`${stdout}\n${stderr}`) };
 }
 
 /** Run gates sequentially — tsc / the test runner are CPU-heavy, so parallel

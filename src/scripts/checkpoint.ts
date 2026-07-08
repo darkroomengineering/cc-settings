@@ -370,17 +370,20 @@ async function cmdClean(keepStr: string): Promise<void> {
   const checkpointDir = claudePath("checkpoints", project);
   await ensureDir(checkpointDir);
   const names = await listArtifacts(checkpointDir, /\.json$/);
-  let entries: Array<{ file: string; mtime: number }>;
-  try {
-    entries = names
-      .map((e) => {
-        const full = join(checkpointDir, e);
-        return { file: full, mtime: lstatSync(full).mtimeMs };
-      })
-      .sort((a, b) => b.mtime - a.mtime);
-  } catch {
-    entries = [];
+  // Per-entry catch: a single stat failure (e.g. ENOENT from a file removed by
+  // a concurrent clean/save between listArtifacts' readdir and this lstatSync)
+  // must only drop that one entry, not discard the whole already-enumerated
+  // listing.
+  const entries: Array<{ file: string; mtime: number }> = [];
+  for (const name of names) {
+    const full = join(checkpointDir, name);
+    try {
+      entries.push({ file: full, mtime: lstatSync(full).mtimeMs });
+    } catch {
+      // skip: vanished between readdir and stat
+    }
   }
+  entries.sort((a, b) => b.mtime - a.mtime);
   if (entries.length <= keep) {
     console.log(
       `${palette.green}Nothing to clean. ${entries.length} checkpoints (keep: ${keep}).${palette.reset}`,
@@ -443,4 +446,5 @@ switch (cmd) {
     break;
   default:
     usage();
+    process.exit(1);
 }

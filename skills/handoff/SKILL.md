@@ -26,14 +26,28 @@ Or use the native command:
 
 ### What Gets Saved
 
-The handoff file includes:
-- **Current task**: What you're working on
-- **Progress**: What's been completed
-- **Decisions made**: Key choices and rationale
-- **Files modified**: List of changed files
-- **Next steps**: What remains to be done
-- **Context**: Important information to remember
-- **Learnings**: Patterns discovered in session
+Every handoff — auto or manual — always captures real, git-derived data at
+creation time:
+- **Project**: name, path, current branch
+- **Pending changes**: `git status --porcelain` (first 20 lines)
+- **Key files**: paths of files with uncommitted changes at save time
+- **Recent commits**: subjects of the last 3 commits
+- **Source**: `manual` or `auto` (see below)
+
+Beyond that, what's actually filled in depends on how the handoff was created:
+
+- **Manual** (`/handoff`, or `handoff.ts create --summary "text"`) — the
+  `--summary` text becomes the Session Summary. Active Todos / Current Task /
+  Notes for Next Session are placeholders (`<!-- ... -->`) for you (or the
+  agent, before the turn ends) to fill in manually — the CLI has no way to
+  know your in-progress todos, decisions, or learnings on its own.
+- **Automatic** (PreCompact/SessionEnd hooks call `create` with no
+  `--summary`, `source: "auto"`) — Session Summary, Active Todos, Current
+  Task, and Notes for Next Session all stay as unfilled placeholders. Only
+  the git-derived fields above are populated. Don't rely on an auto-handoff
+  alone to recall what you were doing — pair it with the structured
+  compaction template below, or run a manual `/handoff` with `--summary`
+  before ending a session.
 
 ### GitHub Issue Sync
 
@@ -53,12 +67,23 @@ This ensures project progress is visible to the whole team, not just in local ha
 
 ### Handoff Location
 
+Handoffs are scoped per project (repo toplevel basename, or cwd basename
+outside a git repo) — a handoff saved in one project never surfaces as
+"latest" when you resume in another:
+
 ```
 ~/.claude/handoffs/
-├── project-name-2024-01-15-1430.md
-├── project-name-2024-01-14-0900.md
-└── ...
+└── <project-name>/
+    ├── handoff_20260115_143000.md
+    ├── handoff_20260115_143000.json
+    ├── latest.md -> handoff_20260115_143000.md
+    └── ...
 ```
+
+Handoffs saved before this per-project scoping existed live under the flat
+`~/.claude/handoffs/` directory; `resume`/`list` fall back to that legacy
+directory exactly once, only when the current project has no scoped store of
+its own yet.
 
 ### When to Create Handoff
 
@@ -213,7 +238,7 @@ Present a combined summary:
 
 List handoffs for current project:
 ```bash
-ls ~/.claude/handoffs/ | grep "$(basename $(pwd))"
+ls ~/.claude/handoffs/"$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"/
 ```
 
 ### Resume Options

@@ -362,6 +362,22 @@ describe("claude-audit.ts", () => {
 });
 
 describe("handoff.ts clean", () => {
+  // H11: handoff.ts scopes its store per project (like checkpoint.ts), so
+  // `clean` (run here with no `cwd` override — it inherits this test
+  // process's cwd, the repo root) always operates on
+  // `<HOME>/.claude/handoffs/<repo-toplevel-basename>/`, not the flat
+  // `<HOME>/.claude/handoffs/` directory these tests used to seed directly.
+  async function currentProjectName(): Promise<string> {
+    const proc = Bun.spawn(["git", "rev-parse", "--show-toplevel"], {
+      cwd: resolve(import.meta.dir, ".."),
+      stdout: "pipe",
+    });
+    const out = (await new Response(proc.stdout).text()).trim();
+    await proc.exited;
+    const { basename } = await import("node:path");
+    return out ? basename(out) : basename(resolve(import.meta.dir, ".."));
+  }
+
   async function seedHandoffs(dir: string, count: number): Promise<void> {
     const { mkdir, writeFile, utimes } = await import("node:fs/promises");
     const { join } = await import("node:path");
@@ -385,7 +401,8 @@ describe("handoff.ts clean", () => {
     const { join } = await import("node:path");
     const sandbox = mkdtempSync(join(tmpdir(), "cc-handoff-clean-test-"));
     try {
-      const handoffDir = join(sandbox, ".claude", "handoffs");
+      const project = await currentProjectName();
+      const handoffDir = join(sandbox, ".claude", "handoffs", project);
       await seedHandoffs(handoffDir, 3);
       const r = await run("handoff.ts", { env: { HOME: sandbox }, args: ["clean", "0"] });
       expect(r.exit).toBe(0);
@@ -402,7 +419,8 @@ describe("handoff.ts clean", () => {
     const { join } = await import("node:path");
     const sandbox = mkdtempSync(join(tmpdir(), "cc-handoff-clean-keep1-"));
     try {
-      const handoffDir = join(sandbox, ".claude", "handoffs");
+      const project = await currentProjectName();
+      const handoffDir = join(sandbox, ".claude", "handoffs", project);
       await seedHandoffs(handoffDir, 3);
       const r = await run("handoff.ts", { env: { HOME: sandbox }, args: ["clean", "1"] });
       expect(r.exit).toBe(0);
@@ -422,7 +440,8 @@ describe("handoff.ts clean", () => {
     const { join } = await import("node:path");
     const sandbox = mkdtempSync(join(tmpdir(), "cc-handoff-clean-default-"));
     try {
-      const handoffDir = join(sandbox, ".claude", "handoffs");
+      const project = await currentProjectName();
+      const handoffDir = join(sandbox, ".claude", "handoffs", project);
       await seedHandoffs(handoffDir, 3);
       const r = await run("handoff.ts", { env: { HOME: sandbox }, args: ["clean"] });
       expect(r.exit).toBe(0);

@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SkillFrontmatter } from "../schemas/skill.ts";
+import { extractFrontmatterBlock, KEBAB_CASE_RE } from "./frontmatter.ts";
 import { lintFrontmatterCore } from "./lint-frontmatter.ts";
 import { ACTIVE_SKILLS } from "./managed-skills.ts";
 
@@ -32,8 +33,10 @@ export interface LintResult {
 // Adding a skill past the cap should require removing one — see CLAUDE-FULL.md.
 export const SKILL_SOFT_CAP = 40;
 
-// Reference A: name kebab-case, no underscores/capitals/spaces.
-const KEBAB_CASE = /^[a-z][a-z0-9-]*$/;
+// Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
+// the schema `name` field regexes (agent/skill/profile/knowledge) — see
+// KEBAB_CASE_RE in frontmatter.ts for why this used to disagree with them.
+const KEBAB_CASE = KEBAB_CASE_RE;
 
 // Reserved per the guide — Claude.ai rejects uploads named these.
 const RESERVED_PREFIXES = ["claude", "anthropic"];
@@ -88,7 +91,7 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
   // Raw-text scan: catches angle brackets in any field, including passthrough
   // ones like argument-hint where the schema doesn't validate the value.
   // Must run before frontmatter parsing so we scan the raw block.
-  const block = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  const block = extractFrontmatterBlock(text) ?? "";
   if (/[<>]/.test(block)) {
     push(
       "error",

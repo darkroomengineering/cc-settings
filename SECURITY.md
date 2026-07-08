@@ -79,6 +79,16 @@ Exit code is non-zero on any suspicious finding so CI can gate on this. Stale-on
 
 Source: `src/lib/audit-hooks.ts`, `src/scripts/audit-hooks.ts`.
 
+**Also scanned, in their own report section:** `env` values and `mcpServers`
+command/args are matched against the same malware-signature bank
+(`curl | sh`, base64 decode + exec, `node -e`, etc.) and printed under a
+separate `ENV/MCP SUSPICIOUS` heading when something matches. This is
+**pattern-match classification only** — there is no shipped-pattern/manifest
+concept for env vars or MCP server definitions, so nothing here is ever
+"trusted", and a clean scan is not an integrity guarantee the way a "trusted"
+hook finding is. See the scope note below for exactly what this does and
+doesn't buy you.
+
 ### 4. The allowlist convention
 
 Every hook command that cc-settings ships starts with
@@ -194,6 +204,36 @@ Consequences of that stance:
 - Anything that MUST never run belongs in `config/30-permissions.json`,
   not (only) in safety-net.
 
+**Keeping the deny-list honest against the allow-list's wholesale
+subcommands:** `config/30-permissions.json` wholesale-allows several git
+subcommands (`git branch:*`, `git checkout:*`, `git push:*`, …) because
+requiring per-flag confirmation on every `git status`/`git log`/routine
+`git push` would make the deny-list unusable. That tradeoff only holds if
+the deny-list has an explicit override for every destructive *form* of a
+wholesale-allowed subcommand — otherwise the dangerous form is silently
+auto-approved by the broad allow, with only fail-open safety-net.ts between
+it and the user, contradicting the "deny-list is the boundary" claim above.
+Concretely: `git push -uf`/`-fu` (bundled short flags that still carry
+`-f`, distinct from the literal `--force`/`-f` token forms already denied)
+and `git branch -D`/`-d -f` (force branch delete) each have their own deny
+entry alongside the existing `--force`/`-f`/`-D` forms, mirroring exactly
+what `safety-net.ts`'s `analyzeGitAfterVerb` already treats as must-block.
+When adding a new wholesale-allowed git (or other) subcommand, enumerate its
+destructive forms against safety-net.ts's checks and close the gap in the
+deny-list rather than narrowing the allow — narrowing breaks the common
+case (an interactive human confirming a legitimate `git push --force` to
+their own fork), closing the gap doesn't.
+
+**Edit/MultiEdit are wildcard-allowed (`Edit(*)`, `MultiEdit(*)`) alongside
+`Write(*)`.** The deny-list's `Write(~/.claude/settings.json)` /
+`Write(~/.claude.json)` entries only close the `Write` tool surface for
+those two files — `Edit`/`MultiEdit` are separate tool names and are not
+covered by a `Write`-scoped deny rule. `Edit(~/.claude/settings.json)`,
+`MultiEdit(~/.claude/settings.json)`, and the `.claude.json` equivalents
+mirror the `Write` denies for exactly this reason: all three mutation tools
+must be denied for a path, not just one of them, or a prompt-injected
+"use Edit instead of Write" instruction bypasses the protection entirely.
+
 ## What cc-settings deliberately does not do
 
 - **Auto-quarantine on suspicious match.** The session-start hook only
@@ -225,6 +265,49 @@ What the content manifest does **not** cover:
   only by `setup.sh` (the auditor never self-refreshes them) and because
   worms automate against defaults — but a targeted attacker with full
   user-privilege write access is outside this threat model.
+
+## Scope: the fingerprint and content manifest cover the `hooks` block only
+
+Layers 1 and 2 above (the hooks-block fingerprint and the src content
+manifest) are precisely scoped: `hashHooks()` hashes `settings.hooks` and
+nothing else, and the content manifest verifies script *files*, not other
+`settings.json` keys. Concretely, **`mcpServers`, `permissions`, `env`, and
+every other top-level key of `settings.json` are entirely outside what those
+two layers verify** — a change to any of them, however large, never trips
+the fingerprint mismatch warning, even though `mcpServers` entries run
+arbitrary local commands with full startup (a persistence primitive at
+least as strong as a hook).
+
+Why this boundary, deliberately, rather than widening the hash: `mcpServers`,
+`permissions`, and `env` are all things a user is *expected* to hand-edit
+routinely (adding a personal MCP server, tightening a permission rule,
+setting a project env var) — unlike the `hooks` block, which cc-settings
+owns end-to-end and where any drift from the installed state is inherently
+suspect. Folding those keys into the fingerprint would mean every legitimate
+edit trips the same "tampering" warning as an actual injected payload,
+training users to click through it — the opposite of what a security signal
+is for.
+
+What actually covers `mcpServers`/`env`: layer 3's auditor (above) runs a
+**best-effort pattern-match scan** (`auditEnvAndMcp` in
+`src/lib/audit-hooks.ts`) over `env` values and `mcpServers` command/args
+against the same malware-signature bank used for hooks, reported in its own
+`ENV/MCP SUSPICIOUS` section. This is classification only — it catches an
+*obvious* injected payload (a `curl | sh`, a base64-decode-and-exec, an
+inline `node -e`), the same way the hook auditor's `suspicious` tier does.
+It does **not** give `mcpServers`/`env` the same guarantee `hooks` gets from
+the fingerprint + manifest pair: there's no "this exact value hasn't changed
+since install" check, no content-hash verification of anything an
+`mcpServers.command` points at, and no `trusted` tier — silence means "no
+known signature matched," not "unchanged" or "verified."
+
+**Manual-review guidance:** if you see an `mcpServers` entry or `env` value
+you don't recognize — whether or not the auditor flagged it — treat it the
+same as an unrecognized hook: check whether you or a tool you installed
+added it, and if not, treat it as a compromise signal and follow the
+remediation steps above. `permissions` (the allow/deny lists themselves) has
+no scanner at all yet; review changes to it the same way you'd review any
+other settings.json diff.
 
 ## Reporting
 

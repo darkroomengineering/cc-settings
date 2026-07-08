@@ -10,12 +10,29 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { z } from "zod";
 import { readCodexVerdict } from "../lib/codex.ts";
 import { palette } from "../lib/colors.ts";
-import { runGit as runGitLib } from "../lib/git.ts";
+import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
 import { readHookInput, readState } from "../lib/hook-runtime.ts";
 import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
+
+// Shape-validated the same way quota.ts's RateLimitsCacheSchema is — a
+// malformed review-queue.json/version-drift.json (partial write, future
+// schema change, tampering) must degrade to "absent" instead of feeding
+// NaN/garbage into the visible statusline.
+const ReviewQueueStateSchema = z.object({
+  awaiting: z.number(),
+  firstSpawnAt: z.number().optional(),
+  firedAt: z.number().optional(),
+  lastHead: z.string().optional(),
+});
+
+const VersionDriftSchema = z.object({
+  stale: z.boolean().optional(),
+  installed: z.string().nullable().optional(),
+});
 
 type Payload = {
   model?: { display_name?: string };
@@ -61,16 +78,15 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   // returns "" outside a repo (runGit swallows errors), which short-circuits
   // below. All four lookups are independent — one parallel wave instead of
   // three sequential rounds.
+  //
+  // The two `diff --quiet` dirty checks go through runProcessFull (same
+  // GIT_TIMEOUT_MS + SIGKILL bound as every other git spawn in the codebase)
+  // instead of a raw Bun.spawn — a hung diff filter/textconv or a
+  // network-mounted working tree must not block the whole statusline forever.
   const [branch, dirtyUnstaged, dirtyStaged, counts] = await Promise.all([
     runGit(["branch", "--show-current"], cwd),
-    Bun.spawn(["git", "-C", cwd, "--no-optional-locks", "diff", "--quiet"], {
-      stdout: "ignore",
-      stderr: "ignore",
-    }).exited,
-    Bun.spawn(["git", "-C", cwd, "--no-optional-locks", "diff", "--cached", "--quiet"], {
-      stdout: "ignore",
-      stderr: "ignore",
-    }).exited,
+    runProcessFull("git", ["-C", cwd, "--no-optional-locks", "diff", "--quiet"]),
+    runProcessFull("git", ["-C", cwd, "--no-optional-locks", "diff", "--cached", "--quiet"]),
     // Ahead/behind in ONE spawn: `--left-right --count @{upstream}...HEAD`
     // prints "<behind>\t<ahead>" (left = upstream-only commits, right =
     // HEAD-only). No upstream → git errors → "" (same fallback as the old
@@ -80,7 +96,7 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   if (!branch) return null;
 
   const dirty =
-    dirtyUnstaged !== 0 || dirtyStaged !== 0 ? `${palette.yellow}✱${palette.reset}` : "";
+    dirtyUnstaged.exit !== 0 || dirtyStaged.exit !== 0 ? `${palette.yellow}✱${palette.reset}` : "";
 
   let upstream = "";
   if (counts) {
@@ -208,7 +224,11 @@ async function main(): Promise<void> {
   // Review-queue backpressure: agents spawned since the last commit, awaiting
   // your review (written by tool-cadence.ts). Suppressed at 0 — yellow
   // under the threshold, red at/over CC_MAX_UNREVIEWED.
-  const reviewQueue = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
+  const reviewQueueRaw = await readState<unknown>("review-queue.json", null);
+  const reviewQueueParsed = ReviewQueueStateSchema.safeParse(reviewQueueRaw);
+  const reviewQueue: ReviewQueueState = reviewQueueParsed.success
+    ? reviewQueueParsed.data
+    : { awaiting: 0 };
   if (reviewQueue.awaiting > 0) {
     const color = reviewQueue.awaiting >= maxUnreviewed() ? palette.red : palette.yellow;
     const age = ageMs(reviewQueue, Date.now());
@@ -219,10 +239,9 @@ async function main(): Promise<void> {
   // cc-settings install staleness — surfaced only when the cached SessionStart
   // drift check found the repo's packaged version ahead of what's installed.
   // Suppressed otherwise (like the review queue), so it costs nothing when current.
-  const drift = await readState<{ stale?: boolean; installed?: string | null }>(
-    "version-drift.json",
-    { stale: false },
-  );
+  const driftRaw = await readState<unknown>("version-drift.json", null);
+  const driftParsed = VersionDriftSchema.safeParse(driftRaw);
+  const drift = driftParsed.success ? driftParsed.data : { stale: false };
   if (drift.stale && drift.installed) {
     parts.push(`${palette.yellow}⬆ cc v${drift.installed}${palette.dim} stale${palette.reset}`);
   }

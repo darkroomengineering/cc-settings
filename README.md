@@ -32,7 +32,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/dar
 
 Both one-liners clone the repo and run the installer. To pass flags (`--light`, `--dry-run`, …), clone first and run the bootstrap from the checkout: `bash setup.sh --light` or `.\setup.ps1 --light`.
 
-Requires [Bun](https://bun.sh) ≥ 1.2.21 and git — the bootstrap installs Bun automatically if missing. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
+Requires [Bun](https://bun.sh) ≥ 1.2.21 and git — the bootstrap installs Bun automatically if missing. The full profile also installs `jq` if missing; no runtime hook shells out to it (all hooks are TypeScript) — it's for the `jq` one-liners used in team-knowledge remediation runbooks. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
 
 Restart Claude Code after install.
 
@@ -57,7 +57,7 @@ No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the sta
 ├── CLAUDE.md           # Claude-Code-specific config
 ├── settings.json       # Composed from config/*.json (permissions, hooks, MCP)
 ├── agents/             # 10 specialized subagents
-├── skills/             # 36 auto-invocable skills
+├── skills/             # 37 auto-invocable skills
 ├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro, react-router
 ├── rules/              # Path-conditioned rules (load on-demand by file type)
 └── src/                # Hook + script implementations (TypeScript)

@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AgentFrontmatter } from "../schemas/agent.ts";
+import { extractFrontmatterBlock } from "./frontmatter.ts";
 import { lintFrontmatterCore } from "./lint-frontmatter.ts";
 
 export type AgentSeverity = "error" | "warning";
@@ -46,6 +47,20 @@ async function lintOne(agentsDir: string, filename: string): Promise<AgentFindin
   const filePath = join(agentsDir, filename);
 
   const text = await readFile(filePath, "utf8");
+
+  // Raw-text scan: catches angle brackets in any field, including passthrough
+  // ones the schema doesn't validate the value of. Must run before
+  // frontmatter parsing so we scan the raw block. Mirrors lint-skills.ts.
+  const block = extractFrontmatterBlock(text) ?? "";
+  if (/[<>]/.test(block)) {
+    findings.push({
+      agent: name,
+      severity: "error",
+      rule: "no-angle-brackets",
+      message:
+        "frontmatter contains `<` or `>` — security restriction, frontmatter is injected into the system prompt",
+    });
+  }
 
   // Shared scaffolding: frontmatter-missing + yaml-parse errors.
   const baseFindings = await lintFrontmatterCore(text, (parsed) => {

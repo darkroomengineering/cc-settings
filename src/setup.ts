@@ -219,10 +219,34 @@ async function createBackup(): Promise<void> {
   // ~/.claude, not inside it. Without it, --rollback could not restore a user's
   // MCP setup. cmdRollback detects this layout (".claude/"-prefixed entries) and
   // extracts from $HOME; older ~/.claude-relative archives still restore correctly.
+  //
+  // Every directory/file cleanOldConfig() unconditionally wipes on every run is
+  // included here too — agents/, skills/ (including the MANAGED_SKILLS dirs
+  // inside it), rules/, profiles/, docs/, hooks/, contexts/, the legacy
+  // scripts/ and lib/ dirs, and hooks-config*.json. Without this, a copy
+  // failure between cleanOldConfig and the copy phase leaves --rollback able to
+  // restore only settings.json/CLAUDE.md/AGENTS.md/.claude.json — none of the
+  // content actually wiped (H7). tar archives directories recursively, so
+  // listing the directory itself is enough; existsSync below skips entries
+  // that aren't present yet (e.g. a first-ever install). Deliberately excludes
+  // backups/, tmp/, logs/, and tldr-cache — regenerable/non-managed, and
+  // backups/ nesting itself would grow every archive by the sum of all prior
+  // ones.
   const candidates = [
     ".claude/settings.json",
     ".claude/CLAUDE.md",
     ".claude/AGENTS.md",
+    ".claude/agents",
+    ".claude/skills",
+    ".claude/rules",
+    ".claude/profiles",
+    ".claude/docs",
+    ".claude/hooks",
+    ".claude/contexts",
+    ".claude/scripts",
+    ".claude/lib",
+    ".claude/hooks-config.json",
+    ".claude/hooks-config.local.json",
     ".claude.json",
   ];
   const existing = candidates.filter((f) => existsSync(join(home, f)));
@@ -505,9 +529,16 @@ async function installSettings(
     tldrEntry.args = engine.mcp.args;
     tldrEntry.serverInstructions = engine.serverInstructions;
   }
+  // Feed the engine-mutated teamMcp (not the untouched fullComposed.mcpServers)
+  // into the settings.json merge too, so settings.json and ~/.claude.json never
+  // disagree about which engine backs the "tldr" server (H9) — the merger's
+  // own resolveMcpServers still runs its usual user-wins-on-divergence logic
+  // against THIS mcpServers value, it just starts from the resolved engine
+  // instead of the static config/20-mcp.json fragment.
+  const settingsForMerge: Record<string, unknown> = { ...fullComposed, mcpServers: teamMcp };
   const accounting = await mergeSettingsWithMcpPreservation(
     userSettingsPath,
-    fullComposed,
+    settingsForMerge,
     userSettingsPath,
     { interactive },
   );
