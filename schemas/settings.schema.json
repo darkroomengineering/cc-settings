@@ -890,6 +890,9 @@
         "merge"
       ]
     },
+    "advisorModel": {
+      "type": "string"
+    },
     "agent": {
       "type": "string"
     },
