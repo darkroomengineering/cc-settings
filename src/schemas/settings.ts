@@ -156,6 +156,7 @@ export const Settings = z.looseObject({
   parentSettingsBehavior: z.enum(["first-wins", "merge"]).optional(), // 2.1.133 (admin-tier)
 
   // --- GENERAL ---
+  advisorModel: z.string().optional(), // 2.1.98 — stronger model the session consults mid-turn via the advisor server tool; `/advisor <model>` persists here. Alias or full ID; pairing (advisor ≥ executor capability) is validated at runtime, and Fable-as-advisor needs 2.1.170+. See docs/agent-models.md "Advisor".
   agent: z.string().optional(), // default agent name for subagent invocations
   alwaysThinkingEnabled: z.boolean().optional(), // always show extended thinking even on short turns
   autoMemoryEnabled: z.boolean().optional(), // enable/disable the auto-memory system

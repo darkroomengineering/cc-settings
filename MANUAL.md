@@ -418,6 +418,14 @@ Without the pin you silently run an older model whose thinking-token behavior at
 
 The cc-settings standing default model is `opus[1m]` (`claude-opus-4-8`, 1M variant), pinned to `[1m]` since Opus is not 1M-native. History: Fable 5 (`claude-fable-5`) was suspended on 2026-06-12 by a US government export-control directive ([announcement](https://www.anthropic.com/news/fable-mythos-access)), then redeployed on 2026-07-01 behind a promo-then-credit-gated tier — `config/10-core.json` temporarily shipped `model: "fable"` for the promo window, then reverted to `opus[1m]` on 2026-07-07 as the safe committed default (see CHANGELOG). Anthropic subsequently [extended the promo](https://support.claude.com/en/articles/15424964-claude-fable-5-promotional-access) to **2026-07-12 11:59 PM PT** (up to 50% of the weekly limit on `fable`, shared pool, no extra cost); the committed default stays `opus[1m]` on purpose, and the free window is reached by running `/model fable` per session through July 12. After July 12, Fable is per-session on usage credits, not the shipped default. On AWS / Bedrock / Vertex / Foundry, `opus` may resolve to an older release — pin `claude-opus-4-8` (as above).
 
+### Advisor (strong model on call, cheap model at the wheel)
+
+Claude Code can attach a stronger **advisor** model to a cheaper session (v2.1.98+): the session model decides when to consult it, the advisor reads the full transcript server-side and returns a short plan or course correction mid-turn, and the session continues at its own cheaper rate. It runs on subscription plans — advisor tokens count toward your Max usage (`/usage`), no API key needed — but Anthropic API only, so it's unavailable on the Bedrock / Vertex / Foundry routes above.
+
+The recommended shape is **workhorse mode**: `/model sonnet` for the session plus `/advisor opus` (or `/advisor fable` while you have Fable access — needs v2.1.170+). You get near-top-tier planning while burning mostly Sonnet quota — a typical advisor reply is a few hundred tokens, so dozens of consults cost less than one Opus session — and subagents inherit the advisor too.
+
+Not shipped as a default on purpose: our standing model is `opus[1m]`, where an advisor is marginal, and a Fable session only accepts a Fable advisor. Turn it on per session with `/advisor <model>`, persist it with `"advisorModel"` in `settings.json`, or disable it entirely with `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`. Pairing rules, quota rationale, and caveats (including why Fable-as-advisor advice is unreadable to you): `docs/agent-models.md`.
+
 ### Profiles
 
 Activate specialized workflows in `settings.json`:
