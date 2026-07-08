@@ -10,9 +10,16 @@ import { basename } from "node:path";
 import { sanitizeOutput } from "../lib/codex.ts";
 import { readHookInput } from "../lib/hook-runtime.ts";
 import { claudePath, localDatetime, ymd } from "../lib/platform.ts";
+import { redactSecrets } from "../lib/redact.ts";
 
 const LOG_DIR = claudePath("logs");
-const RETENTION = Number.parseInt(process.env.CLAUDE_LOG_RETENTION_DAYS ?? "1", 10) || 1;
+
+// Number.isNaN-guarded, not `|| 1` — an explicit CLAUDE_LOG_RETENTION_DAYS=0
+// must stay 0, not silently coerce back to the 1-day default (the same
+// falsy-zero bug checkpoint.ts/handoff.ts/prune-mcp-auth-cache.ts already
+// guard against). See M19 in docs/audits/codebase-audit-2026-07-08.md.
+const parsedRetention = Number.parseInt(process.env.CLAUDE_LOG_RETENTION_DAYS ?? "1", 10);
+const RETENTION = Number.isNaN(parsedRetention) ? 1 : parsedRetention;
 
 async function pruneOldLogs(): Promise<void> {
   // Bash used `find ... -mtime +$RETENTION -delete`. Mirror that: delete any
@@ -48,10 +55,20 @@ type HookInput = { tool_input?: { command?: string } };
  * unambiguous, then real newlines/carriage-returns become literal `\n`/`\r`.
  * ANSI/control sequences are stripped via the same sanitizer codex.ts uses for
  * subprocess output, so a hostile command can't smuggle terminal escapes into
- * the log file.
+ * the log file. Secret redaction runs via the canonical redactSecrets
+ * (src/lib/redact.ts) — this is the highest-exposure logging surface (every
+ * Bash command, not just blocked ones), so it must never fall back to a
+ * weaker pattern set than safety-net.ts's. sanitizeOutput already applies
+ * redactSecrets internally; the explicit second call here is a deliberate
+ * belt-and-suspenders import (idempotent — a no-op on already-redacted text)
+ * so this file's own coverage doesn't silently regress if codex.ts's
+ * internals ever change. See M23 in docs/audits/codebase-audit-2026-07-08.md.
  */
 function escapeForLog(s: string): string {
-  return sanitizeOutput(s).replaceAll("\\", "\\\\").replaceAll("\n", "\\n").replaceAll("\r", "\\r");
+  return redactSecrets(sanitizeOutput(s))
+    .replaceAll("\\", "\\\\")
+    .replaceAll("\n", "\\n")
+    .replaceAll("\r", "\\r");
 }
 
 await mkdir(LOG_DIR, { recursive: true }).catch(() => {});

@@ -14,6 +14,7 @@
 import { z } from "zod";
 import { readState, writeState } from "./hook-runtime.ts";
 import { hasCommand } from "./platform.ts";
+import { redactSecrets } from "./redact.ts";
 
 const VERDICT_FILE = "codex-verdict.json";
 
@@ -255,16 +256,14 @@ export async function refreshCodexVerdict(): Promise<CodexVerdict> {
  * Strip ANSI escape codes and redact credentials from any string. Operates on
  * the full text (no line capping, no length limit). Used by both `firstLine`
  * (for cached detail snippets) and `sanitizeOutput` (for full output surfaces).
+ *
+ * Secret redaction is delegated to the canonical redactSecrets (src/lib/
+ * redact.ts) rather than a local pattern set, so this surface always carries
+ * the same coverage as safety-net.ts and log-bash.ts (see M23 in
+ * docs/audits/codebase-audit-2026-07-08.md).
  */
 export function sanitizeOutput(s: string): string {
-  return s
-    .replace(OSC_RE, "")
-    .replace(CSI_RE, "")
-    .replace(CONTROL_RE, "")
-    .replace(/sk-[A-Za-z0-9_-]{16,}/g, "sk-[redacted]")
-    .replace(/Bearer[\s:]+\S+/gi, "Bearer [redacted]")
-    .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]")
-    .replace(/\b([A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET))=\S+/gi, "$1=[redacted]");
+  return redactSecrets(s.replace(OSC_RE, "").replace(CSI_RE, "").replace(CONTROL_RE, ""));
 }
 
 /** First non-empty line of a subprocess stderr, sanitized before it's cached to

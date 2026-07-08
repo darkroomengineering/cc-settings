@@ -27,7 +27,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |
 | `background` | boolean | No | When `true`, always run this subagent as a background task |
 | `isolation` | string | No | `worktree` runs the agent in a temporary git worktree for isolated repo access; `remote` runs it in a remote/sandboxed environment |
-| `effort` | string | No | Effort level for this agent: `low`, `medium`, `high` |
+| `effort` | string | No | Effort level for this agent: `low`, `medium`, `high`, `xhigh`, `max` |
 
 ### Auto-Invocation via `description`
 
@@ -82,9 +82,9 @@ color: purple
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
+| `implementer` | sonnet | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
 | `maestro` | opus[1m] | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
-| `reviewer` | opus[1m] | project | Read, Grep, Glob, LS, Bash | yellow |
+| `reviewer` | sonnet | project | Read, Grep, Glob, LS, Bash | yellow |
 | `planner` | opus[1m] | project | Read, Grep, Glob, LS | blue |
 | `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
 | `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
@@ -129,7 +129,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
 | `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
 
-Skills using `fork` (21): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `verify`.
+Skills using `fork` (22): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `verify`.
 
 Skills using `main` (5): `adversarial-audit`, `codex`, `freeze`, `nuclear-review`, `zero-tech-debt`.
 
@@ -142,7 +142,6 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 | Skill | Delegates to Agent |
 |-------|--------------------|
 | `explore` | `explore` |
-| `oracle` | `explore` |
 | `orchestrate` | `maestro` |
 | `plan-feature` | `planner` |
 | `review` | `reviewer` |
@@ -211,7 +210,7 @@ argument-hint: "<skill-name>"
 | `hook` | -- | -- | -- | -- |
 | `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
 | `nuclear-review` | main | -- | -- | -- |
-| `oracle` | fork | explore | -- | `[advice\|risks\|compare] [question]` |
+| `oracle` | fork | -- | -- | `[advice\|risks\|compare] [question]` |
 | `orchestrate` | fork | maestro | -- | -- |
 | `plan-ceo-review` | fork | -- | Read, Grep, Glob, Bash, AskUserQuestion | -- |
 | `plan-feature` | fork | planner | -- | -- |

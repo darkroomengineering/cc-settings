@@ -73,7 +73,7 @@ describe("permissionsStrategy", () => {
     expect(ctx.accounting.permissionsAdded).toBe(2); // Write and Edit are user-only
   });
 
-  test("null permissions on both sides → keep:false", async () => {
+  test("null permissions on both sides → keep:true (null coerces to empty object, not absent)", async () => {
     const ctx = makeCtx();
     // null coerces to {} — no arrays, no fields
     const result = await permissionsStrategy("permissions", null, null, ctx);

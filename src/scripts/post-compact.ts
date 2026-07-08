@@ -3,7 +3,7 @@
 // Port of scripts/post-compact.sh. Pure stdout; no state writes.
 
 import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { claudePath } from "../lib/platform.ts";
 
 console.log("[PostCompact] Context was compacted. Recovery steps:");
@@ -14,10 +14,12 @@ console.log("  4. Resume from where you left off");
 
 const handoffDir = claudePath("handoffs");
 try {
-  const entries = await readdir(handoffDir);
+  // Recursive: handoffs are project-scoped subdirs since the H11 fix, with
+  // legacy flat files still possible in the root.
+  const entries = await readdir(handoffDir, { recursive: true });
   // Skip symlink aliases (latest.md etc.) so we return the canonical handoff
   // file — matches `ls -t *.md | head -1` in the bash version.
-  const mdFiles = entries.filter((e) => e.endsWith(".md") && !e.startsWith("latest"));
+  const mdFiles = entries.filter((e) => e.endsWith(".md") && !basename(e).startsWith("latest"));
   if (mdFiles.length > 0) {
     const withStat = await Promise.all(
       mdFiles.map(async (name) => {

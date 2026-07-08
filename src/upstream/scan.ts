@@ -1,9 +1,17 @@
 #!/usr/bin/env bun
-// Upstream-sync scanner (dry-run detector). Compares the current manifest against
-//   (a) npm's @anthropic-ai/claude-code latest version
-//   (b) the zod schemas' enumerated values (our local source of truth)
-// and prints the delta. Run it (`bun run upstream:scan`) to find out whether
-// Claude Code has shipped a new release.
+// Upstream-sync scanner (dry-run detector). Two different kinds of check,
+// only one of which touches anything external:
+//   (a) LIVE — fetches npm's @anthropic-ai/claude-code latest version and
+//       diffs it against the manifest's recorded claudeCodeVersion. This is
+//       the ONLY network/external call the scanner makes.
+//   (b) LOCAL-ONLY — diffs upstream/claude-code-manifest.json against the
+//       zod schemas' enumerated values (src/schemas/*.ts). Both files are
+//       hand-maintained by cc-settings authors (updated via `/cc sync` after
+//       a human reads the Claude Code changelog), so this only catches
+//       disagreement BETWEEN those two local files — it is not checked
+//       against any live Anthropic source of truth. A field Anthropic has
+//       shipped but nobody has yet transcribed into either file is invisible
+//       to this scanner regardless of how long it's been out.
 //
 // The scanner never writes. The actual sync — changelog triage
 // (ADOPT/DEDUPE/SKIP), schema + doc edits, and the manifest + CHANGELOG bumps —
@@ -12,10 +20,11 @@
 // a version number — it never read the changelog — so it was retired in favor of
 // the manual skill.)
 //
-// Every manifest list that has a local schema source of truth is diffed below.
-// Two lists (knownEnvVars, knownBuiltinTools) have no local schema to diff
-// against — see the "reference-only" log line and the manifest's `notes` for
-// why — and are updated by hand via `/cc sync` instead.
+// Every manifest list that has a local schema source of truth is diffed below
+// as the local-only check (b). Two lists (knownEnvVars, knownBuiltinTools)
+// have no local schema to diff against — see the "reference-only" log line
+// and the manifest's `notes` for why — and are updated by hand via `/cc sync`
+// instead.
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";

@@ -47,6 +47,21 @@ async function rotateLog(logPath: string, maxSize = 1_048_576): Promise<void> {
   }
 }
 
+// Handoffs are project-scoped subdirectories since the H11 fix, with legacy
+// flat files still possible in the root — clean both layouts.
+async function cleanupAllHandoffs(root: string, keep = 20): Promise<void> {
+  await cleanupHandoffs(root, keep);
+  let entries: import("node:fs").Dirent[];
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  await Promise.all(
+    entries.filter((e) => e.isDirectory()).map((e) => cleanupHandoffs(join(root, e.name), keep)),
+  );
+}
+
 async function cleanupHandoffs(dir: string, keep = 20): Promise<void> {
   let entries: string[];
   try {
@@ -219,7 +234,7 @@ const logRotations = [
   rotateLog(join(CLAUDE_DIR, "swarm.log")),
   rotateLog(join(CLAUDE_DIR, "api-failures.log")),
 ];
-const handoffCleanup = cleanupHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
+const handoffCleanup = cleanupAllHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
 const sessionTitlePrune = pruneSessionTitles(join(CLAUDE_DIR, "session-titles"), 30);
 
 // --- Phase 2: wait for sessions.log rotation, then log session start ------

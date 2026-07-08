@@ -16,22 +16,15 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { blockDecision } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
+import { redactSecrets } from "../lib/redact.ts";
 
 const HOOK_VERSION = "1.0.0";
 const LOG_FILE = claudePath("safety-net.log");
 
 // --- Utilities ------------------------------------------------------------
-
-function redactSecrets(text: string): string {
-  return text
-    .replace(/sk-[A-Za-z0-9_-]{10,}/g, "[REDACTED]")
-    .replace(/ghp_[A-Za-z0-9]{10,}/g, "[REDACTED]")
-    .replace(/AKIA[A-Z0-9]{12,}/g, "[REDACTED]")
-    .replace(/Bearer [A-Za-z0-9._-]+/g, "Bearer [REDACTED]")
-    .replace(/password=[^ &"]+/g, "password=[REDACTED]")
-    .replace(/token=[^ &"]+/g, "token=[REDACTED]")
-    .replace(/secret=[^ &"]+/g, "secret=[REDACTED]");
-}
+//
+// Secret redaction moved to src/lib/redact.ts (canonical, shared with
+// codex.ts and log-bash.ts) — see M23 in docs/audits/codebase-audit-2026-07-08.md.
 
 async function logBlocked(cmd: string, reason: string): Promise<void> {
   const redacted = redactSecrets(cmd);

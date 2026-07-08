@@ -469,7 +469,6 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 | `tldr` | Semantic codebase analysis (call graphs, impact) | `/tldr`, `/explore` |
 | `figma` | Figma Dev Mode MCP — design tokens, component props | Auto-triggered by the server's own instructions on figma.com URLs; `/qa` for design-fidelity checks |
 | `chrome-devtools` | Chrome DevTools (perf traces, network, console, screenshots, a11y tree, click/fill, lighthouse) | `/lighthouse`, `/qa`, `/fix`, `tester` agent, Figma-MCP design-vs-implementation diffs |
-| `Sanity` | Sanity CMS operations (GROQ queries, etc.) | satus / novus projects with Sanity integration |
 
 **Optional** servers — not installed by default; add manually to `~/.claude.json` if you want them. Listed in `mcp-configs/recommended.json`:
 
@@ -478,6 +477,7 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 | `github` | GitHub issues / PRs / projects | `gh` CLI covers most of this with lower context cost |
 | `vercel` | Deployment management | Stack-specific (Vercel-only) |
 | `memory` | Persistent cross-session memory | cc-settings has its own `~/.claude/memory/` system |
+| `Sanity` | Sanity CMS operations (GROQ queries, etc.) | Project-specific (satus / novus with Sanity) — not in `config/20-mcp.json`, so `setup.sh` never installs it |
 
 The post-install summary groups MCP servers by status (`core` / `optional` / `user-added`) so a new joiner can tell which came from cc-settings vs which they added themselves.
 
@@ -489,7 +489,7 @@ These are enforced automatically — no skill needed:
 
 - **2-iteration limit** — fails twice? Stop, pivot, present alternatives
 - **Bug fix scope** — only touch files related to the bug
-- **Pre-commit verification** — tsc + build + tests must pass before any commit
+- **Pre-commit verification** — `tsc --noEmit` is hooked and blocks `git commit` on type errors; build + tests are not hooked — run them yourself via `bun run proof` or the relevant skill before committing
 - **Post-compaction recovery** — re-read plan + active files after compaction
 - **Neutral exploration** — agents investigate without bias toward expected outcomes
 - **No AI attribution** — stealth mode in all commits and PRs
@@ -565,7 +565,6 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Event | What Happens |
 |-------|-------------|
 | Session start | Load learnings, check TLDR index |
-| Setup | Runs on `--init`, `--init-only`, or `--maintenance` CLI flags |
 | User prompt | Delegation breadth detection (`delegation-detector.ts`), session title |
 | Pre-tool (Bash) | Safety net, pre-commit TSC, docs check before install |
 | Pre-tool (Edit) | Stale file detection |

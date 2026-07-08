@@ -53,13 +53,13 @@ jobs:
       - run: bun run lint:skills
       - run: bun run lint:agents
       - run: bun run lint:profiles
-      - name: lint:knowledge (no-op without KNOWLEDGE_REPO_PATH)
-        # No team-knowledge repo checkout lives in this CI job — the fixture
-        # question (a real knowledge-note dir to lint here) is deliberately
-        # left open, see issue #91 / PR body. Without KNOWLEDGE_REPO_PATH set
-        # this only proves the script runs cleanly (prints a "no directory
-        # specified" message and exits 0); it does not lint real notes yet.
-        run: bun run lint:knowledge
+      - name: lint:knowledge (fixture dir, not the real team-knowledge repo)
+        # No team-knowledge repo checkout lives in this CI job, so this lints
+        # tests/fixtures/knowledge/ instead — a small schema-valid note kept
+        # in-repo so the linting logic (schema checks, name/filename
+        # mismatch, supersedes-unknown warning) actually runs in CI rather
+        # than short-circuiting on "no directory specified".
+        run: bun run lint:knowledge tests/fixtures/knowledge
 
   schemas:
     # Fails if `bun run schemas:emit` would produce a diff — enforces that the

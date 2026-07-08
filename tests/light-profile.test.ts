@@ -418,6 +418,52 @@ describe("stripManagedSettings", () => {
     expect("hooks" in result).toBe(false);
   });
 
+  test("mixed hook group (user hook + cc-settings hook in the SAME group) drops only the managed command", () => {
+    // M10 scenario: user manually added their own hook into the same matcher
+    // group as a cc-settings script. Neither whole-group identity (differs
+    // from the full baseline) nor an all-managed check (one hook isn't
+    // managed) should let the cc-settings hook survive — it must be filtered
+    // out at the individual-command level while the user's hook stays.
+    const user: Record<string, unknown> = {
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            hooks: [
+              { type: "command", command: 'bun "$HOME/.claude/src/hooks/safety-net.ts"' },
+              { type: "command", command: "my-custom-hook --arg" },
+            ],
+          },
+        ],
+      },
+    };
+    const result = stripManagedSettings(user, buildFull());
+    const hooks = result.hooks as Record<string, Array<{ hooks?: Array<{ command?: string }> }>>;
+    const commands = (hooks.PreToolUse ?? []).flatMap((g) =>
+      (g.hooks ?? []).map((h) => h.command ?? ""),
+    );
+    expect(commands.some((c) => c.includes("safety-net.ts"))).toBe(false);
+    expect(commands.some((c) => c.includes("my-custom-hook"))).toBe(true);
+  });
+
+  test("hook group identity ignores Claude-Code field-order rewrites (canonicalKey)", () => {
+    // Same content as the full baseline's PreToolUse group but with hook-object
+    // keys reordered (as Claude Code is documented to rewrite) — must still be
+    // recognized as cc-settings-managed and dropped, not kept as a "user" group.
+    const user: Record<string, unknown> = {
+      hooks: {
+        PreToolUse: [
+          {
+            hooks: [{ command: 'bun "$HOME/.claude/src/hooks/safety-net.ts"', type: "command" }],
+            matcher: "Bash",
+          },
+        ],
+      },
+    };
+    const result = stripManagedSettings(user, buildFull());
+    expect("hooks" in result).toBe(false);
+  });
+
   test("user env key with different value from full is preserved", () => {
     const user: Record<string, unknown> = {
       env: { CLAUDE_CODE_EFFORT_LEVEL: "max" }, // user overrode to max

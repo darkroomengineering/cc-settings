@@ -13,7 +13,7 @@
 //   - tests/light-profile.test.ts — parity guard + transform units
 
 import { isManagedHookCommand } from "./hook-command.ts";
-import { asRecord, subtractByKey } from "./merge-keyed.ts";
+import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 
 export type Profile = "full" | "light";
 
@@ -95,11 +95,13 @@ export function applyLightProfile(settings: Record<string, unknown>): Record<str
  *                  remove entries present in full.permissions[that]. Drop empty
  *                  arrays; drop `permissions` if it becomes empty.
  *   mcpServers   — delete any server key present in full.mcpServers. Drop if empty.
- *   hooks        — for each event, drop any group whose JSON matches a group in
- *                  full.hooks[event], AND drop groups where all hook commands
- *                  reference cc-settings script paths (/.claude/src/hooks/ or
- *                  /.claude/src/scripts/). Keep genuinely user hook groups. Drop
- *                  empty events; drop `hooks` if empty.
+ *   hooks        — for each event, drop any group whose canonical JSON matches
+ *                  a group in full.hooks[event]; otherwise filter OUT the
+ *                  individual hook commands that reference cc-settings script
+ *                  paths (/.claude/src/hooks/ or /.claude/src/scripts/) and
+ *                  keep the rest of the group (mixed user+cc-settings groups
+ *                  survive minus the managed commands). Drop a group only once
+ *                  it has no hooks left. Drop empty events; drop `hooks` if empty.
  *   model        — delete if equal to full.model.
  *   statusLine   — left untouched (will be overlaid from applyLightProfile anyway).
  *   unknown keys — left untouched.
@@ -163,29 +165,40 @@ export function stripManagedSettings(
   }
 
   // --- hooks ---
-  // A hook group is cc-settings-managed if:
-  //   a) Its JSON string matches any group in the full baseline (keyed
-  //      subtraction below), OR
-  //   b) ALL hook commands in the group reference a cc-settings script path.
-  // Uses isManagedHookCommand (hook-command.ts) as the single source of truth:
-  // (scripts|hooks) only, lib/ excluded — tightened in nuclear-review.
-  const isAllCcScriptGroup = (group: unknown): boolean => {
-    const g = group as { hooks?: Array<{ command?: unknown }> };
-    if (Array.isArray(g.hooks) && g.hooks.length > 0) {
-      return g.hooks.every((h) => typeof h.command === "string" && isManagedHookCommand(h.command));
-    }
-    return false;
-  };
-
+  // Light's promise is "no cc-settings hooks except statusLine", enforced per
+  // COMMAND, not per group — a group is only as clean as its dirtiest survivor
+  // would make it look. Two passes:
+  //   a) Whole-group identity: canonicalKey (key-order-insensitive, matches
+  //      settings-merge.ts's identity) against the full baseline. A byte-for-
+  //      byte (order-insensitive) match is dropped outright.
+  //   b) Otherwise, filter OUT individual hook commands that reference a
+  //      cc-settings script path (isManagedHookCommand, hook-command.ts — the
+  //      single source of truth: (scripts|hooks) only, lib/ excluded,
+  //      tightened in nuclear-review). A mixed group (one user hook + one
+  //      cc-settings hook sharing a matcher) keeps the user hook and loses
+  //      only the managed one. The group itself is dropped only once every
+  //      hook inside it is gone.
   const fullHooks = asRecord(full.hooks);
   if (out.hooks !== null && typeof out.hooks === "object") {
     const userHooks = out.hooks as Record<string, unknown>;
     for (const event of Object.keys(userHooks)) {
       if (!Array.isArray(userHooks[event])) continue;
       const fullGroups = Array.isArray(fullHooks[event]) ? (fullHooks[event] as unknown[]) : [];
-      const filtered = subtractByKey(userHooks[event] as unknown[], fullGroups, (g) =>
-        JSON.stringify(g),
-      ).filter((g) => !isAllCcScriptGroup(g));
+      const fullGroupKeys = new Set(fullGroups.map(canonicalKey));
+      const filtered: unknown[] = [];
+      for (const group of userHooks[event] as unknown[]) {
+        if (fullGroupKeys.has(canonicalKey(group))) continue;
+        const g = group as { hooks?: Array<{ command?: unknown }> };
+        if (!Array.isArray(g.hooks)) {
+          filtered.push(group);
+          continue;
+        }
+        const keptHooks = g.hooks.filter(
+          (h) => !(typeof h.command === "string" && isManagedHookCommand(h.command)),
+        );
+        if (keptHooks.length === 0) continue;
+        filtered.push(keptHooks.length === g.hooks.length ? group : { ...g, hooks: keptHooks });
+      }
       if (filtered.length === 0) {
         delete userHooks[event];
       } else {
@@ -214,7 +227,10 @@ export function stripManagedSettings(
   ]);
   for (const key of Object.keys(full)) {
     if (HANDLED_KEYS.has(key)) continue;
-    if (key in out && JSON.stringify(out[key]) === JSON.stringify(full[key])) {
+    // canonicalKey (not raw JSON.stringify) so a Claude-Code field-order
+    // rewrite of a managed block doesn't masquerade as a user override —
+    // matches the identity settings-merge.ts uses for the same class of check.
+    if (key in out && canonicalKey(out[key]) === canonicalKey(full[key])) {
       delete out[key];
     }
   }

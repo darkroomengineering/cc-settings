@@ -6,6 +6,16 @@
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
 
+// Single source of truth for "is this valid kebab-case" — shared by the
+// agent/skill/profile/knowledge `name` field schemas and lint-skills.ts's
+// folder-name check, which previously disagreed (schemas allowed a leading
+// digit and trailing/double hyphens; the folder check required a leading
+// letter; knowledge.ts alone matched this stricter form). This is the
+// strictest of the three regexes that were in use, verified to still accept
+// every existing skill/agent/profile name on disk (lowercase alnum segments
+// joined by single hyphens — no leading/trailing/double hyphen).
+export const KEBAB_CASE_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
 export function extractFrontmatterBlock(md: string): string | null {
   const m = FRONTMATTER_RE.exec(md);
   return m ? (m[1] ?? "") : null;

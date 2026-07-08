@@ -360,7 +360,8 @@ As of May 2026 the write-agents (`implementer`, `scaffolder`, `tester`, `deslopp
 
 Mitigation (when you do opt into `isolation: "worktree"`):
 - Commit (or stash) in-session changes before dispatching, for code edits that need to build on them.
-- Or pass `isolation: "head"` / omit isolation entirely so the subagent runs against the live worktree.
+- Or omit `isolation` entirely so the subagent runs against the live worktree instead of a fresh one.
+- If you need worktrees to branch from local HEAD instead of `origin/<default-branch>` project-wide, set `worktree.baseRef: "head"` in `settings.json` (see docs/settings-reference.md) — that's a global setting, not an agent frontmatter value. There is no `isolation: "head"`; AgentIsolation only accepts `worktree` and `remote`.
 - When in doubt, tell the subagent explicitly: "base off the current worktree HEAD, not origin/main."
 
 ### Worktree isolation requires a git repo

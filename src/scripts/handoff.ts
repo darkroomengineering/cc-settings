@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // Unified Handoff — port of scripts/handoff.sh. Creates/resumes session state
-// at ~/.claude/handoffs/{handoff_TIMESTAMP.json,handoff_TIMESTAMP.md,latest.*}.
+// at ~/.claude/handoffs/<project>/{handoff_TIMESTAMP.json,handoff_TIMESTAMP.md,latest.*}.
 //
 // Usage:
 //   handoff.ts create [--summary "text"]
@@ -18,15 +18,42 @@ import {
   resolveArtifact,
   timestampId,
 } from "../lib/artifact-store.ts";
-import { runGit } from "../lib/git.ts";
+import { runGit, runProcessFull } from "../lib/git.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 
-const HANDOFF_DIR = claudePath("handoffs");
+// Pre-per-project-scoping global directory. Kept as a one-time READ fallback
+// (see resolveHandoffDir) so handoffs saved before this migration remain
+// resumable — new handoffs are always written to the project-scoped dir.
+const LEGACY_HANDOFF_DIR = claudePath("handoffs");
 
 const RESOLVE_SPEC = {
   latestLink: "latest.md",
   idToName: (id: string) => `handoff_${id}.md`,
 };
+
+// Same project-name derivation as checkpoint.ts's getProjectName: repo
+// toplevel basename, falling back to cwd basename outside a git repo.
+async function getProjectName(): Promise<string> {
+  const out = await runGit(["rev-parse", "--show-toplevel"]);
+  return out ? basename(out) : basename(process.cwd());
+}
+
+async function projectHandoffDir(): Promise<string> {
+  const project = await getProjectName();
+  return claudePath("handoffs", project);
+}
+
+/**
+ * Directory to READ handoffs from: the project-scoped store if it exists,
+ * else (migration path) the legacy global directory — so handoffs written
+ * before per-project scoping remain resumable. Falls back exactly once; all
+ * writes go to the project-scoped dir regardless of this fallback.
+ */
+async function resolveHandoffDir(): Promise<string> {
+  const dir = await projectHandoffDir();
+  if (existsSync(dir)) return dir;
+  return existsSync(LEGACY_HANDOFF_DIR) ? LEGACY_HANDOFF_DIR : dir;
+}
 
 async function cmdCreate(args: string[]): Promise<void> {
   const flagIdx = args.findIndex((a) => a === "--summary" || a === "--message" || a === "-m");
@@ -35,11 +62,16 @@ async function cmdCreate(args: string[]): Promise<void> {
     process.exit(1);
   }
   const summary = flagIdx === -1 ? "" : (args[flagIdx + 1] ?? "");
+  // No --summary means this is the hook-driven path (PreCompact/SessionEnd
+  // call `create` with no flags) — mark the record so a reader can tell an
+  // unattended auto-save from a deliberate manual one.
+  const source = summary ? "manual" : "auto";
 
-  await mkdir(HANDOFF_DIR, { recursive: true });
+  const handoffDir = await projectHandoffDir();
+  await mkdir(handoffDir, { recursive: true });
 
   // 5-second cooldown to suppress duplicate fires.
-  const latestJson = join(HANDOFF_DIR, "latest.json");
+  const latestJson = join(handoffDir, "latest.json");
   if (existsSync(latestJson)) {
     try {
       const st = await stat(latestJson);
@@ -58,29 +90,58 @@ async function cmdCreate(args: string[]): Promise<void> {
   }
 
   const ts = timestampId("", "_");
-  const handoffJson = join(HANDOFF_DIR, `handoff_${ts}.json`);
-  const handoffMd = join(HANDOFF_DIR, `handoff_${ts}.md`);
+  const handoffJson = join(handoffDir, `handoff_${ts}.json`);
+  const handoffMd = join(handoffDir, `handoff_${ts}.md`);
   const projectDir = process.cwd();
   const projectName = basename(projectDir);
 
   let gitBranch = "";
   let gitStatus = "";
+  let recentCommits: string[] = [];
   const gitDir = await runGit(["rev-parse", "--git-dir"]);
   if (gitDir) {
     gitBranch = await runGit(["branch", "--show-current"]);
-    const statusOut = await runGit(["status", "--porcelain"]);
-    gitStatus = statusOut.split("\n").slice(0, 20).join("\n");
+    // runGit trims the WHOLE output, which would eat the leading space off the
+    // first porcelain line (format is `XY path`, and X is often a literal
+    // space) — that shifts every downstream fixed-offset slice by one
+    // character on just the first entry. runProcessFull leaves stdout
+    // untouched, so the two-char status prefix stays a stable width.
+    const statusRes = await runProcessFull("git", ["status", "--porcelain"]);
+    gitStatus = statusRes.stdout.split("\n").filter(Boolean).slice(0, 20).join("\n");
+    const logOut = await runGit(["log", "-3", "--pretty=%s"]);
+    recentCommits = logOut ? logOut.split("\n").filter(Boolean) : [];
   }
-  const pendingChanges = gitStatus ? gitStatus.split("\n").filter(Boolean).length : 0;
+  const modifiedFiles = gitStatus
+    ? gitStatus
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.slice(3).trim())
+    : [];
+  const pendingChanges = modifiedFiles.length;
 
+  // Best-effort content for the automatic (no --summary) path: everything
+  // that CAN be derived from git without a transcript is populated here
+  // (branch, modified files, recent commits, project root). activeTodos and
+  // currentTask genuinely can't be derived from git state alone, so they stay
+  // empty placeholders regardless of `source` — that's an honest limitation,
+  // not a bug (see skills/handoff/SKILL.md "What Gets Saved").
   const json = {
     timestamp: isoNow(),
     project: { name: projectName, path: projectDir },
     git: { branch: gitBranch, pendingChanges },
-    context: { summary, activeTodos: [], keyFiles: [], currentTask: "" },
+    context: { summary, activeTodos: [], keyFiles: modifiedFiles, currentTask: "" },
+    recentCommits,
     notes: "",
+    source,
   };
   await writeFile(handoffJson, `${JSON.stringify(json, null, 2)}\n`);
+
+  const keyFilesSection = modifiedFiles.length
+    ? modifiedFiles.map((f) => `- ${f}`).join("\n")
+    : "<!-- No uncommitted changes at save time -->";
+  const recentCommitsSection = recentCommits.length
+    ? recentCommits.map((c) => `- ${c}`).join("\n")
+    : "<!-- No commits found -->";
 
   const md = `# Session Handoff - ${ts}
 
@@ -88,6 +149,7 @@ async function cmdCreate(args: string[]): Promise<void> {
 - **Name:** ${projectName}
 - **Path:** ${projectDir}
 - **Branch:** ${gitBranch}
+- **Source:** ${source}${source === "auto" ? " (hook-triggered, no --summary)" : ""}
 
 ## Pending Changes
 \`\`\`
@@ -101,7 +163,10 @@ ${summary || "<!-- Add summary of what was accomplished -->"}
 <!-- List any incomplete tasks -->
 
 ## Key Files
-<!-- List important files for context -->
+${keyFilesSection}
+
+## Recent Commits
+${recentCommitsSection}
 
 ## Current Task
 <!-- Describe what you were working on -->
@@ -116,8 +181,8 @@ ${summary || "<!-- Add summary of what was accomplished -->"}
   await writeFile(handoffMd, md);
 
   await Promise.all([
-    pointLatest(HANDOFF_DIR, handoffJson, "latest.json"),
-    pointLatest(HANDOFF_DIR, handoffMd, "latest.md"),
+    pointLatest(handoffDir, handoffJson, "latest.json"),
+    pointLatest(handoffDir, handoffMd, "latest.md"),
   ]);
 
   console.log("");
@@ -136,7 +201,8 @@ ${summary || "<!-- Add summary of what was accomplished -->"}
 }
 
 async function cmdResume(id: string): Promise<number> {
-  const file = await resolveArtifact(HANDOFF_DIR, id, RESOLVE_SPEC);
+  const dir = await resolveHandoffDir();
+  const file = await resolveArtifact(dir, id, RESOLVE_SPEC);
   if (!file) {
     console.log("");
     if (id) {
@@ -167,15 +233,16 @@ async function cmdList(): Promise<void> {
   console.log("------------------------------------");
   console.log("");
 
-  if (!existsSync(HANDOFF_DIR)) {
+  const dir = await resolveHandoffDir();
+  if (!existsSync(dir)) {
     console.log("  (no handoffs directory)");
     console.log("------------------------------------");
     return;
   }
-  const latestTarget = await readLatestTarget(HANDOFF_DIR, "latest.md");
-  const entries = await listArtifacts(HANDOFF_DIR, /^handoff_.*\.md$/);
+  const latestTarget = await readLatestTarget(dir, "latest.md");
+  const entries = await listArtifacts(dir, /^handoff_.*\.md$/);
   for (const entry of entries) {
-    const full = join(HANDOFF_DIR, entry);
+    const full = join(dir, entry);
     const id = entry.replace(/^handoff_|\.md$/g, "");
     const st = await stat(full).catch(() => null);
     const created = st ? new Date(st.mtimeMs).toISOString().slice(0, 16).replace("T", " ") : "?";
@@ -194,19 +261,23 @@ async function cmdList(): Promise<void> {
 // on every session start with keep=20 — this is the on-demand equivalent).
 // Falsy-zero guard: `clean 0` must delete everything, so `Number.isNaN` is
 // used instead of `parsed || DEFAULT` (which would treat 0 as "unset").
+// Operates on the project-scoped dir only (the write-side store) — it does not
+// reach into the legacy global dir that resolveHandoffDir() falls back to for
+// reads.
 const DEFAULT_KEEP = 20;
 
 async function cmdClean(keepStr: string): Promise<void> {
   const parsed = Number.parseInt(keepStr, 10);
   const keep = Number.isNaN(parsed) ? DEFAULT_KEEP : parsed;
 
-  await mkdir(HANDOFF_DIR, { recursive: true });
+  const handoffDir = await projectHandoffDir();
+  await mkdir(handoffDir, { recursive: true });
 
   const stale = async (pattern: RegExp): Promise<string[]> => {
-    const names = await listArtifacts(HANDOFF_DIR, pattern);
+    const names = await listArtifacts(handoffDir, pattern);
     const entries: Array<{ file: string; mtime: number }> = [];
     for (const name of names) {
-      const full = join(HANDOFF_DIR, name);
+      const full = join(handoffDir, name);
       try {
         const st = await stat(full);
         entries.push({ file: full, mtime: st.mtimeMs });

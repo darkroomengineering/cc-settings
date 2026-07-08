@@ -64,11 +64,35 @@ export interface SchemaFinding {
 /** Discriminated union of audit findings. */
 export type AuditFinding = HookFinding | SchemaFinding;
 
+/**
+ * A malware-signature match against a non-hooks settings.json surface —
+ * `env` values or `mcpServers` command/args. This is classification-only
+ * (pattern match against the same SUSPICIOUS_PATTERNS the hook auditor
+ * uses); there is no shipped-pattern/manifest concept for env vars or MCP
+ * server definitions, so there is no "trusted" tier here — only a match or
+ * no match. Reported in its own section (formatAuditReport) rather than
+ * folded into `findings`, and does NOT extend the hooks-block fingerprint
+ * (src/lib/hooks-fingerprint.ts) or the src content manifest — see H12 in
+ * docs/audits/codebase-audit-2026-07-08.md and SECURITY.md's "What the
+ * fingerprint and content manifest cover" section.
+ */
+export interface EnvMcpFinding {
+  area: "env" | "mcpServers";
+  /** env var name, or mcpServers server name. */
+  key: string;
+  /** The scanned value: the env var's value, or "command arg1 arg2 ..." for an MCP server. */
+  value: string;
+  severity: "suspicious";
+  reasons: string[];
+}
+
 export interface AuditResult {
   settingsPath: string;
   exists: boolean;
   totalHooks: number;
   findings: AuditFinding[];
+  /** Suspicious-pattern matches against settings.env / mcpServers — see EnvMcpFinding. */
+  envMcpFindings: EnvMcpFinding[];
 }
 
 /** Content-integrity view consumed by the classifier: rel path under
@@ -245,6 +269,56 @@ function matchSuspicious(cmd: string): string[] {
   return reasons;
 }
 
+// H12: hashHooks/auditHooks only ever look at settings.hooks — mcpServers
+// (which can run arbitrary local commands with full startup, same as a
+// hook) and env are invisible to both the fingerprint and the hooks
+// auditor. This is a best-effort classification pass over those two
+// surfaces using the SAME malware-signature bank (SUSPICIOUS_PATTERNS), so
+// an obvious injected payload there doesn't sail through every layer
+// clean. It deliberately does NOT feed the hooks-block fingerprint or the
+// src content manifest — those stay scoped to `hooks` (see SECURITY.md).
+function scanEnv(env: unknown): EnvMcpFinding[] {
+  if (!env || typeof env !== "object") return [];
+  const findings: EnvMcpFinding[] = [];
+  for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+    if (typeof value !== "string") continue;
+    const reasons = matchSuspicious(value);
+    if (reasons.length > 0) {
+      findings.push({ area: "env", key, value, severity: "suspicious", reasons });
+    }
+  }
+  return findings;
+}
+
+function scanMcpServers(mcpServers: unknown): EnvMcpFinding[] {
+  if (!mcpServers || typeof mcpServers !== "object") return [];
+  const findings: EnvMcpFinding[] = [];
+  for (const [name, server] of Object.entries(mcpServers as Record<string, unknown>)) {
+    if (!server || typeof server !== "object") continue;
+    const srv = server as Record<string, unknown>;
+    const command = typeof srv.command === "string" ? srv.command : "";
+    const args = Array.isArray(srv.args)
+      ? srv.args.filter((a): a is string => typeof a === "string")
+      : [];
+    const value = [command, ...args].join(" ").trim();
+    if (!value) continue;
+    const reasons = matchSuspicious(value);
+    if (reasons.length > 0) {
+      findings.push({ area: "mcpServers", key: name, value, severity: "suspicious", reasons });
+    }
+  }
+  return findings;
+}
+
+/** Scan settings.env values and settings.mcpServers command/args for the same
+ *  malware signatures the hook auditor uses. See H12 — classification only,
+ *  no fingerprint/manifest coverage. */
+export function auditEnvAndMcp(settings: unknown): EnvMcpFinding[] {
+  if (!settings || typeof settings !== "object") return [];
+  const s = settings as Record<string, unknown>;
+  return [...scanEnv(s.env), ...scanMcpServers(s.mcpServers)];
+}
+
 export function classifyHookCommand(
   cmd: string,
   integrity?: SrcIntegrity | null,
@@ -319,7 +393,7 @@ export const HOOKS_SCHEMA_VALIDATION_FAILED = "hooks config failed schema valida
 export async function auditSettingsFile(path?: string, claudeDir?: string): Promise<AuditResult> {
   const settingsPath = path ?? join(CLAUDE_DIR, "settings.json");
   if (!existsSync(settingsPath)) {
-    return { settingsPath, exists: false, totalHooks: 0, findings: [] };
+    return { settingsPath, exists: false, totalHooks: 0, findings: [], envMcpFindings: [] };
   }
 
   // Use canonical readJsonOrNull for ENOENT-vs-parse distinction and
@@ -329,7 +403,7 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
   if (parsed === null) {
     // Malformed JSON - return empty audit (this is not the file we're trying
     // to defend against; a broken file is its own problem).
-    return { settingsPath, exists: true, totalHooks: 0, findings: [] };
+    return { settingsPath, exists: true, totalHooks: 0, findings: [], envMcpFindings: [] };
   }
 
   // Validate the hooks block against the schema before walking it. A failure
@@ -380,11 +454,23 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
   // CLI prints) - NOT findings, which also include the schema pseudo-finding.
   const hookFindings = auditHooks(auditInput, integrity);
   const findings: AuditFinding[] = [...extraFindings, ...hookFindings];
-  return { settingsPath, exists: true, totalHooks: hookFindings.length, findings };
+  // env/mcpServers are read from the raw parsed settings, not auditInput —
+  // they're untouched by the hooks-schema validation above (H12).
+  const envMcpFindings = auditEnvAndMcp(parsed);
+  return {
+    settingsPath,
+    exists: true,
+    totalHooks: hookFindings.length,
+    findings,
+    envMcpFindings,
+  };
 }
 
 export function hasSuspicious(result: AuditResult): boolean {
-  return result.findings.some((f) => f.severity === "suspicious");
+  return (
+    result.findings.some((f) => f.severity === "suspicious") ||
+    result.envMcpFindings.some((f) => f.severity === "suspicious")
+  );
 }
 
 export function hasUnknown(result: AuditResult): boolean {
@@ -441,17 +527,32 @@ export function formatAuditReport(result: AuditResult): string {
     lines.push("");
   }
 
+  // Own section, separate from the hooks findings above — env/mcpServers
+  // have no shipped-pattern/manifest concept, so this is pattern-match
+  // classification only (H12), not equivalent to the hooks trust tiers.
+  if (result.envMcpFindings.length > 0) {
+    lines.push(`✖ ENV/MCP SUSPICIOUS (${result.envMcpFindings.length}):`);
+    for (const f of result.envMcpFindings) {
+      lines.push(`  [${f.area}] ${f.key}: ${f.value}`);
+      for (const r of f.reasons) lines.push(`    → ${r}`);
+    }
+    lines.push(
+      "  Not covered by the hooks-block fingerprint or src content manifest — see SECURITY.md.",
+    );
+    lines.push("");
+  }
+
   lines.push(
-    `Summary: ${grouped.trusted.length} trusted, ${grouped.stale.length} stale, ${grouped.unknown.length} unknown, ${grouped.suspicious.length} suspicious.`,
+    `Summary: ${grouped.trusted.length} trusted, ${grouped.stale.length} stale, ${grouped.unknown.length} unknown, ${grouped.suspicious.length} suspicious, ${result.envMcpFindings.length} env/mcp suspicious.`,
   );
 
-  if (grouped.suspicious.length > 0) {
+  if (grouped.suspicious.length > 0 || result.envMcpFindings.length > 0) {
     lines.push("");
     lines.push("Suspicious findings indicate possible supply-chain compromise.");
     lines.push("Remediation:");
-    lines.push("  1. Inspect each suspicious hook above — note its command and event.");
+    lines.push("  1. Inspect each suspicious entry above — note its command and event/area.");
     lines.push("  2. Back up ~/.claude/settings.json.");
-    lines.push("  3. Manually remove the malicious entries from the hooks block.");
+    lines.push("  3. Manually remove the malicious entries from the hooks/env/mcpServers block.");
     lines.push("  4. Re-run setup.sh from cc-settings to refresh the fingerprint.");
     lines.push("  5. Investigate which npm/pypi package introduced it.");
     lines.push("");

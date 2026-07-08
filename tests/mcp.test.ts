@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ENGINES } from "../src/lib/code-intel-engine.ts";
 import { JsonParseError } from "../src/lib/json-io.ts";
 import {
   findUserOnlyServers,
@@ -594,6 +595,61 @@ describe("mcp — claude.json installer", () => {
       expect(result.mcpServers.context7.command).toBe("user-override");
       // Passthrough field survives.
       expect(result.someUnknownField).toBe(42);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("H8: genuine user edit wins for shared key, but stale cc-settings engine output is overwritten", async () => {
+    // Regression for the code-intel engine indirection (H8): a PRIOR install
+    // resolved "llm-tldr" and wrote its exact shape into ~/.claude.json. This
+    // install resolved "native-ts" instead (teamMcp.tldr reflects that). The
+    // on-disk tldr entry must be recognized as stale cc-settings output (it
+    // canonically matches the llm-tldr engine variant) and get overwritten —
+    // NOT preserved as if it were a hand-edit. Meanwhile context7's on-disk
+    // value matches no known team/engine shape at all, so it's a genuine user
+    // edit and must still win.
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-engine-"));
+    try {
+      const llmTldr = ENGINES["llm-tldr"];
+      if (!llmTldr) throw new Error("llm-tldr engine missing from ENGINES");
+      const teamMcp = {
+        context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] },
+        // Simulates setup.ts having resolved to native-ts for THIS run.
+        tldr: {
+          command: "bun",
+          args: ["/fake/claude-dir/src/codemap/mcp-server.ts"],
+          serverInstructions: ENGINES["native-ts"]?.serverInstructions ?? "",
+        },
+      };
+      const claudeJsonPath = join(sandbox, ".claude.json");
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: {
+            "user-only": { command: "custom" },
+            // Genuine user edit — matches neither team's context7 definition
+            // nor anything cc-settings would have generated for it.
+            context7: { command: "user-override" },
+            // Stale output from a PRIOR install that resolved llm-tldr —
+            // byte-identical to that engine variant, not a hand-edit.
+            tldr: {
+              command: llmTldr.mcp.command,
+              args: llmTldr.mcp.args,
+              serverInstructions: llmTldr.serverInstructions,
+            },
+          },
+        }),
+      );
+
+      await installMcpToClaudeJson(teamMcp, claudeJsonPath);
+      const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      // Genuine user edit of a non-engine-managed server still wins.
+      expect(result.mcpServers.context7.command).toBe("user-override");
+      // Stale cc-settings tldr output is replaced by the freshly-resolved engine.
+      expect(result.mcpServers.tldr).toEqual(teamMcp.tldr);
+      // Unrelated user-only server still preserved.
+      expect(result.mcpServers["user-only"].command).toBe("custom");
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }

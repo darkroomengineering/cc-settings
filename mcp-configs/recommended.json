@@ -14,15 +14,6 @@
       "_status": "core"
     },
 
-    "Sanity": {
-      "type": "http",
-      "url": "https://mcp.sanity.io",
-      "_description": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server",
-      "_usage": "Sanity projects, GROQ queries, CMS-driven content workflows",
-      "_contextCost": "medium",
-      "_status": "core"
-    },
-
     "tldr": {
       "command": "tldr-mcp",
       "args": ["--project", "."],
@@ -84,6 +75,16 @@
       "_usage": "Remember project decisions, user preferences, learned patterns",
       "_contextCost": "medium",
       "_status": "optional"
+    },
+
+    "Sanity": {
+      "type": "http",
+      "url": "https://mcp.sanity.io",
+      "_description": "Sanity CMS operations. Requires OAuth auth on first use. See: sanity.io/docs/compute-and-ai/mcp-server",
+      "_usage": "Sanity projects, GROQ queries, CMS-driven content workflows",
+      "_contextCost": "medium",
+      "_status": "optional",
+      "_note": "Not composed by config/20-mcp.json — add manually to ~/.claude.json for satus/novus projects with Sanity."
     }
   }
 }
