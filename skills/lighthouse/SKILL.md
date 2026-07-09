@@ -8,7 +8,6 @@ allowed-tools:
   - Read
   - Write
   - Edit
-  - MultiEdit
   - Grep
   - Glob
   - LS

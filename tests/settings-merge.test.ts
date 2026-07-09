@@ -23,6 +23,7 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
     permissionsAdded: 0,
     permissionsDeclined: 0,
     permissionsAdoptedScalars: 0,
+    permissionsPruned: 0,
     hooksAdded: 0,
     hooksDeclined: 0,
     hooksPruned: 0,
@@ -79,6 +80,28 @@ describe("permissionsStrategy", () => {
     const result = await permissionsStrategy("permissions", null, null, ctx);
     // null is treated as present (not undefined), so keep:true with empty-ish object
     expect(result.keep).toBe(true);
+  });
+
+  test("user-only rules naming removed tools are pruned (MultiEdit)", async () => {
+    const ctx = makeCtx();
+    const team = { allow: ["Edit(*)"], deny: ["Edit(~/.claude/settings.json)"] };
+    // Simulates an install that synced before v12.2.6 removed the MultiEdit rules.
+    const user = {
+      allow: ["Edit(*)", "MultiEdit(*)"],
+      deny: [
+        "Edit(~/.claude/settings.json)",
+        "MultiEdit(~/.claude/settings.json)",
+        "MultiEdit(~/.claude.json)",
+      ],
+    };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.allow).toEqual(["Edit(*)"]);
+    expect(merged.deny).toEqual(["Edit(~/.claude/settings.json)"]);
+    expect(ctx.accounting.permissionsPruned).toBe(3);
+    expect(ctx.accounting.permissionsAdded).toBe(0); // pruned extras don't count as added
   });
 
   test("overlapping allow with union semantics — no duplicates", async () => {
