@@ -7,7 +7,6 @@ description: |
   - User wants to discuss vision, market, competitive landscape
   - User needs help connecting architecture/code decisions to product strategy
   - User mentions "market analysis", "competitive advantage", "product direction"
-  - User asks "should we even build this?"
 allowed-tools:
   - Read
   - Grep

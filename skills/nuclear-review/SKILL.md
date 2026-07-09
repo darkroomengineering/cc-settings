@@ -94,34 +94,17 @@ Apply the non-negotiable standards below to the codebase as a whole. Walk the la
 
 ### Phase 2b — Cross-model structural pass (when the Codex bridge is available)
 
-This audit is Claude judging structure alone — one model family, biased toward the abstractions it would have written. When the Codex bridge is available, get an independent read from a different family. There is **no diff** here (the audit spans the whole repo, not a change), so use `ask`, not `review`:
+Run the shared cross-model procedure (`references/audit-contract.md` §1) with this skill's audit prompt:
 
 ```bash
 bun "$HOME/.claude/src/scripts/codex-run.ts" ask "Audit this repository for structural problems: files over ~1000 lines, thin wrappers that don't earn their keep, logic leaked across boundaries, and duplicated abstractions. Walk the largest files and the modules with the most outbound dependencies first. Report the highest-leverage 'code judo' restructurings — ones that delete whole branches rather than rearrange them — ordered by conviction."
 ```
 
-Fold Codex's findings into Phase 3 as a second opinion: where Claude and Codex independently flag the same module, that's high-conviction; where they diverge, note it rather than silently dropping it. The bridge is gated and fails open — if Codex is unavailable, proceed with the Claude-only audit.
+Fold Codex's findings into Phase 3 per the contract: convergence = high-conviction, divergence noted not dropped, gated and fails open.
 
 ### Phase 2c — team-knowledge reconciliation (when the corpus is reachable)
 
-Phases 2 and 2b judge structure intent-blind, so deliberate design reads as debt. Reconcile the findings against the `team-knowledge` corpus — the record of "we decided to do it this way" and "this bites you."
-
-**Reconcile AFTER the findings exist, never before.** Feeding the corpus into Phase 2/2b would bias the critic into rubber-stamping "the way we do things" — the exact independence this audit exists to protect. Generate blind, cross-reference here.
-
-```bash
-REPO="${KNOWLEDGE_REPO:-darkroomengineering/team-knowledge}"
-gh api repos/$REPO/contents/INDEX.md --jq .content | base64 -d
-```
-
-Read any note a finding plausibly touches, then reclassify each finding — **reclassify severity, never delete the finding**:
-
-- **Novel debt** (no matching note) → act, as normal.
-- **Touches a documented decision** → keep it, tag `⚠ Documented / By-Design — high bar to act, needs team discussion`, and route it to humans instead of auto-fixing. The rare case where the audit is right *despite* the decision (it went stale) survives as an escalation instead of being silently dropped.
-- **Already-known-deferred** → cite the note and deprioritize.
-
-The invariant is absolute: team-knowledge **reclassifies** a finding's severity; it never **suppresses** one. If documented decisions became a silent veto, the codebase ossifies — and challenging "the way we do things" is the whole point of the audit.
-
-Gated, fails open — exactly like the Phase 2b Codex bridge. If the corpus is unreachable (no `$KNOWLEDGE_REPO`, no network, non-Darkroom repo), proceed with the unreconciled findings; this is a general skill and must not hard-depend on a private repo. Notes are falsifiable priors, not gospel — verify a note is still current before treating it as binding; a stale decision is itself a finding.
+Phases 2 and 2b judge structure intent-blind, so deliberate design reads as debt. Run the shared reconciliation procedure — `references/audit-contract.md` §2: generate findings blind FIRST, then cross-reference the corpus; a documented decision **reclassifies severity, never suppresses a finding**; gated, fails open.
 
 ### Phase 3 — Synthesis
 
@@ -282,16 +265,7 @@ Direct, serious, demanding about quality. Not rude, but do not soften major main
 
 ## Output Format
 
-Report mechanics (adopted from the adversarial-audit contract — they are what
-make findings executable by fixing agents):
-
-- **Stable finding IDs** — number every finding (`N1`, `N2`, … in severity
-  order) so fixes, PRs, and discussion can cite them without re-describing.
-- **CONFIRMED vs PLAUSIBLE** — mark each finding CONFIRMED (traced to the
-  lines that prove it) or PLAUSIBLE (suspected, not fully traced).
-- **Disprove first** — before reporting a finding, actively try to refute it;
-  discard what doesn't survive. A shorter list of survivors beats a long list
-  of maybes.
+Report mechanics: follow the shared finding contract (`references/audit-contract.md` §3) — stable IDs (`N1`, `N2`, … in severity order), CONFIRMED vs PLAUSIBLE, disprove-first, concrete scenarios, considered-&-rejected ledger.
 
 ```
 ## Verdict

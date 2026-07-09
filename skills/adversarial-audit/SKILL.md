@@ -32,7 +32,7 @@ Run codebase mode on the same cadence as nuclear-review (version cuts, post-spri
 - Mark each finding **CONFIRMED** (traced or reproduced) or **PLAUSIBLE** (suspected). Try to disprove yourself first; discard findings that don't survive.
 - Where something is sound, say so once and move on — spend effort where it isn't.
 
-**Cross-model + intent passes (gated, fail open — same pattern as nuclear-review Phases 2b/2c).** If the Codex bridge is available, run the finding list past `codex-verifier` as a second model family; convergent flags are high-conviction. If the team-knowledge corpus is reachable, reconcile findings AFTER they exist (never feed the corpus in first): a documented decision **reclassifies severity, never deletes a finding**. Unavailable? Proceed Claude-only.
+**Cross-model + intent passes.** Run the shared procedures in `~/.claude/skills/nuclear-review/references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier` on the finding list, §2 team-knowledge reconciliation). Both gated, both fail open — unavailable means proceed Claude-only. The one-line invariants: reconcile AFTER findings exist, and a documented decision **reclassifies severity, never deletes a finding**.
 
 **Output.** Write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
 1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.

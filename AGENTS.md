@@ -55,11 +55,12 @@ These rules exist because we've seen them violated repeatedly. Non-negotiable.
 The best code is the code you don't write. Before generating anything, stop at the **first rung that holds**:
 
 1. **Does this need to exist?** — if no, skip it (YAGNI). Question the request before solving it.
-2. **Does the standard library / runtime already do this?** — use it.
-3. **Does a native platform feature cover it?** — use it.
-4. **Does an already-installed dependency solve it?** — use it; don't add a new one.
-5. **Can it be one line?** — make it one line.
-6. **Only then** — write the minimum that works.
+2. **Does this codebase already do it?** — reuse it; extend before you re-create.
+3. **Does the standard library / runtime already do this?** — use it.
+4. **Does a native platform feature cover it?** — use it.
+5. **Does an already-installed dependency solve it?** — use it; don't add a new one.
+6. **Can it be one line?** — make it one line.
+7. **Only then** — write the minimum that works.
 
 Default to deletion over addition, boring over clever, fewest files possible. No abstractions, dependencies, or boilerplate nobody asked for. When two stdlib approaches tie on size, pick the edge-case-correct one.
 

@@ -100,6 +100,8 @@ Read 3-5 files that represent the codebase's best work. Note what makes them goo
 
 Before reviewing the plan itself, challenge the premise.
 
+> Scope boundary: this step challenges *a plan on the table*. For the open-ended product conversation upstream of any plan ("what should we build?", "who is this for?", positioning), hand off to `/strategist` instead of re-deriving it here.
+
 ### Three Questions
 1. **Is this the right problem?** What's the user pain that triggered this? Is the pain real or assumed? Could a different framing dissolve the problem entirely?
 2. **What already exists?** Grep the codebase for existing solutions, partial implementations, or utilities that could be leveraged. `grep -rn` for key terms from the plan.
@@ -165,6 +167,9 @@ Apply all 10 sections to the plan. For each, provide specific findings with file
 - Rollback plan: can this be reversed without data loss?
 
 ### 2. Error & Rescue Map
+
+> This is `/oracle`'s risks mode applied per-plan instead of per-question. For a single narrow risk question without the full 10-section gate, use `/oracle risks` instead.
+
 Build a complete table:
 
 ```

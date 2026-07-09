@@ -65,6 +65,7 @@ Codex reads the same diff and returns HIGH / MEDIUM / LOW findings. Fold them in
 - Comments in plain English — explain the issue and its impact like you're talking to a teammate, not citing a rulebook. No jargon dump.
 - Suggest specific fixes
 - If you find a pattern worth remembering, save it via auto-memory (personal) or `/share-learning` (team-wide).
+- **Escalate to `/verify`** when the diff touches auth, payments, crypto, input validation, or a breaking public API — this skill is the fast checklist pass; `/verify` runs three adversarial agents (issue-finder, disprover, judge) and is the gate for security-sensitive or financial code.
 
 ---
 

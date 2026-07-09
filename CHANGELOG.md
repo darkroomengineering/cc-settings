@@ -4,6 +4,31 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.2.4] — 2026-07-09
+
+Ponytail-alignment pass: one missing ladder rung, one trigger collision, one prose-duplication landmine.
+
+**Adopted:**
+- AGENTS.md Laziness Ladder gains rung 2 — "Does this codebase already do it? — reuse it; extend before you re-create" — the one rung of the ponytail decision ladder the standard was missing, and the one the consolidation findings below violate.
+- `strategist` no longer claims "should we even build this?" — that trigger phrase was listed verbatim in both `strategist` and `plan-ceo-review`, leaving the skill selector unable to disambiguate. It now belongs to `plan-ceo-review` alone.
+- `plan-ceo-review` cross-references its siblings instead of silently re-deriving them: Step 0 points open-ended product conversations to `/strategist`; Section 2 names itself as `/oracle` risks mode applied per-plan.
+- `review` now escalates: auth/payments/crypto/input-validation/breaking-API diffs get an explicit pointer to `/verify` (previously the escalation existed only if the user knew to ask).
+- Shared audit plumbing extracted to `skills/nuclear-review/references/audit-contract.md`: the Codex cross-model pass, team-knowledge reconciliation (reclassify-never-suppress invariant), and the finding contract (stable IDs, CONFIRMED/PLAUSIBLE, disprove-first, considered-&-rejected ledger). `nuclear-review` Phases 2b/2c and `adversarial-audit`'s shared-contract section now reference it instead of restating ~40 lines each — future contract edits land in one file.
+
+**Deletions / Native-now-redundant:** none upstream; ~55 lines of duplicated contract prose deleted across the two audit skills.
+
+**Files changed:**
+- AGENTS.md
+- skills/strategist/SKILL.md
+- skills/plan-ceo-review/SKILL.md
+- skills/review/SKILL.md
+- skills/nuclear-review/SKILL.md
+- skills/nuclear-review/references/audit-contract.md
+- skills/adversarial-audit/SKILL.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [12.2.3] — 2026-07-09
 
 Upstream sync with Claude Code v2.1.205 (fixes-only release) plus workflow features from the July 2026 session-archive audit.

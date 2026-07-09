@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.2.3"; // upstream sync 2.1.205: fixes-only release; manifest bump only. Also: autonomy contract + voice (CLAUDE-FULL.md), ship land mode, triage skill
+const VERSION = "12.2.4"; // ponytail alignment: ladder rung 2 (reuse-in-codebase), advice-family trigger dedup, audit-contract extraction
 
 // --- Arg parsing ---------------------------------------------------------
 
