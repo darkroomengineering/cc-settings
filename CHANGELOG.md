@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.2.3] — 2026-07-09
+
+Upstream sync with Claude Code v2.1.205 (fixes-only release) plus workflow features from the July 2026 session-archive audit.
+
+**Adopted:**
+- Manifest bump to v2.1.205. The release is 23 bullets of bug fixes and native-only behaviors (transcript-tamper block, `/doctor` full checkup, background-agent status fixes) — no schema, config, or docs surface in cc-settings tracks any of them. Why this matters: an accurate manifest keeps `bun run upstream:scan` quiet so real drift stands out.
+- **Autonomy Contract** in `CLAUDE-FULL.md`: low-stakes agent actions (dep bumps that pass checks, post-merge branch cleanup, CI fixes on approved PRs, doc-only commits) are pre-approved — act and report, don't ask. Hard always-ask line for anything outside the darkroomengineering org. Why this matters: a session-archive audit found ~150 pure-approval turns that changed no outcomes.
+- **Voice** section in `CLAUDE-FULL.md`: the ghostwriting voice rule (plain, no em dashes, effect over mechanism) stated once instead of re-specified per session.
+- **Ship land mode** (`skills/ship/SKILL.md`): existing PR → fix CI → merge → clean branches local+remote → report. The back half ship never had.
+- **New `triage` skill**: first-pass sweep of client/unfamiliar repos with a hard read-only guardrail on external-org repos (never commit/push/PR).
+
+**Deletions / Native-now-redundant:** none. Checked v2.1.205's "auto mode asks before `rm -rf` on unresolved variables" against `src/hooks/safety-net.ts` — complementary, not overlapping: safety-net hard-blocks literal root/home/cwd targets in all modes; upstream prompts on unresolved vars in auto mode only.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- CLAUDE-FULL.md
+- skills/ship/SKILL.md
+- skills/triage/SKILL.md
+- src/lib/managed-skills.ts
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [12.2.2] — 2026-07-08
 
 Upstream sync with Claude Code v2.1.204 (from v2.1.202). Both upstream versions are bug-fixes-only — background-agent/daemon reliability, TUI polish, and a headless SessionStart hook-streaming fix — so no schema or config changes; this release is manifest/docs tracking only.

@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.2.2"; // upstream sync 2.1.204: bug-fixes-only window; manifest tracks CLAUDE_CODE_DISABLE_MOUSE + advisorModel (scanner-warning fix)
+const VERSION = "12.2.3"; // upstream sync 2.1.205: fixes-only release; manifest bump only. Also: autonomy contract + voice (CLAUDE-FULL.md), ship land mode, triage skill
 
 // --- Arg parsing ---------------------------------------------------------
 
