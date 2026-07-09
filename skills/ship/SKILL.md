@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Verify and publish changes — push, open PR, watch CI until green. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR", "watch the PR", "babysit CI", "loop until green".
+description: Verify and publish changes — push, open PR, watch CI until green; land mode merges an existing PR and cleans up. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR", "watch the PR", "babysit CI", "loop until green"; land mode "land it", "/ship land", "fix CI and merge", "merge it then clean the branches", "merge and clean up".
 context: fork
 ---
 
@@ -172,6 +172,18 @@ Guardrails:
 - If failures are flaky, retry once and report flake evidence rather than chasing a phantom fix.
 - If the failure is unrelated to the PR and already fixed on main, merge main into the branch instead of bloating the PR.
 - Never take a watcher pipeline's exit code as the verdict — in `gh run watch ID; gh run view ID ...` the shell reports the *last* command's exit, not the run's outcome. Read the conclusion explicitly: `gh run view ID --json conclusion --jq .conclusion` (or `gh pr checks`).
+
+### Land Mode (existing PR → merged → clean)
+
+Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean up" on a PR that already exists. Skip Steps 0–8; run:
+
+1. `gh pr checks` — if red, run the Step 9 CI-fix loop until green.
+2. Confirm review state: `gh pr view --json reviewDecision,mergeable`. If CHANGES_REQUESTED or conflicts, stop and report — do not merge through either.
+3. Merge with the repo's preferred strategy (`gh pr merge --squash --delete-branch` unless repo convention says otherwise).
+4. Cleanup: `git checkout main && git pull`, delete the local branch, prune remotes (`git remote prune origin`). Leave only main unless other branches have open PRs.
+5. Report: PR link, merge commit, branches deleted.
+
+Per the Autonomy Contract (CLAUDE-FULL.md): steps 3–5 are pre-approved once CI is green and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
 
 ## Rules
 - NEVER skip the type check or build step

@@ -64,6 +64,7 @@ export const ACTIVE_SKILLS = [
   "strategist",
   "test",
   "tldr",
+  "triage",
   "verify",
   "zero-tech-debt",
 ];

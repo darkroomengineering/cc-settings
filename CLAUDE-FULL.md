@@ -15,6 +15,16 @@ The Edit tool uses exact string matching. Follow these rules:
 
 ---
 
+## Voice (ghostwritten comments, PR bodies, public text)
+
+When writing as the user (PR comments, issue replies, release notes):
+- No em dashes. No technicalities unless the reader is an engineer who needs them.
+- Plain sentences, human-readable, lowercase-casual is fine; never corporate.
+- Say the real-world effect, not the mechanism.
+Stated once here so it is never re-specified per session.
+
+---
+
 ## Delegation
 
 > **Opus 4.8 note**: Opus 4.8 (and 4.7) under-delegates — it prefers internal reasoning over spawning agents. The heuristic below is calibrated to counter that bias. Do not reason your way out of it "because you could do it yourself."
@@ -47,6 +57,22 @@ Before each unit of work, ask once: **3+ files, 10+ tool calls, or security-sens
 4. **Parallelize**: independent delegations go in a single message — they run concurrently.
 
 > **Briefing contract for `implementer`**: as a subagent it gets only your prompt — no conversation context, none of the files you've read — so every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command with its expected output (machine-checkable, never "works correctly"), a scope boundary, and any escape hatches (conditions to STOP and report back instead of improvising). Thin prompts cause regressions; the agent will refuse them. It runs in the live working tree and leaves changes **uncommitted** for you to review before they land. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
+
+### Autonomy Contract
+
+Receipts (July 2026 session-archive audit): ~150 pure-approval turns ("yes/proceed/a/approve all") whose absence would have changed nothing — "nothing would've been worse, just unknown." Awareness is bought with digests, not per-action questions.
+
+**Pre-approved — act, then report in the end-of-turn summary (never ask):**
+- Dependency bumps that pass typecheck + tests
+- Branch cleanup (local + remote) after a merge
+- CI fixes on an already-approved PR (scoped to the failing check)
+- Doc-only and changelog-only commits
+- Re-running flaky checks once
+
+**Always ask — no exceptions:**
+- Anything touching a repo outside the darkroomengineering org (NEVER open PRs on external/agency repos — report findings only; incident 2026-07-07)
+- Force-push, history rewrite, deletion of anything not on the pre-approved list
+- Publishing, releasing, or any action visible outside the team
 
 For full orchestration mode, activate `profiles/maestro.md`. Model routing per agent: see `docs/agent-models.md`.
 
