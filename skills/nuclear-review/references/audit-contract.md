@@ -42,3 +42,5 @@ What makes findings executable by fixing agents instead of prose to nod at:
 - **Disprove first** — before reporting a finding, actively try to refute it; discard what doesn't survive. A shorter list of survivors beats a long list of maybes.
 - **Concrete scenario** — every finding needs specific inputs/state leading to the wrong or surprising result. No vague "could be improved."
 - **Considered & rejected ledger** — candidate findings investigated and disproved (or reclassified as by-design), each with a one-line reason. This ledger is what stops the next audit from re-litigating them — check it before hunting.
+
+Why the burden of proof sits on the finder: Brandolini's law — refuting a plausible-but-wrong finding costs an order of magnitude more than producing it, so disprove-first pays for itself. And the rejected ledger is a survivorship-bias guard: a report that records only survivors hides what was investigated and cleared.

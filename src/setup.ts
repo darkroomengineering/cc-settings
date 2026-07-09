@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.2.4"; // ponytail alignment: ladder rung 2 (reuse-in-codebase), advice-family trigger dedup, audit-contract extraction
+const VERSION = "12.2.5"; // laws pass: Jevons (ladder), curse of knowledge (briefing), Brandolini + survivorship (audit contract)
 
 // --- Arg parsing ---------------------------------------------------------
 

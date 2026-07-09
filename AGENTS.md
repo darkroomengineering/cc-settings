@@ -64,6 +64,8 @@ The best code is the code you don't write. Before generating anything, stop at t
 
 Default to deletion over addition, boring over clever, fewest files possible. No abstractions, dependencies, or boilerplate nobody asked for. When two stdlib approaches tie on size, pick the edge-case-correct one.
 
+The ladder is a Jevons countermeasure: when generating code is cheap, code volume — and its maintenance debt — grows unless deletion is the default.
+
 **Lazy, not negligent.** The ladder never applies to trust-boundary/input validation, error handling that prevents data loss, security, accessibility, or anything explicitly requested — those are always built in full. It also bends for real-world physical constraints (hardware drift, sensor inaccuracy) when the task involves them.
 
 ### Read Before Edit

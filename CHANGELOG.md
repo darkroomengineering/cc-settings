@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.2.5] — 2026-07-09
+
+Laws pass: named the mental models behind three existing rules, from the team's curated laws list (clementroche/laws). No behavior changes — the rules existed; now they say why.
+
+**Adopted:**
+- AGENTS.md Laziness Ladder names its rationale: the ladder is a Jevons Paradox countermeasure — cheap code generation grows code volume and maintenance debt unless deletion is the default.
+- CLAUDE-FULL.md briefing contract names the failure mode: thin subagent prompts are the curse of knowledge in action (you assume shared context; the subagent has none).
+- skills/nuclear-review/references/audit-contract.md §3 names why disprove-first and the rejected ledger exist: Brandolini's law (refutation costs 10x production, so the burden of proof sits on the finder) and survivorship bias (survivor-only reports hide what was cleared).
+
+Considered and skipped: Moore's, Wirth's (subsumed by Jevons here), Dunning–Kruger (CONFIRMED/PLAUSIBLE already is the countermeasure), Halo, Prisoner's Dilemma, Streisand, Paris Syndrome — no enforcement mapping; decoration is context spend.
+
+**Files changed:**
+- AGENTS.md
+- CLAUDE-FULL.md
+- skills/nuclear-review/references/audit-contract.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [12.2.4] — 2026-07-09
 
 Ponytail-alignment pass: one missing ladder rung, one trigger collision, one prose-duplication landmine.
