@@ -36,6 +36,7 @@ export interface MergeAccounting {
   permissionsAdded: number;
   permissionsDeclined: number;
   permissionsAdoptedScalars: number;
+  permissionsPruned: number;
   hooksAdded: number;
   hooksDeclined: number;
   hooksPruned: number;
@@ -80,23 +81,43 @@ function stringArrayField(rec: UnknownRecord, key: string): StringArray {
   return Array.isArray(v) ? v : undefined;
 }
 
+// Permission rules naming tools Claude Code has removed. The union merge
+// otherwise preserves these forever as "user extras" once the team config
+// drops them, and Claude Code warns `Permission rule "..." matches no known
+// tool` at every session start — the permissions counterpart of
+// DEPRECATED_COMMAND_PATTERNS for hooks. Same removal policy as that list:
+// droppable ~6 minor releases after the tool retired.
+export const DEPRECATED_PERMISSION_PATTERNS: RegExp[] = [
+  // Claude Code removed the MultiEdit tool (batch edits folded into Edit).
+  // Rules naming it were removed from config/ in v12.2.6; prune the
+  // stragglers that the union merge kept alive on existing installs.
+  /^MultiEdit\(/,
+];
+
+export function permissionRuleIsDeprecated(rule: string): boolean {
+  return DEPRECATED_PERMISSION_PATTERNS.some((re) => re.test(rule));
+}
+
 // Union two string arrays, preserving team order. Team-only entries can be
 // declined in interactive mode (they're the ones team added since last install).
+// User extras naming removed tools (DEPRECATED_PERMISSION_PATTERNS) are pruned.
 export async function unionPermissionArray(
   team: StringArray,
   user: StringArray,
   opts: MergeOptions,
   label: string,
   alwaysAccept = false,
-): Promise<{ merged: string[] | undefined; added: number; declined: number }> {
+): Promise<{ merged: string[] | undefined; added: number; declined: number; pruned: number }> {
   const teamArr = team ?? [];
   const userArr = user ?? [];
   if (teamArr.length === 0 && userArr.length === 0)
-    return { merged: undefined, added: 0, declined: 0 };
+    return { merged: undefined, added: 0, declined: 0, pruned: 0 };
 
   const id = (r: string) => r;
   const teamOnly = subtractByKey(teamArr, userArr, id);
-  const userExtras = subtractByKey(userArr, teamArr, id);
+  const rawUserExtras = subtractByKey(userArr, teamArr, id);
+  const userExtras = rawUserExtras.filter((r) => !permissionRuleIsDeprecated(r));
+  const pruned = rawUserExtras.length - userExtras.length;
 
   let teamKept = teamArr;
   let declined = 0;
@@ -113,7 +134,7 @@ export async function unionPermissionArray(
 
   // Preserve team order, append user extras.
   const merged = unionByKey(teamKept, userExtras, id);
-  return { merged, added: userExtras.length, declined };
+  return { merged, added: userExtras.length, declined, pruned };
 }
 
 // Prompt for a scalar conflict: user has X, team has Y, values differ.
@@ -185,6 +206,7 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   ctx.accounting.permissionsAdded += allow.added + deny.added + ask.added + dirs.added;
   ctx.accounting.permissionsDeclined +=
     allow.declined + deny.declined + ask.declined + dirs.declined;
+  ctx.accounting.permissionsPruned += allow.pruned + deny.pruned + ask.pruned + dirs.pruned;
 
   return { keep: true, value: merged };
 };
@@ -531,6 +553,7 @@ export async function mergeSettings(
       permissionsAdded: 0,
       permissionsDeclined: 0,
       permissionsAdoptedScalars: 0,
+      permissionsPruned: 0,
       hooksAdded: 0,
       hooksDeclined: 0,
       hooksPruned: 0,
@@ -583,6 +606,9 @@ export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}
 
   if (a.hooksPruned > 0) {
     info(`Pruned ${a.hooksPruned} stale hook reference(s) pointing at removed cc-settings scripts`);
+  }
+  if (a.permissionsPruned > 0) {
+    info(`Pruned ${a.permissionsPruned} stale permission rule(s) naming removed tools`);
   }
   if (a.hooksSuperseded > 0) {
     info(`Dropped ${a.hooksSuperseded} stale variant(s) of team-managed hook groups`);

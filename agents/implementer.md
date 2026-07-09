@@ -25,7 +25,7 @@ description: |
   Thin prompts ("implement based on plan", "fix the bug", "build it") cause regressions.
 
   RETURNS: Working code, test results, implementation status, files created/modified
-tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]
+tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite]
 disallowedTools: ["Bash(git push:*)", "Bash(git commit:*)", "Bash(rm:*)"]
 effort: high
 color: green

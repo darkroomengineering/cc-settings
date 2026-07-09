@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.2.6] — 2026-07-09
+
+MultiEdit retirement: Claude Code removed the MultiEdit tool, and the permission rules still naming it warned `matches no known tool — check for typos` at every session start.
+
+**Adopted:**
+- Removed all `MultiEdit(...)` permission rules from `config/30-permissions.json` (1 allow, 2 deny) and dropped `MultiEdit` from the `config/40-hooks.json` freeze-guard matcher, `agents/{implementer,maestro}.md` tools lists, and `skills/lighthouse` allowed-tools.
+- New `DEPRECATED_PERMISSION_PATTERNS` prune in the settings merger — the permissions counterpart of the hooks `DEPRECATED_COMMAND_PATTERNS` (PR #51). Without it, the union merge preserves removed rules forever as "user extras" on every existing install; with it, the next sync deletes them and reports `Pruned N stale permission rule(s) naming removed tools`.
+
+**Files changed:**
+- config/30-permissions.json
+- config/40-hooks.json
+- agents/implementer.md
+- agents/maestro.md
+- skills/lighthouse/SKILL.md
+- src/lib/settings-merge.ts
+- tests/settings-merge.test.ts
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [12.2.5] — 2026-07-09
 
 Laws pass: named the mental models behind three existing rules, from the team's curated laws list (clementroche/laws). No behavior changes — the rules existed; now they say why.

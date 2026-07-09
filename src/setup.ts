@@ -59,7 +59,7 @@ import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts"
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.2.5"; // laws pass: Jevons (ladder), curse of knowledge (briefing), Brandolini + survivorship (audit contract)
+const VERSION = "12.2.6"; // MultiEdit retirement: prune stale permission rules naming removed tools
 
 // --- Arg parsing ---------------------------------------------------------
 
