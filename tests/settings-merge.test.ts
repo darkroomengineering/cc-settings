@@ -12,6 +12,7 @@ import {
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
   hooksStrategy,
+  permissionRuleIsDeprecated,
   permissionsStrategy,
   pruneDeprecatedHooks,
   statusLineStrategy,
@@ -102,6 +103,58 @@ describe("permissionsStrategy", () => {
     expect(merged.deny).toEqual(["Edit(~/.claude/settings.json)"]);
     expect(ctx.accounting.permissionsPruned).toBe(3);
     expect(ctx.accounting.permissionsAdded).toBe(0); // pruned extras don't count as added
+  });
+
+  test("deprecated rules present on BOTH sides (or team-only) are pruned too", async () => {
+    const ctx = makeCtx();
+    // Both-sides: an older team fragment that still ships the rule must not
+    // resurrect it. Team-only deny exercises the alwaysAccept path.
+    const team = { allow: ["Edit(*)", "MultiEdit(*)"], deny: ["MultiEdit(~/.claude.json)"] };
+    const user = { allow: ["Edit(*)", "MultiEdit(*)"] };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.allow).toEqual(["Edit(*)"]);
+    expect(merged.deny).toEqual([]);
+  });
+
+  test("user array containing ONLY deprecated rules merges to [], not the raw array", async () => {
+    const ctx = makeCtx();
+    // Regression guard: the { ...t, ...u } spread must not carry the raw
+    // deprecated array through when the post-prune union is empty.
+    const user = { allow: ["MultiEdit(*)"] };
+    const result = await permissionsStrategy("permissions", {}, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.allow).toEqual([]);
+    expect(ctx.accounting.permissionsPruned).toBe(1);
+  });
+
+  test("additionalDirectories are paths, never pruned as rules", async () => {
+    const ctx = makeCtx();
+    const user = { additionalDirectories: ["MultiEdit(weird-dir)", "/srv/app"] };
+    const result = await permissionsStrategy("permissions", {}, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.additionalDirectories).toEqual(["MultiEdit(weird-dir)", "/srv/app"]);
+    expect(ctx.accounting.permissionsPruned).toBe(0);
+  });
+
+  test("permissionRuleIsDeprecated matches only real MultiEdit rules", () => {
+    const cases: Array<[string, boolean]> = [
+      ["MultiEdit(*)", true],
+      ["MultiEdit(~/.claude/settings.json)", true],
+      ["MultiEditor(*)", false],
+      ["multiedit(*)", false],
+      ["Edit(*)", false],
+      ["Bash(MultiEdit(*))", false],
+    ];
+    for (const [rule, expected] of cases) {
+      expect(permissionRuleIsDeprecated(rule)).toBe(expected);
+    }
   });
 
   test("overlapping allow with union semantics — no duplicates", async () => {

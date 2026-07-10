@@ -666,7 +666,7 @@ As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:
 - **Search / text:** `grep`, `rg`, `diff`, `sort`, `uniq`, `cut`, `jq`
 - **System info:** `du`, `df`, `printenv`, `date`, `uname`, `whoami`, `basename`, `dirname`, `realpath`
 - **File ops:** `mkdir`, `cp`, `mv`, and scoped `rm` (`rm -rf node_modules|.next|dist|.turbo`, `rm *.tmp`)
-- **Claude Code tools:** `Read`, `Write`, `Edit`, `MultiEdit`, `Glob`, `Grep`, `LS`, `TodoWrite`, `NotebookEdit`
+- **Claude Code tools:** `Read`, `Write`, `Edit`, `Glob`, `Grep`, `LS`, `TodoWrite`, `NotebookEdit`
 - **External:** `lighthouse` (CLI; complemented by the chrome-devtools MCP), `open -a`
 
 > **Deliberately NOT allowed (v11.7.0 hardening):** `curl`, `find`, `env`, `xargs`, `awk` are not in the allow list — each can invoke arbitrary commands (`find -exec`, `env VAR=x cmd`, `xargs cmd`, `awk 'system()'`, curl write/exfil flags) and would bypass every other rule, so they prompt instead. `vitest` was dropped too (the repo uses `bun test`).

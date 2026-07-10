@@ -59,7 +59,6 @@ const QUEUE_STATE = "review-queue.json";
 const FILE_EDIT_TOOLS: Record<string, string> = {
   Write: "file_path",
   Edit: "file_path",
-  MultiEdit: "file_path",
   NotebookEdit: "notebook_path",
 };
 

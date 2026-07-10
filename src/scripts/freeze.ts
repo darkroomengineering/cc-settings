@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // CLI for the /freeze skill — set, clear, or show the edit-scope boundary.
-//   freeze.ts set <dir>   restrict Edit/Write/MultiEdit to <dir>
+//   freeze.ts set <dir>   restrict Edit/Write to <dir>
 //   freeze.ts off         lift the boundary
 //   freeze.ts status      show the current boundary
 
@@ -34,9 +34,7 @@ async function main(argv: string[]): Promise<number> {
       }
       await writeFreeze(abs, sessionId);
       console.log(`Freeze boundary set: ${abs}`);
-      console.log(
-        "Edit/Write/MultiEdit outside this directory will be blocked. Lift with: freeze.ts off",
-      );
+      console.log("Edit/Write outside this directory will be blocked. Lift with: freeze.ts off");
       return 0;
     }
     case "off": {

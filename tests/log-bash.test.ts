@@ -11,6 +11,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { ymd } from "../src/lib/platform.ts";
 
 const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "log-bash.ts");
 
@@ -20,7 +21,10 @@ async function run(
   env: Record<string, string> = {},
 ): Promise<{ exit: number }> {
   const proc = Bun.spawn(["bun", SCRIPT], {
-    env: { ...process.env, HOME: home, USERPROFILE: home, ...env },
+    // TZ pinned: `bun test` runs this file on a UTC clock regardless of host
+    // timezone, but a spawned child inherits the host's local zone — near UTC
+    // midnight the two disagree on ymd() and the date-stamped log filename.
+    env: { ...process.env, TZ: "UTC", HOME: home, USERPROFILE: home, ...env },
     stdin: "pipe",
     stdout: "ignore",
     stderr: "ignore",
@@ -59,12 +63,10 @@ describe("log-bash.ts — CLAUDE_LOG_RETENTION_DAYS falsy-zero guard (M19)", () 
   test("unset CLAUDE_LOG_RETENTION_DAYS keeps a fresh log file (1-day default, sanity check)", async () => {
     const home = await makeHome();
     try {
-      const fresh = join(
-        home,
-        ".claude",
-        "logs",
-        `bash-${new Date().toISOString().slice(0, 10)}.log`,
-      );
+      // ymd() is what log-bash.ts itself uses for the filename — local date,
+      // not toISOString()'s UTC date, which diverges for a few hours a day in
+      // non-UTC timezones and made this test flaky near UTC midnight.
+      const fresh = join(home, ".claude", "logs", `bash-${ymd()}.log`);
       await writeFile(fresh, "[00:00:00] [proj] echo fresh\n");
 
       await run(home, "echo hi");
@@ -85,8 +87,7 @@ describe("log-bash.ts — secret redaction on the highest-exposure logging path 
         CLAUDE_LOG_RETENTION_DAYS: "365",
       });
 
-      const today = new Date().toISOString().slice(0, 10);
-      const logPath = join(home, ".claude", "logs", `bash-${today}.log`);
+      const logPath = join(home, ".claude", "logs", `bash-${ymd()}.log`);
       const content = await readFile(logPath, "utf8");
       expect(content).not.toContain("hunter2");
       expect(content).toContain("password=[redacted]");
