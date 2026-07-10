@@ -4,6 +4,38 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.3.0] — 2026-07-10
+
+Built-in daily auto-update: cc-settings can now keep itself current without anyone running `/cc` by hand.
+
+**Adopted:**
+- `setup.sh` can register a macOS `launchd` job (`src/lib/schedule.ts`) that runs daily at 10:00 local time: pulls the cc-settings repo, re-runs the installer non-interactively, and sends a desktop notification on success/failure. Skips itself (and notifies) on an uncommitted checkout; no auto-rollback on failure — human-in-the-loop, matching the rest of the security posture.
+- Opt-in, ask-once-remember-forever enrollment (`decideAutoUpdate()`): a non-interactive run (CI, or the nightly job re-running `setup.sh` itself) can never silently enroll or unenroll anyone — the decision only ever changes from a real TTY prompt or an explicit `--auto-update=on|off` flag. Locked in by an exhaustive table test over every flag/sentinel/TTY combination (`tests/schedule.test.ts`).
+- Statusline `⟳ v<X> installed — restart Claude to apply` banner for sessions started before an update landed.
+- `--status` now reports auto-update enrollment, whether the launchd plist is present, and the last nightly run's outcome.
+- New SECURITY.md section documenting the launchd job as a persistence surface outside the four existing defense layers — the plist itself is unmonitored, but what it executes (`auto-update.ts`) is covered by the content manifest.
+
+**Files changed:**
+- src/lib/schedule.ts
+- src/scripts/auto-update.ts
+- src/lib/prompts.ts
+- src/scripts/notify.ts
+- src/lib/version-delta.ts
+- src/setup.ts
+- src/lib/status.ts
+- src/lib/status-types.ts
+- src/lib/install-display.ts
+- src/lib/install-cmds.ts
+- src/hooks/statusline.ts
+- tests/schedule.test.ts
+- tests/auto-update-script.test.ts
+- tests/install-e2e.test.ts
+- tests/setup-args.test.ts
+- tests/version-drift.test.ts
+- tests/status.test.ts
+- SECURITY.md
+- MANUAL.md
+
 ## [12.2.6] — 2026-07-09
 
 MultiEdit retirement: Claude Code removed the MultiEdit tool, and the permission rules still naming it warned `matches no known tool — check for typos` at every session start.

@@ -31,6 +31,10 @@ export interface SentinelInfo {
    *  "llm-tldr", "native-ts"). Null on a pre-engine sentinel — resolveEngine
    *  then falls back to the default engine. */
   engine: string | null;
+  /** Auto-update enrollment decision (see src/lib/schedule.ts decideAutoUpdate).
+   *  true/false = explicitly decided; null = never decided (absent from the
+   *  sentinel, or written before this field existed) — NOT the same as "declined". */
+  autoUpdate: boolean | null;
 }
 
 /**
@@ -43,21 +47,24 @@ export interface SentinelInfo {
  */
 export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo> {
   const sentinelPath = join(claudeDir, ".cc-settings-version");
-  if (!existsSync(sentinelPath)) return { version: null, repoPath: null, engine: null };
+  if (!existsSync(sentinelPath))
+    return { version: null, repoPath: null, engine: null, autoUpdate: null };
   try {
     const raw = await readFile(sentinelPath, "utf8");
     const parsed = JSON.parse(raw) as {
       version?: unknown;
       repo_path?: unknown;
       engine?: unknown;
+      auto_update?: unknown;
     };
     return {
       version: typeof parsed.version === "string" ? parsed.version : null,
       repoPath: typeof parsed.repo_path === "string" ? parsed.repo_path : null,
       engine: typeof parsed.engine === "string" ? parsed.engine : null,
+      autoUpdate: typeof parsed.auto_update === "boolean" ? parsed.auto_update : null,
     };
   } catch {
-    return { version: null, repoPath: null, engine: null };
+    return { version: null, repoPath: null, engine: null, autoUpdate: null };
   }
 }
 

@@ -13,11 +13,15 @@ import { join } from "node:path";
 import { z } from "zod";
 import { Settings } from "../schemas/settings.ts";
 import { runGit } from "./git.ts";
+import { readState } from "./hook-runtime.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { LIGHT_SKILLS } from "./light-profile.ts";
 import { MANAGED_SKILLS } from "./managed-skills.ts";
 import { CLAUDE_JSON_PATH } from "./mcp.ts";
+import { os } from "./platform.ts";
+import { autoUpdateStatus } from "./schedule.ts";
 import type {
+  AutoUpdateData,
   EnvVarEntry,
   GitDriftData,
   HooksData,
@@ -36,6 +40,7 @@ export const VersionSentinel = z.looseObject({
   version: z.string().optional(),
   installed_at: z.string().optional(),
   profile: z.enum(["full", "light"]).optional(),
+  auto_update: z.boolean().optional(),
 });
 
 // The env vars that CLAUDE-FULL.md promises are always set after install.
@@ -80,6 +85,7 @@ export async function gatherStatus(
   let sentinelVersion: string | null = null;
   let sentinelInstalledAt: string | null = null;
   let sentinelProfile: "full" | "light" | undefined;
+  let sentinelAutoUpdate: boolean | undefined;
   if (existsSync(sentinelPath)) {
     try {
       const parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
@@ -88,11 +94,13 @@ export async function gatherStatus(
         sentinelVersion = result.data.version ?? null;
         sentinelInstalledAt = result.data.installed_at ?? null;
         sentinelProfile = result.data.profile;
+        sentinelAutoUpdate = result.data.auto_update;
       }
       // On validation failure, sentinelVersion / sentinelInstalledAt stay null
-      // (treated as absent). The sentinel file has only 3 known fields and
-      // is written by writeVersionSentinel() in setup.ts, so a schema failure
-      // means the file is corrupt or tampered — falling back to null is safe.
+      // (treated as absent). The sentinel file has only a handful of known
+      // fields and is written by writeVersionSentinel() in setup.ts, so a
+      // schema failure means the file is corrupt or tampered — falling back
+      // to null is safe.
     } catch {
       // JSON.parse threw — malformed file, treat as absent
     }
@@ -184,6 +192,17 @@ export async function gatherStatus(
     warnings.push({ message: `${missingEnvKeys.length} env var(s) unset` });
   }
 
+  // --- Auto-update (macOS only; side-effect-free — no launchctl call) ---
+  let autoUpdate: AutoUpdateData | undefined;
+  if (os === "macos") {
+    const { plistPresent } = await autoUpdateStatus();
+    const lastRun = await readState<{ at: string; status: string } | null>(
+      "auto-update-last-run.json",
+      null,
+    );
+    autoUpdate = { enrolled: sentinelAutoUpdate, plistPresent, lastRun };
+  }
+
   return {
     packagedVersion,
     sentinel,
@@ -193,6 +212,7 @@ export async function gatherStatus(
     envVars,
     permissions,
     mcp,
+    autoUpdate,
     warnings,
   };
 }

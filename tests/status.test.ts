@@ -107,6 +107,28 @@ describe("gatherStatus", () => {
     }
   });
 
+  test("autoUpdate field: present (macOS) or absent (other platforms) — never throws", async () => {
+    // autoUpdateStatus()/readState() inside gatherStatus always resolve against
+    // the REAL host CLAUDE_DIR (not the tmp `claude` dir passed in here) — see
+    // src/lib/schedule.ts's plistPath()/autoUpdateLogPath(). So this can only
+    // assert shape, not tmp-fixture-scoped values.
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    try {
+      const data = await gatherStatus(src, claude, "11.2.1");
+      if (process.platform === "darwin") {
+        expect(data.autoUpdate).toBeDefined();
+        expect(typeof data.autoUpdate?.plistPresent).toBe("boolean");
+        expect(["boolean", "undefined"]).toContain(typeof data.autoUpdate?.enrolled);
+      } else {
+        expect(data.autoUpdate).toBeUndefined();
+      }
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+    }
+  });
+
   test("MCP server in claudeJson → appears in mcp.servers", async () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();

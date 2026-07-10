@@ -6,7 +6,7 @@
 
 import { createInterface } from "node:readline/promises";
 
-function isInteractive(): boolean {
+export function isInteractive(): boolean {
   return process.stdin.isTTY === true;
 }
 

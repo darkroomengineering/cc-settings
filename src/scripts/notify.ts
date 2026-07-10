@@ -40,14 +40,24 @@ $n.ShowBalloonTip(3000, 'Claude Code', '${safeMsg}', 'Info')`;
   });
 }
 
-// Fail-open: a notifier crash must never break the Notification hook.
-try {
-  const msg = process.env.NOTIFICATION_MESSAGE ?? "";
-  if (msg) {
+/**
+ * Fire a desktop notification for the current platform. Fail-open: a
+ * notifier crash must never propagate to the caller (mirrors the original
+ * top-level Notification-hook behavior, now reusable by other scripts —
+ * e.g. src/scripts/auto-update.ts).
+ */
+export async function sendNotification(msg: string): Promise<void> {
+  try {
+    if (!msg) return;
     if (platform === "darwin") notifyMac(msg);
     else if (platform === "linux") notifyLinux(msg);
     else if (platform === "win32") await notifyWindows(msg);
+  } catch {
+    // intentional swallow — desktop notification is best-effort
   }
-} catch {
-  // intentional swallow — desktop notification is best-effort
+}
+
+// Fail-open: a notifier crash must never break the Notification hook.
+if (import.meta.main) {
+  await sendNotification(process.env.NOTIFICATION_MESSAGE ?? "");
 }

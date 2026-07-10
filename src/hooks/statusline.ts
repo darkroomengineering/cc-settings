@@ -14,9 +14,11 @@ import { z } from "zod";
 import { readCodexVerdict } from "../lib/codex.ts";
 import { palette } from "../lib/colors.ts";
 import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
-import { readHookInput, readState } from "../lib/hook-runtime.ts";
+import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
+import { claudePath } from "../lib/platform.ts";
 import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
+import { readInstalledVersion } from "../lib/version-delta.ts";
 
 // Shape-validated the same way quota.ts's RateLimitsCacheSchema is — a
 // malformed review-queue.json/version-drift.json (partial write, future
@@ -34,7 +36,14 @@ const VersionDriftSchema = z.object({
   installed: z.string().nullable().optional(),
 });
 
+// session_id → cc-settings version the session FIRST rendered with. Written
+// once per session (first statusline render), pruned to the most recent
+// SESSION_MAP_CAP entries so concurrent/old sessions never grow it unbounded.
+const SessionInstallMapSchema = z.record(z.string(), z.object({ v: z.string(), t: z.number() }));
+const SESSION_MAP_CAP = 20;
+
 type Payload = {
+  session_id?: string;
   model?: { display_name?: string };
   workspace?: { current_dir?: string };
   context_window?: {
@@ -132,6 +141,14 @@ function formatTimeToReset(value: number | string): string | null {
 }
 
 const dimSep = `${palette.dim} | ${palette.reset}`;
+
+// Claude Code captures the statusline's stdout via a pipe, so
+// `process.stdout.isTTY` is false and every `palette.*` from colors.ts comes
+// back empty (COLORS_FORCED gates on isTTY). Claude Code still renders ANSI in
+// the statusline, so emit the restart-banner green DIRECTLY — otherwise the
+// banner is monochrome. NO_COLOR is still honored.
+const BANNER_GREEN = process.env.NO_COLOR === "1" ? "" : "\x1b[38;2;0;255;136m";
+const BANNER_RESET = process.env.NO_COLOR === "1" ? "" : "\x1b[0m";
 
 function cacheResetValue(value: number | string | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
@@ -244,6 +261,33 @@ async function main(): Promise<void> {
   const drift = driftParsed.success ? driftParsed.data : { stale: false };
   if (drift.stale && drift.installed) {
     parts.push(`${palette.yellow}⬆ cc v${drift.installed}${palette.dim} stale${palette.reset}`);
+  }
+
+  // Restart-pending: the installer wrote a newer version sentinel AFTER this
+  // session started. Settings/hooks/MCP/CLAUDE.md are snapshotted at launch,
+  // so the running session is still on the old config — surface it here
+  // (`claude -c` resumes the conversation on the new install). Inverse of the
+  // ⬆ stale check above, which flags an install BEHIND the repo.
+  const sessionId = input.session_id;
+  const installedNow = await readInstalledVersion(claudePath());
+  if (sessionId && installedNow) {
+    const mapRaw = await readState<unknown>("session-install-version.json", null);
+    const mapParsed = SessionInstallMapSchema.safeParse(mapRaw);
+    const sessionVersions = mapParsed.success ? mapParsed.data : {};
+    const seen = sessionVersions[sessionId];
+    if (!seen) {
+      sessionVersions[sessionId] = { v: installedNow, t: Date.now() };
+      const pruned = Object.fromEntries(
+        Object.entries(sessionVersions)
+          .sort((a, b) => b[1].t - a[1].t)
+          .slice(0, SESSION_MAP_CAP),
+      );
+      await writeState("session-install-version.json", pruned);
+    } else if (seen.v !== installedNow) {
+      parts.push(
+        `${BANNER_GREEN}⟳ v${installedNow} installed — restart Claude to apply${BANNER_RESET}`,
+      );
+    }
   }
 
   // Codex bridge availability badge — reads the cached verdict written by

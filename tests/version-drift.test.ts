@@ -36,7 +36,12 @@ describe("readSentinelInfo", () => {
   test("missing sentinel ⇒ nulls", async () => {
     const dir = await tmp();
     try {
-      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null, engine: null });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: null,
+        repoPath: null,
+        engine: null,
+        autoUpdate: null,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -52,6 +57,7 @@ describe("readSentinelInfo", () => {
         version: "11.12.0",
         repoPath: "/x/y",
         engine: null,
+        autoUpdate: null,
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -68,6 +74,7 @@ describe("readSentinelInfo", () => {
         version: "11.30.3",
         repoPath: "/x/y",
         engine: "native-ts",
+        autoUpdate: null,
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -81,6 +88,7 @@ describe("readSentinelInfo", () => {
         version: "11.0.0",
         repoPath: null,
         engine: null,
+        autoUpdate: null,
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -90,7 +98,29 @@ describe("readSentinelInfo", () => {
     const dir = await tmp();
     try {
       await writeFile(join(dir, ".cc-settings-version"), "{not json");
-      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null, engine: null });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: null,
+        repoPath: null,
+        engine: null,
+        autoUpdate: null,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("reads auto_update boolean when present", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({ version: "12.3.0", repo_path: "/x/y", auto_update: true }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "12.3.0",
+        repoPath: "/x/y",
+        engine: null,
+        autoUpdate: true,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
