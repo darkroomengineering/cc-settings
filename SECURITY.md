@@ -224,15 +224,17 @@ deny-list rather than narrowing the allow — narrowing breaks the common
 case (an interactive human confirming a legitimate `git push --force` to
 their own fork), closing the gap doesn't.
 
-**Edit/MultiEdit are wildcard-allowed (`Edit(*)`, `MultiEdit(*)`) alongside
-`Write(*)`.** The deny-list's `Write(~/.claude/settings.json)` /
-`Write(~/.claude.json)` entries only close the `Write` tool surface for
-those two files — `Edit`/`MultiEdit` are separate tool names and are not
-covered by a `Write`-scoped deny rule. `Edit(~/.claude/settings.json)`,
-`MultiEdit(~/.claude/settings.json)`, and the `.claude.json` equivalents
-mirror the `Write` denies for exactly this reason: all three mutation tools
-must be denied for a path, not just one of them, or a prompt-injected
-"use Edit instead of Write" instruction bypasses the protection entirely.
+**Edit is wildcard-allowed (`Edit(*)`) alongside `Write(*)`.** The
+deny-list's `Write(~/.claude/settings.json)` / `Write(~/.claude.json)`
+entries only close the `Write` tool surface for those two files — `Edit` is
+a separate tool name and is not covered by a `Write`-scoped deny rule.
+`Edit(~/.claude/settings.json)` and the `.claude.json` equivalent mirror
+the `Write` denies for exactly this reason: every mutation tool must be
+denied for a path, not just one of them, or a prompt-injected "use Edit
+instead of Write" instruction bypasses the protection entirely. (Claude
+Code's since-removed `MultiEdit` tool carried matching deny rules while it
+existed; the merger prunes those from older installs — see
+`DEPRECATED_PERMISSION_PATTERNS` in `src/lib/settings-merge.ts`.)
 
 ## What cc-settings deliberately does not do
 

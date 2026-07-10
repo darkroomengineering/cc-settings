@@ -11,6 +11,7 @@ MultiEdit retirement: Claude Code removed the MultiEdit tool, and the permission
 **Adopted:**
 - Removed all `MultiEdit(...)` permission rules from `config/30-permissions.json` (1 allow, 2 deny) and dropped `MultiEdit` from the `config/40-hooks.json` freeze-guard matcher, `agents/{implementer,maestro}.md` tools lists, and `skills/lighthouse` allowed-tools.
 - New `DEPRECATED_PERMISSION_PATTERNS` prune in the settings merger — the permissions counterpart of the hooks `DEPRECATED_COMMAND_PATTERNS` (PR #51). Without it, the union merge preserves removed rules forever as "user extras" on every existing install; with it, the next sync deletes them and reports `Pruned N stale permission rule(s) naming removed tools`.
+- Cross-model review round (Codex, gpt-5.6-sol) hardened the prune: deprecated rules are now filtered from BOTH inputs (a rule present in team+user, or team-only via the `alwaysAccept` deny path, previously survived), `additionalDirectories` is exempted (paths, not rules — a directory literally named `MultiEdit(...)` must not be deleted), and a post-prune-empty array now merges to `[]` instead of leaking the raw deprecated array through the strategy's object spread. Also swept the remaining stale MultiEdit mentions out of the freeze skill/hook comments, tool-cadence's file-edit map, frontmatter/hooks/settings references, and SECURITY.md.
 
 **Files changed:**
 - config/30-permissions.json
@@ -18,9 +19,17 @@ MultiEdit retirement: Claude Code removed the MultiEdit tool, and the permission
 - agents/implementer.md
 - agents/maestro.md
 - skills/lighthouse/SKILL.md
+- skills/freeze/SKILL.md
 - src/lib/settings-merge.ts
+- src/lib/freeze.ts
+- src/hooks/freeze-guard.ts
+- src/hooks/tool-cadence.ts
+- src/scripts/freeze.ts
 - tests/settings-merge.test.ts
 - docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/hooks-reference.md
+- SECURITY.md
 - src/setup.ts
 - .claude-plugin/plugin.json
 - CHANGELOG.md

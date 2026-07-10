@@ -1,5 +1,5 @@
 // Edit-scope lock ("/freeze"). When a freeze boundary is set, the freeze-guard
-// PreToolUse hook blocks Edit/Write/MultiEdit to any file outside that directory
+// PreToolUse hook blocks Edit/Write to any file outside that directory
 // — a deliberate guardrail for debugging or scoping a parallel agent to one
 // module. State lives in ~/.claude/tmp/freeze.json so it persists across tool
 // calls within a session.

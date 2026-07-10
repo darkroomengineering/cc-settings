@@ -343,11 +343,11 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `pre-edit-validate.ts` | Validates edit strategy (file recently read, edit size appropriate) | No |
 
-### PreToolUse (Edit|Write|MultiEdit matcher)
+### PreToolUse (Edit|Write matcher)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `freeze-guard.ts` | When a `/freeze` boundary is active, blocks Edit/Write/MultiEdit calls targeting any file outside the locked directory | No |
+| `freeze-guard.ts` | When a `/freeze` boundary is active, blocks Edit/Write calls targeting any file outside the locked directory | No |
 
 ### PostToolUse (Write|Edit matcher)
 

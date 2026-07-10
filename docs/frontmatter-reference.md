@@ -55,7 +55,7 @@ name: implementer
 model: sonnet
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
-tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]
+tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite]
 color: green
 ---
 ```
@@ -82,8 +82,8 @@ color: purple
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | sonnet | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
-| `maestro` | opus[1m] | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
+| `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite | green |
+| `maestro` | opus[1m] | -- | Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
 | `reviewer` | sonnet | project | Read, Grep, Glob, LS, Bash | yellow |
 | `planner` | opus[1m] | project | Read, Grep, Glob, LS | blue |
 | `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
@@ -208,7 +208,7 @@ argument-hint: "<skill-name>"
 | `freeze` | main | -- | Bash, AskUserQuestion | `[set\|off\|status] [dir]` |
 | `handoff` | fork | -- | -- | `[save\|resume]` |
 | `hook` | -- | -- | -- | -- |
-| `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
+| `lighthouse` | fork | -- | Bash, Read, Write, Edit, Grep, Glob, LS | `<url>` |
 | `nuclear-review` | main | -- | -- | -- |
 | `oracle` | fork | -- | -- | `[advice\|risks\|compare] [question]` |
 | `orchestrate` | fork | maestro | -- | -- |

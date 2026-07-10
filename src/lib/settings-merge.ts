@@ -100,24 +100,36 @@ export function permissionRuleIsDeprecated(rule: string): boolean {
 
 // Union two string arrays, preserving team order. Team-only entries can be
 // declined in interactive mode (they're the ones team added since last install).
-// User extras naming removed tools (DEPRECATED_PERMISSION_PATTERNS) are pruned.
+// Rules naming removed tools (DEPRECATED_PERMISSION_PATTERNS) are pruned from
+// BOTH inputs — filtering only user extras would let a deprecated rule survive
+// via the team side, or via presence in both arrays. `pruneDeprecated=false`
+// exempts arrays that hold non-rule strings (additionalDirectories is paths,
+// and a path starting with `MultiEdit(` must not be reinterpreted as a rule).
 export async function unionPermissionArray(
   team: StringArray,
   user: StringArray,
   opts: MergeOptions,
   label: string,
   alwaysAccept = false,
+  pruneDeprecated = true,
 ): Promise<{ merged: string[] | undefined; added: number; declined: number; pruned: number }> {
-  const teamArr = team ?? [];
-  const userArr = user ?? [];
-  if (teamArr.length === 0 && userArr.length === 0)
+  const rawTeam = team ?? [];
+  const rawUser = user ?? [];
+  if (rawTeam.length === 0 && rawUser.length === 0)
     return { merged: undefined, added: 0, declined: 0, pruned: 0 };
+
+  const teamArr = pruneDeprecated ? rawTeam.filter((r) => !permissionRuleIsDeprecated(r)) : rawTeam;
+  const userArr = pruneDeprecated ? rawUser.filter((r) => !permissionRuleIsDeprecated(r)) : rawUser;
+  const pruned = rawTeam.length - teamArr.length + (rawUser.length - userArr.length);
+  // Post-filter emptiness must return [] rather than undefined: the strategy's
+  // `{ ...t, ...u }` spread would otherwise carry the raw (deprecated) array
+  // through to the merged output untouched.
+  if (teamArr.length === 0 && userArr.length === 0)
+    return { merged: [], added: 0, declined: 0, pruned };
 
   const id = (r: string) => r;
   const teamOnly = subtractByKey(teamArr, userArr, id);
-  const rawUserExtras = subtractByKey(userArr, teamArr, id);
-  const userExtras = rawUserExtras.filter((r) => !permissionRuleIsDeprecated(r));
-  const pruned = rawUserExtras.length - userExtras.length;
+  const userExtras = subtractByKey(userArr, teamArr, id);
 
   let teamKept = teamArr;
   let declined = 0;
@@ -186,6 +198,8 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
     stringArrayField(u, "additionalDirectories"),
     opts,
     "additionalDirectory",
+    false,
+    false, // paths, not rules — never prune
   );
 
   const merged: UnknownRecord = { ...t, ...u };
@@ -206,7 +220,7 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   ctx.accounting.permissionsAdded += allow.added + deny.added + ask.added + dirs.added;
   ctx.accounting.permissionsDeclined +=
     allow.declined + deny.declined + ask.declined + dirs.declined;
-  ctx.accounting.permissionsPruned += allow.pruned + deny.pruned + ask.pruned + dirs.pruned;
+  ctx.accounting.permissionsPruned += allow.pruned + deny.pruned + ask.pruned;
 
   return { keep: true, value: merged };
 };
