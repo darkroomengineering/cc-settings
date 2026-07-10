@@ -481,7 +481,7 @@ describe("src manifest — write + verify", () => {
     // The stripControl transform must remove all chars with codePoint <= 0x1f.
     const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
     try {
-      const poisoned = String.fromCharCode(27) + "[1mX";
+      const poisoned = `${String.fromCharCode(27)}[1mX`;
       await writeFile(
         join(dir, SRC_MANIFEST_FILENAME),
         JSON.stringify({
@@ -491,8 +491,9 @@ describe("src manifest — write + verify", () => {
       );
       const result = await readSrcManifest(dir);
       expect(result).not.toBeNull();
+      if (result === null) return;
       // No char in installedAt should have codePoint <= 0x1f (C0 controls incl. ESC)
-      const codePoints = Array.from(result!.installedAt).map((c) => c.charCodeAt(0));
+      const codePoints = Array.from(result.installedAt).map((c) => c.charCodeAt(0));
       expect(codePoints.every((n) => n > 0x1f)).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });

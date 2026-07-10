@@ -22,7 +22,6 @@
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { CryptoHasher } from "bun";
 import { z } from "zod";
 import type { EngineDescriptor } from "./code-intel-engine.ts";
 import { progressWarn } from "./colors.ts";

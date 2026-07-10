@@ -63,8 +63,8 @@ describe("classifyHookCommand — shipped pattern vs install manifest", () => {
 
   // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${HOME} expansion is exactly the Bash form under test
   test("braced ${HOME} form with trailing arg is trusted under a matching manifest", () => {
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${HOME} expansion is exactly the Bash form under test
     const r = classifyHookCommand(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${HOME} expansion is exactly the Bash form under test
       'bun "${HOME}/.claude/src/scripts/handoff.ts" create',
       integrityOf({ "scripts/handoff.ts": true }),
     );

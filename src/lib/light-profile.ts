@@ -77,7 +77,7 @@ export const PROFILE_MANIFEST: Record<Profile, ProfileManifest> = {
  */
 export function applyLightProfile(settings: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if ("$schema" in settings) out["$schema"] = settings["$schema"];
+  if ("$schema" in settings) out.$schema = settings.$schema;
   if ("statusLine" in settings) out.statusLine = settings.statusLine;
   return out;
 }
