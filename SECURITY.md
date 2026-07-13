@@ -104,6 +104,80 @@ convention. If a third-party tool needs a hook, wrap it in a cc-settings
 script under `src/scripts/` rather than referencing the third-party binary
 directly.
 
+## The auto-update launchd job — a persistence surface outside the four layers
+
+`setup.sh` can register a macOS `launchd` job (`com.darkroom.cc-settings-autoupdate`,
+opt-in, `src/lib/schedule.ts`) that runs daily at 10:00 local time: pull the
+cc-settings repo and re-run the installer. This is deliberately called out
+because it's a *legitimate* persistence mechanism with the same shape as the
+Shai-Hulud pattern this document defends against — worth being explicit about
+what does and doesn't cover it.
+
+- **The plist itself is unmonitored.** Nothing re-hashes
+  `~/Library/LaunchAgents/com.darkroom.cc-settings-autoupdate.plist` the way
+  layer 1 hashes the `hooks` block. If that file is tampered with directly,
+  none of the four layers above will notice.
+- **`auto-update.ts`'s own bytes ARE covered; the sentinel that drives it is
+  NOT.** The plist's `ProgramArguments` point at
+  `~/.claude/src/scripts/auto-update.ts` — a file inside the installed `src`
+  tree, so layer 2's content manifest verifies it on every `SessionStart`
+  exactly like any other shipped script. A patched `auto-update.ts` trips the
+  same "modified file" warning a patched hook would. But the job's *inputs* —
+  `repo_path` and `auto_update` in `~/.claude/.cc-settings-version` — are
+  plain JSON with no signature and no manifest coverage, same as the rest of
+  that sentinel. A compromised package that can write to `~/.claude` can
+  rewrite either field; the dangerous surface is what gets *pulled*, not
+  `auto-update.ts`'s own bytes. Tampering there is mitigated, not eliminated,
+  by three independent controls: an origin allowlist
+  (`isAllowedPullSource()`, pinned to the real
+  `github.com/darkroomengineering/cc-settings` repo — a manifest-covered
+  constant in `src/lib/schedule.ts`, so forging it requires ALSO beating
+  layer 2), the `--ff-only` pull (no history rewrite), and the dirty-tree
+  skip (never clobbers a working tree with local changes). A forged
+  `repo_path` pointing at an attacker clone is rejected before any pull or
+  `setup.sh` spawn, even if that clone's own history is internally
+  `--ff-only`-clean. As a second, independent surface, `registerAutoUpdate()`
+  also embeds the enrolling repo's real path in the plist itself
+  (`CC_EXPECTED_REPO`) — the nightly job cross-checks the sentinel's
+  `repo_path` against it and refuses to run if they diverge, so an attacker
+  has to compromise both the sentinel AND the plist to redirect the pull.
+  The allowlist and path pin verify the pull *source*, not the integrity of
+  `.git/hooks` in the target directory — a `post-merge` hook planted in an
+  otherwise-legit clone would run during the pull itself. The nightly pull
+  therefore runs with `core.hooksPath=/dev/null`, disabling git hooks for
+  that operation so a hooked clone can't turn a clean fast-forward into code
+  execution.
+- **Enrollment can't be silently created from a forged sentinel alone.**
+  `decideAutoUpdate()` in `src/lib/schedule.ts` is the single source of
+  truth for the enrollment decision, but it no longer trusts
+  `auto_update:true` in the sentinel on its own — a sentinel claiming
+  enrollment is corroborated against whether the launchd job actually
+  exists (`autoUpdateJobLoaded()`, a real `launchctl print` check). A
+  `true` sentinel with no matching job (forged, or hand-edited) is treated
+  as undecided: a non-interactive run (CI, or the nightly job re-running
+  `setup.sh` with `stdin:"ignore"`) **leaves enrollment untouched** —
+  `{kind:"keep", enrolled:undefined}` — and an interactive run re-prompts
+  rather than silently trusting the claim. The only ways enrollment ever
+  becomes `true` are an interactive "yes" to the prompt, an explicit
+  `--auto-update=on` flag, or a sentinel that's corroborated by a real,
+  already-loaded job. `tests/schedule.test.ts` locks this contract with an
+  exhaustive table test over every flag/sentinel/TTY/job-presence
+  combination.
+- **Verify it's what you expect:**
+  ```bash
+  launchctl print gui/$(id -u)/com.darkroom.cc-settings-autoupdate
+  cat ~/Library/LaunchAgents/com.darkroom.cc-settings-autoupdate.plist
+  ```
+- **Remove it:**
+  ```bash
+  bun src/setup.ts --auto-update=off
+  ```
+- **`--rollback` never touches `~/Library/LaunchAgents`.** Restoring a
+  backup archive (`bun src/setup.ts --rollback`) does not unregister the
+  launchd job — the plist and the enrollment decision are independent of the
+  settings.json/CLAUDE.md content a rollback restores. Use
+  `--auto-update=off` explicitly if you want the job gone after a rollback.
+
 ## What to do if `verify-hooks` warns at session start
 
 ```

@@ -27,7 +27,12 @@ Flags:
                          docs, or permission rules
                      Re-run without --light to upgrade to full.
   --status           Report installed version, drift vs repo HEAD, missing
-                     managed skills, hooks, key env vars, and MCP servers.
+                     managed skills, hooks, key env vars, MCP servers, and
+                     (macOS) auto-update enrollment.
+  --auto-update=on|off  Enable/disable the daily 10am auto-update job
+                     (macOS only). Asked once on first interactive install
+                     and remembered; this flag overrides the decision
+                     anytime, interactively or not.
   --interactive      Prompt on settings.json conflicts (scalar overrides, team
                      additions to allow/ask rules, new hook groups). Also opt in
                      via CC_INTERACTIVE=1.

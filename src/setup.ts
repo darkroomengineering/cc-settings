@@ -51,15 +51,22 @@ import {
   removeManagedMcpServers,
 } from "./lib/mcp.ts";
 import { ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
-import { CLAUDE_DIR, getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
+import { CLAUDE_DIR, getTimestamp, hasCommand, isWindows, os } from "./lib/platform.ts";
+import { isInteractive, promptYn } from "./lib/prompts.ts";
+import {
+  autoUpdateJobLoaded,
+  decideAutoUpdate,
+  registerAutoUpdate,
+  unregisterAutoUpdate,
+} from "./lib/schedule.ts";
 import { printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
-import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
+import { buildVersionDelta, readInstalledVersion, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.2.6"; // MultiEdit retirement: prune stale permission rules naming removed tools
+const VERSION = "12.3.0"; // Daily auto-update (macOS launchd, opt-in) + restart-pending statusline banner
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -72,6 +79,7 @@ type Args = {
   interactive: boolean;
   migrateOnly: boolean;
   profile: Profile;
+  autoUpdate: "on" | "off" | null;
 };
 
 export function parseArgs(argv: string[]): Args {
@@ -85,6 +93,7 @@ export function parseArgs(argv: string[]): Args {
     interactive: process.env.CC_INTERACTIVE === "1",
     migrateOnly: false,
     profile: "full",
+    autoUpdate: null,
   };
   for (const a of argv) {
     if (a === "--rollback") args.rollback = true;
@@ -96,6 +105,11 @@ export function parseArgs(argv: string[]): Args {
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
     else if (a === "--light") args.profile = "light";
+    else if (a.startsWith("--auto-update=")) {
+      const value = a.slice("--auto-update=".length);
+      if (value === "on" || value === "off") args.autoUpdate = value;
+      else warn(`--auto-update=${value} is not valid (expected "on" or "off") — ignoring`);
+    }
   }
   return args;
 }
@@ -614,10 +628,63 @@ async function installDependencies(profile: Profile, engine: EngineDescriptor): 
   }
 }
 
+// --- Auto-update enrollment ----------------------------------------------
+
+/**
+ * Resolve + apply the auto-update enrollment decision, then (re)register or
+ * unregister the launchd job to match. macOS-only — on other platforms this
+ * only prints a note (once, when the user explicitly tried the flag) and
+ * leaves the sentinel field untouched (absent, not "declined").
+ *
+ * Returns the enrollment value to persist in the sentinel: true/false when a
+ * decision was made this run, undefined when nothing should be written
+ * (non-macOS, or a non-interactive run with no prior decision).
+ */
+async function applyAutoUpdate(args: Args, prior: boolean | null): Promise<boolean | undefined> {
+  if (os !== "macos") {
+    if (args.autoUpdate !== null) warn("--auto-update is macOS-only; ignoring");
+    else info("Auto-update is macOS-only — skipping (nothing to enroll on this platform).");
+    return undefined;
+  }
+
+  // Corroborate a sentinel claiming auto_update:true against the real
+  // launchd job — an unauthenticated sentinel alone must never be able to
+  // (re)register a job that isn't actually loaded. See decideAutoUpdate().
+  const jobPresent = await autoUpdateJobLoaded();
+
+  const decision = decideAutoUpdate({
+    flag: args.autoUpdate,
+    sentinelValue: prior ?? undefined,
+    isTTY: isInteractive(),
+    jobPresent,
+  });
+
+  let enrolled: boolean | undefined;
+  if (decision.kind === "ask") {
+    enrolled = await promptYn(
+      "Enable daily auto-update? Pulls cc-settings and re-runs setup at 10am",
+      true,
+    );
+  } else {
+    enrolled = decision.enrolled;
+  }
+
+  if (enrolled === true) {
+    const result = await registerAutoUpdate(CLAUDE_DIR, homedir(), args.sourceDir);
+    if (result.ok) success("Auto-update enabled — daily at 10:00 local time.");
+    else warn(`Auto-update registration failed: ${result.reason ?? "unknown error"}`);
+  } else if (enrolled === false) {
+    await unregisterAutoUpdate();
+  }
+
+  return enrolled;
+}
+
 async function writeVersionSentinel(
   sourceDir: string,
   profile: Profile,
   engine: EngineDescriptor,
+  autoUpdate: boolean | undefined,
 ): Promise<void> {
   const payload = {
     version: VERSION,
@@ -630,6 +697,10 @@ async function writeVersionSentinel(
     // Resolved code-intel engine id — read back by resolveEngine() so every
     // surface (hooks, next install) agrees on which engine backs `tldr`.
     engine: engine.id,
+    // Auto-update enrollment — omitted entirely when undecided (non-macOS, or
+    // a non-interactive run with no prior decision) so "absent" never reads
+    // as "declined". See decideAutoUpdate() in src/lib/schedule.ts.
+    ...(autoUpdate !== undefined ? { auto_update: autoUpdate } : {}),
   };
   await atomicWriteJson(join(CLAUDE_DIR, ".cc-settings-version"), payload);
 }
@@ -705,6 +776,9 @@ async function main(): Promise<number> {
   // Capture the previously-installed version BEFORE we overwrite the sentinel
   // — used to print the version-delta summary at the end of the install.
   const prevInstalledVersion = await readInstalledVersion(CLAUDE_DIR);
+  // Same capture for auto-update enrollment — read before writeVersionSentinel
+  // overwrites the sentinel file, so applyAutoUpdate sees the prior decision.
+  const priorAutoUpdate = (await readSentinelInfo(CLAUDE_DIR)).autoUpdate;
 
   // Resolve the code-intel engine once (env > prior sentinel > default) and
   // thread it through dependency install, settings, and the sentinel write.
@@ -739,7 +813,9 @@ async function main(): Promise<number> {
     throw err;
   }
 
-  await writeVersionSentinel(args.sourceDir, args.profile, engine);
+  const autoUpdateEnrolled = await applyAutoUpdate(args, priorAutoUpdate);
+
+  await writeVersionSentinel(args.sourceDir, args.profile, engine, autoUpdateEnrolled);
   if (!args.migrateOnly) await showSummary(args.profile);
 
   // Version delta: surface what just landed (prev → current + per-version

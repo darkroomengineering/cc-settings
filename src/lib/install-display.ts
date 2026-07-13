@@ -260,6 +260,16 @@ export function printStatus(data: StatusData): void {
     `  configured: ${servers.length}${servers.length > 0 ? `  (${servers.join(", ")})` : ""}`,
   );
 
+  if (data.autoUpdate) {
+    const { enrolled, plistPresent, lastRun } = data.autoUpdate;
+    console.log("");
+    console.log("Auto-update (macOS):");
+    const enrolledLabel = enrolled === true ? "yes" : enrolled === false ? "no" : "not yet decided";
+    console.log(`  enrolled: ${enrolledLabel}`);
+    console.log(`  plist present: ${plistPresent ? "yes" : "no"}`);
+    console.log(`  last run: ${lastRun ? `${lastRun.at} (${lastRun.status})` : "never run"}`);
+  }
+
   console.log("");
 
   if (data.warnings.length === 0) {

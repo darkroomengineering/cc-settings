@@ -58,6 +58,16 @@ export interface StatusWarning {
   message: string;
 }
 
+export interface AutoUpdateData {
+  /** Enrollment decision from the sentinel's auto_update field.
+   *  undefined = never decided (absent from the sentinel — NOT "declined"). */
+  enrolled: boolean | undefined;
+  /** Whether the launchd plist file exists on disk. */
+  plistPresent: boolean;
+  /** Breadcrumb from the last nightly run (~/.claude/tmp/auto-update-last-run.json). */
+  lastRun: { at: string; status: string } | null;
+}
+
 export interface StatusData {
   /** Packaged (source) version — the VERSION constant from setup.ts. */
   packagedVersion: string;
@@ -70,6 +80,8 @@ export interface StatusData {
   envVars: EnvVarEntry[];
   permissions: PermissionsData;
   mcp: McpData;
+  /** Auto-update job status — macOS only (undefined on other platforms). */
+  autoUpdate?: AutoUpdateData;
   /** Aggregated warnings (skill gaps, version mismatch, missing env vars). */
   warnings: StatusWarning[];
 }

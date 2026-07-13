@@ -342,6 +342,22 @@ Say: *"update cc-settings"* or *"upgrade cc-settings"* or *"pull the latest"*
 
 Triggers `/cc` (update mode) — compares your installed version against the latest on `origin/main`, shows the commits and CHANGELOG entries that you'd be applying, warns about uncommitted changes in your cc-settings checkout, runs the installer with non-destructive merge, and prompts you to restart Claude Code. Pairs with sync mode: sync keeps the repo in sync with Claude Code upstream (maintainers); update keeps your local install in sync with the repo (everyone).
 
+### Auto-Update (macOS)
+
+cc-settings can update itself automatically instead of you running `/cc` by hand. `setup.sh` registers a macOS `launchd` job that runs daily at **10:00 local time**: it pulls the cc-settings repo, re-runs the installer non-interactively, and sends a desktop notification — either "cc-settings vX installed — restart Claude Code sessions to apply" on success, or a failure notice pointing at the log. Sessions already running pick up the update on restart; the statusline shows a `⟳ v<X> installed — restart Claude to apply` banner in the meantime.
+
+**One-time prompt.** The first time you run `setup.sh` interactively, it asks once: *"Enable daily auto-update? Pulls cc-settings and re-runs setup at 10am"*. Whatever you answer is remembered — you're never asked again, and non-interactive runs (CI, the nightly job itself) never change that decision.
+
+**The flag** overrides the decision anytime, interactively or not:
+```bash
+bun src/setup.ts --auto-update=on    # enable
+bun src/setup.ts --auto-update=off   # disable
+```
+
+`bun src/setup.ts --status` reports whether you're enrolled, whether the launchd plist is present, and the timestamp + outcome of the last nightly run.
+
+Safety notes: the job skips itself (and notifies) if your cc-settings checkout has uncommitted changes, never auto-rolls-back a failed update, and macOS-only for now (Linux/Windows: no-op, nothing enrolled). Full threat-model note in [SECURITY.md](SECURITY.md#the-auto-update-launchd-job--a-persistence-surface-outside-the-four-layers).
+
 ### Create a New Skill
 
 ```bash

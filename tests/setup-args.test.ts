@@ -81,4 +81,27 @@ describe("parseArgs", () => {
     expect(a.profile).toBe("light");
     expect(a.sourceDir).toBe(resolve("/tmp/cc"));
   });
+
+  test("default autoUpdate is null", () => {
+    expect(parseArgs([]).autoUpdate).toBeNull();
+  });
+
+  test("--auto-update=on sets autoUpdate to 'on'", () => {
+    expect(parseArgs(["--auto-update=on"]).autoUpdate).toBe("on");
+  });
+
+  test("--auto-update=off sets autoUpdate to 'off'", () => {
+    expect(parseArgs(["--auto-update=off"]).autoUpdate).toBe("off");
+  });
+
+  test("--auto-update=<invalid> is ignored — autoUpdate stays null", () => {
+    expect(parseArgs(["--auto-update=maybe"]).autoUpdate).toBeNull();
+  });
+
+  test("--auto-update composes with other flags", () => {
+    const a = parseArgs(["--auto-update=on", "--light", "--dry-run"]);
+    expect(a.autoUpdate).toBe("on");
+    expect(a.profile).toBe("light");
+    expect(a.dryRun).toBe(true);
+  });
 });

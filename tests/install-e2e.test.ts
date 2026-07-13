@@ -34,6 +34,10 @@ async function runInstall(home: string, extraArgs: string[] = []): Promise<Insta
       // installer targets the tmpdir on every platform.
       USERPROFILE: home,
       CC_SKIP_DEPS: "1",
+      // launchctl ignores a faked $HOME and would register/bootout a REAL
+      // launchd job on the machine running the test suite — unconditional,
+      // regardless of whether a given test even touches auto-update.
+      CC_SKIP_SCHEDULE: "1",
       // Avoid color codes / banner art bleeding into assertion strings.
       NO_COLOR: "1",
     },
@@ -143,7 +147,14 @@ describe("install E2E — fresh HOME", () => {
       const home = await mkdtemp(join(tmpdir(), "cc-e2e-mig-"));
       try {
         const proc = Bun.spawn(["bun", SETUP_TS, `--source=${REPO}`, "--migrate-only"], {
-          env: { ...process.env, HOME: home, USERPROFILE: home, CC_SKIP_DEPS: "1", NO_COLOR: "1" },
+          env: {
+            ...process.env,
+            HOME: home,
+            USERPROFILE: home,
+            CC_SKIP_DEPS: "1",
+            CC_SKIP_SCHEDULE: "1",
+            NO_COLOR: "1",
+          },
           stdout: "pipe",
           stderr: "pipe",
         });
@@ -411,5 +422,68 @@ describe("install E2E — light profile", () => {
       }
     },
     { timeout: 120_000 },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Auto-update enrollment E2E (macOS only — the sentinel field is only ever
+// written when os === "macos"; see applyAutoUpdate in src/setup.ts)
+// ---------------------------------------------------------------------------
+
+describe("install E2E — auto-update enrollment", () => {
+  test.skipIf(process.platform !== "darwin")(
+    "--auto-update=on writes sentinel auto_update:true and registers the launchd plist",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-autoupdate-"));
+      try {
+        const result = await runInstall(home, ["--auto-update=on"]);
+        if (result.exitCode !== 0) {
+          throw new Error(
+            `installer exited with ${result.exitCode}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+          );
+        }
+
+        const sentinel = JSON.parse(
+          await readFile(join(home, ".claude", ".cc-settings-version"), "utf8"),
+        ) as { auto_update?: boolean };
+        expect(sentinel.auto_update).toBe(true);
+
+        const plistPath = join(
+          home,
+          "Library",
+          "LaunchAgents",
+          "com.darkroom.cc-settings-autoupdate.plist",
+        );
+        expect(existsSync(plistPath)).toBe(true);
+        const plistContent = await readFile(plistPath, "utf8");
+        expect(plistContent).toContain("<integer>10</integer>");
+        expect(plistContent).toContain("com.darkroom.cc-settings-autoupdate");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 60_000 },
+  );
+
+  test.skipIf(process.platform !== "darwin")(
+    "a second run without the flag preserves the prior enrollment decision",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-autoupdate2-"));
+      try {
+        const first = await runInstall(home, ["--auto-update=on"]);
+        expect(first.exitCode).toBe(0);
+
+        const second = await runInstall(home, []);
+        expect(second.exitCode).toBe(0);
+
+        const sentinel = JSON.parse(
+          await readFile(join(home, ".claude", ".cc-settings-version"), "utf8"),
+        ) as { auto_update?: boolean };
+        expect(sentinel.auto_update).toBe(true);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 90_000 },
   );
 });
