@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.3.1] — 2026-07-14
+
+Restart-pending banner now actually clears when you restart a resumed session.
+
+**Fixed:**
+- The `⟳ v<X> installed — restart Claude to apply` statusline banner keyed its "what version did this session start on" record to the session id, written only on the session's first-ever render. Claude Code keeps the same session id across a resume, so a resumed conversation stayed pinned to the version it saw days ago and the banner never cleared — no matter how many restarts. `session-start.ts` (which fires on every launch AND resume) now refreshes that record to the currently installed version, making the banner process-scoped as intended: restart + resume clears it; an update landing mid-session still shows it.
+- Shared `refreshSessionInstallMap()` helper in `src/lib/version-delta.ts` replaces the statusline's inline map-prune logic (statusline keeps a first-render fallback write).
+
+**Files changed:**
+- src/lib/version-delta.ts
+- src/scripts/session-start.ts
+- src/hooks/statusline.ts
+- tests/version-drift.test.ts
+
 ## [12.3.0] — 2026-07-10
 
 Built-in daily auto-update: cc-settings can now keep itself current without anyone running `/cc` by hand.

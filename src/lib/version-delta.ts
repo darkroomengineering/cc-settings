@@ -233,3 +233,38 @@ export function computeDrift(installed: string | null, packaged: string | null):
   const stale = installed !== null && packaged !== null && compareVersion(packaged, installed) > 0;
   return { stale, installed, packaged };
 }
+
+// --- Session install-version map (restart-pending banner) -------------------
+
+/** State file mapping session_id → the cc-settings version that session's
+ *  PROCESS last started with. The statusline compares an entry against the
+ *  currently installed version to decide whether to show the
+ *  "⟳ v<X> installed — restart Claude to apply" banner. */
+export const SESSION_INSTALL_STATE = "session-install-version.json";
+
+export const SESSION_MAP_CAP = 20;
+
+export type SessionInstallMap = Record<string, { v: string; t: number }>;
+
+/**
+ * Set (or refresh) a session's recorded install version and prune the map to
+ * the SESSION_MAP_CAP most recent entries. Pure — callers own the state IO.
+ *
+ * Refreshing on EVERY SessionStart (not just first statusline render) is what
+ * makes the banner process-scoped: Claude Code keeps the same session_id when
+ * a conversation is resumed, so a first-render-only record would pin a resumed
+ * session to the version it saw days ago and the banner could never clear.
+ */
+export function refreshSessionInstallMap(
+  map: SessionInstallMap,
+  sessionId: string,
+  version: string,
+  now: number,
+): SessionInstallMap {
+  const next: SessionInstallMap = { ...map, [sessionId]: { v: version, t: now } };
+  return Object.fromEntries(
+    Object.entries(next)
+      .sort((a, b) => b[1].t - a[1].t)
+      .slice(0, SESSION_MAP_CAP),
+  );
+}

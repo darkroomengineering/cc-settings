@@ -21,15 +21,27 @@ import { basename, join } from "node:path";
 import { type EngineDescriptor, resolveEngine } from "../lib/code-intel-engine.ts";
 import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
-import { readState, writeState } from "../lib/hook-runtime.ts";
+import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { CLAUDE_DIR, hasCommand, localDatetime } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import { onHeadObserved, type ReviewQueueState } from "../lib/review-queue.ts";
 import { teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
-import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/version-delta.ts";
+import {
+  computeDrift,
+  readPackagedVersion,
+  readSentinelInfo,
+  refreshSessionInstallMap,
+  SESSION_INSTALL_STATE,
+  type SessionInstallMap,
+} from "../lib/version-delta.ts";
 
 const PROJECT_DIR = process.cwd();
 const PROJECT_NAME = basename(PROJECT_DIR);
+
+// SessionStart stdin payload. Only session_id is consumed (for the
+// restart-pending banner refresh below); readHookInput returns {} when stdin
+// is empty or malformed, so this stays fail-open.
+const hookInput = await readHookInput<{ session_id?: string }>();
 
 // Resolve the active code-intel engine once (env > sentinel > default). Drives
 // the daemon/warm helpers and the status line below. Default is "llm-tldr", so
@@ -315,6 +327,21 @@ try {
   const { version: installed, repoPath } = await readSentinelInfo(CLAUDE_DIR);
   const packaged = await readPackagedVersion(repoPath);
   await writeState("version-drift.json", computeDrift(installed, packaged));
+
+  // Restart-pending banner reset: record that THIS process started on the
+  // currently installed version. SessionStart fires on fresh launches AND on
+  // resumes, and Claude Code keeps the same session_id across a resume — so
+  // without this refresh, a resumed session keeps the version recorded at its
+  // very first render (possibly days old) and the statusline's "restart Claude
+  // to apply" banner can never clear, no matter how many times you restart.
+  const sessionId = hookInput.session_id;
+  if (sessionId && installed) {
+    const map = await readState<SessionInstallMap>(SESSION_INSTALL_STATE, {});
+    await writeState(
+      SESSION_INSTALL_STATE,
+      refreshSessionInstallMap(map, sessionId, installed, Date.now()),
+    );
+  }
 } catch {
   // never let the drift check disrupt session start
 }

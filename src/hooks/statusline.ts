@@ -18,7 +18,7 @@ import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
 import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
-import { readInstalledVersion } from "../lib/version-delta.ts";
+import { readInstalledVersion, refreshSessionInstallMap } from "../lib/version-delta.ts";
 
 // Shape-validated the same way quota.ts's RateLimitsCacheSchema is — a
 // malformed review-queue.json/version-drift.json (partial write, future
@@ -38,9 +38,9 @@ const VersionDriftSchema = z.object({
 
 // session_id → cc-settings version the session FIRST rendered with. Written
 // once per session (first statusline render), pruned to the most recent
-// SESSION_MAP_CAP entries so concurrent/old sessions never grow it unbounded.
+// SESSION_MAP_CAP entries (see version-delta.ts) so concurrent/old sessions
+// never grow it unbounded.
 const SessionInstallMapSchema = z.record(z.string(), z.object({ v: z.string(), t: z.number() }));
-const SESSION_MAP_CAP = 20;
 
 type Payload = {
   session_id?: string;
@@ -276,13 +276,13 @@ async function main(): Promise<void> {
     const sessionVersions = mapParsed.success ? mapParsed.data : {};
     const seen = sessionVersions[sessionId];
     if (!seen) {
-      sessionVersions[sessionId] = { v: installedNow, t: Date.now() };
-      const pruned = Object.fromEntries(
-        Object.entries(sessionVersions)
-          .sort((a, b) => b[1].t - a[1].t)
-          .slice(0, SESSION_MAP_CAP),
+      // Fallback recorder only — session-start.ts refreshes this entry on
+      // every launch AND resume (same session_id survives a resume), which is
+      // what lets the banner clear after a restart.
+      await writeState(
+        "session-install-version.json",
+        refreshSessionInstallMap(sessionVersions, sessionId, installedNow, Date.now()),
       );
-      await writeState("session-install-version.json", pruned);
     } else if (seen.v !== installedNow) {
       parts.push(
         `${BANNER_GREEN}⟳ v${installedNow} installed — restart Claude to apply${BANNER_RESET}`,

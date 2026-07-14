@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { computeDrift, readPackagedVersion, readSentinelInfo } from "../src/lib/version-delta.ts";
+import {
+  computeDrift,
+  readPackagedVersion,
+  readSentinelInfo,
+  refreshSessionInstallMap,
+  SESSION_MAP_CAP,
+} from "../src/lib/version-delta.ts";
 
 async function tmp(): Promise<string> {
   return mkdtemp(join(tmpdir(), "ccver-"));
@@ -181,5 +187,37 @@ describe("end-to-end", () => {
       await rm(claudeDir, { recursive: true, force: true });
       await rm(repoDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("refreshSessionInstallMap", () => {
+  test("records a new session at the given version", () => {
+    const out = refreshSessionInstallMap({}, "s1", "12.3.1", 1000);
+    expect(out).toEqual({ s1: { v: "12.3.1", t: 1000 } });
+  });
+
+  test("REFRESHES an existing entry — the resumed-session fix", () => {
+    // A resumed session keeps its session_id; the entry recorded days ago at
+    // an older version must be overwritten with the current install so the
+    // restart-pending banner clears after a restart.
+    const stale = { s1: { v: "12.2.6", t: 1 } };
+    const out = refreshSessionInstallMap(stale, "s1", "12.3.1", 2000);
+    expect(out).toEqual({ s1: { v: "12.3.1", t: 2000 } });
+  });
+
+  test("prunes to SESSION_MAP_CAP most recent entries, keeping the refreshed one", () => {
+    const map: Record<string, { v: string; t: number }> = {};
+    for (let i = 0; i < SESSION_MAP_CAP + 5; i++) map[`s${i}`] = { v: "12.3.0", t: i };
+    const out = refreshSessionInstallMap(map, "fresh", "12.3.1", 10_000);
+    expect(Object.keys(out).length).toBe(SESSION_MAP_CAP);
+    expect(out.fresh).toEqual({ v: "12.3.1", t: 10_000 });
+    // Oldest entries were dropped.
+    expect(out.s0).toBeUndefined();
+  });
+
+  test("does not mutate the input map", () => {
+    const input = { s1: { v: "12.2.6", t: 1 } };
+    refreshSessionInstallMap(input, "s1", "12.3.1", 2000);
+    expect(input.s1.v).toBe("12.2.6");
   });
 });
