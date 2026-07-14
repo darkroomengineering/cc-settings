@@ -12,7 +12,23 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
 import { readCodexVerdict } from "../lib/codex.ts";
-import { palette } from "../lib/colors.ts";
+
+// NOT lib/colors.ts's palette: that one gates every code on
+// `process.stdout.isTTY`, and Claude Code captures the statusline via a pipe
+// (isTTY false) — so the gated palette renders the whole statusline gray.
+// Claude Code DOES interpret ANSI in statusline output, so emit codes
+// unconditionally here (same brand values as colors.ts), honoring NO_COLOR.
+const NO = process.env.NO_COLOR === "1";
+const c = (code: string): string => (NO ? "" : code);
+const palette = {
+  red: c("\x1b[38;2;227;6;19m"),
+  green: c("\x1b[38;2;0;255;136m"),
+  yellow: c("\x1b[38;2;255;180;0m"),
+  cyan: c("\x1b[38;2;121;40;202m"),
+  dim: c("\x1b[2m"),
+  reset: c("\x1b[0m"),
+} as const;
+
 import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
@@ -141,14 +157,6 @@ function formatTimeToReset(value: number | string): string | null {
 }
 
 const dimSep = `${palette.dim} | ${palette.reset}`;
-
-// Claude Code captures the statusline's stdout via a pipe, so
-// `process.stdout.isTTY` is false and every `palette.*` from colors.ts comes
-// back empty (COLORS_FORCED gates on isTTY). Claude Code still renders ANSI in
-// the statusline, so emit the restart-banner green DIRECTLY — otherwise the
-// banner is monochrome. NO_COLOR is still honored.
-const BANNER_GREEN = process.env.NO_COLOR === "1" ? "" : "\x1b[38;2;0;255;136m";
-const BANNER_RESET = process.env.NO_COLOR === "1" ? "" : "\x1b[0m";
 
 function cacheResetValue(value: number | string | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
@@ -285,7 +293,7 @@ async function main(): Promise<void> {
       );
     } else if (seen.v !== installedNow) {
       parts.push(
-        `${BANNER_GREEN}⟳ v${installedNow} installed — restart Claude to apply${BANNER_RESET}`,
+        `${palette.green}⟳ v${installedNow} installed — restart Claude to apply${palette.reset}`,
       );
     }
   }

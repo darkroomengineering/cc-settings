@@ -11,6 +11,7 @@ Restart-pending banner now actually clears when you restart a resumed session.
 **Fixed:**
 - The `⟳ v<X> installed — restart Claude to apply` statusline banner keyed its "what version did this session start on" record to the session id, written only on the session's first-ever render. Claude Code keeps the same session id across a resume, so a resumed conversation stayed pinned to the version it saw days ago and the banner never cleared — no matter how many restarts. `session-start.ts` (which fires on every launch AND resume) now refreshes that record to the currently installed version, making the banner process-scoped as intended: restart + resume clears it; an update landing mid-session still shows it.
 - Shared `refreshSessionInstallMap()` helper in `src/lib/version-delta.ts` replaces the statusline's inline map-prune logic (statusline keeps a first-render fallback write).
+- The statusline rendered entirely gray under Claude Code: `lib/colors.ts` gates every ANSI code on `process.stdout.isTTY`, and Claude Code captures the statusline through a pipe, so the whole palette resolved to empty strings (only emoji glyphs showed color). The statusline now uses its own ungated palette (same brand values, `NO_COLOR` still honored) — branch name, dirty marker, rate-limit %, review queue, drift badge, and restart banner all render in color.
 
 **Files changed:**
 - src/lib/version-delta.ts
