@@ -1,4 +1,4 @@
-// Version arithmetic over the install sentinel — two consumers, one module:
+// Version arithmetic over the install sentinel — three concerns, one module:
 //
 // 1. Install-summary delta — surfaces what the user got from the re-install.
 //    The merger already announces specific migrations it ran (hook prune,
@@ -7,6 +7,8 @@
 //    of each version that landed.
 // 2. Version-drift detection for the statusline nudge (formerly
 //    src/lib/version-drift.ts) — see the drift section at the bottom.
+// 3. Session install-version map for the restart-pending statusline banner —
+//    see the session-map section at the bottom.
 //
 // Source of truth: `~/.claude/.cc-settings-version` for the previous version,
 // `src/setup.ts`'s VERSION constant for the new one, `CHANGELOG.md` for the
@@ -15,6 +17,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
 
 export interface ChangelogEntry {
   version: string;
@@ -244,7 +247,15 @@ export const SESSION_INSTALL_STATE = "session-install-version.json";
 
 export const SESSION_MAP_CAP = 20;
 
-export type SessionInstallMap = Record<string, { v: string; t: number }>;
+/** Single shape definition for the state file — BOTH readers (session-start.ts
+ *  and statusline.ts) must validate through this so a corrupted/partial write
+ *  degrades to "absent" in every consumer, not just one. */
+export const SessionInstallMapSchema = z.record(
+  z.string(),
+  z.object({ v: z.string(), t: z.number() }),
+);
+
+export type SessionInstallMap = z.infer<typeof SessionInstallMapSchema>;
 
 /**
  * Set (or refresh) a session's recorded install version and prune the map to
@@ -254,6 +265,12 @@ export type SessionInstallMap = Record<string, { v: string; t: number }>;
  * makes the banner process-scoped: Claude Code keeps the same session_id when
  * a conversation is resumed, so a first-render-only record would pin a resumed
  * session to the version it saw days ago and the banner could never clear.
+ *
+ * Concurrency: callers do read-then-atomic-rename against a shared multi-
+ * session file with no lock — two concurrent FIRST writes can drop one entry
+ * (last-write-wins). Intentional: the dropped session's statusline fallback
+ * re-writes on its next render, and the file only gates a cosmetic banner.
+ * Don't reach for a lock here.
  */
 export function refreshSessionInstallMap(
   map: SessionInstallMap,

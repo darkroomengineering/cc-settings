@@ -17,16 +17,32 @@ function seq(trueColor: string, basic: string): string {
   return TRUECOLOR ? trueColor : basic;
 }
 
+/** Raw brand escape sequences, ungated — the single source of truth for the
+ *  color VALUES. `palette` below wraps them in the TTY/NO_COLOR gate; the
+ *  statusline imports these directly (Claude Code pipes its stdout, so the
+ *  TTY gate would strip everything) and applies its own NO_COLOR-only gate. */
+export const RAW_SEQUENCES = {
+  red: "\x1b[38;2;227;6;19m",
+  green: "\x1b[38;2;0;255;136m",
+  yellow: "\x1b[38;2;255;180;0m",
+  blue: "\x1b[38;2;0;112;243m",
+  magenta: "\x1b[38;2;255;0;128m",
+  cyan: "\x1b[38;2;121;40;202m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  reset: "\x1b[0m",
+} as const;
+
 export const palette = {
-  red: seq("\x1b[38;2;227;6;19m", "\x1b[0;31m"),
-  green: seq("\x1b[38;2;0;255;136m", "\x1b[0;32m"),
-  yellow: seq("\x1b[38;2;255;180;0m", "\x1b[0;33m"),
-  blue: seq("\x1b[38;2;0;112;243m", "\x1b[0;34m"),
-  magenta: seq("\x1b[38;2;255;0;128m", "\x1b[0;35m"),
-  cyan: seq("\x1b[38;2;121;40;202m", "\x1b[0;36m"),
-  bold: COLORS_FORCED ? "\x1b[1m" : "",
-  dim: COLORS_FORCED ? "\x1b[2m" : "",
-  reset: COLORS_FORCED ? "\x1b[0m" : "",
+  red: seq(RAW_SEQUENCES.red, "\x1b[0;31m"),
+  green: seq(RAW_SEQUENCES.green, "\x1b[0;32m"),
+  yellow: seq(RAW_SEQUENCES.yellow, "\x1b[0;33m"),
+  blue: seq(RAW_SEQUENCES.blue, "\x1b[0;34m"),
+  magenta: seq(RAW_SEQUENCES.magenta, "\x1b[0;35m"),
+  cyan: seq(RAW_SEQUENCES.cyan, "\x1b[0;36m"),
+  bold: COLORS_FORCED ? RAW_SEQUENCES.bold : "",
+  dim: COLORS_FORCED ? RAW_SEQUENCES.dim : "",
+  reset: COLORS_FORCED ? RAW_SEQUENCES.reset : "",
 } as const;
 
 function color(s: string, ansi: string): string {

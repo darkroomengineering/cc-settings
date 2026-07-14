@@ -12,21 +12,22 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
 import { readCodexVerdict } from "../lib/codex.ts";
+import { RAW_SEQUENCES } from "../lib/colors.ts";
 
-// NOT lib/colors.ts's palette: that one gates every code on
+// NOT lib/colors.ts's `palette`: that one gates every code on
 // `process.stdout.isTTY`, and Claude Code captures the statusline via a pipe
 // (isTTY false) — so the gated palette renders the whole statusline gray.
-// Claude Code DOES interpret ANSI in statusline output, so emit codes
-// unconditionally here (same brand values as colors.ts), honoring NO_COLOR.
+// Claude Code DOES interpret ANSI in statusline output, so gate only on
+// NO_COLOR here. The VALUES stay single-sourced in colors.ts (RAW_SEQUENCES).
 const NO = process.env.NO_COLOR === "1";
 const c = (code: string): string => (NO ? "" : code);
 const palette = {
-  red: c("\x1b[38;2;227;6;19m"),
-  green: c("\x1b[38;2;0;255;136m"),
-  yellow: c("\x1b[38;2;255;180;0m"),
-  cyan: c("\x1b[38;2;121;40;202m"),
-  dim: c("\x1b[2m"),
-  reset: c("\x1b[0m"),
+  red: c(RAW_SEQUENCES.red),
+  green: c(RAW_SEQUENCES.green),
+  yellow: c(RAW_SEQUENCES.yellow),
+  cyan: c(RAW_SEQUENCES.cyan),
+  dim: c(RAW_SEQUENCES.dim),
+  reset: c(RAW_SEQUENCES.reset),
 } as const;
 
 import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
@@ -34,7 +35,12 @@ import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
 import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
-import { readInstalledVersion, refreshSessionInstallMap } from "../lib/version-delta.ts";
+import {
+  readInstalledVersion,
+  refreshSessionInstallMap,
+  SESSION_INSTALL_STATE,
+  SessionInstallMapSchema,
+} from "../lib/version-delta.ts";
 
 // Shape-validated the same way quota.ts's RateLimitsCacheSchema is — a
 // malformed review-queue.json/version-drift.json (partial write, future
@@ -52,11 +58,10 @@ const VersionDriftSchema = z.object({
   installed: z.string().nullable().optional(),
 });
 
-// session_id → cc-settings version the session FIRST rendered with. Written
-// once per session (first statusline render), pruned to the most recent
-// SESSION_MAP_CAP entries (see version-delta.ts) so concurrent/old sessions
-// never grow it unbounded.
-const SessionInstallMapSchema = z.record(z.string(), z.object({ v: z.string(), t: z.number() }));
+// session_id → version map (SessionInstallMapSchema, imported): the PRIMARY
+// writer is session-start.ts, which refreshes the entry on every launch and
+// resume; the write in this file is a first-render FALLBACK for sessions that
+// never got a SessionStart refresh.
 
 type Payload = {
   session_id?: string;
@@ -279,7 +284,7 @@ async function main(): Promise<void> {
   const sessionId = input.session_id;
   const installedNow = await readInstalledVersion(claudePath());
   if (sessionId && installedNow) {
-    const mapRaw = await readState<unknown>("session-install-version.json", null);
+    const mapRaw = await readState<unknown>(SESSION_INSTALL_STATE, null);
     const mapParsed = SessionInstallMapSchema.safeParse(mapRaw);
     const sessionVersions = mapParsed.success ? mapParsed.data : {};
     const seen = sessionVersions[sessionId];
@@ -288,7 +293,7 @@ async function main(): Promise<void> {
       // every launch AND resume (same session_id survives a resume), which is
       // what lets the banner clear after a restart.
       await writeState(
-        "session-install-version.json",
+        SESSION_INSTALL_STATE,
         refreshSessionInstallMap(sessionVersions, sessionId, installedNow, Date.now()),
       );
     } else if (seen.v !== installedNow) {

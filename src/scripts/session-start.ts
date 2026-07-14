@@ -33,15 +33,11 @@ import {
   refreshSessionInstallMap,
   SESSION_INSTALL_STATE,
   type SessionInstallMap,
+  SessionInstallMapSchema,
 } from "../lib/version-delta.ts";
 
 const PROJECT_DIR = process.cwd();
 const PROJECT_NAME = basename(PROJECT_DIR);
-
-// SessionStart stdin payload. Only session_id is consumed (for the
-// restart-pending banner refresh below); readHookInput returns {} when stdin
-// is empty or malformed, so this stays fail-open.
-const hookInput = await readHookInput<{ session_id?: string }>();
 
 // Resolve the active code-intel engine once (env > sentinel > default). Drives
 // the daemon/warm helpers and the status line below. Default is "llm-tldr", so
@@ -334,9 +330,17 @@ try {
   // without this refresh, a resumed session keeps the version recorded at its
   // very first render (possibly days old) and the statusline's "restart Claude
   // to apply" banner can never clear, no matter how many times you restart.
+  // Stdin is read here (not at module top) so a slow read never serializes
+  // ahead of the phase-1 work above; readHookInput returns {} on empty or
+  // malformed stdin, keeping this fail-open.
+  const hookInput = await readHookInput<{ session_id?: string }>();
   const sessionId = hookInput.session_id;
   if (sessionId && installed) {
-    const map = await readState<SessionInstallMap>(SESSION_INSTALL_STATE, {});
+    // Same shared schema as the statusline's read — a corrupted map degrades
+    // to {} instead of being spread into the next write.
+    const rawMap = await readState<unknown>(SESSION_INSTALL_STATE, {});
+    const parsed = SessionInstallMapSchema.safeParse(rawMap);
+    const map: SessionInstallMap = parsed.success ? parsed.data : {};
     await writeState(
       SESSION_INSTALL_STATE,
       refreshSessionInstallMap(map, sessionId, installed, Date.now()),
