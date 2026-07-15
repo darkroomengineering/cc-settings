@@ -66,7 +66,7 @@ import { buildVersionDelta, readInstalledVersion, readSentinelInfo } from "./lib
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.3.0"; // Daily auto-update (macOS launchd, opt-in) + restart-pending statusline banner
+const VERSION = "12.3.1"; // Restart-pending banner now clears after restart+resume (SessionStart refresh)
 
 // --- Arg parsing ---------------------------------------------------------
 

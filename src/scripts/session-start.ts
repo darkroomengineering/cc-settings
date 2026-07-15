@@ -21,12 +21,20 @@ import { basename, join } from "node:path";
 import { type EngineDescriptor, resolveEngine } from "../lib/code-intel-engine.ts";
 import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
-import { readState, writeState } from "../lib/hook-runtime.ts";
+import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { CLAUDE_DIR, hasCommand, localDatetime } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import { onHeadObserved, type ReviewQueueState } from "../lib/review-queue.ts";
 import { teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
-import { computeDrift, readPackagedVersion, readSentinelInfo } from "../lib/version-delta.ts";
+import {
+  computeDrift,
+  readPackagedVersion,
+  readSentinelInfo,
+  refreshSessionInstallMap,
+  SESSION_INSTALL_STATE,
+  type SessionInstallMap,
+  SessionInstallMapSchema,
+} from "../lib/version-delta.ts";
 
 const PROJECT_DIR = process.cwd();
 const PROJECT_NAME = basename(PROJECT_DIR);
@@ -315,6 +323,29 @@ try {
   const { version: installed, repoPath } = await readSentinelInfo(CLAUDE_DIR);
   const packaged = await readPackagedVersion(repoPath);
   await writeState("version-drift.json", computeDrift(installed, packaged));
+
+  // Restart-pending banner reset: record that THIS process started on the
+  // currently installed version. SessionStart fires on fresh launches AND on
+  // resumes, and Claude Code keeps the same session_id across a resume — so
+  // without this refresh, a resumed session keeps the version recorded at its
+  // very first render (possibly days old) and the statusline's "restart Claude
+  // to apply" banner can never clear, no matter how many times you restart.
+  // Stdin is read here (not at module top) so a slow read never serializes
+  // ahead of the phase-1 work above; readHookInput returns {} on empty or
+  // malformed stdin, keeping this fail-open.
+  const hookInput = await readHookInput<{ session_id?: string }>();
+  const sessionId = hookInput.session_id;
+  if (sessionId && installed) {
+    // Same shared schema as the statusline's read — a corrupted map degrades
+    // to {} instead of being spread into the next write.
+    const rawMap = await readState<unknown>(SESSION_INSTALL_STATE, {});
+    const parsed = SessionInstallMapSchema.safeParse(rawMap);
+    const map: SessionInstallMap = parsed.success ? parsed.data : {};
+    await writeState(
+      SESSION_INSTALL_STATE,
+      refreshSessionInstallMap(map, sessionId, installed, Date.now()),
+    );
+  }
 } catch {
   // never let the drift check disrupt session start
 }

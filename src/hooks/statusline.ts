@@ -12,13 +12,35 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
 import { readCodexVerdict } from "../lib/codex.ts";
-import { palette } from "../lib/colors.ts";
+import { RAW_SEQUENCES } from "../lib/colors.ts";
+
+// NOT lib/colors.ts's `palette`: that one gates every code on
+// `process.stdout.isTTY`, and Claude Code captures the statusline via a pipe
+// (isTTY false) — so the gated palette renders the whole statusline gray.
+// Claude Code DOES interpret ANSI in statusline output, so gate only on
+// NO_COLOR here. The VALUES stay single-sourced in colors.ts (RAW_SEQUENCES).
+const NO = process.env.NO_COLOR === "1";
+const c = (code: string): string => (NO ? "" : code);
+const palette = {
+  red: c(RAW_SEQUENCES.red),
+  green: c(RAW_SEQUENCES.green),
+  yellow: c(RAW_SEQUENCES.yellow),
+  cyan: c(RAW_SEQUENCES.cyan),
+  dim: c(RAW_SEQUENCES.dim),
+  reset: c(RAW_SEQUENCES.reset),
+} as const;
+
 import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
 import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
 import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
-import { readInstalledVersion } from "../lib/version-delta.ts";
+import {
+  readInstalledVersion,
+  refreshSessionInstallMap,
+  SESSION_INSTALL_STATE,
+  SessionInstallMapSchema,
+} from "../lib/version-delta.ts";
 
 // Shape-validated the same way quota.ts's RateLimitsCacheSchema is — a
 // malformed review-queue.json/version-drift.json (partial write, future
@@ -36,11 +58,10 @@ const VersionDriftSchema = z.object({
   installed: z.string().nullable().optional(),
 });
 
-// session_id → cc-settings version the session FIRST rendered with. Written
-// once per session (first statusline render), pruned to the most recent
-// SESSION_MAP_CAP entries so concurrent/old sessions never grow it unbounded.
-const SessionInstallMapSchema = z.record(z.string(), z.object({ v: z.string(), t: z.number() }));
-const SESSION_MAP_CAP = 20;
+// session_id → version map (SessionInstallMapSchema, imported): the PRIMARY
+// writer is session-start.ts, which refreshes the entry on every launch and
+// resume; the write in this file is a first-render FALLBACK for sessions that
+// never got a SessionStart refresh.
 
 type Payload = {
   session_id?: string;
@@ -141,14 +162,6 @@ function formatTimeToReset(value: number | string): string | null {
 }
 
 const dimSep = `${palette.dim} | ${palette.reset}`;
-
-// Claude Code captures the statusline's stdout via a pipe, so
-// `process.stdout.isTTY` is false and every `palette.*` from colors.ts comes
-// back empty (COLORS_FORCED gates on isTTY). Claude Code still renders ANSI in
-// the statusline, so emit the restart-banner green DIRECTLY — otherwise the
-// banner is monochrome. NO_COLOR is still honored.
-const BANNER_GREEN = process.env.NO_COLOR === "1" ? "" : "\x1b[38;2;0;255;136m";
-const BANNER_RESET = process.env.NO_COLOR === "1" ? "" : "\x1b[0m";
 
 function cacheResetValue(value: number | string | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
@@ -271,21 +284,21 @@ async function main(): Promise<void> {
   const sessionId = input.session_id;
   const installedNow = await readInstalledVersion(claudePath());
   if (sessionId && installedNow) {
-    const mapRaw = await readState<unknown>("session-install-version.json", null);
+    const mapRaw = await readState<unknown>(SESSION_INSTALL_STATE, null);
     const mapParsed = SessionInstallMapSchema.safeParse(mapRaw);
     const sessionVersions = mapParsed.success ? mapParsed.data : {};
     const seen = sessionVersions[sessionId];
     if (!seen) {
-      sessionVersions[sessionId] = { v: installedNow, t: Date.now() };
-      const pruned = Object.fromEntries(
-        Object.entries(sessionVersions)
-          .sort((a, b) => b[1].t - a[1].t)
-          .slice(0, SESSION_MAP_CAP),
+      // Fallback recorder only — session-start.ts refreshes this entry on
+      // every launch AND resume (same session_id survives a resume), which is
+      // what lets the banner clear after a restart.
+      await writeState(
+        SESSION_INSTALL_STATE,
+        refreshSessionInstallMap(sessionVersions, sessionId, installedNow, Date.now()),
       );
-      await writeState("session-install-version.json", pruned);
     } else if (seen.v !== installedNow) {
       parts.push(
-        `${BANNER_GREEN}⟳ v${installedNow} installed — restart Claude to apply${BANNER_RESET}`,
+        `${palette.green}⟳ v${installedNow} installed — restart Claude to apply${palette.reset}`,
       );
     }
   }
