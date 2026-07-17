@@ -66,7 +66,7 @@ import { buildVersionDelta, readInstalledVersion, readSentinelInfo } from "./lib
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.3.1"; // Restart-pending banner now clears after restart+resume (SessionStart refresh)
+const VERSION = "12.4.0"; // Claude Code 2.1.211 sync: Edit/Read permission-rule migration + axScreenReader/vimInsertModeRemaps
 
 // --- Arg parsing ---------------------------------------------------------
 

@@ -218,6 +218,7 @@ export const Settings = z.looseObject({
 
   // --- UX ---
   awaySummaryEnabled: z.boolean().optional(), // show a session recap on re-entry after background work
+  axScreenReader: z.boolean().optional(), // 2.1.208 — screen-reader mode: flat plain-text rendering without borders/animations; counterparts --ax-screen-reader flag and CLAUDE_AX_SCREEN_READER env var
   respondToBashCommands: z.boolean().optional(), // 2.1.186 — `!` bash output auto-triggers a Claude response (default true); set false to restore prior behavior
   editorMode: z.enum(["normal", "vim"]).optional(), // input editor keybindings
   preferredNotifChannel: z
@@ -239,6 +240,7 @@ export const Settings = z.looseObject({
   terminalProgressBarEnabled: z.boolean().optional(), // show a progress bar for long-running operations
   tui: z.enum(["fullscreen", "default"]).optional(), // TUI rendering mode (fullscreen uses alternate screen)
   viewMode: z.enum(["default", "verbose", "focus"]).optional(), // controls how much detail the TUI shows
+  vimInsertModeRemaps: z.record(z.string(), z.string()).optional(), // 2.1.208 — vim mode: map two-key insert-mode sequences (e.g. "jj") to a target; per docs "<Esc>" is the only supported target today, kept permissive
 });
 
 export type Settings = z.infer<typeof Settings>;
