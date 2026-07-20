@@ -4,6 +4,31 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.4.0] — 2026-07-16
+
+Upstream sync with Claude Code v2.1.211 (from v2.1.205). Headline: migrated the shipped permission rules off the newly deprecated `Write(path)`/`Glob(path)`/`NotebookEdit(path)` forms before they start warning at every session start.
+
+**Adopted:**
+- Migrated `config/30-permissions.json` off `Write(path)`/`NotebookEdit(path)`/`Glob(path)` permission rules, which trigger a startup warning as of 2.1.210 (`Edit(path)`/`Read(path)` rules now govern those tools). Allow list: dropped `Write(*)`, `Glob(*)`, `NotebookEdit(*)` — already covered by `Edit(*)` and `Read(*)`. Deny list: converted the eight `Write(~/...)` rules to `Edit(~/...)` equivalents (deduped against the two pre-existing `Edit` denies). This also closes audit finding M22 (Write-only deny rules were bypassable via the wildcard-allowed Edit tool).
+- Added the migrated rules to `DEPRECATED_PERMISSION_PATTERNS` in `src/lib/settings-merge.ts` so existing installs prune the stale forms on next sync instead of keeping them alive as "user extras". Exact-match patterns only — user-authored `Write(...)` rules are left untouched.
+- `axScreenReader` setting (2.1.208, screen-reader plain-text rendering) in `src/schemas/settings.ts`, manifest, and docs; env counterpart `CLAUDE_AX_SCREEN_READER` in manifest + docs env table.
+- `vimInsertModeRemaps` setting (2.1.208, two-key insert-mode sequences → `<Esc>` in vim mode) in `src/schemas/settings.ts`, manifest, and docs.
+- `CLAUDE_CODE_PROCESS_WRAPPER` env var (2.1.208, corporate launcher wrapper for self-spawns) in manifest + docs env table.
+- `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` env var (2.1.211, include subagent text/thinking in `stream-json` output; pairs with `--forward-subagent-text`) in manifest + docs env table.
+- `request_timeout_ms` per-server field in `src/schemas/mcp.ts` (`mcpCommon`) — 2.1.206 fixed it being ignored for `--mcp-config`/`.mcp.json` servers.
+
+**Skipped:** the rest of 2.1.206–2.1.211 is bug fixes and TUI polish with no cc-settings contract surface (auto-mode availability on Bedrock/Vertex/Foundry was already covered by the existing `disableAutoMode` key; plugin `${user_config.*}` shell-form rejection — cc-settings hooks already use exec form).
+
+**Files changed:**
+- config/30-permissions.json
+- src/lib/settings-merge.ts
+- src/schemas/settings.ts
+- src/schemas/mcp.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [12.3.1] — 2026-07-14
 
 Restart-pending banner now actually clears when you restart a resumed session.

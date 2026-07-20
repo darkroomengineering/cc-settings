@@ -22,6 +22,9 @@ const mcpCommentary = {
 // `ENABLE_TOOL_SEARCH`. Use for hot-path servers (e.g. docs lookup).
 const mcpCommon = {
   alwaysLoad: z.boolean().optional(),
+  // Per-server MCP tool-call timeout in ms (overrides the 60s default).
+  // 2.1.206 fixed it being ignored for `--mcp-config` / `.mcp.json` servers.
+  request_timeout_ms: z.number().int().positive().optional(),
 };
 
 // stdio transport: command + args + env. No `type` field (or `type: "stdio"`).

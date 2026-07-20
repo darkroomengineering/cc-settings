@@ -92,6 +92,23 @@ export const DEPRECATED_PERMISSION_PATTERNS: RegExp[] = [
   // Rules naming it were removed from config/ in v12.2.6; prune the
   // stragglers that the union merge kept alive on existing installs.
   /^MultiEdit\(/,
+  // Claude Code 2.1.210 deprecated Write(path)/NotebookEdit(path)/Glob(path)
+  // rules (Edit/Read rules now govern those tools; the old forms warn at
+  // startup). Only the exact rules cc-settings shipped are pruned — v12.4.0
+  // replaced them with Edit(...) equivalents in config/30-permissions.json.
+  // User-authored Write/Glob/NotebookEdit rules are left alone: pruning a
+  // custom deny rule without rewriting it would silently drop protection.
+  /^Write\(\*\)$/,
+  /^Glob\(\*\)$/,
+  /^NotebookEdit\(\*\)$/,
+  /^Write\(~\/\.ssh\/\*\)$/,
+  /^Write\(~\/\.aws\/\*\)$/,
+  /^Write\(~\/\.gnupg\/\*\)$/,
+  /^Write\(~\/\.bashrc\)$/,
+  /^Write\(~\/\.zshrc\)$/,
+  /^Write\(~\/\.bash_profile\)$/,
+  /^Write\(~\/\.claude\/settings\.json\)$/,
+  /^Write\(~\/\.claude\.json\)$/,
 ];
 
 export function permissionRuleIsDeprecated(rule: string): boolean {

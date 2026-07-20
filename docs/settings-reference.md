@@ -51,6 +51,9 @@ Environment variables injected into every Claude Code session.
 |----------|--------|-------------|
 | `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins `high` — matching Opus 4.8's own default ([model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)), a deliberate cost choice: the `xhigh` ladder allocates materially more thinking tokens per turn on 4.8/Fable and that compounds across every inheriting subagent. Raise to `/effort xhigh` per session for audits, migrations, or hard debugging. Sonnet 5 is the first Sonnet tier to support the full `low`→`xhigh` range (previous Sonnet releases capped below `xhigh`) — Sonnet subagents can take `xhigh` for hard fan-out work when explicitly raised |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
+| `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode (flat plain-text rendering); env counterpart of `axScreenReader` / `--ax-screen-reader` (v2.1.208) |
+| `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper (v2.1.208) |
+| `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` (v2.1.211) |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
 | `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Extends prompt cache TTL from 5 min → 1 hour. cc-settings enables this (v2.1.108+) |
@@ -524,6 +527,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `autoUpdatesChannel` | `"stable"` \| `"latest"` | G | Release channel to track for automatic updates |
 | `availableModels` | string[] | E | Restrict the model picker to this list |
 | `awaySummaryEnabled` | boolean | U | Show a session recap on re-entry after background work |
+| `axScreenReader` | boolean | U | Screen-reader mode: flat plain-text rendering without borders or animations; also `--ax-screen-reader` or `CLAUDE_AX_SCREEN_READER=1` (v2.1.208) |
 | `awsAuthRefresh` | string | A | Shell command called to refresh AWS credentials |
 | `awsCredentialExport` | string | A | Shell command that exports AWS credential env vars |
 | `blockedMarketplaces` | string[] | E | Marketplace IDs users cannot install from |
@@ -603,6 +607,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `tui` | `"fullscreen"` \| `"default"` | U | TUI rendering mode (`fullscreen` uses alternate screen) |
 | `useAutoModeDuringPlan` | boolean | G | Run auto-mode during the plan phase |
 | `viewMode` | `"default"` \| `"verbose"` \| `"focus"` | U | Controls how much detail the TUI shows |
+| `vimInsertModeRemaps` | object | U | Vim mode: map two-key insert-mode sequences (e.g. `"jj"`) to `"<Esc>"` (v2.1.208) |
 | `voice` | object | U | Voice input/output configuration object |
 | `voiceEnabled` | boolean | U | Enable the voice interface |
 | `wheelScrollAccelerationEnabled` | boolean | U | Toggle mouse-wheel scroll acceleration in fullscreen mode (v2.1.174) |
@@ -645,7 +650,7 @@ Patterns follow the format `ToolName(argument-pattern)`:
 | `Bash(rm -rf node_modules)` | Exact command `rm -rf node_modules` only |
 | `Read(*)` | Reading any file |
 | `Read(~/.ssh/*)` | Reading files in `~/.ssh/` directory |
-| `Write(~/.claude/settings.json)` | Writing to that specific file |
+| `Edit(~/.claude/settings.json)` | Writing to that specific file (as of v2.1.210, `Edit(path)` rules also govern the Write and NotebookEdit tools; `Write(path)`/`NotebookEdit(path)`/`Glob(path)` rules trigger a startup warning) |
 | `Bash(curl * \| bash)` | Any curl-to-bash pipe pattern |
 | `Bash(sudo:*)` | Any command starting with `sudo` |
 | `Agent(model:opus)` | Match a tool's input *parameter* — here, block Opus subagents (v2.1.178) |
@@ -745,13 +750,10 @@ Bash(rm -rf dist)
 Bash(rm -rf .turbo)
 Bash(rm *.tmp)
 Read(*)
-Write(*)
 Edit(*)
-Glob(*)
 Grep(*)
 LS(*)
 TodoWrite(*)
-NotebookEdit(*)
 ```
 
 **Deny**
@@ -786,9 +788,9 @@ Bash(cp ~/.gnupg/*:*)
 Bash(mv ~/.ssh/*:*)
 Bash(mv ~/.aws/*:*)
 Bash(mv ~/.gnupg/*:*)
-Write(~/.ssh/*)
-Write(~/.aws/*)
-Write(~/.gnupg/*)
+Edit(~/.ssh/*)
+Edit(~/.aws/*)
+Edit(~/.gnupg/*)
 Bash(git push --force:*)
 Bash(git push -f:*)
 Bash(git push -uf:*)
@@ -822,11 +824,9 @@ Read(~/.bash_profile)
 Read(~/.npmrc)
 Read(~/.docker/config.json)
 Read(~/.kube/config)
-Write(~/.bashrc)
-Write(~/.zshrc)
-Write(~/.bash_profile)
-Write(~/.claude/settings.json)
-Write(~/.claude.json)
+Edit(~/.bashrc)
+Edit(~/.zshrc)
+Edit(~/.bash_profile)
 Edit(~/.claude/settings.json)
 Edit(~/.claude.json)
 Bash(gh repo delete:*)

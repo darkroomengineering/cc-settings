@@ -63,16 +63,16 @@ describe("permissionsStrategy", () => {
   test("user-only allow rules are preserved", async () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)"] };
-    const user = { allow: ["Bash(*)", "Write(*)", "Edit(*)"] };
+    const user = { allow: ["Bash(*)", "Grep(*)", "Edit(*)"] };
     const result = await permissionsStrategy("permissions", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
     const allow = merged.allow as string[];
     expect(allow).toContain("Bash(*)");
-    expect(allow).toContain("Write(*)");
+    expect(allow).toContain("Grep(*)");
     expect(allow).toContain("Edit(*)");
-    expect(ctx.accounting.permissionsAdded).toBe(2); // Write and Edit are user-only
+    expect(ctx.accounting.permissionsAdded).toBe(2); // Grep and Edit are user-only
   });
 
   test("null permissions on both sides → keep:true (null coerces to empty object, not absent)", async () => {
@@ -151,6 +151,29 @@ describe("permissionsStrategy", () => {
       ["multiedit(*)", false],
       ["Edit(*)", false],
       ["Bash(MultiEdit(*))", false],
+    ];
+    for (const [rule, expected] of cases) {
+      expect(permissionRuleIsDeprecated(rule)).toBe(expected);
+    }
+  });
+
+  test("permissionRuleIsDeprecated prunes only the exact shipped Write/Glob/NotebookEdit rules (v12.4.0)", () => {
+    const cases: Array<[string, boolean]> = [
+      // exact rules cc-settings shipped pre-12.4.0 → pruned
+      ["Write(*)", true],
+      ["Glob(*)", true],
+      ["NotebookEdit(*)", true],
+      ["Write(~/.ssh/*)", true],
+      ["Write(~/.claude/settings.json)", true],
+      ["Write(~/.claude.json)", true],
+      // user-authored rules for the same tools → left alone (pruning a custom
+      // deny without rewriting it to Edit(...) would silently drop protection)
+      ["Write(~/secrets/*)", false],
+      ["Glob(/etc/*)", false],
+      ["NotebookEdit(~/notebooks/*)", false],
+      // replacements → never pruned
+      ["Edit(~/.ssh/*)", false],
+      ["Read(*)", false],
     ];
     for (const [rule, expected] of cases) {
       expect(permissionRuleIsDeprecated(rule)).toBe(expected);
