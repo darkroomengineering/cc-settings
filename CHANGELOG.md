@@ -4,7 +4,9 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [12.5.0] — 2026-07-20
+
+Three-part release from a single audit-driven session: the nuclear-review whole-codebase remediation, the `adhd` divergent-ideation skill, and the always-on action-first output style.
 
 Action-first output style — the 10 response-shaping rules from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT), integrated as an always-on `CLAUDE-FULL.md` section rather than a 40th skill: lead with the next action, number multi-step work, restate state each turn, concrete time estimates, visible wins, matter-of-fact errors, 5-item list cap, no preamble/recap/closers — plus the upstream override cases (explain-mode, destructive-action confirmation, debug-spiral circuit breaker, ambiguity) and pre-send check. Renamed from the upstream "i-have-adhd" to avoid trigger-space collision with the unrelated `adhd` ideation skill; condensed ~120 lines to ~40 for per-session context cost. Surfaced in MANUAL.md's Guardrails list.
 

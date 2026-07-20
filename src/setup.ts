@@ -64,7 +64,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.4.1"; // Claude Code 2.1.215 sync: session-cap + MCP auto-background + OTel env vars, EndConversation tool
+const VERSION = "12.5.0"; // nuclear-review remediation + adhd ideation skill + action-first output style
 
 // --- Arg parsing ---------------------------------------------------------
 
