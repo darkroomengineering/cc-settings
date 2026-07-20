@@ -29,6 +29,7 @@
 /** Currently shipped skills — present in skills/<name>/SKILL.md, installed to
  *  ~/.claude/skills/<name>/. Keep in sync with the skills/ directory. */
 export const ACTIVE_SKILLS = [
+  "adhd",
   "adversarial-audit",
   "autoresearch",
   "build",

@@ -11,7 +11,7 @@ cc-settings ships two install tiers. Both are **supported permanent lanes** — 
 
 | | Light (`--light`) | Full (default) |
 |--|---|---|
-| **Skills** | `share-learning` only | All 38 headline skills |
+| **Skills** | `share-learning` only | All 39 headline skills |
 | **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
 | **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
 | **Hooks** | StatusLine only | All hooks active |
@@ -98,7 +98,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 38 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 39 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -175,6 +175,8 @@ Triggers `/plan-feature` — two-phase: structured discovery interview to clarif
 ### Get Expert Advice / Risks / Compare
 
 Say: *"what should I use for state management?"* / *"what could go wrong?"* / *"compare Zustand vs Jotai"*
+
+Triggers `/adhd` — parallel divergent ideation, ported from [UditAkhourii/adhd](https://github.com/UditAkhourii/adhd) (MIT). Five isolated generator agents run in parallel, each under a different cognitive frame (regulator, biology, speedrunner, 10-year-old, zero-budget, ...), banned from evaluating and banned from the three obvious answers. A critic pass then scores each idea (novelty/viability/fit), clusters by underlying angle, flags traps, and deepens the top 3 with risks and first steps. Expensive by design (~10 Agent calls) — a pre-flight gate answers directly instead when the question is canonical, low-stakes, or phrased for a quick answer. Generators run on the Sonnet subagent pool; only the synthesis costs Opus/Fable. Use `/adhd` to generate the option space, `/oracle` compare to weigh options you already have.
 
 Triggers `/oracle` — three modes:
 - **Advice** (`what should I`, `how should I`, `advice on`) — authoritative architectural guidance
@@ -532,6 +534,7 @@ These are enforced automatically — no skill needed:
 | `proof-of-work` | proof of work, review-ready, verify before review, prove it is green |
 | `review-batch` | review batch, review all the agents, what's pending review, catch up on agent work |
 | `oracle` | advice, what should I, risks, what could go wrong, compare approaches, trade-off analysis |
+| `adhd` | /adhd, brainstorm, ideate, widen the option space, divergent ideas |
 | `plan-feature` | help me figure out, vague scope, define requirements, PRD, requirements document, product spec |
 | `orchestrate` | complex task, coordinate, parallel agents, overnight, long running, autonomous task, marathon |
 | `project` | project status, update the issue |
