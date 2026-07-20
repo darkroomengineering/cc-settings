@@ -54,6 +54,10 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode (flat plain-text rendering); env counterpart of `axScreenReader` / `--ax-screen-reader` (v2.1.208) |
 | `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper (v2.1.208) |
 | `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` (v2.1.211) |
+| `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200) — stops runaway search loops (v2.1.212) |
+| `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Per-session cap on subagent spawns (default 200); `/clear` resets the budget — relevant to fan-out-heavy delegation (v2.1.212) |
+| `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable (v2.1.212) |
+| `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) (v2.1.214) |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
 | `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Extends prompt cache TTL from 5 min → 1 hour. cc-settings enables this (v2.1.108+) |
