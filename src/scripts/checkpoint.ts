@@ -12,19 +12,21 @@
 //
 // Usage: checkpoint.ts <save|list|show|restore|clean> [args]
 
-import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import {
   listArtifacts,
   pointLatest,
+  pruneArtifacts,
   readLatestTarget,
   resolveArtifact,
   timestampId,
 } from "../lib/artifact-store.ts";
 import { palette } from "../lib/colors.ts";
 import { runGit, runProcessFull } from "../lib/git.ts";
+import { parseIntArg } from "../lib/hook-config.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 
 async function getProjectName(): Promise<string> {
@@ -362,46 +364,31 @@ async function cmdRestore(target: string, opts: { force: boolean }): Promise<num
 }
 
 async function cmdClean(keepStr: string): Promise<void> {
-  // `|| 10` would misread an explicit "0" (delete all checkpoints) as unset,
-  // silently reviving the default of 10. Only NaN (unparseable) falls back.
-  const parsedKeep = Number.parseInt(keepStr, 10);
-  const keep = Number.isNaN(parsedKeep) ? 10 : parsedKeep;
+  // An explicit "0" must delete all checkpoints, not silently revive the
+  // default of 10 — parseIntArg only falls back on genuine NaN.
+  const keep = parseIntArg(keepStr, 10);
   const project = await getProjectName();
   const checkpointDir = claudePath("checkpoints", project);
   await ensureDir(checkpointDir);
-  const names = await listArtifacts(checkpointDir, /\.json$/);
-  // Per-entry catch: a single stat failure (e.g. ENOENT from a file removed by
-  // a concurrent clean/save between listArtifacts' readdir and this lstatSync)
-  // must only drop that one entry, not discard the whole already-enumerated
-  // listing.
-  const entries: Array<{ file: string; mtime: number }> = [];
-  for (const name of names) {
-    const full = join(checkpointDir, name);
-    try {
-      entries.push({ file: full, mtime: lstatSync(full).mtimeMs });
-    } catch {
-      // skip: vanished between readdir and stat
-    }
-  }
-  entries.sort((a, b) => b.mtime - a.mtime);
-  if (entries.length <= keep) {
+  const total = (await listArtifacts(checkpointDir, /\.json$/)).length;
+  const toDelete = await pruneArtifacts(checkpointDir, /\.json$/, keep);
+  if (toDelete.length === 0) {
     console.log(
-      `${palette.green}Nothing to clean. ${entries.length} checkpoints (keep: ${keep}).${palette.reset}`,
+      `${palette.green}Nothing to clean. ${total} checkpoints (keep: ${keep}).${palette.reset}`,
     );
     return;
   }
-  const toDelete = entries.slice(keep);
   console.log(
     `${palette.yellow}Removing ${toDelete.length} old checkpoints (keeping ${keep})...${palette.reset}`,
   );
-  for (const e of toDelete) {
+  for (const file of toDelete) {
     try {
-      await unlink(e.file);
+      await unlink(file);
     } catch {
       // ignore
     }
     // Best-effort: drop the sibling patch file too, if one was captured.
-    const patchGuess = e.file.replace(/\.json$/, ".patch");
+    const patchGuess = file.replace(/\.json$/, ".patch");
     try {
       await unlink(patchGuess);
     } catch {

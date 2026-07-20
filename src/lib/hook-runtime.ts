@@ -70,6 +70,18 @@ export function blockDecision(reason: string): never {
   process.exit(2);
 }
 
+/** Emit a hookSpecificOutput.additionalContext message on stdout — the
+ *  non-blocking counterpart to blockDecision. Shared by every hook that
+ *  surfaces a nudge/reminder to the model (tool-cadence, delegation-detector,
+ *  quota-steer, promote-memory) so the JSON shape can't drift between them. */
+export function emitAdditionalContext(hookEventName: string, context: string): void {
+  console.log(
+    JSON.stringify({
+      hookSpecificOutput: { hookEventName, additionalContext: context },
+    }),
+  );
+}
+
 /** Run a hook main() with the cc-settings fail-open convention. Catches and
  *  swallows any error so a hook never blocks a tool call. */
 export async function runHook(main: () => Promise<void>): Promise<void> {

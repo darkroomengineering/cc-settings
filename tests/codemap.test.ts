@@ -3,11 +3,15 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  getArch,
+  getCalls,
+  getChangeImpact,
   getContext,
   getImpact,
   getImporters,
   getStatus,
   getStructure,
+  getTree,
 } from "../src/codemap/index.ts";
 
 // Two-file TypeScript fixture: a.ts exports foo/bar (bar calls foo); b.ts
@@ -75,4 +79,43 @@ describe("native codemap", () => {
     expect(ctx).not.toBeNull();
     expect(ctx?.callers.length ?? 0).toBeGreaterThan(0);
   });
+
+  test.skipIf(!engineAvailable)("arch reports per-file export/import counts", async () => {
+    const arch = await getArch(dir);
+    expect(arch).not.toBeNull();
+    const a = arch?.modules.find((m) => m.file === "a.ts");
+    const b = arch?.modules.find((m) => m.file === "b.ts");
+    expect(a?.exports).toBe(2); // foo, bar
+    expect(a?.imports).toBe(0);
+    expect(b?.exports).toBe(1); // useFoo
+    expect(b?.imports).toBe(1); // "./a"
+  });
+
+  test.skipIf(!engineAvailable)("tree lists in-project source files", async () => {
+    const tree = await getTree(dir);
+    expect(tree).not.toBeNull();
+    expect(tree?.files).toContain("a.ts");
+    expect(tree?.files).toContain("b.ts");
+  });
+
+  test.skipIf(!engineAvailable)("calls finds name-based call edges", async () => {
+    const calls = await getCalls(dir);
+    expect(calls).not.toBeNull();
+    expect(calls?.edges.some((e) => e.from === "bar" && e.to === "foo")).toBe(true);
+    expect(calls?.edges.some((e) => e.from === "useFoo" && e.to === "foo")).toBe(true);
+  });
+
+  test.skipIf(!engineAvailable)(
+    "changeImpact returns empty sets outside a git working tree",
+    async () => {
+      // The fixture dir lives under os.tmpdir() and is not a git repo, so
+      // runGit's diff calls fail closed (empty stdout) — this exercises the
+      // "no changes / not a repo" path without needing a real git fixture.
+      const impact = await getChangeImpact(dir);
+      expect(impact).not.toBeNull();
+      expect(impact?.changedFiles).toEqual([]);
+      expect(impact?.changedSymbols).toEqual([]);
+      expect(impact?.affected).toEqual([]);
+    },
+  );
 });

@@ -3,7 +3,7 @@
 // prepend a system reminder pointing at Agent(maestro) before the model plans.
 // Fail-open: any error → silent success (never block the prompt).
 
-import { readHookInput, runHook } from "../lib/hook-runtime.ts";
+import { emitAdditionalContext, readHookInput, runHook } from "../lib/hook-runtime.ts";
 
 const BREADTH_PHRASES: RegExp[] = [
   /do all\b/i,
@@ -62,14 +62,7 @@ async function main(): Promise<void> {
     `Agent(implementer) for multi-file changes, or parallel agents in ONE message. ` +
     `Overriding requires a one-line stated reason.`;
 
-  console.log(
-    JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: "UserPromptSubmit",
-        additionalContext: msg,
-      },
-    }),
-  );
+  emitAdditionalContext("UserPromptSubmit", msg);
 }
 
 await runHook(main);

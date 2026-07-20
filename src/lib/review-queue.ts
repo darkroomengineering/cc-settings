@@ -17,6 +17,9 @@
 //
 // Pure logic only (no I/O) so it's unit-testable; tool-cadence.ts wraps it.
 
+import { z } from "zod";
+import { intEnv } from "./hook-config.ts";
+
 export interface ReviewQueueState {
   /** Agent tool calls since the last commit. */
   awaiting: number;
@@ -30,6 +33,21 @@ export interface ReviewQueueState {
    *  `git commit` event. */
   lastHead?: string;
 }
+
+// Shape-validated the same way version-delta.ts / quota.ts schema-adjacent
+// state validate on read: review-queue.json is hand-editable and every
+// consumer (statusline.ts, tool-cadence.ts, session-start.ts, review-batch.ts)
+// must degrade to "absent"/default on corruption instead of feeding
+// NaN/garbage downstream — repo policy stated at version-delta.ts:250-256.
+// Kept in lockstep with ReviewQueueState by hand (no z.infer here) since the
+// interface predates the schema and several call sites narrow to a partial
+// shape (e.g. `{ awaiting: number }`).
+export const ReviewQueueStateSchema = z.object({
+  awaiting: z.number(),
+  firstSpawnAt: z.number().optional(),
+  firedAt: z.number().optional(),
+  lastHead: z.string().optional(),
+});
 
 export const DEBOUNCE_MS = 60_000;
 const DEFAULT_MAX = 5;
@@ -48,11 +66,12 @@ export function minReviewSeconds(): number {
   return positiveIntEnv("CC_MIN_REVIEW_SECONDS", DEFAULT_MIN_REVIEW_S);
 }
 
+/** intEnv + a positivity clamp: unlike intEnv (which allows 0/negative), these
+ *  two thresholds must be positive to mean anything, so 0/negative also falls
+ *  back to `fallback`. */
 function positiveIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined) return fallback;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+  const n = intEnv(name, fallback);
+  return n > 0 ? n : fallback;
 }
 
 /** Agent types that cannot leave a working-tree diff, so spawning one adds

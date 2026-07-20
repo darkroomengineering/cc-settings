@@ -14,11 +14,13 @@ import { basename, join } from "node:path";
 import {
   listArtifacts,
   pointLatest,
+  pruneArtifacts,
   readLatestTarget,
   resolveArtifact,
   timestampId,
 } from "../lib/artifact-store.ts";
 import { runGit, runProcessFull } from "../lib/git.ts";
+import { parseIntArg } from "../lib/hook-config.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 
 // Pre-per-project-scoping global directory. Kept as a one-time READ fallback
@@ -98,17 +100,25 @@ async function cmdCreate(args: string[]): Promise<void> {
   let gitBranch = "";
   let gitStatus = "";
   let recentCommits: string[] = [];
+  // rev-parse gates the rest (not-a-repo early exit) — must run first. The
+  // three reads that only make sense once we know we're in a repo are
+  // independent of each other, so they run as one parallel wave (mirrors
+  // checkpoint.ts's performSave Promise.all shape) instead of three
+  // sequential awaits on this PreCompact hot path.
   const gitDir = await runGit(["rev-parse", "--git-dir"]);
   if (gitDir) {
-    gitBranch = await runGit(["branch", "--show-current"]);
-    // runGit trims the WHOLE output, which would eat the leading space off the
-    // first porcelain line (format is `XY path`, and X is often a literal
-    // space) — that shifts every downstream fixed-offset slice by one
-    // character on just the first entry. runProcessFull leaves stdout
-    // untouched, so the two-char status prefix stays a stable width.
-    const statusRes = await runProcessFull("git", ["status", "--porcelain"]);
+    const [branchOut, statusRes, logOut] = await Promise.all([
+      runGit(["branch", "--show-current"]),
+      // runGit trims the WHOLE output, which would eat the leading space off
+      // the first porcelain line (format is `XY path`, and X is often a
+      // literal space) — that shifts every downstream fixed-offset slice by
+      // one character on just the first entry. runProcessFull leaves stdout
+      // untouched, so the two-char status prefix stays a stable width.
+      runProcessFull("git", ["status", "--porcelain"]),
+      runGit(["log", "-3", "--pretty=%s"]),
+    ]);
+    gitBranch = branchOut;
     gitStatus = statusRes.stdout.split("\n").filter(Boolean).slice(0, 20).join("\n");
-    const logOut = await runGit(["log", "-3", "--pretty=%s"]);
     recentCommits = logOut ? logOut.split("\n").filter(Boolean) : [];
   }
   const modifiedFiles = gitStatus
@@ -259,39 +269,22 @@ async function cmdList(): Promise<void> {
 // Mirrors checkpoint.ts's cmdClean shape, but prunes both the .json and .md
 // artifact per handoff (cleanupHandoffs in session-start.ts already does this
 // on every session start with keep=20 — this is the on-demand equivalent).
-// Falsy-zero guard: `clean 0` must delete everything, so `Number.isNaN` is
-// used instead of `parsed || DEFAULT` (which would treat 0 as "unset").
 // Operates on the project-scoped dir only (the write-side store) — it does not
 // reach into the legacy global dir that resolveHandoffDir() falls back to for
 // reads.
 const DEFAULT_KEEP = 20;
 
 async function cmdClean(keepStr: string): Promise<void> {
-  const parsed = Number.parseInt(keepStr, 10);
-  const keep = Number.isNaN(parsed) ? DEFAULT_KEEP : parsed;
+  // An explicit "0" must delete everything, not silently revive DEFAULT_KEEP
+  // — parseIntArg only falls back on genuine NaN.
+  const keep = parseIntArg(keepStr, DEFAULT_KEEP);
 
   const handoffDir = await projectHandoffDir();
   await mkdir(handoffDir, { recursive: true });
 
-  const stale = async (pattern: RegExp): Promise<string[]> => {
-    const names = await listArtifacts(handoffDir, pattern);
-    const entries: Array<{ file: string; mtime: number }> = [];
-    for (const name of names) {
-      const full = join(handoffDir, name);
-      try {
-        const st = await stat(full);
-        entries.push({ file: full, mtime: st.mtimeMs });
-      } catch {
-        // ignore
-      }
-    }
-    entries.sort((a, b) => b.mtime - a.mtime);
-    return entries.slice(keep).map((e) => e.file);
-  };
-
   const [jsonDrop, mdDrop] = await Promise.all([
-    stale(/^handoff_.*\.json$/),
-    stale(/^handoff_.*\.md$/),
+    pruneArtifacts(handoffDir, /^handoff_.*\.json$/, keep),
+    pruneArtifacts(handoffDir, /^handoff_.*\.md$/, keep),
   ]);
   const toDelete = [...jsonDrop, ...mdDrop];
 

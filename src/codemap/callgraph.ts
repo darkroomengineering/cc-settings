@@ -12,6 +12,7 @@ import {
   getContext as buildContext,
   type CodemapContext,
   enclosingName,
+  inProjectSourceFiles,
   lineOf,
   relPath,
 } from "./program.ts";
@@ -30,11 +31,6 @@ function calleeName(ts: typeof import("typescript"), expr: TS.Expression): strin
   if (ts.isIdentifier(expr)) return expr.text;
   if (ts.isPropertyAccessExpression(expr)) return expr.name.text;
   return undefined;
-}
-
-function inProjectSourceFiles(ctx: CodemapContext): TS.SourceFile[] {
-  const roots = new Set(ctx.rootFiles);
-  return ctx.program.getSourceFiles().filter((sf) => roots.has(sf.fileName));
 }
 
 export async function getCalls(projectDir: string): Promise<CallsResult | null> {

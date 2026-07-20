@@ -15,7 +15,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
-import { readHookInput, runHook } from "../lib/hook-runtime.ts";
+import { emitAdditionalContext, readHookInput, runHook } from "../lib/hook-runtime.ts";
 import { atomicWriteJson, readJsonOrNull } from "../lib/json-io.ts";
 import { claudePath } from "../lib/platform.ts";
 
@@ -102,14 +102,7 @@ async function main(): Promise<void> {
     `Saved a \`${memType}\` learning locally (${nameLabel}). ` +
     `If another teammate's agent would benefit, promote it to the shared board: run /share-learning. Otherwise ignore.`;
 
-  console.log(
-    JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: "PostToolUse",
-        additionalContext: msg,
-      },
-    }),
-  );
+  emitAdditionalContext("PostToolUse", msg);
 }
 
 // Guard behind import.meta.main (same pattern as src/schemas/emit.ts and

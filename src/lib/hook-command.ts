@@ -24,6 +24,15 @@ import { HooksBlock } from "../schemas/hooks.ts";
 export const MANAGED_HOOK_CMD: RegExp =
   /^bun[ \t]+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks)\/[a-zA-Z0-9_-]+\.ts)"?(?:[ \t]+[A-Za-z0-9_.:=/-]+)*[ \t]*$/;
 
+// Shell-segment separator: splits a compound command on ; && || and newline
+// variants including U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR.
+// The \uNNNN escapes stay as explicit codepoints in the source text rather
+// than invisible literal characters (encoding-safe).
+// Shared by audit-hooks.ts's compound-command classifier and safety-net.ts's
+// destructive-command segment splitter — the two legitimately differ in what
+// they DO with each segment, but must agree on where a command splits.
+export const SHELL_SEGMENT_SEP_RE = /\s*(?:;|&&|\|\||\r?\n|\r|\u2028|\u2029)\s*/;
+
 export interface ParsedHookCommand {
   raw: string;
   /** true iff a bun invocation of ~/.claude/src/{scripts,hooks}/<name>.ts */

@@ -140,6 +140,14 @@ export async function getContext(projectDir: string): Promise<CodemapContext | n
 
 // --- AST helpers (shared across structure/imports/callgraph) ----------------
 
+/** In-project source files from the built program, filtered to `ctx.rootFiles`
+ *  (excludes .d.ts and node_modules, which `program.getSourceFiles()` alone
+ *  does not). Shared by callgraph.ts and structure.ts. */
+export function inProjectSourceFiles(ctx: CodemapContext): TS.SourceFile[] {
+  const roots = new Set(ctx.rootFiles);
+  return ctx.program.getSourceFiles().filter((sf) => roots.has(sf.fileName));
+}
+
 /** Posix-relative path from the project root. */
 export function relPath(projectDir: string, fileName: string): string {
   return relative(projectDir, fileName).split(sep).join("/");

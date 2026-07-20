@@ -23,7 +23,7 @@ import { z } from "zod";
 import { ensurePinnedEngine, installedBinaryPath, verifyPinnedEngine } from "./engine-pin.ts";
 import { ensurePythonPackage } from "./packages.ts";
 import { CLAUDE_DIR, hasCommand } from "./platform.ts";
-import { readSentinelInfo } from "./version-delta.ts";
+import { readSentinelInfo, type SentinelInfo } from "./version-delta.ts";
 
 // Re-export so engine-pin's path helper stays the public surface through this
 // module — callers import everything engine-related from here.
@@ -171,13 +171,24 @@ export function getEngine(id: string, claudeDir: string = CLAUDE_DIR): EngineDes
   return finalize(base as EngineDescriptor, claudeDir);
 }
 
-/** Resolve the active engine: env override > install sentinel > default.
- *  An unknown id at any tier resolves to the default via getEngine. Never throws. */
-export async function resolveEngine(claudeDir: string = CLAUDE_DIR): Promise<EngineDescriptor> {
+/**
+ * Resolve the active engine: env override > install sentinel > default. An
+ * unknown id at any tier resolves to the default via getEngine. Never throws.
+ *
+ * `sentinel`, when provided, is used instead of re-reading
+ * `.cc-settings-version` from disk — for callers (src/setup.ts main()) that
+ * already read the sentinel once for other purposes (N10: avoid reading the
+ * same file three times per install). Every other caller omits it and gets
+ * the original internal-read behavior.
+ */
+export async function resolveEngine(
+  claudeDir: string = CLAUDE_DIR,
+  sentinel?: SentinelInfo,
+): Promise<EngineDescriptor> {
   const envId = process.env.CC_CODE_INTEL_ENGINE;
   if (envId) return getEngine(envId, claudeDir);
-  const sentinel = await readSentinelInfo(claudeDir).catch(() => null);
-  if (sentinel?.engine) return getEngine(sentinel.engine, claudeDir);
+  const info = sentinel ?? (await readSentinelInfo(claudeDir).catch(() => null));
+  if (info?.engine) return getEngine(info.engine, claudeDir);
   return getEngine(DEFAULT_ENGINE_ID, claudeDir);
 }
 

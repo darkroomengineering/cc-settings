@@ -21,9 +21,14 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AgentFrontmatter } from "../schemas/agent.ts";
 import { extractFrontmatterBlock } from "./frontmatter.ts";
-import { lintFrontmatterCore } from "./lint-frontmatter.ts";
+import {
+  formatLintFindings,
+  hasLintErrors,
+  type LintSeverity,
+  lintFrontmatterCore,
+} from "./lint-frontmatter.ts";
 
-export type AgentSeverity = "error" | "warning";
+export type AgentSeverity = LintSeverity;
 
 export interface AgentFinding {
   agent: string;
@@ -125,22 +130,12 @@ export async function lintAgentsDir(agentsDir: string): Promise<AgentLintResult>
 }
 
 export function formatAgentFindings(result: AgentLintResult): string {
-  const errors = result.findings.filter((f) => f.severity === "error");
-  const warnings = result.findings.filter((f) => f.severity === "warning");
-
-  const lines: string[] = [];
-  lines.push(`Linted ${result.agentCount} agent(s).`);
-
-  for (const f of result.findings) {
-    const icon = f.severity === "error" ? "✖" : "⚠";
-    lines.push(`  ${icon} ${f.agent} [${f.rule}] ${f.message}`);
-  }
-
-  lines.push("");
-  lines.push(`${errors.length} error(s), ${warnings.length} warning(s).`);
-  return lines.join("\n");
+  return formatLintFindings(result.findings, result.agentCount, {
+    noun: "agent",
+    getItem: (f) => f.agent,
+  });
 }
 
 export function hasAgentErrors(result: AgentLintResult): boolean {
-  return result.findings.some((f) => f.severity === "error");
+  return hasLintErrors(result.findings);
 }

@@ -11,10 +11,15 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SkillFrontmatter } from "../schemas/skill.ts";
 import { extractFrontmatterBlock, KEBAB_CASE_RE } from "./frontmatter.ts";
-import { lintFrontmatterCore } from "./lint-frontmatter.ts";
+import {
+  formatLintFindings,
+  hasLintErrors,
+  type LintSeverity,
+  lintFrontmatterCore,
+} from "./lint-frontmatter.ts";
 import { ACTIVE_SKILLS } from "./managed-skills.ts";
 
-export type SkillSeverity = "error" | "warning";
+export type SkillSeverity = LintSeverity;
 
 export interface LintFinding {
   skill: string;
@@ -232,23 +237,13 @@ export async function lintSkillsDir(
 }
 
 export function formatFindings(result: LintResult): string {
-  const errors = result.findings.filter((f) => f.severity === "error");
-  const warnings = result.findings.filter((f) => f.severity === "warning");
-
-  const lines: string[] = [];
-  lines.push(`Linted ${result.skillCount} skill(s).`);
-
-  for (const f of result.findings) {
-    const icon = f.severity === "error" ? "✖" : "⚠";
-    lines.push(`  ${icon} ${f.skill} [${f.rule}] ${f.message}`);
-  }
-
-  lines.push("");
-  lines.push(`${errors.length} error(s), ${warnings.length} warning(s).`);
-  return lines.join("\n");
+  return formatLintFindings(result.findings, result.skillCount, {
+    noun: "skill",
+    getItem: (f) => f.skill,
+  });
 }
 
 // For consumers that just want to gate CI on errors only.
 export function hasErrors(result: LintResult): boolean {
-  return result.findings.some((f) => f.severity === "error");
+  return hasLintErrors(result.findings);
 }

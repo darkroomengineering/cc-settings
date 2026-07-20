@@ -16,8 +16,6 @@
 //                      MCP servers, effort override, or permission rules.
 //   --help, -h         Usage.
 
-import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
@@ -35,15 +33,15 @@ import {
 } from "./lib/hooks-fingerprint.ts";
 import { cmdRollback, printHelp } from "./lib/install-cmds.ts";
 import { cmdDryRun, printStatus, showSummary } from "./lib/install-display.ts";
-import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
 import {
-  applyLightProfile,
-  LIGHT_SKILLS,
-  PROFILE_MANIFEST,
-  type Profile,
-  stripManagedSettings,
-} from "./lib/light-profile.ts";
-import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
+  cleanOldConfig,
+  createBackup,
+  createDirectories,
+  installConfigFiles,
+  installTsSources,
+} from "./lib/install-fs.ts";
+import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
+import { applyLightProfile, type Profile, stripManagedSettings } from "./lib/light-profile.ts";
 import {
   installMcpToClaudeJson,
   type McpServers,
@@ -51,7 +49,7 @@ import {
   removeManagedMcpServers,
 } from "./lib/mcp.ts";
 import { ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
-import { CLAUDE_DIR, getTimestamp, hasCommand, isWindows, os } from "./lib/platform.ts";
+import { CLAUDE_DIR, hasCommand, isWindows, os } from "./lib/platform.ts";
 import { isInteractive, promptYn } from "./lib/prompts.ts";
 import {
   autoUpdateJobLoaded,
@@ -62,7 +60,7 @@ import {
 import { printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
-import { buildVersionDelta, readInstalledVersion, readSentinelInfo } from "./lib/version-delta.ts";
+import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
@@ -112,374 +110,6 @@ export function parseArgs(argv: string[]): Args {
     }
   }
   return args;
-}
-
-// --- Install plan --------------------------------------------------------
-
-/**
- * Describes one planned install action — either a file/dir copy or a prune.
- * Produced once by buildInstallPlan; consumed by installConfigFiles (action),
- * cmdDryRun (display), and showSummary (display).
- */
-export interface InstallStep {
-  /** Path relative to both sourceDir (for "copy") and CLAUDE_DIR (for "prune"). */
-  rel: string;
-  /** "copy" = copy from source → target; "prune" = remove from target. */
-  action: "copy" | "prune";
-  /** Whether the source (for "copy") or target (for "prune") exists on disk. */
-  exists: boolean;
-  /** Human-readable annotation shown in dry-run / summary tables. */
-  label?: string;
-}
-
-/**
- * Produce the complete planned footprint for an install: every file/dir that
- * will be copied or pruned, derived from PROFILE_MANIFEST and LIGHT_SKILLS.
- * The display sites (showSummary, cmdDryRun) and the light-profile install path
- * (installConfigFiles) consume this list instead of re-walking the manifest;
- * the full-profile install reads PROFILE_MANIFEST directly (the plan is derived
- * from the same manifest).
- *
- * Does NOT touch disk — pure computation from the manifest + existsSync checks.
- */
-export function buildInstallPlan(sourceDir: string, profile: "full" | "light"): InstallStep[] {
-  const steps: InstallStep[] = [];
-
-  if (profile === "light") {
-    // Copy the LIGHT_SKILLS subset of skills/.
-    for (const skill of LIGHT_SKILLS) {
-      const rel = `skills/${skill}`;
-      steps.push({
-        rel,
-        action: "copy",
-        exists: existsSync(join(sourceDir, rel)),
-        label: `→ ~/.claude/${rel}/`,
-      });
-    }
-
-    // Prune skills from a prior full install that are not in the light set.
-    // Scoped to MANAGED_SKILLS so user-authored skills are never touched.
-    const lightSkillSet = new Set(LIGHT_SKILLS);
-    for (const skill of MANAGED_SKILLS) {
-      if (!lightSkillSet.has(skill)) {
-        steps.push({
-          rel: `skills/${skill}`,
-          action: "prune",
-          exists: existsSync(join(CLAUDE_DIR, `skills/${skill}`)),
-        });
-      }
-    }
-
-    // Prune full-only rootFiles and dirs (CLAUDE.md, AGENTS.md, agents/, …).
-    const { full, light } = PROFILE_MANIFEST;
-    const lightFiles = new Set(light.rootFiles.map(([, dest]) => dest));
-    const lightDirs = new Set([...light.dirs, ...light.retainedDirs]);
-    for (const [, dest] of full.rootFiles) {
-      if (!lightFiles.has(dest)) {
-        steps.push({
-          rel: dest,
-          action: "prune",
-          exists: existsSync(join(CLAUDE_DIR, dest)),
-        });
-      }
-    }
-    for (const d of full.dirs) {
-      if (!lightDirs.has(d)) {
-        steps.push({
-          rel: d,
-          action: "prune",
-          exists: existsSync(join(CLAUDE_DIR, d)),
-        });
-      }
-    }
-  } else {
-    // Full profile: every rootFile + dir from the manifest.
-    const ROOT_FILE_LABELS: Record<string, string> = {
-      "CLAUDE.md": "(Claude-Code config)",
-      "AGENTS.md": "(portable standards)",
-    };
-    const manifest = PROFILE_MANIFEST.full;
-    for (const [src, dest] of manifest.rootFiles) {
-      const label = ROOT_FILE_LABELS[dest] ? `${dest} ${ROOT_FILE_LABELS[dest]}` : dest;
-      steps.push({
-        rel: src,
-        action: "copy",
-        exists: existsSync(join(sourceDir, src)),
-        label,
-      });
-    }
-    for (const d of manifest.dirs) {
-      steps.push({
-        rel: d,
-        action: "copy",
-        exists: existsSync(join(sourceDir, d)),
-        label: `${d}/`,
-      });
-    }
-  }
-
-  return steps;
-}
-
-// --- Install phases ------------------------------------------------------
-
-async function createBackup(): Promise<void> {
-  const backupDir = join(CLAUDE_DIR, "backups");
-  await mkdir(backupDir, { recursive: true });
-
-  const home = homedir();
-  // Home-relative paths so the archive can include ~/.claude.json — it holds the
-  // MCP server config that installMcpToClaudeJson rewrites and lives alongside
-  // ~/.claude, not inside it. Without it, --rollback could not restore a user's
-  // MCP setup. cmdRollback detects this layout (".claude/"-prefixed entries) and
-  // extracts from $HOME; older ~/.claude-relative archives still restore correctly.
-  //
-  // Every directory/file cleanOldConfig() unconditionally wipes on every run is
-  // included here too — agents/, skills/ (including the MANAGED_SKILLS dirs
-  // inside it), rules/, profiles/, docs/, hooks/, contexts/, the legacy
-  // scripts/ and lib/ dirs, and hooks-config*.json. Without this, a copy
-  // failure between cleanOldConfig and the copy phase leaves --rollback able to
-  // restore only settings.json/CLAUDE.md/AGENTS.md/.claude.json — none of the
-  // content actually wiped (H7). tar archives directories recursively, so
-  // listing the directory itself is enough; existsSync below skips entries
-  // that aren't present yet (e.g. a first-ever install). Deliberately excludes
-  // backups/, tmp/, logs/, and tldr-cache — regenerable/non-managed, and
-  // backups/ nesting itself would grow every archive by the sum of all prior
-  // ones.
-  const candidates = [
-    ".claude/settings.json",
-    ".claude/CLAUDE.md",
-    ".claude/AGENTS.md",
-    ".claude/agents",
-    ".claude/skills",
-    ".claude/rules",
-    ".claude/profiles",
-    ".claude/docs",
-    ".claude/hooks",
-    ".claude/contexts",
-    ".claude/scripts",
-    ".claude/lib",
-    ".claude/hooks-config.json",
-    ".claude/hooks-config.local.json",
-    ".claude.json",
-  ];
-  const existing = candidates.filter((f) => existsSync(join(home, f)));
-  if (existing.length === 0) return;
-
-  const stamp = getTimestamp();
-  const archive = join(backupDir, `backup-${stamp}.tar.gz`);
-  const proc = Bun.spawn(["tar", "-czf", archive, ...existing], {
-    cwd: home,
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  const [stderrText, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
-  if (code !== 0) {
-    // A silent backup failure would let the install proceed into cleanOldConfig
-    // (which rm -rf's managed dirs) with no restore point — the advertised
-    // --rollback safety net would be quietly disabled. Abort instead.
-    error(`Backup failed (tar exited ${code}): ${stderrText.trim()}`);
-    error("Aborting so --rollback stays possible. Fix the tar error above and re-run.");
-    throw new Error(`backup failed — tar exited ${code}`);
-  }
-
-  // Keep last 5.
-  const kept = (await readdir(backupDir)).filter((e) => /^backup-.*\.tar\.gz$/.test(e)).sort();
-  if (kept.length > 5) {
-    await Promise.all(
-      kept
-        .slice(0, kept.length - 5)
-        .map((old) => rm(join(backupDir, old), { force: true }).catch(() => {})),
-    );
-  }
-}
-
-async function createDirectories(): Promise<void> {
-  const dirs = [
-    "agents",
-    "skills",
-    "profiles",
-    "rules",
-    "handoffs",
-    "learnings",
-    "hooks",
-    "memory",
-    "memory/agents",
-    "docs",
-    "tldr-cache",
-    "backups",
-    "tmp",
-    "logs",
-    "src",
-    "src/scripts",
-    "src/hooks",
-    "src/lib",
-    "src/schemas",
-  ];
-  await Promise.all(dirs.map((d) => mkdir(join(CLAUDE_DIR, d), { recursive: true })));
-}
-
-// Best-effort sweep of stale atomicWriteString/pointLatest staging files
-// (`.<pid>-<epoch-ms>.tmp` / `.<linkName>.<pid>-<epoch-ms>.tmp`) that survive a
-// hard kill between the staging write/symlink and the rename. Nothing else
-// sweeps these, so they'd otherwise accumulate forever; only entries older
-// than maxAgeMs are removed so an in-flight write from a concurrent process
-// is never touched.
-async function sweepStaleTmpFiles(dir: string, maxAgeMs: number): Promise<void> {
-  if (!existsSync(dir)) return;
-  const entries = await readdir(dir).catch(() => []);
-  const now = Date.now();
-  await Promise.all(
-    entries
-      .filter((e) => /^\..*\.tmp$/.test(e))
-      .map(async (e) => {
-        const full = join(dir, e);
-        try {
-          const st = await stat(full);
-          if (now - st.mtimeMs > maxAgeMs) await rm(full, { force: true });
-        } catch {
-          // vanished between readdir and stat, or a permissions blip — ignore
-        }
-      }),
-  );
-}
-
-async function cleanOldConfig(): Promise<void> {
-  const removeGlob = async (dir: string, pattern: RegExp) => {
-    const full = join(CLAUDE_DIR, dir);
-    if (!existsSync(full)) return;
-    const entries = await readdir(full).catch(() => []);
-    await Promise.all(
-      entries.filter((e) => pattern.test(e)).map((e) => rm(join(full, e), { force: true })),
-    );
-  };
-
-  const junkFiles = [
-    "skill-rules.cache",
-    "skill-activation.out",
-    "skill-index.compiled",
-    "skill-index.checksum",
-    "CLAUDE.md",
-    "AGENTS.md",
-  ];
-
-  // Every removal below targets a disjoint path, so they run concurrently:
-  // legacy bash artifacts, fresh wipes of managed content (re-installed after),
-  // managed skill directories, and stale caches + legacy top-level docs.
-  await Promise.all([
-    rm(join(CLAUDE_DIR, "scripts"), { recursive: true, force: true }).catch(() => {}),
-    rm(join(CLAUDE_DIR, "lib"), { recursive: true, force: true }).catch(() => {}),
-    rm(join(CLAUDE_DIR, "hooks-config.json"), { force: true }).catch(() => {}),
-    rm(join(CLAUDE_DIR, "hooks-config.local.json"), { force: true }).catch(() => {}),
-    removeGlob("agents", /\.md$/),
-    removeGlob("skills", /\.(json|md)$/),
-    removeGlob("profiles", /\.md$/),
-    removeGlob("rules", /\.md$/),
-    // contexts/ retired (folded into profiles/); prune the legacy installed dir.
-    rm(join(CLAUDE_DIR, "contexts"), { recursive: true, force: true }).catch(() => {}),
-    removeGlob("hooks", /\.md$/),
-    removeGlob("docs", /\.md$/),
-    ...MANAGED_SKILLS.map((s) =>
-      rm(join(CLAUDE_DIR, "skills", s), { recursive: true, force: true }),
-    ),
-    ...junkFiles.map((junk) => rm(join(CLAUDE_DIR, junk), { force: true }).catch(() => {})),
-    // Stale atomic-write staging files older than 1 day — see sweepStaleTmpFiles.
-    sweepStaleTmpFiles(CLAUDE_DIR, 24 * 60 * 60 * 1000),
-  ]);
-}
-
-async function copyIfPresent(src: string, dst: string): Promise<boolean> {
-  if (!existsSync(src)) return false;
-  await cp(src, dst, { recursive: false, force: true });
-  return true;
-}
-
-/**
- * Copy entries from srcDir to dstDir, filtering by the keep predicate.
- * Skips entries where keep(name) returns false.
- */
-async function copyDirContentsFiltered(
-  srcDir: string,
-  dstDir: string,
-  keep: (name: string) => boolean,
-): Promise<void> {
-  if (!existsSync(srcDir)) return;
-  await mkdir(dstDir, { recursive: true });
-  const entries = await readdir(srcDir, { withFileTypes: true });
-  // Each entry copies to a distinct destination path — run them concurrently.
-  await Promise.all(
-    entries
-      .filter((e) => keep(e.name))
-      .map((e) => cp(join(srcDir, e.name), join(dstDir, e.name), { recursive: true, force: true })),
-  );
-}
-
-/** Copy all entries from srcDir to dstDir (no filtering). */
-async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
-  return copyDirContentsFiltered(srcDir, dstDir, () => true);
-}
-
-/**
- * Execute the copy/prune steps from buildInstallPlan. cleanOldConfig must
- * already have run so MANAGED_SKILLS dirs are wiped before copy.
- *
- * For the light profile, all plan steps (copy + prune) are executed directly
- * from buildInstallPlan — making buildInstallPlan the honest single source of
- * truth for what the light path touches (§1.3).
- */
-async function installConfigFiles(source: string, profile: Profile): Promise<void> {
-  if (profile === "light") {
-    const plan = buildInstallPlan(source, profile);
-    // Execute copy steps: LIGHT_SKILLS subset via filtered copy.
-    const lightSkillSet = new Set(LIGHT_SKILLS);
-    await copyDirContentsFiltered(join(source, "skills"), join(CLAUDE_DIR, "skills"), (name) =>
-      lightSkillSet.has(name),
-    );
-    // Execute all prune steps from the plan (skill dirs + full-only rootFiles/dirs).
-    const pruneSteps = plan.filter((s) => s.action === "prune");
-    await Promise.all(
-      pruneSteps.map((s) =>
-        rm(join(CLAUDE_DIR, s.rel), { recursive: true, force: true }).catch(() => {}),
-      ),
-    );
-  } else {
-    // Full profile: every rootFile + dir from the manifest. Destinations are
-    // disjoint, so all copies run in parallel.
-    const manifest = PROFILE_MANIFEST.full;
-    await Promise.all([
-      ...manifest.rootFiles.map(([src, dest]) =>
-        copyIfPresent(join(source, src), join(CLAUDE_DIR, dest)),
-      ),
-      ...manifest.dirs.map((d) => copyDirContents(join(source, d), join(CLAUDE_DIR, d))),
-    ]);
-  }
-}
-
-async function installTsSources(source: string): Promise<void> {
-  const srcTs = join(source, "src");
-  if (!existsSync(srcTs)) return;
-  const dstTs = join(CLAUDE_DIR, "src");
-  // Clean previous TS install so stale ports don't linger.
-  await rm(dstTs, { recursive: true, force: true });
-  await mkdir(dstTs, { recursive: true });
-  await copyDirContents(srcTs, dstTs);
-
-  // Dep resolution: copy lockfile + config, link node_modules back to source.
-  await Promise.all([
-    copyIfPresent(join(source, "package.json"), join(dstTs, "package.json")),
-    copyIfPresent(join(source, "tsconfig.json"), join(dstTs, "tsconfig.json")),
-    copyIfPresent(join(source, "bun.lock"), join(dstTs, "bun.lock")),
-  ]);
-
-  const srcNm = join(source, "node_modules");
-  const dstNm = join(dstTs, "node_modules");
-  if (existsSync(srcNm) && !existsSync(dstNm)) {
-    try {
-      await Bun.spawn(["ln", "-s", srcNm, dstNm], { stdout: "ignore", stderr: "ignore" }).exited;
-    } catch {
-      await cp(srcNm, dstNm, { recursive: true, force: true }).catch(() => {});
-    }
-  }
 }
 
 // --- Settings + MCP install ---------------------------------------------
@@ -773,17 +403,18 @@ async function main(): Promise<number> {
 
   showBanner(VERSION);
 
-  // Capture the previously-installed version BEFORE we overwrite the sentinel
-  // — used to print the version-delta summary at the end of the install.
-  const prevInstalledVersion = await readInstalledVersion(CLAUDE_DIR);
-  // Same capture for auto-update enrollment — read before writeVersionSentinel
-  // overwrites the sentinel file, so applyAutoUpdate sees the prior decision.
-  const priorAutoUpdate = (await readSentinelInfo(CLAUDE_DIR)).autoUpdate;
+  // Single sentinel read for the whole run (N10) — version (for the
+  // version-delta summary), autoUpdate (prior enrollment decision), and the
+  // engine id all come from the same on-disk read instead of three
+  // sequential ones. Captured BEFORE we overwrite the sentinel later.
+  const sentinel = await readSentinelInfo(CLAUDE_DIR);
+  const prevInstalledVersion = sentinel.version;
+  const priorAutoUpdate = sentinel.autoUpdate;
 
   // Resolve the code-intel engine once (env > prior sentinel > default) and
   // thread it through dependency install, settings, and the sentinel write.
   // Default is "llm-tldr", so an install with no override is unchanged.
-  const engine = await resolveEngine(CLAUDE_DIR);
+  const engine = await resolveEngine(CLAUDE_DIR, sentinel);
 
   // Frontmatter validation — catches typos in agents/*.md and skills/*/SKILL.md
   // before we ship them to ~/.claude/. Non-fatal; warn and continue so a single
