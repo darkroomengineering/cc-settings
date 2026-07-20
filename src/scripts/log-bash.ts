@@ -8,18 +8,17 @@
 import { appendFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
 import { basename } from "node:path";
 import { sanitizeOutput } from "../lib/codex.ts";
+import { intEnv } from "../lib/hook-config.ts";
 import { readHookInput } from "../lib/hook-runtime.ts";
 import { claudePath, localDatetime, ymd } from "../lib/platform.ts";
 import { redactSecrets } from "../lib/redact.ts";
 
 const LOG_DIR = claudePath("logs");
 
-// Number.isNaN-guarded, not `|| 1` — an explicit CLAUDE_LOG_RETENTION_DAYS=0
-// must stay 0, not silently coerce back to the 1-day default (the same
-// falsy-zero bug checkpoint.ts/handoff.ts/prune-mcp-auth-cache.ts already
-// guard against). See M19 in docs/audits/codebase-audit-2026-07-08.md.
-const parsedRetention = Number.parseInt(process.env.CLAUDE_LOG_RETENTION_DAYS ?? "1", 10);
-const RETENTION = Number.isNaN(parsedRetention) ? 1 : parsedRetention;
+// An explicit CLAUDE_LOG_RETENTION_DAYS=0 must stay 0 (delete everything on
+// every prune), not silently coerce back to the 1-day default — see M19 in
+// docs/audits/codebase-audit-2026-07-08.md.
+const RETENTION = intEnv("CLAUDE_LOG_RETENTION_DAYS", 1);
 
 async function pruneOldLogs(): Promise<void> {
   // Bash used `find ... -mtime +$RETENTION -delete`. Mirror that: delete any

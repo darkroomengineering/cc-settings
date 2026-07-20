@@ -9,10 +9,12 @@
 // no effort override, no permission rules.
 //
 // Callers:
-//   - src/setup.ts       — filters file copies, applies transform before staging
+//   - src/lib/install-fs.ts — filters file copies, prunes full-only targets
+//   - src/setup.ts           — applies the settings transform before staging
 //   - tests/light-profile.test.ts — parity guard + transform units
 
 import { isManagedHookCommand } from "./hook-command.ts";
+import { MANAGED_SKILLS } from "./managed-skills.ts";
 import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 
 export type Profile = "full" | "light";
@@ -24,13 +26,12 @@ export const LIGHT_SKILLS: readonly string[] = ["share-learning"] as const;
 // Profile manifest — single source of truth for the per-profile file footprint
 // ---------------------------------------------------------------------------
 //
-// Consumed by src/setup.ts:
+// Consumed by src/lib/install-fs.ts:
 //   - installConfigFiles      copies the profile's files; for light, also prunes
-//                             every full-only target (full-minus-light)
+//                             every full-only target via lightProfilePruneTargets
+//                             (full-minus-light)
+// Consumed by src/lib/install-display.ts:
 //   - cmdDryRun / showSummary render the install tables from it
-//
-// The light skill-filter (LIGHT_SKILLS subset + source-scoped prune) stays as
-// code in setup.ts — only the file/dir lists live here.
 
 export interface ProfileManifest {
   /** [sourceName, installedName] pairs copied to ~/.claude/<installedName>. */
@@ -63,6 +64,40 @@ export const PROFILE_MANIFEST: Record<Profile, ProfileManifest> = {
     retainedDirs: ["skills", "hooks"],
   },
 } as const;
+
+/**
+ * Every path (relative to CLAUDE_DIR) a light install must prune from a prior
+ * full install: full-only skills (MANAGED_SKILLS minus LIGHT_SKILLS) plus every
+ * full-only rootFile/dir from PROFILE_MANIFEST (full-minus-light).
+ *
+ * Pure computation over MANAGED_SKILLS/LIGHT_SKILLS/PROFILE_MANIFEST — no disk
+ * I/O. Callers pass the returned paths to a force-remove (rm force:true is a
+ * no-op on a path that doesn't exist), so this never needs to check existence
+ * itself.
+ */
+export function lightProfilePruneTargets(): string[] {
+  const targets: string[] = [];
+
+  // Prune skills from a prior full install that are not in the light set.
+  // Scoped to MANAGED_SKILLS so user-authored skills are never touched.
+  const lightSkillSet = new Set(LIGHT_SKILLS);
+  for (const skill of MANAGED_SKILLS) {
+    if (!lightSkillSet.has(skill)) targets.push(`skills/${skill}`);
+  }
+
+  // Prune full-only rootFiles and dirs (CLAUDE.md, AGENTS.md, agents/, …).
+  const { full, light } = PROFILE_MANIFEST;
+  const lightFiles = new Set(light.rootFiles.map(([, dest]) => dest));
+  const lightDirs = new Set([...light.dirs, ...light.retainedDirs]);
+  for (const [, dest] of full.rootFiles) {
+    if (!lightFiles.has(dest)) targets.push(dest);
+  }
+  for (const d of full.dirs) {
+    if (!lightDirs.has(d)) targets.push(d);
+  }
+
+  return targets;
+}
 
 // ---------------------------------------------------------------------------
 // Settings transforms

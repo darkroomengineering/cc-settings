@@ -22,16 +22,15 @@
 //   MCP_NEEDS_AUTH_CACHE    cache file path (default ~/.claude/mcp-needs-auth-cache.json)
 
 import { readFile, unlink } from "node:fs/promises";
+import { intEnv } from "../lib/hook-config.ts";
 import { atomicWriteJson } from "../lib/json-io.ts";
 import { claudePath } from "../lib/platform.ts";
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
 const CACHE_PATH = process.env.MCP_NEEDS_AUTH_CACHE ?? claudePath("mcp-needs-auth-cache.json");
-// `|| DEFAULT_TTL_MS` would misread an explicit "0" (prune everything,
-// immediately) as unset, silently reviving the 1h default. Only NaN
-// (unparseable / unset) falls back.
-const rawTtl = Number.parseInt(process.env.MCP_NEEDS_AUTH_TTL_MS ?? "", 10);
-const TTL_MS = Number.isNaN(rawTtl) ? DEFAULT_TTL_MS : rawTtl;
+// An explicit MCP_NEEDS_AUTH_TTL_MS=0 must prune everything immediately, not
+// silently revive the 1h default.
+const TTL_MS = intEnv("MCP_NEEDS_AUTH_TTL_MS", DEFAULT_TTL_MS);
 
 type CacheEntry = { timestamp?: number };
 type CacheShape = Record<string, CacheEntry>;

@@ -16,8 +16,8 @@ import { readState, writeState } from "./hook-runtime.ts";
 import { hasCommand } from "./platform.ts";
 
 // Generated/meta files in the corpus that are not knowledge notes. Defined here
-// (the lower-level lib) so team-knowledge.ts can re-export it without a circular
-// dependency. Mirrors the SKIP_FILES set in lint-knowledge.ts.
+// (the lower-level lib) so team-knowledge.ts and lint-knowledge.ts can import it
+// without a circular dependency.
 export const NON_NOTE_FILES = new Set(["README.md", "INDEX.md", "CONTRIBUTING.md"]);
 
 const KNOWLEDGE_INDEX_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours

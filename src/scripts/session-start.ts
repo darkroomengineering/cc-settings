@@ -18,13 +18,18 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { pruneArtifacts } from "../lib/artifact-store.ts";
 import { type EngineDescriptor, resolveEngine } from "../lib/code-intel-engine.ts";
 import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { CLAUDE_DIR, hasCommand, localDatetime } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
-import { onHeadObserved, type ReviewQueueState } from "../lib/review-queue.ts";
+import {
+  onHeadObserved,
+  type ReviewQueueState,
+  ReviewQueueStateSchema,
+} from "../lib/review-queue.ts";
 import { teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
 import {
   computeDrift,
@@ -71,29 +76,11 @@ async function cleanupAllHandoffs(root: string, keep = 20): Promise<void> {
 }
 
 async function cleanupHandoffs(dir: string, keep = 20): Promise<void> {
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch {
-    return;
-  }
-  const prune = async (pattern: RegExp) => {
-    const matches: Array<{ full: string; mtime: number }> = [];
-    for (const name of entries) {
-      if (!pattern.test(name)) continue;
-      const full = join(dir, name);
-      try {
-        const st = await stat(full);
-        matches.push({ full, mtime: st.mtimeMs });
-      } catch {
-        // ignore
-      }
-    }
-    matches.sort((a, b) => b.mtime - a.mtime);
-    const toDrop = matches.slice(keep);
-    await Promise.all(toDrop.map((m) => unlink(m.full).catch(() => {})));
-  };
-  await Promise.all([prune(/^handoff_.*\.json$/), prune(/^handoff_.*\.md$/)]);
+  const [jsonDrop, mdDrop] = await Promise.all([
+    pruneArtifacts(dir, /^handoff_.*\.json$/, keep),
+    pruneArtifacts(dir, /^handoff_.*\.md$/, keep),
+  ]);
+  await Promise.all([...jsonDrop, ...mdDrop].map((f) => unlink(f).catch(() => {})));
 }
 
 // ~/.claude/session-titles/ gains one .flag file per titled session (written
@@ -356,7 +343,9 @@ try {
 // see commits Claude didn't run. Only runs git when there's a non-empty queue to
 // avoid a rev-parse on every session start. Fail-soft: any problem ⇒ untouched.
 try {
-  const rq = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
+  const rqRaw = await readState<unknown>("review-queue.json", null);
+  const rqParsed = ReviewQueueStateSchema.safeParse(rqRaw);
+  const rq: ReviewQueueState = rqParsed.success ? rqParsed.data : { awaiting: 0 };
   if (rq.awaiting > 0) {
     const head = (await runGit(["rev-parse", "HEAD"], { cwd: PROJECT_DIR })).trim() || undefined;
     await writeState("review-queue.json", onHeadObserved(rq, head));

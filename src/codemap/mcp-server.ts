@@ -9,123 +9,21 @@
 // the native engine doesn't implement (semantic/slice/cfg/dfg/dead/diagnostics/
 // search) are still registered, but tools/call returns a structured
 // {error:"unsupported-by-native-engine"} for them rather than failing.
+//
+// tools/list and tools/call dispatch both derive from the shared registry in
+// tools.ts — see that file for the full tool table.
 
-import {
-  getArch,
-  getCalls,
-  getChangeImpact,
-  getContext,
-  getImpact,
-  getImporters,
-  getImports,
-  getStatus,
-  getStructure,
-  getTree,
-  resolveFile,
-} from "./index.ts";
-
-const PROJECT = (() => {
-  const i = process.argv.indexOf("--project");
-  const v = i >= 0 ? process.argv[i + 1] : undefined;
-  return v && !v.startsWith("--") ? v : ".";
-})();
-
-type Args = Record<string, unknown>;
-
-/** First non-empty string among the given keys — handles the flexible arg names
- *  callers use (entry/name/function, module/target). */
-function str(a: Args, ...keys: string[]): string {
-  for (const k of keys) {
-    const v = a[k];
-    if (typeof v === "string" && v) return v;
-  }
-  return "";
-}
-const proj = (a: Args): string => str(a, "project") || PROJECT;
-
-interface Tool {
-  description: string;
-  schema: Record<string, unknown>;
-  handler: (a: Args) => Promise<unknown>;
-}
-
-const objSchema = (props: Record<string, string>): Record<string, unknown> => ({
-  type: "object",
-  properties: Object.fromEntries(
-    Object.entries(props).map(([k, t]) => [k, { type: t === "number" ? "number" : "string" }]),
-  ),
-});
-
-const SUPPORTED: Record<string, Tool> = {
-  structure: {
-    description: "List functions/classes/methods/interfaces/types/enums/exported vars per file.",
-    schema: objSchema({ project: "string", max_results: "number" }),
-    handler: (a) => getStructure(proj(a), typeof a.max_results === "number" ? a.max_results : 200),
-  },
-  extract: {
-    description: "Full symbol structure of a single file.",
-    schema: objSchema({ project: "string", file: "string" }),
-    handler: (a) => resolveFile(proj(a), str(a, "file")),
-  },
-  tree: {
-    description: "List in-project source files.",
-    schema: objSchema({ project: "string" }),
-    handler: (a) => getTree(proj(a)),
-  },
-  arch: {
-    description: "Per-file export/import counts (architecture overview).",
-    schema: objSchema({ project: "string" }),
-    handler: (a) => getArch(proj(a)),
-  },
-  imports: {
-    description: "Resolved imports of a file.",
-    schema: objSchema({ project: "string", file: "string" }),
-    handler: (a) => getImports(proj(a), str(a, "file")),
-  },
-  importers: {
-    description: "Files that import a given file/module (reverse import lookup).",
-    schema: objSchema({ project: "string", module: "string" }),
-    handler: (a) => getImporters(proj(a), str(a, "module", "target", "file")),
-  },
-  calls: {
-    description: "Name-based call edges across the project.",
-    schema: objSchema({ project: "string" }),
-    handler: (a) => getCalls(proj(a)),
-  },
-  context: {
-    description: "Signature, doc, immediate callers and callees of a symbol.",
-    schema: objSchema({ project: "string", entry: "string" }),
-    handler: (a) => getContext(proj(a), str(a, "entry", "name", "function")),
-  },
-  impact: {
-    description: "All references to a symbol (who would break if it changed).",
-    schema: objSchema({ project: "string", function: "string" }),
-    handler: (a) => getImpact(proj(a), str(a, "function", "name", "entry")),
-  },
-  change_impact: {
-    description: "Symbols changed in the git working tree and the files they affect.",
-    schema: objSchema({ project: "string" }),
-    handler: (a) => getChangeImpact(proj(a)),
-  },
-  status: {
-    description: "Engine availability and project file count.",
-    schema: objSchema({ project: "string" }),
-    handler: (a) => getStatus(proj(a)),
-  },
-};
-
-// Registered for contract completeness; not implemented by the native engine.
-const UNSUPPORTED = ["semantic", "slice", "cfg", "dfg", "dead", "diagnostics", "search"];
+import { type Args, findToolByName, objSchema, TOOLS, UNSUPPORTED } from "./tools.ts";
 
 function toolList(): Array<{
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
 }> {
-  const list = Object.entries(SUPPORTED).map(([name, t]) => ({
-    name,
+  const list = TOOLS.map((t) => ({
+    name: t.name,
     description: t.description,
-    inputSchema: t.schema,
+    inputSchema: t.inputSchema,
   }));
   for (const name of UNSUPPORTED) {
     list.push({
@@ -164,7 +62,7 @@ function textResult(payload: unknown, isError = false): Record<string, unknown> 
 async function callTool(id: RpcMessage["id"], params: RpcMessage["params"]): Promise<void> {
   const name = params?.name ?? "";
   const args: Args = params?.arguments ?? {};
-  const tool = SUPPORTED[name];
+  const tool = findToolByName(name);
   if (tool) {
     try {
       const result = await tool.handler(args);

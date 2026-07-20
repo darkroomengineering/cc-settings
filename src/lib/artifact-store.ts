@@ -9,7 +9,7 @@
 // (missing dirs list as empty, missing links read as "").
 
 import { existsSync } from "node:fs";
-import { readdir, readlink, rename, rm, symlink } from "node:fs/promises";
+import { readdir, readlink, rename, rm, stat, symlink } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { pad } from "./platform.ts";
 
@@ -70,6 +70,43 @@ export async function readLatestTarget(dir: string, linkName: string): Promise<s
   } catch {
     return "";
   }
+}
+
+/**
+ * List artifacts in `dir` matching `pattern` (RegExp against the filename, or
+ * a predicate), sort newest-first by mtime, and return the ABSOLUTE paths of
+ * everything beyond the newest `keep` — the prune candidates. Does NOT
+ * delete; callers unlink (and any sibling files, e.g. checkpoint.ts's
+ * `.patch` companion) themselves. A per-entry stat failure (the file vanished
+ * between readdir and stat — a concurrent clean/save race) skips just that
+ * one entry, never discards the whole already-enumerated listing. Missing or
+ * unreadable dir ⇒ [].
+ */
+export async function pruneArtifacts(
+  dir: string,
+  pattern: RegExp | ((name: string) => boolean),
+  keep: number,
+): Promise<string[]> {
+  const matches = typeof pattern === "function" ? pattern : (name: string) => pattern.test(name);
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const entries: Array<{ file: string; mtime: number }> = [];
+  for (const name of names) {
+    if (!matches(name)) continue;
+    const full = join(dir, name);
+    try {
+      const st = await stat(full);
+      entries.push({ file: full, mtime: st.mtimeMs });
+    } catch {
+      // vanished between readdir and stat — skip just this entry
+    }
+  }
+  entries.sort((a, b) => b.mtime - a.mtime);
+  return entries.slice(keep).map((e) => e.file);
 }
 
 export interface ResolveSpec {

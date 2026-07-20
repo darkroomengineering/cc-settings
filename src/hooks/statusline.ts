@@ -34,7 +34,13 @@ import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
 import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
-import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
+import {
+  ageMs,
+  formatAge,
+  maxUnreviewed,
+  type ReviewQueueState,
+  ReviewQueueStateSchema,
+} from "../lib/review-queue.ts";
 import {
   readInstalledVersion,
   refreshSessionInstallMap,
@@ -42,17 +48,11 @@ import {
   SessionInstallMapSchema,
 } from "../lib/version-delta.ts";
 
-// Shape-validated the same way quota.ts's RateLimitsCacheSchema is — a
-// malformed review-queue.json/version-drift.json (partial write, future
-// schema change, tampering) must degrade to "absent" instead of feeding
-// NaN/garbage into the visible statusline.
-const ReviewQueueStateSchema = z.object({
-  awaiting: z.number(),
-  firstSpawnAt: z.number().optional(),
-  firedAt: z.number().optional(),
-  lastHead: z.string().optional(),
-});
-
+// ReviewQueueStateSchema now lives in lib/review-queue.ts, next to the
+// interface it validates (N2) — imported above. Shape-validated the same way
+// quota.ts's RateLimitsCacheSchema is — a malformed review-queue.json/
+// version-drift.json (partial write, future schema change, tampering) must
+// degrade to "absent" instead of feeding NaN/garbage into the visible statusline.
 const VersionDriftSchema = z.object({
   stale: z.boolean().optional(),
   installed: z.string().nullable().optional(),

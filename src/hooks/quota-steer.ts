@@ -4,7 +4,7 @@
 // Fail-open: any error → silent success (never block the prompt).
 
 import { readCodexVerdict } from "../lib/codex.ts";
-import { readHookInput, runHook } from "../lib/hook-runtime.ts";
+import { emitAdditionalContext, readHookInput, runHook } from "../lib/hook-runtime.ts";
 import {
   buildSteerMessage,
   CACHE_STALE_MS,
@@ -34,13 +34,9 @@ async function main(): Promise<void> {
 
   const codexVerdict = await readCodexVerdict();
   if (shouldEmit(prev, band, now)) {
-    console.log(
-      JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: "UserPromptSubmit",
-          additionalContext: buildSteerMessage(band, codexVerdict.state, fiveHourPct, sevenDayPct),
-        },
-      }),
+    emitAdditionalContext(
+      "UserPromptSubmit",
+      buildSteerMessage(band, codexVerdict.state, fiveHourPct, sevenDayPct),
     );
     await writeQuotaSteerState({ band, lastEmit: now });
     return;

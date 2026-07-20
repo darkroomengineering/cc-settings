@@ -19,6 +19,7 @@
 import { runGit } from "../lib/git.ts";
 import {
   blockDecision,
+  emitAdditionalContext,
   readHookInput,
   readState,
   runHook,
@@ -41,6 +42,7 @@ import {
   onHeadObserved,
   pushSucceeded,
   type ReviewQueueState,
+  ReviewQueueStateSchema,
   shouldNudge,
 } from "../lib/review-queue.ts";
 
@@ -87,18 +89,19 @@ type Payload = {
   cwd?: string;
 };
 
-function emit(context: string): void {
-  console.log(
-    JSON.stringify({
-      hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: context },
-    }),
-  );
-}
-
 /** Current HEAD SHA in `cwd`, or undefined if git can't be read (fail-soft). */
 async function currentHead(cwd: string): Promise<string | undefined> {
   const out = (await runGit(["rev-parse", "HEAD"], { cwd })).trim();
   return out || undefined;
+}
+
+/** Read + validate review-queue.json the same way statusline.ts does (N2) —
+ *  a corrupted/hand-edited state file degrades to the empty-queue default
+ *  instead of feeding garbage into the arithmetic below. Never throws. */
+async function readQueueState(): Promise<ReviewQueueState> {
+  const raw = await readState<unknown>(QUEUE_STATE, null);
+  const parsed = ReviewQueueStateSchema.safeParse(raw);
+  return parsed.success ? parsed.data : { awaiting: 0 };
 }
 
 /** Validate and default every field of CounterState from an unknown raw value.
@@ -178,7 +181,7 @@ async function parallelmaxBranch(
       state.files.length - state.filesAtNudge >= 2) &&
     debounceOk
   ) {
-    const rq = await readState<{ awaiting: number }>(QUEUE_STATE, { awaiting: 0 });
+    const rq = await readQueueState();
     if (rq.awaiting < maxUnreviewed()) {
       state.escalated = true;
       state.firedAt = now;
@@ -196,10 +199,11 @@ async function parallelmaxBranch(
     (state.count >= THRESHOLD || state.files.length >= FILES_THRESHOLD) &&
     debounceOk
   ) {
-    const rq = await readState<{ awaiting: number }>(QUEUE_STATE, { awaiting: 0 });
+    const rq = await readQueueState();
     if (rq.awaiting < maxUnreviewed()) {
       const filesClause = state.files.length > 0 ? ` and ${state.files.length} file(s) edited` : "";
-      emit(
+      emitAdditionalContext(
+        "PostToolUse",
         `Delegation check — ${state.count} tool calls${filesClause} in this streak with no Agent call. Heuristic: ${FILES_THRESHOLD}+ files or ${THRESHOLD}+ calls → delegate (explore = read/map, implementer = multi-file change, parallel agents for independent work). Delegate the remainder now, or state a one-line reason for staying solo and continue.`,
       );
       state.nudged = true;
@@ -224,11 +228,11 @@ async function reviewQueueBranch(payload: Partial<Payload>, toolName: string): P
     // commit, a rejecting pre-commit hook, a blocked merge) must not reset the
     // queue. Run the cognitive-surrender check on the pre-reset state, then reset.
     if (isGitCommit(command) && commitSucceeded(payload.tool_response)) {
-      const state = await readState<ReviewQueueState>(QUEUE_STATE, { awaiting: 0 });
+      const state = await readQueueState();
       const now = Date.now();
       if (isCognitiveSurrender(state, now, maxUnreviewed(), minReviewSeconds() * 1000)) {
         const dwellSeconds = Math.round((now - (state.firstSpawnAt ?? now)) / 1000);
-        emit(buildSurrenderNudge(state.awaiting, dwellSeconds));
+        emitAdditionalContext("PostToolUse", buildSurrenderNudge(state.awaiting, dwellSeconds));
       }
       await writeState(QUEUE_STATE, onCommit(await currentHead(cwd)));
       return;
@@ -245,7 +249,7 @@ async function reviewQueueBranch(payload: Partial<Payload>, toolName: string): P
     // our baseline without a Claude commit (ff-pull, pulled-down PR merge).
     // Draining only happens when HEAD actually changed (see onHeadObserved).
     if (movesHead(command)) {
-      const state = await readState<ReviewQueueState>(QUEUE_STATE, { awaiting: 0 });
+      const state = await readQueueState();
       await writeState(QUEUE_STATE, onHeadObserved(state, await currentHead(cwd)));
       return;
     }
@@ -259,11 +263,11 @@ async function reviewQueueBranch(payload: Partial<Payload>, toolName: string): P
   if (!isReviewableAgent(payload.tool_input?.subagent_type)) return;
 
   const now = Date.now();
-  const next = onAgentSpawn(await readState<ReviewQueueState>(QUEUE_STATE, { awaiting: 0 }), now);
+  const next = onAgentSpawn(await readQueueState(), now);
   const max = maxUnreviewed();
 
   if (shouldNudge(next, max, now)) {
-    emit(buildNudge(next.awaiting, max));
+    emitAdditionalContext("PostToolUse", buildNudge(next.awaiting, max));
     next.firedAt = now;
   }
 

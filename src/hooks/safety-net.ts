@@ -14,6 +14,7 @@
 
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
+import { SHELL_SEGMENT_SEP_RE } from "../lib/hook-command.ts";
 import { blockDecision } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 import { redactSecrets } from "../lib/redact.ts";
@@ -511,14 +512,9 @@ function analyzeSegment(cmd: string): void {
   checkGitDestructive(cmd);
 }
 
-// Built via new RegExp so \uNNNN escapes stay as explicit codepoints in the
-// source text rather than invisible literal characters (encoding-safe;
-// mirrors src/lib/audit-hooks.ts's COMPOUND_SEP).
-const SEGMENT_SPLIT_RE = /\s*(?:&&|\|\||;|\r?\n|\r|\u2028|\u2029)\s*/;
-
 function splitCommands(cmd: string): void {
   analyzeFullString(cmd);
-  for (const raw of cmd.split(SEGMENT_SPLIT_RE)) {
+  for (const raw of cmd.split(SHELL_SEGMENT_SEP_RE)) {
     const seg = raw.trim();
     if (seg) analyzeSegment(seg);
   }

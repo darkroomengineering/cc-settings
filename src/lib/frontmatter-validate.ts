@@ -1,12 +1,13 @@
-// Install-time frontmatter validation. Walks `agents/*.md`,
-// `skills/*\/SKILL.md`, and `profiles/*.md`, parses each frontmatter with
-// `parseFrontmatterStrict` (the same strict YAML path CI's lint:skills /
-// lint:knowledge / lint:agents / lint:profiles use), validates against the
-// corresponding zod schema. Catches typos like `effort: xtreme`,
-// `permissionMode: planning`, malformed kebab-case names, AND duplicate
-// top-level keys (e.g. two `model:` lines from a bad merge) — the loose
-// parser silently took the last one, strict flags it — before the installer
-// ships a broken agent, skill, or profile to ~/.claude/.
+// Install-time frontmatter validation. Delegates to the same pipelines CI's
+// lint:agents / lint:skills / lint:profiles use (lintAgentsDir / lintSkillsDir
+// / lintProfilesDir), then narrows their findings down to the subset that
+// corresponds to "does this file parse and validate": frontmatter-missing,
+// yaml-parse (incl. duplicate top-level keys, e.g. two `model:` lines from a
+// bad merge), and schema (zod) failures. The linters also check things this
+// install-time gate never has — angle brackets, folder/name kebab-case,
+// README presence, name/folder mismatches, description length — those are
+// intentionally excluded here so behavior matches the prior hand-rolled
+// walker exactly.
 //
 // Non-fatal by design: a single bad agent shouldn't block install of the
 // other 9 — we surface the error (including strict parse failures) and
@@ -14,14 +15,10 @@
 // hard gate (CI) use the dedicated lint:* scripts instead, which exit
 // non-zero on error-severity findings.
 
-import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { z } from "zod";
-import { AgentFrontmatter } from "../schemas/agent.ts";
-import { ProfileFrontmatter } from "../schemas/profile.ts";
-import { SkillFrontmatter } from "../schemas/skill.ts";
-import { parseFrontmatterStrict } from "./frontmatter.ts";
+import { lintAgentsDir } from "./lint-agents.ts";
+import { lintProfilesDir } from "./lint-profiles.ts";
+import { lintSkillsDir } from "./lint-skills.ts";
 
 export interface FrontmatterIssue {
   kind: "agent" | "skill" | "profile";
@@ -31,79 +28,74 @@ export interface FrontmatterIssue {
   errors: string[];
 }
 
-function formatZodError(err: z.ZodError): string[] {
-  return err.issues.map((i) => `  ${i.path.join(".") || "<root>"}: ${i.message}`);
+// Rule identifiers from the lint*Dir pipelines that map onto this gate's
+// historical checks (parse failure or schema validation failure). Everything
+// else the linters check (no-angle-brackets, folder-kebab-case, reserved-name,
+// no-readme-inside, skill-md-missing, name-*-mismatch, description-*) is out
+// of scope for install-time validation and stays CI-only.
+const RELEVANT_RULES = new Set(["frontmatter-missing", "yaml-parse", "schema"]);
+
+// The pre-refactor walker reported this exact string for both "no `---`
+// block at all" and "frontmatter parsed to a non-object". Kept verbatim so
+// existing consumers of the literal text are unaffected.
+const NO_PARSEABLE_FRONTMATTER = "no parseable frontmatter";
+
+function mapMessage(rule: string, message: string): string {
+  return rule === "frontmatter-missing" ? NO_PARSEABLE_FRONTMATTER : message;
 }
 
-// One walker, three configurations. The per-kind walkers only ever differed
-// in directory, file layout, and schema — a table keeps them in lockstep.
-interface WalkSpec {
-  kind: FrontmatterIssue["kind"];
-  /** Directory under sourceDir to walk. */
-  dir: string;
-  /**
-   * "flat-md": top-level *.md files (README.md excluded).
-   * "skill-dirs": <name>/SKILL.md inside each subdirectory.
-   */
-  layout: "flat-md" | "skill-dirs";
-  schema: z.ZodType;
-}
-
-const WALK_SPECS: WalkSpec[] = [
-  { kind: "agent", dir: "agents", layout: "flat-md", schema: AgentFrontmatter },
-  { kind: "skill", dir: "skills", layout: "skill-dirs", schema: SkillFrontmatter },
-  { kind: "profile", dir: "profiles", layout: "flat-md", schema: ProfileFrontmatter },
-];
-
-/** Candidate files as "/"-separated paths relative to the walked dir. */
-async function listCandidates(dir: string, layout: WalkSpec["layout"]): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  if (layout === "flat-md") {
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith(".md") && e.name !== "README.md")
-      .map((e) => e.name);
+/** Group relevant findings by file path, in first-seen order. */
+function collectIssues<F extends { severity: string; rule: string; message: string }>(
+  findings: F[],
+  pathOf: (f: F) => string,
+): Array<{ path: string; errors: string[] }> {
+  const order: string[] = [];
+  const byPath = new Map<string, string[]>();
+  for (const f of findings) {
+    if (!RELEVANT_RULES.has(f.rule)) continue;
+    const path = pathOf(f);
+    let errors = byPath.get(path);
+    if (!errors) {
+      errors = [];
+      byPath.set(path, errors);
+      order.push(path);
+    }
+    errors.push(mapMessage(f.rule, f.message));
   }
-  return entries
-    .filter((e) => e.isDirectory() && existsSync(join(dir, e.name, "SKILL.md")))
-    .map((e) => `${e.name}/SKILL.md`);
-}
-
-async function validateKind(sourceDir: string, spec: WalkSpec): Promise<FrontmatterIssue[]> {
-  const dir = join(sourceDir, spec.dir);
-  if (!existsSync(dir)) return [];
-  const issues: FrontmatterIssue[] = [];
-  for (const rel of await listCandidates(dir, spec.layout)) {
-    const path = `${spec.dir}/${rel}`;
-    const text = await readFile(join(dir, ...rel.split("/")), "utf8");
-    // Strict path: catches duplicate top-level keys (last-wins is silent
-    // under the loose parser) and surfaces real YAML syntax errors instead
-    // of swallowing them into a generic "no parseable frontmatter". Still
-    // non-fatal here — degrade-with-warning, not abort-install (see header
-    // note); the caller only ever surfaces `issues` as a warning block.
-    const { data: fm, errors: parseErrors } = parseFrontmatterStrict(text);
-    if (parseErrors.length > 0) {
-      issues.push({ kind: spec.kind, path, errors: parseErrors.map((e) => e.message) });
-      continue;
-    }
-    if (!fm || typeof fm !== "object") {
-      issues.push({ kind: spec.kind, path, errors: ["no parseable frontmatter"] });
-      continue;
-    }
-    const result = spec.schema.safeParse(fm);
-    if (!result.success) {
-      issues.push({ kind: spec.kind, path, errors: formatZodError(result.error) });
-    }
-  }
-  return issues;
+  return order.map((path) => ({ path, errors: byPath.get(path) ?? [] }));
 }
 
 /**
- * Walk `agents/`, `skills/`, and `profiles/`, validate each frontmatter,
- * return the combined list of issues. Empty array means everything parsed cleanly.
+ * Walk `agents/`, `skills/`, and `profiles/` (via the shared lint*Dir
+ * pipelines), validate each frontmatter, return the combined list of issues.
+ * Empty array means everything parsed cleanly.
  */
 export async function validateFrontmatters(sourceDir: string): Promise<FrontmatterIssue[]> {
-  const perKind = await Promise.all(WALK_SPECS.map((spec) => validateKind(sourceDir, spec)));
-  return perKind.flat();
+  const [agents, skills, profiles] = await Promise.all([
+    lintAgentsDir(join(sourceDir, "agents")),
+    lintSkillsDir(join(sourceDir, "skills")),
+    lintProfilesDir(join(sourceDir, "profiles")),
+  ]);
+
+  const issues: FrontmatterIssue[] = [];
+
+  for (const { path, errors } of collectIssues(agents.findings, (f) => `agents/${f.agent}.md`)) {
+    issues.push({ kind: "agent", path, errors });
+  }
+  for (const { path, errors } of collectIssues(
+    skills.findings,
+    (f) => `skills/${f.skill}/SKILL.md`,
+  )) {
+    issues.push({ kind: "skill", path, errors });
+  }
+  for (const { path, errors } of collectIssues(
+    profiles.findings,
+    (f) => `profiles/${f.profile}.md`,
+  )) {
+    issues.push({ kind: "profile", path, errors });
+  }
+
+  return issues;
 }
 
 /**

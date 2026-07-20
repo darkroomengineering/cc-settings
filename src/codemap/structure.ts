@@ -7,6 +7,7 @@ import type * as TS from "typescript";
 import {
   type CodemapContext,
   getContext,
+  inProjectSourceFiles,
   isExported,
   leadingDoc,
   lineOf,
@@ -98,11 +99,6 @@ export function fileSymbols(ctx: CodemapContext, sf: TS.SourceFile): SymbolInfo[
     }
   });
   return out;
-}
-
-function inProjectSourceFiles(ctx: CodemapContext): TS.SourceFile[] {
-  const roots = new Set(ctx.rootFiles);
-  return ctx.program.getSourceFiles().filter((sf) => roots.has(sf.fileName));
 }
 
 export async function getStructure(projectDir: string, max = 200): Promise<StructureResult | null> {

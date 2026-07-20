@@ -9,9 +9,16 @@
 import { runGit } from "../lib/git.ts";
 import { readState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
-import { ageMs, formatAge, type ReviewQueueState } from "../lib/review-queue.ts";
+import {
+  ageMs,
+  formatAge,
+  type ReviewQueueState,
+  ReviewQueueStateSchema,
+} from "../lib/review-queue.ts";
 
-const rq = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
+const rqRaw = await readState<unknown>("review-queue.json", null);
+const rqParsed = ReviewQueueStateSchema.safeParse(rqRaw);
+const rq: ReviewQueueState = rqParsed.success ? rqParsed.data : { awaiting: 0 };
 const [unstaged, staged] = await Promise.all([
   runGit(["diff", "--stat"]),
   runGit(["diff", "--cached", "--stat"]),

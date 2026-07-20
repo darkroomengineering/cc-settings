@@ -16,8 +16,9 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { formatLintFindings, hasLintErrors, type LintSeverity } from "./lint-frontmatter.ts";
 
-export type ResearchSeverity = "error" | "warning";
+export type ResearchSeverity = LintSeverity;
 
 export interface ResearchFinding {
   file: string;
@@ -164,18 +165,12 @@ export async function lintResearchDir(skillsDir: string): Promise<ResearchResult
 }
 
 export function formatFindings(result: ResearchResult): string {
-  const errors = result.findings.filter((f) => f.severity === "error");
-  const warnings = result.findings.filter((f) => f.severity === "warning");
-  const lines: string[] = [`Linted ${result.fileCount} RESEARCH.md file(s).`];
-  for (const f of result.findings) {
-    const icon = f.severity === "error" ? "✖" : "⚠";
-    lines.push(`  ${icon} ${f.file} [${f.rule}] ${f.message}`);
-  }
-  lines.push("");
-  lines.push(`${errors.length} error(s), ${warnings.length} warning(s).`);
-  return lines.join("\n");
+  return formatLintFindings(result.findings, result.fileCount, {
+    noun: "RESEARCH.md file",
+    getItem: (f) => f.file,
+  });
 }
 
 export function hasErrors(result: ResearchResult): boolean {
-  return result.findings.some((f) => f.severity === "error");
+  return hasLintErrors(result.findings);
 }

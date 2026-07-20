@@ -4,6 +4,31 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+Nuclear-review remediation — all 17 findings from the 2026-07-20 whole-codebase maintainability audit (`docs/audits/nuclear-review-2026-07-20.md`), landed as one behavior-preserving consolidation pass. 936 tests pass; typecheck, Biome, `lint:skills`, and `schemas:check` all green.
+
+**Deleted / restructured:**
+- `buildInstallPlan` + `InstallStep` removed from `src/setup.ts` (N1) — the JSDoc claimed three consumers; the call graph had one, and only its light-profile prune branch did real work. That computation now lives in `src/lib/light-profile.ts` as `lightProfilePruneTargets()`.
+- The fs-mutation install phases (backup / clean / copy, ~260 lines) extracted from `src/setup.ts` into the new `src/lib/install-fs.ts` (N9), following the existing `install-cmds.ts` / `install-display.ts` pattern; `setup.ts` drops to ~600 lines of orchestration.
+- `createBackup` and `cleanOldConfig` now derive from one shared `MANAGED_TOP_LEVEL_PATHS` list (N4) — closing the H7-class drift vector where the backup and wipe sets were maintained by hand in two places.
+- `frontmatter-validate.ts` now reuses `lintAgentsDir`/`lintSkillsDir`/`lintProfilesDir` for discovery instead of its own `WALK_SPECS` walker (N5, ~60 lines deleted; install-time behavior unchanged).
+- `src/codemap/tools.ts` is the new single registry behind both the MCP server's `tools/list`/`tools/call` and the CLI verb dispatch (N8) — previously two hand-maintained definitions of the same surface. Codemap also gains its missing tests: `getArch`/`getTree`/`getCalls`/`getChangeImpact` coverage plus a JSON-RPC protocol test (`tests/codemap-mcp.test.ts`).
+
+**Consolidated (behavior-identical):**
+- `ReviewQueueStateSchema` hoisted from `statusline.ts` into `src/lib/review-queue.ts`; all readers/writers (`tool-cadence.ts`, `session-start.ts`, `review-batch.ts`) now zod-validate instead of casting (N2), matching the repo's stated state-file policy.
+- `pruneArtifacts()` added to `artifact-store.ts`; the three hand-rolled mtime-prune loops in `checkpoint.ts`, `handoff.ts`, `session-start.ts` now call it (N6).
+- `intEnv` exported (plus new `parseIntArg`) from `hook-config.ts`; six NaN-guard parse copies replaced (N11).
+- `emitAdditionalContext()` added to `hook-runtime.ts`; four hooks' identical inline emits replaced (N13).
+- `handoff.ts`'s PreCompact git reads parallelized via `Promise.all`, mirroring `checkpoint.ts` (N14).
+- One shared `SHELL_SEGMENT_SEP_RE` in `hook-command.ts` replaces the twin separator regexes in `audit-hooks.ts` / `safety-net.ts` (N15).
+- Generic `formatLintFindings()`/`hasLintErrors()` in `lint-frontmatter.ts` replace five copy-pasted formatter pairs; the five per-module severity unions are now aliases of `LintSeverity` (N7).
+- `lint-knowledge.ts` imports `NON_NOTE_FILES` from `knowledge-index.ts` instead of redeclaring it (N12); `inProjectSourceFiles` deduped into `codemap/program.ts` (N16).
+
+**Dependencies:**
+- `@biomejs/biome` 2.5.0 → 2.5.4 (N17).
+- `typescript` stays at 6.0.3: the audit's N3 recommendation (upgrade to 7.x) is **blocked** — TS 7's Go-native package drops the v6 JS compiler API that `src/codemap/` consumes (`ts.isArrowFunction`, `ts.SourceFile`, …). The audit report has been corrected; revisit if codemap adopts the TS 7 API or pins the API package separately.
+
 ## [12.4.1] — 2026-07-20
 
 Upstream sync with Claude Code v2.1.215 (from v2.1.211; 2.1.213 was never released). Reference-surface only — four new env vars and one new built-in tool tracked; no behavior change to shipped config.

@@ -33,7 +33,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { HooksBlock } from "../schemas/hooks.ts";
-import { parseHookCommand } from "./hook-command.ts";
+import { parseHookCommand, SHELL_SEGMENT_SEP_RE } from "./hook-command.ts";
 import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { CLAUDE_DIR } from "./platform.ts";
@@ -170,20 +170,16 @@ function classifyShippedPath(
   };
 }
 
-// Compound command separator regex. Splits on ; && || and newline variants
-// including U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR.
-// Built via new RegExp so \uNNNN escapes stay as explicit codepoints in the
-// source text rather than invisible literal characters (encoding-safe).
-const COMPOUND_SEP = /\s*(?:;|&&|\|\||\r?\n|\r|\u2028|\u2029)\s*/;
-
 // Compound commands that chain multiple trusted bun scripts with `;` or `&&`.
 // Each sub-command must match MANAGED_HOOK_CMD *and* pass content verification;
-// the compound's severity is the worst of its parts.
+// the compound's severity is the worst of its parts. Segment separator is the
+// shared SHELL_SEGMENT_SEP_RE (hook-command.ts) - mirrors safety-net.ts's
+// destructive-command segment splitter.
 function classifyCompound(
   cmd: string,
   integrity: SrcIntegrity | null | undefined,
 ): { severity: HookSeverity; reasons: string[] } | null {
-  const parts = cmd.split(COMPOUND_SEP).filter((p) => p.length > 0);
+  const parts = cmd.split(SHELL_SEGMENT_SEP_RE).filter((p) => p.length > 0);
   if (parts.length < 2) return null;
 
   // Parse each part via the shared managed-command parser (drops lib/).
