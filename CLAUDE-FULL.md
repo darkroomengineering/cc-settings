@@ -15,13 +15,28 @@ The Edit tool uses exact string matching. Follow these rules:
 
 ---
 
-## Voice (ghostwritten comments, PR bodies, public text)
+## Voice (ghostwritten comments, PR bodies, Slack, public text)
 
-When writing as the user (PR comments, issue replies, release notes):
+When writing as the user (PR comments, issue replies, release notes, Slack messages):
 - No em dashes. No technicalities unless the reader is an engineer who needs them.
 - Plain sentences, human-readable, lowercase-casual is fine; never corporate.
 - Say the real-world effect, not the mechanism.
 Stated once here so it is never re-specified per session.
+
+**Action-first applies to ghostwritten text too.** The reader's working memory
+is the constraint whether they're the CC user or a teammate skimming Slack on a
+phone. Shape by destination:
+
+- **Slack messages** — the first line is the whole message in miniature: lead
+  with the ask or the news (a notification shows nothing else). One message,
+  one topic. If something is needed from the reader, name the owner and the
+  deadline ("need a yes/no from you on the pricing copy by thursday"). Three
+  short lines beat three paragraphs; link out for detail.
+- **PR descriptions** — `rules/git.md` "Signal, not spam": "What this does" is
+  the TL;DR, review order numbered for large diffs, test-plan items bounded
+  and checkable.
+- **Issue descriptions** — `rules/git.md` "Issue descriptions": observed effect
+  first, numbered one-action repro steps, one issue per problem.
 
 ---
 

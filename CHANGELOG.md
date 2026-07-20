@@ -4,6 +4,10 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.5.1] — 2026-07-20
+
+Action-first shaping extended from responses-to-the-user to ghostwritten outbound text. The Voice section in `CLAUDE-FULL.md` now covers Slack messages (first line carries the ask or the news, one topic per message, named owner + deadline when something is needed, link out for detail); `rules/git.md` gains an action-first block under "Signal, not spam" (description as TL;DR, numbered review order for large diffs, bounded test-plan items, 5-item cap) and a new "Issue descriptions" subsection (observed effect first, numbered one-action repro steps, one issue per problem); the `/project` issue template points at it. Substance lives in `rules/git.md` for PR/issue bodies and in the Voice section for Slack, with cross-references instead of duplication — both files are always-loaded, so restating either in the other would double the context cost.
+
 ## [12.5.0] — 2026-07-20
 
 Three-part release from a single audit-driven session: the nuclear-review whole-codebase remediation, the `adhd` divergent-ideation skill, and the always-on action-first output style.

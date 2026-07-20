@@ -114,6 +114,23 @@ Technical bullets — the *how*, for reviewers reading the code.
 - No jargon dump, no restating the diff, no filler ("This PR introduces a comprehensive…").
 - If you can't say what it does in plain English, that's a signal the change is unclear — not a reason to reach for bigger words.
 
+**Action-first shaping** — the reviewer's working memory is the constraint
+(same principle as the always-on Action-First Output rules):
+- "What this does" is the TL;DR: a reviewer should know what to check from it alone.
+- Large diff? Number the review order ("start with `schema.ts`; the rest is fallout").
+- Test-plan items are bounded, checkable actions ("run `bun test`, expect 0 failures"), never "tested thoroughly".
+- Cap any list at 5. Past five bullets, the PR is probably two PRs.
+
+### Issue descriptions
+
+Same constraint, different reader — someone deciding whether to pick this up:
+- Lead with the observed effect, not the suspected cause ("checkout 500s on
+  Safari" beats "possible race in session middleware").
+- Repro steps numbered, one action per step.
+- One issue per problem. File the tangent as its own issue and link it.
+- If work is planned, tasks are bounded and verifiable — see the `/project`
+  skill's issue template ("verify: `command` → expected output").
+
 ### Open a PR by default
 Default to a feature branch + PR, even for small changes — most Darkroom client
 projects protect `main` and review through PRs. Direct `git push origin main` is

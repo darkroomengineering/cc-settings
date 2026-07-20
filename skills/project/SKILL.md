@@ -119,6 +119,10 @@ file paths, line refs, and task assumptions are only guaranteed valid at that
 SHA. Give tasks machine-checkable done criteria (command → expected output)
 where possible, not prose.
 
+Body shaping follows `rules/git.md` "Issue descriptions": observed effect
+first, numbered one-action repro steps, one issue per problem — tangents
+become their own linked issues.
+
 ### Reconcile a stale issue
 
 Before resuming an issue whose plan stamp is behind the current HEAD, reconcile
