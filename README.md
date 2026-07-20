@@ -57,7 +57,7 @@ No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the sta
 ├── CLAUDE.md           # Claude-Code-specific config
 ├── settings.json       # Composed from config/*.json (permissions, hooks, MCP)
 ├── agents/             # 10 specialized subagents
-├── skills/             # 38 auto-invocable skills
+├── skills/             # 39 auto-invocable skills
 ├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro, react-router
 ├── rules/              # Path-conditioned rules (load on-demand by file type)
 └── src/                # Hook + script implementations (TypeScript)

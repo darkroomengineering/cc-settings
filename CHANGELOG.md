@@ -6,6 +6,8 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+New skill: `adhd` — parallel divergent ideation, ported from [UditAkhourii/adhd](https://github.com/UditAkhourii/adhd) (MIT), following the nuclear-review/freeze port pattern (adapt the SKILL.md, no npm dependency). Five isolated generator agents under distinct cognitive frames diverge in parallel; a critic pass scores (novelty/viability/fit), clusters, flags traps, and deepens the top 3. cc-settings adaptations: a sibling-routing section (`/adhd` generates the option space, `/oracle` compare weighs known options, `/plan-ceo-review` challenges the premise), quota-doctrine model notes (generators ride the Sonnet subagent pool; synthesis stays on the session model), and the upstream CLI section replaced with attribution. Skill count 38 → 39 (`ACTIVE_SKILLS`, MANUAL table + prose, CLAUDE.md / CLAUDE-FULL.md ledgers, README).
+
 Nuclear-review remediation — all 17 findings from the 2026-07-20 whole-codebase maintainability audit (`docs/audits/nuclear-review-2026-07-20.md`), landed as one behavior-preserving consolidation pass. 936 tests pass; typecheck, Biome, `lint:skills`, and `schemas:check` all green.
 
 **Deleted / restructured:**
