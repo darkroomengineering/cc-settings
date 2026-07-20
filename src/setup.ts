@@ -64,7 +64,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.5.0"; // nuclear-review remediation + adhd ideation skill + action-first output style
+const VERSION = "12.5.1"; // action-first shaping extended to ghostwritten text (Slack, PR/issue descriptions)
 
 // --- Arg parsing ---------------------------------------------------------
 
