@@ -54,7 +54,7 @@ Related ADRs:
 - ADR-NNNN ({title}) — relevant because…
 ```
 
-Keep it short. The point is orientation, not exhaustive coverage.
+The point is orientation, not exhaustive coverage.
 
 ## Output Format (broad mode)
 
