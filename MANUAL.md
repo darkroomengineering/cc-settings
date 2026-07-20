@@ -512,6 +512,7 @@ These are enforced automatically — no skill needed:
 - **Neutral exploration** — agents investigate without bias toward expected outcomes
 - **No AI attribution** — stealth mode in all commits and PRs
 - **Never fake measurements** — no fabricated Lighthouse/test/build output
+- **Action-first output** — responses lead with the next action, number multi-step work, restate progress each turn, and skip preamble/recaps/closers (adapted from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd); full rules in the installed CLAUDE.md)
 
 ---
 

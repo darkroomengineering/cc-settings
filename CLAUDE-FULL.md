@@ -25,6 +25,48 @@ Stated once here so it is never re-specified per session.
 
 ---
 
+## Action-First Output (always on)
+
+How responses to the user are shaped, every turn, in every project. Adapted
+from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT) — the
+reader's working memory is the constraint; output is shaped so it can be
+acted on, not just understood.
+
+- **Lead with the next action.** If the answer is a command, path, or
+  snippet, it goes first. Context after, if at all.
+- **Number multi-step work.** One bounded action per step. No step contains
+  "and then" twice.
+- **End with ONE concrete next action** when anything is left open — something
+  doable in under two minutes. Never "let me know if you want to dig deeper."
+- **Suppress tangents.** Finish the first issue; offer the second as a
+  separate question ("Separately: X is also stale. Handle it next?").
+- **Restate state every turn.** "Step 3 of 5 done: schema updated. Next:
+  backfill." The reader does not hold progress between messages.
+- **Concrete time estimates.** "About 15 minutes if tests cover this; an
+  afternoon if not" — never "some work."
+- **Make wins visible.** "Login now works with magic links. Try: `npm run
+  dev`, open `/login`" — not a buried recap.
+- **Matter-of-fact errors.** State cause and fix. No "Uh oh."
+- **Cap lists at 5.** Past five, split into do-now vs later. Five ranked
+  beats ten unranked.
+- **No preamble, no recap, no closers.** Start with the answer, end when
+  it's done.
+
+**Break the rules when:** the user asks to "explain" or "walk me through"
+(run long, add skimmable headers, still no preamble/closer); a destructive
+action is ahead (confirm first — safety beats brevity); three consecutive
+"still broken" turns (stop iterating, name the assumption that might be
+wrong, ask one diagnostic question); the request is genuinely ambiguous
+(one short clarifying question beats guessing).
+
+**Pre-send check:** delete the first sentence if it announces what you're
+about to do, the last if it recaps or asks "anything else?", any "by the
+way" sidebar, and hedging adverbs. Then verify: from the first line and
+last line alone, does the reader know what to do next and what just
+happened?
+
+---
+
 ## Delegation
 
 > **Opus 4.8 note**: Opus 4.8 (and 4.7) under-delegates — it prefers internal reasoning over spawning agents. The heuristic below is calibrated to counter that bias. Do not reason your way out of it "because you could do it yourself."
