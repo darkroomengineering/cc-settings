@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.4.1] — 2026-07-20
+
+Upstream sync with Claude Code v2.1.215 (from v2.1.211; 2.1.213 was never released). Reference-surface only — four new env vars and one new built-in tool tracked; no behavior change to shipped config.
+
+**Adopted:**
+- `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` env var (2.1.212, session-wide WebSearch cap, default 200) in manifest + docs env table.
+- `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` env var (2.1.212, per-session subagent-spawn cap, default 200, `/clear` resets) in manifest + docs env table — worth knowing about given cc-settings' fan-out-heavy delegation defaults.
+- `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` env var (2.1.212, MCP calls over the threshold auto-background, default 2 min, `0` disables) in manifest + docs env table.
+- `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` env var (2.1.214, OTel content-attribute truncation limit, default 60 KB) in manifest + docs env table.
+- `EndConversation` tool (2.1.214) in manifest `knownBuiltinTools`.
+
+**Skipped:** the rest of 2.1.212–2.1.215 has no cc-settings contract surface. Notably: the single-segment `dir/**` rule-scoping fix (2.1.214) doesn't affect shipped config — no single-segment globs in `config/30-permissions.json`, and all hook `if:` conditions are `Bash(...)` forms; `subagentStatusLine` effort payload (2.1.214) — cc-settings doesn't wire a subagent statusline; SessionStart `"fork"` source (2.1.214) — `session-start.ts` doesn't branch on source; `/verify` + `/code-review` no longer auto-run natively (2.1.215) — reduces collision risk with the cc-settings `/verify` skill.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [12.4.0] — 2026-07-16
 
 Upstream sync with Claude Code v2.1.211 (from v2.1.205). Headline: migrated the shipped permission rules off the newly deprecated `Write(path)`/`Glob(path)`/`NotebookEdit(path)` forms before they start warning at every session start.
