@@ -129,7 +129,7 @@ Rules for the doc pass:
 
 - **One `[Unreleased]` entry per landed commit, or one consolidated entry if multiple commits ship together.** Don't leave audit-driven refactors anonymous in git history.
 - **Skill / agent / rule counts must match reality.** If you added or removed one, update every reference (`MANUAL.md` intro, `CLAUDE.md`, `CLAUDE-FULL.md`).
-- **Don't pad.** Each entry is one short paragraph naming the file(s) changed and the why. Skip prose victory laps.
+- **One short paragraph per entry**, naming the file(s) changed and the why. The global Action-First rules (installed CLAUDE.md) apply to doc artifacts too — no padding, no victory laps.
 - **Regenerate derived docs.** If you changed a zod schema in `src/schemas/`, run `bun run schemas:emit` and commit the resulting `schemas/*.schema.json` diff alongside the source change.
 - **Update `MANUAL.md` triggers tables** when a skill's invocation phrasing changes or when a new skill goes in.
 

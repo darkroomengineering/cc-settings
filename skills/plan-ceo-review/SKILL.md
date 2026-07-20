@@ -275,8 +275,6 @@ B) [Alternative] — [effort] / [risk] / [maintenance]
 C) [Alternative] — [effort] / [risk] / [maintenance]
 ```
 
-**Lead with your recommendation.** "Do B. Here's why:" not "Option B might be worth considering."
-
 Every question MUST have 2-3 lettered options with effort/risk/maintenance per option.
 
 ---
@@ -354,7 +352,7 @@ List any decisions that were deferred or need further input.
 - Use ASCII diagrams for flows and relationships (no mermaid, no images)
 - Use code blocks for file paths and commands
 - Bold critical findings
-- Keep prose concise — every sentence should be actionable
+- Prose style: the global Action-First rules (installed CLAUDE.md) apply — lead with the recommendation, no hedging
 
 ---
 
@@ -386,4 +384,3 @@ List any decisions that were deferred or need further input.
 - The best review sometimes concludes "don't build this"
 - Commit to the selected mode — no silent drift
 - One question per issue — never batch
-- Lead with recommendations, not options
