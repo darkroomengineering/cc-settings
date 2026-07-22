@@ -11,7 +11,8 @@ src/lib/codex.ts              Core bridge logic (detection, execution, caching)
   └─ src/scripts/codex-run.ts CLI entry point — subcommands: exec / review / ask
                                Invoked as: bun "$HOME/.claude/src/scripts/codex-run.ts" <subcommand> "..."
                                Also exposed as the /codex skill
-  └─ src/hooks/codex-verify.ts SessionStart hook — probes availability, feeds statusline badge
+  └─ src/hooks/codex-verify.ts SessionStart hook — probes availability, feeds statusline badge,
+                               injects the default-on routing policy when the bridge is available
   └─ agents/codex-verifier.md  Agent that fans out a parallel cross-model verification pass
 ```
 
@@ -74,7 +75,7 @@ Two roomy pools (Sonnet + Codex) carry volume. The one scarce pool (Opus) direct
 
 ## Automated quota steering
 
-The routing convention above is enforced automatically, not just documented. The statusline writes `~/.claude/tmp/rate-limits.json` on every refresh, tagged with `updated_at` — the hook ignores the cache once it's older than 10 minutes. `src/hooks/quota-steer.ts` (a `UserPromptSubmit` hook) reads that cache, computes a band (normal / elevated / critical, at 60%/85% for the five-hour window and 65%/85% for the weekly window), reads the cached Codex verdict, and injects `additionalContext` steering bulk work to Codex when it's available. At critical it re-reminds every 30 minutes rather than every turn. Like all hooks here, it fails open — a missing or stale cache is silently skipped rather than blocking the prompt.
+The routing convention above is enforced automatically, not just documented. `src/hooks/codex-verify.ts` (a `SessionStart` hook) injects a default-on routing policy whenever the bridge is available: Codex review/exec is the default on diff-producing work, not something that only kicks in under quota pressure. On top of that, the statusline writes `~/.claude/tmp/rate-limits.json` on every refresh, tagged with `updated_at` — the hook ignores the cache once it's older than 10 minutes. `src/hooks/quota-steer.ts` (a `UserPromptSubmit` hook) reads that cache, computes a band (normal / elevated / critical, at 60%/85% for the five-hour window and 65%/85% for the weekly window), reads the cached Codex verdict, and injects `additionalContext` escalating urgency toward Codex when it's available. At critical it re-reminds every 30 minutes rather than every turn. Like all hooks here, both fail open — a missing or stale cache, or an unavailable bridge, is silently skipped rather than blocking the prompt.
 
 ---
 

@@ -34,7 +34,7 @@ bun "$HOME/.claude/src/scripts/codex-run.ts" review
 
 Treat it exactly like react-doctor and deslop: **advisory — reported alongside the verdict, never flips it.** A green mechanical gate stays review-ready even if Codex raises a finding; surface the finding for the human to weigh, don't block on it. The bridge is gated and fails open — silent when Codex isn't installed, authed, or has quota.
 
-Keep it **out of `bun run proof` itself.** That gate is cheapest-first and runs constantly; a remote model call would make every proof slow. Run this probe deliberately on non-trivial diffs — not on every typo fix — which also keeps it cheap regardless of how roomy the Codex window is.
+Keep it **out of `bun run proof` itself.** That gate is cheapest-first and runs constantly; a remote model call would make every proof slow. Run this probe by default on every diff-producing task when the bridge is available — skip it only for a trivial one-line/typo diff, which also keeps it cheap regardless of how roomy the Codex window is.
 
 ## The contract
 

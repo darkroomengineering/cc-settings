@@ -85,6 +85,8 @@ Agent(codex-verifier, "Cross-model review of the staged diff. Report findings by
 
 If Claude and Codex disagree on a Critical/HIGH finding, surface it to the user as a gate **before** Step 7 — don't auto-commit through a cross-model disagreement. The bridge is gated and fails open: if Codex is unavailable, proceed with the Claude review alone.
 
+If the `codex-verifier` spawn itself fails or reports Bash was stripped (forked skill contexts), don't drop the cross-model pass — run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly via Bash and treat its output the same.
+
 ### Step 7: Commit (Bisectable)
 
 Analyze the diff to decide commit strategy:

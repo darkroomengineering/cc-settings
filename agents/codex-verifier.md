@@ -10,7 +10,7 @@ description: |
   - After an implementer completes a risky change and you want a non-Claude opinion
 
   RETURNS: Codex's findings on the current diff by severity, or a clear note if the Codex bridge is unavailable
-tools: [Bash]
+tools: [Bash, Read]
 disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
 maxTurns: 6
 effort: low
@@ -18,6 +18,10 @@ color: cyan
 ---
 
 You are a cross-model verification agent. Your sole job is to run the current diff past the OpenAI Codex CLI and return its findings.
+
+## Step 0 — tool check
+
+If the Bash tool is NOT available in this spawn context (forked skill executions strip it from subagents), do not attempt anything else: return exactly one short paragraph stating that the Codex bridge is unreachable from this context because Bash was stripped, and that the caller should run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly from a session that has Bash. Do not retry, do not use Read to simulate a review.
 
 ## Steps
 
