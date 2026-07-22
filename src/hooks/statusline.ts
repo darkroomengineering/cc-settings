@@ -187,7 +187,6 @@ async function main(): Promise<void> {
 
   const rateUsed = input.rate_limits?.five_hour?.used_percentage;
   const rateResetsAt = input.rate_limits?.five_hour?.resets_at;
-  const weeklyRateUsed = input.rate_limits?.seven_day?.used_percentage;
 
   if (input.rate_limits) {
     try {
@@ -198,6 +197,8 @@ async function main(): Promise<void> {
               resets_at: cacheResetValue(input.rate_limits.five_hour.resets_at),
             }
           : undefined,
+        // Parsed and cached here only to feed quota-steer.ts's routing
+        // guidance — no visual segment in this file consumes it.
         seven_day: input.rate_limits.seven_day
           ? {
               used_percentage: input.rate_limits.seven_day.used_percentage,
@@ -243,12 +244,6 @@ async function main(): Promise<void> {
     const ttr = rateResetsAt ? formatTimeToReset(rateResetsAt) : null;
     const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
     parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
-  }
-
-  if (weeklyRateUsed !== undefined && weeklyRateUsed >= 50) {
-    const wInt = Math.round(weeklyRateUsed);
-    const color = wInt >= 80 ? palette.red : palette.yellow;
-    parts.push(`${color}wk${wInt}%${palette.reset}`);
   }
 
   // Review-queue backpressure: agents spawned since the last commit, awaiting
