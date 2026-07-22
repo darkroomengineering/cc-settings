@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.6.0] — 2026-07-22
+
+Upstream sync with Claude Code v2.1.216–v2.1.217. One behavioral change ships to installs: v2.1.217 stops subagents from spawning nested subagents by default, which would have silently broken `maestro` and `deslopper` orchestration — cc-settings now sets `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` to keep their fan-out working.
+
+**Adopted:**
+- `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` shipped in `config/10-core.json` (v2.1.217). Subagents no longer spawn nested subagents by default upstream; `maestro` and `deslopper` are subagents that fan out via the Agent tool, so without a depth override their orchestration dies silently. Documented in the env table and `docs/agent-models.md`.
+- `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` tracked in the manifest + env table (v2.1.217). Default cap of 20 concurrently-running subagents; excess spawns queue. Relevant context for wide fan-out patterns, default left as-is.
+- `emojiCompletionEnabled` added to `src/schemas/settings.ts` + manifest + settings table (v2.1.217). Emoji shortcode autocomplete in the prompt input; boolean toggle.
+- `sandbox.filesystem.disabled` added to the Sandbox schema + sandbox docs table (v2.1.216). Skips filesystem isolation while keeping network egress control.
+- `FORCE_HYPERLINK` tracked in the manifest + env table (v2.1.217). Footer PR badges are now forced hyperlinks over ssh/tmux; `0` opts out.
+
+**Deletions / Native-now-redundant:** none — both releases were otherwise bug fixes and upstream UX with no cc-settings surface (MCP output memory leak, quadratic message-normalization slowdown, worktree git-redirection hardening, `/ultrareview` and `/code-review ultra` error-message improvements, bundled dataviz skill update).
+
+**Files changed:**
+- `src/schemas/settings.ts`
+- `config/10-core.json`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `docs/agent-models.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [12.5.1] — 2026-07-20
 
 Action-first shaping extended from responses-to-the-user to ghostwritten outbound text. The Voice section in `CLAUDE-FULL.md` now covers Slack messages (first line carries the ask or the news, one topic per message, named owner + deadline when something is needed, link out for detail); `rules/git.md` gains an action-first block under "Signal, not spam" (description as TL;DR, numbered review order for large diffs, bounded test-plan items, 5-item cap) and a new "Issue descriptions" subsection (observed effect first, numbered one-action repro steps, one issue per problem); the `/project` issue template points at it. Substance lives in `rules/git.md` for PR/issue bodies and in the Voice section for Slack, with cross-references instead of duplication — both files are always-loaded, so restating either in the other would double the context cost.

@@ -55,6 +55,7 @@ export const Sandbox = z.looseObject({
     .object({
       allowRead: z.array(z.string()).optional(),
       allowWrite: z.array(z.string()).optional(), // re-allow write paths inside denyWrite regions
+      disabled: z.boolean().optional(), // 2.1.216 — skip filesystem isolation while keeping network egress control
     })
     .optional(),
   // 2.1.187 — declare credential files + env vars sandboxed commands must not
@@ -113,6 +114,7 @@ export const Settings = z.looseObject({
   spinnerTipsOverride: SpinnerTipsOverride.optional(), // 2.1.122
   statusLine: StatusLine.optional(),
   showThinkingSummaries: z.boolean().optional(),
+  emojiCompletionEnabled: z.boolean().optional(), // 2.1.217 — emoji shortcode autocomplete in the prompt input (`:heart:` → ❤️)
 
   // Collaboration
   teammateMode: TeammateMode.optional(),

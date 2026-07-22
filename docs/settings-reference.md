@@ -56,6 +56,8 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` (v2.1.211) |
 | `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200) — stops runaway search loops (v2.1.212) |
 | `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Per-session cap on subagent spawns (default 200); `/clear` resets the budget — relevant to fan-out-heavy delegation (v2.1.212) |
+| `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | integer (string) | Cap on subagents running at the same time (default 20) — one message can no longer fan out unbounded background agents (v2.1.217) |
+| `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | How deep subagents may spawn nested subagents. Upstream default now disallows nesting entirely; cc-settings sets `2` so `maestro` and `deslopper` (subagents that fan out via the Agent tool) keep working (v2.1.217) |
 | `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable (v2.1.212) |
 | `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) (v2.1.214) |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
@@ -78,6 +80,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SESSION_ID` | set automatically | Mirrors the `session_id` passed to hooks; available inside Bash tool subprocesses (v2.1.132) |
 | `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN` | `"1"` or unset | Opt out of the fullscreen alternate-screen renderer and keep the conversation in the terminal's native scrollback (v2.1.132) |
 | `CLAUDE_CODE_FORCE_SYNC_OUTPUT` | `"1"` or unset | Force-enable synchronized output on terminals that auto-detection misses (e.g. Emacs `eat`) (v2.1.129) |
+| `FORCE_HYPERLINK` | `"0"` to opt out | Footer PR badges are clickable hyperlinks even when terminal support can't be detected (ssh/tmux); `0` restores plain text (v2.1.217) |
 | `CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE` | `"1"` or unset | On Homebrew or WinGet installs, Claude Code runs the upgrade command in the background and prompts to restart (v2.1.129) |
 | `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY` | `"1"` or unset | Opt in to `/v1/models` discovery for the `/model` picker on third-party gateways (was automatic 2.1.126–2.1.128) (v2.1.129) |
 | `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` | `"1"` or unset | Re-enable the session quality survey for enterprises capturing responses through OpenTelemetry (v2.1.136) |
@@ -218,6 +221,7 @@ Sandbox configuration for secure command execution. cc-settings ships with `fail
 | `failIfUnavailable` | boolean | Exit with error when sandbox is enabled but unavailable (default: false) |
 | `enableWeakerNetworkIsolation` | boolean | macOS: weaker network isolation for MITM proxy verification |
 | `filesystem.allowRead` / `allowWrite` | list | Re-allow paths inside `denyRead`/`denyWrite` regions (v2.1.77, v2.1.78) |
+| `filesystem.disabled` | boolean | Skip filesystem isolation entirely while keeping network egress control (v2.1.216) |
 | `network.deniedDomains` | list | Block specific domains despite broader `allowedDomains` wildcard (v2.1.113) |
 | `credentials.files` | list | Deny sandboxed reads of credential files: `[{ "path": "~/.aws/credentials", "mode": "deny" }]` (v2.1.187) |
 | `credentials.envVars` | list | Unset secret env vars before each sandboxed command: `[{ "name": "GITHUB_TOKEN", "mode": "deny" }]` (v2.1.187) |
@@ -554,6 +558,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `disabledMcpjsonServers` | string[] | G | Blocklist for project .mcp.json server names |
 | `editorMode` | `"normal"` \| `"vim"` | U | Input editor keybindings |
 | `effortLevel` | `"low"` \| `"medium"` \| `"high"` \| `"xhigh"` \| `"max"` | G | Persist effort level across sessions (counterpart of `CLAUDE_CODE_EFFORT_LEVEL`; `max` is a superset beyond the key's docs) |
+| `emojiCompletionEnabled` | boolean | U | Emoji shortcode autocomplete in the prompt input (`:heart:` → ❤️); `false` disables (v2.1.217) |
 | `enableAllProjectMcpServers` | boolean | G | Auto-enable every server listed in .mcp.json |
 | `enabledMcpjsonServers` | string[] | G | Allowlist for project .mcp.json server names |
 | `enforceAvailableModels` | boolean | E | Make the `availableModels` allowlist also constrain the Default model; user/project cannot widen a managed list (v2.1.175) |

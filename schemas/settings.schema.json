@@ -79,6 +79,9 @@
     "showThinkingSummaries": {
       "type": "boolean"
     },
+    "emojiCompletionEnabled": {
+      "type": "boolean"
+    },
     "teammateMode": {
       "type": "string",
       "enum": [
@@ -796,6 +799,9 @@
               "items": {
                 "type": "string"
               }
+            },
+            "disabled": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false
