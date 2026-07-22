@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-07-20T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.215",
+  "lastScan": "2026-07-22T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.217",
   "knownSettingsKeys": [
     "$schema",
     "advisorModel",
@@ -45,6 +45,7 @@
     "disabledMcpjsonServers",
     "editorMode",
     "effortLevel",
+    "emojiCompletionEnabled",
     "enableAllProjectMcpServers",
     "enabledMcpjsonServers",
     "enforceAvailableModels",
@@ -172,8 +173,10 @@
     "CLAUDE_CODE_FORK_SUBAGENT",
     "CLAUDE_CODE_FORWARD_SUBAGENT_TEXT",
     "CLAUDE_CODE_HIDE_CWD",
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS",
     "CLAUDE_CODE_MAX_RETRIES",
     "CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH",
     "CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION",
     "CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS",
     "CLAUDE_CODE_MCP_SERVER_NAME",
@@ -202,6 +205,7 @@
     "DISABLE_UPDATES",
     "ENABLE_PROMPT_CACHING_1H",
     "ENABLE_TOOL_SEARCH",
+    "FORCE_HYPERLINK",
     "FORCE_PROMPT_CACHING_5M",
     "OTEL_LOG_ASSISTANT_RESPONSES",
     "OTEL_LOG_RAW_API_BODIES",
@@ -284,6 +288,7 @@
     "v2.1.166 added the fallbackModel settings key (string | string[]; up to three fallback models tried in order when the primary is overloaded/unavailable) \u2014 see src/schemas/settings.ts. 2.1.167/2.1.168 were bug-fixes-only.",
     "v2.1.169 added the disableBundledSkills settings key (hide Anthropic's bundled skills/workflows/built-in slash commands from the model) plus three env vars: CLAUDE_CODE_DISABLE_BUNDLED_SKILLS (env counterpart), CLAUDE_CODE_SAFE_MODE (counterpart of the new --safe-mode troubleshooting flag), and API_FORCE_IDLE_TIMEOUT (=0 opts out of the restored 5-min Vertex/Foundry idle-stream timeout). The rest of 2.1.169 was bug-fixes and runtime/UI tweaks (managed-MCP reconnect enforcement, /cd command, history-row navigation, perf).",
     "v2.1.195 added the CLAUDE_CODE_DISABLE_MOUSE_CLICKS env var (disable mouse click/drag/hover in fullscreen mode while keeping wheel scroll) \u2014 a CC-itself TUI toggle, manifest-tracked only. It also fixed hook matchers with hyphenated identifiers (e.g. code-reviewer, mcp__brave-search) accidentally substring-matching \u2014 they now exact-match; use a `__.*` suffix to match all tools from a hyphenated MCP server. Verified-safe for cc-settings: every hook matcher in config/40-hooks.json is a non-hyphenated builtin tool name (Bash, Edit, Write|Edit, Edit|Write|MultiEdit). v2.1.194 shipped with no changelog entries (skipped). The rest of 2.1.195 was voice-dictation, plugin-loader, and background-task/remote-session bug fixes with no config surface.",
-    "v2.1.203/2.1.204 were bug-fixes-only (background-agent/daemon reliability, TUI polish, headless SessionStart hook streaming) \u2014 no new config surface. The 2.1.203 notes surfaced CLAUDE_CODE_DISABLE_MOUSE (full mouse-capture opt-out, companion to CLAUDE_CODE_DISABLE_MOUSE_CLICKS), which we had never tracked; added to knownEnvVars. Also added advisorModel to knownSettingsKeys \u2014 it entered src/schemas/settings.ts in PR #126 (upstream 2.1.98) but the manifest was never updated, so the scanner flagged it every run."
+    "v2.1.203/2.1.204 were bug-fixes-only (background-agent/daemon reliability, TUI polish, headless SessionStart hook streaming) \u2014 no new config surface. The 2.1.203 notes surfaced CLAUDE_CODE_DISABLE_MOUSE (full mouse-capture opt-out, companion to CLAUDE_CODE_DISABLE_MOUSE_CLICKS), which we had never tracked; added to knownEnvVars. Also added advisorModel to knownSettingsKeys \u2014 it entered src/schemas/settings.ts in PR #126 (upstream 2.1.98) but the manifest was never updated, so the scanner flagged it every run.",
+    "v2.1.216/2.1.217: added sandbox.filesystem.disabled (skip FS isolation, keep network egress control) and emojiCompletionEnabled to src/schemas/settings.ts. Three env vars tracked: CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS (concurrent-subagent cap, default 20), CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH (subagents no longer spawn nested subagents by default; cc-settings ships \"2\" in config/10-core.json so maestro/deslopper keep their fan-out), FORCE_HYPERLINK (=0 opts out of forced footer hyperlinks over ssh/tmux). The rest of both releases was bug fixes and upstream UX with no config surface."
   ]
 }

@@ -64,7 +64,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.5.1"; // action-first shaping extended to ghostwritten text (Slack, PR/issue descriptions)
+const VERSION = "12.6.0"; // sync with Claude Code v2.1.217 (subagent fan-out limits, sandbox.filesystem.disabled, emoji autocomplete)
 
 // --- Arg parsing ---------------------------------------------------------
 
