@@ -143,11 +143,11 @@ The OpenAI Codex CLI runs as a second model alongside Claude via the `/codex` sk
 
 - **Opus** → planning, synthesis, gate decisions. Never the body of a tight `/loop`.
 - **Sonnet** → loop bodies and most fan-out subagents (`CLAUDE_CODE_SUBAGENT_MODEL` is already `sonnet`). Now near-Opus quality on coding/agentic work, which makes this split cheaper without giving up much. There's no `/loop` model setting — pin per-invocation.
-- **Codex** → mechanical/bulk execution (`/codex exec`) and independent cross-model verification (`/codex review`, or the `codex-verifier` agent fanned out in parallel). Batch into FEW LARGE calls — it's message-metered, so one whole task beats many steps. Always review Codex's diff before trusting it.
+- **Codex** → default-on, not threshold-gated: every diff-producing turn gets a Codex adversarial review (parallel, fail-open, via `/codex review` or the `codex-verifier` agent), and mechanical/bulk implementation goes to `/codex exec` by default. Batch into FEW LARGE calls — it's message-metered, so one whole task beats many steps. Always review Codex's diff before trusting it.
 
 Two roomy pools (Sonnet + Codex) carry volume; the one scarce pool (Opus) does the thinking. If a Codex window drains, fail over to Claude-only rather than stalling.
 
-**Automated steering** — the statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json`, and the `quota-steer` hook injects routing guidance into the session when usage crosses thresholds (5h ≥ 60% / weekly ≥ 65%): route bulk work to Codex when the bridge is available, downshift subagents to Sonnet when it isn't. The prose above is the policy; the hook is the enforcement nudge.
+**Automated steering** — the `codex-verify` SessionStart hook injects a default-on routing policy into the session whenever the bridge is available, so Codex review/exec is used by default on diff-producing work, not just under quota pressure. The statusline also persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json`, and the `quota-steer` hook injects additional routing guidance when usage crosses thresholds (5h ≥ 60% / weekly ≥ 65%) — those thresholds now only escalate urgency, they aren't what triggers using Codex in the first place.
 
 ---
 
