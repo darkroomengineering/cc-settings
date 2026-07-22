@@ -44,6 +44,8 @@ Agent(codex-verifier, "Independently find issues in the current diff. Report fin
 
 Merge Codex's findings into the finder superset *before* the Adversary stage, so the Adversary challenges the union of both families' issues. (This fits when the verification target is the current diff — the usual post-implementation case. For arbitrary non-diff code, fall back to the all-Claude panel.) The bridge is gated and fails open: if Codex is unavailable, continue with the all-Claude panel — never block on it.
 
+If the `codex-verifier` spawn itself fails or reports Bash was stripped (forked skill contexts), don't drop the cross-model pass — run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly via Bash and treat its output the same.
+
 ### Agent 2: Adversary
 
 Takes the finder's output and tries to disprove each issue.

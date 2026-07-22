@@ -12,6 +12,8 @@ bun "$HOME/.claude/src/scripts/codex-run.ts" ask "<the skill's audit prompt>"
 
 Fold Codex's findings into synthesis as a second opinion: where Claude and Codex independently flag the same module, that's **high-conviction**; where they diverge, note the divergence rather than silently dropping it. The bridge is gated and fails open — if Codex is unavailable, proceed with the Claude-only audit.
 
+If the `codex-verifier` spawn itself fails or reports Bash was stripped (forked skill contexts), don't drop the cross-model pass — run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly via Bash and treat its output the same.
+
 ## 2. team-knowledge reconciliation — gated, fails open
 
 Structure-blind auditing means deliberate design reads as debt. Reconcile findings against the `team-knowledge` corpus — the record of "we decided to do it this way" and "this bites you."

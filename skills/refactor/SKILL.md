@@ -55,6 +55,8 @@ Agent(codex-verifier, "Cross-model review of the refactor diff. Confirm behavior
 
 The bridge is gated and fails open: if Codex is unavailable, the reviewer agent alone is fine.
 
+If the `codex-verifier` spawn itself fails or reports Bash was stripped (forked skill contexts), don't drop the cross-model pass — run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly via Bash and treat its output the same.
+
 ## Output
 
 Return a summary:
