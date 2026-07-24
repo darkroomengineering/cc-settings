@@ -7,7 +7,7 @@
 // (phase order, dependency install, settings write) and calls into here for
 // the disk work.
 
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +18,7 @@ import {
   PROFILE_MANIFEST,
   type Profile,
 } from "./light-profile.ts";
-import { MANAGED_SKILLS } from "./managed-skills.ts";
+import { ACTIVE_SKILLS, MANAGED_SKILLS } from "./managed-skills.ts";
 import { CLAUDE_DIR, getTimestamp } from "./platform.ts";
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,78 @@ export const MANAGED_TOP_LEVEL_PATHS: ManagedTopLevelEntry[] = [
 ];
 
 // --- Install phases ------------------------------------------------------
+
+/**
+ * Fail-closed guard run BEFORE any destructive step (createBackup /
+ * cleanOldConfig). Verifies sourceDir is a complete cc-settings checkout for
+ * the target profile.
+ *
+ * Without this, a bad `--source` (a partial checkout, a wrong path, an
+ * interrupted clone) is a data-loss bug: cleanOldConfig() rm -rf's the managed
+ * footprint first, then the copy phase silently skips every missing source
+ * (copyIfPresent returns false, copyDirContents no-ops on a missing srcDir),
+ * leaving the user with a wiped install and nothing copied back. Aborting here
+ * — while the existing install is still intact — is the only safe order.
+ *
+ * Throws listing every missing path; callers MUST NOT proceed past a throw.
+ * composeSettings (config/ fragment validity) is validated separately by the
+ * orchestrator, also pre-clean.
+ */
+export function preflightInstallSource(sourceDir: string, profile: Profile): void {
+  if (!existsSync(sourceDir)) {
+    throw new Error(`--source directory does not exist: ${sourceDir}`);
+  }
+  // Required source entries with their expected kind. Existence alone is not
+  // enough: a required dir present as a regular file (or a file as a dir) would
+  // pass an existsSync check, then fail the copy phase AFTER cleanOldConfig has
+  // wiped the install. config/ (composeSettings) and src/ (TS runtime) are
+  // needed by every profile — installTsSources silently no-ops on a missing
+  // src/, so treat it as a hard requirement here.
+  const required: Array<{ rel: string; kind: "dir" | "file" }> = [
+    { rel: "config", kind: "dir" },
+    { rel: "src", kind: "dir" },
+    // A representative source file, so an empty/partial src/ (a broken checkout)
+    // is caught here rather than after cleanOldConfig has wiped the install.
+    { rel: join("src", "setup.ts"), kind: "file" },
+  ];
+  if (profile === "light") {
+    // Light copies the LIGHT_SKILLS subset out of skills/.
+    required.push({ rel: "skills", kind: "dir" });
+  } else {
+    const manifest = PROFILE_MANIFEST.full;
+    for (const [src] of manifest.rootFiles) required.push({ rel: src, kind: "file" });
+    for (const d of manifest.dirs) required.push({ rel: d, kind: "dir" });
+  }
+  // Verify the profile's actual skill set — not just that skills/ exists. A
+  // partial checkout (skills/ present but individual skills missing) would
+  // otherwise pass preflight, then cleanOldConfig wipes the installed skills and
+  // the copy phase silently restores nothing. Gated on skills/ existing so a
+  // wholly-missing dir stays a single clean problem, not one error per skill.
+  if (existsSync(join(sourceDir, "skills"))) {
+    const requiredSkills = profile === "light" ? LIGHT_SKILLS : ACTIVE_SKILLS;
+    for (const name of requiredSkills) {
+      required.push({ rel: join("skills", name, "SKILL.md"), kind: "file" });
+    }
+  }
+  const problems: string[] = [];
+  for (const { rel, kind } of required) {
+    let ok = false;
+    try {
+      const st = statSync(join(sourceDir, rel));
+      ok = kind === "dir" ? st.isDirectory() : st.isFile();
+    } catch {
+      ok = false; // missing
+    }
+    if (!ok) problems.push(`${rel} (${kind})`);
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `--source is not a complete cc-settings checkout (${sourceDir}). ` +
+        `Missing or wrong type: ${problems.sort().join(", ")}. Refusing to install — the ` +
+        "destructive clean phase would wipe your working install and then have nothing to copy.",
+    );
+  }
+}
 
 async function createBackup(): Promise<void> {
   const backupDir = join(CLAUDE_DIR, "backups");
