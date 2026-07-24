@@ -39,7 +39,9 @@ import {
   createDirectories,
   installConfigFiles,
   installTsSources,
+  preflightInstallSource,
 } from "./lib/install-fs.ts";
+import { acquireInstallLock, InstallLockError } from "./lib/install-lock.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
 import { applyLightProfile, type Profile, stripManagedSettings } from "./lib/light-profile.ts";
 import {
@@ -354,6 +356,16 @@ async function cmdStatus(sourceDir: string): Promise<number> {
  *   tamper defense. Do not reorder.
  */
 async function runFullInstall(args: Args, engine: EngineDescriptor): Promise<void> {
+  // Preflight BEFORE any destructive step. A bad --source (partial checkout,
+  // wrong path) must abort here — while the existing install is still intact —
+  // not after cleanOldConfig() has already wiped the managed footprint. Two
+  // pre-clean gates: the source footprint is complete for this profile, and the
+  // config/ fragments compose to a valid settings.json. composeSettings is
+  // side-effect-free and runs again inside installSettings; the redundant read
+  // of four small JSON files is a deliberate trade for a fail-closed guard.
+  preflightInstallSource(args.sourceDir, args.profile);
+  await composeSettings(args.sourceDir);
+
   info("Installing dependencies...");
   await installDependencies(args.profile, engine);
   printPreflightReport(checkCliTools());
@@ -380,6 +392,29 @@ async function runFullInstall(args: Args, engine: EngineDescriptor): Promise<voi
   await writeSrcManifest(join(CLAUDE_DIR, "src"), CLAUDE_DIR).catch(() => {});
 }
 
+/** Run fn while holding the exclusive install lock (see lib/install-lock.ts).
+ *  Returns 1 with a message if another install already holds it; otherwise
+ *  returns fn's exit code and always releases the lock. Wraps every mutating
+ *  entry point — full/migrate install AND --rollback — so they can't race each
+ *  other's rm/cp over ~/.claude. */
+async function underInstallLock(fn: () => Promise<number>): Promise<number> {
+  let release: () => Promise<void>;
+  try {
+    release = await acquireInstallLock();
+  } catch (err) {
+    if (err instanceof InstallLockError) {
+      error(err.message);
+      return 1;
+    }
+    throw err;
+  }
+  try {
+    return await fn();
+  } finally {
+    await release();
+  }
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -390,7 +425,10 @@ async function main(): Promise<number> {
     return await cmdStatus(args.sourceDir);
   }
   if (args.rollback !== null) {
-    return await cmdRollback(args.rollback);
+    // Rollback now deletes + restores the managed footprint, so it takes the
+    // same lock as an install to avoid racing a concurrent setup run.
+    const target = args.rollback;
+    return await underInstallLock(() => cmdRollback(target));
   }
   if (args.dryRun) {
     await cmdDryRun(args.sourceDir, args.profile, VERSION);
@@ -423,30 +461,38 @@ async function main(): Promise<number> {
   const fmWarning = formatFrontmatterIssues(fmIssues);
   if (fmWarning) warn(fmWarning);
 
-  // Dispatch to migrate-only or full install path.
-  if (args.migrateOnly) {
-    info("Migrate-only: backup + merger + sentinel; skipping file copy");
-    await createBackup();
-    await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
-  } else {
-    await runFullInstall(args, engine);
-  }
-
-  try {
-    await installSettings(args.sourceDir, args.interactive, args.profile, engine);
-  } catch (err) {
-    // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
-    if (err instanceof JsonParseError) {
-      error(String((err as Error).message));
-      error("Aborting. Fix the corrupt JSON or rollback: bun src/setup.ts --rollback");
-      return 1;
+  // Serialize the destructive install region (dispatch → sentinel write)
+  // against a concurrent run — a manual setup.sh racing the scheduled
+  // auto-updater's setup invocation would otherwise interleave rm/cp over
+  // ~/.claude. The read-only display below the lock release is race-safe.
+  const installCode = await underInstallLock(async () => {
+    // Dispatch to migrate-only or full install path.
+    if (args.migrateOnly) {
+      info("Migrate-only: backup + merger + sentinel; skipping file copy");
+      await createBackup();
+      await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
+    } else {
+      await runFullInstall(args, engine);
     }
-    throw err;
-  }
 
-  const autoUpdateEnrolled = await applyAutoUpdate(args, priorAutoUpdate);
+    try {
+      await installSettings(args.sourceDir, args.interactive, args.profile, engine);
+    } catch (err) {
+      // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
+      if (err instanceof JsonParseError) {
+        error(String((err as Error).message));
+        error("Aborting. Fix the corrupt JSON or rollback: bun src/setup.ts --rollback");
+        return 1;
+      }
+      throw err;
+    }
 
-  await writeVersionSentinel(args.sourceDir, args.profile, engine, autoUpdateEnrolled);
+    const autoUpdateEnrolled = await applyAutoUpdate(args, priorAutoUpdate);
+    await writeVersionSentinel(args.sourceDir, args.profile, engine, autoUpdateEnrolled);
+    return 0;
+  });
+  if (installCode !== 0) return installCode;
+
   if (!args.migrateOnly) await showSummary(args.profile);
 
   // Version delta: surface what just landed (prev → current + per-version

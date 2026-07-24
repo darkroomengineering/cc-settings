@@ -140,25 +140,50 @@ describe("readPackagedVersion", () => {
   test("deleted clone ⇒ null", async () => {
     expect(await readPackagedVersion("/no/such/repo/anywhere")).toBeNull();
   });
-  test("parses const VERSION from src/setup.ts", async () => {
+  test("parses version from .claude-plugin/plugin.json", async () => {
     const dir = await tmp();
     try {
-      await mkdir(join(dir, "src"), { recursive: true });
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
       await writeFile(
-        join(dir, "src", "setup.ts"),
-        'const VERSION = "12.0.3"; // sync with Claude Code\n',
+        join(dir, ".claude-plugin", "plugin.json"),
+        JSON.stringify({ name: "cc-settings", version: "12.0.3" }),
       );
       expect(await readPackagedVersion(dir)).toBe("12.0.3");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
-  test("returns null when constant absent", async () => {
+  test("returns null when version field absent", async () => {
     const dir = await tmp();
     try {
-      await mkdir(join(dir, "src"), { recursive: true });
-      await writeFile(join(dir, "src", "setup.ts"), "export const x = 1;\n");
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
+      await writeFile(join(dir, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "x" }));
       expect(await readPackagedVersion(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("returns null when manifest is malformed JSON", async () => {
+    const dir = await tmp();
+    try {
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
+      await writeFile(join(dir, ".claude-plugin", "plugin.json"), "{not json");
+      expect(await readPackagedVersion(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("returns null when version is not well-formed X.Y.Z", async () => {
+    const dir = await tmp();
+    try {
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
+      for (const bad of ["1.2", "1.2.3-beta", "latest", "v1.2.3", ""]) {
+        await writeFile(
+          join(dir, ".claude-plugin", "plugin.json"),
+          JSON.stringify({ name: "cc-settings", version: bad }),
+        );
+        expect(await readPackagedVersion(dir)).toBeNull();
+      }
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -170,8 +195,11 @@ describe("end-to-end", () => {
     const claudeDir = await tmp();
     const repoDir = await tmp();
     try {
-      await mkdir(join(repoDir, "src"), { recursive: true });
-      await writeFile(join(repoDir, "src", "setup.ts"), 'const VERSION = "11.13.0";\n');
+      await mkdir(join(repoDir, ".claude-plugin"), { recursive: true });
+      await writeFile(
+        join(repoDir, ".claude-plugin", "plugin.json"),
+        JSON.stringify({ name: "cc-settings", version: "11.13.0" }),
+      );
       await writeFile(
         join(claudeDir, ".cc-settings-version"),
         JSON.stringify({ version: "11.12.0", repo_path: repoDir }),

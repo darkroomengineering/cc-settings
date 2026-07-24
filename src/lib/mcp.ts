@@ -30,11 +30,10 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { z } from "zod";
-import { ClaudeJson } from "../schemas/claude-json.ts";
 import type { McpStdioServer } from "../schemas/mcp.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { ENGINES, getEngine } from "./code-intel-engine.ts";
-import { debug, error, info, success, warn } from "./colors.ts";
+import { debug, info, success, warn } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 import { CLAUDE_DIR } from "./platform.ts";
@@ -150,8 +149,10 @@ export async function promptPreserveUserServers(
  * (Settings.mcpServers = McpServers) and throws on failure, so no re-read or
  * re-validation happens here.
  *
- * Uses ClaudeJson (loose schema) so fields we don't know about (Claude-Code-
- * owned state) round-trip untouched.
+ * Reads ~/.claude.json as an opaque object: unknown Claude-Code-owned state
+ * (project memory, auth, etc.) round-trips untouched, and only mcpServers is
+ * rewritten. A non-object file throws; a drifted mcpServers entry is preserved
+ * raw (see the fallback below).
  */
 export async function installMcpToClaudeJson(
   teamMcp: McpServers,
@@ -163,15 +164,27 @@ export async function installMcpToClaudeJson(
   }
 
   // Read existing claude.json — tolerate absence, but don't tolerate corruption.
-  let current: Record<string, unknown> = {};
+  // readJsonOrNull throws JsonParseError on unparseable JSON (surfaced loudly at
+  // the setup.ts top-level catch); a missing file reads as {}.
   const parsed = (await readJsonOrNull(claudeJsonPath)) ?? {};
-  const validated = ClaudeJson.safeParse(parsed);
-  if (!validated.success) {
-    error(`${claudeJsonPath} failed schema check: ${validated.error.issues[0]?.message ?? ""}`);
-    error("Refusing to write merged MCPs — fix the file before re-running setup.");
-    return;
+
+  // The file must be a JSON object to merge Claude-Code state through. A
+  // top-level array or scalar is genuinely unmergeable — THROW (setup exits 1)
+  // rather than silently skipping the MCP install while still reporting success.
+  //
+  // We deliberately do NOT run ClaudeJson.safeParse here. That schema validates
+  // `mcpServers` too, so a single drifted server entry (a forward-compat shape
+  // we don't model yet) failed this outer gate and returned early — making the
+  // raw-preserving fallback below, built for exactly that case, unreachable.
+  // Validating only the object shape here lets mcpServers drift flow to that
+  // fallback (preserved, not dropped), while still failing loud on real garbage.
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      `${claudeJsonPath} is not a JSON object (found ${Array.isArray(parsed) ? "array" : typeof parsed}) — ` +
+        "refusing to merge MCP servers. Fix or remove the file, then re-run setup.",
+    );
   }
-  current = validated.data as Record<string, unknown>;
+  const current = parsed as Record<string, unknown>;
 
   // Validate existing servers from ~/.claude.json. On schema failure we log a
   // warning but keep the raw value — forward-compat drift (new Claude Code
@@ -181,14 +194,43 @@ export async function installMcpToClaudeJson(
   let currentMcp: McpServers = {};
   if (currentMcpRaw !== undefined) {
     const currentResult = McpServersSchema.safeParse(currentMcpRaw);
-    if (!currentResult.success) {
-      debug(
-        `Existing MCP servers in ${claudeJsonPath} failed schema validation (preserving raw to avoid data loss): ${currentResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
-      );
-      // Preserve raw — see comment above.
-      currentMcp = currentMcpRaw as McpServers;
-    } else {
+    if (currentResult.success) {
       currentMcp = currentResult.data;
+    } else if (
+      typeof currentMcpRaw === "object" &&
+      currentMcpRaw !== null &&
+      !Array.isArray(currentMcpRaw)
+    ) {
+      // The map is a real object but failed schema validation — preserve it
+      // PER ENTRY: keep object-shaped entries (valid servers, or forward-compat
+      // shapes we don't model yet) and drop null/scalar/array entries. Downstream
+      // stale-output detection does `"command" in entry` (isStdioServer), which
+      // throws on a non-object — so a single bad entry must not ride along, even
+      // though the surrounding map is worth preserving.
+      debug(
+        `Existing MCP servers in ${claudeJsonPath} failed schema validation (preserving valid-shaped entries): ${currentResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      );
+      const preserved: Record<string, unknown> = {};
+      for (const [name, entry] of Object.entries(currentMcpRaw)) {
+        if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
+          preserved[name] = entry;
+        } else {
+          debug(
+            `Dropping non-object MCP entry "${name}" in ${claudeJsonPath} (${Array.isArray(entry) ? "array" : entry === null ? "null" : typeof entry}).`,
+          );
+        }
+      }
+      currentMcp = preserved as McpServers;
+    } else {
+      // A non-object mcpServers (array/scalar/null) can't be merged without
+      // silently discarding whatever the user had there. Refuse loudly rather
+      // than overwrite it — the same fail-closed posture as a non-object
+      // claude.json above. (A missing mcpServers is undefined and handled by
+      // the outer guard, so this only fires on a genuinely malformed value.)
+      throw new Error(
+        `${claudeJsonPath} has a non-object "mcpServers" (${Array.isArray(currentMcpRaw) ? "array" : typeof currentMcpRaw}) — ` +
+          "refusing to overwrite it. Fix or remove the field, then re-run setup.",
+      );
     }
   }
   // Drop currentMcp entries that are stale cc-settings output (this or a prior

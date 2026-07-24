@@ -654,4 +654,33 @@ describe("mcp — claude.json installer", () => {
       await rm(sandbox, { recursive: true, force: true });
     }
   });
+
+  test("a null/scalar entry among valid servers is dropped, not cast (no throw)", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-badentry-"));
+    try {
+      const claudeJsonPath = join(sandbox, ".claude.json");
+      // A map with a null and an array entry fails McpServersSchema, forcing the
+      // per-entry raw-preserve path. Downstream `"command" in entry` would throw
+      // on the null — the fix keeps object entries and drops the rest.
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: {
+            "user-good": { command: "keep-me" },
+            "user-bad-null": null,
+            "user-bad-array": [1, 2],
+          },
+        }),
+      );
+      const teamMcp = { context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] } };
+      // Must not throw on the null entry.
+      await installMcpToClaudeJson(teamMcp, claudeJsonPath);
+      const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      // Team + the valid object entry survive; the null/array entries are gone.
+      expect(Object.keys(result.mcpServers).sort()).toEqual(["context7", "user-good"]);
+      expect(result.mcpServers["user-good"].command).toBe("keep-me");
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
 });

@@ -3,13 +3,15 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pointLatest } from "../src/lib/artifact-store.ts";
 import { installHintForPM, RECOMMENDED_TOOLS } from "../src/lib/cli-preflight.ts";
 import { getClaudeMdMonitor } from "../src/lib/hook-config.ts";
-import { isUnsafeTarEntry } from "../src/lib/install-cmds.ts";
+import { isUnsafeTarEntry, restoreUnitsFromArchive } from "../src/lib/install-cmds.ts";
+import { preflightInstallSource } from "../src/lib/install-fs.ts";
+import { isProcessAlive } from "../src/lib/install-lock.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "../src/lib/json-io.ts";
 import { getInstallHint, getInstallHintForPM } from "../src/lib/packages.ts";
 import { getTimestamp, hasCommand, os } from "../src/lib/platform.ts";
@@ -189,6 +191,113 @@ describe("install-cmds — isUnsafeTarEntry (path-traversal guard)", () => {
 
   test("a filename that merely contains '..' as a substring (not a segment) is safe", () => {
     expect(isUnsafeTarEntry(".claude/weird..name.json")).toBe(false);
+  });
+});
+
+describe("install-cmds — restoreUnitsFromArchive (exact-restore prune set)", () => {
+  test("home-relative archive → per-managed-path units under .claude + .claude.json", () => {
+    const entries = [
+      ".claude/settings.json",
+      ".claude/skills/foo/SKILL.md",
+      ".claude/skills/bar/SKILL.md",
+      ".claude/agents/x.md",
+      ".claude.json",
+    ];
+    expect(restoreUnitsFromArchive(entries, true).sort()).toEqual([
+      ".claude.json",
+      ".claude/agents",
+      ".claude/settings.json",
+      ".claude/skills",
+    ]);
+  });
+
+  test("claude-dir-relative archive → first-segment units", () => {
+    const entries = ["settings.json", "agents/x.md", "skills/foo/SKILL.md"];
+    expect(restoreUnitsFromArchive(entries, false).sort()).toEqual([
+      "agents",
+      "settings.json",
+      "skills",
+    ]);
+  });
+
+  test("a bare '.' or './'-prefixed entry never yields the extract-root unit", () => {
+    // Regression: a "." unit would rm the whole extract root (~/.claude) — the
+    // single-dot case isUnsafeTarEntry does not catch. Must be dropped.
+    expect(restoreUnitsFromArchive(["."], false)).toEqual([]);
+    expect(restoreUnitsFromArchive(["./"], false)).toEqual([]);
+    expect(restoreUnitsFromArchive(["./agents/x.md"], false)).toEqual(["agents"]);
+    expect(restoreUnitsFromArchive(["./.claude/skills/a", "./.claude.json"], true).sort()).toEqual([
+      ".claude.json",
+      ".claude/skills",
+    ]);
+  });
+
+  test("empty/blank entries are ignored", () => {
+    expect(restoreUnitsFromArchive(["", "   ", "agents/x"], false)).toEqual(["agents"]);
+  });
+
+  test("prunes ONLY managed paths — a rogue entry can't delete backups/src/etc.", () => {
+    // A hand-crafted or foreign archive containing non-managed top-level paths
+    // must never widen the prune set — otherwise a `.claude/backups/x` entry
+    // would rm the backups dir (including the archive being restored).
+    const rogue = [
+      ".claude/settings.json", // managed → kept
+      ".claude/agents/a.md", // managed → kept
+      ".claude/backups/old.tar.gz", // NOT managed → dropped
+      ".claude/src/setup.ts", // NOT managed → dropped
+      ".claude/tmp/x", // NOT managed → dropped
+      ".claude/totally-unknown/y", // NOT managed → dropped
+    ];
+    expect(restoreUnitsFromArchive(rogue, true).sort()).toEqual([
+      ".claude/agents",
+      ".claude/settings.json",
+    ]);
+  });
+});
+
+describe("install-lock — isProcessAlive", () => {
+  test("our own pid is alive", () => {
+    expect(isProcessAlive(process.pid)).toBe(true);
+  });
+  test("a non-positive pid is never alive", () => {
+    expect(isProcessAlive(0)).toBe(false);
+    expect(isProcessAlive(-1)).toBe(false);
+  });
+  test("a very high, almost-certainly-unused pid is not alive", () => {
+    expect(isProcessAlive(2_000_000_000)).toBe(false);
+  });
+});
+
+describe("install-fs — preflightInstallSource skill-children", () => {
+  async function srcDir(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-preflight-"));
+    // Minimal valid light source: config/ + src/ (with setup.ts) + skills/.
+    await mkdir(join(dir, "config"), { recursive: true });
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src", "setup.ts"), "// stub");
+    await mkdir(join(dir, "skills"), { recursive: true });
+    return dir;
+  }
+
+  test("throws when a required skill is missing under a present skills/", async () => {
+    const dir = await srcDir();
+    try {
+      // skills/ exists but share-learning (the sole LIGHT_SKILLS entry) does not.
+      expect(() => preflightInstallSource(dir, "light")).toThrow(/share-learning/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("passes when the required skill's SKILL.md is present", async () => {
+    const dir = await srcDir();
+    try {
+      await mkdir(join(dir, "skills", "share-learning"), { recursive: true });
+      await writeFile(join(dir, "skills", "share-learning", "SKILL.md"), "x");
+      expect(() => preflightInstallSource(dir, "light")).not.toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

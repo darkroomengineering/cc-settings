@@ -197,8 +197,9 @@ export async function buildVersionDelta(
 //
 // The installer stamps ~/.claude/.cc-settings-version with the installed
 // version AND the repo path it was installed from. After `git pull` bumps the
-// VERSION constant in the repo's src/setup.ts but before the user re-runs
-// setup.sh, installed < packaged — the install is stale. SessionStart computes
+// version in the repo's .claude-plugin/plugin.json (kept in lockstep with
+// src/setup.ts's VERSION) but before the user re-runs setup.sh, installed <
+// packaged — the install is stale. SessionStart computes
 // this once and caches it; the statusline renders a nudge from the cached flag
 // (hot-path safe).
 //
@@ -212,20 +213,23 @@ export interface DriftResult {
   packaged: string | null;
 }
 
-// Match `const VERSION = "11.12.0"` in the repo's src/setup.ts. Anchored on
-// `const VERSION` so a stray `VERSION = ...` in a comment can't shadow it.
-const VERSION_CONST_RE = /\bconst VERSION\s*=\s*["'](\d+\.\d+\.\d+)["']/;
-
-/** Read the repo's packaged VERSION constant from <repoPath>/src/setup.ts.
- *  Returns null if the repo is gone or the constant can't be parsed. Never throws. */
+/** Read the repo's packaged version from <repoPath>/.claude-plugin/plugin.json.
+ *  This mirrors src/setup.ts's VERSION constant — CI enforces the two are equal
+ *  (tests/plugin-manifest.test.ts) — but reads a structured JSON manifest
+ *  instead of regexing a TS source file, which was brittle to any reformatting
+ *  of the `const VERSION` line. Returns null if the repo is gone or the manifest
+ *  is missing/unparsable/lacks a string version. Never throws. */
 export async function readPackagedVersion(repoPath: string | null): Promise<string | null> {
   if (!repoPath) return null;
-  const setupPath = join(repoPath, "src", "setup.ts");
-  if (!existsSync(setupPath)) return null;
+  const manifestPath = join(repoPath, ".claude-plugin", "plugin.json");
+  if (!existsSync(manifestPath)) return null;
   try {
-    const src = await readFile(setupPath, "utf8");
-    const m = VERSION_CONST_RE.exec(src);
-    return m?.[1] ?? null;
+    const parsed = JSON.parse(await readFile(manifestPath, "utf8")) as { version?: unknown };
+    // Require a well-formed X.Y.Z — compareVersion/computeDrift assume it, and a
+    // malformed value would otherwise drive a bogus drift verdict.
+    return typeof parsed.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed.version)
+      ? parsed.version
+      : null;
   } catch {
     return null;
   }
