@@ -14,11 +14,11 @@ allowed-tools:
 
 # share-skill
 
-Promote a single skill into the studio's plugin marketplace repo
-(`/Users/lsoengas/projects/team-skills`, marketplace name `darkroom-team-skills`) —
-the private tier of the marketplace (see its README for the two-tier model). The
-sibling of `/share-learning`: that skill shares prose knowledge, this one shares an
-executable skill, so the bar and the checks are higher.
+Promote a single skill into the studio's plugin marketplace repo (marketplace
+name `darkroom-team-skills`) — the private tier of the marketplace (see its
+README for the two-tier model). The sibling of `/share-learning`: that skill
+shares prose knowledge, this one shares an executable skill, so the bar and the
+checks are higher.
 
 ## When to use
 
@@ -37,9 +37,33 @@ proceeding.
 
 ## Steps
 
-1. **Identify.** Resolve the candidate directory; it must contain a `SKILL.md`.
+1. **Resolve the marketplace.** The marketplace is a local clone, so the path is
+   per-machine — never hardcode one. Resolve it in one command, which both
+   expands `$TEAM_SKILLS_REPO_PATH` (falling back to `~/team-skills`) and proves
+   the directory is a real git repo:
 
-2. **Validate (required).** Run the cc-settings skill linter against the
+   ```bash
+   git -C "${TEAM_SKILLS_REPO_PATH:-$HOME/team-skills}" rev-parse --show-toplevel
+   ```
+
+   Then confirm the clone is the right one: it must contain
+   `.claude-plugin/marketplace.json` whose `name` is `darkroom-team-skills`. A
+   different marketplace sitting at the default path is a wrong-repo hazard — do
+   not proceed on path existence alone.
+
+   If either check fails, STOP and tell the user to clone the marketplace and
+   point the variable at it:
+
+   ```bash
+   export TEAM_SKILLS_REPO_PATH=/path/to/your/clone/of/team-skills
+   ```
+
+   Never write into a guessed path. Every `[marketplace]` below means this
+   resolved, verified directory.
+
+2. **Identify.** Resolve the candidate directory; it must contain a `SKILL.md`.
+
+3. **Validate (required).** Run the cc-settings skill linter against the
    candidate's PARENT directory:
 
    ```bash
@@ -52,41 +76,42 @@ proceeding.
    skill dir, no angle brackets in frontmatter, description 50-1024 chars with
    trigger language. Block on any error; surface warnings and let the user decide.
 
-3. **Dedup (required).** Two passes, presented as one findings list:
+4. **Dedup (required).** Two passes, presented as one findings list:
    - Read the `description` frontmatter of every `~/.claude/skills/*/SKILL.md`
      (cc-settings core as installed).
    - Read the `description` frontmatter of every
-     `/Users/lsoengas/projects/team-skills/plugins/*/skills/*/SKILL.md`
-     (skills already in the marketplace).
+     `[marketplace]/plugins/*/skills/*/SKILL.md` (skills already in the
+     marketplace).
 
    Compare trigger phrases and semantic overlap against the candidate. For any
    overlap, show the existing skill and its triggers, then ask the user to choose:
    **skip** (already covered — abort), **rename** (differentiate name +
-   description, then re-run step 2), or **proceed** (genuinely distinct). Only
+   description, then re-run step 3), or **proceed** (genuinely distinct). Only
    continue once the user has chosen or there is clearly no overlap.
 
-4. **Choose the target plugin.** List the existing `plugins/*` directories in
-   team-skills and let the user pick one, or name a new plugin. For an existing
+5. **Choose the target plugin.** List the existing `[marketplace]/plugins/*`
+   directories and let the user pick one, or name a new plugin. For an existing
    plugin no manifest edit is needed (skills are discovered by convention at
    `plugins/[plugin]/skills/[name]/SKILL.md`). For a new plugin, create
    `plugins/[plugin]/.claude-plugin/plugin.json` (name, description, version
    0.1.0, author Darkroom Engineering) and append a matching entry to
    `.claude-plugin/marketplace.json`'s `plugins` array.
 
-5. **Copy.** Copy the FULL skill directory (not just SKILL.md — future skills may
-   carry `references/`) into `plugins/[plugin]/skills/[name]/`.
+6. **Copy.** Copy the FULL skill directory (not just SKILL.md — future skills may
+   carry `references/`) into `[marketplace]/plugins/[plugin]/skills/[name]/`.
 
-6. **Land.** Check `git -C /Users/lsoengas/projects/team-skills remote`:
-   - Remote exists: create branch `add-skill/[name]`, commit
+7. **Land.** Check `git -C [marketplace] remote`:
+   - Remote exists: confirm it points at the studio's team-skills repo (not a
+     fork or an unrelated clone), then create branch `add-skill/[name]`, commit
      `feat: add [name] skill to [plugin] plugin`, push, and open a PR with
      `gh pr create` (plain-English body per rules/git.md — what it does, why it
      is studio-relevant, how it was validated). Report the PR URL.
    - No remote (marketplace still local-only): commit directly to the current
      branch with the same message and report the commit SHA.
 
-7. **Report.** Surface the resulting path
-   `/Users/lsoengas/projects/team-skills/plugins/[plugin]/skills/[name]/` and the
-   PR URL if one was opened.
+8. **Report.** Surface the resulting path
+   `[marketplace]/plugins/[plugin]/skills/[name]/` and the PR URL if one was
+   opened.
 
 ## Notes
 
