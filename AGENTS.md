@@ -104,6 +104,21 @@ Before ANY commit:
 
 **Never commit code that doesn't build.**
 
+### Failing Tests: Regression vs. Contract Change
+A test that fails after your change is a fork in the road, not a chore to clear.
+Before you touch the test, classify which case you're in:
+- **Regression** — the assertion still describes correct behavior and your change
+  broke it. Fix the *code*, not the test. Never relax, weaken, or delete the
+  assertion to go green.
+- **Intentional contract change** — the requirement explicitly supersedes what the
+  test asserts. Update the implementation and the assertion *together in the same
+  diff*, and say in your summary which contract changed and why.
+
+When you can't tell which case it is, treat it as a regression and stop to
+confirm. "Make the suite pass" is never a reason to edit an assertion — a green
+suite that blesses wrong behavior is worse than a red one that caught it. This is
+the single most common cause of the fix-broke-a-test / red-CI loop.
+
 ### Never Fake Measurements
 NEVER fabricate output from Lighthouse, bundle size tools, performance profilers, test runners, or build systems. If you can't run a tool, say so.
 

@@ -37,7 +37,13 @@ This skill runs as the Claude `reviewer` agent — often Claude reviewing a diff
 bun "$HOME/.claude/src/scripts/codex-run.ts" review
 ```
 
-Codex reads the same diff and returns HIGH / MEDIUM / LOW findings. Fold them into the verdict below — map HIGH→Critical, MEDIUM→Warning, LOW→Suggestion. Agreement raises confidence; a finding only Codex raised goes under the matching section rather than being dropped (confirm it first before calling it Critical). The bridge is gated and fails open: if Codex is unavailable, proceed with the Claude review alone.
+Codex reads the same diff and returns HIGH / MEDIUM / LOW findings. **Adjudicate every finding before it drives a fix** — Codex produces false positives and stale findings, so its output is a set of claims, not a verdict. Tag each one:
+
+- **confirmed** — you reproduced or traced it in the diff. Only confirmed findings drive a fix or land as Critical.
+- **rejected** — a false positive or stale claim; note the one-line reason you rejected it.
+- **unverified** — you couldn't check it cheaply; surface it as a Suggestion for a human, don't act on it.
+
+Then fold the confirmed findings into the verdict below — map HIGH→Critical, MEDIUM→Warning, LOW→Suggestion. Agreement with your own review raises confidence. The bridge is gated and fails open: if Codex is unavailable, proceed with the Claude review alone.
 
 ## Output Format
 

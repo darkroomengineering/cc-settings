@@ -52,6 +52,17 @@
 				]
 			},
 			{
+				"matcher": "Bash",
+				"if": "Bash(gh*pr create*) Bash(gh*pr ready*)",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/pre-pr-proof.ts\"",
+						"timeout": 300
+					}
+				]
+			},
+			{
 				"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*) Bash(bunx*)",
 				"hooks": [
 					{
