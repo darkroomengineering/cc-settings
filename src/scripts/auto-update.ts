@@ -28,7 +28,12 @@ import { runGit, runProcessFull } from "../lib/git.ts";
 import { writeState } from "../lib/hook-runtime.ts";
 import { CLAUDE_DIR, isoNow } from "../lib/platform.ts";
 import { autoUpdateLogPath, isAllowedPullSource } from "../lib/schedule.ts";
-import { readInstalledVersion, readSentinelInfo } from "../lib/version-delta.ts";
+import {
+  computeDrift,
+  readInstalledVersion,
+  readPackagedVersion,
+  readSentinelInfo,
+} from "../lib/version-delta.ts";
 import { sendNotification } from "./notify.ts";
 
 type RunStatus =
@@ -154,13 +159,28 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     }
 
     const after = await runGit(["rev-parse", "HEAD"], { cwd: repoPath });
-    if (before === after) {
+
+    // "Nothing to pull" is NOT the same as "install is current". The repo can
+    // sit ahead of ~/.claude with no fetch to do — a local commit, a manual
+    // `git pull` that was never followed by setup.sh, or an earlier run whose
+    // setup failed. Gating the re-install on `before === after` made every one
+    // of those cases permanently invisible: the job reported "already up to
+    // date" each morning while the installed version fell further behind. Gate
+    // on the version delta instead, so any drift heals on the next run.
+    const packaged = await readPackagedVersion(repoPath);
+    const { stale } = computeDrift(fromVersion, packaged);
+
+    if (before === after && !stale) {
       status = "up-to-date";
       await log("already up to date");
       return;
     }
 
-    await log(`pulled ${before} -> ${after}, running setup.sh`);
+    await log(
+      before === after
+        ? `no new commits, but installed v${fromVersion ?? "unknown"} is behind packaged v${packaged ?? "unknown"} — running setup.sh`
+        : `pulled ${before} -> ${after}, running setup.sh`,
+    );
     const logPath = autoUpdateLogPath();
     await mkdir(dirname(logPath), { recursive: true }).catch(() => {});
 
