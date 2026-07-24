@@ -64,7 +64,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.6.0"; // sync with Claude Code v2.1.217 (subagent fan-out limits, sandbox.filesystem.disabled, emoji autocomplete)
+const VERSION = "12.7.0"; // model routing: default + judgment agents moved opus[1m]/opus -> claude-opus-5 (Opus 5, 1M-native, requires Claude Code v2.1.219+)
 
 // --- Arg parsing ---------------------------------------------------------
 

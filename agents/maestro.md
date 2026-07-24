@@ -1,6 +1,6 @@
 ---
 name: maestro
-model: opus[1m]
+model: claude-opus-5
 description: |
   Multi-agent orchestrator. Coordinates complex tasks across multiple agents in parallel.
 

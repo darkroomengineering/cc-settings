@@ -122,8 +122,8 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `fable` | Claude Fable 5 | **⚠ SUSPENDED 2026-06-12** (export-control directive; disabled for all customers, no restoration date — [details](https://www.anthropic.com/news/fable-mythos-access)). Still a valid alias for when access returns. Top tier, above Opus — agentic/SWE-tuned. 1M context (native; no `[1m]` pin needed). ~2× Opus token cost ($10/$50 per Mtok). First-party API / claude.ai Max. |
-| `opus` / `opus[1m]` | Claude Opus 4.8 | **cc-settings default (interim, while Fable is suspended): `opus[1m]`.** `opus` resolves to Claude Opus 4.8 on Anthropic API / claude.ai Max. Full capability, adaptive thinking. Not 1M-native — use the `[1m]` pin to force the 1M window. Requires Claude Code v2.1.154+ |
+| `fable` | Claude Fable 5 | Generally available (GA 2026-06-09). Top tier, above Opus 5 — agentic/SWE-tuned. 1M context (native; no `[1m]` pin needed). ~2× Opus 5 token cost ($10/$50 per Mtok), so rarely worth it over Opus 5 for this work. First-party API / claude.ai Max. |
+| `opus` / `claude-opus-5` | Claude Opus 5 | **cc-settings default: `claude-opus-5`.** `opus` resolves to Claude Opus 5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). Near-Fable quality at half the price ($5/$25 per Mtok). 1M context native on Max — no `[1m]` pin (the suffix is a no-op on Opus 5). Effort defaults to `high`. Requires Claude Code v2.1.219+ |
 | `sonnet` | Claude Sonnet 5 | Near-Opus quality on coding/agentic work at a fraction of Opus cost. 1M context native (no `[1m]` pin needed) |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 

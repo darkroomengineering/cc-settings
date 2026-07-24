@@ -4,6 +4,32 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.7.0] — 2026-07-24
+
+Model routing moved from the `opus[1m]` interim to **Claude Opus 5** (`claude-opus-5`), released 2026-07-24. Opus 5 lands near Fable 5's frontier quality at half the price ($5/$25 vs $10/$50 per MTok) and runs the full 1M context natively on Max — the `[1m]` pin required for Opus 4.8 is now a no-op, so it's dropped everywhere. Requires Claude Code **v2.1.219+**.
+
+**Changed:**
+- `config/10-core.json`: composed default `model` moved `opus[1m]` → `claude-opus-5`.
+- `agents/maestro.md`, `agents/planner.md`: pin moved `opus[1m]` → `claude-opus-5`.
+- `agents/security-reviewer.md`: pin moved `opus` → `claude-opus-5`.
+- `docs/agent-models.md`, `docs/frontmatter-reference.md`, `docs/profiles.md`, `MANUAL.md`, `CLAUDE-FULL.md`: narrative reframed from "interim top tier while Fable 5 is suspended" to "Opus 5 is the committed top tier"; Fable 5 documented as generally available but 2× the price, so rarely worth it over Opus 5 for this work.
+
+**Unchanged on purpose:** the Sonnet-5 workhorse split (`implementer`, `explore`, `tester`, `scaffolder`, `deslopper`, `reviewer`, `codex-verifier` stay `sonnet`; `CLAUDE_CODE_SUBAGENT_MODEL` stays `sonnet`); `fable` remains a valid model alias/advisor tier.
+
+**Files changed:**
+- `config/10-core.json`
+- `agents/maestro.md`
+- `agents/planner.md`
+- `agents/security-reviewer.md`
+- `docs/agent-models.md`
+- `docs/frontmatter-reference.md`
+- `docs/profiles.md`
+- `MANUAL.md`
+- `CLAUDE-FULL.md`
+- `src/setup.ts`
+- `.claude-plugin/plugin.json`
+- `CHANGELOG.md`
+
 ## [12.6.0] — 2026-07-22
 
 Upstream sync with Claude Code v2.1.216–v2.1.217. One behavioral change ships to installs: v2.1.217 stops subagents from spawning nested subagents by default, which would have silently broken `maestro` and `deslopper` orchestration — cc-settings now sets `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` to keep their fan-out working.

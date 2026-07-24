@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-model: opus
+model: claude-opus-5
 description: |
   Security audit and vulnerability detection. OWASP Top 10, secrets scanning, platform-specific checks.
 
