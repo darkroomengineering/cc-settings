@@ -11,7 +11,7 @@ cc-settings ships two install tiers. Both are **supported permanent lanes** — 
 
 | | Light (`--light`) | Full (default) |
 |--|---|---|
-| **Skills** | `share-learning` only | All 39 headline skills |
+| **Skills** | `share-learning` only | All 40 headline skills |
 | **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
 | **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
 | **Hooks** | StatusLine only | All hooks active |
@@ -556,6 +556,7 @@ These are enforced automatically — no skill needed:
 | `autoresearch` | autoresearch, optimize skill, improve skill prompt |
 | `harvest` | harvest this workflow, capture what the model did, turn this session into a skill, preserve this behavior, model handoff |
 | `share-learning` | share this learning, post to team knowledge, team-wide finding |
+| `share-skill` | share this skill, promote to team-skills, add this skill to the marketplace |
 | `freeze` | freeze edits, lock editing scope, restrict edits to, only edit this folder, unfreeze |
 | `plan-ceo-review` | ceo review, founder review, product review, is this the right approach, should we even build this |
 | `retro` | retro, retrospective, weekly review, how was my week, engineering metrics, what did I ship |
