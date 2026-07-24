@@ -1,7 +1,7 @@
 ---
 name: webgl
 description: 3D web (R3F, Three.js, GSAP)
-model: opus[1m]
+model: claude-opus-5
 skills: [component, qa]
 ---
 

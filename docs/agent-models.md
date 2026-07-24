@@ -1,25 +1,25 @@
 # Agent Model Routing
 
-> **Fable 5 is free per-session through 2026-07-12 (promo extended), then credit-gated.**
-> The export-control suspension (2026-06-12) lifted on 2026-07-01 with a promotional
-> window — Anthropic [extended it](https://support.claude.com/en/articles/15424964-claude-fable-5-promotional-access)
-> from July 7 to **2026-07-12 11:59 PM PT**: up to 50% of the weekly limit on `fable` at
-> no extra cost, drawn from the same shared pool. The **committed** default is deliberately
-> **Opus 4.8 with 1M context (`opus[1m]`)**, matching the agent pins below — not `fable`,
-> so fresh installs never silently spend usage credits when the promo ends. To ride the free
-> window, run **`/model fable` per session** (live, no reinstall) through July 12. After
-> July 12, Fable draws usage credits beyond the plan.
+> **Committed top tier: Claude Opus 5 (`claude-opus-5`).** Released 2026-07-24, it lands
+> near Fable 5's frontier quality at **half the price** ($5/$25 vs $10/$50 per MTok) and is
+> the default Opus in Claude Code **v2.1.219+**. It runs the full 1M context **natively on
+> Max — no `[1m]` pin** (that suffix, required for Opus 4.8, is now a no-op; keep it only
+> behind an `ANTHROPIC_BASE_URL` gateway that needs the hint). Fable 5 (`claude-fable-5`) is
+> generally available as a higher tier, but at 2× the price it's rarely worth it over Opus 5
+> for this work — reach for it per session (`/model fable`) when you specifically want the
+> top of the range. History: Fable was export-control-suspended 2026-06-12 and the interim
+> default was `opus[1m]` (Opus 4.8); Opus 5 replaces that as a strict upgrade at the same price.
 
-Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (`opus[1m]`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Opus or Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
+Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (`claude-opus-5`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
-| `maestro` | **opus[1m]** | Orchestration needs the strongest available reasoning (was `fable`) |
-| `planner` | **opus[1m]** | Architecture decisions need depth (was `fable`) |
-| `oracle` | *(session model)* (skill, not an agent — `skills/oracle/SKILL.md` runs as a `context: fork` of the main session, no agent binding) | Not a dedicated opus[1m] agent despite the name; the fork inherits the session's model, so on an `opus[1m]` session oracle already thinks at the top tier |
+| `maestro` | **claude-opus-5** | Orchestration needs the strongest available reasoning (was `fable`, then `opus[1m]`) |
+| `planner` | **claude-opus-5** | Architecture decisions need depth (was `fable`, then `opus[1m]`) |
+| `oracle` | *(session model)* (skill, not an agent — `skills/oracle/SKILL.md` runs as a `context: fork` of the main session, no agent binding) | Not a dedicated `claude-opus-5` agent despite the name; the fork inherits the session's model, so on a `claude-opus-5` session oracle already thinks at the top tier |
 | `reviewer` | **sonnet** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
 | `implementer` | **sonnet** | Executes already-made plans; Sonnet 5 is near-Opus on coding, and plans come from the top tier |
-| `security-reviewer` | **opus** | Analysis feeding the session's decision |
+| `security-reviewer` | **claude-opus-5** | Analysis feeding the session's decision |
 | `tester` | **sonnet** | Test writing follows clear patterns |
 | `scaffolder` | **sonnet** | Boilerplate generation is mechanical |
 | `explore` | **sonnet** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
@@ -49,11 +49,11 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 
 | Session (executor) | Valid advisors | Verdict |
 |---|---|---|
-| `sonnet` (Sonnet 5) | fable, mythos, opus 4.8/4.7 | **The sweet spot** — near-top-tier planning at Sonnet burn rate |
-| `opus[1m]` (our default) | fable, mythos, opus 4.8/4.7 | Valid but marginal — Opus already plans well, and it doesn't relieve the scarce Opus pool |
+| `sonnet` (Sonnet 5) | fable, mythos, opus 5 | **The sweet spot** — near-top-tier planning at Sonnet burn rate |
+| `claude-opus-5` (our default) | fable, mythos, opus 5 | Valid but marginal — Opus already plans well, and it doesn't relieve the scarce Opus pool |
 | `fable` | fable only | Self-consult; skip |
 
-**Recommended use: "workhorse mode", opt-in per session.** Run daily-driver sessions as `/model sonnet` + `/advisor opus` (or `/advisor fable` while promo/org access lasts), and reserve `opus[1m]`/`fable` sessions for work that needs a top-tier *executor*. This is the native version of the "Sonnet loop bodies, Opus gate decisions" split — except the strong model corrects course mid-turn with full context instead of reviewing after the fact, and dozens of consults cost less than one Opus session. It is deliberately **not** the composed default: our standing `model` is `opus[1m]`, where an advisor adds little, and a Fable session would reject every non-Fable advisor.
+**Recommended use: "workhorse mode", opt-in per session.** Run daily-driver sessions as `/model sonnet` + `/advisor opus` (or `/advisor fable` for the top-of-range tier), and reserve `claude-opus-5`/`fable` sessions for work that needs a top-tier *executor*. This is the native version of the "Sonnet loop bodies, Opus gate decisions" split — except the strong model corrects course mid-turn with full context instead of reviewing after the fact, and dozens of consults cost less than one Opus session. It is deliberately **not** the composed default: our standing `model` is `claude-opus-5`, where an advisor adds little, and a Fable session would reject every non-Fable advisor.
 
 **Interactions:**
 

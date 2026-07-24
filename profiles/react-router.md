@@ -1,7 +1,7 @@
 ---
 name: react-router
 description: React Router 7+ / Novus projects
-model: opus[1m]
+model: claude-opus-5
 skills: [build, component, hook]
 ---
 

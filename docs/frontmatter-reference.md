@@ -83,13 +83,13 @@ color: purple
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
 | `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite | green |
-| `maestro` | opus[1m] | -- | Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
+| `maestro` | claude-opus-5 | -- | Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
 | `reviewer` | sonnet | project | Read, Grep, Glob, LS, Bash | yellow |
-| `planner` | opus[1m] | project | Read, Grep, Glob, LS | blue |
+| `planner` | claude-opus-5 | project | Read, Grep, Glob, LS | blue |
 | `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
 | `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
 | `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
-| `security-reviewer` | opus | -- | Read, Grep, Glob, Bash | red |
+| `security-reviewer` | claude-opus-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash | cyan |
 
 ---
@@ -245,7 +245,7 @@ All frontmatter fields in profiles are **advisory** — validated at install tim
 |-------|------|----------|-------------|
 | `name` | string | Yes | Profile identifier (kebab-case, must match the filename stem) |
 | `description` | string | Yes | Short description of the profile's purpose |
-| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
+| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `claude-opus-5`) |
 | `skills` | list | No | Advisory: skill names expected to be active in this context |
 | `tools` | list | No | Advisory: tool subset relevant to this workflow |
 | `permissionMode` | string | No | Advisory: intended permission mode (`default`, `manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
