@@ -4,6 +4,31 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.7.1] — 2026-07-24
+
+Action-first's closing rule was being satisfied the wrong way. "End with ONE concrete next action" got read as *name* an action, so turns ended on "Want me to implement the fix and file it as an issue?" — for work already inside the scope the user granted, where the answer is always yes. The round-trip bought nothing but a turn.
+
+**Changed — `CLAUDE-FULL.md` "Action-First Output":**
+- "End with ONE concrete next action" → **"Do the next action, don't offer it."** If the next step is in scope and reversible, take it and report; naming an action is not the same as ending with one. Close with what you did, what it means, what's still open.
+- New rule: **only end on a question when the decision is genuinely the user's** — irreversible, outward-facing, or two paths leading to materially different work — and then as a real choice with a recommendation, not as permission to continue.
+- "Suppress tangents" no longer routes second findings into a question. A second finding gets one line stating it and your call; if it's in scope and cheap, do it.
+- Pre-send check gains: if the last line is a question, ask whether you could have just done it — if yes, delete the question, do the thing, report.
+
+**Changed — `CLAUDE-FULL.md` Autonomy Contract:**
+- New pre-approved entry: **fixing a defect you surfaced while doing work the user asked for.** Finding and reporting it is half the job; "want me to fix it?" is the other half billed back to the user.
+- The pre-approved list is now explicitly a **floor, not a whitelist** — absence from it doesn't imply "ask." The test is reversibility and scope; only the "Always ask" list is a hard stop.
+
+**Fixed:**
+- `.claude-plugin/plugin.json`: stale `opus-4.8` keyword → `opus-5` (missed in the v12.7.0 model-routing sweep; keywords aren't schema-checked, so no linter caught it).
+- `biome.json`: `$schema` synced `2.5.0` → `2.5.4`, silencing a config-version info block printed on every `bun run lint`.
+- `.tldr/cache/call_graph.json` untracked — a build artifact committed before `.tldr/` was gitignored (gitignore doesn't untrack).
+
+**Files changed:**
+- `CLAUDE-FULL.md`
+- `.claude-plugin/plugin.json`
+- `biome.json`
+- `src/setup.ts`
+
 ## [12.7.0] — 2026-07-24
 
 Model routing moved from the `opus[1m]` interim to **Claude Opus 5** (`claude-opus-5`), released 2026-07-24. Opus 5 lands near Fable 5's frontier quality at half the price ($5/$25 vs $10/$50 per MTok) and runs the full 1M context natively on Max — the `[1m]` pin required for Opus 4.8 is now a no-op, so it's dropped everywhere. Requires Claude Code **v2.1.219+**.

@@ -66,7 +66,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.7.0"; // model routing: default + judgment agents moved opus[1m]/opus -> claude-opus-5 (Opus 5, 1M-native, requires Claude Code v2.1.219+)
+const VERSION = "12.7.1"; // action-first: take the next action instead of offering it; autonomy list is a floor, not a whitelist
 
 // --- Arg parsing ---------------------------------------------------------
 

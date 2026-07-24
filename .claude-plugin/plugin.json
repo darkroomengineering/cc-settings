@@ -2,7 +2,7 @@
   "name": "darkroom",
   "displayName": "Darkroom Engineering",
   "description": "Darkroom Engineering AI coding standards. Layered config with portable AGENTS.md, progressive complexity, and two-tier knowledge system.",
-  "version": "12.7.0",
+  "version": "12.7.1",
   "author": {
     "name": "Darkroom Engineering",
     "url": "https://darkroom.engineering"
@@ -14,7 +14,7 @@
     "orchestration",
     "maestro",
     "agent-teams",
-    "opus-4.8",
+    "opus-5",
     "adaptive-thinking",
     "persistent-memory",
     "react",
