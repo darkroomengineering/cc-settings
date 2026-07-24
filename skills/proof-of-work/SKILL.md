@@ -12,10 +12,10 @@ The Amdahl-shrink move from the Orchestration Tax: human review is the serial bo
 Run the battery on the current working tree:
 
 ```bash
-bun run proof
+bun "$HOME/.claude/src/scripts/proof.ts"
 ```
 
-It detects `typecheck` / `test` / `lint` from `package.json`, runs them cheapest-first, and prints one verdict:
+This is the portable installed runner — it works in any repo. (`bun run proof` is a shortcut that only exists inside the cc-settings repo itself; don't reach for it in a consumer project.) It detects `typecheck` / `test` / `lint` from the project's `package.json`, runs them cheapest-first, and prints one verdict:
 
 - exit 0 → `review-ready ✓`
 - exit 1 → `NOT review-ready ✗` — fix the failing gate before a human looks

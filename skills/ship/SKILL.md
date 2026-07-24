@@ -179,13 +179,15 @@ Guardrails:
 
 Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean up" on a PR that already exists. Skip Steps 0–8; run:
 
-1. `gh pr checks` — if red, run the Step 9 CI-fix loop until green.
-2. Confirm review state: `gh pr view --json reviewDecision,mergeable`. If CHANGES_REQUESTED or conflicts, stop and report — do not merge through either.
-3. Merge with the repo's preferred strategy (`gh pr merge --squash --delete-branch` unless repo convention says otherwise).
-4. Cleanup: `git checkout main && git pull`, delete the local branch, prune remotes (`git remote prune origin`). Leave only main unless other branches have open PRs.
-5. Report: PR link, merge commit, branches deleted.
+1. Capture the head you're validating: `gh pr view --json headRefOid,reviewDecision,mergeable`. Everything below is checked against THIS `headRefOid`.
+2. `gh pr checks` — if red, run the Step 9 CI-fix loop until green. A CI fix that pushes a new commit moves the head: re-capture `headRefOid` and re-check against it.
+3. Confirm review state from step 1: if `reviewDecision` is CHANGES_REQUESTED or `mergeable` is CONFLICTING, stop and report — do not merge through either.
+4. **Re-validate immediately before merging** — `gh pr view --json headRefOid,reviewDecision,mergeable`. All three can drift while the CI loop ran (a new push moves `headRefOid`; a late review flips `reviewDecision` to CHANGES_REQUESTED; a base-branch change flips `mergeable`) — the head moving is not the only race. If `headRefOid` differs from the SHA you validated, STOP and re-run checks against the new head; if `reviewDecision`/`mergeable` regressed, STOP and report. Don't merge stale-green. (A post-*merge* SHA check can't catch a moved head: a squash commit does not contain the PR head as an ancestor, so the guard has to run *before* merge. See the `gh-merge-race` learning.)
+5. Merge with the repo's preferred strategy (`gh pr merge --squash --delete-branch` unless repo convention says otherwise). Branch protection / a merge queue, if enabled, is the atomic final gate.
+6. Cleanup: `git checkout main && git pull`, delete the local branch, prune remotes (`git remote prune origin`). Leave only main unless other branches have open PRs.
+7. Report: PR link, merge commit, branches deleted.
 
-Per the Autonomy Contract (CLAUDE-FULL.md): steps 3–5 are pre-approved once CI is green and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
+Per the Autonomy Contract (CLAUDE-FULL.md): steps 5–7 are pre-approved once CI is green, the head is confirmed unchanged, and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
 
 ## Rules
 - NEVER skip the type check or build step

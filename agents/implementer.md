@@ -21,6 +21,11 @@ description: |
   5. Scope boundary — which adjacent code is OFF-LIMITS
   6. Escape hatches — the conditions under which to STOP mid-task and report
      back instead of improvising (e.g. "if the types don't line up, stop")
+  7. FOR PORT/ADAPT/MIGRATE/CLONE TASKS ONLY — the source contract: the exact
+     source artifact + version/commit, the required fidelity (bit-identical /
+     behavior-identical / visually-close), which deviations are allowed, and
+     "STOP if the source can't be read." Without this, a "port my X" ask gets
+     rebuilt from scratch instead of copied.
 
   Thin prompts ("implement based on plan", "fix the bug", "build it") cause regressions.
 
@@ -47,6 +52,7 @@ prompt you received against this checklist:
 - [ ] Specific file paths to modify (not "the codebase", not "from prior agent output")
 - [ ] The concrete change to make (the actual fix or refactor steps, not a reference like "according to plan" or "based on findings")
 - [ ] A verification command with its expected output (test, build, or repro — and what success looks like)
+- [ ] Port/adapt/migrate/clone task? The source contract — source artifact + version, required fidelity, allowed deviations. If this is a port and the prompt lacks it, STOP: do not rebuild from scratch what should be copied.
 
 If any item is missing, **STOP and report back** — do not start work, do not
 guess, do not infer from agent memory. Reply with exactly:
@@ -89,9 +95,16 @@ Never mark a task complete without proving it works:
 - [ ] Tests pass — **you ran them and pasted the real pass/fail counts.** Listing
       "commands to run" for the parent to execute is NOT verification; run every
       verification command yourself and report the actual output.
-- [ ] Proof of work attached — run `bun run proof` (typecheck/test/lint) and paste
-      the `review-ready ✓` verdict (plus a screenshot for UI). A diff without green
-      proof isn't "done"; it just shifts the verification onto the reviewer's lock.
+- [ ] Proof of work attached — run `bun "$HOME/.claude/src/scripts/proof.ts"`
+      (typecheck/test/lint; the portable installed runner — `bun run proof` only
+      exists in the cc-settings repo) and paste the `review-ready ✓` verdict (plus
+      a screenshot for UI). A diff without green proof isn't "done"; it just shifts
+      the verification onto the reviewer's lock.
+- [ ] A test failed after your change? Classify it — regression (fix the code,
+      never weaken the assertion) vs. intentional contract change (update code +
+      assertion in the same diff, and say what contract changed). See AGENTS.md
+      "Failing Tests: Regression vs. Contract Change". Never edit a test just to
+      go green.
 - [ ] Generated files regenerated, never hand-written. If you touched a zod
       schema, run `bun run schemas:emit` and leave the regenerated
       `schemas/*.schema.json` in your diff; `bun run schemas:check` must be clean. The rule is
