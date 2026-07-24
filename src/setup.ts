@@ -66,7 +66,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.7.2"; // auto-update re-installs on version drift, not just on new commits
+const VERSION = "12.7.3"; // test runs no longer fire desktop notifications
 
 // --- Arg parsing ---------------------------------------------------------
 

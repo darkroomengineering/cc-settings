@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.7.3] — 2026-07-24
+
+Running `bun test` fired real macOS notifications — "auto-update blocked — repo path does not match the enrolled path" and friends. Nothing was wrong: the suite spawns the auto-update script and deliberately drives its blocked-path and skipped-dirty branches to prove those guards hold, and each one reached the real notifier. Anyone running the tests got alarming desktop alerts about failures that only happened inside a temp-dir fixture.
+
+**Fixed — `src/scripts/notify.ts`:**
+- New `notificationsSuppressed()` guard at the top of `sendNotification`, muting under `NODE_ENV=test` or `CI=true`. `bun test` sets `NODE_ENV` and the harnesses spawn children with the parent env, so the flag reaches spawned scripts without any test-file changes.
+- `CI === "true"` exactly, matching `src/lib/schedule.ts` — a truthiness check would read `CI="false"` as CI. Caught by cross-model review.
+- `tests/scripts-smoke.test.ts` pins both flags, including the `CI="false"` case.
+
 ## [12.7.2] — 2026-07-24
 
 The nightly auto-update had been reporting success while doing nothing. It only re-ran the installer when `git pull` brought down new commits, so once the repo sat ahead of `~/.claude` — a local commit, or a manual pull never followed by `setup.sh` — there was nothing to pull, and the job logged "already up to date" and stopped. The installed version drifted further behind every day while the log insisted everything was current. On the maintainer's machine that meant five consecutive clean-looking runs against a stale install.
