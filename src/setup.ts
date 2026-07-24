@@ -66,7 +66,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.7.1"; // action-first: take the next action instead of offering it; autonomy list is a floor, not a whitelist
+const VERSION = "12.7.2"; // auto-update re-installs on version drift, not just on new commits
 
 // --- Arg parsing ---------------------------------------------------------
 

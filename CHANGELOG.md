@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.7.2] — 2026-07-24
+
+The nightly auto-update had been reporting success while doing nothing. It only re-ran the installer when `git pull` brought down new commits, so once the repo sat ahead of `~/.claude` — a local commit, or a manual pull never followed by `setup.sh` — there was nothing to pull, and the job logged "already up to date" and stopped. The installed version drifted further behind every day while the log insisted everything was current. On the maintainer's machine that meant five consecutive clean-looking runs against a stale install.
+
+**Fixed — `src/scripts/auto-update.ts`:**
+- The `before === after` early return now also requires `!stale`, where stale comes from `computeDrift(installedVersion, readPackagedVersion(repoPath))`. Both helpers already backed the statusline drift nudge; the job simply wasn't consulting them. Any drift between the repo and the install now heals on the next run.
+- The setup-triggering log line distinguishes its two causes — `pulled <before> -> <after>` versus `no new commits, but installed vX is behind packaged vY`.
+
+Note: the job still skips entirely on a dirty cc-settings tree. That is deliberate (never clobber WIP), but on a repo you actively develop in it means a scheduled run during uncommitted work does nothing.
+
 ## [12.7.1] — 2026-07-24
 
 Action-first's closing rule was being satisfied the wrong way. "End with ONE concrete next action" got read as *name* an action, so turns ended on "Want me to implement the fix and file it as an issue?" — for work already inside the scope the user granted, where the answer is always yes. The round-trip bought nothing but a turn.
