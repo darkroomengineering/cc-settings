@@ -41,6 +41,23 @@ $n.ShowBalloonTip(3000, 'Claude Code', '${safeMsg}', 'Info')`;
 }
 
 /**
+ * True when desktop notifications must stay silent.
+ *
+ * The suite spawns the scripts that notify — tests/auto-update-script.test.ts
+ * deliberately drives the blocked-path and skipped-dirty branches — so without
+ * this guard a plain `bun test` fires real toasts at whoever ran it, reporting
+ * failures that only ever happened inside a fixture. `bun test` sets
+ * NODE_ENV=test and the harnesses spawn children with the parent env, so the
+ * flag reaches the child process too. CI is muted for the same reason from the
+ * other direction: a runner has no desktop to notify.
+ */
+export function notificationsSuppressed(): boolean {
+  // `CI === "true"` exactly, matching src/lib/schedule.ts — a truthiness check
+  // would read CI="false" as CI.
+  return process.env.NODE_ENV === "test" || process.env.CI === "true";
+}
+
+/**
  * Fire a desktop notification for the current platform. Fail-open: a
  * notifier crash must never propagate to the caller (mirrors the original
  * top-level Notification-hook behavior, now reusable by other scripts —
@@ -49,6 +66,7 @@ $n.ShowBalloonTip(3000, 'Claude Code', '${safeMsg}', 'Info')`;
 export async function sendNotification(msg: string): Promise<void> {
   try {
     if (!msg) return;
+    if (notificationsSuppressed()) return;
     if (platform === "darwin") notifyMac(msg);
     else if (platform === "linux") notifyLinux(msg);
     else if (platform === "win32") await notifyWindows(msg);

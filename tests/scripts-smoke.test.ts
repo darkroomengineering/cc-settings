@@ -45,6 +45,35 @@ describe("notify.ts", () => {
     const r = await run("notify.ts", { env: { NOTIFICATION_MESSAGE: "" } });
     expect(r.exit).toBe(0);
   });
+
+  // Regression: the suite spawns scripts that notify (auto-update drives the
+  // blocked-path branch on purpose), so an unguarded sendNotification fired
+  // real desktop toasts at whoever ran `bun test` — reporting failures that
+  // only happened inside a fixture. NODE_ENV=test and CI must both mute it.
+  test("suppressed under NODE_ENV=test and under CI", async () => {
+    const { notificationsSuppressed } = await import("../src/scripts/notify.ts");
+    const { NODE_ENV, CI } = process.env;
+    try {
+      process.env.NODE_ENV = "test";
+      delete process.env.CI;
+      expect(notificationsSuppressed()).toBe(true);
+
+      process.env.NODE_ENV = "production";
+      expect(notificationsSuppressed()).toBe(false);
+
+      process.env.CI = "true";
+      expect(notificationsSuppressed()).toBe(true);
+
+      // Not a truthiness check — CI="false" means not CI.
+      process.env.CI = "false";
+      expect(notificationsSuppressed()).toBe(false);
+    } finally {
+      if (NODE_ENV === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = NODE_ENV;
+      if (CI === undefined) delete process.env.CI;
+      else process.env.CI = CI;
+    }
+  });
 });
 
 describe("prune-mcp-auth-cache.ts", () => {
