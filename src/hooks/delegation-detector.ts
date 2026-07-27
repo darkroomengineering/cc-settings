@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
-// UserPromptSubmit hook — detect breadth signals in the incoming prompt and
-// prepend a system reminder pointing at Agent(maestro) before the model plans.
+// UserPromptSubmit hook — detect breadth signals in the incoming prompt and report
+// them before the model plans. It names the signal only; the delegation rule itself
+// lives in CLAUDE.md and is already in context.
 // Fail-open: any error → silent success (never block the prompt).
 
 import { emitAdditionalContext, readHookInput, runHook } from "../lib/hook-runtime.ts";
@@ -56,11 +57,11 @@ async function main(): Promise<void> {
 
   if (score < 2) return;
 
+  // Report the signal only. The delegation rule itself lives in CLAUDE.md and is
+  // already in context — restating it here would be the same instruction twice.
   const msg =
     `Breadth signals in this prompt (score ${score}): ${reasons.join("; ")}. ` +
-    `Likely 3+ files / parallel workstreams — per CLAUDE.md: route to Agent(maestro) for orchestration, ` +
-    `Agent(implementer) for multi-file changes, or parallel agents in ONE message. ` +
-    `Overriding requires a one-line stated reason.`;
+    `Apply the delegation heuristic.`;
 
   emitAdditionalContext("UserPromptSubmit", msg);
 }

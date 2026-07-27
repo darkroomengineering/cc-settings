@@ -2,8 +2,8 @@
 // M25 in docs/audits/codebase-audit-2026-07-08.md. The blanket fail-open smoke
 // test (hook-fail-open.test.ts) only feeds garbage input; these exercise the
 // real scoring branches: breadth phrases, path-token count, list-item count,
-// and the score < 2 allow threshold. delegation-detector.ts is read-only here
-// (no changes made to it) — this file only adds coverage.
+// and the score < 2 allow threshold. The nudge text was later narrowed to report
+// the signal without restating the delegation rule — see the last test.
 
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
@@ -58,7 +58,6 @@ describe("delegation-detector — scoring paths", () => {
     const ctx = additionalContext(r.stdout);
     expect(ctx).not.toBeNull();
     expect(ctx).toContain("Breadth signals");
-    expect(ctx).toContain("Agent(maestro)");
     expect(ctx).toContain('breadth phrase matched: "do everything"');
   });
 
@@ -74,10 +73,15 @@ describe("delegation-detector — scoring paths", () => {
     expect(ctx).toContain("list items found");
   });
 
-  test("nudge message cites the CLAUDE.md delegation heuristic and requires a stated override", async () => {
+  // The hook reports the signal and defers to the heuristic in CLAUDE.md rather than
+  // restating it — the rule is already in context, and repeating it at a second level
+  // is the duplication Anthropic's Claude 5 context-engineering guidance warns against.
+  test("nudge message reports the signal and defers to the heuristic, without restating it", async () => {
     const r = await runHook("Refactor the whole entire codebase now.");
     const ctx = additionalContext(r.stdout);
     expect(ctx).not.toBeNull();
-    expect(ctx).toContain("Overriding requires a one-line stated reason");
+    expect(ctx).toContain("Apply the delegation heuristic");
+    expect(ctx).not.toContain("Agent(maestro)");
+    expect(ctx).not.toContain("Overriding requires a one-line stated reason");
   });
 });
