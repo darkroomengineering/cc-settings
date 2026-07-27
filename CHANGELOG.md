@@ -4,6 +4,35 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.8.0] — 2026-07-27
+
+Realigned the config against Anthropic's ["new rules of context engineering for Claude 5 generation models"](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models). Anthropic removed over 80% of Claude Code's own system prompt for Opus 5 and Fable 5 with no measured performance loss; the same audit here found four outright contradictions between always-loaded files, a routing policy that existed as both static prose and a live hook injection, and 160 lines of `deslopper` team-mode workflow loading on every invocation to serve a mode that only fires at 100+ files.
+
+Conflicting instructions are the expensive failure — they force the model to arbitrate between two rules instead of following one.
+
+**Fixed — contradictions between always-loaded files:**
+- Delegation threshold read "10+ tool calls" in `CLAUDE-FULL.md` while `tool-cadence` enforced 12. The doc now cites `CC_PARALLELMAX_THRESHOLD` as the single source.
+- `AGENTS.md` prescribed a two-section PR template "only"; `rules/git.md` prescribes three, led by "What this does". `AGENTS.md` defers.
+- `AGENTS.md` "5+ files → get approval" contradicted the Autonomy Contract. Now: state the plan, don't ask permission for reversible in-scope work.
+- `skills/lighthouse` and `skills/plan-feature` disagreed on Core Web Vitals in both directions (2.5s vs 3s LCP, 200ms vs 100ms INP). `plan-feature` corrected to Google's thresholds.
+
+**Fixed — instructions stated at more than one level:**
+- Codex routing policy lived in `CLAUDE-FULL.md` prose *and* in the `codex-verify` SessionStart injection. The prose was the stale copy, loading even when the bridge was down. The hook is now the single source; the doc keeps a pointer.
+- `delegation-detector` re-taught a rule already in the always-loaded context. It now reports the breadth signal and stops.
+- One fallback paragraph was copy-pasted across `fix`, `refactor`, `verify`, `ship`, and `nuclear-review/references`; `ship` also stated the AI-attribution rule twice in one file.
+
+**Changed — progressive disclosure:**
+- `agents/deslopper.md` 504 → 347. Team Mode coordinator workflow, scanner prompts, and merge protocol moved to the new `docs/deslopper-team-mode.md`, read only when the Mode Selection table calls for a fan-out.
+- `agents/maestro.md` 335 → 175. Removed the orchestration ASCII flowchart, the CORRECT/INCORRECT spawning example, and three pseudocode patterns, all of which restated the Core Principles and Thread Orchestration table directly above them.
+- `AGENTS.md` lost the Next.js project-structure tree, which was wrong for every non-Next repo including this one. Tech Stack is now scoped as the web-client default rather than a universal assumption.
+
+**Kept deliberately:**
+- `AGENTS.md` retains its Coding Standards despite overlapping `rules/` and `profiles/` — Codex, Cursor, and Copilot read only `AGENTS.md`, so deduplicating there would drop the standards for those tools.
+- WCAG thresholds are restated in `skills/qa` and `skills/design-tokens` because both fork without `Read` and cannot follow a pointer. `rules/accessibility.md` is the canonical copy and now carries the full set (AAA, non-text 3:1, touch-target spacing) it was missing.
+- The Action-First Output rules stay. The guidance targets rules a model would get right by judgment; output shaping is a stated preference, which is not inferable.
+
+Cross-model review over three rounds caught six issues, four of them introduced by the deduplication itself — most sharply, a spawn-failure fallback moved into the agent definition that failed to spawn.
+
 ## [12.7.3] — 2026-07-24
 
 Running `bun test` fired real macOS notifications — "auto-update blocked — repo path does not match the enrolled path" and friends. Nothing was wrong: the suite spawns the auto-update script and deliberately drives its blocked-path and skipped-dirty branches to prove those guards hold, and each one reached the real notifier. Anyone running the tests got alarming desktop alerts about failures that only happened inside a temp-dir fixture.
