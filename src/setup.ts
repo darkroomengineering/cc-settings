@@ -67,7 +67,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.12.0"; // mcp_written covers every managed server, not just tldr
+const VERSION = "12.13.0"; // quota chip renders outside Programa, hidden inside
 
 // --- Arg parsing ---------------------------------------------------------
 

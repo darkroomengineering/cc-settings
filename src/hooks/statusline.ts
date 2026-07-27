@@ -94,6 +94,35 @@ function formatTokens(n: number): string {
   return `${Math.round(n / 1000)}k`;
 }
 
+// Programa renders the same 5h/7d quota numbers in its own sidebar, so the ⚡
+// chip below is suppressed there — same fact twice, and the statusline is the
+// more crowded of the two surfaces. Every other terminal has no second quota
+// surface, so the chip is the only signal and it renders.
+const IN_PROGRAMA = Boolean(process.env.PROGRAMA_SURFACE_ID);
+
+// `resets_at` is Unix epoch seconds on current Claude Code builds; older builds
+// emitted ISO strings. Normalise both before formatting — the pre-v12 version of
+// this helper did a bare Date.parse(iso), which returns NaN for "1753600000" and
+// would silently drop the ↻ suffix now that the payload carries epoch seconds.
+function formatTimeToReset(value: number | string | undefined): string | null {
+  if (value === undefined) return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  let resetMs: number;
+  if (value !== "" && Number.isFinite(numeric)) {
+    // Below ~1e11 is seconds (that boundary is year 5138); larger is already ms.
+    resetMs = numeric < 1e11 ? numeric * 1000 : numeric;
+  } else {
+    resetMs = Date.parse(String(value));
+  }
+  if (Number.isNaN(resetMs)) return null;
+  const deltaMs = resetMs - Date.now();
+  if (deltaMs <= 0) return null;
+  const totalMin = Math.round(deltaMs / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h${m.toString().padStart(2, "0")}m` : `${m}m`;
+}
+
 // Statusline git reads are hot-path and read-only: --no-optional-locks avoids
 // contending with a concurrent git process holding the index lock. The spawn
 // itself lives in lib/git.ts; this adapter just binds the flag + working tree.
@@ -212,27 +241,24 @@ async function main(): Promise<void> {
     parts.push(`${bar} ${usedInt}% (${formatTokens(tokensUsed)}/${formatTokens(tokensAvailable)})`);
   }
 
-  // Rate-limit headroom is deliberately NOT rendered here. Programa's sidebar
-  // shows the same 5h/7d numbers persistently, so a ⚡N% chip on every prompt
-  // was the same fact twice, and the statusline is the more crowded of the two.
+  // Rate-limit headroom — rendered everywhere EXCEPT Programa (see IN_PROGRAMA).
   //
-  // IMPORTANT: this only drops the *display*. The read of `input.rate_limits`
-  // and the `writeRateLimitsCache` call above must stay — that cache file is
-  // what Programa's sidebar and quota-steer.ts both read, and statusline is
-  // what keeps it fresh between sessions (session-start.ts only refreshes it on
-  // launch and resume). Deleting the write would leave the sidebar showing
+  // IMPORTANT: the gate drops only the *display*. The read of `input.rate_limits`
+  // and the `writeRateLimitsCache` call above stay unconditional — that cache
+  // file is what Programa's sidebar and quota-steer.ts both read, and statusline
+  // is what keeps it fresh between sessions (session-start.ts only refreshes it
+  // on launch and resume). Gating the write would leave the sidebar showing
   // stale numbers from whenever the last session started.
-  //
-  // To restore the chip, push this into `parts` (self-contained -- the locals it
-  // used to read were removed as dead code, so it reads `input` directly):
-  //   const rateUsed = input.rate_limits?.five_hour?.used_percentage;
-  //   if (rateUsed !== undefined) {
-  //     const rInt = Math.round(rateUsed);
-  //     const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
-  //     const ttr = formatTimeToReset(input.rate_limits?.five_hour?.resets_at ?? "");
-  //     const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
-  //     parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
-  //   }
+  if (!IN_PROGRAMA) {
+    const rateUsed = input.rate_limits?.five_hour?.used_percentage;
+    if (rateUsed !== undefined) {
+      const rInt = Math.round(rateUsed);
+      const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
+      const ttr = formatTimeToReset(input.rate_limits?.five_hour?.resets_at);
+      const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
+      parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
+    }
+  }
 
   // Review-queue backpressure: agents spawned since the last commit, awaiting
   // your review (written by tool-cadence.ts). Suppressed at 0 — yellow

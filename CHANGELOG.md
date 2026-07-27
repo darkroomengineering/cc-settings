@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.13.0] — 2026-07-27
+
+The statusline's `⚡` quota chip is back everywhere except Programa.
+
+Hiding it was right for one terminal and wrong for every other. Programa's sidebar shows the same 5h numbers persistently, so a chip on every prompt was the same fact twice in the more crowded of the two surfaces — but the suppression was unconditional, so iTerm, Terminal.app and ssh sessions got no quota signal at all. The chip now renders unless `PROGRAMA_SURFACE_ID` is set.
+
+`formatTimeToReset` came back with a fix rather than as-is. The old implementation was a bare `Date.parse(iso)`, and `resets_at` is Unix epoch **seconds** on current Claude Code builds — `Date.parse("1785190200")` is `NaN`, so restoring it verbatim would have shipped a chip whose `↻2h15m` suffix was permanently missing. It now reads a number-or-numeric-string as epoch seconds and keeps `Date.parse` for the ISO strings older builds emitted.
+
+The cache write stays ungated. `writeRateLimitsCache` runs inside Programa too — that file is what the sidebar and `quota-steer.ts` both read, and statusline is what keeps it fresh between sessions, since `session-start.ts` only refreshes it on launch and resume. Gating the write alongside the display would have left the sidebar showing whatever the last session start happened to capture.
+
+New `tests/statusline-quota.test.ts` (10 tests) spawns the hook with a sandboxed `HOME`, so fixture numbers never reach the real `~/.claude/tmp/rate-limits.json`. It covers the gate both ways, the empty-variable edge, four `resets_at` shapes, and asserts the cache write happens in **both** branches — that last one is the regression that would silently stale Programa's sidebar.
+
 ## [12.12.0] — 2026-07-27
 
 Closes the limit v12.11.0 documented: `mcp_written` now records cc-settings' definition of **every** managed MCP server, not just the engine-managed `tldr`.
