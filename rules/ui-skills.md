@@ -74,7 +74,6 @@ See `rules/accessibility.md` and `docs/accessibility.md` for full rules.
 ### Behavior
 - Only animate when explicitly requested by design
 - Pause looping animations when off-screen (Intersection Observer)
-- Disable animations during system "reduce motion" preference
 
 ---
 

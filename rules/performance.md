@@ -11,8 +11,6 @@ paths:
 
 > Eliminate waterfalls, minimize bundles, defer non-critical work. Stack-agnostic principles first; framework-specific implementations follow.
 
-The model picks the right implementation by reading visible imports in the file you're editing.
-
 ---
 
 ## DO
@@ -111,8 +109,6 @@ useEffect(() => { fetch(user.id) }, [user])      // runs on any user change
 // CORRECT
 useEffect(() => { fetch(user.id) }, [user.id])
 ```
-
-> Conditional rendering with numbers: see `rules/react.md`.
 
 ---
 

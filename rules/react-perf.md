@@ -16,8 +16,6 @@ The patterns split into:
 - **Next.js** — Server Components, `next/dynamic`, etc.
 - **React Router** — loaders, `lazy()`, `defer()`, etc.
 
-The model picks the right one by reading visible imports in the file you're editing.
-
 ## React Compiler Note
 
 **Darkroom projects use React Compiler.** This means:

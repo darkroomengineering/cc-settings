@@ -84,14 +84,6 @@ import '@/styles/globals.css'  // Only in layout.tsx
 
 > Typography utilities (`text-balance`, `text-pretty`, `tabular-nums`): see `rules/ui-skills.md`.
 
-## Z-Index Scale
-| Layer | Value |
-|-------|-------|
-| Dropdown | 10 |
-| Sticky | 20 |
-| Modal | 30 |
-| Toast | 40 |
-
 ## Tools
 - **Tailwind CSS v4**
 - **CSS Modules**
