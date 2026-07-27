@@ -4,6 +4,31 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.10.0] — 2026-07-27
+
+v12.9.0 changed the default engine to `native-ts`. It reached nobody. This release makes it actually apply, and fixes the same class of bug in two more places.
+
+Three defects, all instances of *an empty or stale result being indistinguishable from a correct one*:
+
+**1. The install sentinel pinned the engine forever.** `resolveEngine` honoured `~/.claude/.cc-settings-version`'s `engine` field identically whether it came from a deliberate `CC_CODE_INTEL_ENGINE` opt-in or was merely stamped as the default at first-install time — and every install re-stamped whatever it had just read. Once any value landed, `DEFAULT_ENGINE_ID` became unreachable. `SentinelInfo` gains `engineExplicit` (from a new `engine_explicit` field, defaulting `false`), and `resolveEngine` now returns `{ engine, explicit }`, honouring the sentinel only on an explicit choice.
+
+Legacy sentinels are migrated asymmetrically, and deliberately: one holding `llm-tldr` is ambiguous (it was the default then) and is treated as implicit, so the flip reaches it; one holding *any other* engine could only have come from an explicit opt-in, so it is preserved. That asymmetry is what stops an existing `native-ts` user from being silently downgraded.
+
+**2. The stale-detector was blind to its own history.** `isStaleCcOutput` decided "cc-settings' prior output" vs "genuine user hand-edit" by rebuilding candidates from the *live* `ENGINES` registry — so the moment a descriptor's `serverInstructions` text was edited, the previous install's output stopped matching and was misclassified as a hand-edit, then won the merge. This is why v12.8.1's fix never landed on any existing machine either. The sentinel now records `mcp_written` — an exact echo of what was written — and `isStaleCcOutput` accepts it as an additional match branch. A real hand-edit still differs from that snapshot and is still preserved; `mcp_written` is recorded on full installs only, since a light install removes the managed server.
+
+**3. Our own engine returned empty on a missing argument.** Calling native-ts's `impact` with a misnamed argument returned `{"symbol":"","references":[]}` — identical in shape to "this symbol has no callers." Five tools whose required symbol/target had no fallback (`extract`, `imports`, `importers`, `context`, `impact`) now return a structured `missing-required-argument` error naming the accepted keys. An unknown or mistyped `CC_CODE_INTEL_ENGINE` likewise no longer records itself as an explicit choice, which would have pinned a typo's fallback permanently.
+
+Verified end-to-end across all four resolution paths:
+
+| sentinel state | resolves to |
+|---|---|
+| legacy implicit `llm-tldr` | `native-ts`, implicit — flip applies |
+| legacy opt-in `native-ts` | `native-ts`, **explicit** — opt-in preserved |
+| explicit `llm-tldr` | `llm-tldr`, explicit — honoured |
+| typo in env var | `native-ts`, implicit — not pinned |
+
+976 tests pass (up from 964). Note for anyone whose install predates this: the sentinel migration runs on your next install, but the previously-written `~/.claude.json` entry is only replaced once `mcp_written` exists to recognise it — so a machine carrying stale output from before v12.10.0 may need the `tldr` entry removed by hand once.
+
 ## [12.9.0] — 2026-07-27
 
 **The default code-intel engine is now `native-ts`.** v12.8.1 fixed the *instructions* around llm-tldr's python-defaulting `language` parameter; this changes the default so the trap isn't there to step into.

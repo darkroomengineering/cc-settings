@@ -46,6 +46,8 @@ describe("readSentinelInfo", () => {
         version: null,
         repoPath: null,
         engine: null,
+        engineExplicit: false,
+        mcpWritten: null,
         autoUpdate: null,
       });
     } finally {
@@ -63,6 +65,8 @@ describe("readSentinelInfo", () => {
         version: "11.12.0",
         repoPath: "/x/y",
         engine: null,
+        engineExplicit: false,
+        mcpWritten: null,
         autoUpdate: null,
       });
     } finally {
@@ -80,6 +84,33 @@ describe("readSentinelInfo", () => {
         version: "11.30.3",
         repoPath: "/x/y",
         engine: "native-ts",
+        engineExplicit: false,
+        mcpWritten: null,
+        autoUpdate: null,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("reads engine_explicit + mcp_written when present", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({
+          version: "12.9.0",
+          repo_path: "/x/y",
+          engine: "native-ts",
+          engine_explicit: true,
+          mcp_written: { tldr: { command: "bun", args: ["a.ts"], serverInstructions: "x" } },
+        }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "12.9.0",
+        repoPath: "/x/y",
+        engine: "native-ts",
+        engineExplicit: true,
+        mcpWritten: { tldr: { command: "bun", args: ["a.ts"], serverInstructions: "x" } },
         autoUpdate: null,
       });
     } finally {
@@ -94,6 +125,8 @@ describe("readSentinelInfo", () => {
         version: "11.0.0",
         repoPath: null,
         engine: null,
+        engineExplicit: false,
+        mcpWritten: null,
         autoUpdate: null,
       });
     } finally {
@@ -108,6 +141,8 @@ describe("readSentinelInfo", () => {
         version: null,
         repoPath: null,
         engine: null,
+        engineExplicit: false,
+        mcpWritten: null,
         autoUpdate: null,
       });
     } finally {
@@ -125,6 +160,8 @@ describe("readSentinelInfo", () => {
         version: "12.3.0",
         repoPath: "/x/y",
         engine: null,
+        engineExplicit: false,
+        mcpWritten: null,
         autoUpdate: true,
       });
     } finally {

@@ -17,9 +17,14 @@ async function tmp(): Promise<string> {
   return mkdtemp(join(tmpdir(), "ccengine-"));
 }
 
-async function writeSentinel(dir: string, engine: string | null): Promise<void> {
+async function writeSentinel(
+  dir: string,
+  engine: string | null,
+  explicit?: boolean,
+): Promise<void> {
   const payload: Record<string, unknown> = { version: "1.0.0", repo_path: "/x" };
   if (engine) payload.engine = engine;
+  if (explicit !== undefined) payload.engine_explicit = explicit;
   await writeFile(join(dir, ".cc-settings-version"), JSON.stringify(payload));
 }
 
@@ -78,29 +83,80 @@ describe("resolveEngine", () => {
   test("env override wins over the sentinel", async () => {
     const dir = await tmp();
     try {
-      await writeSentinel(dir, "llm-tldr");
+      await writeSentinel(dir, "llm-tldr", true);
       process.env[ENV_KEY] = "native-ts";
-      expect((await resolveEngine(dir)).id).toBe("native-ts");
+      const result = await resolveEngine(dir);
+      expect(result.engine.id).toBe("native-ts");
+      expect(result.explicit).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test("unknown id falls back to the default", async () => {
+  // An unknown/mistyped env id falls back to the default, but must NOT be
+  // marked explicit — stamping it would pin the typo's fallback into the
+  // sentinel permanently.
+  test("unknown id falls back to the default and is NOT explicit", async () => {
     const dir = await tmp();
     try {
       process.env[ENV_KEY] = "does-not-exist";
-      expect((await resolveEngine(dir)).id).toBe(DEFAULT_ENGINE_ID);
+      const result = await resolveEngine(dir);
+      expect(result.engine.id).toBe(DEFAULT_ENGINE_ID);
+      expect(result.explicit).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test("reads the engine from the sentinel when no env override", async () => {
+  test("reads the engine from the sentinel when no env override AND engine_explicit is true", async () => {
     const dir = await tmp();
     try {
-      await writeSentinel(dir, "native-ts");
-      expect((await resolveEngine(dir)).id).toBe("native-ts");
+      await writeSentinel(dir, "native-ts", true);
+      const result = await resolveEngine(dir);
+      expect(result.engine.id).toBe("native-ts");
+      expect(result.explicit).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  // FIX A regression: an implicit legacy sentinel (engine present, but
+  // engine_explicit absent/false) must NOT pin the sentinel's engine — it was
+  // just the default at stamp time, not a user choice, so a changed
+  // DEFAULT_ENGINE_ID must reach it on this resolution.
+  test("sentinel engine with engine_explicit absent/false ⇒ default, NOT the sentinel value", async () => {
+    const dir = await tmp();
+    try {
+      await writeSentinel(dir, "llm-tldr"); // no engine_explicit field at all
+      const result = await resolveEngine(dir);
+      expect(result.engine.id).toBe(DEFAULT_ENGINE_ID);
+      expect(result.engine.id).not.toBe("llm-tldr");
+      expect(result.explicit).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+
+    const dir2 = await tmp();
+    try {
+      await writeSentinel(dir2, "llm-tldr", false); // explicitly false
+      const result2 = await resolveEngine(dir2);
+      expect(result2.engine.id).toBe(DEFAULT_ENGINE_ID);
+      expect(result2.explicit).toBe(false);
+    } finally {
+      await rm(dir2, { recursive: true, force: true });
+    }
+  });
+
+  // Codex review: a legacy sentinel (no engine_explicit) holding a NON-default
+  // engine could only have come from an explicit env opt-in, since llm-tldr was
+  // the default at stamp time. Those opt-ins must survive the v12.9.0 flip.
+  test("legacy sentinel with a non-default engine is treated as an explicit opt-in", async () => {
+    const dir = await tmp();
+    try {
+      await writeSentinel(dir, "codebase-memory"); // no engine_explicit field
+      const result = await resolveEngine(dir);
+      expect(result.engine.id).toBe("codebase-memory");
+      expect(result.explicit).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -109,7 +165,9 @@ describe("resolveEngine", () => {
   test("no env + no sentinel ⇒ default", async () => {
     const dir = await tmp();
     try {
-      expect((await resolveEngine(dir)).id).toBe(DEFAULT_ENGINE_ID);
+      const result = await resolveEngine(dir);
+      expect(result.engine.id).toBe(DEFAULT_ENGINE_ID);
+      expect(result.explicit).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

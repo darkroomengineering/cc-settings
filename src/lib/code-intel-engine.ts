@@ -10,9 +10,14 @@
 //
 //   process.env.CC_CODE_INTEL_ENGINE  >  install sentinel `engine`  >  default
 //
-// Default stays "llm-tldr" so behavior is byte-for-byte unchanged unless a user
-// opts in. Per-project native-vs-external routing behind the same server name
-// is deferred to a future MCP proxy — not built here.
+// Precedence: env override > EXPLICIT install-sentinel choice > DEFAULT_ENGINE_ID.
+// "Explicit" matters: a sentinel's `engine` field is only honoured when it was
+// stamped by a run that itself resolved explicitly (env override, or a
+// previously-explicit sentinel) — see resolveEngine below. This is what lets
+// DEFAULT_ENGINE_ID actually change behavior on existing installs instead of
+// being permanently pinned by whatever was the default at first-install time.
+// Per-project native-vs-external routing behind the same server name is
+// deferred to a future MCP proxy — not built here.
 //
 // engine-pin.ts owns the download/verify mechanics (and installedBinaryPath,
 // re-exported below). This module imports it for values; engine-pin imports only
@@ -183,9 +188,27 @@ export function getEngine(id: string, claudeDir: string = CLAUDE_DIR): EngineDes
   return finalize(base as EngineDescriptor, claudeDir);
 }
 
+export interface ResolvedEngine {
+  engine: EngineDescriptor;
+  /** True when this resolution came from an explicit choice (env override, or
+   *  a sentinel stamped by a previously-explicit run) rather than falling
+   *  through to DEFAULT_ENGINE_ID. Callers that re-stamp the sentinel (setup.ts
+   *  writeVersionSentinel) use this to decide whether `engine_explicit` gets
+   *  written — see the module-level precedence comment above. */
+  explicit: boolean;
+}
+
 /**
- * Resolve the active engine: env override > install sentinel > default. An
- * unknown id at any tier resolves to the default via getEngine. Never throws.
+ * Resolve the active engine: env override > EXPLICIT install sentinel >
+ * default. An unknown id at any tier resolves to the default via getEngine.
+ * Never throws.
+ *
+ * A sentinel's `engine` is only honoured when `engineExplicit === true` — a
+ * sentinel written before that field existed (or written by a run that itself
+ * fell through to the default) defaults `engineExplicit` to false, so it is
+ * treated as "this was just the default at the time", not a user choice, and
+ * a changed DEFAULT_ENGINE_ID reaches it on the next resolution. This is what
+ * makes the default un-sticky (see module header).
  *
  * `sentinel`, when provided, is used instead of re-reading
  * `.cc-settings-version` from disk — for callers (src/setup.ts main()) that
@@ -196,12 +219,48 @@ export function getEngine(id: string, claudeDir: string = CLAUDE_DIR): EngineDes
 export async function resolveEngine(
   claudeDir: string = CLAUDE_DIR,
   sentinel?: SentinelInfo,
-): Promise<EngineDescriptor> {
+): Promise<ResolvedEngine> {
   const envId = process.env.CC_CODE_INTEL_ENGINE;
-  if (envId) return getEngine(envId, claudeDir);
+  if (envId) {
+    // An unknown/mistyped id must NOT be recorded as an explicit choice —
+    // getEngine falls back to the default, and marking that explicit would
+    // permanently pin a typo into the sentinel.
+    if (!ENGINES[envId]) {
+      return { engine: getEngine(DEFAULT_ENGINE_ID, claudeDir), explicit: false };
+    }
+    return { engine: getEngine(envId, claudeDir), explicit: true };
+  }
   const info = sentinel ?? (await readSentinelInfo(claudeDir).catch(() => null));
-  if (info?.engine) return getEngine(info.engine, claudeDir);
-  return getEngine(DEFAULT_ENGINE_ID, claudeDir);
+  if (info?.engine && isExplicitSentinelChoice(info)) {
+    return { engine: getEngine(info.engine, claudeDir), explicit: true };
+  }
+  return { engine: getEngine(DEFAULT_ENGINE_ID, claudeDir), explicit: false };
+}
+
+/** The engine that was DEFAULT_ENGINE_ID before the v12.9.0 flip. Sentinels
+ *  written before that release carry no `engine_explicit` field, so this is the
+ *  only signal available to tell a real opt-in from a stamped default. */
+const LEGACY_DEFAULT_ENGINE_ID = "llm-tldr";
+
+/**
+ * Did this sentinel's `engine` reflect a deliberate choice?
+ *
+ * Post-v12.9.0 sentinels answer directly via `engine_explicit`. Legacy sentinels
+ * predate the field, so we infer, asymmetrically and deliberately:
+ *
+ *   engine === "llm-tldr"  → AMBIGUOUS, treated as implicit. It was the default
+ *     at stamp time, so the overwhelming majority of these are stamped defaults
+ *     rather than opt-ins — and treating them as explicit would pin every
+ *     existing install to the archived engine forever, which is the entire bug
+ *     being fixed. A genuine llm-tldr user re-opts in once with
+ *     CC_CODE_INTEL_ENGINE=llm-tldr, which records engine_explicit for good.
+ *   any other engine       → UNAMBIGUOUS opt-in. Nothing but an explicit env
+ *     override could have put a non-default id in a legacy sentinel, so it is
+ *     preserved. This is what protects anyone already running native-ts.
+ */
+function isExplicitSentinelChoice(info: SentinelInfo): boolean {
+  if (info.engineExplicit === true) return true;
+  return info.engine !== null && info.engine !== LEGACY_DEFAULT_ENGINE_ID;
 }
 
 /**

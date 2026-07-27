@@ -13,6 +13,7 @@ import {
   getStructure,
   getTree,
 } from "../src/codemap/index.ts";
+import { findToolByName } from "../src/codemap/tools.ts";
 
 // Two-file TypeScript fixture: a.ts exports foo/bar (bar calls foo); b.ts
 // imports foo and calls it. Enough to exercise structure, impact (cross-file),
@@ -118,4 +119,82 @@ describe("native codemap", () => {
       expect(impact?.affected).toEqual([]);
     },
   );
+
+  // FIX C regression: a wrong/missing argument key must return a structured
+  // error, never a silent empty result — an empty result is indistinguishable
+  // from a true "no references found".
+  describe("FIX C: missing required argument returns a structured error", () => {
+    test.skipIf(!engineAvailable)(
+      "impact: wrong arg key ('symbol' instead of 'function')",
+      async () => {
+        const tool = findToolByName("impact");
+        if (!tool) throw new Error("impact tool missing from registry");
+        const result = (await tool.handler({ symbol: "foo", project: dir })) as Record<
+          string,
+          unknown
+        >;
+        expect(result.error).toBe("missing-required-argument");
+        expect(result.tool).toBe("impact");
+        expect(result.expected).toEqual(["function", "name", "entry"]);
+      },
+    );
+
+    test.skipIf(!engineAvailable)(
+      "impact: correct arg key ('function') still returns real references",
+      async () => {
+        const tool = findToolByName("impact");
+        if (!tool) throw new Error("impact tool missing from registry");
+        const result = (await tool.handler({ function: "foo", project: dir })) as {
+          references?: unknown[];
+          error?: string;
+        };
+        expect(result.error).toBeUndefined();
+        expect(result.references?.length ?? 0).toBeGreaterThan(0);
+      },
+    );
+
+    test.skipIf(!engineAvailable)("context: empty entry returns a structured error", async () => {
+      const tool = findToolByName("context");
+      if (!tool) throw new Error("context tool missing from registry");
+      const result = (await tool.handler({ project: dir })) as Record<string, unknown>;
+      expect(result.error).toBe("missing-required-argument");
+      expect(result.tool).toBe("context");
+    });
+
+    test.skipIf(!engineAvailable)("extract: empty file returns a structured error", async () => {
+      const tool = findToolByName("extract");
+      if (!tool) throw new Error("extract tool missing from registry");
+      const result = (await tool.handler({ project: dir })) as Record<string, unknown>;
+      expect(result.error).toBe("missing-required-argument");
+      expect(result.tool).toBe("extract");
+    });
+
+    test.skipIf(!engineAvailable)("imports: empty file returns a structured error", async () => {
+      const tool = findToolByName("imports");
+      if (!tool) throw new Error("imports tool missing from registry");
+      const result = (await tool.handler({ project: dir })) as Record<string, unknown>;
+      expect(result.error).toBe("missing-required-argument");
+      expect(result.tool).toBe("imports");
+    });
+
+    test.skipIf(!engineAvailable)(
+      "importers: empty target returns a structured error",
+      async () => {
+        const tool = findToolByName("importers");
+        if (!tool) throw new Error("importers tool missing from registry");
+        const result = (await tool.handler({ project: dir })) as Record<string, unknown>;
+        expect(result.error).toBe("missing-required-argument");
+        expect(result.tool).toBe("importers");
+      },
+    );
+
+    // structure/tree are unaffected — an empty/absent argument is legitimately
+    // meaningful (whole-project scope), never a wrong-key mistake.
+    test.skipIf(!engineAvailable)("structure with no extra args is NOT an error", async () => {
+      const tool = findToolByName("structure");
+      if (!tool) throw new Error("structure tool missing from registry");
+      const result = (await tool.handler({ project: dir })) as Record<string, unknown>;
+      expect(result.error).toBeUndefined();
+    });
+  });
 });

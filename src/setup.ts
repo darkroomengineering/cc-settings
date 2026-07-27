@@ -45,6 +45,7 @@ import { acquireInstallLock, InstallLockError } from "./lib/install-lock.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
 import { applyLightProfile, type Profile, stripManagedSettings } from "./lib/light-profile.ts";
 import {
+  CLAUDE_JSON_PATH,
   installMcpToClaudeJson,
   type McpServers,
   mergeSettingsWithMcpPreservation,
@@ -66,7 +67,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.9.0"; // default code-intel engine is now native-ts
+const VERSION = "12.10.0"; // engine default actually reaches existing installs
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -121,6 +122,12 @@ async function installSettings(
   interactive: boolean,
   profile: Profile,
   engine: EngineDescriptor,
+  // Prior sentinel's exact echo of what a previous install wrote for
+  // engine-managed MCP servers (SentinelInfo.mcpWritten) — threaded through to
+  // installMcpToClaudeJson so it can recognize its own stale output even after
+  // the live ENGINES registry's serverInstructions text has since changed.
+  // Undefined/null on a first install or a pre-fix sentinel.
+  priorMcpWritten?: Record<string, unknown> | null,
 ): Promise<void> {
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
   // Compose team settings from config/ fragments (always the full baseline).
@@ -189,7 +196,7 @@ async function installSettings(
     { interactive },
   );
   if (accounting) printMergeAccounting(accounting, { interactive });
-  await installMcpToClaudeJson(teamMcp);
+  await installMcpToClaudeJson(teamMcp, CLAUDE_JSON_PATH, priorMcpWritten);
 
   // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
   // SessionStart integrity check) can detect post-install tampering — the
@@ -317,6 +324,11 @@ async function writeVersionSentinel(
   profile: Profile,
   engine: EngineDescriptor,
   autoUpdate: boolean | undefined,
+  // Whether THIS run resolved the engine explicitly (env override, or a
+  // previously-explicit sentinel) — see resolveEngine in code-intel-engine.ts.
+  // Only written as `engine_explicit: true`; omitted otherwise, so a run that
+  // fell through to DEFAULT_ENGINE_ID doesn't pin that default for future runs.
+  explicit: boolean,
 ): Promise<void> {
   const payload = {
     version: VERSION,
@@ -329,6 +341,29 @@ async function writeVersionSentinel(
     // Resolved code-intel engine id — read back by resolveEngine() so every
     // surface (hooks, next install) agrees on which engine backs `tldr`.
     engine: engine.id,
+    ...(explicit ? { engine_explicit: true } : {}),
+    // Exact echo of what THIS run wrote to ~/.claude.json for the
+    // engine-managed "tldr" server — lets a LATER install's isStaleCcOutput
+    // recognize this as stale cc-settings output even after the live
+    // descriptor's serverInstructions text has since changed (see mcp.ts).
+    //
+    // FULL PROFILE ONLY. A light install REMOVES the managed tldr server
+    // (removeManagedMcpServers), so recording what a full install would have
+    // written would claim ownership of an entry this run did not write — and a
+    // later install could then misread a user's own entry as our stale output.
+    // Omitting it is the safe direction: the worst case is one missed stale
+    // match, which merely preserves an entry instead of clobbering one.
+    ...(profile === "full"
+      ? {
+          mcp_written: {
+            tldr: {
+              command: engine.mcp.command,
+              args: engine.mcp.args,
+              serverInstructions: engine.serverInstructions,
+            },
+          },
+        }
+      : {}),
     // Auto-update enrollment — omitted entirely when undecided (non-macOS, or
     // a non-interactive run with no prior decision) so "absent" never reads
     // as "declined". See decideAutoUpdate() in src/lib/schedule.ts.
@@ -448,11 +483,15 @@ async function main(): Promise<number> {
   const sentinel = await readSentinelInfo(CLAUDE_DIR);
   const prevInstalledVersion = sentinel.version;
   const priorAutoUpdate = sentinel.autoUpdate;
+  // Prior install's exact echo of what it wrote to ~/.claude.json's
+  // engine-managed servers — captured BEFORE writeVersionSentinel overwrites
+  // the sentinel below (see FIX B: mcp.ts isStaleCcOutput's priorWritten arg).
+  const priorMcpWritten = sentinel.mcpWritten;
 
-  // Resolve the code-intel engine once (env > prior sentinel > default) and
-  // thread it through dependency install, settings, and the sentinel write.
-  // Default is "llm-tldr", so an install with no override is unchanged.
-  const engine = await resolveEngine(CLAUDE_DIR, sentinel);
+  // Resolve the code-intel engine once (env > explicit prior sentinel >
+  // default) and thread it through dependency install, settings, and the
+  // sentinel write. See resolveEngine's precedence doc in code-intel-engine.ts.
+  const { engine, explicit: engineExplicit } = await resolveEngine(CLAUDE_DIR, sentinel);
 
   // Frontmatter validation — catches typos in agents/*.md and skills/*/SKILL.md
   // before we ship them to ~/.claude/. Non-fatal; warn and continue so a single
@@ -476,7 +515,13 @@ async function main(): Promise<number> {
     }
 
     try {
-      await installSettings(args.sourceDir, args.interactive, args.profile, engine);
+      await installSettings(
+        args.sourceDir,
+        args.interactive,
+        args.profile,
+        engine,
+        priorMcpWritten,
+      );
     } catch (err) {
       // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
       if (err instanceof JsonParseError) {
@@ -488,7 +533,13 @@ async function main(): Promise<number> {
     }
 
     const autoUpdateEnrolled = await applyAutoUpdate(args, priorAutoUpdate);
-    await writeVersionSentinel(args.sourceDir, args.profile, engine, autoUpdateEnrolled);
+    await writeVersionSentinel(
+      args.sourceDir,
+      args.profile,
+      engine,
+      autoUpdateEnrolled,
+      engineExplicit,
+    );
     return 0;
   });
   if (installCode !== 0) return installCode;

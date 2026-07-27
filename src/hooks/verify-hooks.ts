@@ -99,7 +99,7 @@ async function checkSrcManifest(): Promise<void> {
 // guard against, applied to the engine. "missing" (the default python/native
 // engines pin nothing, or no binary installed) is silent.
 async function checkEnginePin(): Promise<void> {
-  const engine = await resolveEngine();
+  const { engine } = await resolveEngine();
   if ((await verifyPinnedEngine(engine)) !== "mismatch") return;
 
   console.log("");

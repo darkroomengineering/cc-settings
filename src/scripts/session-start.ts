@@ -44,10 +44,10 @@ import {
 const PROJECT_DIR = process.cwd();
 const PROJECT_NAME = basename(PROJECT_DIR);
 
-// Resolve the active code-intel engine once (env > sentinel > default). Drives
-// the daemon/warm helpers and the status line below. Default is "llm-tldr", so
-// behavior is unchanged unless CC_CODE_INTEL_ENGINE / the sentinel says otherwise.
-const engine = await resolveEngine(CLAUDE_DIR);
+// Resolve the active code-intel engine once (env > explicit sentinel >
+// default). Drives the daemon/warm helpers and the status line below. See
+// resolveEngine's precedence doc in code-intel-engine.ts.
+const { engine } = await resolveEngine(CLAUDE_DIR);
 
 // --- Helpers --------------------------------------------------------------
 

@@ -50,6 +50,23 @@ const PROJECT = (() => {
 
 export const proj = (a: Args): string => str(a, "project") || PROJECT;
 
+/** Structured error for a tool whose required symbol/target argument resolved
+ *  to an empty string — e.g. the caller used the wrong key name. Returning
+ *  this instead of silently running the tool with "" prevents a wrong answer
+ *  (an empty result) from being indistinguishable from a true negative ("this
+ *  symbol has no references"). Only used by tools where an empty argument
+ *  can never be legitimate (structure/tree/etc. take no required symbol and
+ *  are unaffected). */
+function missingRequiredArg(tool: string, expected: string[]): Record<string, unknown> {
+  return {
+    error: "missing-required-argument",
+    tool,
+    expected,
+    reason:
+      "No symbol argument was provided. An empty result would be indistinguishable from 'no references found'.",
+  };
+}
+
 export const objSchema = (props: Record<string, string>): Record<string, unknown> => ({
   type: "object",
   properties: Object.fromEntries(
@@ -97,7 +114,11 @@ export const TOOLS: CodemapTool[] = [
     name: "extract",
     description: "Full symbol structure of a single file.",
     inputSchema: objSchema({ project: "string", file: "string" }),
-    handler: (a) => resolveFile(proj(a), str(a, "file")),
+    handler: async (a) => {
+      const file = str(a, "file");
+      if (!file) return missingRequiredArg("extract", ["file"]);
+      return resolveFile(proj(a), file);
+    },
     buildCliArgs: (flags, arg, project) => ({ project, file: flags.file ?? arg }),
   },
   {
@@ -118,14 +139,22 @@ export const TOOLS: CodemapTool[] = [
     name: "imports",
     description: "Resolved imports of a file.",
     inputSchema: objSchema({ project: "string", file: "string" }),
-    handler: (a) => getImports(proj(a), str(a, "file")),
+    handler: async (a) => {
+      const file = str(a, "file");
+      if (!file) return missingRequiredArg("imports", ["file"]);
+      return getImports(proj(a), file);
+    },
     buildCliArgs: (flags, arg, project) => ({ project, file: flags.file ?? arg }),
   },
   {
     name: "importers",
     description: "Files that import a given file/module (reverse import lookup).",
     inputSchema: objSchema({ project: "string", module: "string" }),
-    handler: (a) => getImporters(proj(a), str(a, "module", "target", "file")),
+    handler: async (a) => {
+      const target = str(a, "module", "target", "file");
+      if (!target) return missingRequiredArg("importers", ["module", "target", "file"]);
+      return getImporters(proj(a), target);
+    },
     buildCliArgs: (flags, arg, project) => ({
       project,
       module: flags.module,
@@ -144,7 +173,11 @@ export const TOOLS: CodemapTool[] = [
     name: "context",
     description: "Signature, doc, immediate callers and callees of a symbol.",
     inputSchema: objSchema({ project: "string", entry: "string" }),
-    handler: (a) => getContext(proj(a), str(a, "entry", "name", "function")),
+    handler: async (a) => {
+      const entry = str(a, "entry", "name", "function");
+      if (!entry) return missingRequiredArg("context", ["entry", "name", "function"]);
+      return getContext(proj(a), entry);
+    },
     buildCliArgs: (flags, arg, project) => ({
       project,
       entry: flags.entry,
@@ -156,7 +189,11 @@ export const TOOLS: CodemapTool[] = [
     name: "impact",
     description: "All references to a symbol (who would break if it changed).",
     inputSchema: objSchema({ project: "string", function: "string" }),
-    handler: (a) => getImpact(proj(a), str(a, "function", "name", "entry")),
+    handler: async (a) => {
+      const fn = str(a, "function", "name", "entry");
+      if (!fn) return missingRequiredArg("impact", ["function", "name", "entry"]);
+      return getImpact(proj(a), fn);
+    },
     buildCliArgs: (flags, arg, project) => ({
       project,
       function: flags.function,

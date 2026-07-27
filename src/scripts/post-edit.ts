@@ -56,7 +56,7 @@ if (JSTS.has(ext) && existsSync(filePath)) {
 //    stay fresh without manual warm runs. Only a daemon-backed engine (e.g.
 //    llm-tldr) has a daemon to notify; native-ts has none, so this is skipped.
 //    Fire-and-forget; the daemon may not be running (no daemon = no-op exit).
-const engine = await resolveEngine();
+const { engine } = await resolveEngine();
 const daemonVerb = engine.cli.verbMap.daemon;
 if (engine.cli.supportsDaemon && daemonVerb && hasCommand(engine.cli.command)) {
   const proc = Bun.spawn([engine.cli.command, daemonVerb, "notify", filePath, "--project", "."], {

@@ -655,6 +655,101 @@ describe("mcp — claude.json installer", () => {
     }
   });
 
+  test(
+    "FIX B: prior mcp_written snapshot recognizes stale output even after " +
+      "serverInstructions text drifted",
+    async () => {
+      // Regression: isStaleCcOutput's live-registry loop can only recognize
+      // shapes the CURRENT code would generate. A prior install wrote a
+      // serverInstructions string that has since been edited in ENGINES (e.g.
+      // v12.8.1 / v12.9.0 wording changes) — that on-disk entry no longer
+      // matches ANY live candidate and would be misclassified as a hand-edit
+      // without the sentinel's mcp_written snapshot.
+      const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-mcpwritten-"));
+      try {
+        // Literal prior-version serverInstructions — deliberately NOT sourced
+        // from the live ENGINES registry, so this test can't be tautological.
+        const priorInstructions =
+          "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred.";
+        const teamMcp = {
+          tldr: {
+            command: "bun",
+            args: ["/fake/claude-dir/src/codemap/mcp-server.ts"],
+            serverInstructions: ENGINES["native-ts"]?.serverInstructions ?? "",
+          },
+        };
+        const claudeJsonPath = join(sandbox, ".claude.json");
+        await writeFile(
+          claudeJsonPath,
+          JSON.stringify({
+            mcpServers: {
+              // Stale output from a prior install, whose serverInstructions
+              // text no longer matches any current ENGINES entry.
+              tldr: {
+                command: "tldr-mcp",
+                args: ["--project", "."],
+                serverInstructions: priorInstructions,
+              },
+            },
+          }),
+        );
+        const mcpWritten = {
+          tldr: {
+            command: "tldr-mcp",
+            args: ["--project", "."],
+            serverInstructions: priorInstructions,
+          },
+        };
+
+        await installMcpToClaudeJson(teamMcp, claudeJsonPath, mcpWritten);
+        const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+        // Recognized as stale cc-settings output via mcp_written — overwritten
+        // with the freshly-resolved engine, not preserved as a hand-edit.
+        expect(result.mcpServers.tldr).toEqual(teamMcp.tldr);
+      } finally {
+        await rm(sandbox, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test("FIX B: a genuine hand-edit that doesn't match mcp_written is still preserved", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-mcpwritten-handedit-"));
+    try {
+      const teamMcp = {
+        tldr: {
+          command: "bun",
+          args: ["/fake/claude-dir/src/codemap/mcp-server.ts"],
+          serverInstructions: ENGINES["native-ts"]?.serverInstructions ?? "",
+        },
+      };
+      const claudeJsonPath = join(sandbox, ".claude.json");
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: {
+            // A genuine user hand-edit — matches neither teamMcp nor mcp_written.
+            tldr: { command: "my-custom-tldr", args: [] },
+          },
+        }),
+      );
+      const mcpWritten = {
+        tldr: {
+          command: "tldr-mcp",
+          args: ["--project", "."],
+          serverInstructions: "some prior wording that isn't this hand-edit either",
+        },
+      };
+
+      await installMcpToClaudeJson(teamMcp, claudeJsonPath, mcpWritten);
+      const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      // Hand-edit wins — not recognized as stale by either the live registry
+      // or the mcp_written snapshot.
+      expect(result.mcpServers.tldr.command).toBe("my-custom-tldr");
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
   test("a null/scalar entry among valid servers is dropped, not cast (no throw)", async () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-badentry-"));
     try {

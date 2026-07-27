@@ -34,6 +34,19 @@ export interface SentinelInfo {
    *  "llm-tldr", "native-ts"). Null on a pre-engine sentinel — resolveEngine
    *  then falls back to the default engine. */
   engine: string | null;
+  /** Whether `engine` was an EXPLICIT choice (env override, or a sentinel that
+   *  was itself explicit) rather than just the default at stamp time. Defaults
+   *  to false when absent — load-bearing: every pre-existing sentinel (written
+   *  before this field existed) is treated as implicit, so a changed
+   *  DEFAULT_ENGINE_ID reaches it on the next resolveEngine() call instead of
+   *  being pinned forever. See resolveEngine in code-intel-engine.ts. */
+  engineExplicit: boolean;
+  /** Exact snapshot of what this install wrote to ~/.claude.json's
+   *  engine-managed MCP server(s) (keyed by server name, e.g. "tldr"), so a
+   *  later install can recognize its own PRIOR output as stale even after the
+   *  live ENGINES registry's serverInstructions text has since changed. Null
+   *  on a sentinel written before this field existed. */
+  mcpWritten: Record<string, unknown> | null;
   /** Auto-update enrollment decision (see src/lib/schedule.ts decideAutoUpdate).
    *  true/false = explicitly decided; null = never decided (absent from the
    *  sentinel, or written before this field existed) — NOT the same as "declined". */
@@ -50,24 +63,40 @@ export interface SentinelInfo {
  */
 export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo> {
   const sentinelPath = join(claudeDir, ".cc-settings-version");
-  if (!existsSync(sentinelPath))
-    return { version: null, repoPath: null, engine: null, autoUpdate: null };
+  const empty: SentinelInfo = {
+    version: null,
+    repoPath: null,
+    engine: null,
+    engineExplicit: false,
+    mcpWritten: null,
+    autoUpdate: null,
+  };
+  if (!existsSync(sentinelPath)) return empty;
   try {
     const raw = await readFile(sentinelPath, "utf8");
     const parsed = JSON.parse(raw) as {
       version?: unknown;
       repo_path?: unknown;
       engine?: unknown;
+      engine_explicit?: unknown;
+      mcp_written?: unknown;
       auto_update?: unknown;
     };
     return {
       version: typeof parsed.version === "string" ? parsed.version : null,
       repoPath: typeof parsed.repo_path === "string" ? parsed.repo_path : null,
       engine: typeof parsed.engine === "string" ? parsed.engine : null,
+      engineExplicit: parsed.engine_explicit === true,
+      mcpWritten:
+        typeof parsed.mcp_written === "object" &&
+        parsed.mcp_written !== null &&
+        !Array.isArray(parsed.mcp_written)
+          ? (parsed.mcp_written as Record<string, unknown>)
+          : null,
       autoUpdate: typeof parsed.auto_update === "boolean" ? parsed.auto_update : null,
     };
   } catch {
-    return { version: null, repoPath: null, engine: null, autoUpdate: null };
+    return empty;
   }
 }
 

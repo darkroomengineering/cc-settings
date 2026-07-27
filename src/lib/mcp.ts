@@ -70,9 +70,27 @@ function isStdioServer(s: McpServer): s is McpStdioServer {
  * changes what ~/.claude.json runs (H8). A genuinely user-edited entry (one
  * that matches none of these candidates) still returns false and wins, same
  * as before.
+ *
+ * `priorWritten`, when supplied, is an exact echo of what THIS server name got
+ * written to disk on the run that stamped the current sentinel (see
+ * `mcp_written` in src/setup.ts writeVersionSentinel). The live-registry loop
+ * above can only recognize shapes the CURRENT code would generate — the
+ * moment a descriptor's serverInstructions text changes (as happened across
+ * v12.8.1 / v12.9.0), yesterday's output stops matching any live candidate and
+ * gets misclassified as a hand-edit. `priorWritten` closes that gap: it is
+ * recorded fact, not derived from code that may have since changed. A genuine
+ * hand-edit still differs from `priorWritten` too (by construction — it's an
+ * exact echo of what cc-settings itself wrote), so it still falls through to
+ * `false` below.
  */
-function isStaleCcOutput(name: string, entry: McpServer, teamEntry: McpServer): boolean {
+function isStaleCcOutput(
+  name: string,
+  entry: McpServer,
+  teamEntry: McpServer,
+  priorWritten?: McpServer,
+): boolean {
   if (canonicalKey(entry) === canonicalKey(teamEntry)) return true;
+  if (priorWritten && canonicalKey(entry) === canonicalKey(priorWritten)) return true;
   if (!ENGINE_MANAGED_SERVER_NAMES.has(name)) return false;
   if (!isStdioServer(entry) || !isStdioServer(teamEntry)) return false;
   for (const id of Object.keys(ENGINES)) {
@@ -153,10 +171,17 @@ export async function promptPreserveUserServers(
  * (project memory, auth, etc.) round-trips untouched, and only mcpServers is
  * rewritten. A non-object file throws; a drifted mcpServers entry is preserved
  * raw (see the fallback below).
+ *
+ * `mcpWritten` is the prior sentinel's exact echo of what this install wrote
+ * per engine-managed server name (see SentinelInfo.mcpWritten) — threaded into
+ * isStaleCcOutput so a serverInstructions text change since the last install
+ * doesn't get misclassified as a user hand-edit. Omitted/undefined callers get
+ * the original (live-registry-only) stale detection.
  */
 export async function installMcpToClaudeJson(
   teamMcp: McpServers,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
+  mcpWritten?: Record<string, unknown> | null,
 ): Promise<void> {
   if (Object.keys(teamMcp).length === 0) {
     debug("No MCP servers in team config");
@@ -242,7 +267,8 @@ export async function installMcpToClaudeJson(
   const effectiveCurrentMcp: McpServers = {};
   for (const [name, entry] of Object.entries(currentMcp)) {
     const teamEntry = teamMcp[name];
-    if (teamEntry && isStaleCcOutput(name, entry, teamEntry)) continue;
+    const priorWritten = mcpWritten?.[name] as McpServer | undefined;
+    if (teamEntry && isStaleCcOutput(name, entry, teamEntry, priorWritten)) continue;
     effectiveCurrentMcp[name] = entry;
   }
 
