@@ -66,7 +66,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.8.0"; // context-engineering realignment for Claude 5 models
+const VERSION = "12.8.1"; // tldr language param does not auto-detect
 
 // --- Arg parsing ---------------------------------------------------------
 

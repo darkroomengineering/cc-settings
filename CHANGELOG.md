@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.8.1] — 2026-07-27
+
+A head-to-head evaluation of code-intel engines (prompted by upstream `llm-tldr` being archived on 2026-07-13) turned up a live defect in our own configuration: **the `tldr` MCP tools were returning confident empty answers on every TypeScript repo.**
+
+The `language` parameter does not auto-detect. It defaults to `python`. On a TS codebase the tools return `{"status": "ok", ...}` with an empty result rather than an error, so a wrong answer is indistinguishable from a true negative:
+
+- `mcp__tldr__impact` on `resolveEngine` (5 real callers) → `{"status":"ok","callers":[]}`
+- `mcp__tldr__structure` on `src/lib/` (30+ TS files) → `{"language":"python","files":[]}`
+- `mcp__tldr__importers` on `hook-runtime` (23 real importers) → `[]`
+- `mcp__tldr__dead` → `total_functions: 0, dead_percentage: 0.0`
+
+Worse, our config actively caused this. `skills/tldr/SKILL.md` said "**Do NOT hardcode `language` param** — auto-detection handles 17 languages" and the MCP `serverInstructions` said "auto-detection is preferred." Agents followed that instruction into a silent wrong answer, on the tool they were told to run *before refactoring*.
+
+**Fixed — `skills/tldr/SKILL.md`, `config/20-mcp.json`, `src/lib/code-intel-engine.ts`:**
+- Every "auto-detected" claim replaced with an explicit instruction to pass `language`.
+- `serverInstructions` now states the `python` default and warns that an empty result is not evidence of no match.
+- CRITICAL RULES reordered — the language rule is now first, because it invalidates the rest when broken. The old rules 2 and 3 ("ALWAYS use `tldr impact`", "ALWAYS use `tldr semantic`") named the two tools that expose no `language` parameter at all and are therefore unusable on non-Python code; both now carry a cross-check-with-Grep instruction instead.
+
+No engine switch. `native-ts` answered the same queries correctly and `impact` is one of the tools it implements, but it returns `unsupported-by-native-engine` for `semantic`, `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, and `search` — that trade is a separate decision, not a defect fix.
+
 ## [12.8.0] — 2026-07-27
 
 Realigned the config against Anthropic's ["new rules of context engineering for Claude 5 generation models"](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models). Anthropic removed over 80% of Claude Code's own system prompt for Opus 5 and Fable 5 with no measured performance loss; the same audit here found four outright contradictions between always-loaded files, a routing policy that existed as both static prose and a live hook injection, and 160 lines of `deslopper` team-mode workflow loading on every invocation to serve a mode that only fires at 100+ files.

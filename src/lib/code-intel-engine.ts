@@ -99,7 +99,7 @@ export const ENGINES: Record<string, EngineDescriptor> = {
     cli: { command: "tldr", supportsDaemon: true, verbMap: { daemon: "daemon", warm: "warm" } },
     languages: "multi",
     serverInstructions:
-      "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred.",
+      "Codebase analysis and repository-level search over the current project. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files. IMPORTANT: the `language` parameter does NOT auto-detect — it defaults to `python`, and on any other language the tools return an empty result with status ok rather than an error. Always pass `language` explicitly (typescript, javascript, go, rust, …, or `all`). The `impact` and `semantic` tools expose no `language` parameter, so an empty result from them is not evidence that nothing matched — cross-check with Grep before acting on it.",
   },
 
   "native-ts": {

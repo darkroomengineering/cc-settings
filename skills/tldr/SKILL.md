@@ -12,7 +12,14 @@ requires:
 
 Token-efficient codebase analysis behind the `tldr` MCP server. **~95% fewer tokens than reading raw files.**
 
-The engine is provisioned by cc-settings — default **llm-tldr** (17 languages auto-detected). Override per-environment with `CC_CODE_INTEL_ENGINE` (e.g. `native-ts`, a zero-dependency TypeScript/JavaScript codemap with no semantic search). The tool names below are the stable contract; only the engine behind them changes. Language is auto-detected; no need to specify `--lang`.
+The engine is provisioned by cc-settings — default **llm-tldr** (17 languages). Override per-environment with `CC_CODE_INTEL_ENGINE` (e.g. `native-ts`, a zero-dependency TypeScript/JavaScript codemap with no semantic search). The tool names below are the stable contract; only the engine behind them changes.
+
+> **`language` does NOT auto-detect — it defaults to `python`.** Measured 2026-07-27: on this
+> TypeScript repo, omitting it returns `{"status":"ok"}` with an EMPTY result rather than an error,
+> so a wrong answer is indistinguishable from a true negative. **Always pass `language` explicitly**
+> (`typescript`, `javascript`, `go`, `rust`, …, or `all`). The MCP `impact` and `semantic` tools
+> expose no `language` parameter at all and are therefore unusable on non-Python code — use
+> `mcp__tldr__calls` with an explicit language, or `Grep`, instead of trusting an empty `impact`.
 
 ## Quick Reference
 
@@ -72,7 +79,7 @@ mcp__tldr__slice {
 ```
 
 ### Call Graph
-Cross-file function call relationships (language auto-detected):
+Cross-file function call relationships (pass `language` explicitly):
 ```
 mcp__tldr__calls { "project": "." }
 ```
@@ -96,7 +103,7 @@ mcp__tldr__change_impact { "project": "." }
 ```
 
 ### Dead Code Detection
-Find unreachable code (language auto-detected):
+Find unreachable code (pass `language` explicitly):
 ```
 mcp__tldr__dead { "project": "." }
 ```
@@ -128,7 +135,7 @@ mcp__tldr__search { "project": ".", "pattern": "TODO|FIXME|HACK" }
 ```
 
 ### Structure Overview
-Functions, classes, methods per file (language auto-detected):
+Functions, classes, methods per file (pass `language` explicitly):
 ```
 mcp__tldr__structure { "project": ".", "max_results": 50 }
 ```
@@ -164,11 +171,11 @@ export CC_CODE_INTEL_ENGINE=native-ts
 
 ## CRITICAL RULES
 
-1. **ALWAYS use `tldr context` BEFORE reading large files**
-2. **ALWAYS use `tldr impact` BEFORE refactoring**
-3. **ALWAYS use `tldr semantic` for "how does X work" questions**
-4. **Use `grep` ONLY for exact string matching**
-5. **Do NOT hardcode `language` param** — auto-detection handles 17 languages
+1. **ALWAYS pass the `language` param** — it defaults to `python` and silently returns empty results for every other language. There is no auto-detection. This rule comes first because it invalidates every rule below when broken.
+2. **Reach for `context`/`structure`/`calls` BEFORE reading large files** — with an explicit language.
+3. **Before refactoring, do NOT trust an empty `impact`.** On non-Python code it returns `{"status":"ok","callers":[]}` whether or not callers exist, and it has no `language` parameter to fix that. Confirm with `Grep` or `mcp__tldr__calls` (explicit language) before concluding nothing calls a symbol.
+4. **`semantic` needs an index built with the right language** (`tldr semantic index . --lang <lang>`) and still ranks poorly on this repo — treat its hits as candidates to verify, not answers.
+5. **Use `grep` for exact string matching** — and as the cross-check whenever a tldr result is empty.
 
 ## Output
 
