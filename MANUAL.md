@@ -475,7 +475,7 @@ Triggers `/project` — reads/updates linked GitHub Issues. Auto-detects from br
 
 Say: *"who calls this function?"* or *"find the auth implementation"*
 
-Triggers `/tldr` — token-efficient codebase analysis. 95% fewer tokens than reading files. Semantic search, impact analysis, call graphs, dead code detection.
+Triggers `/tldr` — token-efficient codebase analysis. 95% fewer tokens than reading files. Call graphs, impact analysis, and import tracing by default (`native-ts`, TS/JS only); semantic search and dead-code detection need `CC_CODE_INTEL_ENGINE=llm-tldr`.
 
 ### MCP servers (core vs optional)
 
@@ -484,7 +484,7 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 | Server | Purpose | Used by |
 |---|---|---|
 | `context7` | Library / framework documentation lookup | Auto-triggered by the server's own instructions on any library question; every skill that fetches docs before adding deps |
-| `tldr` | Semantic codebase analysis (call graphs, impact) | `/tldr`, `/explore` |
+| `tldr` | Codemap analysis — call graphs, impact, imports (`native-ts` default; semantic search via opt-in `llm-tldr`) | `/tldr`, `/explore` |
 | `figma` | Figma Dev Mode MCP — design tokens, component props | Auto-triggered by the server's own instructions on figma.com URLs; `/qa` for design-fidelity checks |
 | `chrome-devtools` | Chrome DevTools (perf traces, network, console, screenshots, a11y tree, click/fill, lighthouse) | `/lighthouse`, `/qa`, `/fix`, `tester` agent, Figma-MCP design-vs-implementation diffs |
 

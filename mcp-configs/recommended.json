@@ -17,8 +17,8 @@
     "tldr": {
       "command": "tldr-mcp",
       "args": ["--project", "."],
-      "_description": "Semantic codebase analysis and repository-level search. Pluggable engine behind the `tldr` server — default llm-tldr (pipx install llm-tldr); override with CC_CODE_INTEL_ENGINE (e.g. native-ts). See src/lib/code-intel-engine.ts. The installer rewrites command/args/serverInstructions here to match the resolved engine.",
-      "_usage": "Find implementations, understand large codebases, semantic search across files",
+      "_description": "Codemap analysis — call graphs, impact, imports. NOTE: the command/args shown here are the llm-tldr shape and require `pipx install llm-tldr`. This file is reference documentation only — the installer never reads it, and a normal `setup.sh` install writes the DEFAULT native-ts engine (zero-dependency, TS/JS only) into ~/.claude.json instead. Copy this block only if you deliberately want llm-tldr; the supported way is `CC_CODE_INTEL_ENGINE=llm-tldr bash setup.sh`. See src/lib/code-intel-engine.ts.",
+      "_usage": "Find implementations, understand large codebases, trace callers and imports",
       "_contextCost": "low",
       "_status": "core"
     },

@@ -138,29 +138,6 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   return `${palette.cyan}${branch}${palette.reset}${dirty}${upstream}`;
 }
 
-function formatTimeToReset(value: number | string): string | null {
-  // Claude Code emits Unix epoch *seconds* (integer). Anything ≥ 1e9 is
-  // clearly seconds, not milliseconds, and not a meaningful ISO date.
-  let resetMs: number;
-  if (typeof value === "number") {
-    resetMs = value > 1e12 ? value : value * 1000;
-  } else {
-    const asNum = Number(value);
-    if (Number.isFinite(asNum) && asNum > 1e9) {
-      resetMs = asNum > 1e12 ? asNum : asNum * 1000;
-    } else {
-      resetMs = Date.parse(value);
-    }
-  }
-  if (Number.isNaN(resetMs)) return null;
-  const deltaMs = resetMs - Date.now();
-  if (deltaMs <= 0) return null;
-  const totalMin = Math.round(deltaMs / 60_000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h > 0 ? `${h}h${m.toString().padStart(2, "0")}m` : `${m}m`;
-}
-
 const dimSep = `${palette.dim} | ${palette.reset}`;
 
 function cacheResetValue(value: number | string | undefined): string | undefined {
@@ -184,9 +161,6 @@ async function main(): Promise<void> {
   const tokensUsed = used !== undefined ? Math.round(tokensAvailable * (used / 100)) : 0;
 
   const gitStatus = currentDir ? await buildGitStatus(currentDir) : null;
-
-  const rateUsed = input.rate_limits?.five_hour?.used_percentage;
-  const rateResetsAt = input.rate_limits?.five_hour?.resets_at;
 
   if (input.rate_limits) {
     try {
@@ -238,13 +212,27 @@ async function main(): Promise<void> {
     parts.push(`${bar} ${usedInt}% (${formatTokens(tokensUsed)}/${formatTokens(tokensAvailable)})`);
   }
 
-  if (rateUsed !== undefined) {
-    const rInt = Math.round(rateUsed);
-    const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
-    const ttr = rateResetsAt ? formatTimeToReset(rateResetsAt) : null;
-    const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
-    parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
-  }
+  // Rate-limit headroom is deliberately NOT rendered here. Programa's sidebar
+  // shows the same 5h/7d numbers persistently, so a ⚡N% chip on every prompt
+  // was the same fact twice, and the statusline is the more crowded of the two.
+  //
+  // IMPORTANT: this only drops the *display*. The read of `input.rate_limits`
+  // and the `writeRateLimitsCache` call above must stay — that cache file is
+  // what Programa's sidebar and quota-steer.ts both read, and statusline is
+  // what keeps it fresh between sessions (session-start.ts only refreshes it on
+  // launch and resume). Deleting the write would leave the sidebar showing
+  // stale numbers from whenever the last session started.
+  //
+  // To restore the chip, push this into `parts` (self-contained -- the locals it
+  // used to read were removed as dead code, so it reads `input` directly):
+  //   const rateUsed = input.rate_limits?.five_hour?.used_percentage;
+  //   if (rateUsed !== undefined) {
+  //     const rInt = Math.round(rateUsed);
+  //     const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
+  //     const ttr = formatTimeToReset(input.rate_limits?.five_hour?.resets_at ?? "");
+  //     const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
+  //     parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
+  //   }
 
   // Review-queue backpressure: agents spawned since the last commit, awaiting
   // your review (written by tool-cadence.ts). Suppressed at 0 — yellow

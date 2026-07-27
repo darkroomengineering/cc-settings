@@ -991,19 +991,27 @@ Requires OAuth authentication on first use.
 
 #### tldr
 
-Semantic codebase analysis via the `llm-tldr` tool.
+Codemap analysis — call graphs, impact, imports — behind a pluggable engine.
 
-```json
-{
-  "tldr": {
-    "command": "tldr-mcp",
-    "args": ["--project", "."],
-    "serverInstructions": "Semantic codebase analysis and repository-level search over the current project."
-  }
-}
-```
+`config/20-mcp.json` holds the `llm-tldr` shape verbatim (`command: "tldr-mcp"`),
+but that is a template, not what lands: the installer rewrites `command`, `args`,
+and `serverInstructions` to match the engine resolved from
+`CC_CODE_INTEL_ENGINE` and the install sentinel. See
+`src/lib/code-intel-engine.ts`.
 
-**Prerequisite:** `pipx install llm-tldr`. Run `tldr warm .` in project to build index.
+**Default — `native-ts`.** Zero-dependency TypeScript-compiler codemap, run via
+`bun`. No prerequisite, no index to warm, no daemon. TS/JS only; `semantic`,
+`dead`, `diagnostics`, `slice`, `cfg`, `dfg`, and `search` return
+`unsupported-by-native-engine`.
+
+**Opt-in — `CC_CODE_INTEL_ENGINE=llm-tldr`.** Select it by re-running the
+installer with the variable set (`CC_CODE_INTEL_ENGINE=llm-tldr bash setup.sh`)
+and restarting Claude Code — the MCP entry is written at install time, so a
+shell-only export desyncs the hooks from the server. Prerequisite `pipx install
+llm-tldr` (v1.5+); run `tldr warm .` in the project to build the index. Adds
+multi-language support and the seven tools above. Archived upstream 2026-07-13,
+and its `language` parameter defaults to `python` — see
+`docs/tldr-cheatsheet.md`.
 
 ### MCP Server Configuration Fields
 
@@ -1128,6 +1136,6 @@ This is a real gap, not yet fixed — a proper fix needs either a stored previou
 Notes on the MCP servers shipped in `config/20-mcp.json`. These were previously stored as `_comment` / `_status` keys inline in the JSON (non-standard; removed to keep the composed `settings.json` schema-clean).
 
 - **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts (the dedicated `/docs` skill was retired May 2026). alwaysLoad=true (v2.1.121) opts out of tool-search deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)
-- **tldr**: Requires: pipx install llm-tldr (v1.5+). Run 'tldr warm .' in project to index. (status: core)
+- **tldr**: Codemap analysis behind a pluggable engine. Default `native-ts` — no prerequisite, no index. `CC_CODE_INTEL_ENGINE=llm-tldr` opts into the multi-language engine, which needs `pipx install llm-tldr` (v1.5+) and `tldr warm .`. The entry in `config/20-mcp.json` is the llm-tldr template; the installer rewrites it to the resolved engine. (status: core)
 - **figma**: Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use. (status: core)
 - **chrome-devtools**: Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)

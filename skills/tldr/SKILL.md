@@ -5,7 +5,7 @@ context: fork
 allowed-tools: [mcp__tldr__semantic, mcp__tldr__context, mcp__tldr__impact, mcp__tldr__arch, mcp__tldr__slice, mcp__tldr__structure, mcp__tldr__calls, mcp__tldr__cfg, mcp__tldr__dfg, mcp__tldr__change_impact, mcp__tldr__dead, mcp__tldr__imports, mcp__tldr__importers, mcp__tldr__diagnostics, mcp__tldr__tree, mcp__tldr__search, mcp__tldr__extract, mcp__tldr__status]
 requires:
   - mcp: tldr
-    install: "Provisioned by cc-settings (setup.sh). Default engine llm-tldr; override with CC_CODE_INTEL_ENGINE."
+    install: "Provisioned by cc-settings (setup.sh). Default engine native-ts, no install needed; set CC_CODE_INTEL_ENGINE=llm-tldr to opt in."
 ---
 
 # TLDR Code Analysis
@@ -16,7 +16,7 @@ The engine is provisioned by cc-settings. The tool names below are the stable co
 
 **Default: `native-ts`** — a zero-dependency TypeScript-compiler codemap. TS/JS only. Implements `structure`, `tree`, `extract`, `arch`, `imports`, `importers`, `calls`, `context`, `impact`, `change_impact`. Everything else returns `unsupported-by-native-engine`, which means **the analysis did not run** — fall back to `Grep`, never report it as an empty finding.
 
-**Opt-in: `CC_CODE_INTEL_ENGINE=llm-tldr`** — 17 languages, plus `semantic`, `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, `search`. Use it on Rust/Python/Go repos. Two caveats, both measured 2026-07-27:
+**Opt-in: `CC_CODE_INTEL_ENGINE=llm-tldr`** — multi-language, plus `semantic`, `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, `search`. Use it on Rust/Python/Go repos. Selecting it means re-running `setup.sh` with the variable set (see Prerequisites), not just exporting it. Two caveats, both measured 2026-07-27:
 
 > 1. **`language` does NOT auto-detect — it defaults to `python`.** On a TS repo, omitting it returns `{"status":"ok"}` with an EMPTY result rather than an error, so a wrong answer is indistinguishable from a true negative. Always pass `language` explicitly (`typescript`, `go`, `rust`, … or `all`). The MCP `impact` and `semantic` tools expose no `language` parameter at all, so they cannot be fixed this way — cross-check with `Grep`.
 > 2. **Upstream is archived** (`parcadei/llm-tldr`, 2026-07-13). Neither caveat will be fixed upstream.
@@ -25,19 +25,23 @@ The engine is provisioned by cc-settings. The tool names below are the stable co
 
 | Task | Command |
 |------|---------|
-| "How does X work?" | `semantic` → `context` |
+| "How does X work?" | `semantic`† → `context` |
 | "Who calls X?" | `impact` |
 | "What would break?" | `impact` + `change_impact` |
-| "Why is X null here?" | `slice` (backward) |
-| "What does X affect?" | `slice` (forward) |
+| "Why is X null here?" | `slice`† (backward) |
+| "What does X affect?" | `slice`† (forward) |
 | "Project structure?" | `arch` + `structure` |
-| "Find auth code" | `semantic "authentication"` |
-| "Data flow in function" | `dfg` |
-| "Control flow" | `cfg` |
-| "Find dead code" | `dead` |
-| "Type errors?" | `diagnostics` |
+| "Find auth code" | `semantic "authentication"`† |
+| "Data flow in function" | `dfg`† |
+| "Control flow" | `cfg`† |
+| "Find dead code" | `dead`† |
+| "Type errors?" | `diagnostics`† |
 | "File tree" | `tree` |
-| "Regex search" | `search` |
+| "Regex search" | `search`† |
+
+† Not implemented by the default `native-ts` engine — returns
+`unsupported-by-native-engine` unless you opt into `llm-tldr`. Treat that as
+"did not run", not "found nothing", and fall back to `Grep`.
 
 ## Commands
 
@@ -158,9 +162,14 @@ The engine behind `tldr` is provisioned automatically by cc-settings (`setup.sh`
 Default engine: **native-ts** — no Python, no daemon, nothing to install.
 See `src/lib/code-intel-engine.ts`.
 
+Opt into llm-tldr for non-TS/JS repos or the analysis tools native-ts lacks.
+**Exporting the variable alone is not enough** — the `tldr` entry in
+`~/.claude.json` is written at install time, so a shell-only export leaves the
+hooks on llm-tldr while the MCP server stays on native-ts. Re-run the installer
+with the variable set, then restart Claude Code:
+
 ```bash
-# Opt into llm-tldr for non-TS/JS repos or the analysis tools native-ts lacks:
-export CC_CODE_INTEL_ENGINE=llm-tldr
+CC_CODE_INTEL_ENGINE=llm-tldr bash setup.sh   # rewrites the MCP entry
 pipx install llm-tldr        # only if provisioning manually
 tldr daemon start            # background service (~100ms queries)
 tldr semantic index . --lang typescript   # per-language; the default index is empty
