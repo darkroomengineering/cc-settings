@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.12.0] — 2026-07-27
+
+Closes the limit v12.11.0 documented: `mcp_written` now records cc-settings' definition of **every** managed MCP server, not just the engine-managed `tldr`.
+
+The sentinel's job is to let a later install recognize yesterday's output as its own. It only ever did that for `tldr`, so for every other managed server the only recognizable shapes were the ones the *current* code generates. That made a server's definition effectively immutable in practice: change `figma`'s URL, and the entry the previous install wrote matches nothing, reads as a user hand-edit, is preserved — and the new URL never lands on that machine again. The failure is silent, and it compounds, since each subsequent change orphans another shape.
+
+`installSettings` now returns the team MCP block it installed and `writeVersionSentinel` stamps it whole. Three properties this preserves, each with a test:
+
+- an entry equal to what we shipped **last** time is replaced by what we ship **now**
+- without the record (a pre-12.12.0 sentinel) the same entry is still preserved — the old behaviour, pinned so the improvement is legible
+- an entry matching **neither** the old nor the new shipped definition is a genuine hand-edit and still wins
+
+What gets recorded is deliberately **our** definition, not what ended up on disk. Where a user's copy shadowed ours, disk holds theirs — echoing that would make the next install recognize their customization as our stale output and clobber it. Remembering what we shipped is the safe direction: an entry equal to it is unambiguously ours to replace.
+
+Light installs still record nothing, for the reason they always did — they remove the managed servers, so claiming authorship of entries this run did not write would let a later install misread a user's own entry as our output.
+
+**`settings.json` gets the same test.** Cross-model review caught that the above fixes `~/.claude.json` only. `settings.json` carries its own copy of the MCP block and had no stale-output detection *at all* — so a definition cc-settings wrote on an older version read as a user customization there and was preserved indefinitely, even while `~/.claude.json` was being updated correctly. That is not hypothetical: it is exactly how a pre-v12.8.1 `tldr` entry survived every reinstall on a real machine, printing "Preserving your customization" each time, until it was deleted by hand. `resolveMcpServers` now runs `isStaleCcOutput` before deciding a shared server diverged, and the prior record is threaded through `mergeSettingsWithMcpPreservation`. A genuine customization still wins in both destinations.
+
+1004 tests pass (up from 997).
+
 ## [12.11.0] — 2026-07-27
 
 Ownership of an MCP server was decided by comparing definitions byte-for-byte. That comparison counted documentation-only keys, so cosmetic residue could permanently transfer ownership of a server away from cc-settings — silently, and with no way to see it had happened.

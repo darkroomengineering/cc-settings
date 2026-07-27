@@ -229,11 +229,14 @@ export async function promptPreserveUserServers(
  * rewritten. A non-object file throws; a drifted mcpServers entry is preserved
  * raw (see the fallback below).
  *
- * `mcpWritten` is the prior sentinel's exact echo of what this install wrote
- * per engine-managed server name (see SentinelInfo.mcpWritten) — threaded into
- * isStaleCcOutput so a serverInstructions text change since the last install
- * doesn't get misclassified as a user hand-edit. Omitted/undefined callers get
- * the original (live-registry-only) stale detection.
+ * `mcpWritten` is the prior sentinel's record of cc-settings' own definition of
+ * each managed server, as of the install that stamped it (see
+ * SentinelInfo.mcpWritten) — threaded into isStaleCcOutput so a definition that
+ * has since changed doesn't get misclassified as a user hand-edit. Since
+ * v12.12.0 this covers every managed server, not just the engine-managed
+ * `tldr`: previously any edit to a server's shipped definition orphaned the
+ * entry it replaced, which then matched nothing and was preserved forever.
+ * Omitted/undefined callers get the original (live-registry-only) detection.
  */
 export async function installMcpToClaudeJson(
   teamMcp: McpServers,
@@ -400,6 +403,7 @@ export async function removeManagedMcpServers(
 export async function resolveMcpServers(
   userServers: McpServers,
   teamServers: McpServers,
+  mcpWritten?: Record<string, unknown> | null,
 ): Promise<McpServers> {
   const userOnly = findUserOnlyServers(userServers, teamServers);
   let preserved: McpServers = {};
@@ -417,7 +421,17 @@ export async function resolveMcpServers(
   for (const name of Object.keys(teamServers)) {
     const userDef = userServers[name];
     if (userDef === undefined) continue; // not shared — findUserOnlyServers handles it
-    if (functionalKey(userDef) !== functionalKey(teamServers[name])) {
+    const teamDef = teamServers[name];
+    if (teamDef === undefined) continue;
+    // Same stale-output test ~/.claude.json gets. settings.json holds its own
+    // copy of the MCP block, and without this check a definition cc-settings
+    // itself wrote on an earlier version reads as a user customization here and
+    // is preserved forever — which is exactly how a pre-v12.8.1 `tldr` entry
+    // survived every reinstall while ~/.claude.json was being updated correctly.
+    if (isStaleCcOutput(name, userDef, teamDef, mcpWritten?.[name] as McpServer | undefined)) {
+      continue;
+    }
+    if (functionalKey(userDef) !== functionalKey(teamDef)) {
       diverged.push(name);
       userOverrides[name] = userDef;
     }
@@ -465,6 +479,7 @@ export async function mergeSettingsWithMcpPreservation(
   teamSettings: Record<string, unknown>,
   outputPath: string,
   opts: MergeOptions = {},
+  mcpWritten?: Record<string, unknown> | null,
 ): Promise<MergeAccounting | null> {
   // Peek at the user's existing file to extract current mcpServers so we can
   // run the preservation prompt before the per-key merge loop.
@@ -482,7 +497,7 @@ export async function mergeSettingsWithMcpPreservation(
   const userServers = asRecord(userRaw.mcpServers) as McpServers;
   const teamServers = asRecord(teamSettings.mcpServers) as McpServers;
 
-  const resolvedMcp = await resolveMcpServers(userServers, teamServers);
+  const resolvedMcp = await resolveMcpServers(userServers, teamServers, mcpWritten);
 
   // Delegate to the pure merger, supplying the already-resolved mcpServers.
   // The pure merger skips the mcpServers key in its per-key strategy loop and

@@ -67,7 +67,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.11.0"; // MCP ownership ignores annotation-only keys; summary shows shadowing
+const VERSION = "12.12.0"; // mcp_written covers every managed server, not just tldr
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -128,7 +128,7 @@ async function installSettings(
   // the live ENGINES registry's serverInstructions text has since changed.
   // Undefined/null on a first install or a pre-fix sentinel.
   priorMcpWritten?: Record<string, unknown> | null,
-): Promise<string[]> {
+): Promise<{ overridden: string[]; mcpWritten: McpServers | null }> {
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
   // Compose team settings from config/ fragments (always the full baseline).
   // composeSettings schema-validates the composed object and throws on a bad
@@ -163,7 +163,9 @@ async function installSettings(
     // Fingerprint the (empty/light) hooks block for the integrity check —
     // straight from the in-memory object, no disk re-read.
     await fingerprintSettingsHooks(result);
-    return []; // light ships no MCP servers, so nothing can be overridden
+    // Light ships no MCP servers: nothing can be overridden, and nothing is
+    // ours to remember having written.
+    return { overridden: [], mcpWritten: null };
   }
 
   // Full profile path: merge the in-memory composed settings into the user's
@@ -194,6 +196,7 @@ async function installSettings(
     settingsForMerge,
     userSettingsPath,
     { interactive },
+    priorMcpWritten,
   );
   if (accounting) printMergeAccounting(accounting, { interactive });
   const mcpOverridden = await installMcpToClaudeJson(teamMcp, CLAUDE_JSON_PATH, priorMcpWritten);
@@ -206,7 +209,9 @@ async function installSettings(
   // just wrote; best-effort, so a read failure only skips the fingerprint.
   const mergedReadBack = await readJsonOrNull(userSettingsPath).catch(() => null);
   if (mergedReadBack !== null) await fingerprintSettingsHooks(mergedReadBack);
-  return mcpOverridden;
+  // teamMcp is post-engine-rewrite, so the tldr entry recorded here is the
+  // resolved engine's — same value the old tldr-only branch reconstructed.
+  return { overridden: mcpOverridden, mcpWritten: teamMcp };
 }
 
 /**
@@ -334,6 +339,9 @@ async function writeVersionSentinel(
   // implicit install indistinguishable from a legacy sentinel and wrongly pin
   // whatever the default happened to be.
   explicit: boolean,
+  // cc-settings' definition of each managed MCP server as written this run.
+  // Null on a light install or when no MCP block was installed.
+  mcpWritten?: McpServers | null,
 ): Promise<void> {
   const payload = {
     version: VERSION,
@@ -347,28 +355,27 @@ async function writeVersionSentinel(
     // surface (hooks, next install) agrees on which engine backs `tldr`.
     engine: engine.id,
     engine_explicit: explicit,
-    // Exact echo of what THIS run wrote to ~/.claude.json for the
-    // engine-managed "tldr" server — lets a LATER install's isStaleCcOutput
-    // recognize this as stale cc-settings output even after the live
-    // descriptor's serverInstructions text has since changed (see mcp.ts).
+    // cc-settings' own definition of EVERY managed server as of this run — lets
+    // a LATER install's isStaleCcOutput recognize yesterday's output as ours
+    // even after the shipped definition has since changed. Without it, the only
+    // recognizable shapes are the ones the CURRENT code would generate, so any
+    // edit to a server's definition orphans the entry it replaced: that entry
+    // then matches nothing, reads as a hand-edit, and is preserved forever.
+    // Recorded fact beats derived-from-code-that-may-have-changed.
     //
-    // FULL PROFILE ONLY. A light install REMOVES the managed tldr server
+    // Records what WE ship, not what ended up on disk. Where the user's copy
+    // shadowed ours (see installMcpToClaudeJson's return), disk holds theirs —
+    // echoing that would make the next install recognize their customization as
+    // our stale output and clobber it. Ours is the safe thing to remember: an
+    // entry equal to what we shipped last time is unambiguously replaceable.
+    //
+    // FULL PROFILE ONLY. A light install REMOVES the managed servers
     // (removeManagedMcpServers), so recording what a full install would have
-    // written would claim ownership of an entry this run did not write — and a
+    // written would claim ownership of entries this run did not write — and a
     // later install could then misread a user's own entry as our stale output.
     // Omitting it is the safe direction: the worst case is one missed stale
     // match, which merely preserves an entry instead of clobbering one.
-    ...(profile === "full"
-      ? {
-          mcp_written: {
-            tldr: {
-              command: engine.mcp.command,
-              args: engine.mcp.args,
-              serverInstructions: engine.serverInstructions,
-            },
-          },
-        }
-      : {}),
+    ...(profile === "full" && mcpWritten ? { mcp_written: mcpWritten } : {}),
     // Auto-update enrollment — omitted entirely when undecided (non-macOS, or
     // a non-interactive run with no prior decision) so "absent" never reads
     // as "declined". See decideAutoUpdate() in src/lib/schedule.ts.
@@ -512,6 +519,9 @@ async function main(): Promise<number> {
   // Shipped MCP servers whose definition the user's own copy shadowed. Assigned
   // inside the lock, read by the summary after it releases.
   let mcpOverridden: string[] = [];
+  // cc-settings' definition of each managed server this run — stamped into the
+  // sentinel so a later install can recognize it as our own prior output.
+  let mcpWritten: McpServers | null = null;
   const installCode = await underInstallLock(async () => {
     // Dispatch to migrate-only or full install path.
     if (args.migrateOnly) {
@@ -523,13 +533,13 @@ async function main(): Promise<number> {
     }
 
     try {
-      mcpOverridden = await installSettings(
+      ({ overridden: mcpOverridden, mcpWritten } = await installSettings(
         args.sourceDir,
         args.interactive,
         args.profile,
         engine,
         priorMcpWritten,
-      );
+      ));
     } catch (err) {
       // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
       if (err instanceof JsonParseError) {
@@ -547,6 +557,7 @@ async function main(): Promise<number> {
       engine,
       autoUpdateEnrolled,
       engineExplicit,
+      mcpWritten,
     );
     return 0;
   });

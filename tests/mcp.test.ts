@@ -992,3 +992,139 @@ describe("annotation stripping is a closed list, not a `_` prefix test", () => {
     );
   });
 });
+
+// --- Recovery across a changed shipped definition --------------------------
+//
+// The gap v12.11.0 documented but did not close: mcp_written only ever recorded
+// the engine-managed `tldr`, so for any OTHER managed server the only
+// recognizable shapes were the ones the CURRENT code generates. Change a
+// server's shipped definition and the entry it replaced matched nothing, read
+// as a hand-edit, and was preserved forever — cc-settings could never update
+// that server again on that machine. Now every managed server is recorded.
+
+describe("installMcpToClaudeJson — recovery when our own definition changed", () => {
+  test("prior-shipped entry is replaced by the new definition", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-recover-"));
+    try {
+      const claudeJsonPath = join(dir, "claude.json");
+      // What last install shipped, still sitting on disk.
+      const previouslyShipped = { type: "http" as const, url: "https://old.figma.example/mcp" };
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({ mcpServers: { figma: previouslyShipped } }),
+        "utf8",
+      );
+      // We now ship a different URL.
+      const teamMcp = { figma: { type: "http" as const, url: "https://new.figma.example/mcp" } };
+
+      const overridden = await installMcpToClaudeJson(teamMcp, claudeJsonPath, {
+        figma: previouslyShipped,
+      });
+
+      expect(overridden).toEqual([]); // recognized as ours, not a hand-edit
+      const written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(written.mcpServers.figma.url).toBe("https://new.figma.example/mcp");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("without the record, the same entry is preserved (the pre-fix behaviour)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-recover-none-"));
+    try {
+      const claudeJsonPath = join(dir, "claude.json");
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: { figma: { type: "http", url: "https://old.figma.example/mcp" } },
+        }),
+        "utf8",
+      );
+      const teamMcp = { figma: { type: "http" as const, url: "https://new.figma.example/mcp" } };
+
+      // No mcpWritten — exactly what a pre-v12.12.0 sentinel offers for figma.
+      const overridden = await installMcpToClaudeJson(teamMcp, claudeJsonPath);
+
+      expect(overridden).toEqual(["figma"]);
+      const written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(written.mcpServers.figma.url).toBe("https://old.figma.example/mcp");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a real hand-edit is NOT clobbered by the record", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-recover-user-"));
+    try {
+      const claudeJsonPath = join(dir, "claude.json");
+      // User pointed figma somewhere of their own. Differs from what we shipped
+      // last time AND from what we ship now, so it must survive.
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: { figma: { type: "http", url: "https://mine.example/mcp" } },
+        }),
+        "utf8",
+      );
+      const teamMcp = { figma: { type: "http" as const, url: "https://new.figma.example/mcp" } };
+
+      const overridden = await installMcpToClaudeJson(teamMcp, claudeJsonPath, {
+        figma: { type: "http", url: "https://old.figma.example/mcp" },
+      });
+
+      expect(overridden).toEqual(["figma"]);
+      const written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(written.mcpServers.figma.url).toBe("https://mine.example/mcp");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("resolveMcpServers — settings.json gets the same stale-output test", () => {
+  // Codex caught this: extending mcp_written fixed ~/.claude.json only.
+  // settings.json holds its own copy of the MCP block and had NO stale
+  // detection at all, so a definition cc-settings wrote on an older version was
+  // read as a user customization and preserved forever. That is precisely how a
+  // pre-v12.8.1 `tldr` entry survived every reinstall on a real machine while
+  // ~/.claude.json was being updated correctly the whole time.
+  const oldShipped = { command: "tldr-mcp", args: ["--project", "."] };
+  const nowShipped = { command: "bun", args: ["/x/codemap/mcp-server.ts"] };
+
+  test("prior-shipped definition is replaced, not preserved", async () => {
+    const resolved = await resolveMcpServers(
+      { tldr: oldShipped },
+      { tldr: nowShipped },
+      {
+        tldr: oldShipped,
+      },
+    );
+    expect(resolved.tldr).toEqual(nowShipped);
+  });
+
+  test("without the record it is preserved (the behaviour that stranded settings.json)", async () => {
+    const resolved = await resolveMcpServers({ tldr: oldShipped }, { tldr: nowShipped });
+    expect(resolved.tldr).toEqual(oldShipped);
+  });
+
+  test("a genuine customization is still preserved even with a record present", async () => {
+    const mine = { command: "my-own-tldr", args: ["--mine"] };
+    const resolved = await resolveMcpServers(
+      { tldr: mine },
+      { tldr: nowShipped },
+      {
+        tldr: oldShipped,
+      },
+    );
+    expect(resolved.tldr).toEqual(mine);
+  });
+
+  test("annotation residue on a prior-shipped entry does not block recovery", async () => {
+    const resolved = await resolveMcpServers(
+      { tldr: { ...oldShipped, _status: "core" as const } },
+      { tldr: nowShipped },
+      { tldr: oldShipped },
+    );
+    expect(resolved.tldr).toEqual(nowShipped);
+  });
+});
