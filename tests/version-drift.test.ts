@@ -46,7 +46,7 @@ describe("readSentinelInfo", () => {
         version: null,
         repoPath: null,
         engine: null,
-        engineExplicit: false,
+        engineExplicit: null,
         mcpWritten: null,
         autoUpdate: null,
       });
@@ -65,7 +65,7 @@ describe("readSentinelInfo", () => {
         version: "11.12.0",
         repoPath: "/x/y",
         engine: null,
-        engineExplicit: false,
+        engineExplicit: null,
         mcpWritten: null,
         autoUpdate: null,
       });
@@ -84,7 +84,7 @@ describe("readSentinelInfo", () => {
         version: "11.30.3",
         repoPath: "/x/y",
         engine: "native-ts",
-        engineExplicit: false,
+        engineExplicit: null,
         mcpWritten: null,
         autoUpdate: null,
       });
@@ -125,7 +125,7 @@ describe("readSentinelInfo", () => {
         version: "11.0.0",
         repoPath: null,
         engine: null,
-        engineExplicit: false,
+        engineExplicit: null,
         mcpWritten: null,
         autoUpdate: null,
       });
@@ -141,7 +141,7 @@ describe("readSentinelInfo", () => {
         version: null,
         repoPath: null,
         engine: null,
-        engineExplicit: false,
+        engineExplicit: null,
         mcpWritten: null,
         autoUpdate: null,
       });
@@ -160,7 +160,7 @@ describe("readSentinelInfo", () => {
         version: "12.3.0",
         repoPath: "/x/y",
         engine: null,
-        engineExplicit: false,
+        engineExplicit: null,
         mcpWritten: null,
         autoUpdate: true,
       });

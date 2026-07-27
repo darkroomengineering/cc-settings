@@ -39,8 +39,17 @@ export interface SentinelInfo {
    *  to false when absent — load-bearing: every pre-existing sentinel (written
    *  before this field existed) is treated as implicit, so a changed
    *  DEFAULT_ENGINE_ID reaches it on the next resolveEngine() call instead of
-   *  being pinned forever. See resolveEngine in code-intel-engine.ts. */
-  engineExplicit: boolean;
+   *  being pinned forever. See resolveEngine in code-intel-engine.ts.
+   *
+   *  THREE-STATE, and the distinction is load-bearing:
+   *    true  — a deliberate choice; honour `engine`.
+   *    false — definitively NOT a choice; a v12.10.0+ install stamped the
+   *            default. Let a changed DEFAULT_ENGINE_ID through.
+   *    null  — the field is ABSENT, i.e. a sentinel written before v12.10.0.
+   *            Only then does resolveEngine infer intent from the engine id.
+   *  Collapsing null into false would make every fresh implicit install look
+   *  legacy and re-pin whatever the default happened to be. */
+  engineExplicit: boolean | null;
   /** Exact snapshot of what this install wrote to ~/.claude.json's
    *  engine-managed MCP server(s) (keyed by server name, e.g. "tldr"), so a
    *  later install can recognize its own PRIOR output as stale even after the
@@ -67,7 +76,7 @@ export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo>
     version: null,
     repoPath: null,
     engine: null,
-    engineExplicit: false,
+    engineExplicit: null,
     mcpWritten: null,
     autoUpdate: null,
   };
@@ -86,7 +95,7 @@ export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo>
       version: typeof parsed.version === "string" ? parsed.version : null,
       repoPath: typeof parsed.repo_path === "string" ? parsed.repo_path : null,
       engine: typeof parsed.engine === "string" ? parsed.engine : null,
-      engineExplicit: parsed.engine_explicit === true,
+      engineExplicit: typeof parsed.engine_explicit === "boolean" ? parsed.engine_explicit : null,
       mcpWritten:
         typeof parsed.mcp_written === "object" &&
         parsed.mcp_written !== null &&

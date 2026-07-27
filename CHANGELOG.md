@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.10.1] — 2026-07-27
+
+Caught while verifying v12.10.0 on a real install: the migration rule fired on installs it shouldn't have. A v12.10.0 install that resolved the default *implicitly* omitted `engine_explicit` entirely, so the next install couldn't distinguish "we stamped this implicitly" from "this sentinel predates the field" — and the legacy inference then marked it explicit, re-pinning the very default it was supposed to leave free.
+
+`engineExplicit` is now three-state (`true` / `false` / `null` for absent) and `engine_explicit` is always written. Absence now means exactly one thing — stamped before v12.10.0 — which is the only case where intent is inferred from the engine id.
+
+Verified on a real install from a legacy sentinel: two consecutive installs both land `engine: native-ts, engine_explicit: false`, and the `tldr` MCP entry stays on the native engine. Idempotent, and still free to follow a future default change.
+
 ## [12.10.0] — 2026-07-27
 
 v12.9.0 changed the default engine to `native-ts`. It reached nobody. This release makes it actually apply, and fixes the same class of bug in two more places.

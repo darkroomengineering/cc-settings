@@ -67,7 +67,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.10.0"; // engine default actually reaches existing installs
+const VERSION = "12.10.1"; // engine_explicit is three-state; implicit installs stay implicit
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -326,8 +326,12 @@ async function writeVersionSentinel(
   autoUpdate: boolean | undefined,
   // Whether THIS run resolved the engine explicitly (env override, or a
   // previously-explicit sentinel) — see resolveEngine in code-intel-engine.ts.
-  // Only written as `engine_explicit: true`; omitted otherwise, so a run that
-  // fell through to DEFAULT_ENGINE_ID doesn't pin that default for future runs.
+  // ALWAYS written, true or false. Writing it unconditionally is what makes
+  // ABSENCE mean exactly one thing: "stamped before this field existed". That
+  // is the only case where resolveEngine falls back to inferring intent from
+  // the engine id, so leaving the field out on `false` would make a fresh
+  // implicit install indistinguishable from a legacy sentinel and wrongly pin
+  // whatever the default happened to be.
   explicit: boolean,
 ): Promise<void> {
   const payload = {
@@ -341,7 +345,7 @@ async function writeVersionSentinel(
     // Resolved code-intel engine id — read back by resolveEngine() so every
     // surface (hooks, next install) agrees on which engine backs `tldr`.
     engine: engine.id,
-    ...(explicit ? { engine_explicit: true } : {}),
+    engine_explicit: explicit,
     // Exact echo of what THIS run wrote to ~/.claude.json for the
     // engine-managed "tldr" server — lets a LATER install's isStaleCcOutput
     // recognize this as stale cc-settings output even after the live

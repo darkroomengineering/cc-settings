@@ -259,7 +259,10 @@ const LEGACY_DEFAULT_ENGINE_ID = "llm-tldr";
  *     preserved. This is what protects anyone already running native-ts.
  */
 function isExplicitSentinelChoice(info: SentinelInfo): boolean {
-  if (info.engineExplicit === true) return true;
+  // Present-and-true / present-and-false are both definitive answers. Only an
+  // ABSENT field (null) means "written before v12.10.0", which is the sole case
+  // where we fall back to inferring intent from the engine id.
+  if (info.engineExplicit !== null) return info.engineExplicit;
   return info.engine !== null && info.engine !== LEGACY_DEFAULT_ENGINE_ID;
 }
 
