@@ -59,7 +59,11 @@ export async function countEntriesRecursive(full: string, pattern: RegExp): Prom
   }
 }
 
-export async function showSummary(profile: "full" | "light", sourceDir?: string): Promise<void> {
+export async function showSummary(
+  profile: "full" | "light",
+  sourceDir?: string,
+  mcpOverridden: readonly string[] = [],
+): Promise<void> {
   const profileLabel = profile === "light" ? " [light]" : "";
   console.log("");
   boxStart(`Installed${profileLabel}`);
@@ -126,9 +130,19 @@ export async function showSummary(profile: "full" | "light", sourceDir?: string)
     // context7) mislabelled as "user-added".
     const shipped = profile === "light" ? new Set<string>() : await readShippedMcpNames(sourceDir);
     const { managed, userAdded } = classifyMcpServers(installed, shipped);
+    const overridden = new Set(mcpOverridden);
     if (managed.length > 0) {
       console.log(`  ${palette.dim}cc-settings:${palette.reset}`);
-      for (const s of managed) console.log(`    - ${s}`);
+      // Shipping a server and running our definition of it are different facts.
+      // Marking the gap is what makes a stale local copy visible instead of
+      // silently outliving install after install.
+      for (const s of managed) {
+        console.log(
+          overridden.has(s)
+            ? `    - ${s} ${palette.dim}(your copy is in use — cc-settings' version not applied)${palette.reset}`
+            : `    - ${s}`,
+        );
+      }
     }
     if (userAdded.length > 0) {
       console.log(`  ${palette.dim}user-added:${palette.reset}`);

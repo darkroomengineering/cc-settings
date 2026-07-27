@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { ENGINES } from "../src/lib/code-intel-engine.ts";
 import { JsonParseError } from "../src/lib/json-io.ts";
 import {
+  divergingFields,
   findUserOnlyServers,
   installMcpToClaudeJson,
   mergeSettingsWithMcpPreservation,
@@ -777,5 +778,85 @@ describe("mcp — claude.json installer", () => {
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }
+  });
+});
+
+// --- Override reporting ----------------------------------------------------
+//
+// Backstory: a stale `tldr` entry (llm-tldr shape, pre-v12.8.1 instruction text)
+// sat in settings.json across many installs. Every run classified it as a user
+// customization and preserved it, and the install summary said only "user-added"
+// — so nothing on screen distinguished "cc-settings ships this" from
+// "cc-settings' definition is the one running". These two surfaces close that.
+
+describe("divergingFields", () => {
+  test("names the fields that differ", () => {
+    expect(
+      divergingFields(
+        { command: "tldr-mcp", args: ["--project", "."], serverInstructions: "old text" },
+        { command: "tldr-mcp", args: ["--project", "."], serverInstructions: "new text" },
+      ),
+    ).toEqual(["serverInstructions"]);
+  });
+
+  test("identical definitions diverge in nothing", () => {
+    const a = { command: "bunx", args: ["-y", "pkg"] };
+    expect(divergingFields(a, { ...a })).toEqual([]);
+  });
+
+  test("field ORDER alone is not a divergence", () => {
+    expect(
+      divergingFields({ command: "bunx", args: ["-y"] }, { args: ["-y"], command: "bunx" }),
+    ).toEqual([]);
+  });
+
+  test("a key present on one side only counts as diverging", () => {
+    expect(divergingFields({ command: "x" }, { command: "x", env: { A: "1" } })).toEqual(["env"]);
+  });
+
+  test("sorted, and reports every differing field", () => {
+    expect(divergingFields({ command: "a", args: ["1"] }, { command: "b", args: ["2"] })).toEqual([
+      "args",
+      "command",
+    ]);
+  });
+});
+
+describe("installMcpToClaudeJson — reports shadowed shipped servers", () => {
+  test("returns the shipped names whose user definition won", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-override-"));
+    try {
+      const claudeJsonPath = join(dir, "claude.json");
+      // The user's `tldr` is a genuine hand-edit (matches neither the team entry
+      // nor any known engine variant), so it survives the merge and shadows ours.
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: {
+            tldr: { command: "my-own-tldr", args: ["--custom"] },
+            context7: { command: "bunx", args: ["-y", "@upstash/context7-mcp"] },
+          },
+        }),
+        "utf8",
+      );
+      const teamMcp = {
+        tldr: { command: "bun", args: ["/x/mcp-server.ts"] },
+        context7: { command: "bunx", args: ["-y", "@upstash/context7-mcp"] },
+      };
+      const overridden = await installMcpToClaudeJson(teamMcp, claudeJsonPath);
+
+      // tldr diverges → reported. context7 is byte-identical → not an override.
+      expect(overridden).toEqual(["tldr"]);
+
+      // And the user's definition is genuinely what landed.
+      const written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(written.mcpServers.tldr.command).toBe("my-own-tldr");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("no team servers → nothing overridden", async () => {
+    expect(await installMcpToClaudeJson({}, "/nonexistent/claude.json")).toEqual([]);
   });
 });

@@ -106,6 +106,18 @@ function isStaleCcOutput(
   return false;
 }
 
+/**
+ * Top-level keys whose values differ between two MCP server definitions, sorted.
+ * Compared with canonicalKey so a field-order difference alone never registers
+ * as a divergence. A key present on one side only counts as diverging.
+ */
+export function divergingFields(a: unknown, b: unknown): string[] {
+  const left = asRecord(a) ?? {};
+  const right = asRecord(b) ?? {};
+  const names = new Set([...Object.keys(left), ...Object.keys(right)]);
+  return [...names].filter((k) => canonicalKey(left[k]) !== canonicalKey(right[k])).sort();
+}
+
 // --- User-only server detection --------------------------------------------
 
 export function findUserOnlyServers(userServers: McpServers, teamServers: McpServers): string[] {
@@ -182,10 +194,10 @@ export async function installMcpToClaudeJson(
   teamMcp: McpServers,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
   mcpWritten?: Record<string, unknown> | null,
-): Promise<void> {
+): Promise<string[]> {
   if (Object.keys(teamMcp).length === 0) {
     debug("No MCP servers in team config");
-    return;
+    return [];
   }
 
   // Read existing claude.json — tolerate absence, but don't tolerate corruption.
@@ -278,6 +290,12 @@ export async function installMcpToClaudeJson(
   const next = { ...current, mcpServers: mergedMcp };
   await atomicWriteJson(claudeJsonPath, next);
   debug(`Installed MCP servers to ${claudeJsonPath}`);
+
+  // Shipped names the user's own definition shadowed. The install summary marks
+  // these so "cc-settings ships this server" is never read as "cc-settings'
+  // definition is what's running" — the distinction that let a stale entry sit
+  // unnoticed through repeated installs.
+  return Object.keys(teamMcp).filter((name) => name in effectiveCurrentMcp);
 }
 
 /**
@@ -360,9 +378,21 @@ export async function resolveMcpServers(
     }
   }
   if (diverged.length > 0) {
-    info(
-      `Preserving your customization of ${diverged.length} shared MCP server(s): ${diverged.join(", ")}`,
-    );
+    info(`Preserving your customization of ${diverged.length} shared MCP server(s):`);
+    for (const name of diverged) {
+      const fields = divergingFields(userServers[name], teamServers[name]);
+      info(`  - ${name} (differs in: ${fields.join(", ") || "unknown"})`);
+      // A divergence confined to serverInstructions, with command/args identical,
+      // is almost never a deliberate customization — it is this installer's own
+      // output from a version whose instruction text has since changed. Saying so
+      // is the difference between a benign-looking line and an actionable one.
+      if (fields.length === 1 && fields[0] === "serverInstructions") {
+        info(
+          `    Same command/args, only the description text differs — usually a stale entry from an older cc-settings.`,
+        );
+        info(`    Delete "${name}" from mcpServers in settings.json and re-run to re-sync.`);
+      }
+    }
   }
 
   // Team is the base; user-only preserved extras and diverged user overrides

@@ -128,7 +128,7 @@ async function installSettings(
   // the live ENGINES registry's serverInstructions text has since changed.
   // Undefined/null on a first install or a pre-fix sentinel.
   priorMcpWritten?: Record<string, unknown> | null,
-): Promise<void> {
+): Promise<string[]> {
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
   // Compose team settings from config/ fragments (always the full baseline).
   // composeSettings schema-validates the composed object and throws on a bad
@@ -163,7 +163,7 @@ async function installSettings(
     // Fingerprint the (empty/light) hooks block for the integrity check —
     // straight from the in-memory object, no disk re-read.
     await fingerprintSettingsHooks(result);
-    return;
+    return []; // light ships no MCP servers, so nothing can be overridden
   }
 
   // Full profile path: merge the in-memory composed settings into the user's
@@ -196,7 +196,7 @@ async function installSettings(
     { interactive },
   );
   if (accounting) printMergeAccounting(accounting, { interactive });
-  await installMcpToClaudeJson(teamMcp, CLAUDE_JSON_PATH, priorMcpWritten);
+  const mcpOverridden = await installMcpToClaudeJson(teamMcp, CLAUDE_JSON_PATH, priorMcpWritten);
 
   // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
   // SessionStart integrity check) can detect post-install tampering — the
@@ -206,6 +206,7 @@ async function installSettings(
   // just wrote; best-effort, so a read failure only skips the fingerprint.
   const mergedReadBack = await readJsonOrNull(userSettingsPath).catch(() => null);
   if (mergedReadBack !== null) await fingerprintSettingsHooks(mergedReadBack);
+  return mcpOverridden;
 }
 
 /**
@@ -508,6 +509,9 @@ async function main(): Promise<number> {
   // against a concurrent run — a manual setup.sh racing the scheduled
   // auto-updater's setup invocation would otherwise interleave rm/cp over
   // ~/.claude. The read-only display below the lock release is race-safe.
+  // Shipped MCP servers whose definition the user's own copy shadowed. Assigned
+  // inside the lock, read by the summary after it releases.
+  let mcpOverridden: string[] = [];
   const installCode = await underInstallLock(async () => {
     // Dispatch to migrate-only or full install path.
     if (args.migrateOnly) {
@@ -519,7 +523,7 @@ async function main(): Promise<number> {
     }
 
     try {
-      await installSettings(
+      mcpOverridden = await installSettings(
         args.sourceDir,
         args.interactive,
         args.profile,
@@ -548,7 +552,7 @@ async function main(): Promise<number> {
   });
   if (installCode !== 0) return installCode;
 
-  if (!args.migrateOnly) await showSummary(args.profile, args.sourceDir);
+  if (!args.migrateOnly) await showSummary(args.profile, args.sourceDir, mcpOverridden);
 
   // Version delta: surface what just landed (prev → current + per-version
   // titles from CHANGELOG.md). Uses prevInstalledVersion captured BEFORE
