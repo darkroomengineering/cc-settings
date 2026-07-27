@@ -548,7 +548,7 @@ async function main(): Promise<number> {
   });
   if (installCode !== 0) return installCode;
 
-  if (!args.migrateOnly) await showSummary(args.profile);
+  if (!args.migrateOnly) await showSummary(args.profile, args.sourceDir);
 
   // Version delta: surface what just landed (prev → current + per-version
   // titles from CHANGELOG.md). Uses prevInstalledVersion captured BEFORE

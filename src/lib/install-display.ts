@@ -59,7 +59,7 @@ export async function countEntriesRecursive(full: string, pattern: RegExp): Prom
   }
 }
 
-export async function showSummary(profile: "full" | "light"): Promise<void> {
+export async function showSummary(profile: "full" | "light", sourceDir?: string): Promise<void> {
   const profileLabel = profile === "light" ? " [light]" : "";
   console.log("");
   boxStart(`Installed${profileLabel}`);
@@ -112,36 +112,59 @@ export async function showSummary(profile: "full" | "light"): Promise<void> {
   }
 
   const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
-    mcpServers?: Record<string, { _status?: unknown }>;
+    mcpServers?: Record<string, unknown>;
   } | null;
-  const servers = Object.entries(claudeJson?.mcpServers ?? {});
-  if (servers.length > 0) {
+  const installed = Object.keys(claudeJson?.mcpServers ?? {});
+  if (installed.length > 0) {
     console.log("");
     console.log(`${palette.bold}MCP servers in ~/.claude.json:${palette.reset}`);
-    // Group by `_status` annotation. Servers without a status are listed as
-    // "user-added" — they came from the user's machine, not the team config.
-    const core: string[] = [];
-    const optional: string[] = [];
-    const userAdded: string[] = [];
-    for (const [name, server] of servers) {
-      const status = (server as { _status?: unknown })._status;
-      if (status === "core") core.push(name);
-      else if (status === "optional") optional.push(name);
-      else userAdded.push(name);
-    }
-    if (core.length > 0) {
-      console.log(`  ${palette.dim}core:${palette.reset}`);
-      for (const s of core) console.log(`    - ${s}`);
-    }
-    if (optional.length > 0) {
-      console.log(`  ${palette.dim}optional (manually added):${palette.reset}`);
-      for (const s of optional) console.log(`    - ${s}`);
+    // Classified against what cc-settings actually ships (config/20-mcp.json),
+    // NOT against a `_status` key on the installed entry. The composer strips
+    // `_status`/`_comment` to keep settings.json schema-clean, so no server we
+    // write carries one — reading it back only ever found residue from a
+    // pre-strip install, which left every currently-shipped server (tldr,
+    // context7) mislabelled as "user-added".
+    const shipped = profile === "light" ? new Set<string>() : await readShippedMcpNames(sourceDir);
+    const { managed, userAdded } = classifyMcpServers(installed, shipped);
+    if (managed.length > 0) {
+      console.log(`  ${palette.dim}cc-settings:${palette.reset}`);
+      for (const s of managed) console.log(`    - ${s}`);
     }
     if (userAdded.length > 0) {
       console.log(`  ${palette.dim}user-added:${palette.reset}`);
       for (const s of userAdded) console.log(`    - ${s}`);
     }
   }
+}
+
+/**
+ * Names of the MCP servers cc-settings ships, read from the source fragment the
+ * installer composes into settings.json. This is the only authority on "ours vs
+ * theirs" — the installed entries carry no marker of their own.
+ *
+ * Returns an empty set when `sourceDir` is unknown or the fragment is missing,
+ * which degrades to listing everything as user-added rather than guessing.
+ */
+export async function readShippedMcpNames(sourceDir?: string): Promise<Set<string>> {
+  if (!sourceDir) return new Set();
+  const fragment = (await readJsonOrNull(join(sourceDir, "config", "20-mcp.json"))) as {
+    mcpServers?: Record<string, unknown>;
+  } | null;
+  return new Set(Object.keys(fragment?.mcpServers ?? {}));
+}
+
+/** Split installed server names into cc-settings-managed and user-added. */
+export function classifyMcpServers(
+  installed: readonly string[],
+  shipped: ReadonlySet<string>,
+): { managed: string[]; userAdded: string[] } {
+  const managed: string[] = [];
+  const userAdded: string[] = [];
+  for (const name of installed) {
+    if (shipped.has(name)) managed.push(name);
+    else userAdded.push(name);
+  }
+  return { managed, userAdded };
 }
 
 export async function cmdDryRun(
