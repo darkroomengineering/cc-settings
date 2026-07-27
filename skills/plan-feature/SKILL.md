@@ -100,7 +100,7 @@ Ask 5-8 targeted questions to fill gaps. Use smart defaults so the user can skip
 1. **Target users?** [default: existing app users]
 2. **Platform scope?** [default: web only]
 3. **Auth required?** [default: yes, existing auth]
-4. **Performance targets?** [default: <3s LCP, <100ms INP]
+4. **Performance targets?** [default: <2.5s LCP, <200ms INP]
 5. **Accessibility level?** [default: WCAG 2.1 AA]
 6. **Data persistence?** [default: existing database]
 7. **Mobile responsive?** [default: yes]
@@ -253,7 +253,7 @@ Compile everything into the final document.
 When the user provides minimal input, apply these defaults:
 - **Platform:** Web — detect from `package.json` (`next` → Next.js / satus, `react-router` → RR / novus)
 - **Auth:** Existing auth system
-- **Performance:** LCP <3s, INP <100ms, CLS <0.1
+- **Performance:** LCP <2.5s, INP <200ms, CLS <0.1
 - **Accessibility:** WCAG 2.1 AA
 - **Testing:** Unit + integration, no E2E unless requested
 - **Styling:** Project's existing system (Tailwind if detected)

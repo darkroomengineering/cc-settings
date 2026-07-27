@@ -124,7 +124,7 @@ Opus 4.8 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 
 #### Model degradation thresholds
 
-Degradation is not gradual — it follows a step function. Place critical information at the **beginning** and **end** of context (attention-favored positions). Avoid burying key facts in the middle.
+Degradation is not gradual — it follows a step function. Place critical information at the beginning and end — see `AGENTS.md` "Context Hygiene". Avoid burying key facts in the middle.
 
 | Model | Noticeable degradation | Severe degradation |
 |-------|------------------------|--------------------|

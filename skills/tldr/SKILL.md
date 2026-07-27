@@ -145,32 +145,6 @@ Check uptime and cache statistics:
 mcp__tldr__status { "project": "." }
 ```
 
-## Workflow Patterns
-
-### Understanding Code
-```
-1. tldr arch .                    # Get project overview
-2. tldr semantic "feature name"   # Find relevant code
-3. tldr context functionName      # Get LLM-ready summary
-4. Read (only if more detail needed)
-```
-
-### Before Refactoring
-```
-1. tldr impact functionName       # Who calls this?
-2. tldr change_impact             # What tests affected?
-3. tldr context functionName      # Understand the function
-4. Make changes
-5. tldr diagnostics src/          # Check for errors
-```
-
-### Debugging
-```
-1. tldr slice file func line      # What affects this line?
-2. tldr dfg file func             # Data flow analysis
-3. tldr context func              # Understand function
-```
-
 ## Prerequisites
 
 The engine behind `tldr` is provisioned automatically by cc-settings (`setup.sh`).

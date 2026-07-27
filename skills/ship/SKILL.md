@@ -85,7 +85,7 @@ Agent(codex-verifier, "Cross-model review of the staged diff. Report findings by
 
 If Claude and Codex disagree on a Critical/HIGH finding, surface it to the user as a gate **before** Step 7 — don't auto-commit through a cross-model disagreement. The bridge is gated and fails open: if Codex is unavailable, proceed with the Claude review alone.
 
-If the `codex-verifier` spawn itself fails or reports Bash was stripped (forked skill contexts), don't drop the cross-model pass — run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly via Bash and treat its output the same.
+If the `codex-verifier` spawn fails, or it reports that Bash was stripped (forked skill contexts), run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly instead — never skip the cross-model pass.
 
 ### Step 7: Commit (Bisectable)
 
@@ -118,8 +118,6 @@ npx tsc --noEmit && biome check .
 If a commit would break either check in isolation, merge it with the next commit in the sequence.
 
 **Commit messages:** Each gets a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`).
-
-**No AI attribution on any commit.**
 
 ### Step 8: Push and PR
 ```bash
@@ -193,7 +191,7 @@ Per the Autonomy Contract (CLAUDE-FULL.md): steps 5–7 are pre-approved once CI
 - NEVER skip the type check or build step
 - NEVER create a PR with failing tests
 - Conventional commit messages only (`feat:`, `fix:`, `refactor:`, etc.)
-- No AI attribution in commits or PR descriptions
+- No AI attribution in commits or PR descriptions — see `rules/git.md`.
 - Each bisectable commit must pass `tsc --noEmit` AND `biome check` independently
 - If total diff is small, single commit is fine -- don't over-split
 

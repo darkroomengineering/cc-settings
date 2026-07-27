@@ -111,14 +111,17 @@ The Chrome DevTools MCP exposes browser automation as tool calls. Typical sequen
 
 ### 6. Accessibility
 
-- [ ] All images have `alt` text
-- [ ] Icon-only buttons have `aria-label`
-- [ ] Form inputs have labels
-- [ ] Heading hierarchy is correct
-- [ ] Focus order is logical
-- [ ] Interactive elements >= 44x44px
-- [ ] Adequate spacing between touch targets
-- [ ] Focus indicators present (no `outline: none` without replacement)
+This skill forks without `Read`, so the thresholds stay inline here rather than behind a
+pointer it couldn't follow. `rules/accessibility.md` is the canonical copy — keep them in sync.
+
+**Check for:**
+- Images without `alt` text; icon-only buttons without `aria-label`
+- Form inputs with no accessible name — no `<label>`, `aria-label`, or `aria-labelledby`
+- Body text under 4.5:1 contrast; large text under 3:1; icons/borders/focus rings under 3:1
+- Touch targets under 44x44px, or adjacent targets with no visible spacing
+- `<div onClick>` where a semantic element belongs
+- Focus order that doesn't follow visual order; removed focus outlines
+- Motion that ignores `prefers-reduced-motion`
 
 ### 7. Polish & Micro-details
 

@@ -140,18 +140,7 @@ Stamp the plan with the commit it was written against (`git rev-parse --short HE
 
 See `hooks/checkpoint.md` for the full checkpoint JSON schema, storage location, and recommended checkpoint threshold actions.
 
-#### Save/Restore Commands
-
-```bash
-# Save checkpoint
-/checkpoint save "Completed phase 3"
-
-# List checkpoints
-/checkpoint list
-
-# Restore from latest
-/checkpoint restore
-```
+Save/restore state with `/checkpoint` — see that skill for the commands.
 
 ### Verification Stack
 

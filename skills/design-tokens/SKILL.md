@@ -196,12 +196,12 @@ L = 0.2126 x R_linear + 0.7152 x G_linear + 0.0722 x B_linear
 
 ### WCAG Requirements
 
-| Level | Ratio | Applies to |
-|-------|-------|-----------|
-| AA Normal Text | >= 4.5:1 | Body text (< 18px or < 14px bold) |
-| AA Large Text | >= 3:1 | >= 18px regular or >= 14px bold |
-| AAA Normal Text | >= 7:1 | Enhanced accessibility |
-| AA UI Components | >= 3:1 | Borders, icons, focus rings |
+| Level | Body text | Large text (18pt+/14pt+ bold) | Non-text UI |
+|---|---|---|---|
+| AA | 4.5:1 | 3:1 | 3:1 |
+| AAA | 7:1 | 4.5:1 | — |
+
+Canonical copy: `~/.claude/rules/accessibility.md`.
 
 ### Quick Reference (Neutral on White #FFFFFF)
 
