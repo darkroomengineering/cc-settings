@@ -17,32 +17,14 @@ for standards.
 
 ## About This Repo
 
-**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.2.21`. Skills: 39, soft cap 40 — provenance and the cap rule live in `CLAUDE-FULL.md` ("Skill library soft cap"), not here.
+**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.2.21`. Skill count and the soft cap of 40 are enforced by `bun run lint:skills` — provenance and the cap rule live in `CLAUDE-FULL.md` ("Skill library soft cap"), not here.
 Deps: `zod` (only — `yaml` and `@inquirer/confirm` were dropped for `Bun.YAML`
 and `node:readline`). Dev: `@biomejs/biome`, `typescript`, `@types/bun`.
 
-### Structure
-
-- `MANUAL.md` — User-facing guide (what you can do, how to do it)
-- `AGENTS.md` — Portable coding standards (source of truth)
-- `CLAUDE-FULL.md` — Claude-Code config (installed to `~/.claude/CLAUDE.md`)
-- `src/setup.ts` — The installer
-- `src/hooks/` — Hot-path hook implementations (PreToolUse, statusLine, …)
-- `src/scripts/` — One-shot scripts (post-edit, handoff, …)
-- `src/lib/` — Shared libs (colors, mcp, packages, platform, prompts, …)
-- `src/schemas/` — zod schemas for settings.json, hooks, skills, MCP
-- `src/upstream/` — Claude Code version-drift scanner
-- `agents/` — Agent definitions installed to `~/.claude/agents/`
-- `skills/` — Skill files installed to `~/.claude/skills/`
-- `rules/` — Path-conditioned rules installed to `~/.claude/rules/`
-- `profiles/` — Profiles installed to `~/.claude/profiles/`
-- `hooks/` — Hook documentation (markdown)
-- `mcp-configs/` — MCP server reference config
-- `docs/` — Reference documentation
-- `tests/` — bun:test suites
-- `setup.sh` / `setup.ps1` — Tiny bootstraps (install Bun, exec `bun src/setup.ts`)
-- `config/` — Settings fragments (source of truth; `10-core.json`, `20-mcp.json`, `30-permissions.json`, `40-hooks.json`). Composed into `~/.claude/settings.json` at install time. Run `bun run compose` to preview the composed output.
-- `schemas/*.schema.json` — Generated JSON Schemas (via `bun run schemas:emit`)
+Two directories aren't what their names suggest: `config/` holds settings
+fragments that are *composed* into `~/.claude/settings.json` at install time
+(edit those, never the installed file), and `schemas/*.schema.json` is
+generated from the zod sources in `src/schemas/` — don't hand-edit it.
 
 ### Development
 
