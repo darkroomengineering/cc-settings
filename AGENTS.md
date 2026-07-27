@@ -7,9 +7,6 @@
 
 ## Philosophy
 
-This codebase will outlive any single contributor. Every shortcut becomes someone else's burden.
-Fight entropy. Leave the codebase better than you found it.
-
 Make the codebase legible to agents. The work to make a codebase legible to an agent — written-down
 conventions, skills, rules, intent docs — is simply the debt you owe to your human engineers; every
 entry pays it down for both audiences at once.
@@ -29,21 +26,13 @@ Don't over-engineer your workflow. Start simple, add complexity only when you fe
 
 ## Response Calibration
 
-Claude Opus 4.8 calibrates response length to task complexity rather than defaulting to fixed verbosity. Match your output to what was asked:
+Match output length to what was asked: a lookup gets a sentence and a `file:line`, a multi-file
+change gets a brief plan and a short summary of what landed. Lead with the answer; skip the
+preamble announcing what you're about to do and the recap restating the diff.
 
-- **Simple questions** (1-2 sentences): direct answer, no preamble, no trailing summary
-- **Lookups ("where is X", "what does Y do")**: one short paragraph + file:line reference
-- **Single-file changes**: brief description + show the diff. Don't restate what the diff already shows
-- **Multi-file or complex work**: brief plan → execute → 1-2 sentence summary of what changed
-- **Explanations**: use headers/bullets only when structure genuinely helps; avoid ceremonial formatting for short answers
-
-**Never**:
-- Add trailing summaries that restate the diff
-- Explain what you're about to do before every tool call (one sentence before a batch is enough)
-- Use "I'll now..." / "Let me..." preambles; just do the thing and announce completion
-- Pad responses with caveats or qualifications that don't change the outcome
-
-**Positive guidance beats negative**: state how to respond (concise, direct) rather than what to avoid. 4.8 interprets prompts literally — a rule like "don't be verbose" is weaker than "respond in 1-2 sentences for simple questions."
+Claude Code sessions elaborate on this in `~/.claude/CLAUDE.md` ("Action-First Output"), which
+supersedes this section for those sessions. This shorter version is the portable one, for tools
+that read only AGENTS.md.
 
 ---
 
@@ -97,12 +86,8 @@ This is the **second gate, not a contradiction of the `Laziness Ladder`**: the l
 Run the build after any fix and verify it passes **before moving on**. Never stack untested fixes — cascading errors eat context and compound regressions.
 
 ### Pre-Commit Verification
-Before ANY commit:
-1. Run type checking (`tsc --noEmit` for TypeScript) — fix all errors
-2. Run the build command — fix all errors
-3. Run existing tests — fix all failures
-
-**Never commit code that doesn't build.**
+**Never commit code that doesn't typecheck, build, and pass tests.** Run all three and fix what
+they surface before committing — not after.
 
 ### Failing Tests: Regression vs. Contract Change
 A test that fails after your change is a fork in the road, not a chore to clear.
@@ -168,12 +153,13 @@ Biased prompts cause agents to manufacture issues that don't exist.
 When you encounter a `TODO`, `FIXME`, or `HACK` comment, **implement it** — don't delete it. Removing a TODO without doing the work is marking your own homework complete by erasing the assignment.
 
 ### Plan Before Multi-File Changes
-Before any change touching **5+ files**, outline the plan first:
-1. List every file you'll modify and what changes
-2. Identify what could break
-3. Get approval before executing
+Once a change is broad enough that a wrong approach would mean a full rollback, state the plan
+before executing it — which files you'll touch and what could break. **State it, don't ask
+permission for it**; reversible in-scope work still proceeds without approval (see `Autonomous
+Execution` and the Autonomy Contract in `~/.claude/CLAUDE.md`).
 
-This prevents wrong-approach cascades that force full rollbacks.
+Claude Code has a specific numeric threshold for this — the delegation heuristic in
+`~/.claude/CLAUDE.md` is the single source for the file/tool-call numbers.
 
 ### Dependency Upgrades
 Before upgrading major dependencies, check for breaking changes. If an upgrade breaks the build, **rollback immediately** to the working version. Rollback first, research the migration, then try again with a plan.
@@ -195,6 +181,10 @@ When given a bug report, fix it immediately. No "should I?" questions. If someth
 ---
 
 ## Tech Stack
+
+This is the default stack for Darkroom **web client work** — not an assumption about every repo.
+Non-web and tooling repos (this one included) share the Bun/Biome/TypeScript rows and nothing else.
+Framework depth lives in `profiles/` (`nextjs`, `react-router`, `react-native`, `tauri`, `webgl`).
 
 ### Core
 - **TypeScript** — Strict mode, no `any` types
@@ -227,21 +217,10 @@ Darkroom projects are **bun-first**. Never mix package managers within a session
 
 ---
 
-## Project Structure
-
-```
-app/                 # Next.js routes only
-components/          # UI components
-lib/
-  ├── hooks/         # Custom hooks
-  ├── integrations/  # Third-party clients
-  ├── styles/        # CSS, Tailwind config
-  └── utils/         # Pure utilities
-```
-
----
-
 ## Coding Standards
+
+Baseline for any stack. Claude Code sessions get the fuller versions from `rules/` and `profiles/`;
+this section is what portable tools (Codex, Cursor, Copilot) see, so it stays self-contained.
 
 ### TypeScript
 - No `any` — use `unknown` and narrow
@@ -253,13 +232,6 @@ lib/
 - `'use client'` only when needed
 - React Compiler enabled: do NOT use `useMemo`, `useCallback`, or `React.memo`
 - Use `useRef` for object instantiation to prevent infinite loops
-
-### Components
-```tsx
-import s from './component.module.css'
-import { Image } from '@/components/image'
-import { Link } from '@/components/link'
-```
 
 ### Performance
 - Eliminate waterfalls — `Promise.all` for parallel fetches
@@ -297,7 +269,7 @@ No AI fingerprints in git history, PRs, or descriptions. Ever.
 - No `Co-Authored-By` lines mentioning Claude, Anthropic, or any AI
 - No "Generated with Claude Code" or similar in PR descriptions
 - No robot emoji, "AI-assisted", or "automated by" language
-- PR descriptions: `## Summary` + `## Test Plan` only — no AI badges
+- No AI badges in PR descriptions — for the PR template itself see `rules/git.md` "PR Guidelines"
 - Commit messages: conventional format, nothing else
 
 ---

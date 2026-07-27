@@ -95,11 +95,11 @@ does the reader know what happened and what's left?
 
 ## Delegation
 
-> **Opus 4.8 note**: Opus 4.8 (and 4.7) under-delegates — it prefers internal reasoning over spawning agents. The heuristic below is calibrated to counter that bias. Do not reason your way out of it "because you could do it yourself."
+> **Why a heuristic and not judgment**: the Opus line under-delegates — it prefers internal reasoning over spawning agents. This one rule is deliberately mechanical to counter that bias. Do not reason your way out of it "because you could do it yourself."
 
 ### The per-decision heuristic
 
-Before each unit of work, ask once: **3+ files, 10+ tool calls, or security-sensitive code?**
+Before each unit of work, ask once: **3+ files, 12+ tool calls, or security-sensitive code?** (Tool-call threshold is `CC_PARALLELMAX_THRESHOLD`, default 12 — the `tool-cadence` hook enforces this exact number.)
 
 **YES → delegate first, then route by shape:**
 
@@ -119,7 +119,7 @@ Before each unit of work, ask once: **3+ files, 10+ tool calls, or security-sens
 
 **Rules that close the loop:**
 
-1. **Re-ask when scope grows.** Predicted small but it's now 3+ files or 10+ calls? Stop and delegate the remainder — sunk tool calls are not a reason to finish solo.
+1. **Re-ask when scope grows.** Predicted small but it's now over the threshold? Stop and delegate the remainder — sunk tool calls are not a reason to finish solo.
 2. **Overriding a YES requires a stated reason.** One line, in your response, before proceeding (e.g. "12 calls but all sequential edits to one file"). The `tool-cadence` hook escalates on streaks that continue past a reminder with no Agent call.
 3. **Delegating needs no narration** — just call the Agent tool.
 4. **Parallelize**: independent delegations go in a single message — they run concurrently.
@@ -161,11 +161,11 @@ The OpenAI Codex CLI runs as a second model alongside Claude via the `/codex` sk
 
 - **Opus** → planning, synthesis, gate decisions. Never the body of a tight `/loop`.
 - **Sonnet** → loop bodies and most fan-out subagents (`CLAUDE_CODE_SUBAGENT_MODEL` is already `sonnet`). Now near-Opus quality on coding/agentic work, which makes this split cheaper without giving up much. There's no `/loop` model setting — pin per-invocation.
-- **Codex** → default-on, not threshold-gated: every diff-producing turn gets a Codex adversarial review (parallel, fail-open, via `/codex review` or the `codex-verifier` agent), and mechanical/bulk implementation goes to `/codex exec` by default. Batch into FEW LARGE calls — it's message-metered, so one whole task beats many steps. Always review Codex's diff before trusting it.
+- **Codex** → default-on for cross-model review of diffs and for bulk/mechanical implementation, batched into few large calls. The full policy (and the exact commands) is injected by the `codex-verify` SessionStart hook when the bridge is up — that injection is the single source, so it isn't restated here. If you don't see it this session, the bridge is down: proceed Claude-only. Always review Codex's diff before trusting it.
 
 Two roomy pools (Sonnet + Codex) carry volume; the one scarce pool (Opus) does the thinking. If a Codex window drains, fail over to Claude-only rather than stalling.
 
-**Automated steering** — the `codex-verify` SessionStart hook injects a default-on routing policy into the session whenever the bridge is available, so Codex review/exec is used by default on diff-producing work, not just under quota pressure. The statusline also persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json`, and the `quota-steer` hook injects additional routing guidance when usage crosses thresholds (5h ≥ 60% / weekly ≥ 65%) — those thresholds now only escalate urgency, they aren't what triggers using Codex in the first place.
+The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json`, and the `quota-steer` hook escalates routing urgency past 5h ≥ 60% / weekly ≥ 65%.
 
 ---
 

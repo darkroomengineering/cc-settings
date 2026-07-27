@@ -85,10 +85,16 @@ button:focus { outline: none; }
 
 ## Requirements
 
+Canonical copy of these thresholds. `AGENTS.md`, `skills/qa`, and `skills/design-tokens` each
+restate a subset because they run where this file isn't loadable — when a threshold changes here,
+update those three too.
+
 | Requirement | Standard |
 |------------|----------|
-| Color contrast | 4.5:1 (text), 3:1 (large) |
-| Touch targets | 44x44px minimum |
+| Contrast — body text | 4.5:1 (AA), 7:1 (AAA) |
+| Contrast — large text (18pt+/14pt+ bold) | 3:1 (AA), 4.5:1 (AAA) |
+| Contrast — non-text UI (icons, borders, focus rings) | 3:1 |
+| Touch targets | 44x44px minimum, with visible spacing between adjacent targets |
 | Focus order | Logical flow |
 | Motion | Respect `prefers-reduced-motion` |
 
