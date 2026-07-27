@@ -84,7 +84,19 @@ export const EngineDescriptorSchema = z.object({
 
 export type EngineDescriptor = z.infer<typeof EngineDescriptorSchema>;
 
-export const DEFAULT_ENGINE_ID = "llm-tldr";
+// Default flipped to native-ts in v12.9.0. Upstream llm-tldr was archived
+// 2026-07-13, and its `language` parameter defaults to `python` — on a TS repo
+// its tools return `{"status":"ok"}` with an EMPTY result instead of an error,
+// so a wrong answer is indistinguishable from a true negative (measured: impact
+// on a symbol with 5 callers returned []). native-ts answers those queries
+// correctly and refuses the ones it can't do with `unsupported-by-native-engine`.
+// A loud refusal beats a silent wrong answer.
+//
+// Trade-off: native-ts is TypeScript/JavaScript only. On a Rust/Python/Go repo
+// select llm-tldr explicitly (CC_CODE_INTEL_ENGINE=llm-tldr) AND pass `language`
+// on every call — it is archived upstream, so that is a deliberate, eyes-open
+// choice, not a default anyone should fall into.
+export const DEFAULT_ENGINE_ID = "native-ts";
 
 // llm-tldr's serverInstructions are copied VERBATIM from config/20-mcp.json's
 // tldr block — this string is the regression guard (a test asserts the default
@@ -112,7 +124,7 @@ export const ENGINES: Record<string, EngineDescriptor> = {
     cli: { command: "", supportsDaemon: false, verbMap: {} },
     languages: "ts-js",
     serverInstructions:
-      "Native TypeScript codemap analysis over the current project (TypeScript/JavaScript only). Use to find where something is implemented, list a file's structure, trace cross-file call graphs and imports, find a symbol's callers, and map git-change impact. Built on the TypeScript compiler — there is no semantic/embedding search, dataflow, slicing, or dead-code analysis; use grep for free-text search.",
+      "Native TypeScript codemap analysis over the current project (TypeScript/JavaScript only). Use to find where something is implemented, list a file's structure, trace cross-file call graphs and imports, find a symbol's callers, and map git-change impact. Built on the TypeScript compiler. It does NOT implement semantic/embedding search, dataflow, slicing, control-flow, dead-code, diagnostics, or free-text search — those return an explicit `unsupported-by-native-engine` error rather than an empty result, and that error means the analysis DID NOT RUN. Never report it as a clean/empty finding: fall back to Grep, or re-run with CC_CODE_INTEL_ENGINE=llm-tldr and an explicit `language`.",
   },
 
   // Reference candidate — NOT enabled. Empty checksums make ensurePinnedEngine

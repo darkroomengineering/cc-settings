@@ -31,8 +31,11 @@ describe("descriptors", () => {
     }
   });
 
-  test("default is llm-tldr and is registered", () => {
-    expect(DEFAULT_ENGINE_ID).toBe("llm-tldr");
+  // Flipped in v12.9.0 — llm-tldr is archived upstream and silently returns
+  // empty results on non-Python code (its `language` param defaults to python).
+  test("default is native-ts and is registered", () => {
+    expect(DEFAULT_ENGINE_ID).toBe("native-ts");
+    expect(KNOWN_ENGINE_IDS).toContain("native-ts");
     expect(KNOWN_ENGINE_IDS).toContain("llm-tldr");
   });
 });

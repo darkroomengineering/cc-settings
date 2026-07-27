@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.9.0] — 2026-07-27
+
+**The default code-intel engine is now `native-ts`.** v12.8.1 fixed the *instructions* around llm-tldr's python-defaulting `language` parameter; this changes the default so the trap isn't there to step into.
+
+The measured argument, same three queries, ground truth verified against grep:
+
+| query | llm-tldr (as shipped) | native-ts |
+|---|---|---|
+| `impact resolveEngine` (5 callers) | `{"status":"ok","callers":[]}` | exact |
+| `importers hook-runtime` (23) | `[]` | 23 |
+| "delegation tool-call threshold" | ranked 3 unrelated symbols | n/a — refuses |
+
+native-ts implements `structure`, `tree`, `extract`, `arch`, `imports`, `importers`, `calls`, `context`, `impact`, `change_impact`. It returns `unsupported-by-native-engine` for `semantic`, `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, and `search`.
+
+That refusal is the point. A tool that says "I did not run" is strictly better than one that says `{"status":"ok"}` and means nothing — the second gets a live symbol deleted.
+
+**Changed:**
+- `src/lib/code-intel-engine.ts` — `DEFAULT_ENGINE_ID = "native-ts"`; native-ts `serverInstructions` now state that `unsupported-by-native-engine` means the analysis did not run and must not be reported as a clean result.
+- `agents/deslopper.md`, `docs/deslopper-team-mode.md`, `skills/nuclear-review/SKILL.md` — the dead-code passes now fail loudly. An `unsupported` response is reported as "scan unavailable", never as "no dead code found", and a zero-caller `impact` must be confirmed with `Grep` before anything is deleted.
+- `skills/tldr/SKILL.md` — rewritten around the new default, with llm-tldr documented as the opt-in for non-TS/JS repos.
+
+**Trade-off, stated plainly:** native-ts is TypeScript/JavaScript only. On a Rust, Python, or Go repo, select llm-tldr explicitly (`CC_CODE_INTEL_ENGINE=llm-tldr`) *and* pass `language` on every call. It is archived upstream, so that is now a deliberate choice rather than a default anyone falls into. No capability was actually lost in the flip: the tools native-ts refuses were the ones returning empty results on TS anyway.
+
 ## [12.8.1] — 2026-07-27
 
 A head-to-head evaluation of code-intel engines (prompted by upstream `llm-tldr` being archived on 2026-07-13) turned up a live defect in our own configuration: **the `tldr` MCP tools were returning confident empty answers on every TypeScript repo.**

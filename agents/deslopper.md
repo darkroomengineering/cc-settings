@@ -46,6 +46,15 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
 
 **TLDR**: Use `tldr dead` for dead code detection, `tldr impact` to verify functions are unused.
 
+> **An empty result is never a licence to delete.** The default engine is `native-ts`, which
+> does not implement `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, `semantic`, or `search` — it
+> returns `unsupported-by-native-engine`. That error means **the scan did not run**. Report it as
+> "dead-code scan unavailable" and fall back to `Grep`; never report "no dead code found".
+> The archived `llm-tldr` engine fails the opposite, worse way: its `language` param defaults to
+> `python`, so on a TS repo `dead` returns `total_functions: 0` and `impact` returns
+> `{"status":"ok","callers":[]}` for symbols that have callers. **Before deleting anything on the
+> strength of a zero-caller result, confirm with `Grep`.**
+
 ---
 
 **Workflow**
@@ -269,7 +278,9 @@ tldr dead . --entry-points "main,test_"
 
 # Verify specific function is unused
 tldr impact functionName .
-# If result shows zero callers -> safe to remove
+# Zero callers is NOT sufficient — see the TLDR warning above. Confirm with:
+grep -rn "functionName" . --include="*.ts" --include="*.tsx"
+# Only both agreeing -> safe to remove
 ```
 
 ### 2. Exact Duplicates (Suggest)

@@ -40,7 +40,7 @@ You are a dead code scanner for the deslopper team.
 **Scope**: Find all dead code — unused exports, orphaned functions, unreferenced constants, dead imports.
 
 **Tools to use**:
-- `tldr dead . --entry-points "main,test_"` — comprehensive dead code scan
+- `tldr dead . --entry-points "main,test_"` — dead code scan. If it returns `unsupported-by-native-engine`, the scan DID NOT RUN: report that, fall back to Grep, never report "no dead code"
 - `tldr impact <name> .` — verify specific exports have zero callers
 - `Grep` — cross-check import statements
 

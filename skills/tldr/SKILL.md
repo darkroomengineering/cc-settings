@@ -12,14 +12,14 @@ requires:
 
 Token-efficient codebase analysis behind the `tldr` MCP server. **~95% fewer tokens than reading raw files.**
 
-The engine is provisioned by cc-settings — default **llm-tldr** (17 languages). Override per-environment with `CC_CODE_INTEL_ENGINE` (e.g. `native-ts`, a zero-dependency TypeScript/JavaScript codemap with no semantic search). The tool names below are the stable contract; only the engine behind them changes.
+The engine is provisioned by cc-settings. The tool names below are the stable contract; only the engine behind them changes. Select with `CC_CODE_INTEL_ENGINE`.
 
-> **`language` does NOT auto-detect — it defaults to `python`.** Measured 2026-07-27: on this
-> TypeScript repo, omitting it returns `{"status":"ok"}` with an EMPTY result rather than an error,
-> so a wrong answer is indistinguishable from a true negative. **Always pass `language` explicitly**
-> (`typescript`, `javascript`, `go`, `rust`, …, or `all`). The MCP `impact` and `semantic` tools
-> expose no `language` parameter at all and are therefore unusable on non-Python code — use
-> `mcp__tldr__calls` with an explicit language, or `Grep`, instead of trusting an empty `impact`.
+**Default: `native-ts`** — a zero-dependency TypeScript-compiler codemap. TS/JS only. Implements `structure`, `tree`, `extract`, `arch`, `imports`, `importers`, `calls`, `context`, `impact`, `change_impact`. Everything else returns `unsupported-by-native-engine`, which means **the analysis did not run** — fall back to `Grep`, never report it as an empty finding.
+
+**Opt-in: `CC_CODE_INTEL_ENGINE=llm-tldr`** — 17 languages, plus `semantic`, `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, `search`. Use it on Rust/Python/Go repos. Two caveats, both measured 2026-07-27:
+
+> 1. **`language` does NOT auto-detect — it defaults to `python`.** On a TS repo, omitting it returns `{"status":"ok"}` with an EMPTY result rather than an error, so a wrong answer is indistinguishable from a true negative. Always pass `language` explicitly (`typescript`, `go`, `rust`, … or `all`). The MCP `impact` and `semantic` tools expose no `language` parameter at all, so they cannot be fixed this way — cross-check with `Grep`.
+> 2. **Upstream is archived** (`parcadei/llm-tldr`, 2026-07-13). Neither caveat will be fixed upstream.
 
 ## Quick Reference
 
@@ -155,18 +155,15 @@ mcp__tldr__status { "project": "." }
 ## Prerequisites
 
 The engine behind `tldr` is provisioned automatically by cc-settings (`setup.sh`).
-Default engine: **llm-tldr** (needs `pipx`). Override per-environment with
-`CC_CODE_INTEL_ENGINE` — e.g. `native-ts` for a zero-dependency TypeScript/JavaScript
-codemap. See `src/lib/code-intel-engine.ts`.
+Default engine: **native-ts** — no Python, no daemon, nothing to install.
+See `src/lib/code-intel-engine.ts`.
 
 ```bash
-# Default (llm-tldr): installed by setup.sh; daemon auto-starts each session.
+# Opt into llm-tldr for non-TS/JS repos or the analysis tools native-ts lacks:
+export CC_CODE_INTEL_ENGINE=llm-tldr
 pipx install llm-tldr        # only if provisioning manually
 tldr daemon start            # background service (~100ms queries)
-tldr warm .                  # build indexes including embeddings
-
-# Or opt into the native engine (no Python, no semantic search):
-export CC_CODE_INTEL_ENGINE=native-ts
+tldr semantic index . --lang typescript   # per-language; the default index is empty
 ```
 
 ## CRITICAL RULES

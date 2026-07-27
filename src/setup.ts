@@ -66,7 +66,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.8.1"; // tldr language param does not auto-detect
+const VERSION = "12.9.0"; // default code-intel engine is now native-ts
 
 // --- Arg parsing ---------------------------------------------------------
 

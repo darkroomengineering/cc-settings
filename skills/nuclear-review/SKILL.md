@@ -67,6 +67,10 @@ tldr arch .
 tldr dead . --entry-points "main,test_"
 ```
 
+If `dead` returns `unsupported-by-native-engine` (the default engine does not implement it), say
+the dead-code pass did not run — do not record "no dead code" as a finding. An empty result from
+`dead` or `impact` is not evidence; confirm with `Grep` before acting on it.
+
 ### Phase 1 — Dependency audit (context7)
 
 For each direct dependency in `package.json`, use the `context7` MCP server to verify:
