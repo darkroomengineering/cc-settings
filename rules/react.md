@@ -75,10 +75,7 @@ function Animation() {
 }
 ```
 
-### Lazy state initialization (any stack)
-```tsx
-const [data, setData] = useState(() => computeExpensiveValue(props))
-```
+> Lazy state initialization: see `rules/performance.md` (`useState(() => ...)` for expensive initial values).
 
 ---
 
@@ -182,23 +179,7 @@ Only Server Components can be async. If you find yourself reaching for `await` i
 
 ### Parallel data fetching
 
-```tsx
-// Next.js — sibling Server Components fetch in parallel
-function Page() {
-  return (
-    <>
-      <UserSection />
-      <PostsSection />
-    </>
-  )
-}
-
-// React Router — parallel loaders via Promise.all or nested routes
-export async function loader() {
-  const [user, posts] = await Promise.all([getUser(), getPosts()])
-  return { user, posts }
-}
-```
+> Next.js sibling-component and React Router loader parallelization: see `rules/react-perf.md` ("CRITICAL: Eliminate Waterfalls").
 
 ## Tools
 - **React Compiler** — automatic memoization

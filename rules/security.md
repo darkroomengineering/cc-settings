@@ -76,15 +76,6 @@ redirect(req.query.returnUrl)
 
 ---
 
-## OWASP Top 10
-
-| Vulnerability | Prevention |
-|--------------|------------|
-| Injection | Parameterized queries, ORM |
-| Broken Auth | NextAuth, Clerk |
-| XSS | Escape output, CSP headers |
-| CSRF | SameSite cookies |
-
 ## Tools
 - **git-secrets** - Prevents committing secrets
 - **Snyk/Dependabot** - Vulnerability scanning

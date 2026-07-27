@@ -140,12 +140,6 @@ trivial and self-evident. When unsure, open a PR.
 ### Before Merging
 - CI passes, code reviewed, no conflicts, branch up to date
 
-## Branch Protection (main)
-- Require PR reviews
-- Require status checks
-- No force pushes
-- No deletions
-
 ## Tools
 - **Biome** - Pre-commit formatting
 - **husky** - Git hooks
