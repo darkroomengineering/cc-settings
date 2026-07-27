@@ -10,9 +10,10 @@ const mcpCommentary = {
   _contextCost: z.enum(["low", "medium", "high"]).optional(),
   // `_status` annotates whether a server is part of the team-shipped baseline
   // ("core") or recommended-but-not-installed ("optional"). Onboarding signal
-  // for new team members. The installer surfaces it in the post-install summary
-  // and groups servers by status. Field is documentation-only — Claude Code
-  // doesn't read it.
+  // for new team members, used in mcp-configs/recommended.json. Documentation
+  // only — Claude Code doesn't read it, and as of v12.11.0 neither does the
+  // installer: the post-install summary groups by what config/20-mcp.json
+  // ships, and MCP ownership comparison ignores this key entirely.
   _status: z.enum(["core", "optional"]).optional(),
   serverInstructions: z.string().optional(),
 };

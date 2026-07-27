@@ -4,6 +4,38 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.11.0] — 2026-07-27
+
+Ownership of an MCP server was decided by comparing definitions byte-for-byte. That comparison counted documentation-only keys, so cosmetic residue could permanently transfer ownership of a server away from cc-settings — silently, and with no way to see it had happened.
+
+**1. Annotation keys no longer decide ownership.** `_status`, `_comment`, `_description` and friends are ignored by Claude Code, and the settings composer stopped emitting them — but installs predating that strip wrote them inline into `~/.claude.json`, where they persist. An entry carrying one compared unequal to the team entry, so `isStaleCcOutput` classified it a hand-edit, the merge preserved it, and **every subsequent update to that server silently stopped landing**. Comparison now runs on functional fields only (`functionalKey`), so such an entry is recognized and refreshed. A genuine customization — different `command`, `args`, `url`, `headers` — still differs and is still preserved.
+
+Observed on a real install: `figma` and `chrome-devtools` differed from the team entry in `_comment` and `_status` and nothing else. Both were pinned. After the fix both refresh and the residue is dropped, while a `context7` pointed at the hosted HTTP endpoint with a user API key stays untouched.
+
+The stripped set is a closed list (`_comment`, `_description`, `_usage`, `_contextCost`, `_status`) rather than a `_`-prefix test — an unknown `_`-prefixed field could be a Claude Code extension we don't model yet, so it still counts as a divergence and is still preserved. `serverInstructions` is functional and is never stripped.
+
+**Known limit, unchanged by this release.** Recovery only reaches entries that are *functionally* identical to ours. If a non-engine server's shipped definition later changes (say `figma`'s URL) and a machine holds the old value, that entry still differs on a real field, is still read as a user customization, and the new value will not land there. `mcp_written` closes this for engine-managed servers by recording what was actually written; extending it to every managed server is the general fix and is not done here.
+
+**2. The summary distinguishes shipping a server from running our definition of it.** It previously grouped servers by reading `_status` back off `~/.claude.json` — a key nothing we write carries, so the grouping was driven entirely by pre-strip residue. `figma` and `chrome-devtools` happened to still have it and were labelled correctly by accident; `tldr` and `context7` did not and were reported to the user as "user-added". Classification now derives from `config/20-mcp.json`'s server names, the only authority on ours-vs-theirs. The dead `optional` bucket is gone (nothing ever set it) and `core` is relabelled `cc-settings`.
+
+Servers whose local copy shadows ours are now marked `(your copy is in use — cc-settings' version not applied)`. That distinction is what makes defect 1 visible instead of silent.
+
+**3. The divergence notice names what diverged.** `Preserving your customization of N shared MCP server(s)` listed names only. It now lists the differing fields per server, and when the *only* difference is `serverInstructions` while `command`/`args` match, it says outright that this is usually a stale entry from an older cc-settings and points at the fix — that shape is almost never a deliberate customization.
+
+**Documentation caught up with the v12.9.0 engine flip.** Seven files still presented `llm-tldr` as the default and advertised `semantic`/`dead`/`diagnostics` as available capabilities; a stock install was being told to `pipx install llm-tldr` for a server that needs nothing. `docs/tldr-cheatsheet.md` is rewritten around `native-ts`, with the CLI/daemon/index material demoted to the opt-in section, and `skills/tldr/SKILL.md`'s quick-reference marks the seven tools that return `unsupported-by-native-engine`.
+
+Three corrections in that pass came from cross-model review, each verified against source:
+
+- **Exporting `CC_CODE_INTEL_ENGINE` is not sufficient to switch engines.** The `tldr` entry in `~/.claude.json` is written at install time, so a shell-only export leaves the hooks on one engine and the MCP server on the other. Every selection instruction now says to re-run `setup.sh` with the variable set.
+- `mcp-configs/recommended.json` claimed the installer rewrites its `command`/`args`. Nothing in `src/` reads that file — it is reference-only, and it shows the llm-tldr shape. Now labelled as such.
+- `extract` returns `{ file, symbols }` — names, kinds, lines, signatures — not source bodies, so it is not a substitute for `Read`.
+
+The "17 languages" claim is dropped throughout; no source in this repo supports the number and upstream contradicts it.
+
+Also: the rule-file dedup sweep finished (`performance.md`, `react-perf.md`, `style.md`, `ui-skills.md`). The two perf files turned out to barely overlap, so that is the end of the sweep rather than the middle of it.
+
+994 tests pass (up from 976).
+
 ## [12.10.1] — 2026-07-27
 
 Caught while verifying v12.10.0 on a real install: the migration rule fired on installs it shouldn't have. A v12.10.0 install that resolved the default *implicitly* omitted `engine_explicit` entirely, so the next install couldn't distinguish "we stamped this implicitly" from "this sentinel predates the field" — and the legacy inference then marked it explicit, re-pinning the very default it was supposed to leave free.

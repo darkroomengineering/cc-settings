@@ -10,6 +10,7 @@ import { JsonParseError } from "../src/lib/json-io.ts";
 import {
   divergingFields,
   findUserOnlyServers,
+  functionalKey,
   installMcpToClaudeJson,
   mergeSettingsWithMcpPreservation,
   resolveMcpServers,
@@ -858,5 +859,136 @@ describe("installMcpToClaudeJson — reports shadowed shipped servers", () => {
 
   test("no team servers → nothing overridden", async () => {
     expect(await installMcpToClaudeJson({}, "/nonexistent/claude.json")).toEqual([]);
+  });
+});
+
+// --- Annotation-blind ownership -------------------------------------------
+//
+// Backstory: pre-strip installs wrote `_status`/`_comment` inline in
+// ~/.claude.json. Those keys are documentation-only — Claude Code ignores them
+// and the composer no longer emits them — but they made an otherwise identical
+// entry compare unequal to ours. isStaleCcOutput then called it a hand-edit,
+// the merge preserved it, and cc-settings' updates to that server could never
+// land again. Observed on a real install: figma and chrome-devtools differed
+// from the team entry in `_comment` and `_status` and nothing else.
+
+describe("functionalKey — annotation-blind equality", () => {
+  test("`_`-prefixed keys do not affect identity", () => {
+    expect(functionalKey({ command: "bunx", _status: "core", _comment: "x" })).toBe(
+      functionalKey({ command: "bunx" }),
+    );
+  });
+
+  test("functional fields still distinguish", () => {
+    expect(functionalKey({ command: "a" })).not.toBe(functionalKey({ command: "b" }));
+  });
+});
+
+describe("divergingFields ignores annotations", () => {
+  test("annotation-only difference is not a divergence", () => {
+    expect(
+      divergingFields(
+        { type: "http", url: "https://x", _status: "core", _comment: "note" },
+        { type: "http", url: "https://x" },
+      ),
+    ).toEqual([]);
+  });
+
+  test("a real customization alongside annotations still reports only real fields", () => {
+    expect(
+      divergingFields({ type: "http", url: "https://mine", _status: "core" }, { command: "bunx" }),
+    ).toEqual(["command", "type", "url"]);
+  });
+});
+
+describe("installMcpToClaudeJson — annotation residue no longer pins an entry", () => {
+  test("entry differing ONLY in _status/_comment is refreshed, not preserved", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-annot-"));
+    try {
+      const claudeJsonPath = join(dir, "claude.json");
+      // Exactly the real-world shape: our definition, functionally identical,
+      // carrying a legacy annotation. Before the fix that key alone transferred
+      // ownership to the user; the point of the assertion is that it no longer
+      // does, and that the residue is dropped from disk.
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: {
+            figma: { type: "http", url: "https://mcp.figma.com/mcp", _status: "core" },
+          },
+        }),
+        "utf8",
+      );
+      const teamMcp = { figma: { type: "http" as const, url: "https://mcp.figma.com/mcp" } };
+
+      const overridden = await installMcpToClaudeJson(teamMcp, claudeJsonPath);
+      expect(overridden).toEqual([]); // not treated as a user override anymore
+
+      // Ours won, so the stale annotations are gone from disk.
+      const written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(written.mcpServers.figma._status).toBeUndefined();
+      expect(written.mcpServers.figma.url).toBe("https://mcp.figma.com/mcp");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a genuine customization carrying annotations is STILL preserved", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-annot-keep-"));
+    try {
+      const claudeJsonPath = join(dir, "claude.json");
+      // The real context7 case: user switched to the hosted HTTP endpoint with
+      // their own key. Differs in real fields, so it must keep winning.
+      const mine = {
+        type: "http",
+        url: "https://mcp.context7.com/mcp",
+        headers: { CONTEXT7_API_KEY: "secret" },
+        _status: "core",
+      };
+      await writeFile(claudeJsonPath, JSON.stringify({ mcpServers: { context7: mine } }), "utf8");
+      const teamMcp = { context7: { command: "bunx", args: ["-y", "@upstash/context7-mcp"] } };
+
+      const overridden = await installMcpToClaudeJson(teamMcp, claudeJsonPath);
+      expect(overridden).toEqual(["context7"]);
+
+      const written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(written.mcpServers.context7.headers.CONTEXT7_API_KEY).toBe("secret");
+      expect(written.mcpServers.context7.command).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("annotation stripping is a closed list, not a `_` prefix test", () => {
+  // An unknown `_`-prefixed field may be a real Claude Code extension we don't
+  // model yet. Treating it as decoration would let the merge silently overwrite
+  // it, so it must still register as a divergence.
+  test("unknown `_` field still counts as functional", () => {
+    expect(functionalKey({ command: "x", _futureFlag: true })).not.toBe(
+      functionalKey({ command: "x" }),
+    );
+    expect(divergingFields({ command: "x", _futureFlag: true }, { command: "x" })).toEqual([
+      "_futureFlag",
+    ]);
+  });
+
+  test("every documented commentary key is ignored", () => {
+    const bare = { command: "x" };
+    const annotated = {
+      command: "x",
+      _comment: "c",
+      _description: "d",
+      _usage: "u",
+      _contextCost: "low",
+      _status: "core",
+    };
+    expect(functionalKey(annotated)).toBe(functionalKey(bare));
+  });
+
+  test("serverInstructions is functional, never stripped", () => {
+    expect(functionalKey({ command: "x", serverInstructions: "a" })).not.toBe(
+      functionalKey({ command: "x", serverInstructions: "b" }),
+    );
   });
 });

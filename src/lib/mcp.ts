@@ -89,8 +89,8 @@ function isStaleCcOutput(
   teamEntry: McpServer,
   priorWritten?: McpServer,
 ): boolean {
-  if (canonicalKey(entry) === canonicalKey(teamEntry)) return true;
-  if (priorWritten && canonicalKey(entry) === canonicalKey(priorWritten)) return true;
+  if (functionalKey(entry) === functionalKey(teamEntry)) return true;
+  if (priorWritten && functionalKey(entry) === functionalKey(priorWritten)) return true;
   if (!ENGINE_MANAGED_SERVER_NAMES.has(name)) return false;
   if (!isStdioServer(entry) || !isStdioServer(teamEntry)) return false;
   for (const id of Object.keys(ENGINES)) {
@@ -101,19 +101,64 @@ function isStaleCcOutput(
       args: finalized.mcp.args,
       serverInstructions: finalized.serverInstructions,
     };
-    if (canonicalKey(entry) === canonicalKey(candidate)) return true;
+    if (functionalKey(entry) === functionalKey(candidate)) return true;
   }
   return false;
 }
 
 /**
- * Top-level keys whose values differ between two MCP server definitions, sorted.
- * Compared with canonicalKey so a field-order difference alone never registers
- * as a divergence. A key present on one side only counts as diverging.
+ * `_`-prefixed keys are documentation-only annotations (`_status`, `_comment`,
+ * `_description`, …) that Claude Code ignores and the settings composer strips.
+ * They say nothing about how a server RUNS, so two definitions differing only
+ * in them are the same server.
+ *
+ * This matters because equality here decides ownership. Older installs wrote
+ * `_status`/`_comment` inline; those keys survive in ~/.claude.json and made an
+ * otherwise byte-identical entry compare unequal to ours — so isStaleCcOutput
+ * called it a hand-edit, the merge preserved it, and cc-settings' own updates
+ * to that server could never land again. Comparing on functional fields only
+ * lets those entries be recognized and refreshed, while a genuine customization
+ * (different command/args/url/headers) still differs and is still preserved.
+ */
+// Exactly the keys `mcpCommentary` in src/schemas/mcp.ts documents as
+// commentary. Deliberately a closed list rather than a `_`-prefix test: an
+// unknown `_`-prefixed field might be a real Claude Code extension we don't
+// model yet, and treating it as decoration would let the merge overwrite it.
+// Unknown `_` keys therefore still count as a divergence — fail safe.
+// `serverInstructions` is NOT here; Claude Code reads it, so it is functional.
+const ANNOTATION_KEYS: ReadonlySet<string> = new Set([
+  "_comment",
+  "_description",
+  "_usage",
+  "_contextCost",
+  "_status",
+]);
+
+function stripAnnotations(v: unknown): unknown {
+  const rec = asRecord(v);
+  if (!rec) return v;
+  const out: Record<string, unknown> = {};
+  for (const [k, val] of Object.entries(rec)) {
+    if (!ANNOTATION_KEYS.has(k)) out[k] = val;
+  }
+  return out;
+}
+
+/** canonicalKey over functional fields only — annotation-blind, order-blind. */
+export function functionalKey(v: unknown): string {
+  return canonicalKey(stripAnnotations(v));
+}
+
+/**
+ * Top-level functional keys whose values differ between two MCP server
+ * definitions, sorted. Compared with canonicalKey so a field-order difference
+ * alone never registers as a divergence, and `_`-prefixed annotations are
+ * excluded so they never read as a customization. A key present on one side
+ * only counts as diverging.
  */
 export function divergingFields(a: unknown, b: unknown): string[] {
-  const left = asRecord(a) ?? {};
-  const right = asRecord(b) ?? {};
+  const left = (asRecord(stripAnnotations(a)) ?? {}) as Record<string, unknown>;
+  const right = (asRecord(stripAnnotations(b)) ?? {}) as Record<string, unknown>;
   const names = new Set([...Object.keys(left), ...Object.keys(right)]);
   return [...names].filter((k) => canonicalKey(left[k]) !== canonicalKey(right[k])).sort();
 }
@@ -372,7 +417,7 @@ export async function resolveMcpServers(
   for (const name of Object.keys(teamServers)) {
     const userDef = userServers[name];
     if (userDef === undefined) continue; // not shared — findUserOnlyServers handles it
-    if (canonicalKey(userDef) !== canonicalKey(teamServers[name])) {
+    if (functionalKey(userDef) !== functionalKey(teamServers[name])) {
       diverged.push(name);
       userOverrides[name] = userDef;
     }

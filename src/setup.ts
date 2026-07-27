@@ -67,7 +67,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.10.1"; // engine_explicit is three-state; implicit installs stay implicit
+const VERSION = "12.11.0"; // MCP ownership ignores annotation-only keys; summary shows shadowing
 
 // --- Arg parsing ---------------------------------------------------------
 
