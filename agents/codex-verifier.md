@@ -11,7 +11,6 @@ description: |
 
   RETURNS: Codex's findings on the current diff by severity, or a clear note if the Codex bridge is unavailable
 tools: [Bash, Read]
-disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
 maxTurns: 6
 effort: low
 color: cyan

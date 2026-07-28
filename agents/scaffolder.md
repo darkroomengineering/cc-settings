@@ -12,7 +12,6 @@ description: |
 
   RETURNS: Created files with proper structure, exports, types, and styling scaffolds
 tools: [Read, Write, Edit, Bash, Glob, LS]
-disallowedTools: ["Bash(git push:*)", "Bash(git commit:*)", "Bash(rm:*)"]
 maxTurns: 20
 effort: low
 color: magenta

@@ -12,7 +12,6 @@ description: |
 
   RETURNS: Security report by severity (Critical/High/Medium), secret detection results, remediation steps
 tools: [Read, Grep, Glob, Bash]
-disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)", "Bash(curl:*)"]
 maxTurns: 30
 permissionMode: plan
 effort: high

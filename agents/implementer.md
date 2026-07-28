@@ -31,7 +31,6 @@ description: |
 
   RETURNS: Working code, test results, implementation status, files created/modified
 tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite]
-disallowedTools: ["Bash(git push:*)", "Bash(git commit:*)", "Bash(rm:*)"]
 effort: high
 color: green
 ---

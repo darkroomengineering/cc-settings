@@ -12,7 +12,6 @@ description: |
 
   RETURNS: Test results (pass/fail/skip), coverage reports, test files, failure analysis
 tools: [Read, Write, Edit, Bash, Grep, Glob, LS]
-disallowedTools: ["Bash(git commit:*)", "Bash(git push:*)", "Bash(rm:*)"]
 maxTurns: 30
 effort: medium
 color: cyan

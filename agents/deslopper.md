@@ -15,7 +15,6 @@ description: |
 
   RETURNS: Dead code auto-removed, consolidation recommendations for approval
 tools: [Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet]
-disallowedTools: ["Bash(git push:*)", "Bash(git commit:*)", "Bash(rm:*)"]
 maxTurns: 40
 effort: high
 color: cyan
