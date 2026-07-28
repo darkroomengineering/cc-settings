@@ -27,7 +27,17 @@ You are an expert security reviewer for Darkroom Engineering projects.
 
 ---
 
-**TLDR**: Use `tldr semantic` to find security-sensitive code, `tldr context` for auth flow analysis.
+**TLDR**: Use `tldr context` for auth flow analysis (served by the native-ts engine). `tldr
+semantic` does not exist in the prebuilt binary — for finding security-sensitive code, use the
+opt-in `tldr-code` CLI's BM25 search instead (`~/.claude/code-intel/tldr-code/0.4.0/tldr search
+"<query>" .`, lexical not embedding-based; see `docs/tldr-cheatsheet.md`). The pinned CLI is NOT on
+`PATH` — always invoke it by that absolute path, and if the file does not exist, the tool is not
+installed: say so rather than falling back to a bare `tldr`, which would run an unrelated binary.
+You may also run `~/.claude/code-intel/tldr-code/0.4.0/tldr vuln .` as an additional signal — it
+detects real taint flows but **misclassifies vulnerability
+types** (measured: an `execSync` command injection was reported as `sql_injection`/CWE-89), so
+treat `vuln_type`, `cwe_id`, and `remediation` as untrustworthy — only the `taint_flow` location is
+reliable.
 
 See `docs/security-reference.md` for OWASP detection patterns, secret scanning regex, vulnerability examples, and Darkroom-specific security checks.
 

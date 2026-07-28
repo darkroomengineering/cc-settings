@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.14.0] — 2026-07-28
+
+An opt-in pinned CLI for `tldr-code` (`github.com/parcadei/tldr-code` v0.4.0, a Rust rewrite of the archived `llm-tldr`, shared by its maintainer after we dropped `llm-tldr` for going stale). Evaluated both halves of it separately, because they disagree.
+
+**The CLI is accurate.** `tldr dead . --lang typescript` against this repo returns `dead_functions: []`, `functions_analyzed: 648` — correct, with or without `--lang`.
+
+**The bundled MCP server (`tldr-mcp`) is not — it was rejected.** Pointed at the same repo, it reports live, actively-called symbols (`getCalls`, `getContext` in `src/codemap/callgraph.ts`) as hard `dead_functions`, with `line: 0`. It also returns `status: ok` and `total_functions: 0` on a wrong `language` value — the exact silent-wrong-answer shape v12.9.0 moved the default engine away from. `tldr-mcp` is therefore never installed and never registered as a code-intel engine: `src/lib/code-intel-engine.ts`'s `ENGINES` registry and `DEFAULT_ENGINE_ID` are untouched, `native-ts` stays the MCP engine.
+
+**New — `src/lib/pinned-tools.ts`.** A second pinned-binary installer, separate from `engine-pin.ts`/`code-intel-engine.ts`, for standalone CLI tools that are never MCP engines. Same security posture as the engine pin (checksum is the boundary; a mismatch deletes the download and throws, a missing checksum or network failure fails soft) with two differences the engine pin doesn't need to handle: the release asset is a `.tar.xz` archive, checksum-verified before extraction, and only the `tldr` binary is lifted out of it — `tldr-mcp` and `tldr-daemon` are deliberately left in the deleted staging dir, never written to disk. Asset naming uses Rust target triples, which don't match `platformKey()`, so the descriptor carries its own explicit `platformKey → {triple, sha256}` map for all four supported platforms.
+
+**Opt-in, not automatic.** Nothing downloads on a plain `setup.sh` run. `CC_PINNED_TOOLS=tldr-code bash setup.sh` installs it to `~/.claude/code-intel/tldr-code/0.4.0/tldr`; a failed install warns and does not abort the rest of setup.
+
+Two more measured caveats now documented everywhere the CLI is referenced (`agents/deslopper.md`, `skills/nuclear-review/SKILL.md`, `agents/security-reviewer.md`, `docs/tldr-cheatsheet.md`):
+
+- **It exits 0 even on errors** — `Error: Path not found` and `unrecognized subcommand` both exit 0. Never trust the exit code; the caller has to check that stdout parses as JSON and that `functions_analyzed > 0`. A non-JSON stdout or `functions_analyzed: 0` means the scan did not run, and must be reported as "scan unavailable" — never as "no dead code".
+- **`semantic` is not compiled into the prebuilt binary** (`unrecognized subcommand 'semantic'`). Only `search` (BM25, lexical, not embedding-based) exists. Every doc/agent reference to `tldr semantic` is replaced with `tldr search`.
+- **`vuln` misclassifies vulnerability types.** It found a real taint flow but labelled an `execSync` command injection `sql_injection`/CWE-89. `taint_flow` location is trustworthy; `vuln_type`, `cwe_id`, and `remediation` are not.
+
+`dead_functions` from the CLI is advisory only in `deslopper` and `nuclear-review` regardless of the accuracy measurement above — both agents auto-remove code on the strength of a dead-code pass, so every candidate is still confirmed with `Grep` before removal.
+
 ## [12.13.0] — 2026-07-27
 
 The statusline's `⚡` quota chip is back everywhere except Programa.

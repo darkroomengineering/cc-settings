@@ -50,10 +50,28 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
 > does not implement `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, `semantic`, or `search` — it
 > returns `unsupported-by-native-engine`. That error means **the scan did not run**. Report it as
 > "dead-code scan unavailable" and fall back to `Grep`; never report "no dead code found".
-> The archived `llm-tldr` engine fails the opposite, worse way: its `language` param defaults to
-> `python`, so on a TS repo `dead` returns `total_functions: 0` and `impact` returns
-> `{"status":"ok","callers":[]}` for symbols that have callers. **Before deleting anything on the
-> strength of a zero-caller result, confirm with `Grep`.**
+>
+> **If the opt-in `tldr-code` CLI is installed** (`~/.claude/code-intel/tldr-code/0.4.0/tldr` —
+> see `docs/tldr-cheatsheet.md`), prefer it for the dead-code pass over the native-ts
+> `unsupported-by-native-engine` gap:
+> ```bash
+> ~/.claude/code-intel/tldr-code/0.4.0/tldr dead . --lang typescript
+> ```
+> It **exits 0 even on errors** — never trust its exit code. Check that stdout parses as JSON and
+> that `functions_analyzed > 0`; non-JSON stdout or `functions_analyzed: 0` means the scan did not
+> run and must be reported as "scan unavailable", never as "no dead code". If the binary is absent,
+> keep the native-ts behavior above unchanged — report "scan unavailable" and fall back to `Grep`.
+>
+> **`dead_functions` from `tldr-code` is ADVISORY ONLY — confirm every candidate with `Grep` before
+> removal.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live symbols as dead
+> code; the CLI was measured accurate, which is why we use it, but deslopper auto-removes dead
+> code, so the confirm step is mandatory regardless of engine.
+>
+> The archived `llm-tldr` engine (opt-in via `CC_CODE_INTEL_ENGINE=llm-tldr`) fails a different,
+> worse way: its `language` param defaults to `python`, so on a TS repo `dead` returns
+> `total_functions: 0` and `impact` returns `{"status":"ok","callers":[]}` for symbols that have
+> callers. **Before deleting anything on the strength of a zero-caller result, confirm with
+> `Grep`.**
 
 ---
 
@@ -84,10 +102,11 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
 
 4. **Scan for duplicates**
    ```bash
-   # Semantic search for common patterns
-   tldr semantic "API fetch" .
-   tldr semantic "form validation" .
-   tldr semantic "error handling" .
+   # Lexical (BM25) search for common patterns — requires the opt-in tldr-code
+   # CLI (native-ts has no semantic/search); not embedding-based, so phrase choice matters
+   ~/.claude/code-intel/tldr-code/0.4.0/tldr search "API fetch" .
+   ~/.claude/code-intel/tldr-code/0.4.0/tldr search "form validation" .
+   ~/.claude/code-intel/tldr-code/0.4.0/tldr search "error handling" .
 
    # Exact pattern matches
    grep -r "common pattern" --include="*.ts" --include="*.tsx"
@@ -292,13 +311,15 @@ grep -r "function.*sameName" --include="*.ts" --include="*.tsx"
 grep -r "pattern to find" --include="*.ts" --include="*.tsx"
 ```
 
-### 3. Semantic Duplicates (Suggest)
+### 3. Lexical Duplicates (Suggest)
 ```bash
-# Find code that "fetches user data" regardless of naming
-tldr semantic "fetches user data" .
+# BM25 search (opt-in tldr-code CLI) — lexical, not embedding-based, so this
+# matches shared vocabulary, not paraphrases; `semantic` does not exist in the
+# prebuilt binary
+~/.claude/code-intel/tldr-code/0.4.0/tldr search "fetches user data" .
 
-# Find code that "formats dates"
-tldr semantic "date formatting" .
+# Find code that mentions date formatting
+~/.claude/code-intel/tldr-code/0.4.0/tldr search "date formatting" .
 ```
 
 ### 4. Copy-Paste Indicators (Suggest)

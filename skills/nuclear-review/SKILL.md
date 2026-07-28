@@ -71,6 +71,20 @@ If `dead` returns `unsupported-by-native-engine` (the default engine does not im
 the dead-code pass did not run — do not record "no dead code" as a finding. An empty result from
 `dead` or `impact` is not evidence; confirm with `Grep` before acting on it.
 
+If the opt-in `tldr-code` CLI is installed (`~/.claude/code-intel/tldr-code/0.4.0/tldr` — see
+`docs/tldr-cheatsheet.md`), prefer it for the dead-code pass instead:
+
+```bash
+~/.claude/code-intel/tldr-code/0.4.0/tldr dead . --lang typescript
+```
+
+It **exits 0 even on errors** — never trust its exit code. Check that stdout parses as JSON and
+that `functions_analyzed > 0`; non-JSON stdout or `functions_analyzed: 0` means the scan did not
+run and must be reported as "scan unavailable", never as "no dead code". **`dead_functions` from
+`tldr-code` is ADVISORY ONLY — confirm every candidate with `Grep` before recording it as a
+finding.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live symbols as dead
+code; the CLI was measured accurate, which is why it's used here instead.
+
 ### Phase 1 — Dependency audit (context7)
 
 For each direct dependency in `package.json`, use the `context7` MCP server to verify:

@@ -24,7 +24,16 @@ import {
   ensureEngineInstalled,
   resolveEngine,
 } from "./lib/code-intel-engine.ts";
-import { debug, error, info, palette, showBanner, success, warn } from "./lib/colors.ts";
+import {
+  debug,
+  error,
+  info,
+  palette,
+  progressOk,
+  showBanner,
+  success,
+  warn,
+} from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import {
@@ -52,6 +61,7 @@ import {
   removeManagedMcpServers,
 } from "./lib/mcp.ts";
 import { ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
+import { ensurePinnedTool, TLDR_CODE_TOOL } from "./lib/pinned-tools.ts";
 import { CLAUDE_DIR, hasCommand, isWindows, os } from "./lib/platform.ts";
 import { isInteractive, promptYn } from "./lib/prompts.ts";
 import {
@@ -67,7 +77,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.13.0"; // quota chip renders outside Programa, hidden inside
+const VERSION = "12.14.0"; // opt-in tldr-code pinned CLI (CC_PINNED_TOOLS=tldr-code)
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -273,6 +283,38 @@ async function installDependencies(profile: Profile, engine: EngineDescriptor): 
   }
 }
 
+// --- Pinned CLI tools (opt-in, separate from the code-intel engine) -------
+
+/**
+ * Install opt-in pinned CLI tools requested via CC_PINNED_TOOLS (comma/space
+ * separated tool ids, e.g. `CC_PINNED_TOOLS=tldr-code bash setup.sh`).
+ * Deliberately NOT part of installDependencies / the engine registry above —
+ * these are standalone binaries consumers shell out to directly, never
+ * registered as an MCP engine. Absent the env var, nothing is downloaded.
+ * Fail-soft throughout: a failed tool install must never abort the settings
+ * install.
+ */
+async function installPinnedTools(profile: Profile): Promise<void> {
+  if (process.env.CC_SKIP_DEPS === "1") return;
+  if (profile === "light") return;
+
+  const requested = (process.env.CC_PINNED_TOOLS ?? "").split(/[\s,]+/).filter(Boolean);
+  if (requested.length === 0) return;
+
+  for (const id of requested) {
+    if (id !== TLDR_CODE_TOOL.id) {
+      warn(`Unknown pinned tool '${id}' requested via CC_PINNED_TOOLS — skipping`);
+      continue;
+    }
+    try {
+      const path = await ensurePinnedTool(TLDR_CODE_TOOL, CLAUDE_DIR);
+      if (path) progressOk(`${id} installed at ${path}`);
+    } catch (e) {
+      warn(`pinned tool '${id}' not installed: ${(e as Error).message}`);
+    }
+  }
+}
+
 // --- Auto-update enrollment ----------------------------------------------
 
 /**
@@ -415,6 +457,7 @@ async function runFullInstall(args: Args, engine: EngineDescriptor): Promise<voi
 
   info("Installing dependencies...");
   await installDependencies(args.profile, engine);
+  await installPinnedTools(args.profile);
   printPreflightReport(checkCliTools());
 
   info("Creating backup...");
