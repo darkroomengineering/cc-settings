@@ -77,7 +77,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.15.0"; // Functional DAG required in every plan (docs/functional-dag.md)
+const VERSION = "12.15.1"; // one verified-download primitive; descriptor-driven archive layout
 
 // --- Arg parsing ---------------------------------------------------------
 

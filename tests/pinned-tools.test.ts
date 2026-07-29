@@ -4,9 +4,9 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
-import { platformKey } from "../src/lib/engine-pin.ts";
 import type { PinnedToolDescriptor } from "../src/lib/pinned-tools.ts";
 import { ensurePinnedTool, pinnedToolPath, TLDR_CODE_TOOL } from "../src/lib/pinned-tools.ts";
+import { platformKey } from "../src/lib/platform.ts";
 
 const CONTENT = "fake-tldr-binary-v1";
 const TRIPLE = "fake-triple";
@@ -40,6 +40,7 @@ async function buildFixtureArchive(workDir: string): Promise<Uint8Array> {
 
 function makeTool(
   checksums: Record<string, { triple: string; sha256: string }>,
+  archiveBinPath = `tldr-cli-<TRIPLE>/tldr`,
 ): PinnedToolDescriptor {
   return {
     id: "test-tldr-code",
@@ -47,6 +48,9 @@ function makeTool(
     binName: "tldr",
     // Placeholder never hit — fetch is stubbed in every test below.
     urlTemplate: "https://example.invalid/test-cli-<TRIPLE>.tar.xz",
+    // Matches buildFixtureArchive's layout. Overridable so the wrong-layout
+    // case below can exercise a descriptor that disagrees with its archive.
+    archiveBinPath,
     platforms: checksums,
   };
 }
@@ -72,6 +76,13 @@ afterEach(() => {
 });
 
 describe("TLDR_CODE_TOOL descriptor", () => {
+  // F2: the archive's inner layout used to be hardcoded inside
+  // ensurePinnedTool, so the descriptor could not describe its own asset.
+  test("declares archiveBinPath with a <TRIPLE> token and ends in binName", () => {
+    expect(TLDR_CODE_TOOL.archiveBinPath).toContain("<TRIPLE>");
+    expect(TLDR_CODE_TOOL.archiveBinPath.endsWith(`/${TLDR_CODE_TOOL.binName}`)).toBe(true);
+  });
+
   test("has a 64-char sha256 for all four platform keys", () => {
     const expectedKeys = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"];
     expect(Object.keys(TLDR_CODE_TOOL.platforms).sort()).toEqual(expectedKeys.sort());
@@ -154,6 +165,108 @@ describe("ensurePinnedTool", () => {
         throw new Error("should not be called — binary already installed");
       });
       expect(await ensurePinnedTool(tool, dir)).toBe(dest);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(workDir, { recursive: true, force: true });
+    }
+  });
+
+  // F2 regression: the archive's inner path is descriptor-driven, not hardcoded
+  // to tldr-code's `tldr-cli-<TRIPLE>/` layout. A tool whose archive uses a
+  // different layout must be installable by setting archiveBinPath — and when
+  // the descriptor disagrees with the archive, the warning must name the field
+  // rather than implying the upstream asset is broken.
+  test("archiveBinPath drives extraction — a non-tldr layout installs", async () => {
+    const dir = await tmp();
+    const workDir = await tmp();
+    try {
+      // Archive laid out as `bin/tldr`, nothing like the tldr-code convention.
+      await mkdir(join(workDir, "bin"), { recursive: true });
+      await writeFile(join(workDir, "bin", "tldr"), CONTENT);
+      const archivePath = join(workDir, "other.tar.xz");
+      const proc = Bun.spawn(["tar", "-cJf", archivePath, "-C", workDir, "bin"], {
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+      expect(await proc.exited).toBe(0);
+      const archiveBytes = new Uint8Array(await readFile(archivePath));
+
+      stubFetch(okFetch(archiveBytes));
+      const tool = makeTool(
+        { [platformKey()]: { triple: TRIPLE, sha256: sha256(archiveBytes) } },
+        "bin/tldr",
+      );
+      const dest = await ensurePinnedTool(tool, dir);
+      expect(dest).toBe(pinnedToolPath(tool.id, tool.version, tool.binName, dir));
+      expect(await readFile(dest as string, "utf8")).toBe(CONTENT);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(workDir, { recursive: true, force: true });
+    }
+  });
+
+  // Defense in depth: descriptors are in-source, so a `..` path is not reachable
+  // input today — but the resolved path is renamed into the install location, so
+  // containment is asserted rather than assumed.
+  test("archiveBinPath escaping the staging root ⇒ null, target left untouched", async () => {
+    const dir = await tmp();
+    const workDir = await tmp();
+    try {
+      const archiveBytes = await buildFixtureArchive(workDir);
+      stubFetch(okFetch(archiveBytes));
+
+      // staging is <dir>/code-intel/<id>/<version>/extract-XXXX, so four levels
+      // up is <dir>. Plant a real file there: the escape target must EXIST, or
+      // the containment branch is never reached and the weaker "missing from
+      // archive" branch answers instead.
+      const escapeTarget = join(dir, "escape-target");
+      await writeFile(escapeTarget, "do-not-move-me");
+
+      const tool = makeTool(
+        { [platformKey()]: { triple: TRIPLE, sha256: sha256(archiveBytes) } },
+        "../../../../escape-target",
+      );
+      expect(await ensurePinnedTool(tool, dir)).toBeNull();
+      expect(existsSync(pinnedToolPath(tool.id, tool.version, tool.binName, dir))).toBe(false);
+      // The outside file was neither moved nor consumed.
+      expect(await readFile(escapeTarget, "utf8")).toBe("do-not-move-me");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(workDir, { recursive: true, force: true });
+    }
+  });
+
+  test("archiveBinPath pointing at a directory ⇒ null, nothing installed", async () => {
+    const dir = await tmp();
+    const workDir = await tmp();
+    try {
+      const archiveBytes = await buildFixtureArchive(workDir);
+      stubFetch(okFetch(archiveBytes));
+      // The archive's inner directory exists, but it is not a regular file.
+      const tool = makeTool(
+        { [platformKey()]: { triple: TRIPLE, sha256: sha256(archiveBytes) } },
+        "tldr-cli-<TRIPLE>",
+      );
+      expect(await ensurePinnedTool(tool, dir)).toBeNull();
+      expect(existsSync(pinnedToolPath(tool.id, tool.version, tool.binName, dir))).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(workDir, { recursive: true, force: true });
+    }
+  });
+
+  test("archiveBinPath that disagrees with the archive ⇒ null, nothing installed", async () => {
+    const dir = await tmp();
+    const workDir = await tmp();
+    try {
+      const archiveBytes = await buildFixtureArchive(workDir);
+      stubFetch(okFetch(archiveBytes));
+      const tool = makeTool(
+        { [platformKey()]: { triple: TRIPLE, sha256: sha256(archiveBytes) } },
+        "wrong/place/tldr",
+      );
+      expect(await ensurePinnedTool(tool, dir)).toBeNull();
+      expect(existsSync(pinnedToolPath(tool.id, tool.version, tool.binName, dir))).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
       await rm(workDir, { recursive: true, force: true });

@@ -10,9 +10,11 @@
 // on-disk record, atomicWriteJson, and control-char strip on every value echoed
 // into a terminal banner.
 //
-// SLSA/sigstore provenance is a designed stub (verifyProvenance returns true
-// with a TODO) — the gate exists now so the call site is wired; the real
-// verifier lands later. Until then the checksum pin is the only enforced gate.
+// The download → checksum → provenance state machine itself lives in
+// download-verify.ts, shared with pinned-tools.ts's CLI-tool installer. Both
+// modules used to implement it separately, which put the security boundary in
+// two places (nuclear-review-2026-07-29 F1). This module now owns only what is
+// engine-specific: URL token expansion, the pin record, and the final rename.
 //
 // installedBinaryPath lives HERE, not in code-intel-engine.ts, to keep the
 // dependency one-directional: code-intel-engine value-imports this module and
@@ -20,14 +22,15 @@
 // TYPE back (erased at compile time — no runtime import cycle).
 
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { chmod, readFile, rename, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import type { EngineDescriptor } from "./code-intel-engine.ts";
 import { progressWarn } from "./colors.ts";
+import { downloadAndVerify } from "./download-verify.ts";
 import { hashFileOrNull } from "./hooks-fingerprint.ts";
 import { atomicWriteJson } from "./json-io.ts";
-import { arch, CLAUDE_DIR, platform } from "./platform.ts";
+import { arch, CLAUDE_DIR, platform, platformKey } from "./platform.ts";
 
 // Mirrors hooks-fingerprint.ts:stripControl — the pin record is the file the
 // supply-chain threat model lets an attacker rewrite, and its fields are echoed
@@ -62,12 +65,6 @@ export interface PinRecord {
   installedAt: string;
 }
 
-/** Platform discriminator for checksum lookup — matches the keys an engine
- *  descriptor pins its per-platform checksums under. */
-export function platformKey(): string {
-  return `${platform}-${arch}`;
-}
-
 /** Where a downloaded engine binary is installed:
  *  ~/.claude/code-intel/<id>/<version>/<binName>. Versioned so a pin bump
  *  lands in a fresh path and the old binary can be pruned. Only meaningful for
@@ -92,15 +89,6 @@ function expandUrl(url: string, version: string): string {
       // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder token, not a JS template
       .replaceAll("${arch}", arch)
   );
-}
-
-// Provenance gate — STUB. Designed in now so the install path has the check
-// wired; returns true until a real verifier lands.
-// TODO: verify SLSA L3 provenance + sigstore cosign keyless signature for the
-// downloaded binary before trusting it. The checksum pin in ensurePinnedEngine
-// is the only enforced gate until this is implemented.
-function verifyProvenance(_engine: EngineDescriptor, _binaryPath: string): boolean {
-  return true;
 }
 
 async function writePinRecord(
@@ -140,53 +128,45 @@ export async function ensurePinnedEngine(
   if (engine.install.method !== "download") return null;
   const { checksums, version, url } = engine.install;
 
-  const expected = checksums[platformKey()];
+  const key = platformKey();
+  const expected = checksums[key];
   if (!expected) {
-    progressWarn(`${engine.id}: no pinned checksum for ${platformKey()} — engine not installed`);
+    progressWarn(`${engine.id}: no pinned checksum for ${key} — engine not installed`);
     return null;
   }
 
   const dest = installedBinaryPath(engine, claudeDir);
-  // Already installed and matching the pin — reuse it.
+  // Already installed and matching the pin — reuse it. Compared against the
+  // IN-SOURCE checksum, so a tampered binary can't be made to look valid by
+  // rewriting anything on disk; it simply fails and is re-downloaded.
   if ((await hashFileOrNull(dest)) === expected) return dest;
 
-  await mkdir(dirname(dest), { recursive: true });
-  const tmp = `${dest}.${process.pid}-${Date.now()}.download`;
+  const tmp = await downloadAndVerify({
+    url: expandUrl(url, version),
+    dest,
+    expectedSha256: expected,
+    tmpSuffix: ".download",
+    label: engine.id,
+    kind: "engine",
+    platformKey: key,
+  });
+  if (tmp === null) return null;
 
-  let bytes: ArrayBuffer;
+  // Verified bytes: this engine ships a bare binary, so installation is a move.
+  // The finally covers a failed rename/chmod — ownership of `tmp` passed to us
+  // at the return above, so a throw here would otherwise leave one verified temp
+  // per attempt accumulating next to `dest`. pinned-tools.ts has the equivalent
+  // guard around its extract step.
+  let installed = false;
   try {
-    const res = await fetch(expandUrl(url, version));
-    if (!res.ok) {
-      progressWarn(`${engine.id}: download failed (HTTP ${res.status}) — engine not installed`);
-      return null;
-    }
-    bytes = await res.arrayBuffer();
-  } catch (err) {
-    progressWarn(`${engine.id}: download error (${(err as Error).message}) — engine not installed`);
-    return null;
+    await rename(tmp, dest);
+    installed = true;
+    await chmod(dest, 0o755);
+    await writePinRecord(engine, expected, claudeDir);
+    return dest;
+  } finally {
+    if (!installed) await rm(tmp, { force: true }).catch(() => {});
   }
-  await writeFile(tmp, new Uint8Array(bytes));
-
-  // Checksum verification — the security boundary. A mismatch must never reach
-  // disk-as-installed; delete the temp and throw so the failure is loud.
-  const actual = await hashFileOrNull(tmp);
-  if (actual !== expected) {
-    await rm(tmp, { force: true }).catch(() => {});
-    throw new Error(
-      `${engine.id}: checksum mismatch for ${platformKey()} (expected ${expected}, got ${actual ?? "unreadable"}) — refusing to install`,
-    );
-  }
-
-  // Provenance gate (stubbed). Same fail-closed posture as the checksum.
-  if (!verifyProvenance(engine, tmp)) {
-    await rm(tmp, { force: true }).catch(() => {});
-    throw new Error(`${engine.id}: provenance verification failed — refusing to install`);
-  }
-
-  await rename(tmp, dest);
-  await chmod(dest, 0o755);
-  await writePinRecord(engine, expected, claudeDir);
-  return dest;
 }
 
 export async function readPinRecord(claudeDir: string = CLAUDE_DIR): Promise<PinRecord | null> {

@@ -8,10 +8,10 @@ import type { EngineDescriptor } from "../src/lib/code-intel-engine.ts";
 import {
   ensurePinnedEngine,
   installedBinaryPath,
-  platformKey,
   readPinRecord,
   verifyPinnedEngine,
 } from "../src/lib/engine-pin.ts";
+import { platformKey } from "../src/lib/platform.ts";
 
 const CONTENT = "fake-binary-content-v1";
 

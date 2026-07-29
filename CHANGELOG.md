@@ -4,6 +4,35 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.15.1] — 2026-07-29
+
+Fixes F1 and F2 from `docs/audits/nuclear-review-2026-07-29.md`. No behavior change on any success path; one behavior change on a failure path, noted below.
+
+**F1 — the checksum boundary existed twice; now it exists once.** `ensurePinnedEngine` (`engine-pin.ts`) and `ensurePinnedTool` (`pinned-tools.ts`) had each implemented the same state machine: platform-key lookup → temp path → `fetch` → HTTP/network fail-soft → write → hash → **mismatch: remove and throw**. New `src/lib/download-verify.ts` owns it; the two callers now differ only in what they do with the verified bytes — `rename` + pin record for a bare binary, `tar -xf` + lift one file out for an archive. `engine-pin.ts` drops 82 lines to gain 0 new concepts.
+
+The concrete drift this closes: the SLSA/sigstore provenance gate was stubbed on the **engine** path only. A real implementation would have shipped verified engines and left the tool path — a ~55MB third-party Rust binary pulled from a GitHub release — unverified, with nothing failing or warning to say so. The gate now lives in the shared primitive and covers both, so it graduates once for both.
+
+`platformKey()` moved from `engine-pin.ts` to `platform.ts`, beside `platform`/`arch` whose own comment already scoped them to "checksum-key lookups, download-URL templating". This was forced rather than cosmetic: the primitive needs a platform string for its error message, and importing it from `engine-pin.ts` — which imports the primitive back — would have been a runtime import cycle. Re-exporting from the old location was rejected as exactly the thin wrapper this audit flags; the three importers were repointed instead.
+
+**F2 — `PinnedToolDescriptor` was generic in shape and single-purpose in fact.** `ensurePinnedTool` hardcoded `tldr-cli-${triple}/` as the archive's inner directory while the descriptor advertised five configurable fields and no way to express it. A second tool with any other layout would download, checksum, and untar successfully, then fail soft with "expected binary missing from archive" — pointing at upstream packaging for what was really a missing field.
+
+`archiveBinPath` is now a descriptor field taking the same literal `<TRIPLE>` token as `urlTemplate` (`"tldr-cli-<TRIPLE>/tldr"`), both expanded through one `expandTriple` helper so they cannot diverge. **Failure-path change:** when the descriptor disagrees with the archive, the warning now names the field — `"<path> missing from archive — tool not installed (check the descriptor's archiveBinPath)"` — instead of implying a broken asset. Three tests added: the descriptor's own shape, a `bin/tldr` layout installing correctly (proving the generality is real, not decorative), and a wrong `archiveBinPath` failing soft with nothing installed.
+
+**What was deliberately NOT changed.** The audit noted that tool installs anchor their reuse check to an on-disk `.sha256` sidecar while engine installs anchor to an in-source constant, so engines self-heal from binary tampering and tools cannot. Closing that requires pinning the *extracted binary's* sha256 per platform, which requires downloading all four release archives to obtain those digests — checksums cannot be invented, and pinning only the current platform would make the tool uninstallable elsewhere. The asymmetry is instead stated plainly in the module header, which previously claimed to "mirror engine-pin.ts's security discipline" without qualification. It remains outside the documented threat model (`SECURITY.md`: "a targeted attacker with full user-privilege write access") and gated behind opt-in `CC_PINNED_TOOLS`.
+
+**Two hardenings from Codex's cross-model review of this diff**, both cases where the new code didn't honor a contract it had just written down:
+
+- `download-verify.ts` claimed "every failure path either wrote nothing or removes what it wrote," but only cleaned up on the two explicit rejections. A partial `writeFile` or an unexpected throw from hashing would have left an unverified temp file on disk. The temp lifecycle is now a `try`/`finally` with ownership transferring to the caller only on the success return, which also removes the two hand-written `rm` calls.
+- `pinned-tools.ts` now requires the extracted path to resolve *beneath* the staging dir and to be a **regular file**. Codex framed this as traversal/symlink exposure; the sharper reason is internal inconsistency — `tldrCodePath()` already refuses to hand back a symlinked binary on the read path, because a symlink redirects execution somewhere unpinned, so an install path that happily renames a symlink into place made that guard decorative. Descriptors are in-source rather than user or remote input, so this is defense in depth, not a reachable hole.
+
+  Containment is checked with `realpath`, not `startsWith` on a joined path. A lexical test passes `bin/tldr` when the archive contains `bin -> /outside`, because `lstat` only spares the *final* component from symlink resolution; `realpath` collapses every component, so an intermediate link lands outside the root and is rejected. Codex caught this on the second pass, after the first-pass fix used the lexical form.
+
+- A second `rm`-on-failure gap, symmetric to the first: `ensurePinnedEngine` took ownership of the verified temp file and would have leaked one per attempt if `rename`/`chmod` threw. `pinned-tools.ts` already had the equivalent guard around its extract step.
+
+Failure modes are now individually covered: escaped path, non-regular file, and layout mismatch each fail soft with their own message. The escape test plants a real file outside the staging root and asserts it is neither moved nor consumed — an earlier version of it passed for the wrong reason, resolving to a nonexistent path and exercising the "missing from archive" branch instead of the containment branch.
+
+Suite: 1021 → 1026 tests, 0 fail. Typecheck, biome, and skill lint clean.
+
 ## [12.15.0] — 2026-07-29
 
 Every plan now opens with a **Functional DAG** — the recipe-table form from *Cooking for Engineers*: inputs down the left, operations merging rightward, exactly one terminal node.

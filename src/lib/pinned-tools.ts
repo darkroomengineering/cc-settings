@@ -3,12 +3,12 @@
 // that are never registered as an MCP engine (see tldr-code below): opt-in,
 // CLI-only tools that consumers shell out to directly.
 //
-// Mirrors engine-pin.ts's security discipline: checksum is the security
-// boundary. A checksum mismatch deletes the download and THROWS — we never
-// leave an unverified archive extracted on disk. A missing checksum for the
-// current platform, a non-OK HTTP response, a network error, or an extraction
-// failure all fail soft (return null) — the tool simply stays uninstalled and
-// the caller continues.
+// The download → checksum → provenance state machine is NOT implemented here:
+// it lives in download-verify.ts, shared with engine-pin.ts. Checksum remains
+// the security boundary — a mismatch deletes the download and throws, so no
+// unverified archive is ever extracted — and a missing checksum, non-OK HTTP
+// response, network error, or extraction failure all fail soft (return null),
+// leaving the tool uninstalled while the caller continues.
 //
 // Two differences from engine-pin.ts's ensurePinnedEngine that this module
 // exists to handle:
@@ -18,14 +18,33 @@
 //   2. Asset naming uses Rust target triples, which don't match
 //      platform.ts's platformKey() (`darwin-arm64` etc). Each descriptor
 //      carries its own explicit platformKey -> {triple, sha256} map.
+//
+// ONE PLACE THIS IS WEAKER THAN engine-pin.ts, stated plainly rather than
+// implied to be parity: because the descriptor pins the ARCHIVE, there is no
+// in-source checksum for the extracted binary, so the reuse check compares
+// against a `.sha256` sidecar written at install time. engine-pin compares
+// against its in-source constant and therefore self-heals from binary
+// tampering; this path cannot, since an actor able to replace the binary can
+// also rewrite the sidecar. That actor is outside the threat model
+// (SECURITY.md "a targeted attacker with full user-privilege write access"),
+// and this tool is opt-in behind CC_PINNED_TOOLS, so it is a known asymmetry
+// rather than an open hole. Closing it means pinning the extracted binary's
+// sha256 per platform in the descriptor — which also deletes the sidecar
+// mechanism entirely. See nuclear-review-2026-07-29 F2 for the follow-up.
 
 import { existsSync, lstatSync, type Stats } from "node:fs";
-import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { chmod, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve, sep } from "node:path";
 import { progressWarn } from "./colors.ts";
-import { platformKey } from "./engine-pin.ts";
+import { downloadAndVerify } from "./download-verify.ts";
 import { hashFileOrNull } from "./hooks-fingerprint.ts";
-import { CLAUDE_DIR } from "./platform.ts";
+import { CLAUDE_DIR, platformKey } from "./platform.ts";
+
+/** Substitute the literal `<TRIPLE>` token used by both `urlTemplate` and
+ *  `archiveBinPath`. One helper so the two can never diverge in how they
+ *  interpolate. */
+const expandTriple = (template: string, triple: string): string =>
+  template.replaceAll("<TRIPLE>", triple);
 
 export interface PinnedToolPlatform {
   /** Rust target triple used in the release asset filename. */
@@ -41,6 +60,15 @@ export interface PinnedToolDescriptor {
   binName: string;
   /** Release URL containing a literal `<TRIPLE>` placeholder token. */
   urlTemplate: string;
+  /** Path of `binName` INSIDE the extracted archive, relative to the extraction
+   *  root, with the same literal `<TRIPLE>` token `urlTemplate` uses — e.g.
+   *  `"tldr-cli-<TRIPLE>/tldr"`. Required because archive layouts differ per
+   *  project and are not derivable from the other fields. This used to be
+   *  hardcoded to tldr-code's layout inside ensurePinnedTool, so a second tool
+   *  with any other layout failed soft with "expected binary missing from
+   *  archive" — a message that blames upstream packaging for what was really a
+   *  missing descriptor field (nuclear-review-2026-07-29 F2). */
+  archiveBinPath: string;
   /** platformKey() (`darwin-arm64`, …) -> {triple, sha256}. */
   platforms: Record<string, PinnedToolPlatform>;
 }
@@ -57,6 +85,7 @@ export const TLDR_CODE_TOOL: PinnedToolDescriptor = {
   binName: "tldr",
   urlTemplate:
     "https://github.com/parcadei/tldr-code/releases/download/v0.4.0/tldr-cli-<TRIPLE>.tar.xz",
+  archiveBinPath: "tldr-cli-<TRIPLE>/tldr",
   platforms: {
     "darwin-arm64": {
       triple: "aarch64-apple-darwin",
@@ -180,33 +209,16 @@ export async function ensurePinnedTool(
     .catch(() => null);
   if (recordedDigest && (await hashFileOrNull(dest)) === recordedDigest) return dest;
 
-  await mkdir(dirname(dest), { recursive: true });
-  const tmpArchive = `${dest}.${process.pid}-${Date.now()}.tar.xz`;
-  const url = tool.urlTemplate.replaceAll("<TRIPLE>", plat.triple);
-
-  let bytes: ArrayBuffer;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      progressWarn(`${tool.id}: download failed (HTTP ${res.status}) — tool not installed`);
-      return null;
-    }
-    bytes = await res.arrayBuffer();
-  } catch (err) {
-    progressWarn(`${tool.id}: download error (${(err as Error).message}) — tool not installed`);
-    return null;
-  }
-  await writeFile(tmpArchive, new Uint8Array(bytes));
-
-  // Checksum verification — the security boundary. A mismatch must never
-  // reach extraction; delete the temp archive and throw so the failure is loud.
-  const actual = await hashFileOrNull(tmpArchive);
-  if (actual !== plat.sha256) {
-    await rm(tmpArchive, { force: true }).catch(() => {});
-    throw new Error(
-      `${tool.id}: checksum mismatch for ${key} (expected ${plat.sha256}, got ${actual ?? "unreadable"}) — refusing to install`,
-    );
-  }
+  const tmpArchive = await downloadAndVerify({
+    url: expandTriple(tool.urlTemplate, plat.triple),
+    dest,
+    expectedSha256: plat.sha256,
+    tmpSuffix: ".tar.xz",
+    label: tool.id,
+    kind: "tool",
+    platformKey: key,
+  });
+  if (tmpArchive === null) return null;
 
   let staging: string;
   try {
@@ -232,9 +244,43 @@ export async function ensurePinnedTool(
       return null;
     }
 
-    const extractedBinary = join(staging, `tldr-cli-${plat.triple}`, tool.binName);
-    if (!existsSync(extractedBinary)) {
-      progressWarn(`${tool.id}: expected binary missing from archive — tool not installed`);
+    const relBinPath = expandTriple(tool.archiveBinPath, plat.triple);
+
+    // Containment, resolved rather than lexical. A `startsWith` test on the
+    // joined path is not enough: it would accept `bin/tldr` when the archive
+    // contains `bin -> /somewhere-outside`, because only the FINAL component
+    // escapes lstat's symlink-following. realpath collapses every component, so
+    // an intermediate symlink lands outside the staging root and is rejected
+    // here. Descriptors are in-source (not user or remote input) and the archive
+    // is checksum-pinned, so this is defense in depth, not a reachable hole.
+    let realStaging: string;
+    let extractedBinary: string;
+    try {
+      realStaging = await realpath(staging);
+      extractedBinary = await realpath(resolve(staging, relBinPath));
+    } catch {
+      progressWarn(
+        `${tool.id}: ${relBinPath} missing from archive — tool not installed (check the descriptor's archiveBinPath)`,
+      );
+      return null;
+    }
+    if (!extractedBinary.startsWith(realStaging + sep)) {
+      progressWarn(
+        `${tool.id}: archiveBinPath "${tool.archiveBinPath}" resolves outside the archive root — tool not installed`,
+      );
+      return null;
+    }
+
+    // Must be a REGULAR file. tldrCodePath() already refuses to hand back a
+    // symlinked binary on the READ path, because a symlink redirects execution
+    // somewhere unpinned — so the INSTALL path has to agree, otherwise that
+    // guard is decorative: a symlink renamed into place looks like a regular
+    // install target to every later reader. (realpath above has already
+    // collapsed links, so this rejects directories and special files.)
+    if (!lstatSync(extractedBinary).isFile()) {
+      progressWarn(
+        `${tool.id}: ${relBinPath} in archive is not a regular file — tool not installed`,
+      );
       return null;
     }
 
