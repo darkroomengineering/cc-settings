@@ -4,6 +4,45 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.15.0] — 2026-07-29
+
+Every plan now opens with a **Functional DAG** — the recipe-table form from *Cooking for Engineers*: inputs down the left, operations merging rightward, exactly one terminal node.
+
+The problem it fixes: a bulleted plan hides the two things a plan exists to answer — what must finish before a step can start, and what can run at the same time. Both were being reconstructed by hand as a "Dependencies:" line per task and a separately-maintained batch list, which drift from each other the moment the plan changes.
+
+**New — `docs/functional-dag.md`.** The spec: required brace form with a worked example (connector columns verified aligned), authoring rules, five validity checks, and the derivation of parallel batches from the diagram's columns.
+
+The validity checks are the substance — each failure is a plan bug, not a drawing bug:
+
+- an input row no consumer touches = orphan work, or a missing step
+- two terminal nodes = two plans, split them
+- a line re-entering a node to its left = not a plan, split the node into before/after
+- an operation whose label isn't verifiable = a step that can't be estimated
+- no join with 2+ inputs = nothing is parallelizable, and the plan should say so rather than imply batches that don't exist
+
+**Columns are topological levels**, so `## Execution Plan` batches are *read off* the DAG rather than maintained beside it. `docs/parallel-batch-detection.md` (Kahn's level detection, used by maestro) is now cross-linked as the machine form of the same graph, for plans too large to eyeball.
+
+**Escape hatch, deliberately narrow.** The brace form requires contiguous vertical spans, so it cannot draw a node feeding two operations far apart in the ordering — that case, and graphs past ~12 inputs, use `flowchart LR` with identical semantics. Reach for it because the graph needs it, not because the ASCII was fiddly. A boxed-grid variant (image-faithful, denser) is offered for ≤ 6 inputs.
+
+Wired into: `AGENTS.md` ("Every Plan Opens With a Functional DAG" — so Codex/Cursor inherit it too), `agents/planner.md` (RETURNS, core behavior, workflow step 5), `skills/plan-feature` (Phase 5 + the final PRD template), `skills/build` (Phase 2), `skills/orchestrate` (Phase 1 — fan-out piles are the DAG's columns), and `skills/plan-ceo-review`, where a plan arriving *without* a DAG is itself a finding: draw it, then report what the missing joins were hiding.
+
+Scoped to plans. Reviews, audits, retros, and handoffs are unaffected — a handoff may quote the DAG it was working through, but doesn't invent one.
+
+Three ambiguities Codex caught in cross-model review of the first draft, all fixed before landing:
+
+- **`prereq` rows were self-contradictory** — described as gating everything while joining nothing. As written, topological batch detection would treat them as ordinary roots and could schedule `bun install` alongside the work that needs it. They're now specified as a sequential pre-phase (`Batch 0`) explicitly excluded from batch detection, with no edges drawn.
+- **The worked example contradicted its own reading rule** — `token table` and `login form` were called same-column siblings but their labels started at different offsets (26 vs 22). Labels are realigned, and the rule is now precise: an operation's level is the column its *label* sits in, and a line crossing a column without a bracket is routing, not participation.
+- **Duplicate dependency truth in `plan-feature`** — per-task `Dependencies`/`Blocks` metadata feeds the batch algorithm and can't simply be deleted, so Phases 4 and 5 now state that it must match the DAG's joins and that the DAG is authoritative on conflict.
+
+A second Codex pass on the fixed diff found two more, also fixed:
+
+- **"The DAG wins on conflict" was unenforceable** — operations carried prose labels while the machine algorithm keys on task IDs, leaving no deterministic mapping between the two. Operations now take an ID prefix (`T-2 token table`) whenever the plan has task metadata. Inputs stay as paths; IDs belong to operations, because operations are the tasks.
+- **`plan-feature`'s own execution-plan example violated the new terminal-node rule** — it ended on two parallel unverified tasks (E2E + docs). It now ends on `T-9: typecheck + full test run`, and the skill states that the last batch is always the single verification gate, never a fan-out.
+
+One finding was rejected: that `install-fs.ts` preflight should require `docs/functional-dag.md` explicitly. Preflight deliberately checks `docs/` as a directory plus *representative* files (`src/setup.ts`), and enumerates no individual docs — `architecture-reference.md`, `enhanced-todos.md`, and `thread-types.md` are equally load-bearing and equally unlisted. Special-casing one doc of ~24 would be inconsistent, not safer.
+
+Diagram alignment is machine-verified, not eyeballed: connector columns in the brace example land at 22/40/57/72 with matching `┐├┘` per column, and the boxed-grid variant is a uniform 59 columns wide.
+
 ## [12.14.0] — 2026-07-28
 
 An opt-in pinned CLI for `tldr-code` (`github.com/parcadei/tldr-code` v0.4.0, a Rust rewrite of the archived `llm-tldr`, shared by its maintainer after we dropped `llm-tldr` for going stale). Evaluated both halves of it separately, because they disagree.

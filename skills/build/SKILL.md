@@ -27,10 +27,12 @@ Do not proceed past this gate without an explicit GO verdict.
 
 ## Phase 2: Plan
 
-Create a brief implementation plan:
+Create a brief implementation plan, opening with a `## Functional DAG` (recipe-table brace
+diagram — inputs left, operations merging rightward, one terminal verification node; spec:
+`docs/functional-dag.md`), then:
 - Files to create/modify (with stack-correct paths — `lib/hooks/` for satus, `hooks/` for novus, etc.)
 - Key decisions and rationale
-- Dependency order
+- Dependency order — read off the DAG's columns, not restated by hand
 
 ## Phase 3: Implement
 

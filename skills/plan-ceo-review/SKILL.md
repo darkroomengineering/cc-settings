@@ -157,7 +157,7 @@ C) REDUCE — strip to essentials [default for bug fixes]
 Apply all 10 sections to the plan. For each, provide specific findings with file paths and line numbers where applicable.
 
 ### 1. Architecture Review
-- Dependency graph: what depends on what? Draw it.
+- Functional DAG: what depends on what? Draw it (`docs/functional-dag.md`).
 - Data flows: trace data from entry to persistence to display
 - State machines: identify implicit state transitions, make them explicit
 - Coupling assessment: how tightly coupled are the new pieces?
@@ -315,7 +315,9 @@ At least 5 "bonus chunks" — features or improvements that:
 
 ### Mandatory Diagrams
 Include at least these diagram types where applicable:
-1. Dependency graph
+1. Functional DAG — the plan's own dependency graph (`docs/functional-dag.md`). If the plan
+   under review doesn't have one, that's a finding: draw it, and note what the missing
+   joins were hiding
 2. Data flow (with shadow paths)
 3. State machine
 4. Component hierarchy

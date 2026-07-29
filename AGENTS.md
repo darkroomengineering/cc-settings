@@ -161,6 +161,20 @@ Execution` and the Autonomy Contract in `~/.claude/CLAUDE.md`).
 Claude Code has a specific numeric threshold for this — the delegation heuristic in
 `~/.claude/CLAUDE.md` is the single source for the file/tool-call numbers.
 
+### Every Plan Opens With a Functional DAG
+Any markdown that plans work — plan files, PRDs, ADRs, issue task breakdowns,
+orchestration briefs, and the plan you state before a multi-file change — starts with a
+`## Functional DAG` section: inputs down the left, operations merging rightward, one
+terminal verification node. Recipe-table form, in a fenced code block.
+
+A bullet list hides the two things a plan exists to answer: what must finish before a step
+can start, and what can run at the same time. The DAG shows both in its shape, and the
+parallel batches are read off its columns rather than hand-maintained beside it.
+
+Full spec, authoring rules, validity checks, and the Mermaid escape hatch:
+`docs/functional-dag.md`. Not required for output that isn't a plan (reviews, audits,
+retros, handoffs).
+
 ### Dependency Upgrades
 Before upgrading major dependencies, check for breaking changes. If an upgrade breaks the build, **rollback immediately** to the working version. Rollback first, research the migration, then try again with a plan.
 

@@ -151,7 +151,9 @@ Write user stories with acceptance criteria.
 
 #### Phase 4: Task Breakdown
 
-Break into implementable tasks with metadata.
+Break into implementable tasks with metadata. `Dependencies`/`Blocks` feed the batch
+algorithm and must match the Functional DAG's joins from Phase 5 — on conflict the DAG
+wins, so reconcile the metadata to it rather than redrawing to match a stale field.
 
 ```markdown
 ## Tasks
@@ -173,9 +175,16 @@ Break into implementable tasks with metadata.
 
 #### Phase 5: Parallel Batch Detection
 
-Analyze task dependencies to find parallel execution groups using topological sorting.
+Draw the Functional DAG first (`docs/functional-dag.md`) — inputs left, operations merging
+rightward, one terminal verification node — then read the batches off its columns. Same
+column with disjoint inputs = same batch. The DAG is the source; the batch list below is
+its rendering, not a second dependency graph to keep in sync.
 
 ```markdown
+## Functional DAG
+
+[recipe-table brace diagram in a fenced code block — see docs/functional-dag.md]
+
 ## Execution Plan
 
 ### Batch 1 (parallel) — estimated: 25k tokens
@@ -194,9 +203,15 @@ Analyze task dependencies to find parallel execution groups using topological so
 - T-6: E2E tests (depends: T-3)
 - T-8: Documentation (depends: T-3)
 
-Total estimated tokens: 100k
+### Batch 5 (terminal gate) — estimated: 5k tokens
+- T-9: typecheck + full test run (depends: T-6, T-8) — the DAG's single terminal node
+
+Total estimated tokens: 105k
 Estimated context windows: 2
 ```
+
+Every plan ends on the terminal gate, so the last batch is always one verification task
+depending on all preceding work — never a fan-out of unverified parallel tasks.
 
 #### Phase 6: Final PRD
 
@@ -204,6 +219,9 @@ Compile everything into the final document.
 
 ```markdown
 # PRD: [Feature Name]
+
+## Functional DAG
+[from Phase 5 — inputs left, operations merging rightward, one terminal node]
 
 ## Overview
 [1-2 paragraph summary]

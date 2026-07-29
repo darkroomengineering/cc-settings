@@ -155,6 +155,8 @@ Agent(planner, "Break down [task] into phases with dependencies and estimates")
 ```
 
 Produce a phased plan with:
+- A `## Functional DAG` up top (`docs/functional-dag.md`) — the fan-out piles are its
+  columns, so the parallelizable set is read off the diagram instead of guessed
 - Ordered phases with dependencies
 - Token estimates per phase
 - Checkpoint points identified

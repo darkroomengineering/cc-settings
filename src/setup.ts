@@ -77,7 +77,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.14.0"; // opt-in tldr-code pinned CLI (CC_PINNED_TOOLS=tldr-code)
+const VERSION = "12.15.0"; // Functional DAG required in every plan (docs/functional-dag.md)
 
 // --- Arg parsing ---------------------------------------------------------
 
