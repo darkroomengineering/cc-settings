@@ -29,6 +29,7 @@ import {
   error,
   info,
   palette,
+  progressArrow,
   progressOk,
   showBanner,
   success,
@@ -57,7 +58,7 @@ import {
   CLAUDE_JSON_PATH,
   installMcpToClaudeJson,
   type McpServers,
-  mergeSettingsWithMcpPreservation,
+  pruneSettingsMcpServers,
   removeManagedMcpServers,
 } from "./lib/mcp.ts";
 import { ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
@@ -70,14 +71,14 @@ import {
   registerAutoUpdate,
   unregisterAutoUpdate,
 } from "./lib/schedule.ts";
-import { printMergeAccounting } from "./lib/settings-merge.ts";
+import { mergeSettings, printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
 import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.15.2"; // gatherStatus takes InstallPaths; settings-key table drift-tested
+const VERSION = "12.16.0"; // MCP installs to ~/.claude.json only; inert settings.json block pruned
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -178,15 +179,22 @@ async function installSettings(
     return { overridden: [], mcpWritten: null };
   }
 
-  // Full profile path: merge the in-memory composed settings into the user's
-  // settings.json, then install the team MCP block into ~/.claude.json. The
-  // MCP block was validated exactly once — by composeSettings, whose Settings
-  // schema types mcpServers with the McpServers schema.
+  // Full profile path. MCP servers are installed to ~/.claude.json ONLY.
   //
-  // Clone before mutating: the settings.json merger below reads fullComposed,
-  // so the static `tldr` fragment must survive there unchanged. Only the
-  // ~/.claude.json copy gets the resolved engine's command/args/instructions —
-  // this is the single point where the engine swaps in behind the "tldr" name.
+  // Claude Code does not read `mcpServers` from settings.json at user scope —
+  // measured three ways against the real binary (a server present only in
+  // settings.json never appears in `claude mcp list`; with ~/.claude.json
+  // present but lacking the key, `claude mcp list` reports "No MCP servers
+  // configured", so it isn't even a fallback), and corroborated by the official
+  // docs' configuration-locations table, which lists MCP storage as
+  // `~/.claude.json` / `.mcp.json` and never settings.json.
+  //
+  // cc-settings used to write the block to BOTH files, which bought nothing and
+  // cost a second ownership algorithm, a preservation prompt guarding config
+  // nothing reads, and the H9 bug class — a defect whose entire content was the
+  // inert copy disagreeing with the real one. See nuclear-review-2026-07-29 F6.
+  //
+  // Clone before mutating so the composed fragment is not aliased.
   const teamMcp = structuredClone(fullComposed.mcpServers ?? {}) as McpServers;
   const tldrEntry = teamMcp.tldr as McpStdioServer | undefined;
   if (tldrEntry) {
@@ -194,21 +202,26 @@ async function installSettings(
     tldrEntry.args = engine.mcp.args;
     tldrEntry.serverInstructions = engine.serverInstructions;
   }
-  // Feed the engine-mutated teamMcp (not the untouched fullComposed.mcpServers)
-  // into the settings.json merge too, so settings.json and ~/.claude.json never
-  // disagree about which engine backs the "tldr" server (H9) — the merger's
-  // own resolveMcpServers still runs its usual user-wins-on-divergence logic
-  // against THIS mcpServers value, it just starts from the resolved engine
-  // instead of the static config/20-mcp.json fragment.
-  const settingsForMerge: Record<string, unknown> = { ...fullComposed, mcpServers: teamMcp };
-  const accounting = await mergeSettingsWithMcpPreservation(
+  // One-time migration: drop the inert block a prior install wrote into
+  // settings.json. Scoped to entries cc-settings itself wrote (per the
+  // mcp_written sentinel) or that still match what we ship — anything the user
+  // added by hand stays, even though it is equally inert there.
+  const prunedInertMcp = await pruneSettingsMcpServers(userSettingsPath, teamMcp, priorMcpWritten);
+  // mcpServers is deliberately absent from what the merger sees, so it is
+  // neither written nor re-added on top of the prune above.
+  const { mcpServers: _composedMcp, ...settingsForMerge } = fullComposed;
+  const accounting = await mergeSettings(
     userSettingsPath,
-    settingsForMerge,
+    settingsForMerge as Record<string, unknown>,
     userSettingsPath,
     { interactive },
-    priorMcpWritten,
   );
   if (accounting) printMergeAccounting(accounting, { interactive });
+  if (prunedInertMcp.length > 0) {
+    progressArrow(
+      `Removed ${prunedInertMcp.length} inert mcpServers entr${prunedInertMcp.length === 1 ? "y" : "ies"} from settings.json (Claude Code reads ~/.claude.json)`,
+    );
+  }
   const mcpOverridden = await installMcpToClaudeJson(teamMcp, CLAUDE_JSON_PATH, priorMcpWritten);
 
   // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
@@ -624,7 +637,7 @@ async function main(): Promise<number> {
   // a CLI / MCP that's missing from the user's environment. Non-fatal — the
   // skill simply fails at runtime if the user invokes it without the prereq.
   const skillsDir = join(CLAUDE_DIR, "skills");
-  const prereqReports = await reportMissingPrereqs(skillsDir, CLAUDE_DIR).catch(() => []);
+  const prereqReports = await reportMissingPrereqs(skillsDir).catch(() => []);
   const prereqWarnings = formatPrereqWarnings(prereqReports);
   if (prereqWarnings) {
     console.log("");

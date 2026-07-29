@@ -519,11 +519,10 @@ export const STRATEGIES: Record<string, Strategy> = {
  * Pure settings merge: reads existingPath, merges with teamSettings using the
  * per-key strategy table, writes the result to outputPath.
  *
- * `resolvedMcpServers` is the already-computed mcpServers value (team base +
- * any preserved user-only extras). The caller is responsible for running
- * `resolveMcpServers` (from src/lib/mcp.ts) before calling this function and
- * passing the result here. When undefined, mcpServers is merged via the
- * userWinsScalarStrategy fallback like any other unknown key.
+ * `mcpServers` is not special-cased at all: cc-settings never writes it to
+ * settings.json (Claude Code reads user-scope MCP servers from ~/.claude.json —
+ * see src/lib/mcp.ts). A block a user put there themselves is preserved by the
+ * userWinsScalar fallback like any other unknown key.
  *
  * Non-interactive policy (default):
  *   - User-declared keys win for top-level scalars (model, theme, …).
@@ -538,7 +537,6 @@ export const STRATEGIES: Record<string, Strategy> = {
  *   - `env` shallow-merges with user values winning.
  *   - `statusLine` user wins, except when the user's command targets a
  *     removed cc-settings script (then reset to team).
- *   - `mcpServers` is injected from resolvedMcpServers (caller responsibility).
  *
  * Interactive policy (`opts.interactive`):
  *   - Scalar conflicts prompt "keep your value / take team's".
@@ -550,18 +548,12 @@ export async function mergeSettings(
   teamSettings: Record<string, unknown>,
   outputPath: string,
   opts: MergeOptions = {},
-  resolvedMcpServers?: Record<string, unknown>,
 ): Promise<MergeAccounting | null> {
   const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
-  // No existing file → write team as-is (atomic), injecting resolvedMcpServers
-  // if provided (callers may have already resolved servers even for a fresh install).
+  // No existing file → write team as-is (atomic).
   if (!userRaw) {
-    const out =
-      resolvedMcpServers !== undefined
-        ? { ...teamSettings, mcpServers: resolvedMcpServers }
-        : teamSettings;
-    await atomicWriteJson(outputPath, out);
+    await atomicWriteJson(outputPath, teamSettings);
     return null;
   }
 
@@ -601,13 +593,6 @@ export async function mergeSettings(
   // unknown keys fall through to user-wins-scalar.
   const merged: UnknownRecord = {};
   const allKeys = new Set([...Object.keys(teamSettings), ...Object.keys(userRaw)]);
-
-  // mcpServers: injected from the pre-resolved value when provided; otherwise
-  // falls through to the userWinsScalarStrategy like any unknown key.
-  if (resolvedMcpServers !== undefined) {
-    merged.mcpServers = resolvedMcpServers;
-    allKeys.delete("mcpServers");
-  }
 
   for (const key of allKeys) {
     const strategy = STRATEGIES[key] ?? userWinsScalarStrategy;

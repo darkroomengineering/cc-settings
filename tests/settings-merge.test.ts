@@ -6,12 +6,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mergeSettingsWithMcpPreservation } from "../src/lib/mcp.ts";
 import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 import {
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
   hooksStrategy,
+  mergeSettings,
   permissionRuleIsDeprecated,
   permissionsStrategy,
   pruneDeprecatedHooks,
@@ -721,7 +721,7 @@ describe("userWinsScalarStrategy", () => {
 
 // Integration: the merger end-to-end must land a team-only nested default into a
 // user's existing block (regression lock for attribution.sessionUrl, v11.27.0).
-describe("mergeSettingsWithMcpPreservation — nested defaults", () => {
+describe("mergeSettings — nested defaults", () => {
   test("team attribution.sessionUrl lands into a user block that lacks it", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-merge-nested-"));
     try {
@@ -731,7 +731,7 @@ describe("mergeSettingsWithMcpPreservation — nested defaults", () => {
       const outPath = join(dir, "out.json");
       await writeFile(userPath, JSON.stringify(user));
 
-      await mergeSettingsWithMcpPreservation(userPath, team, outPath);
+      await mergeSettings(userPath, team, outPath);
 
       const merged = JSON.parse(await Bun.file(outPath).text());
       expect(merged.attribution).toEqual({ commit: "", pr: "", sessionUrl: false });
@@ -742,7 +742,7 @@ describe("mergeSettingsWithMcpPreservation — nested defaults", () => {
 });
 
 // ---------------------------------------------------------------------------
-// mergeSettingsWithMcpPreservation — safeParse validation of userRaw/teamRaw
+// mergeSettings — safeParse validation of userRaw/teamRaw
 // ---------------------------------------------------------------------------
 //
 // These tests verify the forward-compat safety: when userRaw or teamRaw
@@ -757,7 +757,7 @@ async function cleanup(dir: string): Promise<void> {
   await rm(dir, { recursive: true, force: true });
 }
 
-describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
+describe("mergeSettings — safeParse validation", () => {
   test("valid user + team settings → merges without error", async () => {
     const dir = await makeTmpDir();
     try {
@@ -767,9 +767,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const outPath = join(dir, "out.json");
       await writeFile(userPath, JSON.stringify(user));
 
-      await expect(
-        mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeDefined();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeDefined();
 
       const merged = JSON.parse(await Bun.file(outPath).text());
       // user model wins
@@ -795,9 +793,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       await writeFile(userPath, JSON.stringify(user));
 
       // Must not throw — forward-compat safety
-      await expect(
-        mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeDefined();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeDefined();
 
       // The unknown key should be preserved in the output (user wins via
       // userWinsScalarStrategy fallback)
@@ -817,9 +813,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const outPath = join(dir, "out.json");
       await writeFile(userPath, JSON.stringify(user));
 
-      await expect(
-        mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeDefined();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeDefined();
 
       // teamNewFeature should be present (user has no value → team wins)
       const merged = JSON.parse(await Bun.file(outPath).text());
@@ -836,7 +830,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const userPath = join(dir, "user.json"); // does not exist
       const outPath = join(dir, "out.json");
 
-      await expect(mergeSettingsWithMcpPreservation(userPath, team, outPath)).resolves.toBeNull();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeNull();
 
       const out = JSON.parse(await Bun.file(outPath).text());
       expect(out.model).toBe("claude-opus-4-5");

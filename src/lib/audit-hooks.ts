@@ -31,12 +31,12 @@
 //   nothing found → exit 0
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { HooksBlock } from "../schemas/hooks.ts";
 import { parseHookCommand, SHELL_SEGMENT_SEP_RE } from "./hook-command.ts";
 import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
 import { readJsonOrNull } from "./json-io.ts";
-import { CLAUDE_DIR } from "./platform.ts";
+import { CLAUDE_DIR, installPaths } from "./platform.ts";
 
 export type HookSeverity = "trusted" | "unknown" | "stale" | "suspicious";
 
@@ -78,6 +78,11 @@ export type AuditFinding = HookFinding | SchemaFinding;
  */
 export interface EnvMcpFinding {
   area: "env" | "mcpServers";
+  /** Resolved path of the file this was found in. Both scanned files' findings
+   *  are merged, so without this a reader is told to clean up the wrong file —
+   *  MCP servers live in ~/.claude.json, not settings.json. A resolved path
+   *  rather than a label, so auditing a staging install names staging files. */
+  source: string;
   /** env var name, or mcpServers server name. */
   key: string;
   /** The scanned value: the env var's value, or "command arg1 arg2 ..." for an MCP server. */
@@ -273,9 +278,11 @@ function matchSuspicious(cmd: string): string[] {
 // an obvious injected payload there doesn't sail through every layer
 // clean. It deliberately does NOT feed the hooks-block fingerprint or the
 // src content manifest — those stay scoped to `hooks` (see SECURITY.md).
-function scanEnv(env: unknown): EnvMcpFinding[] {
+type UnsourcedEnvMcpFinding = Omit<EnvMcpFinding, "source">;
+
+function scanEnv(env: unknown): UnsourcedEnvMcpFinding[] {
   if (!env || typeof env !== "object") return [];
-  const findings: EnvMcpFinding[] = [];
+  const findings: UnsourcedEnvMcpFinding[] = [];
   for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
     if (typeof value !== "string") continue;
     const reasons = matchSuspicious(value);
@@ -286,9 +293,9 @@ function scanEnv(env: unknown): EnvMcpFinding[] {
   return findings;
 }
 
-function scanMcpServers(mcpServers: unknown): EnvMcpFinding[] {
+function scanMcpServers(mcpServers: unknown): UnsourcedEnvMcpFinding[] {
   if (!mcpServers || typeof mcpServers !== "object") return [];
-  const findings: EnvMcpFinding[] = [];
+  const findings: UnsourcedEnvMcpFinding[] = [];
   for (const [name, server] of Object.entries(mcpServers as Record<string, unknown>)) {
     if (!server || typeof server !== "object") continue;
     const srv = server as Record<string, unknown>;
@@ -309,10 +316,10 @@ function scanMcpServers(mcpServers: unknown): EnvMcpFinding[] {
 /** Scan settings.env values and settings.mcpServers command/args for the same
  *  malware signatures the hook auditor uses. See H12 — classification only,
  *  no fingerprint/manifest coverage. */
-export function auditEnvAndMcp(settings: unknown): EnvMcpFinding[] {
+export function auditEnvAndMcp(settings: unknown, source = "settings.json"): EnvMcpFinding[] {
   if (!settings || typeof settings !== "object") return [];
   const s = settings as Record<string, unknown>;
-  return [...scanEnv(s.env), ...scanMcpServers(s.mcpServers)];
+  return [...scanEnv(s.env), ...scanMcpServers(s.mcpServers)].map((f) => ({ ...f, source }));
 }
 
 export function classifyHookCommand(
@@ -386,10 +393,47 @@ export function auditHooks(settings: unknown, integrity?: SrcIntegrity | null): 
 /** Sentinel message used when the hooks block doesn't match the schema. */
 export const HOOKS_SCHEMA_VALIDATION_FAILED = "hooks config failed schema validation";
 
-export async function auditSettingsFile(path?: string, claudeDir?: string): Promise<AuditResult> {
+export async function auditSettingsFile(
+  path?: string,
+  claudeDir?: string,
+  // Derived from `claudeDir` when one is supplied — ~/.claude.json is the
+  // SIBLING of ~/.claude, so `dirname(claudeDir)/.claude.json` matches
+  // production exactly. Defaulting to the host file while honoring a fixture
+  // `claudeDir` for everything else is precisely the mixed-source defect
+  // nuclear-review F3 was about; an audit scoped to a fixture directory stays
+  // inside it.
+  claudeJsonPath?: string,
+): Promise<AuditResult> {
   const settingsPath = path ?? join(CLAUDE_DIR, "settings.json");
+  // ~/.claude.json is the SIBLING of ~/.claude. Resolve it from whichever
+  // install this audit is actually scoped to — an explicit override, else the
+  // supplied claudeDir, else the directory holding the supplied settings.json,
+  // and only failing all of those, the host default. Auditing a custom path
+  // while reading the host's ~/.claude.json would both miss the target's MCP
+  // servers and report findings belonging to someone else's install.
+  const effectiveClaudeDir = claudeDir ?? (path ? dirname(settingsPath) : undefined);
+  const resolvedClaudeJsonPath =
+    claudeJsonPath ??
+    (effectiveClaudeDir
+      ? join(dirname(effectiveClaudeDir), ".claude.json")
+      : installPaths().claudeJsonPath);
+
+  // Scanned FIRST, and independently of settings.json, because the two files
+  // fail independently. ~/.claude.json is where user-scope MCP servers actually
+  // execute from (see src/lib/mcp.ts), so an absent or malformed settings.json —
+  // an ordinary state, not an exotic one — must not short-circuit this scan and
+  // report a clean audit while a malicious MCP server sits armed.
+  const claudeJsonParsed = await readJsonOrNull(resolvedClaudeJsonPath).catch(() => null);
+  const claudeJsonFindings = auditEnvAndMcp(claudeJsonParsed, resolvedClaudeJsonPath);
+
   if (!existsSync(settingsPath)) {
-    return { settingsPath, exists: false, totalHooks: 0, findings: [], envMcpFindings: [] };
+    return {
+      settingsPath,
+      exists: false,
+      totalHooks: 0,
+      findings: [],
+      envMcpFindings: claudeJsonFindings,
+    };
   }
 
   // Use canonical readJsonOrNull for ENOENT-vs-parse distinction and
@@ -397,9 +441,16 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
   // bypassed this. Returns null on ENOENT (already guarded above) or bad JSON.
   const parsed = await readJsonOrNull(settingsPath).catch(() => null);
   if (parsed === null) {
-    // Malformed JSON - return empty audit (this is not the file we're trying
-    // to defend against; a broken file is its own problem).
-    return { settingsPath, exists: true, totalHooks: 0, findings: [], envMcpFindings: [] };
+    // Malformed settings.json - no hooks to audit (this is not the file we're
+    // trying to defend against; a broken file is its own problem). The
+    // ~/.claude.json findings still stand on their own.
+    return {
+      settingsPath,
+      exists: true,
+      totalHooks: 0,
+      findings: [],
+      envMcpFindings: claudeJsonFindings,
+    };
   }
 
   // Validate the hooks block against the schema before walking it. A failure
@@ -452,7 +503,10 @@ export async function auditSettingsFile(path?: string, claudeDir?: string): Prom
   const findings: AuditFinding[] = [...extraFindings, ...hookFindings];
   // env/mcpServers are read from the raw parsed settings, not auditInput —
   // they're untouched by the hooks-schema validation above (H12).
-  const envMcpFindings = auditEnvAndMcp(parsed);
+  //
+  // The ~/.claude.json half was gathered before the early returns above, so it
+  // survives an absent or malformed settings.json.
+  const envMcpFindings = [...auditEnvAndMcp(parsed, settingsPath), ...claudeJsonFindings];
   return {
     settingsPath,
     exists: true,
@@ -477,9 +531,64 @@ export function hasStale(result: AuditResult): boolean {
   return result.findings.some((f) => f.severity === "stale");
 }
 
+/** The env/mcpServers findings section. Extracted so the absent-settings.json
+ *  path can render it too — those findings come from ~/.claude.json and stand on
+ *  their own. Returns [] when there is nothing to report. */
+function formatEnvMcpSection(result: AuditResult): string[] {
+  if (result.envMcpFindings.length === 0) return [];
+  const lines: string[] = [`✖ ENV/MCP SUSPICIOUS (${result.envMcpFindings.length}):`];
+  for (const f of result.envMcpFindings) {
+    lines.push(`  [${f.area}] ${f.key} (in ${f.source}): ${f.value}`);
+    for (const r of f.reasons) lines.push(`    → ${r}`);
+  }
+  lines.push(
+    "  Not covered by the hooks-block fingerprint or src content manifest — see SECURITY.md.",
+  );
+  lines.push("");
+  return lines;
+}
+
+/** Remediation footer. Shared by the normal report and the absent-settings.json
+ *  branch — a suspicious MCP server found with no settings.json present still
+ *  needs the guidance. Names the ACTUAL files the findings came from, so a
+ *  staging-install audit does not send the reader to their real home. */
+function formatSecurityFooter(result: AuditResult): string[] {
+  const sources = [...new Set(result.envMcpFindings.map((f) => f.source))];
+  const lines = [
+    "",
+    "Suspicious findings indicate possible supply-chain compromise.",
+    "Remediation:",
+  ];
+  lines.push("  1. Inspect each suspicious entry above — note its command and event/area.");
+  if (sources.length > 0) {
+    lines.push(`  2. Back up the file each finding names: ${sources.join(", ")}.`);
+  } else {
+    lines.push("  2. Back up ~/.claude/settings.json.");
+  }
+  lines.push(
+    "  3. Manually remove the malicious entries from that file's hooks/env/mcpServers block.",
+  );
+  lines.push("  4. Re-run setup.sh from cc-settings to refresh the fingerprint.");
+  lines.push("  5. Investigate which npm/pypi package introduced it.");
+  lines.push("");
+  lines.push("See SECURITY.md in the cc-settings repo for the full threat model.");
+  return lines;
+}
+
 export function formatAuditReport(result: AuditResult): string {
-  if (!result.exists) {
+  // An absent settings.json is only "nothing to audit" when the OTHER scanned
+  // file is clean too. ~/.claude.json is audited independently, so suppressing
+  // the whole report here would exit non-zero while naming neither the malicious
+  // server nor the remediation.
+  if (!result.exists && result.envMcpFindings.length === 0) {
     return `No settings.json at ${result.settingsPath} — nothing to audit.`;
+  }
+  if (!result.exists) {
+    const lines = [`No settings.json at ${result.settingsPath} — no hooks to audit.`, ""];
+    lines.push(...formatEnvMcpSection(result));
+    lines.push(`Summary: ${result.envMcpFindings.length} env/mcp suspicious.`);
+    lines.push(...formatSecurityFooter(result));
+    return lines.join("\n");
   }
 
   const lines: string[] = [];
@@ -526,33 +635,14 @@ export function formatAuditReport(result: AuditResult): string {
   // Own section, separate from the hooks findings above — env/mcpServers
   // have no shipped-pattern/manifest concept, so this is pattern-match
   // classification only (H12), not equivalent to the hooks trust tiers.
-  if (result.envMcpFindings.length > 0) {
-    lines.push(`✖ ENV/MCP SUSPICIOUS (${result.envMcpFindings.length}):`);
-    for (const f of result.envMcpFindings) {
-      lines.push(`  [${f.area}] ${f.key}: ${f.value}`);
-      for (const r of f.reasons) lines.push(`    → ${r}`);
-    }
-    lines.push(
-      "  Not covered by the hooks-block fingerprint or src content manifest — see SECURITY.md.",
-    );
-    lines.push("");
-  }
+  lines.push(...formatEnvMcpSection(result));
 
   lines.push(
     `Summary: ${grouped.trusted.length} trusted, ${grouped.stale.length} stale, ${grouped.unknown.length} unknown, ${grouped.suspicious.length} suspicious, ${result.envMcpFindings.length} env/mcp suspicious.`,
   );
 
   if (grouped.suspicious.length > 0 || result.envMcpFindings.length > 0) {
-    lines.push("");
-    lines.push("Suspicious findings indicate possible supply-chain compromise.");
-    lines.push("Remediation:");
-    lines.push("  1. Inspect each suspicious entry above — note its command and event/area.");
-    lines.push("  2. Back up ~/.claude/settings.json.");
-    lines.push("  3. Manually remove the malicious entries from the hooks/env/mcpServers block.");
-    lines.push("  4. Re-run setup.sh from cc-settings to refresh the fingerprint.");
-    lines.push("  5. Investigate which npm/pypi package introduced it.");
-    lines.push("");
-    lines.push("See SECURITY.md in the cc-settings repo for the full threat model.");
+    lines.push(...formatSecurityFooter(result));
   }
 
   return lines.join("\n");

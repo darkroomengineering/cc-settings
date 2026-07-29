@@ -8,8 +8,8 @@ Complete reference for all settings in `settings.json` and related configuration
 
 | File | Scope | Contains |
 |------|-------|----------|
-| `config/*.json` (project repo) | Team-shared, checked into git | Settings fragments (core, mcp, permissions, hooks) composed at install time |
-| `~/.claude.json` | Per-user, machine-local | Personal MCP servers, user-specific overrides |
+| `config/*.json` (project repo) | Team-shared, checked into git | Settings fragments (core, mcp, permissions, hooks) composed at install time. The `mcp` fragment is routed to `~/.claude.json`, not `settings.json` |
+| `~/.claude.json` | Per-user, machine-local | **All user-scope MCP servers** — team-installed and personal alike — plus user-specific Claude Code state |
 | `~/.claude/CLAUDE.md` | Per-user, global instructions | Behavioral instructions loaded into every session |
 | `<project>/CLAUDE.md` | Per-project instructions | Project-specific behavioral instructions |
 
@@ -581,7 +581,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `includeGitInstructions` | boolean | G | Inject built-in git workflow instructions into the system prompt |
 | `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
 | `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
-| `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports) |
+| `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports). **Claude Code does not read this from `settings.json` at user scope** — user-scope servers live in `~/.claude.json`, project-scope in `.mcp.json`. Typed here because cc-settings' `config/20-mcp.json` fragment carries the block through composition on its way to `~/.claude.json`; setting it in `settings.json` by hand has no effect |
 | `minimumVersion` | string | E | Minimum Claude Code version required; older clients are blocked |
 | `model` | string | G | Default model for all sessions (e.g. `"opus"`, `"sonnet"`) |
 | `modelOverrides` | Record\<string,unknown\> | G | Map model picker entries to custom provider model IDs (v2.1.105) |
@@ -941,7 +941,15 @@ Configuration for auto-mode classifier behavior. cc-settings does not set this �
 
 MCP (Model Context Protocol) servers extend Claude Code with external tool capabilities.
 
-### Team-Shared MCP Servers (in `settings.json`)
+Both team and personal servers end up in the same file: **`~/.claude.json`**. That is
+where Claude Code reads user-scope MCP servers from — `settings.json` is not an MCP
+location, and a block placed there has no effect (see the `mcpServers` row in the key
+table). Team servers are *authored* in the repo fragment and *installed* to
+`~/.claude.json`; personal servers are written there directly.
+
+### Team-Shared MCP Servers (authored in `config/20-mcp.json`)
+
+cc-settings composes this fragment and installs it into `~/.claude.json`:
 
 ```json
 {
@@ -1031,7 +1039,9 @@ and its `language` parameter defaults to `python` — see
 
 ### Per-User MCP Servers (in `~/.claude.json`)
 
-Personal MCP servers that should not be shared with the team go in `~/.claude.json`:
+Personal MCP servers that should not be shared with the team go in the same file, added
+by hand or with `claude mcp add`. The installer preserves them: it spreads your existing
+entries last, so anything cc-settings does not ship is left untouched.
 
 ```json
 {
@@ -1103,7 +1113,7 @@ Running `setup.sh` against an existing `~/.claude/settings.json` performs a **fi
 | `permissions.defaultMode` / `permissions.autoMode` | **User wins when declared.** |
 | `hooks` | **Per-event union of groups.** Team's hooks (the ones that power cc-settings) run alongside any hooks you've added. Dedupe by structural equality. |
 | `env` | **Shallow merge, user wins on conflict.** Your local `ENABLE_PROMPT_CACHING_1H=0` or debug flags stick across re-installs. |
-| `mcpServers` | Interactive prompt per user-only server (unchanged behavior — see below). Override with `CC_WIPE_CUSTOM_MCP=1`. |
+| `mcpServers` | **Not written to `settings.json` at all** (since v12.16.0). Claude Code reads user-scope MCP servers from `~/.claude.json`, so that is the only file the installer touches; servers you added there are preserved by construction (the installer spreads your existing entries last). A block left in `settings.json` by an older install is removed on the next install — except entries you added yourself, which are kept. |
 
 At the end of a merge the installer logs a one-line summary, e.g. `✓ Preserved user customization: 3 permission rule(s), 1 env override(s)`.
 
@@ -1117,7 +1127,7 @@ Run `bash setup.sh --interactive` (or `CC_INTERACTIVE=1 bash setup.sh`) to get f
 | `Team added N new allow rule(s) since your last install. Adopt these?` | Team's `permissions.allow` contains rules you don't have locally. Same prompt appears for `ask` and `additionalDirectories`. |
 | `Team added N hook group(s) for <event>. Adopt these?` | Team registered new hook groups you don't have. |
 
-`deny` rules, MCP servers, and user-only entries never prompt — denies are guardrails, MCP has its own dedicated prompt (kept from before), and user-only entries are strictly additive.
+`deny` rules and user-only entries never prompt — denies are guardrails and user-only entries are strictly additive. MCP servers no longer prompt either: the prompt (and its `CC_WIPE_CUSTOM_MCP=1` override) existed to protect the `settings.json` copy, which Claude Code never read. `~/.claude.json` needs no prompt because your entries are preserved structurally.
 
 Hitting Enter on every prompt accepts the default (take team addition / keep your value), which reproduces the non-interactive output exactly. So `--interactive` is a safe way to see what the installer *would* do before committing.
 

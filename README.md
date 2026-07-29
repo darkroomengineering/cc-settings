@@ -8,7 +8,7 @@ Claude Code configuration for the Darkroom team — installs agents, skills, hoo
 
 - **One-command install** — drops shared agents, skills, hooks, and standards into ~/.claude
 - **Subagents & skills** — 10 specialized subagents and a curated, auto-invocable skill library
-- **Composed settings** — settings.json assembled from modular config: permissions, hooks, and MCP servers
+- **Composed settings** — settings.json assembled from modular config: permissions and hooks. The MCP fragment is installed to `~/.claude.json`, the only file Claude Code loads user-scope MCP servers from
 - **Non-destructive** — existing permissions, custom hooks, and local overrides survive re-installs
 - **One-command rollback** — restore the previous backup if anything looks off
 - **Tamper detection** — a fingerprint plus audit guard the hooks against supply-chain attacks

@@ -216,7 +216,7 @@ export async function cmdDryRun(
         src,
         `→ ~/.claude/${dest}`,
       ]),
-      ["config/", "→ ~/.claude/settings.json (composed + MCP-merged)"],
+      ["config/", "→ ~/.claude/settings.json (composed); MCP block → ~/.claude.json"],
       ["src/", "→ ~/.claude/src/ (all TS)"],
       ...PROFILE_MANIFEST.full.dirs.map((d): [string, string] => [`${d}/`, `→ ~/.claude/${d}/`]),
     ];

@@ -1,28 +1,39 @@
-// MCP server detection, preservation, and merging — port of lib/mcp.sh.
+// MCP server installation — ~/.claude.json is the only destination.
+//
+// WHY ONLY ~/.claude.json: Claude Code does not read `mcpServers` from
+// settings.json at user scope. Measured three ways against the real binary — a
+// server defined only in settings.json never appears in `claude mcp list`; with
+// ~/.claude.json present but lacking the key, `claude mcp list` reports "No MCP
+// servers configured" (so settings.json isn't even a fallback); and the official
+// docs' configuration-locations table lists MCP storage as `~/.claude.json` /
+// `.mcp.json`, never settings.json.
+//
+// cc-settings wrote the block to BOTH files until v12.16.0. That bought nothing
+// and cost: a second ownership algorithm, an interactive preservation prompt
+// guarding config nothing reads, and the H9 bug class — a defect whose entire
+// content was the inert copy disagreeing with the real one. Removed per
+// nuclear-review-2026-07-29 F6; pruneSettingsMcpServers below cleans up the
+// block prior installs left behind.
 //
 // The critical invariants (inherited from the bash hardening pass):
 //   1. Unparseable JSON → abort loudly. Never fall through to a cp that wipes
 //      user-only MCPs.
 //   2. All writes are atomic (tmp + rename, same directory).
-//   3. CC_WIPE_CUSTOM_MCP=1 is the ONLY way to drop user-only servers without
-//      an interactive confirmation.
+//   3. User-only servers in ~/.claude.json survive by CONSTRUCTION, not by
+//      prompt: installMcpToClaudeJson spreads existing entries last
+//      (`{...teamMcp, ...effectiveCurrentMcp}`), so anything we don't ship is
+//      untouched. This is why removing the settings.json prompt cost no
+//      protection — the prompt only ever guarded the inert copy.
 //
 // Validation uses zod schemas:
 //   - McpServers shape from src/schemas/mcp.ts (discriminated stdio vs http).
 //   - ~/.claude.json uses a loose schema (Claude-Code-owned state we don't edit).
 //
 // Responsibilities of this file:
-//   1. User-only server detection (findUserOnlyServers)
-//   2. User-server preservation prompt (promptPreserveUserServers)
-//   3. MCP-preservation resolution (resolveMcpServers) — computes the final
-//      merged mcpServers object (team base + any user-only extras the user
-//      chose to keep). Extracted from the old settings-merge.ts orchestrator so
-//      settings-merge.ts stays free of MCP knowledge.
-//   4. settings.json merge entry point (mergeSettingsWithMcpPreservation) — the
-//      thin wrapper that calls resolveMcpServers then delegates to the pure
-//      mergeSettings function in settings-merge.ts.
-//   5. ~/.claude.json installation (installMcpToClaudeJson) and removal of
+//   1. ~/.claude.json installation (installMcpToClaudeJson) and removal of
 //      cc-settings-managed servers on light installs (removeManagedMcpServers)
+//   2. One-time cleanup of the inert settings.json block
+//      (pruneSettingsMcpServers)
 //
 // Generic JSON/atomic-file I/O moved to src/lib/json-io.ts; the pure settings.json
 // merge strategies + orchestrator live in src/lib/settings-merge.ts.
@@ -33,12 +44,10 @@ import type { z } from "zod";
 import type { McpStdioServer } from "../schemas/mcp.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { ENGINES, getEngine } from "./code-intel-engine.ts";
-import { debug, info, success, warn } from "./colors.ts";
+import { debug } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 import { CLAUDE_DIR } from "./platform.ts";
-import { promptYn } from "./prompts.ts";
-import { type MergeAccounting, type MergeOptions, mergeSettings } from "./settings-merge.ts";
 
 type McpServer = z.infer<typeof McpServersSchema>[string];
 export type McpServers = Record<string, McpServer>;
@@ -144,100 +153,26 @@ function stripAnnotations(v: unknown): unknown {
   return out;
 }
 
+/** True when two entries carry the same annotation keys and values. Used only by
+ *  pruneSettingsMcpServers: functional equality decides whether an entry RUNS the
+ *  same, but an annotation the user added is content they authored, and deleting
+ *  it needs a higher bar than "runs the same as ours". */
+function annotationsMatch(a: unknown, b: unknown): boolean {
+  const pick = (v: unknown): Record<string, unknown> => {
+    const rec = asRecord(v);
+    if (!rec) return {};
+    const out: Record<string, unknown> = {};
+    for (const k of ANNOTATION_KEYS) if (k in rec) out[k] = rec[k];
+    return out;
+  };
+  return canonicalKey(pick(a)) === canonicalKey(pick(b));
+}
+
 /** canonicalKey over functional fields only — annotation-blind, order-blind. */
 export function functionalKey(v: unknown): string {
   return canonicalKey(stripAnnotations(v));
 }
 
-/**
- * Top-level functional keys whose values differ between two MCP server
- * definitions, sorted. Compared with canonicalKey so a field-order difference
- * alone never registers as a divergence, and `_`-prefixed annotations are
- * excluded so they never read as a customization. A key present on one side
- * only counts as diverging.
- */
-export function divergingFields(a: unknown, b: unknown): string[] {
-  const left = (asRecord(stripAnnotations(a)) ?? {}) as Record<string, unknown>;
-  const right = (asRecord(stripAnnotations(b)) ?? {}) as Record<string, unknown>;
-  const names = new Set([...Object.keys(left), ...Object.keys(right)]);
-  return [...names].filter((k) => canonicalKey(left[k]) !== canonicalKey(right[k])).sort();
-}
-
-// --- User-only server detection --------------------------------------------
-
-export function findUserOnlyServers(userServers: McpServers, teamServers: McpServers): string[] {
-  return Object.keys(userServers).filter((name) => !(name in teamServers));
-}
-
-// --- Preservation workflow ------------------------------------------------
-
-interface PreservationResult {
-  preserved: McpServers;
-  dropped: string[];
-}
-
-/**
- * Interactive prompt flow for user-only MCP servers. Honors CC_WIPE_CUSTOM_MCP=1
- * as the only mechanism that allows silent drop.
- */
-export async function promptPreserveUserServers(
-  userOnly: string[],
-  userServers: McpServers,
-): Promise<PreservationResult> {
-  if (userOnly.length === 0) return { preserved: {}, dropped: [] };
-
-  info(`You have ${userOnly.length} custom MCP server(s) not in the team config:`);
-  console.log("");
-  for (const name of userOnly) console.log(`  - ${name}`);
-  console.log("");
-
-  // Hard opt-out: explicit env var. Everything else defaults to preserve.
-  if (process.env.CC_WIPE_CUSTOM_MCP === "1") {
-    warn(`CC_WIPE_CUSTOM_MCP=1 — dropping ${userOnly.length} custom MCP server(s)`);
-    return { preserved: {}, dropped: userOnly };
-  }
-
-  const keep = await promptYn("Keep these servers? (they'll be merged with team config)", true);
-  if (keep) {
-    success(`Keeping all ${userOnly.length} custom server(s)`);
-    const preserved: McpServers = {};
-    for (const name of userOnly) {
-      const s = userServers[name];
-      if (s) preserved[name] = s;
-    }
-    return { preserved, dropped: [] };
-  }
-
-  warn(`User chose not to preserve — ${userOnly.length} custom MCP server(s) will be dropped`);
-  return { preserved: {}, dropped: userOnly };
-}
-
-// --- ~/.claude.json installer --------------------------------------------
-
-/**
- * Install team MCP servers into `~/.claude.json`, preserving any user servers
- * already present. Conflicts: user servers win for existing keys, team
- * definitions fill in missing ones. Atomic.
- *
- * `teamMcp` is the already-extracted team MCP block. It is validated ONCE
- * upstream: composeSettings schema-checks the composed config/ fragments
- * (Settings.mcpServers = McpServers) and throws on failure, so no re-read or
- * re-validation happens here.
- *
- * Reads ~/.claude.json as an opaque object: unknown Claude-Code-owned state
- * (project memory, auth, etc.) round-trips untouched, and only mcpServers is
- * rewritten. A non-object file throws; a drifted mcpServers entry is preserved
- * raw (see the fallback below).
- *
- * `mcpWritten` is the prior sentinel's record of cc-settings' own definition of
- * each managed server, as of the install that stamped it (see
- * SentinelInfo.mcpWritten) — threaded into isStaleCcOutput so a definition that
- * has since changed doesn't get misclassified as a user hand-edit. Since
- * v12.12.0 this covers every managed server, not just the engine-managed
- * `tldr`: previously any edit to a server's shipped definition orphaned the
- * entry it replaced, which then matched nothing and was preserved forever.
- * Omitted/undefined callers get the original (live-registry-only) detection.
- */
 export async function installMcpToClaudeJson(
   teamMcp: McpServers,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
@@ -379,128 +314,82 @@ export async function removeManagedMcpServers(
 // --- MCP-preserving settings.json merge ----------------------------------
 
 /**
- * Compute the final merged mcpServers value from a user's existing servers and
- * the team's baseline servers. This encapsulates the MCP-preservation semantics
- * that used to live inline in the settings merger:
+ * One-time cleanup: remove the inert `mcpServers` block a pre-v12.16.0 install
+ * wrote into settings.json. Claude Code never read it (see this file's header),
+ * so leaving it behind would be stale config that looks authoritative.
  *
- *   - Team servers form the base.
- *   - Servers present in the user's settings but absent from the team config
- *     are "user-only" extras. The user is prompted to keep or drop them
- *     (or CC_WIPE_CUSTOM_MCP=1 drops them silently).
- *   - Kept user-only servers are overlaid onto the team base.
- *   - Servers present in BOTH configs: if the user's definition differs from
- *     the team's (deep-compared), the user's customization wins — same
- *     "user wins" precedence as installMcpToClaudeJson's `{ ...teamMcp,
- *     ...currentMcp }`. Identical definitions take the team value as-is (no
- *     accounting noise; nothing was actually overridden). Without this, a
- *     user's local tweak to a shared server (e.g. context7 env/args) would be
- *     silently reverted to the team default on every re-install.
+ * Deliberately conservative about what it removes. An entry goes only when we
+ * can show cc-settings put it there:
+ *   - its name + functional shape matches what we ship now, OR
+ *   - it matches what the `mcp_written` sentinel records this installer wrote
+ *     previously (including a prior engine's `tldr` shape).
+ * Anything else — a server the user added by hand — stays, even though it is
+ * equally inert there. Removing a user's line because we believe it useless is
+ * not this function's call to make.
  *
- * @param userServers  McpServers extracted from the user's existing settings.json
- * @param teamServers  McpServers from the composed team config (already validated)
- * @returns            The resolved McpServers to write into the output file
+ * The `mcpServers` key itself is dropped when the prune empties it, so a clean
+ * install leaves no empty object behind. Idempotent: a second run finds nothing.
+ *
+ * @returns names removed (empty when there was nothing to do)
  */
-export async function resolveMcpServers(
-  userServers: McpServers,
-  teamServers: McpServers,
+export async function pruneSettingsMcpServers(
+  settingsPath: string,
+  teamMcp: McpServers,
   mcpWritten?: Record<string, unknown> | null,
-): Promise<McpServers> {
-  const userOnly = findUserOnlyServers(userServers, teamServers);
-  let preserved: McpServers = {};
-  if (userOnly.length > 0) {
-    ({ preserved } = await promptPreserveUserServers(userOnly, userServers));
-  } else {
-    debug("No user-only MCP servers");
-  }
+): Promise<string[]> {
+  // readJsonOrNull throws on unparseable JSON — same fail-loud posture as the
+  // rest of this module. A missing settings.json is simply nothing to prune.
+  const raw = (await readJsonOrNull(settingsPath)) as Record<string, unknown> | null;
+  if (!raw) return [];
+  const existing = raw.mcpServers;
+  if (existing === undefined) return [];
+  // A non-object value is not ours and is not safely mergeable — leave it alone
+  // rather than guess. asRecord() would silently flatten it to {}.
+  if (typeof existing !== "object" || existing === null || Array.isArray(existing)) return [];
 
-  // Shared server names (present in both): preserve the user's definition
-  // when it diverges from the team's. Identical definitions are left to the
-  // team spread below (no-op, same value either way).
-  const diverged: string[] = [];
-  const userOverrides: McpServers = {};
-  for (const name of Object.keys(teamServers)) {
-    const userDef = userServers[name];
-    if (userDef === undefined) continue; // not shared — findUserOnlyServers handles it
-    const teamDef = teamServers[name];
-    if (teamDef === undefined) continue;
-    // Same stale-output test ~/.claude.json gets. settings.json holds its own
-    // copy of the MCP block, and without this check a definition cc-settings
-    // itself wrote on an earlier version reads as a user customization here and
-    // is preserved forever — which is exactly how a pre-v12.8.1 `tldr` entry
-    // survived every reinstall while ~/.claude.json was being updated correctly.
-    if (isStaleCcOutput(name, userDef, teamDef, mcpWritten?.[name] as McpServer | undefined)) {
+  const kept: Record<string, unknown> = {};
+  const removed: string[] = [];
+  for (const [name, entry] of Object.entries(existing)) {
+    // A non-object entry is not something cc-settings wrote, and handing it to
+    // isStaleCcOutput would THROW: for an engine-managed name (`tldr`) that
+    // function reaches `isStdioServer`, which does `"command" in entry`. One
+    // junk entry in an otherwise-parseable settings.json would abort the whole
+    // install. Keep it and move on.
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      kept[name] = entry;
       continue;
     }
-    if (functionalKey(userDef) !== functionalKey(teamDef)) {
-      diverged.push(name);
-      userOverrides[name] = userDef;
-    }
+    const server = entry as McpServer;
+    const teamEntry = teamMcp[name];
+    const priorWritten = mcpWritten?.[name] as McpServer | undefined;
+    // Ours when it matches what we ship now, OR — for a server cc-settings has
+    // since RETIRED, where teamMcp has no entry to compare against — when it
+    // matches what the sentinel records a previous install wrote. Without the
+    // second case a retired server's inert block could never be pruned, and the
+    // ownership evidence disappears on the next sentinel write.
+    // Ownership by RECORDED FACT: matches what the sentinel says we wrote.
+    // Annotation-blind is fine here — provenance is not inferred.
+    const byProvenance =
+      priorWritten !== undefined && functionalKey(server) === functionalKey(priorWritten);
+    // Ownership INFERRED from shape, for a pre-v12.12.0 sentinel with no record.
+    // Requires the annotations to match too: a user who copied our entry and
+    // added their own `_comment` must keep it, and a functional-only comparison
+    // would call that ours and silently drop their note — contradicting this
+    // function's own promise to leave hand-added content alone.
+    const byShape =
+      teamEntry !== undefined &&
+      isStaleCcOutput(name, server, teamEntry, priorWritten) &&
+      annotationsMatch(server, priorWritten ?? teamEntry);
+    const isOurs = byProvenance || byShape;
+    if (isOurs) removed.push(name);
+    else kept[name] = entry;
   }
-  if (diverged.length > 0) {
-    info(`Preserving your customization of ${diverged.length} shared MCP server(s):`);
-    for (const name of diverged) {
-      const fields = divergingFields(userServers[name], teamServers[name]);
-      info(`  - ${name} (differs in: ${fields.join(", ") || "unknown"})`);
-      // A divergence confined to serverInstructions, with command/args identical,
-      // is almost never a deliberate customization — it is this installer's own
-      // output from a version whose instruction text has since changed. Saying so
-      // is the difference between a benign-looking line and an actionable one.
-      if (fields.length === 1 && fields[0] === "serverInstructions") {
-        info(
-          `    Same command/args, only the description text differs — usually a stale entry from an older cc-settings.`,
-        );
-        info(`    Delete "${name}" from mcpServers in settings.json and re-run to re-sync.`);
-      }
-    }
-  }
+  if (removed.length === 0) return [];
 
-  // Team is the base; user-only preserved extras and diverged user overrides
-  // are overlaid on top (user wins on conflict).
-  return { ...teamServers, ...preserved, ...userOverrides };
-}
-
-/**
- * Merge user's existing settings.json with the in-memory team settings object,
- * preserving user-only MCP servers via an interactive (or CC_WIPE_CUSTOM_MCP=1)
- * preservation prompt.
- *
- * This is the thin orchestration wrapper that:
- *   1. Reads + parses the user's mcpServers from the existing settings.json.
- *   2. Calls resolveMcpServers to compute the final merged mcpServers.
- *   3. Delegates the full settings merge to the pure `mergeSettings` function in
- *      settings-merge.ts, passing the resolved mcpServers so the pure merger
- *      doesn't need MCP knowledge.
- *
- * The observable output is byte-identical to the old combined function — same
- * servers preserved, same precedence, same _status handling.
- */
-export async function mergeSettingsWithMcpPreservation(
-  existingPath: string,
-  teamSettings: Record<string, unknown>,
-  outputPath: string,
-  opts: MergeOptions = {},
-  mcpWritten?: Record<string, unknown> | null,
-): Promise<MergeAccounting | null> {
-  // Peek at the user's existing file to extract current mcpServers so we can
-  // run the preservation prompt before the per-key merge loop.
-  // readJsonOrNull throws on unparseable JSON (JsonParseError) — honored here
-  // so bad JSON always aborts rather than silently wiping user MCP config.
-  const userRaw = (await readJsonOrNull(existingPath)) as Record<string, unknown> | null;
-
-  if (!userRaw) {
-    // No existing file — delegate directly; the pure merger writes team as-is.
-    return mergeSettings(existingPath, teamSettings, outputPath, opts);
-  }
-
-  // asRecord: a corrupt string-valued mcpServers degrades to {} instead of
-  // leaking a string into the server merge.
-  const userServers = asRecord(userRaw.mcpServers) as McpServers;
-  const teamServers = asRecord(teamSettings.mcpServers) as McpServers;
-
-  const resolvedMcp = await resolveMcpServers(userServers, teamServers, mcpWritten);
-
-  // Delegate to the pure merger, supplying the already-resolved mcpServers.
-  // The pure merger skips the mcpServers key in its per-key strategy loop and
-  // uses the value we computed here instead.
-  return mergeSettings(existingPath, teamSettings, outputPath, opts, resolvedMcp);
+  const next: Record<string, unknown> = { ...raw };
+  if (Object.keys(kept).length === 0) delete next.mcpServers;
+  else next.mcpServers = kept;
+  await atomicWriteJson(settingsPath, next);
+  debug(`Pruned inert settings.json mcpServers entries: ${removed.join(", ")}`);
+  return removed;
 }

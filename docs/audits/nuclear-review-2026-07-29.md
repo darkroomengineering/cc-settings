@@ -4,8 +4,8 @@
 - **Date:** 2026-07-29
 - **Method:** Phase 0 inline map → prior-audit remediation verification → structural pass on the 40 commits since the last audit → context7 dependency audit → Codex cross-model pass (completed cleanly, 7 findings) → team-knowledge reconciliation (23 notes, corpus reachable) → synthesis.
 - **Baseline:** `docs/audits/nuclear-review-2026-07-20.md` (17 findings). **16 of 17 verified fixed**; the 17th (N3, TypeScript 6→7) is reframed below rather than re-reported. Its Considered/Rejected ledger was honored — nothing in it is re-litigated except one entry whose *stated basis* has gone stale (recorded below).
-- **Result:** 7 findings — 0 high / 4 medium / 1 low / 2 plausible-pending-verification. 4 CONFIRMED, 1 CORRECTED (F4 — see its entry; the filed measurement was wrong), 2 PLAUSIBLE. No source file exceeds 1000 lines. No By-Design escalations.
-- **Remediation status:** F1, F2 landed in v12.15.1 (`4f0d984`). F3, F4 landed in v12.15.2. F5 is a ledger entry (no code). F6, F7 still need the verification each names.
+- **Result:** 7 findings — 0 high / 5 medium / 1 low / 1 plausible-pending-verification. 5 CONFIRMED, 1 CORRECTED (F4 — see its entry; the filed measurement was wrong), 1 PLAUSIBLE. No source file exceeds 1000 lines. No By-Design escalations.
+- **Remediation status:** F1, F2 landed in v12.15.1 (`4f0d984`). F3, F4 landed in v12.15.2 (`9c83642`). F6 measured, promoted to CONFIRMED, and landed in v12.16.0. F5 is a ledger entry (no code). F7 alone still needs the verification it names.
 
 ## Verdict
 
@@ -87,7 +87,27 @@ Nothing material. Cast/`any` density in all five modules added since the last au
 
 ## Plausible — Pending Verification
 
-### F6 (PLAUSIBLE, Codex-only) — dual MCP persistence and the test matrix it forces
+### F6 (CONFIRMED — promoted from PLAUSIBLE, fixed in v12.16.0) — dual MCP persistence, one half of which was inert
+
+> **Resolved 2026-07-29.** This finding was filed PLAUSIBLE precisely because its remedy depended on an external fact neither model had established: which file Claude Code treats as authoritative. That fact was then measured against the real binary in three controlled conditions using a throwaway `HOME`:
+>
+> | Condition | Result |
+> |---|---|
+> | Server in `settings.json` only, `~/.claude.json` also present | server **does not appear** in `claude mcp list` |
+> | Server in `~/.claude.json` only | server **appears** |
+> | Server in `settings.json`, `~/.claude.json` present but with no `mcpServers` key | **"No MCP servers configured"** — so `settings.json` is not even a fallback |
+>
+> Corroborated independently by the official docs' configuration-locations table, which lists MCP storage as `~/.claude.json` / `.mcp.json` and never `settings.json`; no doc sentence links `mcpServers` to `settings.json` (the only `*McpServers*` settings keys are the managed `allowedMcpServers`/`deniedMcpServers` **policy** lists).
+>
+> **Verdict: the `settings.json` copy was inert.** Not a redundant-but-working second source — dead configuration. That promotes the finding from PLAUSIBLE to CONFIRMED and makes the remedy a deletion rather than a trade-off.
+>
+> The decisive detail found while scoping: `setup.ts` fed the same resolved `teamMcp` into both writers specifically so they "never disagree about which engine backs the `tldr` server (H9)". An entire past defect class existed only to keep the inert copy in sync with the real one.
+>
+> Safety was verified before cutting, since the deletion removes an interactive prompt: `installMcpToClaudeJson` merges `{ ...teamMcp, ...effectiveCurrentMcp }`, so user-only servers in `~/.claude.json` survive **by construction**. The prompt, `CC_WIPE_CUSTOM_MCP`, `resolveMcpServers`, `findUserOnlyServers`, and `divergingFields` existed solely to guard the copy nothing read — 214 lines of `mcp.ts` deleted with no loss of protection.
+>
+> Landed in v12.16.0 with a one-time migration (`pruneSettingsMcpServers`) that removes the block prior installs left behind, scoped to entries cc-settings itself wrote. Verified end-to-end against a seeded fake `HOME`: 4 inert entries removed, a hand-added server and an unrelated `model` value preserved, all 4 servers still resolving from `~/.claude.json`.
+
+**Original finding, for the record:**
 Team MCP definitions are composed into `settings.json` *and* written into `~/.claude.json` (`setup.ts:181-192`), which forces two reconciliation paths (`mcp.ts:241`, `mcp.ts:403`), the `mcp_written` sentinel that exists to infer ownership afterward, a `resolvedMcpServers` special branch in the otherwise-generic merger (`settings-merge.ts:522`), and a 1,130-line test file covering the resulting state matrix. The duplication is factual and the cost is visible.
 
 Not confirmed as debt, for two reasons. First, the code documents a deliberate reason: `settings.json` keeps the static `tldr` fragment while `~/.claude.json` receives the resolved engine's command — "the single point where the engine swaps in behind the `tldr` name" (`setup.ts:186-190`). Second, Codex's remedy ("verify Claude Code's current precedence, then delete one write path") rests on an external fact neither model established: which file wins when both define `mcpServers`. The memory note `code-intel-engine-contract` records `mcp_written` as "what lets installer changes reach existing machines," suggesting it is load-bearing.

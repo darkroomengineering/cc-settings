@@ -1,5 +1,10 @@
-// MCP merge integration suites: user-only detection, merge + preserve,
-// and the ~/.claude.json installer.
+// MCP installer suites: the ~/.claude.json installer, annotation-blind
+// ownership equality, and the one-time prune of the inert settings.json block.
+//
+// The user-only-detection / merge-and-preserve / resolveMcpServers suites that
+// used to live here were removed with the code they covered: cc-settings no
+// longer writes mcpServers into settings.json, because Claude Code never read it
+// (nuclear-review-2026-07-29 F6).
 
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -7,14 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ENGINES } from "../src/lib/code-intel-engine.ts";
 import { JsonParseError } from "../src/lib/json-io.ts";
-import {
-  divergingFields,
-  findUserOnlyServers,
-  functionalKey,
-  installMcpToClaudeJson,
-  mergeSettingsWithMcpPreservation,
-  resolveMcpServers,
-} from "../src/lib/mcp.ts";
+import { functionalKey, installMcpToClaudeJson, pruneSettingsMcpServers } from "../src/lib/mcp.ts";
 import { McpServer } from "../src/schemas/mcp.ts";
 
 describe("McpServer schema — cross-shape guard (issue #83)", () => {
@@ -51,518 +49,6 @@ describe("McpServer schema — cross-shape guard (issue #83)", () => {
     // guard — only actual stdio/network key conflicts are rejected.
     const r = McpServer.safeParse({ command: "foo", _description: "docs", alwaysLoad: true });
     expect(r.success).toBe(true);
-  });
-});
-
-describe("mcp — user-only detection", () => {
-  test("findUserOnlyServers returns names in user but not in team", () => {
-    const only = findUserOnlyServers(
-      { a: { command: "x" }, b: { type: "http", url: "https://example.com" } },
-      { a: { command: "y" } },
-    );
-    expect(only).toEqual(["b"]);
-  });
-  test("empty user → empty result", () => {
-    expect(findUserOnlyServers({}, { a: { command: "y" } })).toEqual([]);
-  });
-});
-
-describe("mcp — resolveMcpServers precedence for shared server names", () => {
-  test("Issue #78 regression: divergent user definition of a team-known server wins", async () => {
-    // Both configs define `context7`, but the user has customized it (e.g.
-    // tweaked env/args). Before the fix, resolveMcpServers computed
-    // `{ ...teamServers, ...preserved }` where `preserved` only ever contains
-    // user-ONLY servers (findUserOnlyServers excludes anything present in
-    // teamServers) — so a same-named server's user customization was silently
-    // dropped in favor of the team value, inconsistent with
-    // installMcpToClaudeJson's documented user-wins precedence.
-    const userServers = {
-      context7: {
-        command: "npx",
-        args: ["-y", "@upstash/context7-mcp"],
-        env: { API_KEY: "user-key" },
-      },
-    };
-    const teamServers = {
-      context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] },
-    };
-    const resolved = await resolveMcpServers(userServers, teamServers);
-    expect(resolved.context7).toEqual(userServers.context7);
-    expect(resolved.context7).not.toEqual(teamServers.context7);
-  });
-
-  test("identical shared definitions take the team value (no divergence, no noise)", async () => {
-    const shared = { command: "npx", args: ["-y", "@upstash/context7-mcp"] };
-    const userServers = { context7: { ...shared } };
-    const teamServers = { context7: { ...shared } };
-    const resolved = await resolveMcpServers(userServers, teamServers);
-    expect(resolved.context7).toEqual(teamServers.context7);
-  });
-
-  test("key-order-only differences count as identical (canonical compare)", async () => {
-    const userServers = { context7: { args: ["-y"], command: "npx" } };
-    const teamServers = { context7: { command: "npx", args: ["-y"] } };
-    const resolved = await resolveMcpServers(userServers, teamServers);
-    expect(resolved.context7).toEqual(teamServers.context7);
-  });
-});
-
-describe("mcp — merge + preserve", () => {
-  test("preserves user-only servers and writes atomically (non-interactive: preserves by default)", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-merge-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(
-        existing,
-        JSON.stringify({
-          mcpServers: {
-            shared: { command: "user-override" },
-            "my-custom-mcp": { command: "foo" },
-          },
-        }),
-      );
-      const team = {
-        $schema: "https://json.schemastore.org/claude-code-settings.json",
-        mcpServers: {
-          shared: { command: "team-shared" },
-          context7: { command: "team-context7" },
-        },
-      };
-      // Non-interactive: default is preserve.
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      // Team keys are base; user-only MCPs preserved; user's customization of
-      // a shared server name wins over the team definition (user-wins
-      // precedence, consistent with installMcpToClaudeJson).
-      expect(Object.keys(merged.mcpServers).sort()).toEqual([
-        "context7",
-        "my-custom-mcp",
-        "shared",
-      ]);
-      expect(merged.mcpServers.shared.command).toBe("user-override");
-      expect(merged.mcpServers["my-custom-mcp"].command).toBe("foo");
-      // $schema and other team-root fields survive.
-      expect(merged.$schema).toBe("https://json.schemastore.org/claude-code-settings.json");
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("CC_WIPE_CUSTOM_MCP=1 drops user-only servers silently", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-wipe-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(
-        existing,
-        JSON.stringify({ mcpServers: { "my-custom-mcp": { command: "foo" } } }),
-      );
-      const team = { mcpServers: { a: { command: "b" } } };
-
-      const prev = process.env.CC_WIPE_CUSTOM_MCP;
-      process.env.CC_WIPE_CUSTOM_MCP = "1";
-      try {
-        await mergeSettingsWithMcpPreservation(existing, team, out);
-      } finally {
-        if (prev === undefined) delete process.env.CC_WIPE_CUSTOM_MCP;
-        else process.env.CC_WIPE_CUSTOM_MCP = prev;
-      }
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(Object.keys(merged.mcpServers)).toEqual(["a"]);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("bad user settings.json aborts (parse error), never overwrites output", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-bad-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(existing, "{broken}");
-      const team = { mcpServers: { a: { command: "b" } } };
-      await expect(mergeSettingsWithMcpPreservation(existing, team, out)).rejects.toBeInstanceOf(
-        JsonParseError,
-      );
-      const { existsSync } = await import("node:fs");
-      expect(existsSync(out)).toBe(false);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("no existing user settings → team written as-is", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-new-"));
-    try {
-      const existing = join(sandbox, "does-not-exist.json");
-      const out = join(sandbox, "merged.json");
-      const team = { mcpServers: { a: { command: "b" } } };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged).toEqual({ mcpServers: { a: { command: "b" } } });
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("idempotent: running twice yields identical content", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-idem-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(existing, JSON.stringify({ mcpServers: { custom: { command: "c" } } }));
-      const team = { mcpServers: { a: { command: "b" } } };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const first = await readFile(out, "utf8");
-      // Second run: feed the merged output back as "existing" (what a re-install would see).
-      await mergeSettingsWithMcpPreservation(out, team, out);
-      const second = await readFile(out, "utf8");
-      expect(first).toBe(second);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("preserves user-added permission rules (allow/deny/ask) via union", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-perms-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(
-        existing,
-        JSON.stringify({
-          permissions: {
-            allow: ["Bash(bun:*)", "Bash(docker:*)", "Bash(kubectl:*)"],
-            deny: ["Bash(rm -rf /)", "Bash(sudo:*)"],
-            ask: ["Bash(curl:*)"],
-            defaultMode: "acceptEdits",
-          },
-        }),
-      );
-      const team = {
-        permissions: {
-          allow: ["Bash(bun:*)", "Bash(git:*)"],
-          deny: ["Bash(rm -rf /)"],
-          defaultMode: "default",
-        },
-      };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      // Union: team baseline + user extras, no dupes.
-      expect(merged.permissions.allow).toEqual([
-        "Bash(bun:*)",
-        "Bash(git:*)",
-        "Bash(docker:*)",
-        "Bash(kubectl:*)",
-      ]);
-      // Team deny entries are never lost.
-      expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(sudo:*)"]);
-      // User-only array surfaces.
-      expect(merged.permissions.ask).toEqual(["Bash(curl:*)"]);
-      // Scalar: user wins when declared.
-      expect(merged.permissions.defaultMode).toBe("acceptEdits");
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("team deny rules re-appear even if user removed them", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-deny-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      // User has deleted all team denies locally.
-      await writeFile(existing, JSON.stringify({ permissions: { deny: [] } }));
-      const team = {
-        permissions: { deny: ["Bash(rm -rf /)", "Bash(rm -rf ~)"] },
-      };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(rm -rf ~)"]);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("preserves user hook groups per event while keeping team hooks", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-hooks-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      const teamHook = { hooks: [{ type: "command", command: "team-hook" }] };
-      const userHook = { hooks: [{ type: "command", command: "user-hook" }] };
-      const userStopHook = { hooks: [{ type: "command", command: "user-stop" }] };
-      await writeFile(
-        existing,
-        JSON.stringify({
-          hooks: {
-            PreToolUse: [teamHook, userHook], // one dup, one new
-            Stop: [userStopHook],
-          },
-        }),
-      );
-      const team = { hooks: { PreToolUse: [teamHook] } };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      // Team hook kept, user's new group appended, no dupes.
-      expect(merged.hooks.PreToolUse).toEqual([teamHook, userHook]);
-      // User-only event surfaces.
-      expect(merged.hooks.Stop).toEqual([userStopHook]);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("resets stale statusLine command pointing at removed ~/.claude/scripts/*.sh", async () => {
-    // Regression: pre-v10 cc-settings shipped statusLine as bash
-    // "$HOME/.claude/scripts/statusline.sh". Bash → TS migration replaced
-    // it with bun "$HOME/.claude/src/hooks/statusline.ts". Without explicit
-    // detection the merger preserves the user's stale object via the
-    // { ...teamRaw, ...userRaw } spread, so the bar silently fails to render.
-    // See CHANGELOG v10.4.1.
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-statusline-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-
-      await writeFile(
-        existing,
-        JSON.stringify({
-          statusLine: {
-            type: "command",
-            command: 'bash "$HOME/.claude/scripts/statusline.sh"',
-          },
-        }),
-      );
-      const team = {
-        statusLine: {
-          type: "command",
-          command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
-          refreshInterval: 30,
-        },
-      };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged.statusLine.command).toBe('bun "$HOME/.claude/src/hooks/statusline.ts"');
-      expect(merged.statusLine.refreshInterval).toBe(30);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("preserves user-customized statusLine pointing at a non-deprecated path", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-statusline-keep-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-
-      // User's statusLine points at their own custom script (not a removed
-      // cc-settings path). Should survive intact.
-      await writeFile(
-        existing,
-        JSON.stringify({
-          statusLine: {
-            type: "command",
-            command: 'node "$HOME/scripts/my-status.js"',
-          },
-        }),
-      );
-      const team = {
-        statusLine: {
-          type: "command",
-          command: 'bun "$HOME/.claude/src/hooks/statusline.ts"',
-        },
-      };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged.statusLine.command).toBe('node "$HOME/scripts/my-status.js"');
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("prunes user hooks pointing at removed ~/.claude/scripts/*.sh files", async () => {
-    // Regression: pre-v10.0 cc-settings shipped bash hooks under
-    // ~/.claude/scripts/. The bash → TS migration removed that directory.
-    // Without prune logic, the per-event hook union preserved the dangling
-    // user references forever, producing "No such file or directory" on every
-    // session. See CHANGELOG v10.3.2.
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-stale-hooks-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-
-      // User has the broken bash refs (entire group + a partial group with a
-      // legitimate sibling) plus a legitimate hook that should survive.
-      const staleStop = {
-        hooks: [{ type: "command", command: "bash $HOME/.claude/scripts/compact-reminder.sh" }],
-      };
-      const stalePre = {
-        hooks: [
-          {
-            type: "command",
-            command: 'bash "$HOME/.claude/scripts/check-docs-before-install.sh"',
-          },
-          { type: "command", command: "echo legitimate-sibling" },
-        ],
-      };
-      const userKeep = { hooks: [{ type: "command", command: "user-custom-hook" }] };
-      const teamPre = {
-        hooks: [
-          {
-            type: "command",
-            command: 'bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"',
-          },
-        ],
-      };
-
-      await writeFile(
-        existing,
-        JSON.stringify({
-          hooks: {
-            Stop: [staleStop],
-            PreToolUse: [stalePre, userKeep],
-          },
-        }),
-      );
-      const team = { hooks: { PreToolUse: [teamPre] } };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-
-      // Stop event: only entry was the stale reference → event becomes empty.
-      expect(merged.hooks.Stop).toEqual([]);
-
-      // PreToolUse: team entry survives, stalePre's sibling hook survives in
-      // a partially-pruned group, fully-legitimate userKeep survives.
-      expect(merged.hooks.PreToolUse).toEqual([
-        teamPre,
-        { hooks: [{ type: "command", command: "echo legitimate-sibling" }] },
-        userKeep,
-      ]);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("unknown top-level keys pass through to merged output (strategy-table fallback)", async () => {
-    // Locks in the userWinsScalarStrategy fallback. A field cc-settings
-    // doesn't know about (e.g. some new Claude Code key) should round-trip
-    // without being dropped.
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-fallback-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(existing, JSON.stringify({ futureField: "user-side" }));
-      const team = { teamOnlyField: "team-side", model: "opus" };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged.futureField).toBe("user-side"); // user-only survives
-      expect(merged.teamOnlyField).toBe("team-side"); // team-only survives
-      expect(merged.model).toBe("opus"); // team value (no user override)
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("env user values win on conflict, team fills in missing", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-env-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(
-        existing,
-        JSON.stringify({
-          env: { ENABLE_PROMPT_CACHING_1H: "0", USER_ONLY: "yes" },
-        }),
-      );
-      const team = {
-        env: { ENABLE_PROMPT_CACHING_1H: "1", TEAM_ONLY: "yes" },
-      };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged.env.ENABLE_PROMPT_CACHING_1H).toBe("0"); // user wins
-      expect(merged.env.USER_ONLY).toBe("yes");
-      expect(merged.env.TEAM_ONLY).toBe("yes"); // team fills gap
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("interactive mode with default prompts matches non-interactive output", async () => {
-    // In a non-TTY test env, `promptYn` returns its default. Merge defaults
-    // are "adopt team additions" and "keep user's value" — both of which
-    // match the non-interactive auto-merge semantics. So interactive+defaults
-    // should produce byte-identical output to plain merge (guards against
-    // accidental divergence of the two code paths).
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-interactive-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const autoOut = join(sandbox, "auto.json");
-      const interactiveOut = join(sandbox, "interactive.json");
-      await writeFile(
-        existing,
-        JSON.stringify({
-          model: "opus[1m]",
-          permissions: {
-            allow: ["Bash(bun:*)", "Bash(docker:*)"],
-            deny: ["Bash(sudo:*)"],
-          },
-          env: { DEBUG: "1", LOCAL_ONLY: "yes" },
-        }),
-      );
-      const team = {
-        model: "sonnet",
-        statusLine: "team-bar",
-        permissions: {
-          allow: ["Bash(bun:*)", "Bash(git:*)"],
-          deny: ["Bash(rm -rf /)"],
-        },
-        env: { DEBUG: "0", TEAM_ONLY: "yes" },
-      };
-      await mergeSettingsWithMcpPreservation(existing, team, autoOut);
-      await mergeSettingsWithMcpPreservation(existing, team, interactiveOut, { interactive: true });
-      expect(await readFile(interactiveOut, "utf8")).toBe(await readFile(autoOut, "utf8"));
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("interactive mode: deny rules always auto-apply (guardrail, never prompted)", async () => {
-    // Even if user declined every prompt, deny additions must still land.
-    // We can't easily mock "decline all" in a non-TTY test, so this asserts
-    // via the observed output that new team deny rules merged through.
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-deny-interactive-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(existing, JSON.stringify({ permissions: { deny: [] } }));
-      const team = {
-        permissions: { deny: ["Bash(rm -rf /)", "Bash(sudo:*)"] },
-      };
-      await mergeSettingsWithMcpPreservation(existing, team, out, { interactive: true });
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged.permissions.deny).toEqual(["Bash(rm -rf /)", "Bash(sudo:*)"]);
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
-  });
-
-  test("top-level scalars: user wins when declared", async () => {
-    const sandbox = await mkdtemp(join(tmpdir(), "cc-mcp-scalar-"));
-    try {
-      const existing = join(sandbox, "user-settings.json");
-      const out = join(sandbox, "merged.json");
-      await writeFile(existing, JSON.stringify({ model: "opus[1m]", theme: "dark" }));
-      const team = { model: "sonnet", statusLine: "team" };
-      await mergeSettingsWithMcpPreservation(existing, team, out);
-      const merged = JSON.parse(await readFile(out, "utf8"));
-      expect(merged.model).toBe("opus[1m]"); // user wins
-      expect(merged.theme).toBe("dark"); // user-only
-      expect(merged.statusLine).toBe("team"); // team fills gap
-    } finally {
-      await rm(sandbox, { recursive: true, force: true });
-    }
   });
 });
 
@@ -790,39 +276,6 @@ describe("mcp — claude.json installer", () => {
 // — so nothing on screen distinguished "cc-settings ships this" from
 // "cc-settings' definition is the one running". These two surfaces close that.
 
-describe("divergingFields", () => {
-  test("names the fields that differ", () => {
-    expect(
-      divergingFields(
-        { command: "tldr-mcp", args: ["--project", "."], serverInstructions: "old text" },
-        { command: "tldr-mcp", args: ["--project", "."], serverInstructions: "new text" },
-      ),
-    ).toEqual(["serverInstructions"]);
-  });
-
-  test("identical definitions diverge in nothing", () => {
-    const a = { command: "bunx", args: ["-y", "pkg"] };
-    expect(divergingFields(a, { ...a })).toEqual([]);
-  });
-
-  test("field ORDER alone is not a divergence", () => {
-    expect(
-      divergingFields({ command: "bunx", args: ["-y"] }, { args: ["-y"], command: "bunx" }),
-    ).toEqual([]);
-  });
-
-  test("a key present on one side only counts as diverging", () => {
-    expect(divergingFields({ command: "x" }, { command: "x", env: { A: "1" } })).toEqual(["env"]);
-  });
-
-  test("sorted, and reports every differing field", () => {
-    expect(divergingFields({ command: "a", args: ["1"] }, { command: "b", args: ["2"] })).toEqual([
-      "args",
-      "command",
-    ]);
-  });
-});
-
 describe("installMcpToClaudeJson — reports shadowed shipped servers", () => {
   test("returns the shipped names whose user definition won", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-mcp-override-"));
@@ -881,23 +334,6 @@ describe("functionalKey — annotation-blind equality", () => {
 
   test("functional fields still distinguish", () => {
     expect(functionalKey({ command: "a" })).not.toBe(functionalKey({ command: "b" }));
-  });
-});
-
-describe("divergingFields ignores annotations", () => {
-  test("annotation-only difference is not a divergence", () => {
-    expect(
-      divergingFields(
-        { type: "http", url: "https://x", _status: "core", _comment: "note" },
-        { type: "http", url: "https://x" },
-      ),
-    ).toEqual([]);
-  });
-
-  test("a real customization alongside annotations still reports only real fields", () => {
-    expect(
-      divergingFields({ type: "http", url: "https://mine", _status: "core" }, { command: "bunx" }),
-    ).toEqual(["command", "type", "url"]);
   });
 });
 
@@ -968,9 +404,6 @@ describe("annotation stripping is a closed list, not a `_` prefix test", () => {
     expect(functionalKey({ command: "x", _futureFlag: true })).not.toBe(
       functionalKey({ command: "x" }),
     );
-    expect(divergingFields({ command: "x", _futureFlag: true }, { command: "x" })).toEqual([
-      "_futureFlag",
-    ]);
   });
 
   test("every documented commentary key is ignored", () => {
@@ -1081,50 +514,163 @@ describe("installMcpToClaudeJson — recovery when our own definition changed", 
   });
 });
 
-describe("resolveMcpServers — settings.json gets the same stale-output test", () => {
-  // Codex caught this: extending mcp_written fixed ~/.claude.json only.
-  // settings.json holds its own copy of the MCP block and had NO stale
-  // detection at all, so a definition cc-settings wrote on an older version was
-  // read as a user customization and preserved forever. That is precisely how a
-  // pre-v12.8.1 `tldr` entry survived every reinstall on a real machine while
-  // ~/.claude.json was being updated correctly the whole time.
-  const oldShipped = { command: "tldr-mcp", args: ["--project", "."] };
-  const nowShipped = { command: "bun", args: ["/x/codemap/mcp-server.ts"] };
+// --- F6: one-time prune of the inert settings.json mcpServers block ---------
+//
+// Claude Code reads mcpServers from ~/.claude.json only. Installs before
+// v12.16.0 also wrote it into settings.json, where it did nothing. The prune
+// removes what cc-settings put there and nothing else.
+describe("pruneSettingsMcpServers", () => {
+  const team = { context7: { command: "bunx", args: ["-y", "@upstash/context7-mcp"] } };
 
-  test("prior-shipped definition is replaced, not preserved", async () => {
-    const resolved = await resolveMcpServers(
-      { tldr: oldShipped },
-      { tldr: nowShipped },
-      {
-        tldr: oldShipped,
+  async function withSettings(
+    body: Record<string, unknown>,
+    fn: (path: string) => Promise<void>,
+  ): Promise<void> {
+    const dir = await mkdtemp(join(tmpdir(), "ccprune-"));
+    try {
+      const p = join(dir, "settings.json");
+      await writeFile(p, JSON.stringify(body, null, 2));
+      await fn(p);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("removes an entry cc-settings ships and drops the emptied key", async () => {
+    await withSettings({ model: "opus", mcpServers: { ...team } }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, team)).toEqual(["context7"]);
+      const after = JSON.parse(await readFile(p, "utf8"));
+      expect("mcpServers" in after).toBe(false);
+      expect(after.model).toBe("opus"); // unrelated keys untouched
+    });
+  });
+
+  test("keeps a server the user added by hand", async () => {
+    await withSettings({ mcpServers: { ...team, mine: { command: "my-server" } } }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, team)).toEqual(["context7"]);
+      const after = JSON.parse(await readFile(p, "utf8"));
+      expect(Object.keys(after.mcpServers)).toEqual(["mine"]);
+    });
+  });
+
+  test("recognizes a PRIOR install's shape via mcp_written, not just today's", async () => {
+    const prior = { context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] } };
+    await withSettings({ mcpServers: { ...prior } }, async (p) => {
+      // Shape differs from what we ship now, so only the sentinel identifies it.
+      expect(await pruneSettingsMcpServers(p, team, prior)).toEqual(["context7"]);
+    });
+  });
+
+  test("is idempotent — a second run finds nothing and does not rewrite", async () => {
+    await withSettings({ mcpServers: { ...team } }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, team)).toEqual(["context7"]);
+      const first = await readFile(p, "utf8");
+      expect(await pruneSettingsMcpServers(p, team)).toEqual([]);
+      expect(await readFile(p, "utf8")).toBe(first);
+    });
+  });
+
+  test("no mcpServers key, or a non-object one, is left strictly alone", async () => {
+    await withSettings({ model: "opus" }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, team)).toEqual([]);
+    });
+    // A scalar is not ours and is not safely mergeable — never guess at it.
+    await withSettings({ mcpServers: "nonsense" }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, team)).toEqual([]);
+      expect(JSON.parse(await readFile(p, "utf8")).mcpServers).toBe("nonsense");
+    });
+  });
+
+  // Regression: a non-object entry under an ENGINE-MANAGED name reaches
+  // isStdioServer's `"command" in entry`, which throws on a string. One junk
+  // entry would have aborted the whole install. (A junk entry under any other
+  // name short-circuits earlier, which is why "tldr" specifically is used here.)
+  test("a malformed engine-managed entry is kept, not thrown on", async () => {
+    await withSettings({ mcpServers: { tldr: "not-an-object", ...team } }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, { ...team, tldr: { command: "bun" } })).toEqual([
+        "context7",
+      ]);
+      const after = JSON.parse(await readFile(p, "utf8"));
+      expect(after.mcpServers).toEqual({ tldr: "not-an-object" });
+    });
+  });
+
+  // A server cc-settings has RETIRED has no teamMcp entry to compare against,
+  // so mcp_written is the only remaining ownership evidence.
+  test("prunes a retired managed server via mcp_written alone", async () => {
+    const retired = { "old-server": { command: "old" } };
+    await withSettings({ mcpServers: { ...retired } }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, team, retired)).toEqual(["old-server"]);
+      expect("mcpServers" in JSON.parse(await readFile(p, "utf8"))).toBe(false);
+    });
+  });
+
+  // Without recorded provenance, ownership is inferred from shape — so an entry
+  // the user copied from ours and annotated must be KEPT. functionalKey() alone
+  // would call it ours (annotations are functionally irrelevant) and silently
+  // delete the note they wrote.
+  test("keeps our shape when the user added their own annotation", async () => {
+    const annotated = { context7: { ...team.context7, _comment: "MY OWN NOTE" } };
+    await withSettings({ mcpServers: annotated }, async (p) => {
+      expect(await pruneSettingsMcpServers(p, team)).toEqual([]);
+      const after = JSON.parse(await readFile(p, "utf8"));
+      expect(after.mcpServers.context7._comment).toBe("MY OWN NOTE");
+    });
+  });
+
+  // With provenance, ownership is fact rather than inference, so an annotation
+  // difference no longer blocks the prune — mcp_written proves we wrote it.
+  test("prunes an annotated entry when mcp_written proves it is ours", async () => {
+    await withSettings(
+      { mcpServers: { context7: { ...team.context7, _status: "core" } } },
+      async (p) => {
+        expect(await pruneSettingsMcpServers(p, team, team)).toEqual(["context7"]);
       },
     );
-    expect(resolved.tldr).toEqual(nowShipped);
   });
 
-  test("without the record it is preserved (the behaviour that stranded settings.json)", async () => {
-    const resolved = await resolveMcpServers({ tldr: oldShipped }, { tldr: nowShipped });
-    expect(resolved.tldr).toEqual(oldShipped);
+  test("absent settings.json is a no-op, not a throw", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ccprune-"));
+    try {
+      expect(await pruneSettingsMcpServers(join(dir, "nope.json"), team)).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- Invariant #1: unparseable JSON aborts loudly --------------------------
+//
+// The module header's first invariant. Its coverage used to live in the
+// settings.json merge suites; those went away with the settings.json write path
+// (F6), so it is asserted here directly against both surviving readers. Silently
+// treating corrupt JSON as "absent" would let an install overwrite a file whose
+// real contents were never read.
+describe("corrupt JSON is never treated as absent", () => {
+  async function withCorrupt(name: string, fn: (path: string) => Promise<void>): Promise<void> {
+    const dir = await mkdtemp(join(tmpdir(), "cccorrupt-"));
+    try {
+      const p = join(dir, name);
+      await writeFile(p, "{ not valid json ");
+      await fn(p);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("installMcpToClaudeJson throws on a corrupt ~/.claude.json", async () => {
+    await withCorrupt("claude.json", async (p) => {
+      await expect(
+        installMcpToClaudeJson({ context7: { command: "bunx" } }, p),
+      ).rejects.toBeInstanceOf(JsonParseError);
+    });
   });
 
-  test("a genuine customization is still preserved even with a record present", async () => {
-    const mine = { command: "my-own-tldr", args: ["--mine"] };
-    const resolved = await resolveMcpServers(
-      { tldr: mine },
-      { tldr: nowShipped },
-      {
-        tldr: oldShipped,
-      },
-    );
-    expect(resolved.tldr).toEqual(mine);
-  });
-
-  test("annotation residue on a prior-shipped entry does not block recovery", async () => {
-    const resolved = await resolveMcpServers(
-      { tldr: { ...oldShipped, _status: "core" as const } },
-      { tldr: nowShipped },
-      { tldr: oldShipped },
-    );
-    expect(resolved.tldr).toEqual(nowShipped);
+  test("pruneSettingsMcpServers throws on a corrupt settings.json", async () => {
+    await withCorrupt("settings.json", async (p) => {
+      await expect(
+        pruneSettingsMcpServers(p, { context7: { command: "bunx" } }),
+      ).rejects.toBeInstanceOf(JsonParseError);
+    });
   });
 });

@@ -6,8 +6,14 @@
     "MY_CUSTOM_VAR": "1"
   },
   "permissions": {
-    "allow": ["Bash(bun:*)", "Bash(git status:*)", "Bash(my-tool:*)"],
-    "deny": ["Bash(rm -rf:*)"]
+    "allow": [
+      "Bash(bun:*)",
+      "Bash(git status:*)",
+      "Bash(my-tool:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)"
+    ]
   },
   "hooks": {
     "Stop": [
@@ -30,6 +36,5 @@
         ]
       }
     ]
-  },
-  "mcpServers": {}
+  }
 }
