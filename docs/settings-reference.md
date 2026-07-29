@@ -512,11 +512,14 @@ Sampling rate (0.0–1.0) for the in-session feedback survey (v2.1.106, enterpri
 
 ## Complete settings.json key reference
 
-All ~104 documented top-level keys. Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider, **U** = UX.
+Every top-level key typed by `src/schemas/settings.ts` — one row per key, no more and no fewer. `tests/docs-settings-keys.test.ts` fails the build if this table and the schema diverge in either direction, so "complete" is enforced rather than asserted. The Class and Description columns are hand-written on purpose: they carry judgment a schema can't emit, which is why this table is checked rather than generated.
+
+Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider, **U** = UX.
 
 | Key | Type | Class | Description |
 |-----|------|-------|-------------|
 | `$schema` | string | G | JSON Schema URL for editor IntelliSense |
+| `advisorModel` | string | G | Stronger model the session consults mid-turn via the advisor server tool; `/advisor <model>` persists here (v2.1.98). Alias or full ID; advisor ≥ executor capability is validated at runtime, and Fable-as-advisor needs v2.1.170+. See `docs/agent-models.md` "Advisor" |
 | `agent` | string | G | Default agent name for subagent invocations; also honored by `claude agents` dispatched sessions (v2.1.157) |
 | `allowAllClaudeAiMcps` | boolean | E | Load claude.ai cloud MCP connectors alongside managed-mcp.json (v2.1.149) |
 | `allowManagedHooksOnly` | boolean | E | Block user-defined hooks; only managed hooks run |
@@ -535,15 +538,15 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `autoUpdatesChannel` | `"stable"` \| `"latest"` | G | Release channel to track for automatic updates |
 | `availableModels` | string[] | E | Restrict the model picker to this list |
 | `awaySummaryEnabled` | boolean | U | Show a session recap on re-entry after background work |
-| `axScreenReader` | boolean | U | Screen-reader mode: flat plain-text rendering without borders or animations; also `--ax-screen-reader` or `CLAUDE_AX_SCREEN_READER=1` (v2.1.208) |
 | `awsAuthRefresh` | string | A | Shell command called to refresh AWS credentials |
 | `awsCredentialExport` | string | A | Shell command that exports AWS credential env vars |
+| `axScreenReader` | boolean | U | Screen-reader mode: flat plain-text rendering without borders or animations; also `--ax-screen-reader` or `CLAUDE_AX_SCREEN_READER=1` (v2.1.208) |
 | `blockedMarketplaces` | string[] | E | Marketplace IDs users cannot install from |
 | `changelogUrl` | string | G | Override the URL `/release-notes` fetches from |
 | `channelsEnabled` | boolean | E | Opt into channel-based plugin distribution (v2.1.128) |
-| `cleanupPeriodDays` | integer ≥ 1 | G | Retention window for transcripts and orphaned worktrees (default 30) |
 | `claudeMd` | string | E | Managed system-prompt override (replaces CLAUDE.md lookup) |
 | `claudeMdExcludes` | string[] | G | Glob patterns for CLAUDE.md files to exclude |
+| `cleanupPeriodDays` | integer ≥ 1 | G | Retention window for transcripts and orphaned worktrees (default 30) |
 | `companyAnnouncements` | string[] | E | Banner messages shown at session start |
 | `defaultShell` | `"bash"` \| `"powershell"` | G | Shell used by the Bash tool |
 | `deniedMcpServers` | string[] | E | Managed blocklist of MCP server URLs/identifiers (v2.1.112) |
@@ -595,6 +598,7 @@ All ~104 documented top-level keys. Class column: **G** = General, **E** = Enter
 | `requiredMaximumVersion` | string | E | Managed: refuse to start if the Claude Code version is above this (v2.1.163) |
 | `requiredMinimumVersion` | string | E | Managed: refuse to start if the Claude Code version is below this; pairs with `requiredMaximumVersion` to define an allowed range (v2.1.163) |
 | `respectGitignore` | boolean | G | Honour .gitignore when listing files |
+| `respondToBashCommands` | boolean | G | `!`-prefixed bash output auto-triggers a Claude response (default `true`); set `false` to restore the prior silent-insert behavior (v2.1.186) |
 | `sandbox` | object | G | Sandbox configuration for secure command execution (v2.1.98–2.1.108) |
 | `showClearContextOnPlanAccept` | boolean | U | Offer context-clear prompt after accepting a plan |
 | `showThinkingSummaries` | boolean | U | Show inline thinking summaries in the conversation |

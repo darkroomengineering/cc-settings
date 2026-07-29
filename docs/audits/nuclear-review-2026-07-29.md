@@ -4,7 +4,8 @@
 - **Date:** 2026-07-29
 - **Method:** Phase 0 inline map → prior-audit remediation verification → structural pass on the 40 commits since the last audit → context7 dependency audit → Codex cross-model pass (completed cleanly, 7 findings) → team-knowledge reconciliation (23 notes, corpus reachable) → synthesis.
 - **Baseline:** `docs/audits/nuclear-review-2026-07-20.md` (17 findings). **16 of 17 verified fixed**; the 17th (N3, TypeScript 6→7) is reframed below rather than re-reported. Its Considered/Rejected ledger was honored — nothing in it is re-litigated except one entry whose *stated basis* has gone stale (recorded below).
-- **Result:** 7 findings — 0 high / 5 medium / 2 plausible-pending-verification. 5 CONFIRMED, 2 PLAUSIBLE. No source file exceeds 1000 lines. No By-Design escalations.
+- **Result:** 7 findings — 0 high / 4 medium / 1 low / 2 plausible-pending-verification. 4 CONFIRMED, 1 CORRECTED (F4 — see its entry; the filed measurement was wrong), 2 PLAUSIBLE. No source file exceeds 1000 lines. No By-Design escalations.
+- **Remediation status:** F1, F2 landed in v12.15.1 (`4f0d984`). F3, F4 landed in v12.15.2. F5 is a ledger entry (no code). F6, F7 still need the verification each names.
 
 ## Verdict
 
@@ -53,12 +54,17 @@ const extractedBinary = join(staging, `tldr-cli-${plat.triple}`, tool.binName);
 
 **Fix:** thread one `InstallPaths` value (`claudeDir`, `claudeJsonPath`, sentinel path) instead of mixing a parameter with module-level constants. Status tests become hermetic and the global-path exceptions disappear. Codex's broader version of this — consolidating the sentinel's schema/read/write, currently split across `setup.ts:370`, `version-delta.ts:30`, and a second parser in `status.ts:35`/`status-types.ts:6`, into one `install-state` module — is the same fix at a larger radius and is worth taking together.
 
-### F4 (medium, CONFIRMED — Codex-only, verified) — `settings-reference.md` documents 35 of 108 schema keys and calls itself complete
-`src/schemas/settings.ts`'s root `Settings` object has **108 root keys** (counted by brace-depth parse); `docs/settings-reference.md` has **35** headings naming a setting. ~73 keys — most of the enterprise, auth, and UX surface added when the schema went from ~39 to 104+ keys — have no entry in a document whose first line presents it as the complete reference.
+### F4 (low, CORRECTED — the original measurement was wrong) — the key table was 106 of 108, not 35 of 108; the real gap was that nothing enforced it
 
-**Scenario:** someone looks up a documented-but-unlisted key, finds nothing, and concludes cc-settings doesn't support it — when the schema types it and the installer will pass it through.
+> **Correction (2026-07-29, during remediation).** As filed, this finding said the doc "documents 35 of 108 schema keys." That number counted `###` **prose headings** and missed the `## Complete settings.json key reference` table further down the same file — a 106-row inventory with type, class, and description columns. Measured properly: **108 schema root keys, 106 table rows, and zero phantom rows.** Only `advisorModel` and `respondToBashCommands` were missing. Both Claude and Codex reported the inflated version (Codex said 37 of 108), because both counted headings; convergence between two models is not the same as either one having measured the right thing. Severity drops medium → low.
 
-**Fix:** generate the exhaustive key inventory from the zod schema and keep hand-written prose as deep dives on the keys that need them. `src/lib/permissions-doc.ts` already does exactly this for the permissions listing in the same file, so the pattern is established, not speculative — this extends it rather than inventing it. This deletes a hand-maintained catalog instead of repairing its drift each cycle.
+The surviving finding is smaller and different in kind: a hand-maintained 106-row table with **no mechanism to catch divergence from the schema**. Two keys had already drifted, and nothing would have reported a third.
+
+**Scenario:** a key is added to `src/schemas/settings.ts` (as `advisorModel` was in v2.1.98). Typecheck passes, tests pass, install works. The table silently no longer matches the schema it claims to mirror, and a reader looking the key up concludes cc-settings doesn't support it.
+
+**Fix as landed:** the two missing rows added, plus `tests/docs-settings-keys.test.ts` asserting parity **in both directions** — every schema key has a row, every row has a schema key — with duplicate and sort checks. Verified to fail on an omitted row and on an invented one.
+
+Full generation from the schema (the original fix, and Codex's recommendation) was **rejected on measurement**: it would replace hand-written Class and Description columns — "which tier does this belong to", "what breaks if you set it" — with zod type names, losing the judgment that makes the table worth reading. That is the same reasoning already in this report's rejected ledger for the prose sections; it applies to the table too. A check preserves the content and still makes "complete" true by construction.
 
 ## Dependency Audit (context7)
 

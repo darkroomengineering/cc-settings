@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { installPaths } from "../src/lib/platform.ts";
 import { gatherStatus } from "../src/lib/status.ts";
 
 async function makeTmpDir(): Promise<string> {
@@ -22,7 +23,7 @@ describe("gatherStatus", () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.sentinel.version).toBeNull();
       expect(data.sentinel.installedAt).toBeNull();
     } finally {
@@ -41,7 +42,7 @@ describe("gatherStatus", () => {
       });
       await writeFile(join(claude, ".cc-settings-version"), sentinelContent);
 
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.sentinel.version).toBe("11.0.0");
       expect(data.sentinel.installedAt).toBe("2026-05-01T12:00:00Z");
     } finally {
@@ -55,7 +56,7 @@ describe("gatherStatus", () => {
     const claude = await makeTmpDir();
     try {
       await writeFile(join(claude, ".cc-settings-version"), "NOT VALID JSON {{{{");
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.sentinel.version).toBeNull();
     } finally {
       await cleanup(src);
@@ -67,7 +68,7 @@ describe("gatherStatus", () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.git).toBeNull();
     } finally {
       await cleanup(src);
@@ -79,7 +80,7 @@ describe("gatherStatus", () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.skills.shippedCount).toBe(0);
       expect(data.skills.presentCount).toBe(0);
       expect(data.skills.missing).toEqual([]);
@@ -97,7 +98,7 @@ describe("gatherStatus", () => {
       await mkdir(join(src, "skills", "explore"), { recursive: true });
       await writeFile(join(src, "skills", "explore", "SKILL.md"), "# explore");
 
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.skills.missing).toContain("explore");
       expect(data.skills.shippedCount).toBeGreaterThan(0);
       expect(data.skills.presentCount).toBeLessThan(data.skills.shippedCount);
@@ -107,39 +108,82 @@ describe("gatherStatus", () => {
     }
   });
 
-  test("autoUpdate field: present (macOS) or absent (other platforms) — never throws", async () => {
-    // autoUpdateStatus()/readState() inside gatherStatus always resolve against
-    // the REAL host CLAUDE_DIR (not the tmp `claude` dir passed in here) — see
-    // src/lib/schedule.ts's plistPath()/autoUpdateLogPath(). So this can only
-    // assert shape, not tmp-fixture-scoped values.
+  // F3: these two used to be able to assert only SHAPE, because gatherStatus
+  // took a claudeDir and then read ~/.claude.json and the launchd plist from the
+  // real $HOME anyway. With InstallPaths they assert fixture-scoped VALUES, so a
+  // regression that reintroduces a host read fails here instead of passing.
+  test("autoUpdate reads the fixture home, not the host — plist absent ⇒ false", async () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
+    const home = await makeTmpDir();
     try {
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, home), "11.2.1");
       if (process.platform === "darwin") {
         expect(data.autoUpdate).toBeDefined();
-        expect(typeof data.autoUpdate?.plistPresent).toBe("boolean");
-        expect(["boolean", "undefined"]).toContain(typeof data.autoUpdate?.enrolled);
+        // The fixture home has no LaunchAgents plist. If this reads `true`, the
+        // host's real plist leaked in.
+        expect(data.autoUpdate?.plistPresent).toBe(false);
+        expect(data.autoUpdate?.lastRun).toBeNull();
       } else {
         expect(data.autoUpdate).toBeUndefined();
       }
     } finally {
       await cleanup(src);
       await cleanup(claude);
+      await cleanup(home);
+    }
+  });
+
+  test("autoUpdate lastRun comes from the fixture claudeDir's tmp state", async () => {
+    if (process.platform !== "darwin") return;
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    try {
+      await mkdir(join(claude, "tmp"), { recursive: true });
+      await writeFile(
+        join(claude, "tmp", "auto-update-last-run.json"),
+        JSON.stringify({ at: "2026-07-29T00:00:00Z", status: "ok" }),
+      );
+      const data = await gatherStatus(src, installPaths(claude, home), "11.2.1");
+      expect(data.autoUpdate?.lastRun).toEqual({ at: "2026-07-29T00:00:00Z", status: "ok" });
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+      await cleanup(home);
     }
   });
 
   test("MCP server in claudeJson → appears in mcp.servers", async () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
-    // gatherStatus reads from CLAUDE_JSON_PATH (hardcoded ~/.claude.json)
-    // so we test the no-mcp case here and just assert the field is present and an array
+    const home = await makeTmpDir();
     try {
-      const data = await gatherStatus(src, claude, "11.2.1");
-      expect(Array.isArray(data.mcp.servers)).toBe(true);
+      // ~/.claude.json is a SIBLING of ~/.claude, so it lands in the fixture home.
+      await writeFile(
+        join(home, ".claude.json"),
+        JSON.stringify({ mcpServers: { context7: {}, tldr: {} } }),
+      );
+      const data = await gatherStatus(src, installPaths(claude, home), "11.2.1");
+      expect(data.mcp.servers.sort()).toEqual(["context7", "tldr"]);
     } finally {
       await cleanup(src);
       await cleanup(claude);
+      await cleanup(home);
+    }
+  });
+
+  test("absent claudeJson → mcp.servers is empty, not the host's server list", async () => {
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    try {
+      const data = await gatherStatus(src, installPaths(claude, home), "11.2.1");
+      expect(data.mcp.servers).toEqual([]);
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+      await cleanup(home);
     }
   });
 
@@ -151,7 +195,7 @@ describe("gatherStatus", () => {
         join(claude, ".cc-settings-version"),
         JSON.stringify({ version: "10.0.0", installed_at: "2026-01-01T00:00:00Z" }),
       );
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       const messages = data.warnings.map((w) => w.message);
       expect(messages.some((m) => m.includes("10.0.0") && m.includes("11.2.1"))).toBe(true);
     } finally {
@@ -164,7 +208,7 @@ describe("gatherStatus", () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
-      const data = await gatherStatus(src, claude, "99.0.0-test");
+      const data = await gatherStatus(src, installPaths(claude, claude), "99.0.0-test");
       expect(data.packagedVersion).toBe("99.0.0-test");
     } finally {
       await cleanup(src);
@@ -188,7 +232,7 @@ describe("gatherStatus", () => {
           future_field: "some-new-value",
         }),
       );
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.sentinel.version).toBe("11.1.0");
       expect(data.sentinel.installedAt).toBe("2026-05-01T00:00:00Z");
     } finally {
@@ -207,7 +251,7 @@ describe("gatherStatus", () => {
         join(claude, ".cc-settings-version"),
         JSON.stringify({ version: 1234, installed_at: "2026-05-01T00:00:00Z" }),
       );
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.sentinel.version).toBeNull();
     } finally {
       await cleanup(src);
@@ -223,7 +267,7 @@ describe("gatherStatus", () => {
         join(claude, ".cc-settings-version"),
         JSON.stringify({ version: "11.2.0" }), // no installed_at
       );
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.sentinel.version).toBe("11.2.0");
       expect(data.sentinel.installedAt).toBeNull();
     } finally {
@@ -247,7 +291,7 @@ describe("gatherStatus", () => {
         unknownFutureKey: "should not break anything",
       };
       await writeFile(join(claude, "settings.json"), JSON.stringify(settings, null, 2));
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.hooks.events).toContain("SessionStart");
       expect(data.hooks.groupCount).toBe(1);
       expect(data.permissions.allowCount).toBe(2);
@@ -272,7 +316,7 @@ describe("gatherStatus", () => {
         },
       };
       await writeFile(join(claude, "settings.json"), JSON.stringify(settings, null, 2));
-      const data = await gatherStatus(src, claude, "11.2.1");
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       expect(data.hooks.events).toContain("PreToolUse");
       expect(data.hooks.events).toContain("PostToolUse");
       expect(data.hooks.groupCount).toBe(3);

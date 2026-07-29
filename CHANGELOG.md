@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.15.2] — 2026-07-29
+
+Fixes F3 and F4 from `docs/audits/nuclear-review-2026-07-29.md`. One of them turned out to be substantially mis-measured; the correction is the more useful half of this entry.
+
+**F3 — `gatherStatus` honored its `claudeDir` for some reads and silently ignored it for others.** It took a `claudeDir` parameter, used it for the sentinel, git drift, skills, and `settings.json`, then read `~/.claude.json` from the module-level `CLAUDE_JSON_PATH`, the launchd plist from the real `$HOME`, and `auto-update-last-run.json` from the real `~/.claude/tmp`. A caller passing a fixture directory got a mix of fixture and host state.
+
+The tests conceded this in a comment rather than covering it — *"this can only assert shape, not tmp-fixture-scoped values"* — and one test named `"MCP server in claudeJson → appears in mcp.servers"` asserted only that the field was an array, never placing a server or checking for one.
+
+`gatherStatus(sourceDir, claudeDir, version)` now takes `gatherStatus(sourceDir, paths: InstallPaths, version)`. `InstallPaths` (new, in `platform.ts`) bundles `claudeDir`, `claudeJsonPath`, and `homeDir` so partial overriding is impossible — the previous shape's whole failure mode was supplying one path and getting host defaults for the rest. `~/.claude.json` is a *sibling* of `~/.claude`, not a child, which is why it can't be derived from `claudeDir` alone and why the bundle needs `homeDir` too. `readState` gained an optional `tmpDir` (defaulting to the real one, which is what all ~20 hook callers want), matching the `homeDir = homedir()` injection style already used by `autoUpdateStatus` and `pinnedToolPath`.
+
+Four tests now assert fixture-scoped **values** where they previously asserted shape: plist absent ⇒ `plistPresent: false`, `lastRun` read from the fixture's `tmp/`, MCP servers read from the fixture's `.claude.json`, and an absent `.claude.json` ⇒ empty list rather than the host's servers. All four were confirmed to **fail** against the previous implementation — this machine has a real plist, a real `auto-update-last-run.json`, and a populated `~/.claude.json`, so each assertion is genuinely falsifiable rather than vacuously true.
+
+**F4 — the finding as filed was wrong, and the correction matters more than the fix.** It reported `docs/settings-reference.md` as documenting "35 of 108 schema keys." That counted `###` prose headings and missed the `## Complete settings.json key reference` table in the same file: a 106-row inventory with type, class, and description columns. Measured properly — **108 schema root keys, 106 rows, zero phantom rows** — the gap was two keys (`advisorModel`, `respondToBashCommands`), not seventy-three.
+
+Both models reported the inflated number (Codex said 37 of 108) because both counted headings. Two models agreeing is not two models having measured the right thing, and that is the durable lesson here.
+
+What survived is smaller and different in kind: a hand-maintained table with nothing to catch divergence from the schema. Two keys had already drifted and nothing would have reported a third. So: the two rows added, the "~104 documented keys" claim replaced with what is now enforced, the 108 rows sorted by codepoint so a new key has exactly one slot (6 rows moved, no content changed), and `tests/docs-settings-keys.test.ts` asserting parity in **both** directions plus no-duplicates and sortedness. Verified to fail on an omitted row and on an invented one.
+
+Full generation from the zod schema — the audit's original fix and Codex's recommendation — was **rejected**: it would trade hand-written Class and Description columns ("which tier is this", "what breaks if you set it") for zod type names. The table stays hand-written; the test makes "complete" true by construction rather than by assertion.
+
+Suite: 1026 → 1032 tests, 0 fail. Typecheck, biome, skill lint clean.
+
 ## [12.15.1] — 2026-07-29
 
 Fixes F1 and F2 from `docs/audits/nuclear-review-2026-07-29.md`. No behavior change on any success path; one behavior change on a failure path, noted below.

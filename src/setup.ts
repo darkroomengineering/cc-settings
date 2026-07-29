@@ -62,7 +62,7 @@ import {
 } from "./lib/mcp.ts";
 import { ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
 import { ensurePinnedTool, TLDR_CODE_TOOL } from "./lib/pinned-tools.ts";
-import { CLAUDE_DIR, hasCommand, isWindows, os } from "./lib/platform.ts";
+import { CLAUDE_DIR, hasCommand, installPaths, isWindows, os } from "./lib/platform.ts";
 import { isInteractive, promptYn } from "./lib/prompts.ts";
 import {
   autoUpdateJobLoaded,
@@ -77,7 +77,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.15.1"; // one verified-download primitive; descriptor-driven archive layout
+const VERSION = "12.15.2"; // gatherStatus takes InstallPaths; settings-key table drift-tested
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -429,7 +429,7 @@ async function writeVersionSentinel(
 // --- Status --------------------------------------------------------------
 
 async function cmdStatus(sourceDir: string): Promise<number> {
-  const data = await gatherStatus(sourceDir, CLAUDE_DIR, VERSION);
+  const data = await gatherStatus(sourceDir, installPaths(), VERSION);
   printStatus(data);
   return 0; // status is informational; never fail
 }

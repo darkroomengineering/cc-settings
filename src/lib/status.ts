@@ -17,8 +17,7 @@ import { readState } from "./hook-runtime.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { LIGHT_SKILLS } from "./light-profile.ts";
 import { MANAGED_SKILLS } from "./managed-skills.ts";
-import { CLAUDE_JSON_PATH } from "./mcp.ts";
-import { os } from "./platform.ts";
+import { type InstallPaths, os } from "./platform.ts";
 import { autoUpdateStatus } from "./schedule.ts";
 import type {
   AutoUpdateData,
@@ -71,15 +70,19 @@ async function gatherGitDrift(sourceDir: string, claudeDir: string): Promise<Git
  * Gather all status data from the filesystem. No console output.
  *
  * @param sourceDir  Path to the cc-settings source repo checkout.
- * @param claudeDir  Path to the ~/.claude directory (install target).
+ * @param paths  Every install-adjacent path this reads (see InstallPaths). One
+ *               bundle rather than a bare claudeDir, because this function also
+ *               needs ~/.claude.json and $HOME — which it used to take from the
+ *               real host even when handed a fixture directory (F3).
  * @param packagedVersion  The VERSION constant from setup.ts — passed in so
  *                         this function doesn't need to import it.
  */
 export async function gatherStatus(
   sourceDir: string,
-  claudeDir: string,
+  paths: InstallPaths,
   packagedVersion: string,
 ): Promise<StatusData> {
+  const { claudeDir } = paths;
   // --- Sentinel ---
   const sentinelPath = join(claudeDir, ".cc-settings-version");
   let sentinelVersion: string | null = null;
@@ -174,7 +177,7 @@ export async function gatherStatus(
   };
 
   // MCP servers from ~/.claude.json
-  const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
+  const claudeJson = (await readJsonOrNull(paths.claudeJsonPath)) as {
     mcpServers?: Record<string, unknown>;
   } | null;
   const mcp: McpData = { servers: Object.keys(claudeJson?.mcpServers ?? {}) };
@@ -195,10 +198,11 @@ export async function gatherStatus(
   // --- Auto-update (macOS only; side-effect-free — no launchctl call) ---
   let autoUpdate: AutoUpdateData | undefined;
   if (os === "macos") {
-    const { plistPresent } = await autoUpdateStatus();
+    const { plistPresent } = await autoUpdateStatus(paths.homeDir);
     const lastRun = await readState<{ at: string; status: string } | null>(
       "auto-update-last-run.json",
       null,
+      join(claudeDir, "tmp"),
     );
     autoUpdate = { enrolled: sentinelAutoUpdate, plistPresent, lastRun };
   }

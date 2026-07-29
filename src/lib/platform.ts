@@ -87,6 +87,31 @@ export function claudePath(...segments: string[]): string {
   return join(CLAUDE_DIR, ...segments);
 }
 
+/** The install-adjacent paths a status/inspection pass reads. Bundled on
+ *  purpose: `gatherStatus` used to take a bare `claudeDir` and then read
+ *  ~/.claude.json and the launchd plist from the real $HOME regardless, so a
+ *  caller passing a fixture directory got a mix of fixture and host state and
+ *  its tests could only assert shape (nuclear-review-2026-07-29 F3). Passing one
+ *  value makes partial overriding impossible. */
+export interface InstallPaths {
+  /** ~/.claude — the install target. */
+  claudeDir: string;
+  /** ~/.claude.json — a SIBLING of claudeDir, not a child of it, which is why
+   *  it cannot be derived from claudeDir alone. */
+  claudeJsonPath: string;
+  /** $HOME — where the auto-update launchd plist lives. */
+  homeDir: string;
+}
+
+/** Build an InstallPaths. Defaults to the real host locations; tests and
+ *  dry-runs pass a fixture claudeDir and home. */
+export function installPaths(
+  claudeDir: string = CLAUDE_DIR,
+  home: string = homedir(),
+): InstallPaths {
+  return { claudeDir, claudeJsonPath: join(home, ".claude.json"), homeDir: home };
+}
+
 // ISO-8601 timestamp without milliseconds: "2026-06-19T12:34:56Z".
 // Replaces the five inline `new Date().toISOString().replace(/\.\d{3}Z$/, "Z")`
 // idioms scattered across scripts and hooks.

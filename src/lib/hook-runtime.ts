@@ -56,11 +56,19 @@ export async function readHookInput<T extends Record<string, unknown>>(
 
 /** Read a JSON state file at ~/.claude/tmp/<name>.json. Returns fallback on any
  *  error, and (when the fallback is an object) on a stored non-object value —
- *  see coerceState. */
-export async function readState<T>(name: string, fallback: T): Promise<T> {
+ *  see coerceState.
+ *
+ *  `tmpDir` defaults to the real ~/.claude/tmp, which is what every hook wants.
+ *  Callers that are already parameterized by an install directory (gatherStatus)
+ *  pass theirs, so they don't read host state while claiming to read a fixture. */
+export async function readState<T>(
+  name: string,
+  fallback: T,
+  tmpDir: string = TMP_DIR,
+): Promise<T> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(await readFile(join(TMP_DIR, name), "utf8"));
+    parsed = JSON.parse(await readFile(join(tmpDir, name), "utf8"));
   } catch {
     return fallback;
   }
