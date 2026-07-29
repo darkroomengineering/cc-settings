@@ -78,7 +78,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.16.0"; // MCP installs to ~/.claude.json only; inert settings.json block pruned
+const VERSION = "12.16.1"; // F7 overlap documented; full→light docs/ prune asserted
 
 // --- Arg parsing ---------------------------------------------------------
 

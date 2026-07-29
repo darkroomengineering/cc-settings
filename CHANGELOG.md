@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.16.1] — 2026-07-29
+
+Closes F7 from `docs/audits/nuclear-review-2026-07-29.md` — the last open finding — **without a code change**, which is the honest outcome once it was measured.
+
+F7 suspected `lightProfilePruneTargets()` of duplicating work `cleanOldConfig` already does. It named its own prerequisites: a full read of `wipeTasks` against `MANAGED_SKILLS`/`PROFILE_MANIFEST`, plus a light-install-over-full test. Both are now satisfied — and the second **already existed** (`tests/install-e2e.test.ts` "full → light switch"), which the filing missed.
+
+The redundancy is real and partial. The boundary was established by deleting each category in turn and re-running that E2E, rather than by reading:
+
+| Prune category | Deleted → E2E | Verdict |
+|---|---|---|
+| non-light skill dirs | passes | redundant — clean rm -rf's every `MANAGED_SKILLS` dir; light restores only `LIGHT_SKILLS` |
+| `CLAUDE.md` / `AGENTS.md` | passes | redundant — both are `wipe: "recursive"` entries |
+| full-only dirs (`agents`, `profiles`, `rules`, `docs`) | **fails** | load-bearing — clean only glob-wipes `*.md` *inside* them |
+
+The E2E was separately confirmed to have teeth (emptying the load-bearing category fails it on `rules`), so those passes mean something.
+
+**Kept as-is, deliberately.** Two of three categories are no-ops, but they are the price of a self-contained contract: the function answers "the complete full-minus-light footprint", a question with a checkable answer. Narrowing it to the load-bearing third would trade that for an implicit dependency on `cleanOldConfig`'s internals — light correctness would rest silently on its `MANAGED_SKILLS` loop continuing to wipe *all* managed skills rather than only those about to be re-copied. Incident H7 was exactly that class of cross-list coupling. Measured cost of keeping them: ~40 force-removes of absent paths, in parallel.
+
+Two real changes fell out of the investigation. The overlap table is now a comment on `lightProfilePruneTargets` so the next audit doesn't re-derive it and nobody removes the belt-and-braces without seeing why it exists. And the E2E gained a missing `docs` assertion: `docs` sits in the load-bearing category but was never asserted gone, so a regression there would have shipped silently. That assertion was verified to fail when `docs` is dropped from the prune.
+
+All 7 findings from the 2026-07-29 audit are now closed.
+
 ## [12.16.0] — 2026-07-29
 
 **MCP servers now install to `~/.claude.json` only.** Fixes F6 from `docs/audits/nuclear-review-2026-07-29.md`, which was filed PLAUSIBLE because its remedy depended on a fact nobody had established. Establishing that fact was most of the work.

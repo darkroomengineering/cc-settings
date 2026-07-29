@@ -328,6 +328,11 @@ describe("install E2E — light profile", () => {
         expect(existsSync(join(claudeDir, "contexts"))).toBe(false);
         // No profiles.
         expect(existsSync(join(claudeDir, "profiles"))).toBe(false);
+        // No docs. This one was pruned but unasserted — `docs` is in
+        // PROFILE_MANIFEST.full.dirs and load-bearing in lightProfilePruneTargets
+        // (cleanOldConfig only glob-wipes *.md inside it), so without this line a
+        // regression that stopped pruning it would ship silently.
+        expect(existsSync(join(claudeDir, "docs"))).toBe(false);
 
         // settings.json: no cc-settings env, no cc-settings permissions, no cc-settings hooks.
         const settings = JSON.parse(

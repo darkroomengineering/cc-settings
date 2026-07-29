@@ -74,6 +74,31 @@ export const PROFILE_MANIFEST: Record<Profile, ProfileManifest> = {
  * I/O. Callers pass the returned paths to a force-remove (rm force:true is a
  * no-op on a path that doesn't exist), so this never needs to check existence
  * itself.
+ *
+ * OVERLAP WITH cleanOldConfig — deliberate, and measured (nuclear-review F7).
+ * cleanOldConfig runs first and already removes some of what this returns, so
+ * two of the three categories below are no-ops in practice. Established by
+ * deleting each category and running the full→light E2E:
+ *
+ *   - non-light skill dirs  → REDUNDANT. cleanOldConfig rm -rf's EVERY
+ *                             MANAGED_SKILLS dir, and the light copy restores
+ *                             only LIGHT_SKILLS. E2E passes without them.
+ *   - CLAUDE.md / AGENTS.md → REDUNDANT. Both are `wipe: "recursive"` entries in
+ *                             MANAGED_TOP_LEVEL_PATHS. E2E passes without them.
+ *   - full-only dirs        → LOAD-BEARING. cleanOldConfig only glob-wipes
+ *                             `*.md` INSIDE agents/profiles/rules/docs; the dirs
+ *                             themselves (recreated by createDirectories) and
+ *                             any non-.md content survive. E2E FAILS without
+ *                             them.
+ *
+ * The redundant categories are kept on purpose. This function's contract is
+ * "the complete full-minus-light footprint" — a self-contained question with a
+ * checkable answer. Narrowing it to only the load-bearing third would trade
+ * that for an implicit dependency on cleanOldConfig's internals: light
+ * correctness would silently rest on its MANAGED_SKILLS loop continuing to wipe
+ * ALL managed skills rather than just the ones about to be re-copied. Incident
+ * H7 came from exactly that class of cross-list coupling. The cost of keeping
+ * them is ~40 force-removes of absent paths, issued in parallel.
  */
 export function lightProfilePruneTargets(): string[] {
   const targets: string[] = [];

@@ -4,8 +4,8 @@
 - **Date:** 2026-07-29
 - **Method:** Phase 0 inline map → prior-audit remediation verification → structural pass on the 40 commits since the last audit → context7 dependency audit → Codex cross-model pass (completed cleanly, 7 findings) → team-knowledge reconciliation (23 notes, corpus reachable) → synthesis.
 - **Baseline:** `docs/audits/nuclear-review-2026-07-20.md` (17 findings). **16 of 17 verified fixed**; the 17th (N3, TypeScript 6→7) is reframed below rather than re-reported. Its Considered/Rejected ledger was honored — nothing in it is re-litigated except one entry whose *stated basis* has gone stale (recorded below).
-- **Result:** 7 findings — 0 high / 5 medium / 1 low / 1 plausible-pending-verification. 5 CONFIRMED, 1 CORRECTED (F4 — see its entry; the filed measurement was wrong), 1 PLAUSIBLE. No source file exceeds 1000 lines. No By-Design escalations.
-- **Remediation status:** F1, F2 landed in v12.15.1 (`4f0d984`). F3, F4 landed in v12.15.2 (`9c83642`). F6 measured, promoted to CONFIRMED, and landed in v12.16.0. F5 is a ledger entry (no code). F7 alone still needs the verification it names.
+- **Result:** 7 findings — 0 high / 5 medium / 1 low / 1 verified-not-debt. 6 CONFIRMED, 1 CORRECTED (F4 — the filed measurement was wrong; see its entry). No source file exceeds 1000 lines. No By-Design escalations.
+- **Remediation status — all 7 closed.** F1, F2 → v12.15.1 (`4f0d984`). F3, F4 → v12.15.2 (`9c83642`). F6 measured, promoted to CONFIRMED, → v12.16.0 (`fccce62`). F5 is a ledger entry (blocked upstream, no code). F7 measured and consciously not acted on — see its entry for the evidence and the reason.
 
 ## Verdict
 
@@ -114,7 +114,27 @@ Not confirmed as debt, for two reasons. First, the code documents a deliberate r
 
 **Next step before any restructuring:** establish Claude Code's actual precedence between `settings.json` and `~/.claude.json` `mcpServers`. If one is authoritative, the other write path and its half of the test matrix can go. If both are consulted for different purposes, this is by-design and belongs in the rejected ledger permanently.
 
-### F7 (PLAUSIBLE, Codex-only) — light-profile skill prune may be partly redundant with the clean phase
+### F7 (RESOLVED 2026-07-29 — redundancy CONFIRMED and measured, but NOT debt; no code change)
+
+> This finding named its own prerequisites: "a full read of `wipeTasks` against `MANAGED_SKILLS` and `PROFILE_MANIFEST`, plus a light-install-over-full-install test". Both are now satisfied — and the second already existed (`tests/install-e2e.test.ts` "full → light switch"), which the filing missed.
+>
+> The redundancy is real and **partial**, exactly as hypothesized. The boundary was established empirically rather than by reading: each category was deleted in turn and the full→light E2E re-run.
+>
+> | Prune category | Category deleted → E2E | Verdict |
+> |---|---|---|
+> | non-light skill dirs (`skills/<s>`) | passes | **redundant** — `cleanOldConfig` rm -rf's every `MANAGED_SKILLS` dir and the light copy restores only `LIGHT_SKILLS` |
+> | `CLAUDE.md` / `AGENTS.md` | passes | **redundant** — both are `wipe: "recursive"` in `MANAGED_TOP_LEVEL_PATHS` |
+> | full-only dirs (`agents`, `profiles`, `rules`, `docs`) | **fails** | **load-bearing** — clean only glob-wipes `*.md` *inside* them; the dirs themselves (recreated by `createDirectories`) and any non-`.md` content survive |
+>
+> The E2E was separately confirmed to have teeth: emptying the load-bearing category makes it fail on the `rules` assertion, so the passing results above are meaningful rather than a toothless suite.
+>
+> **Decision: keep the code as-is.** Two of three categories are no-ops, but they are the price of a self-contained contract — `lightProfilePruneTargets()` answers "the complete full-minus-light footprint", a question with a checkable answer. Narrowing it to the load-bearing third would trade that for an implicit dependency on `cleanOldConfig`'s internals: light correctness would then rest silently on its `MANAGED_SKILLS` loop continuing to wipe *all* managed skills rather than only those about to be re-copied. **Incident H7 was precisely that class of cross-list coupling.** Measured cost of keeping them: ~40 force-removes of absent paths, issued in parallel.
+>
+> Two things did change, both small and both real: the overlap analysis above is now a comment on `lightProfilePruneTargets` so the next audit does not re-derive it (and nobody "optimizes" the belt-and-braces away without seeing why it exists), and the E2E gained a missing `docs` assertion — `docs` was being pruned in the load-bearing category but never asserted gone, so a regression there would have shipped silently. That assertion was verified to fail when `docs` is dropped from the prune.
+>
+> Recorded here rather than in Considered/Rejected because it was filed as a finding and deserves a visible verdict: **investigated, confirmed, and consciously not acted on.**
+
+**Original finding, for the record:**
 `cleanOldConfig` removes every `MANAGED_SKILLS` directory (`install-fs.ts:287-289`); the light branch then copies only `LIGHT_SKILLS` back and *also* executes `lightProfilePruneTargets` (`install-fs.ts:336+`). If clean already removed all managed skill dirs and light only restored the light subset, the skill-directory portion of the prune has nothing to do — though the same prune list also covers full-only `rootFiles`/`dirs`, which clean does not, so the redundancy is partial at most.
 
 Held at PLAUSIBLE deliberately: this code is 9 days old and is the *product* of the prior audit's N1 fix, which moved the prune computation here on purpose. Overturning fresh, deliberately-placed code needs a full read of `wipeTasks` against `MANAGED_SKILLS` and `PROFILE_MANIFEST`, plus a light-install-over-full-install test, not the two-hunk comparison behind this note.
