@@ -26,6 +26,10 @@ description: |
      behavior-identical / visually-close), which deviations are allowed, and
      "STOP if the source can't be read." Without this, a "port my X" ask gets
      rebuilt from scratch instead of copied.
+  8. WHEN THE WORK ALREADY HAS HISTORY — what was tried and rejected, and why
+     (approaches ruled out, dead ends already walked, constraints discovered).
+     Facts and paths survive a thin briefing; the reasoning behind them does
+     not, so the agent re-derives it and often re-walks the same dead end.
 
   Thin prompts ("implement based on plan", "fix the bug", "build it") cause regressions.
 

@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.16.3] — 2026-07-30
+
+Two delegation rules, both prompted by OpenAI's [ARC-AGI-3 writeup](https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores/): the official harness dropped the model's private reasoning items after every game action, so it re-derived its understanding of the puzzle each turn. Carrying reasoning forward instead took the same model from 13.3% → 38.3% on the public set and cut output from ~2.9M to ~0.5M tokens per game. The harness was the bottleneck, not the model.
+
+**Resume, don't respawn** (`CLAUDE-FULL.md`, Delegation rule 5). `SendMessage` resumes an agent from its transcript; a fresh `Agent` call starts cold and pays to re-derive everything the first one reasoned through. We already had this rule, but only in `skills/orchestrate/SKILL.md` and only for the narrow case of an agent that returned an incomplete section. It's now a general default in the always-loaded file, with the cold-read exception named explicitly — adversarial verification and second opinions *want* a fresh context.
+
+**Briefings carry what was ruled out** (`agents/implementer.md` item 8, mirrored in the `CLAUDE-FULL.md` briefing paragraph). The 7-item contract carried facts — paths, the change, the verification command — and no reasoning. Facts survive a thin briefing; the thinking behind them doesn't, so the agent re-derives it and often re-walks a dead end the caller already walked. Added as advisory, deliberately not part of the blocking Briefing Gate, so it can't widen what the agent refuses.
+
+The headline 3× does not transfer. Their loop is hundreds of short actions inside one task with reasoning discarded between each; Claude Code retains thinking within a session, so the leak surface here is only subagent spawns and compaction. The compaction half of their finding needed no change — manual `/compact` at 65%, `AGENTS.md` Post-Compaction Recovery, and `/handoff` already cover it.
+
 ## [12.16.2] — 2026-07-30
 
 The post-edit TypeScript hook has never reported a single error. It matched `TOOL_INPUT_file_path` — which Claude Code passes as an **absolute** path — against `tsc --noEmit` output, which prints diagnostics **relative to cwd**. Every `.ts`/`.tsx` edit paid for a full-project typecheck and printed nothing.
