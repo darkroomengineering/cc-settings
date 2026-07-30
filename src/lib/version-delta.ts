@@ -119,9 +119,36 @@ export async function readInstalledVersion(claudeDir: string): Promise<string | 
 }
 
 /**
+ * Flatten the inline markdown a CHANGELOG title may carry, so the install
+ * summary prints prose instead of source. The title lands in a terminal, where
+ * `[text](https://…)` is noise and the URL is unclickable.
+ *
+ * Deliberately narrow — links/images, bold, and inline code only. `*` and `_`
+ * emphasis are LEFT ALONE: changelog prose is full of globs (`*.md`) and
+ * snake_case identifiers (`mcp_written`), and an emphasis stripper mangles
+ * those far more often than it un-italicises anything.
+ */
+export function stripInlineMarkdown(text: string): string {
+  return (
+    text
+      // [text](url) and ![alt](url). The URL matcher allows ONE level of nested
+      // parens — Wikipedia/MDN links like `.../Function_(mathematics)` are the
+      // realistic case, and a flat `[^)]*` stops at the inner `)` and leaves a
+      // stray `)` glued to the link text. The alternation is unambiguous (its two
+      // branches can't match the same first character), so it can't backtrack.
+      .replace(/!?\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, "$1")
+      .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
+      .replace(/__([^_]+)__/g, "$1") // __bold__
+      // `code`
+      .replace(/`([^`]+)`/g, "$1")
+  );
+}
+
+/**
  * Parse `## [X.Y.Z] — YYYY-MM-DD` version headings out of CHANGELOG text.
  * The "title" is the first `### ` h3 below the version heading, or the first
- * non-empty paragraph line if no h3 exists.
+ * non-empty paragraph line if no h3 exists. Inline markdown is flattened —
+ * see {@link stripInlineMarkdown}.
  *
  * Order: top-to-bottom (newest first, matching CHANGELOG.md convention).
  */
@@ -143,7 +170,7 @@ export function parseChangelogEntries(changelogText: string): ChangelogEntry[] {
       if (!next) continue;
       // Stop if we hit another version heading without finding a title.
       if (VERSION_HEADING_RE.test(next)) break;
-      title = next.replace(/^#{2,}\s*/, "").trim();
+      title = stripInlineMarkdown(next.replace(/^#{2,}\s*/, "")).trim();
       break;
     }
 

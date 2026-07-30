@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.16.4] — 2026-07-30
+
+The install summary prints a one-line excerpt of each changelog entry it brings in, and it printed the markdown source. v12.16.3 was the first entry to open with a link, so the terminal got the raw bracket-and-URL source where the words should have been — noise plus an unclickable URL, in the one place the text has to be skimmable.
+
+`stripInlineMarkdown()` flattens the excerpt: links and images collapse to their text, bold unwraps, inline code loses its backticks. It stops there on purpose. No `*`/`_` emphasis pass — changelog prose is full of `*.md` globs and `mcp_written`-style identifiers, and an emphasis stripper mangles those far more often than it un-italicises anything. A test pins that boundary so the next person to "finish" the stripper has to argue with it first.
+
+A cross-model review caught the one case the first cut got wrong: the URL matcher was a flat `[^)]*`, which stops at the first `)`. A link like `[function](.../Function_(mathematics))` came out as `function)` — the inner paren ended the match and the outer one stayed behind. The matcher now allows one level of nesting. Its alternation is unambiguous — the two branches can't match the same first character — so it can't backtrack.
+
 ## [12.16.3] — 2026-07-30
 
 Two delegation rules, both prompted by OpenAI's [ARC-AGI-3 writeup](https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores/): the official harness dropped the model's private reasoning items after every game action, so it re-derived its understanding of the puzzle each turn. Carrying reasoning forward instead took the same model from 13.3% → 38.3% on the public set and cut output from ~2.9M to ~0.5M tokens per game. The harness was the bottleneck, not the model.

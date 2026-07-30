@@ -13,6 +13,7 @@ import {
   formatVersionDelta,
   parseChangelogEntries,
   readInstalledVersion,
+  stripInlineMarkdown,
 } from "../src/lib/version-delta.ts";
 
 async function sandbox(): Promise<string> {
@@ -131,6 +132,56 @@ Another title.`;
 
   test("empty changelog → no entries", () => {
     expect(parseChangelogEntries("# Changelog\n\nNothing yet.")).toEqual([]);
+  });
+
+  // Regression: v12.16.3's entry opened with a markdown link, and the install
+  // summary printed it as literal `[ARC-AGI-3 writeup](https://openai.com/...)`.
+  test("flattens inline markdown in the title", () => {
+    const text = `## [12.16.3] — 2026-07-30
+
+Two rules from [the writeup](https://example.com/x): \`SendMessage\` resumes, **respawn** does not.
+`;
+    expect(parseChangelogEntries(text)[0]?.title).toBe(
+      "Two rules from the writeup: SendMessage resumes, respawn does not.",
+    );
+  });
+});
+
+describe("stripInlineMarkdown", () => {
+  test("links and images collapse to their text", () => {
+    expect(stripInlineMarkdown("see [the docs](https://a.b/c) now")).toBe("see the docs now");
+    expect(stripInlineMarkdown("![a badge](https://a.b/i.png) here")).toBe("a badge here");
+  });
+
+  // Caught by cross-model review: a flat `[^)]*` URL matcher stopped at the
+  // inner `)` and left `function)` behind.
+  test("URL with balanced parens strips cleanly", () => {
+    expect(
+      stripInlineMarkdown(
+        "see [function](https://en.wikipedia.org/wiki/Function_(mathematics)) now",
+      ),
+    ).toBe("see function now");
+  });
+
+  test("bold and inline code unwrap", () => {
+    expect(stripInlineMarkdown("**loud** and `code` and __also loud__")).toBe(
+      "loud and code and also loud",
+    );
+  });
+
+  // The reason the stripper stops where it does — changelog prose is full of
+  // globs and snake_case, and an emphasis pass would eat them.
+  test("leaves globs, snake_case, and bare URLs intact", () => {
+    expect(stripInlineMarkdown("prune *.md and mcp_written under snake_case")).toBe(
+      "prune *.md and mcp_written under snake_case",
+    );
+    expect(stripInlineMarkdown("see https://example.com/a_b_c")).toBe(
+      "see https://example.com/a_b_c",
+    );
+  });
+
+  test("plain prose is unchanged", () => {
+    expect(stripInlineMarkdown("Nothing to strip here.")).toBe("Nothing to strip here.");
   });
 });
 

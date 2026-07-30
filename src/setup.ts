@@ -78,7 +78,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.16.3"; // resume-dont-respawn delegation rule; briefing carries ruled-out approaches
+const VERSION = "12.16.4"; // install summary prints changelog excerpts as prose, not markdown
 
 // --- Arg parsing ---------------------------------------------------------
 
