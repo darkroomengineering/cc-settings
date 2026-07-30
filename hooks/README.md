@@ -22,12 +22,13 @@ For full hook documentation (all 29 events, configuration format, matchers, debu
 | `PostToolUse` | After Write/Edit | `post-edit-tsc.ts` (async TypeScript type check) | **Yes** |
 | `PostToolUse` | After Bash commands | `log-bash.ts` (command audit log) | **Yes** |
 | `PostToolUse` | After every tool (no matcher) | `tool-cadence.ts` (one spawn, two branches: parallelmax counter — consecutive non-Agent calls, N=12 delegation reminder, resets on Agent, 60s debounce — and review-queue backpressure) | No |
-| `PostToolUseFailure` | Tool execution fails | `post-failure.ts` (logs failures, warns on repeats) | No |
-| `PreCompact` | Before context compaction | `handoff.ts create` (saves state) | No |
-| `PostCompact` | After context compaction | `post-compact.ts` (recovery steps reminder) | No |
+| `PostToolUseFailure` | Tool execution fails | `post-failure.ts` (logs failures, warns on repeats, records the exact tool+error in the session ledger) | No |
+| `PostToolBatch` | After a batch of tool calls resolves | `ledger-record.ts` (records read/changed file paths in the session ledger — metadata only) | **Yes** |
+| `PreCompact` | Before context compaction | `handoff.ts create --from-hook` (saves state + session provenance) | No |
+| `PostCompact` | After context compaction | `post-compact.ts` (persists `compact_summary` into the matching handoff — stdout is user-visible only, never injected) | No |
 | `Stop` | Claude finishes | `stop-summary.ts` (learning reminder if >5 files changed) | No |
 | `StopFailure` | Turn ends due to API error | `stop-failure.ts` (logs, surfaces rate limit info) | No |
-| `SessionEnd` | Session ending | `handoff.ts create` | **Yes** |
+| `SessionEnd` | Session ending | `handoff.ts create --from-hook` | **Yes** |
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
 | `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |
 | `Notification` | Task completion | `notify.ts` (macOS/Linux notification) | **Yes** |

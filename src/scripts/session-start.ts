@@ -30,6 +30,7 @@ import {
   type ReviewQueueState,
   ReviewQueueStateSchema,
 } from "../lib/review-queue.ts";
+import { LEDGER_DIR, readDigest, toProjectRelative } from "../lib/session-ledger.ts";
 import { teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
 import {
   computeDrift,
@@ -191,6 +192,61 @@ async function autoWarmEngine(eng: EngineDescriptor): Promise<void> {
   })();
 }
 
+// --- Hook payload ---------------------------------------------------------
+// Read ONCE, up front, and reused by every consumer below (the compact-recovery
+// block in phase 5 and the restart-banner refresh at the end). Stdin for a hook
+// is a pipe the runtime has already written and closed, so this does not block;
+// reading it twice, on the other hand, would return "" the second time.
+const hookInput = await readHookInput<{ session_id?: string; source?: string }>();
+const sessionId = hookInput.session_id;
+const startSource = hookInput.source ?? "";
+
+/** Recovery block for a session restarted by compaction.
+ *
+ *  PostCompact cannot do this — its stdout goes to a userDisplayMessage, not to
+ *  the model (verified against the 2.1.220 binary). SessionStart with
+ *  source:"compact" is the supported injection point, and its stdout does reach
+ *  the model.
+ *
+ *  Deliberately NOT included: the compaction summary itself. Claude Code has
+ *  already placed it in the new context — repeating it would spend the budget
+ *  this block exists to protect. What the summary cannot carry is the exact
+ *  artifact trail, so that is what goes here, hard-capped at COMPACT_MAX_LINES.
+ */
+const COMPACT_MAX_LINES = 15;
+const COMPACT_MAX_FILES = 8;
+
+async function compactRecoveryLines(): Promise<string[]> {
+  const digest = await readDigest(sessionId);
+  const repoRoot = (await runGit(["rev-parse", "--show-toplevel"], { cwd: PROJECT_DIR })) || "";
+  const changed = toProjectRelative(digest.changes, repoRoot);
+
+  const out: string[] = [
+    "",
+    "[compact] Context was compacted. Earlier turns are gone; the summary above is the only record.",
+  ];
+
+  const handoffDir = join(CLAUDE_DIR, "handoffs", repoRoot ? basename(repoRoot) : PROJECT_NAME);
+  const latestMd = join(handoffDir, "latest.md");
+  if (existsSync(latestMd)) out.push(`[compact] Full handoff: ${latestMd}`);
+
+  if (changed.length > 0) {
+    const shown = changed.slice(-COMPACT_MAX_FILES);
+    const suffix = changed.length > shown.length ? ` (${shown.length} of ${changed.length})` : "";
+    out.push(`[compact] Files this session changed${suffix}:`);
+    for (const f of shown) out.push(`  - ${f}`);
+  }
+
+  const lastFailure = digest.failures.at(-1);
+  if (lastFailure)
+    out.push(`[compact] Last tool failure — ${lastFailure.tool}: ${lastFailure.error}`);
+
+  out.push(
+    "[compact] Re-read your task plan and the files above before continuing — do not trust remembered contents.",
+  );
+  return out.slice(0, COMPACT_MAX_LINES);
+}
+
 // --- Phase 1: background tasks --------------------------------------------
 
 // Clean per-session temp files from the previous session.
@@ -231,6 +287,13 @@ const logRotations = [
 ];
 const handoffCleanup = cleanupAllHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
 const sessionTitlePrune = pruneSessionTitles(join(CLAUDE_DIR, "session-titles"), 30);
+// One ledger file per session accumulates forever otherwise. Same mtime-based
+// prune as handoffs, and deliberately more generous than the 20 handoffs kept:
+// a ledger is only useful while its session's handoff still exists.
+const ledgerPrune = (async () => {
+  const drop = await pruneArtifacts(LEDGER_DIR, /\.jsonl$/, 30);
+  await Promise.all(drop.map((f) => unlink(f).catch(() => {})));
+})().catch(() => {});
 
 // --- Phase 2: wait for sessions.log rotation, then log session start ------
 
@@ -246,9 +309,21 @@ await autoWarmEngine(engine);
 
 // --- Phase 4: wait for remaining background tasks ------------------------
 
-await Promise.all([...logRotations.slice(1), handoffCleanup, sessionTitlePrune]);
+await Promise.all([...logRotations.slice(1), handoffCleanup, sessionTitlePrune, ledgerPrune]);
 
 // --- Phase 5: display output ----------------------------------------------
+
+// Compaction recovery goes first: on a compact start it is the highest-value
+// thing in this output, and everything below it is the same project context a
+// normal start prints. Fail-soft — a broken ledger must not cost the session
+// its normal startup banner.
+if (startSource === "compact") {
+  try {
+    for (const l of await compactRecoveryLines()) console.log(l);
+  } catch {
+    // Recovery digest unavailable — continue with the normal banner.
+  }
+}
 
 // Auto-memory pointer (local tier retired in v11.1.0; auto-memory is the active store)
 console.log("");
@@ -317,11 +392,7 @@ try {
   // without this refresh, a resumed session keeps the version recorded at its
   // very first render (possibly days old) and the statusline's "restart Claude
   // to apply" banner can never clear, no matter how many times you restart.
-  // Stdin is read here (not at module top) so a slow read never serializes
-  // ahead of the phase-1 work above; readHookInput returns {} on empty or
-  // malformed stdin, keeping this fail-open.
-  const hookInput = await readHookInput<{ session_id?: string }>();
-  const sessionId = hookInput.session_id;
+  // sessionId comes from the single stdin read at the top of this file.
   if (sessionId && installed) {
     // Same shared schema as the statusline's read — a corrupted map degrades
     // to {} instead of being spread into the next write.

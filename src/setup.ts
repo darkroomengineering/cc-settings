@@ -78,7 +78,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.16.4"; // install summary prints changelog excerpts as prose, not markdown
+const VERSION = "13.0.0"; // session artifact ledger; PostCompact persists compact_summary
 
 // --- Arg parsing ---------------------------------------------------------
 

@@ -30,9 +30,26 @@ Every handoff — auto or manual — always captures real, git-derived data at
 creation time:
 - **Project**: name, path, current branch
 - **Pending changes**: `git status --porcelain` (first 20 lines)
-- **Key files**: paths of files with uncommitted changes at save time
+- **Key files**: uncommitted paths **union** the files the session ledger
+  observed being changed (see below)
 - **Recent commits**: subjects of the last 3 commits
 - **Source**: `manual` or `auto` (see below)
+
+Plus three sections built purely from **observed** tool activity, not inference:
+- **Files Modified** — every path a `Write`/`Edit`/`NotebookEdit` touched
+- **Files Read** — every path a `Read` touched
+- **Tool Failures** — the exact tool name and error string, bounded and
+  secret-redacted
+
+These come from the session ledger, a bounded JSONL at
+`~/.claude/tmp/session-ledger/<session_id>.jsonl` written by the `PostToolBatch`
+hook. It exists to fix a specific hole: **`git status` forgets everything you
+committed.** A file edited at the start of a long session and committed an hour
+later is invisible to a `git status`-only handoff, so the longer the session,
+the more of its work disappears from the record. The ledger stores paths, tool
+names, and error strings only — never file contents, prompts, or tool responses
+— and never infers, so a `Bash` command's success is recorded as *nothing*
+rather than as a guess.
 
 Beyond that, what's actually filled in depends on how the handoff was created:
 
@@ -41,13 +58,19 @@ Beyond that, what's actually filled in depends on how the handoff was created:
   Notes for Next Session are placeholders (`<!-- ... -->`) for you (or the
   agent, before the turn ends) to fill in manually — the CLI has no way to
   know your in-progress todos, decisions, or learnings on its own.
-- **Automatic** (PreCompact/SessionEnd hooks call `create` with no
-  `--summary`, `source: "auto"`) — Session Summary, Active Todos, Current
-  Task, and Notes for Next Session all stay as unfilled placeholders. Only
-  the git-derived fields above are populated. Don't rely on an auto-handoff
-  alone to recall what you were doing — pair it with the structured
-  compaction template below, or run a manual `/handoff` with `--summary`
-  before ending a session.
+- **Automatic** (PreCompact/SessionEnd hooks call `create --from-hook`,
+  `source: "auto"`) — Active Todos, Current Task, and Notes for Next Session
+  stay as unfilled placeholders, but **Session Summary is no longer blank on
+  the compaction path**: the `PostCompact` hook writes Claude Code's own
+  `compact_summary` into the handoff that the preceding `PreCompact` created,
+  matched on session id. That summary is the one record of intent, decisions,
+  and rationale; the ledger sections are the record of artifacts. They are
+  stored separately and never merged, so nothing inferred is presented as
+  observed.
+
+On a `SessionEnd` handoff (no compaction involved) Session Summary can still be
+empty — pair it with the structured compaction template below, or run a manual
+`/handoff` with `--summary` before ending a session.
 
 ### GitHub Issue Sync
 

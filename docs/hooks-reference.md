@@ -65,7 +65,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 | Event | When | Matcher Values | Blocking |
 |-------|------|----------------|----------|
 | `PreCompact` | Before context compaction | `manual` or `auto` | Yes |
-| `PostCompact` | After context compaction completes | -- | No |
+| `PostCompact` | After context compaction completes | `manual` or `auto` | No |
 | `InstructionsLoaded` | CLAUDE.md or `.claude/rules/*.md` loaded | -- | No |
 | `ConfigChange` | Configuration file changes during session | `user_settings`, `project_settings`, `local_settings`, `policy_settings`, `skills` | Yes |
 
@@ -375,23 +375,61 @@ Logs are used by `bun run claude-audit` to analyze command patterns, security co
 |--------|---------|-------|
 | `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls and distinct file edits per streak. **One nudge per streak**: fires at threshold 12 calls OR 3+ files edited — emits a compact `additionalContext` reminder with the delegation heuristic. **One escalation per streak**: if the streak continues past the nudge by another threshold-worth of calls or 2+ more files, emits a soft block (`continueOnBlock: true`) via `blockDecision` — the turn continues but the signal is hard to ignore. Both signals suppress when the review queue is at capacity. Resets on any Agent call. 60s debounce. State at `~/.claude/tmp/parallelmax-counter.json`. `CC_PARALLELMAX_THRESHOLD` env override (default 12). | No |
 
+### PostToolBatch
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `ledger-record.ts` | Appends the file paths a batch read/changed to the session ledger at `~/.claude/tmp/session-ledger/<session_id>.jsonl`. Metadata only — never file contents. Silent, no stdout | **Yes** |
+
+`PostToolBatch` fires **once per batch of parallel tool calls**, which is why the
+ledger writes from here rather than from `PostToolUse`: a turn that reads six
+files in parallel appends six entries from one process instead of racing six
+concurrent appenders on one file. Payload, captured from a live 2.1.220 run:
+
+```json
+{
+  "session_id": "…", "transcript_path": "…", "cwd": "…", "prompt_id": "…",
+  "permission_mode": "…", "effort": {…}, "hook_event_name": "PostToolBatch",
+  "tool_calls": [
+    { "tool_name": "Read", "tool_input": {"file_path": "…"},
+      "tool_use_id": "…", "tool_response": "1\talpha\n2\t" }
+  ]
+}
+```
+
+The array field is `tool_calls` (not `tool_uses`), and `tool_response` carries
+the **full body** of every file read — the ledger deliberately never touches it.
+
 ### PostToolUseFailure
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-failure.ts` | Logs tool failures, warns if same tool fails 3+ times in a session | No |
+| `post-failure.ts` | Logs tool failures, warns if same tool fails 3+ times in a session, and records the exact tool + bounded/redacted error in the session ledger | No |
+
+Payload (verified against the 2.1.220 binary — the published page omits this
+event's shape): `{...common, hook_event_name, tool_name, tool_input,
+tool_use_id, error, is_interrupt, duration_ms}`. Note `error` is a top-level
+string, not a `tool_output` wrapper.
 
 ### PreCompact
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `handoff.ts create` | Saves current task state to handoff file before context is compacted | No |
+| `handoff.ts create --from-hook` | Saves task state before compaction. `--from-hook` reads the hook payload from stdin for `session_id` + `trigger`, which is what lets PostCompact find this exact handoff afterwards | No |
 
 ### PostCompact
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-compact.ts` | Injects recovery steps (re-read plan, key files, check TaskList) and surfaces latest handoff path | No |
+| `post-compact.ts` | Persists the native `compact_summary` into the handoff the preceding PreCompact wrote (matched on `sessionId`) | No |
+
+> **PostCompact stdout does NOT reach the model.** The runtime builds the payload
+> as `{...common, hook_event_name:"PostCompact", trigger, compact_summary}` and
+> folds each hook's stdout into a `userDisplayMessage` — user-visible only.
+> Verified against the 2.1.220 binary; the published hooks page documents
+> neither the `compact_summary` field nor this behaviour. Anything that needs to
+> reach the model after compaction belongs in **SessionStart with
+> `source: "compact"`**, whose stdout is injected.
 
 ### Stop
 

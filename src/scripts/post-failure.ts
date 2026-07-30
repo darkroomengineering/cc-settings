@@ -13,14 +13,28 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
+import { appendEntries, failureEntry } from "../lib/session-ledger.ts";
 
 const LOG_DIR = claudePath("logs");
 const LOG_FILE = join(LOG_DIR, "tool-failures.log");
 
 await mkdir(LOG_DIR, { recursive: true }).catch(() => {});
 
-const toolName = process.env.TOOL_NAME ?? "unknown";
-let toolError = process.env.TOOL_ERROR ?? "";
+// Stdin is read ONCE, up front, and every field below comes from it — the
+// PostToolUseFailure payload carries {tool_name, tool_input, tool_use_id,
+// error, is_interrupt, duration_ms} alongside the common fields (verified
+// against the 2.1.220 binary; the docs page omits this event's shape). The env
+// vars remain as a fallback for older/wrapper invocations that set them.
+const input = await readHookInput<{
+  session_id: string;
+  tool_name: string;
+  error: string;
+  cwd: string;
+  tool_use_id: string;
+}>({ session_id: "CLAUDE_SESSION_ID", tool_name: "TOOL_NAME", error: "TOOL_ERROR" });
+
+const toolName = input.tool_name ?? process.env.TOOL_NAME ?? "unknown";
+let toolError = input.error ?? process.env.TOOL_ERROR ?? "";
 const timestamp = isoNow();
 
 if (toolError.length > 200) toolError = `${toolError.slice(0, 200)}...`;
@@ -34,10 +48,15 @@ const logLine = `${JSON.stringify({
 })}\n`;
 await appendFile(LOG_FILE, logLine).catch(() => {});
 
+// The same failure, recorded as a session artifact so a handoff can name the
+// exact tool and message rather than "something failed". Bounded + redacted by
+// failureEntry; fail-open inside appendEntries.
+await appendEntries(input.session_id, [
+  failureEntry(toolName, toolError, timestamp, input.cwd, input.tool_use_id),
+]);
+
 // Per-session tally: counts keyed by tool name, file keyed by session id.
-const { session_id: sessionId = "unknown" } = await readHookInput<{ session_id: string }>({
-  session_id: "CLAUDE_SESSION_ID",
-});
+const sessionId = input.session_id ?? "unknown";
 const STATE_FILE = `tool-failure-counts-${sessionId}`;
 const counts = await readState<Record<string, number>>(STATE_FILE, {});
 const currentCount = counts[toolName] ?? 0;

@@ -513,6 +513,26 @@ describe("pruneDeprecatedHooks", () => {
     expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
   });
 
+  // v13.0.0: `handoff.ts create` gained --from-hook. Without a deprecation
+  // entry the union merge keeps BOTH invocations on an upgrade and fires them
+  // both — and the flagless one writes a handoff with no session provenance,
+  // which PostCompact cannot then match. Observed on a real install before
+  // this pattern existed.
+  test("DEPRECATED_COMMAND_PATTERNS matches the pre-13.0.0 flagless handoff hook", () => {
+    const badCmd = `bun "$HOME/.claude/src/scripts/handoff.ts" create`;
+    expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS leaves the --from-hook and manual handoff forms alone", () => {
+    for (const ok of [
+      `bun "$HOME/.claude/src/scripts/handoff.ts" create --from-hook`,
+      `bun "$HOME/.claude/src/scripts/handoff.ts" create --summary "did stuff"`,
+      `bun "$HOME/.claude/src/scripts/handoff.ts" resume`,
+    ]) {
+      expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok))).toBe(false);
+    }
+  });
+
   test("DEPRECATED_COMMAND_PATTERNS matches parallelmax-nudge.ts (merged into tool-cadence.ts)", () => {
     const badCmd = `bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"`;
     expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);

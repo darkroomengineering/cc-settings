@@ -21,7 +21,15 @@ import {
 } from "../lib/artifact-store.ts";
 import { runGit, runProcessFull } from "../lib/git.ts";
 import { parseIntArg } from "../lib/hook-config.ts";
+import { readHookInput } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
+import { readDigest, toProjectRelative } from "../lib/session-ledger.ts";
+
+/** Value of a `--flag value` pair, or "" when absent. */
+function argValue(args: string[], flag: string): string {
+  const i = args.indexOf(flag);
+  return i === -1 ? "" : (args[i + 1] ?? "");
+}
 
 // Pre-per-project-scoping global directory. Kept as a one-time READ fallback
 // (see resolveHandoffDir) so handoffs saved before this migration remain
@@ -68,6 +76,21 @@ async function cmdCreate(args: string[]): Promise<void> {
   // call `create` with no flags) — mark the record so a reader can tell an
   // unattended auto-save from a deliberate manual one.
   const source = summary ? "manual" : "auto";
+
+  // Hook metadata arrives on stdin, and ONLY when --from-hook is passed.
+  // Reading stdin unconditionally would hang a manual `handoff.ts create` at
+  // an interactive terminal, so the hook opts in explicitly. --session-id is
+  // the same information by flag, for tests and manual reproduction.
+  const sessionIdArg = argValue(args, "--session-id");
+  let sessionId = sessionIdArg;
+  let trigger = argValue(args, "--trigger");
+  if (args.includes("--from-hook")) {
+    const hook = await readHookInput<{ session_id: string; trigger: string }>({
+      session_id: "CLAUDE_SESSION_ID",
+    });
+    if (!sessionId && typeof hook.session_id === "string") sessionId = hook.session_id;
+    if (!trigger && typeof hook.trigger === "string") trigger = hook.trigger;
+  }
 
   const handoffDir = await projectHandoffDir();
   await mkdir(handoffDir, { recursive: true });
@@ -121,13 +144,27 @@ async function cmdCreate(args: string[]): Promise<void> {
     gitStatus = statusRes.stdout.split("\n").filter(Boolean).slice(0, 20).join("\n");
     recentCommits = logOut ? logOut.split("\n").filter(Boolean) : [];
   }
-  const modifiedFiles = gitStatus
+  const gitFiles = gitStatus
     ? gitStatus
         .split("\n")
         .filter(Boolean)
         .map((line) => line.slice(3).trim())
     : [];
-  const pendingChanges = modifiedFiles.length;
+  const pendingChanges = gitFiles.length;
+
+  // The session ledger is the only record of files that were edited AND
+  // committed during this session — `git status` has already forgotten them.
+  // Ledger paths are absolute; relativize against the repo toplevel so they
+  // are directly comparable with porcelain output (always repo-root-relative).
+  const digest = await readDigest(sessionId);
+  const repoRoot = gitDir ? await runGit(["rev-parse", "--show-toplevel"]) : "";
+  const ledgerChanged = toProjectRelative(digest.changes, repoRoot);
+  const ledgerRead = toProjectRelative(digest.reads, repoRoot);
+
+  // Key Files is the union: what is dirty right now, plus what this session is
+  // observed to have changed. Order puts still-dirty files first, since those
+  // are what a resuming reader has to deal with immediately.
+  const modifiedFiles = [...new Set([...gitFiles, ...ledgerChanged])];
 
   // Best-effort content for the automatic (no --summary) path: everything
   // that CAN be derived from git without a transcript is populated here
@@ -143,6 +180,17 @@ async function cmdCreate(args: string[]): Promise<void> {
     recentCommits,
     notes: "",
     source,
+    // Provenance — how PostCompact finds THIS handoff to backfill later.
+    sessionId,
+    trigger,
+    // Mechanically observed, kept separate from anything model-derived: these
+    // are paths a tool actually touched and errors a tool actually returned.
+    // `context.summary` is the only field that carries intent or rationale.
+    artifacts: {
+      filesModified: ledgerChanged,
+      filesRead: ledgerRead,
+      toolFailures: digest.failures,
+    },
   };
   await writeFile(handoffJson, `${JSON.stringify(json, null, 2)}\n`);
 
@@ -152,6 +200,16 @@ async function cmdCreate(args: string[]): Promise<void> {
   const recentCommitsSection = recentCommits.length
     ? recentCommits.map((c) => `- ${c}`).join("\n")
     : "<!-- No commits found -->";
+  const bullets = (items: string[], empty: string) =>
+    items.length ? items.map((f) => `- ${f}`).join("\n") : empty;
+  const filesModifiedSection = bullets(
+    ledgerChanged,
+    "<!-- No file changes observed this session -->",
+  );
+  const filesReadSection = bullets(ledgerRead, "<!-- No file reads observed this session -->");
+  const toolFailuresSection = digest.failures.length
+    ? digest.failures.map((f) => `- \`${f.tool}\`: ${f.error}`).join("\n")
+    : "<!-- No tool failures observed this session -->";
 
   const md = `# Session Handoff - ${ts}
 
@@ -174,6 +232,16 @@ ${summary || "<!-- Add summary of what was accomplished -->"}
 
 ## Key Files
 ${keyFilesSection}
+
+## Files Modified
+<!-- Observed via the session ledger — survives commits, unlike git status -->
+${filesModifiedSection}
+
+## Files Read
+${filesReadSection}
+
+## Tool Failures
+${toolFailuresSection}
 
 ## Recent Commits
 ${recentCommitsSection}

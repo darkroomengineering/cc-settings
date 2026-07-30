@@ -291,6 +291,15 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // config). Prune so upgraders stop seeing "No such file or directory".
   /track-tldr\.ts\b/,
   /tldr-stats\.ts\b/,
+  // cc-settings v13.0.0 gave the PreCompact/SessionEnd handoff hooks a
+  // --from-hook flag, which is what carries session_id + trigger through to
+  // PostCompact. The command string changed, so the union merge would
+  // otherwise keep the OLD flagless invocation alongside the new one and fire
+  // both — and the flagless one writes a handoff with no session provenance,
+  // which PostCompact then cannot match. Matches only the exact bare form:
+  // anchored at the end, so `create --from-hook` is untouched, and a user's
+  // own `create --summary "..."` hook is left alone.
+  /handoff\.ts["']?\s+create\s*$/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {

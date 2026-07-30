@@ -154,11 +154,25 @@ describe("prune-mcp-auth-cache.ts", () => {
 });
 
 describe("post-compact.ts", () => {
-  test("prints recovery steps", async () => {
+  // The old contract — an unconditional "[PostCompact] … recovery steps" list —
+  // was retired: PostCompact stdout is folded into a userDisplayMessage and
+  // never reaches the model, so those instructions had no reader. Recovery
+  // injection moved to SessionStart(source=compact). What remains here is a
+  // silent persistence step.
+  test("says nothing when there is no summary to persist", async () => {
     const r = await run("post-compact.ts");
     expect(r.exit).toBe(0);
-    expect(r.stdout).toContain("[PostCompact]");
-    expect(r.stdout).toContain("1. Re-read your active task plan");
+    expect(r.stdout.trim()).toBe("");
+  });
+
+  test("exits 0 on a payload with no matching handoff", async () => {
+    const payload = JSON.stringify({
+      session_id: "no-such-session",
+      compact_summary: "summary text",
+      trigger: "manual",
+    });
+    const r = await run("post-compact.ts", { stdin: payload });
+    expect(r.exit).toBe(0);
   });
 });
 

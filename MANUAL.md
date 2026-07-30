@@ -273,6 +273,8 @@ Say: *"done for today"* or *"save state"*
 
 Triggers `/handoff` (save mode) — full markdown session transfer with decisions, files, next steps. Syncs with GitHub Issues if branch is linked.
 
+Handoffs also carry an observed artifact trail — `Files Modified`, `Files Read`, and `Tool Failures` — recorded as the session runs. This is why a file you edited *and committed* hours ago still shows up: `git status` has long forgotten it, but the ledger has not. On the compaction path the Session Summary is filled in automatically from Claude Code's own compaction summary.
+
 ### Resume Work
 
 Say: *"resume"* or *"continue where we left off"*
@@ -592,9 +594,10 @@ Hook types: `command` (shell), `prompt` (LLM yes/no), `agent` (subagent with too
 | Post-tool (Write/Edit) | Post-edit validation, async TSC |
 | Post-tool (Bash) | Command audit log |
 | Post-tool (all) | Tool cadence: non-Agent call counter + review-queue backpressure (`tool-cadence.ts`) |
-| Tool failure | Failure tracking |
-| Pre-compact | Auto-handoff save |
-| Post-compact | After context compaction completes |
+| Post-tool batch | Session ledger: records which files the batch read/changed (`ledger-record.ts`) |
+| Tool failure | Failure tracking + exact tool/error into the session ledger |
+| Pre-compact | Auto-handoff save (with session provenance) |
+| Post-compact | Persists the compaction summary into that session's handoff |
 | Stop | Learning reminder (`stop-summary.ts`) |
 | Stop failure | Turn ends due to API error (rate limit, auth failure) |
 | Session end | Auto-handoff |

@@ -4,6 +4,34 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.0.0] — 2026-07-30
+
+An automatic handoff used to lose most of what the session did. Two holes, both structural. `git status` only reports what is dirty *right now*, so a file edited early and committed an hour later left no trace — the longer the session, the more of its work vanished from the record. And the compaction summary Claude Code generates, the one structured account of intent and decisions that exists, was discarded: `post-compact.ts` never read its stdin at all, so every hook-created handoff kept a placeholder comment where its summary belonged.
+
+Both are now closed, and the fix is deliberately split by provenance: **`compact_summary` owns intent, decisions, and rationale; a new session ledger owns paths and errors.** They are stored in separate fields and never merged, so nothing inferred is ever presented as observed.
+
+**The session ledger** (`src/lib/session-ledger.ts`) is a bounded JSONL at `~/.claude/tmp/session-ledger/<session_id>.jsonl`, written from a `PostToolBatch` hook. That event, not `PostToolUse`, is the right seam: it fires once per batch of parallel calls, so a turn that reads six files appends six entries from one process instead of racing six appenders on one file. It records paths, tool names, and bounded/redacted error strings — nothing else. The payload hands it `tool_response` containing the full body of every file read; that field is never touched. Caps are 50 reads, 50 changes, 20 failures, 200 chars per error, 4000 lines per file (trimmed to 2000), 30 session files. Every failure mode — missing session id, unwritable directory, corrupt line — degrades to less data, never to an error.
+
+It also refuses to guess. A `Bash` call records *nothing*, because the batch payload carries no exit code that can be trusted for it. Unknown stays unknown.
+
+**Key Files is now the union** of `git status` and the ledger's observed changes, with dedicated `Files Modified` / `Files Read` / `Tool Failures` sections beside it. `PreCompact` and `SessionEnd` invoke `handoff.ts create --from-hook`, which reads the hook payload from stdin for `session_id` and `trigger` — stdin is read only under that flag, so a manual `handoff.ts create` at a terminal still cannot hang. `post-compact.ts` then finds the handoff matching that session id and backfills its Session Summary in both the JSON and the Markdown twin.
+
+### Breaking
+
+- **`post-compact.ts` no longer prints recovery instructions.** It printed a numbered list addressed to the model; that text went to a `userDisplayMessage` and could only ever be seen by the user. Anything depending on that stdout should read the handoff instead, or move to `SessionStart(source:"compact")`.
+- **The PreCompact and SessionEnd hook commands changed** to `handoff.ts create --from-hook`. The old flagless form is now in `DEPRECATED_COMMAND_PATTERNS`, so re-running the installer prunes it rather than leaving both wired. A hand-written `handoff.ts create` hook of your own will be pruned on the next install; `create --summary "…"` and `create --from-hook` are untouched.
+- **`PostToolBatch` is now a registered hook event.** Sessions write one ledger file per session under `~/.claude/tmp/session-ledger/`, pruned to the newest 30 at session start.
+
+### PostCompact stdout never reached the model
+
+Worth stating plainly, because the previous implementation assumed otherwise and the published hooks page documents neither half of this. Verified against the 2.1.220 binary, the runtime builds the payload as `{...common, hook_event_name:"PostCompact", trigger, compact_summary}` and folds each hook's stdout into a `userDisplayMessage`. The old script printed a numbered "recovery steps" list addressed to the model; that text could only ever have been seen by the user. `compact_summary` is genuinely delivered, and is what the hook now consumes.
+
+Recovery injection moved to `SessionStart` with `source:"compact"`, whose stdout does reach the model. It emits a hard-capped 15 lines: a compaction notice, the handoff path, up to 8 changed files, the last exact tool failure, and an instruction to re-read before trusting anything remembered. It pointedly does **not** repeat the compaction summary, which is already in the new context. `session-start.ts` now reads its stdin once at the top and reuses it, rather than reading late for `session_id` alone.
+
+Two other doc claims corrected while confirming the contracts: the batch payload's array is `tool_calls`, not `tool_uses`, and `PostToolUseFailure` carries a top-level `error` string rather than a `tool_output` wrapper.
+
+Tests are organized by Factory's four compression probes — recall, artifact, continuation, decision — plus the robustness cases that matter here: two compaction cycles in one session, parallel batches, corrupt and partial lines, missing session ids, secret redaction, cap enforcement, old handoffs without the new fields, and an assertion that no raw tool response or file content is ever persisted. All deterministic; no LLM judge, no network, no model call.
+
 ## [12.16.4] — 2026-07-30
 
 The install summary prints a one-line excerpt of each changelog entry it brings in, and it printed the markdown source. v12.16.3 was the first entry to open with a link, so the terminal got the raw bracket-and-URL source where the words should have been — noise plus an unclickable URL, in the one place the text has to be skimmable.
