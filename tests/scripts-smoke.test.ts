@@ -222,6 +222,55 @@ describe("post-edit-tsc.ts", () => {
     const r = await run("post-edit-tsc.ts", { env: { TOOL_INPUT_file_path: "" } });
     expect(r.exit).toBe(0);
   });
+  // Regression: Claude Code passes file_path as an ABSOLUTE path, but tsc
+  // prints diagnostics relative to cwd. Matching only the absolute form made
+  // the hook silently report nothing for a genuinely broken file.
+  test("absolute file_path still reports the edited file's errors", async () => {
+    const { writeFileSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repoRoot = join(import.meta.dir, "..");
+    const probeRel = `src/lib/__tsc_probe_${process.pid}.ts`;
+    const probeAbs = join(repoRoot, probeRel);
+    // Never clobber a real file: the cleanup below deletes this path.
+    const { existsSync } = await import("node:fs");
+    if (existsSync(probeAbs)) throw new Error(`probe path already exists: ${probeAbs}`);
+    writeFileSync(probeAbs, 'export const probe: number = "not a number";\n');
+    try {
+      const r = await run("post-edit-tsc.ts", {
+        cwd: repoRoot,
+        env: { TOOL_INPUT_file_path: probeAbs },
+      });
+      expect(r.exit).toBe(0);
+      expect(r.stdout).toContain(probeRel);
+      expect(r.stdout).toContain("TS2322");
+    } finally {
+      rmSync(probeAbs, { force: true });
+    }
+  }, 130_000);
+  // The hook fires once per edit, so it reuses a .tsbuildinfo instead of a
+  // cold full-project check every time. The cache lives under HOME, never in
+  // the repo being edited — a stray .tsbuildinfo in a client repo's
+  // `git status` would be our bug.
+  test("caches tsbuildinfo under HOME, not in the project", async () => {
+    const { mkdtempSync, rmSync, existsSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-tsccache-test-"));
+    const repoRoot = join(import.meta.dir, "..");
+    try {
+      const r = await run("post-edit-tsc.ts", {
+        cwd: repoRoot,
+        env: { HOME: sandbox, TOOL_INPUT_file_path: join(repoRoot, "src/lib/tsc.ts") },
+      });
+      expect(r.exit).toBe(0);
+      const cacheDir = join(sandbox, ".claude", "tmp", "tsc-cache");
+      expect(existsSync(cacheDir)).toBe(true);
+      expect(readdirSync(cacheDir).some((f) => f.endsWith(".tsbuildinfo"))).toBe(true);
+      expect(existsSync(join(repoRoot, "tsconfig.tsbuildinfo"))).toBe(false);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  }, 130_000);
 });
 
 describe("post-edit.ts", () => {

@@ -78,7 +78,7 @@ import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "12.16.1"; // F7 overlap documented; full→light docs/ prune asserted
+const VERSION = "12.16.2"; // post-edit tsc actually reports errors now; typechecks incremental
 
 // --- Arg parsing ---------------------------------------------------------
 

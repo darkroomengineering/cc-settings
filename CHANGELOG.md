@@ -4,6 +4,35 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [12.16.2] — 2026-07-30
+
+The post-edit TypeScript hook has never reported a single error. It matched `TOOL_INPUT_file_path` — which Claude Code passes as an **absolute** path — against `tsc --noEmit` output, which prints diagnostics **relative to cwd**. Every `.ts`/`.tsx` edit paid for a full-project typecheck and printed nothing.
+
+Reproduced before fixing, on a deliberately broken file:
+
+```
+absolute path (what the hook receives) → (no output)
+relative path                          → src/lib/probe.ts(1,14): error TS2322: ...
+```
+
+The existing smoke tests covered only the two no-op paths (non-TS file, empty path), so nothing ever asserted the hook emits anything for a genuinely broken file. That test now exists — it writes a real type error and asserts the diagnostic comes back.
+
+**Typechecks are now incremental.** Once the hook produces output, the cost of producing it starts to matter. `runTsc()` reuses a `.tsbuildinfo` across runs, cached at `~/.claude/tmp/tsc-cache/<cwd-hash>.tsbuildinfo` — under `$HOME` rather than in the project, so a client repo never gets a stray build artifact showing up in `git status`. Measured through the hook on this repo: **2.06s cold → 0.72s warm.**
+
+The cache is never allowed to fake a clean typecheck. Three ways it can be unusable all fall back to a cold run:
+
+| Failure | Cause |
+|---|---|
+| unwritable `$HOME` | cache path can't be created |
+| TypeScript < 5.6 | rejects `--incremental` alongside `--noEmit` |
+| torn `.tsbuildinfo` | concurrent hook runs share one cache path |
+
+The retry matcher is deliberately narrow — a tsc error line naming the cache machinery, never a user type error that happens to mention it — so a bad cache degrades to "slow" and never to "silently green".
+
+A cross-model review caught the matcher's own version of the original bug before it shipped: `--pretty` colourises even when piped, splitting the header as `error<ESC>[0m<ESC>[90m TS2322`, so a pattern expecting `error TS####` could never fire on the pre-commit path. Escapes are stripped before matching now, and a test asserts both halves — that raw pretty output does *not* match, and that stripped output does.
+
+Both `runTsc()` callers inherit this, so the pre-commit gate got faster too and shares the same cache.
+
 ## [12.16.1] — 2026-07-29
 
 Closes F7 from `docs/audits/nuclear-review-2026-07-29.md` — the last open finding — **without a code change**, which is the honest outcome once it was measured.
