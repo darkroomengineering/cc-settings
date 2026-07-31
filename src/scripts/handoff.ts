@@ -19,7 +19,7 @@ import {
   resolveArtifact,
   timestampId,
 } from "../lib/artifact-store.ts";
-import { runGit, runProcessFull } from "../lib/git.ts";
+import { getProjectName, runGit, runProcessFull } from "../lib/git.ts";
 import { parseIntArg } from "../lib/hook-config.ts";
 import { readHookInput } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
@@ -40,13 +40,6 @@ const RESOLVE_SPEC = {
   latestLink: "latest.md",
   idToName: (id: string) => `handoff_${id}.md`,
 };
-
-// Same project-name derivation as checkpoint.ts's getProjectName: repo
-// toplevel basename, falling back to cwd basename outside a git repo.
-async function getProjectName(): Promise<string> {
-  const out = await runGit(["rev-parse", "--show-toplevel"]);
-  return out ? basename(out) : basename(process.cwd());
-}
 
 async function projectHandoffDir(): Promise<string> {
   const project = await getProjectName();

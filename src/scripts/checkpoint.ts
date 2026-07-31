@@ -14,7 +14,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import {
   listArtifacts,
@@ -25,14 +25,9 @@ import {
   timestampId,
 } from "../lib/artifact-store.ts";
 import { palette } from "../lib/colors.ts";
-import { runGit, runProcessFull } from "../lib/git.ts";
+import { getProjectName, runProcessFull } from "../lib/git.ts";
 import { parseIntArg } from "../lib/hook-config.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
-
-async function getProjectName(): Promise<string> {
-  const out = await runGit(["rev-parse", "--show-toplevel"]);
-  return out ? basename(out) : basename(process.cwd());
-}
 
 async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });

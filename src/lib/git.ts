@@ -2,6 +2,10 @@
 //   runGit         — trimmed git stdout only, swallows errors. Common path.
 //   runProcessFull — full {exit, stdout, stderr} for any binary. Callers that
 //                    need the exit code or stderr use runProcessFull("git", …).
+//   getProjectName — repo toplevel basename, falling back to cwd basename
+//                    outside a git repo. Shared by checkpoint.ts and handoff.ts.
+
+import { basename } from "node:path";
 
 // Git plumbing calls are expected to return in milliseconds. A stale
 // index.lock, a credential-manager prompt (blocking on stdin), or a hung
@@ -53,4 +57,13 @@ export async function runProcessFull(
     new Response(proc.stderr).text(),
   ]);
   return { exit: await proc.exited, stdout, stderr };
+}
+
+/**
+ * Derive a project name for artifact scoping: the git repo's toplevel
+ * directory basename, or the cwd's basename outside a git repo.
+ */
+export async function getProjectName(): Promise<string> {
+  const out = await runGit(["rev-parse", "--show-toplevel"]);
+  return out ? basename(out) : basename(process.cwd());
 }

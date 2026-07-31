@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.0.6] — 2026-07-31
+
+Cleanup from the audit's smaller notes.
+
+`project-init.ts` wrote three AI-tool pointer files through three functions that were byte-identical apart from the filename. One `createPointerFile(dir, relPath, body)` now covers all three — using `dirname()` for the mkdir, so it is a no-op for the flat `.cursorrules`/`.windsurfrules` and still creates `.github/` for Copilot. The bytes written are unchanged, verified by hashing all three outputs before and after.
+
+`getProjectName()` existed twice, in `checkpoint.ts` and `handoff.ts`, with a comment in the latter admitting the mirror. It lives in `git.ts` now beside the other small git wrappers. Deleting the local copy left two orphaned imports in `checkpoint.ts`, so this nets out roughly even on line count rather than the win it looked like.
+
+`quota-steer.ts` reads stdin and throws the result away, which reads as dead code and is not — the payload carries the whole prompt, and a long one exceeds the pipe buffer, so exiting without draining would leave the dispatcher blocked on its write. Now says so, because the next person to see it would have deleted it.
+
+`MultiEdit` is gone from the manifest's `knownBuiltinTools`; Claude Code removed that tool and `settings-merge.ts` already prunes its permission rules as dead syntax. Nothing reads the list programmatically, and no hook matcher references it.
+
 ## [13.0.5] — 2026-07-31
 
 The session ledger stopped reading itself on every tool batch. `trimLedger` runs after each append to enforce the 4000-line cap, and it was reading the whole file each time just to count lines — so every batch in a session paid a full read of a file that grows all session long. It now checks the size first: a file too small to possibly hold 4000 lines is ruled out by `stat` alone, and the read never happens.

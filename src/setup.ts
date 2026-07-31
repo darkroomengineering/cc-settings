@@ -83,7 +83,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.0.5"; // ledger trim: size-gated, no longer reads the file every batch
+const VERSION = "13.0.6"; // audit notes: pointer-file + getProjectName dedup, stale MultiEdit
 
 // --- Arg parsing ---------------------------------------------------------
 
