@@ -83,7 +83,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.0.1"; // nuclear-review remediation; CC_PARALLELMAX_THRESHOLD=0 honored
+const VERSION = "13.0.2"; // Windows: ledger paths and tsc-hook matching use forward slashes
 
 // --- Arg parsing ---------------------------------------------------------
 

@@ -223,13 +223,20 @@ export async function readDigest(
 
 /** Render absolute ledger paths as project-relative where they genuinely live
  *  under `root`. A path outside the project stays absolute rather than becoming
- *  a `../../..` string that no reader can match against git output. */
+ *  a `../../..` string that no reader can match against git output.
+ *
+ *  Separators are normalized to `/` because the consumer is git output, and git
+ *  emits forward slashes on every platform. `node:path.relative` returns `\` on
+ *  Windows, so without this a Windows handoff listed `src\a.ts` while `git
+ *  status` listed `src/a.ts` — the two never deduped against each other. No-op
+ *  on POSIX, where `relative` already returns `/`. */
 export function toProjectRelative(paths: string[], root: string): string[] {
   if (!root) return paths;
   return paths.map((p) => {
     if (!isAbsolute(p)) return p;
     const rel = relative(root, p);
-    return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel : p;
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) return p;
+    return rel.replaceAll("\\", "/");
   });
 }
 

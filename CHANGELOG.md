@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.0.2] — 2026-07-31
+
+Two Windows path bugs shipped in v13.0.0 and turned CI red for a day. Both are the same mistake: `node:path` returns `\` on Windows, but the thing being compared against always uses `/`.
+
+Handoffs on Windows listed `src\a.ts` in Files Modified while `git status` listed `src/a.ts`, so the two never deduped and the same file appeared twice. `toProjectRelative` now normalizes separators — its whole purpose is producing strings a reader can match against git output, and git emits forward slashes everywhere.
+
+The post-edit typecheck hook reported nothing at all on Windows. `tsc` prints `src/lib/foo.ts` while `relative()` returned `src\lib\foo.ts`, so neither that nor the absolute path matched any diagnostic line — every edit paid for a full typecheck and printed silence. Exactly the failure the absolute-path fix already addressed once, one separator later. The forward-slash form is now matched too.
+
+Both existing tests already asserted the right thing; they were failing on `windows-latest` and passing everywhere else.
+
 ## [13.0.1] — 2026-07-31
 
 Nuclear review of the whole codebase (`docs/audits/nuclear-review-2026-07-31.md`, 9 findings). Seven landed; two were withdrawn after being built and found not to pay off — the audit records why so they aren't re-filed.

@@ -21,8 +21,13 @@ try {
     // path. Matching only the absolute form silently matched nothing, so the
     // hook burned a full typecheck per edit and never reported anything.
     // Match either form; substring matching avoids escaping the path as regex.
+    // On Windows `relative` returns `src\lib\foo.ts` while tsc prints
+    // `src/lib/foo.ts`, so neither the absolute nor the native-relative form
+    // matched and the hook silently reported nothing — the same failure the
+    // absolute-path fix above addressed, one separator later. Include the
+    // forward-slash form too; it is identical to `rel` on POSIX.
     const rel = relative(process.cwd(), filePath);
-    const candidates = [filePath, rel].filter(Boolean);
+    const candidates = [filePath, rel, rel.replaceAll("\\", "/")].filter(Boolean);
     const matches = combined
       .split(/\r?\n/)
       .filter((line) => line && candidates.some((candidate) => line.includes(candidate)))
