@@ -32,8 +32,12 @@
 
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { HooksBlock } from "../schemas/hooks.ts";
-import { parseHookCommand, SHELL_SEGMENT_SEP_RE } from "./hook-command.ts";
+import {
+  iterCommandHooks,
+  parseHookCommand,
+  parseHooksBlock,
+  SHELL_SEGMENT_SEP_RE,
+} from "./hook-command.ts";
 import { hashFileOrNull, readSrcManifest } from "./hooks-fingerprint.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { CLAUDE_DIR, installPaths } from "./platform.ts";
@@ -350,41 +354,24 @@ export function classifyHookCommand(
 }
 
 // Settings.json shape we care about: top-level `hooks` is `{ [event]: HookGroup[] }`
-// where each group has `hooks: Hook[]`. We tolerate unknown shapes silently
-// (return empty findings) - a malformed settings.json is a different problem.
-
+// where each group has `hooks: Hook[]`. Traversal (including tolerance for
+// unknown/malformed shapes) lives in hook-command.ts's `iterCommandHooks` —
+// single-sourced so the auditor and the fingerprint can never walk the same
+// settings.json differently.
 export function auditHooks(settings: unknown, integrity?: SrcIntegrity | null): HookFinding[] {
-  if (!settings || typeof settings !== "object") return [];
-  const hooks = (settings as Record<string, unknown>).hooks;
-  if (!hooks || typeof hooks !== "object") return [];
-
   const findings: HookFinding[] = [];
-  for (const [event, groups] of Object.entries(hooks)) {
-    if (!Array.isArray(groups)) continue;
-    groups.forEach((group: unknown, gi: number) => {
-      if (!group || typeof group !== "object") return;
-      const hooksBlock = (group as Record<string, unknown>).hooks;
-      if (!Array.isArray(hooksBlock)) return;
-      hooksBlock.forEach((entry: unknown, hi: number) => {
-        if (!entry || typeof entry !== "object") return;
-        const e = entry as Record<string, unknown>;
-        // Only `command`-type hooks have a string command. Prompt/agent/http/
-        // mcp_tool hooks don't run arbitrary shell, so out of scope here.
-        if (e.type !== "command") return;
-        if (typeof e.command !== "string") return;
-        const cmd = e.command.trim();
-        if (!cmd) return;
-        const { severity, reasons } = classifyHookCommand(cmd, integrity);
-        findings.push({
-          event,
-          groupIndex: gi,
-          hookIndex: hi,
-          type: "command",
-          command: cmd,
-          severity,
-          reasons,
-        });
-      });
+  for (const { event, groupIndex, hookIndex, command } of iterCommandHooks(settings)) {
+    const cmd = command.trim();
+    if (!cmd) continue;
+    const { severity, reasons } = classifyHookCommand(cmd, integrity);
+    findings.push({
+      event,
+      groupIndex,
+      hookIndex,
+      type: "command",
+      command: cmd,
+      severity,
+      reasons,
     });
   }
   return findings;
@@ -456,32 +443,26 @@ export async function auditSettingsFile(
   // Validate the hooks block against the schema before walking it. A failure
   // doesn't stop the audit - we surface it as a SchemaFinding (unknown severity)
   // and then fall through to auditHooks (which degrades gracefully on malformed
-  // input). Using `unknown` rather than `suspicious` because a schema mismatch
-  // alone doesn't prove malice - it might be forward-compat drift from a newer
-  // Claude Code version.
+  // input, via the SAME parse — see parseHooksBlock in hook-command.ts). Using
+  // `unknown` rather than `suspicious` because a schema mismatch alone doesn't
+  // prove malice - it might be forward-compat drift from a newer Claude Code
+  // version.
   const extraFindings: SchemaFinding[] = [];
-  let validatedHooks: Record<string, unknown> | undefined;
   if (parsed !== null && typeof parsed === "object") {
-    const hooksRaw = (parsed as Record<string, unknown>).hooks;
-    if (hooksRaw !== undefined) {
-      const schemaResult = HooksBlock.safeParse(hooksRaw);
-      if (!schemaResult.success) {
-        const issueSummary = schemaResult.error.issues
-          .map((i) => `${i.path.join(".")}: ${i.message}`)
-          .join("; ");
-        extraFindings.push({
-          event: "schema",
-          groupIndex: -1,
-          hookIndex: -1,
-          type: "schema-validation",
-          command: HOOKS_SCHEMA_VALIDATION_FAILED,
-          severity: "unknown",
-          reasons: [issueSummary],
-        });
-      } else {
-        // §3.2: pass validated hooks data so auditHooks doesn't repeat defensive checks
-        validatedHooks = schemaResult.data as Record<string, unknown>;
-      }
+    const { hadHooksKey, result: hooksParseResult } = parseHooksBlock(parsed);
+    if (hadHooksKey && !hooksParseResult.success) {
+      const issueSummary = hooksParseResult.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      extraFindings.push({
+        event: "schema",
+        groupIndex: -1,
+        hookIndex: -1,
+        type: "schema-validation",
+        command: HOOKS_SCHEMA_VALIDATION_FAILED,
+        severity: "unknown",
+        reasons: [issueSummary],
+      });
     }
   }
 
@@ -490,19 +471,14 @@ export async function auditSettingsFile(
   // setup.ts installed.
   const integrity = await loadSrcIntegrity(claudeDir);
 
-  // §3.2: When schema validation passed, inject the validated hooks block so
-  // auditHooks receives typed data and skips redundant typeof guards.
-  const auditInput =
-    validatedHooks !== undefined
-      ? { ...(parsed as Record<string, unknown>), hooks: validatedHooks }
-      : parsed;
-
   // totalHooks counts audited command hooks (the "hook command(s) total" the
   // CLI prints) - NOT findings, which also include the schema pseudo-finding.
-  const hookFindings = auditHooks(auditInput, integrity);
+  // auditHooks re-derives the hooks block itself via iterCommandHooks — no
+  // need to pre-validate/inject it here.
+  const hookFindings = auditHooks(parsed, integrity);
   const findings: AuditFinding[] = [...extraFindings, ...hookFindings];
-  // env/mcpServers are read from the raw parsed settings, not auditInput —
-  // they're untouched by the hooks-schema validation above (H12).
+  // env/mcpServers are read from the raw parsed settings — they're untouched
+  // by the hooks-schema validation above (H12).
   //
   // The ~/.claude.json half was gathered before the early returns above, so it
   // survives an absent or malformed settings.json.

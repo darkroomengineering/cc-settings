@@ -74,11 +74,16 @@ import {
 import { mergeSettings, printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
-import { buildVersionDelta, readSentinelInfo } from "./lib/version-delta.ts";
+import {
+  buildVersionDelta,
+  readSentinelInfo,
+  type Sentinel,
+  writeSentinel,
+} from "./lib/version-delta.ts";
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.0.0"; // session artifact ledger; PostCompact persists compact_summary
+const VERSION = "13.0.1"; // nuclear-review remediation; CC_PARALLELMAX_THRESHOLD=0 honored
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -398,7 +403,7 @@ async function writeVersionSentinel(
   // Null on a light install or when no MCP block was installed.
   mcpWritten?: McpServers | null,
 ): Promise<void> {
-  const payload = {
+  const payload: Sentinel = {
     version: VERSION,
     installed_at: new Date().toISOString(),
     installer: "src/setup.ts",
@@ -436,7 +441,7 @@ async function writeVersionSentinel(
     // as "declined". See decideAutoUpdate() in src/lib/schedule.ts.
     ...(autoUpdate !== undefined ? { auto_update: autoUpdate } : {}),
   };
-  await atomicWriteJson(join(CLAUDE_DIR, ".cc-settings-version"), payload);
+  await writeSentinel(CLAUDE_DIR, payload);
 }
 
 // --- Status --------------------------------------------------------------

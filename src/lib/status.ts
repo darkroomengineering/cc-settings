@@ -8,9 +8,8 @@
 // without capturing or parsing console output.
 
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { z } from "zod";
 import { Settings } from "../schemas/settings.ts";
 import { runGit } from "./git.ts";
 import { readState } from "./hook-runtime.ts";
@@ -30,17 +29,7 @@ import type {
   StatusData,
   VersionSentinelData,
 } from "./status-types.ts";
-
-// Zod schema for the version sentinel file (~/.claude/.cc-settings-version).
-// Loose so future fields added by newer installers don't break reads. Kept
-// here (module level) rather than inside gatherStatus so it is defined once
-// regardless of how often gatherStatus is called.
-export const VersionSentinel = z.looseObject({
-  version: z.string().optional(),
-  installed_at: z.string().optional(),
-  profile: z.enum(["full", "light"]).optional(),
-  auto_update: z.boolean().optional(),
-});
+import { readSentinel } from "./version-delta.ts";
 
 // The env vars that CLAUDE-FULL.md promises are always set after install.
 export const EXPECTED_ENV_VARS = [
@@ -84,35 +73,17 @@ export async function gatherStatus(
 ): Promise<StatusData> {
   const { claudeDir } = paths;
   // --- Sentinel ---
-  const sentinelPath = join(claudeDir, ".cc-settings-version");
-  let sentinelVersion: string | null = null;
-  let sentinelInstalledAt: string | null = null;
-  let sentinelProfile: "full" | "light" | undefined;
-  let sentinelAutoUpdate: boolean | undefined;
-  if (existsSync(sentinelPath)) {
-    try {
-      const parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
-      const result = VersionSentinel.safeParse(parsed);
-      if (result.success) {
-        sentinelVersion = result.data.version ?? null;
-        sentinelInstalledAt = result.data.installed_at ?? null;
-        sentinelProfile = result.data.profile;
-        sentinelAutoUpdate = result.data.auto_update;
-      }
-      // On validation failure, sentinelVersion / sentinelInstalledAt stay null
-      // (treated as absent). The sentinel file has only a handful of known
-      // fields and is written by writeVersionSentinel() in setup.ts, so a
-      // schema failure means the file is corrupt or tampered — falling back
-      // to null is safe.
-    } catch {
-      // JSON.parse threw — malformed file, treat as absent
-    }
-  }
+  // Parsed once through the shared SentinelSchema (version-delta.ts) — the
+  // single modeling of ~/.claude/.cc-settings-version. A missing sentinel, a
+  // malformed file, or a single field of the wrong type all degrade to
+  // "absent" for the affected field(s); see readSentinel's doc comment.
+  const parsedSentinel = await readSentinel(claudeDir);
   const sentinel: VersionSentinelData = {
-    version: sentinelVersion,
-    installedAt: sentinelInstalledAt,
-    profile: sentinelProfile,
+    version: parsedSentinel.version ?? null,
+    installedAt: parsedSentinel.installed_at ?? null,
+    profile: parsedSentinel.profile,
   };
+  const sentinelAutoUpdate = parsedSentinel.auto_update;
 
   // --- Git drift ---
   let git: GitDriftData | null = null;

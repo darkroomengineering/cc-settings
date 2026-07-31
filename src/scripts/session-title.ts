@@ -9,7 +9,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { readHookInput } from "../lib/hook-runtime.ts";
+import { readHookInput, runHook } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
 
 const STOPWORDS = new Set([
@@ -90,8 +90,4 @@ async function main(): Promise<void> {
 
 // Fail-open: a write failure (permissions, full disk) must not break the
 // UserPromptSubmit hook. The session just doesn't get a title this run.
-try {
-  await main();
-} catch {
-  // silent
-}
+await runHook(main);

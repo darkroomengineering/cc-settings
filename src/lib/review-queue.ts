@@ -20,34 +20,26 @@
 import { z } from "zod";
 import { intEnv } from "./hook-config.ts";
 
-export interface ReviewQueueState {
-  /** Agent tool calls since the last commit. */
-  awaiting: number;
-  /** Epoch ms of the FIRST spawn since the last commit (oldest unreviewed work). */
-  firstSpawnAt?: number;
-  /** Epoch ms of the last nudge — debounce so we don't nag on every spawn. */
-  firedAt?: number;
-  /** Git HEAD SHA recorded at the last drain/observation. When HEAD advances
-   *  past this — a commit Claude didn't run (another terminal), a fast-forward
-   *  pull, or a pulled-down PR merge — the queue drains even without a local
-   *  `git commit` event. */
-  lastHead?: string;
-}
-
 // Shape-validated the same way version-delta.ts / quota.ts schema-adjacent
 // state validate on read: review-queue.json is hand-editable and every
 // consumer (statusline.ts, tool-cadence.ts, session-start.ts, review-batch.ts)
 // must degrade to "absent"/default on corruption instead of feeding
 // NaN/garbage downstream — repo policy stated at version-delta.ts:250-256.
-// Kept in lockstep with ReviewQueueState by hand (no z.infer here) since the
-// interface predates the schema and several call sites narrow to a partial
-// shape (e.g. `{ awaiting: number }`).
 export const ReviewQueueStateSchema = z.object({
+  /** Agent tool calls since the last commit. */
   awaiting: z.number(),
+  /** Epoch ms of the FIRST spawn since the last commit (oldest unreviewed work). */
   firstSpawnAt: z.number().optional(),
+  /** Epoch ms of the last nudge — debounce so we don't nag on every spawn. */
   firedAt: z.number().optional(),
+  /** Git HEAD SHA recorded at the last drain/observation. When HEAD advances
+   *  past this — a commit Claude didn't run (another terminal), a fast-forward
+   *  pull, or a pulled-down PR merge — the queue drains even without a local
+   *  `git commit` event. */
   lastHead: z.string().optional(),
 });
+
+export type ReviewQueueState = z.infer<typeof ReviewQueueStateSchema>;
 
 export const DEBOUNCE_MS = 60_000;
 const DEFAULT_MAX = 5;

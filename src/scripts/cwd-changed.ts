@@ -5,10 +5,11 @@
 // Fail-open: any error in projectAwareness (git read failure, missing files,
 // permission issues) must not break the hook.
 
+import { runHook } from "../lib/hook-runtime.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 
-try {
+async function main(): Promise<void> {
   for (const l of await projectAwareness(process.cwd())) console.log(l);
-} catch {
-  // silent — context surfacing is best-effort
 }
+
+await runHook(main);

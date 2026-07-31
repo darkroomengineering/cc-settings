@@ -40,8 +40,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { z } from "zod";
-import type { McpStdioServer } from "../schemas/mcp.ts";
+import type { McpServer, McpServers, McpStdioServer } from "../schemas/mcp.ts";
 import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { ENGINES, getEngine } from "./code-intel-engine.ts";
 import { debug } from "./colors.ts";
@@ -49,8 +48,7 @@ import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 
-type McpServer = z.infer<typeof McpServersSchema>[string];
-export type McpServers = Record<string, McpServer>;
+export type { McpServers };
 
 export const CLAUDE_JSON_PATH = join(homedir(), ".claude.json");
 

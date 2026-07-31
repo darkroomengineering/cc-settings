@@ -18,10 +18,6 @@
 import { readdir } from "node:fs/promises";
 import { type KnowledgeIndex, NON_NOTE_FILES, readKnowledgeIndex } from "./knowledge-index.ts";
 
-// Re-export so external consumers (lint-knowledge, tests) can import from
-// team-knowledge.ts as before without knowing the source moved.
-export { NON_NOTE_FILES } from "./knowledge-index.ts";
-
 /** Lines to print at session start advertising the shared corpus, or [] when
  *  there's nothing to surface (no clone configured, empty, or unreadable).
  *  `repoPath` defaults to $KNOWLEDGE_REPO_PATH. `readIndex` defaults to the

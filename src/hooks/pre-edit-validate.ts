@@ -23,7 +23,7 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import { blockDecision, readToolInputEnv } from "../lib/hook-runtime.ts";
+import { blockDecision, readToolInputEnv, runHook } from "../lib/hook-runtime.ts";
 
 type EditInput = {
   file_path?: string;
@@ -106,9 +106,6 @@ async function main(): Promise<void> {
   }
 }
 
-try {
-  await main();
-} catch {
-  // Fail-open: an unexpected throw must never block the edit. Intentional
-  // blocks exit(2) inside blockDecision and never reach this catch.
-}
+// Fail-open: an unexpected throw must never block the edit. Intentional
+// blocks exit(2) inside blockDecision and never reach this catch.
+await runHook(main);

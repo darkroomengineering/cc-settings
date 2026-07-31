@@ -62,6 +62,38 @@ export function isManagedHookCommand(command: string): boolean {
 // Schema-driven hook traversal — replaces three hand-rolled walks
 // ---------------------------------------------------------------------------
 
+/** Result of unwrapping + schema-validating a settings-or-hooks-block input.
+ *  Exported so callers that need the schema-success/failure SIGNAL (not just
+ *  the traversal) — e.g. audit-hooks.ts's schema-validation pseudo-finding —
+ *  can share the exact same parse `iterCommandHooks` performs, rather than
+ *  hand-rolling a second call to `HooksBlock.safeParse` that could silently
+ *  drift from what the iterator tolerates. */
+export interface HooksParseResult {
+  /** True iff `settingsOrHooks` had an own `hooks` property that was unwrapped.
+   *  False means `settingsOrHooks` itself was treated as the hooks candidate
+   *  (bare-hooks-block callers, or a non-object/hooks-less input). */
+  hadHooksKey: boolean;
+  /** The value actually validated: `settingsOrHooks.hooks` when present, else
+   *  `settingsOrHooks` itself. */
+  hooksCandidate: unknown;
+  /** safeParse result of `hooksCandidate` against the HooksBlock schema. */
+  result: ReturnType<typeof HooksBlock.safeParse>;
+}
+
+/** Unwrap the `hooks` sub-key (if the input is a full settings object) and
+ *  safeParse the result against HooksBlock. Single source of truth for
+ *  "what does a hooks block look like" — shared by `iterCommandHooks`
+ *  (traversal) and any caller that needs the raw schema-success/failure
+ *  signal instead of (or in addition to) the traversal. */
+export function parseHooksBlock(settingsOrHooks: unknown): HooksParseResult {
+  const isObj = !!settingsOrHooks && typeof settingsOrHooks === "object";
+  const hadHooksKey = isObj && "hooks" in (settingsOrHooks as Record<string, unknown>);
+  const hooksCandidate = hadHooksKey
+    ? (settingsOrHooks as Record<string, unknown>).hooks
+    : settingsOrHooks;
+  return { hadHooksKey, hooksCandidate, result: HooksBlock.safeParse(hooksCandidate) };
+}
+
 /**
  * Tolerantly iterate every command-hook in a settings object or a hooks block.
  *
@@ -74,24 +106,21 @@ export function isManagedHookCommand(command: string): boolean {
  */
 export function* iterCommandHooks(
   settingsOrHooks: unknown,
-): Generator<{ event: string; command: string }, void, unknown> {
-  if (!settingsOrHooks || typeof settingsOrHooks !== "object") return;
-
-  // Unwrap the hooks sub-key if the caller passed a full settings object.
-  const hooksCandidate =
-    "hooks" in (settingsOrHooks as Record<string, unknown>)
-      ? (settingsOrHooks as Record<string, unknown>).hooks
-      : settingsOrHooks;
+): Generator<
+  { event: string; groupIndex: number; hookIndex: number; command: string },
+  void,
+  unknown
+> {
+  const { hooksCandidate, result: parsed } = parseHooksBlock(settingsOrHooks);
 
   // --- Schema-driven path ---
-  const parsed = HooksBlock.safeParse(hooksCandidate);
   if (parsed.success) {
     for (const [event, groups] of Object.entries(parsed.data)) {
       if (!Array.isArray(groups)) continue;
-      for (const group of groups) {
-        for (const hook of group.hooks) {
+      for (const [groupIndex, group] of groups.entries()) {
+        for (const [hookIndex, hook] of group.hooks.entries()) {
           if (hook.type === "command") {
-            yield { event, command: hook.command };
+            yield { event, groupIndex, hookIndex, command: hook.command };
           }
         }
       }
@@ -105,15 +134,15 @@ export function* iterCommandHooks(
   if (!hooksCandidate || typeof hooksCandidate !== "object") return;
   for (const [event, groups] of Object.entries(hooksCandidate as Record<string, unknown>)) {
     if (!Array.isArray(groups)) continue;
-    for (const group of groups) {
+    for (const [groupIndex, group] of groups.entries()) {
       if (!group || typeof group !== "object") continue;
       const hooks = (group as Record<string, unknown>).hooks;
       if (!Array.isArray(hooks)) continue;
-      for (const hook of hooks) {
+      for (const [hookIndex, hook] of hooks.entries()) {
         if (!hook || typeof hook !== "object") continue;
         const h = hook as Record<string, unknown>;
         if (h.type === "command" && typeof h.command === "string") {
-          yield { event, command: h.command };
+          yield { event, groupIndex, hookIndex, command: h.command };
         }
       }
     }

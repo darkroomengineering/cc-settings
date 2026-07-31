@@ -10,8 +10,9 @@
 // break the Stop hook (which would interrupt the user's natural turn end).
 
 import { runGit } from "../lib/git.ts";
+import { runHook } from "../lib/hook-runtime.ts";
 
-try {
+async function main(): Promise<void> {
   const out = await runGit(["diff", "--stat"]);
 
   // Last line of `git diff --stat` looks like "N files changed, M insertions(+)".
@@ -23,6 +24,6 @@ try {
     console.log(`[Hook] Working tree has ${count} modified files - consider storing learnings:`);
     console.log("  Say 'remember this' and Claude will save to ~/.claude/projects/<hash>/memory/");
   }
-} catch {
-  // silent — learnings nudge is best-effort
 }
+
+await runHook(main);

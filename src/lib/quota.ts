@@ -4,35 +4,6 @@ import { readState, writeState } from "./hook-runtime.ts";
 
 export type QuotaBand = "normal" | "elevated" | "critical";
 
-export interface RateLimitsCache {
-  five_hour?: {
-    used_percentage?: number;
-    resets_at?: string;
-  };
-  seven_day?: {
-    used_percentage?: number;
-    resets_at?: string;
-  };
-  updated_at: number;
-}
-
-export const FIVE_HOUR_ELEVATED = 60;
-export const FIVE_HOUR_CRITICAL = 85;
-export const SEVEN_DAY_ELEVATED = 65;
-export const SEVEN_DAY_CRITICAL = 85;
-export const CACHE_STALE_MS = 10 * 60_000;
-export const CRITICAL_REMIND_MS = 30 * 60_000;
-
-export const RATE_LIMITS_CACHE_FILE = "rate-limits.json";
-export const QUOTA_STEER_STATE_FILE = "quota-steer-state.json";
-
-export interface QuotaSteerState {
-  band: QuotaBand;
-  lastEmit: number;
-}
-
-const CODEX_AVAILABLE: CodexState = "available";
-
 const RateLimitWindowSchema = z.object({
   used_percentage: z.number().optional(),
   resets_at: z.string().optional(),
@@ -44,10 +15,26 @@ const RateLimitsCacheSchema = z.object({
   updated_at: z.number(),
 });
 
+export type RateLimitsCache = z.infer<typeof RateLimitsCacheSchema>;
+
+export const FIVE_HOUR_ELEVATED = 60;
+export const FIVE_HOUR_CRITICAL = 85;
+export const SEVEN_DAY_ELEVATED = 65;
+export const SEVEN_DAY_CRITICAL = 85;
+export const CACHE_STALE_MS = 10 * 60_000;
+export const CRITICAL_REMIND_MS = 30 * 60_000;
+
+export const RATE_LIMITS_CACHE_FILE = "rate-limits.json";
+export const QUOTA_STEER_STATE_FILE = "quota-steer-state.json";
+
 const QuotaSteerStateSchema = z.object({
   band: z.enum(["normal", "elevated", "critical"]),
   lastEmit: z.number(),
 });
+
+export type QuotaSteerState = z.infer<typeof QuotaSteerStateSchema>;
+
+const CODEX_AVAILABLE: CodexState = "available";
 
 function severity(band: QuotaBand): number {
   if (band === "critical") return 2;

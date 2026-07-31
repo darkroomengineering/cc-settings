@@ -17,6 +17,7 @@
 // runHook — any error → silent success, never break a tool call.
 
 import { runGit } from "../lib/git.ts";
+import { intEnv } from "../lib/hook-config.ts";
 import {
   blockDecision,
   emitAdditionalContext,
@@ -50,7 +51,7 @@ import {
 // Env-overridable (CC_PARALLELMAX_THRESHOLD); default 12 — high enough that
 // routine multi-step edits don't trip it, low enough to catch genuine
 // "should have fanned out" runs.
-const THRESHOLD = Number(process.env.CC_PARALLELMAX_THRESHOLD) || 12;
+const THRESHOLD = intEnv("CC_PARALLELMAX_THRESHOLD", 12);
 // Distinct file edits before the nudge fires (regardless of call count).
 const FILES_THRESHOLD = 3;
 const DEBOUNCE_MS = 60_000;

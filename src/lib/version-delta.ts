@@ -18,6 +18,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { atomicWriteJson } from "./json-io.ts";
 
 export interface ChangelogEntry {
   version: string;
@@ -26,6 +27,68 @@ export interface ChangelogEntry {
 }
 
 const VERSION_HEADING_RE = /^##\s*\[(\d+\.\d+\.\d+)\](?:\s*—\s*(\d{4}-\d{2}-\d{2}))?/;
+
+/**
+ * Canonical schema for `~/.claude/.cc-settings-version` — the ONE definition of
+ * every field the installer writes (see writeVersionSentinel in setup.ts).
+ * Every consumer (gatherStatus in status.ts, readSentinelInfo below) reads
+ * through this rather than modeling its own subset of the file.
+ *
+ * Loose (z.looseObject) AND per-field `.catch(undefined)`, deliberately:
+ *   - z.looseObject lets an unrecognized top-level key (a field added by a
+ *     NEWER installer than this code) pass through instead of failing.
+ *   - Per-field .catch(undefined) means a single field of the wrong type
+ *     degrades to "absent" for THAT field only, instead of invalidating the
+ *     whole file — an older sentinel with one stale/hand-edited field must
+ *     not blank out an otherwise-good version.
+ * Only a non-object top level (corrupt JSON, or JSON that parses to a
+ * primitive/array) fails outright — readSentinel() treats that as "absent",
+ * same as a missing file.
+ */
+export const SentinelSchema = z.looseObject({
+  version: z.string().optional().catch(undefined),
+  installed_at: z.string().optional().catch(undefined),
+  // Write-only breadcrumb (always "src/setup.ts" today) — no reader consumes
+  // it. Modeled here anyway since it IS part of what the writer emits.
+  installer: z.string().optional().catch(undefined),
+  repo_path: z.string().optional().catch(undefined),
+  profile: z.enum(["full", "light"]).optional().catch(undefined),
+  engine: z.string().optional().catch(undefined),
+  engine_explicit: z.boolean().optional().catch(undefined),
+  mcp_written: z.record(z.string(), z.unknown()).optional().catch(undefined),
+  auto_update: z.boolean().optional().catch(undefined),
+});
+
+export type Sentinel = z.infer<typeof SentinelSchema>;
+
+/**
+ * Parse `~/.claude/.cc-settings-version` against {@link SentinelSchema}. The
+ * single low-level sentinel reader — every other reader (readSentinelInfo
+ * below, gatherStatus in status.ts) builds on this instead of re-parsing the
+ * file itself. Returns `{}` (every field undefined) on a missing sentinel,
+ * malformed JSON, or a top-level shape that isn't an object. Never throws.
+ */
+export async function readSentinel(claudeDir: string): Promise<Sentinel> {
+  const sentinelPath = join(claudeDir, ".cc-settings-version");
+  if (!existsSync(sentinelPath)) return {};
+  try {
+    const parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
+    const result = SentinelSchema.safeParse(parsed);
+    return result.success ? result.data : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Write `~/.claude/.cc-settings-version` through the shared {@link Sentinel}
+ * shape — the single sentinel writer, called from src/setup.ts's
+ * writeVersionSentinel(). Keeps the on-disk field set in one typed place
+ * instead of an anonymous object literal.
+ */
+export async function writeSentinel(claudeDir: string, data: Sentinel): Promise<void> {
+  await atomicWriteJson(join(claudeDir, ".cc-settings-version"), data);
+}
 
 export interface SentinelInfo {
   version: string | null;
@@ -64,49 +127,24 @@ export interface SentinelInfo {
 
 /**
  * Read the installer's recorded version + repo path + engine from
- * `~/.claude/.cc-settings-version`. Each field falls back to null on a missing
- * sentinel (first install), a sentinel written before that field existed, or
- * malformed JSON. Never throws. This is the single sentinel reader — the
+ * `~/.claude/.cc-settings-version`, mapped from {@link readSentinel}'s optional
+ * fields to explicit nulls (this module's older, null-based convention — kept
+ * as-is since three call sites and their tests already depend on it). Each
+ * field falls back to null on a missing sentinel (first install), a sentinel
+ * written before that field existed, or malformed JSON. Never throws. The
  * install-summary delta, version-drift detection, and engine resolution all
- * build on it.
+ * build on this.
  */
 export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo> {
-  const sentinelPath = join(claudeDir, ".cc-settings-version");
-  const empty: SentinelInfo = {
-    version: null,
-    repoPath: null,
-    engine: null,
-    engineExplicit: null,
-    mcpWritten: null,
-    autoUpdate: null,
+  const s = await readSentinel(claudeDir);
+  return {
+    version: s.version ?? null,
+    repoPath: s.repo_path ?? null,
+    engine: s.engine ?? null,
+    engineExplicit: s.engine_explicit ?? null,
+    mcpWritten: s.mcp_written ?? null,
+    autoUpdate: s.auto_update ?? null,
   };
-  if (!existsSync(sentinelPath)) return empty;
-  try {
-    const raw = await readFile(sentinelPath, "utf8");
-    const parsed = JSON.parse(raw) as {
-      version?: unknown;
-      repo_path?: unknown;
-      engine?: unknown;
-      engine_explicit?: unknown;
-      mcp_written?: unknown;
-      auto_update?: unknown;
-    };
-    return {
-      version: typeof parsed.version === "string" ? parsed.version : null,
-      repoPath: typeof parsed.repo_path === "string" ? parsed.repo_path : null,
-      engine: typeof parsed.engine === "string" ? parsed.engine : null,
-      engineExplicit: typeof parsed.engine_explicit === "boolean" ? parsed.engine_explicit : null,
-      mcpWritten:
-        typeof parsed.mcp_written === "object" &&
-        parsed.mcp_written !== null &&
-        !Array.isArray(parsed.mcp_written)
-          ? (parsed.mcp_written as Record<string, unknown>)
-          : null,
-      autoUpdate: typeof parsed.auto_update === "boolean" ? parsed.auto_update : null,
-    };
-  } catch {
-    return empty;
-  }
 }
 
 /**

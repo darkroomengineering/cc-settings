@@ -4,10 +4,12 @@
 // The orchestrator `mergeSettings` and its 5 strategies are now individually
 // exported so they can be unit-tested in isolation.
 //
-// MCP-preservation semantics live in src/lib/mcp.ts as `resolveMcpServers`.
-// The thin wrapper `mergeSettingsWithMcpPreservation` (which computes
-// resolveMcpServers then calls mergeSettings) lives there too — keeping this
-// file free of MCP knowledge.
+// `mcpServers` never reaches mergeSettings: installSettings (src/setup.ts)
+// destructures it out of the composed settings before calling this function.
+// MCP itself is owned by src/lib/mcp.ts, which writes ~/.claude.json directly
+// (installMcpToClaudeJson) and prunes any legacy settings.json copy
+// (pruneSettingsMcpServers) — it never touches settings.json's merge path.
+// Keeps this file free of MCP knowledge.
 //
 // For the full merge algorithm and invariant documentation see the
 // JSDoc on `mergeSettings` below.
@@ -518,7 +520,7 @@ export const STRATEGIES: Record<string, Strategy> = {
   hooks: hooksStrategy,
   env: envStrategy,
   statusLine: statusLineStrategy,
-  // mcpServers is handled by the caller (resolveMcpServers in mcp.ts) before
+  // mcpServers is destructured out by installSettings (src/setup.ts) before
   // this function is invoked — it is excluded from the per-key strategy loop.
 };
 
@@ -616,8 +618,8 @@ export async function mergeSettings(
 }
 
 /** Print the merge accounting summary. Called by installSettings after
- *  mergeSettingsWithMcpPreservation returns. Separated from mergeSettings
- *  so the orchestrator stays side-effect free (§3.4). */
+ *  mergeSettings returns. Separated from mergeSettings so the orchestrator
+ *  stays side-effect free (§3.4). */
 export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}): void {
   const bits: string[] = [];
   if (a.permissionsAdded > 0) bits.push(`${a.permissionsAdded} permission rule(s)`);

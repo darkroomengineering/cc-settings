@@ -21,7 +21,7 @@
 // it that way — same fallback pattern as session-title.ts.
 
 import { getActiveFreeze, isWithinBoundary } from "../lib/freeze.ts";
-import { blockDecision, readHookInput, readToolInputEnv } from "../lib/hook-runtime.ts";
+import { blockDecision, readHookInput, readToolInputEnv, runHook } from "../lib/hook-runtime.ts";
 
 type EditLikeInput = { file_path?: string };
 
@@ -44,8 +44,4 @@ async function main(): Promise<void> {
   );
 }
 
-try {
-  await main();
-} catch {
-  // fail-open — never break a tool call due to a hook error
-}
+await runHook(main);

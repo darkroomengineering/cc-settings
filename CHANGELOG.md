@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.0.1] — 2026-07-31
+
+Nuclear review of the whole codebase (`docs/audits/nuclear-review-2026-07-31.md`, 9 findings). Seven landed; two were withdrawn after being built and found not to pay off — the audit records why so they aren't re-filed.
+
+Six hook and script entry points stopped hand-rolling the fail-open wrapper and now call the shared `runHook()` (`freeze-guard`, `pre-edit-validate`, `pre-pr-proof`, `session-title`, `cwd-changed`, `stop-summary`). Thirteen adopters now, none hand-rolled. `cwd-changed` and `stop-summary` needed their inline bodies extracted into a `main()` first. Every explanatory comment survived, including the one recording that intentional blocks exit(2) inside `blockDecision` and never reach the catch.
+
+The hook auditor no longer walks settings.json its own way. `audit-hooks.ts` had a hand-rolled traversal of the hooks block sitting beside `iterCommandHooks`, the function whose header says it exists to replace exactly those walks — a divergence risk in the one control that detects hook tampering. It now consumes the shared iterator, which gained `groupIndex`/`hookIndex` and a `parseHooksBlock` helper so the auditor's schema-failure finding comes from the same parse the traversal uses instead of a second one. Two real differences between the walks were reconciled rather than glossed: the auditor's command trim-and-skip-empty moved to the consumer, and `hadHooksKey` reproduces the old guard so a settings object with no `hooks` key is never validated as though it were one.
+
+Types that were maintained by hand next to the zod schema describing the same shape now come from `z.infer` — `ReviewQueueState`, `RateLimitsCache`, `QuotaSteerState`, and `mcp.ts`'s locally re-derived `McpServer`/`McpServers` (now re-exported from `src/schemas/mcp.ts`). Nothing enforced that the interface and the schema stayed in sync, so a field added to one and not the other type-checked everywhere and dropped at runtime. `quota.ts` also lost a duplicate second copy of two schemas.
+
+The install sentinel `~/.claude/.cc-settings-version` was modeled three ways — a zod schema in `status.ts`, manual field extraction in `version-delta.ts`, and an anonymous literal in `setup.ts`'s writer — with the two readers covering different subsets of what the writer emits while one of them claimed to be the source of truth. One schema, one reader, one writer, owned by `version-delta.ts`. Parsing is per-field `.catch(undefined)` rather than the old all-or-nothing, so one bad field no longer discards a whole sentinel; it stays loose so a file written by an older install still reads.
+
+`CC_PARALLELMAX_THRESHOLD=0` was being silently ignored. `tool-cadence.ts` parsed it with `Number(env) || 12`, which treats a valid `0` as unset — so anyone setting it to zero to make the delegation nudge fire on every call got the default 12 instead, with no error. It now uses `intEnv()`, the shared parser that already exists in the same hooks cluster precisely to avoid this, and whose doc comment warns against the pattern it replaced.
+
+`settings-merge.ts` documented its most correctness-sensitive invariant — how `mcpServers` avoids double-handling — by pointing at `resolveMcpServers` and `mergeSettingsWithMcpPreservation` in `mcp.ts`. Both were deleted in v12.16.0 when MCP moved to `~/.claude.json`; the comments were not. Three sites now describe the real mechanism: `installSettings` destructures `mcpServers` out before `mergeSettings` ever sees it.
+
+`team-knowledge.ts` re-exported `NON_NOTE_FILES` so consumers "can import from team-knowledge.ts as before." Nothing does — `lint-knowledge.ts` imports it straight from `knowledge-index.ts`. Dead re-export removed.
+
 ## [13.0.0] — 2026-07-30
 
 An automatic handoff used to lose most of what the session did. Two holes, both structural. `git status` only reports what is dirty *right now*, so a file edited early and committed an hour later left no trace — the longer the session, the more of its work vanished from the record. And the compaction summary Claude Code generates, the one structured account of intent and decisions that exists, was discarded: `post-compact.ts` never read its stdin at all, so every hook-created handoff kept a placeholder comment where its summary belonged.

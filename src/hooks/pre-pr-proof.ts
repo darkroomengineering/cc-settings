@@ -27,7 +27,7 @@
 // Fail-open on infrastructure errors only (couldn't spawn the runner): a hook
 // bug must never wedge PR creation.
 
-import { blockDecision } from "../lib/hook-runtime.ts";
+import { blockDecision, runHook } from "../lib/hook-runtime.ts";
 
 /** True if one shell segment is a `gh pr create/ready` invocation that should be
  *  gated. Matches `gh` with optional global options before `pr` (e.g.
@@ -90,11 +90,8 @@ async function main(): Promise<void> {
 // Guard the self-execution so tests can import shouldGate without running the
 // gate (and calling process.exit).
 if (import.meta.main) {
-  try {
-    await main();
-  } catch {
-    // Couldn't spawn the runner (bun missing, etc.) — fail-open, never block a PR
-    // on a hook bug. A genuine red gate calls blockDecision() (exit 2) inside main.
-  }
+  // Couldn't spawn the runner (bun missing, etc.) — fail-open, never block a PR
+  // on a hook bug. A genuine red gate calls blockDecision() (exit 2) inside main.
+  await runHook(main);
   process.exit(0);
 }
