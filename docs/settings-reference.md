@@ -57,7 +57,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200) — stops runaway search loops (v2.1.212) |
 | `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Per-session cap on subagent spawns (default 200); `/clear` resets the budget — relevant to fan-out-heavy delegation (v2.1.212) |
 | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | integer (string) | Cap on subagents running at the same time (default 20) — one message can no longer fan out unbounded background agents (v2.1.217) |
-| `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | How deep subagents may spawn nested subagents. Upstream default now disallows nesting entirely; cc-settings sets `2` so `maestro` and `deslopper` (subagents that fan out via the Agent tool) keep working (v2.1.217) |
+| `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | How deep subagents may spawn nested subagents. Upstream default was `1` (no nesting) through v2.1.218; v2.1.219 raised it to `3`. cc-settings still pins `2` so `maestro` and `deslopper` (subagents that fan out via the Agent tool) keep working when invoked as subagents (v2.1.217) |
 | `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable (v2.1.212) |
 | `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) (v2.1.214) |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
@@ -223,6 +223,7 @@ Sandbox configuration for secure command execution. cc-settings ships with `fail
 | `filesystem.allowRead` / `allowWrite` | list | Re-allow paths inside `denyRead`/`denyWrite` regions (v2.1.77, v2.1.78) |
 | `filesystem.disabled` | boolean | Skip filesystem isolation entirely while keeping network egress control (v2.1.216) |
 | `network.deniedDomains` | list | Block specific domains despite broader `allowedDomains` wildcard (v2.1.113) |
+| `network.strictAllowlist` | boolean | Deny hosts that aren't on the allowlist outright instead of prompting, turning the allowlist from advisory into enforcing (v2.1.219) |
 | `credentials.files` | list | Deny sandboxed reads of credential files: `[{ "path": "~/.aws/credentials", "mode": "deny" }]` (v2.1.187) |
 | `credentials.envVars` | list | Unset secret env vars before each sandboxed command: `[{ "name": "GITHUB_TOKEN", "mode": "deny" }]` (v2.1.187) |
 | `bwrapPath` | string | Linux/WSL: managed override for the bubblewrap binary location (v2.1.133) |
@@ -624,6 +625,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `voice` | object | U | Voice input/output configuration object |
 | `voiceEnabled` | boolean | U | Enable the voice interface |
 | `wheelScrollAccelerationEnabled` | boolean | U | Toggle mouse-wheel scroll acceleration in fullscreen mode (v2.1.174) |
+| `workflowSizeGuideline` | string | G | Advisory ceiling on how many agents a dynamic workflow spawns; upstream default `"medium"` (aim for under 15). Settings-file counterpart of `/config`'s "Dynamic workflow size" (v2.1.219) |
 | `worktree` | object | G | Git worktree configuration (`baseRef`, `bgIsolation` fields) (v2.1.133) |
 | `wslInheritsWindowsSettings` | boolean | E | WSL sessions inherit the Windows-side managed settings |
 

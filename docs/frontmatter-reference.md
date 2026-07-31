@@ -126,12 +126,12 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 | Mode | Behavior | Use When |
 |------|----------|----------|
-| `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
+| `fork` | Creates an isolated sub-context and runs in the background by default (v2.1.218). Output is summarized and returned to the parent as a task notification, not streamed inline. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
 | `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
 
-Skills using `fork` (22): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `verify`.
+Skills using `fork` (23): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `triage`, `verify`. All 23 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
-Skills using `main` (5): `adversarial-audit`, `codex`, `freeze`, `nuclear-review`, `zero-tech-debt`.
+Skills using `main` (6): `adhd`, `adversarial-audit`, `codex`, `freeze`, `nuclear-review`, `zero-tech-debt`.
 
 Skills using `inherit` (default, 10): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
 
@@ -192,6 +192,7 @@ argument-hint: "<skill-name>"
 
 | Skill | Context | Agent | Allowed Tools | Argument Hint |
 |-------|---------|-------|---------------|---------------|
+| `adhd` | main | -- | -- | `[problem]` |
 | `adversarial-audit` | main | -- | -- | `[codebase\|docs\|process]` |
 | `autoresearch` | fork | -- | -- | `<skill-name>` |
 | `build` | fork | -- | -- | -- |
@@ -226,6 +227,7 @@ argument-hint: "<skill-name>"
 | `strategist` | -- | -- | Read, Grep, Glob, Bash | -- |
 | `test` | fork | tester | -- | -- |
 | `tldr` | fork | -- | -- | -- |
+| `triage` | fork | -- | -- | -- |
 | `verify` | fork | -- | -- | -- |
 | `zero-tech-debt` | main | -- | -- | -- |
 

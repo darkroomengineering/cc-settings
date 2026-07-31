@@ -88,6 +88,7 @@ A [dynamic workflow](https://code.claude.com/docs/en/workflows) is a JS harness 
 Shapes worth naming when you build one: **classify-and-act**, **fan-out-and-synthesize**, **generate-and-filter**, **tournament**, **loop-until-done** (spawn until a stop condition, not a fixed count). Not only for marathons — a **quick workflow** is valid: _"quick workflow to adversarially check this one assumption."_
 
 - **Budget** — workflows burn more tokens; cap with _"…budget 10k tokens"_ and the harness enforces it.
+- **Size** — dynamic workflows default to a medium size guideline, aiming for fewer than 15 agents (v2.1.219); the running workflow's status line shows the current default. Override per-project via the `workflowSizeGuideline` settings key when a task genuinely needs more.
 - **Quarantine** — for triage over untrusted input, agents that read public/untrusted content must not also take privileged actions; split reading from acting so an injected page can't trigger a privileged step.
 
 Two entry points:

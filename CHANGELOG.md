@@ -4,6 +4,31 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.2.0] — 2026-07-31
+
+Sync with Claude Code 2.1.220 (from 2.1.217).
+
+**Adopted:**
+
+- `sandbox.network.strictAllowlist` (2.1.219) — denies hosts that aren't on the allowlist outright instead of prompting, turning the allowlist from advisory into enforcing. `src/schemas/settings.ts`, `docs/settings-reference.md`.
+- `DirectoryAdded` hook event (2.1.219) — fires after `/add-dir` or the SDK's `register_repo_root` adds a working directory mid-session. Thirtieth event. `src/schemas/hooks.ts`, and the manifest's `knownHookEvents`, which the scanner does diff, so this was a real gap rather than a documentation one.
+- `workflowSizeGuideline` (2.1.219) — advisory ceiling on how many agents a dynamic workflow spawns, defaulting to `"medium"` (under 15). Typed as a bare string, not an enum: the changelog names the default but never lists the accepted values, and a closed set would reject a real one. `src/schemas/settings.ts`, `docs/settings-reference.md`.
+
+Both settings keys already parsed before this, since the top-level schema is loose and `sandbox.network` is a plain object that strips unknowns. What was missing is the emitted JSON Schema that drives IDE autocomplete for `settings.json`.
+
+**Documented, no code change:**
+
+- Skills with `context: fork` now run in the background by default (2.1.218). That covers 23 of the 39 skills here, so most of the library changed execution model in a patch release: the result arrives as a task notification rather than streaming inline. `docs/frontmatter-reference.md`, `docs/skill-authoring.md`, `skills/README.md`.
+- Subagent nesting depth default went from 1 to 3 (2.1.219). `docs/agent-models.md`, `docs/settings-reference.md`.
+- Dynamic workflows default to a medium size guideline (2.1.219). `skills/orchestrate`, `skills/nuclear-review`.
+- `/code-review` runs as a background subagent, and `/ultrareview` argument handling is fixed (2.1.218). `MANUAL.md`.
+
+**Worth a decision:** `config/10-core.json` pins `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to `2`. That used to loosen upstream's default of 1; upstream now defaults to 3, so the same pin is a restriction. Documented as-is rather than changed, since whether `maestro` and `deslopper` should get the extra depth is a behavior call.
+
+Opus 5 becoming the default Opus model was a no-op here — `config/10-core.json` already pinned `claude-opus-5`. The rest of the three releases was TUI, vim, screen-reader, Windows-path, Bedrock, and gateway fixes with no cc-settings surface.
+
+Separately, `docs/frontmatter-reference.md`'s skill table was missing `triage` and `adhd`, so its category counts summed to 38 rather than 39. Corrected while fixing the fork count.
+
 ## [13.1.2] — 2026-07-31
 
 The remaining four fixture git helpers now throw instead of discarding exit codes. A failed `git commit` in `handoff`, `checkpoint`, `context-continuity-gaps`, or `session-continuity` used to leave a repo with no history and let the test pass anyway — which is how yesterday's signing incident stayed invisible in three of the six suites that had it.

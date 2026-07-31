@@ -200,6 +200,7 @@
           "TeammateIdle",
           "ConfigChange",
           "CwdChanged",
+          "DirectoryAdded",
           "FileChanged",
           "InstructionsLoaded",
           "WorktreeCreate",
@@ -695,6 +696,9 @@
         "max"
       ]
     },
+    "workflowSizeGuideline": {
+      "type": "string"
+    },
     "disableSkillShellExecution": {
       "type": "boolean"
     },
@@ -781,6 +785,9 @@
               "items": {
                 "type": "string"
               }
+            },
+            "strictAllowlist": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false

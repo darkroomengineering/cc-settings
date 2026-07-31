@@ -49,6 +49,9 @@ export const Sandbox = z.looseObject({
   network: z
     .object({
       deniedDomains: z.array(z.string()).optional(),
+      // 2.1.219 — deny hosts not on the allowlist outright instead of
+      // prompting. Turns the allowlist from advisory into enforcing.
+      strictAllowlist: z.boolean().optional(),
     })
     .optional(),
   filesystem: z
@@ -135,6 +138,13 @@ export const Settings = z.looseObject({
   disableBypassPermissionsMode: z.enum(["disable"]).optional(),
   skipDangerousModePermissionPrompt: z.boolean().optional(), // skip the confirmation before entering bypass-permissions mode; ignored in project settings (per docs)
   effortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // persist /effort across sessions; settings.json counterpart of CLAUDE_CODE_EFFORT_LEVEL. The key's docs list 4 values, but the env var + real live configs also use "max" — superset to not reject observed values.
+  // 2.1.219 — advisory ceiling on how many agents a dynamic workflow should
+  // spawn; upstream default is "medium" (aim for fewer than 15). Settings-file
+  // counterpart of /config's "Dynamic workflow size". Typed as a bare string
+  // rather than an enum: the changelog names the default but never enumerates
+  // the accepted values, and guessing a closed set here would reject a real
+  // one. Narrow it once upstream documents the domain.
+  workflowSizeGuideline: z.string().optional(),
   disableSkillShellExecution: z.boolean().optional(), // 2.1.98
   disableBundledSkills: z.boolean().optional(), // 2.1.169 — hide Anthropic's bundled skills, workflows, and built-in slash commands from the model; env counterpart CLAUDE_CODE_DISABLE_BUNDLED_SKILLS
   disableDeepLinkRegistration: z.boolean().optional(), // 2.1.103

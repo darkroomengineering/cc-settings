@@ -131,7 +131,7 @@ allowed-tools: [...]   # Restrict available tools
 | Option | Effect |
 |--------|--------|
 | `description` | Tells Claude WHEN to auto-invoke (critical!) |
-| `context: fork` | Runs isolated, returns summary to main |
+| `context: fork` | Runs isolated, returns summary to main. Runs in the background by default (v2.1.218) — the conversation stays free while it works, and the result lands as a task notification instead of streaming inline |
 | `agent: X` | Uses specific agent (explore, reviewer, etc.) |
 | `allowed-tools` | Restricts which tools can be used |
 

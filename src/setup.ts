@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.1.2"; // tests: fixture git helpers throw with stderr instead of swallowing
+const VERSION = "13.2.0"; // sync with Claude Code 2.1.220
 
 // --- Arg parsing ---------------------------------------------------------
 

@@ -40,7 +40,7 @@ context: fork
 
 ### `context`
 
-- `fork` — skill runs in a forked context (doesn't bloat main session). Use this for most skills.
+- `fork` — skill runs in a forked context (doesn't bloat main session). Use this for most skills. As of v2.1.218 it also runs in the background by default: the result comes back as a task notification, not inline output, so don't write a fork skill's body assuming the user is watching it stream.
 - Omit (defaults to inline) — skill body is injected into main context. Use only for lightweight, single-turn instructions.
 
 ### Optional frontmatter fields

@@ -29,6 +29,7 @@ export const HookEvent = z.enum([
   // Config + file
   "ConfigChange",
   "CwdChanged",
+  "DirectoryAdded", // 2.1.219 — fires after /add-dir or the SDK's register_repo_root adds a working dir mid-session
   "FileChanged",
   "InstructionsLoaded",
   // Worktree
