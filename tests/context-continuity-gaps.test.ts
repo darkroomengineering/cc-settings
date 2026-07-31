@@ -30,20 +30,20 @@ const POST_COMPACT = resolve(import.meta.dir, "..", "src", "scripts", "post-comp
 const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
 
 async function git(repo: string, args: string[]): Promise<void> {
-  await Bun.spawn(["git", "-C", repo, ...args], {
+  const proc = Bun.spawn(["git", "-C", repo, ...args], {
     env: { ...process.env, ...GIT_ISOLATION_ENV },
-    stdout: "ignore",
-    stderr: "ignore",
-  }).exited;
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const stderr = await new Response(proc.stderr).text();
+  const exit = await proc.exited;
+  if (exit !== 0) throw new Error(`git ${args.join(" ")} failed in ${repo}: ${stderr}`);
 }
 
 /** Repo with one committed baseline file, so `git log` and `git status` both work. */
 async function makeRepo(name: string): Promise<string> {
   const repo = await mkdtemp(join(tmpdir(), `cc-gap-${name}-`));
-  await Bun.spawn(["git", "init", "-q"], {
-    cwd: repo,
-    env: { ...process.env, ...GIT_ISOLATION_ENV },
-  }).exited;
+  await git(repo, ["init", "-q"]);
   await git(repo, ["config", "user.email", "t@example.com"]);
   await git(repo, ["config", "user.name", "Test"]);
   await writeFile(join(repo, "README.md"), "baseline\n");

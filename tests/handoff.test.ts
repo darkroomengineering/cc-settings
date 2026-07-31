@@ -46,12 +46,18 @@ async function run(
 async function makeRepo(name: string): Promise<string> {
   const repo = await mkdtemp(join(tmpdir(), `cc-handoff-${name}-`));
   const env = { ...process.env, ...GIT_ISOLATION_ENV };
-  await Bun.spawn(["git", "init", "-q"], { cwd: repo, env }).exited;
-  await Bun.spawn(["git", "-C", repo, "config", "user.email", "t@example.com"], { env }).exited;
-  await Bun.spawn(["git", "-C", repo, "config", "user.name", "Test"], { env }).exited;
+  async function git(args: string[]): Promise<void> {
+    const proc = Bun.spawn(["git", "-C", repo, ...args], { env, stdout: "pipe", stderr: "pipe" });
+    const stderr = await new Response(proc.stderr).text();
+    const exit = await proc.exited;
+    if (exit !== 0) throw new Error(`git ${args.join(" ")} failed in ${repo}: ${stderr}`);
+  }
+  await git(["init", "-q"]);
+  await git(["config", "user.email", "t@example.com"]);
+  await git(["config", "user.name", "Test"]);
   await writeFile(join(repo, "README.md"), "hello\n");
-  await Bun.spawn(["git", "-C", repo, "add", "-A"], { env }).exited;
-  await Bun.spawn(["git", "-C", repo, "commit", "-q", "-m", "initial commit"], { env }).exited;
+  await git(["add", "-A"]);
+  await git(["commit", "-q", "-m", "initial commit"]);
   // One uncommitted change so git status --porcelain / modifiedFiles is non-empty.
   await writeFile(join(repo, "README.md"), "hello again\n");
   return repo;

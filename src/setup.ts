@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.1.1"; // tests: fixture git repos isolated from ambient global config
+const VERSION = "13.1.2"; // tests: fixture git helpers throw with stderr instead of swallowing
 
 // --- Arg parsing ---------------------------------------------------------
 

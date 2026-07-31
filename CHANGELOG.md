@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.1.2] — 2026-07-31
+
+The remaining four fixture git helpers now throw instead of discarding exit codes. A failed `git commit` in `handoff`, `checkpoint`, `context-continuity-gaps`, or `session-continuity` used to leave a repo with no history and let the test pass anyway — which is how yesterday's signing incident stayed invisible in three of the six suites that had it.
+
+Errors carry the command, the repo path, and the captured stderr, matching the helper `auto-update-script.test.ts` has always had. That meant switching `stderr: "ignore"` to `"pipe"`; an error reading only "git failed" would leave the next person debugging a red suite with no cause, which was the actual problem.
+
+No test broke. With v13.1.1's isolation in place the fixture commits all succeed, so nothing was still passing on a broken fixture. All 26 call sites across the four files were checked for a git command that legitimately expects to fail — there are none, so no opt-out was needed.
+
 ## [13.1.1] — 2026-07-31
 
 Test fixtures no longer inherit your global git config. Six suites create throwaway repos in the temp dir and commit into them, and those commits picked up whatever `~/.gitconfig` said — so on a machine that signs commits through 1Password, a screen lock mid-run was enough to fail four tests for reasons unrelated to the code. CI never saw it, because CI has no signing configured. Every fixture git call and every subprocess spawned under test now runs with `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` pointed at `/dev/null`.
