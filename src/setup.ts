@@ -83,7 +83,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.0.3"; // sentinel: drop the write-only `installer` breadcrumb
+const VERSION = "13.0.4"; // readValidatedState: one degrade-on-corrupt contract for 7 state reads
 
 // --- Arg parsing ---------------------------------------------------------
 

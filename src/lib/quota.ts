@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { CodexState } from "./codex.ts";
-import { readState, writeState } from "./hook-runtime.ts";
+import { readValidatedState, writeState } from "./hook-runtime.ts";
 
 export type QuotaBand = "normal" | "elevated" | "critical";
 
@@ -103,9 +103,7 @@ export function buildSteerMessage(
 }
 
 export async function readRateLimitsCache(): Promise<RateLimitsCache | null> {
-  const raw = await readState<unknown>(RATE_LIMITS_CACHE_FILE, null);
-  const parsed = RateLimitsCacheSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
+  return readValidatedState(RATE_LIMITS_CACHE_FILE, RateLimitsCacheSchema, null);
 }
 
 export async function writeRateLimitsCache(cache: RateLimitsCache): Promise<void> {
@@ -113,9 +111,7 @@ export async function writeRateLimitsCache(cache: RateLimitsCache): Promise<void
 }
 
 export async function readQuotaSteerState(): Promise<QuotaSteerState | null> {
-  const raw = await readState<unknown>(QUOTA_STEER_STATE_FILE, null);
-  const parsed = QuotaSteerStateSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
+  return readValidatedState(QUOTA_STEER_STATE_FILE, QuotaSteerStateSchema, null);
 }
 
 export async function writeQuotaSteerState(state: QuotaSteerState): Promise<void> {

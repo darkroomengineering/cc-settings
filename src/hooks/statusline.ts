@@ -31,7 +31,7 @@ const palette = {
 } as const;
 
 import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
-import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
+import { readHookInput, readValidatedState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
 import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
 import {
@@ -263,11 +263,13 @@ async function main(): Promise<void> {
   // Review-queue backpressure: agents spawned since the last commit, awaiting
   // your review (written by tool-cadence.ts). Suppressed at 0 — yellow
   // under the threshold, red at/over CC_MAX_UNREVIEWED.
-  const reviewQueueRaw = await readState<unknown>("review-queue.json", null);
-  const reviewQueueParsed = ReviewQueueStateSchema.safeParse(reviewQueueRaw);
-  const reviewQueue: ReviewQueueState = reviewQueueParsed.success
-    ? reviewQueueParsed.data
-    : { awaiting: 0 };
+  const reviewQueue: ReviewQueueState = await readValidatedState(
+    "review-queue.json",
+    ReviewQueueStateSchema,
+    {
+      awaiting: 0,
+    },
+  );
   if (reviewQueue.awaiting > 0) {
     const color = reviewQueue.awaiting >= maxUnreviewed() ? palette.red : palette.yellow;
     const age = ageMs(reviewQueue, Date.now());
@@ -278,9 +280,9 @@ async function main(): Promise<void> {
   // cc-settings install staleness — surfaced only when the cached SessionStart
   // drift check found the repo's packaged version ahead of what's installed.
   // Suppressed otherwise (like the review queue), so it costs nothing when current.
-  const driftRaw = await readState<unknown>("version-drift.json", null);
-  const driftParsed = VersionDriftSchema.safeParse(driftRaw);
-  const drift = driftParsed.success ? driftParsed.data : { stale: false };
+  const drift = await readValidatedState("version-drift.json", VersionDriftSchema, {
+    stale: false,
+  });
   if (drift.stale && drift.installed) {
     parts.push(`${palette.yellow}⬆ cc v${drift.installed}${palette.dim} stale${palette.reset}`);
   }
@@ -293,9 +295,11 @@ async function main(): Promise<void> {
   const sessionId = input.session_id;
   const installedNow = await readInstalledVersion(claudePath());
   if (sessionId && installedNow) {
-    const mapRaw = await readState<unknown>(SESSION_INSTALL_STATE, null);
-    const mapParsed = SessionInstallMapSchema.safeParse(mapRaw);
-    const sessionVersions = mapParsed.success ? mapParsed.data : {};
+    const sessionVersions = await readValidatedState(
+      SESSION_INSTALL_STATE,
+      SessionInstallMapSchema,
+      {},
+    );
     const seen = sessionVersions[sessionId];
     if (!seen) {
       // Fallback recorder only — session-start.ts refreshes this entry on

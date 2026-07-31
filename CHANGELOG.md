@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.0.4] — 2026-07-31
+
+Seven state-file readers each restated the same contract: read JSON, validate it against a zod schema, and degrade to a safe default if either step fails. `readValidatedState` in `hook-runtime.ts` now holds that contract once, and every one of the seven call sites got shorter.
+
+The two that mattered most were in `hooks-fingerprint.ts`, which reads the hook fingerprint the supply-chain check compares against. Both had hand-rolled the whole thing — an `existsSync` pre-check, a try/catch, a `JSON.parse`, and a `safeParse` — and both collapsed to a single call. A future change to how a corrupt state file is handled, like logging it instead of silently falling back, is now one edit rather than seven.
+
+Behavior is unchanged and was verified rather than assumed: `coerceState` cannot alter a read whose fallback is `null`, so routing these through `readState` is provably a no-op. Across a missing file, an empty file, malformed JSON, a JSON `null`, an array, a string, wrong field types, an empty object, and a path-traversal attempt, both readers still return `null` exactly as before — and a valid fingerprint still round-trips.
+
 ## [13.0.3] — 2026-07-31
 
 The version sentinel stopped recording `installer`. It was a constant string (`"src/setup.ts"`) that the installer wrote on every run and no reader has ever consumed — surfaced by the v13.0.1 sentinel consolidation, which had to model it purely because the writer emitted it.

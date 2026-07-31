@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { CryptoHasher } from "bun";
 import { z } from "zod";
 import { iterCommandHooks } from "./hook-command.ts";
+import { readValidatedState } from "./hook-runtime.ts";
 import { atomicWriteJson } from "./json-io.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 
@@ -69,20 +70,16 @@ export interface FingerprintRecord {
 }
 
 export async function readFingerprint(claudeDir?: string): Promise<FingerprintRecord | null> {
-  const path = join(claudeDir ?? CLAUDE_DIR, FINGERPRINT_FILENAME);
-  if (!existsSync(path)) return null;
-  try {
-    const text = await readFile(path, "utf8");
-    const raw = JSON.parse(text);
-    // Validate through the zod schema. Mirrors status.ts:35 — field values are
-    // echoed into the session-start warning banner, so they must be validated
-    // strings, not trusted as-cast. On failure return null (treat as missing).
-    const result = FingerprintRecordSchema.safeParse(raw);
-    if (!result.success) return null;
-    return result.data;
-  } catch {
-    return null;
-  }
+  // Validated through the zod schema. Mirrors status.ts:35 — field values are
+  // echoed into the session-start warning banner, so they must be validated
+  // strings, not trusted as-cast. Missing/unreadable/malformed all degrade to
+  // null (treated as "no fingerprint yet") — see readValidatedState/readState.
+  return readValidatedState(
+    FINGERPRINT_FILENAME,
+    FingerprintRecordSchema,
+    null,
+    claudeDir ?? CLAUDE_DIR,
+  );
 }
 
 export async function writeFingerprint(
@@ -239,19 +236,15 @@ export async function writeSrcManifest(
 }
 
 export async function readSrcManifest(claudeDir?: string): Promise<SrcManifestRecord | null> {
-  const path = join(claudeDir ?? CLAUDE_DIR, SRC_MANIFEST_FILENAME);
-  if (!existsSync(path)) return null;
-  try {
-    const raw = JSON.parse(await readFile(path, "utf8"));
-    // Route through SrcManifestRecordSchema: validates types, rejects path
-    // traversal (the .refine()), and strips control chars from installedAt.
-    // Mirrors readFingerprint's FingerprintRecordSchema.safeParse pattern.
-    const result = SrcManifestRecordSchema.safeParse(raw);
-    if (!result.success) return null;
-    return result.data;
-  } catch {
-    return null;
-  }
+  // Route through SrcManifestRecordSchema: validates types, rejects path
+  // traversal (the .refine()), and strips control chars from installedAt.
+  // Mirrors readFingerprint's FingerprintRecordSchema.safeParse pattern.
+  return readValidatedState(
+    SRC_MANIFEST_FILENAME,
+    SrcManifestRecordSchema,
+    null,
+    claudeDir ?? CLAUDE_DIR,
+  );
 }
 
 export interface SrcVerifyResult {

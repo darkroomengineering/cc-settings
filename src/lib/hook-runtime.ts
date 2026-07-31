@@ -4,6 +4,7 @@
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { z } from "zod";
 import { claudePath } from "./platform.ts";
 
 const TMP_DIR = claudePath("tmp");
@@ -73,6 +74,21 @@ export async function readState<T>(
     return fallback;
   }
   return coerceState(parsed, fallback);
+}
+
+/** Read + zod-validate a JSON state file in one call. Composes readState (fallback
+ *  on any read/parse error) with schema.safeParse (fallback on a well-formed but
+ *  invalid shape) — the idiom duplicated across quota.ts and statusline.ts before
+ *  N9. `fallback` is returned in both failure cases, never a throw or raw garbage. */
+export async function readValidatedState<T>(
+  name: string,
+  schema: z.ZodType<T>,
+  fallback: T,
+  tmpDir?: string,
+): Promise<T> {
+  const raw = await readState<unknown>(name, null, tmpDir);
+  const parsed = schema.safeParse(raw);
+  return parsed.success ? parsed.data : fallback;
 }
 
 /** Atomic write to ~/.claude/tmp/<name>.json. Creates the dir if missing.
