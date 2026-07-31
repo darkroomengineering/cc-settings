@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.1.0] — 2026-07-31
+
+Each install now records what it wrote to `settings.json`, in `~/.claude/.cc-settings-baseline.json`. Nothing reads it yet — that is the point.
+
+`settings-merge.ts` has no record of what cc-settings installed last time, so it reconstructs that from hand-maintained regex registries: twelve patterns that answer "is this rule in the user's file a leftover of ours, or something they typed?" Recording the real answer costs one write per install and means the data will already have history behind it if the merge is ever taught to use it.
+
+The full three-way merge was designed and declined — see `docs/settings-merge-three-way-design.md`. The design's own conclusion is why: the registries cannot actually be deleted. The baseline is written by the new code, so the first run on every existing machine has none and must reproduce today's behavior exactly, which requires today's logic to still be there. Restored backups, rollbacks, and hand-deleted baselines land a current machine back in that same case permanently. So the change would have added a parallel merge path to the file that protects hand-edited user settings, kept all twelve patterns anyway, and bought a marginal reduction in future one-line regex additions — of which there have been four in two and a half months.
+
+The baseline lives in its own file rather than the version sentinel: it is ~15KB, and the sentinel is parsed by a hook on every session start.
+
 ## [13.0.6] — 2026-07-31
 
 Cleanup from the audit's smaller notes.

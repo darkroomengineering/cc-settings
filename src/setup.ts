@@ -71,6 +71,7 @@ import {
   registerAutoUpdate,
   unregisterAutoUpdate,
 } from "./lib/schedule.ts";
+import { writeSettingsBaseline } from "./lib/settings-baseline.ts";
 import { mergeSettings, printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
@@ -83,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.0.6"; // audit notes: pointer-file + getProjectName dedup, stale MultiEdit
+const VERSION = "13.1.0"; // record a settings baseline each install (nothing reads it yet)
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -237,6 +238,17 @@ async function installSettings(
   // just wrote; best-effort, so a read failure only skips the fingerprint.
   const mergedReadBack = await readJsonOrNull(userSettingsPath).catch(() => null);
   if (mergedReadBack !== null) await fingerprintSettingsHooks(mergedReadBack);
+  // Phase 1 of the three-way settings-merge design (docs/settings-merge-three-
+  // way-design.md §1): record what this install actually wrote, for a future
+  // merge to read — nothing reads it yet. Best-effort, same as the fingerprint
+  // above: a baseline write failure must never fail an install.
+  if (mergedReadBack !== null) {
+    await writeSettingsBaseline(
+      CLAUDE_DIR,
+      VERSION,
+      mergedReadBack as Record<string, unknown>,
+    ).catch(() => {});
+  }
   // teamMcp is post-engine-rewrite, so the tldr entry recorded here is the
   // resolved engine's — same value the old tldr-only branch reconstructed.
   return { overridden: mcpOverridden, mcpWritten: teamMcp };
