@@ -40,14 +40,28 @@ const SESSION_START = resolve(import.meta.dir, "..", "src", "scripts", "session-
 
 // --- Shared helpers ---------------------------------------------------------
 
+// Fixture repos must never inherit the developer/CI machine's ambient git
+// config (commit.gpgsign + a signing program, core.hooksPath, aliases, ...).
+// Nulling both config files is what actually isolates everything in one
+// place; per-repo user.email/user.name (set below) remain the only identity
+// available once the global/system files are gone.
+const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+
 async function git(repo: string, args: string[]): Promise<void> {
-  await Bun.spawn(["git", "-C", repo, ...args], { stdout: "ignore", stderr: "ignore" }).exited;
+  await Bun.spawn(["git", "-C", repo, ...args], {
+    env: { ...process.env, ...GIT_ISOLATION_ENV },
+    stdout: "ignore",
+    stderr: "ignore",
+  }).exited;
 }
 
 /** Repo with one committed baseline file, so `git log` / `git status` both work. */
 async function makeRepo(name: string): Promise<string> {
   const repo = await mkdtemp(join(tmpdir(), `cc-cont-${name}-`));
-  await Bun.spawn(["git", "init", "-q"], { cwd: repo }).exited;
+  await Bun.spawn(["git", "init", "-q"], {
+    cwd: repo,
+    env: { ...process.env, ...GIT_ISOLATION_ENV },
+  }).exited;
   await git(repo, ["config", "user.email", "t@example.com"]);
   await git(repo, ["config", "user.name", "Test"]);
   await writeFile(join(repo, "README.md"), "baseline\n");
@@ -65,7 +79,7 @@ async function runScript(
 ): Promise<{ stdout: string; exit: number }> {
   const proc = Bun.spawn(["bun", script, ...args], {
     cwd,
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: { ...process.env, ...GIT_ISOLATION_ENV, HOME: home, USERPROFILE: home },
     stdin: stdin === undefined ? "ignore" : "pipe",
     stdout: "pipe",
     stderr: "pipe",

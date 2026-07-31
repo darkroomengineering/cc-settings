@@ -20,6 +20,13 @@ import { pointLatest } from "../src/lib/artifact-store.ts";
 
 const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "handoff.ts");
 
+// Fixture repos must never inherit the developer/CI machine's ambient git
+// config (commit.gpgsign + a signing program, core.hooksPath, aliases, ...).
+// Nulling both config files is what actually isolates everything in one
+// place; per-repo user.email/user.name (set below) remain the only identity
+// available once the global/system files are gone.
+const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+
 async function run(
   args: string[],
   cwd: string,
@@ -27,7 +34,7 @@ async function run(
 ): Promise<{ stdout: string; exit: number }> {
   const proc = Bun.spawn(["bun", SCRIPT, ...args], {
     cwd,
-    env: { ...process.env, HOME: home, USERPROFILE: home },
+    env: { ...process.env, ...GIT_ISOLATION_ENV, HOME: home, USERPROFILE: home },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -38,12 +45,13 @@ async function run(
 
 async function makeRepo(name: string): Promise<string> {
   const repo = await mkdtemp(join(tmpdir(), `cc-handoff-${name}-`));
-  await Bun.spawn(["git", "init", "-q"], { cwd: repo }).exited;
-  await Bun.spawn(["git", "-C", repo, "config", "user.email", "t@example.com"]).exited;
-  await Bun.spawn(["git", "-C", repo, "config", "user.name", "Test"]).exited;
+  const env = { ...process.env, ...GIT_ISOLATION_ENV };
+  await Bun.spawn(["git", "init", "-q"], { cwd: repo, env }).exited;
+  await Bun.spawn(["git", "-C", repo, "config", "user.email", "t@example.com"], { env }).exited;
+  await Bun.spawn(["git", "-C", repo, "config", "user.name", "Test"], { env }).exited;
   await writeFile(join(repo, "README.md"), "hello\n");
-  await Bun.spawn(["git", "-C", repo, "add", "-A"]).exited;
-  await Bun.spawn(["git", "-C", repo, "commit", "-q", "-m", "initial commit"]).exited;
+  await Bun.spawn(["git", "-C", repo, "add", "-A"], { env }).exited;
+  await Bun.spawn(["git", "-C", repo, "commit", "-q", "-m", "initial commit"], { env }).exited;
   // One uncommitted change so git status --porcelain / modifiedFiles is non-empty.
   await writeFile(join(repo, "README.md"), "hello again\n");
   return repo;

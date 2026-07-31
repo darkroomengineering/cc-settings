@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.1.0"; // record a settings baseline each install (nothing reads it yet)
+const VERSION = "13.1.1"; // tests: fixture git repos isolated from ambient global config
 
 // --- Arg parsing ---------------------------------------------------------
 

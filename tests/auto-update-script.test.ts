@@ -18,6 +18,13 @@ import { join, resolve } from "node:path";
 
 const AUTO_UPDATE_SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "auto-update.ts");
 
+// Fixture repos must never inherit the developer/CI machine's ambient git
+// config (commit.gpgsign + a signing program, core.hooksPath, aliases, ...).
+// Nulling both config files is what actually isolates everything in one
+// place; per-repo user.email/user.name (set below) remain the only identity
+// available once the global/system files are gone.
+const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+
 interface GitResult {
   exit: number;
   stdout: string;
@@ -25,7 +32,12 @@ interface GitResult {
 }
 
 async function git(args: string[], cwd: string): Promise<GitResult> {
-  const proc = Bun.spawn(["git", ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn(["git", ...args], {
+    cwd,
+    env: { ...process.env, ...GIT_ISOLATION_ENV },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   const stdout = await new Response(proc.stdout).text();
   const stderr = await new Response(proc.stderr).text();
   const exit = await proc.exited;
@@ -49,7 +61,7 @@ async function writeSentinel(fakeHome: string, repoPath: string | undefined): Pr
 
 async function runAutoUpdateScript(fakeHome: string): Promise<{ exit: number; stderr: string }> {
   const proc = Bun.spawn(["bun", AUTO_UPDATE_SCRIPT], {
-    env: { ...process.env, HOME: fakeHome, USERPROFILE: fakeHome },
+    env: { ...process.env, ...GIT_ISOLATION_ENV, HOME: fakeHome, USERPROFILE: fakeHome },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -215,6 +227,7 @@ describe("runAutoUpdate (via src/scripts/auto-update.ts)", () => {
         const proc = Bun.spawn(["bun", AUTO_UPDATE_SCRIPT], {
           env: {
             ...process.env,
+            ...GIT_ISOLATION_ENV,
             HOME: fakeHome,
             USERPROFILE: fakeHome,
             CC_EXPECTED_REPO: otherDir,

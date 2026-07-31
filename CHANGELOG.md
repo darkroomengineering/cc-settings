@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.1.1] — 2026-07-31
+
+Test fixtures no longer inherit your global git config. Six suites create throwaway repos in the temp dir and commit into them, and those commits picked up whatever `~/.gitconfig` said — so on a machine that signs commits through 1Password, a screen lock mid-run was enough to fail four tests for reasons unrelated to the code. CI never saw it, because CI has no signing configured. Every fixture git call and every subprocess spawned under test now runs with `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` pointed at `/dev/null`.
+
+Signing was just the instance that surfaced. The same leak applied to `core.hooksPath`, `commit.template`, aliases, and `init.templateDir`.
+
+Three of the six suites had been passing on quietly broken fixtures. Their `git()` helpers discard exit codes, so a failed commit left a repo with no history and the tests passed anyway — they never asserted on it. The count of assertions actually executed across these files goes from 259 to 272 with the fix in place, under a config that breaks signing.
+
+`scripts-smoke.test.ts` had already worked this out and disabled `commit.gpgsign` and `core.hooksPath` by hand; it now uses the same mechanism as everything else. Its `core.autocrlf false` stays — that guards a real Windows-runner CRLF bug, and nulling the global config does not cover a per-repo setting.
+
 ## [13.1.0] — 2026-07-31
 
 Each install now records what it wrote to `settings.json`, in `~/.claude/.cc-settings-baseline.json`. Nothing reads it yet — that is the point.

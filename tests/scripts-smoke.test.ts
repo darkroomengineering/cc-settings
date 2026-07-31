@@ -12,6 +12,14 @@ import { resolve } from "node:path";
 
 const SRC = resolve(import.meta.dir, "..", "src", "scripts");
 
+// Fixture repos must never inherit the developer/CI machine's ambient git
+// config (commit.gpgsign + a signing program, aliases, ...). Nulling both
+// config files isolates everything in one place; per-repo user.email/
+// user.name (set below) remain the only identity available once the
+// global/system files are gone. core.autocrlf is NOT covered by this — see
+// the comment at its per-key `git config` call below.
+const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+
 async function run(
   script: string,
   opts: { env?: Record<string, string>; stdin?: string; args?: string[]; cwd?: string } = {},
@@ -628,7 +636,12 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
     const { join } = await import("node:path");
     const dir = mkdtempSync(join(tmpdir(), "cc-checkpoint-repo-"));
     const git = (args: string[]) => {
-      const r = Bun.spawnSync(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+      const r = Bun.spawnSync(["git", ...args], {
+        cwd: dir,
+        env: { ...process.env, ...GIT_ISOLATION_ENV },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
       if (r.exitCode !== 0) {
         throw new Error(
           `git ${args.join(" ")} failed: ${r.stderr.toString() || r.stdout.toString()}`,
@@ -639,10 +652,10 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
     git(["init", "-q"]);
     git(["config", "user.email", "test@example.com"]);
     git(["config", "user.name", "Test"]);
-    git(["config", "commit.gpgsign", "false"]);
-    git(["config", "core.hooksPath", "/dev/null"]);
     // Windows runners default core.autocrlf=true, which rewrites the restored
-    // file to CRLF and breaks byte-exact content assertions.
+    // file to CRLF and breaks byte-exact content assertions. Not covered by
+    // GIT_CONFIG_GLOBAL/SYSTEM isolation (that only nulls the global/system
+    // files) — must stay a per-repo config call.
     git(["config", "core.autocrlf", "false"]);
     writeFileSync(join(dir, "foo.txt"), "original\n");
     git(["add", "."]);
@@ -661,7 +674,7 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
     try {
       writeFileSync(join(repoDir, "foo.txt"), "modified\n");
       const r = await run("checkpoint.ts", {
-        env: { HOME: homeDir },
+        env: { ...GIT_ISOLATION_ENV, HOME: homeDir },
         cwd: repoDir,
         args: ["save", "test save"],
       });
@@ -699,7 +712,7 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
     try {
       writeFileSync(join(repoDir, "foo.txt"), "modified\n");
       const saveR = await run("checkpoint.ts", {
-        env: { HOME: homeDir },
+        env: { ...GIT_ISOLATION_ENV, HOME: homeDir },
         cwd: repoDir,
         args: ["save", "before further edit"],
       });
@@ -728,7 +741,7 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
       writeFileSync(join(repoDir, "foo.txt"), "further edit\n");
 
       const restoreR = await run("checkpoint.ts", {
-        env: { HOME: homeDir },
+        env: { ...GIT_ISOLATION_ENV, HOME: homeDir },
         cwd: repoDir,
         args: ["restore", savedId as string],
       });
@@ -784,7 +797,7 @@ describe("checkpoint.ts save/restore — real rollback (#80)", () => {
       writeFileSync(join(checkpointDir, `${legacyId}.json`), JSON.stringify(legacyChk));
 
       const r = await run("checkpoint.ts", {
-        env: { HOME: homeDir },
+        env: { ...GIT_ISOLATION_ENV, HOME: homeDir },
         cwd: repoDir,
         args: ["restore", legacyId],
       });
