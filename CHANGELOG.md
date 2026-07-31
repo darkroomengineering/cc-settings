@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.0.3] — 2026-07-31
+
+The version sentinel stopped recording `installer`. It was a constant string (`"src/setup.ts"`) that the installer wrote on every run and no reader has ever consumed — surfaced by the v13.0.1 sentinel consolidation, which had to model it purely because the writer emitted it.
+
+Sentinels already on disk keep the field and still read correctly: the schema is `z.looseObject`, so an unrecognized key passes through untouched. Nothing needs migrating.
+
 ## [13.0.2] — 2026-07-31
 
 Two Windows path bugs shipped in v13.0.0 and turned CI red for a day. Both are the same mistake: `node:path` returns `\` on Windows, but the thing being compared against always uses `/`.

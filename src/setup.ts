@@ -83,7 +83,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.0.2"; // Windows: ledger paths and tsc-hook matching use forward slashes
+const VERSION = "13.0.3"; // sentinel: drop the write-only `installer` breadcrumb
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -406,7 +406,6 @@ async function writeVersionSentinel(
   const payload: Sentinel = {
     version: VERSION,
     installed_at: new Date().toISOString(),
-    installer: "src/setup.ts",
     // Where this install came from — lets the SessionStart drift check locate
     // the repo and compare the installed version against the packaged one.
     repo_path: sourceDir,

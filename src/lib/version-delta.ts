@@ -48,9 +48,6 @@ const VERSION_HEADING_RE = /^##\s*\[(\d+\.\d+\.\d+)\](?:\s*—\s*(\d{4}-\d{2}-\d
 export const SentinelSchema = z.looseObject({
   version: z.string().optional().catch(undefined),
   installed_at: z.string().optional().catch(undefined),
-  // Write-only breadcrumb (always "src/setup.ts" today) — no reader consumes
-  // it. Modeled here anyway since it IS part of what the writer emits.
-  installer: z.string().optional().catch(undefined),
   repo_path: z.string().optional().catch(undefined),
   profile: z.enum(["full", "light"]).optional().catch(undefined),
   engine: z.string().optional().catch(undefined),
