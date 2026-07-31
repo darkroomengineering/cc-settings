@@ -21,7 +21,7 @@
 // repo-root-relative. Deferring the decision to the reader, which knows the git
 // toplevel, keeps the two sources comparable.
 
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { claudePath } from "./platform.ts";
 import { redactSecrets } from "./redact.ts";
@@ -44,6 +44,14 @@ export const MAX_ERROR_CHARS = 200;
  *  surfaces bounded recent sets, so older lines have no reader. */
 export const LEDGER_MAX_LINES = 4000;
 export const LEDGER_TRIM_TO = 2000;
+
+/** Conservative floor on the bytes one appended line can occupy, used to skip
+ *  the trim's read entirely on a file that cannot possibly be over the line cap.
+ *  Every LedgerEntry variant carries a `t` ISO timestamp, which is 32 bytes as
+ *  JSON on its own; the smallest entry this module can emit measures 68. 40 is
+ *  therefore a floor with margin, and only ever errs toward reading when it
+ *  didn't need to — never toward skipping a trim that was due. */
+const MIN_LINE_BYTES = 40;
 
 /** Tools whose invocation means "this file was modified". NotebookEdit carries
  *  its path as `notebook_path`, every other one as `file_path`. */
@@ -137,9 +145,26 @@ export async function appendEntries(
 
 /** Rewrite the ledger to its newest LEDGER_TRIM_TO lines once it crosses
  *  LEDGER_MAX_LINES. Best-effort: if anything fails the oversized file is left
- *  alone, which still reads correctly — it is only ever bigger than needed. */
-async function trimLedger(file: string): Promise<void> {
+ *  alone, which still reads correctly — it is only ever bigger than needed.
+ *
+ *  Size-gated: this runs after EVERY batch append, so reading the whole file
+ *  each time to count lines meant a session's every tool batch paid a full read
+ *  of a file that grows all session long. A file under LEDGER_MAX_LINES *
+ *  MIN_LINE_BYTES cannot hold LEDGER_MAX_LINES lines, so `stat` alone rules out
+ *  the common case and the read never happens.
+ *
+ *  The gate also shrinks a race it does not fully close. Two processes append to
+ *  one session's ledger — ledger-record.ts (PostToolBatch) and post-failure.ts
+ *  (PostToolUseFailure) — and the trim below is a read-modify-write, so an
+ *  append landing between the read and the write is dropped by the overwrite.
+ *  Gating means that window now opens only on the rare batch that actually
+ *  trims, rather than on every batch. The residual loss is a few lines of a
+ *  best-effort digest at the 4000-line mark; a lock would cost every append a
+ *  file lease to protect data whose whole contract is "bounded and lossy". */
+export async function trimLedger(file: string): Promise<void> {
   try {
+    const { size } = await stat(file);
+    if (size < LEDGER_MAX_LINES * MIN_LINE_BYTES) return;
     const text = await readFile(file, "utf8");
     const lines = text.split("\n").filter(Boolean);
     if (lines.length <= LEDGER_MAX_LINES) return;

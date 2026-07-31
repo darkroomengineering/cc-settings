@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.0.5] — 2026-07-31
+
+The session ledger stopped reading itself on every tool batch. `trimLedger` runs after each append to enforce the 4000-line cap, and it was reading the whole file each time just to count lines — so every batch in a session paid a full read of a file that grows all session long. It now checks the size first: a file too small to possibly hold 4000 lines is ruled out by `stat` alone, and the read never happens.
+
+That also shrinks a race it does not fully close. Two hook processes append to one session's ledger — PostToolBatch and PostToolUseFailure — and the trim is a read-modify-write, so an append landing between the read and the write is lost to the overwrite. The window now opens only on the rare batch that actually trims instead of on every batch. The residual loss is a few lines of a deliberately bounded, lossy digest; a lock would make every append pay a file lease to protect data whose whole contract is that it can be lossy.
+
+`trimLedger` was also the one export in that module with no direct test. It has eight now, covering the cap, that the newest lines are the ones kept, JSONL validity, idempotence, a missing file, and that the new size gate never skips a trim that was genuinely due — the failure mode that would otherwise be invisible until a disk filled.
+
 ## [13.0.4] — 2026-07-31
 
 Seven state-file readers each restated the same contract: read JSON, validate it against a zod schema, and degrade to a safe default if either step fails. `readValidatedState` in `hook-runtime.ts` now holds that contract once, and every one of the seven call sites got shorter.

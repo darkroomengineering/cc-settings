@@ -83,7 +83,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.0.4"; // readValidatedState: one degrade-on-corrupt contract for 7 state reads
+const VERSION = "13.0.5"; // ledger trim: size-gated, no longer reads the file every batch
 
 // --- Arg parsing ---------------------------------------------------------
 
