@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.2.2] — 2026-07-31
+
+The install summary counted every skill directory under `~/.claude/skills/`, so a machine with plugin or third-party skills alongside cc-settings' own printed `skills/ (41)` under the heading "Installed" when cc-settings had installed 39. It now counts only the skills it ships.
+
+Tombstones are excluded from the other direction: `MANAGED_SKILLS` includes retired names the installer *deletes*, and counting a directory it just removed would be worse than counting one it never wrote. The count is against `ACTIVE_SKILLS`.
+
 ## [13.2.1] — 2026-07-31
 
 Dropped the `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` pin. It was set to `2` in v12.6.0 to loosen Claude Code's default of 1, so `maestro` and `deslopper` could still fan out when invoked as subagents. Upstream 2.1.219 raised its own default to 3, which turned the identical pin into a restriction. Installs now inherit whatever upstream defaults to.

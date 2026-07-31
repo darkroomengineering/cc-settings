@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { boxEnd, boxLine, boxStart, palette, success, warn } from "./colors.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { LIGHT_SKILLS, PROFILE_MANIFEST } from "./light-profile.ts";
+import { ACTIVE_SKILLS } from "./managed-skills.ts";
 import { CLAUDE_JSON_PATH } from "./mcp.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 import type { StatusData } from "./status-types.ts";
@@ -28,17 +29,27 @@ export async function countEntries(full: string, pattern: RegExp): Promise<numbe
 }
 
 /**
- * Count installed skills. Unlike the other manifest dirs (flat `*.md` files),
- * skills are subdirectories each holding a `SKILL.md`, so a `/\.md$/` match on
- * the top level only ever finds `README.md` and reports 1. Count subdirs that
- * actually contain a `SKILL.md` instead.
+ * Count skills cc-settings installed. Unlike the other manifest dirs (flat
+ * `*.md` files), skills are subdirectories each holding a `SKILL.md`, so a
+ * `/\.md$/` match on the top level only ever finds `README.md` and reports 1.
+ *
+ * Restricted to ACTIVE_SKILLS because ~/.claude/skills/ is shared: plugin and
+ * third-party skills live there too and are deliberately left alone by the
+ * installer. Counting every subdir made the summary claim credit for those —
+ * a box reading "skills/ (41)" under the heading "Installed" when cc-settings
+ * had installed 39. Tombstones are excluded for the same reason from the other
+ * direction: MANAGED_SKILLS includes retired names the installer DELETES, and
+ * counting a directory it just removed would be worse than counting one it
+ * never wrote.
  */
 export async function countSkillDirs(full: string): Promise<number> {
   if (!existsSync(full)) return 0;
   try {
+    const active = new Set<string>(ACTIVE_SKILLS);
     const entries = await readdir(full, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory() && existsSync(join(full, e.name, "SKILL.md")))
-      .length;
+    return entries.filter(
+      (e) => e.isDirectory() && active.has(e.name) && existsSync(join(full, e.name, "SKILL.md")),
+    ).length;
   } catch {
     return 0;
   }

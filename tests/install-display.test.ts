@@ -91,6 +91,30 @@ describe("countSkillDirs", () => {
   test("missing dir → 0", async () => {
     expect(await countSkillDirs(join(root, "does-not-exist"))).toBe(0);
   });
+
+  // ~/.claude/skills/ is shared — plugin and third-party skills live alongside
+  // cc-settings' own and are deliberately never touched by the installer.
+  // Counting them made the summary claim credit for skills it did not install.
+  test("third-party skills are not counted as installed", async () => {
+    const shared = join(root, "shared-skills");
+    for (const name of ["build", "fix", "ship"]) {
+      await touch(join(shared, name, "SKILL.md"));
+    }
+    // Real examples seen in a live ~/.claude/skills: not shipped by cc-settings.
+    for (const name of ["context7-mcp", "programa"]) {
+      await touch(join(shared, name, "SKILL.md"));
+    }
+    expect(await countSkillDirs(shared)).toBe(3);
+  });
+
+  test("tombstoned skills are not counted even if the dir lingers", async () => {
+    const stale = join(root, "stale-skills");
+    await touch(join(stale, "build", "SKILL.md"));
+    // `lenis` is a retired skill in TOMBSTONE_SKILLS — the installer removes it,
+    // so counting it would over-report on the run that deletes it.
+    await touch(join(stale, "lenis", "SKILL.md"));
+    expect(await countSkillDirs(stale)).toBe(1);
+  });
 });
 
 describe("countEntries", () => {

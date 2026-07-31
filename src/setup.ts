@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.2.1"; // drop the subagent-depth pin; prune it from existing installs
+const VERSION = "13.2.2"; // install summary counts skills cc-settings shipped, not the whole dir
 
 // --- Arg parsing ---------------------------------------------------------
 
