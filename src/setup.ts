@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.2.0"; // sync with Claude Code 2.1.220
+const VERSION = "13.2.1"; // drop the subagent-depth pin; prune it from existing installs
 
 // --- Arg parsing ---------------------------------------------------------
 

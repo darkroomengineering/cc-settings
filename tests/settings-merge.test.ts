@@ -31,6 +31,7 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
     hooksSuperseded: 0,
     envUserWins: 0,
     envAdoptedScalars: 0,
+    envPruned: 0,
     scalarsAdopted: 0,
     defaultsAdded: 0,
     statusLineReset: false,
@@ -631,6 +632,48 @@ describe("envStrategy", () => {
     expect(merged.MY_CUSTOM).toBe("hello");
     expect(merged.SHARED).toBe("1");
     expect(ctx.accounting.envUserWins).toBe(0); // no conflict — user key is unique
+  });
+
+  test("retired env key is pruned from an existing install (DEPRECATED_ENV_KEYS)", async () => {
+    const ctx = makeCtx();
+    // Simulates an install that synced while v12.6.0 still pinned the depth.
+    const team = { CLAUDE_CODE_SUBAGENT_MODEL: "sonnet" };
+    const user = {
+      CLAUDE_CODE_SUBAGENT_MODEL: "sonnet",
+      CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "2",
+    };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect("CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH" in merged).toBe(false);
+    expect(merged.CLAUDE_CODE_SUBAGENT_MODEL).toBe("sonnet"); // untouched
+    expect(ctx.accounting.envPruned).toBe(1);
+  });
+
+  test("a retired key the team config still ships is NOT pruned", async () => {
+    const ctx = makeCtx();
+    // Re-adding a retired key to config/ must be enough to revive it, without
+    // also editing DEPRECATED_ENV_KEYS — otherwise the two lists silently fight.
+    const team = { CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "4" };
+    const user = { CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "2" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    // Present, and the normal user-wins conflict rule still applies to it.
+    expect(merged.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe("2");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("prune leaves an untouched install alone (no false positives)", async () => {
+    const ctx = makeCtx();
+    const team = { CLAUDE_CODE_SUBAGENT_MODEL: "sonnet" };
+    const user = { MY_CUSTOM: "hello" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(ctx.accounting.envPruned).toBe(0);
   });
 });
 

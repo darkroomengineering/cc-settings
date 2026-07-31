@@ -45,6 +45,7 @@ export interface MergeAccounting {
   hooksSuperseded: number;
   envUserWins: number;
   envAdoptedScalars: number;
+  envPruned: number;
   scalarsAdopted: number;
   defaultsAdded: number;
   statusLineReset: boolean;
@@ -116,6 +117,25 @@ export const DEPRECATED_PERMISSION_PATTERNS: RegExp[] = [
 export function permissionRuleIsDeprecated(rule: string): boolean {
   return DEPRECATED_PERMISSION_PATTERNS.some((re) => re.test(rule));
 }
+
+// env keys cc-settings used to ship and has since dropped. envStrategy is a
+// union with the user winning every conflict, so without this a retired key
+// survives on every existing install forever — new installs get upstream's
+// behavior while older ones stay frozen on a value we no longer set. The env
+// counterpart of DEPRECATED_PERMISSION_PATTERNS, same removal policy.
+//
+// Only exact keys cc-settings itself shipped belong here. A user who set the
+// same variable by hand loses their value, which is the same tradeoff the two
+// registries above already make — worth it for a key we chose for them, wrong
+// for anything we never wrote.
+export const DEPRECATED_ENV_KEYS = new Set<string>([
+  // Pinned to "2" in v12.6.0 to LOOSEN Claude Code's then-default of 1, so
+  // maestro/deslopper could still fan out when invoked as subagents. Upstream
+  // 2.1.219 raised its own default to 3, which turned the identical pin into a
+  // restriction — capping nesting below stock. Dropped in v13.2.1; installs
+  // now inherit whatever upstream defaults to.
+  "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH",
+]);
 
 // Union two string arrays, preserving team order. Team-only entries can be
 // declined in interactive mode (they're the ones team added since last install).
@@ -424,6 +444,17 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   const u = asRecord(user);
   const merged: UnknownRecord = { ...t, ...u };
 
+  // Drop keys cc-settings retired. Guarded on `!(k in t)` so a key that is
+  // BOTH listed here and still shipped stays — the team config always wins
+  // that argument, and it makes re-adding a retired key a one-line config
+  // change rather than a two-file one.
+  for (const k of DEPRECATED_ENV_KEYS) {
+    if (k in merged && !(k in t)) {
+      delete merged[k];
+      ctx.accounting.envPruned++;
+    }
+  }
+
   for (const k of Object.keys(u)) {
     if (k in t && u[k] !== t[k]) {
       ctx.accounting.envUserWins++;
@@ -594,6 +625,7 @@ export async function mergeSettings(
       hooksSuperseded: 0,
       envUserWins: 0,
       envAdoptedScalars: 0,
+      envPruned: 0,
       scalarsAdopted: 0,
       defaultsAdded: 0,
       statusLineReset: false,
@@ -636,6 +668,9 @@ export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}
   }
   if (a.permissionsPruned > 0) {
     info(`Pruned ${a.permissionsPruned} stale permission rule(s) naming removed tools`);
+  }
+  if (a.envPruned > 0) {
+    info(`Pruned ${a.envPruned} env var(s) cc-settings no longer sets`);
   }
   if (a.hooksSuperseded > 0) {
     info(`Dropped ${a.hooksSuperseded} stale variant(s) of team-managed hook groups`);

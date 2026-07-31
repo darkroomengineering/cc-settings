@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.2.1] — 2026-07-31
+
+Dropped the `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` pin. It was set to `2` in v12.6.0 to loosen Claude Code's default of 1, so `maestro` and `deslopper` could still fan out when invoked as subagents. Upstream 2.1.219 raised its own default to 3, which turned the identical pin into a restriction. Installs now inherit whatever upstream defaults to.
+
+Removing it from `config/` alone would only have fixed new installs. `env` merges as a union with the user winning every conflict, so a key cc-settings stops shipping survives on every existing machine forever — new installs would get depth 3 while everyone who installed since 22 July stayed frozen at 2, with nothing to explain the difference.
+
+So env now has the same retirement mechanism permissions and hook commands already had: `DEPRECATED_ENV_KEYS`. A key listed there is dropped from an existing `settings.json` unless the team config still ships it, which means re-adding a retired key later is a one-line config change rather than an edit in two places. The install prints what it pruned.
+
+The tradeoff matches the two existing registries: someone who set the same variable by hand loses their value. That is acceptable for a key we chose for them and wrong for anything we never wrote, so only exact keys cc-settings itself shipped belong in the list.
+
 ## [13.2.0] — 2026-07-31
 
 Sync with Claude Code 2.1.220 (from 2.1.217).
