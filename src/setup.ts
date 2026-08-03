@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.3.0"; // advisory-gate-measure loop: escalation advisory, telemetry, push gate, /audit merge
+const VERSION = "13.4.0"; // cc-settings side of the sonor glue: pre-commit-sonor hook, /triage sonor sweep
 
 // --- Arg parsing ---------------------------------------------------------
 

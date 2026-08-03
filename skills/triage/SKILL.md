@@ -19,13 +19,14 @@ git remote get-url origin
 ## Pipeline
 
 1. `git checkout main 2>/dev/null; git pull` — triage latest, note the default branch.
-2. Fan out `explore` agents in ONE message:
+2. **Sonor sweep (if available).** If the repo declares `sonor` in package.json and `node_modules/.bin/sonor` exists, run `node_modules/.bin/sonor report --json` (exit 0 always; operational failure just skips this step). Fold the JSON into the ranking: `byRule` gives per-standard counts, `byArea` names the debt hotspots — cite both in step-4's findings table, and include the `baseline` object verbatim in the report as the ready-to-commit adoption path (`sonor baseline write` produces exactly these numbers). If sonor is not installed, note in the output that the repo has no sonor coverage and that `npm i -D sonor && npx sonor baseline write` is the adoption path — do not install anything on an external repo (read-only guardrail applies).
+3. Fan out `explore` agents in ONE message:
    - (a) structure + dependency freshness
    - (b) TypeScript/lint/config hygiene
    - (c) obvious perf and a11y issues on key pages
    - (d) security smells (exposed env, secrets in history, unpinned actions)
-3. Rank findings: Critical / Should-fix / Cosmetic. Each with `file:line` and a one-line fix sketch. Max 15 findings — this is a triage, not an audit; recommend `/audit maintainability` if depth is warranted.
-4. End with a split: "safe to fix directly" vs "needs client conversation".
+4. Rank findings: Critical / Should-fix / Cosmetic. Each with `file:line` and a one-line fix sketch. Max 15 findings — this is a triage, not an audit; recommend `/audit maintainability` if depth is warranted.
+5. End with a split: "safe to fix directly" vs "needs client conversation".
 
 ## Output
 

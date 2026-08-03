@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.4.0] — 2026-08-03
+
+The cc-settings side of the [sonor](https://github.com/darkroomengineering/sonor) glue (sonor issue #5, item 4) — the part that has to live here since sonor itself must work with zero Claude Code assumptions.
+
+- New `pre-commit-sonor.ts` PreToolUse hook: on `git commit*`, if the target repo has sonor as a dependency and installed, runs `sonor ratchet --changed` and blocks on a red gate. Skips silently when sonor isn't a dependency, isn't installed, or its own git hooks are already active for the repo (the `sonor-managed` marker on `core.hooksPath`/`.git/hooks/pre-commit`) — this hook is a fallback for repos that declared sonor but never ran `sonor install-hooks`, not a replacement for sonor's own commit-time and CI enforcement. Fail-open on every operational failure (missing binary, spawn error, timeout, sonor's own exit-2 code); only a genuine ratchet exit 1 blocks.
+- `/triage` gains a sonor sweep step: when the repo under triage has sonor installed, `sonor report --json` folds into the ranked findings (`byRule` counts, `byArea` hotspots, the `baseline` object as a ready-to-commit adoption path). Repos without sonor get a one-line adoption note instead — the read-only guardrail on external repos still applies, nothing gets installed on a client's behalf.
+
 ## [13.3.0] — 2026-08-03
 
 The advisory → gate → measure loop, extracted from a Slack-thread insight (ratchet tests beat prose guardrails because "advisory output is ignorable; a non-zero exit is not") and applied across the harness. The README's new "The flow" section is the map.
