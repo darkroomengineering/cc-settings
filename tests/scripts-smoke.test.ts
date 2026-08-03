@@ -459,6 +459,102 @@ describe("claude-audit.ts", () => {
       rmSync(sandbox, { recursive: true, force: true });
     }
   });
+
+  describe("gate firings (safety-net.log)", () => {
+    test("no safety-net.log → section omitted, exit 0", async () => {
+      const { mkdtempSync, rmSync } = await import("node:fs");
+      const { tmpdir: tmpdirFn } = await import("node:os");
+      const { join } = await import("node:path");
+      const sandbox = mkdtempSync(join(tmpdirFn(), "cc-audit-gate-enoent-"));
+      try {
+        const r = await run("claude-audit.ts", { env: { HOME: sandbox } });
+        expect(r.exit).toBe(0);
+        expect(r.stdout).not.toContain("gate firings");
+      } finally {
+        rmSync(sandbox, { recursive: true, force: true });
+      }
+    });
+
+    test("fixture safety-net.log → correct total/per-reason counts + recent entries, never the command field", async () => {
+      const { mkdtempSync, rmSync, mkdirSync, writeFileSync } = await import("node:fs");
+      const { tmpdir: tmpdirFn } = await import("node:os");
+      const { join } = await import("node:path");
+      const sandbox = mkdtempSync(join(tmpdirFn(), "cc-audit-gate-fixture-"));
+      try {
+        const claudeDir = join(sandbox, ".claude");
+        mkdirSync(claudeDir, { recursive: true });
+        const lines = [
+          {
+            timestamp: "2026-08-01T00:00:00Z",
+            command: "rm -rf / SECRET_COMMAND_TOKEN",
+            reason: "rm -rf targeting root filesystem",
+            cwd: "/repo",
+            version: "1.0.0",
+          },
+          {
+            timestamp: "2026-08-01T00:01:00Z",
+            command: "git push --force SECRET_COMMAND_TOKEN",
+            reason: "git push --force can overwrite remote history",
+            cwd: "/repo",
+            version: "1.0.0",
+          },
+          {
+            timestamp: "2026-08-01T00:02:00Z",
+            command: "rm -rf ~ SECRET_COMMAND_TOKEN",
+            reason: "rm -rf targeting root filesystem",
+            cwd: "/repo",
+            version: "1.0.0",
+          },
+          "not json at all",
+        ];
+        writeFileSync(
+          join(claudeDir, "safety-net.log"),
+          `${lines.map((l) => (typeof l === "string" ? l : JSON.stringify(l))).join("\n")}\n`,
+          "utf8",
+        );
+        const r = await run("claude-audit.ts", { env: { HOME: sandbox } });
+        expect(r.exit).toBe(0);
+        expect(r.stdout).toContain("gate firings (3 total, all time)");
+        expect(r.stdout).toContain("rm -rf targeting root filesystem");
+        expect(r.stdout).toContain("git push --force can overwrite remote history");
+        expect(r.stdout).not.toContain("SECRET_COMMAND_TOKEN");
+        expect(r.stdout).not.toContain("command");
+      } finally {
+        rmSync(sandbox, { recursive: true, force: true });
+      }
+    });
+  });
+});
+
+describe("claude-audit.ts — analyzeGateLog / renderGateSection (pure)", () => {
+  test("analyzeGateLog counts totals, groups by reason, and keeps the 3 most recent entries newest-first", async () => {
+    const { analyzeGateLog } = await import("../src/scripts/claude-audit.ts");
+    const text = [
+      JSON.stringify({ timestamp: "t1", reason: "rm -rf targeting root filesystem" }),
+      JSON.stringify({ timestamp: "t2", reason: "git push --force can overwrite remote history" }),
+      JSON.stringify({ timestamp: "t3", reason: "rm -rf targeting root filesystem" }),
+      JSON.stringify({ timestamp: "t4", reason: "rm -rf targeting root filesystem" }),
+      "not json",
+      JSON.stringify({ timestamp: "t5" }), // missing reason — skipped
+    ].join("\n");
+
+    const model = analyzeGateLog(text);
+    expect(model.total).toBe(4);
+    expect(model.byReason[0]).toEqual({ reason: "rm -rf targeting root filesystem", count: 3 });
+    expect(model.recent.map((r) => r.timestamp)).toEqual(["t4", "t3", "t2"]);
+  });
+
+  test("renderGateSection never includes a command field, even if the model somehow carried one", async () => {
+    const { renderGateSection } = await import("../src/scripts/claude-audit.ts");
+    const output = renderGateSection({
+      total: 1,
+      byReason: [{ reason: "sudo usage", count: 1 }],
+      // biome-ignore lint/suspicious/noExplicitAny: intentionally malformed test input
+      recent: [{ timestamp: "t1", reason: "sudo usage", command: "sudo rm -rf /" } as any],
+    });
+    expect(output).toContain("sudo usage");
+    expect(output).not.toContain("sudo rm -rf /");
+  });
 });
 
 describe("handoff.ts clean", () => {

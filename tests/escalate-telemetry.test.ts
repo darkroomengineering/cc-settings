@@ -14,6 +14,13 @@ import { computeStats, parseTelemetryLine } from "../src/lib/escalate-telemetry.
 const ESCALATE_MODEL = resolve(import.meta.dir, "..", "src", "hooks", "escalate-model.ts");
 const ESCALATE_ACTED = resolve(import.meta.dir, "..", "src", "hooks", "escalate-acted.ts");
 const ESCALATE_STATS = resolve(import.meta.dir, "..", "src", "scripts", "escalate-stats.ts");
+const DELEGATION_DETECTOR = resolve(
+  import.meta.dir,
+  "..",
+  "src",
+  "hooks",
+  "delegation-detector.ts",
+);
 const SESSION_ID = "sess-telemetry-1";
 
 interface SignatureMapFixture {
@@ -105,6 +112,38 @@ async function readPendingMarker(home: string, sessionId: string): Promise<unkno
   try {
     return JSON.parse(
       await readFile(join(home, ".claude", "tmp", `escalate-pending-${sessionId}`), "utf8"),
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function runDelegationDetector(
+  home: string,
+  opts: { sessionId?: string; prompt?: string } = {},
+): Promise<{ stdout: string; exit: number }> {
+  const proc = Bun.spawn(["bun", DELEGATION_DETECTOR], {
+    env: { ...process.env, HOME: home, USERPROFILE: home },
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  proc.stdin.write(
+    JSON.stringify({
+      prompt: opts.prompt ?? "do all the things now",
+      session_id: opts.sessionId ?? SESSION_ID,
+    }),
+  );
+  proc.stdin.end();
+  const stdout = await new Response(proc.stdout).text();
+  const exit = await proc.exited;
+  return { stdout, exit };
+}
+
+async function readDelegationPendingMarker(home: string, sessionId: string): Promise<unknown> {
+  try {
+    return JSON.parse(
+      await readFile(join(home, ".claude", "tmp", `delegation-pending-${sessionId}`), "utf8"),
     );
   } catch {
     return null;
@@ -589,5 +628,206 @@ describe("escalate-telemetry.ts — pure helpers", () => {
     expect(stats.actedTotal).toBe(0);
     expect(stats.actRate).toBe(0);
     expect(stats.actRate).toBeLessThanOrEqual(100);
+  });
+
+  test("lines with no advisory field are counted as escalate; delegation stats are separate", () => {
+    const stats = computeStats([
+      // old-format escalate lines — no `advisory` field at all, exactly what
+      // every escalate line on disk (before and after this change) looks like.
+      {
+        t: "2026-01-01T00:00:00Z",
+        session: "s1",
+        kind: "fired",
+        sig: "a",
+        tool: "Bash",
+        count: 3,
+        variant: "escalate",
+      },
+      {
+        t: "2026-01-01T00:01:00Z",
+        session: "s1",
+        kind: "acted",
+        sig: "a",
+        latencyMs: 1000,
+        model: "fable",
+      },
+      // delegation fired/acted, explicit advisory field.
+      {
+        t: "2026-01-01T00:02:00Z",
+        session: "s2",
+        kind: "fired",
+        advisory: "delegation",
+        at: 5000,
+        score: 2,
+      },
+      {
+        t: "2026-01-01T00:03:00Z",
+        session: "s2",
+        kind: "acted",
+        advisory: "delegation",
+        at: 5000,
+        latencyMs: 500,
+      },
+    ]);
+
+    expect(stats.firedTotal).toBe(1);
+    expect(stats.actedTotal).toBe(1);
+    expect(stats.actRate).toBe(100);
+    expect(stats.delegation.firedTotal).toBe(1);
+    expect(stats.delegation.actedTotal).toBe(1);
+    expect(stats.delegation.actRate).toBe(100);
+    expect(stats.delegation.medianActedLatencyMs).toBe(500);
+  });
+
+  test("delegation dedupe: duplicate acted (session, at) counted once; orphan acted not counted", () => {
+    const stats = computeStats([
+      {
+        t: "2026-01-01T00:00:00Z",
+        session: "s1",
+        kind: "fired",
+        advisory: "delegation",
+        at: 1000,
+        score: 2,
+      },
+      {
+        t: "2026-01-01T00:01:00Z",
+        session: "s1",
+        kind: "acted",
+        advisory: "delegation",
+        at: 1000,
+        latencyMs: 100,
+      },
+      // Double-consume race: a second Agent call observed the same marker
+      // before it was cleared and wrote its own acted line for (s1, 1000).
+      {
+        t: "2026-01-01T00:01:05Z",
+        session: "s1",
+        kind: "acted",
+        advisory: "delegation",
+        at: 1000,
+        latencyMs: 200,
+      },
+      // Orphan: no fired line exists for (s2, 9999).
+      {
+        t: "2026-01-01T00:02:00Z",
+        session: "s2",
+        kind: "acted",
+        advisory: "delegation",
+        at: 9999,
+        latencyMs: 50,
+      },
+    ]);
+
+    expect(stats.delegation.firedTotal).toBe(1);
+    expect(stats.delegation.actedTotal).toBe(1);
+    expect(stats.delegation.actRate).toBe(100);
+    expect(stats.delegation.medianActedLatencyMs).toBe(100); // earliest wins
+  });
+});
+
+describe("delegation-detector.ts — fired telemetry", () => {
+  test("emitting the advisory writes a well-formed fired line + pending marker", async () => {
+    await withHome(async (home) => {
+      const { stdout } = await runDelegationDetector(home, { prompt: "do all the things now" });
+      expect(stdout).toContain("hookSpecificOutput");
+
+      const lines = await readTelemetryLog(home);
+      expect(lines.length).toBe(1);
+      const event = JSON.parse(lines[0] as string);
+      expect(event.kind).toBe("fired");
+      expect(event.advisory).toBe("delegation");
+      expect(event.session).toBe(SESSION_ID);
+      expect(typeof event.at).toBe("number");
+      expect(typeof event.score).toBe("number");
+      expect(event.score).toBeGreaterThanOrEqual(2);
+      expect(typeof event.t).toBe("string");
+
+      const marker = (await readDelegationPendingMarker(home, SESSION_ID)) as {
+        at: number;
+        firedAt: number;
+      } | null;
+      expect(typeof marker?.at).toBe("number");
+      expect(marker?.at).toBe(marker?.firedAt);
+    });
+  });
+
+  test("privacy: the fired line never contains the matched phrase or prompt text", async () => {
+    await withHome(async (home) => {
+      await runDelegationDetector(home, { prompt: "do all the SECRET_SENTINEL things now" });
+      const lines = await readTelemetryLog(home);
+      expect(lines.length).toBe(1);
+      expect(lines[0]).not.toContain("SECRET_SENTINEL");
+      expect(lines[0]).not.toContain("do all");
+    });
+  });
+
+  test("score below threshold → no fired line, no marker", async () => {
+    await withHome(async (home) => {
+      await runDelegationDetector(home, { prompt: "hello there" });
+      const lines = await readTelemetryLog(home);
+      expect(lines.length).toBe(0);
+      const marker = await readDelegationPendingMarker(home, SESSION_ID);
+      expect(marker).toBeNull();
+    });
+  });
+});
+
+describe("escalate-acted.ts — delegation pairing", () => {
+  test("Agent call within the 10-minute window → delegation acted, marker cleared", async () => {
+    await withHome(async (home) => {
+      await runDelegationDetector(home, { prompt: "do all the things now" });
+      const { exit } = await runEscalateActed(home);
+      expect(exit).toBe(0);
+
+      const lines = await readTelemetryLog(home);
+      expect(lines.length).toBe(2); // one fired + one acted
+      // biome-ignore lint/suspicious/noExplicitAny: test-only JSONL parsing
+      const events = lines.map((l) => JSON.parse(l) as any);
+      const acted = events.find((e) => e.kind === "acted" && e.advisory === "delegation");
+      expect(acted).toBeDefined();
+      expect(typeof acted.at).toBe("number");
+      expect(typeof acted.latencyMs).toBe("number");
+      expect(acted.latencyMs).toBeGreaterThanOrEqual(0);
+
+      const marker = await readDelegationPendingMarker(home, SESSION_ID);
+      expect(marker).toEqual({});
+    });
+  });
+
+  test("stale delegation marker (past the 10-minute window) → no acted line, marker cleared", async () => {
+    await withHome(async (home) => {
+      const dir = join(home, ".claude", "tmp");
+      await mkdir(dir, { recursive: true });
+      const staleAt = Date.now() - 11 * 60_000;
+      await writeFile(
+        join(dir, `delegation-pending-${SESSION_ID}`),
+        JSON.stringify({ at: staleAt, firedAt: staleAt }),
+      );
+      await runEscalateActed(home);
+      const lines = await readTelemetryLog(home);
+      expect(lines.length).toBe(0);
+      const marker = await readDelegationPendingMarker(home, SESSION_ID);
+      expect(marker).toEqual({});
+    });
+  });
+
+  test("both escalate and delegation pending, one Agent call → two acted lines, one per advisory", async () => {
+    await withHome(async (home) => {
+      await writeSignatures(home, SESSION_ID, {
+        abc123: { count: 3, tool: "Bash", sample: "command not found: foo" },
+      });
+      await runEscalateModel(home);
+      await runDelegationDetector(home, { prompt: "do all the things now" });
+
+      await runEscalateActed(home);
+      const lines = await readTelemetryLog(home);
+      expect(lines.length).toBe(4); // 2 fired + 2 acted
+      // biome-ignore lint/suspicious/noExplicitAny: test-only JSONL parsing
+      const events = lines.map((l) => JSON.parse(l) as any);
+      const actedEvents = events.filter((e) => e.kind === "acted");
+      expect(actedEvents.length).toBe(2);
+      const advisories = actedEvents.map((e) => e.advisory ?? "escalate").sort();
+      expect(advisories).toEqual(["delegation", "escalate"]);
+    });
   });
 });

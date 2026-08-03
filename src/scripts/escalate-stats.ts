@@ -1,8 +1,12 @@
 #!/usr/bin/env bun
-// `bun run escalate:stats` — aggregate the fired-vs-acted telemetry for the
-// model-escalation advisory (escalate-model.ts fires, escalate-acted.ts
-// records acted). Read by humans and by /retro (skills/retro/SKILL.md) to
-// decide whether the advisory's act-rate justifies a harder escalation.
+// `bun run escalate:stats` — aggregate the fired-vs-acted telemetry for both
+// advisories that record it: model-escalation (escalate-model.ts fires,
+// escalate-acted.ts records acted) and delegation (delegation-detector.ts
+// fires, escalate-acted.ts records acted). The headline numbers above the
+// "By advisory" section are the escalate advisory's own, unchanged in
+// meaning from before delegation telemetry existed. Read by humans and by
+// /retro (skills/retro/SKILL.md) to decide whether either advisory's
+// act-rate justifies a harder escalation.
 //
 // Correlation rule: computeStats (escalate-telemetry.ts) is the source of
 // truth for pairing fired/acted lines and for the honesty guarantee that
@@ -62,7 +66,7 @@ async function main(): Promise<void> {
 
   const read = await readTelemetryLog();
   if (read.kind === "missing") {
-    console.log("No telemetry yet — the escalate advisory hasn't fired in this environment.");
+    console.log("No telemetry yet — neither advisory has fired in this environment.");
     return;
   }
 
@@ -84,7 +88,7 @@ async function main(): Promise<void> {
 
   if (events.length === 0) {
     console.log(
-      `No telemetry yet — the escalate advisory hasn't fired in this environment (${windowLabel}).`,
+      `No telemetry yet — neither advisory has fired in this environment (${windowLabel}).`,
     );
     return;
   }
@@ -111,6 +115,10 @@ async function main(): Promise<void> {
     "",
     "By model (acted):",
     ...Object.entries(stats.byModel).map(([model, count]) => `  ${model}: ${count}`),
+    "",
+    "By advisory (fired / acted / act-rate):",
+    `  escalate: fired ${stats.firedTotal}, acted ${stats.actedTotal}, act-rate ${stats.actRate.toFixed(1)}%`,
+    `  delegation: fired ${stats.delegation.firedTotal}, acted ${stats.delegation.actedTotal}, act-rate ${stats.delegation.actRate.toFixed(1)}%`,
   ];
   console.log(lines.join("\n"));
 }

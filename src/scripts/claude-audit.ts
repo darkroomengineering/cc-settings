@@ -414,6 +414,109 @@ export function renderAudit(model: AuditModel): string {
   return lines.join("\n");
 }
 
+// --- Gate firings (safety-net.ts blocks) -----------------------------------
+//
+// safety-net.ts (PreToolUse) appends one JSON line per BLOCK decision to
+// ~/.claude/safety-net.log — a separate file from the bash-*.log command
+// logs above (claudePath("safety-net.log"), not under logs/). Gate blocks
+// were previously logged but never aggregated; this section closes that gap
+// as a read-only report, never a gate itself.
+//
+// The `command` field in that log is redacted but still the closest thing to
+// sensitive content the file carries — this section only ever surfaces
+// `reason` + `timestamp`, never `command`.
+
+interface GateLogLine {
+  timestamp: string;
+  reason: string;
+}
+
+export interface GateModel {
+  total: number;
+  /** Block counts by reason, sorted descending. */
+  byReason: Array<{ reason: string; count: number }>;
+  /** Most recent 3 entries, newest first. Never carries `command`. */
+  recent: GateLogLine[];
+}
+
+/** Parse safety-net.log's JSONL lines into {timestamp, reason} pairs.
+ *  Malformed or incomplete lines are skipped, never fatal — same posture as
+ *  parseLines above for the bash command logs. */
+function parseGateLines(text: string): GateLogLine[] {
+  const out: GateLogLine[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null) continue;
+    const r = parsed as Record<string, unknown>;
+    if (typeof r.timestamp !== "string" || typeof r.reason !== "string") continue;
+    // Reasons interpolate command-derived text (target paths), so a blocked
+    // command can smuggle ANSI/OSC escapes into this report's terminal output.
+    // Strip control characters and bound the length before anything downstream
+    // aggregates or renders it.
+    const reason = r.reason
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping control chars from untrusted log text
+      .replace(/[\x00-\x1F\x7F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200);
+    if (!reason) continue;
+    out.push({ timestamp: r.timestamp, reason });
+  }
+  return out;
+}
+
+/** Pure aggregation stage, mirroring analyzeCommands above: no I/O, no
+ *  formatting. Exported for testing without spawning the full script. */
+export function analyzeGateLog(text: string): GateModel {
+  const entries = parseGateLines(text);
+  const byReason = sortDesc(countBy(entries, (e) => e.reason)).map(([reason, count]) => ({
+    reason,
+    count,
+  }));
+  const recent = entries.slice(-3).reverse();
+  return { total: entries.length, byReason, recent };
+}
+
+/** Pure rendering stage, mirroring renderAudit above. Never prints `command`
+ *  — only `reason` and `timestamp`. */
+export function renderGateSection(model: GateModel): string {
+  const lines: string[] = [];
+  lines.push(`  🛑 gate firings (${model.total} total, all time)`);
+  for (const { reason, count } of model.byReason) {
+    lines.push(`    ${padRight(reason, 50)}  ${count}`);
+  }
+  if (model.recent.length > 0) {
+    lines.push("");
+    lines.push("  recent blocks");
+    for (const r of model.recent) {
+      lines.push(`    [${r.timestamp}] ${r.reason}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/** Read safety-net.log. ENOENT → null (section omitted silently — most
+ *  environments have never had a block fire). Any other read error prints
+ *  one stderr warning and also returns null — claude-audit is a report, not
+ *  a gate, so a bad read never aborts the rest of the audit. */
+function readGateLog(): string | null {
+  const path = claudePath("safety-net.log");
+  if (!existsSync(path)) return null;
+  try {
+    return readFileSync(path, "utf8");
+  } catch (err) {
+    console.error(`Failed to read gate log at ${path}: ${(err as Error).message}`);
+    return null;
+  }
+}
+
 // --- Main -----------------------------------------------------------------
 
 function weekdayIdx(d: Date): number {
@@ -453,7 +556,17 @@ function main(): void {
     console.log("");
     console.log(renderAudit(analyzeCommands("This week", weekFiles)));
   }
+
+  const gateText = readGateLog();
+  if (gateText !== null) {
+    console.log("");
+    console.log(renderGateSection(analyzeGateLog(gateText)));
+  }
+
   console.log("");
 }
 
-main();
+// Guarded so tests can import the pure exports (analyzeGateLog,
+// renderGateSection) without the import itself reading the user's real
+// ~/.claude logs and printing their command history into test output.
+if (import.meta.main) main();
