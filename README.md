@@ -90,7 +90,7 @@ flowchart TB
     F -- "advisory fires" --> G["Scoped stronger-model pass:<br/>Agent(implementer, slice, model: fable)<br/>fresh-context subagent if already on Fable"]
     F -- no --> H
     G --> H[Ship]
-    H --> I["GATE hook: proof-of-work<br/>typecheck · tests · lint<br/>(blocks gh pr create/ready)"]
+    H --> I["GATE hook: proof-of-work<br/>typecheck · tests · lint<br/>(blocks git push + gh pr create/ready)"]
     I --> J["POLICY: Codex cross-model<br/>review of the diff<br/>(per-turn convention)"]
     J --> K["GATE CI: ratchets, committed<br/>baselines that only descend"]
     K --> L([Commit / PR])

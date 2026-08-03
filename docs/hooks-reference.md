@@ -335,6 +335,8 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.) | No |
 | Inline pre-commit tsc check | Runs `tsc --noEmit` before any `git commit` command. Blocks commit if TypeScript errors found | No |
+| `pre-pr-proof.ts` | Runs the full proof battery (typecheck + test + lint) before `gh pr create`/`gh pr ready`. Blocks PR readiness if red (drafts exempt) | No |
+| `pre-push-proof.ts` | Runs the full proof battery (typecheck + test + lint) before `git push`. Blocks the push if red (`--dry-run`/`--help` exempt) — catches straight-to-main flows that never hit the PR gate | No |
 | `check-docs-before-install.ts` | Reminds to fetch docs before installing new packages | No |
 
 ### PreToolUse (Edit matcher)
