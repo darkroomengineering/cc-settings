@@ -23,7 +23,12 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import { blockDecision, readToolInputEnv, runHook } from "../lib/hook-runtime.ts";
+import {
+  blockDecision,
+  emitAdditionalContext,
+  readToolInputEnv,
+  runHook,
+} from "../lib/hook-runtime.ts";
 
 type EditInput = {
   file_path?: string;
@@ -80,11 +85,19 @@ async function main(): Promise<void> {
   }
 
   // Check 3: large old_string.
+  // Plain console.log stdout on a PreToolUse hook never reaches the model
+  // (verified against Claude Code 2.1.220 by a headless marker probe,
+  // replicated twice — see docs/hooks-reference.md "Sync vs Async
+  // Behavior"). Advisory (non-blocking) output below goes through the
+  // hookSpecificOutput.additionalContext envelope instead. The blockDecision
+  // branches above are unaffected — the exit-2 + JSON protocol they use is a
+  // separate, already-working mechanism.
   const lineCount = (oldString.match(/\n/g)?.length ?? 0) + 1;
   if (lineCount > 15) {
-    console.log(`[Harness] Large edit target (${lineCount} lines) in ${base}.`);
-    console.log(
-      "[Harness] Large string-replace edits are error-prone. Consider Write tool for full file replacement.",
+    emitAdditionalContext(
+      "PreToolUse",
+      `[Harness] Large edit target (${lineCount} lines) in ${base}. ` +
+        "Large string-replace edits are error-prone. Consider Write tool for full file replacement.",
     );
     return;
   }
@@ -99,9 +112,10 @@ async function main(): Promise<void> {
     searchFrom = found + oldString.length;
   }
   if (occurrences > 1) {
-    console.log(`[Harness] old_string appears ${occurrences} times in ${base}.`);
-    console.log(
-      "[Harness] Add more surrounding context to make old_string unique, or use replace_all.",
+    emitAdditionalContext(
+      "PreToolUse",
+      `[Harness] old_string appears ${occurrences} times in ${base}. ` +
+        "Add more surrounding context to make old_string unique, or use replace_all.",
     );
   }
 }

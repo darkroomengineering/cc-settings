@@ -123,8 +123,14 @@ describe("pre-edit-validate — core decision paths", () => {
       // 20 lines → 19 newlines → lineCount 20 (> 15).
       const r = await runHook({ file_path: file, old_string: body });
       expect(r.exit).toBe(0);
-      expect(r.stdout).toContain("Large edit target");
-      expect(r.stdout).toContain("20 lines");
+      // Advisory output goes through the hookSpecificOutput.additionalContext
+      // envelope (plain stdout never reaches the model on PreToolUse).
+      const parsed = JSON.parse(r.stdout) as {
+        hookSpecificOutput: { hookEventName: string; additionalContext: string };
+      };
+      expect(parsed.hookSpecificOutput.hookEventName).toBe("PreToolUse");
+      expect(parsed.hookSpecificOutput.additionalContext).toContain("Large edit target");
+      expect(parsed.hookSpecificOutput.additionalContext).toContain("20 lines");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -137,8 +143,12 @@ describe("pre-edit-validate — core decision paths", () => {
       await writeFile(file, "const dup = 1;\nconsole.log('x');\nconst dup = 1;\n");
       const r = await runHook({ file_path: file, old_string: "const dup = 1;" });
       expect(r.exit).toBe(0);
-      expect(r.stdout).toContain("appears 2 times");
-      expect(r.stdout).toContain("Add more surrounding context");
+      const parsed = JSON.parse(r.stdout) as {
+        hookSpecificOutput: { hookEventName: string; additionalContext: string };
+      };
+      expect(parsed.hookSpecificOutput.hookEventName).toBe("PreToolUse");
+      expect(parsed.hookSpecificOutput.additionalContext).toContain("appears 2 times");
+      expect(parsed.hookSpecificOutput.additionalContext).toContain("Add more surrounding context");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

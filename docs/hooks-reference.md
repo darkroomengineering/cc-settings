@@ -280,19 +280,52 @@ Matchers filter which specific tool invocations or events trigger a hook.
 
 ## Sync vs Async Behavior
 
+> **Probe-verified (Claude Code 2.1.220, headless marker probe, replicated
+> twice):** on tool events, plain stdout is NEVER injected into the model's
+> context — sync or async. The ONLY delivery mechanism is the
+> `{"hookSpecificOutput":{"hookEventName":…,"additionalContext":…}}` envelope
+> on stdout, and it works in BOTH sync and async modes. Measured matrix:
+>
+> | Event | Mode | Plain stdout | Envelope stdout |
+> |---|---|---|---|
+> | `PreToolUse` | sync | silent | injects |
+> | `PostToolUse` | sync | silent | injects |
+> | `PostToolUse` | async | silent | injects |
+>
+> This is event-specific, not a blanket rule: `SessionStart` plain stdout DOES
+> reach the model (observed continuously across sessions). Never assume a new
+> event behaves like the ones above without checking — plain stdout on
+> `PostCompact` is a third, different case (folded into a user-only
+> `userDisplayMessage`; see the callout below).
+>
+> **Rule of thumb:** any advisory hook that fires on a tool event and wants
+> the model to see its output MUST use `emitAdditionalContext`
+> (`src/lib/hook-runtime.ts`), not `console.log`. `async: true` is a
+> scheduling choice (does Claude wait for the hook to finish?) — it is NOT a
+> delivery choice (does the model see the output?).
+>
+> Probed and verified: PreToolUse and PostToolUse only. On PostToolUseFailure
+> and CwdChanged the envelope is UNPROBED — we use it there because plain
+> stdout is provably dead on the sibling events, so the envelope is the only
+> mechanism with any evidence of delivery, but it may still be discarded if
+> the event's schema doesn't accept `additionalContext`. Do not cite those
+> two events as verified; probe before depending on delivery.
+
 ### Synchronous (default)
 
 - Hook runs and Claude **waits** for completion before proceeding.
-- Hook stdout is injected into Claude's context as a system message.
 - Non-zero exit code from `PreToolUse` hooks **blocks** the tool execution.
-- Use for: validation, context injection, blocking checks.
+- Use for: validation, blocking checks, and (via the envelope) context injection.
 
 ### Asynchronous (`async: true`)
 
 - Hook runs in the background. Claude **does not wait**.
-- Output is not injected into context.
 - Cannot block operations.
-- Use for: logging, metrics, notifications, cleanup.
+- Context injection via the envelope still works (see probe matrix above) —
+  async only affects whether Claude blocks on the hook finishing, not whether
+  the model eventually sees `additionalContext`.
+- Use for: logging, metrics, notifications, cleanup, and non-blocking context
+  injection.
 
 ### Decision Guide
 
@@ -553,7 +586,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | Hook never fires | Wrong `matcher` value | Check tool name spelling; use `Write\|Edit` not `Write, Edit` |
 | Hook fires but no effect | Script not executable | Run `chmod +x` on the script |
 | Hook blocks unexpectedly | Script exits non-zero | Add error handling; check exit codes |
-| Hook output not visible | Hook is async | Async hooks don't inject into context; switch to sync if needed |
+| Hook output not visible | Using `console.log` instead of the envelope | Plain stdout never reaches the model on tool events (sync or async — see "Sync vs Async Behavior" above); use `emitAdditionalContext` |
 | Hook causes timeout | Script hangs | Add timeout to the script itself; reduce `timeout` value |
 | `$TOOL_INPUT` is empty | Wrong event | `TOOL_INPUT` is only available in `PreToolUse` and `PostToolUse` |
 | Path not found | Missing quotes | Always quote the path: `bun "$HOME/.claude/src/scripts/..."` (or `src/hooks/...`) |

@@ -3,12 +3,24 @@
 // Port of scripts/post-edit-tsc.sh.
 //
 // Fires only for .ts/.tsx files, only when a tsconfig.json exists in cwd.
-// Never fails the hook: errors are stdout-only. Fail-open if bunx is missing
-// or tsc itself crashes — diagnostic, not a guard rail.
+// Never fails the hook: a tsc crash (bunx missing, OOM) is fail-open, silent.
+//
+// Delivery: plain console.log stdout on a PostToolUse hook is NEVER read by
+// the model — verified against Claude Code 2.1.220 by a headless marker
+// probe, replicated twice (see docs/hooks-reference.md "Sync vs Async
+// Behavior"). `async: true` (how this hook is wired in config/40-hooks.json)
+// does not change that: the probe's async-envelope case injected, so the
+// diagnostics below are emitted via the hookSpecificOutput.additionalContext
+// envelope, not raw stdout.
 
 import { existsSync } from "node:fs";
 import { relative } from "node:path";
+import { emitAdditionalContext } from "../lib/hook-runtime.ts";
 import { runTsc } from "../lib/tsc.ts";
+
+// A broken file can produce many tsc diagnostic lines; injecting all of them
+// into context on every edit doesn't scale. Bound to a readable slice.
+const MAX_LINES = 20;
 
 try {
   const filePath = process.env.TOOL_INPUT_file_path ?? "";
@@ -28,12 +40,17 @@ try {
     // forward-slash form too; it is identical to `rel` on POSIX.
     const rel = relative(process.cwd(), filePath);
     const candidates = [filePath, rel, rel.replaceAll("\\", "/")].filter(Boolean);
-    const matches = combined
+    const matchLines = combined
       .split(/\r?\n/)
-      .filter((line) => line && candidates.some((candidate) => line.includes(candidate)))
-      .join("\n");
+      .filter((line) => line && candidates.some((candidate) => line.includes(candidate)));
 
-    if (matches) console.log(matches);
+    if (matchLines.length > 0) {
+      const capped =
+        matchLines.length > MAX_LINES
+          ? `${matchLines.slice(0, MAX_LINES).join("\n")}\n...${matchLines.length - MAX_LINES} more`
+          : matchLines.join("\n");
+      emitAdditionalContext("PostToolUse", capped);
+    }
   }
 } catch {
   // fail-open: tsc run failed (bunx missing, OOM, etc.) — silent skip

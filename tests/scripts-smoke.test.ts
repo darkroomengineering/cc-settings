@@ -206,12 +206,16 @@ describe("stop-failure.ts", () => {
 });
 
 describe("check-docs-before-install.ts", () => {
-  test("bun add react → prompts", async () => {
+  test("bun add react → prompts via the additionalContext envelope", async () => {
     const r = await run("check-docs-before-install.ts", {
       env: { TOOL_INPUT_command: "bun add react" },
     });
     expect(r.exit).toBe(0);
-    expect(r.stdout).toContain("Installing 'react'");
+    const parsed = JSON.parse(r.stdout) as {
+      hookSpecificOutput: { hookEventName: string; additionalContext: string };
+    };
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("PreToolUse");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("Installing 'react'");
   });
   test("bun add -D typescript → flags skipped", async () => {
     // The first non-flag arg after `bun add` is `-D`, which we skip.
@@ -247,7 +251,11 @@ describe("post-edit-tsc.ts", () => {
   // Regression: Claude Code passes file_path as an ABSOLUTE path, but tsc
   // prints diagnostics relative to cwd. Matching only the absolute form made
   // the hook silently report nothing for a genuinely broken file.
-  test("absolute file_path still reports the edited file's errors", async () => {
+  //
+  // Diagnostics are delivered via the hookSpecificOutput.additionalContext
+  // envelope (plain stdout on a PostToolUse hook — sync or async — never
+  // reaches the model; see docs/hooks-reference.md "Sync vs Async Behavior").
+  test("absolute file_path still reports the edited file's errors via the envelope", async () => {
     const { writeFileSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const repoRoot = join(import.meta.dir, "..");
@@ -263,8 +271,12 @@ describe("post-edit-tsc.ts", () => {
         env: { TOOL_INPUT_file_path: probeAbs },
       });
       expect(r.exit).toBe(0);
-      expect(r.stdout).toContain(probeRel);
-      expect(r.stdout).toContain("TS2322");
+      const parsed = JSON.parse(r.stdout) as {
+        hookSpecificOutput: { hookEventName: string; additionalContext: string };
+      };
+      expect(parsed.hookSpecificOutput.hookEventName).toBe("PostToolUse");
+      expect(parsed.hookSpecificOutput.additionalContext).toContain(probeRel);
+      expect(parsed.hookSpecificOutput.additionalContext).toContain("TS2322");
     } finally {
       rmSync(probeAbs, { force: true });
     }
@@ -365,7 +377,10 @@ describe("log-bash.ts", () => {
 });
 
 describe("post-failure.ts", () => {
-  test("3rd failure emits warn line", async () => {
+  // The warn line is delivered via the hookSpecificOutput.additionalContext
+  // envelope (plain stdout on a PostToolUseFailure hook never reaches the
+  // model; see docs/hooks-reference.md "Sync vs Async Behavior").
+  test("3rd failure emits warn line via the envelope", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -376,7 +391,11 @@ describe("post-failure.ts", () => {
       await run("post-failure.ts", { env, stdin: "" });
       const r = await run("post-failure.ts", { env, stdin: "" });
       expect(r.exit).toBe(0);
-      expect(r.stdout).toContain("failed 3 times");
+      const parsed = JSON.parse(r.stdout) as {
+        hookSpecificOutput: { hookEventName: string; additionalContext: string };
+      };
+      expect(parsed.hookSpecificOutput.hookEventName).toBe("PostToolUseFailure");
+      expect(parsed.hookSpecificOutput.additionalContext).toContain("failed 3 times");
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }

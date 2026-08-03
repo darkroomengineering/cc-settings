@@ -11,7 +11,12 @@
 
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
+import {
+  emitAdditionalContext,
+  readHookInput,
+  readState,
+  writeState,
+} from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 import {
   computeSignatureKey,
@@ -91,10 +96,14 @@ const currentCount = counts[toolName] ?? 0;
 counts[toolName] = currentCount + 1;
 await writeState(STATE_FILE, counts).catch(() => {});
 
+// Plain console.log stdout on a PostToolUseFailure hook never reaches the
+// model (verified against Claude Code 2.1.220 by a headless marker probe,
+// replicated twice — see docs/hooks-reference.md "Sync vs Async Behavior").
+// Emitted via the hookSpecificOutput.additionalContext envelope instead.
 const newCount = currentCount + 1;
 if (newCount >= 3) {
-  console.log("");
-  console.log(
+  emitAdditionalContext(
+    "PostToolUseFailure",
     `[Hook] Tool ${toolName} has failed ${newCount} times this session. Consider a different approach.`,
   );
 }

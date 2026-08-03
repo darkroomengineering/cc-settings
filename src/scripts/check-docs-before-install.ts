@@ -5,6 +5,14 @@
 //
 // Reads TOOL_INPUT_command from env (hook contract). Exits 0 no matter what
 // — a regex/string-handling crash here must never block a package install.
+//
+// Delivery: plain console.log stdout on a PreToolUse hook never reaches the
+// model (verified against Claude Code 2.1.220 by a headless marker probe,
+// replicated twice — see docs/hooks-reference.md "Sync vs Async Behavior").
+// The reminder below is emitted via the hookSpecificOutput.additionalContext
+// envelope instead.
+
+import { emitAdditionalContext } from "../lib/hook-runtime.ts";
 
 try {
   const cmd = process.env.TOOL_INPUT_command ?? "";
@@ -22,9 +30,12 @@ try {
       const firstArg = (stripped.split(/\s+/)[0] ?? "").replace(/@[^/]*$/, "");
 
       if (firstArg && !firstArg.startsWith("-")) {
-        console.log(`[Hook] Installing '${firstArg}' — did you fetch docs first?`);
-        console.log(`  Run: /docs ${firstArg} (or use context7 MCP to get latest API docs)`);
-        console.log(`  Run: bun info ${firstArg} (to check latest version)`);
+        const message = [
+          `[Hook] Installing '${firstArg}' — did you fetch docs first?`,
+          `  Run: /docs ${firstArg} (or use context7 MCP to get latest API docs)`,
+          `  Run: bun info ${firstArg} (to check latest version)`,
+        ].join("\n");
+        emitAdditionalContext("PreToolUse", message);
       }
     }
   }

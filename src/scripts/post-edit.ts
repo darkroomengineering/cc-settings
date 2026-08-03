@@ -8,6 +8,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
 import { resolveEngine } from "../lib/code-intel-engine.ts";
+import { emitAdditionalContext } from "../lib/hook-runtime.ts";
 import { hasCommand } from "../lib/platform.ts";
 
 const filePath = process.env.TOOL_INPUT_file_path ?? "";
@@ -68,21 +69,28 @@ if (engine.cli.supportsDaemon && daemonVerb && hasCommand(engine.cli.command)) {
 }
 
 // 4. Auto-review + Visual QA reminder for component files.
+// Plain console.log stdout on a PostToolUse hook never reaches the model
+// (verified against Claude Code 2.1.220 by a headless marker probe,
+// replicated twice — see docs/hooks-reference.md "Sync vs Async Behavior").
+// Emitted via the hookSpecificOutput.additionalContext envelope instead.
 if (COMPONENT.has(ext)) {
-  console.log("");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`🔍 AUTO-REVIEW: ${basename(filePath)}`);
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("");
-  console.log("Code Review:");
-  console.log("  • A11y: alt, aria-label, semantic elements, keyboard");
-  console.log("  • UI: Tailwind defaults, animations (transform/opacity)");
-  console.log("  • Perf: barrel imports, waterfalls, memoization");
-  console.log("");
-  console.log("Visual QA (if dev server running):");
-  console.log("  • Run /qa to validate via chrome-devtools MCP");
-  console.log("  • Screenshot + accessibility tree analysis");
-  console.log("  • Touch targets, contrast, layout validation");
-  console.log("");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  const banner = [
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    `🔍 AUTO-REVIEW: ${basename(filePath)}`,
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    "Code Review:",
+    "  • A11y: alt, aria-label, semantic elements, keyboard",
+    "  • UI: Tailwind defaults, animations (transform/opacity)",
+    "  • Perf: barrel imports, waterfalls, memoization",
+    "",
+    "Visual QA (if dev server running):",
+    "  • Run /qa to validate via chrome-devtools MCP",
+    "  • Screenshot + accessibility tree analysis",
+    "  • Touch targets, contrast, layout validation",
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+  ].join("\n");
+  emitAdditionalContext("PostToolUse", banner);
 }
