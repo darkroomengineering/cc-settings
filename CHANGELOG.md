@@ -4,7 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [13.4.1] — 2026-08-03
+## [13.4.2] — 2026-08-03
+
+npm's similarity filter also rejected sondeo. The final name, validated against the live registry via a published name-reservation stub, is [farolero](https://github.com/darkroomengineering/farolero) (Spanish: the lamplighter). The 13.4.1 glue below is renamed to match — no behavior change.
+
+- `pre-commit-sondeo.ts` → `pre-commit-farolero.ts` (hook file, functions, dependency check, marker string, spawned binary).
+- `/triage`'s sondeo sweep step is now the farolero sweep, same behavior.
+
+## [13.4.1] — 2026-08-03 (renamed to farolero in 13.4.2)
 
 The sibling project renamed itself from sonor to [sondeo](https://github.com/darkroomengineering/sondeo) after npm rejected "sonor" as too similar to existing packages (sonner, hono, color, sinon). The 13.4.0 glue below is renamed to match — no behavior change.
 

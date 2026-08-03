@@ -1,6 +1,6 @@
-// Gate logic + block protocol for the pre-commit sondeo hook. A bug here means
-// either a repo with sondeo installed never gets gated (no protection) or a
-// commit gets blocked when sondeo isn't even present / already enforced by its
+// Gate logic + block protocol for the pre-commit farolero hook. A bug here means
+// either a repo with farolero installed never gets gated (no protection) or a
+// commit gets blocked when farolero isn't even present / already enforced by its
 // own git hooks (a false block) — lock every branch.
 
 import { describe, expect, test } from "bun:test";
@@ -8,15 +8,15 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  faroleroHooksAlreadyActive,
   hasNoVerifyFlag,
   shouldGateCommit,
-  sondeoHooksAlreadyActive,
   stripQuotedSpans,
-} from "../src/hooks/pre-commit-sondeo.ts";
+} from "../src/hooks/pre-commit-farolero.ts";
 
-const HOOK_PATH = join(import.meta.dir, "..", "src", "hooks", "pre-commit-sondeo.ts");
+const HOOK_PATH = join(import.meta.dir, "..", "src", "hooks", "pre-commit-farolero.ts");
 
-describe("pre-commit-sondeo — shouldGateCommit exemption logic", () => {
+describe("pre-commit-farolero — shouldGateCommit exemption logic", () => {
   test("gates a plain git commit", () => {
     expect(shouldGateCommit("git commit -m x")).toBe(true);
     expect(shouldGateCommit("git commit")).toBe(true);
@@ -64,7 +64,7 @@ describe("pre-commit-sondeo — shouldGateCommit exemption logic", () => {
   });
 });
 
-describe("pre-commit-sondeo — hasNoVerifyFlag", () => {
+describe("pre-commit-farolero — hasNoVerifyFlag", () => {
   test("detects --no-verify on the anchor-matched segment", () => {
     expect(hasNoVerifyFlag("git commit -m x --no-verify")).toBe(true);
   });
@@ -86,7 +86,7 @@ describe("pre-commit-sondeo — hasNoVerifyFlag", () => {
   });
 });
 
-describe("pre-commit-sondeo — stripQuotedSpans", () => {
+describe("pre-commit-farolero — stripQuotedSpans", () => {
   test("blanks quoted spans, keeps unquoted text", () => {
     expect(stripQuotedSpans('git commit -m "a b c"')).toBe("git commit -m  ");
     expect(stripQuotedSpans("git commit -m 'a b c'")).toBe("git commit -m  ");
@@ -105,22 +105,25 @@ interface RepoHandle {
 }
 
 async function makeGitRepo(): Promise<RepoHandle> {
-  const dir = await mkdtemp(join(tmpdir(), "cc-pre-commit-sondeo-"));
-  const sentinelPath = join(dir, "sondeo-was-run");
+  const dir = await mkdtemp(join(tmpdir(), "cc-pre-commit-farolero-"));
+  const sentinelPath = join(dir, "farolero-was-run");
   await Bun.spawn(["git", "init", "-q"], { cwd: dir }).exited;
   await Bun.spawn(["git", "config", "user.email", "test@example.com"], { cwd: dir }).exited;
   await Bun.spawn(["git", "config", "user.name", "Test"], { cwd: dir }).exited;
   return { dir, sentinelPath };
 }
 
-async function writePackageJson(dir: string, withSondeoDep: boolean): Promise<void> {
+async function writePackageJson(dir: string, withFaroleroDep: boolean): Promise<void> {
   await writeFile(
     join(dir, "package.json"),
-    JSON.stringify({ name: "scratch", devDependencies: withSondeoDep ? { sondeo: "0.0.0" } : {} }),
+    JSON.stringify({
+      name: "scratch",
+      devDependencies: withFaroleroDep ? { farolero: "0.0.0" } : {},
+    }),
   );
 }
 
-async function writeFakeSondeoBin(
+async function writeFakeFaroleroBin(
   dir: string,
   sentinelPath: string,
   exitCode: number,
@@ -129,7 +132,7 @@ async function writeFakeSondeoBin(
   const binDir = join(dir, "node_modules", ".bin");
   await mkdir(binDir, { recursive: true });
   const echoLine = output ? `echo '${output.replace(/'/g, "'\\''")}'\n` : "";
-  const binPath = join(binDir, "sondeo");
+  const binPath = join(binDir, "farolero");
   await writeFile(binPath, `#!/bin/sh\ntouch "${sentinelPath}"\n${echoLine}exit ${exitCode}\n`);
   await chmod(binPath, 0o755);
 }
@@ -139,7 +142,7 @@ async function writeMarkerHook(
   options: { executable?: boolean } = {},
 ): Promise<void> {
   await mkdir(join(filePath, ".."), { recursive: true });
-  await writeFile(filePath, "#!/bin/sh\n# sondeo-managed\nexit 0\n");
+  await writeFile(filePath, "#!/bin/sh\n# farolero-managed\nexit 0\n");
   if (options.executable !== false) await chmod(filePath, 0o755);
 }
 
@@ -147,14 +150,14 @@ async function cleanup(dir: string): Promise<void> {
   await rm(dir, { recursive: true, force: true });
 }
 
-// --- sondeoHooksAlreadyActive: direct unit coverage --------------------------
+// --- faroleroHooksAlreadyActive: direct unit coverage --------------------------
 
-describe("pre-commit-sondeo — sondeoHooksAlreadyActive", () => {
+describe("pre-commit-farolero — faroleroHooksAlreadyActive", () => {
   test("default .git/hooks/pre-commit with an executable marker is active", async () => {
     const { dir } = await makeGitRepo();
     try {
       await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
-      expect(await sondeoHooksAlreadyActive(dir)).toBe(true);
+      expect(await faroleroHooksAlreadyActive(dir)).toBe(true);
     } finally {
       await cleanup(dir);
     }
@@ -164,7 +167,7 @@ describe("pre-commit-sondeo — sondeoHooksAlreadyActive", () => {
     const { dir } = await makeGitRepo();
     try {
       await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"), { executable: false });
-      expect(await sondeoHooksAlreadyActive(dir)).toBe(false);
+      expect(await faroleroHooksAlreadyActive(dir)).toBe(false);
     } finally {
       await cleanup(dir);
     }
@@ -179,7 +182,7 @@ describe("pre-commit-sondeo — sondeoHooksAlreadyActive", () => {
       await mkdir(join(dir, ".githooks"), { recursive: true });
       await Bun.spawn(["git", "config", "core.hooksPath", ".githooks"], { cwd: dir }).exited;
       // .githooks/pre-commit does not exist at all — hooksPath is configured but has no hook yet.
-      expect(await sondeoHooksAlreadyActive(dir)).toBe(false);
+      expect(await faroleroHooksAlreadyActive(dir)).toBe(false);
     } finally {
       await cleanup(dir);
     }
@@ -191,7 +194,7 @@ describe("pre-commit-sondeo — sondeoHooksAlreadyActive", () => {
       await mkdir(join(dir, ".githooks"), { recursive: true });
       await writeMarkerHook(join(dir, ".githooks", "pre-commit"));
       await Bun.spawn(["git", "config", "core.hooksPath", ".githooks"], { cwd: dir }).exited;
-      expect(await sondeoHooksAlreadyActive(dir)).toBe(true);
+      expect(await faroleroHooksAlreadyActive(dir)).toBe(true);
     } finally {
       await cleanup(dir);
     }
@@ -201,7 +204,7 @@ describe("pre-commit-sondeo — sondeoHooksAlreadyActive", () => {
 // --- Subprocess tests: exercise main() end-to-end so the block/fail-open ---
 // --- protocol (exit code + stdout JSON) is locked, not just the predicates.
 
-describe("pre-commit-sondeo — subprocess block protocol", () => {
+describe("pre-commit-farolero — subprocess block protocol", () => {
   async function runHook(cwd: string, command: string) {
     const proc = Bun.spawn(["bun", HOOK_PATH], {
       cwd,
@@ -213,7 +216,7 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     return { stdout, exitCode };
   }
 
-  test("no sondeo dependency: allows without running anything", async () => {
+  test("no farolero dependency: allows without running anything", async () => {
     const { dir } = await makeGitRepo();
     try {
       await writePackageJson(dir, false);
@@ -225,11 +228,11 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     }
   });
 
-  test("fake sondeo exits 1 with output: blocks with decision:block naming the output tail", async () => {
+  test("fake farolero exits 1 with output: blocks with decision:block naming the output tail", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
+      await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
       const { stdout, exitCode } = await runHook(dir, "git commit -m x");
       expect(exitCode).toBe(2);
       const parsed = JSON.parse(stdout);
@@ -241,11 +244,11 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     }
   });
 
-  test("fake sondeo exits 0: allows silently", async () => {
+  test("fake farolero exits 0: allows silently", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 0);
+      await writeFakeFaroleroBin(dir, sentinelPath, 0);
       const { stdout, exitCode } = await runHook(dir, "git commit -m x");
       expect(exitCode).toBe(0);
       expect(stdout).toBe("");
@@ -254,11 +257,11 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     }
   });
 
-  test("fake sondeo exits 2 (sondeo's own operational-error code): fails open, allows", async () => {
+  test("fake farolero exits 2 (farolero's own operational-error code): fails open, allows", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 2, "sondeo: bad config");
+      await writeFakeFaroleroBin(dir, sentinelPath, 2, "farolero: bad config");
       const { stdout, exitCode } = await runHook(dir, "git commit -m x");
       expect(exitCode).toBe(0);
       expect(stdout).toBe("");
@@ -267,11 +270,11 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     }
   });
 
-  test("sondeo's own git hooks already active: allows without invoking sondeo at all", async () => {
+  test("farolero's own git hooks already active: allows without invoking farolero at all", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 1);
+      await writeFakeFaroleroBin(dir, sentinelPath, 1);
       await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
       const { exitCode } = await runHook(dir, "git commit -m x");
       expect(exitCode).toBe(0);
@@ -281,11 +284,11 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     }
   });
 
-  test("non-commit command: allows without invoking sondeo", async () => {
+  test("non-commit command: allows without invoking farolero", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 1);
+      await writeFakeFaroleroBin(dir, sentinelPath, 1);
       const { exitCode } = await runHook(dir, "git push");
       expect(exitCode).toBe(0);
       expect(await Bun.file(sentinelPath).exists()).toBe(false);
@@ -298,7 +301,7 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 1);
+      await writeFakeFaroleroBin(dir, sentinelPath, 1);
       const proc = Bun.spawn(["bun", HOOK_PATH], {
         cwd: dir,
         env: { ...process.env, TOOL_INPUT_command: "not json{{{" },
@@ -316,11 +319,11 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 0);
+      await writeFakeFaroleroBin(dir, sentinelPath, 0);
       await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"), { executable: false });
       const { exitCode } = await runHook(dir, "git commit -m x");
       expect(exitCode).toBe(0);
-      expect(await Bun.file(sentinelPath).exists()).toBe(true); // sondeo WAS invoked
+      expect(await Bun.file(sentinelPath).exists()).toBe(true); // farolero WAS invoked
     } finally {
       await cleanup(dir);
     }
@@ -328,15 +331,15 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
 
   // --- --no-verify / -n: the defer-to-native-hook skip must be disabled ----
 
-  test("--no-verify with sondeo's git hooks active and a failing repo: still blocks", async () => {
+  test("--no-verify with farolero's git hooks active and a failing repo: still blocks", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
+      await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
       await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit")); // active — would normally skip
       const { stdout, exitCode } = await runHook(dir, "git commit -m x --no-verify");
       expect(exitCode).toBe(2);
-      expect(await Bun.file(sentinelPath).exists()).toBe(true); // sondeo WAS invoked despite the native hook
+      expect(await Bun.file(sentinelPath).exists()).toBe(true); // farolero WAS invoked despite the native hook
       const parsed = JSON.parse(stdout);
       expect(parsed.decision).toBe("block");
       expect(parsed.reason).toContain("rule violated: no-ts-ignore");
@@ -345,11 +348,11 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     }
   });
 
-  test("-n (short --no-verify) with sondeo's git hooks active and a failing repo: still blocks", async () => {
+  test("-n (short --no-verify) with farolero's git hooks active and a failing repo: still blocks", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
+      await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
       await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
       const { exitCode } = await runHook(dir, "git commit -m x -n");
       expect(exitCode).toBe(2);
@@ -363,7 +366,7 @@ describe("pre-commit-sondeo — subprocess block protocol", () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
-      await writeFakeSondeoBin(dir, sentinelPath, 0);
+      await writeFakeFaroleroBin(dir, sentinelPath, 0);
       await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
       const { stdout, exitCode } = await runHook(dir, "git commit -m x --no-verify");
       expect(exitCode).toBe(0);

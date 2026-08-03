@@ -60,7 +60,7 @@
 					},
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-commit-sondeo.ts\"",
+						"command": "bun \"$HOME/.claude/src/hooks/pre-commit-farolero.ts\"",
 						"timeout": 35
 					}
 				]

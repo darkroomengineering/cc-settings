@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.4.1"; // sonor renamed to sondeo: pre-commit-sondeo hook, /triage sondeo sweep
+const VERSION = "13.4.2"; // sondeo renamed to farolero: pre-commit-farolero hook, /triage farolero sweep
 
 // --- Arg parsing ---------------------------------------------------------
 
