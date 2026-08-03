@@ -110,7 +110,7 @@ The three tiers, concretely:
 | **Gate** — non-zero exit | No | destructive-command safety net · `tsc` before commit · proof-of-work before PR · skill-count ratchet (fails in *both* directions, so every movement of the baseline lands in git with a reviewer) |
 | **Measurement** — the promotion path | n/a | every escalation advisory logs fired-vs-acted (`bun run escalate:stats`); `/retro` reports the act-rate weekly. An advisory earns gate status with evidence, never by default |
 
-Gates live in the harness today; [sonor](https://github.com/darkroomengineering/sonor) (in progress) moves the ratchet pattern into client repos as a plain dev-dependency, so it binds agents we don't control — any harness, any model.
+Gates live in the harness today; [sondeo](https://github.com/darkroomengineering/sondeo) moves the ratchet pattern into client repos as a plain dev-dependency, so it binds agents we don't control — any harness, any model.
 
 ---
 

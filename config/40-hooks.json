@@ -60,7 +60,7 @@
 					},
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-commit-sonor.ts\"",
+						"command": "bun \"$HOME/.claude/src/hooks/pre-commit-sondeo.ts\"",
 						"timeout": 35
 					}
 				]

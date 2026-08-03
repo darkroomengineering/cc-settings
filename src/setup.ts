@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.4.0"; // cc-settings side of the sonor glue: pre-commit-sonor hook, /triage sonor sweep
+const VERSION = "13.4.1"; // sonor renamed to sondeo: pre-commit-sondeo hook, /triage sondeo sweep
 
 // --- Arg parsing ---------------------------------------------------------
 

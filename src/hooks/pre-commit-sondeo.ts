@@ -1,29 +1,29 @@
 #!/usr/bin/env bun
-// PreToolUse hook on `git commit*`: if the target repo has sonor installed
-// (https://github.com/darkroomengineering/sonor — Darkroom's house-standards
+// PreToolUse hook on `git commit*`: if the target repo has sondeo installed
+// (https://github.com/darkroomengineering/sondeo — Darkroom's house-standards
 // ratchet, works without Claude Code or any agent harness), run
-// `sonor ratchet --changed` and block the commit on a red gate.
+// `sondeo ratchet --changed` and block the commit on a red gate.
 //
-// Why here, given sonor already ships its own commit-time git hook: this is
-// the fallback for the common gap — a repo declares sonor as a devDependency
-// (so `npx sonor …` resolves locally) but never ran `sonor install-hooks`, so
-// nothing actually enforces it at commit time. If sonor's OWN git hooks are
+// Why here, given sondeo already ships its own commit-time git hook: this is
+// the fallback for the common gap — a repo declares sondeo as a devDependency
+// (so `npx sondeo …` resolves locally) but never ran `sondeo install-hooks`, so
+// nothing actually enforces it at commit time. If sondeo's OWN git hooks are
 // already active for this repo, we skip entirely (step 4 below) — git itself
-// will run sonor for this commit, and double-running would double the latency
-// for zero added enforcement. This hook never replaces sonor's own hooks or
+// will run sondeo for this commit, and double-running would double the latency
+// for zero added enforcement. This hook never replaces sondeo's own hooks or
 // its CI check-baseline job; it only makes Claude Code a good citizen when
-// the human/agent skipped the one-time `sonor install-hooks` step.
+// the human/agent skipped the one-time `sondeo install-hooks` step.
 //
 // It is ALSO the backstop when a commit carries `--no-verify`/`-n`: that flag
-// makes git skip its OWN pre-commit hook entirely, so deferring to "sonor's
+// makes git skip its OWN pre-commit hook entirely, so deferring to "sondeo's
 // native hook is active" in that case would leave nothing gating the commit —
-// exactly the bypass sonor exists to close. See hasNoVerifyFlag below: when
+// exactly the bypass sondeo exists to close. See hasNoVerifyFlag below: when
 // present, the defer-to-native-hook skip is disabled and the ratchet always
 // runs (still subject to the same dependency/binary/fail-open checks).
 //
 // Fail-open on every operational failure: missing dependency, missing binary,
 // spawn error, timeout, or a non-1 exit code. Only a genuine ratchet exit
-// code of 1 (gate failure — see sonor's src/commands/ratchet.ts) blocks.
+// code of 1 (gate failure — see sondeo's src/commands/ratchet.ts) blocks.
 
 import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
@@ -46,7 +46,7 @@ export function stripQuotedSpans(cmd: string): string {
  *  segment's flags must never change how the anchor-matched commit is judged: in
  *  `git commit -m x && git commit --dry-run`, the exemption on the second commit must not leak
  *  onto the first, real one. Later segments are out of scope for this best-effort check —
- *  sonor's own hook is the real enforcement layer for anything past the first segment. */
+ *  sondeo's own hook is the real enforcement layer for anything past the first segment. */
 function firstSegmentTokens(cmd: string): string[] {
   const stripped = stripQuotedSpans(cmd);
   const firstSegment = stripped.split(SEPARATOR_RE)[0] ?? "";
@@ -68,15 +68,15 @@ export function shouldGateCommit(cmd: string): boolean {
 /** True if the anchor-matched `git commit` segment carries `--no-verify`/`-n` — git's own flag
  *  to skip the pre-commit (and commit-msg) hook entirely for this commit. When true, the
  *  defer-to-native-hook skip in main() must be disabled: a native hook that git isn't even going
- *  to run can't be the thing enforcing sonor for this commit. Exported for tests. */
+ *  to run can't be the thing enforcing sondeo for this commit. Exported for tests. */
 export function hasNoVerifyFlag(cmd: string): boolean {
   const tokens = firstSegmentTokens(cmd);
   return tokens.some((t) => t === "--no-verify" || t === "-n");
 }
 
-/** `"sonor" in dependencies/devDependencies` — same pattern as
+/** `"sondeo" in dependencies/devDependencies` — same pattern as
  *  proof-of-work.ts's detectReactDoctor/detectDeslop. Exported for tests. */
-export async function hasSonorDependency(cwd: string): Promise<boolean> {
+export async function hasSondeoDependency(cwd: string): Promise<boolean> {
   const pkg = (await Bun.file(join(cwd, "package.json"))
     .json()
     .catch(() => ({}))) as {
@@ -84,7 +84,7 @@ export async function hasSonorDependency(cwd: string): Promise<boolean> {
     devDependencies?: Record<string, string>;
   };
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-  return "sonor" in deps;
+  return "sondeo" in deps;
 }
 
 async function gitConfigGet(cwd: string, key: string): Promise<string | null> {
@@ -103,38 +103,38 @@ async function gitConfigGet(cwd: string, key: string): Promise<string | null> {
   }
 }
 
-/** True only if `filePath` both carries the `sonor-managed` marker AND is executable — git
+/** True only if `filePath` both carries the `sondeo-managed` marker AND is executable — git
  *  silently ignores a non-executable hook file, so a marker on one is not "active" by git's own
  *  rules and must not be treated as such here. */
-async function hookHasSonorMarker(filePath: string): Promise<boolean> {
+async function hookHasSondeoMarker(filePath: string): Promise<boolean> {
   try {
     const content = await Bun.file(filePath).text();
-    if (!content.includes("sonor-managed")) return false;
+    if (!content.includes("sondeo-managed")) return false;
     return (statSync(filePath).mode & 0o111) !== 0;
   } catch {
     return false;
   }
 }
 
-/** True if sonor's own git hooks are already wired up for this repo. When `core.hooksPath` is
+/** True if sondeo's own git hooks are already wired up for this repo. When `core.hooksPath` is
  *  configured, git uses ONLY that directory — `.git/hooks` is ignored entirely — so this checks
  *  ONLY the configured directory in that case and never falls back to `.git/hooks` (a stale
  *  marker left over there from before hooksPath was set must not count). `core.hooksPath` unset
  *  is the only case that checks the default `.git/hooks/pre-commit`. The plain `.git/hooks` path
  *  (rather than resolving via `git rev-parse --git-path hooks`) is acceptable here: this is
  *  best-effort skip logic, not a correctness-critical resolution — worst case on a linked
- *  worktree is one redundant sonor run, not a missed gate (sonor's own hook, wherever it
+ *  worktree is one redundant sondeo run, not a missed gate (sondeo's own hook, wherever it
  *  actually lives, still runs and still gates). Exported for tests. */
-export async function sonorHooksAlreadyActive(cwd: string): Promise<boolean> {
+export async function sondeoHooksAlreadyActive(cwd: string): Promise<boolean> {
   const hooksPath = await gitConfigGet(cwd, "core.hooksPath");
   if (hooksPath) {
     const dir = isAbsolute(hooksPath) ? hooksPath : join(cwd, hooksPath);
-    return hookHasSonorMarker(join(dir, "pre-commit"));
+    return hookHasSondeoMarker(join(dir, "pre-commit"));
   }
-  return hookHasSonorMarker(join(cwd, ".git", "hooks", "pre-commit"));
+  return hookHasSondeoMarker(join(cwd, ".git", "hooks", "pre-commit"));
 }
 
-async function runSonorRatchetChanged(
+async function runSondeoRatchetChanged(
   binPath: string,
   cwd: string,
 ): Promise<{ code: number | null; combined: string }> {
@@ -163,36 +163,36 @@ async function main(): Promise<void> {
   if (!shouldGateCommit(cmd)) return; // allow
 
   const cwd = process.cwd();
-  if (!(await hasSonorDependency(cwd))) return; // sonor not a dependency here — allow
+  if (!(await hasSondeoDependency(cwd))) return; // sondeo not a dependency here — allow
 
-  const sonorBin = join(cwd, "node_modules", ".bin", "sonor");
-  if (!existsSync(sonorBin)) return; // declared but not installed — allow, silently
+  const sondeoBin = join(cwd, "node_modules", ".bin", "sondeo");
+  if (!existsSync(sondeoBin)) return; // declared but not installed — allow, silently
 
-  // --no-verify/-n makes git skip ITS OWN pre-commit hook for this commit — so if sonor's hook
+  // --no-verify/-n makes git skip ITS OWN pre-commit hook for this commit — so if sondeo's hook
   // is what would normally enforce this repo, it will NOT run for this specific commit. Never
   // defer to it in that case, regardless of whether it's otherwise "active."
-  if (!hasNoVerifyFlag(cmd) && (await sonorHooksAlreadyActive(cwd))) return;
+  if (!hasNoVerifyFlag(cmd) && (await sondeoHooksAlreadyActive(cwd))) return;
 
   let result: { code: number | null; combined: string };
   try {
-    result = await runSonorRatchetChanged(sonorBin, cwd);
+    result = await runSondeoRatchetChanged(sondeoBin, cwd);
   } catch (error) {
     // Spawn failure — an infrastructure problem, never block a commit on it.
     console.error(
-      `[pre-commit-sonor] failed to run sonor: ${error instanceof Error ? error.message : String(error)}`,
+      `[pre-commit-sondeo] failed to run sondeo: ${error instanceof Error ? error.message : String(error)}`,
     );
     return;
   }
 
-  // Only a genuine gate failure (exit 1) blocks. Exit 0 is a pass; exit 2 is sonor's own
+  // Only a genuine gate failure (exit 1) blocks. Exit 0 is a pass; exit 2 is sondeo's own
   // operational-error code; null/other means the process was killed (timeout) or exited via
   // signal — all of those are infrastructure states, not "the ratchet caught something."
   if (result.code !== 1) return;
 
   const tail = result.combined.trimEnd().slice(-REASON_TAIL_CHARS);
   blockDecision(
-    `${tail}\n\nsonor ratchet failed — fix the violations or lower/raise the baseline deliberately ` +
-      "(sonor baseline write); never bypass with --no-verify.",
+    `${tail}\n\nsondeo ratchet failed — fix the violations or lower/raise the baseline deliberately ` +
+      "(sondeo baseline write); never bypass with --no-verify.",
   );
 }
 

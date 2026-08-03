@@ -4,7 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [13.4.0] — 2026-08-03
+## [13.4.1] — 2026-08-03
+
+The sibling project renamed itself from sonor to [sondeo](https://github.com/darkroomengineering/sondeo) after npm rejected "sonor" as too similar to existing packages (sonner, hono, color, sinon). The 13.4.0 glue below is renamed to match — no behavior change.
+
+- `pre-commit-sonor.ts` → `pre-commit-sondeo.ts` (hook file, functions, dependency check, marker string, spawned binary).
+- `/triage`'s sonor sweep step is now the sondeo sweep, same behavior.
+
+## [13.4.0] — 2026-08-03 (renamed to sondeo in 13.4.1)
 
 The cc-settings side of the [sonor](https://github.com/darkroomengineering/sonor) glue (sonor issue #5, item 4) — the part that has to live here since sonor itself must work with zero Claude Code assumptions.
 
