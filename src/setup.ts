@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.4.2"; // sondeo renamed to farolero: pre-commit-farolero hook, /triage farolero sweep
+const VERSION = "13.4.3"; // installer prunes stale settings.json hook entries pointing at removed/renamed cc-settings src files
 
 // --- Arg parsing ---------------------------------------------------------
 
@@ -220,7 +220,7 @@ async function installSettings(
     userSettingsPath,
     settingsForMerge as Record<string, unknown>,
     userSettingsPath,
-    { interactive },
+    { interactive, sourceDir: source },
   );
   if (accounting) printMergeAccounting(accounting, { interactive });
   if (prunedInertMcp.length > 0) {

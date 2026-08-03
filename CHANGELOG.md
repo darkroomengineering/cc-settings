@@ -4,6 +4,10 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.4.3] — 2026-08-03
+
+Follow-up bug from the sonor → sondeo → farolero rename churn: each rename left the *previous* hook file's settings.json entry behind as an "unrecognized" user extra, since the merger has no way to know the old and new commands are the same hook renamed — so it pointed at a `.ts` file cc-settings no longer ships, and every `git commit` spewed `Module not found` PreToolUse errors. The installer now prunes any existing hook entry whose command references a `~/.claude/src/{scripts,hooks}/*.ts` file that the source tree being installed doesn't ship — genuinely custom hooks (raw shell commands, scripts anywhere else on disk) are untouched. Fixes the noise for anyone who installed 13.4.0–13.4.2; no other behavior change.
+
 ## [13.4.2] — 2026-08-03
 
 npm's similarity filter also rejected sondeo. The final name, validated against the live registry via a published name-reservation stub, is [farolero](https://github.com/darkroomengineering/farolero) (Spanish: the lamplighter). The 13.4.1 glue below is renamed to match — no behavior change.

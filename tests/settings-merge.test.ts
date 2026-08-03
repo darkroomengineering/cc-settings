@@ -3,7 +3,7 @@
 // and asserts on the result — no file I/O needed.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
@@ -11,10 +11,12 @@ import {
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
   hooksStrategy,
+  isStaleManagedHookCommand,
   mergeSettings,
   permissionRuleIsDeprecated,
   permissionsStrategy,
   pruneDeprecatedHooks,
+  pruneStaleManagedHooks,
   statusLineStrategy,
   userWinsScalarStrategy,
 } from "../src/lib/settings-merge.ts";
@@ -485,6 +487,203 @@ describe("hooksStrategy", () => {
     // uniqueByKey collapses the duplicates before pruning, so the prune
     // accounting sees the group once.
     expect(ctx.accounting.hooksPruned).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hooksStrategy + pruneStaleManagedHooks/isStaleManagedHookCommand —
+// source-tree existence check (the sonor → sondeo → farolero rename bug:
+// each rename left the PREVIOUS name's hook entry in settings.json as an
+// "unrecognized" user extra, pointing at a .ts file the source tree no
+// longer ships — "Module not found" on every git commit until pruned).
+// ---------------------------------------------------------------------------
+
+describe("hooksStrategy — stale managed-hook pruning (source-tree existence check)", () => {
+  async function makeSourceTree(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-settings-merge-source-"));
+    await mkdir(join(dir, "src", "hooks"), { recursive: true });
+    await mkdir(join(dir, "src", "scripts"), { recursive: true });
+    // Only the CURRENT names ship in this source tree — the renamed-away
+    // hook referenced by the "stale" tests below is deliberately absent.
+    await writeFile(join(dir, "src", "hooks", "pre-commit-farolero.ts"), "// current hook\n");
+    await writeFile(join(dir, "src", "scripts", "pre-commit-tsc.ts"), "// still shipped\n");
+    return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
+  }
+
+  test("(a) a managed-hook command whose target file is absent from source is pruned", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const staleCmd = `bun "$HOME/.claude/src/hooks/pre-commit-sondeo.ts"`;
+      const team = {};
+      const user = { PreToolUse: [{ hooks: [{ type: "command", command: staleCmd }] }] };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(0);
+      expect(ctx.accounting.hooksPruned).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(a) a managed-hook command whose target file DOES exist in source is preserved", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const liveCmd = `bun "$HOME/.claude/src/hooks/pre-commit-farolero.ts"`;
+      const team = {};
+      const user = { PreToolUse: [{ hooks: [{ type: "command", command: liveCmd }] }] };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(1);
+      expect(ctx.accounting.hooksPruned).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(b) real-world case: a stale renamed hook sharing a group with pre-commit-tsc is pruned, and the tsc-only leftover is dropped as superseded — no duplicate group survives", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const tscCmd = `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"`;
+      // Team's current group (this install): tsc + the current hook name.
+      const team = {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            if: "Bash(git commit*)",
+            hooks: [
+              { type: "command", command: tscCmd },
+              { type: "command", command: `bun "$HOME/.claude/src/hooks/pre-commit-farolero.ts"` },
+            ],
+          },
+        ],
+      };
+      // User's installed settings still carry the OLD group from before the
+      // last rename: same matcher/if, but the second hook is the stale name —
+      // a different canonicalKey from team's group, so it survives the union
+      // as a "user extra" unless pruned.
+      const user = {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            if: "Bash(git commit*)",
+            hooks: [
+              { type: "command", command: tscCmd },
+              { type: "command", command: `bun "$HOME/.claude/src/hooks/pre-commit-sondeo.ts"` },
+            ],
+          },
+        ],
+      };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const groups = (result.value as Record<string, unknown>).PreToolUse as Array<
+        Record<string, unknown>
+      >;
+      // Exactly the team's one group survives — the stale group is pruned down
+      // to [tsc] alone, which duplicates what team already ships for this
+      // event, so it is dropped entirely (superseded) rather than kept as a
+      // second, redundant `git commit*` group.
+      expect(groups.length).toBe(1);
+      expect(JSON.stringify(groups)).not.toContain("pre-commit-sondeo");
+      expect(JSON.stringify(groups)).toContain("pre-commit-farolero");
+      expect(ctx.accounting.hooksPruned).toBe(1);
+      expect(ctx.accounting.hooksSuperseded).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(c) a custom hook NOT under ~/.claude/src (raw shell command) is preserved regardless of sourceDir", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const team = {};
+      const user = {
+        PreToolUse: [{ hooks: [{ type: "command", command: "echo custom-guard" }] }],
+      };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(1);
+      expect(ctx.accounting.hooksPruned).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(c) a custom hook script elsewhere on disk (~/bin) is preserved regardless of sourceDir", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const team = {};
+      const user = {
+        PreToolUse: [
+          { hooks: [{ type: "command", command: `bun "$HOME/bin/my-custom-audit.ts"` }] },
+        ],
+      };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(1);
+      expect(ctx.accounting.hooksPruned).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("no sourceDir supplied: a managed-hook command pointing at a nonexistent file is NOT pruned (fails open)", async () => {
+    const ctx = makeCtx(); // no sourceDir
+    const staleCmd = `bun "$HOME/.claude/src/hooks/pre-commit-sondeo.ts"`;
+    const team = {};
+    const user = { PreToolUse: [{ hooks: [{ type: "command", command: staleCmd }] }] };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+    expect(preToolUse.length).toBe(1);
+    expect(ctx.accounting.hooksPruned).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isStaleManagedHookCommand / pruneStaleManagedHooks helpers
+// ---------------------------------------------------------------------------
+
+describe("isStaleManagedHookCommand", () => {
+  test("undefined sourceDir → never stale (fails open)", () => {
+    expect(isStaleManagedHookCommand(`bun "$HOME/.claude/src/hooks/anything.ts"`, undefined)).toBe(
+      false,
+    );
+  });
+
+  test("non-managed command → never stale, regardless of sourceDir", () => {
+    expect(isStaleManagedHookCommand("echo hi", "/nonexistent/source")).toBe(false);
+    expect(isStaleManagedHookCommand(`bun "$HOME/bin/custom.ts"`, "/nonexistent/source")).toBe(
+      false,
+    );
+  });
+});
+
+describe("pruneStaleManagedHooks", () => {
+  test("undefined sourceDir → group returned unchanged (same reference)", () => {
+    const group = {
+      hooks: [{ type: "command", command: `bun "$HOME/.claude/src/hooks/anything.ts"` }],
+    };
+    expect(pruneStaleManagedHooks(group, undefined)).toBe(group);
+  });
+
+  test("non-object group → returned unchanged", () => {
+    expect(pruneStaleManagedHooks(null, "/tmp/whatever")).toBeNull();
+    expect(pruneStaleManagedHooks(42, "/tmp/whatever")).toBe(42);
   });
 });
 

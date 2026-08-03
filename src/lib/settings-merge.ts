@@ -14,9 +14,11 @@
 // For the full merge algorithm and invariant documentation see the
 // JSDoc on `mergeSettings` below.
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
-import { isManagedHookCommand } from "./hook-command.ts";
+import { isManagedHookCommand, parseHookCommand } from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import { asRecord, canonicalKey, subtractByKey, unionByKey, uniqueByKey } from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
@@ -32,6 +34,13 @@ type UnknownRecord = Record<string, unknown>;
  */
 export interface MergeOptions {
   interactive?: boolean;
+  /** Absolute path to the source tree being installed (cc-settings' own repo
+   *  root — the same `source`/`args.sourceDir` setup.ts threads everywhere
+   *  else). Used by hooksStrategy to prune stale managed-hook references (see
+   *  `isStaleManagedHookCommand`/`pruneStaleManagedHooks` below) — undefined
+   *  in contexts with no source tree to check against (e.g. a strategy called
+   *  directly in a unit test), which fails open and skips that prune. */
+  sourceDir?: string;
 }
 
 export interface MergeAccounting {
@@ -363,6 +372,53 @@ export function pruneDeprecatedHooks(group: unknown): unknown | null {
   return { ...g, hooks: kept };
 }
 
+// True if `command` is a cc-settings-managed hook invocation (a `bun
+// "$HOME/.claude/src/{scripts,hooks}/<name>.ts"` shape — see hook-command.ts)
+// whose target file is absent from `sourceDir` — the source tree currently
+// being installed, e.g. cc-settings' own repo root (`args.sourceDir` in
+// setup.ts). `sourceDir` undefined (a strategy exercised directly, with no
+// source tree to check against) fails open: never treat anything as stale.
+//
+// Generalizes DEPRECATED_COMMAND_PATTERNS: instead of hand-maintaining a
+// regex per renamed/removed script, ask the filesystem whether cc-settings
+// still ships the file. This is what the sonor → sondeo → farolero rename
+// churn needed — each rename left the PREVIOUS hook's settings.json entry an
+// "unrecognized" user extra (the merge doesn't know the old and new commands
+// are "the same hook, renamed"), which then survived every subsequent
+// install forever, each pointing at a `.ts` file that no longer exists
+// ("Module not found" on every `git commit`). See CHANGELOG 13.4.3.
+export function isStaleManagedHookCommand(command: string, sourceDir: string | undefined): boolean {
+  if (!sourceDir) return false;
+  const parsed = parseHookCommand(command);
+  if (!parsed.managed || !parsed.relPath) return false;
+  return !existsSync(join(sourceDir, "src", parsed.relPath));
+}
+
+// Same shape as pruneDeprecatedHooks, but the removal test is "does the
+// referenced managed script still exist in the source tree" rather than a
+// hand-maintained regex list. Complements pruneDeprecatedHooks (both run over
+// the same user-extra group in hooksStrategy) rather than replacing it — a
+// command that never matched the managed-hook shape at all (a raw shell
+// command, or a script that lives elsewhere on disk, e.g. `~/bin/*`) is
+// untouched by either and is a genuine customization, never pruned.
+export function pruneStaleManagedHooks(
+  group: unknown,
+  sourceDir: string | undefined,
+): unknown | null {
+  if (!sourceDir) return group;
+  if (!group || typeof group !== "object") return group;
+  const g = group as { hooks?: unknown[] };
+  if (!Array.isArray(g.hooks)) return group;
+  const kept = g.hooks.filter((h) => {
+    if (!h || typeof h !== "object") return true;
+    const command = (h as { command?: unknown }).command;
+    return typeof command !== "string" || !isStaleManagedHookCommand(command, sourceDir);
+  });
+  if (kept.length === 0) return null;
+  if (kept.length === g.hooks.length) return group;
+  return { ...g, hooks: kept };
+}
+
 // hooks: per-event union of hook groups. Team-only groups can be declined in
 // interactive mode; user-only groups survive UNLESS their command references
 // a script in DEPRECATED_COMMAND_PATTERNS (see v10.3.2). Mixed groups keep
@@ -389,16 +445,22 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
     const teamOnly = subtractByKey(teamGroups, userGroups, keyOf);
     const rawUserExtras = subtractByKey(userGroups, teamGroups, keyOf);
 
-    // Drop user extras whose commands point at scripts cc-settings has removed.
+    // Drop user extras whose commands point at scripts cc-settings has removed
+    // — either a hand-listed DEPRECATED_COMMAND_PATTERNS match, or (more
+    // generally) a managed-hook command whose target file the source tree no
+    // longer ships at all (renamed or deleted; see pruneStaleManagedHooks).
     const userExtras: unknown[] = [];
     for (const g of rawUserExtras) {
-      const cleaned = pruneDeprecatedHooks(g);
+      const afterDeprecated = pruneDeprecatedHooks(g);
+      const cleaned =
+        afterDeprecated === null ? null : pruneStaleManagedHooks(afterDeprecated, opts.sourceDir);
+      const pruned = cleaned !== g;
       if (cleaned === null) {
         ctx.accounting.hooksPruned++;
         continue;
       }
-      if (cleaned !== g) {
-        ctx.accounting.hooksPruned++; // partial prune
+      if (pruned) {
+        ctx.accounting.hooksPruned++; // partial prune (either mechanism, or both)
         // A partial prune can collapse a user group into one the team already
         // provides (e.g. [stop-summary, removed-hook] → [stop-summary]). Drop it
         // rather than emit a duplicate of the team-provided group.
