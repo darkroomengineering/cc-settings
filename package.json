@@ -29,7 +29,8 @@
     "lint:knowledge": "bun src/scripts/lint-knowledge.ts",
     "new-note": "bun src/scripts/new-note.ts",
     "proof": "bun src/scripts/proof.ts",
-    "review-batch": "bun src/scripts/review-batch.ts"
+    "review-batch": "bun src/scripts/review-batch.ts",
+    "escalate:stats": "bun src/scripts/escalate-stats.ts"
   },
   "dependencies": {
     "zod": "4.4.3"

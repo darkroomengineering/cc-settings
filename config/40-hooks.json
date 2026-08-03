@@ -151,6 +151,16 @@
 						"timeout": 3
 					}
 				]
+			},
+			{
+				"matcher": "Agent",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/escalate-acted.ts\"",
+						"timeout": 3
+					}
+				]
 			}
 		],
 		"PostCompact": [

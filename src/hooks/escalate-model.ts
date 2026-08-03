@@ -21,20 +21,65 @@
 // exactly the wrong move: 2x spend when quota is already tight. Fail-open:
 // any error → silent success, never block the prompt.
 
+import { appendFile, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import {
   buildEscalateMessage,
+  isFableSession,
   readEscalateState,
   shouldEscalate,
+  type TopSignature,
   topUnannouncedSignature,
   withAnnouncement,
   writeEscalateState,
 } from "../lib/escalate.ts";
+import {
+  buildFiredEvent,
+  type EscalateVariant,
+  pendingStateName,
+  TELEMETRY_LOG,
+  toJsonLine,
+} from "../lib/escalate-telemetry.ts";
 import { intEnv } from "../lib/hook-config.ts";
-import { emitAdditionalContext, readHookInput, readState, runHook } from "../lib/hook-runtime.ts";
+import {
+  emitAdditionalContext,
+  readHookInput,
+  readState,
+  runHook,
+  writeState,
+} from "../lib/hook-runtime.ts";
+import { isoNow } from "../lib/platform.ts";
 import type { SignatureMap } from "../lib/problem-signature.ts";
 import { CACHE_STALE_MS, computeBand, type QuotaBand, readRateLimitsCache } from "../lib/quota.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
 import { readSessionModel } from "../lib/session-model.ts";
+
+/** Record that the advisory fired: one JSONL line to the cross-session
+ *  telemetry log (signature key + tool name only — never the sample text,
+ *  a hard privacy requirement), plus a per-session pending marker that
+ *  escalate-acted.ts consumes to tell whether this fire was ever acted on.
+ *  Fail-open at every IO step — telemetry must never be the reason the
+ *  advisory itself fails to speak. */
+async function recordFired(
+  sessionId: string,
+  top: TopSignature,
+  sessionModel: string | null,
+): Promise<void> {
+  const variant: EscalateVariant = isFableSession(sessionModel) ? "fable-session" : "escalate";
+  const event = buildFiredEvent({
+    t: isoNow(),
+    session: sessionId,
+    sig: top.key,
+    tool: top.entry.tool,
+    count: top.entry.count,
+    variant,
+  });
+  await mkdir(dirname(TELEMETRY_LOG), { recursive: true }).catch(() => {});
+  await appendFile(TELEMETRY_LOG, toJsonLine(event)).catch(() => {});
+  await writeState(pendingStateName(sessionId), { sig: top.key, firedAt: Date.now() }).catch(
+    () => {},
+  );
+}
 
 // Same env-override precedent as CC_PARALLELMAX_THRESHOLD (hook-config.ts) —
 // default 3 matches post-failure.ts's existing "repeated failure" bar.
@@ -76,6 +121,7 @@ async function main(): Promise<void> {
 
   emitAdditionalContext("UserPromptSubmit", buildEscalateMessage(top, THRESHOLD, sessionModel));
   await writeEscalateState(withAnnouncement(state, sessionId, top.key, now));
+  await recordFired(sessionId, top, sessionModel);
 }
 
 await runHook(main);

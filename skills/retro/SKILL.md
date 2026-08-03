@@ -58,6 +58,14 @@ git log origin/main --since="WINDOW_START" --format="%s" | grep -oE '#[0-9]+' | 
 
 Replace `WINDOW_START` with the appropriate `--since` value for the requested window.
 
+Also run the escalate-advisory telemetry, if present:
+
+```bash
+bun "$HOME/.claude/src/scripts/escalate-stats.ts" --days 7
+```
+
+If this prints stats (not "no telemetry yet"), include the act-rate in the report — see Step 13.
+
 ---
 
 ## Step 2: Compute Metrics
@@ -266,6 +274,7 @@ Structure:
 9. **3 Things to Improve** — concrete, specific, actionable
 10. **3 Habits for Next Week** — small behavioral changes
 11. **Week-over-Week Trends** (if applicable, from Step 9)
+12. **Escalate Advisory Act-Rate** (if `bun run escalate:stats` printed stats in Step 1 — otherwise omit this section)
 
 ---
 
