@@ -83,16 +83,16 @@ The pieces add up to one loop: **rules start as advisories, work ships through g
 flowchart TB
     A([Session start]) --> B[Work the task]
     B --> C{"3+ files, 12+ tool calls,<br/>or security-sensitive?"}
-    C -- yes --> D["Delegate:<br/>explore · implementer · tester ·<br/>security-reviewer · parallel agents"]
+    C -- yes --> D["Delegate:<br/>explore · implementer · planner ·<br/>tester · security-reviewer · maestro"]
     C -- no --> E[Act directly]
     D --> F{"Same failure<br/>repeated 3x?"}
     E --> F
     F -- "advisory fires" --> G["Scoped stronger-model pass:<br/>Agent(implementer, slice, model: fable)<br/>fresh-context subagent if already on Fable"]
     F -- no --> H
     G --> H[Ship]
-    H --> I["GATE proof-of-work:<br/>typecheck · tests · lint"]
-    I --> J["GATE Codex cross-model<br/>review of the diff"]
-    J --> K["GATE ratchets: committed<br/>baselines that only descend"]
+    H --> I["GATE hook: proof-of-work<br/>typecheck · tests · lint<br/>(blocks gh pr create/ready)"]
+    I --> J["POLICY: Codex cross-model<br/>review of the diff<br/>(per-turn convention)"]
+    J --> K["GATE CI: ratchets, committed<br/>baselines that only descend"]
     K --> L([Commit / PR])
     L -.-> M["/retro weekly:<br/>fired-vs-acted act-rate,<br/>velocity, quality trends"]
     M -.-> N{"Advisory ignored?<br/>(low act-rate)"}
