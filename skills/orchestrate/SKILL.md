@@ -95,7 +95,7 @@ Two entry points:
 - One-shot: say _"use a workflow to …"_ or the keyword `ultracode` in your prompt (the force-keyword was renamed `workflow` → `ultracode` in v2.1.160). Pair with `/loop` for repeatable triage/verification/research.
 - Session-wide: `/effort ultracode` — auto-orchestrates a workflow for every substantive task.
 
-The maestro `Agent()` fan-out above is the **default** in cc-settings; workflows are for replayability or scale beyond subagent fan-out. Don't rewire skills to *depend* on the Workflow tool — its API is still preview-stage — but a skill may ship an *opt-in* example (see `nuclear-review`'s `references/nuclear-review.workflow.js`): a template you adapt, never a runtime dependency.
+The maestro `Agent()` fan-out above is the **default** in cc-settings; workflows are for replayability or scale beyond subagent fan-out. Don't rewire skills to *depend* on the Workflow tool — its API is still preview-stage — but a skill may ship an *opt-in* example (see `audit`'s `references/nuclear-review.workflow.js`): a template you adapt, never a runtime dependency.
 
 ## Output
 

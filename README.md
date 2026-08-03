@@ -57,7 +57,7 @@ No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the sta
 ├── CLAUDE.md           # Claude-Code-specific config
 ├── settings.json       # Composed from config/*.json (permissions, hooks, MCP)
 ├── agents/             # 10 specialized subagents
-├── skills/             # 39 auto-invocable skills
+├── skills/             # 38 auto-invocable skills
 ├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro, react-router
 ├── rules/              # Path-conditioned rules (load on-demand by file type)
 └── src/                # Hook + script implementations (TypeScript)
@@ -122,7 +122,7 @@ bash setup.sh --light          # Light profile: raw CC + statusline + share-lear
 bun src/setup.ts --rollback    # Restore the previous backup
 bun src/setup.ts --dry-run     # Preview what would change
 bun run compose                # Preview the composed settings.json
-bun run lint:skills            # Validate skill frontmatter + count ratchet (baseline 39)
+bun run lint:skills            # Validate skill frontmatter + count ratchet (baseline 38)
 bun run escalate:stats         # Fired-vs-acted act-rate for the escalation advisory
 bun run audit:hooks            # Classify hooks as trusted/unknown/suspicious
 bun run typecheck              # TypeScript check

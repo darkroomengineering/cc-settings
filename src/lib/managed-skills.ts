@@ -30,7 +30,7 @@
  *  ~/.claude/skills/<name>/. Keep in sync with the skills/ directory. */
 export const ACTIVE_SKILLS = [
   "adhd",
-  "adversarial-audit",
+  "audit",
   "autoresearch",
   "build",
   "cc",
@@ -48,7 +48,6 @@ export const ACTIVE_SKILLS = [
   "harvest",
   "hook",
   "lighthouse",
-  "nuclear-review",
   "oracle",
   "orchestrate",
   "plan-ceo-review",
@@ -75,8 +74,8 @@ export const ACTIVE_SKILLS = [
  *  they are load-bearing for upgrades. When reviving one, move it to
  *  ACTIVE_SKILLS and recreate its skills/<name>/ directory. */
 export const TOMBSTONE_SKILLS = [
+  "adversarial-audit",
   "ask",
-  "audit",
   "cc-sync",
   "cc-update",
   "compare-approaches",
@@ -93,6 +92,7 @@ export const TOMBSTONE_SKILLS = [
   "learn",
   "lenis",
   "long-task",
+  "nuclear-review",
   "prd",
   "premortem",
   "resume-handoff",

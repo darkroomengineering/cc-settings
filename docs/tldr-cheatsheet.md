@@ -108,5 +108,5 @@ with `tldrCodePath()` from that module, or by checking the path directly.
    `remediation` are not.
 
 `dead_functions` is advisory only wherever it feeds an auto-remove workflow
-(`deslopper`, `nuclear-review`) — confirm every candidate with `Grep` before
+(`deslopper`, `audit`) — confirm every candidate with `Grep` before
 deleting anything, regardless of engine.

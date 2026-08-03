@@ -57,7 +57,7 @@ context: fork
       install: "chrome-devtools MCP — provides on-demand audits + visual regression screenshots"
   ```
 
-  See `skills/lighthouse/SKILL.md` (command + mcp), `skills/tldr/SKILL.md`, `skills/qa/SKILL.md`, and `skills/nuclear-review/SKILL.md` (mcp-only) for the 4 shipped examples.
+  See `skills/lighthouse/SKILL.md` (command + mcp), `skills/tldr/SKILL.md`, `skills/qa/SKILL.md`, and `skills/audit/SKILL.md` (mcp-only) for the 4 shipped examples.
 
 ---
 

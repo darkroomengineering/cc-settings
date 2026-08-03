@@ -35,8 +35,13 @@ export interface LintResult {
 
 // Ratchet baseline, not a target. Anthropic's guide (Chapter 5, Large Context
 // Issues) puts 20–50 skills as the band where the Skill tool selector starts
-// struggling to read every description per turn; we hold at 40. The number below
-// is the count we are currently allowed to have, and it may only descend.
+// struggling to read every description per turn. The number below is the count
+// we are currently allowed to have, and it may only descend.
+//
+// History: merged `nuclear-review` + `adversarial-audit` -> `audit` (Aug 2026),
+// baseline lowered 39 -> 38 accordingly — the two goal-specs (maintainability
+// vs correctness) survive as modes of one skill instead of two lexically
+// ambiguous entry points ("audit the codebase" used to route to either).
 //
 //   count > baseline -> error. Consolidate or remove one. Raising this is a
 //                       deliberate, reviewable commit, never a side effect.
@@ -54,7 +59,7 @@ export interface LintResult {
 // currently says. "Descend-only" is enforced by the diff being visible in review,
 // not by this file — which is the intended trade, since a legitimate raise has to
 // stay possible. Verifying a baseline against its merge-base is a CI-side job.
-export const SKILL_COUNT_BASELINE = 39;
+export const SKILL_COUNT_BASELINE = 38;
 
 // Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
 // the schema `name` field regexes (agent/skill/profile/knowledge) — see

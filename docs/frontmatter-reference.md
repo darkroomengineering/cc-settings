@@ -131,7 +131,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 Skills using `fork` (23): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `triage`, `verify`. All 23 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
-Skills using `main` (6): `adhd`, `adversarial-audit`, `codex`, `freeze`, `nuclear-review`, `zero-tech-debt`.
+Skills using `main` (5): `adhd`, `audit`, `codex`, `freeze`, `zero-tech-debt`.
 
 Skills using `inherit` (default, 10): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
 
@@ -193,7 +193,7 @@ argument-hint: "<skill-name>"
 | Skill | Context | Agent | Allowed Tools | Argument Hint |
 |-------|---------|-------|---------------|---------------|
 | `adhd` | main | -- | -- | `[problem]` |
-| `adversarial-audit` | main | -- | -- | `[codebase\|docs\|process]` |
+| `audit` | main | -- | -- | `[maintainability\|codebase\|docs\|process]` |
 | `autoresearch` | fork | -- | -- | `<skill-name>` |
 | `build` | fork | -- | -- | -- |
 | `cc` | -- | -- | -- | `[sync\|update]` |
@@ -210,7 +210,6 @@ argument-hint: "<skill-name>"
 | `handoff` | fork | -- | -- | `[save\|resume]` |
 | `hook` | -- | -- | -- | -- |
 | `lighthouse` | fork | -- | Bash, Read, Write, Edit, Grep, Glob, LS | `<url>` |
-| `nuclear-review` | main | -- | -- | -- |
 | `oracle` | fork | -- | -- | `[advice\|risks\|compare] [question]` |
 | `orchestrate` | fork | maestro | -- | -- |
 | `plan-ceo-review` | fork | -- | Read, Grep, Glob, Bash, AskUserQuestion | -- |

@@ -1,20 +1,21 @@
-// Nuclear-review as a dynamic workflow — OPT-IN EXAMPLE, not a dependency.
+// Maintainability-mode audit as a dynamic workflow — OPT-IN EXAMPLE, not a dependency.
 //
-// The nuclear-review skill (SKILL.md) is the canonical, always-available form
-// and depends on nothing. This script is for when you want the same audit as a
-// resumable, parallel workflow: phase state lives outside the context window,
-// modules review concurrently (up to 16), and a re-run resumes from cached
-// agent results. It uses the preview-stage Workflow tool API on purpose — that
-// is exactly why it lives here as an example rather than wired into the skill.
+// The audit skill's maintainability mode (SKILL.md) is the canonical,
+// always-available form and depends on nothing. This script is for when you
+// want the same audit as a resumable, parallel workflow: phase state lives
+// outside the context window, modules review concurrently (up to 16), and a
+// re-run resumes from cached agent results. It uses the preview-stage
+// Workflow tool API on purpose — that is exactly why it lives here as an
+// example rather than wired into the skill.
 //
 // Run it (needs Claude Code >= 2.1.154 and the Workflow tool):
-//   Workflow({ scriptPath: "~/.claude/skills/nuclear-review/references/nuclear-review.workflow.js",
+//   Workflow({ scriptPath: "~/.claude/skills/audit/references/nuclear-review.workflow.js",
 //              args: { project: "." } })
 // or copy it into .claude/workflows/ and invoke by name. `/effort ultracode`
 // will also auto-orchestrate a comparable workflow without this file.
 
 export const meta = {
-  name: "nuclear-review",
+  name: "audit-maintainability",
   description:
     "Whole-codebase maintainability audit — map, fan out one structural reviewer per module, audit dependencies, synthesize one prioritized report.",
   whenToUse:

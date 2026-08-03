@@ -24,11 +24,11 @@ git remote get-url origin
    - (b) TypeScript/lint/config hygiene
    - (c) obvious perf and a11y issues on key pages
    - (d) security smells (exposed env, secrets in history, unpinned actions)
-3. Rank findings: Critical / Should-fix / Cosmetic. Each with `file:line` and a one-line fix sketch. Max 15 findings — this is a triage, not an audit; recommend `/nuclear-review` if depth is warranted.
+3. Rank findings: Critical / Should-fix / Cosmetic. Each with `file:line` and a one-line fix sketch. Max 15 findings — this is a triage, not an audit; recommend `/audit maintainability` if depth is warranted.
 4. End with a split: "safe to fix directly" vs "needs client conversation".
 
 ## Output
 
 - Ranked findings table (Critical / Should-fix / Cosmetic)
 - Org-boundary status: internal (fixes allowed) or external (report-only)
-- Recommended next skill: `/fix`, `/nuclear-review`, or nothing
+- Recommended next skill: `/fix`, `/audit maintainability`, or nothing

@@ -1,33 +1,61 @@
 ---
-name: nuclear-review
-description: Extremely strict whole-codebase maintainability audit — checks structural quality, 1k-line file sprawl, thin wrappers, leaked logic, spaghetti growth, and dependency freshness + usage quality via context7. Pushes "code-judo" moves that delete whole branches instead of rearranging them. When fixes land, the same pass updates CHANGELOG, MANUAL, and derived schemas so the docs don't drift. Triggers "nuclear review", "thermonuclear review", "thermo-nuclear code quality review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review". Sibling to `/review` (per-diff Darkroom checklist) and `/zero-tech-debt` (rework patch to end-state).
+name: audit
+argument-hint: "[maintainability|codebase|docs|process]"
+description: Whole-repo audits in four modes. Maintainability mode is a strict structural audit — 1k-line sprawl, thin wrappers, leaked logic, dependency freshness via context7, "code-judo" deletions. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes are adversarial honesty audits hunting defects, drift, dead ends rather than validating. Codebase mode triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs mode triggers "audit the docs", "docs audit", "doc drift". Process mode triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Also owns the bare "audit the codebase" — when phrasing doesn't pin a mode, asks ONE question (maintainability vs correctness) before fanning out. Sibling to `/review`, `/zero-tech-debt`, `/verify`.
 context: main
 requires:
   - mcp: context7
 ---
 
-# Nuclear Review
+# Audit
 
-An unusually strict **whole-codebase** maintainability audit. Reviews implementation quality, abstraction quality, structural simplification opportunities, **and** dependency freshness + usage quality.
+One skill, four whole-repo audit modes sharing a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report. Two families of question:
 
-Adapted from Cursor's internal `thermo-nuclear-code-quality-review` skill. Cursor's version targets a single PR diff; this version targets the entire repository and adds a context7-driven dependency audit on top, because the same questions ("is this the right abstraction?", "is this thin wrapper earning its keep?") apply equally to library choices.
+- **Maintainability** — ported from Cursor's internal `thermo-nuclear-code-quality-review` skill (reported by Eric Zakariasson as Cursor's most-used internal skill; this mode was formerly the standalone `/nuclear-review` skill). Asks **should this code exist?** — structural quality, 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7.
+- **Codebase, Docs, and Process** — adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; these modes were formerly the standalone `/adversarial-audit` skill). Ask **does it do what it promises?** — correctness/coherence/affordances (codebase), truth and structure of the docs (docs), walkable end-to-end journeys (process). The July 2026 cc-settings audit ran the codebase spec and produced 28 findings, ~all confirmed and fixed. The mechanics that made that work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these three modes, whatever the mode.
 
-Above all, this skill should push the reviewer to be **ambitious** about code structure. Do not merely identify local cleanup opportunities. Actively search for "code judo" moves: restructurings that preserve behavior while making the implementation dramatically simpler, smaller, more direct, and more elegant.
+Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The other three modes hold **no loyalty to the current design** — hunt defects, drift, and dead ends rather than confirm things work.
+
+## Mode Router — disambiguate before fanning out
+
+If the invocation already pins a mode (see trigger phrases below), start there directly. If it doesn't — most commonly the bare phrase **"audit the codebase"** — this skill owns that ambiguity and must not guess: ask ONE question before doing anything else.
+
+> "Do you want a **maintainability** audit (should this code exist — structure, code-judo restructuring, dependency hygiene) or a **correctness** audit (does it do what it promises — bugs, incoherences, affordance gaps)?"
+
+Only proceed to the matching mode below once the answer disambiguates. This question is the entire point of merging the two prior skills into one — do not skip it to "be helpful."
+
+**Trigger phrases by mode:**
+
+| Mode | Phrases |
+|---|---|
+| Maintainability | "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist" |
+| Codebase | "adversarial audit", "fable audit", "expectation gaps", "correctness audit" |
+| Docs | "audit the docs", "docs audit", "doc drift" |
+| Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
+| Ambiguous — ASK | "audit the codebase" alone, or any phrasing that doesn't match a row above |
 
 ## When to use vs other review skills
 
-- `/review` — per-PR Darkroom checklist (TypeScript / React / a11y / perf / security). Run on every change.
-- `/nuclear-review` — periodic whole-codebase audit. Run on major version cuts, after extended velocity sprints, before a load-bearing migration, or whenever the codebase feels heavier than its features warrant.
-- `/adversarial-audit` — whole-repo honesty audit (correctness, coherence, affordances; plus docs and process modes). Nuclear-review asks "should this code exist?"; adversarial-audit asks "does it do what it promises?" They compose well back-to-back on the same cadence.
+- `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security). Every change.
+- `/audit` (this skill) — periodic whole-repo audit, four modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
+- `/verify` — adversarial check of a single change/claim, not a repo sweep.
 
-A typical sequence: `/nuclear-review` produces findings → engineers cherry-pick the highest-leverage ones → `/zero-tech-debt` or `/refactor` to execute.
+A typical sequence: `/audit maintainability` produces findings → engineers cherry-pick the highest-leverage ones → `/zero-tech-debt` or `/refactor` to execute.
 
-> **Tip (Claude Code v2.1.154+)**: run `/effort ultracode` before invoking this skill. The whole-codebase audit is the canonical shape that benefits from dynamic workflows — phase state lives in the workflow script rather than Claude's context window, individual modules can be reviewed in parallel (up to 16 concurrent), and the run can resume from cached agent results within the session. Dynamic workflows default to a medium size guideline, aiming for fewer than 15 agents (v2.1.219) — it's advisory, not enforced, but a repo with more modules than that is worth raising `workflowSizeGuideline` for explicitly before the fan-out phase rather than silently exceeding the default.
+> **Tip (Claude Code v2.1.154+)**: run `/effort ultracode` before invoking this skill. Whole-repo audits are the canonical shape that benefits from dynamic workflows — phase state lives in the workflow script rather than Claude's context window, individual areas can be reviewed in parallel (up to 16 concurrent), and the run can resume from cached agent results within the session. Dynamic workflows default to a medium size guideline, aiming for fewer than 15 agents (v2.1.219) — it's advisory, not enforced, but a repo with more modules than that is worth raising `workflowSizeGuideline` for explicitly before the fan-out phase rather than silently exceeding the default.
 >
-> A ready-made example ships at `references/nuclear-review.workflow.js` (installed to `~/.claude/skills/nuclear-review/references/`). It is **opt-in, not a dependency** — the skill above works with no Workflow tool. Run it with `Workflow({ scriptPath: "~/.claude/skills/nuclear-review/references/nuclear-review.workflow.js" })`, or copy it into `.claude/workflows/`. It maps the repo, fans out one structural reviewer per module, audits dependencies, and synthesizes one report. Treat it as a **template** — adapt its module list, schemas, and phases to the repo at hand rather than running it verbatim.
+> A ready-made example for maintainability mode ships at `references/nuclear-review.workflow.js` (installed to `~/.claude/skills/audit/references/`). It is **opt-in, not a dependency** — the mode above works with no Workflow tool. Run it with `Workflow({ scriptPath: "~/.claude/skills/audit/references/nuclear-review.workflow.js" })`, or copy it into `.claude/workflows/`. It maps the repo, fans out one structural reviewer per module, audits dependencies, and synthesizes one report. Treat it as a **template** — adapt its module list, schemas, and phases to the repo at hand rather than running it verbatim.
 
-## Scope
+---
+
+## Mode: Maintainability
+
+An unusually strict **whole-codebase** maintainability audit. Reviews implementation quality, abstraction quality, structural simplification opportunities, **and** dependency freshness + usage quality.
+
+Cursor's version targets a single PR diff; this version targets the entire repository and adds a context7-driven dependency audit on top, because the same questions ("is this the right abstraction?", "is this thin wrapper earning its keep?") apply equally to library choices.
+
+### Scope
 
 The audit covers the **entire codebase**, not the current diff. That includes:
 
@@ -38,9 +66,9 @@ The audit covers the **entire codebase**, not the current diff. That includes:
 
 Skip vendored code, generated files, and `node_modules`.
 
-## Workflow
+### Workflow
 
-### Phase 0 — Map the codebase
+#### Phase 0 — Map the codebase
 
 Establish ground truth before judging anything.
 
@@ -85,7 +113,7 @@ run and must be reported as "scan unavailable", never as "no dead code". **`dead
 finding.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live symbols as dead
 code; the CLI was measured accurate, which is why it's used here instead.
 
-### Phase 1 — Dependency audit (context7)
+#### Phase 1 — Dependency audit (context7)
 
 For each direct dependency in `package.json`, use the `context7` MCP server to verify:
 
@@ -106,13 +134,13 @@ Cap context7 calls at 3 per dependency (per the server's own guidance). Batch th
 
 Output for each flagged dep: current version → recommended version, deprecated APIs in use, suggested fix.
 
-### Phase 2 — Structural audit
+#### Phase 2 — Structural audit
 
 Apply the non-negotiable standards below to the codebase as a whole. Walk the largest files first, then the modules with the most outbound dependencies, then the entry points.
 
-### Phase 2b — Cross-model structural pass (when the Codex bridge is available)
+#### Phase 2b — Cross-model structural pass (when the Codex bridge is available)
 
-Run the shared cross-model procedure (`references/audit-contract.md` §1) with this skill's audit prompt:
+Run the shared cross-model procedure (`references/audit-contract.md` §1) with this mode's audit prompt:
 
 ```bash
 bun "$HOME/.claude/src/scripts/codex-run.ts" ask "Audit this repository for structural problems: files over ~1000 lines, thin wrappers that don't earn their keep, logic leaked across boundaries, and duplicated abstractions. Walk the largest files and the modules with the most outbound dependencies first. Report the highest-leverage 'code judo' restructurings — ones that delete whole branches rather than rearrange them — ordered by conviction."
@@ -120,17 +148,17 @@ bun "$HOME/.claude/src/scripts/codex-run.ts" ask "Audit this repository for stru
 
 Fold Codex's findings into Phase 3 per the contract: convergence = high-conviction, divergence noted not dropped, gated and fails open.
 
-### Phase 2c — team-knowledge reconciliation (when the corpus is reachable)
+#### Phase 2c — team-knowledge reconciliation (when the corpus is reachable)
 
 Phases 2 and 2b judge structure intent-blind, so deliberate design reads as debt. Run the shared reconciliation procedure — `references/audit-contract.md` §2: generate findings blind FIRST, then cross-reference the corpus; a documented decision **reclassifies severity, never suppresses a finding**; gated, fails open.
 
-### Phase 3 — Synthesis
+#### Phase 3 — Synthesis
 
 Produce the output in the format below. Prioritize ruthlessly — a smaller number of high-conviction findings beats a long list.
 
-### Phase 4 — Documentation updates (after fixes land)
+#### Phase 4 — Documentation updates (after fixes land)
 
-A nuclear-review that produces fixes but leaves the docs stale is half-done. Whenever findings from this skill turn into code changes, the same pass must touch the docs that describe them. If you only produce the report (no fixes in this session), skip this phase — but flag it for whoever applies the fixes.
+A maintainability audit that produces fixes but leaves the docs stale is half-done. Whenever findings from this mode turn into code changes, the same pass must touch the docs that describe them. If you only produce the report (no fixes in this session), skip this phase — but flag it for whoever applies the fixes.
 
 For each commit that lands from the audit, update the docs in scope for the change:
 
@@ -159,7 +187,7 @@ bun run schemas:check          # derived schemas in sync with sources
 git diff --stat HEAD~N HEAD    # confirm doc files are in the diff
 ```
 
-## Non-Negotiable Standards
+### Non-Negotiable Standards
 
 0. **Be ambitious about structural simplification.**
    - Do not stop at "this could be a bit cleaner."
@@ -211,7 +239,7 @@ git diff --stat HEAD~N HEAD    # confirm doc files are in the diff
    - Flag dependencies whose footprint is disproportionate to their use.
    - Flag dependencies that could be removed entirely in favor of a platform primitive or existing canonical helper.
 
-## Primary Review Questions
+### Primary Review Questions
 
 For every meaningful surface, ask:
 
@@ -229,7 +257,7 @@ For every meaningful surface, ask:
 - **Is every direct dependency current and idiomatic for its installed major?**
 - **Does any dependency duplicate the role of another, or one that the platform already offers?**
 
-## What to Flag Aggressively
+### What to Flag Aggressively
 
 - Complicated implementations where a cleaner reframing could delete whole categories of complexity.
 - Refactors that move code around but fail to reduce the number of concepts a reader must hold in their head.
@@ -253,7 +281,7 @@ For every meaningful surface, ask:
 - **Two dependencies covering the same role.**
 - **Dependencies that could be deleted entirely.**
 
-## Preferred Remedies
+### Preferred Remedies
 
 - Delete a whole layer of indirection rather than polishing it.
 - Reframe the state model so conditionals disappear instead of getting centralized.
@@ -277,11 +305,11 @@ For every meaningful surface, ask:
 
 Do not be satisfied with "maybe rename this" feedback when the real issue is structural.
 
-## Review Tone
+### Review Tone
 
 Direct, serious, demanding about quality. Not rude, but do not soften major maintainability issues into mild suggestions. If the codebase is messier than its features warrant, say so clearly. If a path to a dramatic simplification was missed, say that too.
 
-## Output Format
+### Output Format
 
 Report mechanics: follow the shared finding contract (`references/audit-contract.md` §3) — stable IDs (`N1`, `N2`, … in severity order), CONFIRMED vs PLAUSIBLE, disprove-first, concrete scenarios, considered-&-rejected ledger.
 
@@ -324,9 +352,9 @@ Prioritize findings in this order:
 
 Do not flood the report with low-value nits if there are larger structural issues. Prefer a smaller number of high-conviction comments over a long list of cosmetic notes.
 
-## Approval Bar
+### Approval Bar
 
-A codebase passes nuclear-review when:
+A codebase passes this mode when:
 
 - No file exceeds 1000 lines without an explicit justification.
 - No obvious code-judo move is sitting on the table.
@@ -340,6 +368,94 @@ A codebase passes nuclear-review when:
 
 If any of those fail, the report must include explicit, actionable feedback and push for the cleaner shape.
 
-## Attribution
+### Attribution
 
 Structural rubric ported from [`cursor/plugins/cursor-team-kit/skills/thermo-nuclear-code-quality-review`](https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/thermo-nuclear-code-quality-review). Reported by Eric Zakariasson as Cursor's most-used internal skill. The whole-codebase scope and context7 dependency audit are cc-settings additions.
+
+---
+
+## Shared Contract (Codebase, Docs, and Process modes)
+
+**Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
+
+**Method.**
+- Per area, state how it SHOULD behave, then read (or run) to confirm or refute. Every expectation-vs-reality gap is a finding.
+- Every finding needs a concrete scenario: specific inputs/state leading to the wrong or surprising result. No vague "could be improved."
+- Mark each finding **CONFIRMED** (traced or reproduced) or **PLAUSIBLE** (suspected). Try to disprove yourself first; discard findings that don't survive.
+- Where something is sound, say so once and move on — spend effort where it isn't.
+
+**Cross-model + intent passes.** Run the shared procedures in `references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier` on the finding list, §2 team-knowledge reconciliation). Both gated, both fail open — unavailable means proceed Claude-only. The one-line invariants: reconcile AFTER findings exist, and a documented decision **reclassifies severity, never deletes a finding**.
+
+**Output.** Write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
+1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.
+2. Map (system map / doc map / process state machine — per mode below).
+3. Findings by hunt category, severity order. Each: stable ID (H1/M1/L1 by severity, or C/D/P prefix per mode), location, one-line issue, concrete scenario, status, recommended direction.
+4. Design tensions: the 3-5 deepest structural issues ("the approach, not a line"), each with the alternative you'd weigh.
+5. Open questions: what the artifact alone can't resolve — maintainer answers required.
+6. Considered & rejected: candidate findings you investigated and disproved (or reclassified as by-design), each with a one-line reason. This ledger is what stops the next audit from re-litigating them — check it before hunting.
+
+Chat reply = exec summary only: counts by severity + top 3-5 findings + report path.
+
+**Optional issue filing.** When the maintainer wants findings executable by agents, file each as a GitHub issue (one per finding, severity labels, CONFIRMED/PLAUSIBLE in the body, an epic for the design tensions, `question`-labeled issues for the open questions). This is how the July 2026 cc-settings remediation ran: issues → parallel fix agents → PRs citing the IDs.
+
+## Mode: Codebase
+
+Exhaustive adversarial audit of the code — defects, design incoherences, unexpected affordances, doc drift, and mismatches between what the code invites you to do and what it actually does.
+
+**Scope.** Read the codebase in full. Build a model of: entry points and real (not documented) execution paths; module boundaries and their explicit/implied contracts; data models, invariants, and where they're enforced vs assumed; external surfaces (APIs, CLIs, config, env vars, file formats, network calls); the onboarding path a newcomer would actually follow.
+
+**Hunt for (beyond bugs):**
+1. **Correctness** — logic errors, races, off-by-one, unhandled edges, silently swallowed failures, wrong error propagation.
+2. **Alternative/unintended paths** — second call? concurrent calls? empty/null/huge input? partial failure mid-op? retries? the "holding it wrong" path?
+3. **Incoherences** — names that lie about behavior, two modules solving one problem differently, config honored here and ignored there, duplicated sources of truth that can drift, dead code, contradictory defaults.
+4. **Affordance mismatches** — "I expected to do X this way but can't, or it does something else." Where does the API shape promise a capability the code doesn't deliver? Where is the easy path also the dangerous one?
+5. **Missing functionality** — what a reasonable user expects (validation, idempotency, cleanup, observability, cancellation, timeouts) but is absent.
+6. **Boundary and safety** — leaky abstractions, invariants in the wrong layer, unvalidated input crossing a boundary; injection, path traversal, unbounded growth, resource leaks, missing authz, exposed secrets — only where real.
+7. **Documentation** — README/docstrings/comments that are wrong, stale, or contradict the code; undocumented public behavior/params/errors/side effects; examples that wouldn't run.
+8. **Developer experience** — can a newcomer build, run, test, and debug from the docs alone? Confusing errors, silent misconfig, setup footguns.
+
+**Map section:** architecture, real execution paths, key invariants — so the maintainer can check your understanding. Also include an "expectation gaps" list: short "expected X, found Y" entries for affordance/docs/DX.
+
+## Mode: Docs
+
+Audit documentation as a first-class artifact: does it tell the truth about the code, lead with what matters, size documents so detail can breathe, and draw processes instead of narrating them?
+
+**Role additions:** a docs lead who owns information architecture; a newcomer with only the docs and a terminal; a returning maintainer hunting one fact; an autonomous agent using the docs as its only spec.
+
+**Scope.** Every reader-facing surface in full: README, docs/, ADRs, CONTRIBUTING/onboarding, public docstrings, CLI help, config comments, example scripts, every diagram (source + rendered). Build the current doc map: what exists, what it claims to cover, who it's for, how a reader finds it.
+
+**Hunt for:**
+1. **Drift/inaccuracy (primary)** — any claim the code no longer honors: renamed/removed commands, flags, env vars, paths, defaults; examples that don't run; output samples that don't match. And the inverse: real public behavior no document mentions.
+2. **Inverted-pyramid violations** — docs that bury the point. Each doc should open with "what this is / when you'd reach for it" plus the 20% answering 80% of questions; reference tables and rationale at the end.
+3. **Sizing/decomposition** — documents where concerns collide: recommend the split (sections, names, back-links). Also scattered fragments that should merge.
+4. **Architecture as drawn process** — flow/lifecycle/interaction explained in prose that a diagram would carry better. Prefer Mermaid: flowchart for control flow, sequence for cross-component calls, stateDiagram for lifecycles.
+5. **Usefulness/audience fit** — does each doc serve a real reader task? Are tutorial/how-to/reference/explanation modes mixed to nobody's benefit? Does it answer "why"?
+6. **Coverage** — public surfaces with no docs; missing troubleshooting/runbook; non-obvious decisions with no ADR.
+7. **Single source of truth** — the same fact in N places that will drift; pick the canonical home, link the rest.
+8. **Findability** — can a reader route to the right doc without knowing where it lives? Missing index, orphans, dead cross-links.
+
+**Method addition:** for every accuracy claim, check against reality — run the example, confirm the flag exists, diff the sample output. CONFIRMED means verified against code or a run.
+
+**Extra output sections:** doc map current-vs-proposed (proposed tree = purpose + audience per doc + the splits/merges, executable directly); drift-verification list (finding + exact check run + result); diagram backlog (draft actual Mermaid for the top 3-5, naming target doc + location); missing-docs backlog prioritized by unblocking value.
+
+## Mode: Process
+
+Audit end-to-end workflows — not lines of code, but whether the processes the product promises compose into complete, walkable journeys. Find holes, dead ends, missing transitions, and steps where a user or agent gets stranded.
+
+**Role.** Walk every documented journey twice: once as a first-time human following only the docs, once as an autonomous agent chaining commands via exit codes and JSON.
+
+**Scope.** Enumerate the product's documented journeys (onboarding/install, the core lifecycle(s), review/approve loops, publish/deploy, cleanup) and walk each **empirically in throwaway workspaces** under a gitignored scratch dir — never against real state. Fake heavyweight external tools with PATH shims where needed.
+
+**Hunt for:**
+1. **Dead ends** — states with no exit command, fixable only by hand-editing files.
+2. **Missing processes** — steps the docs promise that no command implements.
+3. **Re-run/second-call semantics** — every mutating command run twice, out of order, and against a half-completed prior run. Idempotency AND exit codes.
+4. **Partial failure** — kill mid-operation, unwritable targets, collisions with pre-existing artifacts.
+5. **Agent ergonomics** — can an agent distinguish "my operation failed" from "unrelated warning elsewhere"? JSON contract stability, help text vs actual flags, error parseability.
+6. **Docs/process drift** — walk the quickstart/process docs command-by-command against reality.
+7. **Concurrency** — two invocations against the same workspace.
+8. **Cross-process coherence** — enumerate every state a record/artifact can occupy across subsystems and check a command moves each state forward.
+
+**Map section:** the real per-record state machine — states, transitions, owning command; mark unreachable states and absorbing dead ends. If a prior audit was remediated, start by empirically verifying those fixes hold through full workflows (regressions and partial fixes are in scope; re-auditing code style is not).
+
+**Method addition:** every finding needs the exact command sequence to reproduce and the resulting state/output. CONFIRMED means reproduced, not traced.

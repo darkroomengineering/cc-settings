@@ -4,6 +4,34 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.3.0] — 2026-08-03
+
+The advisory → gate → measure loop, extracted from a Slack-thread insight (ratchet tests beat prose guardrails because "advisory output is ignorable; a non-zero exit is not") and applied across the harness. The README's new "The flow" section is the map.
+
+**Ratchets (gates):**
+
+- The 40-skill soft cap is now `SKILL_COUNT_BASELINE` — an error in *both* directions, so adding a skill without consolidating fails, and removing one fails until the baseline is lowered and committed. Every movement of the number lands in git with a reviewer. Lowered 39 → 38 in this release by the `/audit` merge below.
+- `noExplicitAny` flipped warn → error (zero violations existed; the door is just closed now).
+- `git push` is gated on the full proof battery (typecheck + tests + lint) via the new `pre-push-proof` hook — repos that push straight to main never hit the PR-time gate, so tsc-at-commit was their only local gate. Matcher hardened against `git -C`/`command`/env-prefix bypasses, token-exact `--dry-run`/`-n`/`--help` exemptions, quote-aware segment splitting.
+
+**Escalation advisory (advisory):**
+
+- When the same tool+error signature fails 3× in a session, the next prompt suggests a scoped `Agent(implementer, <slice>, model: "fable")` pass instead of another retry — model-aware (Fable sessions get a fresh-context suggestion instead), quota-gated (silent at elevated/critical so it never contradicts quota-steer), once per signature, 10-min debounce. Error samples are redacted-then-bounded before storage (truncate-first leaked credential prefixes past `redactSecrets`' minimum-length patterns — caught by security review, fixed on all three sinks), session ids validated before filename use, injected samples labeled as data.
+
+**Telemetry (measurement):**
+
+- Fired-vs-acted telemetry for both the escalation advisory and the delegation nudge: `bun run escalate:stats [--days N]`, per-advisory act-rates, structurally ≤ 100% (reader-side dedupe absorbs the marker race and write-ordering skew). `/retro` reports the act-rate weekly. `claude-audit` gains a gate-firings section reading `safety-net.log` (reasons only, never commands). The act-rate is the evidence gate for any future promotion of an advisory to a gate.
+
+**Hook delivery (probe-verified fix):**
+
+- A headless marker probe against 2.1.220 proved plain stdout from hooks on tool events never reaches the model, and `async: true` does not prevent envelope injection — the docs had both backwards. Six silently-dead advisories converted to the `additionalContext` envelope: post-edit-tsc (now bounded to 20 diagnostic lines), cwd-changed, check-docs-before-install, post-edit's review banner, post-failure's repeated-failure hint, pre-edit-validate's warnings. `docs/hooks-reference.md` now carries the probe matrix with honest scope (PreToolUse/PostToolUse verified; PostToolUseFailure/CwdChanged unprobed).
+
+**Skills:**
+
+- `/nuclear-review` + `/adversarial-audit` merged into `/audit` (four modes: maintainability / codebase / docs / process). The bare phrase "audit the codebase" was lexically ambiguous between them; the merged skill owns it and asks one disambiguating question when the phrasing doesn't pin a mode. Both retired names tombstoned so existing installs prune them.
+
+Sibling repo: [sonor](https://github.com/darkroomengineering/sonor) created — the ratchet pattern as a standalone dev-dependency for client repos (any harness, any model), with the two-mode design (report to triage, ratchet to hold) in its README and first five issues.
+
 ## [13.2.2] — 2026-07-31
 
 The install summary counted every skill directory under `~/.claude/skills/`, so a machine with plugin or third-party skills alongside cc-settings' own printed `skills/ (41)` under the heading "Installed" when cc-settings had installed 39. It now counts only the skills it ships.

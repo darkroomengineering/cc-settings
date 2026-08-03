@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.2.2"; // install summary counts skills cc-settings shipped, not the whole dir
+const VERSION = "13.3.0"; // advisory-gate-measure loop: escalation advisory, telemetry, push gate, /audit merge
 
 // --- Arg parsing ---------------------------------------------------------
 
