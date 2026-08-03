@@ -33,10 +33,28 @@ export interface LintResult {
   skillCount: number;
 }
 
-// Soft cap from Anthropic's guide (Chapter 5, Large Context Issues). Past this
-// point, the Skill tool selector has to read too many descriptions per turn.
-// Adding a skill past the cap should require removing one — see CLAUDE-FULL.md.
-export const SKILL_SOFT_CAP = 40;
+// Ratchet baseline, not a target. Anthropic's guide (Chapter 5, Large Context
+// Issues) puts 20–50 skills as the band where the Skill tool selector starts
+// struggling to read every description per turn; we hold at 40. The number below
+// is the count we are currently allowed to have, and it may only descend.
+//
+//   count > baseline -> error. Consolidate or remove one. Raising this is a
+//                       deliberate, reviewable commit, never a side effect.
+//   count < baseline -> error. Lower it here and commit, so the ratchet holds
+//                       the new floor instead of leaving slack to drift back.
+//
+// Both directions are errors on purpose: that is what keeps every movement of
+// the number in git history. The previous version of this rule fired a warning
+// at >40 and CI never failed on it, so the only thing standing between us and a
+// 45-skill library was prose in CLAUDE-FULL.md. Advisory output is ignorable; a
+// non-zero exit is not.
+//
+// What this does NOT do: stop someone raising the baseline in the same commit
+// that adds the skill. The linter only compares against whatever the constant
+// currently says. "Descend-only" is enforced by the diff being visible in review,
+// not by this file — which is the intended trade, since a legitimate raise has to
+// stay possible. Verifying a baseline against its merge-base is a CI-side job.
+export const SKILL_COUNT_BASELINE = 39;
 
 // Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
 // the schema `name` field regexes (agent/skill/profile/knowledge) — see
@@ -176,7 +194,20 @@ export async function lintSkillsDir(
   opts: { checkManaged?: boolean } = {},
 ): Promise<LintResult> {
   if (!existsSync(skillsDir)) {
-    return { findings: [], skillCount: 0 };
+    // A missing custom dir is a no-op, but the canonical skills/ going missing is
+    // a failure worth shouting about: without this branch, deleting the entire
+    // library lints clean, because every check below iterates zero entries.
+    const findings: LintFinding[] = opts.checkManaged
+      ? [
+          {
+            skill: "(repo)",
+            severity: "error",
+            rule: "skills-dir-missing",
+            message: `${skillsDir} does not exist — the managed skill library is gone`,
+          },
+        ]
+      : [];
+    return { findings, skillCount: 0 };
   }
 
   const findings: LintFinding[] = [];
@@ -192,12 +223,18 @@ export async function lintSkillsDir(
     findings.push(...(await lintOne(skillsDir, name)));
   }
 
-  if (skillNames.length > SKILL_SOFT_CAP) {
+  // Repo-level invariant, so it rides the same opt-in as the ACTIVE_SKILLS parity
+  // check below: a baseline of 40 is meaningless against a 2-skill test fixture.
+  if (opts.checkManaged && skillNames.length !== SKILL_COUNT_BASELINE) {
+    const count = skillNames.length;
     findings.push({
       skill: "(repo)",
-      severity: "warning",
-      rule: "skill-count-cap",
-      message: `${skillNames.length} skills — past ${SKILL_SOFT_CAP}-skill soft cap. Adding a new skill should require removing one.`,
+      severity: "error",
+      rule: "skill-count-ratchet",
+      message:
+        count > SKILL_COUNT_BASELINE
+          ? `${count} skills, baseline ${SKILL_COUNT_BASELINE} — consolidate or remove one instead of raising SKILL_COUNT_BASELINE (src/lib/lint-skills.ts)`
+          : `${count} skills, baseline ${SKILL_COUNT_BASELINE} — ratchet down: set SKILL_COUNT_BASELINE to ${count} in src/lib/lint-skills.ts and commit it`,
     });
   }
 
