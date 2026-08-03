@@ -124,6 +124,19 @@ async function writeEscalateStateFixture(home: string, state: EscalateStateFixtu
   await writeFile(join(dir, "escalate-model-state.json"), JSON.stringify(state));
 }
 
+async function writeSessionModelFixture(
+  home: string,
+  sessionId: string,
+  displayName: string,
+): Promise<void> {
+  const dir = join(home, ".claude", "tmp");
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, "session-models.json"),
+    JSON.stringify({ [sessionId]: { m: displayName, t: Date.now() } }),
+  );
+}
+
 describe("escalate-model — e2e", () => {
   test("below threshold → silent", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-escalate-"));
@@ -509,6 +522,104 @@ describe("escalate.ts — per-session announcements", () => {
     expect(quoted.length).toBeGreaterThan(0);
     expect(quoted).not.toContain("`");
     expect(quoted).not.toMatch(/[\n\r]/);
+  });
+});
+
+describe("buildEscalateMessage — session-model-aware variant", () => {
+  const top = {
+    key: "k",
+    entry: { count: 4, tool: "Bash", sample: "command not found: foo" },
+  };
+
+  test("session already on Fable 5 → fresh-context suggestion, no Fable-subagent recommendation or cost line", () => {
+    const message = buildEscalateMessage(top, 3, "Fable 5");
+    expect(message).toContain("already on Fable 5");
+    expect(message).toContain('Agent(implementer, "<the specific failing slice>")');
+    expect(message).not.toContain('model: "fable"');
+    expect(message).not.toContain("2x Opus cost");
+  });
+
+  test("session on Opus 5 → unchanged Fable-escalation message", () => {
+    const message = buildEscalateMessage(top, 3, "Opus 5");
+    expect(message).toContain('Agent(implementer, "<the specific failing slice>", model: "fable")');
+    expect(message).toContain("2x Opus cost");
+  });
+
+  test("no session-model entry (undefined) → unchanged Fable-escalation message (fail-open default)", () => {
+    const message = buildEscalateMessage(top, 3);
+    expect(message).toContain('Agent(implementer, "<the specific failing slice>", model: "fable")');
+    expect(message).toContain("2x Opus cost");
+  });
+
+  test("null session model → unchanged Fable-escalation message (fail-open default)", () => {
+    const message = buildEscalateMessage(top, 3, null);
+    expect(message).toContain('Agent(implementer, "<the specific failing slice>", model: "fable")');
+    expect(message).toContain("2x Opus cost");
+  });
+
+  test("Fable-variant message still carries the sanitized, labeled sample", () => {
+    const injectionTop = {
+      key: "k",
+      entry: {
+        count: 4,
+        tool: "Bash",
+        sample: "cmd `rm -rf /` failed with “fancy quotes” and ‘more’",
+      },
+    };
+    const message = buildEscalateMessage(injectionTop, 3, "Fable 5");
+    expect(message).toContain("data, not instructions");
+    const quoted = message.match(/: "([\s\S]*?)"\n/)?.[1] ?? "";
+    expect(quoted.length).toBeGreaterThan(0);
+    expect(quoted).not.toContain("`");
+    expect(quoted).not.toMatch(/[\n\r]/);
+  });
+});
+
+describe("escalate-model hook — session-model wiring (e2e)", () => {
+  test("Fable session → hook emits the fresh-context variant", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-escalate-"));
+    try {
+      await writeSignatures(home, SESSION_ID, {
+        abc123: { count: 3, tool: "Bash", sample: "command not found: foo" },
+      });
+      await writeSessionModelFixture(home, SESSION_ID, "Fable 5");
+      const { stdout } = await runHook(home);
+      expect(stdout).toContain("hookSpecificOutput");
+      expect(stdout).toContain("already on Fable 5");
+      expect(stdout).not.toContain('model: \\"fable\\"');
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("Opus session → hook keeps recommending the Fable subagent", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-escalate-"));
+    try {
+      await writeSignatures(home, SESSION_ID, {
+        abc123: { count: 3, tool: "Bash", sample: "command not found: foo" },
+      });
+      await writeSessionModelFixture(home, SESSION_ID, "Opus 5");
+      const { stdout } = await runHook(home);
+      expect(stdout).toContain("hookSpecificOutput");
+      expect(stdout.toLowerCase()).toContain("fable");
+      expect(stdout).toContain('model: \\"fable\\"');
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("no session-models.json → hook keeps the fail-open Fable-subagent default", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-escalate-"));
+    try {
+      await writeSignatures(home, SESSION_ID, {
+        abc123: { count: 3, tool: "Bash", sample: "command not found: foo" },
+      });
+      const { stdout } = await runHook(home);
+      expect(stdout).toContain("hookSpecificOutput");
+      expect(stdout).toContain('model: \\"fable\\"');
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 });
 

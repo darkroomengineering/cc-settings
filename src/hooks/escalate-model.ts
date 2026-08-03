@@ -34,6 +34,7 @@ import { emitAdditionalContext, readHookInput, readState, runHook } from "../lib
 import type { SignatureMap } from "../lib/problem-signature.ts";
 import { CACHE_STALE_MS, computeBand, type QuotaBand, readRateLimitsCache } from "../lib/quota.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
+import { readSessionModel } from "../lib/session-model.ts";
 
 // Same env-override precedent as CC_PARALLELMAX_THRESHOLD (hook-config.ts) —
 // default 3 matches post-failure.ts's existing "repeated failure" bar.
@@ -61,7 +62,11 @@ async function main(): Promise<void> {
 
   const signatures = await readState<SignatureMap>(`problem-signatures-${sessionId}`, {});
 
-  const [state, band] = await Promise.all([readEscalateState(), resolveBand()]);
+  const [state, band, sessionModel] = await Promise.all([
+    readEscalateState(),
+    resolveBand(),
+    readSessionModel(sessionId),
+  ]);
   const top = topUnannouncedSignature(signatures, state, sessionId);
   const now = Date.now();
 
@@ -69,7 +74,7 @@ async function main(): Promise<void> {
   // top is non-null here: shouldEscalate returns false when top is null.
   if (!top) return;
 
-  emitAdditionalContext("UserPromptSubmit", buildEscalateMessage(top, THRESHOLD));
+  emitAdditionalContext("UserPromptSubmit", buildEscalateMessage(top, THRESHOLD, sessionModel));
   await writeEscalateState(withAnnouncement(state, sessionId, top.key, now));
 }
 

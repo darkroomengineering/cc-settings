@@ -42,6 +42,11 @@ import {
   ReviewQueueStateSchema,
 } from "../lib/review-queue.ts";
 import {
+  refreshSessionModelMap,
+  SESSION_MODEL_STATE,
+  SessionModelMapSchema,
+} from "../lib/session-model.ts";
+import {
   readInstalledVersion,
   refreshSessionInstallMap,
   SESSION_INSTALL_STATE,
@@ -305,14 +310,35 @@ async function main(): Promise<void> {
       // Fallback recorder only — session-start.ts refreshes this entry on
       // every launch AND resume (same session_id survives a resume), which is
       // what lets the banner clear after a restart.
+      // A failed state write (unwritable/full tmp) must cost this segment only,
+      // never the whole render — without the catch it would bubble to main()'s
+      // outer catch and degrade the statusline to model/cwd on every render.
       await writeState(
         SESSION_INSTALL_STATE,
         refreshSessionInstallMap(sessionVersions, sessionId, installedNow, Date.now()),
-      );
+      ).catch(() => {});
     } else if (seen.v !== installedNow) {
       parts.push(
         `${palette.green}⟳ v${installedNow} installed — restart Claude to apply${palette.reset}`,
       );
+    }
+  }
+
+  // Session model map — lets escalate-model.ts (UserPromptSubmit) know whether
+  // the session is already on Fable 5 before recommending it as the
+  // escalation target. Write-on-change only: a no-op read + comparison on
+  // every render, a write only when this session's entry is missing or the
+  // model actually changed (a mid-session model switch), never on every
+  // render of an unchanged model.
+  if (sessionId && model) {
+    const sessionModels = await readValidatedState(SESSION_MODEL_STATE, SessionModelMapSchema, {});
+    const seenModel = sessionModels[sessionId];
+    if (!seenModel || seenModel.m !== model) {
+      // Same rationale as the SESSION_INSTALL_STATE catch above.
+      await writeState(
+        SESSION_MODEL_STATE,
+        refreshSessionModelMap(sessionModels, sessionId, model, Date.now()),
+      ).catch(() => {});
     }
   }
 
