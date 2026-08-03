@@ -28,6 +28,15 @@
 						"timeout": 3
 					}
 				]
+			},
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/escalate-model.ts\"",
+						"timeout": 3
+					}
+				]
 			}
 		],
 		"PreToolUse": [
