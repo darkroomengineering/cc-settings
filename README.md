@@ -2,17 +2,7 @@
 
 Claude Code configuration for the Darkroom team — installs agents, skills, hooks, and coding standards into `~/.claude/`.
 
----
-
-## Features
-
-- **One-command install** — drops shared agents, skills, hooks, and standards into ~/.claude
-- **Subagents & skills** — 10 specialized subagents and a curated, auto-invocable skill library
-- **Composed settings** — settings.json assembled from modular config: permissions and hooks. The MCP fragment is installed to `~/.claude.json`, the only file Claude Code loads user-scope MCP servers from
-- **Non-destructive** — existing permissions, custom hooks, and local overrides survive re-installs
-- **One-command rollback** — restore the previous backup if anything looks off
-- **Tamper detection** — a fingerprint plus audit guard the hooks against supply-chain attacks
-- **Open standard** — AGENTS.md is read by Codex, Cursor, Copilot, and Windsurf too
+Vanilla Claude Code is a capable but unopinionated agent. cc-settings turns it into the team's house engineer: it knows our standards, refuses to do dangerous things, proves its work before shipping it, delegates instead of grinding solo, routes work across model quotas, and detects when its own install has been tampered with.
 
 ---
 
@@ -30,104 +20,52 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
 ```
 
-Both one-liners clone the repo and run the installer. To pass flags (`--light`, `--dry-run`, …), clone first and run the bootstrap from the checkout: `bash setup.sh --light` or `.\setup.ps1 --light`.
-
-Requires [Bun](https://bun.sh) ≥ 1.2.21 and git — the bootstrap installs Bun automatically if missing. The full profile also installs `jq` if missing; no runtime hook shells out to it (all hooks are TypeScript) — it's for the `jq` one-liners used in team-knowledge remediation runbooks. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
-
-Restart Claude Code after install.
-
-### Light profile (for newcomers)
-
-New to Claude Code and don't want the full surface? Install the **light** profile — raw Claude Code with only two additions: the statusline and the `share-learning` skill.
-
-```bash
-bash setup.sh --light    # macOS / Linux
-.\setup.ps1 --light      # Windows (PowerShell)
-```
-
-No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the statusline), or effort overrides — just vanilla Claude Code so you're not overwhelmed. Re-run `bash setup.sh` without `--light` any time to upgrade to the full config; both tiers are permanently supported. See [MANUAL.md](MANUAL.md#light-vs-full) for the full comparison.
+Restart Claude Code after install. New to Claude Code? `bash setup.sh --light` installs a minimal tier (statusline + one skill) you can upgrade later. Flags, requirements, what lands where, rollback: [docs/install.md](./docs/install.md).
 
 ---
 
-## What gets installed
+## What it adds on top of vanilla Claude Code
 
-```
-~/.claude/
-├── AGENTS.md           # Portable coding standards (read by all AI tools)
-├── CLAUDE.md           # Claude-Code-specific config
-├── settings.json       # Composed from config/*.json (permissions, hooks, MCP)
-├── agents/             # 10 specialized subagents
-├── skills/             # 38 auto-invocable skills
-├── profiles/           # Stack contexts: nextjs, react-native, tauri, webgl, maestro, react-router
-├── rules/              # Path-conditioned rules (load on-demand by file type)
-└── src/                # Hook + script implementations (TypeScript)
-```
+### Standards & knowledge
 
-Repo → install mapping:
+- **[AGENTS.md](./AGENTS.md)** — portable coding standards on the [open standard](https://agents.md) also read by Codex, Cursor, Copilot, and Windsurf; the source of truth, with [CLAUDE.md](./CLAUDE.md) layering Claude-Code-specific behavior (edit strategy, delegation, autonomy contract, output shaping) on top.
+- **10 path-conditioned rules** — TypeScript, React, performance, accessibility, security, git, styling — loaded only when relevant files are in play, so context isn't spent on Tauri rules during a CSS fix.
+- **6 stack profiles** — nextjs, react-native, tauri, webgl, react-router, maestro — deeper per-stack workflows activated on demand.
+- **Team knowledge system** — a shared team-knowledge repo consulted before architecture/convention calls, per-project auto-memory, and `/share-learning` to promote personal learnings team-wide.
 
-| Repo dir | Installs to |
-|----------|-------------|
-| `agents/` | `~/.claude/agents/` |
-| `skills/` | `~/.claude/skills/` |
-| `rules/` | `~/.claude/rules/` |
-| `profiles/` | `~/.claude/profiles/` |
-| `config/*.json` | `~/.claude/settings.json` (composed) |
+### Automation: 38 skills, 10 agents, 15 hooks
 
----
+- **38 skills** — the workflow library: `/fix`, `/build`, `/review`, `/verify` (adversarial three-agent verification), `/audit`, `/ship` (push → PR → babysit CI), `/handoff`, `/orchestrate`, `/harvest`, `/triage`, and more ([MANUAL.md](./MANUAL.md) covers every one). The count is ratcheted in CI: adding a 39th or dropping to 37 both fail lint until the baseline is deliberately moved in a commit.
+- **10 subagents** — explore, planner, implementer, tester, reviewer, security-reviewer, deslopper, scaffolder, maestro, codex-verifier — with a mechanical delegation heuristic (3+ files or 12+ tool calls → delegate) enforced by a hook, because models under-delegate on their own.
+- **15 hook modules wired across 17 event types** (34 command bindings, including lifecycle scripts), split into hard gates and soft advisories:
+  - *Gates*: proof-of-work blocks pushing/PR-ing until typecheck/test/lint are green; the [farolero](https://github.com/darkroomengineering/farolero) ratchet gates commits in repos that use it; `/freeze` blocks edits outside a locked directory. For destructive Bash, the permissions deny-list is the enforcement boundary, with a fail-open safety-net hook as defense-in-depth on top ([SECURITY.md](./SECURITY.md)).
+  - *Advisories*: delegation nudges, model-escalation suggestions after repeated failures, quota steering, memory-promotion prompts.
 
-## The flow
+### Model & quota strategy
 
-The pieces add up to one loop: **rules start as advisories, work ships through gates, and an advisory is only promoted to a gate when telemetry proves it gets ignored.** The founding observation (from a client project where prose guardrails lost to a 10k-line agent weekend): advisory output is ignorable; a non-zero exit is not.
+- **Model pins** — Opus 5 as session default, Sonnet for subagent fan-out, effort pinned to `high`: a deliberate cost calibration ([docs/agent-models.md](./docs/agent-models.md)).
+- **Codex bridge** — the OpenAI Codex CLI as a second model family: default-on cross-model review of every meaningful diff, bulk mechanical work routed to Codex's roomy quota, Claude kept for planning and gate decisions. Fail-open when the bridge is down ([docs/codex-bridge.md](./docs/codex-bridge.md)).
+- **Quota-aware statusline** — model + effort, context-usage bar, 5h/7d rate-limit chips, review-queue backpressure, version drift, and Codex availability in one line.
 
-```mermaid
-flowchart TB
-    A([Session start]) --> B[Work the task]
-    B --> C{"3+ files, 12+ tool calls,<br/>or security-sensitive?"}
-    C -- yes --> D["Delegate:<br/>explore · implementer · planner ·<br/>tester · security-reviewer · maestro"]
-    C -- no --> E[Act directly]
-    D --> F{"Same failure<br/>repeated 3x?"}
-    E --> F
-    F -- "advisory fires" --> G["Scoped stronger-model pass:<br/>Agent(implementer, slice, model: fable)<br/>fresh-context subagent if already on Fable"]
-    F -- no --> H
-    G --> H[Ship]
-    H --> I["GATE hook: proof-of-work<br/>typecheck · tests · lint<br/>(blocks git push + gh pr create/ready)"]
-    I --> J["POLICY: Codex cross-model<br/>review of the diff<br/>(per-turn convention)"]
-    J --> K["GATE CI: ratchets, committed<br/>baselines that only descend"]
-    K --> L([Commit / PR])
-    L -.-> M["/retro weekly:<br/>fired-vs-acted act-rate,<br/>velocity, quality trends"]
-    M -.-> N{"Advisory ignored?<br/>(low act-rate)"}
-    N -- "yes, with evidence" --> O["Promote advisory to gate"]
-    N -- no --> P[Stays advisory]
-    O -.-> A
-    P -.-> A
-```
+### Settings & permissions
 
-The three tiers, concretely:
+Composed `settings.json` from modular fragments: a curated allowlist of safe commands, a large denylist (force-push, `curl | bash`, credential reads, `sudo`, secret deletion), and 4 pre-wired MCP servers — context7 for library docs, tldr for token-cheap code intel, figma, chrome-devtools. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
 
-| Tier | Can be ignored? | Examples |
-|------|-----------------|----------|
-| **Advisory** — injected context | Yes, by design | delegation nudge on broad prompts · quota steering · "escalate to a stronger model" after 3 identical failures |
-| **Gate** — non-zero exit | No | destructive-command safety net · `tsc` before commit · proof-of-work before PR · skill-count ratchet (fails in *both* directions, so every movement of the baseline lands in git with a reviewer) |
-| **Measurement** — the promotion path | n/a | every escalation advisory logs fired-vs-acted (`bun run escalate:stats`); `/retro` reports the act-rate weekly. An advisory earns gate status with evidence, never by default |
+### Supply-chain defense
 
-Gates live in the harness today; [farolero](https://github.com/darkroomengineering/farolero) moves the ratchet pattern into client repos as a plain dev-dependency, so it binds agents we don't control — any harness, any model.
+Setup writes a SHA256 fingerprint of the hooks block plus a content manifest of every installed script; every session start re-verifies both, and `bun run audit:hooks` classifies every hook command as trusted (content-hash-verified, or exact-match known-vendor templates), stale, unknown, or suspicious against known worm signatures. The auditor can never whitelist itself ([SECURITY.md](./SECURITY.md)).
+
+### The installer
+
+Non-destructive three-way merge that survives re-installs, timestamped backups with one-command rollback, dry-run preview, the `--light` beginner tier, and an upstream drift scanner that flags when Claude Code itself changed underneath the config.
+
+Everything is TypeScript on Bun, tested, linted, and CI-gated — including the counts and contracts above, so this summary stays true by construction rather than by discipline.
 
 ---
 
-## Common commands
+## How it fits together
 
-```bash
-bash setup.sh                  # Install / update (full profile)
-bash setup.sh --light          # Light profile: raw CC + statusline + share-learning only
-bun src/setup.ts --rollback    # Restore the previous backup
-bun src/setup.ts --dry-run     # Preview what would change
-bun run compose                # Preview the composed settings.json
-bun run lint:skills            # Validate skill frontmatter + count ratchet (baseline 38)
-bun run escalate:stats         # Fired-vs-acted act-rate for the escalation advisory
-bun run audit:hooks            # Classify hooks as trusted/unknown/suspicious
-bun run typecheck              # TypeScript check
-bun test                       # Run all tests
-```
+Rules start as advisories, work ships through gates, and an advisory is only promoted to a gate when telemetry proves it gets ignored. The full loop, with diagram: [docs/the-flow.md](./docs/the-flow.md).
 
 ---
 
@@ -135,6 +73,8 @@ bun test                       # Run all tests
 
 | Doc | What's in it |
 |-----|-------------|
+| [docs/install.md](./docs/install.md) | Install flags, requirements, light vs full, what lands where, common commands |
+| [docs/the-flow.md](./docs/the-flow.md) | The advisory → gate → measurement loop that ties the pieces together |
 | [MANUAL.md](./MANUAL.md) | Every skill — how to invoke it, what it does |
 | [AGENTS.md](./AGENTS.md) | Coding standards and guardrails (source of truth) |
 | [CLAUDE.md](./CLAUDE.md) | Claude-Code config, delegation rules, effort levels |
