@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.4.3"; // installer prunes stale settings.json hook entries pointing at removed/renamed cc-settings src files
+const VERSION = "13.5.0"; // reading-diff review protocol, known-vendor hook trust (programa), README restructure
 
 // --- Arg parsing ---------------------------------------------------------
 
