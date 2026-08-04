@@ -11,7 +11,10 @@
 //                manifest written by setup.ts. Trust is content-based, not
 //                path-based: a path-shaped match alone proves nothing, since
 //                malware can drop ~/.claude/src/hooks/evil.ts or patch a
-//                shipped script in place (see SECURITY.md).
+//                shipped script in place (see SECURITY.md). Also granted to
+//                exact-anchored known-vendor templates (KNOWN_VENDOR_HOOK_
+//                PATTERNS) whose commands are fully specified inline — there
+//                the template match IS the content verification.
 //   stale      — matches the shipped pattern, but the script file no longer
 //                exists on disk. Leftover from a hook rename/removal in a past
 //                cc-settings release. Harmless but noisy; re-run setup.sh.
@@ -221,6 +224,40 @@ function classifyCompound(
   };
 }
 
+// Known third-party integrations whose hook commands are fully specified
+// inline — unlike shipped scripts there is no file on disk whose content can
+// drift, so an exact template match IS the content verification. The contract
+// for every entry: the regex must be anchored ^...$, carry no flags (an `m`
+// flag would let a newline-appended payload ride inside the anchors), and
+// fully specify the command including quoting; any variable part must be an
+// explicit alternation of verified values, never an open token class. A
+// vendor shipping a new hook event should reappear as "unknown" until the
+// alternation is deliberately extended — that re-review is the point of this
+// auditor, not noise. Never add a pattern with a free-form tail or an
+// unanchored end — that hands the trust tier to anything that starts
+// correctly. The vendor binary itself is out of scope, same as `bun` is for
+// shipped hooks. Malware signatures are still checked first and always win
+// (see classifyHookCommand). The shape contract above is CI-enforced by the
+// "KNOWN_VENDOR_HOOK_PATTERNS shape contract" suite in
+// tests/audit-hooks.test.ts — exported for that test only.
+export const KNOWN_VENDOR_HOOK_PATTERNS: Array<{ rx: RegExp; vendor: string }> = [
+  {
+    // Programa terminal app (Programa.app ships this exact template; verified
+    // against the bundled CLI's strings, 2026-08-04). Gated on being inside a
+    // programa surface, fail-open to an empty JSON reply. Exactly the six
+    // events programa 0.4.0 installs.
+    rx: /^\[ -n "\$PROGRAMA_SURFACE_ID" \] && command -v programa >\/dev\/null 2>&1 && programa claude-hook (?:prompt-submit|pre-tool-use|session-start|session-end|stop|notification) \|\| echo '\{\}'$/,
+    vendor: "programa",
+  },
+];
+
+function matchKnownVendor(cmd: string): string | null {
+  for (const { rx, vendor } of KNOWN_VENDOR_HOOK_PATTERNS) {
+    if (rx.test(cmd)) return vendor;
+  }
+  return null;
+}
+
 // Strong signals of supply-chain malware in a hook command. These are
 // patterns benign hooks have no reason to use, and ALL appear in the
 // Shai-Hulud worm payload pattern reported by Snyk/Socket/Wiz (May 2026).
@@ -346,6 +383,19 @@ export function classifyHookCommand(
   }
   const compound = classifyCompound(cmd, integrity);
   if (compound) return compound;
+
+  // Known-vendor templates last among the trust checks: the command is fully
+  // specified inline, so the exact-anchored match is the content verification
+  // (no manifest involved). A malware-signature hit above always preempts this.
+  const vendor = matchKnownVendor(cmd);
+  if (vendor) {
+    return {
+      severity: "trusted",
+      reasons: [
+        `matches the known ${vendor} integration template exactly — command is fully specified inline, nothing on disk to verify`,
+      ],
+    };
+  }
 
   return {
     severity: "unknown",
