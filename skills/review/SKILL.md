@@ -29,6 +29,10 @@ git diff --staged
 git diff path/to/file
 ```
 
+## Large diffs: walk a reading diff, not a summary
+
+Past ~200 changed lines, present the diff walkthrough as a **reading diff** — the real diff, abridged — never a prose-only summary (prose can lie by omission; a diff can't). Every line shown is verbatim from `git diff`; the only editing allowed is removal and compression: drop whole no-signal lines, fold 2+ contiguous same-polarity lines into a `...` row, or elide a noisy span inside a kept line. Never rewrite one. Drop import churn, lockfiles, generated files, and formatting-only hunks; show one instance of a mechanical rename and fold the rest with a count; keep every behavioral change. Close with an accounting line — `showing N of M changed lines — dropped: ...` — naming any new dependency, changed import target, or lockfile version/integrity bump even though import churn is dropped. The full diff remains the merge authority. Full protocol: the "Reading diffs" section of `/review-batch` (adapted from boldsoftware/meat, Apache-2.0).
+
 ## Cross-model review (when the Codex bridge is available)
 
 This skill runs as the Claude `reviewer` agent — often Claude reviewing a diff Claude just wrote, the self-preferential-bias case. Run an independent review from a different model family in parallel and reconcile (the reviewer has `Bash`, so call the bridge directly):
