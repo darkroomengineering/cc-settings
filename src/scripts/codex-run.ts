@@ -4,15 +4,23 @@
 // using the OpenAI Codex CLI as a second model in the Claude x Codex pairing.
 //
 // Usage:
-//   codex-run.ts exec [--force] "<task>"    — delegate mechanical/bulk work to Codex
-//   codex-run.ts review [--force]           — independent review of the current uncommitted diff
-//   codex-run.ts ask [--force] "<question>" — read-only second opinion from Codex
+//   codex-run.ts exec [--force] "<task>"     — delegate mechanical/bulk work to Codex
+//   codex-run.ts review [--force] [scope]    — independent review, default: uncommitted diff
+//   codex-run.ts ask [--force] "<question>"  — read-only second opinion from Codex
+//
+// review scope flags (mutually exclusive, default: uncommitted working-tree diff):
+//   --staged           review only the staged diff (`git diff --cached`)
+//   --base <branch>    review the diff against a base branch (merge-base...HEAD)
+//   --commit <sha>     review a single commit
+//
+// CODEX_REVIEW_MODEL: when set, pins `review` to that model via `codex exec -m`
+//   — mirrors Codex's own `review_model` config key. Unset uses codex's default.
 //
 // --force: bypass a sticky rate-limited or no-access verdict and re-probe with a
 //   real call. Useful when the quota message was a false positive (e.g. auth mismatch).
 //   Does NOT bypass not-installed or unauthenticated — those can't succeed regardless.
 
-import { runCodexExec, sanitizeOutput } from "../lib/codex.ts";
+import { buildReviewPrompt, parseReviewArgs, runCodexExec, sanitizeOutput } from "../lib/codex.ts";
 import { runGit } from "../lib/git.ts";
 
 function usage(): void {
@@ -21,11 +29,18 @@ function usage(): void {
       "Usage: codex-run.ts <subcommand> [--force] [args]",
       "",
       "  exec [--force] <task>      Delegate mechanical/bulk work to Codex (workspace-write sandbox)",
-      "  review [--force]           Review the current uncommitted diff for bugs, security issues, and quality",
+      "  review [--force] [scope]   Review a diff for bugs, security issues, and quality",
       "  ask [--force] <question>   Read-only second opinion from Codex",
       "",
       "  --force  Bypass a sticky rate-limited/no-access verdict and re-probe.",
       "           Useful when the quota error is a false positive (e.g. auth mismatch).",
+      "",
+      "review scope (mutually exclusive, default: uncommitted working-tree diff):",
+      "  --staged           review only the staged diff (git diff --cached)",
+      "  --base <branch>    review the diff against a base branch",
+      "  --commit <sha>     review a single commit",
+      "",
+      "CODEX_REVIEW_MODEL env var pins review to a specific model (codex exec -m).",
     ].join("\n"),
   );
 }
@@ -93,22 +108,20 @@ switch (subcommand) {
   }
 
   case "review": {
-    const { force } = parseForce(rest);
-    const reviewPrompt = [
-      "You are performing an independent code review of the current uncommitted diff in this repository.",
-      "",
-      "Steps:",
-      "1. Run `git status` to see which files are modified.",
-      "2. Run `git diff` to see the full uncommitted changes (also check `git diff --cached` for staged changes).",
-      "3. Review the diff for: correctness bugs, security issues (injection, secrets, unsafe operations),",
-      "   and obvious quality problems (logic errors, missing error handling, type unsafety).",
-      "4. Report your findings grouped by severity: HIGH, MEDIUM, LOW.",
-      "   For each finding include: file + line range, description, and suggested fix.",
-      "5. If the diff is clean, say so explicitly.",
-      "",
-      "Be concise and precise. Focus on real problems, not style preferences.",
-    ].join("\n");
-    const result = await runCodexExec({ prompt: reviewPrompt, sandbox: "read-only", force });
+    const parsed = parseReviewArgs(rest);
+    if (!parsed.ok) {
+      console.error(`Error: ${parsed.error}\n`);
+      usage();
+      process.exit(2);
+    }
+    const reviewPrompt = buildReviewPrompt(parsed.scope);
+    const model = process.env.CODEX_REVIEW_MODEL || undefined;
+    const result = await runCodexExec({
+      prompt: reviewPrompt,
+      sandbox: "read-only",
+      force: parsed.force,
+      model,
+    });
     if (result.ok) {
       console.log(result.output);
       process.exit(0);

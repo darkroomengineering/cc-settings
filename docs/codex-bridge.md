@@ -87,12 +87,25 @@ The routing convention above is enforced automatically, not just documented. `sr
 # Execute a task via Codex
 /codex exec "refactor all API handlers to use the new response format"
 
-# Cross-model review of the current diff
+# Cross-model review of the current diff (default: uncommitted working-tree diff)
 /codex review
+
+# Review scope presets (mutually exclusive) — mirrors Codex's own /review presets
+/codex review --staged           # only the staged diff (git diff --cached)
+/codex review --base main        # diff against a base branch (merge-base...HEAD)
+/codex review --commit abc1234   # a single commit
 
 # Ask Codex a question without executing
 /codex ask "what are the edge cases in this auth flow?"
 ```
+
+Set `CODEX_REVIEW_MODEL` to pin `review` to a specific model via `codex exec -m`, independent of the model an interactive Codex session would use — mirrors Codex's own `review_model` config key:
+
+```bash
+CODEX_REVIEW_MODEL=<model-name> bun "$HOME/.claude/src/scripts/codex-run.ts" review
+```
+
+`/codex` is a Claude Code skill, not a shell command, so it can't take an inline env-var prefix — the skill reads `CODEX_REVIEW_MODEL` from the session's environment. To have `/codex review` pick it up, `export CODEX_REVIEW_MODEL=<model-name>` before launching Claude Code (or in your shell profile).
 
 ### `codex-verifier` agent
 
@@ -122,7 +135,7 @@ Without this step, `verify-hooks.ts` will warn about a fingerprint mismatch at t
 
 ## Related: native config import (the other direction)
 
-This bridge is *runtime* interop — Claude calls Codex per-task. Codex also offers *config* interop in the opposite direction: **Settings → General → Import other agent setup** ([docs](https://developers.openai.com/codex/import)) ingests an existing agent's `AGENTS.md`, `settings.json`, MCP servers, hooks, slash commands, and subagents, converting them to Codex-native equivalents.
+This bridge is *runtime* interop — Claude calls Codex per-task. Codex also offers *config* interop in the opposite direction: **Settings → General → Import other agent setup** ([docs](https://learn.chatgpt.com/docs/import)) ingests an existing agent's `AGENTS.md`, `settings.json`, MCP servers, hooks, slash commands, and subagents, converting them to Codex-native equivalents.
 
 Because cc-settings already treats `AGENTS.md` as the portable source of truth (installed to `~/.claude/AGENTS.md`), a teammate working standalone in Codex can import it and inherit the Darkroom standards without this bridge at all. The two are complementary:
 

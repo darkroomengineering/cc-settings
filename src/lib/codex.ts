@@ -111,6 +111,10 @@ export interface CodexRunOptions {
    *  mismatch). Does NOT bypass not-installed or unauthenticated — those can't
    *  succeed regardless. */
   force?: boolean;
+  /** Pins `codex exec` to a specific model via `-m/--model` (mirrors Codex's own
+   *  `review_model` config key — pinning review to a cheaper model than the
+   *  interactive session). Unset → codex uses its configured default model. */
+  model?: string;
 }
 
 export interface CodexRunResult {
@@ -375,15 +379,20 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   let exit: number;
   let signalCode: string | null;
   try {
-    const proc = Bun.spawn(["codex", "exec", "--sandbox", sandbox, "--", opts.prompt], {
-      cwd: opts.cwd,
-      stdout: "pipe",
-      stderr: "pipe",
-      timeout,
-      // Hard kill on the timeout: a child that ignores SIGTERM (Bun's default) could
-      // otherwise outrun the ceiling. SIGKILL guarantees the bound is real.
-      killSignal: "SIGKILL",
-    });
+    // Model pin goes before the `--` end-of-options marker, alongside --sandbox.
+    const modelArgs = opts.model ? ["--model", opts.model] : [];
+    const proc = Bun.spawn(
+      ["codex", "exec", "--sandbox", sandbox, ...modelArgs, "--", opts.prompt],
+      {
+        cwd: opts.cwd,
+        stdout: "pipe",
+        stderr: "pipe",
+        timeout,
+        // Hard kill on the timeout: a child that ignores SIGTERM (Bun's default) could
+        // otherwise outrun the ceiling. SIGKILL guarantees the bound is real.
+        killSignal: "SIGKILL",
+      },
+    );
     [stdout, stderr] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
@@ -443,8 +452,204 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // can't clobber a fresher sticky L2 verdict a concurrent exec just wrote.
   if (cls.state === "unknown") {
     await commitReconciled({ state: "available", checkedAt: now, sticky: false });
+  } else if (opts.model) {
+    // A pinned model (e.g. CODEX_REVIEW_MODEL) can 403/quota out on its own —
+    // that's model-specific, not "the account has no Codex access" or "the
+    // account is rate-limited" in general. Writing it to the shared sticky
+    // cache would wrongly block unpinned exec/ask calls for 5-24h. Surface the
+    // failure to this caller only; leave the shared verdict cache untouched.
   } else {
     await writeCodexVerdict({ state: cls.state, checkedAt: now, sticky: true, detail: cls.detail });
   }
   return { ok: false, output: sanitizeOutput(stdout.trim()), state: cls.state, detail: cls.detail };
+}
+
+// ── Review scope (the /codex review subcommand) ─────────────────────────────
+//
+// Codex's own `/review` has four presets: base-branch, uncommitted, a specific
+// commit, and custom instructions. We adopt the first three as flags — the
+// fourth ("custom instructions") is already covered by `codex-run.ts ask`.
+//
+// The review subcommand does not build a diff itself and pipe it to Codex —
+// it tells Codex (running in a read-only sandbox with shell access) which git
+// command(s) to run to see the diff, and Codex inspects the tree on its own.
+// So "scope" here means picking which git command(s) go into that instruction
+// text, not constructing a diff on the TypeScript side.
+
+export type ReviewScope =
+  | { kind: "uncommitted" }
+  | { kind: "staged" }
+  | { kind: "base"; branch: string }
+  | { kind: "commit"; sha: string };
+
+export type ParseReviewArgsResult =
+  | { ok: true; scope: ReviewScope; force: boolean }
+  | { ok: false; error: string };
+
+// `--base`/`--commit` values are interpolated verbatim into the review
+// instruction text that Codex reads and acts on (see reviewScopeStepTexts
+// below). The TS side never runs git itself, but an option-like value
+// (`-s`) or one carrying shell metacharacters could still steer which git
+// command Codex ends up running in its own sandbox. Restrict to a strict git
+// ref charset: must start with an alphanumeric, then alphanumerics plus
+// `. _ / -`. No leading `-`, no spaces, no `;`, `$`, backticks, quotes, etc.
+const SAFE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
+/** Parse `review` subcommand args. Unlike `exec`/`ask`, `review` takes no
+ *  trailing prompt — every token is a flag. `--staged`, `--base <branch>`,
+ *  and `--commit <sha>` are mutually exclusive; combining them (or any
+ *  unrecognized token) is a parse error, not a fallback to default scope, so
+ *  a typo'd flag can't silently review the wrong thing. Pure — does not touch
+ *  git or spawn codex, so it's safe to unit test and safe to call before the
+ *  preflight gate. */
+export function parseReviewArgs(args: string[]): ParseReviewArgsResult {
+  let force = false;
+  let staged = false;
+  let base: string | undefined;
+  let commit: string | undefined;
+  const unknown: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+    if (arg === "--staged") {
+      if (staged) return { ok: false, error: "review: --staged passed more than once." };
+      staged = true;
+      continue;
+    }
+    if (arg === "--base") {
+      if (base !== undefined) return { ok: false, error: "review: --base passed more than once." };
+      // A value starting with "--" is almost certainly the next flag, not a
+      // branch name — treat it as a missing value rather than swallowing it.
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { ok: false, error: "review: --base requires a branch argument." };
+      }
+      if (!SAFE_REF_RE.test(value)) {
+        return {
+          ok: false,
+          error: `review: --base value "${value}" is not a valid git ref (letters, digits, '.', '_', '/', '-' only; must not start with '-').`,
+        };
+      }
+      i++;
+      base = value;
+      continue;
+    }
+    if (arg === "--commit") {
+      if (commit !== undefined)
+        return { ok: false, error: "review: --commit passed more than once." };
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { ok: false, error: "review: --commit requires a commit SHA argument." };
+      }
+      if (!SAFE_REF_RE.test(value)) {
+        return {
+          ok: false,
+          error: `review: --commit value "${value}" is not a valid git ref (letters, digits, '.', '_', '/', '-' only; must not start with '-').`,
+        };
+      }
+      i++;
+      commit = value;
+      continue;
+    }
+    unknown.push(arg ?? "");
+  }
+
+  const scopeCount = [staged, base !== undefined, commit !== undefined].filter(Boolean).length;
+  if (scopeCount > 1) {
+    return {
+      ok: false,
+      error: "review: --staged, --base, and --commit are mutually exclusive — pass at most one.",
+    };
+  }
+  if (unknown.length > 0) {
+    return { ok: false, error: `review: unrecognized argument(s): ${unknown.join(" ")}` };
+  }
+
+  const scope: ReviewScope = staged
+    ? { kind: "staged" }
+    : base !== undefined
+      ? { kind: "base", branch: base }
+      : commit !== undefined
+        ? { kind: "commit", sha: commit }
+        : { kind: "uncommitted" };
+
+  return { ok: true, scope, force };
+}
+
+/** One-line description of the scope, used in the prompt's opening sentence. */
+function reviewScopeDescription(scope: ReviewScope): string {
+  switch (scope.kind) {
+    case "uncommitted":
+      return "the current uncommitted diff in this repository";
+    case "staged":
+      return "the currently staged diff in this repository";
+    case "base":
+      return `the diff between HEAD and its merge base with \`${scope.branch}\``;
+    case "commit":
+      return `commit \`${scope.sha}\``;
+  }
+}
+
+/** The git command(s) Codex should run to see the diff for this scope, as
+ *  plain step text (no numbering — buildReviewPrompt numbers them). */
+function reviewScopeStepTexts(scope: ReviewScope): string[] {
+  switch (scope.kind) {
+    case "uncommitted":
+      return [
+        "Run `git status` to see which files are modified.",
+        "Run `git diff` to see the full uncommitted changes (also check `git diff --cached` for staged changes).",
+      ];
+    case "staged":
+      return [
+        "Run `git status` to see which files are staged.",
+        "Run `git diff --cached` to see the full staged diff. Ignore any unstaged changes.",
+      ];
+    case "base":
+      return [
+        `Run \`git diff ${scope.branch}...HEAD\` (three-dot: everything changed since HEAD diverged from ${scope.branch}, at the merge base — not a direct two-branch diff).`,
+      ];
+    case "commit":
+      return [`Run \`git show ${scope.sha}\` to see the full diff introduced by that commit.`];
+  }
+}
+
+/** Build the review prompt for a scope. For `{ kind: "uncommitted" }` (the
+ *  default, used when no scope flag is passed) this must stay byte-identical
+ *  to the original hardcoded prompt — callers and cached expectations rely on
+ *  today's no-flag behavior being unchanged. */
+export function buildReviewPrompt(scope: ReviewScope): string {
+  const sharedStepLines: string[][] = [
+    [
+      "Review the diff for: correctness bugs, security issues (injection, secrets, unsafe operations),",
+      "   and obvious quality problems (logic errors, missing error handling, type unsafety).",
+    ],
+    [
+      "Report your findings grouped by severity: HIGH, MEDIUM, LOW.",
+      "   For each finding include: file + line range, description, and suggested fix.",
+    ],
+    ["If the diff is clean, say so explicitly."],
+  ];
+
+  const lines: string[] = [];
+  const scopeSteps = reviewScopeStepTexts(scope);
+  for (let i = 0; i < scopeSteps.length; i++) lines.push(`${i + 1}. ${scopeSteps[i]}`);
+  let n = scopeSteps.length;
+  for (const stepLines of sharedStepLines) {
+    n++;
+    lines.push(`${n}. ${stepLines[0]}`);
+    for (let j = 1; j < stepLines.length; j++) lines.push(stepLines[j] as string);
+  }
+
+  return [
+    `You are performing an independent code review of ${reviewScopeDescription(scope)}.`,
+    "",
+    "Steps:",
+    ...lines,
+    "",
+    "Be concise and precise. Focus on real problems, not style preferences.",
+  ].join("\n");
 }

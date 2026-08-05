@@ -3,8 +3,10 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  buildReviewPrompt,
   type CodexVerdict,
   classifyCodexError,
+  parseReviewArgs,
   reconcile,
   sanitizeOutput,
 } from "../src/lib/codex.ts";
@@ -534,5 +536,262 @@ describe("sanitizeOutput — terminal-control stripping beyond SGR colors", () =
     expect(result).not.toContain(ESC);
     expect(result).toContain("oops");
     expect(result).toContain("tail");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseReviewArgs — CLI arg parsing for `codex-run.ts review`
+// ---------------------------------------------------------------------------
+
+describe("parseReviewArgs — default (no flags)", () => {
+  test("no args → uncommitted scope, force false", () => {
+    const result = parseReviewArgs([]);
+    expect(result).toEqual({ ok: true, scope: { kind: "uncommitted" }, force: false });
+  });
+
+  test("--force alone → uncommitted scope, force true", () => {
+    const result = parseReviewArgs(["--force"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "uncommitted" }, force: true });
+  });
+});
+
+describe("parseReviewArgs — individual scope flags", () => {
+  test("--staged → staged scope", () => {
+    const result = parseReviewArgs(["--staged"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "staged" }, force: false });
+  });
+
+  test("--base <branch> → base scope with branch", () => {
+    const result = parseReviewArgs(["--base", "main"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "base", branch: "main" }, force: false });
+  });
+
+  test("--commit <sha> → commit scope with sha", () => {
+    const result = parseReviewArgs(["--commit", "abc1234"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "commit", sha: "abc1234" }, force: false });
+  });
+
+  test("--force combined with a scope flag → force true, scope set", () => {
+    const result = parseReviewArgs(["--force", "--staged"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "staged" }, force: true });
+  });
+
+  test("scope flag before --force → same result regardless of order", () => {
+    const result = parseReviewArgs(["--base", "develop", "--force"]);
+    expect(result).toEqual({
+      ok: true,
+      scope: { kind: "base", branch: "develop" },
+      force: true,
+    });
+  });
+
+  test("--base without a following value → parse error", () => {
+    const result = parseReviewArgs(["--base"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base requires a branch argument");
+  });
+
+  test("--commit without a following value → parse error", () => {
+    const result = parseReviewArgs(["--commit"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--commit requires a commit SHA argument");
+  });
+});
+
+describe("parseReviewArgs — a flag-shaped token is never swallowed as a value", () => {
+  test("--base --staged → --base treated as missing value, not '--staged' as the branch", () => {
+    const result = parseReviewArgs(["--base", "--staged"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base requires a branch argument");
+  });
+
+  test("--commit --force → --commit treated as missing value, not '--force' as the sha", () => {
+    const result = parseReviewArgs(["--commit", "--force"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--commit requires a commit SHA argument");
+  });
+
+  test("--base --commit → --base treated as missing value, not '--commit' as the branch", () => {
+    const result = parseReviewArgs(["--base", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base requires a branch argument");
+  });
+});
+
+describe("parseReviewArgs — duplicate scope flags are rejected, not silently overwritten", () => {
+  test("--base main --base dev → parse error, does not silently take the last value", () => {
+    const result = parseReviewArgs(["--base", "main", "--base", "dev"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base passed more than once");
+  });
+
+  test("--staged --staged → parse error", () => {
+    const result = parseReviewArgs(["--staged", "--staged"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--staged passed more than once");
+  });
+
+  test("--commit abc --commit def → parse error", () => {
+    const result = parseReviewArgs(["--commit", "abc", "--commit", "def"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--commit passed more than once");
+  });
+});
+
+describe("parseReviewArgs — --base/--commit values must be a safe git ref", () => {
+  // Values are interpolated verbatim into the review instruction text Codex
+  // reads and acts on. An option-like or shell-metacharacter value must be
+  // rejected rather than silently steered into the git command Codex runs.
+  test("--base '-s' → parse error (option-like value)", () => {
+    const result = parseReviewArgs(["--base", "-s"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test("--base 'main; rm x' → parse error (shell metacharacters)", () => {
+    const result = parseReviewArgs(["--base", "main; rm x"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test("--commit '$(x)' → parse error (command substitution)", () => {
+    const result = parseReviewArgs(["--commit", "$(x)"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test("--commit backtick-wrapped value → parse error", () => {
+    const result = parseReviewArgs(["--commit", "`whoami`"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test.each([["main"], ["feat/foo"], ["v1.2.3"], ["origin/main"], ["a".repeat(40)]])(
+    "%s is accepted as a --base value",
+    (ref) => {
+      const result = parseReviewArgs(["--base", ref]);
+      expect(result).toEqual({ ok: true, scope: { kind: "base", branch: ref }, force: false });
+    },
+  );
+
+  test.each([["main"], ["feat/foo"], ["v1.2.3"], ["origin/main"], ["a".repeat(40)]])(
+    "%s is accepted as a --commit value",
+    (ref) => {
+      const result = parseReviewArgs(["--commit", ref]);
+      expect(result).toEqual({ ok: true, scope: { kind: "commit", sha: ref }, force: false });
+    },
+  );
+});
+
+describe("parseReviewArgs — mutual exclusion", () => {
+  test("--staged + --base → parse error, does not pick either scope", () => {
+    const result = parseReviewArgs(["--staged", "--base", "main"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+
+  test("--staged + --commit → parse error", () => {
+    const result = parseReviewArgs(["--staged", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+
+  test("--base + --commit → parse error", () => {
+    const result = parseReviewArgs(["--base", "main", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+
+  test("all three scope flags combined → parse error", () => {
+    const result = parseReviewArgs(["--staged", "--base", "main", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+});
+
+describe("parseReviewArgs — unrecognized arguments", () => {
+  test("an unknown flag → parse error", () => {
+    const result = parseReviewArgs(["--bogus"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("unrecognized argument");
+  });
+
+  test("a stray positional token → parse error", () => {
+    const result = parseReviewArgs(["something"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("unrecognized argument");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildReviewPrompt — diff-scope-to-instruction-text construction
+// ---------------------------------------------------------------------------
+
+describe("buildReviewPrompt — default (uncommitted) scope stays byte-identical", () => {
+  // Locks in today's behavior: no flags passed must produce exactly the prompt
+  // that shipped before scope presets existed, so existing callers/expectations
+  // are unaffected.
+  const ORIGINAL_PROMPT = [
+    "You are performing an independent code review of the current uncommitted diff in this repository.",
+    "",
+    "Steps:",
+    "1. Run `git status` to see which files are modified.",
+    "2. Run `git diff` to see the full uncommitted changes (also check `git diff --cached` for staged changes).",
+    "3. Review the diff for: correctness bugs, security issues (injection, secrets, unsafe operations),",
+    "   and obvious quality problems (logic errors, missing error handling, type unsafety).",
+    "4. Report your findings grouped by severity: HIGH, MEDIUM, LOW.",
+    "   For each finding include: file + line range, description, and suggested fix.",
+    "5. If the diff is clean, say so explicitly.",
+    "",
+    "Be concise and precise. Focus on real problems, not style preferences.",
+  ].join("\n");
+
+  test("uncommitted scope prompt matches the original hardcoded prompt exactly", () => {
+    expect(buildReviewPrompt({ kind: "uncommitted" })).toBe(ORIGINAL_PROMPT);
+  });
+});
+
+describe("buildReviewPrompt — scope-specific instructions", () => {
+  test("staged scope tells Codex to run `git diff --cached` and ignore unstaged changes", () => {
+    const prompt = buildReviewPrompt({ kind: "staged" });
+    expect(prompt).toContain("git diff --cached");
+    expect(prompt).toContain("Ignore any unstaged changes");
+    expect(prompt).toContain("the currently staged diff in this repository");
+  });
+
+  test("base scope tells Codex to run a three-dot diff against the branch", () => {
+    const prompt = buildReviewPrompt({ kind: "base", branch: "main" });
+    expect(prompt).toContain("git diff main...HEAD");
+    expect(prompt).toContain("merge base with `main`");
+  });
+
+  test("commit scope tells Codex to run `git show <sha>`", () => {
+    const prompt = buildReviewPrompt({ kind: "commit", sha: "abc1234" });
+    expect(prompt).toContain("git show abc1234");
+    expect(prompt).toContain("commit `abc1234`");
+  });
+
+  test("step numbering stays sequential and renumbers around a single scope step", () => {
+    // base/commit scopes contribute one step instead of two, so the shared
+    // steps (review/report/clean-check) shift from 3/4/5 to 2/3/4.
+    const prompt = buildReviewPrompt({ kind: "commit", sha: "deadbeef" });
+    expect(prompt).toContain("1. Run `git show deadbeef`");
+    expect(prompt).toContain("2. Review the diff for:");
+    expect(prompt).toContain("3. Report your findings grouped by severity");
+    expect(prompt).toContain("4. If the diff is clean, say so explicitly.");
+  });
+
+  test("all scopes end with the same closing guidance sentence", () => {
+    const scopes = [
+      { kind: "uncommitted" as const },
+      { kind: "staged" as const },
+      { kind: "base" as const, branch: "main" },
+      { kind: "commit" as const, sha: "abc" },
+    ];
+    for (const scope of scopes) {
+      expect(buildReviewPrompt(scope)).toContain(
+        "Be concise and precise. Focus on real problems, not style preferences.",
+      );
+    }
   });
 });

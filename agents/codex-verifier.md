@@ -30,6 +30,8 @@ If the Bash tool is NOT available in this spawn context (forked skill executions
 bun "$HOME/.claude/src/scripts/codex-run.ts" review
 ```
 
+For a PR-shaped review (the whole branch vs. a base, not just the uncommitted tip), pass `--base <branch>` instead — e.g. `review --base main`. See `docs/codex-bridge.md` for the full set of scope flags.
+
 2. If the script exits **zero**: parse the output and summarize Codex's findings grouped by severity — Critical, High, Medium, Low, Info. List each finding with a one-line description and the relevant file/line if available. If Codex found nothing, say so plainly. **Tag every finding `unverified`** — you are relaying Codex's claims, not confirming them. Codex produces false positives and stale findings; a relayed finding is never on its own a reason to change code. The caller adjudicates (confirm / reject) before acting.
 
 3. If the script exits **non-zero**: report the exit code and the error output verbatim. Do **not** retry. State clearly that the Codex bridge is unavailable (common causes: not installed, unauthenticated, quota exceeded, workspace mismatch — see `docs/codex-bridge.md`) and that the user should fix the bridge and re-invoke.

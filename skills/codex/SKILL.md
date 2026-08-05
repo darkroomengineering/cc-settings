@@ -55,6 +55,30 @@ Runs in a `read-only` sandbox. Codex reads the repo itself (`git diff`, `git sta
 
 Use this after you have finished a diff and want a second opinion from a different model family. Codex and Claude have different blind spots — cross-model review catches what Opus self-review misses. This is the primary reason to prefer `review` over asking Claude to review its own output.
 
+**Scope presets** — mirrors Codex's own `/review` presets (base-branch / uncommitted / commit / custom). Default with no flags is the uncommitted working-tree diff, unchanged from before. Flags are mutually exclusive:
+
+```bash
+# Default: review the current uncommitted diff (git diff + git diff --cached)
+bun "$HOME/.claude/src/scripts/codex-run.ts" review
+
+# Only the staged diff
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --staged
+
+# Diff against a base branch (merge-base...HEAD)
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --base main
+
+# A single commit
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --commit abc1234
+```
+
+Codex's fourth preset ("custom instructions") is covered by `ask` above rather than a review flag.
+
+**Review model pin** — set `CODEX_REVIEW_MODEL` to pin `review` to a specific (often cheaper) model via `codex exec -m`, independent of whatever model an interactive Codex session uses. This mirrors Codex's own `review_model` config key. Unset uses codex's configured default model.
+
+```bash
+CODEX_REVIEW_MODEL=<model-name> bun "$HOME/.claude/src/scripts/codex-run.ts" review
+```
+
 ### ask -- read-only second opinion
 
 ```bash
