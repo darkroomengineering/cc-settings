@@ -25,6 +25,7 @@ import {
   KNOWN_VENDOR_HOOK_PATTERNS,
   loadSrcIntegrity,
   type SrcIntegrity,
+  SUSPICIOUS_PATTERNS,
 } from "../src/lib/audit-hooks.ts";
 import { writeSrcManifest } from "../src/lib/hooks-fingerprint.ts";
 
@@ -1056,5 +1057,64 @@ describe("KNOWN_VENDOR_HOOK_PATTERNS shape contract", () => {
     expect(hasBareWildcardDot("a\\.b")).toBe(false);
     expect(hasBareWildcardDot("[.]")).toBe(false);
     expect(hasBareWildcardDot("[\\]].")).toBe(true);
+  });
+});
+
+// Self-testing patterns — stolen from openai/codex execpolicy's prefix_rule()
+// match/not_match example lists, validated at rule-load time. Every regex
+// collection in this file (SUSPICIOUS_PATTERNS, KNOWN_VENDOR_HOOK_PATTERNS)
+// carries `match`/`notMatch` example commands; this suite iterates every
+// pattern and asserts every example resolves as declared. A regex typo that
+// silently stops matching (or starts over-matching) fails `bun test`, not a
+// production audit — see the .npmrc word-boundary near-miss this caught
+// while authoring these examples (`\b\.npmrc\b` does not match "cat .npmrc";
+// the char before "." must be a word char for the \b to fire).
+describe("pattern self-tests — match/notMatch examples (execpolicy-inspired)", () => {
+  test("every SUSPICIOUS_PATTERNS entry matches all its `match` examples and none of its `notMatch` examples", () => {
+    expect(SUSPICIOUS_PATTERNS.length).toBeGreaterThan(0);
+    for (const { rx, reason, match, notMatch } of SUSPICIOUS_PATTERNS) {
+      // Every pattern must prove it matches something — a pattern with zero
+      // `match` examples is itself a test failure, not just an omission.
+      expect(match.length).toBeGreaterThan(0);
+      for (const cmd of match) {
+        expect({ reason, cmd, matched: rx.test(cmd) }).toEqual({ reason, cmd, matched: true });
+      }
+      for (const cmd of notMatch) {
+        expect({ reason, cmd, matched: rx.test(cmd) }).toEqual({ reason, cmd, matched: false });
+      }
+    }
+  });
+
+  test("every KNOWN_VENDOR_HOOK_PATTERNS entry matches all its `match` examples and none of its `notMatch` examples", () => {
+    expect(KNOWN_VENDOR_HOOK_PATTERNS.length).toBeGreaterThan(0);
+    for (const { rx, vendor, match, notMatch } of KNOWN_VENDOR_HOOK_PATTERNS) {
+      expect(match.length).toBeGreaterThan(0);
+      for (const cmd of match) {
+        expect({ vendor, cmd, matched: rx.test(cmd) }).toEqual({ vendor, cmd, matched: true });
+      }
+      for (const cmd of notMatch) {
+        expect({ vendor, cmd, matched: rx.test(cmd) }).toEqual({ vendor, cmd, matched: false });
+      }
+    }
+  });
+
+  // classifyHookCommand end-to-end sanity: every SUSPICIOUS_PATTERNS `match`
+  // example should also classify as "suspicious" through the full pipeline
+  // (not just the bare regex), and every vendor `match` example should
+  // classify as "trusted" — ties the self-test examples to real behavior.
+  test("SUSPICIOUS_PATTERNS match examples classify as suspicious end-to-end", () => {
+    for (const { match } of SUSPICIOUS_PATTERNS) {
+      for (const cmd of match) {
+        expect(classifyHookCommand(cmd).severity).toBe("suspicious");
+      }
+    }
+  });
+
+  test("KNOWN_VENDOR_HOOK_PATTERNS match examples classify as trusted end-to-end", () => {
+    for (const { match } of KNOWN_VENDOR_HOOK_PATTERNS) {
+      for (const cmd of match) {
+        expect(classifyHookCommand(cmd).severity).toBe("trusted");
+      }
+    }
   });
 });

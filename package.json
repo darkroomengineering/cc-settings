@@ -17,6 +17,7 @@
     "lint:agents": "bun src/scripts/lint-agents.ts",
     "lint:profiles": "bun src/scripts/lint-profiles.ts",
     "audit:hooks": "bun src/scripts/audit-hooks.ts",
+    "permissions:check": "bun src/scripts/permissions-check.ts",
     "claude-audit": "bun src/scripts/claude-audit.ts",
     "format": "biome format --write .",
     "schemas:emit": "bun src/schemas/emit.ts",

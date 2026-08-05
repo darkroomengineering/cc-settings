@@ -37,5 +37,6 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Lint: `bun run lint` / `bun run lint:fix`
 - Schemas (regenerate JSON Schema from zod sources): `bun run schemas:emit`
 - Preview composed settings.json: `bun run compose`
+- Dry-run a Bash command against the permission rules: `bun run permissions:check "<cmd>"` (`--installed` to check against `~/.claude/settings.json` instead of `config/`)
 - Upstream drift scan: `bun run upstream:scan`
 - Commits: conventional — `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`.
