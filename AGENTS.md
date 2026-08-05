@@ -288,6 +288,34 @@ No AI fingerprints in git history, PRs, or descriptions. Ever.
 
 ---
 
+## Code Review Rules
+
+Scoping convention read by AGENTS.md-aware reviewers — Codex's GitHub integration (`@codex review`)
+scopes to this exact heading, and the cc-settings review agents (`reviewer`, `codex-verifier`,
+`/review`, `/codex review`) follow it too.
+
+Report only findings that change behavior or risk. Anything a formatter or Biome already
+catches is noise — skip it.
+
+**P0 — block the merge:**
+- Secrets or credentials in the diff (`.env` values, keys, tokens)
+- Injection: unparameterized SQL, `dangerouslySetInnerHTML` with user content, open redirects
+- Unvalidated input at a trust boundary (API routes, webhooks, form handlers)
+- Data-loss paths: unhandled errors on writes/migrations, destructive operations without a guard
+- Type-safety escapes that hide runtime failures: `any`, careless `as` assertions, `@ts-ignore`
+- Test assertions relaxed, skipped, or deleted to make the suite pass (see `Failing Tests`)
+
+**P1 — should fix before merge:**
+- Request waterfalls (sequential awaits on independent data); barrel imports of heavy libraries
+- Accessibility misses on touched UI: missing `alt`/`aria-label`/labels, `<div onClick>`, sub-44px targets
+- Manual `useMemo`/`useCallback`/`React.memo` in React Compiler projects
+- A new dependency where stdlib, platform, or an installed dep suffices (Laziness Ladder rungs 2–5)
+- Scope creep inside a bug-fix diff (see `Bug Fix Scope`)
+
+**Not review findings:** formatting, import order, naming taste, comment density.
+
+---
+
 ## External Libraries
 
 **Search before building** — rungs 2–4 of the `Laziness Ladder` applied to dependencies: stdlib, then platform, then already-installed deps, before anything new. Reinventing something the platform already ships (or that exists as a one-liner) is the most common avoidable waste; adding a dependency you didn't need is the second-most-common.
