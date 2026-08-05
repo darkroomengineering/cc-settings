@@ -109,6 +109,39 @@ export async function pruneArtifacts(
   return entries.slice(keep).map((e) => e.file);
 }
 
+/**
+ * Absolute paths of files in `dir` matching `pattern` whose mtime is older
+ * than `maxAgeDays`. Does NOT delete — callers unlink, same contract as
+ * pruneArtifacts (this is the age-cutoff sibling of that count-based prune).
+ * Missing/unreadable dir ⇒ []. A per-entry stat failure (vanished between
+ * readdir and stat) skips just that entry.
+ */
+export async function pruneStaleFiles(
+  dir: string,
+  pattern: RegExp,
+  maxAgeDays: number,
+): Promise<string[]> {
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const stale: string[] = [];
+  for (const name of names) {
+    if (!pattern.test(name)) continue;
+    const full = join(dir, name);
+    try {
+      const st = await stat(full);
+      if (st.mtimeMs < cutoffMs) stale.push(full);
+    } catch {
+      // vanished between readdir and stat — skip just this entry
+    }
+  }
+  return stale;
+}
+
 export interface ResolveSpec {
   /** Symlink filename pointing at the latest artifact, e.g. "latest" or "latest.md". */
   latestLink: string;

@@ -3,10 +3,19 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  readlink,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pointLatest } from "../src/lib/artifact-store.ts";
+import { pointLatest, pruneStaleFiles } from "../src/lib/artifact-store.ts";
 import { installHintForPM, RECOMMENDED_TOOLS } from "../src/lib/cli-preflight.ts";
 import { getClaudeMdMonitor } from "../src/lib/hook-config.ts";
 import { isUnsafeTarEntry, restoreUnitsFromArchive } from "../src/lib/install-cmds.ts";
@@ -330,5 +339,32 @@ describe("artifact-store — pointLatest atomicity", () => {
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }
+  });
+});
+
+describe("artifact-store — pruneStaleFiles", () => {
+  test("returns matching files older than maxAgeDays, skips fresh and non-matching files", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-artifact-psf-"));
+    try {
+      const old = join(sandbox, "tool-failure-counts-abc123");
+      const fresh = join(sandbox, "tool-failure-counts-def456");
+      const nonMatching = join(sandbox, "rate-limits.json");
+      await writeFile(old, "{}");
+      await writeFile(fresh, "{}");
+      await writeFile(nonMatching, "{}");
+
+      const oldTime = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      await utimes(old, oldTime, oldTime); // backdate mtime past the 7-day cutoff
+
+      const stale = await pruneStaleFiles(sandbox, /^tool-failure-counts-/, 7);
+      expect(stale).toEqual([old]);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
+  test("missing dir returns []", async () => {
+    const stale = await pruneStaleFiles(join(tmpdir(), "cc-artifact-psf-missing"), /.*/, 7);
+    expect(stale).toEqual([]);
   });
 });

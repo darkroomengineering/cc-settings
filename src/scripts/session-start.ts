@@ -18,7 +18,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { pruneArtifacts } from "../lib/artifact-store.ts";
+import { pruneArtifacts, pruneStaleFiles } from "../lib/artifact-store.ts";
 import { type EngineDescriptor, resolveEngine } from "../lib/code-intel-engine.ts";
 import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
@@ -249,13 +249,27 @@ async function compactRecoveryLines(): Promise<string[]> {
 
 // --- Phase 1: background tasks --------------------------------------------
 
-// Clean per-session temp files from the previous session.
-await Promise.all(
-  [
-    join(CLAUDE_DIR, "tmp", "tool-failure-counts"),
-    join(CLAUDE_DIR, "tmp", "heavy-skill-active"),
-  ].map((p) => unlink(p).catch(() => {})),
-);
+// Clean per-session temp files. These are named `<prefix>-<sessionId>`
+// (e.g. tool-failure-counts-<uuid>, written by post-failure.ts), not the bare
+// prefix — a flat unlink of the bare name (the previous code here) never
+// matched anything on disk, so every session's tally file accumulated
+// forever (107 tool-failure-counts-* files observed on 2026-08-05, ~4KB
+// each, unbounded by construction — the local-log-growth failure mode from
+// openai/codex#28224). Age-based sweep instead: anything older than 7 days,
+// across any session, matching either prefix.
+const tmpDir = join(CLAUDE_DIR, "tmp");
+const staleSessionFiles = (
+  await Promise.all(
+    [/^tool-failure-counts-/, /^heavy-skill-active-/].map((p) => pruneStaleFiles(tmpDir, p, 7)),
+  )
+).flat();
+await Promise.all([
+  // heavy-skill-active is written as a BARE filename by skill instructions
+  // (grep skills/ for it) — unlike the suffixed tally files, the exact unlink
+  // here is live and must stay.
+  unlink(join(tmpDir, "heavy-skill-active")).catch(() => {}),
+  ...staleSessionFiles.map((f) => unlink(f).catch(() => {})),
+]);
 
 // Prune stale entries from the MCP needs-auth cache so OAuth servers whose
 // tokens have since refreshed can reconnect. See prune-mcp-auth-cache.ts.
