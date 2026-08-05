@@ -61,6 +61,20 @@ export interface LintResult {
 // stay possible. Verifying a baseline against its merge-base is a CI-side job.
 export const SKILL_COUNT_BASELINE = 38;
 
+// The count ratchet above is a proxy — the real per-turn cost is the byte size
+// of the name+description index the Skill selector reads every turn, not the
+// number of skills contributing to it. OpenAI Codex caps its equivalent
+// skill-index surface at 2% of context or 8,000 chars
+// (learn.chatgpt.com/docs/build-skills); our descriptions totaled ~11.7 KB in
+// Aug 2026 when this was added, already over that reference cap.
+//
+// Unlike SKILL_COUNT_BASELINE this is a ceiling, not a two-way ratchet: the
+// total fluctuates with normal description edits (tightening one description
+// while lengthening another nets zero), so only exceeding the budget is an
+// error. The fix for a violation is tightening the longest descriptions, not
+// raising this constant.
+export const SKILL_DESCRIPTION_BYTE_BUDGET = 12288;
+
 // Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
 // the schema `name` field regexes (agent/skill/profile/knowledge) — see
 // KEBAB_CASE_RE in frontmatter.ts for why this used to disagree with them.
@@ -75,8 +89,16 @@ const RESERVED_PREFIXES = ["claude", "anthropic"];
 // every valid phrasing but flags the obvious misses ("Helps with projects").
 const TRIGGER_PATTERN = /(triggers?|use (when|for)|used for|when (user|you)|after\b)/i;
 
-async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> {
+interface LintOneResult {
+  findings: LintFinding[];
+  // Byte length of the frontmatter `description` field, or 0 when the
+  // frontmatter doesn't parse (schema errors already cover that case).
+  descriptionBytes: number;
+}
+
+async function lintOne(skillsDir: string, name: string): Promise<LintOneResult> {
   const findings: LintFinding[] = [];
+  let descriptionBytes = 0;
   const dir = join(skillsDir, name);
   const skillPath = join(dir, "SKILL.md");
 
@@ -111,7 +133,7 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
 
   if (!existsSync(skillPath)) {
     push("error", "skill-md-missing", "SKILL.md not found (exact case required)");
-    return findings;
+    return { findings, descriptionBytes };
   }
 
   const text = await readFile(skillPath, "utf8");
@@ -155,6 +177,7 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
     }
 
     const desc = fm.description;
+    descriptionBytes = Buffer.byteLength(desc, "utf8");
 
     // Guide: under 1024 chars. Hard limit (Claude.ai upload rejects past this).
     if (desc.length > 1024) {
@@ -191,12 +214,19 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
     findings.push({ skill: name, severity: f.severity, rule: f.rule, message: f.message });
   }
 
-  return findings;
+  return { findings, descriptionBytes };
 }
 
 export async function lintSkillsDir(
   skillsDir: string,
-  opts: { checkManaged?: boolean } = {},
+  opts: {
+    checkManaged?: boolean;
+    // Test-only override for SKILL_DESCRIPTION_BYTE_BUDGET — the constant itself
+    // stays fixed for real runs. checkManaged also gates the count ratchet and
+    // ACTIVE_SKILLS parity, so a fixture dir can't cleanly exercise the byte
+    // budget in isolation without this.
+    descriptionByteBudget?: number;
+  } = {},
 ): Promise<LintResult> {
   if (!existsSync(skillsDir)) {
     // A missing custom dir is a no-op, but the canonical skills/ going missing is
@@ -224,8 +254,33 @@ export async function lintSkillsDir(
     skillNames.push(entry.name);
   }
 
+  const descriptionBytesBySkill: Array<{ name: string; bytes: number }> = [];
+  let totalDescriptionBytes = 0;
+
   for (const name of skillNames) {
-    findings.push(...(await lintOne(skillsDir, name)));
+    const { findings: skillFindings, descriptionBytes } = await lintOne(skillsDir, name);
+    findings.push(...skillFindings);
+    descriptionBytesBySkill.push({ name, bytes: descriptionBytes });
+    totalDescriptionBytes += descriptionBytes;
+  }
+
+  // Same opt-in as the count ratchet: index-byte totals are only meaningful
+  // against the canonical skills/ dir, not a small test fixture.
+  if (opts.checkManaged) {
+    const budget = opts.descriptionByteBudget ?? SKILL_DESCRIPTION_BYTE_BUDGET;
+    if (totalDescriptionBytes > budget) {
+      const topOffenders = [...descriptionBytesBySkill]
+        .sort((a, b) => b.bytes - a.bytes)
+        .slice(0, 3)
+        .map((s) => `${s.name} (${s.bytes}B)`)
+        .join(", ");
+      findings.push({
+        skill: "(repo)",
+        severity: "error",
+        rule: "description-byte-budget",
+        message: `skill descriptions total ${totalDescriptionBytes} bytes, budget ${budget} — tighten the longest descriptions instead of raising SKILL_DESCRIPTION_BYTE_BUDGET (src/lib/lint-skills.ts). Largest: ${topOffenders}`,
+      });
+    }
   }
 
   // Repo-level invariant, so it rides the same opt-in as the ACTIVE_SKILLS parity

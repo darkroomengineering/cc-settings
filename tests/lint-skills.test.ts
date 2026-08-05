@@ -4,8 +4,10 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { formatFindings, hasErrors, lintSkillsDir } from "../src/lib/lint-skills.ts";
+
+const ROOT = resolve(import.meta.dir, "..");
 
 async function sandbox(): Promise<string> {
   return mkdtemp(join(tmpdir(), "cc-lint-skills-"));
@@ -268,6 +270,44 @@ describe("lintSkillsDir — missing pieces", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("lintSkillsDir — description byte budget", () => {
+  test("flags total description bytes over the budget", async () => {
+    const dir = await sandbox();
+    try {
+      // The check only runs under checkManaged, which also gates the count
+      // ratchet and ACTIVE_SKILLS parity — those will fire too against this
+      // fixture, but this test only cares about the byte-budget finding.
+      await writeSkill(dir, "alpha", goodFrontmatter("alpha"));
+      const result = await lintSkillsDir(dir, { checkManaged: true, descriptionByteBudget: 10 });
+      const finding = result.findings.find((f) => f.rule === "description-byte-budget");
+      expect(finding).toBeDefined();
+      expect(finding?.message).toContain("budget 10");
+      expect(finding?.message).toContain("alpha");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("does not flag total description bytes under the budget", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(dir, "alpha", goodFrontmatter("alpha"));
+      const result = await lintSkillsDir(dir, {
+        checkManaged: true,
+        descriptionByteBudget: 1_000_000,
+      });
+      expect(result.findings.some((f) => f.rule === "description-byte-budget")).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("real repo skills/ dir stays under SKILL_DESCRIPTION_BYTE_BUDGET", async () => {
+    const result = await lintSkillsDir(resolve(ROOT, "skills"), { checkManaged: true });
+    expect(result.findings.some((f) => f.rule === "description-byte-budget")).toBe(false);
   });
 });
 
