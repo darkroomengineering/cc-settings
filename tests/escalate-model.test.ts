@@ -496,6 +496,15 @@ describe("escalate.ts — per-session announcements", () => {
     expect(shouldEscalate(top, 3, debounced, now, "normal")).toBe(false); // within debounce
   });
 
+  test("shouldEscalate: exhausted band suppresses even when count/threshold/debounce all allow it", () => {
+    const top = { key: "k", entry: { count: 10, tool: "Bash", sample: "x" } };
+    const now = Date.now();
+    const neverEmitted: EscalateState = { bySession: {}, sessionOrder: [], lastEmit: 0 };
+    expect(shouldEscalate(top, 3, neverEmitted, now, "exhausted")).toBe(false);
+    expect(shouldEscalate(top, 3, neverEmitted, now, "normal")).toBe(true);
+    expect(shouldEscalate(top, 3, neverEmitted, now, "unknown")).toBe(true);
+  });
+
   test("buildEscalateMessage keeps the sample on one line and strips quote characters", () => {
     const top = {
       key: "k",

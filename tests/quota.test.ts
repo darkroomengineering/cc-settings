@@ -3,6 +3,7 @@ import {
   buildSteerMessage,
   CRITICAL_REMIND_MS,
   computeBand,
+  formatTimeToReset,
   shouldEmit,
 } from "../src/lib/quota.ts";
 
@@ -29,6 +30,13 @@ describe("computeBand", () => {
     expect(computeBand(59, 65)).toBe("elevated");
     expect(computeBand(60, 85)).toBe("critical");
     expect(computeBand(85, 64)).toBe("critical");
+  });
+
+  test("exhausted boundary at 95%", () => {
+    expect(computeBand(94, undefined)).toBe("critical");
+    expect(computeBand(95, undefined)).toBe("exhausted");
+    expect(computeBand(undefined, 95)).toBe("exhausted");
+    expect(computeBand(96, 85)).toBe("exhausted");
   });
 });
 
@@ -59,6 +67,12 @@ describe("shouldEmit", () => {
     expect(
       shouldEmit({ band: "elevated", lastEmit: now - CRITICAL_REMIND_MS }, "normal", now),
     ).toBe(false);
+  });
+
+  test("exhausted always emits", () => {
+    expect(shouldEmit({ band: "exhausted", lastEmit: now - 1 }, "exhausted", now)).toBe(true);
+    expect(shouldEmit(null, "exhausted", now)).toBe(true);
+    expect(shouldEmit({ band: "critical", lastEmit: now - 1 }, "exhausted", now)).toBe(true);
   });
 });
 
@@ -100,5 +114,57 @@ describe("buildSteerMessage", () => {
     expect(msg).toContain("sonnet");
     expect(msg).toContain("Codex bridge is rate-limited");
     expect(msg).toContain("do not attempt the codex bridge");
+  });
+
+  test("exhausted + available routes to codex and tells the user", () => {
+    const msg = buildSteerMessage("exhausted", "available", 97, 90);
+    expect(msg).toContain("[quota:exhausted]");
+    expect(msg).toContain("codex-run.ts exec");
+    expect(msg).toContain("tell the user");
+  });
+
+  test("exhausted + available with resets_at mentions time to reset", () => {
+    const future = String(Math.floor(Date.now() / 1000) + 7200);
+    const msg = buildSteerMessage("exhausted", "available", 97, 90, future);
+    expect(msg).toContain("resets in");
+  });
+
+  test("exhausted + unauthenticated recommends /model sonnet and tells the user", () => {
+    const msg = buildSteerMessage("exhausted", "unauthenticated", 97, 90);
+    expect(msg).toContain("/model sonnet");
+    expect(msg).toContain("tell the user");
+  });
+
+  test("exhausted via weekly window only binds the reset note to the weekly window", () => {
+    const sevenDayFuture = String(Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60);
+    const msg = buildSteerMessage("exhausted", "available", 40, 97, undefined, sevenDayFuture);
+    expect(msg).toContain("weekly window resets in");
+  });
+
+  test("exhausted via both windows binds the reset note to the 5h window (resets first)", () => {
+    const fiveHourFuture = String(Math.floor(Date.now() / 1000) + 7200);
+    const sevenDayFuture = String(Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60);
+    const msg = buildSteerMessage("exhausted", "available", 97, 97, fiveHourFuture, sevenDayFuture);
+    expect(msg).toContain("5h window resets in");
+  });
+});
+
+describe("formatTimeToReset", () => {
+  test("epoch-seconds string 2h in the future formats as HhMMm", () => {
+    const future = String(Math.floor(Date.now() / 1000) + 7200);
+    expect(formatTimeToReset(future)).toMatch(/^\d+h\d{2}m$/);
+  });
+
+  test("past value returns null", () => {
+    expect(formatTimeToReset("1000000")).toBeNull();
+  });
+
+  test("undefined returns null", () => {
+    expect(formatTimeToReset(undefined)).toBeNull();
+  });
+
+  test("epoch-seconds string 3 days in the future formats as DdHh", () => {
+    const future = String(Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60);
+    expect(formatTimeToReset(future)).toMatch(/^\d+d\d+h$/);
   });
 });

@@ -14,7 +14,7 @@
 // clobbered with fixture numbers.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -66,6 +66,43 @@ async function statuslineOutput(
 const inTwoHours = (): number => Math.floor(Date.now() / 1000) + 8100; // +2h15m
 const OUTSIDE = { PROGRAMA_SURFACE_ID: undefined };
 const INSIDE = { PROGRAMA_SURFACE_ID: "95BBD408-7E22-46A3-9C53-7522F1C7D2E9" };
+
+/** Seeds a throwaway HOME's codex-verdict.json cache before the statusline hook
+ *  runs, so the ⚡ chip's "→codex" routing badge can be exercised without a real
+ *  Codex CLI on PATH. Mirrors the shape written by src/lib/codex.ts's writeCodexVerdict. */
+async function seedCodexVerdict(home: string, state: string): Promise<void> {
+  const tmpDir = join(home, ".claude", "tmp");
+  await mkdir(tmpDir, { recursive: true });
+  await writeFile(
+    join(tmpDir, "codex-verdict.json"),
+    JSON.stringify({ state, checkedAt: new Date().toISOString(), sticky: false }),
+  );
+}
+
+async function runStatuslineWithSeededHome(
+  input: Payload,
+  seed: (home: string) => Promise<void>,
+  env: Record<string, string | undefined> = {},
+): Promise<string> {
+  const home = await mkdtemp(join(tmpdir(), "cc-statusline-"));
+  await seed(home);
+  const childEnv: Record<string, string> = {};
+  for (const [k, v] of Object.entries({ ...process.env, HOME: home, USERPROFILE: home, ...env })) {
+    if (v !== undefined) childEnv[k] = v;
+  }
+  const proc = Bun.spawn(["bun", HOOK], {
+    env: childEnv,
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  proc.stdin.write(JSON.stringify(input));
+  proc.stdin.end();
+  const out = await new Response(proc.stdout).text();
+  expect(await proc.exited).toBe(0);
+  await rm(home, { recursive: true, force: true });
+  return out;
+}
 
 describe("statusline rate-limit chip — Programa gate", () => {
   test("outside Programa → chip renders with percentage", async () => {
@@ -119,6 +156,38 @@ describe("statusline time-to-reset — resets_at shape tolerance", () => {
     const out = await statuslineOutput(payload(12, "not-a-timestamp"), OUTSIDE);
     expect(out).toContain("⚡");
     expect(out).not.toContain("↻");
+  });
+});
+
+describe("statusline rate-limit chip — exhausted routing badge", () => {
+  test("exhausted (>=95%) + codex available → →codex suffix appears", async () => {
+    const out = await runStatuslineWithSeededHome(
+      payload(97, inTwoHours()),
+      (home) => seedCodexVerdict(home, "available"),
+      OUTSIDE,
+    );
+    expect(out).toContain("⚡97%");
+    expect(out).toContain("→codex");
+  });
+
+  test("exhausted (>=95%) + codex NOT available → no →codex suffix", async () => {
+    const out = await runStatuslineWithSeededHome(
+      payload(97, inTwoHours()),
+      (home) => seedCodexVerdict(home, "unauthenticated"),
+      OUTSIDE,
+    );
+    expect(out).toContain("⚡97%");
+    expect(out).not.toContain("→codex");
+  });
+
+  test("below exhausted threshold (94%) + codex available → no →codex suffix", async () => {
+    const out = await runStatuslineWithSeededHome(
+      payload(94, inTwoHours()),
+      (home) => seedCodexVerdict(home, "available"),
+      OUTSIDE,
+    );
+    expect(out).toContain("⚡94%");
+    expect(out).not.toContain("→codex");
   });
 });
 

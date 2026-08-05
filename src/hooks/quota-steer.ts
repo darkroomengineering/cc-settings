@@ -42,7 +42,14 @@ async function main(): Promise<void> {
   if (shouldEmit(prev, band, now)) {
     emitAdditionalContext(
       "UserPromptSubmit",
-      buildSteerMessage(band, codexVerdict.state, fiveHourPct, sevenDayPct),
+      buildSteerMessage(
+        band,
+        codexVerdict.state,
+        fiveHourPct,
+        sevenDayPct,
+        cache.five_hour?.resets_at,
+        cache.seven_day?.resets_at,
+      ),
     );
     await writeQuotaSteerState({ band, lastEmit: now });
     return;

@@ -33,7 +33,12 @@ const palette = {
 import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
 import { readHookInput, readValidatedState, writeState } from "../lib/hook-runtime.ts";
 import { claudePath } from "../lib/platform.ts";
-import { type RateLimitsCache, writeRateLimitsCache } from "../lib/quota.ts";
+import {
+  computeBand,
+  formatTimeToReset,
+  type RateLimitsCache,
+  writeRateLimitsCache,
+} from "../lib/quota.ts";
 import {
   ageMs,
   formatAge,
@@ -104,29 +109,6 @@ function formatTokens(n: number): string {
 // more crowded of the two surfaces. Every other terminal has no second quota
 // surface, so the chip is the only signal and it renders.
 const IN_PROGRAMA = Boolean(process.env.PROGRAMA_SURFACE_ID);
-
-// `resets_at` is Unix epoch seconds on current Claude Code builds; older builds
-// emitted ISO strings. Normalise both before formatting — the pre-v12 version of
-// this helper did a bare Date.parse(iso), which returns NaN for "1753600000" and
-// would silently drop the ↻ suffix now that the payload carries epoch seconds.
-function formatTimeToReset(value: number | string | undefined): string | null {
-  if (value === undefined) return null;
-  const numeric = typeof value === "number" ? value : Number(value);
-  let resetMs: number;
-  if (value !== "" && Number.isFinite(numeric)) {
-    // Below ~1e11 is seconds (that boundary is year 5138); larger is already ms.
-    resetMs = numeric < 1e11 ? numeric * 1000 : numeric;
-  } else {
-    resetMs = Date.parse(String(value));
-  }
-  if (Number.isNaN(resetMs)) return null;
-  const deltaMs = resetMs - Date.now();
-  if (deltaMs <= 0) return null;
-  const totalMin = Math.round(deltaMs / 60_000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h > 0 ? `${h}h${m.toString().padStart(2, "0")}m` : `${m}m`;
-}
 
 // Statusline git reads are hot-path and read-only: --no-optional-locks avoids
 // contending with a concurrent git process holding the index lock. The spawn
@@ -254,14 +236,27 @@ async function main(): Promise<void> {
   // is what keeps it fresh between sessions (session-start.ts only refreshes it
   // on launch and resume). Gating the write would leave the sidebar showing
   // stale numbers from whenever the last session started.
+  // Codex bridge availability — read here (rather than at its original spot
+  // near the bottom) so the ⚡ chip below can append a "→codex" routing badge
+  // when quota is exhausted and Codex is available to absorb the work.
+  const codexVerdict = await readCodexVerdict();
+
   if (!IN_PROGRAMA) {
     const rateUsed = input.rate_limits?.five_hour?.used_percentage;
     if (rateUsed !== undefined) {
       const rInt = Math.round(rateUsed);
       const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
       const ttr = formatTimeToReset(input.rate_limits?.five_hour?.resets_at);
+      const band = computeBand(
+        input.rate_limits?.five_hour?.used_percentage,
+        input.rate_limits?.seven_day?.used_percentage,
+      );
+      const routing =
+        band === "exhausted" && codexVerdict.state === "available"
+          ? ` ${palette.red}→codex${palette.reset}`
+          : "";
       const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
-      parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
+      parts.push(`${color}⚡${rInt}%${palette.reset}${routing}${suffix}`);
     }
   }
 
@@ -342,10 +337,9 @@ async function main(): Promise<void> {
     }
   }
 
-  // Codex bridge availability badge — reads the cached verdict written by
-  // codex-verify.ts at SessionStart (no spawn here, hot-path safe).
-  // "not-installed" and "unknown" → silent (no clutter for teammates without Codex).
-  const codexVerdict = await readCodexVerdict();
+  // Codex bridge availability badge — codexVerdict was read earlier (before
+  // the ⚡ chip block) so this segment reuses it. "not-installed" and
+  // "unknown" → silent (no clutter for teammates without Codex).
   if (codexVerdict.state === "available") {
     parts.push(`${palette.green}codex ✓${palette.reset}`);
   } else if (codexVerdict.state === "unauthenticated" || codexVerdict.state === "no-access") {

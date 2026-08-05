@@ -74,15 +74,19 @@ export function topUnannouncedSignature(
 
 /** Pure gate: should this hook speak right now?
  *  Silent when: no unannounced signature, below threshold, still inside the
- *  global debounce window, or the quota band is elevated or critical.
- *  quota-steer.ts already tells the model at "elevated" to keep subagents on
- *  sonnet and reserve Opus/Fable turns for planning, synthesis, and gate
- *  decisions, and at "critical" to avoid Opus/Fable subagents entirely —
- *  recommending a Fable subagent here at EITHER band directly contradicts
- *  that guidance, and 2x spend is exactly the wrong move while quota is
- *  tight. An "unknown" band (cache missing/stale) is NOT treated as
- *  elevated/critical — fail-open toward being useful rather than toward
- *  silence when there's no signal either way. */
+ *  global debounce window, or the quota band is anything other than "normal"
+ *  (elevated, critical, or exhausted). quota-steer.ts already tells the model
+ *  at "elevated" to keep subagents on sonnet and reserve Opus/Fable turns for
+ *  planning, synthesis, and gate decisions, at "critical" to avoid Opus/Fable
+ *  subagents entirely, and at "exhausted" to spawn no Claude subagents at
+ *  all — recommending a Fable subagent here at ANY of those bands directly
+ *  contradicts that guidance, and 2x spend is exactly the wrong move while
+ *  quota is tight. Written as "not normal and not unknown" (rather than
+ *  listing each non-normal band) so a future QuotaBand addition is excluded
+ *  by default instead of silently escaping the gate. An "unknown" band
+ *  (cache missing/stale) is NOT treated as elevated/critical/exhausted —
+ *  fail-open toward being useful rather than toward silence when there's no
+ *  signal either way. */
 export function shouldEscalate(
   top: TopSignature | null,
   threshold: number,
@@ -93,7 +97,7 @@ export function shouldEscalate(
   if (!top) return false;
   if (top.entry.count < threshold) return false;
   if (now - state.lastEmit < ESCALATE_DEBOUNCE_MS) return false;
-  if (band === "critical" || band === "elevated") return false;
+  if (band !== "normal" && band !== "unknown") return false;
   return true;
 }
 

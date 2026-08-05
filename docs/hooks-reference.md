@@ -358,7 +358,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 |--------|---------|-------|
 | `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
 | `delegation-detector.ts` | Regex-scores incoming prompt for breadth signals (phrases like "do all", "across the repo", path-shaped tokens, large numbered lists). At score ≥ 2, injects a compact `additionalContext` reminder: score, matched signals, and a one-line routing guide (maestro / implementer / parallel agents in ONE message). Overriding requires a stated reason. | No |
-| `quota-steer.ts` | Reads the statusline's cached rate-limit percentages; injects quota-aware model-routing guidance (Codex bridge / Sonnet downshift) once usage crosses elevated/critical thresholds. Fail-open | No |
+| `quota-steer.ts` | Reads the statusline's cached rate-limit percentages; injects quota-aware model-routing guidance (Codex bridge / Sonnet downshift) once usage crosses elevated/critical/exhausted thresholds; at exhausted (≥95%) it re-injects every prompt and directs a full funnel to Codex plus a user-facing notice. Fail-open | No |
 
 > Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 

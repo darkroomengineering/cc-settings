@@ -168,7 +168,7 @@ The OpenAI Codex CLI runs as a second model alongside Claude via the `/codex` sk
 
 Two roomy pools (Sonnet + Codex) carry volume; the one scarce pool (Opus) does the thinking. If a Codex window drains, fail over to Claude-only rather than stalling.
 
-The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json`, and the `quota-steer` hook escalates routing urgency past 5h ≥ 60% / weekly ≥ 65%.
+The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json`, and the `quota-steer` hook escalates routing urgency past 5h ≥ 60% / weekly ≥ 65%. At ≥95% of either window (`exhausted` band) it goes hard: every prompt re-injects a directive to route ALL executable work to Codex (or, bridge down, to pause/`/model sonnet`) and to tell the user; the statusline chip shows `→codex` alongside the percentage.
 
 ---
 
