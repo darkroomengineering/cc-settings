@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.6.2] — 2026-08-06
+
+**Everyone was silently on context7's lower tier.** cc-settings ships context7 as the keyless stdio transport (`bunx -y @upstash/context7-mcp`), and context7 documents a free API key as what "unlocks higher rate limits and use your private repositories". Nothing anywhere said so, so every install sat on the worse tier by default.
+
+This surfaced backwards. A maintainer's machine had a hand-configured hosted entry with a key, which the installer correctly preserved and reported as *"your copy is in use — cc-settings' version not applied"*. That message names a divergence but not its direction, so the better setup read as drift to clean up — and briefly got cleaned up.
+
+The install summary now prints one line when our keyless entry is the one actually running:
+
+```
+context7 is running keyless (lower rate limits).
+Higher limits + private repos: bunx ctx7 setup --claude --mcp
+Free key: context7.com/dashboard
+```
+
+It points at `ctx7 setup`, which context7 maintains and which does its own OAuth, key generation, and config write. cc-settings never reads, writes, stores, or prints a key. Two reasons it hints rather than running anything: the repo has no precedent for an interactive or OAuth third-party handoff — every child-process spawn in `packages.ts`, `pinned-tools.ts`, `schedule.ts`, and `git.ts` passes `stdin: "ignore"` precisely so setup can never block — and the auth contract is context7's to own (their README documents `Authorization: Bearer` while a working local config used a `CONTEXT7_API_KEY` header; guessing between them is not our job). The precedent copied is `cli-preflight.ts`: detect, print the command, never run it, never block.
+
+Detection reuses a signal that already existed — `installMcpToClaudeJson` returns the shipped server names a user definition shadowed, which `showSummary` already renders. No new file reads, no `~/.claude.json` parsing, no sentinel state, and no suppression flag: the hint disappears by itself once you replace the entry, the same way a `cli-preflight` warning disappears once you install `rg`. New pure `shouldHintContext7()` in `src/lib/install-display.ts`, unit-tested across five cases; the load-bearing one is that a user running their own entry is never nudged.
+
+The condition is deliberately "our shipped entry is live", not "no API key present" — cross-model review flagged the gap, and the narrower behavior is the intended one. A hand-written keyless entry also silences the hint, because inspecting an entry for auth markers would mean picking between `Authorization: Bearer` and a `CONTEXT7_API_KEY` header, and that contract belongs to context7. The reminder targets the default nobody chose.
+
 ## [13.6.1] — 2026-08-06
 
 Cross-model review of 13.6.0 (OpenAI Codex against the pushed commit) returned five findings. All five verified real; all five fixed. Two are worth reading.

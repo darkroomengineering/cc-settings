@@ -484,6 +484,10 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 | `figma` | Figma Dev Mode MCP — design tokens, component props | Auto-triggered by the server's own instructions on figma.com URLs; `/qa` for design-fidelity checks |
 | `chrome-devtools` | Chrome DevTools (perf traces, network, console, screenshots, a11y tree, click/fill, lighthouse) | `/lighthouse`, `/qa`, `/fix`, `tester` agent, Figma-MCP design-vs-implementation diffs |
 
+`context7` installs **keyless**, which is its lower tier. A free key raises the rate limits and adds private-repo lookups — run `bunx ctx7 setup --claude --mcp` (key from [context7.com/dashboard](https://context7.com/dashboard)). Your entry wins over the shipped one on every reinstall, so it survives updates.
+
+The install summary flags this **while the shipped keyless entry is the one running**. Replacing it with any context7 entry of your own silences the reminder — cc-settings doesn't inspect your entry for a key, because the auth shape is context7's to define, not ours to sniff. So a hand-written keyless entry also goes quiet; the reminder targets the default nobody chose, not every keyless setup.
+
 **Optional** servers — not installed by default; add manually to `~/.claude.json` if you want them. Listed in `mcp-configs/recommended.json`:
 
 | Server | Purpose | Why optional |

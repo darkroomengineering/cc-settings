@@ -22,6 +22,7 @@ import {
   countEntriesRecursive,
   countSkillDirs,
   readShippedMcpNames,
+  shouldHintContext7,
 } from "../src/lib/install-display.ts";
 
 let root: string;
@@ -183,5 +184,31 @@ describe("classifyMcpServers", () => {
     const { managed, userAdded } = classifyMcpServers(["tldr", "sanity"], new Set());
     expect(managed).toEqual([]);
     expect(userAdded).toEqual(["tldr", "sanity"]);
+  });
+});
+
+// cc-settings ships context7 as the keyless stdio transport, which context7
+// documents as the lower tier. The hint names `ctx7 setup`; the load-bearing
+// case is the SECOND one — nudging someone who already configured a key is the
+// failure mode, since their setup is already the better one.
+describe("shouldHintContext7", () => {
+  test("our keyless entry is live → hint", () => {
+    expect(shouldHintContext7(["context7", "tldr"], new Set())).toBe(true);
+  });
+
+  test("user shadowed context7 with their own entry → silent", () => {
+    expect(shouldHintContext7(["context7", "tldr"], new Set(["context7"]))).toBe(false);
+  });
+
+  test("a different server being overridden does not suppress the hint", () => {
+    expect(shouldHintContext7(["context7", "tldr"], new Set(["tldr"]))).toBe(true);
+  });
+
+  test("context7 not among managed servers → silent", () => {
+    expect(shouldHintContext7(["tldr", "figma"], new Set())).toBe(false);
+  });
+
+  test("light profile (no managed servers) → silent", () => {
+    expect(shouldHintContext7([], new Set())).toBe(false);
   });
 });

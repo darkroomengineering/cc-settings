@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.6.1"; // cross-model review fixes: rollback data loss, whats-on accuracy, register rules reach subagents
+const VERSION = "13.6.2"; // surface context7 API key setup on keyless installs
 
 // --- Arg parsing ---------------------------------------------------------
 
