@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.5.0"; // reading-diff review protocol, known-vendor hook trust (programa), README restructure
+const VERSION = "13.6.0"; // Darkroom output style (default), whats-on report, sandbox credential masking, CC 2.1.223
 
 // --- Arg parsing ---------------------------------------------------------
 

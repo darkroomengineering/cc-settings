@@ -780,17 +780,31 @@
         "network": {
           "type": "object",
           "properties": {
+            "allowedDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "deniedDomains": {
               "type": "array",
               "items": {
                 "type": "string"
               }
             },
+            "allowManagedDomainsOnly": {
+              "type": "boolean"
+            },
             "strictAllowlist": {
               "type": "boolean"
+            },
+            "tlsTerminate": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": {}
             }
           },
-          "additionalProperties": false
+          "additionalProperties": {}
         },
         "filesystem": {
           "type": "object",
@@ -811,7 +825,7 @@
               "type": "boolean"
             }
           },
-          "additionalProperties": false
+          "additionalProperties": {}
         },
         "credentials": {
           "type": "object",
@@ -827,15 +841,36 @@
                   "mode": {
                     "type": "string",
                     "enum": [
-                      "deny"
+                      "deny",
+                      "mask"
                     ]
+                  },
+                  "extract": {
+                    "type": "string"
+                  },
+                  "injectHosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "onExtractNoMatch": {
+                    "type": "string",
+                    "enum": [
+                      "warn",
+                      "deny",
+                      "error"
+                    ]
+                  },
+                  "maskDuplicates": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
                   "path",
                   "mode"
                 ],
-                "additionalProperties": false
+                "additionalProperties": {}
               }
             },
             "envVars": {
@@ -849,19 +884,29 @@
                   "mode": {
                     "type": "string",
                     "enum": [
-                      "deny"
+                      "deny",
+                      "mask"
                     ]
+                  },
+                  "injectHosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": [
                   "name",
                   "mode"
                 ],
-                "additionalProperties": false
+                "additionalProperties": {}
               }
+            },
+            "allowPlaintextInject": {
+              "type": "boolean"
             }
           },
-          "additionalProperties": false
+          "additionalProperties": {}
         },
         "bwrapPath": {
           "type": "string"

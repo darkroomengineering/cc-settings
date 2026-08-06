@@ -65,7 +65,8 @@ Environment variables injected into every Claude Code session.
 | `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Extends prompt cache TTL from 5 min → 1 hour. cc-settings enables this (v2.1.108+) |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context. Per-server opt-out via `alwaysLoad: true` (v2.1.121) |
-| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | Opt out of 1M context window (Max plan default — rarely needed) |
+| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | As of v2.1.223, auto-compaction holds EVERY Claude model with a native 1M window down to 200K (not a fixed model list); set this to opt out. A startup warning appears when auto-compaction is not holding the session to 200K |
+| `CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT` | `"1"` or unset | v2.1.223 made auto-compact keep sessions on unrecognized model IDs inside the assumed context window; set this to restore the previous unbounded behavior |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
@@ -222,14 +223,28 @@ Sandbox configuration for secure command execution. cc-settings ships with `fail
 | `enableWeakerNetworkIsolation` | boolean | macOS: weaker network isolation for MITM proxy verification |
 | `filesystem.allowRead` / `allowWrite` | list | Re-allow paths inside `denyRead`/`denyWrite` regions (v2.1.77, v2.1.78) |
 | `filesystem.disabled` | boolean | Skip filesystem isolation entirely while keeping network egress control (v2.1.216) |
+| `network.allowedDomains` | list | Allowlist of domains sandboxed commands may reach (v2.1.113) |
 | `network.deniedDomains` | list | Block specific domains despite broader `allowedDomains` wildcard (v2.1.113) |
+| `network.allowManagedDomainsOnly` | boolean | Managed settings only: block non-allowed domains instead of prompting |
 | `network.strictAllowlist` | boolean | Deny hosts that aren't on the allowlist outright instead of prompting, turning the allowlist from advisory into enforcing (v2.1.219) |
-| `credentials.files` | list | Deny sandboxed reads of credential files: `[{ "path": "~/.aws/credentials", "mode": "deny" }]` (v2.1.187) |
-| `credentials.envVars` | list | Unset secret env vars before each sandboxed command: `[{ "name": "GITHUB_TOKEN", "mode": "deny" }]` (v2.1.187) |
+| `network.tlsTerminate` | object | Proxy terminates TLS itself so it can substitute masked credentials into request headers/bodies. Required by any `credentials` entry with `mode: "mask"`; empty object `{}` is the documented enabling form (v2.1.199) |
+| `credentials.files` | list | Deny or mask sandboxed reads of credential files: `[{ "path": "~/.aws/credentials", "mode": "deny" }]` (v2.1.187); `mode: "mask"` added v2.1.221 |
+| `credentials.envVars` | list | Unset or mask secret env vars before each sandboxed command: `[{ "name": "GITHUB_TOKEN", "mode": "deny" }]` (v2.1.187); `mode: "mask"` added v2.1.199 |
+| `credentials.allowPlaintextInject` | boolean | Let the proxy inject real credential values into unencrypted (non-TLS) requests |
 | `bwrapPath` | string | Linux/WSL: managed override for the bubblewrap binary location (v2.1.133) |
 | `socatPath` | string | Linux/WSL: managed override for the socat binary location (v2.1.133) |
 
-`credentials` is the dedicated block for keeping secrets out of sandboxed Bash commands — file paths are denied for reads (same enforcement as `filesystem.denyRead`) and env vars are unset per-command. `"deny"` is the only supported `mode`. There is no built-in deny list, so only listed entries are restricted, and entries merge across settings scopes (any scope can add restrictions, none can remove them). For a process-wide scrub of Anthropic/cloud credentials regardless of sandboxing, use `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` instead.
+`credentials` is the dedicated block for keeping secrets out of sandboxed Bash commands — file paths are denied or masked for reads (same enforcement as `filesystem.denyRead`) and env vars are unset or masked per-command. There is no built-in deny list, so only listed entries are restricted, and entries merge across settings scopes (any scope can add restrictions, none can remove them); when the same name/path is listed `"deny"` in any scope, `"deny"` wins over `"mask"`.
+
+`mode: "mask"` (env vars: v2.1.199; files: v2.1.221) shows sandboxed commands a per-session sentinel value instead of the real secret. The sandbox proxy substitutes the real value back in only on egress to the hosts in `injectHosts` (each of which must also be covered by `network.allowedDomains`; with no `injectHosts`, the value is substituted on every allowed domain). Masking has a hard requirement on `network.tlsTerminate` — without it the sentinel reaches the server unchanged and auth fails closed. `mask` entries, `network.tlsTerminate`, and `credentials.allowPlaintextInject` are honored only from user settings, managed settings, or `--settings`; they are ignored in a repo's `.claude/settings.json`. File masking is Linux/WSL only — on macOS a `mask` file entry behaves as `deny` while filesystem isolation is on.
+
+For files, an optional `extract` regex (with a capture group) replaces only the matched group with the sentinel, so structured files (`.netrc`, JSON, YAML) stay parseable — without it the entire file body becomes one sentinel:
+
+```json
+{ "path": "~/.config/gh/hosts.yml", "mode": "mask", "extract": "oauth_token:\\s*(\\S+)", "injectHosts": ["api.github.com"] }
+```
+
+For a process-wide scrub of Anthropic/cloud credentials regardless of sandboxing, use `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` instead.
 
 ### `spinnerVerbs`
 

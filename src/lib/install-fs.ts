@@ -63,6 +63,11 @@ export const MANAGED_TOP_LEVEL_PATHS: ManagedTopLevelEntry[] = [
   { rel: "profiles", wipe: { glob: /\.md$/ } },
   { rel: "docs", wipe: { glob: /\.md$/ } },
   { rel: "hooks", wipe: { glob: /\.md$/ } },
+  // Scoped to the ONE style we ship, unlike the `\.md$` wipes above. Users are
+  // actively encouraged (by Claude Code's own /config picker) to hand-write
+  // styles at this exact path, and a broad glob here would delete a personal
+  // output style on every install — data loss, not a stale-file prune.
+  { rel: "output-styles", wipe: { glob: /^darkroom\.md$/ } },
   // contexts/ retired (folded into profiles/); prune the legacy installed dir.
   { rel: "contexts", wipe: "recursive" },
   // Legacy bash-era dirs.
@@ -211,6 +216,7 @@ async function createDirectories(): Promise<void> {
     "skills",
     "profiles",
     "rules",
+    "output-styles",
     "handoffs",
     "learnings",
     "hooks",

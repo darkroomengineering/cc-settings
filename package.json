@@ -31,7 +31,8 @@
     "new-note": "bun src/scripts/new-note.ts",
     "proof": "bun src/scripts/proof.ts",
     "review-batch": "bun src/scripts/review-batch.ts",
-    "escalate:stats": "bun src/scripts/escalate-stats.ts"
+    "escalate:stats": "bun src/scripts/escalate-stats.ts",
+    "whats-on": "bun src/scripts/whats-on.ts"
   },
   "dependencies": {
     "zod": "4.4.3"

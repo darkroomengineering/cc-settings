@@ -1,6 +1,6 @@
 ---
 name: review
-description: Local pre-commit review of unstaged/staged diff against the Darkroom quality checklist (TypeScript, React, a11y, perf, security). Also summarizes inbound PR review comments on the active PR. Distinct from native /review which inspects open PRs. Triggers "review my changes", "check this diff", "feedback on this code", "PR comments", "what did reviewers say", "summarize PR feedback", post-implementation self-review before commit.
+description: Local pre-commit review of unstaged/staged diff against the Darkroom quality checklist (TypeScript, React, a11y, perf, security). Also summarizes inbound PR review comments on the active PR. Distinct from native /code-review (aliased by /review), which reviews a diff or PR. Triggers "review my changes", "check this diff", "feedback on this code", "PR comments", "what did reviewers say", "summarize PR feedback", post-implementation self-review before commit.
 context: fork
 agent: reviewer
 ---

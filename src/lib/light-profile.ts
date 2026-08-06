@@ -19,6 +19,23 @@ import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 
 export type Profile = "full" | "light";
 
+/**
+ * Full-only dirs that cc-settings SHARES with the user rather than owning
+ * outright — mapped to the exact files it ships there. A full→light downgrade
+ * prunes only those files, never the directory.
+ *
+ * `output-styles/` is the case this exists for: Claude Code's own /config
+ * picker tells users to hand-write styles at that path, so the plain
+ * `rm -rf <dir>` every other full-only dir gets would delete personal work on a
+ * downgrade. Mirrors the scoping applied to the same dir in
+ * MANAGED_TOP_LEVEL_PATHS (install-fs.ts) — both paths must stay narrow, or the
+ * data loss just moves from one to the other. Pinned by
+ * tests/output-style-preserve.test.ts, which covers both.
+ */
+const SHARED_DIR_OWNED_FILES: Record<string, string[]> = {
+  "output-styles": ["darkroom.md"],
+};
+
 // The ONLY skill installed on light. No headline/dep split needed.
 export const LIGHT_SKILLS: readonly string[] = ["share-learning"] as const;
 
@@ -55,7 +72,7 @@ export const PROFILE_MANIFEST: Record<Profile, ProfileManifest> = {
       ["CLAUDE-FULL.md", "CLAUDE.md"],
       ["AGENTS.md", "AGENTS.md"],
     ],
-    dirs: ["agents", "skills", "profiles", "rules", "hooks", "docs"],
+    dirs: ["agents", "skills", "profiles", "rules", "hooks", "docs", "output-styles"],
     retainedDirs: [],
   },
   light: {
@@ -99,6 +116,9 @@ export const PROFILE_MANIFEST: Record<Profile, ProfileManifest> = {
  * ALL managed skills rather than just the ones about to be re-copied. Incident
  * H7 came from exactly that class of cross-list coupling. The cost of keeping
  * them is ~40 force-removes of absent paths, issued in parallel.
+ *
+ * SHARED DIRS are the one exception to "full-only dir → rm -rf": see
+ * SHARED_DIR_OWNED_FILES directly below.
  */
 export function lightProfilePruneTargets(): string[] {
   const targets: string[] = [];
@@ -118,7 +138,11 @@ export function lightProfilePruneTargets(): string[] {
     if (!lightFiles.has(dest)) targets.push(dest);
   }
   for (const d of full.dirs) {
-    if (!lightDirs.has(d)) targets.push(d);
+    if (lightDirs.has(d)) continue;
+    const owned = SHARED_DIR_OWNED_FILES[d];
+    // Shared dir: prune only the files cc-settings ships, never the directory.
+    if (owned) targets.push(...owned.map((f) => `${d}/${f}`));
+    else targets.push(d);
   }
 
   return targets;

@@ -98,9 +98,9 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 38 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 38 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total. As of Claude Code 2.1.223 native `/review` is an alias of `/code-review`; cc-settings' own `/review` is the local pre-commit diff check.)
 
-**5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
+**5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. Or run `bun run whats-on` — it prints every behavior currently shaping your session and how to switch each one off. See [What's on](#whats-on).
 
 > **For maintainers / contributors:** see `CLAUDE.md` (project-level guidance) and `CHANGELOG.md` for the per-version delta. The merge policy and `--interactive` semantics live in [docs/settings-reference.md](./docs/settings-reference.md#re-install-merge-behavior).
 
@@ -148,7 +148,7 @@ Triggers `/refactor` — explore → plan → implement → test → review. Pre
 
 Say: *"rewrite this as if from scratch"* or *"delete the compat layer"* or *"too many flags"*
 
-Triggers `/zero-tech-debt` — rework a patch from the intended end-state, not from the historical path. Deletes compatibility cruft and mode flags no one calls. Sibling to `/refactor` (out-of-diff restructuring) — this one targets the patch in front of you. (Note: Claude Code 2.1.147 renamed native `/simplify` to `/code-review`, dropping the cleanup-and-fix behavior. As of 2.1.202, native `/review <pr>` is back to a fast single-pass review; the multi-agent engine is only via `/code-review <level> <pr#>`. As of 2.1.218, `/code-review` runs as a background subagent — invoke it and keep working, the review lands as a task notification instead of taking over your conversation. The same release fixed `/ultrareview` argument handling and `/code-review ultra` failing in non-interactive sessions.)
+Triggers `/zero-tech-debt` — rework a patch from the intended end-state, not from the historical path. Deletes compatibility cruft and mode flags no one calls. Sibling to `/refactor` (out-of-diff restructuring) — this one targets the patch in front of you. (Note: Claude Code 2.1.147 renamed native `/simplify` to `/code-review`, dropping the cleanup-and-fix behavior. As of 2.1.223, native `/review` is simply an alias of `/code-review`, which reviews the current diff or a PR via `/code-review <level> <pr#>`, with `/code-review ultra` for a deep cloud review; calling it with no level reuses the last level you typed. Since 2.1.218 it runs as a background subagent — invoke it and keep working, the review lands as a task notification instead of taking over your conversation.)
 
 ---
 
@@ -508,7 +508,26 @@ These are enforced automatically — no skill needed:
 - **Neutral exploration** — agents investigate without bias toward expected outcomes
 - **No AI attribution** — stealth mode in all commits and PRs
 - **Never fake measurements** — no fabricated Lighthouse/test/build output
-- **Action-first output** — responses lead with the next action, number multi-step work, restate progress each turn, and skip preamble/recaps/closers (adapted from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd); full rules in the installed CLAUDE.md)
+- **The `Darkroom` output style** — how replies are written; see below
+
+<a id="whats-on"></a>
+
+### What's on — and how to turn it off
+
+Run `bun run whats-on`. It prints every behavior currently shaping your session — output style, always-on instruction files, model and effort, each wired hook, skill/agent/MCP/permission counts — with the off-switch for each. Different question from `bun src/setup.ts --status`, which reports install health (version drift, missing skills, counts).
+
+### The `Darkroom` output style
+
+Default since v13.6.0. Installed to `~/.claude/output-styles/darkroom.md`, selected by `"outputStyle": "Darkroom"`. It carries two rule sets:
+
+- **Register** — subject first, no stacked modifiers, no coined terms for things that already have names, identifiers only when pointing at code, jargon defined inline. It targets comprehension, not word count: it will not make replies terse, and explaining at length stays allowed.
+- **Shape** — lead with the next action, number multi-step work, restate progress, no preamble or closers. These are the former "Action-First Output" rules, moved here unchanged (adapted from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd), MIT).
+
+**Why an output style and not CLAUDE.md.** A `CLAUDE.md` instruction arrives as a user message after the system prompt, so it competes with the system prompt and fades after a couple of turns — the reason a hand-written `communication_style.md` "works for 1–2 turns then reverts". An output style *is* part of the system prompt, and Claude Code re-issues adherence reminders during the conversation.
+
+Two limits: it applies to the **main conversation only** (subagents run their own system prompt, so the same register rules are mirrored in `AGENTS.md`), and it loads **once per session** — a change needs `/clear` or a new session.
+
+**To turn it off:** `/config` → Output style → Default, or set your own `outputStyle` in `~/.claude/settings.json` (user scope wins over the shipped value).
 
 ---
 

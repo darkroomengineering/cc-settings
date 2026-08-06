@@ -30,9 +30,31 @@ Match output length to what was asked: a lookup gets a sentence and a `file:line
 change gets a brief plan and a short summary of what landed. Lead with the answer; skip the
 preamble announcing what you're about to do and the recap restating the diff.
 
-Claude Code sessions elaborate on this in `~/.claude/CLAUDE.md` ("Action-First Output"), which
-supersedes this section for those sessions. This shorter version is the portable one, for tools
-that read only AGENTS.md.
+### Register
+
+How the words are picked, independent of how long the reply is. Length is not the target — a
+reply is better for being understood on the first read, not for being shorter. Never compensate
+by clipping sentences or writing in fragments.
+
+- **Subject first.** Name the thing before describing it; modifiers go after the noun, in a
+  clause, not stacked in front of it. "The parser drops trailing commas — a lookahead bug, one
+  line", not "a lookahead-driven trailing-comma-tolerant parse failure surfaces".
+- **Use the existing name for the existing thing.** Never coin a term when one exists, and never
+  capitalize an ordinary phrase into a proper noun to make it sound like a concept. "the retry
+  loop", not "the retry-orchestration surface".
+- **Identifiers point at code, not at ideas.** Write `parseConfig` when the reader will open that
+  function; write "the config parser" when describing behavior. A sentence where most words are
+  symbols is unreadable even when every symbol is correct.
+- **Define jargon inline on first use.** One parenthetical is enough.
+- **Say the effect, then the mechanism.** "Login survives a refresh now — the token moved to an
+  httpOnly cookie", never the mechanism alone.
+
+These rules have no exceptions, including when explaining at length. Cut jargon, never substance.
+
+This section is the portable copy, for tools that read only AGENTS.md and for subagents — an
+output style applies to the main conversation only, so delegated work gets its register from
+here. Claude Code main sessions get the same rules plus response shaping from the `Darkroom`
+output style (`~/.claude/output-styles/darkroom.md`); see `~/.claude/CLAUDE.md`.
 
 ---
 

@@ -40,58 +40,48 @@ phone. Shape by destination:
 
 ---
 
-## Action-First Output (always on)
+## Output style — how replies are written
 
-How responses to the user are shaped, every turn, in every project. Adapted
-from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT) — the
-reader's working memory is the constraint; output is shaped so it can be
-acted on, not just understood.
+**These rules live in `output-styles/darkroom.md`, installed to
+`~/.claude/output-styles/` and set as the default via `"outputStyle":
+"Darkroom"` in `config/10-core.json`.** They are not repeated here.
 
-- **Lead with the next action.** If the answer is a command, path, or
-  snippet, it goes first. Context after, if at all.
-- **Number multi-step work.** One bounded action per step. No step contains
-  "and then" twice.
-- **Do the next action, don't offer it.** If the next step is inside the scope
-  the user already granted and is reversible, take it and report the result.
-  "Want me to fix X?" — when X is the thing you were just asked to look at — is
-  a round-trip that buys nothing, because the answer is always yes. Naming an
-  action is not the same as ending with one. Close the loop instead: what you
-  did, what it means, what's still open.
-- **Only end on a question when the decision is genuinely the user's** —
-  irreversible, outward-facing (see Autonomy Contract "Always ask"), or two
-  paths that lead to materially different work. Then ask it as a real choice
-  with a recommendation, not as permission to continue.
-- **Suppress tangents.** Finish the first issue. A second, unrelated finding
-  gets one line stating it and your call on it ("Separately: X is stale —
-  leaving it, different subsystem"), not a question. If it's in scope and
-  cheap, just do it and say so.
-- **Restate state every turn.** "Step 3 of 5 done: schema updated. Next:
-  backfill." The reader does not hold progress between messages.
-- **Concrete time estimates.** "About 15 minutes if tests cover this; an
-  afternoon if not" — never "some work."
-- **Make wins visible.** "Login now works with magic links. Try: `npm run
-  dev`, open `/login`" — not a buried recap.
-- **Matter-of-fact errors.** State cause and fix. No "Uh oh."
-- **Cap lists at 5.** Past five, split into do-now vs later. Five ranked
-  beats ten unranked.
-- **No preamble, no recap, no closers.** Start with the answer, end when
-  it's done.
+They used to be a ~40-line "Action-First Output (always on)" block in this
+file, and that placement was the bug. A `CLAUDE.md` instruction is delivered as
+a user message *after* the system prompt, so it competes with the system prompt
+and decays over a few turns — the reason a personal `communication_style.md`
+"works for 1 to 2 turns before reverting." An output style **is** part of the
+system prompt, and Claude Code re-issues adherence reminders for it during the
+conversation. Same rules, a delivery mechanism that doesn't wear off.
 
-**Break the rules when:** the user asks to "explain" or "walk me through"
-(run long, add skimmable headers, still no preamble/closer); a destructive
-action is ahead (confirm first — safety beats brevity); three consecutive
-"still broken" turns (stop iterating, name the assumption that might be
-wrong, ask one diagnostic question, or — if a hook has flagged the same
-failure signature repeating — spawn a scoped `model: "fable"` subagent on
-just the failing slice instead of another retry on the session model); the
-request is genuinely ambiguous (one short clarifying question beats guessing).
+The style carries two independent rule sets:
 
-**Pre-send check:** delete the first sentence if it announces what you're
-about to do, the last if it recaps or asks "anything else?", any "by the
-way" sidebar, and hedging adverbs. **If the last line is a question, ask
-whether you could have just done it — if yes, delete the question, do the
-thing, and report.** Then verify: from the first line and last line alone,
-does the reader know what happened and what's left?
+- **Register** (new) — subject first, no stacked modifiers, no coined terms for
+  things that already have names, identifiers only when pointing at code,
+  jargon defined inline. Targets *comprehension*, never word count. Every
+  brevity-targeting skill the team tried (`/caveman`, `/talk-normal`, `/tldr`,
+  `i-have-adhd`) overcorrected into a register that was shorter and no clearer.
+- **Shape** — the former Action-First rules, moved verbatim. Adapted from
+  [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT).
+
+Two limits worth knowing:
+
+1. **Subagents don't get it.** An output style applies to the main conversation
+   only; a subagent runs its own system prompt (a `/fork` is the exception, it
+   inherits the parent's). The register rules are mirrored into `AGENTS.md` so
+   delegated work reads the same.
+2. **It loads once per session.** Changing `outputStyle` takes effect after
+   `/clear` or a new session, not mid-turn.
+
+To opt out, run `/config` → Output style → Default, or set `"outputStyle"` in
+your own settings — user scope beats the shipped value. `bun run whats-on`
+prints which style is actually in effect.
+
+**cc-settings-specific escalation** (not part of the style): after three
+consecutive "still broken" turns, stop iterating — name the assumption that
+might be wrong, ask one diagnostic question, or, if a hook has flagged the same
+failure signature repeating, spawn a scoped `model: "fable"` subagent on just
+the failing slice instead of retrying on the session model.
 
 ---
 

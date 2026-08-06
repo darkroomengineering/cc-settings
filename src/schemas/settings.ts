@@ -39,37 +39,79 @@ export const Attribution = z.object({
 // manual|disabled kept as a superset to not reject older configs.
 export const TeammateMode = z.enum(["auto", "in-process", "tmux", "iterm2", "manual", "disabled"]);
 
-// Sandbox config (introduced 2.1.98–2.1.108). Not yet in any user config in
-// this repo; fields verified via docs + changelog. Loose on the root
-// because the shape is still evolving.
+// Credential protection modes (sandbox.credentials). 2.1.187 introduced
+// `deny`; 2.1.199 added `mask` for env vars and 2.1.221 for files. `mask`
+// shows sandboxed commands a per-session sentinel while the sandbox proxy
+// swaps the real value back in on egress to `injectHosts` (each of which must
+// itself be covered by network.allowedDomains; with no injectHosts the value
+// is substituted on every allowed domain). Masking REQUIRES
+// network.tlsTerminate — without it the sentinel reaches the server unchanged
+// and auth fails closed. `mask` entries, tlsTerminate, and allowPlaintextInject
+// are honored only from user settings, managed settings, or --settings; they
+// are ignored in a repo's .claude/settings.json. When the same name is listed
+// `deny` in any scope, `deny` wins.
+const CredentialMode = z.enum(["deny", "mask"]);
+
+export const CredentialEnvVar = z.looseObject({
+  name: z.string(),
+  mode: CredentialMode,
+  injectHosts: z.array(z.string()).optional(),
+});
+
+// `extract` is a regex needing >=1 capture group; only group 1 of each match
+// is replaced, so structured files (.netrc, JSON, YAML) stay parseable.
+// Without it the entire file body becomes one sentinel. `onExtractNoMatch`
+// and `maskDuplicates` apply only when mode is "mask" AND extract is set.
+// Platform note: file masking is Linux/WSL behavior — on macOS a `mask` file
+// entry behaves as `deny` while filesystem isolation is on. Claude Code falls
+// back to `deny` for anything it cannot mask safely (directory, glob, >8 MiB,
+// or non-UTF-8).
+export const CredentialFile = z.looseObject({
+  path: z.string(),
+  mode: CredentialMode,
+  extract: z.string().optional(),
+  injectHosts: z.array(z.string()).optional(),
+  onExtractNoMatch: z.enum(["warn", "deny", "error"]).optional(), // default "warn"
+  maskDuplicates: z.boolean().optional(), // default false
+});
+
+// Sandbox config (introduced 2.1.98–2.1.108). Nested objects are loose: the
+// shape is still evolving upstream and a strict object silently strips keys
+// it does not model (this is how allowedDomains went missing until 2.1.223).
 export const Sandbox = z.looseObject({
   failIfUnavailable: z.boolean().optional(),
   enableWeakerNetworkIsolation: z.boolean().optional(), // macOS: weaker network isolation for MITM proxy verification
   allowAppleEvents: z.boolean().optional(), // 2.1.181 — macOS: allow sandboxed commands to send Apple Events
   network: z
-    .object({
+    .looseObject({
+      allowedDomains: z.array(z.string()).optional(),
       deniedDomains: z.array(z.string()).optional(),
+      // managed settings only — block non-allowed domains instead of prompting
+      allowManagedDomainsOnly: z.boolean().optional(),
       // 2.1.219 — deny hosts not on the allowlist outright instead of
       // prompting. Turns the allowlist from advisory into enforcing.
       strictAllowlist: z.boolean().optional(),
+      // 2.1.199 — proxy terminates TLS itself so it can substitute masked
+      // credentials inside request headers and bodies. Required by any
+      // `mode: "mask"` entry. Empty object is the documented enabling form.
+      tlsTerminate: z.looseObject({}).optional(),
     })
     .optional(),
   filesystem: z
-    .object({
+    .looseObject({
       allowRead: z.array(z.string()).optional(),
       allowWrite: z.array(z.string()).optional(), // re-allow write paths inside denyWrite regions
       disabled: z.boolean().optional(), // 2.1.216 — skip filesystem isolation while keeping network egress control
     })
     .optional(),
   // 2.1.187 — declare credential files + env vars sandboxed commands must not
-  // touch. Listed file paths are denied for reads; listed env vars are unset
-  // before each sandboxed command. `deny` is the only supported mode today
-  // (explicit field keeps the schema forward-compatible). Complements the
-  // process-wide CLAUDE_CODE_SUBPROCESS_ENV_SCRUB scrub.
+  // touch. Complements the process-wide CLAUDE_CODE_SUBPROCESS_ENV_SCRUB.
   credentials: z
-    .object({
-      files: z.array(z.object({ path: z.string(), mode: z.enum(["deny"]) })).optional(),
-      envVars: z.array(z.object({ name: z.string(), mode: z.enum(["deny"]) })).optional(),
+    .looseObject({
+      files: z.array(CredentialFile).optional(),
+      envVars: z.array(CredentialEnvVar).optional(),
+      // lets the proxy inject real credentials into unencrypted requests
+      allowPlaintextInject: z.boolean().optional(),
     })
     .optional(),
   bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
@@ -201,7 +243,7 @@ export const Settings = z.looseObject({
   allowManagedMcpServersOnly: z.boolean().optional(), // block user-defined MCP servers
   allowManagedPermissionRulesOnly: z.boolean().optional(), // block user-defined permission rules
   availableModels: z.array(z.string()).optional(), // restrict the model picker to this list
-  blockedMarketplaces: z.array(z.string()).optional(), // marketplace IDs that users cannot install from
+  blockedMarketplaces: z.array(z.string()).optional(), // marketplace IDs that users cannot install from; 2.1.223: an entry may be an owner wildcard "owner/*" matching every marketplace repo under that GitHub org
   claudeMd: z.string().optional(), // managed system-prompt override (replaces CLAUDE.md lookup)
   companyAnnouncements: z.array(z.string()).optional(), // banner messages shown at session start
   disableAgentView: z.boolean().optional(), // hide the agent-activity panel in the TUI
@@ -214,7 +256,7 @@ export const Settings = z.looseObject({
   policyHelper: z.looseObject({}).optional(), // policy-helper configuration object (enterprise)
   requiredMaximumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is above this
   requiredMinimumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is below this; pairs with requiredMaximumVersion to define an allowed range
-  strictKnownMarketplaces: z.array(z.string()).optional(), // allowlist of marketplace IDs considered trusted
+  strictKnownMarketplaces: z.array(z.string()).optional(), // allowlist of marketplace IDs considered trusted; 2.1.223: an entry may be an owner wildcard "owner/*" matching every marketplace repo under that GitHub org
   strictPluginOnlyCustomization: z
     .union([z.boolean(), z.array(z.enum(["skills", "agents", "hooks", "mcp"]))])
     .optional(), // restrict customization to plugin-provided items only; true = all categories
