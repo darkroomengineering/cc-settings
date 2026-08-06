@@ -36,7 +36,11 @@ import { claudePath } from "../lib/platform.ts";
 import {
   computeBand,
   formatTimeToReset,
+  mergeSessionRateLimits,
   type RateLimitsCache,
+  readRateLimitsCache,
+  resolveRateLimits,
+  type SessionRateLimits,
   writeRateLimitsCache,
 } from "../lib/quota.ts";
 import {
@@ -171,6 +175,7 @@ async function main(): Promise<void> {
   model = input.model?.display_name ?? "";
   const currentDir = input.workspace?.current_dir ?? "";
   dirName = currentDir ? basename(currentDir) : "";
+  const sessionId = input.session_id;
 
   const used = input.context_window?.used_percentage;
   const tokensAvailable = input.context_window?.context_window_size ?? 0;
@@ -178,9 +183,20 @@ async function main(): Promise<void> {
 
   const gitStatus = currentDir ? await buildGitStatus(currentDir) : null;
 
-  if (input.rate_limits) {
+  // Per-session write: this hot path renders from EVERY concurrent workspace,
+  // and each one only ever sees its OWN rate_limits reading in the payload.
+  // A flat single-object overwrite here is a last-writer-wins clobber across
+  // N workspaces — the bug this per-session map fixes. Each session's own
+  // reading is stored under its session_id in `sessions`; the top-level
+  // five_hour/seven_day/updated_at are then DERIVED (max-of-fresh via
+  // resolveRateLimits) rather than "whoever wrote last", for Programa's
+  // ClaudeQuotaSnapshotParser (programa repo, Sources/ClaudeQuotaMonitor.swift)
+  // which only reads those three top-level keys and ignores `sessions`.
+  // Gated on sessionId, same as the SESSION_MODEL_STATE/SESSION_INSTALL_STATE
+  // writes below — a payload without one can't be keyed per-session.
+  if (input.rate_limits && sessionId) {
     try {
-      const cache: RateLimitsCache = {
+      const sessionEntry: SessionRateLimits = {
         five_hour: input.rate_limits.five_hour
           ? {
               used_percentage: input.rate_limits.five_hour.used_percentage,
@@ -196,6 +212,16 @@ async function main(): Promise<void> {
             }
           : undefined,
         updated_at: Date.now(),
+      };
+      const existing = await readRateLimitsCache();
+      const sessions = mergeSessionRateLimits(existing?.sessions ?? {}, sessionId, sessionEntry);
+      const now = Date.now();
+      const derived = resolveRateLimits(sessions, now) ?? { updated_at: now };
+      const cache: RateLimitsCache = {
+        five_hour: derived.five_hour,
+        seven_day: derived.seven_day,
+        updated_at: derived.updated_at,
+        sessions,
       };
       await writeRateLimitsCache(cache);
     } catch {
@@ -230,12 +256,16 @@ async function main(): Promise<void> {
 
   // Rate-limit headroom — rendered everywhere EXCEPT Programa (see IN_PROGRAMA).
   //
-  // IMPORTANT: the gate drops only the *display*. The read of `input.rate_limits`
-  // and the `writeRateLimitsCache` call above stay unconditional — that cache
-  // file is what Programa's sidebar and quota-steer.ts both read, and statusline
-  // is what keeps it fresh between sessions (session-start.ts only refreshes it
-  // on launch and resume). Gating the write would leave the sidebar showing
-  // stale numbers from whenever the last session started.
+  // IMPORTANT: the gate drops only the *display*. This ⚡ chip renders straight
+  // from `input.rate_limits` — THIS session's own live payload from Claude
+  // Code, never the shared cache — so it can't be clobbered by another
+  // workspace. The read of `input.rate_limits` and the per-session
+  // `writeRateLimitsCache` call above stay unconditional regardless of
+  // IN_PROGRAMA — that cache file is what Programa's sidebar and
+  // quota-steer.ts both read, and statusline is what keeps it fresh between
+  // sessions (session-start.ts only refreshes it on launch and resume).
+  // Gating the write would leave the sidebar showing stale numbers from
+  // whenever the last session started.
   // Codex bridge availability — read here (rather than at its original spot
   // near the bottom) so the ⚡ chip below can append a "→codex" routing badge
   // when quota is exhausted and Codex is available to absorb the work.
@@ -292,7 +322,7 @@ async function main(): Promise<void> {
   // so the running session is still on the old config — surface it here
   // (`claude -c` resumes the conversation on the new install). Inverse of the
   // ⬆ stale check above, which flags an install BEHIND the repo.
-  const sessionId = input.session_id;
+  // sessionId was hoisted near the top of main() — reused here.
   const installedNow = await readInstalledVersion(claudePath());
   if (sessionId && installedNow) {
     const sessionVersions = await readValidatedState(

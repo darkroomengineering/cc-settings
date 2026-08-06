@@ -50,7 +50,12 @@ import {
 } from "../lib/hook-runtime.ts";
 import { isoNow } from "../lib/platform.ts";
 import type { SignatureMap } from "../lib/problem-signature.ts";
-import { CACHE_STALE_MS, computeBand, type QuotaBand, readRateLimitsCache } from "../lib/quota.ts";
+import {
+  computeBand,
+  type QuotaBand,
+  readRateLimitsCache,
+  resolveRateLimits,
+} from "../lib/quota.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
 import { readSessionModel } from "../lib/session-model.ts";
 
@@ -85,14 +90,16 @@ async function recordFired(
 // default 3 matches post-failure.ts's existing "repeated failure" bar.
 const THRESHOLD = intEnv("CC_ESCALATE_THRESHOLD", 3);
 
-/** "unknown" when the rate-limit cache is missing or stale (same staleness
- *  window quota-steer.ts uses) — treated as NOT elevated/critical, so a dead/
- *  never-populated cache fails open toward the suggestion rather than
- *  silence. */
+/** "unknown" when no session in the cache survives the staleness prune (same
+ *  window quota-steer.ts uses, via resolveRateLimits) — treated as NOT
+ *  elevated/critical, so a dead/never-populated cache fails open toward the
+ *  suggestion rather than silence. Uses the max-of-fresh-sessions reading,
+ *  not a single flat value — see resolveRateLimits in quota.ts. */
 async function resolveBand(): Promise<QuotaBand | "unknown"> {
   const cache = await readRateLimitsCache();
-  if (!cache || Date.now() - cache.updated_at > CACHE_STALE_MS) return "unknown";
-  return computeBand(cache.five_hour?.used_percentage, cache.seven_day?.used_percentage);
+  const resolved = resolveRateLimits(cache?.sessions, Date.now());
+  if (!resolved) return "unknown";
+  return computeBand(resolved.five_hour?.used_percentage, resolved.seven_day?.used_percentage);
 }
 
 async function main(): Promise<void> {

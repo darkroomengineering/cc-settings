@@ -22,8 +22,13 @@ const HOOK = resolve(import.meta.dir, "../src/hooks/statusline.ts");
 
 type Payload = Record<string, unknown>;
 
-function payload(usedPercentage: number, resetsAt: number | string): Payload {
+function payload(
+  usedPercentage: number,
+  resetsAt: number | string,
+  sessionId = "session-a",
+): Payload {
   return {
+    session_id: sessionId,
     model: { display_name: "Opus 5" },
     workspace: { current_dir: "/tmp" },
     rate_limits: { five_hour: { used_percentage: usedPercentage, resets_at: resetsAt } },
@@ -200,8 +205,102 @@ describe("statusline rate-limits cache — written regardless of the gate", () =
     try {
       const raw = await readFile(join(home, ".claude", "tmp", "rate-limits.json"), "utf8");
       const cache = JSON.parse(raw);
+      // Flat top-level fields stay present — Programa's ClaudeQuotaSnapshotParser
+      // (programa repo, Sources/ClaudeQuotaMonitor.swift) reads exactly these
+      // three keys and must keep working unchanged.
       expect(cache.five_hour.used_percentage).toBe(62);
       expect(typeof cache.updated_at).toBe("number");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("statusline rate-limits cache — per-session map (multi-workspace fix)", () => {
+  test("writes this session's reading under sessions[session_id]", async () => {
+    const { home } = await runStatusline(payload(62, inTwoHours(), "session-a"));
+    try {
+      const raw = await readFile(join(home, ".claude", "tmp", "rate-limits.json"), "utf8");
+      const cache = JSON.parse(raw);
+      expect(cache.sessions["session-a"].five_hour.used_percentage).toBe(62);
+      expect(typeof cache.sessions["session-a"].updated_at).toBe("number");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a second session's render does not clobber the first session's entry", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-statusline-"));
+    const cachePath = join(home, ".claude", "tmp", "rate-limits.json");
+    const childEnv = (extra: Record<string, string | undefined>): Record<string, string> => {
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries({
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        ...extra,
+      })) {
+        if (v !== undefined) out[k] = v;
+      }
+      return out;
+    };
+    const runOnce = async (input: Payload): Promise<void> => {
+      const proc = Bun.spawn(["bun", HOOK], {
+        env: childEnv({}),
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      proc.stdin.write(JSON.stringify(input));
+      proc.stdin.end();
+      await new Response(proc.stdout).text();
+      expect(await proc.exited).toBe(0);
+    };
+
+    try {
+      // Workspace A renders first with a low reading, workspace B renders
+      // second with a HIGHER reading. Pre-fix, the flat overwrite would drop
+      // workspace A's entry entirely and workspace B's render would be the
+      // only surviving data. Post-fix, both survive in `sessions`, and the
+      // derived top-level max reflects the higher (true) usage.
+      await runOnce(payload(8, inTwoHours(), "workspace-a"));
+      await runOnce(payload(67, inTwoHours(), "workspace-b"));
+
+      const cache = JSON.parse(await readFile(cachePath, "utf8"));
+      expect(cache.sessions["workspace-a"].five_hour.used_percentage).toBe(8);
+      expect(cache.sessions["workspace-b"].five_hour.used_percentage).toBe(67);
+      // Derived top-level (Programa-compatible) reflects the MAX of fresh
+      // sessions, not "whoever rendered last".
+      expect(cache.five_hour.used_percentage).toBe(67);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("no session_id in payload → cache write skipped, no crash", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-statusline-"));
+    const childEnv: Record<string, string> = {};
+    for (const [k, v] of Object.entries({ ...process.env, HOME: home, USERPROFILE: home })) {
+      if (v !== undefined) childEnv[k] = v;
+    }
+    const proc = Bun.spawn(["bun", HOOK], {
+      env: childEnv,
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    proc.stdin.write(
+      JSON.stringify({
+        model: { display_name: "Opus 5" },
+        workspace: { current_dir: "/tmp" },
+        rate_limits: { five_hour: { used_percentage: 62, resets_at: inTwoHours() } },
+      }),
+    );
+    proc.stdin.end();
+    const out = await new Response(proc.stdout).text();
+    try {
+      expect(await proc.exited).toBe(0);
+      expect(out).toContain("Opus 5");
     } finally {
       await rm(home, { recursive: true, force: true });
     }
