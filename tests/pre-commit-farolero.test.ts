@@ -16,6 +16,14 @@ import {
 
 const HOOK_PATH = join(import.meta.dir, "..", "src", "hooks", "pre-commit-farolero.ts");
 
+// Two fixture techniques below are POSIX-only and have no Windows equivalent:
+//   1. `chmod(path, 0o755)` — NTFS has no execute bit, so an "executable vs not" distinction
+//      cannot be built. The hook deliberately treats marker-presence alone as active on Windows.
+//   2. the fake farolero bin is a `#!/bin/sh` script — Windows cannot execute it, so any test
+//      asserting that farolero actually ran (sentinel written, block emitted) cannot hold there.
+// Tests depending on either are skipped on Windows rather than weakened for every platform.
+const isWindows = process.platform === "win32";
+
 describe("pre-commit-farolero — shouldGateCommit exemption logic", () => {
   test("gates a plain git commit", () => {
     expect(shouldGateCommit("git commit -m x")).toBe(true);
@@ -163,15 +171,18 @@ describe("pre-commit-farolero — faroleroHooksAlreadyActive", () => {
     }
   });
 
-  test("a marker present but NOT executable is not active — git ignores non-executable hooks", async () => {
-    const { dir } = await makeGitRepo();
-    try {
-      await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"), { executable: false });
-      expect(await faroleroHooksAlreadyActive(dir)).toBe(false);
-    } finally {
-      await cleanup(dir);
-    }
-  });
+  test.skipIf(isWindows)(
+    "a marker present but NOT executable is not active — git ignores non-executable hooks",
+    async () => {
+      const { dir } = await makeGitRepo();
+      try {
+        await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"), { executable: false });
+        expect(await faroleroHooksAlreadyActive(dir)).toBe(false);
+      } finally {
+        await cleanup(dir);
+      }
+    },
+  );
 
   test("core.hooksPath configured: checks ONLY that directory, never falls back to .git/hooks", async () => {
     // CONFIRMED BUG (review): a stale marker left in .git/hooks from before hooksPath was set
@@ -228,21 +239,24 @@ describe("pre-commit-farolero — subprocess block protocol", () => {
     }
   });
 
-  test("fake farolero exits 1 with output: blocks with decision:block naming the output tail", async () => {
-    const { dir, sentinelPath } = await makeGitRepo();
-    try {
-      await writePackageJson(dir, true);
-      await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
-      const { stdout, exitCode } = await runHook(dir, "git commit -m x");
-      expect(exitCode).toBe(2);
-      const parsed = JSON.parse(stdout);
-      expect(parsed.decision).toBe("block");
-      expect(parsed.reason).toContain("rule violated: no-ts-ignore");
-      expect(parsed.reason).toContain("never bypass with --no-verify");
-    } finally {
-      await cleanup(dir);
-    }
-  });
+  test.skipIf(isWindows)(
+    "fake farolero exits 1 with output: blocks with decision:block naming the output tail",
+    async () => {
+      const { dir, sentinelPath } = await makeGitRepo();
+      try {
+        await writePackageJson(dir, true);
+        await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
+        const { stdout, exitCode } = await runHook(dir, "git commit -m x");
+        expect(exitCode).toBe(2);
+        const parsed = JSON.parse(stdout);
+        expect(parsed.decision).toBe("block");
+        expect(parsed.reason).toContain("rule violated: no-ts-ignore");
+        expect(parsed.reason).toContain("never bypass with --no-verify");
+      } finally {
+        await cleanup(dir);
+      }
+    },
+  );
 
   test("fake farolero exits 0: allows silently", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
@@ -315,65 +329,77 @@ describe("pre-commit-farolero — subprocess block protocol", () => {
     }
   });
 
-  test("a stale, non-executable marker in the active hooks dir does not cause a skip — ratchet runs", async () => {
-    const { dir, sentinelPath } = await makeGitRepo();
-    try {
-      await writePackageJson(dir, true);
-      await writeFakeFaroleroBin(dir, sentinelPath, 0);
-      await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"), { executable: false });
-      const { exitCode } = await runHook(dir, "git commit -m x");
-      expect(exitCode).toBe(0);
-      expect(await Bun.file(sentinelPath).exists()).toBe(true); // farolero WAS invoked
-    } finally {
-      await cleanup(dir);
-    }
-  });
+  test.skipIf(isWindows)(
+    "a stale, non-executable marker in the active hooks dir does not cause a skip — ratchet runs",
+    async () => {
+      const { dir, sentinelPath } = await makeGitRepo();
+      try {
+        await writePackageJson(dir, true);
+        await writeFakeFaroleroBin(dir, sentinelPath, 0);
+        await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"), { executable: false });
+        const { exitCode } = await runHook(dir, "git commit -m x");
+        expect(exitCode).toBe(0);
+        expect(await Bun.file(sentinelPath).exists()).toBe(true); // farolero WAS invoked
+      } finally {
+        await cleanup(dir);
+      }
+    },
+  );
 
   // --- --no-verify / -n: the defer-to-native-hook skip must be disabled ----
 
-  test("--no-verify with farolero's git hooks active and a failing repo: still blocks", async () => {
-    const { dir, sentinelPath } = await makeGitRepo();
-    try {
-      await writePackageJson(dir, true);
-      await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
-      await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit")); // active — would normally skip
-      const { stdout, exitCode } = await runHook(dir, "git commit -m x --no-verify");
-      expect(exitCode).toBe(2);
-      expect(await Bun.file(sentinelPath).exists()).toBe(true); // farolero WAS invoked despite the native hook
-      const parsed = JSON.parse(stdout);
-      expect(parsed.decision).toBe("block");
-      expect(parsed.reason).toContain("rule violated: no-ts-ignore");
-    } finally {
-      await cleanup(dir);
-    }
-  });
+  test.skipIf(isWindows)(
+    "--no-verify with farolero's git hooks active and a failing repo: still blocks",
+    async () => {
+      const { dir, sentinelPath } = await makeGitRepo();
+      try {
+        await writePackageJson(dir, true);
+        await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
+        await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit")); // active — would normally skip
+        const { stdout, exitCode } = await runHook(dir, "git commit -m x --no-verify");
+        expect(exitCode).toBe(2);
+        expect(await Bun.file(sentinelPath).exists()).toBe(true); // farolero WAS invoked despite the native hook
+        const parsed = JSON.parse(stdout);
+        expect(parsed.decision).toBe("block");
+        expect(parsed.reason).toContain("rule violated: no-ts-ignore");
+      } finally {
+        await cleanup(dir);
+      }
+    },
+  );
 
-  test("-n (short --no-verify) with farolero's git hooks active and a failing repo: still blocks", async () => {
-    const { dir, sentinelPath } = await makeGitRepo();
-    try {
-      await writePackageJson(dir, true);
-      await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
-      await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
-      const { exitCode } = await runHook(dir, "git commit -m x -n");
-      expect(exitCode).toBe(2);
-      expect(await Bun.file(sentinelPath).exists()).toBe(true);
-    } finally {
-      await cleanup(dir);
-    }
-  });
+  test.skipIf(isWindows)(
+    "-n (short --no-verify) with farolero's git hooks active and a failing repo: still blocks",
+    async () => {
+      const { dir, sentinelPath } = await makeGitRepo();
+      try {
+        await writePackageJson(dir, true);
+        await writeFakeFaroleroBin(dir, sentinelPath, 1, "rule violated: no-ts-ignore");
+        await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
+        const { exitCode } = await runHook(dir, "git commit -m x -n");
+        expect(exitCode).toBe(2);
+        expect(await Bun.file(sentinelPath).exists()).toBe(true);
+      } finally {
+        await cleanup(dir);
+      }
+    },
+  );
 
-  test("--no-verify with a passing repo: allows (the override forces a real check, which passes)", async () => {
-    const { dir, sentinelPath } = await makeGitRepo();
-    try {
-      await writePackageJson(dir, true);
-      await writeFakeFaroleroBin(dir, sentinelPath, 0);
-      await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
-      const { stdout, exitCode } = await runHook(dir, "git commit -m x --no-verify");
-      expect(exitCode).toBe(0);
-      expect(stdout).toBe("");
-      expect(await Bun.file(sentinelPath).exists()).toBe(true); // still invoked, just passed
-    } finally {
-      await cleanup(dir);
-    }
-  });
+  test.skipIf(isWindows)(
+    "--no-verify with a passing repo: allows (the override forces a real check, which passes)",
+    async () => {
+      const { dir, sentinelPath } = await makeGitRepo();
+      try {
+        await writePackageJson(dir, true);
+        await writeFakeFaroleroBin(dir, sentinelPath, 0);
+        await writeMarkerHook(join(dir, ".git", "hooks", "pre-commit"));
+        const { stdout, exitCode } = await runHook(dir, "git commit -m x --no-verify");
+        expect(exitCode).toBe(0);
+        expect(stdout).toBe("");
+        expect(await Bun.file(sentinelPath).exists()).toBe(true); // still invoked, just passed
+      } finally {
+        await cleanup(dir);
+      }
+    },
+  );
 });

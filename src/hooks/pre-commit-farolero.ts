@@ -105,11 +105,17 @@ async function gitConfigGet(cwd: string, key: string): Promise<string | null> {
 
 /** True only if `filePath` both carries the `farolero-managed` marker AND is executable — git
  *  silently ignores a non-executable hook file, so a marker on one is not "active" by git's own
- *  rules and must not be treated as such here. */
+ *  rules and must not be treated as such here.
+ *
+ *  Windows is the exception: NTFS has no POSIX execute bit, `statSync().mode` never reports one,
+ *  and Git for Windows runs a hook that merely exists (core.filemode is false there). Applying the
+ *  bit test on Windows would make this always false, so farolero's own hooks would never be
+ *  detected and the ratchet would run twice on every commit. On Windows the marker alone decides. */
 async function hookHasFaroleroMarker(filePath: string): Promise<boolean> {
   try {
     const content = await Bun.file(filePath).text();
     if (!content.includes("farolero-managed")) return false;
+    if (process.platform === "win32") return true;
     return (statSync(filePath).mode & 0o111) !== 0;
   } catch {
     return false;
