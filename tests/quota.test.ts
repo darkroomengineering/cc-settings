@@ -258,6 +258,154 @@ describe("resolveRateLimits — multi-session clobber fix", () => {
   });
 });
 
+describe("resolveRateLimits — resets_at is the freshness signal (window-rollover bug)", () => {
+  // Fixed epoch-second reset times mirroring the exact production evidence
+  // (2026-08-06 window boundaries) — NOT Date.now()-derived, so this test
+  // stays deterministic regardless of when it runs.
+  const LIVE_5H_RESETS_AT = "1786032600"; // 08-06 13:10 -03 — the current window
+  const DEAD_5H_A = "1785810000"; // 08-03 23:20 -03 — rolled over days ago
+  const DEAD_5H_B = "1785866400"; // 08-04 15:00 -03 — rolled over days ago
+  const DEAD_5H_C = "1785792000"; // 08-03 18:20 -03 — rolled over days ago
+  const SEVEN_DAY_RESETS_AT = "1786269600"; // 08-09 07:00 -03 — single live 7d window
+  const NOW_MS = 1786031640000; // 08-06 12:54:00 -03 — between all the above
+
+  function sessionEntry(
+    fiveHourPct: number,
+    fiveHourResetsAt: string,
+    sevenDayPct: number,
+    updatedAtOffsetMs: number,
+  ): SessionRateLimits {
+    return {
+      five_hour: { used_percentage: fiveHourPct, resets_at: fiveHourResetsAt },
+      seven_day: { used_percentage: sevenDayPct, resets_at: SEVEN_DAY_RESETS_AT },
+      // All within 30s of NOW_MS, same as the real bug report — every entry
+      // looks equally "fresh" by updated_at alone.
+      updated_at: NOW_MS - updatedAtOffsetMs,
+    };
+  }
+
+  test("real production regression: dead-window entries are ignored even though updated_at is seconds old", () => {
+    const sessions: SessionRateLimitsMap = {
+      "6271d111": sessionEntry(28, LIVE_5H_RESETS_AT, 75, 5_000),
+      "33276606": sessionEntry(50, LIVE_5H_RESETS_AT, 79, 8_000),
+      "9cbb69fa": sessionEntry(50, LIVE_5H_RESETS_AT, 79, 12_000),
+      "5005e845": sessionEntry(25, LIVE_5H_RESETS_AT, 74, 15_000),
+      // These four are "seconds old" by updated_at but their 5h window
+      // already rolled over — this is the exact production bug: 67% from
+      // fe277e28 or 8367e119's stale window used to win over the true 50%.
+      fe277e28: sessionEntry(6, DEAD_5H_A, 28, 7_000),
+      "0964fc10": sessionEntry(29, DEAD_5H_B, 37, 18_000),
+      "8367e119": sessionEntry(67, DEAD_5H_C, 25, 21_000),
+      "071862a0": sessionEntry(22, DEAD_5H_B, 35, 22_000),
+    };
+
+    const resolved = resolveRateLimits(sessions, NOW_MS);
+
+    expect(resolved).not.toBeNull();
+    // Correct answer: max of the LIVE window's survivors (28, 50, 50, 25),
+    // never the DEAD-window 67%.
+    expect(resolved?.five_hour?.used_percentage).toBe(50);
+    expect(resolved?.five_hour?.resets_at).toBe(LIVE_5H_RESETS_AT);
+    // The 7d window hasn't rolled over for anyone, so it's just max-of-all.
+    expect(resolved?.seven_day?.used_percentage).toBe(79);
+  });
+
+  test("mixed windows: an older-but-still-future resets_at loses to the newest window, even with a higher used_percentage", () => {
+    const now = 1_000_000_000;
+    const sessions: SessionRateLimitsMap = {
+      // Previous window, observed just before it rolled over — resets_at is
+      // still in the future but earlier than session-new's.
+      "session-old-window": {
+        five_hour: { used_percentage: 99, resets_at: String(Math.floor(now / 1000) + 100) },
+        updated_at: now - 100,
+      },
+      "session-new-window": {
+        five_hour: { used_percentage: 10, resets_at: String(Math.floor(now / 1000) + 5_000) },
+        updated_at: now - 50,
+      },
+    };
+
+    const resolved = resolveRateLimits(sessions, now);
+
+    expect(resolved?.five_hour?.used_percentage).toBe(10);
+  });
+
+  test("same-window entries: max used_percentage wins", () => {
+    const now = 1_000_000_000;
+    const resetsAt = String(Math.floor(now / 1000) + 1_000);
+    const sessions: SessionRateLimitsMap = {
+      "session-a": {
+        five_hour: { used_percentage: 40, resets_at: resetsAt },
+        updated_at: now - 10,
+      },
+      "session-b": {
+        five_hour: { used_percentage: 65, resets_at: resetsAt },
+        updated_at: now - 20,
+      },
+    };
+
+    expect(resolveRateLimits(sessions, now)?.five_hour?.used_percentage).toBe(65);
+  });
+
+  test("all entries expired → null (silence), even though updated_at is fresh", () => {
+    const now = 1_000_000_000;
+    const expiredResetsAt = String(Math.floor(now / 1000) - 10);
+    const sessions: SessionRateLimitsMap = {
+      "session-a": {
+        five_hour: { used_percentage: 90, resets_at: expiredResetsAt },
+        seven_day: { used_percentage: 90, resets_at: expiredResetsAt },
+        updated_at: now - 5,
+      },
+    };
+
+    expect(resolveRateLimits(sessions, now)).toBeNull();
+  });
+
+  test("resets_at accepted as both string-epoch-seconds and number-epoch-millis", () => {
+    const now = 1_000_000_000;
+    const futureSeconds = Math.floor(now / 1000) + 1_000;
+    const sessions: SessionRateLimitsMap = {
+      // Persisted shape: string epoch-seconds.
+      "session-string-seconds": {
+        five_hour: { used_percentage: 30, resets_at: String(futureSeconds) },
+        updated_at: now - 10,
+      },
+      // Defensive shape: number epoch-millis, same instant as the session
+      // above — must be recognised as the SAME window, not a different one.
+      "session-number-millis": {
+        five_hour: { used_percentage: 55, resets_at: futureSeconds * 1000 },
+        updated_at: now - 20,
+      },
+    };
+
+    const resolved = resolveRateLimits(sessions, now);
+
+    // Both parse to the same window (same resets_at once normalised), so the
+    // higher used_percentage wins — proves both shapes were recognised as
+    // one window rather than the number-millis one being silently dropped
+    // (or, worse, misread as a far-future seconds value never expiring).
+    expect(resolved?.five_hour?.used_percentage).toBe(55);
+  });
+
+  test("a stale-by-resets_at entry does not block the other window", () => {
+    const now = 1_000_000_000;
+    const expiredResetsAt = String(Math.floor(now / 1000) - 10);
+    const futureResetsAt = String(Math.floor(now / 1000) + 1_000);
+    const sessions: SessionRateLimitsMap = {
+      "session-a": {
+        five_hour: { used_percentage: 90, resets_at: expiredResetsAt },
+        seven_day: { used_percentage: 42, resets_at: futureResetsAt },
+        updated_at: now - 5,
+      },
+    };
+
+    const resolved = resolveRateLimits(sessions, now);
+    expect(resolved).not.toBeNull();
+    expect(resolved?.five_hour).toBeUndefined();
+    expect(resolved?.seven_day?.used_percentage).toBe(42);
+  });
+});
+
 describe("mergeSessionRateLimits", () => {
   test("adds a new session entry", () => {
     const result = mergeSessionRateLimits({}, "session-a", {

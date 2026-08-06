@@ -112,24 +112,32 @@ async function writeSignatures(
 // fields are also written for parity with what statusline.ts's real writer
 // produces (Programa-compat derived fields), though escalate-model.ts itself
 // no longer reads them directly.
+//
+// resets_at defaults to a far-future epoch-seconds value: resolveRateLimits's
+// window-rollover fix (see quota.ts) now requires resets_at to be present and
+// still in the future to treat an entry as live at all — a fixture window
+// with no resets_at would otherwise always resolve to "unknown" band here.
+const FAR_FUTURE_RESETS_AT = "9999999999"; // year 2286 — never expires in a test run
 async function writeRateLimitsCache(
   home: string,
   cache: {
     updated_at: number;
-    five_hour?: { used_percentage?: number };
-    seven_day?: { used_percentage?: number };
+    five_hour?: { used_percentage?: number; resets_at?: string };
+    seven_day?: { used_percentage?: number; resets_at?: string };
   },
 ): Promise<void> {
   const dir = join(home, ".claude", "tmp");
   await mkdir(dir, { recursive: true });
+  const withResetsAt = (w?: { used_percentage?: number; resets_at?: string }) =>
+    w === undefined ? undefined : { resets_at: FAR_FUTURE_RESETS_AT, ...w };
   await writeFile(
     join(dir, "rate-limits.json"),
     JSON.stringify({
       ...cache,
       sessions: {
         [SESSION_ID]: {
-          five_hour: cache.five_hour,
-          seven_day: cache.seven_day,
+          five_hour: withResetsAt(cache.five_hour),
+          seven_day: withResetsAt(cache.seven_day),
           updated_at: cache.updated_at,
         },
       },
