@@ -9,10 +9,42 @@ const RateLimitWindowSchema = z.object({
   resets_at: z.string().optional(),
 });
 
+export type RateLimitWindow = z.infer<typeof RateLimitWindowSchema>;
+
+// One session's own reading of the account-wide rate limits, as seen by the
+// statusline render that wrote it. `updated_at` is THIS entry's write time —
+// not to be confused with the top-level `updated_at` below, which is derived
+// (see resolveRateLimits).
+const SessionRateLimitsSchema = z.object({
+  five_hour: RateLimitWindowSchema.optional(),
+  seven_day: RateLimitWindowSchema.optional(),
+  updated_at: z.number(),
+});
+
+export type SessionRateLimits = z.infer<typeof SessionRateLimitsSchema>;
+export type SessionRateLimitsMap = Record<string, SessionRateLimits>;
+
+/** Cap on remembered sessions in the `sessions` map, same recency-cap idiom
+ *  as session-model.ts's SESSION_MODEL_MAP_CAP and version-delta.ts's
+ *  SESSION_MAP_CAP — prevents unbounded growth from many short-lived
+ *  concurrent workspaces. Pruned inline on every write (mergeSessionRateLimits)
+ *  rather than via session-start.ts's age-based sweep: this is one JSON map,
+ *  not a directory of per-session files, so pruning at the single write site
+ *  is simpler and enforces the cap on every write instead of once per launch. */
+export const RATE_LIMITS_SESSION_CAP = 50;
+
+// Top-level `five_hour`/`seven_day`/`updated_at` are DERIVED (see
+// resolveRateLimits) rather than "whoever wrote last" — kept for backward
+// compatibility with Programa's ClaudeQuotaSnapshotParser (programa repo,
+// Sources/ClaudeQuotaMonitor.swift), which reads exactly these three
+// top-level keys and ignores unknown ones (JSONSerialization to
+// [String: Any]). `sessions` is new and additive; Programa's parser never
+// looks at it.
 const RateLimitsCacheSchema = z.object({
   five_hour: RateLimitWindowSchema.optional(),
   seven_day: RateLimitWindowSchema.optional(),
   updated_at: z.number(),
+  sessions: z.record(z.string(), SessionRateLimitsSchema).optional(),
 });
 
 export type RateLimitsCache = z.infer<typeof RateLimitsCacheSchema>;
@@ -165,6 +197,76 @@ export async function readRateLimitsCache(): Promise<RateLimitsCache | null> {
 
 export async function writeRateLimitsCache(cache: RateLimitsCache): Promise<void> {
   await writeState(RATE_LIMITS_CACHE_FILE, cache);
+}
+
+/**
+ * Set (or refresh) one session's rate-limits reading and prune the map to the
+ * RATE_LIMITS_SESSION_CAP most recently updated entries. Pure — callers own
+ * the state IO, same split as refreshSessionModelMap/refreshSessionInstallMap.
+ */
+export function mergeSessionRateLimits(
+  sessions: SessionRateLimitsMap,
+  sessionId: string,
+  entry: SessionRateLimits,
+): SessionRateLimitsMap {
+  const next: SessionRateLimitsMap = { ...sessions, [sessionId]: entry };
+  return Object.fromEntries(
+    Object.entries(next)
+      .sort((a, b) => b[1].updated_at - a[1].updated_at)
+      .slice(0, RATE_LIMITS_SESSION_CAP),
+  );
+}
+
+export interface ResolvedRateLimits {
+  five_hour?: RateLimitWindow;
+  seven_day?: RateLimitWindow;
+  updated_at: number;
+}
+
+/**
+ * Core fix for the multi-workspace clobber bug: prune sessions whose reading
+ * is older than `staleMs`, then take the MAX used_percentage per window
+ * across the survivors — the winning entry's resets_at travels with it.
+ *
+ * This is ONE account-wide counter observed by several concurrent sessions at
+ * different times. Over-reporting (picking the max) nudges routing early,
+ * which is harmless; under-reporting (e.g. picking whichever session
+ * happened to write last) risks hitting the hard limit unannounced — that
+ * silent-clobber failure mode is the actual bug this replaces.
+ *
+ * Returns null when no session survives the prune (fresh machine, first run,
+ * or every known session idle past `staleMs`) — callers MUST treat that as
+ * "unknown" and inject/report nothing, never fall back to a stale or default
+ * number that would misrepresent true usage.
+ */
+export function resolveRateLimits(
+  sessions: SessionRateLimitsMap | undefined,
+  now: number,
+  staleMs: number = CACHE_STALE_MS,
+): ResolvedRateLimits | null {
+  const fresh = Object.values(sessions ?? {}).filter((s) => now - s.updated_at <= staleMs);
+  if (fresh.length === 0) return null;
+
+  const pickWindow = (
+    select: (s: SessionRateLimits) => RateLimitWindow | undefined,
+  ): RateLimitWindow | undefined => {
+    let best: RateLimitWindow | undefined;
+    for (const s of fresh) {
+      const w = select(s);
+      const pct = w?.used_percentage;
+      if (w === undefined || pct === undefined) continue;
+      if (best === undefined || best.used_percentage === undefined || pct > best.used_percentage) {
+        best = w;
+      }
+    }
+    return best;
+  };
+
+  return {
+    five_hour: pickWindow((s) => s.five_hour),
+    seven_day: pickWindow((s) => s.seven_day),
+    updated_at: Math.max(...fresh.map((s) => s.updated_at)),
+  };
 }
 
 export async function readQuotaSteerState(): Promise<QuotaSteerState | null> {

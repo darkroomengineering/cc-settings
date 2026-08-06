@@ -105,6 +105,13 @@ async function writeSignatures(
   await writeFile(join(dir, `problem-signatures-${sessionId}`), JSON.stringify(map));
 }
 
+// Writes the per-session `sessions` map (src/lib/quota.ts's resolveRateLimits
+// reads THIS, not the flat top-level fields) — a single fixture session,
+// keyed under the same SESSION_ID escalate-model.ts's runHook uses, so
+// resolveRateLimits's staleness prune sees a fresh entry. Flat top-level
+// fields are also written for parity with what statusline.ts's real writer
+// produces (Programa-compat derived fields), though escalate-model.ts itself
+// no longer reads them directly.
 async function writeRateLimitsCache(
   home: string,
   cache: {
@@ -115,7 +122,19 @@ async function writeRateLimitsCache(
 ): Promise<void> {
   const dir = join(home, ".claude", "tmp");
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, "rate-limits.json"), JSON.stringify(cache));
+  await writeFile(
+    join(dir, "rate-limits.json"),
+    JSON.stringify({
+      ...cache,
+      sessions: {
+        [SESSION_ID]: {
+          five_hour: cache.five_hour,
+          seven_day: cache.seven_day,
+          updated_at: cache.updated_at,
+        },
+      },
+    }),
+  );
 }
 
 async function writeEscalateStateFixture(home: string, state: EscalateStateFixture): Promise<void> {

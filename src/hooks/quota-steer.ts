@@ -7,10 +7,10 @@ import { readCodexVerdict } from "../lib/codex.ts";
 import { emitAdditionalContext, readHookInput, runHook } from "../lib/hook-runtime.ts";
 import {
   buildSteerMessage,
-  CACHE_STALE_MS,
   computeBand,
   readQuotaSteerState,
   readRateLimitsCache,
+  resolveRateLimits,
   shouldEmit,
   writeQuotaSteerState,
 } from "../lib/quota.ts";
@@ -26,10 +26,16 @@ async function main(): Promise<void> {
 
   const now = Date.now();
   const cache = await readRateLimitsCache();
-  if (!cache || now - cache.updated_at > CACHE_STALE_MS) return;
+  // Prune stale sessions, then take the max used_percentage per window across
+  // survivors (resolveRateLimits) — an account-wide counter observed by many
+  // concurrent workspaces at different times, not a single flat reading.
+  // null (no session survives the prune) degrades to silence: never inject a
+  // stale/default number, which would misroute quota-aware guidance.
+  const resolved = resolveRateLimits(cache?.sessions, now);
+  if (!resolved) return;
 
-  const fiveHourPct = cache.five_hour?.used_percentage;
-  const sevenDayPct = cache.seven_day?.used_percentage;
+  const fiveHourPct = resolved.five_hour?.used_percentage;
+  const sevenDayPct = resolved.seven_day?.used_percentage;
   const band = computeBand(fiveHourPct, sevenDayPct);
   const prev = await readQuotaSteerState();
 
@@ -47,8 +53,8 @@ async function main(): Promise<void> {
         codexVerdict.state,
         fiveHourPct,
         sevenDayPct,
-        cache.five_hour?.resets_at,
-        cache.seven_day?.resets_at,
+        resolved.five_hour?.resets_at,
+        resolved.seven_day?.resets_at,
       ),
     );
     await writeQuotaSteerState({ band, lastEmit: now });
