@@ -51,10 +51,12 @@ by clipping sentences or writing in fragments.
 
 These rules have no exceptions, including when explaining at length. Cut jargon, never substance.
 
-This section is the portable copy, for tools that read only AGENTS.md and for subagents — an
-output style applies to the main conversation only, so delegated work gets its register from
-here. Claude Code main sessions get the same rules plus response shaping from the `Darkroom`
-output style (`~/.claude/output-styles/darkroom.md`); see `~/.claude/CLAUDE.md`.
+This section is the **portable** copy — for Codex, Cursor, and any other tool that reads
+AGENTS.md, and for humans. Claude Code does **not** auto-load this file, so it is not what
+reaches a Claude Code subagent; subagents inherit the CLAUDE.md hierarchy, which carries its own
+copy of these rules. Claude Code main sessions get them from the `Darkroom` output style
+(`~/.claude/output-styles/darkroom.md`) plus response shaping. All three copies say the same
+thing on purpose — see `~/.claude/CLAUDE.md` for which mechanism covers which surface.
 
 ---
 

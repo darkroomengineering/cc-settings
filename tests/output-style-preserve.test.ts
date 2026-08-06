@@ -69,7 +69,7 @@ describe("output styles — a user's own style survives an install", () => {
 
   // Same data-loss class on the other path: `output-styles` is a full-only dir,
   // so the full→light prune would `rm -rf` the whole directory unless it is
-  // scoped to the file we ship (SHARED_DIR_OWNED_FILES in light-profile.ts).
+  // scoped to the file we ship (sharedDirOwnedFiles() in managed-paths.ts).
   test("full -> light downgrade removes only darkroom.md, not the user's style", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-outputstyle-light-"));
     try {
@@ -84,6 +84,63 @@ describe("output styles — a user's own style survives an install", () => {
       // Ours is gone — light is the raw-Claude-Code tier.
       expect(existsSync(join(stylesDir, "darkroom.md"))).toBe(false);
       // Theirs is not.
+      expect(existsSync(mine)).toBe(true);
+      expect(await readFile(mine, "utf8")).toContain("plain words only.");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  // Third variant of the same data-loss class, on `--rollback`: it used to
+  // treat output-styles/ as a wholly-owned unit (managedRestoreAllowset built
+  // its allowlist straight off MANAGED_TOP_LEVEL_PATHS' `rel`s, with no
+  // narrowing for shared dirs), so cmdRollback would rm -rf the WHOLE
+  // directory before restoring the backed-up contents — deleting a style the
+  // user hand-wrote after the last backup. Rollback must restore only the
+  // files cc-settings owns (darkroom.md) and leave everything else in place.
+  test("--rollback restores darkroom.md but leaves a foreign style untouched", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-outputstyle-rollback-"));
+    try {
+      // Install 1: creates darkroom.md, and gives install 2's createBackup
+      // something to snapshot.
+      expect(await install(home)).toBe(0);
+      // Install 2: this run's createBackup fires before cleanOldConfig wipes
+      // install 1's content, so it backs up darkroom.md as it stood then.
+      expect(await install(home)).toBe(0);
+
+      const stylesDir = join(home, ".claude", "output-styles");
+      // The user hand-writes their own style AFTER the last backup was taken.
+      const mine = join(stylesDir, "rico-personal.md");
+      await writeFile(mine, "---\nname: Rico\n---\n\nplain words only.\n");
+      // Also perturb darkroom.md so a real restore is observable.
+      await writeFile(join(stylesDir, "darkroom.md"), "clobbered\n");
+
+      const proc = Bun.spawn(["bun", SETUP_TS, "--rollback"], {
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          CC_SKIP_DEPS: "1",
+          NO_COLOR: "1",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, stderr] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ]);
+      const exitCode = await proc.exited;
+      if (exitCode !== 0) {
+        throw new Error(`rollback failed (${exitCode})\nstdout:\n${stdout}\nstderr:\n${stderr}`);
+      }
+
+      // darkroom.md is restored from the backup, not left clobbered.
+      const ours = await readFile(join(stylesDir, "darkroom.md"), "utf8");
+      expect(ours).not.toContain("clobbered");
+      expect(ours).toContain("name: Darkroom");
+
+      // The foreign style, written after the backup, survives untouched.
       expect(existsSync(mine)).toBe(true);
       expect(await readFile(mine, "utf8")).toContain("plain words only.");
     } finally {

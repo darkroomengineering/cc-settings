@@ -18,64 +18,9 @@ import {
   PROFILE_MANIFEST,
   type Profile,
 } from "./light-profile.ts";
+import { MANAGED_TOP_LEVEL_PATHS } from "./managed-paths.ts";
 import { ACTIVE_SKILLS, MANAGED_SKILLS } from "./managed-skills.ts";
 import { CLAUDE_DIR, getTimestamp } from "./platform.ts";
-
-// ---------------------------------------------------------------------------
-// Managed top-level paths — shared by createBackup + cleanOldConfig
-// ---------------------------------------------------------------------------
-//
-// Both phases enumerate "what cc-settings manages" at the top level of
-// CLAUDE_DIR. Two independently hand-maintained lists previously drifted
-// apart — a divergence that caused incident H7 (a copy failure between
-// cleanOldConfig and the copy phase left --rollback unable to restore
-// anything cleanOldConfig had actually wiped, because createBackup's list
-// was narrower). One list now backs both: createBackup tars every entry
-// whole; cleanOldConfig applies its own per-entry granularity ("recursive"
-// removes the whole dir/file, "glob" removes only matching entries inside a
-// dir so user-authored siblings survive).
-//
-// NOT covered here (each intentionally out of scope for this shared list):
-//   - settings.json    — merged in place by installSettings, never wiped;
-//                         createBackup still backs it up separately.
-//   - .claude.json      — lives outside CLAUDE_DIR entirely (home-relative);
-//                         createBackup still backs it up separately.
-//   - regenerable caches (skill-rules.cache, tldr-cache, backups/, tmp/,
-//     logs/) — never backed up, cleaned via cleanOldConfig's own junkFiles
-//     list + sweepStaleTmpFiles.
-
-type WipeMode = "recursive" | { glob: RegExp };
-
-interface ManagedTopLevelEntry {
-  /** Path relative to CLAUDE_DIR (and to the home-relative ".claude/" prefix
-   *  createBackup's tar candidates use). */
-  rel: string;
-  /** How cleanOldConfig wipes it. */
-  wipe: WipeMode;
-}
-
-export const MANAGED_TOP_LEVEL_PATHS: ManagedTopLevelEntry[] = [
-  { rel: "CLAUDE.md", wipe: "recursive" },
-  { rel: "AGENTS.md", wipe: "recursive" },
-  { rel: "agents", wipe: { glob: /\.md$/ } },
-  { rel: "skills", wipe: { glob: /\.(json|md)$/ } },
-  { rel: "rules", wipe: { glob: /\.md$/ } },
-  { rel: "profiles", wipe: { glob: /\.md$/ } },
-  { rel: "docs", wipe: { glob: /\.md$/ } },
-  { rel: "hooks", wipe: { glob: /\.md$/ } },
-  // Scoped to the ONE style we ship, unlike the `\.md$` wipes above. Users are
-  // actively encouraged (by Claude Code's own /config picker) to hand-write
-  // styles at this exact path, and a broad glob here would delete a personal
-  // output style on every install — data loss, not a stale-file prune.
-  { rel: "output-styles", wipe: { glob: /^darkroom\.md$/ } },
-  // contexts/ retired (folded into profiles/); prune the legacy installed dir.
-  { rel: "contexts", wipe: "recursive" },
-  // Legacy bash-era dirs.
-  { rel: "scripts", wipe: "recursive" },
-  { rel: "lib", wipe: "recursive" },
-  { rel: "hooks-config.json", wipe: "recursive" },
-  { rel: "hooks-config.local.json", wipe: "recursive" },
-];
 
 // --- Install phases ------------------------------------------------------
 

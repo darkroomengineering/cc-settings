@@ -1,14 +1,34 @@
 # What's On
 
-`bun run whats-on` answers a different question than `bun src/setup.ts
---status`: status answers install health (version drift, present/missing
-counts, "38/38 skills", auto-update enrollment). `whats-on` answers what is
-actually shaping the current session — one line per thing, what it does, and
-how to turn it off.
+```
+bun ~/.claude/src/scripts/whats-on.ts
+```
 
-It reads the INSTALLED state at `~/.claude` (settings.json, output-styles/,
-CLAUDE.md, AGENTS.md, rules/, agents/, skills/) — never the repo checkout —
-and never writes anything.
+That's the command that works for everyone, whether or not you kept the
+cc-settings repo checkout around — the installer copies the TS tree to
+`~/.claude/src/`, and this script lives there like every other installed
+script. If you do have the repo checked out, `bun run whats-on` (below) is
+the same script, shorter to type.
+
+`whats-on` answers a different question than `bun src/setup.ts --status`:
+status answers install health (version drift, present/missing counts,
+"38/38 skills", auto-update enrollment). `whats-on` answers what is actually
+shaping the current session — one line per thing, what it does, and how to
+turn it off.
+
+It reads the USER-SCOPE INSTALLED state at `~/.claude` (settings.json,
+output-styles/, CLAUDE.md, AGENTS.md, rules/, agents/, skills/) — never the
+repo checkout — and never writes anything. That's a real caveat, not just
+phrasing: a project-level `.claude/settings.json`, `.claude/settings.local.json`,
+managed policy, or a CLI flag can all override what's reported here without
+changing anything this report shows. The report detects and flags a
+project-level `.claude/settings.json` in your current directory (presence
+only — it doesn't merge or resolve full precedence).
+
+## Running it
+
+- **From anywhere, without the repo** — `bun ~/.claude/src/scripts/whats-on.ts`
+- **From a cc-settings checkout** — `bun run whats-on`
 
 ## When to run it
 
@@ -20,13 +40,19 @@ and never writes anything.
 
 ## What it covers
 
-1. **Output style** — the configured style (or "Default" if unset), whether
-   the style file actually exists, and that it only applies to the main
-   conversation (subagents run their own system prompt) and needs `/clear` or
-   a new session to take effect.
-2. **Always-on instructions** — `CLAUDE.md` and `AGENTS.md` (both always
-   injected, every turn) vs. `rules/` (path-conditioned — only loaded when a
-   matching file is in play, NOT always-on).
+1. **Output style** — the configured style (or "Default" if unset), whether a
+   file in `output-styles/` actually resolves to it (matched against
+   frontmatter `name:` first, then filenames case-insensitively — the same
+   resolution order Claude Code itself uses), and that it only applies to the
+   main conversation (subagents run their own system prompt) and needs
+   `/clear` or a new session to take effect.
+2. **Always-on instructions** — `CLAUDE.md` (genuinely always injected, every
+   turn) vs. `AGENTS.md` (present but NOT auto-loaded by Claude Code —
+   `CLAUDE.md` merely *instructs* the model to read it) vs. `rules/`, split
+   into always-on rule files (no `paths:` frontmatter key — injected every
+   turn, same as `CLAUDE.md`) and path-conditioned ones (has `paths:` — only
+   loaded when a matching file is in play). Always-on rule files are named,
+   since they cost context every turn.
 3. **Model & effort** — `model`, `CLAUDE_CODE_EFFORT_LEVEL`,
    `CLAUDE_CODE_SUBAGENT_MODEL`.
 4. **Hooks** — total group/event counts, then one row per cc-settings-managed

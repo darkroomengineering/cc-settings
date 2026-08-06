@@ -62,7 +62,7 @@ describe("gatherWhatsOn — output style", () => {
       expect(data.outputStyle.fileExists).toBe(false);
 
       const report = formatWhatsOn(data);
-      expect(report).toContain("does NOT exist");
+      expect(report).toContain("no file in ~/.claude/output-styles/ resolves to it");
       expect(report).toContain("ghost-style");
     } finally {
       await cleanup(claude, home);
@@ -239,25 +239,171 @@ describe("gatherWhatsOn — inventory", () => {
 });
 
 describe("gatherWhatsOn — always-on instructions", () => {
-  test("CLAUDE.md/AGENTS.md present with sizes; rules/ counted as path-conditioned", async () => {
+  test("CLAUDE.md present with size; AGENTS.md absent", async () => {
     const claude = await makeTmpDir();
     const home = await makeTmpDir();
     try {
       await writeFile(join(claude, "CLAUDE.md"), "hello world");
-      await mkdir(join(claude, "rules"), { recursive: true });
-      await writeFile(join(claude, "rules", "react.md"), "# react rule");
-      await writeFile(join(claude, "rules", "git.md"), "# git rule");
 
       const data = await gatherWhatsOn(installPaths(claude, home));
       expect(data.alwaysOn.claudeMd.present).toBe(true);
       expect(data.alwaysOn.claudeMd.bytes).toBe("hello world".length);
       expect(data.alwaysOn.agentsMd.present).toBe(false);
-      expect(data.alwaysOn.rulesCount).toBe(2);
+    } finally {
+      await cleanup(claude, home);
+    }
+  });
+
+  // Finding 3(a): AGENTS.md is not auto-loaded by Claude Code — CLAUDE.md only
+  // instructs the model to read it. The report must not describe it as
+  // injected every turn the way CLAUDE.md genuinely is.
+  test("AGENTS.md is NOT described as always-injected", async () => {
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    try {
+      await writeFile(join(claude, "AGENTS.md"), "# standards");
+
+      const data = await gatherWhatsOn(installPaths(claude, home));
+      const report = formatWhatsOn(data);
+      // AGENTS.md's own line must say it is NOT auto-loaded.
+      const agentsLine = report.split("\n").find((l) => l.trim().startsWith("AGENTS.md:"));
+      expect(agentsLine).toBeDefined();
+      expect(agentsLine).toContain("NOT auto-loaded");
+      expect(agentsLine).not.toContain("always injected, every turn");
+    } finally {
+      await cleanup(claude, home);
+    }
+  });
+
+  // Finding 3(b): a rule file WITHOUT `paths:` frontmatter is always-on, not
+  // path-conditioned — split the two counts instead of lumping every rule
+  // file under "path-conditioned".
+  test("rules dir mixing one file with `paths:` and one without reports both counts correctly", async () => {
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    try {
+      await mkdir(join(claude, "rules"), { recursive: true });
+      // Always-on: no frontmatter at all (mirrors rules/README.md upstream).
+      await writeFile(join(claude, "rules", "readme.md"), "# always loaded, no paths: key");
+      // Path-conditioned: has a `paths:` frontmatter key.
+      await writeFile(
+        join(claude, "rules", "react.md"),
+        '---\npaths:\n  - "**/*.tsx"\n---\n\n# react rule',
+      );
+
+      const data = await gatherWhatsOn(installPaths(claude, home));
+      expect(data.alwaysOn.rules.alwaysOnCount).toBe(1);
+      expect(data.alwaysOn.rules.pathConditionedCount).toBe(1);
+      expect(data.alwaysOn.rules.alwaysOnNames).toEqual(["readme.md"]);
 
       const report = formatWhatsOn(data);
       expect(report).toContain("PATH-CONDITIONED");
+      expect(report).toContain("readme.md");
     } finally {
       await cleanup(claude, home);
+    }
+  });
+});
+
+describe("gatherWhatsOn — output style resolution (Finding 2)", () => {
+  // Claude Code resolves an output style by its frontmatter `name:` field,
+  // falling back to the filename. A style file whose filename casing differs
+  // from its frontmatter `name:` (e.g. output-styles/darkroom.md with
+  // `name: Darkroom`) must resolve without a false "missing" warning — this
+  // previously only passed by accident on case-insensitive filesystems.
+  test("style file whose frontmatter name differs in case from the filename resolves without warning", async () => {
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    try {
+      await writeFile(
+        join(claude, "settings.json"),
+        JSON.stringify({ outputStyle: "Darkroom" }, null, 2),
+      );
+      await mkdir(join(claude, "output-styles"), { recursive: true });
+      await writeFile(
+        join(claude, "output-styles", "darkroom.md"),
+        "---\nname: Darkroom\n---\n\nplain words only.\n",
+      );
+
+      const data = await gatherWhatsOn(installPaths(claude, home));
+      expect(data.outputStyle.name).toBe("Darkroom");
+      expect(data.outputStyle.fileExists).toBe(true);
+
+      const report = formatWhatsOn(data);
+      expect(report).not.toContain("does NOT");
+    } finally {
+      await cleanup(claude, home);
+    }
+  });
+
+  // Same bug, made observable on ANY filesystem (the case-only variant above
+  // happens to pass on macOS's case-insensitive APFS even with the naive
+  // existsSync(`${name}.md`) check the finding flags, since "Darkroom.md" and
+  // "darkroom.md" collide at the FS layer there — Linux is where it actually
+  // warns falsely). Using a filename that doesn't match the configured name
+  // AT ALL (not even case-insensitively) forces resolution through the
+  // frontmatter `name:` field specifically, so this fails on every platform
+  // without the fix.
+  test("style resolves via frontmatter name when the filename doesn't match at all", async () => {
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    try {
+      await writeFile(
+        join(claude, "settings.json"),
+        JSON.stringify({ outputStyle: "MyStyle" }, null, 2),
+      );
+      await mkdir(join(claude, "output-styles"), { recursive: true });
+      await writeFile(
+        join(claude, "output-styles", "custom-file-name.md"),
+        "---\nname: MyStyle\n---\n\nsome style body.\n",
+      );
+
+      const data = await gatherWhatsOn(installPaths(claude, home));
+      expect(data.outputStyle.name).toBe("MyStyle");
+      expect(data.outputStyle.fileExists).toBe(true);
+
+      const report = formatWhatsOn(data);
+      expect(report).not.toContain("does NOT");
+    } finally {
+      await cleanup(claude, home);
+    }
+  });
+});
+
+describe("gatherWhatsOn — scope (Finding 4)", () => {
+  test("no project settings.json in cwd → scope.projectSettingsPath is null", async () => {
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    const cwd = await makeTmpDir();
+    try {
+      const data = await gatherWhatsOn(installPaths(claude, home), cwd);
+      expect(data.scope.projectSettingsPath).toBeNull();
+
+      const report = formatWhatsOn(data);
+      expect(report).toContain("USER-SCOPE INSTALLED state");
+      expect(report).toContain("project .claude/settings.json");
+      expect(report).not.toContain("NOTE: a project settings.json exists");
+    } finally {
+      await cleanup(claude, home, cwd);
+    }
+  });
+
+  test("project settings.json present in cwd → report names it and warns it may override", async () => {
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    const cwd = await makeTmpDir();
+    try {
+      await mkdir(join(cwd, ".claude"), { recursive: true });
+      await writeFile(join(cwd, ".claude", "settings.json"), "{}");
+
+      const data = await gatherWhatsOn(installPaths(claude, home), cwd);
+      expect(data.scope.projectSettingsPath).toBe(join(cwd, ".claude", "settings.json"));
+
+      const report = formatWhatsOn(data);
+      expect(report).toContain("NOTE: a project settings.json exists");
+      expect(report).toContain("may override");
+    } finally {
+      await cleanup(claude, home, cwd);
     }
   });
 });

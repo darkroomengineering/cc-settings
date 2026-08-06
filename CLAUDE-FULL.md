@@ -66,12 +66,39 @@ The style carries two independent rule sets:
 
 Two limits worth knowing:
 
-1. **Subagents don't get it.** An output style applies to the main conversation
-   only; a subagent runs its own system prompt (a `/fork` is the exception, it
-   inherits the parent's). The register rules are mirrored into `AGENTS.md` so
-   delegated work reads the same.
+1. **Subagents never get an output style.** A subagent runs its own system
+   prompt, and [the docs are explicit](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+   that output style is main-conversation-only (a `/fork` is the exception — it
+   inherits the parent's). What a subagent *does* get is **this file**: every
+   level of the CLAUDE.md hierarchy, `~/.claude/CLAUDE.md` included. That is why
+   the register block below is duplicated here instead of living only in the
+   style — it is the only copy delegated work actually reads. `AGENTS.md` is
+   **not** loaded by Claude Code at all; it is the portable copy for other tools
+   (Codex, Cursor) and for humans. Do not "dedupe" the block below into the
+   output style; that silently drops it from every subagent.
+   (Built-in `Explore` and `Plan` skip CLAUDE.md too — restate anything critical
+   in the delegation prompt, which the `implementer` briefing contract already
+   requires.)
 2. **It loads once per session.** Changing `outputStyle` takes effect after
    `/clear` or a new session, not mid-turn.
+
+### Register (the subagent copy)
+
+Applies to every reply, including delegated work. Length is not the target — a
+reply is better for being understood on the first read, not for being shorter.
+Never compensate by clipping sentences or writing in fragments.
+
+- **Subject first.** Name the thing before describing it; modifiers go after the
+  noun, in a clause, not stacked in front of it. "The parser drops trailing
+  commas — a lookahead bug, one line", not "a lookahead-driven
+  trailing-comma-tolerant parse failure surfaces".
+- **Use the existing name for the existing thing.** Never coin a term when one
+  exists; never capitalize an ordinary phrase into a proper noun to make it
+  sound like a concept.
+- **Identifiers point at code, not at ideas.** `parseConfig` when the reader
+  will open that function; "the config parser" when describing behavior.
+- **Define jargon inline on first use.** One parenthetical is enough.
+- **Say the effect, then the mechanism.** Never the mechanism alone.
 
 To opt out, run `/config` → Output style → Default, or set `"outputStyle"` in
 your own settings — user scope beats the shipped value. `bun run whats-on`

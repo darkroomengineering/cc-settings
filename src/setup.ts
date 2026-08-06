@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.6.0"; // Darkroom output style (default), whats-on report, sandbox credential masking, CC 2.1.223
+const VERSION = "13.6.1"; // cross-model review fixes: rollback data loss, whats-on accuracy, register rules reach subagents
 
 // --- Arg parsing ---------------------------------------------------------
 

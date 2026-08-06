@@ -14,27 +14,11 @@
 //   - tests/light-profile.test.ts — parity guard + transform units
 
 import { isManagedHookCommand } from "./hook-command.ts";
+import { sharedDirOwnedFiles } from "./managed-paths.ts";
 import { MANAGED_SKILLS } from "./managed-skills.ts";
 import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
 
 export type Profile = "full" | "light";
-
-/**
- * Full-only dirs that cc-settings SHARES with the user rather than owning
- * outright — mapped to the exact files it ships there. A full→light downgrade
- * prunes only those files, never the directory.
- *
- * `output-styles/` is the case this exists for: Claude Code's own /config
- * picker tells users to hand-write styles at that path, so the plain
- * `rm -rf <dir>` every other full-only dir gets would delete personal work on a
- * downgrade. Mirrors the scoping applied to the same dir in
- * MANAGED_TOP_LEVEL_PATHS (install-fs.ts) — both paths must stay narrow, or the
- * data loss just moves from one to the other. Pinned by
- * tests/output-style-preserve.test.ts, which covers both.
- */
-const SHARED_DIR_OWNED_FILES: Record<string, string[]> = {
-  "output-styles": ["darkroom.md"],
-};
 
 // The ONLY skill installed on light. No headline/dep split needed.
 export const LIGHT_SKILLS: readonly string[] = ["share-learning"] as const;
@@ -117,8 +101,12 @@ export const PROFILE_MANIFEST: Record<Profile, ProfileManifest> = {
  * H7 came from exactly that class of cross-list coupling. The cost of keeping
  * them is ~40 force-removes of absent paths, issued in parallel.
  *
- * SHARED DIRS are the one exception to "full-only dir → rm -rf": see
- * SHARED_DIR_OWNED_FILES directly below.
+ * SHARED DIRS are the one exception to "full-only dir → rm -rf": a dir
+ * `sharedDirOwnedFiles()` (managed-paths.ts) reports ownedFiles for — currently
+ * only output-styles/, which Claude Code's own /config picker invites users
+ * to hand-write files into. Those dirs are pruned file-by-file, never as a
+ * whole, so a downgrade can't delete personal work. Pinned by
+ * tests/output-style-preserve.test.ts.
  */
 export function lightProfilePruneTargets(): string[] {
   const targets: string[] = [];
@@ -139,7 +127,7 @@ export function lightProfilePruneTargets(): string[] {
   }
   for (const d of full.dirs) {
     if (lightDirs.has(d)) continue;
-    const owned = SHARED_DIR_OWNED_FILES[d];
+    const owned = sharedDirOwnedFiles(d);
     // Shared dir: prune only the files cc-settings ships, never the directory.
     if (owned) targets.push(...owned.map((f) => `${d}/${f}`));
     else targets.push(d);

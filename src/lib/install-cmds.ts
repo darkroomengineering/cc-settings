@@ -5,11 +5,11 @@
 //   cmdRollback — restore a backup archive
 
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, rename, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { error, info, success } from "./colors.ts";
-import { MANAGED_TOP_LEVEL_PATHS } from "./install-fs.ts";
+import { MANAGED_TOP_LEVEL_PATHS, sharedDirOwnedFiles } from "./managed-paths.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 
 export function printHelp(version: string): void {
@@ -201,10 +201,31 @@ export async function cmdRollback(target: string | true): Promise<number> {
     // back to this snapshot" (createBackup captured the unit whole, user files
     // included). rename is same-filesystem here, so it's effectively atomic and,
     // unlike a recursive copy, can't half-finish on ENOSPC.
+    //
+    // EXCEPTION: shared dirs (sharedDirOwnedFiles — currently just
+    // output-styles/, which Claude Code's own /config picker invites users to
+    // hand-write files into). A whole-unit prune+restore there would delete a
+    // personal file written AFTER the backup was taken — the same data-loss
+    // class narrowed on the install/downgrade paths, and rollback is the one
+    // place that hadn't been narrowed yet. For those units, never delete the
+    // live directory: restore ONLY the owned files over the top, leaving every
+    // other file in it untouched.
     for (const unit of pruneUnits) {
       const staged = join(staging, unit);
       if (!existsSync(staged)) continue;
       const live = join(extractCwd, unit);
+      const rel = homeRelative ? unit.replace(/^\.claude\//, "") : unit;
+      const owned = sharedDirOwnedFiles(rel);
+      if (owned) {
+        await mkdir(live, { recursive: true });
+        for (const file of owned) {
+          const stagedFile = join(staged, file);
+          if (!existsSync(stagedFile)) continue;
+          await rm(join(live, file), { force: true });
+          await rename(stagedFile, join(live, file));
+        }
+        continue;
+      }
       await rm(live, { recursive: true, force: true });
       await rename(staged, live);
     }

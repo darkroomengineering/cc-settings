@@ -525,7 +525,7 @@ Default since v13.6.0. Installed to `~/.claude/output-styles/darkroom.md`, selec
 
 **Why an output style and not CLAUDE.md.** A `CLAUDE.md` instruction arrives as a user message after the system prompt, so it competes with the system prompt and fades after a couple of turns — the reason a hand-written `communication_style.md` "works for 1–2 turns then reverts". An output style *is* part of the system prompt, and Claude Code re-issues adherence reminders during the conversation.
 
-Two limits: it applies to the **main conversation only** (subagents run their own system prompt, so the same register rules are mirrored in `AGENTS.md`), and it loads **once per session** — a change needs `/clear` or a new session.
+Two limits. It applies to the **main conversation only** — subagents run their own system prompt and never receive an output style. What they do receive is the CLAUDE.md hierarchy, so the register rules are duplicated into `CLAUDE.md` as the copy delegated work actually reads (`AGENTS.md` carries a third copy for Codex, Cursor, and humans — Claude Code does not auto-load it). And it loads **once per session**: a change needs `/clear` or a new session.
 
 **To turn it off:** `/config` → Output style → Default, or set your own `outputStyle` in `~/.claude/settings.json` (user scope wins over the shipped value).
 
