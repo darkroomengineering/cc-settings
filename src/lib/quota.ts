@@ -6,7 +6,11 @@ export type QuotaBand = "normal" | "elevated" | "critical" | "exhausted";
 
 const RateLimitWindowSchema = z.object({
   used_percentage: z.number().optional(),
-  resets_at: z.string().optional(),
+  // Persisted entries are always strings (statusline.ts's cacheResetValue
+  // stringifies before writing), but the field is parsed defensively as
+  // string OR number below (resetsAtMs) — a number here is tolerated in case
+  // a future write path or an older cache format skips that stringify step.
+  resets_at: z.union([z.string(), z.number()]).optional(),
 });
 
 export type RateLimitWindow = z.infer<typeof RateLimitWindowSchema>;
@@ -150,8 +154,8 @@ export function buildSteerMessage(
   codexState: string,
   fiveHourPct: number | undefined,
   sevenDayPct: number | undefined,
-  fiveHourResetsAt?: string,
-  sevenDayResetsAt?: string,
+  fiveHourResetsAt?: number | string,
+  sevenDayResetsAt?: number | string,
 ): string {
   const marker = `[quota:${band}]`;
   const usage = `${formatPct("5h", fiveHourPct)}, ${formatPct("7d", sevenDayPct)}`;
@@ -223,49 +227,100 @@ export interface ResolvedRateLimits {
   updated_at: number;
 }
 
+// `resets_at` normalised to epoch ms, tolerating the two shapes it's seen in:
+// string epoch-seconds (the persisted shape — statusline.ts's cacheResetValue
+// stringifies before writing) and number epoch-millis (defensive only —
+// tolerate it in case a future write path skips that stringify step, same
+// spirit as formatTimeToReset's tolerance for pre-v12 ISO strings). Getting
+// the seconds/millis boundary wrong here silently reverts the whole fix below
+// (an expired-seconds value read as millis is ~1000x in the future and would
+// never be pruned), so it's pinned by a dedicated test.
+function resetsAtMs(value: string | number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return undefined;
+  // Below ~1e11 is seconds (that boundary is year 5138); larger is already ms
+  // — same heuristic as formatTimeToReset.
+  return numeric < 1e11 ? numeric * 1000 : numeric;
+}
+
 /**
- * Core fix for the multi-workspace clobber bug: prune sessions whose reading
- * is older than `staleMs`, then take the MAX used_percentage per window
- * across the survivors — the winning entry's resets_at travels with it.
+ * Core fix for the "stale reading looks fresh" bug: `updated_at` records when
+ * a statusline render WROTE an entry, not when it OBSERVED the reading — a
+ * session idle for days still re-renders its statusline and rewrites its
+ * ancient reading with a brand-new `updated_at`, so by that test alone it
+ * always looks fresh. That let a long-dead session's reading from an already
+ * -expired window win the max-of-fresh comparison (observed in production:
+ * eight sessions all "written" within 30 seconds, several holding readings
+ * from 5-hour windows that had rolled over days earlier).
  *
- * This is ONE account-wide counter observed by several concurrent sessions at
- * different times. Over-reporting (picking the max) nudges routing early,
- * which is harmless; under-reporting (e.g. picking whichever session
- * happened to write last) risks hitting the hard limit unannounced — that
- * silent-clobber failure mode is the actual bug this replaces.
+ * `resets_at` is the real freshness signal — it's already in the payload and
+ * already persisted, and it tells you which window a reading belongs to.
+ * Per window (five_hour/seven_day), independently:
+ *   1. Drop entries whose `resets_at` is missing or already `<= now` — that
+ *      reading belongs to a window that has already rolled over and is
+ *      meaningless now.
+ *   2. Among survivors, keep only those whose `resets_at` equals the MAXIMUM
+ *      surviving `resets_at`. An earlier-but-still-future `resets_at` is a
+ *      reading of the previous window taken just before rollover; mixing
+ *      windows together (the old behaviour) is what produced the bug above.
+ *   3. Among those same-window entries, take the MAX `used_percentage` —
+ *      within one window usage only rises, so the highest reading is the
+ *      most recently observed truth.
  *
- * Returns null when no session survives the prune (fresh machine, first run,
- * or every known session idle past `staleMs`) — callers MUST treat that as
- * "unknown" and inject/report nothing, never fall back to a stale or default
- * number that would misrepresent true usage.
+ * `updated_at`/`staleMs` is kept as a secondary guard (bounds map growth,
+ * drops sessions that vanished entirely) but is no longer the primary
+ * freshness test — see the seconds-old-yet-expired case above.
+ *
+ * Returns null when nothing survives for either window (fresh machine, first
+ * run, or every known session's windows already rolled over) — callers MUST
+ * treat that as "unknown" and inject/report nothing, never fall back to a
+ * stale or default number that would misrepresent true usage.
  */
 export function resolveRateLimits(
   sessions: SessionRateLimitsMap | undefined,
   now: number,
   staleMs: number = CACHE_STALE_MS,
 ): ResolvedRateLimits | null {
-  const fresh = Object.values(sessions ?? {}).filter((s) => now - s.updated_at <= staleMs);
-  if (fresh.length === 0) return null;
+  const notStale = Object.values(sessions ?? {}).filter((s) => now - s.updated_at <= staleMs);
+  if (notStale.length === 0) return null;
 
-  const pickWindow = (
+  const resolveWindow = (
     select: (s: SessionRateLimits) => RateLimitWindow | undefined,
   ): RateLimitWindow | undefined => {
-    let best: RateLimitWindow | undefined;
-    for (const s of fresh) {
+    // Step 1 — drop expired/unparseable-reset entries (dead windows).
+    const live: Array<{ window: RateLimitWindow; resetMs: number }> = [];
+    for (const s of notStale) {
       const w = select(s);
-      const pct = w?.used_percentage;
-      if (w === undefined || pct === undefined) continue;
-      if (best === undefined || best.used_percentage === undefined || pct > best.used_percentage) {
-        best = w;
+      if (w?.used_percentage === undefined) continue;
+      const resetMs = resetsAtMs(w.resets_at);
+      if (resetMs === undefined || resetMs <= now) continue;
+      live.push({ window: w, resetMs });
+    }
+    if (live.length === 0) return undefined;
+
+    // Step 2 — keep only entries from the current (latest-resetting) window.
+    const maxResetMs = Math.max(...live.map((e) => e.resetMs));
+    const sameWindow = live.filter((e) => e.resetMs === maxResetMs);
+
+    // Step 3 — max used_percentage wins among same-window entries.
+    let best = sameWindow[0]?.window;
+    for (const e of sameWindow) {
+      if (best === undefined || (e.window.used_percentage ?? 0) > (best.used_percentage ?? 0)) {
+        best = e.window;
       }
     }
     return best;
   };
 
+  const five_hour = resolveWindow((s) => s.five_hour);
+  const seven_day = resolveWindow((s) => s.seven_day);
+  if (five_hour === undefined && seven_day === undefined) return null;
+
   return {
-    five_hour: pickWindow((s) => s.five_hour),
-    seven_day: pickWindow((s) => s.seven_day),
-    updated_at: Math.max(...fresh.map((s) => s.updated_at)),
+    five_hour,
+    seven_day,
+    updated_at: Math.max(...notStale.map((s) => s.updated_at)),
   };
 }
 
