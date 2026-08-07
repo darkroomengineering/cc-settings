@@ -207,6 +207,32 @@ async function lintOne(skillsDir: string, name: string): Promise<LintOneResult> 
       });
     }
 
+    // The Skill selector reads every description each turn, and a human skims the
+    // same list in MANUAL.md. A `description: |` block scalar renders as a bullet
+    // list in one entry and a sentence in the next 37, which makes the index
+    // unskimmable and buries the trigger phrases mid-list. Three skills drifted
+    // into this before it was caught.
+    if (desc.includes("\n")) {
+      domainFindings.push({
+        severity: "error",
+        rule: "description-multiline",
+        message:
+          'description spans multiple lines — write it as one line (`description: What it does. Triggers "a", "b".`), not a `|` block',
+      });
+    }
+
+    // House convention: the trigger phrases follow the literal word `Triggers`.
+    // TRIGGER_PATTERN above accepts several phrasings so a non-conforming skill
+    // still passes the floor; this steers new ones to the shape the other 37 use.
+    if (TRIGGER_PATTERN.test(desc) && !/\bTriggers\b/.test(desc)) {
+      domainFindings.push({
+        severity: "warning",
+        rule: "description-nonstandard-trigger",
+        message:
+          'description states triggers in a non-house form — use `Triggers "phrase", "phrase"` so the whole index reads the same way',
+      });
+    }
+
     return domainFindings;
   });
 

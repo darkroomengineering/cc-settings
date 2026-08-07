@@ -1,11 +1,6 @@
 ---
 name: retro
-description: |
-  Weekly engineering retrospective with persistent metrics. Use when:
-  - User says "retro", "retrospective", "weekly review"
-  - User asks "how was my week?", "engineering metrics", "velocity"
-  - User wants to analyze commit patterns, work sessions, or code quality trends
-  - User says "what did I ship?", "show me my stats"
+description: Weekly engineering retrospective with persistent metrics — commit patterns, work sessions, code-quality trends. Triggers "retro", "retrospective", "weekly review", "how was my week", "engineering metrics", "velocity", "what did I ship", "show me my stats".
 context: fork
 allowed-tools:
   - Bash

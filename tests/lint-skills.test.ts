@@ -325,3 +325,64 @@ describe("formatFindings", () => {
     }
   });
 });
+
+describe("lintSkillsDir — description shape", () => {
+  test("a `|` block-scalar description is an error", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(
+        dir,
+        "blocky",
+        `---
+name: blocky
+description: |
+  Does a thing worth describing at length. Use when:
+  - User says "blocky"
+  - User asks for a block
+---
+
+# Body
+`,
+      );
+      const result = await lintSkillsDir(dir);
+      expect(result.findings.map((f) => f.rule)).toContain("description-multiline");
+      expect(hasErrors(result)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("non-house trigger phrasing warns but does not fail", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(
+        dir,
+        "usefor",
+        `---
+name: usefor
+description: A reasonably long description that explains what it does. Use for "test", "example".
+---
+
+# Body
+`,
+      );
+      const result = await lintSkillsDir(dir);
+      expect(result.findings.map((f) => f.rule)).toContain("description-nonstandard-trigger");
+      expect(hasErrors(result)).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the house form passes both checks", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(dir, "housed", goodFrontmatter("housed"));
+      const rules = (await lintSkillsDir(dir)).findings.map((f) => f.rule);
+      expect(rules).not.toContain("description-multiline");
+      expect(rules).not.toContain("description-nonstandard-trigger");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

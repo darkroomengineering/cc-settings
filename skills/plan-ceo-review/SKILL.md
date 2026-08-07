@@ -1,12 +1,6 @@
 ---
 name: plan-ceo-review
-description: |
-  CEO/founder-mode plan review. Stress-tests plans through a product lens. Use when:
-  - User says "ceo review", "founder review", "product review"
-  - User wants to challenge whether they're solving the right problem
-  - User asks "is this the right approach?", "should we even build this?"
-  - Before committing to a large feature or architectural change
-  - User wants to evaluate a plan from a product/business perspective
+description: CEO/founder-mode plan review — stress-tests a plan through a product lens before you commit to building it. Triggers "ceo review", "founder review", "product review", "is this the right approach", "should we even build this", or before a large feature or architectural commitment.
 context: fork
 allowed-tools:
   - Read

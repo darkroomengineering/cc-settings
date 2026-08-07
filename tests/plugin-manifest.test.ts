@@ -1,8 +1,12 @@
 // Plugin/marketplace manifest contract: keeps .claude-plugin/ in sync with the
 // rest of the repo so the Cowork-installable surface can't drift silently.
 //
-// - plugin.json version must match the installer VERSION (the 8.1.0 staleness
-//   this guards against sat unnoticed for two major versions).
+// - Every version-bearing file must match the installer VERSION in src/setup.ts,
+//   which is the single source of truth (see CHANGELOG's Versioning note). Three
+//   places carry it: plugin.json, package.json, and the CHANGELOG's top heading.
+//   Each has drifted at least once — plugin.json sat at 8.1.0 for two major
+//   versions, and package.json sat at 13.4.3 across three releases because
+//   nothing tested it.
 // - plugin.json mcpServers must be a subset of config/20-mcp.json (source of
 //   truth), matching on the portable transport fields.
 // - marketplace.json must point at the plugin defined in this repo.
@@ -27,13 +31,31 @@ async function readJson(relPath: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(join(ROOT, relPath), "utf8"));
 }
 
-describe("plugin manifest — version sync", () => {
+/** The one source of truth every other version must follow. */
+async function installerVersion(): Promise<string> {
+  const setup = await readFile(join(ROOT, "src/setup.ts"), "utf8");
+  const match = setup.match(VERSION_CONST_RE);
+  expect(match?.[1], 'src/setup.ts has no `const VERSION = "x.y.z"`').toBeDefined();
+  return match?.[1] as string;
+}
+
+describe("version sync — every version-bearing file tracks src/setup.ts", () => {
   test("plugin.json version matches src/setup.ts VERSION", async () => {
     const plugin = await readJson(".claude-plugin/plugin.json");
-    const setup = await readFile(join(ROOT, "src/setup.ts"), "utf8");
-    const match = setup.match(VERSION_CONST_RE);
-    expect(match?.[1]).toBeDefined();
-    expect(plugin.version).toBe(match?.[1] as string);
+    expect(plugin.version).toBe(await installerVersion());
+  });
+
+  test("package.json version matches src/setup.ts VERSION", async () => {
+    const pkg = await readJson("package.json");
+    expect(pkg.version).toBe(await installerVersion());
+  });
+
+  test("CHANGELOG's newest entry matches src/setup.ts VERSION", async () => {
+    const changelog = await readFile(join(ROOT, "CHANGELOG.md"), "utf8");
+    // First `## [x.y.z]` heading in the file — entries are newest-first.
+    const newest = changelog.match(/^##\s*\[(\d+\.\d+\.\d+)\]/m);
+    expect(newest?.[1], "CHANGELOG.md has no `## [x.y.z]` entry").toBeDefined();
+    expect(newest?.[1]).toBe(await installerVersion());
   });
 });
 

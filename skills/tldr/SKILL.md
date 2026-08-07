@@ -1,6 +1,6 @@
 ---
 name: tldr
-description: TLDR code analysis — call graphs, semantic search, impact, dataflow; ~95% token savings vs raw reads. Use for "who calls X", "what affects X", before large file reads or refactors.
+description: TLDR code analysis — call graphs, semantic search, impact, dataflow, for far fewer tokens than reading the files raw. Triggers "who calls X", "what affects X", "blast radius", before large file reads or refactors.
 context: fork
 allowed-tools: [mcp__tldr__semantic, mcp__tldr__context, mcp__tldr__impact, mcp__tldr__arch, mcp__tldr__slice, mcp__tldr__structure, mcp__tldr__calls, mcp__tldr__cfg, mcp__tldr__dfg, mcp__tldr__change_impact, mcp__tldr__dead, mcp__tldr__imports, mcp__tldr__importers, mcp__tldr__diagnostics, mcp__tldr__tree, mcp__tldr__search, mcp__tldr__extract, mcp__tldr__status]
 requires:
@@ -10,7 +10,9 @@ requires:
 
 # TLDR Code Analysis
 
-Token-efficient codebase analysis behind the `tldr` MCP server. **~95% fewer tokens than reading raw files.**
+Token-efficient codebase analysis behind the `tldr` MCP server. It returns the symbols, edges, and slices you asked for instead of whole file bodies, so a question that would cost several full reads costs one small structured answer.
+
+> No measured savings figure is published here on purpose. cc-settings carried a "~95% fewer tokens" claim for months with no benchmark behind it anywhere in the repo — the kind of number `AGENTS.md` now forbids (*No savings against a run that never happened*). To get a real figure, answer the same question both ways and compare the token counts your own session reports.
 
 The engine is provisioned by cc-settings. The tool names below are the stable contract; only the engine behind them changes. Select with `CC_CODE_INTEL_ENGINE`.
 
@@ -52,7 +54,7 @@ mcp__tldr__semantic { "project": ".", "query": "user authentication flow" }
 mcp__tldr__semantic { "project": ".", "query": "error handling" }
 ```
 
-### Function Context (95% Token Savings)
+### Function Context
 Get LLM-ready summary instead of reading entire file:
 ```
 mcp__tldr__context { "project": ".", "entry": "handleLogin", "depth": 2 }

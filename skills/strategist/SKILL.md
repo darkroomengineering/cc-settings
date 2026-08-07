@@ -1,12 +1,6 @@
 ---
 name: strategist
-description: |
-  Product strategy advisor for vision, positioning, and architecture decisions. Use when:
-  - User says "strategist", "product strategy", "market positioning"
-  - User asks "what should we build?", "who is this for?", "how should we position?"
-  - User wants to discuss vision, market, competitive landscape
-  - User needs help connecting architecture/code decisions to product strategy
-  - User mentions "market analysis", "competitive advantage", "product direction"
+description: Product strategy advice on vision, positioning, and how architecture decisions serve them. Triggers "strategist", "product strategy", "market positioning", "what should we build", "who is this for", "how should we position", "market analysis", "competitive advantage", "product direction".
 allowed-tools:
   - Read
   - Grep
