@@ -35,7 +35,7 @@ bash setup.sh --light    # macOS / Linux
 .\setup.ps1 --light      # Windows (PowerShell)
 ```
 
-No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the statusline), or effort overrides — just vanilla Claude Code so you're not overwhelmed. Re-run `bash setup.sh` without `--light` any time to upgrade to the full config; both tiers are permanently supported. See [MANUAL.md](../MANUAL.md#light-vs-full) for the full comparison.
+No custom CLAUDE.md, agents, rules, profiles, MCP servers, hooks (beyond the statusline), or effort overrides — just vanilla Claude Code so you're not overwhelmed. Re-run `bash setup.sh` without `--light` any time to upgrade to the full config; both tiers are permanently supported. See [MANUAL.md](../MANUAL.md#install-tiers-light-vs-full) for the full comparison.
 
 ## What gets installed
 

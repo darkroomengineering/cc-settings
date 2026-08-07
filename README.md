@@ -24,6 +24,21 @@ Restart Claude Code after install. New to Claude Code? `bash setup.sh --light` i
 
 ---
 
+## After installing
+
+There are no commands to learn. Open Claude Code in a project and describe what you want in your own words — the right workflow loads on its own.
+
+```
+> fix the login redirect
+> add a dashboard with stats
+> review my changes
+> ship it
+```
+
+That's the whole interface. Slash names like `/fix` and `/ship` exist so you can pin a specific one when you want to, and you'll rarely need them. When you're curious what fired and why, run `bun run whats-on` or ask *"what skill handles X?"*. The [situation-to-phrase table in MANUAL.md](./MANUAL.md#quickstart) covers the common cases.
+
+---
+
 ## What it adds on top of vanilla Claude Code
 
 ### Standards & knowledge
@@ -35,7 +50,7 @@ Restart Claude Code after install. New to Claude Code? `bash setup.sh --light` i
 
 ### Automation: 38 skills, 10 agents, 15 hooks
 
-- **38 skills** — the workflow library: `/fix`, `/build`, `/review`, `/verify` (adversarial three-agent verification), `/audit`, `/ship` (push → PR → babysit CI), `/handoff`, `/orchestrate`, `/harvest`, `/triage`, and more ([MANUAL.md](./MANUAL.md) covers every one). The count is ratcheted in CI: adding a 39th or dropping to 37 both fail lint until the baseline is deliberately moved in a commit.
+- **38 skills** — multi-step workflows that fire from how you phrase a request, not from a command you memorize. *"fix the login redirect"* runs explore → tester → implementer → reviewer; *"ship it"* runs the full gate to an open PR; *"poke holes in this"* puts three competing agents on the claim. Each has a slash name for when you want to pin one, and [MANUAL.md](./MANUAL.md) maps situations to phrasings. The count is ratcheted in CI: adding a 39th or dropping to 37 both fail lint until the baseline is deliberately moved in a commit.
 - **10 subagents** — explore, planner, implementer, tester, reviewer, security-reviewer, deslopper, scaffolder, maestro, codex-verifier — with a mechanical delegation heuristic (3+ files or 12+ tool calls → delegate) enforced by a hook, because models under-delegate on their own.
 - **15 hook modules wired across 17 event types** (34 command bindings, including lifecycle scripts), split into hard gates and soft advisories:
   - *Gates*: proof-of-work blocks pushing/PR-ing until typecheck/test/lint are green; the [farolero](https://github.com/darkroomengineering/farolero) ratchet gates commits in repos that use it; `/freeze` blocks edits outside a locked directory. For destructive Bash, the permissions deny-list is the enforcement boundary, with a fail-open safety-net hook as defense-in-depth on top ([SECURITY.md](./SECURITY.md)).

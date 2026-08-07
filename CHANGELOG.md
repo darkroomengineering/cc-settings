@@ -41,6 +41,14 @@ Two details that are easy to get wrong. The marker must be the first thing on it
 
 The first casualty of the new honesty rule was our own copy. `/tldr` claimed "~95% fewer tokens than reading raw files" in three places with no benchmark behind it anywhere in the repo. Replaced with a description of what the tool actually returns plus a note on how to measure it yourself — a savings number we never ran is exactly what the rule forbids, and shipping the rule while keeping the number would have been the wrong lesson.
 
+**The docs advertised a command catalog; the product is a description matcher.** MANUAL.md opened by saying *"You don't need to memorize this — just describe what you want"*, and the README then listed 38 skills by name, so a new user reasonably concluded there were 38 commands to learn. The catalog framing won because it was louder, and that was the whole learning curve.
+
+Three fixes, no behavior change. MANUAL's install-tier tables moved from the first 60 lines down to `## Install Tiers (Light vs Full)` near the end — anyone reading the manual has already installed. The Quickstart now leads with "there is nothing to memorize" and a 13-row *you say → what runs* table. The README gained an **After installing** section that shows four sentences you can type instead of a feature list, and its skills bullet describes how skills fire rather than naming them.
+
+The table's middle rows do the load-bearing work: nine skills look at code and tell you something, and each description explains its own boundary well enough for the model to route correctly, but you only learn the boundaries by reading all nine. One line now separates them by the question being asked — `/review` reads your diff, `/proof-of-work` proves it green, `/verify` breaks a claim, `/qa` looks at pixels, `/triage` handles code you didn't write, `/audit` sweeps the repo.
+
+Also repaired two broken anchors, one created by the section move and one that predated it (`#whats-on` never matched its heading). A one-off sweep confirms 0 broken intra-repo anchors across 125 markdown files.
+
 The prompting ideas from all three upstream repos were already absorbed — i-have-adhd's output shaping into `output-styles/darkroom.md`, ponytail's ladder into `AGENTS.md`, caveman rejected for overcorrecting the register. What this release takes is the part that was skipped: their measurement discipline.
 
 ## [13.6.2] — 2026-08-06

@@ -3,63 +3,6 @@
 > Everything you can do with Darkroom's Claude Code setup.
 > You don't need to memorize this — just describe what you want and Claude will invoke the right skill.
 
-## Light vs Full
-
-cc-settings ships two install tiers. Both are **supported permanent lanes** — not just onboarding vs advanced.
-
-### Which tier should I use?
-
-| | Light (`--light`) | Full (default) |
-|--|---|---|
-| **Skills** | `share-learning` only | All 38 headline skills |
-| **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
-| **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
-| **Hooks** | StatusLine only | All hooks active |
-| **Effort** | Claude Code default | `high` |
-| **CLAUDE.md / AGENTS.md** | Not installed | Full delegation matrix, effort calibration, coding standards |
-| **Permissions** | Claude Code defaults | cc-settings allow-list |
-
-**Light is raw Claude Code** with exactly two cc-settings additions: the `statusLine` (shows branch + git status in the prompt bar) and the `share-learning` skill (lets you contribute learnings back to the team knowledge board). Everything else is the Claude Code you get without any configuration.
-
-### How to install
-
-```bash
-# Light tier (raw Claude Code + statusLine + share-learning)
-bash setup.sh --light
-
-# Full tier (default — full team config)
-bash setup.sh
-```
-
-On Windows, substitute `.\setup.ps1` for `bash setup.sh` throughout — the PowerShell bootstrap forwards the same flags.
-
-### Switching tiers
-
-Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
-
-```bash
-# Switch from full → light
-bash setup.sh --light
-
-# Switch from light → full
-bash setup.sh
-```
-
-**Note**: A full→light switch preserves any settings.json content you added yourself (custom MCP servers, custom hook groups, custom env vars you set to a different value than the full baseline). Only cc-settings-managed entries are removed.
-
-### Plugin install (Cowork and Claude Code)
-
-The repo is also installable as a Claude Code plugin — useful in Cowork (the desktop app), where `setup.sh` doesn't apply:
-
-```
-/plugin marketplace add darkroomengineering/cc-settings
-/plugin install darkroom@cc-settings
-```
-
-The plugin carries the **portable surface only**: all skills (namespaced as `/darkroom:<skill>`), agents, and the self-contained MCP connectors (`context7`, `figma`, `chrome-devtools`). It does **not** carry hooks, rules, profiles, CLAUDE.md/AGENTS.md, permission rules, or the `tldr` server (which needs a locally installed binary) — those remain `setup.sh` territory. If you already ran `setup.sh`, you don't need the plugin; installing both registers the MCP servers twice (harmless, but noisy).
-
----
-
 ## Quickstart
 
 **1. Install** (one command, idempotent — re-run it any time):
@@ -86,21 +29,33 @@ Re-installs are non-destructive: hand-added permission rules, custom hooks, loca
 
 You'll be asked to pick a starter — **satus** (Next.js, content sites) or **novus** (React Router 7, app-leaning SPAs). cc-settings auto-detects which one each project uses from `package.json` for everything that follows.
 
-**3. Open Claude Code in any project directory.** The team config loads automatically. Just describe what you want:
+**3. Open Claude Code in any project directory.** The team config loads automatically.
 
-| You say | What happens |
+**There is nothing to memorize.** cc-settings is not a set of commands you learn — it is a set of behaviors that fire when you describe an outcome in your own words. The slash names below exist so you can pin a specific one when you want to; you will rarely need them. The rest of this manual is a reference for when you're curious what fired and why, not a syllabus.
+
+Say what you want. The right thing runs:
+
+| You say | What runs |
 |---|---|
 | *"fix the login redirect"* | `/fix` — explore → tester → implementer → reviewer |
 | *"add a dashboard with stats"* | `/build` — research gate → plan → scaffold → implement → test |
 | *"create a Button component"* | `/component` — stack-aware scaffold (Next.js or RR shape) |
-| *"how do I use react-router loaders?"* | Context7 MCP — fetches current docs (always before adding new deps) |
+| *"how do I use react-router loaders?"* | context7 MCP — current docs, always before adding a new dep |
+| *"where does auth happen?"* | `/explore` — read-only map, file:line citations |
 | *"ship it"* / *"create a PR"* | `/ship` — typecheck → build → test → lint → review → commit → PR |
-| *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
-| *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
+| *"review my changes"* | `/review` — your diff against the Darkroom checklist |
+| *"is this ready to merge?"* | `/proof-of-work` — the machine gate: typecheck, test, lint, screenshot |
+| *"poke holes in this"* / *"are you sure?"* | `/verify` — three competing agents: finder, disprover, judge |
+| *"does this look right?"* | `/qa` — screenshot-first visual and a11y critique |
+| *"what's wrong with this repo?"* (unfamiliar or client code) | `/triage` — ranked first-pass sweep, read-only |
+| *"should this code exist?"* | `/audit` — whole-repo structural audit |
+| *"I'm running out of context"* | `/handoff` — save state now, resume cleanly next session |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 38 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total. As of Claude Code 2.1.223 native `/review` is an alias of `/code-review`; cc-settings' own `/review` is the local pre-commit diff check.)
+Those middle rows are the ones worth skimming twice. Several skills look at code and tell you something, and they differ by *what you're asking*, not by how thorough they are: `/review` reads your diff, `/proof-of-work` proves it's green, `/verify` tries to break a specific claim, `/qa` looks at pixels, `/triage` handles a repo you didn't write, `/audit` sweeps everything. Say the question and the right one loads.
 
-**5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. Or run `bun run whats-on` — it prints every behavior currently shaping your session and how to switch each one off. See [What's on](#whats-on).
+**4. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. Or run `bun run whats-on` — it prints every behavior currently shaping your session and how to switch each one off. See [What's on](#whats-on--and-how-to-turn-it-off).
+
+> Your session sees more than cc-settings' 38 skills. Native Claude Code skills (`/loop`, `/schedule`, `/code-review`, `/init`, `/security-review`) and any plugins (`sanity:*`, `vercel:*`) load alongside them — typically 60–80 total. Since Claude Code 2.1.223 the native `/review` is an alias of `/code-review`; cc-settings' own `/review` is the local pre-commit diff check. Full list: [All Skills](#all-skills).
 
 > **For maintainers / contributors:** see `CLAUDE.md` (project-level guidance) and `CHANGELOG.md` for the per-version delta. The merge policy and `--interactive` semantics live in [docs/settings-reference.md](./docs/settings-reference.md#re-install-merge-behavior).
 
@@ -532,6 +487,63 @@ Default since v13.6.0. Installed to `~/.claude/output-styles/darkroom.md`, selec
 Two limits. It applies to the **main conversation only** — subagents run their own system prompt and never receive an output style. What they do receive is the CLAUDE.md hierarchy, so the register rules are duplicated into `CLAUDE.md` as the copy delegated work actually reads (`AGENTS.md` carries a third copy for Codex, Cursor, and humans — Claude Code does not auto-load it). And it loads **once per session**: a change needs `/clear` or a new session.
 
 **To turn it off:** `/config` → Output style → Default, or set your own `outputStyle` in `~/.claude/settings.json` (user scope wins over the shipped value).
+
+---
+
+## Install Tiers (Light vs Full)
+
+cc-settings ships two install tiers. Both are **supported permanent lanes** — not just onboarding vs advanced.
+
+### Which tier should I use?
+
+| | Light (`--light`) | Full (default) |
+|--|---|---|
+| **Skills** | `share-learning` only | All 38 headline skills |
+| **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
+| **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
+| **Hooks** | StatusLine only | All hooks active |
+| **Effort** | Claude Code default | `high` |
+| **CLAUDE.md / AGENTS.md** | Not installed | Full delegation matrix, effort calibration, coding standards |
+| **Permissions** | Claude Code defaults | cc-settings allow-list |
+
+**Light is raw Claude Code** with exactly two cc-settings additions: the `statusLine` (shows branch + git status in the prompt bar) and the `share-learning` skill (lets you contribute learnings back to the team knowledge board). Everything else is the Claude Code you get without any configuration.
+
+### How to install
+
+```bash
+# Light tier (raw Claude Code + statusLine + share-learning)
+bash setup.sh --light
+
+# Full tier (default — full team config)
+bash setup.sh
+```
+
+On Windows, substitute `.\setup.ps1` for `bash setup.sh` throughout — the PowerShell bootstrap forwards the same flags.
+
+### Switching tiers
+
+Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
+
+```bash
+# Switch from full → light
+bash setup.sh --light
+
+# Switch from light → full
+bash setup.sh
+```
+
+**Note**: A full→light switch preserves any settings.json content you added yourself (custom MCP servers, custom hook groups, custom env vars you set to a different value than the full baseline). Only cc-settings-managed entries are removed.
+
+### Plugin install (Cowork and Claude Code)
+
+The repo is also installable as a Claude Code plugin — useful in Cowork (the desktop app), where `setup.sh` doesn't apply:
+
+```
+/plugin marketplace add darkroomengineering/cc-settings
+/plugin install darkroom@cc-settings
+```
+
+The plugin carries the **portable surface only**: all skills (namespaced as `/darkroom:<skill>`), agents, and the self-contained MCP connectors (`context7`, `figma`, `chrome-devtools`). It does **not** carry hooks, rules, profiles, CLAUDE.md/AGENTS.md, permission rules, or the `tldr` server (which needs a locally installed binary) — those remain `setup.sh` territory. If you already ran `setup.sh`, you don't need the plugin; installing both registers the MCP servers twice (harmless, but noisy).
 
 ---
 
