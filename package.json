@@ -14,6 +14,7 @@
     "lint:fix": "biome check --write .",
     "lint:skills": "bun src/scripts/lint-skills.ts",
     "lint:research": "bun src/scripts/lint-research.ts",
+    "lint:shortcuts": "bun src/scripts/lint-shortcuts.ts",
     "lint:agents": "bun src/scripts/lint-agents.ts",
     "lint:profiles": "bun src/scripts/lint-profiles.ts",
     "audit:hooks": "bun src/scripts/audit-hooks.ts",

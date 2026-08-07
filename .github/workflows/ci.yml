@@ -53,6 +53,7 @@ jobs:
       - run: bun run lint:skills
       - run: bun run lint:agents
       - run: bun run lint:profiles
+      - run: bun run lint:shortcuts
       - name: lint:knowledge (fixture dir, not the real team-knowledge repo)
         # No team-knowledge repo checkout lives in this CI job, so this lints
         # tests/fixtures/knowledge/ instead — a small schema-valid note kept

@@ -81,6 +81,18 @@ The ladder is a Jevons countermeasure: when generating code is cheap, code volum
 
 **Lazy, not negligent.** The ladder never applies to trust-boundary/input validation, error handling that prevents data loss, security, accessibility, or anything explicitly requested — those are always built in full. It also bends for real-world physical constraints (hardware drift, sensor inaccuracy) when the task involves them.
 
+**Leave a receipt for corners you cut on purpose.** A deliberate simplification with a known ceiling — a global lock, an O(n²) scan, a naive heuristic, a hardcoded limit — gets a `SHORTCUT:` comment naming both the ceiling and what should trigger revisiting it:
+
+```ts
+// SHORTCUT: single global lock, not per-key.
+// ceiling: contention above ~50 rps
+// upgrade: shard by key hash when p99 write latency climbs
+```
+
+The upgrade trigger is the part that matters. A marker naming a ceiling but no trigger is how a deferral quietly becomes permanent — nobody knows what would make it worth fixing, so nobody ever does. `bun run lint:shortcuts` fails on a marker with no `upgrade:` line.
+
+This is for corners cut *knowingly*. Ordinary code needs no marker, and a marker is not a license to skip anything on the "lazy, not negligent" list above — you cannot `SHORTCUT:` your way out of input validation. Run `/audit debt` to collect every marker in the repo into one ledger.
+
 ### Read Before Edit
 **Never change code you haven't read.** Research the codebase before editing — open the file, trace the callers, understand the context. Edit-first behavior produces shallow fixes and regressions. If you're about to modify something you haven't read in this session, stop and read it first.
 
@@ -131,6 +143,8 @@ the single most common cause of the fix-broke-a-test / red-CI loop.
 ### Never Fake Measurements
 NEVER fabricate output from Lighthouse, bundle size tools, performance profilers, test runners, or build systems. If you can't run a tool, say so.
 
+**No savings against a run that never happened.** Report a delta only between two things that were both measured. "This saved ~400 lines" or "cut token use 60%" is unknowable when the unoptimized version was never written and the without-the-change run was never executed — there is no baseline to subtract from, so the number is invented no matter how plausible it looks. Report what you can count instead: lines deleted in this diff, the measured before and after of a benchmark you actually ran twice. Where an extrapolation genuinely helps, label it `est.` and name what it was extrapolated from. This applies hardest to the numbers that flatter the work — a savings figure is the easiest thing to fabricate and the least likely to be checked.
+
 ### Visual/Spatial Honesty
 For sub-pixel rendering, WebGL, physics, complex animations, or canvas — acknowledge limitations upfront. Provide best-effort with clear TODOs, and suggest the user validate visually.
 
@@ -175,6 +189,8 @@ Biased prompts cause agents to manufacture issues that don't exist.
 
 ### TODO Comments Are Instructions
 When you encounter a `TODO`, `FIXME`, or `HACK` comment, **implement it** — don't delete it. Removing a TODO without doing the work is marking your own homework complete by erasing the assignment.
+
+`SHORTCUT:` is the exception: it marks a corner cut deliberately, with a ceiling and an upgrade trigger already named (see `Laziness Ladder`). Leave it alone unless its trigger has actually fired — implementing it on sight is the over-build the ladder exists to prevent. If the trigger *has* fired, do the upgrade and delete the marker in the same diff.
 
 ### Plan Before Multi-File Changes
 Once a change is broad enough that a wrong approach would mean a full rollback, state the plan

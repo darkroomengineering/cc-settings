@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.6.2"; // surface context7 API key setup on keyless installs
+const VERSION = "13.7.0"; // eval isolation for autoresearch; SHORTCUT: debt markers
 
 // --- Arg parsing ---------------------------------------------------------
 

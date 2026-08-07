@@ -35,6 +35,7 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Tests: `bun test`
 - Typecheck: `bun run typecheck`
 - Lint: `bun run lint` / `bun run lint:fix`
+- Deliberate-shortcut markers: `bun run lint:shortcuts` (add `-- --ledger` for the `/audit debt` view). Convention lives in AGENTS.md → Laziness Ladder.
 - Schemas (regenerate JSON Schema from zod sources): `bun run schemas:emit`
 - Preview composed settings.json: `bun run compose`
 - Dry-run a Bash command against the permission rules: `bun run permissions:check "<cmd>"` (`--installed` to check against `~/.claude/settings.json` instead of `config/`)

@@ -1,7 +1,7 @@
 ---
 name: audit
-argument-hint: "[maintainability|codebase|docs|process]"
-description: Whole-repo audits in four modes. Maintainability mode is a strict structural audit — sprawl, thin wrappers, leaked logic, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes are adversarial audits hunting defects, drift, dead ends. Codebase mode triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs mode triggers "audit the docs", "docs audit", "doc drift". Process mode triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Owns the bare "audit the codebase" — asks one question (maintainability vs correctness) when phrasing doesn't pin a mode. Sibling to `/review`, `/zero-tech-debt`, `/verify`.
+argument-hint: "[maintainability|codebase|docs|process|debt]"
+description: Whole-repo audits in five modes. Maintainability mode — structural audit of sprawl, thin wrappers, leaked logic, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes — adversarial audits hunting defects, drift, dead ends. Codebase triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs triggers "audit the docs", "docs audit", "doc drift". Process triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Debt mode ledgers `SHORTCUT:` markers — triggers "debt ledger", "shortcut ledger", "what corners did we cut". Owns the bare "audit the codebase" — asks maintainability vs correctness when unpinned.
 context: main
 requires:
   - mcp: context7
@@ -9,12 +9,14 @@ requires:
 
 # Audit
 
-One skill, four whole-repo audit modes sharing a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report. Two families of question:
+One skill, five whole-repo audit modes. Four of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report. Two families of question:
 
 - **Maintainability** — ported from Cursor's internal `thermo-nuclear-code-quality-review` skill (reported by Eric Zakariasson as Cursor's most-used internal skill; this mode was formerly the standalone `/nuclear-review` skill). Asks **should this code exist?** — structural quality, 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7.
 - **Codebase, Docs, and Process** — adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; these modes were formerly the standalone `/adversarial-audit` skill). Ask **does it do what it promises?** — correctness/coherence/affordances (codebase), truth and structure of the docs (docs), walkable end-to-end journeys (process). The July 2026 cc-settings audit ran the codebase spec and produced 28 findings, ~all confirmed and fixed. The mechanics that made that work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these three modes, whatever the mode.
 
-Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The other three modes hold **no loyalty to the current design** — hunt defects, drift, and dead ends rather than confirm things work.
+Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The codebase, docs, and process modes hold **no loyalty to the current design** — hunt defects, drift, and dead ends rather than confirm things work.
+
+The fifth mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
 
 ## Mode Router — disambiguate before fanning out
 
@@ -32,12 +34,17 @@ Only proceed to the matching mode below once the answer disambiguates. This ques
 | Codebase | "adversarial audit", "fable audit", "expectation gaps", "correctness audit" |
 | Docs | "audit the docs", "docs audit", "doc drift" |
 | Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
+| Debt | "debt ledger", "shortcut ledger", "what did we defer", "what corners did we cut" |
 | Ambiguous — ASK | "audit the codebase" alone, or any phrasing that doesn't match a row above |
+
+Debt mode never participates in the ambiguity above — it is a mechanical grep, not
+a judgement call, and its triggers do not overlap the other four. Run it standalone
+or as a cheap first pass before maintainability mode.
 
 ## When to use vs other review skills
 
 - `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security). Every change.
-- `/audit` (this skill) — periodic whole-repo audit, four modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts.
+- `/audit` (this skill) — periodic whole-repo audit, five modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?"; debt mode asks "what did we defer on purpose?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/verify` — adversarial check of a single change/claim, not a repo sweep.
 
@@ -459,3 +466,68 @@ Audit end-to-end workflows — not lines of code, but whether the processes the 
 **Map section:** the real per-record state machine — states, transitions, owning command; mark unreachable states and absorbing dead ends. If a prior audit was remediated, start by empirically verifying those fixes hold through full workflows (regressions and partial fixes are in scope; re-auditing code style is not).
 
 **Method addition:** every finding needs the exact command sequence to reproduce and the resulting state/output. CONFIRMED means reproduced, not traced.
+
+---
+
+## Mode: Debt
+
+Collect every deliberate shortcut in the repo into one ledger, so a deferral can't
+quietly become permanent. Unlike the other four modes this one is mechanical: it
+greps for markers and reports what it finds. It makes no judgement about whether
+the shortcut was right.
+
+The `SHORTCUT:` convention is defined in `AGENTS.md` (Laziness Ladder). Every
+deliberate simplification carries a ceiling and an upgrade trigger:
+
+```ts
+// SHORTCUT: single global lock, not per-key.
+// ceiling: contention above ~50 rps
+// upgrade: shard by key hash when p99 write latency climbs
+```
+
+### Scan
+
+```bash
+bun run lint:shortcuts --json
+```
+
+Falls back to a raw grep when the script isn't available (external or client repos):
+
+```bash
+grep -rnE '(#|//|--|;) ?SHORTCUT:' . \
+  --exclude-dir={node_modules,.git,dist,build,.next,vendor,target}
+```
+
+Add comment prefixes for any other languages in the tree. The prefix requirement is
+deliberate: it keeps prose that merely mentions the convention (this file included)
+out of the ledger.
+
+### Output
+
+One row per marker, grouped by file, newest-first within a file:
+
+```
+<file>:<line>  <what was simplified>
+               ceiling: <the limit named>
+               upgrade: <the trigger to revisit>   |   [no-trigger]
+```
+
+Tag any marker with no `upgrade:` line `[no-trigger]` and list those first. Those
+are the ones that rot — nobody knows what would make them worth fixing, so nobody
+ever does. Add `git blame -L<line>,<line>` per row when the user asks for owners.
+
+End with: `<N> markers, <M> with no trigger.` Nothing found: `No SHORTCUT: debt. Clean ledger.`
+
+### Boundaries
+
+Reads and reports only — never edits, never implements a marker. A `SHORTCUT:` is
+not a TODO to clear on sight (see `AGENTS.md` → TODO Comments Are Instructions); it
+comes out only when its trigger has actually fired, and then via `/zero-tech-debt`
+or `/refactor`, not here.
+
+**No invented savings.** Report the count of markers and what each defers. Never
+print a "you saved N lines by deferring these" figure — the built version was never
+written, so there is no baseline to subtract from. Counted markers are real; an
+extrapolated saving is not.
+
+To persist the ledger, ask first, then write it to `SHORTCUT-DEBT.md`.

@@ -110,6 +110,27 @@ might be wrong, ask one diagnostic question, or, if a hook has flagged the same
 failure signature repeating, spawn a scoped `model: "fable"` subagent on just
 the failing slice instead of retrying on the session model.
 
+### Reporting numbers (the subagent copy)
+
+Duplicated here for the same reason as the register block above: `AGENTS.md`
+carries this rule for Codex and Cursor, and Claude Code never loads that file.
+Without this copy, no Claude Code session or subagent ever sees it.
+
+**No savings against a run that never happened.** Report a delta only between
+two things that were both measured. "Saved ~400 lines", "cut token use 60%",
+"about 3× faster" — these are unknowable when the unoptimized version was never
+written and the without-the-change run was never executed. There is no baseline
+to subtract from, so the number is invented however plausible it looks.
+
+Report what you can count: lines deleted in this diff, the measured before and
+after of a benchmark you ran twice, a timing you actually observed. Where an
+extrapolation genuinely helps, label it `est.` and name what it came from.
+
+This bites hardest on numbers that flatter the work — a savings figure is the
+easiest thing to fabricate and the least likely to be checked. It applies to
+end-of-turn summaries, PR bodies, `/retro` output, `/proof-of-work` gates, and
+`/autoresearch` dashboards alike.
+
 ---
 
 ## Delegation

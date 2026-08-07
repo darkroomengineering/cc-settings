@@ -4,6 +4,39 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.7.0] — 2026-08-07
+
+**`/autoresearch` was scoring a contaminated environment.** It sampled skill variants by spawning `Agent(implementer, …)` — an in-process subagent, which inherits `~/.claude/CLAUDE.md`, the installed hooks, and the whole skill list. Every measurement was therefore *our config plus the skill*, never the skill. When the skill under test overlapped anything already in CLAUDE.md (delegation, register, the Laziness Ladder), the loop optimized toward a baseline that already contained the behavior it was trying to add, and a genuine improvement scored as worthless.
+
+Samples now run as an isolated subprocess with settings disabled and the model pinned:
+
+```bash
+claude -p --setting-sources "" --strict-mcp-config \
+  --model "$AUTORESEARCH_MODEL" --append-system-prompt "$BODY" "<test input>"
+```
+
+`--setting-sources ""` loads none of `user`/`project`/`local`. The model pin matters for the same reason: isolation also drops the operator's saved model and effort settings, so an unpinned run silently measures whatever the CLI currently defaults to — the score then drifts between machines and across releases. The pinned model is now part of the recorded result, configurable via `model:` in RESEARCH.md (default `claude-sonnet-5`).
+
+Two more holes closed in the same loop. **Guardrails**: the checklist measured whether a skill did its job but never noticed a mutation buying a higher score by cutting something that mattered — a terser variant that drops a confirmation step scores *better* on a concision-shaped checklist. The judge now also scores correctness and safety 1–5 plus a blocker flag, and a KEEP requires no blocker, both guardrails within 0.1 of their baseline, *and* the usual checklist improvement. A round that trips a guardrail logs as `vetoed`, not `reverted` — it found a real exploit in the metric and should never be re-proposed. **Control arm**: mutation scores are relative and say only that variant B beat variant A, never that the skill beats no skill. Publishing any "this skill helps" claim now requires an extra condition carrying a plain one-line instruction of the same intent; skill-vs-instruction is the honest delta, skill-vs-empty conflates the skill with the generic ask.
+
+Rubric shape adapted from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd)'s eval harness (MIT); the control-arm design from [juliusbrussee/caveman](https://github.com/JuliusBrussee/caveman)'s, whose earlier version made exactly the skill-vs-nothing mistake and published inflated numbers because of it.
+
+**`SHORTCUT:` markers give the Laziness Ladder a receipt.** The ladder told you to cut corners and nothing tracked the ones you cut deliberately. A deliberate simplification with a known ceiling now carries a comment naming both the ceiling and what should trigger revisiting it:
+
+```ts
+// SHORTCUT: single global lock, not per-key.
+// ceiling: contention above ~50 rps
+// upgrade: shard by key hash when p99 write latency climbs
+```
+
+The trigger is the load-bearing half — a marker naming a ceiling but no trigger is how a deferral quietly becomes permanent, since nobody knows what would make it worth fixing. `bun run lint:shortcuts` errors on a missing `upgrade:` line and warns on a missing `ceiling:`; it is wired into CI. `/audit` gains a fifth mode, **debt**, which collects every marker into one ledger with no-trigger entries listed first. Convention and ledger adapted from [dietrichgebert/ponytail](https://github.com/DietrichGebert/ponytail).
+
+Two details that are easy to get wrong. The marker must be the first thing on its line: the linter's own source contains the marker text inside regex literals, and an unanchored pattern reports the linter as its own debt (there is a regression test for exactly this). And `SHORTCUT:` is explicitly carved out of AGENTS.md's "TODO Comments Are Instructions" rule — implementing one on sight is the over-build the ladder exists to prevent, so it comes out only once its trigger has fired.
+
+**No savings against a run that never happened.** New rule in both `AGENTS.md` and `CLAUDE-FULL.md` — duplicated deliberately, since Claude Code never loads AGENTS.md and a rule living only there reaches no session or subagent. Report a delta only between two things that were both measured. "Saved ~400 lines", "cut token use 60%", "3× faster" are unknowable when the unoptimized version was never written: there is no baseline to subtract from, so the number is invented however plausible it looks. Count what exists (lines deleted in this diff, a benchmark run twice) and label any genuine extrapolation `est.`. This bites hardest on figures that flatter the work, which are the easiest to fabricate and the least likely to be checked.
+
+The prompting ideas from all three upstream repos were already absorbed — i-have-adhd's output shaping into `output-styles/darkroom.md`, ponytail's ladder into `AGENTS.md`, caveman rejected for overcorrecting the register. What this release takes is the part that was skipped: their measurement discipline.
+
 ## [13.6.2] — 2026-08-06
 
 **Everyone was silently on context7's lower tier.** cc-settings ships context7 as the keyless stdio transport (`bunx -y @upstash/context7-mcp`), and context7 documents a free API key as what "unlocks higher rate limits and use your private repositories". Nothing anywhere said so, so every install sat on the worse tier by default.
