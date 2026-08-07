@@ -49,6 +49,10 @@ The table's middle rows do the load-bearing work: nine skills look at code and t
 
 Also repaired two broken anchors, one created by the section move and one that predated it (`#whats-on` never matched its heading). A one-off sweep confirms 0 broken intra-repo anchors across 125 markdown files.
 
+**`bun run lint:links` stops link rot.** Section renames are silent: moving MANUAL's "Light vs Full" heading broke a link in `docs/install.md` with no error anywhere, and a `#whats-on` link had never matched its heading at all. Both were found by hand. The linter now validates every intra-repo markdown link — relative file targets must exist, `#anchors` must slug to a real heading — reimplementing GitHub's slug rules including the `-1` suffix on duplicate headings. External URLs are never fetched. Wired into CI alongside the other linters; 41 links across 128 files, currently clean.
+
+Its own first run reported two false positives, both the same bug: it stripped fenced code blocks but not inline code spans, so prose *quoting* a link as an example was validated as a real one. One of the two was a CHANGELOG entry describing a past `[^)]*` URL-matching bug — the matcher reproduced the very bug the text documented. Both shapes are now regression tests, and the linter was verified by deliberately breaking a real anchor and watching CI-equivalent output fail, not by observing a green run on an already-clean tree.
+
 The prompting ideas from all three upstream repos were already absorbed — i-have-adhd's output shaping into `output-styles/darkroom.md`, ponytail's ladder into `AGENTS.md`, caveman rejected for overcorrecting the register. What this release takes is the part that was skipped: their measurement discipline.
 
 ## [13.6.2] — 2026-08-06
