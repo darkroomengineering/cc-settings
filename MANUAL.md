@@ -479,7 +479,7 @@ Run `bun run whats-on`. It prints every behavior currently shaping your session 
 
 Default since v13.6.0. Installed to `~/.claude/output-styles/darkroom.md`, selected by `"outputStyle": "Darkroom"`. It carries two rule sets:
 
-- **Register** — subject first, no stacked modifiers, no coined terms for things that already have names, identifiers only when pointing at code, jargon defined inline. It targets comprehension, not word count: it will not make replies terse, and explaining at length stays allowed.
+- **Register** — subject first, no stacked modifiers, active voice and direct verbs, one unambiguous subject or decision per sentence, no coined terms for things that already have names, identifiers only when pointing at code, jargon defined inline. It targets comprehension, not word count: it will not make replies terse, and explaining at length stays allowed.
 - **Shape** — lead with the next action, number multi-step work, restate progress, no preamble or closers. These are the former "Action-First Output" rules, moved here unchanged (adapted from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd), MIT).
 
 **Why an output style and not CLAUDE.md.** A `CLAUDE.md` instruction arrives as a user message after the system prompt, so it competes with the system prompt and fades after a couple of turns — the reason a hand-written `communication_style.md` "works for 1–2 turns then reverts". An output style *is* part of the system prompt, and Claude Code re-issues adherence reminders during the conversation.

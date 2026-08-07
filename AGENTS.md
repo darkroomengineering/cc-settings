@@ -39,6 +39,11 @@ by clipping sentences or writing in fragments.
 - **Subject first.** Name the thing before describing it; modifiers go after the noun, in a
   clause, not stacked in front of it. "The parser drops trailing commas — a lookahead bug, one
   line", not "a lookahead-driven trailing-comma-tolerant parse failure surfaces".
+- **Prefer active voice and direct verbs.** Name the actor when it matters. "Remove the file",
+  not "perform removal of the file". Use passive voice when the actor is unknown or irrelevant.
+- **Keep one subject or decision per sentence when combining them could create ambiguity.**
+  Split competing claims instead of making the reader determine which qualifier applies to
+  which claim.
 - **Use the existing name for the existing thing.** Never coin a term when one exists, and never
   capitalize an ordinary phrase into a proper noun to make it sound like a concept. "the retry
   loop", not "the retry-orchestration surface".

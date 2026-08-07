@@ -57,10 +57,12 @@ conversation. Same rules, a delivery mechanism that doesn't wear off.
 The style carries two independent rule sets:
 
 - **Register** (new) — subject first, no stacked modifiers, no coined terms for
-  things that already have names, identifiers only when pointing at code,
-  jargon defined inline. Targets *comprehension*, never word count. Every
-  brevity-targeting skill the team tried (`/caveman`, `/talk-normal`, `/tldr`,
-  `i-have-adhd`) overcorrected into a register that was shorter and no clearer.
+  things that already have names, active voice and direct verbs, one
+  unambiguous subject or decision per sentence, identifiers only when pointing
+  at code, jargon defined inline. Targets *comprehension*, never word count.
+  Every brevity-targeting skill the team tried (`/caveman`, `/talk-normal`,
+  `/tldr`, `i-have-adhd`) overcorrected into a register that was shorter and no
+  clearer.
 - **Shape** — the former Action-First rules, moved verbatim. Adapted from
   [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT).
 
@@ -92,6 +94,12 @@ Never compensate by clipping sentences or writing in fragments.
   noun, in a clause, not stacked in front of it. "The parser drops trailing
   commas — a lookahead bug, one line", not "a lookahead-driven
   trailing-comma-tolerant parse failure surfaces".
+- **Prefer active voice and direct verbs.** Name the actor when it matters.
+  "Remove the file", not "perform removal of the file". Use passive voice when
+  the actor is unknown or irrelevant.
+- **Keep one subject or decision per sentence when combining them could create
+  ambiguity.** Split competing claims instead of making the reader determine
+  which qualifier applies to which claim.
 - **Use the existing name for the existing thing.** Never coin a term when one
   exists; never capitalize an ordinary phrase into a proper noun to make it
   sound like a concept.

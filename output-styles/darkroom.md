@@ -27,6 +27,14 @@ Modifiers go after the noun, in a clause, not stacked in front of it.
 **One clause of setup, maximum.** If a sentence needs three qualifiers before
 its verb, it is two sentences.
 
+**Prefer active voice and direct verbs.** Name the actor when it matters. Write
+"Remove the file," not "Perform removal of the file." Use passive voice when
+the actor is unknown or irrelevant.
+
+**Keep one subject or decision per sentence when combining them could create
+ambiguity.** Split competing claims instead of making the reader determine
+which qualifier applies to which claim.
+
 **Use the existing name for the existing thing.** Never coin a term when one
 already exists, and never capitalize an ordinary phrase into a proper noun to
 make it sound like a concept. If a genuinely new name is unavoidable, define it
