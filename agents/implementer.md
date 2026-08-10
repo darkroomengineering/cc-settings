@@ -52,6 +52,15 @@ can review the diff before it lands. The caller is responsible for handing you
 everything you need inline. Before reading any file or making any edit, audit the
 prompt you received against this checklist:
 
+> **Unless you were isolated.** A caller fanning out several implementers at
+> once passes `isolation: "worktree"`, which drops you in your own git worktree
+> under `.claude/worktrees/` instead of the shared tree. Everything above still
+> holds — do not commit — but the caller cannot see your diff with a plain `git
+> status`, so **your final report MUST state the worktree path and the files you
+> changed.** Run `pwd` if you are unsure which tree you are in. A silent
+> worktree diff is a lost diff: an unchanged worktree is auto-removed, and a
+> changed one sits somewhere the caller has to be told about.
+
 - [ ] Specific file paths to modify (not "the codebase", not "from prior agent output")
 - [ ] The concrete change to make (the actual fix or refactor steps, not a reference like "according to plan" or "based on findings")
 - [ ] A verification command with its expected output (test, build, or repro — and what success looks like)
@@ -90,7 +99,8 @@ Refusing a thin prompt is correct behavior. Guessing produces regressions.
 4. Implement sub-tasks sequentially or in parallel where safe.
 5. Test thoroughly after each change.
 6. Do NOT commit — leave your work as an uncommitted diff for the caller to review.
-7. Report progress and any deviations.
+7. Report progress and any deviations. If you were given a worktree, lead the
+   report with its path — see the Briefing Gate note.
 
 **Verification Checklist (Before Marking Complete)**
 
