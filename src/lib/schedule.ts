@@ -78,6 +78,17 @@ export interface BuildPlistArgs {
    *  and SECURITY.md). Omitted (no EnvironmentVariables dict) when absent —
    *  legacy plists without this pin still work, just skip that gate. */
   repoPath?: string;
+  /** Launcher binary prepended to ProgramArguments. System Settings > Login
+   *  Items groups a launchd job under the code-signer of the binary it
+   *  executes — running bun directly files the job under bun's upstream
+   *  signer ("Jarred Sumner"), not Darkroom. Exec-ing through a
+   *  Darkroom-signed passthrough wrapper reattributes it. */
+  wrapperPath?: string;
+  /** Emitted as AssociatedBundleIdentifiers so the job nests under that
+   *  app's row in Login Items. macOS honors it only when the executed
+   *  binary's team ID matches the app's, so this only works together with
+   *  wrapperPath. */
+  associatedBundleId?: string;
   hour?: number;
   minute?: number;
 }
@@ -89,6 +100,8 @@ export function buildPlist({
   scriptPath,
   logPath,
   repoPath,
+  wrapperPath,
+  associatedBundleId,
   hour = 10,
   minute = 0,
 }: BuildPlistArgs): string {
@@ -101,16 +114,26 @@ export function buildPlist({
 \t</dict>
 `
       : "";
+  const assocBlock =
+    associatedBundleId !== undefined
+      ? `\t<key>AssociatedBundleIdentifiers</key>
+\t<array>
+\t\t<string>${xmlEscape(associatedBundleId)}</string>
+\t</array>
+`
+      : "";
+  const programArgs = [...(wrapperPath !== undefined ? [wrapperPath] : []), bunPath, scriptPath]
+    .map((p) => `\t\t<string>${xmlEscape(p)}</string>`)
+    .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>Label</key>
+${assocBlock}	<key>Label</key>
 	<string>${xmlEscape(AUTO_UPDATE_LABEL)}</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>${xmlEscape(bunPath)}</string>
-		<string>${xmlEscape(scriptPath)}</string>
+${programArgs}
 	</array>
 ${envBlock}	<key>StartCalendarInterval</key>
 	<dict>
@@ -232,7 +255,29 @@ export async function registerAutoUpdate(
     const scriptPath = join(claudeDir, "src", "scripts", "auto-update.ts");
     const logPath = autoUpdateLogPath(claudeDir);
     await mkdir(dirname(logPath), { recursive: true });
-    await Bun.write(plist, buildPlist({ bunPath, scriptPath, logPath, repoPath }));
+    // Login Items grouping: on machines with the Darkroom Helpers app and its
+    // signed passthrough launcher, exec bun through the launcher and associate
+    // the job with the app so it files under "Darkroom Helpers" instead of
+    // bun's upstream signer ("Jarred Sumner"). Both must exist — the
+    // association is ignored by macOS without a matching team ID.
+    // Threat model: path existence is enough. An attacker able to plant a
+    // fake wrapper at these user-owned paths can already write
+    // ~/Library/LaunchAgents directly, so trusting them adds no persistence
+    // surface beyond what SECURITY.md already covers for this job.
+    const wrapperPath = join(homeDir, ".hammerspoon", "helpers", "darkroom-run");
+    const helpersApp = join(homeDir, "Applications", "Darkroom Helpers.app");
+    const useWrapper = existsSync(wrapperPath) && existsSync(helpersApp);
+    await Bun.write(
+      plist,
+      buildPlist({
+        bunPath,
+        scriptPath,
+        logPath,
+        repoPath,
+        wrapperPath: useWrapper ? wrapperPath : undefined,
+        associatedBundleId: useWrapper ? "com.darkroom.helpers" : undefined,
+      }),
+    );
     // Bun.write doesn't set mode — restrict to the owner (0o600) so a
     // co-tenant on a shared machine can't read/tamper with the plist.
     await chmod(plist, 0o600);
