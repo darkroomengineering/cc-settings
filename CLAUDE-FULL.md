@@ -160,6 +160,7 @@ Before each unit of work, ask once: **3+ files, 12+ tool calls, or security-sens
 | auth, payments, crypto, input validation | `security-reviewer` (MUST) |
 | dead code / deslop | `deslopper` (MUST) |
 | 3+ independent workstreams | parallel `Agent` calls in ONE message (MUST) |
+| workers must argue with each other, not just report back | an **agent team** (see below) |
 | full feature spanning 3+ agents | `maestro` |
 | prone to single-window failure — agentic laziness (quitting at 20 of 50 items), self-preferential bias (judging your own output), goal drift across compaction | a [dynamic workflow](https://code.claude.com/docs/en/workflows) / `/effort ultracode` (see `skills/orchestrate/SKILL.md`) |
 
@@ -177,6 +178,28 @@ Before each unit of work, ask once: **3+ files, 12+ tool calls, or security-sens
 6. **Resume, don't respawn.** Follow-up work for an agent you already spawned goes through `SendMessage` (by name — it resumes from its transcript), not a fresh `Agent` call. A respawn discards everything that agent reasoned through and pays to re-derive it. OpenAI's ARC-AGI-3 result is the receipt: same model, reasoning carried across steps instead of dropped, 13.3% → 38.3% and ~6× fewer output tokens ([writeup](https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores/)). Respawn only when you want a deliberately cold read (adversarial verification, second opinion).
 
    Since 2.1.224 `SendMessage` also reaches **your other Claude Code sessions**, not just agents inside this one — `/list-agents` (or `/peers`) shows who's reachable. Use it when a session working elsewhere in the repo needs something you just learned: a breaking change you landed, a decision that unblocks them, a migration that finished. Only plain text crosses, never files or history, and the receiving session's own permissions still apply — so a message asks, it never authorizes. Sessions on other machines are reply-only. macOS and Linux; not on Bedrock/Vertex/Foundry. Config: `docs/settings-reference.md` → Cross-session messaging.
+
+### Agent teams — enabled, deliberately not the default
+
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` ships in `config/10-core.json`, so teams are **available**. Enabling the flag does not make them automatic: Claude still only forms a team when you ask for one or when it proposes one and you approve.
+
+**Parallelism alone is not the reason to reach for a team.** Subagent fan-out is already parallel and already gives each worker its own context window. The single thing teams do that subagents cannot is let workers **talk to each other** — they share a task list and message each other directly, where a subagent can only report back to you. So the question is never "is this big?", it's:
+
+> Does worker A need to see, challenge, or build on what worker B found *while both are still working*?
+
+- **Yes → team.** Competing hypotheses that should try to disprove each other; a review where the security, perf, and test lenses need to argue; cross-layer work where ownership shifts as the shape becomes clear.
+- **No → parallel `Agent` calls.** N independent results you collect and synthesize yourself. Cheaper, one review surface, and the results land in your context instead of N transcripts.
+
+Cost is a real input but not the deciding one — a team is roughly N full sessions, and trading tokens for wall-clock is often the right call. Spend them when the debate is the point, not to run errands faster.
+
+Four constraints that decide feasibility before cost does:
+
+1. **Teammate permission prompts surface in the lead session** — you must be present to approve them. A team is not an unattended mechanism.
+2. **`/resume` and `/rewind` do not restore in-process teammates.** A team does not survive a session boundary; the lead will try to message teammates that no longer exist.
+3. **No nested teams.** Teammates cannot spawn teammates, so `maestro` running *as* a teammate cannot fan out.
+4. **Two teammates editing one file overwrite each other** — same hazard as rule 5 above. Split by file ownership when spawning, since teammates are separate sessions and cannot take a `worktree` isolation flag the way a subagent can.
+
+`TeamCreate`/`TeamDelete` no longer exist (removed upstream in v2.1.178). A team forms when the lead spawns its first teammate and its directories are cleaned up when the session ends.
 
 > **Briefing contract for `implementer`**: as a subagent it gets only your prompt — no conversation context, none of the files you've read — so every prompt MUST contain actual content, not references: the user's ask verbatim, exact file paths and line ranges, the change to make (paste the planner output; never write "based on findings" or "according to plan"), the verification command with its expected output (machine-checkable, never "works correctly"), a scope boundary, any escape hatches (conditions to STOP and report back instead of improvising), and — when the work already has history — what was tried and rejected and why. Thin prompts are the curse of knowledge in action — you assume the subagent shares your context; it shares nothing. They cause regressions; the agent will refuse them. It runs in the live working tree and leaves changes **uncommitted** for you to review before they land. Full contract: `agents/implementer.md` REQUIRED BRIEFING. This applies equally to `explore` → `implementer` and `planner` → `implementer` chains.
 

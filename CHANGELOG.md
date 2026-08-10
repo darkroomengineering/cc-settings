@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.9.0] — 2026-08-10
+
+**Agent teams are now enabled, and deliberately not the default.** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` ships in `config/10-core.json`. Until now it was set nowhere, while three separate files described team workflows — so no team had ever formed from our config.
+
+Enabling the flag makes teams *available*, not automatic. Claude still forms one only when asked, or when it proposes one and you approve.
+
+**The rule that keeps them from becoming the default** (`CLAUDE-FULL.md` → "Agent teams — enabled, deliberately not the default"): parallelism is *not* the criterion, because subagent fan-out is already parallel and already gives each worker its own context window. The one thing teams do that subagents cannot is let workers talk to each other — shared task list, direct messaging — where a subagent only reports back. So the test is:
+
+> Does worker A need to see, challenge, or build on what worker B found *while both are still working*?
+
+Yes → team (competing hypotheses that should disprove each other, a review whose lenses need to argue). No → parallel `Agent` calls, which are cheaper and land results in one place instead of N transcripts. Tokens are a real input but not the deciding one; trading them for wall-clock is often right. Spend them when the debate is the point.
+
+**Four feasibility gates that come before cost**, all from upstream's documented limitations: teammate permission prompts surface in the **lead**, so a team is not an unattended mechanism; `/resume` and `/rewind` do not restore in-process teammates; teammates cannot spawn teammates, so `maestro` running as a teammate cannot fan out; and two teammates editing one file overwrite each other — split by file ownership at spawn, since teammates are separate sessions and cannot take the `worktree` isolation flag a subagent can.
+
+**Files changed:**
+
+- `config/10-core.json` — the flag. New template env keys reach existing installs through `settings-merge.ts`'s `{ ...team, ...user }`, so a `setup.sh` re-run picks it up.
+- `CLAUDE-FULL.md` — the selection rule, plus a routing-table row for "workers must argue with each other, not just report back".
+- `skills/orchestrate/SKILL.md` — corrects the prerequisites text written earlier the same day, which said cc-settings does not enable teams.
+- `docs/settings-reference.md` — env-table row for the flag.
+
 ## [13.8.0] — 2026-08-10
 
 **Sync with Claude Code v2.1.226.** Both features in this window ship real config that the changelog doesn't mention, so the shapes here were read out of the 2.1.226 binary and cross-checked against the cross-session-messaging docs page rather than inferred from release notes.

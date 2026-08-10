@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.8.0"; // cross-session messaging + sandbox JWT/SigV4 credential surface (CC 2.1.226)
+const VERSION = "13.9.0"; // agent teams enabled, gated by a talk-to-each-other rule
 
 // --- Arg parsing ---------------------------------------------------------
 
