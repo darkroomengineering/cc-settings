@@ -258,6 +258,24 @@ describe("buildPlist", () => {
     expect(xml).toContain("My &amp; Repo");
     expect(xml).not.toContain("<string>/Users/a b/My & Repo</string>");
   });
+
+  test("no wrapperPath → bun leads ProgramArguments, no AssociatedBundleIdentifiers", () => {
+    const xml = buildPlist(args);
+    expect(xml).not.toContain("AssociatedBundleIdentifiers");
+    expect(xml.indexOf(args.bunPath)).toBeLessThan(xml.indexOf(args.scriptPath));
+  });
+
+  test("wrapperPath + associatedBundleId → wrapper leads ProgramArguments and the association is emitted", () => {
+    const wrapperPath = "/Users/leandro/.hammerspoon/helpers/darkroom-run";
+    const xml = buildPlist({
+      ...args,
+      wrapperPath,
+      associatedBundleId: "com.darkroom.helpers",
+    });
+    expect(xml).toContain("<key>AssociatedBundleIdentifiers</key>");
+    expect(xml).toContain("<string>com.darkroom.helpers</string>");
+    expect(xml.indexOf(wrapperPath)).toBeLessThan(xml.indexOf(args.bunPath));
+  });
 });
 
 describe("registerAutoUpdate — CC_SKIP_SCHEDULE=1 (no real launchctl ever)", () => {
