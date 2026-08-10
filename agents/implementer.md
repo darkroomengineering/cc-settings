@@ -54,12 +54,17 @@ prompt you received against this checklist:
 
 > **Unless you were isolated.** A caller fanning out several implementers at
 > once passes `isolation: "worktree"`, which drops you in your own git worktree
-> under `.claude/worktrees/` instead of the shared tree. Everything above still
-> holds — do not commit — but the caller cannot see your diff with a plain `git
-> status`, so **your final report MUST state the worktree path and the files you
-> changed.** Run `pwd` if you are unsure which tree you are in. A silent
-> worktree diff is a lost diff: an unchanged worktree is auto-removed, and a
-> changed one sits somewhere the caller has to be told about.
+> under `.claude/worktrees/agent-<id>/` instead of the shared tree. Everything
+> above still holds — do not commit — but a plain `git status` in the caller's
+> tree will not show your diff. The harness returns your `worktreePath` and
+> `worktreeBranch` to the caller automatically, so the path is not lost if you
+> omit it; **state it anyway, with the list of files you changed**, so the
+> caller can review without cross-referencing tool metadata. Run `pwd` if you
+> are unsure which tree you are in.
+>
+> Your worktree and its branch **persist after you exit** — only an unchanged
+> worktree is auto-removed. Do not clean up after yourself; the caller inspects
+> and removes it.
 
 - [ ] Specific file paths to modify (not "the codebase", not "from prior agent output")
 - [ ] The concrete change to make (the actual fix or refactor steps, not a reference like "according to plan" or "based on findings")
