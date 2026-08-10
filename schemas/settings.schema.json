@@ -108,6 +108,26 @@
       },
       "additionalProperties": false
     },
+    "crossSessionInbound": {
+      "type": "string",
+      "enum": [
+        "accept",
+        "hold",
+        "refuse"
+      ]
+    },
+    "isolatePeerMachines": {
+      "type": "boolean"
+    },
+    "dialogExpiry": {
+      "type": "string",
+      "enum": [
+        "60s",
+        "5m",
+        "10m",
+        "never"
+      ]
+    },
     "plansDirectory": {
       "type": "string"
     },
@@ -802,6 +822,15 @@
               "type": "object",
               "properties": {},
               "additionalProperties": {}
+            },
+            "allowUnixSockets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowAllUnixSockets": {
+              "type": "boolean"
             }
           },
           "additionalProperties": {}
@@ -864,6 +893,18 @@
                   },
                   "maskDuplicates": {
                     "type": "boolean"
+                  },
+                  "decode": {
+                    "type": "string",
+                    "enum": [
+                      "jwt"
+                    ]
+                  },
+                  "maskClaims": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": [
@@ -893,6 +934,18 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "decode": {
+                    "type": "string",
+                    "enum": [
+                      "jwt"
+                    ]
+                  },
+                  "maskClaims": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": [
@@ -904,6 +957,55 @@
             },
             "allowPlaintextInject": {
               "type": "boolean"
+            },
+            "awsPairs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "accessKeyIdVar": {
+                    "type": "string"
+                  },
+                  "secretAccessKeyVar": {
+                    "type": "string"
+                  },
+                  "sessionTokenVar": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "accessKeyIdVar",
+                  "secretAccessKeyVar"
+                ],
+                "additionalProperties": {}
+              }
+            },
+            "sigv4": {
+              "type": "object",
+              "properties": {
+                "streaming": {
+                  "type": "string",
+                  "enum": [
+                    "deny",
+                    "passthrough"
+                  ]
+                },
+                "presigned": {
+                  "type": "string",
+                  "enum": [
+                    "deny",
+                    "passthrough"
+                  ]
+                },
+                "sigv4a": {
+                  "type": "string",
+                  "enum": [
+                    "deny",
+                    "passthrough"
+                  ]
+                }
+              },
+              "additionalProperties": {}
             }
           },
           "additionalProperties": {}

@@ -55,7 +55,8 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper (v2.1.208) |
 | `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` (v2.1.211) |
 | `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200) — stops runaway search loops (v2.1.212) |
-| `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Per-session cap on subagent spawns (default 200); `/clear` resets the budget — relevant to fan-out-heavy delegation (v2.1.212) |
+| `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Per-session cap on subagent spawns; `/clear` resets the budget — relevant to fan-out-heavy delegation (v2.1.212). **The default 200 cap was removed in v2.1.224** ("Removed 200-subagent spawn cap for long-running sessions"); the variable is still recognized, so set it explicitly if you want a ceiling |
+| `CLAUDE_CODE_MESSAGING_SOCKET` | socket path (read-only) | Set *by* Claude Code, not by you: this session's [cross-session messaging](#cross-session-messaging) inbox socket. Exported before any hook runs, `SessionStart` included, and never inherited from a parent session — a hook or Bash command can post back into its own session through it (v2.1.224) |
 | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | integer (string) | Cap on subagents running at the same time (default 20) — one message can no longer fan out unbounded background agents (v2.1.217) |
 | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | How deep subagents may spawn nested subagents. Upstream default was `1` (no nesting) through v2.1.218; v2.1.219 raised it to `3`. cc-settings still pins `2` so `maestro` and `deslopper` (subagents that fan out via the Agent tool) keep working when invoked as subagents (v2.1.217) |
 | `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable (v2.1.212) |
@@ -149,6 +150,35 @@ Controls Agent Teams behavior when enabled.
 | `manual` | Teammates require explicit direction |
 | `disabled` | Agent Teams off |
 
+### Cross-session messaging
+
+Added in v2.1.224. One of your Claude Code sessions can send a plain-text message to another — a finding, a status, a decision — using the same `SendMessage` tool that reaches subagents and teammates, with `ListAgents` (`/list-agents`, aliased `/peers`) for discovery. Only text crosses; never conversation history or files.
+
+Available on macOS and Linux (including WSL 2), not native Windows, and not on Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, or Microsoft Foundry. It also depends on feature-flag evaluation, so `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, or `DISABLE_GROWTHBOOK` can each turn it off as a side effect.
+
+Same-machine messages travel over a per-session Unix socket and never touch Anthropic servers. Sessions on your other machines and on Claude Code on the web are **reply-only** — Claude here can answer a message from one, but can't start the exchange — and those messages do route through Anthropic servers. Sessions can only find each other when they see the same filesystem, so a container and its host can't message each other.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `crossSessionInbound` | `"accept"` \| `"hold"` \| `"refuse"` | What to do with messages arriving from your other sessions |
+| `isolatePeerMachines` | boolean | Require approval before any message leaves this machine |
+| `dialogExpiry` | `"60s"` \| `"5m"` \| `"10m"` \| `"never"` | How long a held-message approval dialog waits before dropping it (default `"5m"`) |
+
+**Unset is not `accept`.** With no value in scope, Claude Code decides per message by comparing the two sessions' permission modes: a session that prompts for permissions accepts messages but holds anything sent by a `bypassPermissions` session, and a session that bypasses holds everything except messages from another bypassing session. Held messages surface an approval dialog; `-p` sessions can't show one, so a message held there stays held — start a headless worker with `crossSessionInbound: "accept"` in its `--settings` if it needs to take messages unattended.
+
+Precedence is unusual and worth knowing before you rely on it: a `"refuse"` in **project or local** settings outranks every other source, and `isolatePeerMachines: true` from any scope wins. A checked-in project file can therefore tighten both, but never loosen them.
+
+To turn messaging off entirely, pair the inbound refusal with deny rules — both tools take the bare name, and denying `SendMessage` also removes messaging to subagents and teammates:
+
+```json
+{
+  "permissions": { "deny": ["SendMessage", "ListAgents"] },
+  "crossSessionInbound": "refuse"
+}
+```
+
+An incoming message is never treated as your consent: it can't answer a permission prompt, can't authorize config or `CLAUDE.md` changes, and a slash command in its text arrives as inert plain text. Each session's inbox socket path is exported as `CLAUDE_CODE_MESSAGING_SOCKET` before any hook runs (`SessionStart` included) and shown in `/status` as `Peer address`. Whether a *sandboxed* Bash command can reach that socket is governed by `sandbox.network.allowUnixSockets` / `allowAllUnixSockets`.
+
 ### `attribution`
 
 Controls AI attribution in git commits and PRs. Replaces the deprecated `coauthorship` setting.
@@ -231,6 +261,10 @@ Sandbox configuration for secure command execution. cc-settings ships with `fail
 | `credentials.files` | list | Deny or mask sandboxed reads of credential files: `[{ "path": "~/.aws/credentials", "mode": "deny" }]` (v2.1.187); `mode: "mask"` added v2.1.221 |
 | `credentials.envVars` | list | Unset or mask secret env vars before each sandboxed command: `[{ "name": "GITHUB_TOKEN", "mode": "deny" }]` (v2.1.187); `mode: "mask"` added v2.1.199 |
 | `credentials.allowPlaintextInject` | boolean | Let the proxy inject real credential values into unencrypted (non-TLS) requests |
+| `credentials.awsPairs` | list | Which env-var trio forms an AWS credential pair, so the proxy can re-sign SigV4 requests: `[{ "accessKeyIdVar": "...", "secretAccessKeyVar": "...", "sessionTokenVar": "..." }]` (v2.1.224) |
+| `credentials.sigv4` | object | What to do with SigV4 request kinds that cannot be re-signed — `streaming`, `presigned`, `sigv4a`, each `"deny"` (default) or `"passthrough"` (v2.1.224) |
+| `network.allowUnixSockets` | list | Unix socket paths a sandboxed command may connect to |
+| `network.allowAllUnixSockets` | boolean | Allow every Unix socket (on Linux this skips the seccomp filter entirely) |
 | `bwrapPath` | string | Linux/WSL: managed override for the bubblewrap binary location (v2.1.133) |
 | `socatPath` | string | Linux/WSL: managed override for the socat binary location (v2.1.133) |
 
@@ -243,6 +277,16 @@ For files, an optional `extract` regex (with a capture group) replaces only the 
 ```json
 { "path": "~/.config/gh/hosts.yml", "mode": "mask", "extract": "oauth_token:\\s*(\\S+)", "injectHosts": ["api.github.com"] }
 ```
+
+`decode: "jwt"` (v2.1.224, files and env vars) masks a JWT-shaped secret with a *synthetic* JWT instead of an opaque sentinel, so tools that parse the token structurally keep working. Add `maskClaims` to replace only named string claims inside the payload and leave the rest readable. On files, omitting `extract` alongside `decode: "jwt"` applies a built-in JWT pattern, masking every JWT in the file:
+
+```json
+{ "name": "SUPABASE_SERVICE_KEY", "mode": "mask", "decode": "jwt", "maskClaims": ["sub", "role"] }
+```
+
+**Both fail open.** If the value doesn't verify as a JWT, or none of `maskClaims` is present as a string claim, Claude Code skips the entry and leaves the real secret visible inside the sandbox with only a console warning. Set `onExtractNoMatch` to `"deny"` or `"error"` if a silent unprotected secret isn't acceptable.
+
+AWS credentials get dedicated handling because SigV4 signs requests with the secret itself — a masked secret produces a signature the upstream service rejects. Declare the pair in `credentials.awsPairs` and the proxy re-signs on egress with the real key. The conventional `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN` trio is registered implicitly unless a configured pair already claims one of those names. A pair only registers when **both** the key-id and secret vars are whole-value `mode: "mask"` entries (no `extract`, no `decode`) — masking only the secret logs a warning and signs requests that fail upstream. Streaming, presigned, and SigV4a requests can't be re-signed at all; `credentials.sigv4` decides whether they're denied (default) or forwarded unmodified to fail upstream instead.
 
 For a process-wide scrub of Anthropic/cloud credentials regardless of sandboxing, use `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` instead.
 
@@ -564,8 +608,10 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `claudeMdExcludes` | string[] | G | Glob patterns for CLAUDE.md files to exclude |
 | `cleanupPeriodDays` | integer ≥ 1 | G | Retention window for transcripts and orphaned worktrees (default 30) |
 | `companyAnnouncements` | string[] | E | Banner messages shown at session start |
+| `crossSessionInbound` | `"accept"` \| `"hold"` \| `"refuse"` | G | What this session does with messages arriving from your other sessions. Unset is **not** `accept` — see [cross-session messaging](#cross-session-messaging) (v2.1.224) |
 | `defaultShell` | `"bash"` \| `"powershell"` | G | Shell used by the Bash tool |
 | `deniedMcpServers` | string[] | E | Managed blocklist of MCP server URLs/identifiers (v2.1.112) |
+| `dialogExpiry` | `"60s"` \| `"5m"` \| `"10m"` \| `"never"` | U | How long an unanswered approval dialog stays open before Claude Code drops it (default `"5m"`) (v2.1.224) |
 | `disableAgentView` | boolean | E | Hide the agent-activity panel in the TUI |
 | `disableAllHooks` | boolean | G | Master kill-switch for the entire hooks subsystem |
 | `disableAutoMode` | `"disable"` | E | Disable auto-mode entirely (admin-tier) |
@@ -595,6 +641,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `httpHookAllowedEnvVars` | string[] | E | Env vars forwarded to HTTP hooks |
 | `includeCoAuthoredBy` | boolean | G | Deprecated: use `attribution` instead |
 | `includeGitInstructions` | boolean | G | Inject built-in git workflow instructions into the system prompt |
+| `isolatePeerMachines` | boolean | G | Require explicit approval before `SendMessage` reaches a session on another machine. `true` from any scope wins (v2.1.224) |
 | `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
 | `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
 | `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports). **Claude Code does not read this from `settings.json` at user scope** — user-scope servers live in `~/.claude.json`, project-scope in `.mcp.json`. Typed here because cc-settings' `config/20-mcp.json` fragment carries the block through composition on its way to `~/.claude.json`; setting it in `settings.json` by hand has no effect |

@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.7.0"; // eval isolation for autoresearch; SHORTCUT: debt markers
+const VERSION = "13.8.0"; // cross-session messaging + sandbox JWT/SigV4 credential surface (CC 2.1.226)
 
 // --- Arg parsing ---------------------------------------------------------
 

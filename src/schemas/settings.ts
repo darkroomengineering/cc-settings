@@ -52,10 +52,21 @@ export const TeammateMode = z.enum(["auto", "in-process", "tmux", "iterm2", "man
 // `deny` in any scope, `deny` wins.
 const CredentialMode = z.enum(["deny", "mask"]);
 
+// `decode: "jwt"` masks a JWT-shaped secret with a *synthetic* JWT (alg HS256,
+// sub `fake_value_<uuid>`, exp 9999999999) instead of an opaque sentinel, so
+// tools that structurally parse the token still work. With `maskClaims`, only
+// those string claims inside the payload are replaced and the rest stays
+// readable. Both FAIL OPEN: if the value does not verify as a JWT, or none of
+// `maskClaims` is present as a string claim, the entry is skipped and the real
+// secret is left visible inside the sandbox (console warning only).
+const CredentialDecode = z.enum(["jwt"]);
+
 export const CredentialEnvVar = z.looseObject({
   name: z.string(),
   mode: CredentialMode,
   injectHosts: z.array(z.string()).optional(),
+  decode: CredentialDecode.optional(), // 2.1.224
+  maskClaims: z.array(z.string()).optional(), // 2.1.224 — requires decode: "jwt"
 });
 
 // `extract` is a regex needing >=1 capture group; only group 1 of each match
@@ -73,6 +84,35 @@ export const CredentialFile = z.looseObject({
   injectHosts: z.array(z.string()).optional(),
   onExtractNoMatch: z.enum(["warn", "deny", "error"]).optional(), // default "warn"
   maskDuplicates: z.boolean().optional(), // default false
+  // 2.1.224 — with decode: "jwt" and no `extract`, Claude Code applies a
+  // built-in JWT pattern, so every JWT in the file is masked.
+  decode: CredentialDecode.optional(),
+  maskClaims: z.array(z.string()).optional(), // requires decode: "jwt"
+});
+
+// 2.1.224 — declares which env-var trio forms an AWS credential pair, so the
+// sandbox proxy can re-sign SigV4 requests with the real secret on egress.
+// Claude Code adds the conventional AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/
+// AWS_SESSION_TOKEN trio implicitly unless a configured pair already claims one
+// of those names. A pair only registers when BOTH the key-id and secret vars
+// are whole-value `mode: "mask"` entries (no `extract`, no `decode`); masking
+// only the secret logs a warning and signs requests that fail upstream.
+export const AwsCredentialPair = z.looseObject({
+  accessKeyIdVar: z.string(),
+  secretAccessKeyVar: z.string(),
+  sessionTokenVar: z.string().optional(),
+});
+
+// 2.1.224 — what to do with the SigV4 request kinds the proxy cannot re-sign.
+// Ordinary header-signed requests are always re-signed and are not configurable
+// here. All three default to "deny"; "passthrough" forwards the request
+// unmodified, which still fails upstream because the signature covers the
+// masked placeholder — it exists to surface the upstream error instead of a
+// local denial.
+export const Sigv4Policy = z.looseObject({
+  streaming: z.enum(["deny", "passthrough"]).optional(),
+  presigned: z.enum(["deny", "passthrough"]).optional(),
+  sigv4a: z.enum(["deny", "passthrough"]).optional(),
 });
 
 // Sandbox config (introduced 2.1.98–2.1.108). Nested objects are loose: the
@@ -95,6 +135,12 @@ export const Sandbox = z.looseObject({
       // credentials inside request headers and bodies. Required by any
       // `mode: "mask"` entry. Empty object is the documented enabling form.
       tlsTerminate: z.looseObject({}).optional(),
+      // Unix-socket egress from inside the sandbox. Load-bearing for
+      // cross-session messaging: a sandboxed Bash command can only post to a
+      // session's inbox socket (CLAUDE_CODE_MESSAGING_SOCKET) if that path is
+      // reachable. allowAllUnixSockets skips the Linux seccomp filter entirely.
+      allowUnixSockets: z.array(z.string()).optional(),
+      allowAllUnixSockets: z.boolean().optional(),
     })
     .optional(),
   filesystem: z
@@ -112,6 +158,8 @@ export const Sandbox = z.looseObject({
       envVars: z.array(CredentialEnvVar).optional(),
       // lets the proxy inject real credentials into unencrypted requests
       allowPlaintextInject: z.boolean().optional(),
+      awsPairs: z.array(AwsCredentialPair).optional(), // 2.1.224
+      sigv4: Sigv4Policy.optional(), // 2.1.224
     })
     .optional(),
   bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
@@ -164,6 +212,23 @@ export const Settings = z.looseObject({
   // Collaboration
   teammateMode: TeammateMode.optional(),
   attribution: Attribution.optional(),
+  // 2.1.224 cross-session messaging (macOS/Linux; not on Bedrock/Vertex/
+  // Foundry). What this session does with messages arriving from your OTHER
+  // sessions: "accept" delivers, "hold" shows a notice and waits for approval,
+  // "refuse" drops silently. Unset is NOT "accept" — Claude Code decides per
+  // message from the two sessions' permission modes, holding anything sent by
+  // a bypassPermissions session to a session that also bypasses. Precedence is
+  // unusual: a "refuse" in project or local settings beats every other scope.
+  crossSessionInbound: z.enum(["accept", "hold", "refuse"]).optional(),
+  // 2.1.224 — require explicit approval before SendMessage reaches a session on
+  // another machine (Remote Control / claude.ai). `true` from any scope wins,
+  // so a checked-in project file can turn it on but never off. Same-machine
+  // messages never prompt.
+  isolatePeerMachines: z.boolean().optional(),
+  // 2.1.224 — how long an unanswered approval dialog (including a held inbound
+  // message) stays open before Claude Code drops it. Duration strings, not a
+  // number; upstream default is "5m". Same domain as askUserQuestionTimeout.
+  dialogExpiry: z.enum(["60s", "5m", "10m", "never"]).optional(),
 
   // Filesystem conventions
   plansDirectory: z.string().optional(),

@@ -4,6 +4,42 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.8.0] — 2026-08-10
+
+**Sync with Claude Code v2.1.226.** Both features in this window ship real config that the changelog doesn't mention, so the shapes here were read out of the 2.1.226 binary and cross-checked against the cross-session-messaging docs page rather than inferred from release notes.
+
+**Adopted — cross-session messaging (upstream 2.1.224):**
+
+- `crossSessionInbound` (`"accept" | "hold" | "refuse"`) in `src/schemas/settings.ts` — what a session does with messages arriving from your other sessions. The trap worth knowing: **unset is not `accept`**. With no value in scope Claude Code decides per message by comparing both sessions' permission modes, and holds anything a `bypassPermissions` session sends. A `"refuse"` in *project or local* settings outranks every other scope, inverting the usual precedence.
+- `isolatePeerMachines` (boolean) — approval gate before a message leaves the machine. `true` from any scope wins, so a checked-in project file can turn it on but never off.
+- `dialogExpiry` (`"60s" | "5m" | "10m" | "never"`, default `"5m"`) — how long a held-message approval dialog waits. Typed from the binary's own enum; the docs describe it in prose as "five minutes", which reads as a duration in milliseconds and is not.
+- `sandbox.network.allowUnixSockets` / `allowAllUnixSockets` — predate this window but were never modelled. They decide whether a *sandboxed* Bash command can reach a session's inbox socket, which makes them load-bearing for this feature.
+- Manifest: `CLAUDE_CODE_MESSAGING_SOCKET` added to `knownEnvVars`, `ListAgents` to `knownBuiltinTools`.
+- `CLAUDE-FULL.md` "Resume, don't respawn" said `SendMessage` resumes agents you spawned; it now also reaches your other sessions, and the rule said nothing about that.
+
+**Adopted — sandbox credential masking (upstream 2.1.224):**
+
+- `decode: "jwt"` and `maskClaims` on both `credentials.files` and `credentials.envVars` entries. A JWT-shaped secret is replaced with a *synthetic* JWT rather than an opaque sentinel, so tools that parse the token structurally keep working; `maskClaims` narrows that to named claims. **Both fail open** — a value that doesn't verify as a JWT is left readable inside the sandbox with only a console warning, which is worth knowing before trusting either as protection.
+- `credentials.awsPairs` and `credentials.sigv4` (`streaming`/`presigned`/`sigv4a`, each `"deny"` by default). SigV4 signs requests with the secret itself, so a masked AWS secret produces a signature the service rejects; declaring the pair lets the proxy re-sign on egress.
+- These four were already in the **2.1.223** binary — 2.1.224 added validation and diagnostics, not the surface. So this closed a pre-existing gap the changelog happened to surface, not fresh drift. Nothing had been silently stripped, because the nested sandbox objects went loose in the previous sync.
+
+**Corrected:**
+
+- `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` was documented as "default 200". Upstream removed that cap in 2.1.224; the variable is still recognized, so the row now says to set it explicitly if you want a ceiling.
+
+**Skipped, with reasons:** `claude self-hosted-runner` and its ~30 `CLAUDE_RUNNER_*` env vars (Team/Enterprise, injected *by* the runner rather than user-set); the `archive` plugin source (lives in `known_marketplaces.json` — cc-settings models marketplace IDs only, so there's no plugin-source schema to extend); the gateway spend-limit message; the `claude agents` workspace-trust prompt. 2.1.226 was bug-fixes-only.
+
+**Known gap, not fixed here:** the binary's settings enumeration carries ~70 top-level keys `knownSettingsKeys` doesn't have (`theme`, `verbose`, `autoCompactEnabled`, `askUserQuestionTimeout`, `daemonColdStart`, the `totalTokensReminder*` and `ssh*` families, …). Nearly all long predate this window, so folding them into a version-sync diff would have buried the actual drift. Recorded in the manifest notes; it needs its own reconciliation pass.
+
+**Files changed:**
+
+- `src/schemas/settings.ts`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `CLAUDE-FULL.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [13.7.0] — 2026-08-07
 
 **`/autoresearch` was scoring a contaminated environment.** It sampled skill variants by spawning `Agent(implementer, …)` — an in-process subagent, which inherits `~/.claude/CLAUDE.md`, the installed hooks, and the whole skill list. Every measurement was therefore *our config plus the skill*, never the skill. When the skill under test overlapped anything already in CLAUDE.md (delegation, register, the Laziness Ladder), the loop optimized toward a baseline that already contained the behavior it was trying to add, and a genuine improvement scored as worthless.
