@@ -74,8 +74,12 @@ Use full parallel team fan-out instead of sequential subagent delegation when:
 
 ### Prerequisites for fan-out
 
-- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` must be set (enabled by default in cc-settings)
-- For split panes: tmux or iTerm2 recommended
+Two different mechanisms get confused here, so be explicit about which one you want:
+
+- **Subagent fan-out** (`Agent` calls in one message) needs **nothing enabled**. This is what cc-settings actually uses, and what the rest of this skill assumes. Each subagent gets its own context window and reports back to you.
+- **Agent teams** (teammates that message each other and share a task list) are experimental, **disabled by default upstream, and cc-settings does not enable them** — `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set in no `config/*.json` fragment. Without it, per Anthropic's docs, "no team is set up at session start, no team directories are written, and Claude does not spawn or propose teammates." To use teams, set it yourself in `~/.claude/settings.json` under `env`.
+  - For split panes: tmux, or iTerm2 with the `it2` CLI. `config/10-core.json` pins `teammateMode: "auto"`; upstream's own default changed to `"in-process"` in v2.1.179.
+  - `TeamCreate` / `TeamDelete` **no longer exist** (removed upstream in v2.1.178). A team now forms implicitly when the lead spawns the first teammate, and its directories are cleaned up when the session ends. Any workflow telling you to call those tools is stale.
 
 ### Alternative: dynamic workflows (research preview, v2.1.154+)
 

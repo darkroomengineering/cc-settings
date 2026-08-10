@@ -88,7 +88,7 @@ color: purple
 | `planner` | claude-opus-5 | project | Read, Grep, Glob, LS | blue |
 | `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
 | `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
-| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
+| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
 | `security-reviewer` | claude-opus-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash | cyan |
 

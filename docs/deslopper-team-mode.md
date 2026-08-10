@@ -8,21 +8,23 @@ reads this file. Installed path: `~/.claude/docs/deslopper-team-mode.md`.
 
 **Team Mode Workflow**
 
+> **Naming note.** This is *subagent fan-out*, not Claude Code's "agent teams" feature. It needs nothing enabled. Earlier revisions of this file opened with `TeamCreate("deslop-scan")` and closed with `TeamDelete` — **both tools were removed upstream in v2.1.178 and no longer exist**, so those steps could only ever fail. The `team_name` argument on `Agent` is likewise accepted and ignored. The fan-out below never needed either.
+
 In team mode the deslopper becomes a **coordinator** — it does NOT scan files itself. All scanning is delegated to read-only agents. Only the coordinator edits files.
 
-1. **Create team**: `TeamCreate("deslop-scan")`
-2. **Create 3 tasks** via `TaskCreate` — one per scanner (dead-code, duplicates, integrity)
-3. **Spawn 3 `explore` subagents in ONE message** (all `Agent` calls in a single response):
-   - `Agent(explore, "dead-code-scanner prompt...", team_name="deslop-scan", name="dead-code-scanner")`
-   - `Agent(explore, "duplicates-scanner prompt...", team_name="deslop-scan", name="duplicates-scanner")`
-   - `Agent(explore, "integrity-scanner prompt...", team_name="deslop-scan", name="integrity-scanner")`
-4. **Wait for all 3** — scanners send messages when done. Monitor via `TaskList`.
-5. **Merge scanner outputs** into the standard report format (see Merge Protocol)
-6. **Run self-check + recursive passes** (Phase 4 + 4b) on merged findings — the coordinator verifies each finding, then runs up to 3 cascade passes on modified files
-7. **Auto-fix confirmed dead code** — coordinator has Edit tool, scanners do not
-8. **Sync docs** (Phase 5) — fix stale references, counts, and index entries broken by removals
-9. **Present merged report** using the standard Output Format with approval flow
-10. **Shutdown scanners** via `SendMessage(type="shutdown_request")` to each, then `TeamDelete`
+1. **Create 3 tasks** via `TaskCreate` — one per scanner (dead-code, duplicates, integrity)
+2. **Spawn 3 `explore` subagents in ONE message** (all `Agent` calls in a single response):
+   - `Agent(explore, "dead-code-scanner prompt...", description="dead-code-scanner")`
+   - `Agent(explore, "duplicates-scanner prompt...", description="duplicates-scanner")`
+   - `Agent(explore, "integrity-scanner prompt...", description="integrity-scanner")`
+3. **Wait for all 3** — each subagent's findings return in its result. Track progress with `TaskList`.
+4. **Merge scanner outputs** into the standard report format (see Merge Protocol)
+5. **Run self-check + recursive passes** (Phase 4 + 4b) on merged findings — the coordinator verifies each finding, then runs up to 3 cascade passes on modified files
+6. **Auto-fix confirmed dead code** — coordinator has Edit tool, scanners do not
+7. **Sync docs** (Phase 5) — fix stale references, counts, and index entries broken by removals
+8. **Present merged report** using the standard Output Format with approval flow
+
+No shutdown step: a subagent ends when it returns its result. If you need follow-up work from one, `SendMessage` its name to resume it from its transcript rather than spawning a replacement.
 
 **Key constraint**: Scanners are `explore` type (read-only). They cannot edit files. This prevents conflicting writes and keeps the coordinator as the single source of truth for changes.
 

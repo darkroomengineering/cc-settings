@@ -11,7 +11,7 @@ description: |
   - Complex debugging requiring multiple perspectives
 
   RETURNS: Orchestration status, synthesized results from sub-agents, progress tracking
-tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite, Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet]
+tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite, Agent, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet]
 maxTurns: 60
 effort: max
 color: red
