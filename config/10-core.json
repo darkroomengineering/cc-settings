@@ -21,6 +21,7 @@
 	},
 	"model": "claude-opus-5",
 	"outputStyle": "Darkroom",
+	"remoteControlAtStartup": true,
 	"fastModePerSessionOptIn": true,
 	"showThinkingSummaries": true,
 	"teammateMode": "auto",
