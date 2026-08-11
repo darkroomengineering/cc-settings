@@ -30,6 +30,23 @@ paths:
 - Never mix primitive systems within the same interaction surface
 - Prefer existing project component library over introducing new dependencies
 
+### Library Picks
+
+Curated, opinionated — from emilkowalski/skills `pick-ui-library` (MIT). Check
+`package.json` first; use what's already installed before reaching for these.
+
+| Task | Library |
+| --- | --- |
+| Command menus (⌘K palettes) | [cmdk](https://cmdk.paco.me) |
+| Animating numbers (counters, prices, stats) | [NumberFlow](https://number-flow.barvian.me) |
+| Drag and drop | [dnd kit](https://dndkit.com) |
+| Virtualization (long lists, large tables) | [Virtuoso](https://virtuoso.dev) |
+
+**Styling split:** [clsx](https://github.com/lukeed/clsx) for ad-hoc conditional
+`className` strings; [cva](https://cva.style) when a component has real variants
+(size, intent, state) that deserve a typed API. They compose — cva uses
+clsx-style inputs internally.
+
 ---
 
 ## Component Constraints
@@ -66,13 +83,67 @@ See `rules/accessibility.md` and `docs/accessibility.md` for full rules.
 
 ## Animation Constraints
 
-### Timing & Motion
-- Max **200ms** for interaction feedback (button press, toggle)
-- 300-500ms for content transitions (page, modal)
-- Honor `prefers-reduced-motion: reduce` media query
+Curves, durations, and the should-it-animate gate below are adapted from
+emilkowalski/skills (MIT) — `animate`, `emil-design-eng`. Gesture/spring physics for
+drag, swipe, and pointer-driven interactions live in `rules/motion-physics.md`; the
+workflows that apply these values are `/qa` (finding motion opportunities) and
+`/review` (per-diff enforcement).
+
+### Should this animate?
+
+| Frequency | Decision |
+| --- | --- |
+| 100+ times/day (keyboard shortcuts, command palette toggle) | No animation. Ever. |
+| Tens of times/day (hover, list navigation) | Near-imperceptible only, or nothing |
+| Occasional (modals, drawers, toasts) | Standard animation |
+| Rare / first-time (onboarding, success, celebration) | The delight budget lives here |
+
+Purpose must be one of: feedback, spatial consistency, state indication, preventing a
+jarring change, explanation (marketing/onboarding only), or delight (rare tier only).
+"It looks cool" on a frequently-seen element is not a reason to animate.
+
+### Easing tokens
+
+```css
+--ease-out: cubic-bezier(0.23, 1, 0.32, 1);        /* entering/exiting */
+--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);    /* moving/morphing on screen */
+--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer curve */
+```
+
+Built-in CSS easings are too weak for deliberate UI motion — extend these tokens,
+never invent parallel ones. Use plain `ease` for hover/color changes, `linear` for
+constant motion (marquee, progress bars).
+
+### Duration budget
+
+| Element | Duration |
+| --- | --- |
+| Button press feedback | 100–160ms |
+| Tooltips, small popovers | 125–200ms |
+| Dropdowns, selects | 150–250ms |
+| Modals, drawers | 200–500ms |
+| Marketing / explanatory | Can be longer |
+
+UI animations stay under 300ms — modals and drawers are the sanctioned exception,
+up to 500ms.
+
+### Never ship
+
+- `ease-in` on a UI element — use `ease-out` or a token above.
+- `transform: scale(0)` entrances — start `scale(0.9–0.97)` + `opacity: 0`.
+- Animating anything but `transform`, `opacity`, or `clip-path` (the sanctioned
+  third) — `width`/`height`/`margin`/`padding`/`top`/`left` trigger layout and paint.
+  `height` is tolerated only for accordions.
+- Keyframes on toasts, toggles, or anything a user can trigger rapidly — use CSS
+  transitions instead, so retriggering retargets from the current value instead of
+  restarting from zero.
+- Ungated `:hover` motion — gate behind `@media (hover: hover) and (pointer: fine)`
+  (touch fires false hovers on tap).
+- Reduced motion treated as "zero" — `prefers-reduced-motion: reduce` means fewer and
+  gentler animations, not none. Keep opacity/color transitions that aid
+  comprehension; drop movement.
 
 ### Behavior
-- Only animate when explicitly requested by design
 - Pause looping animations when off-screen (Intersection Observer)
 
 ---
@@ -134,9 +205,9 @@ import gsap from 'gsap'
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-gsap.to(elementRef.current, {
-  opacity: 1,
-  y: 0,
-  duration: prefersReducedMotion ? 0 : 0.2,
-})
+// Reduced motion means gentler, not zero: drop the movement, keep the fade
+gsap.fromTo(elementRef.current,
+  { opacity: 0, y: prefersReducedMotion ? 0 : 16 },
+  { opacity: 1, y: 0, duration: prefersReducedMotion ? 0.15 : 0.2 }
+)
 ```

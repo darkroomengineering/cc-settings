@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.9.0"; // agent teams enabled, gated by a talk-to-each-other rule
+const VERSION = "13.10.0"; // motion taste + goal gate + threat-model folds from openai/skills and emilkowalski/skills
 
 // --- Arg parsing ---------------------------------------------------------
 

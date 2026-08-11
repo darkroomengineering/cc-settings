@@ -1,7 +1,7 @@
 ---
 name: audit
-argument-hint: "[maintainability|codebase|docs|process|debt|threat-model]"
-description: Whole-repo audits in six modes. Maintainability mode — structural audit of sprawl, thin wrappers, leaked logic, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes — adversarial audits hunting defects, drift, dead ends. Codebase triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs triggers "audit the docs", "docs audit", "doc drift". Process triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Threat-model mode — repo-grounded abuse-path analysis, triggers "threat model", "STRIDE", "attack surface", "abuse paths". Debt mode ledgers `SHORTCUT:` markers — triggers "debt ledger", "shortcut ledger". Owns the bare "audit the codebase" — asks maintainability vs correctness when unpinned.
+argument-hint: "[maintainability|codebase|docs|process|debt|threat-model|motion]"
+description: Whole-repo audits in seven modes. Maintainability mode — structural audit of sprawl, thin wrappers, leaked logic, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes — adversarial audits hunting defects, drift, dead ends. Codebase triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs triggers "audit the docs", "docs audit", "doc drift". Process triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Threat-model mode — repo-grounded abuse-path analysis, triggers "threat model", "STRIDE", "attack surface", "abuse paths". Motion mode — animation audit, triggers "motion audit", "audit the animations". Debt mode ledgers `SHORTCUT:` markers — triggers "debt ledger", "shortcut ledger". Owns the bare "audit the codebase" — asks maintainability vs correctness when unpinned.
 context: main
 requires:
   - mcp: context7
@@ -9,15 +9,16 @@ requires:
 
 # Audit
 
-One skill, six whole-repo audit modes. Five of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report. Three families of question:
+One skill, seven whole-repo audit modes. Six of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. Four families of question:
 
 - **Maintainability** — ported from Cursor's internal `thermo-nuclear-code-quality-review` skill (reported by Eric Zakariasson as Cursor's most-used internal skill; this mode was formerly the standalone `/nuclear-review` skill). Asks **should this code exist?** — structural quality, 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7.
 - **Codebase, Docs, and Process** — adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; these modes were formerly the standalone `/adversarial-audit` skill). Ask **does it do what it promises?** — correctness/coherence/affordances (codebase), truth and structure of the docs (docs), walkable end-to-end journeys (process). The July 2026 cc-settings audit ran the codebase spec and produced 28 findings, ~all confirmed and fixed. The mechanics that made that work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these three modes, whatever the mode.
 - **Threat-Model** — adapted from openai/skills `security-threat-model` (Apache-2.0). Asks **what can go wrong, and who would exploit it?** — trust boundaries, attacker capability, abuse paths tied to attacker goals, mitigations mapped to components.
+- **Motion** — adapted from emilkowalski/skills `improve-animations` (MIT). Asks **where does animation work have the highest leverage?** — purpose/frequency, easing/duration, physicality/origin, interruptibility, performance, accessibility, cohesion, and missed opportunities, turned into self-contained implementation plans rather than a findings report.
 
 Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The codebase, docs, process, and threat-model modes hold **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
 
-The sixth mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
+The seventh mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
 
 ## Mode Router — disambiguate before fanning out
 
@@ -36,18 +37,19 @@ Only proceed to the matching mode below once the answer disambiguates. This ques
 | Docs | "audit the docs", "docs audit", "doc drift" |
 | Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
 | Threat-Model | "threat model", "STRIDE", "attack surface", "abuse paths" |
+| Motion | "motion audit", "audit the animations", "improve the animations" |
 | Debt | "debt ledger", "shortcut ledger", "what did we defer", "what corners did we cut" |
 | Ambiguous — ASK | "audit the codebase" alone, or any phrasing that doesn't match a row above |
 
-Debt and Threat-Model modes never participate in the ambiguity above — Debt is a
-mechanical grep, and Threat-Model's trigger phrases (STRIDE, attack surface, abuse
-paths) don't overlap anything else in this skill. Run Debt standalone or as a cheap
-first pass before maintainability mode.
+Debt, Threat-Model, and Motion modes never participate in the ambiguity above — Debt
+is a mechanical grep, and Threat-Model's and Motion's trigger phrases (STRIDE, attack
+surface, abuse paths; motion audit, audit the animations) don't overlap anything else
+in this skill. Run Debt standalone or as a cheap first pass before maintainability mode.
 
 ## When to use vs other review skills
 
-- `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security). Every change.
-- `/audit` (this skill) — periodic whole-repo audit, six modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?"; threat-model mode asks "what can go wrong, and who would exploit it?"; debt mode asks "what did we defer on purpose?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface.
+- `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security), now including an animation checklist when the diff touches motion. Every change.
+- `/audit` (this skill) — periodic whole-repo audit, seven modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?"; threat-model mode asks "what can go wrong, and who would exploit it?"; motion mode asks "where does the animation work have the highest leverage?"; debt mode asks "what did we defer on purpose?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface. Motion mode fits well after a UI-heavy sprint or before a client showcase.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/verify` — adversarial check of a single change/claim, not a repo sweep.
 
@@ -492,10 +494,74 @@ Repo-grounded STRIDE-style threat modeling: enumerate trust boundaries, assets, 
 
 ---
 
+## Mode: Motion
+
+Survey a codebase's animation and motion code as a senior motion advisor, then
+produce a prioritized audit and self-contained implementation plans for other agents
+(or cheaper models) to execute. Adapted from emilkowalski/skills `improve-animations`
+(MIT). Read-only on source — like every mode in this skill, it plans, it does not
+apply fixes. Unlike Codebase/Docs/Process/Threat-Model, it doesn't use the Shared
+Contract above; its output is a vetted findings table followed by plan files, closer
+in spirit to `improve-animations`' own audit-then-plan workflow.
+
+**Role.** A senior design engineer with a brutal eye for craft, hunting the animation
+work with the highest leverage — the `ease-in` that makes every dropdown feel
+sluggish, the keyframes that make toasts jump, the keyboard action that should never
+have animated. The bar and the exact values (easing curves, duration budgets, spring
+configs) live in `rules/ui-skills.md` "Animation Constraints" and
+`rules/motion-physics.md` — pull values from there, never approximate.
+
+**Phase 1 — Recon.** Stack, motion libraries (GSAP, Motion/Framer Motion, Lenis,
+plain CSS, WAAPI), where motion lives (tokens, Tailwind config, keyframes,
+`transition`/`animate` props, gesture handlers), existing easing/duration
+conventions, product personality (playful consumer app vs crisp dashboard), and a
+frequency map (which animated elements are hit 100+/day vs occasionally vs rarely —
+this drives severity). Useful sweeps: grep for `transition`, `animation`,
+`@keyframes`, `motion.`, `animate={`, `useSpring`, `ease-in`, `transition: all`,
+`scale(0)`, `prefers-reduced-motion`, `transform-origin`.
+
+**Phase 2 — Audit**, against eight categories: purpose & frequency; easing &
+duration; physicality & origin; interruptibility; performance; accessibility;
+cohesion & tokens; missed opportunities. For anything beyond a small repo, fan out
+one read-only subagent per category (or per app area for large monorepos) — each
+prompt must carry the recon facts, the category to audit, an instruction to return
+findings only (`file:line` + evidence, no fixes), and this mode's read-only rule
+verbatim.
+
+**Phase 3 — Vet, prioritize, confirm.** Re-read every finding's cited code yourself;
+reject anything by-design, mis-attributed, or exempt (e.g. `transform-origin: center`
+on a modal is correct). Present as one table ordered by leverage (impact ÷ effort):
+`# | Severity | Category | Location | Finding | Fix summary`. Severity: **HIGH** =
+feel-breaking (wrong easing on UI, animation on a keyboard/high-frequency action,
+dropped frames, `scale(0)`); **MEDIUM** = noticeably off (wrong origin,
+non-interruptible dynamic UI, missing reduced-motion); **LOW** = polish (stagger,
+token consolidation). List 2–4 missed opportunities (places that don't animate but
+should) separately. Then stop and wait for the user to pick which findings become
+plans; default to the top 3–5 by leverage if running non-interactively.
+
+**Phase 4 — Write plans.** One plan per selected finding, into `plans/` as
+`NNN-short-slug.md` (monotonic numbering, respect existing plans), stamped with
+`git rev-parse --short HEAD`. Each plan is fully self-contained — the executor has
+zero context from this conversation: exact file paths and current-code excerpts,
+exact target values (never approximated), ordered steps, hard scope boundaries, and
+a verification section including how to feel-check the result (slow motion /
+frame-by-frame / real device for gestures). Update `plans/README.md` with execution
+order, dependencies, and status.
+
+**Invocation variants:**
+
+| Invocation | Behavior |
+|---|---|
+| bare | Full workflow: recon → audit all 8 categories → vet → confirm → plans |
+| a category focus (e.g. "audit the animation performance") | Recon + that category only |
+| `plan <description>` | Skip the audit; recon just enough to specify, then write a single plan for the described improvement |
+
+---
+
 ## Mode: Debt
 
 Collect every deliberate shortcut in the repo into one ledger, so a deferral can't
-quietly become permanent. Unlike the other five modes this one is mechanical: it
+quietly become permanent. Unlike the other six modes this one is mechanical: it
 greps for markers and reports what it finds. It makes no judgement about whether
 the shortcut was right.
 

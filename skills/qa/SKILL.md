@@ -2,7 +2,7 @@
 name: qa
 description: Visual + a11y QA — screenshot-first critique, contrast, touch targets, mockup-vs-impl diff. For adversarial logic checks use `/verify`. Triggers "visual QA", "QA check", "does this look right", "a11y check", "contrast check", post-component changes.
 context: fork
-allowed-tools: [mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__evaluate_script, Agent]
+allowed-tools: [mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__evaluate_script, Read, Grep, Glob, Agent]
 requires:
   - mcp: chrome-devtools
     install: "Configure chrome-devtools MCP — see mcp-configs/recommended.json"
@@ -139,7 +139,49 @@ pointer it couldn't follow. `rules/accessibility.md` is the canonical copy — k
 - Abrupt content shifts when data loads
 - No empty state -- just a blank area
 
-### 8. Responsive Issues
+### 8. Motion Opportunities
+
+Distinct from the motion checks in categories 6 and 7 above (those catch existing
+motion that's broken or ignores `prefers-reduced-motion`) — this category looks for
+places that don't animate but should, and rejects everywhere it shouldn't. Adapted
+from emilkowalski/skills `find-animation-opportunities` (MIT).
+
+**The Gate.** Every candidate must survive all four, in order — record the answer:
+
+1. **Frequency** — 100+ times/day (keyboard shortcuts, command palette, core nav) is a
+   hard reject, no exceptions. Tens of times/day (hover, list navigation, toggles) —
+   reject, or near-imperceptible motion only. Occasional (modals, drawers, toasts,
+   settings) — eligible. Rare / first-time (onboarding, empty states, success,
+   celebration) — eligible; this is where the delight budget lives.
+2. **Purpose** — must be named as one of: Feedback, Spatial consistency, State
+   indication, Preventing a jarring change, Explanation (marketing/onboarding only),
+   Delight (rare tier only). "It looks cool" doesn't count.
+3. **Speed** — press feedback 100–160ms, tooltips/small popovers 125–200ms,
+   dropdowns/selects 150–250ms, modals/drawers 200–500ms (the sanctioned exception
+   to the general under-300ms rule).
+4. **Function** — decorative motion helps on marketing pages, hurts on data the user
+   is reading or acting on (a graph, a table, a price).
+
+**Where to hunt** (grep signals):
+- Feedback gaps — `onClick` handlers with no `:active`/transition state; destructive
+  actions confirmed by a plain click where a hold-to-confirm fill would prevent slips.
+- Teleporting state — `{isOpen &&` / `display: none` toggles with no transition;
+  accordions that snap open; list items added/removed with no bridge.
+- `transform-origin` mismatches — popovers/menus/tooltips scaling from center instead
+  of their trigger (modals are exempt — they stay centered).
+- Group entrances — everything appearing at once where a 30–80ms stagger belongs.
+- Gesture seams — drag/swipeable elements that snap with no physics; recommend
+  springs, velocity-based dismissal (`Math.abs(distance)/elapsedMs > ~0.11`), and
+  rubber-banding at boundaries instead of hard stops.
+
+**Output.** Cap at 5–7 suggestions for the whole review, ordered by leverage. Every
+suggested value (curve, duration) comes from the project's own tokens in
+`rules/ui-skills.md` — never invented. **REQUIRED:** list 2–5 rejected candidates
+alongside, each tagged with the gate question that killed it (e.g. "Command palette
+open/close — Rejected: keyboard-initiated, 100+/day, never animate"). This rejection
+list is what keeps the pass from turning into a wishlist.
+
+### 9. Responsive Issues
 
 **Check for:**
 - Content readable on mobile (not too small)

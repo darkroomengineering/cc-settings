@@ -79,6 +79,58 @@ Then fold the confirmed findings into the verdict below — map HIGH→Critical,
 
 ---
 
+## Animation & Motion Checklist
+
+Fires whenever the diff touches CSS transitions/animations or any motion-library
+code — new or edited GSAP/Motion/Framer Motion/Lenis calls, animation props,
+spring configs, or WAAPI usage, not just added imports. Adapted from emilkowalski/skills
+`review-animations` (MIT). Default to flagging — approval is earned, not assumed.
+
+**Ten standards — each violation is a finding:**
+
+1. **Justified motion** — every animation answers "why does this animate?" (spatial
+   consistency / state indication / feedback / explanation / preventing a jarring
+   change). "It looks cool" on a frequently-seen element is a block.
+2. **Frequency-appropriate** — keyboard-initiated and 100+/day actions get zero
+   animation; tens/day gets reduced motion; occasional gets standard; rare/first-time
+   can have delight.
+3. **Responsive easing** — `ease-out` or a strong custom curve on entering/exiting
+   elements (see `rules/ui-skills.md`). `ease-in` on UI is a block.
+4. **Sub-300ms UI** — press 100–160ms, tooltips/popovers 125–200ms, dropdowns/selects
+   150–250ms, modals/drawers 200–500ms.
+5. **Origin & physical correctness** — popovers/dropdowns/tooltips scale from
+   `transform-origin` at the trigger, not center (modals exempt). Never `scale(0)` —
+   start `scale(0.9–0.97)` + opacity.
+6. **Interruptibility** — rapidly-triggered or gesture-driven motion uses CSS
+   transitions or a retargeting spring, never keyframes that restart from zero.
+7. **GPU-only properties** — `transform`/`opacity` (`clip-path` is the sanctioned
+   third) only. Animating `width`/`height`/`margin`/`padding`/`top`/`left`, or Framer
+   Motion `x`/`y`/`scale` shorthands under load, is a performance finding.
+8. **Accessibility** — `prefers-reduced-motion` honored (gentler, not zero); hover
+   motion gated behind `@media (hover: hover) and (pointer: fine)`.
+9. **Asymmetric enter/exit** — deliberate actions (press, hold, destructive confirm)
+   animate slower; system responses snap back fast.
+10. **Cohesion** — motion matches the component's and product's personality.
+
+**Escalation triggers (flag on sight):** `transition: all`; `scale(0)` or pure-fade
+entrances (reduced-motion fallbacks exempt — a crossfade is the correct fallback
+there); `ease-in` on any UI interaction; animation on a keyboard shortcut or
+100+/day action; UI duration > 300ms with no stated reason (modals/drawers exempt
+up to 500ms); `transform-origin: center`
+on a trigger-anchored popover; keyframes on toasts/toggles/anything rapidly
+triggered; animating layout properties; missing `prefers-reduced-motion`; ungated
+`:hover` motion; symmetric enter/exit timing on a press-and-hold interaction.
+
+**Remedial order** (prefer earlier moves over later ones): delete the animation →
+reduce it → fix the easing → fix the origin/physicality → make it interruptible →
+move it to the GPU → asymmetric timing → polish (stagger, blur-masked crossfades) →
+accessibility & cohesion.
+
+Fold findings into the Critical/Warnings/Suggestions verdict above — a block-tier
+finding here is Critical.
+
+---
+
 ## Variant: Summarize Inbound PR Comments
 
 When the user asks "what did reviewers say" or wants a digest of feedback on the active PR (not a self-review of local diff):
