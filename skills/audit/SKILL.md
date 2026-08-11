@@ -1,7 +1,7 @@
 ---
 name: audit
-argument-hint: "[maintainability|codebase|docs|process|debt]"
-description: Whole-repo audits in five modes. Maintainability mode — structural audit of sprawl, thin wrappers, leaked logic, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes — adversarial audits hunting defects, drift, dead ends. Codebase triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs triggers "audit the docs", "docs audit", "doc drift". Process triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Debt mode ledgers `SHORTCUT:` markers — triggers "debt ledger", "shortcut ledger", "what corners did we cut". Owns the bare "audit the codebase" — asks maintainability vs correctness when unpinned.
+argument-hint: "[maintainability|codebase|docs|process|debt|threat-model]"
+description: Whole-repo audits in six modes. Maintainability mode — structural audit of sprawl, thin wrappers, leaked logic, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes — adversarial audits hunting defects, drift, dead ends. Codebase triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs triggers "audit the docs", "docs audit", "doc drift". Process triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Threat-model mode — repo-grounded abuse-path analysis, triggers "threat model", "STRIDE", "attack surface", "abuse paths". Debt mode ledgers `SHORTCUT:` markers — triggers "debt ledger", "shortcut ledger". Owns the bare "audit the codebase" — asks maintainability vs correctness when unpinned.
 context: main
 requires:
   - mcp: context7
@@ -9,14 +9,15 @@ requires:
 
 # Audit
 
-One skill, five whole-repo audit modes. Four of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report. Two families of question:
+One skill, six whole-repo audit modes. Five of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report. Three families of question:
 
 - **Maintainability** — ported from Cursor's internal `thermo-nuclear-code-quality-review` skill (reported by Eric Zakariasson as Cursor's most-used internal skill; this mode was formerly the standalone `/nuclear-review` skill). Asks **should this code exist?** — structural quality, 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7.
 - **Codebase, Docs, and Process** — adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; these modes were formerly the standalone `/adversarial-audit` skill). Ask **does it do what it promises?** — correctness/coherence/affordances (codebase), truth and structure of the docs (docs), walkable end-to-end journeys (process). The July 2026 cc-settings audit ran the codebase spec and produced 28 findings, ~all confirmed and fixed. The mechanics that made that work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these three modes, whatever the mode.
+- **Threat-Model** — adapted from openai/skills `security-threat-model` (Apache-2.0). Asks **what can go wrong, and who would exploit it?** — trust boundaries, attacker capability, abuse paths tied to attacker goals, mitigations mapped to components.
 
-Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The codebase, docs, and process modes hold **no loyalty to the current design** — hunt defects, drift, and dead ends rather than confirm things work.
+Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The codebase, docs, process, and threat-model modes hold **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
 
-The fifth mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
+The sixth mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
 
 ## Mode Router — disambiguate before fanning out
 
@@ -34,17 +35,19 @@ Only proceed to the matching mode below once the answer disambiguates. This ques
 | Codebase | "adversarial audit", "fable audit", "expectation gaps", "correctness audit" |
 | Docs | "audit the docs", "docs audit", "doc drift" |
 | Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
+| Threat-Model | "threat model", "STRIDE", "attack surface", "abuse paths" |
 | Debt | "debt ledger", "shortcut ledger", "what did we defer", "what corners did we cut" |
 | Ambiguous — ASK | "audit the codebase" alone, or any phrasing that doesn't match a row above |
 
-Debt mode never participates in the ambiguity above — it is a mechanical grep, not
-a judgement call, and its triggers do not overlap the other four. Run it standalone
-or as a cheap first pass before maintainability mode.
+Debt and Threat-Model modes never participate in the ambiguity above — Debt is a
+mechanical grep, and Threat-Model's trigger phrases (STRIDE, attack surface, abuse
+paths) don't overlap anything else in this skill. Run Debt standalone or as a cheap
+first pass before maintainability mode.
 
 ## When to use vs other review skills
 
 - `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security). Every change.
-- `/audit` (this skill) — periodic whole-repo audit, five modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?"; debt mode asks "what did we defer on purpose?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts.
+- `/audit` (this skill) — periodic whole-repo audit, six modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?"; threat-model mode asks "what can go wrong, and who would exploit it?"; debt mode asks "what did we defer on purpose?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/verify` — adversarial check of a single change/claim, not a repo sweep.
 
@@ -381,7 +384,7 @@ Structural rubric ported from [`cursor/plugins/cursor-team-kit/skills/thermo-nuc
 
 ---
 
-## Shared Contract (Codebase, Docs, and Process modes)
+## Shared Contract (Codebase, Docs, Process, and Threat-Model modes)
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
@@ -467,12 +470,32 @@ Audit end-to-end workflows — not lines of code, but whether the processes the 
 
 **Method addition:** every finding needs the exact command sequence to reproduce and the resulting state/output. CONFIRMED means reproduced, not traced.
 
+## Mode: Threat-Model
+
+Repo-grounded STRIDE-style threat modeling: enumerate trust boundaries, assets, attacker capabilities, and abuse paths for a repo or path, then write a standing threat-model document. Adapted from openai/skills `security-threat-model` (Apache-2.0).
+
+**Role.** An AppSec reviewer who has actually read this codebase — every architectural claim is anchored to code you can cite, and every assumption is stated rather than silently guessed.
+
+**Scope.** The target repo or path. Extract components, data stores, and entry points; separate what actually runs in production from build/test tooling. Note the deployment model, internet exposure, and auth expectations where the repo makes them explicit — everything else is an assumption to confirm below.
+
+**Hunt for:**
+1. **Trust boundaries and assets** — every point where data crosses from lower to higher trust (network → app, user → privileged, tenant → shared store); catalog the risk-driving assets — credentials, tokens, PII, payment data.
+2. **Attacker capability calibration** — what a realistic attacker can and cannot do given the exposure and deployment model. State non-capabilities explicitly ("no physical access, no insider access") — an uncalibrated attacker inflates every finding downstream.
+3. **Abuse paths** — concrete paths tied to attacker goals: exfiltration, privilege escalation, integrity compromise, denial of service. Each path names the entry point, the boundary crossed, and the asset at risk — never a generic "could be exploited."
+4. **Severity** — qualitative likelihood × impact per abuse path, with the reasoning written out. No inflated severity: a theoretical path with no realistic attacker capability is Low, not High.
+
+**Map section:** a trust-boundary diagram (Mermaid flowchart — same preference as Docs mode) plus the asset inventory.
+
+**Method addition:** before finalizing, pause and ask the user anything load-bearing the repo alone can't answer — deployment model, scale, auth scheme, internet exposure, data sensitivity, multi-tenancy. Those answers reshape severity, so resolve them before writing mitigations, not after.
+
+**Extra output:** mitigations mapped one-to-one to the components/boundaries they protect, never a generic hardening checklist; and a QA pass confirming every entry point, boundary, and assumption is accounted for before delivery. Uses the same `docs/audits/threat-model-audit-YYYY-MM-DD.md` output path and stable-ID contract as Codebase/Docs/Process modes (Shared Contract, above).
+
 ---
 
 ## Mode: Debt
 
 Collect every deliberate shortcut in the repo into one ledger, so a deferral can't
-quietly become permanent. Unlike the other four modes this one is mechanical: it
+quietly become permanent. Unlike the other five modes this one is mechanical: it
 greps for markers and reports what it finds. It makes no judgement about whether
 the shortcut was right.
 

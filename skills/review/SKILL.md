@@ -130,3 +130,15 @@ gh pr view --json reviews --jq '.reviews[] | {user: .author.login, state, body}'
 - Quote actual reviewer text. Do not paraphrase in ways that change meaning.
 - Group by severity, not by reviewer.
 - If a reviewer didn't mark severity explicitly, infer from language ("must", "should", "consider", "nit:").
+
+### Follow-through: fix what's Blocking
+
+Summarizing isn't the whole job when the user wants the PR actually updated. After the digest above, close the loop on the Blocking items — scoped to this PR:
+
+1. Triage each Blocking/Suggestion thread: does it need a code change, or just a reply?
+2. **Stop. Present the plan** — thread → file → intended change — **and wait for approval** before editing or pushing anything. (CI fixes on an already-approved PR are pre-approved by the Autonomy Contract and skip this gate; everything else waits.)
+3. Fix the approved threads in the working tree, scoped to the files each thread points at, then push.
+4. Reply on each addressed review thread naming the fixing commit: `gh api repos/{owner}/{repo}/pulls/PR_NUMBER/comments/COMMENT_ID/replies -f body='...'` — a thread reply. `gh pr comment` posts an issue-level comment that never attaches to the thread. Thread *resolution* is the reviewer's click (or a GraphQL `resolveReviewThread` mutation) — report threads as addressed, don't claim them resolved.
+5. Re-run the digest with each Blocking item annotated `addressed in <sha>`. Review comments don't disappear when fixed, so the digest tracks addressed-vs-open — never promise a count dropping to zero.
+
+Stop and report instead of pushing when a comment is ambiguous, requests a design change rather than a fix, or falls outside the diff already under review — those go back to the user, not into an autonomous fix.

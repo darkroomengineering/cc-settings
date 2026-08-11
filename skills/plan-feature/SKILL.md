@@ -17,6 +17,36 @@ Help clarify requirements and scope through structured questioning.
 
 The interview is a fog-of-war walk across four quadrants of the unknown. Open by listing the **known knowns** (what the user has already decided), then work the questions below to surface **known unknowns** (open questions they're aware of), **unknown knowns** (constraints they hold but haven't said — the questions in 2–4 exist to shake these loose), and close by hunting **unknown unknowns** ("what would surprise us mid-build? what reference implementation should we read first?"). A discovery that ends with all four quadrants visited produces a PRD that doesn't get re-planned in week two.
 
+### Goal Quality Bar (gate before interviewing)
+
+Before opening the interview questions below, try to state the goal in one line that answers five things:
+
+- What's true when this is done?
+- What evidence shows it — a command, a test, a metric, a reviewed artifact?
+- What threshold counts as success — pass/fail, or a number?
+- What's explicitly out of scope, where that would matter?
+- What's the stop condition — the point where you ask the user instead of guessing?
+
+If a clean one-liner falls out, skip straight to Phase 2's clarifying questions — the interview below exists for when it doesn't.
+
+Reject pure activity goals — "make progress," "keep investigating," "improve things" — until sharpened into a verifiable outcome:
+
+- Weak: "Make checkout faster." Sharpened: "Reduce checkout API p95 latency below 250ms for the documented slow path, verified with `npm run test:checkout` and 3 consecutive benchmark runs under 250ms."
+- Weak: "Clean up the auth code." Sharpened: "Resolve the open change-request threads on PR 123, touching only the affected auth files and tests, verified with the targeted auth test command plus `gh pr view 123` showing no unresolved threads."
+
+Pick the validator shape by domain:
+
+| Domain | Success looks like |
+|---|---|
+| Bug | Reproduce first, fix second — a failing-then-passing test or repro script |
+| Test | The exact command and its pass condition |
+| Performance | Metric + threshold + measurement method + run count |
+| Quality | Reviewed examples, or lint/typecheck/test passing |
+| Research | The decision the research needs to unblock |
+| Ops | Healthy state + monitoring window + rollback trigger |
+
+*Goal Quality Bar adapted from openai/skills `define-goal`, Apache-2.0.*
+
 #### 1. Understand the Goal
 - What problem are you solving?
 - Who is this for?
