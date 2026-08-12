@@ -225,6 +225,9 @@ export const Settings = z.looseObject({
   // so a checked-in project file can turn it on but never off. Same-machine
   // messages never prompt.
   isolatePeerMachines: z.boolean().optional(),
+  // 2.1.226 — auto-connect the session to Remote Control at startup so it is
+  // reachable from claude.ai/phone without running /remote-control by hand.
+  remoteControlAtStartup: z.boolean().optional(),
   // 2.1.224 — how long an unanswered approval dialog (including a held inbound
   // message) stays open before Claude Code drops it. Duration strings, not a
   // number; upstream default is "5m". Same domain as askUserQuestionTimeout.

@@ -119,6 +119,9 @@
     "isolatePeerMachines": {
       "type": "boolean"
     },
+    "remoteControlAtStartup": {
+      "type": "boolean"
+    },
     "dialogExpiry": {
       "type": "string",
       "enum": [

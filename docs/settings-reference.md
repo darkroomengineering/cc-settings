@@ -659,6 +659,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `prUrlTemplate` | string | G | Custom PR badge URL template; substitutes `{host}`, `{owner}`, `{repo}`, `{number}`, `{url}` (v2.1.119) |
 | `preferredNotifChannel` | enum | U | Preferred desktop/terminal notification channel (`auto`, `terminal_bell`, `iterm2`, …) |
 | `prefersReducedMotion` | boolean | U | Suppress animations in the TUI |
+| `remoteControlAtStartup` | boolean | G | Auto-connect the session to Remote Control at startup, so it is reachable from claude.ai/phone without running `/remote-control` (v2.1.226; cc-settings sets `true`) |
 | `requiredMaximumVersion` | string | E | Managed: refuse to start if the Claude Code version is above this (v2.1.163) |
 | `requiredMinimumVersion` | string | E | Managed: refuse to start if the Claude Code version is below this; pairs with `requiredMaximumVersion` to define an allowed range (v2.1.163) |
 | `respectGitignore` | boolean | G | Honour .gitignore when listing files |

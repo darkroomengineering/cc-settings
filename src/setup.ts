@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.10.0"; // motion taste + goal gate + threat-model folds from openai/skills and emilkowalski/skills
+const VERSION = "13.10.1"; // manifest-only sync with Claude Code 2.1.228 (upstream fixes, nothing to adopt)
 
 // --- Arg parsing ---------------------------------------------------------
 

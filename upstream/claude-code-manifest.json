@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-08-10T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.226",
+  "lastScan": "2026-08-12T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.228",
   "knownSettingsKeys": [
     "$schema",
     "advisorModel",
@@ -82,6 +82,7 @@
     "prUrlTemplate",
     "preferredNotifChannel",
     "prefersReducedMotion",
+    "remoteControlAtStartup",
     "requiredMaximumVersion",
     "requiredMinimumVersion",
     "respectGitignore",

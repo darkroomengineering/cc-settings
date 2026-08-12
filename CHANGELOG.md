@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.10.1] — 2026-08-12
+
+**Sync with Claude Code 2.1.228, plus a schema repair from 2.1.226.** The 2.1.227 and 2.1.228 changelogs are entirely bug fixes and UI polish — no new settings keys, hook events, env vars, tools, or agent-frontmatter fields, so nothing to adopt and nothing to dedupe.
+
+**Adopted:** nothing from 2.1.227–2.1.228 itself. One repair from the previous release: `remoteControlAtStartup` (v2.1.226) was enabled in `config/10-core.json` without a matching key in the settings schema, failing the composed-fragments known-key test — now in `src/schemas/settings.ts`, the manifest's `knownSettingsKeys`, the regenerated `schemas/settings.schema.json`, and the settings-reference table.
+
+**Deletions / Native-now-redundant:** nothing. Two candidates were checked and cleared: the 2.1.228 Write-tool change (newer models may overwrite unread files) doesn't touch `CLAUDE-FULL.md`'s Edit Strategy, which is about Edit-tool exact-match failures; the cross-session messaging fixes don't change the semantics `docs/settings-reference.md` documents. The memory-folder cleanup fix and the marketplace settings-merge fix benefit installs silently.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- src/setup.ts
+- src/schemas/settings.ts
+- schemas/settings.schema.json
+- docs/settings-reference.md
+- .claude-plugin/plugin.json
+- package.json
+- CHANGELOG.md
+
 ## [13.10.0] — 2026-08-11
 
 **Two external skill repos folded in; the 38-skill ratchet held.** A research pass over [openai/skills](https://github.com/openai/skills) (32 curated skills) and [emilkowalski/skills](https://github.com/emilkowalski/skills) (10 skills) found six things worth taking. None became a new skill — everything grafted into existing skills and rules, which is exactly the consolidation pressure the ratchet exists to apply.
