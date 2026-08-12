@@ -229,9 +229,12 @@ rg -l "'use server'|\"use server\"" --type ts \
 
 **Server Action Checklist:**
 - [ ] Every exported action performs its own auth check (or calls a helper that does) — `middleware.ts` (`proxy.ts` in Next.js 16) is a pre-route layer and cannot replace handler-local authorization
+- [ ] Auth present is not auth correct: an action that calls `getSession()`/`requireAuth()` still needs the call's logic reviewed (right resource, right tenant, result actually checked)
 - [ ] Resource-level authorization, not just session presence: the action verifies the user owns what it mutates
 - [ ] Input validated with a schema before use (actions receive attacker-controlled FormData/JSON)
-- [ ] No `JSON.stringify()` output embedded via `dangerouslySetInnerHTML` — XSS unless `</` is escaped
+- [ ] `searchParams` and dynamic route segments (`[id]`, `[...slug]`) treated as untrusted — including inside middleware
+- [ ] No `unstable_cache`/`revalidateTag` keyed on user-supplied values (cross-tenant cache leak)
+- [ ] No `JSON.stringify()` output embedded via `dangerouslySetInnerHTML` or inline `<script>` — XSS unless `</` is escaped
 
 ### GitHub Actions Workflows
 
@@ -250,6 +253,18 @@ rg "curl.*\|\s*(sh|bash)" .github/workflows/
 - [ ] No `${{ github.event.* }}` or `${{ github.head_ref }}` interpolated into `run:` blocks (shell injection via PR title/branch name/commit message) — pass via `env:` instead
 - [ ] No `permissions: write-all`; `id-token: write` only where OIDC is actually used
 - [ ] No `curl … | sh` in workflow steps
+
+### Dockerfile & Infrastructure-as-Code
+
+For repos that ship containers or Terraform (rarer at Darkroom, cheap to check when present):
+
+- [ ] `FROM` images pinned by `@sha256` digest, not a mutable tag
+- [ ] No `RUN curl|wget … | sh` (or piped `tar`) without checksum verification
+- [ ] Final image stage sets a non-root `USER`
+- [ ] Terraform: no wildcard `Action`/`Resource`/`Principal` in IAM/KMS/S3 policies
+- [ ] Terraform: no `0.0.0.0/0` (or `::/0`) ingress on non-HTTP(S) ports; EKS public endpoints paired with `endpoint_public_access_cidrs`
+- [ ] Terraform: remote module sources pinned to a commit SHA
+- [ ] Terraform: no plaintext values in `kubernetes_secret` data blocks; storage resources (S3/RDS/EBS) have encryption-at-rest configured (encryption may live in a sibling module file — confirm before flagging)
 
 ## Darkroom-Specific Security Checks
 
@@ -561,7 +576,7 @@ The pattern for running any AI or static security scanner (this repo's `security
 
 **Gate on net-new findings only.** Exit-code contract: 0 = no findings this run, 1 = at least one finding. Re-running on a file with pre-existing findings must not fail the build unless something new surfaced — otherwise every PR touching a file with known debt goes red and the check gets ignored or disabled. If the scanner has no built-in baseline, diff its output against a committed baseline file — read from the base ref (`git show origin/<base>:path/to/baseline.json`), never from the PR checkout, or a malicious PR edits the baseline to reclassify its own findings as pre-existing.
 
-**Gate who triggers the expensive path.** Scanner credentials still flow through PR code: even with the job split, `analyze` has the secret in env while running PR-controlled `pnpm install`. An `author_association` gate (members/owners only, or same-repo branches) is what keeps that from being a vulnerability — it is defense-in-depth, not a UX nicety.
+**Gate who triggers the secret-bearing job.** Scanner credentials still flow through PR code: even with the job split, `analyze` has the secret in env while running PR-controlled `pnpm install`. The gate that keeps this from being a vulnerability is a same-repo check on the analyze job — `if: github.event.pull_request.head.repo.full_name == github.repository` — so fork PRs never reach the secret-bearing step. (deepsec's own doc labels this both "UX cleanup" and an "`author_association` gate" in different sections; the same-repo check is what its shipped workflow actually implements.) For defense-in-depth on top, require a maintainer-applied label before analyze runs: `if: contains(github.event.pull_request.labels.*.name, 'review-ok')`.
 
 **Hardening details:**
 - Pin third-party actions to full commit SHAs in production workflows — a compromised tag otherwise reaches your secrets (same rule as the Workflow Checklist above).
