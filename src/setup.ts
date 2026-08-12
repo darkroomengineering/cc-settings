@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.10.1"; // manifest-only sync with Claude Code 2.1.228 (upstream fixes, nothing to adopt)
+const VERSION = "13.11.0"; // deepsec fold: auth-review discipline, framework/supply-chain checklists, CI hardening pattern
 
 // --- Arg parsing ---------------------------------------------------------
 

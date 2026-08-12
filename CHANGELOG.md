@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.11.0] — 2026-08-12
+
+**Security-review techniques folded in from [vercel-labs/deepsec](https://github.com/vercel-labs/deepsec) (Apache-2.0); no new skill, 38-skill ratchet holds.** deepsec is a standalone paid AI vulnerability scanner — its product code isn't portable, but its investigation prompt and matcher library carry concrete review heuristics cc-settings lacked.
+
+**Adopted:**
+
+- **`agents/security-reviewer.md` gains an Auth-Review Discipline section** — three rules from deepsec's investigation prompt: only middleware that wraps the handler directly counts as an auth check (edge/proxy/CDN/WAF and Next.js `middleware.ts` are explicitly insufficient); a four-surface auth-bypass checklist (URL manipulation, auth-flow tampering, resource-level authorization gaps, and negated permission checks like `!(await auth.can(...))` with inverted logic); and a static-analysis-only constraint (never reproduce or exploit, review source only).
+- **`docs/security-reference.md` gains Framework Auth & Supply-Chain Checklists** — from deepsec's tested matcher library: every export from a `'use server'` file is a publicly callable POST endpoint regardless of client call sites, plus a GitHub Actions checklist (`pull_request_target` with PR checkout, unpinned action refs, `${{ github.event.* }}` interpolated into `run:` blocks, `permissions: write-all`, `curl | sh`).
+- **`docs/security-reference.md` gains "Wiring a Security Scanner into PR CI"** — the two-job pattern with its threat model kept intact: the analyze job runs PR code with read-only permissions (a PR controls its own postinstall scripts and CLI-loaded config, which run before your steps), the comment job holds `pull-requests: write` and never executes PR code; net-new-findings-only gating so pre-existing debt doesn't turn every touching PR red; `author_association` gating as real defense-in-depth (scanner credentials flow through PR-controlled installs even with the job split); SHA-pinned actions and `fetch-depth: 0`.
+- **`/audit` threat-model mode gains a fifth hunt category** — the repo's own delivery pipeline as an entry point, walking the new checklists.
+
+**Explicitly not taken:** deepsec's runbook SKILL.md (drives their paid CLI), the scanner itself (different tier — at most a companion tool), and the generate-validate-explosion-check contract for LLM-authored regex (genuinely novel, but cc-settings has no LLM-generated-pattern feature to guard yet — parked as a reference design in this entry).
+
+**Files changed:**
+- agents/security-reviewer.md
+- docs/security-reference.md
+- skills/audit/SKILL.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- package.json
+- CHANGELOG.md
+
 ## [13.10.1] — 2026-08-12
 
 **Sync with Claude Code 2.1.228, plus a schema repair from 2.1.226.** The 2.1.227 and 2.1.228 changelogs are entirely bug fixes and UI polish — no new settings keys, hook events, env vars, tools, or agent-frontmatter fields, so nothing to adopt and nothing to dedupe.

@@ -212,6 +212,45 @@ git ls-files -- '.env*' ':!.env.example' ':!.env*.example' | xargs -r rg -l "."
 
 ---
 
+## Framework Auth & Supply-Chain Checklists
+
+Adapted from vercel-labs/deepsec's matcher library (Apache-2.0) — each pattern below ships there as a tested regex matcher; here they serve as review checklists for the `security-reviewer` agent and `/audit` threat-model mode.
+
+### Next.js Server Actions
+
+Every exported function in a `'use server'` file is a publicly callable POST endpoint — the client-side call site is irrelevant to reachability. No export is exempt from the auth question.
+
+```bash
+# Every export from a 'use server' file — functions AND const-arrow exports,
+# wherever the file lives (not just actions*.ts)
+rg -l "'use server'|\"use server\"" --type ts \
+  | xargs rg -n "^export (async function|function|const)" -A 6
+```
+
+**Server Action Checklist:**
+- [ ] Every exported action performs its own auth check (or calls a helper that does) — `middleware.ts` (`proxy.ts` in Next.js 16) is a pre-route layer and cannot replace handler-local authorization
+- [ ] Resource-level authorization, not just session presence: the action verifies the user owns what it mutates
+- [ ] Input validated with a schema before use (actions receive attacker-controlled FormData/JSON)
+- [ ] No `JSON.stringify()` output embedded via `dangerouslySetInnerHTML` — XSS unless `</` is escaped
+
+### GitHub Actions Workflows
+
+```bash
+rg "pull_request_target|workflow_run" .github/workflows/
+rg "uses:.*@(main|master|develop|v\d+)\b" .github/workflows/
+rg '\$\{\{\s*github\.(event|head_ref)' .github/workflows/
+rg "permissions:\s*write-all|id-token:\s*write" .github/workflows/
+rg "curl.*\|\s*(sh|bash)" .github/workflows/
+```
+
+**Workflow Checklist:**
+- [ ] No `pull_request_target` trigger checking out PR code (runs on base branch with secrets — attacker code + secrets in one job)
+- [ ] `workflow_run` triggers reviewed — they execute on other workflows' completion with elevated context
+- [ ] Third-party actions pinned to full commit SHAs, not `@main`/`@master`/`@v3` tags
+- [ ] No `${{ github.event.* }}` or `${{ github.head_ref }}` interpolated into `run:` blocks (shell injection via PR title/branch name/commit message) — pass via `env:` instead
+- [ ] No `permissions: write-all`; `id-token: write` only where OIDC is actually used
+- [ ] No `curl … | sh` in workflow steps
+
 ## Darkroom-Specific Security Checks
 
 ### Shopify Commerce Security
@@ -508,3 +547,22 @@ export async function GET(
 - [ ] Write tokens server-side only
 - [ ] GROQ queries parameterized
 - [ ] Preview mode access controlled
+
+---
+
+## Wiring a Security Scanner into PR CI
+
+The pattern for running any AI or static security scanner (this repo's `security-reviewer`, deepsec, semgrep-with-LLM-triage, …) as a GitHub Actions PR check. Adapted from vercel-labs/deepsec `docs/reviewing-changes.md` (Apache-2.0), which ships it with an explicit threat model worth keeping intact.
+
+**Split analyze and comment into two jobs.** Don't grant `pull-requests: write` to a job that runs PR code: a PR can add arbitrary code to its own `package.json` postinstall scripts or to a project config file that the CLI loads — both run before any of your own steps. So:
+
+- **`analyze` job** — `permissions: contents: read` only. Checks out and runs the PR code plus the scanner (with whatever API credentials the scanner needs). Cannot write to the repository. Uploads the findings report as an artifact when there are findings.
+- **`comment` job** — `needs: analyze`, `permissions: contents: read` + `pull-requests: write`. Never checks out or executes PR code; downloads only the sanitized artifact and posts it via the GitHub API.
+
+**Gate on net-new findings only.** Exit-code contract: 0 = no findings this run, 1 = at least one finding. Re-running on a file with pre-existing findings must not fail the build unless something new surfaced — otherwise every PR touching a file with known debt goes red and the check gets ignored or disabled. If the scanner has no built-in baseline, diff its output against a committed baseline file — read from the base ref (`git show origin/<base>:path/to/baseline.json`), never from the PR checkout, or a malicious PR edits the baseline to reclassify its own findings as pre-existing.
+
+**Gate who triggers the expensive path.** Scanner credentials still flow through PR code: even with the job split, `analyze` has the secret in env while running PR-controlled `pnpm install`. An `author_association` gate (members/owners only, or same-repo branches) is what keeps that from being a vulnerability — it is defense-in-depth, not a UX nicety.
+
+**Hardening details:**
+- Pin third-party actions to full commit SHAs in production workflows — a compromised tag otherwise reaches your secrets (same rule as the Workflow Checklist above).
+- `fetch-depth: 0` on checkout, and diff with the three-dot form (`git diff origin/<base>...HEAD`) or an explicit `git merge-base` — a two-dot `git diff origin/<base>` also pulls in unrelated base-branch changes that landed after the PR forked.

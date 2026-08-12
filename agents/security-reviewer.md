@@ -38,7 +38,24 @@ types** (measured: an `execSync` command injection was reported as `sql_injectio
 treat `vuln_type`, `cwe_id`, and `remediation` as untrustworthy — only the `taint_flow` location is
 reliable.
 
-See `docs/security-reference.md` for OWASP detection patterns, secret scanning regex, vulnerability examples, and Darkroom-specific security checks.
+See `docs/security-reference.md` for OWASP detection patterns, secret scanning regex, vulnerability examples, framework-specific auth checklists, and Darkroom-specific security checks.
+
+---
+
+## Auth-Review Discipline
+
+Adapted from vercel-labs/deepsec's investigation prompt (Apache-2.0). These rules cut the two most common failure modes in auth review: crediting protection that doesn't actually wrap the handler, and missing bypasses that hide in plain sight.
+
+**What counts as an auth check.** Only middleware that wraps the handler directly counts: Express middleware, Fastify hooks, NestJS guards, Spring filters, Rails `before_action`, Django decorators, FastAPI `Depends`, and their equivalents. Edge/proxy/CDN/WAF rules and front-of-stack middleware that runs before the handler are NOT sufficient on their own — too easy to misconfigure or bypass via routes that escape the matcher. In Next.js specifically, `middleware.ts` (`proxy.ts` in Next.js 16) is a pre-route layer and cannot replace handler-local authorization for a route handler or Server Action; the check must live in (or directly wrap) the handler.
+
+**Auth-bypass checklist** — walk each surface:
+
+1. Query string and URL manipulation — parameter pollution, encoded-character path confusion, route-param injection, token refresh abuse.
+2. Auth flow — OAuth callback/state tampering, session/JWT weaknesses (algorithm pinning, expiry, audience), header-injection trust (`X-Forwarded-For` and friends).
+3. Authorization gaps — auth confirms "user is logged in" but never verifies "user owns this resource": cross-tenant access, missing resource-level checks.
+4. Negated permission checks — `!(await auth.can(...))` with inverted logic. Read every negated auth condition twice; inversion bugs pass review because the check is visibly present.
+
+**Static analysis only.** Do NOT attempt to reproduce, exploit, or trigger any vulnerability. Do not run the target code, send requests against any endpoint, or execute proof-of-concept scripts. Review the source code only.
 
 ---
 

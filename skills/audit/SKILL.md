@@ -485,6 +485,7 @@ Repo-grounded STRIDE-style threat modeling: enumerate trust boundaries, assets, 
 2. **Attacker capability calibration** — what a realistic attacker can and cannot do given the exposure and deployment model. State non-capabilities explicitly ("no physical access, no insider access") — an uncalibrated attacker inflates every finding downstream.
 3. **Abuse paths** — concrete paths tied to attacker goals: exfiltration, privilege escalation, integrity compromise, denial of service. Each path names the entry point, the boundary crossed, and the asset at risk — never a generic "could be exploited."
 4. **Severity** — qualitative likelihood × impact per abuse path, with the reasoning written out. No inflated severity: a theoretical path with no realistic attacker capability is Low, not High.
+5. **CI and supply-chain surface** — the repo's own delivery pipeline is an entry point: `.github/workflows/` triggers, action pinning, expression interpolation, token permissions, and publicly-reachable framework endpoints (Next.js Server Actions). Walk the checklists in `docs/security-reference.md` → "Framework Auth & Supply-Chain Checklists" (adapted from vercel-labs/deepsec, Apache-2.0).
 
 **Map section:** a trust-boundary diagram (Mermaid flowchart — same preference as Docs mode) plus the asset inventory.
 
