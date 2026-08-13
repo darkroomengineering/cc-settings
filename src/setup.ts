@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.11.0"; // deepsec fold: auth-review discipline, framework/supply-chain checklists, CI hardening pattern
+const VERSION = "13.12.0"; // codex distribution: native plugin manifest + import-first setup doc
 
 // --- Arg parsing ---------------------------------------------------------
 

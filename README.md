@@ -1,6 +1,7 @@
 # cc-settings
 
-Claude Code configuration for the Darkroom team — installs agents, skills, hooks, and coding standards into `~/.claude/`.
+AI coding configuration for the Darkroom team. The full harness installs into Claude Code, while
+Codex consumes the same standards and workflows through native import and plugin surfaces.
 
 Vanilla Claude Code is a capable but unopinionated agent. cc-settings turns it into the team's house engineer: it knows our standards, refuses to do dangerous things, proves its work before shipping it, delegates instead of grinding solo, routes work across model quotas, and detects when its own install has been tampered with.
 
@@ -21,6 +22,11 @@ powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/dar
 ```
 
 Restart Claude Code after install. New to Claude Code? `bash setup.sh --light` installs a minimal tier (statusline + one skill) you can upgrade later. Flags, requirements, what lands where, rollback: [docs/install.md](./docs/install.md).
+
+**Codex:** use its native `/import` flow after installing cc-settings. It translates the Darkroom
+instructions, settings, skills, hooks, MCP servers, and subagents without a second source tree. A
+skills-only native plugin preview is also available for local development. See
+[docs/codex.md](./docs/codex.md).
 
 ---
 
@@ -89,6 +95,7 @@ Rules start as advisories, work ships through gates, and an advisory is only pro
 | Doc | What's in it |
 |-----|-------------|
 | [docs/install.md](./docs/install.md) | Install flags, requirements, light vs full, what lands where, common commands |
+| [docs/codex.md](./docs/codex.md) | Codex import, native plugin setup, compatibility boundaries, distribution decision |
 | [docs/the-flow.md](./docs/the-flow.md) | The advisory → gate → measurement loop that ties the pieces together |
 | [MANUAL.md](./MANUAL.md) | Every skill — how to invoke it, what it does |
 | [AGENTS.md](./AGENTS.md) | Coding standards and guardrails (source of truth) |

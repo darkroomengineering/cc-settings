@@ -1,0 +1,35 @@
+{
+  "name": "darkroom",
+  "version": "13.12.0",
+  "description": "Darkroom Engineering coding standards and reusable engineering workflows for Codex.",
+  "author": {
+    "name": "Darkroom Engineering",
+    "url": "https://darkroom.engineering"
+  },
+  "homepage": "https://github.com/darkroomengineering/cc-settings",
+  "repository": "https://github.com/darkroomengineering/cc-settings",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "engineering",
+    "orchestration",
+    "react",
+    "typescript",
+    "darkroom"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Darkroom Engineering",
+    "shortDescription": "Darkroom coding standards and workflows",
+    "longDescription": "Use Darkroom Engineering's shared review, planning, testing, security, and delivery workflows in Codex.",
+    "developerName": "Darkroom Engineering",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://darkroom.engineering",
+    "defaultPrompt": [
+      "Review my changes against Darkroom standards.",
+      "Fix this bug and verify the result.",
+      "Plan and build this feature."
+    ]
+  }
+}

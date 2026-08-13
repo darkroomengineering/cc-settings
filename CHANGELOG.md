@@ -4,6 +4,33 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.12.0] — 2026-08-13
+
+**Codex gets a distribution surface — one source tree, two harnesses.** cc-settings already pairs with Codex at runtime through the bridge (`docs/codex-bridge.md`); this adds the *setup* half, so a Codex user can consume the same standards and skills without a fork or a second installer.
+
+**Added:**
+
+- **`.codex-plugin/plugin.json`** — a Codex-native plugin manifest that points at the shared `./skills/` directory rather than copying it. Both marketplaces now advertise the same `darkroom` plugin from the same checkout, so the skill library cannot drift between them.
+- **`docs/codex.md`** — the setup doc. Recommends Codex's native `/import` of an installed Claude Code harness as the complete path (it translates instructions, settings, skills, hooks, MCP servers, and subagents), and documents the plugin manifest as a skills-only preview for packaging validation and incremental porting. Records the distribution decision: keep Codex support in this repo; do not create a `codex-settings` repository unless Codex needs independently versioned behavior.
+- **Version-sync coverage for the new manifest** in `tests/plugin-manifest.test.ts` — the version-bearing file count goes from three to four, and a new identity-alignment test pins `name`, `author`, `repository`, and `license` equal across both plugin manifests. Without it the two manifests could describe different plugins under one marketplace entry.
+
+**Changed:**
+
+- **`README.md`** — the one-line description now says "AI coding configuration" instead of "Claude Code configuration", since the Claude harness is no longer the only consumer. Adds a Codex setup pointer and a `docs/codex.md` row to the docs table.
+
+**Boundary worth knowing:** the plugin path exposes `SKILL.md` files only. `CLAUDE-FULL.md`, Claude settings, hooks, and role-agent definitions still need the import's translation, and several orchestrated skills refer to Claude role-agent conventions. Do not call the skill library Codex-native until representative multi-agent, review, and shipping flows pass there.
+
+**Files changed:**
+- .codex-plugin/plugin.json (new)
+- docs/codex.md (new)
+- docs/codex-bridge.md
+- README.md
+- CHANGELOG.md
+- package.json
+- src/setup.ts
+- .claude-plugin/plugin.json
+- tests/plugin-manifest.test.ts
+
 ## [13.11.0] — 2026-08-12
 
 **Security-review techniques folded in from [vercel-labs/deepsec](https://github.com/vercel-labs/deepsec) (Apache-2.0); no new skill, 38-skill ratchet holds.** deepsec is a standalone paid AI vulnerability scanner — its product code isn't portable, but its investigation prompt and matcher library carry concrete review heuristics cc-settings lacked.

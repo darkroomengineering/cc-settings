@@ -2,6 +2,8 @@
 
 Pair Claude Code (Opus) with the OpenAI Codex CLI. Opus plans and synthesizes; Codex executes bulk work and provides independent cross-model verification — a second opinion from a different model family that Claude self-review can't replicate.
 
+This doc covers the runtime pairing. To install the Darkroom standards and skills into Codex itself, see [codex.md](./codex.md).
+
 ---
 
 ## Architecture

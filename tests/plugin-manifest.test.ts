@@ -1,9 +1,9 @@
-// Plugin/marketplace manifest contract: keeps .claude-plugin/ in sync with the
-// rest of the repo so the Cowork-installable surface can't drift silently.
+// Plugin/marketplace manifest contract: keeps the Claude and Codex manifests
+// in sync with the repo so neither installable surface can drift silently.
 //
 // - Every version-bearing file must match the installer VERSION in src/setup.ts,
-//   which is the single source of truth (see CHANGELOG's Versioning note). Three
-//   places carry it: plugin.json, package.json, and the CHANGELOG's top heading.
+//   which is the single source of truth (see CHANGELOG's Versioning note). Four
+//   places carry it: both plugin manifests, package.json, and the CHANGELOG's top heading.
 //   Each has drifted at least once — plugin.json sat at 8.1.0 for two major
 //   versions, and package.json sat at 13.4.3 across three releases because
 //   nothing tested it.
@@ -42,6 +42,11 @@ async function installerVersion(): Promise<string> {
 describe("version sync — every version-bearing file tracks src/setup.ts", () => {
   test("plugin.json version matches src/setup.ts VERSION", async () => {
     const plugin = await readJson(".claude-plugin/plugin.json");
+    expect(plugin.version).toBe(await installerVersion());
+  });
+
+  test("Codex plugin.json version matches src/setup.ts VERSION", async () => {
+    const plugin = await readJson(".codex-plugin/plugin.json");
     expect(plugin.version).toBe(await installerVersion());
   });
 
@@ -96,14 +101,34 @@ describe("plugin manifest — mcpServers sync with config/20-mcp.json", () => {
 describe("marketplace manifest", () => {
   test("self-referential plugin entry matches plugin.json", async () => {
     const marketplace = await readJson(".claude-plugin/marketplace.json");
-    const plugin = await readJson(".claude-plugin/plugin.json");
+    const claudePlugin = await readJson(".claude-plugin/plugin.json");
+    const codexPlugin = await readJson(".codex-plugin/plugin.json");
 
     expect(marketplace.name).toBe("cc-settings");
     expect((marketplace.owner as { name?: string })?.name).toBeTruthy();
 
     const entries = marketplace.plugins as Array<{ name: string; source: unknown }>;
     expect(entries).toHaveLength(1);
-    expect(entries[0]?.name).toBe(plugin.name as string);
+    expect(entries[0]?.name).toBe(claudePlugin.name as string);
+    expect(entries[0]?.name).toBe(codexPlugin.name as string);
     expect(entries[0]?.source).toBe("./");
+  });
+});
+
+describe("Codex plugin manifest", () => {
+  test("points at the shared skill source instead of a copied fork", async () => {
+    const plugin = await readJson(".codex-plugin/plugin.json");
+    expect(plugin.skills).toBe("./skills/");
+    expect(plugin.name).toBe("darkroom");
+  });
+
+  test("identity stays aligned with the Claude plugin", async () => {
+    const claudePlugin = await readJson(".claude-plugin/plugin.json");
+    const codexPlugin = await readJson(".codex-plugin/plugin.json");
+
+    expect(codexPlugin.name).toBe(claudePlugin.name);
+    expect(codexPlugin.author).toEqual(claudePlugin.author);
+    expect(codexPlugin.repository).toBe(claudePlugin.repository);
+    expect(codexPlugin.license).toBe(claudePlugin.license);
   });
 });
