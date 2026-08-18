@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.14.0] — 2026-08-18
+
+**The audit skill gains an SEO mode — discoverability for search engines and answer engines.** Distilled from shipped Darkroom work: satus PRs #348/#405/#413 and darkroomengineering/website PRs #40/#65 independently converged on one discoverability architecture, and the mode encodes that destination shape as 17 mechanical checks so any client project can be audited against it.
+
+**Added:**
+
+- **`skills/audit/references/seo-checks.md`** — the check reference (S1–S17, stable IDs), five groups: canonical integrity (self-referential per route; Next.js replaces, never merges, a child's `alternates`), advertised-vs-rendered (every sitemap URL must 200 — the sitemap never checks reachability itself), per-content metadata, structured data (JSON-LD hygiene, no fabricated facts), and AEO surfaces (`/llms.txt` generated from shared sources, AI crawlers named in robots.txt, machine-view routes for canvas-heavy sites). Each check carries the curl/grep detection command and the fix's destination shape.
+- **`Mode: SEO` in `skills/audit/SKILL.md`** — rides the Shared Contract (CONFIRMED/PLAUSIBLE, stable IDs, `docs/audits/seo-audit-YYYY-MM-DD.md`), runs mechanical checks before source reading, and adds a per-check verdict table so successive audits diff against the last run. Router triggers: "seo audit", "aeo", "ai engine optimization", "answer engine", "rank better".
+
+**Changed:**
+
+- The audit skill description was compressed to fit the new mode under the 1024-char per-skill cap and the 12 KiB index budget — trigger phrases dropped where the remaining description text already carries the routing keyword ("harsh maintainability review", "docs audit", "audit the workflows", "abuse paths", "discoverability audit", "llms.txt").
+
 ## [13.13.0] — 2026-08-18
 
 **Sync with Claude Code v2.1.234** (from 2.1.228; 2.1.230 was never published — the upstream changelog jumps 2.1.229 → 2.1.231). The headline is upstream removing the todo/task tools from Opus 4.8+ models; cc-settings follows the removal instead of opting back in.

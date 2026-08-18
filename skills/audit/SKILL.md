@@ -1,7 +1,7 @@
 ---
 name: audit
-argument-hint: "[maintainability|codebase|docs|process|debt|threat-model|motion]"
-description: Whole-repo audits in seven modes. Maintainability mode — structural audit of sprawl, thin wrappers, leaked logic, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist". Codebase/Docs/Process modes — adversarial audits hunting defects, drift, dead ends. Codebase triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit". Docs triggers "audit the docs", "docs audit", "doc drift". Process triggers "process audit", "audit the workflows", "walk the journeys", "end-to-end audit". Threat-model mode — repo-grounded abuse-path analysis, triggers "threat model", "STRIDE", "attack surface", "abuse paths". Motion mode — animation audit, triggers "motion audit", "audit the animations". Debt mode ledgers `SHORTCUT:` markers — triggers "debt ledger", "shortcut ledger". Owns the bare "audit the codebase" — asks maintainability vs correctness when unpinned.
+argument-hint: "[maintainability|codebase|docs|process|debt|threat-model|motion|seo]"
+description: Whole-repo audits in eight modes. Maintainability — sprawl, thin wrappers, dependency freshness. Triggers "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "whole codebase review", "should this exist". Codebase/Docs/Process — adversarial audits hunting defects, drift, dead ends. Triggers "adversarial audit", "fable audit", "expectation gaps", "correctness audit", "audit the docs", "doc drift", "process audit", "walk the journeys", "end-to-end audit". Threat-model — abuse-path analysis. Triggers "threat model", "STRIDE", "attack surface". Motion — animation audit. Triggers "motion audit", "audit the animations". SEO — search + answer-engine discoverability (canonicals, sitemap reachability, structured data, llms.txt). Triggers "seo audit", "aeo", "ai engine optimization", "answer engine", "rank better". Debt — ledgers `SHORTCUT:` markers. Triggers "debt ledger", "shortcut ledger". Owns the bare "audit the codebase" — asks maintainability vs correctness when unpinned.
 context: main
 requires:
   - mcp: context7
@@ -9,16 +9,17 @@ requires:
 
 # Audit
 
-One skill, seven whole-repo audit modes. Six of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. Four families of question:
+One skill, eight whole-repo audit modes. Seven of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. Five families of question:
 
 - **Maintainability** — ported from Cursor's internal `thermo-nuclear-code-quality-review` skill (reported by Eric Zakariasson as Cursor's most-used internal skill; this mode was formerly the standalone `/nuclear-review` skill). Asks **should this code exist?** — structural quality, 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7.
 - **Codebase, Docs, and Process** — adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; these modes were formerly the standalone `/adversarial-audit` skill). Ask **does it do what it promises?** — correctness/coherence/affordances (codebase), truth and structure of the docs (docs), walkable end-to-end journeys (process). The July 2026 cc-settings audit ran the codebase spec and produced 28 findings, ~all confirmed and fixed. The mechanics that made that work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these three modes, whatever the mode.
 - **Threat-Model** — adapted from openai/skills `security-threat-model` (Apache-2.0). Asks **what can go wrong, and who would exploit it?** — trust boundaries, attacker capability, abuse paths tied to attacker goals, mitigations mapped to components.
 - **Motion** — adapted from emilkowalski/skills `improve-animations` (MIT). Asks **where does animation work have the highest leverage?** — purpose/frequency, easing/duration, physicality/origin, interruptibility, performance, accessibility, cohesion, and missed opportunities, turned into self-contained implementation plans rather than a findings report.
+- **SEO** — distilled from shipped Darkroom work (satus PRs #348/#405/#413 and darkroomengineering/website PRs #40/#65, which converged independently on the same architecture). Asks **will this site be found, ranked, and cited?** — canonical integrity, sitemap reachability, per-content metadata, structured data, and the AEO surfaces (llms.txt, named AI crawlers, machine-view routes) that answer engines read.
 
-Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The codebase, docs, process, and threat-model modes hold **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
+Maintainability mode should push to be **ambitious** about code structure — do not merely identify local cleanup opportunities, actively search for "code judo" moves. The codebase, docs, process, threat-model, and seo modes hold **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
 
-The seventh mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
+The eighth mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
 
 ## Mode Router — disambiguate before fanning out
 
@@ -38,6 +39,7 @@ Only proceed to the matching mode below once the answer disambiguates. This ques
 | Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
 | Threat-Model | "threat model", "STRIDE", "attack surface", "abuse paths" |
 | Motion | "motion audit", "audit the animations", "improve the animations" |
+| SEO | "seo audit", "aeo", "ai engine optimization", "answer engine", "discoverability audit", "rank better", "llms.txt" |
 | Debt | "debt ledger", "shortcut ledger", "what did we defer", "what corners did we cut" |
 | Ambiguous — ASK | "audit the codebase" alone, or any phrasing that doesn't match a row above |
 
@@ -49,7 +51,7 @@ in this skill. Run Debt standalone or as a cheap first pass before maintainabili
 ## When to use vs other review skills
 
 - `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security), now including an animation checklist when the diff touches motion. Every change.
-- `/audit` (this skill) — periodic whole-repo audit, seven modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?"; threat-model mode asks "what can go wrong, and who would exploit it?"; motion mode asks "where does the animation work have the highest leverage?"; debt mode asks "what did we defer on purpose?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface. Motion mode fits well after a UI-heavy sprint or before a client showcase.
+- `/audit` (this skill) — periodic whole-repo audit, eight modes. Maintainability mode asks "should this code exist?"; codebase, docs, and process modes ask "does it do what it promises?"; threat-model mode asks "what can go wrong, and who would exploit it?"; motion mode asks "where does the animation work have the highest leverage?"; seo mode asks "will this site be found, ranked, and cited?"; debt mode asks "what did we defer on purpose?" Run maintainability and codebase mode on the same cadence (major version cuts, after extended velocity sprints, before a load-bearing migration) — they compose well back-to-back since they hunt different game. Docs and process modes shine before releases and after feature bursts. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface. Motion mode fits well after a UI-heavy sprint or before a client showcase. SEO mode fits before a site launch and as a first pass on any client marketing/content site.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/verify` — adversarial check of a single change/claim, not a repo sweep.
 
@@ -386,7 +388,7 @@ Structural rubric ported from [`cursor/plugins/cursor-team-kit/skills/thermo-nuc
 
 ---
 
-## Shared Contract (Codebase, Docs, Process, and Threat-Model modes)
+## Shared Contract (Codebase, Docs, Process, Threat-Model, and SEO modes)
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
@@ -492,6 +494,28 @@ Repo-grounded STRIDE-style threat modeling: enumerate trust boundaries, assets, 
 **Method addition:** before finalizing, pause and ask the user anything load-bearing the repo alone can't answer — deployment model, scale, auth scheme, internet exposure, data sensitivity, multi-tenancy. Those answers reshape severity, so resolve them before writing mitigations, not after.
 
 **Extra output:** mitigations mapped one-to-one to the components/boundaries they protect, never a generic hardening checklist; and a QA pass confirming every entry point, boundary, and assumption is accounted for before delivery. Uses the same `docs/audits/threat-model-audit-YYYY-MM-DD.md` output path and stable-ID contract as Codebase/Docs/Process modes (Shared Contract, above).
+
+## Mode: SEO
+
+Repo-grounded discoverability audit for search engines and answer engines (AEO — being findable and citable by LLM crawlers). Distilled from shipped Darkroom work: satus PRs #348/#405/#413 and darkroomengineering/website PRs #40/#65 converged independently on one architecture, and this mode encodes that destination shape as checks. Rides the Shared Contract above.
+
+**Role additions:** a search crawler that executes no JavaScript; an answer engine assembling a citation from a single fetch; a CMS editor who expects everything they publish to be reachable.
+
+**Scope.** The full discoverability surface: metadata generation (canonicals, OG, descriptions), sitemap/robots/llms.txt generation, structured-data builders, the route layer that must render every content type those surfaces enumerate — and, whenever a build or deploy is reachable, the rendered output itself. Prefer curling a `next build && next start` (or a preview deploy) over source reading alone; `next dev` skips static-generation paths that change metadata output.
+
+**Hunt for:** run every check in `references/seo-checks.md` (S1–S17, stable IDs — cite them in findings), grouped:
+
+1. **Canonical integrity** (S1–S3) — self-referential per route, never inherited from a layout; child canonicals that don't wholesale-drop shared alternates (Next replaces, never merges, a child's `alternates`); canonical and sitemap generated from one route-enumeration source.
+2. **Advertised vs rendered** (S4–S5) — every sitemap URL returns 200 (the sitemap never checks reachability itself; the highest-value mechanical check in the mode); demo/example/admin routes carry their own route-level noindex, independent of sitemap exclusion.
+3. **Per-content metadata** (S6–S9) — unique title/description/OG image per content item; `og:type`/`@type` matched to what the content is (editorial = Article, case study = CreativeWork); exactly one base-URL source with no inline env reads; empty CMS descriptions falling back to body-derived text, never the site-wide default.
+4. **Structured data** (S10–S13) — CollectionPage + ItemList on listing pages; JSON-LD via script tag with `<` escaped (microdata is valid per Google — in client-rendered trees it's a migration suggestion, not a defect); no null/undefined/empty-array values (absent beats present-but-broken); no fabricated entity facts — an invented date passes validation and is never caught.
+5. **AEO surfaces** (S14–S17) — `/llms.txt` generated from the same facts object and route enumeration as everything else; AI search/citation crawlers named explicitly in robots.txt (several only honor directives addressed by name; training-consent tokens are an owner decision, not a defect); a plain-HTML machine-view route for canvas/WebGL-heavy sites; parity between any hand-maintained page list and the sitemap.
+
+**Map section:** the discoverability data-flow — which module enumerates routes, which consumers read it (sitemap, llms.txt, canonicals, machine view), and every place two surfaces derive the same fact independently. Each independent derivation is a standing drift risk even while currently in agreement.
+
+**Method addition:** run the mechanical checks first — they are cheap, and their findings are CONFIRMED by a curl. Read source second, to locate fixes and to catch the architectural absences the curls can't see (no shared route module, no schema builder at all). A check that needs a running site when none is reachable downgrades to PLAUSIBLE from source reading — say so per finding.
+
+**Extra output:** a per-check verdict table (S1–S17: pass / finding ID / not-applicable) so the next audit starts from deltas; fix recommendations point at the destination shapes in `references/seo-checks.md` rather than restating them.
 
 ---
 
