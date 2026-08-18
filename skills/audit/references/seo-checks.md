@@ -65,7 +65,9 @@ and index another; the engine picks, usually wrongly.
 **Detect:**
 
 ```bash
-curl -s "$BASE/sitemap.xml" | grep -oP '(?<=<loc>)[^<]+' | sort > /tmp/urls.txt
+# portable loc extraction (BSD grep has no -P); -fsS makes a missing sitemap fail loudly
+urls=$(curl -fsS "$BASE/sitemap.xml" | grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g' | sort)
+[ -n "$urls" ] || echo "FINDING: sitemap missing or empty"
 # curl each URL, extract its canonical, compare to the sitemap entry
 ```
 
@@ -90,11 +92,14 @@ in CI catches it. This is the single highest-value mechanical check.
 **Detect:**
 
 ```bash
-curl -s "$BASE/sitemap.xml" | grep -oP '(?<=<loc>)[^<]+' | while read -r url; do
+curl -fsS "$BASE/sitemap.xml" | grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g' | while read -r url; do
   code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
   [ "$code" != "200" ] && echo "$code $url"
 done
 ```
+
+An empty URL list is itself a finding (sitemap unreachable or enumerating
+nothing) — never report "all URLs 200" off zero URLs checked.
 
 **Fix shape:** a catch-all route rendering CMS documents at the exact slug
 shape the enumeration uses (satus `app/(site)/[...slug]/page.tsx`), with the
@@ -189,15 +194,17 @@ ItemList validates cleanly while pointing nowhere.
 
 ### S11. JSON-LD via script tag, `<` escaped
 
-Microdata (`itemProp`) lives on visible DOM nodes and gets lost or duplicated
-across client re-renders. And an unescaped `<` in a CMS-sourced string
-containing `</script>` closes the tag early — an XSS vector, not a rendering
-bug.
+An unescaped `<` in a CMS-sourced string containing `</script>` closes the
+JSON-LD script tag early — an XSS vector, not a rendering bug. That is the
+finding here. Microdata (`itemProp`) is valid structured data per Google's
+docs; but in client-rendered React trees it lives on visible DOM nodes and
+gets lost or duplicated across re-renders, so flag it as a
+migration-to-JSON-LD **suggestion**, never a defect.
 
 **Detect:**
 
 ```bash
-grep -rn "itemProp=\|itemScope" components/ app/    # presence → finding
+grep -rn "itemProp=\|itemScope" components/ app/    # presence → migration suggestion
 grep -n "replace(/</g" lib/**/json-ld*              # absence + CMS strings → finding
 ```
 
@@ -253,10 +260,17 @@ wildcard `*` allow is not a guaranteed substitute — and named groups make the
 allow/deny decision reviewable per bot.
 
 **Detect:** `curl -s "$BASE/robots.txt"` — look for explicit groups covering
-at minimum `GPTBot`, `ChatGPT-User`, `OAI-SearchBot`, `ClaudeBot`,
-`Claude-User`, `Claude-SearchBot`, `PerplexityBot`, `Google-Extended`.
-(`Google-Extended` controls Gemini/AI Overviews training consent, separate
-from `Googlebot` search indexing.)
+at minimum the search/citation crawlers: `OAI-SearchBot`, `ChatGPT-User`,
+`Claude-User`, `Claude-SearchBot`, `PerplexityBot`. These are the
+discoverability surface — absent groups are the finding.
+
+Training-consent tokens (`GPTBot`, `ClaudeBot`, `Google-Extended`) are a
+separate decision: they control whether content trains or grounds models, not
+whether it's found or cited (`Google-Extended` is a robots.txt token, not a
+crawler, and has no effect on Search indexing or ranking). Report their
+absence as an open question for the site owner — never as a defect, and never
+push a default. Allowing them is an AEO-reach choice; blocking them is a
+content-rights choice. Both are owner calls.
 
 ### S16. Visually-heavy sites ship a plain-HTML machine view
 
