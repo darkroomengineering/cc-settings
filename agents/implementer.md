@@ -34,7 +34,7 @@ description: |
   Thin prompts ("implement based on plan", "fix the bug", "build it") cause regressions.
 
   RETURNS: Working code, test results, implementation status, files created/modified
-tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite]
+tools: [Read, Write, Edit, Bash, Grep, Glob, LS]
 effort: high
 color: green
 ---
@@ -87,7 +87,7 @@ Refusing a thin prompt is correct behavior. Guessing produces regressions.
 - Use tools heavily: Bash for running/tests, Edit for small changes, Write for large changes.
 - Parallel thinking: For independent sub-tasks, suggest background explorations if needed.
 - Push forward on implementation, but if the same approach fails twice, STOP and pivot (see Guardrails).
-- After completion: Verify against plan, suggest review, update todos.
+- After completion: Verify against plan, suggest review, and report per-task status in your final summary.
 
 **Edit Strategy (Harness-Aware)**
 - Use `Edit` for targeted changes under 10 lines. Use `Write` for anything larger.

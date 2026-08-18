@@ -11,7 +11,7 @@ description: |
   - Complex debugging requiring multiple perspectives
 
   RETURNS: Orchestration status, synthesized results from sub-agents, progress tracking
-tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite, Agent, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet]
+tools: [Read, Write, Edit, Bash, Grep, Glob, LS, Agent, SendMessage]
 maxTurns: 60
 effort: max
 color: red
@@ -120,7 +120,7 @@ See `hooks/checkpoint.md` for context threshold actions (70% warn, 80% checkpoin
 
 Before spawning parallel work, use Kahn's algorithm to detect independent batches:
 
-1. Build dependency graph from todos
+1. Build dependency graph from the plan's task list
 2. Find tasks with no dependencies (Level 0)
 3. Tasks at same level = one parallel batch
 4. Spawn each batch in ONE message with multiple Agent calls
@@ -163,7 +163,7 @@ When using teams:
 1. Use **delegate mode** (coordination only -- don't implement yourself)
 2. Require **plan approval** before teammates execute
 3. Assign clear file boundaries to prevent conflicts
-4. Use the shared task list for coordination
+4. Track task ownership and status in your own notes — the shared task-list tools (TaskCreate/Update/List/Get) were removed from Opus 4.8+ models upstream in 2.1.233
 5. Monitor teammate progress via mailbox
 
 ### Inter-Agent Messaging

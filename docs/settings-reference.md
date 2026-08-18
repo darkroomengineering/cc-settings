@@ -110,6 +110,13 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP` | `"1"` or unset | Opt out of automatic memory-pressure reaping of idle background shell commands (v2.1.193) |
 | `CLAUDE_CODE_DISABLE_MOUSE` | `"1"` or unset | Disable mouse capture entirely (including wheel scroll) in the fullscreen renderer; the full-disable companion to `CLAUDE_CODE_DISABLE_MOUSE_CLICKS`. Honored in attached background sessions as of v2.1.203 |
 | `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` | `"1"` or unset | Disable mouse click/drag/hover in the fullscreen renderer while keeping wheel scroll; for terminals where mouse capture interferes with native text selection (v2.1.195) |
+| `CLAUDE_CODE_ATTRIBUTION_HEADER` | `"0"` to disable, unset for default | Disable the attribution header on direct Anthropic API connections; v2.1.229 fixed auto mode failing on every tool call when this is set |
+| `CLAUDE_CODE_WORKFLOW_PREFIX_STAGGER_MS` | milliseconds (string), `"0"` to disable | Dynamic-workflow fan-outs stagger same-prefix sibling agents so later agents read the cached prompt prefix instead of re-paying it (v2.1.229) |
+| `CLAUDE_CODE_ENABLE_TODO_TOOLS` | `"1"` or unset | Restore TodoWrite and TaskCreate/Get/Update/List on Opus 4.8+, Sonnet 5, Fable 5, and Mythos 5, where v2.1.233 removed them. cc-settings strips these tools from its agents instead of setting this |
+| `CLAUDE_CODE_TOOL_MEMORY_LIMIT` | bytes (string) | Linux only, opt-in: run Bash tool commands under a memory cgroup so a runaway build can't stall the session (v2.1.233) |
+| `CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS` | milliseconds (string) | WebFetch per-URL session cache TTL; default 15 minutes (v2.1.233) |
+| `CLAUDE_CODE_PROJECT_DIR_NAME` | short name | For hosts that give each session its own config directory: names the per-project transcript directory (v2.1.234) |
+| `CLAUDE_CODE_GOAL_CHECKIN_MINUTES` | minutes (string), `"0"` to opt out | When background tasks keep a `/goal` waiting 30+ minutes, Claude checks in on them instead of waiting indefinitely (v2.1.234) |
 
 > **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 
@@ -580,6 +587,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | Key | Type | Class | Description |
 |-----|------|-------|-------------|
 | `$schema` | string | G | JSON Schema URL for editor IntelliSense |
+| `additionalMarketplaces` | object | E | Friendlier alias for `extraKnownMarketplaces` (v2.1.232) |
 | `advisorModel` | string | G | Stronger model the session consults mid-turn via the advisor server tool; `/advisor <model>` persists here (v2.1.98). Alias or full ID; advisor ≥ executor capability is validated at runtime, and Fable-as-advisor needs v2.1.170+. See `docs/agent-models.md` "Advisor" |
 | `agent` | string | G | Default agent name for subagent invocations; also honored by `claude agents` dispatched sessions (v2.1.157) |
 | `allowAllClaudeAiMcps` | boolean | E | Load claude.ai cloud MCP connectors alongside managed-mcp.json (v2.1.149) |
@@ -588,6 +596,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `allowManagedPermissionRulesOnly` | boolean | E | Block user-defined permission rules |
 | `allowedChannelPlugins` | string[] | E | Allowlist of plugin identifiers channel admins can push (v2.1.107) |
 | `allowedHttpHookUrls` | string[] | E | Allowlist of HTTP endpoints hooks may call |
+| `allowedMarketplaces` | string[] | E | Friendlier alias for `strictKnownMarketplaces` (v2.1.232) |
 | `allowedMcpServers` | string[] | E | Managed allowlist of MCP server URLs/identifiers (v2.1.112) |
 | `alwaysThinkingEnabled` | boolean | G | Always show extended thinking even on short turns |
 | `apiKeyHelper` | string | A | Shell command that emits an Anthropic API key |
@@ -629,6 +638,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `enabledMcpjsonServers` | string[] | G | Allowlist for project .mcp.json server names |
 | `enforceAvailableModels` | boolean | E | Make the `availableModels` allowlist also constrain the Default model; user/project cannot widen a managed list (v2.1.175) |
 | `env` | Record\<string,string\> | G | Environment variables injected into every session |
+| `extraKnownMarketplaces` | object | E | Register additional marketplaces without installing them; map of marketplace ID → source object |
 | `fallbackModel` | string \| string[] | G | Up to three fallback models tried in order when the primary is overloaded/unavailable; settings.json counterpart of `--fallback-model` (v2.1.166) |
 | `fastModePerSessionOptIn` | boolean | G | Per-session fast-mode opt-in flag |
 | `feedbackSurveyRate` | number 0–1 | E | Sampling rate for in-session feedback survey; 0 = disabled (v2.1.106) |

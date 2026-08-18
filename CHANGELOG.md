@@ -4,6 +4,36 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [13.13.0] — 2026-08-18
+
+**Sync with Claude Code v2.1.234** (from 2.1.228; 2.1.230 was never published — the upstream changelog jumps 2.1.229 → 2.1.231). The headline is upstream removing the todo/task tools from Opus 4.8+ models; cc-settings follows the removal instead of opting back in.
+
+**Adopted:**
+
+- **Todo/task tools stripped from agent frontmatter** (upstream 2.1.233 removed `TodoWrite` and `TaskCreate/Get/Update/List` on Opus 4.8+, Sonnet 5, Fable 5, Mythos 5). `implementer` loses `TodoWrite`; `deslopper` loses the `Task*` quartet; `maestro` loses both, and its teams-orchestration and batch-detection prose no longer leans on a shared task list. The alternative — `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` in `config/10-core.json` — was considered and rejected at the sync gate: follow the upstream direction rather than pin old behavior. Why this matters: with the session on Opus 5 and subagents on Sonnet 5, all three agents were declaring tools that no longer exist.
+- **`sandbox.ripgrep`** (2.1.232) in `src/schemas/settings.ts` — third sandbox binary override next to `bwrapPath`/`socatPath`; honored only from user/managed/`--settings` scopes, and managed overrides of any of the three now require approval.
+- **Marketplace keys** (2.1.232) in `src/schemas/settings.ts` — `additionalMarketplaces` and `allowedMarketplaces`, the new friendlier aliases for `extraKnownMarketplaces`/`strictKnownMarketplaces`, plus `extraKnownMarketplaces` itself, which predates this window but was never modelled.
+- **Seven env vars** in the manifest and `docs/settings-reference.md`: `CLAUDE_CODE_TOOL_MEMORY_LIMIT`, `CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS`, `CLAUDE_CODE_ENABLE_TODO_TOOLS` (2.1.233); `CLAUDE_CODE_PROJECT_DIR_NAME`, `CLAUDE_CODE_GOAL_CHECKIN_MINUTES` (2.1.234); `CLAUDE_CODE_WORKFLOW_PREFIX_STAGGER_MS`, `CLAUDE_CODE_ATTRIBUTION_HEADER` (2.1.229).
+- **Docs:** `CLAUDE-FULL.md` cross-session messaging paragraph gains the 2.1.232 upgrades (bare-name `SendMessage` delivery, `@`-mention of sessions, unique live-session names).
+
+**Deletions / Native-now-redundant:** none. Checked and cleared: the removed "Default teammate model" `/config` row (zero references here), the native GitLab MR statusline badge (custom `statusline.ts` unaffected), and the new `/config` rows for dialog expiry and cross-session inbound (keys modelled since the 2.1.224 sync).
+
+**Skipped:** all GitLab integration, gateway/enterprise surfaces, plugin marketplace `command` sources (no plugin-source schema here — same call as the 2.1.224 sync), the `selection:clear` keybinding, and the usage-limit auto-continue toggle (its settings key is unnamed upstream; the loose root tolerates it).
+
+**Files changed:**
+- agents/implementer.md
+- agents/deslopper.md
+- agents/maestro.md
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- CLAUDE-FULL.md
+- CHANGELOG.md
+- package.json
+- src/setup.ts
+- .claude-plugin/plugin.json
+- .codex-plugin/plugin.json
+
 ## [13.12.0] — 2026-08-13
 
 **Codex gets a distribution surface — one source tree, two harnesses.** cc-settings already pairs with Codex at runtime through the bridge (`docs/codex-bridge.md`); this adds the *setup* half, so a Codex user can consume the same standards and skills without a fork or a second installer.

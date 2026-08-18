@@ -84,7 +84,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.12.0"; // codex distribution: native plugin manifest + import-first setup doc
+const VERSION = "13.13.0"; // upstream sync 2.1.234: todo-tool strip, sandbox.ripgrep, marketplace aliases
 
 // --- Arg parsing ---------------------------------------------------------
 

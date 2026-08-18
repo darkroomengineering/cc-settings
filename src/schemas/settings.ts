@@ -164,6 +164,11 @@ export const Sandbox = z.looseObject({
     .optional(),
   bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
   socatPath: z.string().optional(), // 2.1.133 — Linux/WSL socat binary override
+  // 2.1.232 — ripgrep binary override inside the sandbox. Honored only from
+  // user, managed, or --settings scopes; a repo's .claude/settings.json can no
+  // longer override it (same hardening as credential `mask` entries). Managed
+  // overrides of any of the three sandbox binary paths now require approval.
+  ripgrep: z.string().optional(),
 });
 
 // Model-specific overrides map (2.1.105). Value shape undocumented-but-open;
@@ -324,6 +329,14 @@ export const Settings = z.looseObject({
   policyHelper: z.looseObject({}).optional(), // policy-helper configuration object (enterprise)
   requiredMaximumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is above this
   requiredMinimumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is below this; pairs with requiredMaximumVersion to define an allowed range
+  // Marketplace registration. extraKnownMarketplaces predates this sync window
+  // (it registers additional marketplaces without installing them); entry shape
+  // is a map of marketplace ID → source object, kept unpinned locally.
+  // 2.1.232 added friendlier aliases: additionalMarketplaces ≡
+  // extraKnownMarketplaces, allowedMarketplaces ≡ strictKnownMarketplaces.
+  extraKnownMarketplaces: z.record(z.string(), z.unknown()).optional(),
+  additionalMarketplaces: z.record(z.string(), z.unknown()).optional(), // 2.1.232 alias
+  allowedMarketplaces: z.array(z.string()).optional(), // 2.1.232 alias of strictKnownMarketplaces
   strictKnownMarketplaces: z.array(z.string()).optional(), // allowlist of marketplace IDs considered trusted; 2.1.223: an entry may be an owner wildcard "owner/*" matching every marketplace repo under that GitHub org
   strictPluginOnlyCustomization: z
     .union([z.boolean(), z.array(z.enum(["skills", "agents", "hooks", "mcp"]))])

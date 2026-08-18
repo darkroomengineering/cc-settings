@@ -1018,6 +1018,9 @@
         },
         "socatPath": {
           "type": "string"
+        },
+        "ripgrep": {
+          "type": "string"
         }
       },
       "additionalProperties": {}
@@ -1247,6 +1250,26 @@
     },
     "requiredMinimumVersion": {
       "type": "string"
+    },
+    "extraKnownMarketplaces": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "additionalMarketplaces": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "allowedMarketplaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "strictKnownMarketplaces": {
       "type": "array",
