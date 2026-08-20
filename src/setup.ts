@@ -893,13 +893,27 @@ async function historicalClaudeOwnership(
     .trim()
     .split("\n")
     .filter(Boolean);
-  if (commits.length !== 1) {
+  // -G matches diff lines in both directions, so a superseded version always
+  // hits two commits: the one that introduced it and the release that removed
+  // it. Keep only commits whose package.json actually carries the version.
+  const carriers: string[] = [];
+  for (const candidate of commits) {
+    try {
+      const manifest = JSON.parse(
+        (await gitOutput(sourceDir, ["show", `${candidate}:package.json`])).toString("utf8"),
+      ) as { version?: unknown };
+      if (manifest.version === version) carriers.push(candidate);
+    } catch {
+      // Unreadable or unparsable historical manifest: not a trusted carrier.
+    }
+  }
+  if (carriers.length !== 1) {
     throw new Error(
       `Legacy Claude ownership version ${version} does not resolve to exactly one trusted source commit. ` +
         "Use that version's checkout to reinstall once before upgrading.",
     );
   }
-  const commit = commits[0] as string;
+  const commit = carriers[0] as string;
   const selected =
     profile === "full"
       ? [

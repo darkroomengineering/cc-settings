@@ -993,11 +993,14 @@ describe("install E2E — fresh HOME", () => {
   );
 
   test.each([
-    ["unresolved", "0.0.0-unresolved", 0],
-    ["ambiguous", "13.13.0", 2],
+    ["unresolved", "0.0.0-unresolved", 0, /does not resolve to exactly one/i],
+    // A superseded version raw-matches two commits (intro + the release that
+    // removed it); the resolver filters to the single true carrier, so the
+    // upgrade proceeds past resolution and fail-closes on the unrestored files.
+    ["superseded-but-unrestored", "13.13.0", 2, /Historical Claude managed file is missing/i],
   ] as const)(
     "%s legacy version fails before a combined upgrade mutates either product",
-    async (_case, version, expectedCommitCount) => {
+    async (_case, version, expectedCommitCount, expectedError) => {
       const home = await mkdtemp(join(tmpdir(), "cc-e2e-historical-version-"));
       const claudeDir = join(home, ".claude");
       try {
@@ -1014,7 +1017,7 @@ describe("install E2E — fresh HOME", () => {
         const update = await runInstall(home, [], "both");
 
         expect(update.exitCode).not.toBe(0);
-        expect(`${update.stdout}\n${update.stderr}`).toMatch(/does not resolve to exactly one/i);
+        expect(`${update.stdout}\n${update.stderr}`).toMatch(expectedError);
         expect(await readFile(sentinel, "utf8")).toBe(sentinelBytes);
         expect(await readFile(personal, "utf8")).toBe("personal exact bytes\n");
         expect(existsSync(join(home, ".codex"))).toBe(false);
