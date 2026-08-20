@@ -1,6 +1,6 @@
 ---
 name: lighthouse
-description: Lighthouse audit + improvement loop until targets met. Triggers "lighthouse", "performance audit", "page speed", "improve scores", "LCP", "CLS", "INP", "core web vitals".
+description: Lighthouse audit + improvement loop until targets met. Triggers "lighthouse", "page speed", "improve scores", "LCP", "CLS", "INP", "core web vitals". Repo-wide perf audits ("perf audit") go to /audit performance mode instead.
 context: fork
 argument-hint: "[url]"
 allowed-tools:
@@ -24,7 +24,20 @@ requires:
 
 # Lighthouse Optimization Loop
 
-**Method:** 3 mobile + 3 desktop runs per audit, averaged for reliability. After each code change, re-audit AND visually verify the page with chrome-devtools MCP to catch regressions.
+Set a product-neutral scratch root once:
+
+```bash
+LIGHTHOUSE_DIR="${TMPDIR:-/tmp}/cc-settings-lighthouse"
+mkdir -p "$LIGHTHOUSE_DIR"
+```
+
+Use the Chrome DevTools MCP only when the user configured it. Standalone Codex
+otherwise uses the Lighthouse CLI plus native/manual screenshots; if no visual
+capture path exists, stop before changing UI and report that visual regression
+verification is unavailable. This package does not auto-run unpinned registry
+MCP packages.
+
+**Method:** 3 mobile + 3 desktop runs per audit, averaged for reliability. After each code change, re-audit and visually verify the page with the configured MCP or the stated manual fallback.
 
 ---
 
@@ -37,11 +50,12 @@ requires:
    lighthouse --version    # CLI must be installed for the batched 3x3 protocol
    ```
    If lighthouse is missing: `npm install -g lighthouse`
-   The chrome-devtools MCP is shipped by default; if missing, see `mcp-configs/recommended.json`.
+   Check whether the user configured the chrome-devtools MCP. Do not install or
+   auto-run an unpinned registry MCP on their behalf.
 
 3. **Create results directory:**
    ```bash
-   mkdir -p ~/.claude/tmp/lighthouse
+   mkdir -p "$LIGHTHOUSE_DIR"
    ```
 
 4. **Take baseline screenshots** before any changes:
@@ -65,7 +79,7 @@ Each audit consists of **3 mobile + 3 desktop runs**, averaged per category.
 for i in 1 2 3; do
   lighthouse <url> \
     --output=json \
-    --output-path=~/.claude/tmp/lighthouse/mobile-$i.json \
+    --output-path="$LIGHTHOUSE_DIR/mobile-$i.json" \
     --chrome-flags="--headless --no-sandbox" \
     --only-categories=performance,accessibility,best-practices,seo \
     --quiet \
@@ -76,7 +90,7 @@ done
 for i in 1 2 3; do
   lighthouse <url> \
     --output=json \
-    --output-path=~/.claude/tmp/lighthouse/desktop-$i.json \
+    --output-path="$LIGHTHOUSE_DIR/desktop-$i.json" \
     --chrome-flags="--headless --no-sandbox" \
     --preset=desktop \
     --only-categories=performance,accessibility,best-practices,seo \
@@ -89,7 +103,7 @@ done
 
 For each JSON result file:
 ```bash
-cat ~/.claude/tmp/lighthouse/mobile-1.json | \
+cat "$LIGHTHOUSE_DIR/mobile-1.json" | \
   jq '{
     performance: (.categories.performance.score * 100),
     accessibility: (.categories.accessibility.score * 100),
@@ -117,7 +131,7 @@ Average the 3 runs per category for both mobile and desktop. Report as:
 
 From the JSON, find specific audits that failed or scored poorly:
 ```bash
-cat ~/.claude/tmp/lighthouse/mobile-1.json | \
+cat "$LIGHTHOUSE_DIR/mobile-1.json" | \
   jq '.audits | to_entries[] | select(.value.score != null and .value.score < 0.9) | {id: .key, score: .value.score, title: .value.title, description: .value.displayValue}'
 ```
 
@@ -182,7 +196,7 @@ LOOP until all scores >= 90 or user interrupts:
      - Compare against previous scores
 
   7. LOG RESULTS
-     - Append to ~/.claude/tmp/lighthouse/results.tsv:
+     - Append to `$LIGHTHOUSE_DIR/results.tsv`:
        round	mobile_perf	desktop_perf	mobile_a11y	desktop_a11y	status	description
      - Status: "kept" (scores improved), "reverted" (regression or no improvement)
 
@@ -255,7 +269,7 @@ When Performance score is low, prioritize these metrics:
 
 ## Dashboard
 
-After each round, write `~/.claude/tmp/lighthouse/dashboard.md`:
+After each round, write `$LIGHTHOUSE_DIR/dashboard.md`:
 
 ```markdown
 # Lighthouse Optimization: <url>

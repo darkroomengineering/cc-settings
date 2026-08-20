@@ -1,6 +1,6 @@
 # Shared audit contract
 
-Single source of truth for the plumbing the `/audit` skill's maintainability, codebase, docs, and process modes share. Mode-specific hunt categories, prompts, and report templates stay per mode in `SKILL.md`; the three procedures below are identical by design and must not be re-derived inline. Installed path: `~/.claude/skills/audit/references/audit-contract.md`.
+Single source of truth for the plumbing the `/audit` skill's codebase, docs, process, and performance modes share. Mode-specific hunt categories, prompts, and report templates stay per mode in `SKILL.md`; the three procedures below are identical by design and must not be re-derived inline. Installed path: `~/.claude/skills/audit/references/audit-contract.md`.
 
 ## 1. Cross-model pass (Codex bridge) — gated, fails open
 

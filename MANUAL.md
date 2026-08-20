@@ -1,11 +1,11 @@
 # cc-settings Manual
 
-> Everything you can do with Darkroom's Claude Code setup.
-> You don't need to memorize this — just describe what you want and Claude will invoke the right skill.
+> Everything you can do with Darkroom's Claude Code and Codex setup.
+> You do not need to memorize commands. Describe the outcome and the selected TUI will invoke the right workflow.
 
 ## Quickstart
 
-**1. Install** (one command, idempotent — re-run it any time):
+**1. Install** (one idempotent command; re-run it any time):
 
 ```bash
 # macOS / Linux
@@ -17,9 +17,23 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
 ```
 
-> **Requires [Bun](https://bun.sh) ≥ 1.2.21.** The bootstrap auto-installs Bun via `curl -fsSL https://bun.sh/install | bash` (or `irm bun.sh/install.ps1 | iex` on Windows) if you don't have it. Hooks, scripts, and the installer itself all run on Bun — there's no Node.js fallback. If your environment blocks `curl`-installs (corporate sandboxes), install Bun manually first.
+> **Requires [Bun](https://bun.sh) 1.2.21 or newer.** The bootstrap installs Bun when needed. Hooks, scripts, and the installer all run on Bun; there is no Node.js fallback. Install Bun manually first when your environment blocks script-based installers.
 
-Re-installs are non-destructive: hand-added permission rules, custom hooks, local env overrides, and custom MCP servers all survive. Update later via `cd ~/.claude/cc-settings && git pull && bash setup.sh`. Pass `--interactive` to be prompted on each settings conflict, or `--migrate-only` to run just the merger (settings.json clean-up) and skip the file-copy phase.
+The default `auto` target installs both products when `codex` is on `PATH`, and Claude Code only
+otherwise. Clone the repository when you need to pass flags:
+
+```bash
+bash setup.sh --target=auto
+bash setup.sh --target=claude
+bash setup.sh --target=codex
+bash setup.sh --target=both
+```
+
+The same selector works with `--dry-run`, `--status`, `--rollback`, and `--uninstall`. Reinstalls are
+ownership-aware and preserve unrelated user configuration. Restart every selected TUI after install.
+In Codex, review the installed plugin hooks once through `/hooks`; the fixed HTTPS Figma MCP may ask
+you to authenticate. Unknown or invalid flags fail closed. `--migrate-only` rejects
+`--target=codex`; `--target=both` runs the Claude migration and skips Codex.
 
 **2. Start a new Darkroom project** (or skip if you have one):
 
@@ -27,11 +41,14 @@ Re-installs are non-destructive: hand-added permission rules, custom hooks, loca
 > /dr-init my-project
 ```
 
-You'll be asked to pick a starter — **satus** (Next.js, content sites) or **novus** (React Router 7, app-leaning SPAs). cc-settings auto-detects which one each project uses from `package.json` for everything that follows.
+You'll be asked to pick a starter: **satus** for Next.js content sites, or **novus** for React Router
+7 app-leaning SPAs. cc-settings detects the stack from `package.json` for later workflows.
 
-**3. Open Claude Code in any project directory.** The team config loads automatically.
+**3. Open Claude Code or Codex in any project directory.** The team config loads automatically.
 
-**There is nothing to memorize.** cc-settings is not a set of commands you learn — it is a set of behaviors that fire when you describe an outcome in your own words. The slash names below exist so you can pin a specific one when you want to; you will rarely need them. The rest of this manual is a reference for when you're curious what fired and why, not a syllabus.
+**There is nothing to memorize.** cc-settings responds to outcomes described in ordinary language.
+The slash names below let you pin a workflow when needed. The rest of this manual explains what ran
+and why.
 
 Say what you want. The right thing runs:
 
@@ -87,11 +104,11 @@ Say: *"review my changes"* or *"check this before merge"*
 
 Triggers `/review` — reviews against Darkroom standards (TypeScript, React, a11y, performance).
 
-### Audit (Five-Mode Whole-Repo Audit)
+### Audit (Eight-Mode Whole-Repo Audit)
 
-Say: *"nuclear review"* / *"thermonuclear review"* / *"code judo"* / *"harsh maintainability review"* / *"whole codebase review"* / *"adversarial audit"* / *"audit the codebase"* / *"docs audit"* / *"process audit"* / *"walk the journeys"* / *"threat model"* / *"attack surface"*
+Say: *"nuclear review"* / *"thermonuclear review"* / *"code judo"* / *"whole codebase review"* / *"adversarial audit"* / *"audit the codebase"* / *"perf audit"* / *"why is the app slow"* / *"docs audit"* / *"process audit"* / *"walk the journeys"* / *"threat model"* / *"attack surface"*
 
-Triggers `/audit` — whole-repo audit in six modes. **Maintainability mode** (formerly the standalone `/nuclear-review`) is an unusually strict **whole-codebase** structural audit. Structural rubric adapted from Cursor's internal `thermo-nuclear-code-quality-review` (their most-used skill); cc-settings extends it with whole-codebase scope and a **context7-driven dependency audit** (currency, deprecated API usage, redundant deps, missed maintainer-recommended patterns). Flags every 1k-line file, every thin wrapper, every leaked-logic boundary, and pushes "code-judo" moves that delete whole branches instead of rearranging them. **Codebase, Docs, and Process modes** (formerly the standalone `/adversarial-audit`) are a whole-repo **honesty** audit adapted from the fable audit goal-spec trio. **Codebase** hunts correctness bugs, incoherences, affordance mismatches, and expectation gaps ("the code invites X but does Y"). **Docs** audits documentation as a product: drift vs the code, inverted-pyramid violations, oversized documents, missing diagrams. **Process** walks every documented journey empirically in throwaway workspaces — twice, as a human and as an agent — and maps the real state machine, dead ends included. **Threat-Model mode** (adapted from openai/skills `security-threat-model`, Apache-2.0) writes a standing repo-grounded threat model: trust boundaries, calibrated attacker capabilities with explicit non-capabilities, abuse paths tied to attacker goals, and mitigations mapped one-to-one to components — run it before a security-sensitive launch or a new internet-facing surface. All modes share the contract that made the July 2026 cc-settings audit land: stable finding IDs, CONFIRMED/PLAUSIBLE status, concrete failure scenarios, disprove-before-reporting, optional filing of findings as GitHub issues. Run on major version cuts, after extended velocity sprints, or before load-bearing migrations. Distinct from `/review` (per-PR Darkroom checklist) and `/zero-tech-debt` (edits a single patch); `/audit` is read-only and covers the whole repo. **Debt mode** is the odd one out: a mechanical grep that collects `SHORTCUT:` markers (deliberate corners cut, each naming a ceiling and an upgrade trigger) into one ledger, no-trigger entries first. The bare phrase "audit the codebase" is ambiguous between maintainability and correctness — the skill asks one clarifying question before fanning out; debt mode never enters that ambiguity.
+Triggers `/audit` — whole-repo audit in eight modes. **Codebase mode** is one merged audit with two lenses on the same read. The structure lens (adapted from Cursor's internal `thermo-nuclear-code-quality-review`, their most-used skill; formerly the separate Maintainability mode) asks "should this code exist?" — flags every 1k-line file, thin wrapper, and leaked-logic boundary, pushes "code-judo" moves that delete whole branches instead of rearranging them, and runs a **context7-driven dependency audit** (currency, deprecated API usage, redundant deps). The behavior lens (from the fable audit goal-spec trio; formerly the standalone `/adversarial-audit` codebase mode) asks "does it do what it promises?" — correctness bugs, incoherences, affordance mismatches, expectation gaps. **Docs** audits documentation as a product: drift vs the code, inverted-pyramid violations, oversized documents, missing diagrams. **Process** walks every documented journey empirically in throwaway workspaces — twice, as a human and as an agent — and maps the real state machine, dead ends included. **Performance mode** is empirical-only: a finding does not exist until a number confirms it. It measures client runtime (via the same Lighthouse protocol `/lighthouse` uses), bundle and build, server and data, and code-level hot paths; static reading only generates hypotheses, each confirmed or discarded by a measurement, with unmeasurable leads quarantined in an ungraded appendix. Severity anchors on budgets (CWV thresholds, per-route bundle limits) for measured limits and on leverage (measured cost × path frequency) for the rest. Single-page CWV fix loops stay with `/lighthouse`; this mode reports repo-wide and hands fixes off. **Threat-Model mode** (adapted from openai/skills `security-threat-model`, Apache-2.0) writes a standing repo-grounded threat model: trust boundaries, calibrated attacker capabilities with explicit non-capabilities, abuse paths tied to attacker goals, and mitigations mapped one-to-one to components — run it before a security-sensitive launch or a new internet-facing surface. **Motion** and **SEO** modes audit animation leverage and search/answer-engine discoverability respectively. All modes share the contract that made the July 2026 cc-settings audit land: stable finding IDs, CONFIRMED/PLAUSIBLE status (performance mode drops PLAUSIBLE entirely), concrete failure scenarios, disprove-before-reporting, optional filing of findings as GitHub issues. Run on major version cuts, after extended velocity sprints, or before load-bearing migrations. Distinct from `/review` (per-PR Darkroom checklist) and `/zero-tech-debt` (edits a single patch); `/audit` is read-only and covers the whole repo. **Debt mode** is the odd one out: a mechanical grep that collects `SHORTCUT:` markers (deliberate corners cut, each naming a ceiling and an upgrade trigger) into one ledger, no-trigger entries first. The bare phrase "audit the codebase" routes straight to codebase mode — the merge removed the old maintainability-vs-correctness clarifying question.
 
 ### Refactor
 
@@ -426,7 +443,7 @@ Triggers `/project` — reads/updates linked GitHub Issues. Auto-detects from br
 
 Say: *"who calls this function?"* or *"find the auth implementation"*
 
-Triggers `/tldr` — token-efficient codebase analysis. 95% fewer tokens than reading files. Call graphs, impact analysis, and import tracing by default (`native-ts`, TS/JS only); semantic search and dead-code detection need `CC_CODE_INTEL_ENGINE=llm-tldr`.
+Triggers `/tldr` for token-efficient codebase analysis. It provides call graphs, impact analysis, and import tracing by default (`native-ts`, TS/JS only); semantic search and dead-code detection need `CC_CODE_INTEL_ENGINE=llm-tldr`.
 
 ### MCP servers (core vs optional)
 
@@ -438,6 +455,10 @@ cc-settings ships a **core** set of MCP servers — installed automatically by `
 | `tldr` | Codemap analysis — call graphs, impact, imports (`native-ts` default; semantic search via opt-in `llm-tldr`) | `/tldr`, `/explore` |
 | `figma` | Figma Dev Mode MCP — design tokens, component props | Auto-triggered by the server's own instructions on figma.com URLs; `/qa` for design-fidelity checks |
 | `chrome-devtools` | Chrome DevTools (perf traces, network, console, screenshots, a11y tree, click/fill, lighthouse) | `/lighthouse`, `/qa`, `/fix`, `tester` agent, Figma-MCP design-vs-implementation diffs |
+
+That table describes the Claude Code install. Codex automatically receives only the fixed HTTPS
+Figma MCP. It does not run Context7 or Chrome DevTools from mutable, unpinned registry packages.
+Codex users may configure reviewed and pinned versions themselves.
 
 `context7` installs **keyless**, which is its lower tier. A free key raises the rate limits and adds private-repo lookups — run `bunx ctx7 setup --claude --mcp` (key from [context7.com/dashboard](https://context7.com/dashboard)). Your entry wins over the shipped one on every reinstall, so it survives updates.
 
@@ -492,58 +513,69 @@ Two limits. It applies to the **main conversation only** — subagents run their
 
 ## Install Tiers (Light vs Full)
 
-cc-settings ships two install tiers. Both are **supported permanent lanes** — not just onboarding vs advanced.
+cc-settings supports light and full profiles for both products. The full profile is the default.
+`--light` keeps a smaller native footprint, but its contents differ by product.
 
-### Which tier should I use?
+### Claude Code tiers
 
-| | Light (`--light`) | Full (default) |
-|--|---|---|
-| **Skills** | `share-learning` only | All 38 headline skills |
-| **Agents** | None (raw Claude Code) | All agents (`explore`, `implementer`, `reviewer`, `tester`, `planner`, `scaffolder`, `maestro`, `deslopper`, `security-reviewer`, …) |
+| Surface | Light (`--light`) | Full (default) |
+|---|---|---|
+| **Skills** | `share-learning` only | All 38 shared skills |
+| **Agents** | None | All Claude role agents, including `codex-verifier` |
 | **MCP servers** | None | `context7`, `tldr`, `figma`, `chrome-devtools` |
-| **Hooks** | StatusLine only | All hooks active |
-| **Effort** | Claude Code default | `high` |
-| **CLAUDE.md / AGENTS.md** | Not installed | Full delegation matrix, effort calibration, coding standards |
-| **Permissions** | Claude Code defaults | cc-settings allow-list |
+| **Hooks** | Statusline only | Full Claude hook set |
+| **Instructions and permissions** | Claude Code defaults | Darkroom instructions, rules, profiles, and allowlist |
 
-**Light is raw Claude Code** with exactly two cc-settings additions: the `statusLine` (shows branch + git status in the prompt bar) and the `share-learning` skill (lets you contribute learnings back to the team knowledge board). Everything else is the Claude Code you get without any configuration.
+Claude light is raw Claude Code plus the custom statusline and `share-learning` skill.
 
-### How to install
+### Codex tiers
+
+| Surface | Light (`--light`) | Full (default) |
+|---|---|---|
+| **Managed Darkroom block in `AGENTS.md`** | Yes | Yes |
+| **Runtime source and sentinel** | Yes | Yes |
+| **Plugin and MCP servers** | None | `darkroom@cc-settings` with the fixed HTTPS Figma MCP |
+| **Native role agents** | None | All shared roles except `codex-verifier` |
+| **Command rule** | None | `rules/darkroom.rules` |
+
+Codex light keeps the Darkroom instructions and runtime source. It skips the plugin, native role
+agents, and command rule. Claude light and Codex light are therefore not exact equivalents.
+
+Codex does not bundle `tldr`; shared workflows fall back to `rg` and native search. `/freeze`
+enforcement, `/autoresearch`'s Claude subprocess loop, Claude agent teams, dynamic workflows, and
+the custom statusline remain Claude-only. See [docs/codex.md](./docs/codex.md#platform-boundaries).
+
+### Install or switch tiers
 
 ```bash
-# Light tier (raw Claude Code + statusLine + share-learning)
-bash setup.sh --light
+# Light profile for the selected product
+bash setup.sh --target=claude --light
+bash setup.sh --target=codex --light
+bash setup.sh --target=both --light
 
-# Full tier (default — full team config)
-bash setup.sh
+# Full profile for the selected product
+bash setup.sh --target=claude
+bash setup.sh --target=codex
+bash setup.sh --target=both
 ```
 
-On Windows, substitute `.\setup.ps1` for `bash setup.sh` throughout — the PowerShell bootstrap forwards the same flags.
+On Windows, substitute `.\setup.ps1` for `bash setup.sh`. Re-running with or without `--light`
+switches tiers without manual cleanup. Only cc-settings-owned entries are removed. Claude user
+settings survive. Codex user agents, rules, and text outside the marked `AGENTS.md` block survive.
 
-### Switching tiers
+### Standalone Claude plugin install
 
-Re-running `setup.sh` with the other flag switches tiers idempotently — no manual cleanup needed. A full→light switch strips the cc-settings footprint (CLAUDE.md, AGENTS.md, agents, rules, profiles, docs, MCP servers, hooks, env overrides, permission rules) and leaves only `share-learning` and the statusLine. A light→full switch reinstalls everything.
+Cowork and Claude Code can also install the portable Claude plugin when `setup.sh` does not apply:
 
-```bash
-# Switch from full → light
-bash setup.sh --light
-
-# Switch from light → full
-bash setup.sh
-```
-
-**Note**: A full→light switch preserves any settings.json content you added yourself (custom MCP servers, custom hook groups, custom env vars you set to a different value than the full baseline). Only cc-settings-managed entries are removed.
-
-### Plugin install (Cowork and Claude Code)
-
-The repo is also installable as a Claude Code plugin — useful in Cowork (the desktop app), where `setup.sh` doesn't apply:
-
-```
+```text
 /plugin marketplace add darkroomengineering/cc-settings
 /plugin install darkroom@cc-settings
 ```
 
-The plugin carries the **portable surface only**: all skills (namespaced as `/darkroom:<skill>`), agents, and the self-contained MCP connectors (`context7`, `figma`, `chrome-devtools`). It does **not** carry hooks, rules, profiles, CLAUDE.md/AGENTS.md, permission rules, or the `tldr` server (which needs a locally installed binary) — those remain `setup.sh` territory. If you already ran `setup.sh`, you don't need the plugin; installing both registers the MCP servers twice (harmless, but noisy).
+The portable Claude plugin includes the skills, agents, and self-contained `context7`, `figma`, and
+`chrome-devtools` MCP connectors. It does not include the full installer-managed Claude hooks,
+rules, profiles, instructions, permissions, or `tldr` server. The native Codex installer manages
+its own plugin automatically in the full profile.
 
 ---
 
@@ -557,7 +589,7 @@ The plugin carries the **portable surface only**: all skills (namespaced as `/da
 | `build` | build, create, implement, add feature |
 | `ship` | ship it, create PR, /pr |
 | `review` | review, check, PR, changes |
-| `audit` | nuclear review, thermonuclear, code judo, whole codebase review, harsh maintainability review, 1k-line, thin wrapper, stale dependencies, adversarial audit, fable audit, audit the codebase, docs audit, doc drift, process audit, walk the journeys, expectation gaps |
+| `audit` | nuclear review, thermonuclear, code judo, whole codebase review, harsh maintainability review, 1k-line, thin wrapper, stale dependencies, adversarial audit, fable audit, audit the codebase, perf audit, performance audit, why is the app slow, bundle audit, build is slow, docs audit, doc drift, process audit, walk the journeys, expectation gaps |
 | `refactor` | refactor, clean up, reorganize |
 | `zero-tech-debt` | rewrite as if from scratch, delete compat layer, kill legacy path, too many flags |
 | `test` | test, write tests, coverage, TDD, test-first, red-green-refactor |

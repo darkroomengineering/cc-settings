@@ -1,7 +1,8 @@
-// Maintainability-mode audit as a dynamic workflow — OPT-IN EXAMPLE, not a dependency.
+// Structure-lens audit (codebase mode) as a dynamic workflow — OPT-IN EXAMPLE, not a dependency.
 //
-// The audit skill's maintainability mode (SKILL.md) is the canonical,
-// always-available form and depends on nothing. This script is for when you
+// The audit skill's codebase mode structure lens (SKILL.md; formerly the
+// separate Maintainability mode) is the canonical, always-available form and
+// depends on nothing. This script is for when you
 // want the same audit as a resumable, parallel workflow: phase state lives
 // outside the context window, modules review concurrently (up to 16), and a
 // re-run resumes from cached agent results. It uses the preview-stage
