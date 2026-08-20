@@ -9,6 +9,8 @@ context: fork
 
 Three-mode expert consultation: **Advice** for architectural guidance, **Risks** for premortem analysis, **Compare** for weighted approach evaluation.
 
+Product-direction asks ("what should we build", positioning, market fit) belong to `/strategist` — a standing persona that explores the codebase for vision framing; this skill is a single-shot engineering consult.
+
 ## Mode: Advice
 
 ### How to Answer
