@@ -136,7 +136,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.15.0"; // native Codex harness target + audit mode reshuffle
+const VERSION = "13.16.0"; // Claude Code 2.1.237 sync: spellcheck key, ANTHROPIC_DEFAULT_MODEL
 let sharedBackupSequence = 0;
 
 function createSharedBackupId(): string {

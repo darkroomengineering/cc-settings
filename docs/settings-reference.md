@@ -79,6 +79,7 @@ Environment variables injected into every Claude Code session.
 | `OTEL_LOG_USER_PROMPTS` | `"1"` or unset | Adds `user_system_prompt` to LLM request spans (v2.1.121) |
 | `ANTHROPIC_BEDROCK_SERVICE_TIER` | `default`, `flex`, `priority` | Sent as `X-Amzn-Bedrock-Service-Tier` to select a Bedrock service tier (v2.1.122) |
 | `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
+| `ANTHROPIC_DEFAULT_MODEL` | model ID string | The model new sessions start on; a `/model` pick still overrides it and persists across restarts, unlike `ANTHROPIC_MODEL` which pins every session (v2.1.236) |
 | `CLAUDE_CODE_SESSION_ID` | set automatically | Mirrors the `session_id` passed to hooks; available inside Bash tool subprocesses (v2.1.132) |
 | `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN` | `"1"` or unset | Opt out of the fullscreen alternate-screen renderer and keep the conversation in the terminal's native scrollback (v2.1.132) |
 | `CLAUDE_CODE_FORCE_SYNC_OUTPUT` | `"1"` or unset | Force-enable synchronized output on terminals that auto-detection misses (e.g. Emacs `eat`) (v2.1.129) |
@@ -163,6 +164,8 @@ Controls Agent Teams behavior when enabled.
 Added in v2.1.224. One of your Claude Code sessions can send a plain-text message to another — a finding, a status, a decision — using the same `SendMessage` tool that reaches subagents and teammates, with `ListAgents` (`/list-agents`, aliased `/peers`) for discovery. Only text crosses; never conversation history or files.
 
 Available on macOS and Linux (including WSL 2), not native Windows, and not on Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, or Microsoft Foundry. It also depends on feature-flag evaluation, so `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, or `DISABLE_GROWTHBOOK` can each turn it off as a side effect.
+
+Since v2.1.236, `SendMessage` also takes `notify_when_idle` for same-machine peers: the receiving session sends back one notice when it next goes idle or exits — opt-in, one-shot, and a replacement for polling `ListAgents` or sending "are you done?" messages. Sent without a message body it's a pure subscription that costs the other session nothing.
 
 Same-machine messages travel over a per-session Unix socket and never touch Anthropic servers. Sessions on your other machines and on Claude Code on the web are **reply-only** — Claude here can answer a message from one, but can't start the exchange — and those messages do route through Anthropic servers. Sessions can only find each other when they see the same filesystem, so a container and its host can't message each other.
 
@@ -439,6 +442,14 @@ Auto-scroll to the bottom of the conversation as new output streams in (v2.1.102
 { "autoScrollEnabled": false }
 ```
 
+### `spellcheck`
+
+Underline misspelled words in the prompt input as you type, using whichever of `aspell`, `hunspell`, or `ispell` is installed (v2.1.235). Off by default; cc-settings doesn't set it. The schema accepts `boolean | object` because upstream hasn't pinned the value shape yet.
+
+```json
+{ "spellcheck": true }
+```
+
 ### `respondToBashCommands`
 
 Whether `!`-prefixed bash command output automatically triggers a Claude response (v2.1.186). Defaults to `true` — Claude reacts to the output as if you'd asked about it. Set `false` to restore the prior behavior, where the output is inserted silently and Claude waits for your next prompt.
@@ -682,6 +693,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `skillOverrides` | Record\<string,enum\> | G | Hide or trim individual skills from model/picker (v2.1.129) |
 | `skipDangerousModePermissionPrompt` | boolean | G | Skip bypass-permissions confirmation prompt (ignored in project settings) |
 | `skipWebFetchPreflight` | boolean | G | Skip preflight check before web-fetch tool calls |
+| `spellcheck` | boolean \| object | G | Underline misspelled prompt words via installed aspell/hunspell/ispell; shape not pinned upstream (v2.1.235) |
 | `spinnerTipsEnabled` | boolean | U | Show tips in the thinking spinner |
 | `spinnerTipsOverride` | object | U | Suppress built-in spinner tips (`excludeDefault` boolean) (v2.1.122) |
 | `spinnerVerbs` | object | U | Customize animated spinner verbs (`mode`, `verbs` fields) |

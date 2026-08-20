@@ -1162,6 +1162,18 @@
     "skipWebFetchPreflight": {
       "type": "boolean"
     },
+    "spellcheck": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        }
+      ]
+    },
     "sshConfigs": {
       "type": "array",
       "items": {}

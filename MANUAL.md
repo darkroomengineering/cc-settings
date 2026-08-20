@@ -509,6 +509,8 @@ Two limits. It applies to the **main conversation only** — subagents run their
 
 **To turn it off:** `/config` → Output style → Default, or set your own `outputStyle` in `~/.claude/settings.json` (user scope wins over the shipped value).
 
+Claude Code v2.1.237 ships a built-in "Concise" style (leads with results, skips preamble). Darkroom stays the default here: Concise targets brevity only, while Darkroom carries the register rules too — the gap that made every brevity-only experiment (`/caveman`, `/tldr`, `i-have-adhd`) shorter but no clearer.
+
 ---
 
 ## Install Tiers (Light vs Full)

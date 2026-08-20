@@ -304,6 +304,7 @@ export const Settings = z.looseObject({
   respectGitignore: z.boolean().optional(), // honour .gitignore when listing files
   skillListingBudgetFraction: z.number().optional(), // fraction of context budget reserved for skill listings
   skipWebFetchPreflight: z.boolean().optional(), // skip the preflight check before web-fetch tool calls
+  spellcheck: z.union([z.boolean(), z.looseObject({})]).optional(), // 2.1.235 — underline misspelled words in the prompt input via installed aspell/hunspell/ispell; boolean | object superset: upstream hasn't pinned the value shape yet
   sshConfigs: z.array(z.unknown()).optional(), // SSH tunnel/proxy configuration entries
   useAutoModeDuringPlan: z.boolean().optional(), // run auto-mode during the plan phase
   voice: z.looseObject({}).optional(), // voice input/output configuration object

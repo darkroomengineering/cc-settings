@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-08-18T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.234",
+  "lastScan": "2026-08-20T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.237",
   "knownSettingsKeys": [
     "$schema",
     "additionalMarketplaces",
@@ -98,6 +98,7 @@
     "skillOverrides",
     "skipDangerousModePermissionPrompt",
     "skipWebFetchPreflight",
+    "spellcheck",
     "spinnerTipsEnabled",
     "spinnerTipsOverride",
     "spinnerVerbs",
@@ -161,6 +162,7 @@
   "knownEnvVars": [
     "AI_AGENT",
     "ANTHROPIC_BEDROCK_SERVICE_TIER",
+    "ANTHROPIC_DEFAULT_MODEL",
     "ANTHROPIC_WORKSPACE_ID",
     "API_FORCE_IDLE_TIMEOUT",
     "CLAUDE_AX_SCREEN_READER",

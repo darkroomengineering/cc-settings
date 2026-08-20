@@ -6,6 +6,39 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [13.16.0] — 2026-08-20
+
+Sync with Claude Code v2.1.235–v2.1.237 (from v2.1.234). Three upstream releases, mostly bug
+fixes; two config-surface additions and two documented behaviors.
+
+**Adopted:**
+
+- **`spellcheck` settings key** (upstream 2.1.235) — underlines misspelled words in the prompt
+  input via installed `aspell`/`hunspell`/`ispell`. Added to `src/schemas/settings.ts` as a
+  `boolean | object` superset (upstream hasn't pinned the value shape) and documented in
+  `docs/settings-reference.md`. Not enabled in `config/` — keeps the strict schema from rejecting
+  a live settings.json that sets it.
+- **`ANTHROPIC_DEFAULT_MODEL` env var** (upstream 2.1.236) — the model new sessions start on; a
+  `/model` pick still overrides it and persists, unlike `ANTHROPIC_MODEL`. Tracked in the manifest
+  and the docs env table. cc-settings keeps pinning the default via the `model` settings key.
+
+**Docs:**
+
+- **`notify_when_idle` on cross-session `SendMessage`** (upstream 2.1.236) — one-shot idle notice
+  from a same-machine session, replacing `ListAgents` polling. Documented in
+  `docs/settings-reference.md` → Cross-session messaging.
+- **Built-in "Concise" output style** (upstream 2.1.237) — noted in `MANUAL.md`; Darkroom stays
+  the shipped default because Concise targets brevity only, without the register rules.
+
+**Files changed:**
+
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- MANUAL.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [13.15.0] — 2026-08-20
 
 **cc-settings now installs a native Codex harness from the same installer and source tree as Claude
