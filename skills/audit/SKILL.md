@@ -240,6 +240,8 @@ Fold Codex's findings into Phase 3 per the contract: convergence = high-convicti
 
 Phases 2 and 2b judge structure intent-blind, so deliberate design reads as debt. Run the shared reconciliation procedure — `references/audit-contract.md` §2: generate findings blind FIRST, then cross-reference the corpus; a documented decision **reclassifies severity, never suppresses a finding**; gated, fails open.
 
+`SHORTCUT:` markers (AGENTS.md Laziness Ladder) get the same treatment as team-knowledge notes: a marked deferral is a documented decision, not ordinary debt — cite the marker instead of re-litigating it, and escalate only if its stated upgrade trigger has actually fired. Debt mode owns the full ledger; this mode just respects it.
+
 #### Phase 3 — Synthesis
 
 Produce the Shared Contract report, with two mode-specific additions: open with a one-line verdict — **CLEAN / NEEDS RESTRUCTURING / NEEDS MAJOR REWORK** — and lead the findings with a **Code-Judo Opportunities** section (dramatic simplifications: what to delete, not just polish). The map section includes an "expectation gaps" list: short "expected X, found Y" entries for affordance/docs/DX. Prioritize ruthlessly — a smaller number of high-conviction findings beats a long list; do not flood the report with nits when larger structural issues exist.
@@ -396,7 +398,7 @@ One pass per applicable surface; every number goes into the Measurement Log.
 
 ### Phase 2 — Hypothesis sweep (static, generates no findings)
 
-Now read source for suspect patterns, each recorded as a hypothesis **with the measurement that would confirm it**: sequential `await`s on independent work → time the flow before/after in a scratch branch, or profile the waterfall; N+1-shaped data access → query count per request; heavyweight imports in client components → analyzer composition; missing `dynamic()` splits → per-route first-load JS; sync I/O or allocation in loops → micro-benchmark; unmemoized components in hot trees → React Profiler render counts. Cross-check against `rules/performance.md` and `rules/react-perf.md` for the patterns Darkroom already bans.
+Now read source for suspect patterns, each recorded as a hypothesis **with the measurement that would confirm it**: sequential `await`s on independent work → time the flow before/after in a scratch branch, or profile the waterfall; N+1-shaped data access → query count per request; heavyweight imports in client components → analyzer composition; missing `dynamic()` splits → per-route first-load JS; sync I/O or allocation in loops → micro-benchmark; unmemoized components in hot trees → React Profiler render counts. Cross-check against `rules/performance.md` and `rules/react-perf.md` for the patterns Darkroom already bans. When the project has `tldr`, use the call graph to target the sweep — high fan-in hubs from `tldr calls`/`tldr arch` are the hot-path candidates worth profiling first — instead of grepping blind.
 
 ### Phase 3 — Confirm or discard
 
