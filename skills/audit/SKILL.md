@@ -71,7 +71,7 @@ Debt mode is a mechanical grep — run it standalone or as a cheap first pass be
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/verify` — adversarial check of a single change/claim, not a repo sweep.
 
-A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → `/zero-tech-debt` or `/refactor` to execute.
+A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to `/zero-tech-debt` or `/refactor`, client-runtime perf findings to `/lighthouse`.
 
 > **Claude Code only (v2.1.154+)**: standalone Codex skips this tip and the
 > Workflow command below. In Claude, run `/effort ultracode` before invoking
@@ -174,6 +174,11 @@ run and must be reported as "scan unavailable", never as "no dead code". **`dead
 `tldr-code` is ADVISORY ONLY — confirm every candidate with `Grep` before recording it as a
 finding.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live symbols as dead
 code; the CLI was measured accurate, which is why it's used here instead.
+
+When the project depends on `deslop-cli` (check `package.json` — it's the same advisory probe
+`/proof-of-work` runs), add it as a second dead-code signal: `npx deslop-cli`. Same rule as
+tldr-code: advisory only, Grep-confirm every candidate. Two scanners agreeing upgrades conviction;
+either one alone still needs confirmation.
 
 #### Phase 1 — Dependency audit (Context7 when configured)
 
