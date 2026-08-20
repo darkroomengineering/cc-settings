@@ -6,11 +6,28 @@ context: fork
 
 # Ship Pipeline
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "ship" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip the Claude marker and `!command` interpolation below. Run `git branch
+--show-current`, `git status --porcelain`, and `git log --oneline -5`
+explicitly. Create a new reviewer with `spawn_agent`, continue it while live
+with `send_message`, trigger another turn once it is idle with `followup_task`,
+wait with `wait_agent`, and stop its current turn with `interrupt_agent` only
+when necessary. Never spawn `codex-verifier` and never run `codex-run.ts` from inside Codex.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Assign non-overlapping ownership and serialize any implementer and
+test-writer fixes; only read-only reviewers may overlap. Codex implementers are
+not promised Claude worktree isolation. Codex also skips TLDR and uses
+`git diff --name-only`, direct import searches, and test-name searches to choose
+affected tests.
+
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "ship" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 You are in **Maestro orchestration mode**. Execute the shipping checklist in order.
 
-## Current State
+## Claude current state
 - Branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 - Working tree: !`git status --porcelain 2>/dev/null | head -20`
 - Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
@@ -39,7 +56,9 @@ If errors: fix them. Do not proceed until clean.
 
 ### Step 3: Test (if tests exist)
 
-**3a. Affected tests first (when `tldr` is available).** Run only the tests touched by your changes, before the full suite. Fast feedback if you broke something obvious:
+**3a. Affected tests first.** In Claude, use TLDR when available. Standalone
+Codex uses the native searches in its host branch. Run only the tests touched
+by your changes before the full suite.
 
 ```bash
 tldr change-impact --project . 2>/dev/null
@@ -76,6 +95,9 @@ Spawn `reviewer` agent:
 ```
 Agent(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
 ```
+
+**Standalone Codex branch:** follow the native lifecycle above and use a fresh
+read-only `reviewer`. Skip the Claude bridge branch below.
 
 When the Codex bridge is available, run a cross-model review **in parallel** — a different model family catches what Claude self-review misses, and this is right before a commit lands, the cheapest place to catch a Critical:
 

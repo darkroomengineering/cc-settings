@@ -17,6 +17,16 @@ This is a **ratchet**: it only tightens shared standards on behavior it can show
 repeated or survived a trap. Behavior it cannot measure is marked INCONCLUSIVE and
 held back, not written up as fact.
 
+## Standalone Codex source boundary
+
+Claude frontmatter does not create an isolated fork in standalone Codex. Keep
+evidence inspection read-only in the current context or use a fresh native
+reader. Audit native rules under `${CODEX_HOME:-$HOME/.codex}/rules`, the
+installed `AGENTS.md`, and managed artifacts in the real cc-settings git
+checkout named by the Codex sentinel's `repo_path`. Installed plugin/cache files
+and `darkroom/source` may be inspected for drift, but never edited as the source
+repo.
+
 ## Phase 1 — Witnessed behavior census
 
 Before deciding *what* to harvest, inventory *what was actually seen*. For each
@@ -49,8 +59,9 @@ The bar is **a repeatable procedure, not raw intelligence**. Test each candidate
 - Would the same steps help a weaker model or a fresh session? If the value was
   depth of reasoning alone, **stop and say so** — that can't be harvested, and prose
   about it is context bloat, not capability.
-- Is it already covered? Check the "All Skills" table in `MANUAL.md` and
-  `~/.claude/rules/` first. If an existing artifact covers 80% of it, the deliverable
+- Is it already covered? In Claude check the "All Skills" table in `MANUAL.md`
+  and `~/.claude/rules/`; in standalone Codex use the source boundary above. If
+  an existing artifact covers 80% of it, the deliverable
   is a *diff to that artifact*, not a new one.
 
 ## Phase 3 — Fill the harvest contract

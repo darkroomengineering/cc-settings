@@ -5,9 +5,9 @@
 // script.
 
 import { createHash } from "node:crypto";
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export interface TscResult {
   /** stdout followed by stderr, untrimmed — callers filter or tail as needed. */
@@ -65,17 +65,26 @@ export function stripAnsi(text: string): string {
  * so two projects can't invalidate each other's cache.
  */
 function buildInfoPath(cwd: string): string {
-  const dir = join(homedir(), ".claude", "tmp", "tsc-cache");
+  const settingsHome = process.env.CC_SETTINGS_HOME ?? join(homedir(), ".claude");
+  const dir = join(settingsHome, "tmp", "tsc-cache");
   mkdirSync(dir, { recursive: true });
   return join(dir, `${createHash("sha256").update(cwd).digest("hex").slice(0, 16)}.tsbuildinfo`);
 }
 
 async function spawnTsc(options: TscOptions, cachePath: string | null): Promise<TscResult> {
-  const argv = ["bunx", "tsc", "--noEmit"];
+  const cwd = options.cwd ?? process.cwd();
+  const localCandidates = [
+    resolve(cwd, "node_modules/typescript/bin/tsc"),
+    resolve(import.meta.dir, "../node_modules/typescript/bin/tsc"),
+    resolve(import.meta.dir, "../../node_modules/typescript/bin/tsc"),
+  ];
+  const localTsc = localCandidates.find(existsSync);
+  const argv = localTsc ? [process.execPath, localTsc, "--noEmit"] : ["bunx", "tsc", "--noEmit"];
   if (options.pretty) argv.push("--pretty");
   if (cachePath) argv.push("--incremental", "--tsBuildInfoFile", cachePath);
   const proc = Bun.spawn(argv, {
-    cwd: options.cwd,
+    cwd,
+    env: scrubProjectSubprocessEnv(),
     stdout: "pipe",
     stderr: "pipe",
     timeout: TSC_TIMEOUT_MS,
@@ -87,6 +96,32 @@ async function spawnTsc(options: TscOptions, cachePath: string | null): Promise<
     proc.exited,
   ]);
   return { combined: stdout + stderr, exitCode };
+}
+
+export function scrubProjectSubprocessEnv(): Record<string, string | undefined> {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (
+      key === "TOOL_INPUT" ||
+      key.startsWith("TOOL_INPUT_") ||
+      key === "PROMPT" ||
+      key === "SESSION_ID" ||
+      key.endsWith("_SESSION_ID") ||
+      key === "TRANSCRIPT_PATH" ||
+      key.endsWith("_TRANSCRIPT_PATH") ||
+      key === "HOOK_INPUT" ||
+      key.endsWith("_HOOK_INPUT") ||
+      key === "HOOK_EVENT_NAME" ||
+      key === "CLAUDE_HOOK_EVENT" ||
+      key === "PLUGIN_ROOT" ||
+      key === "PLUGIN_DATA" ||
+      key === "CC_SETTINGS_HOME" ||
+      key === "CC_SETTINGS_SOURCE"
+    ) {
+      delete env[key];
+    }
+  }
+  return env;
 }
 
 /**

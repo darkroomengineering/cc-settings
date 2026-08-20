@@ -12,7 +12,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ENGINES } from "../src/lib/code-intel-engine.ts";
 import { JsonParseError } from "../src/lib/json-io.ts";
-import { functionalKey, installMcpToClaudeJson, pruneSettingsMcpServers } from "../src/lib/mcp.ts";
+import {
+  functionalKey,
+  installMcpToClaudeJson,
+  pruneSettingsMcpServers,
+  removeManagedMcpServers,
+} from "../src/lib/mcp.ts";
 import { McpServer } from "../src/schemas/mcp.ts";
 
 describe("McpServer schema — cross-shape guard (issue #83)", () => {
@@ -264,6 +269,44 @@ describe("mcp — claude.json installer", () => {
       expect(result.mcpServers["user-good"].command).toBe("keep-me");
     } finally {
       await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("removeManagedMcpServers — ownership-aware cleanup", () => {
+  const current = { figma: { type: "http", url: "https://current.example/mcp" } };
+  const prior = { figma: { type: "http", url: "https://prior.example/mcp" } };
+
+  test.each([
+    ["current", current.figma],
+    ["prior recorded", prior.figma],
+  ])("removes the %s cc-settings value", async (_label, installed) => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-remove-owned-"));
+    const path = join(dir, ".claude.json");
+    try {
+      await writeFile(
+        path,
+        JSON.stringify({ mcpServers: { figma: installed, personal: { command: "mine" } } }),
+      );
+      await removeManagedMcpServers({ mcpServers: current }, path, prior);
+      expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
+        mcpServers: { personal: { command: "mine" } },
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("preserves a divergent same-name user server", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-remove-user-"));
+    const path = join(dir, ".claude.json");
+    const user = { type: "http", url: "https://user.example/mcp" };
+    try {
+      await writeFile(path, JSON.stringify({ mcpServers: { figma: user } }));
+      await removeManagedMcpServers({ mcpServers: current }, path, prior);
+      expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ mcpServers: { figma: user } });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

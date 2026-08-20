@@ -7,7 +7,22 @@ agent: maestro
 
 # Multi-Agent Orchestration
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "orchestrate" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip every Claude heavy-skill marker in this file. Create each bounded worker
+with `spawn_agent`, deliver context to a running worker with `send_message`,
+trigger another turn for an idle existing worker with `followup_task`, wait with
+`wait_agent`, and stop a current turn with `interrupt_agent` only when necessary.
+Never spawn `codex-verifier` or call `codex-run.ts`.
+
+Read the live concurrency limit and stay within it. Writers share the working
+tree unless the live host explicitly offers isolation. Assign non-overlapping
+ownership and serialize implementer and test-writer phases; only read-only
+reviewers may overlap. Codex implementers are not promised Claude worktree
+isolation.
+
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "orchestrate" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 ## Phase 1: Research & Feasibility (GO/NO-GO Gate)
 
@@ -53,11 +68,23 @@ or reporting success:
    round-tripping to a fresh subagent costs more than the fix. Anything that
    adds scope goes back out as a new, fully-briefed delegation.
 4. **Resume, don't respawn.** If a subagent's report was cut off or is
-   missing a section, SendMessage the same agent to finish — a respawn
+   missing a section, Claude uses SendMessage; standalone Codex uses
+   `send_message` while it is running or `followup_task` once idle. A respawn
    rebuilds its context from nothing and re-does paid work.
 
 Failure mode this section exists to prevent: chaining on an unverified "done"
 and discovering three phases later that the build never ran.
+
+## Standalone Codex orchestration
+
+Follow the native lifecycle at the top of this skill. Keep the number of live
+agents within the concurrency limit reported by the current Codex session;
+queue dependent work instead of over-subscribing it. Use `spawn_agent` for each
+new bounded workstream and never invoke the Claude-to-Codex bridge.
+
+Claude agent teams and dynamic workflows are Claude-only. Do not try to emulate
+their APIs in Codex; native agents plus the current concurrency limit are the
+Codex path for the fan-out guidance below.
 
 ## When to Fan Out (Teams mode)
 
@@ -110,7 +137,8 @@ Report: team composition (when fan-out chosen), task assignments, coordination s
 
 ## Variant: Phased Long-Running Execution
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "l-thread" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "l-thread" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 For tasks too large for a single context window. Implements checkpoint/restore, automatic verification, and graceful recovery.
 

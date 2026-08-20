@@ -9,6 +9,23 @@ context: fork
 
 Two-mode skill: **Save** state at end of session, **Resume** state at start of next session.
 
+## Product-aware runner and state
+
+Claude uses the installed runner and state under `~/.claude`:
+
+```bash
+HANDOFF_RUNNER="$HOME/.claude/src/scripts/handoff.ts"
+CC_STATE_ROOT="$HOME/.claude"
+```
+
+Standalone Codex uses
+`${CODEX_HOME:-$HOME/.codex}/darkroom/source/src/scripts/handoff.ts`, but the
+plugin's stable handoff state is exposed only to hooks as `$PLUGIN_DATA`. In a
+Codex plugin hook, set `HANDOFF_RUNNER` to that runner and
+`CC_STATE_ROOT="$PLUGIN_DATA"`. Outside that environment, do not guess a cache
+path or write into `~/.claude`: manual Codex create/resume/list/clean is
+unavailable until the host exposes the same plugin-data path to the session.
+
 ## Mode: Save
 
 Save current session state for later resumption. This is the **end-of-session boundary** skill — for mid-task rollback points before risky operations, use `/checkpoint`.
@@ -16,7 +33,7 @@ Save current session state for later resumption. This is the **end-of-session bo
 ### Usage
 
 ```bash
-bun ~/.claude/src/scripts/handoff.ts create
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$HANDOFF_RUNNER" create
 ```
 
 Or use the native command:
@@ -35,13 +52,14 @@ creation time:
 - **Recent commits**: subjects of the last 3 commits
 - **Source**: `manual` or `auto` (see below)
 
-Plus three sections built purely from **observed** tool activity, not inference:
+In Claude, three additional sections are built purely from **observed** tool
+activity, not inference:
 - **Files Modified** — every path a `Write`/`Edit`/`NotebookEdit` touched
 - **Files Read** — every path a `Read` touched
 - **Tool Failures** — the exact tool name and error string, bounded and
   secret-redacted
 
-These come from the session ledger, a bounded JSONL at
+These Claude-only sections come from the session ledger, a bounded JSONL at
 `~/.claude/tmp/session-ledger/<session_id>.jsonl` written by the `PostToolBatch`
 hook. It exists to fix a specific hole: **`git status` forgets everything you
 committed.** A file edited at the start of a long session and committed an hour
@@ -68,7 +86,12 @@ Beyond that, what's actually filled in depends on how the handoff was created:
   stored separately and never merged, so nothing inferred is presented as
   observed.
 
-On a `SessionEnd` handoff (no compaction involved) Session Summary can still be
+Standalone Codex hooks capture the git-derived fields through the shared
+runner, but Codex does not provide Claude's PostToolBatch session ledger or
+PostCompact `compact_summary` backfill. Do not claim those sections were
+observed in Codex.
+
+On a Claude `SessionEnd` handoff (no compaction involved) Session Summary can still be
 empty — pair it with the structured compaction template below, or run a manual
 `/handoff` with `--summary` before ending a session.
 
@@ -92,7 +115,9 @@ This ensures project progress is visible to the whole team, not just in local ha
 
 Handoffs are scoped per project (repo toplevel basename, or cwd basename
 outside a git repo) — a handoff saved in one project never surfaces as
-"latest" when you resume in another:
+"latest" when you resume in another. Claude stores them below
+`~/.claude/handoffs`; Codex plugin hooks store them below
+`$PLUGIN_DATA/handoffs`:
 
 ```
 ~/.claude/handoffs/
@@ -118,9 +143,10 @@ its own yet.
 
 ### Auto-Handoff
 
-The setup automatically creates handoffs:
-- Before context compaction (PreCompact hook)
-- At session end (SessionEnd hook)
+Both products create git-derived handoffs before compaction and at session end.
+Claude additionally provides the session-ledger and PostCompact behavior
+described above. Codex does not provide Claude's SessionStart handoff display or
+automatic pruning contract; do not promise either.
 
 ### Output
 
@@ -131,7 +157,7 @@ Confirms:
 
 ---
 
-### Context Window Runbook (folded in from former `/context` skill)
+### Claude context-window runbook (folded in from former `/context` skill)
 
 The statusline shows live context usage:
 
@@ -221,7 +247,7 @@ Load state from a previous session and continue work.
 ### Usage
 
 ```bash
-bun ~/.claude/src/scripts/handoff.ts resume
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$HANDOFF_RUNNER" resume
 ```
 
 Or use:
@@ -259,7 +285,7 @@ Present a combined summary:
 
 ### Available Handoffs
 
-List handoffs for current project:
+In Claude, list handoffs for the current project:
 ```bash
 ls ~/.claude/handoffs/"$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"/
 ```
@@ -286,7 +312,7 @@ Shows available handoffs.
 
 #### Clean Old Handoffs
 ```bash
-bun ~/.claude/src/scripts/handoff.ts clean [keep]
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$HANDOFF_RUNNER" clean [keep]
 ```
 Removes old handoff files, keeping the most recent `keep` (default: 20) of
 each type (`.json` and `.md`). SessionStart already prunes down to 20
@@ -301,7 +327,7 @@ automatically on every session, so this is only needed for on-demand cleanup
 4. **Verify files** - Check current state vs handoff
 5. **Continue work** - Pick up next steps from the issue task list
 
-### Automatic Session Start
+### Claude automatic session start
 
 When starting a new session, the setup automatically:
 - Checks for linked GitHub Issue (reads context)

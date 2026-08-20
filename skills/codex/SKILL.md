@@ -7,6 +7,18 @@ context: main
 
 # Codex Bridge
 
+## Standalone Codex
+
+If the active host is already standalone Codex, stop before any bridge command.
+Never recursively invoke `codex-run.ts` or launch the Codex CLI from inside
+Codex. Do the requested task locally with native tools. When the user asks for
+an independent review, spawn a fresh native `reviewer` and wait until it
+finishes; do not spawn `codex-verifier`.
+
+Everything below is the Claude-only bridge workflow.
+
+## Claude-only bridge
+
 Invoke the OpenAI Codex CLI from inside a Claude session. Three subcommands map to three distinct use cases.
 
 All subcommands are called via:

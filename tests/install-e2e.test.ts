@@ -11,9 +11,27 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import {
+  CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+  claudeManagedAllowedPaths,
+} from "../src/lib/claude-managed-files.ts";
+import { verifySrcManifest } from "../src/lib/hooks-fingerprint.ts";
 import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
 
 const REPO = resolve(import.meta.dir, "..");
@@ -25,25 +43,38 @@ interface InstallResult {
   stderr: string;
 }
 
-async function runInstall(home: string, extraArgs: string[] = []): Promise<InstallResult> {
-  const proc = Bun.spawn(["bun", SETUP_TS, `--source=${REPO}`, ...extraArgs], {
-    env: {
-      ...process.env,
-      HOME: home,
-      // os.homedir() reads USERPROFILE on Windows, not HOME — set both so the
-      // installer targets the tmpdir on every platform.
-      USERPROFILE: home,
-      CC_SKIP_DEPS: "1",
-      // launchctl ignores a faked $HOME and would register/bootout a REAL
-      // launchd job on the machine running the test suite — unconditional,
-      // regardless of whether a given test even touches auto-update.
-      CC_SKIP_SCHEDULE: "1",
-      // Avoid color codes / banner art bleeding into assertion strings.
-      NO_COLOR: "1",
+async function runInstall(
+  home: string,
+  extraArgs: string[] = [],
+  target: "claude" | "codex" | "both" = "claude",
+  extraEnv: Record<string, string> = {},
+  source: string = REPO,
+): Promise<InstallResult> {
+  const proc = Bun.spawn(
+    ["bun", SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
+    {
+      env: {
+        ...process.env,
+        HOME: home,
+        // os.homedir() reads USERPROFILE on Windows, not HOME — set both so the
+        // installer targets the tmpdir on every platform.
+        USERPROFILE: home,
+        CODEX_HOME: join(home, ".codex"),
+        NODE_ENV: "test",
+        CC_SKIP_DEPS: "1",
+        // launchctl ignores a faked $HOME and would register/bootout a REAL
+        // launchd job on the machine running the test suite — unconditional,
+        // regardless of whether a given test even touches auto-update.
+        CC_SKIP_SCHEDULE: "1",
+        CC_SKIP_CODEX_CLI: "1",
+        // Avoid color codes / banner art bleeding into assertion strings.
+        NO_COLOR: "1",
+        ...extraEnv,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
     },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  );
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
@@ -52,7 +83,179 @@ async function runInstall(home: string, extraArgs: string[] = []): Promise<Insta
   return { exitCode, stdout, stderr };
 }
 
+async function copySourceFixture(parent: string): Promise<string> {
+  const source = join(parent, "source");
+  await cp(REPO, source, {
+    recursive: true,
+    filter: (path) => {
+      const relativePath = path.slice(REPO.length).replace(/^[/\\]/, "");
+      return !relativePath
+        .split(/[/\\]+/)
+        .some((part) => [".git", "node_modules", ".venv", ".tldr", "backups"].includes(part));
+    },
+  });
+  return source;
+}
+
+async function gitBytes(sourceDir: string, args: string[]): Promise<Buffer> {
+  const child = Bun.spawn(["git", "-C", sourceDir, ...args], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).arrayBuffer(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (exitCode !== 0) throw new Error(`git ${args.join(" ")} failed: ${stderr}`);
+  return Buffer.from(stdout);
+}
+
+async function historicalCommit(sourceDir: string, version: string): Promise<string[]> {
+  return (
+    await gitBytes(sourceDir, [
+      "log",
+      "--format=%H",
+      `-G\"version\"[[:space:]]*:[[:space:]]*\"${version}\"`,
+      "--",
+      "package.json",
+    ])
+  )
+    .toString("utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+}
+
+async function installHistoricalClaudeFiles(
+  home: string,
+  sourceDir: string,
+  version: string,
+): Promise<{ commit: string; destinations: string[] }> {
+  const commits = await historicalCommit(sourceDir, version);
+  expect(commits).toHaveLength(1);
+  const commit = commits[0] as string;
+  const staging = join(home, "historical-source");
+  const archive = join(home, "historical-source.tar");
+  const selected = [
+    "CLAUDE-FULL.md",
+    "AGENTS.md",
+    "agents",
+    "skills",
+    "profiles",
+    "rules",
+    "hooks",
+    "docs",
+    "output-styles",
+    "src",
+    "package.json",
+    "tsconfig.json",
+    "bun.lock",
+  ];
+  await mkdir(staging);
+  await writeFile(
+    archive,
+    await gitBytes(sourceDir, ["archive", "--format=tar", commit, ...selected]),
+  );
+  const extract = Bun.spawn(["tar", "-xf", archive, "-C", staging], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [extractError, extractCode] = await Promise.all([
+    new Response(extract.stderr).text(),
+    extract.exited,
+  ]);
+  if (extractCode !== 0) throw new Error(`historical archive extraction failed: ${extractError}`);
+  const listing = (await gitBytes(sourceDir, ["ls-tree", "-r", commit, "--", ...selected]))
+    .toString("utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  const destinations: string[] = [];
+  for (const line of listing) {
+    const match = /^(100644|100755) blob [a-f0-9]+\t(.+)$/.exec(line);
+    if (!match) continue;
+    const sourcePath = match[2] as string;
+    if (sourcePath.includes("/.tldr/") || sourcePath.endsWith("/.tldrignore")) continue;
+    if (["src/package.json", "src/tsconfig.json", "src/bun.lock"].includes(sourcePath)) continue;
+    const destination =
+      sourcePath === "CLAUDE-FULL.md"
+        ? "CLAUDE.md"
+        : ["package.json", "tsconfig.json", "bun.lock"].includes(sourcePath)
+          ? `src/${sourcePath}`
+          : sourcePath;
+    const destinationPath = join(home, ".claude", destination);
+    await mkdir(dirname(destinationPath), { recursive: true });
+    await cp(join(staging, sourcePath), destinationPath);
+    destinations.push(destination);
+  }
+  if (existsSync(join(sourceDir, "node_modules"))) {
+    await symlink(join(sourceDir, "node_modules"), join(home, ".claude", "src", "node_modules"));
+  }
+  await rm(staging, { recursive: true, force: true });
+  await rm(archive);
+  return { commit, destinations };
+}
+
+async function createHistoricalSourceFixture(home: string): Promise<{
+  source: string;
+  version: string;
+}> {
+  const source = await realpath(await copySourceFixture(home));
+  const packagePath = join(source, "package.json");
+  const skillPath = join(source, "skills", "cc", "SKILL.md");
+  const retiredPath = join(source, "rules", "retired-legacy.md");
+  const [currentPackage, currentSkill] = await Promise.all([
+    readFile(packagePath, "utf8"),
+    readFile(skillPath, "utf8"),
+  ]);
+  const legacyVersion = "0.0.0-legacy-fixture";
+  const legacyPackage = JSON.parse(currentPackage) as Record<string, unknown>;
+  legacyPackage.version = legacyVersion;
+  await Promise.all([
+    writeFile(packagePath, `${JSON.stringify(legacyPackage, null, 2)}\n`),
+    writeFile(skillPath, "legacy cc skill bytes\n"),
+    writeFile(retiredPath, "historical retired rule bytes\n"),
+  ]);
+  await gitBytes(source, ["init"]);
+  await gitBytes(source, ["add", "."]);
+  await gitBytes(source, [
+    "-c",
+    "user.name=cc-settings tests",
+    "-c",
+    "user.email=tests@invalid.example",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-m",
+    "legacy fixture",
+  ]);
+  await Promise.all([
+    writeFile(packagePath, currentPackage),
+    writeFile(skillPath, currentSkill),
+    rm(retiredPath),
+  ]);
+  await mkdir(join(source, "node_modules"));
+  return { source, version: legacyVersion };
+}
+
 describe("install E2E — fresh HOME", () => {
+  test.each([
+    { args: ["--uninstall", "--target=codxe"], target: "claude" as const },
+    { args: ["--unknown"], target: "both" as const },
+    { args: ["--auto-update=maybe"], target: "both" as const },
+  ])("invalid arguments $args fail before either home is mutated", async ({ args, target }) => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-invalid-"));
+    try {
+      const result = await runInstall(home, [...args], target);
+      expect(result.exitCode).not.toBe(0);
+      expect(existsSync(join(home, ".claude"))).toBe(false);
+      expect(existsSync(join(home, ".codex"))).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   test(
     "first install writes a coherent ~/.claude/ tree",
     async () => {
@@ -120,6 +323,293 @@ describe("install E2E — fresh HOME", () => {
     { timeout: 60_000 },
   );
 
+  test("an update moves the managed node_modules link from source A to source B", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-node-modules-source-"));
+    try {
+      const sourceA = await realpath(await copySourceFixture(join(home, "a")));
+      const sourceB = await realpath(await copySourceFixture(join(home, "b")));
+      await Promise.all([
+        mkdir(join(sourceA, "node_modules")),
+        mkdir(join(sourceB, "node_modules")),
+      ]);
+      const installedLink = join(home, ".claude", "src", "node_modules");
+
+      const first = await runInstall(home, [], "claude", {}, sourceA);
+      expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
+      expect(resolve(dirname(installedLink), await readlink(installedLink))).toBe(
+        join(sourceA, "node_modules"),
+      );
+
+      const update = await runInstall(home, [], "claude", {}, sourceB);
+      expect(update.exitCode, `${update.stdout}\n${update.stderr}`).toBe(0);
+      expect(resolve(dirname(installedLink), await readlink(installedLink))).toBe(
+        join(sourceB, "node_modules"),
+      );
+      expect(
+        JSON.parse(await readFile(join(home, ".claude", ".cc-settings-version"), "utf8")).repo_path,
+      ).toBe(sourceB);
+
+      const uninstall = await runInstall(home, ["--uninstall"], "claude", {}, sourceB);
+      expect(uninstall.exitCode, `${uninstall.stdout}\n${uninstall.stderr}`).toBe(0);
+      expect(existsSync(installedLink)).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
+
+  test.each(["file", "symlink"] as const)(
+    "a fresh combined install preserves an unowned node_modules %s and fails before Codex mutation",
+    async (kind) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-node-modules-unowned-"));
+      try {
+        const source = await copySourceFixture(join(home, "source-parent"));
+        await mkdir(join(source, "node_modules"));
+        const destination = join(home, ".claude", "src", "node_modules");
+        await mkdir(dirname(destination), { recursive: true });
+        const outside = join(home, "personal-node-modules");
+        if (kind === "file") {
+          await writeFile(destination, "unowned node_modules bytes\n");
+        } else {
+          await mkdir(outside);
+          await symlink(outside, destination);
+        }
+
+        const install = await runInstall(home, [], "both", {}, source);
+
+        expect(install.exitCode).not.toBe(0);
+        expect(`${install.stdout}\n${install.stderr}`).toMatch(
+          /collision.*src\/node_modules|src\/node_modules.*collision/i,
+        );
+        if (kind === "file") {
+          expect(await readFile(destination, "utf8")).toBe("unowned node_modules bytes\n");
+        } else {
+          expect(resolve(dirname(destination), await readlink(destination))).toBe(outside);
+        }
+        expect(existsSync(join(home, ".claude", ".cc-settings-version"))).toBe(false);
+        expect(existsSync(join(home, ".codex"))).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    120_000,
+  );
+
+  test("a repointed owned node_modules link blocks a combined update before mutation", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-node-modules-repointed-"));
+    try {
+      const sourceA = await realpath(await copySourceFixture(join(home, "a")));
+      const sourceB = await realpath(await copySourceFixture(join(home, "b")));
+      const outside = join(home, "personal-node-modules");
+      await Promise.all([
+        mkdir(join(sourceA, "node_modules")),
+        mkdir(join(sourceB, "node_modules")),
+        mkdir(outside),
+      ]);
+      expect((await runInstall(home, [], "claude", {}, sourceA)).exitCode).toBe(0);
+      const destination = join(home, ".claude", "src", "node_modules");
+      await rm(destination);
+      await symlink(outside, destination);
+      const sentinel = join(home, ".claude", ".cc-settings-version");
+      const sentinelBytes = await readFile(sentinel);
+
+      const update = await runInstall(home, [], "both", {}, sourceB);
+
+      expect(update.exitCode).not.toBe(0);
+      expect(`${update.stdout}\n${update.stderr}`).toMatch(
+        /Claude managed destination collision: src\/node_modules/i,
+      );
+      expect(resolve(dirname(destination), await readlink(destination))).toBe(outside);
+      expect(await readFile(sentinel)).toEqual(sentinelBytes);
+      expect(existsSync(join(home, ".codex"))).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
+
+  test("node_modules link creation is platform-native and cannot silently fall back to copying", async () => {
+    const source = await readFile(join(REPO, "src", "lib", "install-fs.ts"), "utf8");
+    expect(source).not.toMatch(/Bun\.spawn\(\["ln"/);
+    expect(source).not.toMatch(/cp\(srcNm, dstNm/);
+    expect(source).toMatch(/process\.platform\s*===\s*"win32"[\s\S]*"junction"/);
+    expect(source).toMatch(/symlink\([^)]*"dir"/);
+  });
+
+  test("empty Claude backup archives use an owned portable file list", async () => {
+    const source = await readFile(join(REPO, "src", "lib", "install-fs.ts"), "utf8");
+    expect(source).not.toMatch(/["'](?:\/dev\/null|NUL)["']/);
+    expect(source).toMatch(/--files-from/);
+    expect(source).toMatch(/mkdtemp|temporary|empty.*list/i);
+  });
+
+  test("an invalid dependency target cannot be treated as a successful managed link", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-node-modules-invalid-target-"));
+    try {
+      const source = await realpath(await copySourceFixture(join(home, "source-parent")));
+      await writeFile(join(source, "node_modules"), "not a dependency directory\n");
+
+      const install = await runInstall(home, [], "both", {}, source);
+
+      expect(install.exitCode).not.toBe(0);
+      expect(`${install.stdout}\n${install.stderr}`).toMatch(
+        /node_modules.*directory|directory.*node_modules/i,
+      );
+      expect(existsSync(join(home, ".claude", ".cc-settings-version"))).toBe(false);
+      const codexEntries = await readdir(join(home, ".codex"), { recursive: true }).catch(() => []);
+      expect(existsSync(join(home, ".codex")), `Codex entries: ${codexEntries.join(", ")}`).toBe(
+        false,
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a normal combined install rejects missing source dependencies before Codex or locks", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-node-modules-missing-normal-"));
+    try {
+      const source = await realpath(await copySourceFixture(join(home, "source-parent")));
+      const bin = join(home, "bin");
+      await mkdir(bin);
+      const realBun = Bun.which("bun");
+      expect(realBun).toBeTruthy();
+      await writeFile(
+        join(bin, "bun"),
+        '#!/bin/sh\nif [ "$1" = "install" ]; then touch "$HOME/.dependency-install-called"; exit 1; fi\nexec "$REAL_BUN" "$@"\n',
+      );
+      await writeFile(
+        join(bin, "codex"),
+        '#!/bin/sh\ntouch "$HOME/.codex-cli-called"\nprintf \'{"installed":[],"marketplaces":[]}\\n\'\n',
+      );
+      await Promise.all([chmod(join(bin, "bun"), 0o755), chmod(join(bin, "codex"), 0o755)]);
+
+      const install = await runInstall(
+        home,
+        [],
+        "both",
+        {
+          CC_SKIP_DEPS: "0",
+          CC_SKIP_CODEX_CLI: "0",
+          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          REAL_BUN: realBun as string,
+        },
+        source,
+      );
+
+      expect(install.exitCode).not.toBe(0);
+      expect(`${install.stdout}\n${install.stderr}`).toMatch(/node_modules|dependencies/i);
+      expect(existsSync(join(home, ".codex-cli-called"))).toBe(false);
+      expect(existsSync(join(home, ".dependency-install-called"))).toBe(false);
+      expect(existsSync(join(home, ".claude"))).toBe(false);
+      expect(existsSync(join(home, ".codex"))).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("Claude runtime copying ignores arbitrary descendants outside the static manifest", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-static-source-"));
+    try {
+      const source = await copySourceFixture(home);
+      const arbitrary = [
+        "agents/personal.md",
+        "skills/personal/tmp/junk",
+        "docs/personal.md",
+        "hooks/personal.ts",
+        "config/personal.txt",
+        "src/lib/personal.ts",
+        "src/lib/.env.local",
+        "src/.npmrc",
+        "src/secret.pem",
+      ];
+      for (const path of arbitrary) {
+        await mkdir(dirname(join(source, path)), { recursive: true });
+        await writeFile(join(source, path), `untracked source artifact: ${path}\n`);
+      }
+
+      const install = await runInstall(home, [], "claude", {}, source);
+
+      expect(install.exitCode, `${install.stdout}\n${install.stderr}`).toBe(0);
+      const sentinel = JSON.parse(
+        await readFile(join(home, ".claude", ".cc-settings-version"), "utf8"),
+      ) as { managed_files: Record<string, string> };
+      for (const path of arbitrary) {
+        expect(existsSync(join(home, ".claude", path)), path).toBe(false);
+        expect(sentinel.managed_files[path], path).toBeUndefined();
+      }
+      expect(existsSync(join(home, ".claude", "src", "setup.ts"))).toBe(true);
+      expect(sentinel.managed_files["src/setup.ts"]).toMatch(/^[a-f0-9]{64}$/);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a pre-existing unowned source descendant stays untrusted after install", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-live-source-extra-"));
+    const claudeDir = join(home, ".claude");
+    const evil = join(claudeDir, "src", "lib", "evil.ts");
+    const personal = join(claudeDir, "src", "personal.txt");
+    try {
+      await mkdir(dirname(evil), { recursive: true });
+      await Promise.all([
+        writeFile(evil, "export const userControlled = true;\n"),
+        writeFile(personal, "personal exact bytes\n"),
+      ]);
+
+      const install = await runInstall(home);
+
+      expect(install.exitCode, `${install.stdout}\n${install.stderr}`).toBe(0);
+      expect(await readFile(evil, "utf8")).toBe("export const userControlled = true;\n");
+      expect(await readFile(personal, "utf8")).toBe("personal exact bytes\n");
+      const manifest = JSON.parse(
+        await readFile(join(claudeDir, ".cc-settings-src-manifest"), "utf8"),
+      ) as { files: Record<string, string> };
+      expect(manifest.files["lib/evil.ts"]).toBeUndefined();
+      expect(manifest.files["setup.ts"]).toMatch(/^[a-f0-9]{64}$/);
+      const verification = await verifySrcManifest(claudeDir);
+      expect(verification.status).toBe("mismatch");
+      expect(verification.changed).toEqual([]);
+      expect(verification.unmanifested).toContain("lib/evil.ts");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test.each(
+    (
+      [
+        ["symlink", "agents/implementer.md"],
+        ["wrong-type", "src/setup.ts"],
+      ] as const
+    ).flatMap(([kind, selectedPath]) =>
+      (["claude", "both"] as const).map((target) => [kind, selectedPath, target] as const),
+    ),
+  )(
+    "a selected Claude source %s at %s rejects target %s before product mutation",
+    async (kind, selectedPath, target) => {
+      const home = await mkdtemp(join(tmpdir(), `cc-e2e-source-${kind}-${target}-`));
+      try {
+        const source = await copySourceFixture(home);
+        const selected = join(source, selectedPath);
+        const originalBytes = await readFile(selected);
+        await rm(selected);
+        if (kind === "symlink") {
+          const outside = join(home, "outside-source-file");
+          await writeFile(outside, originalBytes);
+          await symlink(outside, selected);
+        } else {
+          await mkdir(selected);
+        }
+
+        const install = await runInstall(home, [], target, {}, source);
+
+        expect(install.exitCode).not.toBe(0);
+        expect(existsSync(join(home, ".claude"))).toBe(false);
+        expect(existsSync(join(home, ".codex"))).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
+
   test(
     "second install on top of first prints version-delta (or 'no change')",
     async () => {
@@ -141,23 +631,122 @@ describe("install E2E — fresh HOME", () => {
     { timeout: 90_000 },
   );
 
+  test("full reinstall preserves personal files in every shared managed directory", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-reinstall-personal-"));
+    const claudeDir = join(home, ".claude");
+    const personal = new Map([
+      [join(claudeDir, "agents", "personal.md"), "personal agent\n"],
+      [join(claudeDir, "rules", "personal.md"), "personal rule\n"],
+      [join(claudeDir, "profiles", "personal.md"), "personal profile\n"],
+      [join(claudeDir, "docs", "personal.md"), "personal docs\n"],
+      [join(claudeDir, "hooks", "personal.ts"), "personal hook\n"],
+      [join(claudeDir, "skills", "personal", "SKILL.md"), "personal skill\n"],
+    ]);
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+      for (const [path, bytes] of personal) {
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, bytes);
+      }
+
+      const reinstall = await runInstall(home);
+
+      expect(reinstall.exitCode, `${reinstall.stdout}\n${reinstall.stderr}`).toBe(0);
+      for (const [path, bytes] of personal) expect(await readFile(path, "utf8"), path).toBe(bytes);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a modified Claude-owned file blocks combined reinstall before either product changes", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-modified-owned-both-"));
+    const claudeDir = join(home, ".claude");
+    const codexDir = join(home, ".codex");
+    const modified = join(claudeDir, "agents", "implementer.md");
+    try {
+      expect((await runInstall(home, [], "both")).exitCode).toBe(0);
+      await writeFile(modified, "user-modified managed agent\n");
+      const tracked = [
+        join(claudeDir, ".cc-settings-version"),
+        join(claudeDir, "settings.json"),
+        modified,
+        join(codexDir, ".cc-settings-version"),
+        join(codexDir, "AGENTS.md"),
+        join(codexDir, "agents", "implementer.toml"),
+      ];
+      const before = new Map(
+        await Promise.all(
+          tracked.map(async (path) => [path, (await readFile(path)).toString("base64")] as const),
+        ),
+      );
+
+      const reinstall = await runInstall(home, [], "both");
+
+      expect(reinstall.exitCode).not.toBe(0);
+      for (const [path, bytes] of before) {
+        expect((await readFile(path)).toString("base64"), path).toBe(bytes);
+      }
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test.each(["light", "uninstall"] as const)(
+    "modified Claude ownership makes combined %s fail before either product mutates",
+    async (operation) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-light-modified-owned-"));
+      const claudeDir = join(home, ".claude");
+      const modifiedRelative = "agents/implementer.md";
+      const modified = join(claudeDir, modifiedRelative);
+      const modifiedBytes = "user-modified managed agent\n";
+      try {
+        expect((await runInstall(home, [], "both")).exitCode).toBe(0);
+        await writeFile(modified, modifiedBytes);
+        const tracked = [
+          join(claudeDir, ".cc-settings-version"),
+          join(claudeDir, "settings.json"),
+          modified,
+          join(home, ".codex", ".cc-settings-version"),
+          join(home, ".codex", "AGENTS.md"),
+        ];
+        const before = await Promise.all(tracked.map((path) => readFile(path)));
+
+        const result = await runInstall(
+          home,
+          operation === "light" ? ["--light"] : ["--uninstall"],
+          "both",
+        );
+
+        expect(result.exitCode).not.toBe(0);
+        expect(`${result.stdout}\n${result.stderr}`).toMatch(/modified|changed|hash|owned/i);
+        expect(await Promise.all(tracked.map((path) => readFile(path)))).toEqual(before);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    180_000,
+  );
+
   test(
     "--migrate-only against a fresh HOME applies merger only (no dependencies, no file copy)",
     async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-e2e-mig-"));
       try {
-        const proc = Bun.spawn(["bun", SETUP_TS, `--source=${REPO}`, "--migrate-only"], {
-          env: {
-            ...process.env,
-            HOME: home,
-            USERPROFILE: home,
-            CC_SKIP_DEPS: "1",
-            CC_SKIP_SCHEDULE: "1",
-            NO_COLOR: "1",
+        const proc = Bun.spawn(
+          ["bun", SETUP_TS, `--source=${REPO}`, "--target=claude", "--migrate-only"],
+          {
+            env: {
+              ...process.env,
+              HOME: home,
+              USERPROFILE: home,
+              CC_SKIP_DEPS: "1",
+              CC_SKIP_SCHEDULE: "1",
+              NO_COLOR: "1",
+            },
+            stdout: "pipe",
+            stderr: "pipe",
           },
-          stdout: "pipe",
-          stderr: "pipe",
-        });
+        );
         const [stdout, stderr] = await Promise.all([
           new Response(proc.stdout).text(),
           new Response(proc.stderr).text(),
@@ -170,18 +759,1128 @@ describe("install E2E — fresh HOME", () => {
         // settings.json + sentinel exist (merger + sentinel ran).
         expect(existsSync(join(home, ".claude", "settings.json"))).toBe(true);
         expect(existsSync(join(home, ".claude", ".cc-settings-version"))).toBe(true);
+        const migratedSentinel = JSON.parse(
+          await readFile(join(home, ".claude", ".cc-settings-version"), "utf8"),
+        ) as Record<string, unknown>;
+        expect(migratedSentinel.managed_files).toBeUndefined();
+        expect(migratedSentinel.managed_files_manifest_version).toBeUndefined();
 
         // CLAUDE.md was NOT copied (file-copy phase was skipped).
         expect(existsSync(join(home, ".claude", "CLAUDE.md"))).toBe(false);
 
         // The migrate-only banner appears in stdout.
         expect(stdout).toContain("Migrate-only");
+
+        const full = await runInstall(home);
+        expect(full.exitCode, `${full.stdout}\n${full.stderr}`).toBe(0);
+        const fullSentinel = JSON.parse(
+          await readFile(join(home, ".claude", ".cc-settings-version"), "utf8"),
+        ) as {
+          managed_files: Record<string, string>;
+          managed_files_manifest_version: number;
+        };
+        expect(fullSentinel.managed_files_manifest_version).toBe(
+          CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+        );
+        expect(Object.keys(fullSentinel.managed_files).sort()).toEqual(
+          [...(await claudeManagedAllowedPaths(REPO, "full"))].sort(),
+        );
+        for (const hash of Object.values(fullSentinel.managed_files)) {
+          expect(hash).toMatch(/^[a-f0-9]{64}$/);
+        }
       } finally {
         await rm(home, { recursive: true, force: true });
       }
     },
     { timeout: 60_000 },
   );
+
+  test("migrate-only preserves a real historical sentinel without inventing ownership", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-migrate-legacy-"));
+    const claudeDir = join(home, ".claude");
+    const sentinelPath = join(claudeDir, ".cc-settings-version");
+    try {
+      const { source, version } = await createHistoricalSourceFixture(home);
+      await installHistoricalClaudeFiles(home, source, version);
+      const legacy = {
+        version,
+        installed_at: "2025-01-01T00:00:00.000Z",
+        repo_path: source,
+        profile: "full",
+        engine: "native-ts",
+        engine_explicit: false,
+      };
+      await writeFile(sentinelPath, `${JSON.stringify(legacy, null, 2)}\n`);
+
+      const migrate = await runInstall(home, ["--migrate-only"], "claude", {}, source);
+      expect(migrate.exitCode, `${migrate.stdout}\n${migrate.stderr}`).toBe(0);
+      const migrated = JSON.parse(await readFile(sentinelPath, "utf8")) as Record<string, unknown>;
+      expect(migrated.managed_files).toBeUndefined();
+      expect(migrated.managed_files_manifest_version).toBeUndefined();
+
+      const full = await runInstall(home, [], "claude", {}, source);
+      expect(full.exitCode, `${full.stdout}\n${full.stderr}`).toBe(0);
+      const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+        managed_files_manifest_version: number;
+      };
+      expect(upgraded.managed_files_manifest_version).toBe(
+        CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+      );
+      expect(Object.keys(upgraded.managed_files).sort()).toEqual(
+        [...(await claudeManagedAllowedPaths(source, "full"))].sort(),
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
+
+  test.each([false, true])(
+    "a real committed no-map install upgrades safely after migrate-only=%s",
+    async (migrateOnlyFirst) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-historical-no-map-"));
+      const claudeDir = join(home, ".claude");
+      const sentinelPath = join(claudeDir, ".cc-settings-version");
+      try {
+        const { source, version } = await createHistoricalSourceFixture(home);
+        const historical = await installHistoricalClaudeFiles(home, source, version);
+        const historicalSkill = join(claudeDir, "skills", "cc", "SKILL.md");
+        const historicalSkillBytes = await readFile(historicalSkill);
+        const currentSkillBytes = await readFile(join(source, "skills", "cc", "SKILL.md"));
+        expect(historicalSkillBytes).not.toEqual(currentSkillBytes);
+        const personalAgent = join(claudeDir, "agents", "personal.md");
+        const personalSkill = join(claudeDir, "skills", "personal", "SKILL.md");
+        await mkdir(dirname(personalSkill), { recursive: true });
+        await Promise.all([
+          writeFile(personalAgent, "personal agent exact bytes\n"),
+          writeFile(personalSkill, "personal skill exact bytes\n"),
+          writeFile(
+            sentinelPath,
+            `${JSON.stringify(
+              {
+                version,
+                installed_at: "2026-01-01T00:00:00.000Z",
+                repo_path: source,
+                profile: "full",
+                engine: "native-ts",
+                engine_explicit: false,
+                mcp_written: {},
+                auto_update: false,
+              },
+              null,
+              2,
+            )}\n`,
+          ),
+        ]);
+
+        if (migrateOnlyFirst) {
+          const migrate = await runInstall(home, ["--migrate-only"], "claude", {}, source);
+          expect(migrate.exitCode, `${migrate.stdout}\n${migrate.stderr}`).toBe(0);
+          const migrated = JSON.parse(await readFile(sentinelPath, "utf8")) as Record<
+            string,
+            unknown
+          >;
+          expect(migrated.version).toBe(version);
+          expect(migrated.managed_files).toBeUndefined();
+          expect(migrated.managed_files_manifest_version).toBeUndefined();
+        }
+
+        const legacySentinelBytes = await readFile(sentinelPath);
+        const backupsBeforeUpdate = new Set(
+          await readdir(join(claudeDir, "backups")).catch(() => []),
+        );
+        const update = await runInstall(home, [], "claude", {}, source);
+        expect(update.exitCode, `${update.stdout}\n${update.stderr}`).toBe(0);
+        expect(await readFile(historicalSkill)).toEqual(currentSkillBytes);
+        expect(await readFile(personalAgent, "utf8")).toBe("personal agent exact bytes\n");
+        expect(await readFile(personalSkill, "utf8")).toBe("personal skill exact bytes\n");
+        const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+          managed_files: Record<string, string>;
+          managed_files_manifest_version: number;
+        };
+        const currentPaths = [...(await claudeManagedAllowedPaths(source, "full"))].sort();
+        expect(upgraded.managed_files_manifest_version).toBe(
+          CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+        );
+        expect(Object.keys(upgraded.managed_files).sort()).toEqual(currentPaths);
+        for (const retired of historical.destinations.filter(
+          (path) => !currentPaths.includes(path),
+        )) {
+          expect(existsSync(join(claudeDir, retired)), retired).toBe(false);
+        }
+        const legacyBackup = (await readdir(join(claudeDir, "backups"))).find(
+          (name) => /^backup-.*\.tar\.gz$/.test(name) && !backupsBeforeUpdate.has(name),
+        );
+        expect(legacyBackup).toBeDefined();
+        const legacyBackupId = (legacyBackup as string).replace(/^backup-|\.tar\.gz$/g, "");
+        const rollback = await runInstall(
+          home,
+          [`--rollback=${legacyBackupId}`],
+          "claude",
+          {},
+          source,
+        );
+        expect(rollback.exitCode, `${rollback.stdout}\n${rollback.stderr}`).toBe(0);
+        expect(await readFile(sentinelPath)).toEqual(legacySentinelBytes);
+        expect(await readFile(historicalSkill)).toEqual(historicalSkillBytes);
+        expect(await readFile(personalAgent, "utf8")).toBe("personal agent exact bytes\n");
+        expect(await readFile(personalSkill, "utf8")).toBe("personal skill exact bytes\n");
+        const futureUpdate = await runInstall(home, [], "claude", {}, source);
+        expect(futureUpdate.exitCode, `${futureUpdate.stdout}\n${futureUpdate.stderr}`).toBe(0);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    240_000,
+  );
+
+  test.each(
+    (["modified", "deleted"] as const).flatMap((mutation) =>
+      (["full", "migrate-only"] as const).map((operation) => [mutation, operation] as const),
+    ),
+  )(
+    "a %s retired historical file blocks %s before mutation",
+    async (mutation, operation) => {
+      const home = await mkdtemp(join(tmpdir(), `cc-e2e-historical-${mutation}-${operation}-`));
+      const claudeDir = join(home, ".claude");
+      try {
+        const { source, version } = await createHistoricalSourceFixture(home);
+        const historical = await installHistoricalClaudeFiles(home, source, version);
+        expect(historical.destinations).toContain("rules/retired-legacy.md");
+        const sentinel = join(claudeDir, ".cc-settings-version");
+        const retired = join(claudeDir, "rules", "retired-legacy.md");
+        const personal = join(claudeDir, "agents", "personal.md");
+        await Promise.all([
+          writeFile(
+            sentinel,
+            `${JSON.stringify({ version, repo_path: source, profile: "full" }, null, 2)}\n`,
+          ),
+          writeFile(personal, "personal exact bytes\n"),
+        ]);
+        if (mutation === "modified") await writeFile(retired, "user changed retired bytes\n");
+        else await rm(retired);
+        const before = await Promise.all([
+          readFile(sentinel),
+          readFile(retired).catch(() => null),
+          readFile(personal),
+        ]);
+
+        const update = await runInstall(
+          home,
+          operation === "migrate-only" ? ["--migrate-only"] : [],
+          "both",
+          {},
+          source,
+        );
+
+        expect(update.exitCode).not.toBe(0);
+        expect(`${update.stdout}\n${update.stderr}`).toMatch(
+          /destination collision|historical|changed|missing/i,
+        );
+        expect(
+          await Promise.all([
+            readFile(sentinel),
+            readFile(retired).catch(() => null),
+            readFile(personal),
+          ]),
+        ).toEqual(before);
+        expect(existsSync(join(home, ".codex"))).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    180_000,
+  );
+
+  test.each([
+    ["unresolved", "0.0.0-unresolved", 0],
+    ["ambiguous", "13.13.0", 2],
+  ] as const)(
+    "%s legacy version fails before a combined upgrade mutates either product",
+    async (_case, version, expectedCommitCount) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-historical-version-"));
+      const claudeDir = join(home, ".claude");
+      try {
+        expect((await historicalCommit(REPO, version)).length).toBe(expectedCommitCount);
+        await mkdir(claudeDir);
+        const sentinel = join(claudeDir, ".cc-settings-version");
+        const personal = join(claudeDir, "personal.txt");
+        const sentinelBytes = `${JSON.stringify({ version, repo_path: REPO, profile: "full" })}\n`;
+        await Promise.all([
+          writeFile(sentinel, sentinelBytes),
+          writeFile(personal, "personal exact bytes\n"),
+        ]);
+
+        const update = await runInstall(home, [], "both");
+
+        expect(update.exitCode).not.toBe(0);
+        expect(`${update.stdout}\n${update.stderr}`).toMatch(/does not resolve to exactly one/i);
+        expect(await readFile(sentinel, "utf8")).toBe(sentinelBytes);
+        expect(await readFile(personal, "utf8")).toBe("personal exact bytes\n");
+        expect(existsSync(join(home, ".codex"))).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    120_000,
+  );
+
+  test("migrate-only rejects a changed generated file before ownership mutation", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-migrate-versioned-"));
+    const claudeDir = join(home, ".claude");
+    const sentinelPath = join(claudeDir, ".cc-settings-version");
+    const generatedPath = join(claudeDir, ".cc-settings-hooks-fingerprint");
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+      const sentinelBytes = await readFile(sentinelPath);
+      await writeFile(generatedPath, "user-changed generated bytes\n");
+
+      const migrate = await runInstall(home, ["--migrate-only"]);
+      expect(migrate.exitCode).not.toBe(0);
+      expect(`${migrate.stdout}\n${migrate.stderr}`).toMatch(
+        /managed file is missing or modified/i,
+      );
+      expect(await readFile(sentinelPath)).toEqual(sentinelBytes);
+      expect(await readFile(generatedPath, "utf8")).toBe("user-changed generated bytes\n");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test(
+    "--migrate-only rejects Codex-only and treats both targets as Claude-only",
+    async () => {
+      const codexOnlyHome = await mkdtemp(join(tmpdir(), "cc-e2e-mig-codex-"));
+      const bothHome = await mkdtemp(join(tmpdir(), "cc-e2e-mig-both-"));
+      try {
+        const codexOnly = await runInstall(codexOnlyHome, ["--migrate-only"], "codex");
+        expect(codexOnly.exitCode).not.toBe(0);
+        expect(existsSync(join(codexOnlyHome, ".claude"))).toBe(false);
+        expect(existsSync(join(codexOnlyHome, ".codex"))).toBe(false);
+
+        const both = await runInstall(bothHome, ["--migrate-only"], "both");
+        if (both.exitCode !== 0) {
+          throw new Error(
+            `both-target migrate-only failed (${both.exitCode})\nstdout:\n${both.stdout}\nstderr:\n${both.stderr}`,
+          );
+        }
+        expect(existsSync(join(bothHome, ".claude", "settings.json"))).toBe(true);
+        expect(existsSync(join(bothHome, ".claude", ".cc-settings-version"))).toBe(true);
+        expect(existsSync(join(bothHome, ".claude", "CLAUDE.md"))).toBe(false);
+        for (const codexManagedPath of [
+          ".cc-settings-version",
+          "AGENTS.md",
+          "darkroom/source",
+          "agents/implementer.toml",
+          "rules/darkroom.rules",
+        ]) {
+          expect(existsSync(join(bothHome, ".codex", codexManagedPath))).toBe(false);
+        }
+      } finally {
+        await Promise.all([
+          rm(codexOnlyHome, { recursive: true, force: true }),
+          rm(bothHome, { recursive: true, force: true }),
+        ]);
+      }
+    },
+    { timeout: 90_000 },
+  );
+});
+
+describe("install E2E — uninstall ownership", () => {
+  test.skipIf(process.platform !== "darwin")(
+    "a paired managed-absent Claude snapshot is a no-op until a later managed install exists",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-claude-managed-absent-"));
+      const claudeDir = join(home, ".claude");
+      const codexDir = join(home, ".codex");
+      const plist = join(
+        home,
+        "Library",
+        "LaunchAgents",
+        "com.darkroom.cc-settings-autoupdate.plist",
+      );
+      const loaded = join(home, ".fake-launchctl-loaded");
+      try {
+        const bin = join(home, "bin");
+        await Promise.all([mkdir(bin), mkdir(claudeDir)]);
+        const launchctl = join(bin, "launchctl");
+        await writeFile(
+          launchctl,
+          '#!/bin/sh\ncase "$1" in\n  print) if [ -e "$HOME/.fake-launchctl-loaded" ]; then exit 0; fi; printf \'Bad request.\\nCould not find service "com.darkroom.cc-settings-autoupdate" in domain for user gui: %s\\n\' "$(id -u)" >&2; exit 113;;\n  bootout) rm -f "$HOME/.fake-launchctl-loaded"; exit 0;;\n  bootstrap) touch "$HOME/.fake-launchctl-loaded"; exit 0;;\nesac\n',
+        );
+        await chmod(launchctl, 0o755);
+        const scheduleEnv = {
+          CC_SKIP_SCHEDULE: "0",
+          CI: "false",
+          PATH: `${bin}:${process.env.PATH ?? ""}`,
+        };
+        const settings = join(claudeDir, "settings.json");
+        const globalConfig = join(home, ".claude.json");
+        const personal = join(claudeDir, "personal.txt");
+        await Promise.all([
+          writeFile(settings, `${JSON.stringify({ personalSetting: "before" })}\n`),
+          writeFile(globalConfig, `${JSON.stringify({ personalGlobal: "before" })}\n`),
+          writeFile(personal, "personal before snapshot\n"),
+        ]);
+        const absentSnapshot = new Map(
+          await Promise.all(
+            [settings, globalConfig, personal, plist, loaded].map(
+              async (path) => [path, await readFile(path).catch(() => null)] as const,
+            ),
+          ),
+        );
+
+        expect((await runInstall(home, ["--light"], "codex", scheduleEnv)).exitCode).toBe(0);
+        expect((await runInstall(home, ["--uninstall"], "both", scheduleEnv)).exitCode).toBe(0);
+        const claudeBackups = (await readdir(join(claudeDir, "backups")))
+          .map((name) => name.match(/^backup-(.+)\.tar\.gz$/)?.[1])
+          .filter((id): id is string => id !== undefined);
+        const codexBackups = new Set(await readdir(join(codexDir, "backups", "cc-settings")));
+        const backupId = claudeBackups.find((id) => codexBackups.has(id));
+        expect(backupId).toBeDefined();
+        const archive = join(claudeDir, "backups", `backup-${backupId}.tar.gz`);
+        expect(JSON.parse(await readFile(`${archive}.state.json`, "utf8"))).toEqual(
+          expect.objectContaining({ restore_scope: "managed-absent", present: [] }),
+        );
+
+        const immediate = await runInstall(home, [`--rollback=${backupId}`], "both", scheduleEnv);
+        expect(immediate.exitCode, `${immediate.stdout}\n${immediate.stderr}`).toBe(0);
+        for (const [path, bytes] of absentSnapshot) {
+          const current = await readFile(path).catch(() => null);
+          expect(current, path).toEqual(bytes);
+        }
+
+        const installClaude = await runInstall(home, ["--auto-update=on"], "claude", scheduleEnv);
+        expect(installClaude.exitCode, `${installClaude.stdout}\n${installClaude.stderr}`).toBe(0);
+        expect(existsSync(plist)).toBe(true);
+        expect(existsSync(loaded)).toBe(true);
+        const mergedSettings = JSON.parse(await readFile(settings, "utf8")) as Record<
+          string,
+          unknown
+        >;
+        mergedSettings.postSnapshot = "preserve";
+        await writeFile(settings, `${JSON.stringify(mergedSettings, null, 2)}\n`);
+        const afterPersonal = join(claudeDir, "personal-after.txt");
+        await writeFile(afterPersonal, "personal after snapshot\n");
+
+        const rollback = await runInstall(home, [`--rollback=${backupId}`], "both", scheduleEnv);
+        expect(rollback.exitCode, `${rollback.stdout}\n${rollback.stderr}`).toBe(0);
+        expect(existsSync(join(claudeDir, ".cc-settings-version"))).toBe(false);
+        expect(existsSync(join(claudeDir, "CLAUDE.md"))).toBe(false);
+        expect(existsSync(join(claudeDir, "src"))).toBe(false);
+        expect(existsSync(plist)).toBe(false);
+        expect(existsSync(loaded)).toBe(false);
+        expect(await readFile(personal, "utf8")).toBe("personal before snapshot\n");
+        expect(await readFile(afterPersonal, "utf8")).toBe("personal after snapshot\n");
+        expect(JSON.parse(await readFile(settings, "utf8"))).toEqual(
+          expect.objectContaining({ personalSetting: "before", postSnapshot: "preserve" }),
+        );
+        expect(JSON.parse(await readFile(globalConfig, "utf8"))).toEqual(
+          expect.objectContaining({ personalGlobal: "before" }),
+        );
+        expect(existsSync(join(codexDir, ".cc-settings-version"))).toBe(true);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    240_000,
+  );
+
+  test("a modified currently owned Claude file blocks paired rollback before Codex mutation", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-rollback-modified-claude-"));
+    const claudeDir = join(home, ".claude");
+    const codexDir = join(home, ".codex");
+    try {
+      expect((await runInstall(home, ["--light"], "both")).exitCode).toBe(0);
+      expect((await runInstall(home, ["--light"], "both")).exitCode).toBe(0);
+      const claudeIds = (await readdir(join(claudeDir, "backups")))
+        .map((name) => name.match(/^backup-(.+)\.tar\.gz$/)?.[1])
+        .filter((id): id is string => id !== undefined);
+      const codexIds = new Set(await readdir(join(codexDir, "backups", "cc-settings")));
+      const backupId = claudeIds
+        .filter((id) => codexIds.has(id))
+        .sort()
+        .at(-1);
+      expect(backupId).toBeDefined();
+      const modified = join(claudeDir, "skills", "share-learning", "SKILL.md");
+      await writeFile(modified, "user modified currently owned skill\n");
+      const tracked = [
+        join(claudeDir, ".cc-settings-version"),
+        modified,
+        join(codexDir, ".cc-settings-version"),
+        join(codexDir, "AGENTS.md"),
+      ];
+      const before = await Promise.all(tracked.map((path) => readFile(path)));
+
+      const rollback = await runInstall(home, [`--rollback=${backupId}`], "both");
+
+      expect(rollback.exitCode).not.toBe(0);
+      expect(`${rollback.stdout}\n${rollback.stderr}`).toMatch(/modified managed content/i);
+      expect(await Promise.all(tracked.map((path) => readFile(path)))).toEqual(before);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
+
+  test.skipIf(process.platform !== "darwin")(
+    "missing product sentinels make combined uninstall preserve the unowned product exactly",
+    async () => {
+      const noClaudeSentinelHome = await mkdtemp(join(tmpdir(), "cc-e2e-no-claude-sentinel-"));
+      const noCodexSentinelHome = await mkdtemp(join(tmpdir(), "cc-e2e-no-codex-sentinel-"));
+      const seedUnownedClaude = async (home: string): Promise<Map<string, string>> => {
+        const claude = join(home, ".claude");
+        const plist = join(
+          home,
+          "Library",
+          "LaunchAgents",
+          "com.darkroom.cc-settings-autoupdate.plist",
+        );
+        const paths = [
+          join(claude, "CLAUDE.md"),
+          join(claude, "AGENTS.md"),
+          join(claude, "skills", "fix", "SKILL.md"),
+          join(claude, "settings.json"),
+          join(home, ".claude.json"),
+          plist,
+          join(home, ".fake-launchctl-loaded"),
+        ];
+        await Promise.all([
+          mkdir(join(claude, "skills", "fix"), { recursive: true }),
+          mkdir(dirname(plist), { recursive: true }),
+        ]);
+        await Promise.all([
+          writeFile(paths[0] as string, "# user CLAUDE lookalike\n"),
+          writeFile(paths[1] as string, "# user AGENTS lookalike\n"),
+          writeFile(paths[2] as string, "---\nname: fix\n---\nuser skill\n"),
+          writeFile(
+            paths[3] as string,
+            `${JSON.stringify({ mcpServers: { context7: { command: "user-context7" } } })}\n`,
+          ),
+          writeFile(
+            paths[4] as string,
+            `${JSON.stringify({ mcpServers: { figma: { command: "user-figma" } } })}\n`,
+          ),
+          writeFile(paths[5] as string, "user launch agent bytes\n"),
+          writeFile(paths[6] as string, "loaded\n"),
+        ]);
+        return new Map(
+          await Promise.all(
+            paths.map(async (path) => [path, (await readFile(path)).toString("base64")] as const),
+          ),
+        );
+      };
+      const fakeLaunchctlEnv = async (home: string): Promise<Record<string, string>> => {
+        const bin = join(home, "bin");
+        await mkdir(bin, { recursive: true });
+        const launchctl = join(bin, "launchctl");
+        await writeFile(
+          launchctl,
+          '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$HOME/.fake-launchctl-calls"\ncase "$1" in\n  print) [ -e "$HOME/.fake-launchctl-loaded" ] && exit 0; exit 1;;\n  bootout) rm -f "$HOME/.fake-launchctl-loaded"; exit 0;;\n  bootstrap) printf \'loaded\\n\' > "$HOME/.fake-launchctl-loaded"; exit 0;;\nesac\n',
+        );
+        await chmod(launchctl, 0o755);
+        return {
+          CC_SKIP_SCHEDULE: "0",
+          CI: "false",
+          PATH: `${bin}:${process.env.PATH ?? ""}`,
+        };
+      };
+      const backupIds = async (
+        home: string,
+      ): Promise<{ claude: Set<string>; codex: Set<string> }> => ({
+        claude: new Set(
+          (await readdir(join(home, ".claude", "backups")).catch(() => []))
+            .map((name) => name.match(/^backup-(.+)\.tar\.gz$/)?.[1])
+            .filter((id): id is string => id !== undefined),
+        ),
+        codex: new Set(
+          (await readdir(join(home, ".codex", "backups", "cc-settings")).catch(() => [])).filter(
+            (name) => /^\d{14}-\d{3}-\d+-\d+$/.test(name),
+          ),
+        ),
+      });
+      try {
+        expect((await runInstall(noClaudeSentinelHome, [], "codex")).exitCode).toBe(0);
+        const claudeBefore = await seedUnownedClaude(noClaudeSentinelHome);
+        const env = await fakeLaunchctlEnv(noClaudeSentinelHome);
+        const idsBeforeCodexUninstall = await backupIds(noClaudeSentinelHome);
+        const asymmetricUninstall = await runInstall(
+          noClaudeSentinelHome,
+          ["--uninstall"],
+          "both",
+          env,
+        );
+        expect(
+          asymmetricUninstall.exitCode,
+          `${asymmetricUninstall.stdout}\n${asymmetricUninstall.stderr}`,
+        ).toBe(0);
+        for (const [path, bytes] of claudeBefore) {
+          expect((await readFile(path)).toString("base64")).toBe(bytes);
+        }
+        expect(existsSync(join(noClaudeSentinelHome, ".codex", ".cc-settings-version"))).toBe(
+          false,
+        );
+        const launchctlCalls = await readFile(
+          join(noClaudeSentinelHome, ".fake-launchctl-calls"),
+          "utf8",
+        );
+        expect(launchctlCalls).toContain("print");
+        expect(launchctlCalls).not.toMatch(/bootout|bootstrap/);
+        const idsAfterCodexUninstall = await backupIds(noClaudeSentinelHome);
+        const newClaudeIds = [...idsAfterCodexUninstall.claude].filter(
+          (id) => !idsBeforeCodexUninstall.claude.has(id),
+        );
+        const newCodexIds = [...idsAfterCodexUninstall.codex].filter(
+          (id) => !idsBeforeCodexUninstall.codex.has(id),
+        );
+        expect(newClaudeIds).toEqual(newCodexIds);
+        expect(newClaudeIds).toHaveLength(1);
+        expect((await runInstall(noClaudeSentinelHome, ["--rollback"], "both", env)).exitCode).toBe(
+          0,
+        );
+        expect(existsSync(join(noClaudeSentinelHome, ".codex", ".cc-settings-version"))).toBe(true);
+        for (const [path, bytes] of claudeBefore) {
+          expect((await readFile(path)).toString("base64")).toBe(bytes);
+        }
+        expect(
+          (await runInstall(noClaudeSentinelHome, ["--uninstall"], "both", env)).exitCode,
+        ).toBe(0);
+        const explicitPairs = await backupIds(noClaudeSentinelHome);
+        const explicitId = [...explicitPairs.claude]
+          .filter((id) => explicitPairs.codex.has(id))
+          .sort()
+          .at(-1);
+        expect(explicitId).toBeDefined();
+        expect(
+          (await runInstall(noClaudeSentinelHome, [`--rollback=${explicitId}`], "both", env))
+            .exitCode,
+        ).toBe(0);
+        expect(existsSync(join(noClaudeSentinelHome, ".codex", ".cc-settings-version"))).toBe(true);
+
+        expect((await runInstall(noCodexSentinelHome)).exitCode).toBe(0);
+        const codexPaths = [
+          join(noCodexSentinelHome, ".codex", "AGENTS.md"),
+          join(noCodexSentinelHome, ".codex", "darkroom", "source", "personal.txt"),
+        ];
+        await mkdir(dirname(codexPaths[1] as string), { recursive: true });
+        await Promise.all([
+          writeFile(codexPaths[0] as string, "unowned Codex instructions\n"),
+          writeFile(codexPaths[1] as string, "unowned Codex source\n"),
+        ]);
+        const codexBefore = new Map(
+          await Promise.all(
+            codexPaths.map(
+              async (path) => [path, (await readFile(path)).toString("base64")] as const,
+            ),
+          ),
+        );
+        const idsBeforeClaudeUninstall = await backupIds(noCodexSentinelHome);
+        expect((await runInstall(noCodexSentinelHome, ["--uninstall"], "both")).exitCode).toBe(0);
+        for (const [path, bytes] of codexBefore) {
+          expect((await readFile(path)).toString("base64")).toBe(bytes);
+        }
+        expect(existsSync(join(noCodexSentinelHome, ".claude", ".cc-settings-version"))).toBe(
+          false,
+        );
+        const idsAfterClaudeUninstall = await backupIds(noCodexSentinelHome);
+        const newClaudePairIds = [...idsAfterClaudeUninstall.claude].filter(
+          (id) => !idsBeforeClaudeUninstall.claude.has(id),
+        );
+        const newEmptyCodexIds = [...idsAfterClaudeUninstall.codex].filter(
+          (id) => !idsBeforeClaudeUninstall.codex.has(id),
+        );
+        expect(newClaudePairIds).toEqual(newEmptyCodexIds);
+        expect(newClaudePairIds).toHaveLength(1);
+        const claudeRollback = await runInstall(noCodexSentinelHome, ["--rollback"], "both");
+        expect(claudeRollback.exitCode, `${claudeRollback.stdout}\n${claudeRollback.stderr}`).toBe(
+          0,
+        );
+        expect(existsSync(join(noCodexSentinelHome, ".claude", ".cc-settings-version"))).toBe(true);
+        for (const [path, bytes] of codexBefore) {
+          expect((await readFile(path)).toString("base64")).toBe(bytes);
+        }
+      } finally {
+        await Promise.all([
+          rm(noClaudeSentinelHome, { recursive: true, force: true }),
+          rm(noCodexSentinelHome, { recursive: true, force: true }),
+        ]);
+      }
+    },
+    240_000,
+  );
+
+  test.each([
+    ["malformed JSON", "{not json", "claude"],
+    ["primitive", "42", "claude"],
+    ["array", "[]", "claude"],
+    ["invalid profile", JSON.stringify({ profile: "custom" }), "claude"],
+    ["non-object mcp_written", JSON.stringify({ mcp_written: [] }), "claude"],
+    ["non-object managed_files", JSON.stringify({ managed_files: [] }), "claude"],
+    ["invalid managed hash", JSON.stringify({ managed_files: { "agents/a.md": "bad" } }), "claude"],
+    [
+      "unsafe managed path",
+      JSON.stringify({ managed_files: { "../escape": "a".repeat(64) } }),
+      "both",
+    ],
+  ] as const)(
+    "strict sentinel rejects %s before uninstall mutates either product",
+    async (_label, sentinelBytes, target) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-strict-sentinel-"));
+      const claudeDir = join(home, ".claude");
+      const codexDir = join(home, ".codex");
+      try {
+        await Promise.all([
+          mkdir(claudeDir, { recursive: true }),
+          mkdir(codexDir, { recursive: true }),
+        ]);
+        const sentinelPath = join(claudeDir, ".cc-settings-version");
+        const personalPath = join(claudeDir, "personal.txt");
+        const codexMarker = join(codexDir, "personal.txt");
+        await Promise.all([
+          writeFile(sentinelPath, sentinelBytes),
+          writeFile(personalPath, "claude exact bytes\n"),
+          writeFile(codexMarker, "codex exact bytes\n"),
+        ]);
+
+        const result = await runInstall(home, ["--uninstall"], target);
+        expect(result.exitCode).not.toBe(0);
+        expect(await readFile(sentinelPath, "utf8")).toBe(sentinelBytes);
+        expect(await readFile(personalPath, "utf8")).toBe("claude exact bytes\n");
+        expect(await readFile(codexMarker, "utf8")).toBe("codex exact bytes\n");
+        expect(existsSync(join(claudeDir, "tmp"))).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test(
+    "uninstall removes the Claude footprint while preserving user files and backup history",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-uninstall-"));
+      const claudeDir = join(home, ".claude");
+      const userSettings = { personalSetting: "keep exactly" };
+      const userClaudeJson = {
+        mcpServers: {
+          personal: { command: "personal-mcp", args: ["--keep"] },
+        },
+      };
+      const personalFiles = new Map([
+        [join(claudeDir, "agents", "personal.md"), "personal agent\nsecond line\n"],
+        [join(claudeDir, "rules", "personal.md"), "# personal rule\n"],
+        [join(claudeDir, "skills", "personal", "SKILL.md"), "# Personal skill\n"],
+        [join(claudeDir, "output-styles", "personal.md"), "personal style bytes\n"],
+      ]);
+
+      try {
+        await mkdir(claudeDir, { recursive: true });
+        await writeFile(join(claudeDir, "settings.json"), `${JSON.stringify(userSettings)}\n`);
+        await writeFile(join(home, ".claude.json"), `${JSON.stringify(userClaudeJson)}\n`);
+
+        const install = await runInstall(home);
+        if (install.exitCode !== 0) {
+          throw new Error(
+            `full installer failed (${install.exitCode})\nstdout:\n${install.stdout}\nstderr:\n${install.stderr}`,
+          );
+        }
+
+        const backupsDir = join(claudeDir, "backups");
+        const backupsBefore = await readdir(backupsDir);
+        expect(backupsBefore.length).toBeGreaterThan(0);
+
+        const sentinelPath = join(claudeDir, ".cc-settings-version");
+        const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+          managed_files?: Record<string, string>;
+        };
+        expect(Object.keys(sentinel.managed_files ?? {}).length).toBeGreaterThan(0);
+        for (const [path, hash] of Object.entries(sentinel.managed_files ?? {})) {
+          expect(path.startsWith("/")).toBe(false);
+          expect(path.split(/[\\/]+/)).not.toContain("..");
+          expect(hash).toMatch(/^[a-f0-9]{64}$/);
+        }
+
+        for (const [path, bytes] of personalFiles) {
+          await mkdir(resolve(path, ".."), { recursive: true });
+          await writeFile(path, bytes);
+        }
+
+        const driftedRule = join(claudeDir, "rules", "future-source.md");
+        const driftedRuleBytes = "# newer source-owned name, not owned by this sentinel\n";
+        await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
+        await writeFile(driftedRule, driftedRuleBytes);
+
+        const claudeJson = JSON.parse(await readFile(join(home, ".claude.json"), "utf8")) as {
+          mcpServers: Record<string, unknown>;
+        };
+        const userFigma = { type: "http", url: "https://user.example/mcp" };
+        claudeJson.mcpServers.figma = userFigma;
+        await writeFile(join(home, ".claude.json"), `${JSON.stringify(claudeJson)}\n`);
+
+        for (const managedPath of [
+          "CLAUDE.md",
+          "AGENTS.md",
+          "src",
+          ".cc-settings-version",
+          "agents/reviewer.md",
+          "skills/fix/SKILL.md",
+          "rules/security.md",
+          "output-styles/darkroom.md",
+        ]) {
+          expect(existsSync(join(claudeDir, managedPath)), `${managedPath} must be installed`).toBe(
+            true,
+          );
+        }
+
+        const uninstall = await runInstall(home, ["--uninstall"]);
+        if (uninstall.exitCode !== 0) {
+          throw new Error(
+            `uninstall failed (${uninstall.exitCode})\nstdout:\n${uninstall.stdout}\nstderr:\n${uninstall.stderr}`,
+          );
+        }
+
+        for (const managedPath of [
+          "CLAUDE.md",
+          "AGENTS.md",
+          "src",
+          ".cc-settings-version",
+          "agents/reviewer.md",
+          "skills/fix",
+          "rules/security.md",
+          "output-styles/darkroom.md",
+        ]) {
+          expect(existsSync(join(claudeDir, managedPath)), `${managedPath} must be removed`).toBe(
+            false,
+          );
+        }
+        for (const [path, bytes] of personalFiles) {
+          expect(await readFile(path, "utf8")).toBe(bytes);
+        }
+        expect(await readFile(driftedRule, "utf8")).toBe(driftedRuleBytes);
+
+        expect(JSON.parse(await readFile(join(claudeDir, "settings.json"), "utf8"))).toEqual(
+          userSettings,
+        );
+        expect(JSON.parse(await readFile(join(home, ".claude.json"), "utf8"))).toEqual({
+          mcpServers: { ...userClaudeJson.mcpServers, figma: userFigma },
+        });
+        expect(await readdir(backupsDir)).toEqual(backupsBefore);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 90_000 },
+  );
+
+  test.each([
+    ["projects/user-data.json", "claude"],
+    ["output-styles/personal.md", "both"],
+    ["skills/personal/SKILL.md", "claude"],
+  ] as const)(
+    "uninstall rejects correctly hashed but unmanaged sentinel path %s for target %s",
+    async (relativePath, target) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-unmanaged-sentinel-path-"));
+      const claudeDir = join(home, ".claude");
+      try {
+        expect((await runInstall(home)).exitCode).toBe(0);
+        const sentinelPath = join(claudeDir, ".cc-settings-version");
+        const personalPath = join(claudeDir, relativePath);
+        const personalBytes = `personal bytes for ${relativePath}\n`;
+        await mkdir(resolve(personalPath, ".."), { recursive: true });
+        await writeFile(personalPath, personalBytes);
+        const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+          managed_files: Record<string, string>;
+        };
+        sentinel.managed_files[relativePath] = new Bun.CryptoHasher("sha256")
+          .update(personalBytes)
+          .digest("hex");
+        const sentinelBytes = `${JSON.stringify(sentinel, null, 2)}\n`;
+        await writeFile(sentinelPath, sentinelBytes);
+        const managedAgent = join(claudeDir, "agents", "implementer.md");
+        const managedAgentBytes = await readFile(managedAgent, "utf8");
+
+        const result = await runInstall(home, ["--uninstall"], target);
+        expect(result.exitCode).not.toBe(0);
+        expect(await readFile(sentinelPath, "utf8")).toBe(sentinelBytes);
+        expect(await readFile(personalPath, "utf8")).toBe(personalBytes);
+        expect(await readFile(managedAgent, "utf8")).toBe(managedAgentBytes);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    180_000,
+  );
+
+  test.each(["full", "light"] as const)(
+    "%s sentinel rejects every incomplete managed_files map and accepts the exact map",
+    async (profile) => {
+      const home = await mkdtemp(join(tmpdir(), `cc-e2e-managed-map-${profile}-`));
+      const claudeDir = join(home, ".claude");
+      try {
+        expect((await runInstall(home, profile === "light" ? ["--light"] : [])).exitCode).toBe(0);
+        const sentinelPath = join(claudeDir, ".cc-settings-version");
+        const original = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+          managed_files: Record<string, string>;
+        };
+        const paths = Object.keys(original.managed_files);
+        expect(paths).toEqual(
+          expect.arrayContaining([
+            ".cc-settings-hooks-fingerprint",
+            ".cc-settings-src-manifest",
+            "src/setup.ts",
+          ]),
+        );
+        if (profile === "full") expect(paths).toContain(".cc-settings-baseline.json");
+        const representative = paths.find((path) => existsSync(join(claudeDir, path)));
+        expect(representative).toBeDefined();
+        const managedPath = join(claudeDir, representative as string);
+        const managedBytes = await readFile(managedPath, "utf8");
+        for (const missing of [null, ...paths]) {
+          const managed_files =
+            missing === null
+              ? {}
+              : Object.fromEntries(
+                  Object.entries(original.managed_files).filter(([path]) => path !== missing),
+                );
+          const mutatedBytes = `${JSON.stringify({ ...original, managed_files }, null, 2)}\n`;
+          await writeFile(sentinelPath, mutatedBytes);
+          const uninstall = await runInstall(home, ["--uninstall"]);
+          expect(uninstall.exitCode, `missing ${missing ?? "all"}`).not.toBe(0);
+          expect(await readFile(sentinelPath, "utf8")).toBe(mutatedBytes);
+          expect(await readFile(managedPath, "utf8")).toBe(managedBytes);
+        }
+        await writeFile(sentinelPath, `${JSON.stringify(original, null, 2)}\n`);
+        expect((await runInstall(home, ["--uninstall"])).exitCode).toBe(0);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    300_000,
+  );
+
+  test("legacy absent managed_files fails closed before uninstall mutation", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-null-managed-map-"));
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+      const sentinelPath = join(home, ".claude", ".cc-settings-version");
+      const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as Record<string, unknown>;
+      delete sentinel.managed_files;
+      const sentinelBytes = `${JSON.stringify(sentinel, null, 2)}\n`;
+      await writeFile(sentinelPath, sentinelBytes);
+      const managedPath = join(home, ".claude", "agents", "implementer.md");
+      const managedBytes = await readFile(managedPath, "utf8");
+      const uninstall = await runInstall(home, ["--uninstall"]);
+      expect(uninstall.exitCode).not.toBe(0);
+      expect(await readFile(sentinelPath, "utf8")).toBe(sentinelBytes);
+      expect(await readFile(managedPath, "utf8")).toBe(managedBytes);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
+
+  test("an older Claude managed-file subset upgrades only when the newly managed path is absent", async () => {
+    const absentHome = await mkdtemp(join(tmpdir(), "cc-e2e-claude-upgrade-absent-"));
+    const liveHome = await mkdtemp(join(tmpdir(), "cc-e2e-claude-upgrade-live-"));
+    try {
+      for (const [home, removeLivePath, target] of [
+        [absentHome, true, "claude"],
+        [liveHome, false, "both"],
+      ] as const) {
+        expect((await runInstall(home, [], target)).exitCode).toBe(0);
+        const claudeDir = join(home, ".claude");
+        const sentinelPath = join(claudeDir, ".cc-settings-version");
+        const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+          managed_files: Record<string, string>;
+        };
+        const previousPaths = await claudeManagedAllowedPaths(REPO, "full", 1);
+        const newlyManaged = Object.keys(sentinel.managed_files).filter(
+          (path) => !previousPaths.has(path),
+        );
+        expect(newlyManaged).toEqual([
+          "src/lib/claude-managed-file-manifests.ts",
+          "src/lib/claude-managed-files.ts",
+        ]);
+        for (const path of newlyManaged) delete sentinel.managed_files[path];
+        (sentinel as Record<string, unknown>).managed_files_manifest_version = 1;
+        const sentinelBytes = `${JSON.stringify(sentinel, null, 2)}\n`;
+        await writeFile(sentinelPath, sentinelBytes);
+        const omittedPaths = newlyManaged.map((path) => join(claudeDir, path));
+        const originalBytes = await Promise.all(omittedPaths.map((path) => readFile(path, "utf8")));
+        if (removeLivePath) {
+          await Promise.all(omittedPaths.map((path) => rm(path)));
+        }
+        const codexPaths =
+          target === "both"
+            ? [
+                join(home, ".codex", ".cc-settings-version"),
+                join(home, ".codex", "AGENTS.md"),
+                join(home, ".codex", "agents", "implementer.toml"),
+                join(home, ".codex", "rules", "darkroom.rules"),
+              ]
+            : [];
+        const codexBefore = new Map(
+          await Promise.all(codexPaths.map(async (path) => [path, await readFile(path)] as const)),
+        );
+
+        const upgrade = await runInstall(home, [], target);
+        if (removeLivePath) {
+          expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
+          const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+            managed_files: Record<string, string>;
+          };
+          for (const [index, path] of newlyManaged.entries()) {
+            expect(upgraded.managed_files[path]).toMatch(/^[a-f0-9]{64}$/);
+            expect(await readFile(omittedPaths[index] as string, "utf8")).toBe(
+              originalBytes[index] as string,
+            );
+          }
+        } else {
+          expect(upgrade.exitCode).not.toBe(0);
+          expect(await readFile(sentinelPath, "utf8")).toBe(sentinelBytes);
+          for (const [index, path] of omittedPaths.entries()) {
+            expect(await readFile(path, "utf8")).toBe(originalBytes[index] as string);
+          }
+          for (const [path, bytes] of codexBefore) {
+            expect(await readFile(path), path).toEqual(bytes);
+          }
+        }
+      }
+    } finally {
+      await Promise.all([
+        rm(absentHome, { recursive: true, force: true }),
+        rm(liveHome, { recursive: true, force: true }),
+      ]);
+    }
+  }, 240_000);
+
+  test("unsafe managed_files paths abort uninstall without touching managed state", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-uninstall-unsafe-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      const install = await runInstall(home);
+      expect(install.exitCode).toBe(0);
+      const sentinelPath = join(claudeDir, ".cc-settings-version");
+      const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+      };
+      sentinel.managed_files["../escape"] = "0".repeat(64);
+      const sentinelBytes = `${JSON.stringify(sentinel, null, 2)}\n`;
+      await writeFile(sentinelPath, sentinelBytes);
+      const managedPath = join(claudeDir, "agents", "reviewer.md");
+      const managedBytes = await readFile(managedPath, "utf8");
+
+      const uninstall = await runInstall(home, ["--uninstall"]);
+      expect(uninstall.exitCode).not.toBe(0);
+      expect(await readFile(sentinelPath, "utf8")).toBe(sentinelBytes);
+      expect(await readFile(managedPath, "utf8")).toBe(managedBytes);
+      expect(existsSync(join(home, "escape"))).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("both-target light rollback restores full Claude ownership before clean uninstall", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-both-rollback-uninstall-"));
+    const claudeDir = join(home, ".claude");
+    const personalPath = join(claudeDir, "agents", "personal.md");
+    const userSettings = { personalSetting: "keep" };
+    const userClaudeJson = {
+      mcpServers: { personal: { command: "personal-mcp", args: ["--keep"] } },
+    };
+    try {
+      await mkdir(join(claudeDir, "agents"), { recursive: true });
+      await Promise.all([
+        writeFile(join(claudeDir, "settings.json"), `${JSON.stringify(userSettings)}\n`),
+        writeFile(join(home, ".claude.json"), `${JSON.stringify(userClaudeJson)}\n`),
+      ]);
+
+      const full = await runInstall(home, [], "both");
+      expect(full.exitCode).toBe(0);
+      expect(existsSync(join(claudeDir, ".cc-settings-baseline.json"))).toBe(true);
+      await writeFile(personalPath, "personal exact bytes\n");
+      expect(
+        (await readFile(join(claudeDir, ".cc-settings-version"), "utf8")).length,
+      ).toBeGreaterThan(0);
+
+      const light = await runInstall(home, ["--light"], "both");
+      expect(light.exitCode).toBe(0);
+      expect(
+        JSON.parse(await readFile(join(claudeDir, ".cc-settings-version"), "utf8")).profile,
+      ).toBe("light");
+      const lightSentinel = JSON.parse(
+        await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
+      ) as { managed_files: Record<string, string> };
+      expect(lightSentinel.managed_files[".cc-settings-baseline.json"]).toBeUndefined();
+      expect(existsSync(join(claudeDir, ".cc-settings-baseline.json"))).toBe(false);
+
+      const rollback = await runInstall(home, ["--rollback"], "both");
+      if (rollback.exitCode !== 0) {
+        throw new Error(
+          `both-target rollback failed (${rollback.exitCode})\nstdout:\n${rollback.stdout}\nstderr:\n${rollback.stderr}`,
+        );
+      }
+      const restored = JSON.parse(
+        await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
+      ) as {
+        profile?: unknown;
+        mcp_written?: unknown;
+        managed_files?: unknown;
+      };
+      expect(restored.profile).toBe("full");
+      expect(typeof restored.mcp_written).toBe("object");
+      expect(Array.isArray(restored.mcp_written)).toBe(false);
+      expect(Object.keys(restored.mcp_written as Record<string, unknown>).length).toBeGreaterThan(
+        0,
+      );
+      expect(typeof restored.managed_files).toBe("object");
+      expect(Array.isArray(restored.managed_files)).toBe(false);
+      expect(Object.keys(restored.managed_files as Record<string, unknown>).length).toBeGreaterThan(
+        0,
+      );
+      expect(
+        (restored.managed_files as Record<string, unknown>)[".cc-settings-baseline.json"],
+      ).toMatch(/^[a-f0-9]{64}$/);
+      expect(existsSync(join(claudeDir, ".cc-settings-baseline.json"))).toBe(true);
+      for (const path of [
+        "skills/fix/SKILL.md",
+        "src/setup.ts",
+        ".cc-settings-hooks-fingerprint",
+        ".cc-settings-src-manifest",
+        ".cc-settings-baseline.json",
+      ]) {
+        expect(existsSync(join(claudeDir, path)), `${path} must be restored`).toBe(true);
+      }
+
+      const backupsDir = join(claudeDir, "backups");
+      const backupsBeforeUninstall = (await readdir(backupsDir)).filter((name) =>
+        name.endsWith(".tar.gz"),
+      );
+      const uninstall = await runInstall(home, ["--uninstall"], "both");
+      expect(uninstall.exitCode).toBe(0);
+      for (const path of [
+        ".cc-settings-version",
+        "skills/fix",
+        "src",
+        ".cc-settings-hooks-fingerprint",
+        ".cc-settings-src-manifest",
+      ]) {
+        expect(existsSync(join(claudeDir, path)), `${path} must be removed`).toBe(false);
+      }
+      expect(await readFile(personalPath, "utf8")).toBe("personal exact bytes\n");
+      expect(JSON.parse(await readFile(join(claudeDir, "settings.json"), "utf8"))).toEqual(
+        userSettings,
+      );
+      expect(JSON.parse(await readFile(join(home, ".claude.json"), "utf8"))).toEqual(
+        userClaudeJson,
+      );
+      const backupsAfterUninstall = (await readdir(backupsDir)).filter((name) =>
+        name.endsWith(".tar.gz"),
+      );
+      expect(backupsAfterUninstall.length).toBe(backupsBeforeUninstall.length + 1);
+      for (const backup of backupsBeforeUninstall) expect(backupsAfterUninstall).toContain(backup);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 240_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -229,12 +1928,10 @@ describe("install E2E — light profile", () => {
         expect(existsSync(join(claudeDir, "CLAUDE.md"))).toBe(false);
         // No AGENTS.md.
         expect(existsSync(join(claudeDir, "AGENTS.md"))).toBe(false);
-        // No rules/.
-        expect(existsSync(join(claudeDir, "rules"))).toBe(false);
-        // No contexts/.
-        expect(existsSync(join(claudeDir, "contexts"))).toBe(false);
-        // No profiles/.
-        expect(existsSync(join(claudeDir, "profiles"))).toBe(false);
+        for (const dir of ["rules", "contexts", "profiles"]) {
+          const entries = await readdir(join(claudeDir, dir)).catch(() => []);
+          expect(entries, `${dir}/ must contain no managed light-profile files`).toHaveLength(0);
+        }
         // No docs/ (or empty).
         if (existsSync(join(claudeDir, "docs"))) {
           const docFiles = (await readdir(join(claudeDir, "docs")).catch(() => [])).filter((f) =>
@@ -268,8 +1965,15 @@ describe("install E2E — light profile", () => {
         // Sentinel profile === "light".
         const sentinel = JSON.parse(
           await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
-        ) as { profile?: string };
+        ) as { profile?: string; managed_files?: Record<string, string> };
         expect(sentinel.profile).toBe("light");
+        expect(sentinel.managed_files?.[".cc-settings-baseline.json"]).toBeUndefined();
+        expect(existsSync(join(claudeDir, ".cc-settings-baseline.json"))).toBe(false);
+
+        const uninstall = await runInstall(home, ["--uninstall"]);
+        expect(uninstall.exitCode).toBe(0);
+        expect(existsSync(join(claudeDir, ".cc-settings-version"))).toBe(false);
+        expect(existsSync(join(claudeDir, "src"))).toBe(false);
       } finally {
         await rm(home, { recursive: true, force: true });
       }
@@ -322,17 +2026,10 @@ describe("install E2E — light profile", () => {
           );
           expect(agentFiles.length).toBe(0);
         }
-        // No rules.
-        expect(existsSync(join(claudeDir, "rules"))).toBe(false);
-        // No contexts.
-        expect(existsSync(join(claudeDir, "contexts"))).toBe(false);
-        // No profiles.
-        expect(existsSync(join(claudeDir, "profiles"))).toBe(false);
-        // No docs. This one was pruned but unasserted — `docs` is in
-        // PROFILE_MANIFEST.full.dirs and load-bearing in lightProfilePruneTargets
-        // (cleanOldConfig only glob-wipes *.md inside it), so without this line a
-        // regression that stopped pruning it would ship silently.
-        expect(existsSync(join(claudeDir, "docs"))).toBe(false);
+        for (const dir of ["rules", "contexts", "profiles", "docs"]) {
+          const entries = await readdir(join(claudeDir, dir)).catch(() => []);
+          expect(entries, `${dir}/ must contain no managed full-profile files`).toHaveLength(0);
+        }
 
         // settings.json: no cc-settings env, no cc-settings permissions, no cc-settings hooks.
         const settings = JSON.parse(
@@ -366,8 +2063,15 @@ describe("install E2E — light profile", () => {
         // Sentinel profile === "light".
         const sentinel = JSON.parse(
           await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
-        ) as { profile?: string };
+        ) as { profile?: string; managed_files?: Record<string, string> };
         expect(sentinel.profile).toBe("light");
+        expect(sentinel.managed_files?.[".cc-settings-baseline.json"]).toBeUndefined();
+        expect(existsSync(join(claudeDir, ".cc-settings-baseline.json"))).toBe(false);
+
+        const uninstall = await runInstall(home, ["--uninstall"]);
+        expect(uninstall.exitCode).toBe(0);
+        expect(existsSync(join(claudeDir, ".cc-settings-version"))).toBe(false);
+        expect(existsSync(join(claudeDir, "src"))).toBe(false);
       } finally {
         await rm(home, { recursive: true, force: true });
       }

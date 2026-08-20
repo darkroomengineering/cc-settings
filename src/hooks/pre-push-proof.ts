@@ -44,7 +44,10 @@
 // across them — proof.ts caches nothing, and a push can happen without a PR
 // ever following (or vice versa), so there's no single result to share.
 
+import { join } from "node:path";
 import { blockDecision, runHook } from "../lib/hook-runtime.ts";
+import { CLAUDE_DIR } from "../lib/platform.ts";
+import { scrubProjectSubprocessEnv } from "../lib/tsc.ts";
 
 /** Split a command line on unquoted shell separators (&&, ||, ;, &, |,
  *  newline). A naive `cmd.split(/&&|\|\||[;&|\n]/)` also splits INSIDE quoted
@@ -131,8 +134,15 @@ async function main(): Promise<void> {
   const cmd = process.env.TOOL_INPUT_command ?? "";
   if (!shouldGate(cmd)) return; // allow
 
-  const proc = Bun.spawn(["bun", `${process.env.HOME}/.claude/src/scripts/proof.ts`], {
+  const proofRunner = join(
+    process.env.CC_SETTINGS_SOURCE ?? CLAUDE_DIR,
+    "src",
+    "scripts",
+    "proof.ts",
+  );
+  const proc = Bun.spawn(["bun", proofRunner], {
     cwd: process.cwd(),
+    env: scrubProjectSubprocessEnv(),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -152,7 +162,7 @@ async function main(): Promise<void> {
   const report = combined.trimEnd().split("\n").slice(-30).join("\n");
   blockDecision(
     "Pre-push proof gate: verification is red — not review-ready. Fix the failing " +
-      `gate below, then push again. Reproduce with: bun "$HOME/.claude/src/scripts/proof.ts"\n\n${report}`,
+      `gate below, then push again. Reproduce with: bun "${proofRunner}"\n\n${report}`,
   ); // emits the block decision + exit 2
 }
 

@@ -6,7 +6,29 @@ context: fork
 
 # Bug Fix Workflow
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "fix" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip the Claude marker and `!command` interpolation below. Run `git
+branch --show-current`, `git log --oneline -5`, and `git status --porcelain`
+explicitly. Create each new agent with `spawn_agent`, continue a live agent with
+`send_message`, trigger another turn for an idle existing agent with
+`followup_task`, wait with `wait_agent`, and stop a current turn with
+`interrupt_agent` only when necessary. Never spawn `codex-verifier` and never
+run `codex-run.ts` from inside Codex.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Give every writer non-overlapping ownership and serialize the
+test-writer, implementer, and verification writer phases. Only read-only
+reviewers may overlap. Wait until the explorer finishes before starting a test
+writer; wait until that writer finishes before implementation. Codex
+implementers are not promised Claude worktree isolation.
+
+Use Context7 only when the user configured it. Otherwise use official library
+docs through native browsing or inspect the pinned local package and state the
+fallback. This package does not auto-run unpinned registry MCP packages.
+
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "fix" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 You are in **Maestro orchestration mode**. Delegate immediately to specialized agents.
 
@@ -45,8 +67,8 @@ Agent(explore, "Investigate the bug: $ARGUMENTS. Find relevant files, trace the 
 Agent(tester, "Create a failing test that reproduces: $ARGUMENTS")
 ```
 
-**Then assemble the implementer prompt from the actual outputs.** Implementer
-runs in an isolated worktree with no access to prior agent results, so paste
+**Claude: then assemble the implementer prompt from the actual outputs.** The
+Claude implementer runs in an isolated worktree with no access to prior agent results, so paste
 real content — not placeholders, not references:
 
 - The user's original ask (`$ARGUMENTS`) verbatim
@@ -61,6 +83,10 @@ Now spawn:
 Agent(implementer, "<the assembled briefing above — all five items inline>")
 Agent(reviewer, "Quick review of the fix for quality and edge cases")
 ```
+
+**Standalone Codex branch:** follow the lifecycle and serialization rules at
+the top. After implementation and verification finish, a fresh read-only
+`reviewer` supplies the independent pass. Skip the Claude bridge branch below.
 
 Any fix that produced a diff gets a cross-model review in parallel with the
 reviewer, when the Codex bridge is available — a non-Claude family is the
@@ -88,7 +114,7 @@ Return a concise summary:
 
 ## Remember
 
-- If the fix involves a library API, **fetch docs first** via Context7 MCP — APIs change between versions
+- If the fix involves a library API, fetch current docs first using the host-specific path above
 - Always store non-obvious bug fixes as learnings
 - Check if similar bugs were fixed before (recall learnings)
 - Run tests after fixing

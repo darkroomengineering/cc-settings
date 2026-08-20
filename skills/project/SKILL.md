@@ -5,7 +5,7 @@ description: GitHub Issues as PLAN.md replacement — agents read/update them. A
 
 # GitHub Project Sync
 
-Bridge between Claude Code sessions and GitHub Issues/Projects. Issues are the plan — agents read them for context and update them with progress.
+Bridge between coding-agent sessions and GitHub Issues/Projects. Issues are the plan — agents read them for context and update them with progress.
 
 ## Core Concept
 

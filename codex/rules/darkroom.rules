@@ -1,0 +1,139 @@
+prefix_rule(
+    pattern = ["git", "push", ["--force", "-f", "--force-with-lease", "--force-if-includes"]],
+    decision = "forbidden",
+    justification = "Force-pushing rewrites shared history.",
+    match = ["git push --force origin main", "git push -f origin feature"],
+    not_match = ["git push origin main", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "Pushing changes external state and suffix force flags cannot be classified by prefix-only rules.",
+    match = ["git push origin main", "git push -uf origin main", "git push origin main --force"],
+    not_match = ["git status --short", "git pull --ff-only"],
+)
+
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "forbidden",
+    justification = "A hard reset can discard uncommitted work.",
+    match = ["git reset --hard", "git reset --hard HEAD~1"],
+    not_match = ["git reset --soft HEAD~1", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["git", "clean", ["-f", "-fd", "-df", "--force"]],
+    decision = "prompt",
+    justification = "Cleaning can permanently delete untracked files.",
+    match = ["git clean -f", "git clean -fd"],
+    not_match = ["git clean -n", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["git", "checkout", "--"],
+    decision = "prompt",
+    justification = "Checking out paths can overwrite local changes.",
+    match = ["git checkout -- src/app.ts"],
+    not_match = ["git checkout feature", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["git", "restore"],
+    decision = "prompt",
+    justification = "Restoring paths can overwrite uncommitted changes.",
+    match = ["git restore .", "git restore --source HEAD src/app.ts"],
+    not_match = ["git status --short", "git diff -- src/app.ts"],
+)
+
+prefix_rule(
+    pattern = ["git", "stash"],
+    decision = "prompt",
+    justification = "Stash operations can hide or permanently discard local work.",
+    match = ["git stash", "git stash clear"],
+    not_match = ["git status --short", "git log --oneline"],
+)
+
+prefix_rule(
+    pattern = ["git", "worktree", "remove"],
+    decision = "prompt",
+    justification = "Removing a worktree can discard work in that checkout.",
+    match = ["git worktree remove ../feature", "git worktree remove --force ../feature"],
+    not_match = ["git worktree list", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["rm", ["-rf", "-fr", "-Rf", "-fR"]],
+    decision = "prompt",
+    justification = "Recursive forced removal can permanently delete a directory tree.",
+    match = ["rm -rf .", "rm -fr build"],
+    not_match = ["rm file.txt", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["rm", ["-r", "-R", "--recursive"], ["-f", "--force"]],
+    decision = "prompt",
+    justification = "Recursive forced removal can permanently delete a directory tree.",
+    match = ["rm -r -f .", "rm --recursive --force build"],
+    not_match = ["rm -r build", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["rm", ["-f", "--force"], ["-r", "-R", "--recursive"]],
+    decision = "prompt",
+    justification = "Recursive forced removal can permanently delete a directory tree.",
+    match = ["rm -f -r .", "rm --force --recursive build"],
+    not_match = ["rm -f file.txt", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["git", "branch", ["-d", "-D", "--delete"]],
+    decision = "prompt",
+    justification = "Deleting a branch can remove work that has not been merged.",
+    match = ["git branch -d feature", "git branch -D abandoned"],
+    not_match = ["git branch --list", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["sudo"],
+    decision = "prompt",
+    justification = "Elevated commands can modify the host outside the workspace sandbox.",
+    match = ["sudo apt update", "sudo rm file"],
+    not_match = ["git status --short"],
+)
+
+prefix_rule(
+    pattern = ["chmod", "777"],
+    decision = "prompt",
+    justification = "World-writable permissions create a security risk.",
+    match = ["chmod 777 script.sh"],
+    not_match = ["chmod 755 script.sh", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["gh", "repo", "delete"],
+    decision = "prompt",
+    justification = "Deleting a GitHub repository is destructive and externally visible.",
+    match = ["gh repo delete owner/repo"],
+    not_match = ["gh repo view owner/repo", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["gh", "release", "delete"],
+    decision = "prompt",
+    justification = "Deleting a GitHub release removes published artifacts.",
+    match = ["gh release delete v1.0.0"],
+    not_match = ["gh release view v1.0.0", "git status --short"],
+)
+
+prefix_rule(
+    pattern = ["gh", "api"],
+    decision = "prompt",
+    justification = "Raw GitHub API calls can read or mutate external state.",
+    match = [
+        "gh api --method DELETE repos/owner/repo/releases/1",
+        "gh api repos/owner/repo/git/refs/heads/feature -X DELETE",
+        "gh api repos/owner/repo",
+    ],
+    not_match = ["gh repo view owner/repo", "git status --short"],
+)

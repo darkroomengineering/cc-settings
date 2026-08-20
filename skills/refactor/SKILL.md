@@ -6,7 +6,21 @@ context: fork
 
 # Refactoring Workflow
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "refactor" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip the Claude marker below. Create each new agent with `spawn_agent`, deliver
+context to a running agent with `send_message`, trigger another turn for an idle
+existing agent with `followup_task`, wait with `wait_agent`, and stop a current
+turn with `interrupt_agent` only when necessary. Never spawn `codex-verifier`
+and never run `codex-run.ts` from inside Codex.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Assign non-overlapping ownership and serialize planner handoff,
+implementer, and test-writer phases; only read-only reviewers may overlap.
+Codex implementers are not promised Claude worktree isolation.
+
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "refactor" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 You are in **Maestro orchestration mode**. Delegate immediately.
 
@@ -29,8 +43,8 @@ Agent(explore, "Analyze the code to refactor: $ARGUMENTS. Identify patterns, iss
 Agent(planner, "Design refactoring approach based on analysis. Keep behavior unchanged.")
 ```
 
-**Then assemble the implementer prompt from the actual planner output.**
-Implementer runs in an isolated worktree with no access to prior agent
+**Claude: then assemble the implementer prompt from the actual planner output.**
+The Claude implementer runs in an isolated worktree with no access to prior agent
 results, so paste the real plan — not "according to plan":
 
 - The user's refactor target (`$ARGUMENTS`) verbatim
@@ -46,6 +60,10 @@ Agent(implementer, "<the assembled briefing above — all five items inline>")
 Agent(tester, "Verify refactored code behaves identically to original.")
 Agent(reviewer, "Review refactoring for quality and completeness.")
 ```
+
+**Standalone Codex branch:** follow the lifecycle and serialization rules at
+the top. Use a fresh read-only `reviewer` for the independent pass after the
+writer and tester finish. Skip the Claude bridge branch below.
 
 Refactors are a top source of subtle regressions — behavior that "shouldn't change" quietly does. When the Codex bridge is available, run a cross-model review in parallel with the reviewer:
 

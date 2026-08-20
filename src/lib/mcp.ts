@@ -45,7 +45,7 @@ import { McpServers as McpServersSchema } from "../schemas/mcp.ts";
 import { ENGINES, getEngine } from "./code-intel-engine.ts";
 import { debug } from "./colors.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
-import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
+import { asRecord, canonicalKey } from "./merge-keyed.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 
 export type { McpServers };
@@ -287,18 +287,27 @@ export async function installMcpToClaudeJson(
 export async function removeManagedMcpServers(
   fullComposed: Record<string, unknown>,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
+  mcpWritten?: Record<string, unknown> | null,
 ): Promise<void> {
   const fullMcp = asRecord(fullComposed.mcpServers);
-  if (Object.keys(fullMcp).length === 0) return;
+  const priorMcp = asRecord(mcpWritten);
+  if (Object.keys(fullMcp).length === 0 && Object.keys(priorMcp).length === 0) return;
 
   const parsed = await readJsonOrNull(claudeJsonPath);
   if (!parsed || typeof parsed !== "object") return;
   const current = parsed as Record<string, unknown>;
   const currentMcp = asRecord(current.mcpServers);
 
-  // Keep only the servers that are NOT cc-settings-managed (absent from the
-  // full baseline) — keyed subtraction on the server name.
-  const kept = subtractByKey(Object.entries(currentMcp), Object.entries(fullMcp), ([key]) => key);
+  const kept = Object.entries(currentMcp).filter(([name, entry]) => {
+    const currentDefinition = fullMcp[name];
+    const recordedDefinition = priorMcp[name];
+    return !(
+      (currentDefinition !== undefined &&
+        functionalKey(entry) === functionalKey(currentDefinition)) ||
+      (recordedDefinition !== undefined &&
+        functionalKey(entry) === functionalKey(recordedDefinition))
+    );
+  });
 
   const updated = { ...current };
   if (kept.length === 0) {

@@ -6,6 +6,25 @@ context: fork
 
 # Consolidate Rules, Skills, and Learnings
 
+## Standalone Codex mode
+
+Audit `${CODEX_HOME:-$HOME/.codex}/AGENTS.md`, native
+`${CODEX_HOME:-$HOME/.codex}/agents/`, native
+`${CODEX_HOME:-$HOME/.codex}/rules/`, and the managed skills in the real
+cc-settings checkout named by
+`${CODEX_HOME:-$HOME/.codex}/.cc-settings-version` `repo_path`. Validate that
+path is a git checkout of `darkroomengineering/cc-settings` before treating it
+as source. The installed plugin/cache and `darkroom/source` runtime copy may be
+read to diagnose drift, but must never be edited as though either were the git
+source.
+
+Claude auto-memory and `CLAUDE.md` cleanup are unavailable in standalone
+Codex. Skip those counts and phases rather than redirecting them into
+`~/.claude`. Verify native agent/rule references and managed source skill
+triggers, then ask before deleting anything.
+
+The remaining path examples describe Claude Code.
+
 ## Phase 1: Audit
 
 ### Count everything

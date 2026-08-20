@@ -10,6 +10,20 @@ requires:
 
 # TLDR Code Analysis
 
+## Standalone Codex fallback
+
+cc-settings does not install the TLDR MCP into standalone Codex. Ignore the
+Claude `context`, `allowed-tools`, and `requires` frontmatter in that host and
+keep the task read-only with native tools. Use `rg --files` to map the tree,
+`rg -n '<symbol|pattern>'` for exact references, direct import searches such as
+`rg -n 'from .*<module>|require\(.*<module>'`, and caller searches for the
+symbol followed by focused file reads. Use `git diff --name-only` plus test-name
+and import searches for change impact.
+
+Do not invoke or claim to have invoked a TLDR MCP in standalone Codex. Report
+the native searches actually run and their limitations. The remaining workflow
+is for Claude hosts with the configured TLDR MCP.
+
 Token-efficient codebase analysis behind the `tldr` MCP server. It returns the symbols, edges, and slices you asked for instead of whole file bodies, so a question that would cost several full reads costs one small structured answer.
 
 > No measured savings figure is published here on purpose. cc-settings carried a "~95% fewer tokens" claim for months with no benchmark behind it anywhere in the repo — the kind of number `AGENTS.md` now forbids (*No savings against a run that never happened*). To get a real figure, answer the same question both ways and compare the token counts your own session reports.

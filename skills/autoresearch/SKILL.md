@@ -7,6 +7,13 @@ argument-hint: "[skill-name]"
 
 # AutoResearch
 
+## Standalone Codex: unsupported
+
+Stop here in standalone Codex. This workflow depends on a measured Claude
+subprocess isolation and model-pinning loop. Do not substitute native agents or
+claim comparable scores until a Codex equivalent has its own controlled,
+repeatable measurements. The remaining workflow is Claude-only.
+
 Autonomous skill optimization. You modify a skill's prompt, test it, keep improvements, revert failures. Repeat forever.
 
 Adapted from [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). Same method: single editable file, single metric, git-based keep/revert, autonomous loop. The only difference: `SKILL.md` replaces `train.py`, checklist pass rate replaces `val_bpb`.

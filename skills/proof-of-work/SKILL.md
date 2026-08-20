@@ -12,7 +12,9 @@ The Amdahl-shrink move from the Orchestration Tax: human review is the serial bo
 Run the battery on the current working tree:
 
 ```bash
-bun "$HOME/.claude/src/scripts/proof.ts"
+PROOF_RUNNER="${CODEX_HOME:-$HOME/.codex}/darkroom/source/src/scripts/proof.ts"
+[ -f "$PROOF_RUNNER" ] || PROOF_RUNNER="$HOME/.claude/src/scripts/proof.ts"
+bun "$PROOF_RUNNER"
 ```
 
 This is the portable installed runner — it works in any repo. (`bun run proof` is a shortcut that only exists inside the cc-settings repo itself; don't reach for it in a consumer project.) It detects `typecheck` / `test` / `lint` from the project's `package.json`, runs them cheapest-first, and prints one verdict:
@@ -23,6 +25,22 @@ This is the portable installed runner — it works in any repo. (`bun run proof`
 Projects can opt into **advisory** probes by depending on the tool — the gate then runs the project's pinned binary: **react-doctor** (React render/quality score, telemetry off) and/or **deslop** (framework-agnostic cross-file dead-code count). Advisory results are reported but never flip the verdict — deterministic signals alongside the hard gates, not blockers. Silent for projects that don't depend on them.
 
 For UI changes, attach a screenshot (`/qa` or the chrome-devtools MCP) as the visual half of the proof — tests can't prove "looks right".
+
+## Standalone Codex semantic probe
+
+Use `spawn_agent` to create a fresh read-only `reviewer`, `send_message` to
+deliver context while it runs, `followup_task` to trigger another turn once it
+is idle, `wait_agent` to wait, and `interrupt_agent` only to stop its current
+turn. Treat findings as advisory beside
+the mechanical verdict. Never spawn `codex-verifier` and never run `codex-run.ts` from inside Codex.
+Skip the Claude bridge branch below.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Only read-only reviewers may overlap; serialize any implementer and
+test-writer remediation with non-overlapping ownership. For UI proof, use the
+Chrome MCP only when the user configured it. Otherwise use native/manual
+screenshot tooling and state what could not be visually verified. This package
+does not auto-run unpinned registry MCP packages.
 
 ## Advisory: cross-model semantic probe (when the Codex bridge is available)
 

@@ -27,7 +27,10 @@
 // Fail-open on infrastructure errors only (couldn't spawn the runner): a hook
 // bug must never wedge PR creation.
 
+import { join } from "node:path";
 import { blockDecision, runHook } from "../lib/hook-runtime.ts";
+import { CLAUDE_DIR } from "../lib/platform.ts";
+import { scrubProjectSubprocessEnv } from "../lib/tsc.ts";
 
 /** True if one shell segment is a `gh pr create/ready` invocation that should be
  *  gated. Matches `gh` with optional global options before `pr` (e.g.
@@ -61,8 +64,15 @@ async function main(): Promise<void> {
   const cmd = process.env.TOOL_INPUT_command ?? "";
   if (!shouldGate(cmd)) return; // allow
 
-  const proc = Bun.spawn(["bun", `${process.env.HOME}/.claude/src/scripts/proof.ts`], {
+  const proofRunner = join(
+    process.env.CC_SETTINGS_SOURCE ?? CLAUDE_DIR,
+    "src",
+    "scripts",
+    "proof.ts",
+  );
+  const proc = Bun.spawn(["bun", proofRunner], {
     cwd: process.cwd(),
+    env: scrubProjectSubprocessEnv(),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -83,7 +93,7 @@ async function main(): Promise<void> {
   blockDecision(
     "Pre-PR proof gate: verification is red — not review-ready. Fix the failing " +
       "gate below, or open a draft (gh pr create --draft) if this is intentional " +
-      `WIP.\n\n${report}`,
+      `WIP. Reproduce with: bun "${proofRunner}"\n\n${report}`,
   ); // emits the block decision + exit 2
 }
 

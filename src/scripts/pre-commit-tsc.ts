@@ -2,10 +2,11 @@
 // PreToolUse hook on `git commit*`: run tsc --noEmit, block commit on errors.
 // Extracted from inline `bash -c '…'` in settings.json — Phase 6.2.
 //
-// Contract: exit 0 allows, non-zero blocks (Claude Code surfaces stderr).
+// Contract: exit 0 allows; exit 2 blocks in both Claude Code and Codex, with
+// stderr surfaced as the reason.
 //
 // Fail-open on infrastructure errors only (bunx missing, OOM, etc.). A genuine
-// `error TS<N>` from tsc still exits 1 and blocks the commit — that's the
+// `error TS<N>` from tsc still exits 2 and blocks the commit — that's the
 // guard rail we want to preserve.
 
 import { existsSync } from "node:fs";
@@ -32,7 +33,7 @@ async function main(): Promise<number> {
     // Tail the last 20 lines for the user to act on.
     const lines = combined.trimEnd().split("\n").slice(-20);
     for (const line of lines) console.error(line);
-    return 1;
+    return 2;
   }
   return 0;
 }
@@ -42,7 +43,7 @@ try {
   exitCode = await main();
 } catch {
   // Infrastructure failure (bunx missing, spawn crashed) — fail-open, don't
-  // block the commit on a hook bug. Genuine TS errors return 1 from main()
+  // block the commit on a hook bug. Genuine TS errors return 2 from main()
   // and bypass this catch.
   exitCode = 0;
 }

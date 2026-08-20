@@ -48,9 +48,9 @@ interface LockRecord {
 }
 
 /** Read the current lockfile's owner token, or null if absent/unparsable. */
-async function readLockToken(): Promise<string | null> {
+async function readLockToken(lockPath: string): Promise<string | null> {
   try {
-    const parsed = JSON.parse(await readFile(LOCK_PATH, "utf8")) as Partial<LockRecord>;
+    const parsed = JSON.parse(await readFile(lockPath, "utf8")) as Partial<LockRecord>;
     return typeof parsed.token === "string" ? parsed.token : null;
   } catch {
     return null;
@@ -60,14 +60,14 @@ async function readLockToken(): Promise<string | null> {
 /** Atomic exclusive create stamped with our owner token. Throws EEXIST if the
  *  lockfile already exists. On a write failure, removes the empty lock it just
  *  created so a partial write can't wedge every future install. */
-async function createLockExclusive(token: string): Promise<void> {
-  const handle = await open(LOCK_PATH, "wx");
+async function createLockExclusive(lockPath: string, token: string): Promise<void> {
+  const handle = await open(lockPath, "wx");
   try {
     const record: LockRecord = { pid: process.pid, token, at: new Date().toISOString() };
     await handle.writeFile(JSON.stringify(record));
   } catch (err) {
     await handle.close().catch(() => {});
-    await rm(LOCK_PATH, { force: true }).catch(() => {});
+    await rm(lockPath, { force: true }).catch(() => {});
     throw err;
   }
   await handle.close();
@@ -75,9 +75,9 @@ async function createLockExclusive(token: string): Promise<void> {
 
 /** Age of the lockfile in ms, or Infinity if it's gone/unreadable (treat an
  *  unreadable lock as maximally stale so it can be reclaimed). */
-async function lockAgeMs(): Promise<number> {
+async function lockAgeMs(lockPath: string): Promise<number> {
   try {
-    const st = await stat(LOCK_PATH);
+    const st = await stat(lockPath);
     return Date.now() - st.mtimeMs;
   } catch {
     return Number.POSITIVE_INFINITY;
@@ -85,9 +85,9 @@ async function lockAgeMs(): Promise<number> {
 }
 
 /** Read the owner pid recorded in the lockfile, or null if absent/unparsable. */
-async function readLockPid(): Promise<number | null> {
+async function readLockPid(lockPath: string): Promise<number | null> {
   try {
-    const parsed = JSON.parse(await readFile(LOCK_PATH, "utf8")) as Partial<LockRecord>;
+    const parsed = JSON.parse(await readFile(lockPath, "utf8")) as Partial<LockRecord>;
     return typeof parsed.pid === "number" ? parsed.pid : null;
   } catch {
     return null;
@@ -116,10 +116,10 @@ export function isProcessAlive(pid: number): boolean {
  *   - owner process still alive → NOT stale (keep waiting),
  *   - owner dead/unknown → stale once past the soft window.
  */
-async function lockIsStale(): Promise<boolean> {
-  const ageMs = await lockAgeMs();
+async function lockIsStale(lockPath: string): Promise<boolean> {
+  const ageMs = await lockAgeMs(lockPath);
   if (ageMs > HARD_STALE_MS) return true;
-  const pid = await readLockPid();
+  const pid = await readLockPid(lockPath);
   if (pid !== null && isProcessAlive(pid)) return false;
   return ageMs > STALE_MS;
 }
@@ -127,10 +127,10 @@ async function lockIsStale(): Promise<boolean> {
 /** Release that only removes the lock if it still carries OUR token — so a run
  *  whose (stale) lock was reclaimed by another never deletes that other run's
  *  live lock. */
-function releaser(token: string): () => Promise<void> {
+function releaser(lockPath: string, token: string): () => Promise<void> {
   return async () => {
-    if ((await readLockToken()) === token) {
-      await rm(LOCK_PATH, { force: true }).catch(() => {});
+    if ((await readLockToken(lockPath)) === token) {
+      await rm(lockPath, { force: true }).catch(() => {});
     }
   };
 }
@@ -140,24 +140,26 @@ function releaser(token: string): () => Promise<void> {
  * a finally once the destructive phase completes. Throws InstallLockError if a
  * live install already holds it.
  */
-export async function acquireInstallLock(): Promise<() => Promise<void>> {
+export async function acquireInstallLock(
+  lockPath: string = LOCK_PATH,
+): Promise<() => Promise<void>> {
   // The lock is taken before createDirectories runs, so ensure its parent
   // (~/.claude/tmp) exists first — otherwise the O_EXCL create fails ENOENT on
   // a first-ever install.
-  await mkdir(dirname(LOCK_PATH), { recursive: true });
+  await mkdir(dirname(lockPath), { recursive: true });
 
   const token = randomUUID();
   try {
-    await createLockExclusive(token);
-    return releaser(token);
+    await createLockExclusive(lockPath, token);
+    return releaser(lockPath, token);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
   }
 
   // Lock present — reclaim only if stale, else refuse.
-  if (!(await lockIsStale())) {
+  if (!(await lockIsStale(lockPath))) {
     throw new InstallLockError(
-      `Another cc-settings install is in progress (lock: ${LOCK_PATH}). ` +
+      `Another cc-settings install is in progress (lock: ${lockPath}). ` +
         "Wait for it to finish, or if you're sure none is running, delete the lock file and re-run.",
     );
   }
@@ -166,13 +168,13 @@ export async function acquireInstallLock(): Promise<() => Promise<void>> {
   // gets ENOENT and refuses rather than deleting the winner's fresh lock and
   // double-entering the destructive section. (A plain rm-then-create can't
   // serialize this: the loser's rm clobbers the winner's just-created lock.)
-  const quarantine = `${LOCK_PATH}.stale-${randomUUID()}`;
+  const quarantine = `${lockPath}.stale-${randomUUID()}`;
   try {
-    await rename(LOCK_PATH, quarantine);
+    await rename(lockPath, quarantine);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       throw new InstallLockError(
-        `Another install reclaimed the lock first (${LOCK_PATH}). Re-run in a moment.`,
+        `Another install reclaimed the lock first (${lockPath}). Re-run in a moment.`,
       );
     }
     throw err;
@@ -181,14 +183,14 @@ export async function acquireInstallLock(): Promise<() => Promise<void>> {
   // We won the reclaim. A fresh EEXIST now would be a genuine concurrent create;
   // anything else (EACCES, ENOSPC, …) is a real failure and must surface.
   try {
-    await createLockExclusive(token);
+    await createLockExclusive(lockPath, token);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "EEXIST") {
       throw new InstallLockError(
-        `Reclaimed a stale lock but another install grabbed it first (${LOCK_PATH}). Re-run in a moment.`,
+        `Reclaimed a stale lock but another install grabbed it first (${lockPath}). Re-run in a moment.`,
       );
     }
     throw err;
   }
-  return releaser(token);
+  return releaser(lockPath, token);
 }

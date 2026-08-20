@@ -1,0 +1,78 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/safety-net.ts\"",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/safety-net.ts\"",
+            "timeout": 5,
+            "statusMessage": "Checking command safety"
+          },
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/scripts/pre-commit-tsc.ts\"",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/scripts/pre-commit-tsc.ts\"",
+            "timeout": 120,
+            "statusMessage": "Checking TypeScript before commit"
+          },
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/pre-pr-proof.ts\"",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/pre-pr-proof.ts\"",
+            "timeout": 300,
+            "statusMessage": "Running proof before PR readiness"
+          },
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/pre-push-proof.ts\"",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/pre-push-proof.ts\"",
+            "timeout": 300,
+            "statusMessage": "Running proof before push"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/delegation-detector.ts\"",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/delegation-detector.ts\"",
+            "timeout": 3,
+            "statusMessage": "Checking delegation scope"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "timeout": 30,
+            "statusMessage": "Saving a handoff before compaction"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "timeout": 3,
+            "statusMessage": "Saving the session handoff"
+          }
+        ]
+      }
+    ]
+  }
+}

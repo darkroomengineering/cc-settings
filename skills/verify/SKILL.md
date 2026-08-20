@@ -8,7 +8,20 @@ context: fork
 
 Three agents with competing incentives: one finds issues, one disproves them, one judges.
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "verify" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip the Claude marker below. Create each fresh panelist with `spawn_agent`,
+deliver context while it runs with `send_message`, trigger another turn once it
+is idle with `followup_task`, wait with `wait_agent`, and stop its current turn
+with `interrupt_agent` only when necessary. Never spawn `codex-verifier` and
+never run `codex-run.ts` from inside Codex.
+
+Only read-only reviewers may overlap. Writers share the working tree unless the
+live host explicitly offers isolation, so any implementer and test-writer
+follow-up must use non-overlapping ownership and run serially.
+
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "verify" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 ## When to Use
 
@@ -33,6 +46,14 @@ Files: [list files]")
 ```
 
 Finder over-reports by design — this is the **superset** of all possible issues.
+
+#### Standalone Codex panel
+
+Use three separate native agents instead of the Claude bridge: spawn a fresh
+issue-finder, wait until it finishes, pass its report to a separate disprover,
+then wait until that agent finishes before spawning the judge with both reports.
+Follow the lifecycle above for each role. Skip the Claude cross-model finder
+below.
 
 #### Cross-model finder (when the Codex bridge is available)
 

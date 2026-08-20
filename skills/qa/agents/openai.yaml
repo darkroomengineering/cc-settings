@@ -1,0 +1,8 @@
+interface:
+  display_name: "Visual QA"
+  short_description: "Inspect UI fidelity and accessibility in a browser"
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "chrome-devtools"
+      description: "Chrome DevTools browser inspection server"

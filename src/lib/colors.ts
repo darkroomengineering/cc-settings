@@ -117,15 +117,16 @@ export function boxEnd(): void {
   console.log(`${palette.bold}+-------------------------------------------+${palette.reset}`);
 }
 
-export function showBanner(version: string): void {
+export function showBanner(version: string, product: string): void {
   const cyan = palette.cyan;
   const bold = palette.bold;
   const reset = palette.reset;
+  const line = (text: string) => `| ${text.padEnd(42)} |`;
   console.log("");
   console.log(`${bold}${cyan}+============================================+${reset}`);
-  console.log(`${bold}${cyan}|   Darkroom Claude Code Setup v${version}         |${reset}`);
-  console.log(`${bold}${cyan}|   Batteries Included - Auto-Install       |${reset}`);
-  console.log(`${bold}${cyan}|   (Idempotent - safe to re-run)           |${reset}`);
+  console.log(`${bold}${cyan}${line(`Darkroom ${product} Setup v${version}`)}${reset}`);
+  console.log(`${bold}${cyan}${line("Batteries Included - Auto-Install")}${reset}`);
+  console.log(`${bold}${cyan}${line("(Idempotent - safe to re-run)")}${reset}`);
   console.log(`${bold}${cyan}+============================================+${reset}`);
   console.log("");
 }

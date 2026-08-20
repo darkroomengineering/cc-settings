@@ -82,7 +82,7 @@ export function <Name>({ children, className }: <Name>Props) {
 ## Before you start
 
 If this component wraps or uses an external library (Radix, Framer Motion, GSAP, etc.):
-1. **Fetch docs first** — use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) for the current API.
+1. **Fetch docs first** — use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) for the current API in Claude or when the user configured it in standalone Codex. Otherwise use official docs through native browsing or inspect the pinned local package. cc-settings does not auto-run unpinned registry MCP packages in Codex.
 2. **Check version** — run `bun info <package>` before installing.
 
 Never implement against external library APIs from memory.

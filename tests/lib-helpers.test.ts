@@ -14,7 +14,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { pointLatest, pruneStaleFiles } from "../src/lib/artifact-store.ts";
 import { installHintForPM, RECOMMENDED_TOOLS } from "../src/lib/cli-preflight.ts";
 import { getClaudeMdMonitor } from "../src/lib/hook-config.ts";
@@ -22,6 +22,7 @@ import { isUnsafeTarEntry, restoreUnitsFromArchive } from "../src/lib/install-cm
 import { preflightInstallSource } from "../src/lib/install-fs.ts";
 import { isProcessAlive } from "../src/lib/install-lock.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "../src/lib/json-io.ts";
+import { BACKUP_ONLY_PATHS } from "../src/lib/managed-paths.ts";
 import { getInstallHint, getInstallHintForPM } from "../src/lib/packages.ts";
 import { getTimestamp, hasCommand, os } from "../src/lib/platform.ts";
 
@@ -245,7 +246,7 @@ describe("install-cmds — restoreUnitsFromArchive (exact-restore prune set)", (
     expect(restoreUnitsFromArchive(["", "   ", "agents/x"], false)).toEqual(["agents"]);
   });
 
-  test("prunes ONLY managed paths — a rogue entry can't delete backups/src/etc.", () => {
+  test("retains backup-only ownership state but rejects truly rogue paths", () => {
     // A hand-crafted or foreign archive containing non-managed top-level paths
     // must never widen the prune set — otherwise a `.claude/backups/x` entry
     // would rm the backups dir (including the archive being restored).
@@ -253,14 +254,31 @@ describe("install-cmds — restoreUnitsFromArchive (exact-restore prune set)", (
       ".claude/settings.json", // managed → kept
       ".claude/agents/a.md", // managed → kept
       ".claude/backups/old.tar.gz", // NOT managed → dropped
-      ".claude/src/setup.ts", // NOT managed → dropped
+      ".claude/src/setup.ts", // backup-only ownership state → kept
       ".claude/tmp/x", // NOT managed → dropped
       ".claude/totally-unknown/y", // NOT managed → dropped
     ];
     expect(restoreUnitsFromArchive(rogue, true).sort()).toEqual([
       ".claude/agents",
       ".claude/settings.json",
+      ".claude/src",
     ]);
+  });
+
+  test("the bounded backup-only allowset restores all five ownership units", () => {
+    expect(BACKUP_ONLY_PATHS).toEqual([
+      ".cc-settings-version",
+      ".cc-settings-hooks-fingerprint",
+      ".cc-settings-src-manifest",
+      ".cc-settings-baseline.json",
+      "src",
+    ]);
+    expect(
+      restoreUnitsFromArchive(
+        BACKUP_ONLY_PATHS.map((path) => `.claude/${path}${path === "src" ? "/setup.ts" : ""}`),
+        true,
+      ).sort(),
+    ).toEqual(BACKUP_ONLY_PATHS.map((path) => `.claude/${path}`).sort());
   });
 });
 
@@ -299,14 +317,9 @@ describe("install-fs — preflightInstallSource skill-children", () => {
   });
 
   test("passes when the required skill's SKILL.md is present", async () => {
-    const dir = await srcDir();
-    try {
-      await mkdir(join(dir, "skills", "share-learning"), { recursive: true });
-      await writeFile(join(dir, "skills", "share-learning", "SKILL.md"), "x");
-      expect(() => preflightInstallSource(dir, "light")).not.toThrow();
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    const completeSource = resolve(import.meta.dir, "..");
+    expect(existsSync(join(completeSource, "skills", "share-learning", "SKILL.md"))).toBe(true);
+    expect(() => preflightInstallSource(completeSource, "light")).not.toThrow();
   });
 });
 

@@ -16,7 +16,7 @@
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 import { atomicWriteJson } from "./json-io.ts";
 
@@ -53,10 +53,58 @@ export const SentinelSchema = z.looseObject({
   engine: z.string().optional().catch(undefined),
   engine_explicit: z.boolean().optional().catch(undefined),
   mcp_written: z.record(z.string(), z.unknown()).optional().catch(undefined),
+  managed_files: z.record(z.string(), z.string()).optional().catch(undefined),
+  managed_files_manifest_version: z.number().int().positive().optional().catch(undefined),
+  managed_files_state: z.enum(["managed-absent"]).optional().catch(undefined),
   auto_update: z.boolean().optional().catch(undefined),
 });
 
 export type Sentinel = z.infer<typeof SentinelSchema>;
+
+const SENTINEL_SHA256 = /^[a-f0-9]{64}$/i;
+
+function isSafeManagedFilePath(path: string): boolean {
+  return (
+    path.length > 0 &&
+    path !== "." &&
+    !isAbsolute(path) &&
+    !/^[A-Za-z]:[\\/]/.test(path) &&
+    !path.split(/[\\/]+/).includes("..")
+  );
+}
+
+const StrictManagedFilesSchema = z
+  .record(z.string(), z.string().regex(SENTINEL_SHA256))
+  .superRefine((files, context) => {
+    for (const path of Object.keys(files)) {
+      if (!isSafeManagedFilePath(path)) {
+        context.addIssue({
+          code: "custom",
+          message: `unsafe managed file path: ${path}`,
+          path: [path],
+        });
+      }
+    }
+  });
+
+/** Strict ownership view used only before destructive Claude operations. */
+export const DestructiveSentinelSchema = SentinelSchema.extend({
+  profile: z.enum(["full", "light"]).optional(),
+  mcp_written: z.record(z.string(), z.unknown()).optional(),
+  managed_files: StrictManagedFilesSchema.optional(),
+  managed_files_manifest_version: z.number().int().positive().optional(),
+  managed_files_state: z.enum(["managed-absent"]).optional(),
+}).superRefine((sentinel, context) => {
+  if (
+    sentinel.managed_files_state === "managed-absent" &&
+    (sentinel.managed_files !== undefined || sentinel.managed_files_manifest_version !== undefined)
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "managed-absent sentinel cannot claim managed file ownership",
+    });
+  }
+});
 
 /**
  * Parse `~/.claude/.cc-settings-version` against {@link SentinelSchema}. The
@@ -78,6 +126,31 @@ export async function readSentinel(claudeDir: string): Promise<Sentinel> {
 }
 
 /**
+ * Read ownership state for uninstall. Missing is a supported legacy state;
+ * an existing malformed sentinel is not, because destructive callers cannot
+ * safely infer ownership from corrupt data.
+ */
+export async function readDestructiveSentinel(claudeDir: string): Promise<Sentinel | null> {
+  const sentinelPath = join(claudeDir, ".cc-settings-version");
+  if (!existsSync(sentinelPath)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
+  } catch (cause) {
+    throw new Error(`Invalid Claude ownership sentinel JSON: ${sentinelPath}`, { cause });
+  }
+  const result = DestructiveSentinelSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error(
+      `Invalid Claude ownership sentinel: ${sentinelPath}: ${result.error.issues
+        .map((issue) => issue.message)
+        .join("; ")}`,
+    );
+  }
+  return result.data;
+}
+
+/**
  * Write `~/.claude/.cc-settings-version` through the shared {@link Sentinel}
  * shape — the single sentinel writer, called from src/setup.ts's
  * writeVersionSentinel(). Keeps the on-disk field set in one typed place
@@ -90,6 +163,7 @@ export async function writeSentinel(claudeDir: string, data: Sentinel): Promise<
 export interface SentinelInfo {
   version: string | null;
   repoPath: string | null;
+  profile: "full" | "light" | null;
   /** Code-intelligence engine id the install was provisioned with (e.g.
    *  "llm-tldr", "native-ts"). Null on a pre-engine sentinel — resolveEngine
    *  then falls back to the default engine. */
@@ -116,6 +190,9 @@ export interface SentinelInfo {
    *  live ENGINES registry's serverInstructions text has since changed. Null
    *  on a sentinel written before this field existed. */
   mcpWritten: Record<string, unknown> | null;
+  /** SHA-256 hashes keyed by safe paths relative to ~/.claude. Null for
+   *  sentinels written before content-aware file ownership was introduced. */
+  managedFiles: Record<string, string> | null;
   /** Auto-update enrollment decision (see src/lib/schedule.ts decideAutoUpdate).
    *  true/false = explicitly decided; null = never decided (absent from the
    *  sentinel, or written before this field existed) — NOT the same as "declined". */
@@ -137,9 +214,11 @@ export async function readSentinelInfo(claudeDir: string): Promise<SentinelInfo>
   return {
     version: s.version ?? null,
     repoPath: s.repo_path ?? null,
+    profile: s.profile ?? null,
     engine: s.engine ?? null,
     engineExplicit: s.engine_explicit ?? null,
     mcpWritten: s.mcp_written ?? null,
+    managedFiles: s.managed_files ?? null,
     autoUpdate: s.auto_update ?? null,
   };
 }

@@ -1,12 +1,14 @@
 ---
 name: cc
 argument-hint: "[sync|update]"
-description: Sync cc-settings with upstream Claude Code (maintainer) or pull the latest cc-settings (user). Triggers "sync with claude code", "changelog sync", "upstream sync" (sync mode); "update cc-settings", "refresh my install" (update mode).
+description: Synchronizes cc-settings with Claude Code upstream (maintainer) or updates a Claude Code, Codex, or combined local install (user). Triggers "sync with claude code", "changelog sync", "upstream sync" (sync mode); "update cc-settings", "refresh my install" (update mode).
 ---
 
-# cc — Claude Code settings management
+# cc — cc-settings management
 
-Two-mode skill: **sync** keeps the cc-settings repo current with Claude Code upstream (maintainer task); **update** pulls the latest cc-settings into your local install (everyone).
+Two-mode skill: **sync** keeps the repo current with Claude Code upstream
+(maintainer task); **update** refreshes the active Claude Code, Codex, or
+combined local install (everyone). Sync does not track a Codex upstream.
 
 ## Mode: sync
 
@@ -222,78 +224,108 @@ This mode aligns all three.
 
 ## Mode: update
 
-Pull the latest cc-settings into your local `~/.claude/` install.
+Pull the latest cc-settings into the active host. Choose the target before
+looking for a checkout:
 
-### Phase 1 — Locate the working repo
+1. An explicit request for both products selects `both`.
+2. A standalone Codex session selects `codex`.
+3. Otherwise select `claude`.
 
-The cc-settings working tree is usually at `~/.claude/cc-settings/`. Some users (notably the original maintainers) keep it elsewhere — e.g. `~/Developer/...`. Find it:
+Never treat `${CODEX_HOME:-$HOME/.codex}/darkroom/source` as a checkout. It is
+a copied, non-git runtime allowlist and must never be pulled.
+
+### Phase 1 — Locate the real working repo
+
+Read `repo_path` from the selected product sentinel first. For `both`, try the
+Codex sentinel before the Claude sentinel. Then try known checkout paths. Every
+candidate must contain `.git` and have the expected origin.
 
 ```bash
-# Try the documented default first
-[ -d "$HOME/.claude/cc-settings/.git" ] && CC_REPO="$HOME/.claude/cc-settings"
+CODEX_ROOT="${CODEX_HOME:-$HOME/.codex}"
+TARGET="codex" # use claude or both according to the host/explicit request above
+CODEX_SENTINEL="$CODEX_ROOT/.cc-settings-version"
+CLAUDE_SENTINEL="$HOME/.claude/.cc-settings-version"
+CODEX_RUNTIME="$CODEX_ROOT/darkroom/source"
 
-# If not there, the version sentinel doesn't record the path — ask the user
-[ -z "$CC_REPO" ] && echo "Where is your cc-settings working tree? (path)"
-```
-
-Verify the path is a clone of `darkroomengineering/cc-settings`:
-
-```bash
-git -C "$CC_REPO" remote -v | grep -q 'darkroomengineering/cc-settings' || {
-  echo "Not a cc-settings clone"; exit 1;
+candidate_from_sentinel() {
+  jq -r '.repo_path // empty' "$1" 2>/dev/null
 }
+
+CANDIDATES=()
+if [ "$TARGET" = "codex" ] || [ "$TARGET" = "both" ]; then
+  CANDIDATES+=("$(candidate_from_sentinel "$CODEX_SENTINEL")")
+fi
+if [ "$TARGET" = "claude" ] || [ "$TARGET" = "both" ]; then
+  CANDIDATES+=("$(candidate_from_sentinel "$CLAUDE_SENTINEL")")
+fi
+CANDIDATES+=("$CODEX_ROOT/cc-settings" "$HOME/.claude/cc-settings" "$PWD")
+
+CC_REPO=""
+for candidate in "${CANDIDATES[@]}"; do
+  [ -n "$candidate" ] || continue
+  [ "$candidate" != "$CODEX_RUNTIME" ] || continue
+  [ -d "$candidate/.git" ] || continue
+  ORIGIN=$(git -C "$candidate" remote get-url origin 2>/dev/null) || continue
+  NORMALIZED_ORIGIN=$(printf '%s' "$ORIGIN" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s:/+$::; s:[.]git$::')
+  [ "$NORMALIZED_ORIGIN" = "https://github.com/darkroomengineering/cc-settings" ] || continue
+  CC_REPO="$candidate"
+  break
+done
+
+if [ -z "$CC_REPO" ]; then
+  echo "No real cc-settings git checkout was found. Provide its path; the Codex runtime copy cannot be updated with git pull."
+  exit 1
+fi
 ```
+
+Fail closed and ask for the real checkout path if none passes. Do not clone or
+guess a path automatically.
 
 ### Phase 2 — Detect drift
 
 ```bash
-# Installed version
-INSTALLED=$(jq -r .version "$HOME/.claude/.cc-settings-version" 2>/dev/null)
+case "$TARGET" in
+  codex) INSTALLED=$(jq -r '.version // empty' "$CODEX_SENTINEL" 2>/dev/null) ;;
+  claude) INSTALLED=$(jq -r '.version // empty' "$CLAUDE_SENTINEL" 2>/dev/null) ;;
+  both)
+    CODEX_INSTALLED=$(jq -r '.version // empty' "$CODEX_SENTINEL" 2>/dev/null)
+    CLAUDE_INSTALLED=$(jq -r '.version // empty' "$CLAUDE_SENTINEL" 2>/dev/null)
+    INSTALLED="codex=$CODEX_INSTALLED claude=$CLAUDE_INSTALLED"
+    ;;
+esac
 
-# Latest version on remote main (read from src/setup.ts in origin/main)
 git -C "$CC_REPO" fetch --quiet origin main
 LATEST=$(git -C "$CC_REPO" show origin/main:src/setup.ts | grep -E '^const VERSION' | sed -E 's/.*"([0-9.]+)".*/\1/')
-
 echo "Installed: $INSTALLED"
 echo "Latest:    $LATEST"
 ```
 
-If equal: report "already up to date" and stop. If installed > latest: surface the discrepancy (manual edit?) and ask.
+If every selected sentinel already matches, report "already up to date" and
+stop. If an installed version is newer than latest, surface the discrepancy and
+ask before changing anything.
 
 ### Phase 3 — Render what changed
 
-Show commits and the relevant CHANGELOG entries:
-
 ```bash
-# Commits between the installed version and origin/main
-# (find the tag/commit that bumped to $INSTALLED, then log from there)
 git -C "$CC_REPO" log --oneline "HEAD..origin/main" | head -20
-
-# CHANGELOG entries above the installed version
-awk -v v="$INSTALLED" '
-  /^## \[/ { found = ($0 ~ "\\[" v "\\]") ? 1 : 0; if (found) exit }
-  !found { print }
-' "$CC_REPO/CHANGELOG.md"
+git -C "$CC_REPO" show origin/main:CHANGELOG.md | sed -n '1,160p'
 ```
 
-Display this block to the user. **Stop. Wait for confirmation** before applying. Don't auto-pull — give them the chance to read and bail.
+Display the relevant commits and changelog entries. **Stop and wait for
+confirmation** before applying.
 
-### Phase 4 — Pre-flight: working-tree safety
+### Phase 4 — Pre-flight safety
 
 ```bash
-# Hard-stop if the user has uncommitted edits on their cc-settings checkout —
-# `git pull` will either merge or fail, both worse than asking.
 if ! git -C "$CC_REPO" diff --quiet || ! git -C "$CC_REPO" diff --cached --quiet; then
-  echo "Local uncommitted changes in $CC_REPO:"
   git -C "$CC_REPO" status --short
-  echo "Stash, commit, or discard before updating. Aborting."
+  echo "Commit, stash, or discard the checkout changes before updating."
   exit 1
 fi
 
-# Hard-stop if they're not on main — they probably forked / are working on a feature
 BRANCH=$(git -C "$CC_REPO" branch --show-current)
-[ "$BRANCH" != "main" ] && {
-  echo "On branch '$BRANCH', not main. Switch first or update manually."
+[ "$BRANCH" = "main" ] || {
+  echo "The checkout is on '$BRANCH', not main. Switch first or update manually."
   exit 1
 }
 ```
@@ -302,30 +334,35 @@ BRANCH=$(git -C "$CC_REPO" branch --show-current)
 
 ```bash
 git -C "$CC_REPO" pull --ff-only origin main
-bash "$CC_REPO/setup.sh"
+bash "$CC_REPO/setup.sh" --target="$TARGET"
 ```
 
-If the user has hand-edits to `~/.claude/settings.json` (custom permissions, hooks, env), the installer preserves them automatically. Pass `--interactive` if they want to review each merge:
-
-```bash
-bash "$CC_REPO/setup.sh" --interactive
-```
+Claude-only update uses `--target=claude`; standalone Codex uses
+`--target=codex`; an explicit combined update uses `--target=both`. Add
+`--interactive` only when the user asks to review the merge.
 
 ### Phase 6 — Verify and nudge
 
 ```bash
-NEW=$(jq -r .version "$HOME/.claude/.cc-settings-version")
-[ "$NEW" = "$LATEST" ] && echo "Updated to $LATEST" || echo "Sentinel still reports $NEW (expected $LATEST)"
+[ "$TARGET" = "claude" ] || test "$(jq -r .version "$CODEX_SENTINEL")" = "$LATEST"
+[ "$TARGET" = "codex" ] || test "$(jq -r .version "$CLAUDE_SENTINEL")" = "$LATEST"
 ```
 
-Then tell the user:
+For Claude, tell the user to restart Claude Code. For Codex, tell the user to
+restart Codex. If plugin files changed, also tell the Codex user to review
+`/hooks` and confirm the new hook commands remain trusted. A combined update
+requires both restarts and both sentinel checks.
 
-> **Restart Claude Code** to pick up the new agents/skills/hooks. New skills only auto-invoke after restart.
+### Rollback
 
-If the update introduced new MCP servers or env vars, mention those by name (read from the rendered CHANGELOG section in Phase 3).
+Rollback names the same target explicitly:
 
-### What this mode does NOT do
+```bash
+bash "$CC_REPO/setup.sh" --target=codex --rollback   # Codex
+bash "$CC_REPO/setup.sh" --target=claude --rollback  # Claude Code
+bash "$CC_REPO/setup.sh" --target=both --rollback    # explicit combined install
+```
 
-- It does not modify the `cc-settings` repo. Maintainer-facing sync work goes through sync mode.
-- It does not rollback. If the new version misbehaves, run `bun "$CC_REPO/src/setup.ts" --rollback` to restore the most recent backup in `~/.claude/backups/`.
-- It does not pin to a specific version. To install an older release, `git -C "$CC_REPO" checkout <tag>` first, then run `bash setup.sh` directly.
+To install an older release, check out that release in the real working repo
+first, then run `setup.sh` with the selected target. Never modify or pull the
+Codex runtime copy directly.

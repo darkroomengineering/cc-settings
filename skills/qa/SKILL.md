@@ -10,6 +10,13 @@ requires:
 
 # Visual QA Validation
 
+Use the Chrome DevTools MCP in standalone Codex only when the user configured
+it. Otherwise use native/manual browser screenshots and accessibility checks;
+if no visual capture path exists, report visual QA unavailable rather than
+claiming it ran. cc-settings does not auto-run unpinned registry MCP packages
+in Codex. Claude frontmatter does not enforce read-only behavior in Codex, so
+keep this workflow read-only through native tools or a read-only agent prompt.
+
 ## Core Philosophy
 
 - **Screenshot first, then critique.** Always look at the actual rendered output, not just the code.
@@ -330,4 +337,5 @@ Looks good: [What's working]
 
 ## Prerequisites
 
-Requires the `chrome-devtools` MCP server (shipped in `mcp-configs/recommended.json` and installed by `setup.sh`).
+Claude can use the configured `chrome-devtools` MCP server. Standalone Codex
+uses it only when the user configured it; otherwise use the fallback above.

@@ -6,7 +6,15 @@ context: fork
 
 # Feature Build Workflow
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "build" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip the Claude marker below. Use Context7 only when the user configured that
+MCP. Otherwise consult official library documentation through native browsing
+or inspect the pinned local package, and state which fallback supplied the API
+contract. This package does not auto-run unpinned registry MCP packages.
+
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "build" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 ## Phase 1: Research (GO/NO-GO Gate)
 
@@ -15,7 +23,7 @@ Before any implementation, complete this research phase:
 1. **Detect stack** — read `package.json`. `next` dep → satus / Next.js; `react-router` dep → novus / React Router. Note any starter signal (`name` field, `darkroom.starter` marker).
 2. **Understand requirements** — parse what the user actually needs.
 3. **Explore codebase** — find existing patterns, similar implementations.
-4. **Fetch docs** — use Context7 MCP for any external library. Never code from memory.
+4. **Fetch docs** — use Context7 in Claude or when configured in Codex; otherwise use the standalone fallback above. Never code from memory.
 5. **Check versions** — run `bun info <package>` for the latest version.
 6. **Assess feasibility** — can this be done cleanly within existing architecture?
 

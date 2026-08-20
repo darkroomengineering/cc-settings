@@ -201,7 +201,9 @@ L = 0.2126 x R_linear + 0.7152 x G_linear + 0.0722 x B_linear
 | AA | 4.5:1 | 3:1 | 3:1 |
 | AAA | 7:1 | 4.5:1 | — |
 
-Canonical copy: `~/.claude/rules/accessibility.md`.
+Canonical standards: Claude reads `~/.claude/rules/accessibility.md`.
+Standalone Codex reads the installed `AGENTS.md` accessibility section and its
+native installed rules; it must not reach into `~/.claude`.
 
 ### Quick Reference (Neutral on White #FFFFFF)
 

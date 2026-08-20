@@ -7,20 +7,29 @@
 // (phase order, dependency install, settings write) and calls into here for
 // the disk work.
 
-import { existsSync, statSync } from "node:fs";
-import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { error } from "./colors.ts";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, lstatSync } from "node:fs";
 import {
-  LIGHT_SKILLS,
-  lightProfilePruneTargets,
-  PROFILE_MANIFEST,
-  type Profile,
-} from "./light-profile.ts";
-import { MANAGED_TOP_LEVEL_PATHS } from "./managed-paths.ts";
-import { ACTIVE_SKILLS, MANAGED_SKILLS } from "./managed-skills.ts";
+  cp,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { currentClaudeManagedSourceFiles } from "./claude-managed-file-manifests.ts";
+import { validateClaudeManagedFileOwnership } from "./claude-managed-files.ts";
+import { error } from "./colors.ts";
+import type { Profile } from "./light-profile.ts";
+import { MANAGED_TOP_LEVEL_PATHS, sharedDirOwnedFiles } from "./managed-paths.ts";
 import { CLAUDE_DIR, getTimestamp } from "./platform.ts";
+import { serializeAutoUpdateState, snapshotAutoUpdateState } from "./schedule.ts";
+import { readDestructiveSentinel } from "./version-delta.ts";
 
 // --- Install phases ------------------------------------------------------
 
@@ -32,7 +41,6 @@ import { CLAUDE_DIR, getTimestamp } from "./platform.ts";
  * Without this, a bad `--source` (a partial checkout, a wrong path, an
  * interrupted clone) is a data-loss bug: cleanOldConfig() rm -rf's the managed
  * footprint first, then the copy phase silently skips every missing source
- * (copyIfPresent returns false, copyDirContents no-ops on a missing srcDir),
  * leaving the user with a wiped install and nothing copied back. Aborting here
  * — while the existing install is still intact — is the only safe order.
  *
@@ -40,65 +48,125 @@ import { CLAUDE_DIR, getTimestamp } from "./platform.ts";
  * composeSettings (config/ fragment validity) is validated separately by the
  * orchestrator, also pre-clean.
  */
+function assertSelectedSourceFile(sourceDir: string, relativePath: string): void {
+  const root = resolve(sourceDir);
+  const rootMetadata = lstatSync(root);
+  if (rootMetadata.isSymbolicLink() || !rootMetadata.isDirectory()) {
+    throw new Error("source root is not a real directory");
+  }
+  const segments = relativePath.split("/");
+  let current = root;
+  for (let index = 0; index < segments.length; index++) {
+    current = join(current, segments[index] as string);
+    const metadata = lstatSync(current);
+    const leaf = index === segments.length - 1;
+    if (metadata.isSymbolicLink()) throw new Error("symbolic link");
+    if (leaf ? !metadata.isFile() : !metadata.isDirectory()) {
+      throw new Error(leaf ? "not a regular file" : "ancestor is not a directory");
+    }
+  }
+}
+
 export function preflightInstallSource(sourceDir: string, profile: Profile): void {
-  if (!existsSync(sourceDir)) {
-    throw new Error(`--source directory does not exist: ${sourceDir}`);
-  }
-  // Required source entries with their expected kind. Existence alone is not
-  // enough: a required dir present as a regular file (or a file as a dir) would
-  // pass an existsSync check, then fail the copy phase AFTER cleanOldConfig has
-  // wiped the install. config/ (composeSettings) and src/ (TS runtime) are
-  // needed by every profile — installTsSources silently no-ops on a missing
-  // src/, so treat it as a hard requirement here.
-  const required: Array<{ rel: string; kind: "dir" | "file" }> = [
-    { rel: "config", kind: "dir" },
-    { rel: "src", kind: "dir" },
-    // A representative source file, so an empty/partial src/ (a broken checkout)
-    // is caught here rather than after cleanOldConfig has wiped the install.
-    { rel: join("src", "setup.ts"), kind: "file" },
+  const required = [
+    ...currentClaudeManagedSourceFiles(profile).map(({ source }) => source),
+    "config/10-core.json",
+    "config/20-mcp.json",
+    "config/30-permissions.json",
+    "config/40-hooks.json",
   ];
-  if (profile === "light") {
-    // Light copies the LIGHT_SKILLS subset out of skills/.
-    required.push({ rel: "skills", kind: "dir" });
-  } else {
-    const manifest = PROFILE_MANIFEST.full;
-    for (const [src] of manifest.rootFiles) required.push({ rel: src, kind: "file" });
-    for (const d of manifest.dirs) required.push({ rel: d, kind: "dir" });
-  }
-  // Verify the profile's actual skill set — not just that skills/ exists. A
-  // partial checkout (skills/ present but individual skills missing) would
-  // otherwise pass preflight, then cleanOldConfig wipes the installed skills and
-  // the copy phase silently restores nothing. Gated on skills/ existing so a
-  // wholly-missing dir stays a single clean problem, not one error per skill.
-  if (existsSync(join(sourceDir, "skills"))) {
-    const requiredSkills = profile === "light" ? LIGHT_SKILLS : ACTIVE_SKILLS;
-    for (const name of requiredSkills) {
-      required.push({ rel: join("skills", name, "SKILL.md"), kind: "file" });
-    }
-  }
   const problems: string[] = [];
-  for (const { rel, kind } of required) {
-    let ok = false;
+  for (const relativePath of new Set(required)) {
     try {
-      const st = statSync(join(sourceDir, rel));
-      ok = kind === "dir" ? st.isDirectory() : st.isFile();
-    } catch {
-      ok = false; // missing
+      assertSelectedSourceFile(sourceDir, relativePath);
+    } catch (cause) {
+      const detail = cause instanceof Error && cause.message ? `: ${cause.message}` : "";
+      problems.push(`${relativePath}${detail}`);
     }
-    if (!ok) problems.push(`${rel} (${kind})`);
+  }
+  try {
+    const dependencies = lstatSync(join(resolve(sourceDir), "node_modules"));
+    if (dependencies.isSymbolicLink() || !dependencies.isDirectory()) {
+      problems.push("node_modules: not a real directory");
+    }
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+    if (!(process.env.NODE_ENV === "test" && process.env.CC_SKIP_DEPS === "1")) {
+      problems.push("node_modules: missing runtime dependencies");
+    }
   }
   if (problems.length > 0) {
     throw new Error(
       `--source is not a complete cc-settings checkout (${sourceDir}). ` +
-        `Missing or wrong type: ${problems.sort().join(", ")}. Refusing to install — the ` +
+        `Missing, unsafe, or wrong type: ${problems.sort().join(", ")}. Refusing to install — the ` +
         "destructive clean phase would wipe your working install and then have nothing to copy.",
     );
   }
 }
 
-async function createBackup(): Promise<void> {
-  const backupDir = join(CLAUDE_DIR, "backups");
+export interface ClaudeBackupSnapshot {
+  archivePath: string | null;
+  present: string[];
+  sharedOwnedFilesPresent: string[];
+  managedFilesManifestVersion?: number | null;
+  restoreScope?: "exact" | "managed-absent";
+  nodeModulesTarget?: string | null;
+  managedFiles?: Record<string, string>;
+}
+
+const SHARED_BACKUP_ID = /^\d{14}-\d{3}-\d+-\d+$/;
+
+export function claudeBackupScheduleSidecar(archivePath: string): string {
+  return `${archivePath}.schedule.json`;
+}
+
+export function claudeBackupStateSidecar(archivePath: string): string {
+  return `${archivePath}.state.json`;
+}
+
+function serializeClaudeBackupState(snapshot: ClaudeBackupSnapshot): string {
+  return `${JSON.stringify(
+    {
+      version: 3,
+      present: snapshot.present,
+      shared_owned_files_present: snapshot.sharedOwnedFilesPresent,
+      managed_files_manifest_version: snapshot.managedFilesManifestVersion ?? null,
+      restore_scope: snapshot.restoreScope ?? "exact",
+      node_modules_target: snapshot.nodeModulesTarget ?? null,
+      managed_files: snapshot.managedFiles ?? {},
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+async function createBackup(
+  options: {
+    temporary?: boolean;
+    preserveBackupName?: string;
+    backupId?: string;
+    managedAbsent?: boolean;
+    managedFiles?: Record<string, string>;
+  } = {},
+): Promise<ClaudeBackupSnapshot> {
+  const backupDir = join(CLAUDE_DIR, options.temporary ? "tmp" : "backups");
   await mkdir(backupDir, { recursive: true });
+  let preserveBackupName: string | null = null;
+  if (options.preserveBackupName !== undefined) {
+    const name = options.preserveBackupName;
+    if (
+      options.temporary ||
+      basename(name) !== name ||
+      !/^backup-.*\.tar\.gz$/.test(name) ||
+      !(await lstat(join(backupDir, name)).catch(() => null))?.isFile()
+    ) {
+      throw new Error(`Invalid Claude backup retention exemption: ${name}`);
+    }
+    preserveBackupName = name;
+  }
+  if (options.backupId !== undefined && !SHARED_BACKUP_ID.test(options.backupId)) {
+    throw new Error(`Invalid shared backup identifier: ${options.backupId}`);
+  }
 
   const home = homedir();
   // Home-relative paths so the archive can include ~/.claude.json — it holds the
@@ -107,34 +175,137 @@ async function createBackup(): Promise<void> {
   // MCP setup. cmdRollback detects this layout (".claude/"-prefixed entries) and
   // extracts from $HOME; older ~/.claude-relative archives still restore correctly.
   //
-  // Every directory/file cleanOldConfig() unconditionally wipes on every run is
-  // included here too — MANAGED_TOP_LEVEL_PATHS (agents/, skills/ including the
-  // MANAGED_SKILLS dirs inside it, rules/, profiles/, docs/, hooks/, contexts/,
-  // the legacy scripts/ and lib/ dirs, and hooks-config*.json). Without this, a
-  // copy failure between cleanOldConfig and the copy phase leaves --rollback
-  // able to restore only settings.json/CLAUDE.md/AGENTS.md/.claude.json — none
-  // of the content actually wiped (H7). tar archives directories recursively,
-  // so listing the directory itself is enough; existsSync below skips entries
-  // that aren't present yet (e.g. a first-ever install). Deliberately excludes
-  // backups/, tmp/, logs/, and tldr-cache — regenerable/non-managed, and
-  // backups/ nesting itself would grow every archive by the sum of all prior
-  // ones.
-  const candidates = [
-    ".claude/settings.json",
-    ...MANAGED_TOP_LEVEL_PATHS.map((e) => `.claude/${e.rel}`),
-    ".claude.json",
+  const sentinel = await readDestructiveSentinel(CLAUDE_DIR);
+  if (options.managedAbsent && sentinel !== null) {
+    throw new Error("Cannot create a managed-absent Claude backup while a sentinel exists");
+  }
+  if (sentinel?.managed_files && options.managedFiles === undefined) {
+    if (
+      (sentinel.profile !== "full" && sentinel.profile !== "light") ||
+      sentinel.managed_files_manifest_version === undefined
+    ) {
+      throw new Error("Cannot back up Claude state without complete versioned ownership metadata");
+    }
+    await validateClaudeManagedFileOwnership(
+      sentinel.managed_files,
+      sentinel.repo_path ?? resolve(import.meta.dir, "../.."),
+      sentinel.profile,
+      CLAUDE_DIR,
+      "exact",
+      sentinel.managed_files_manifest_version,
+    );
+  }
+  const backupManagedFiles = options.managedAbsent
+    ? {}
+    : Object.fromEntries(
+        Object.entries(options.managedFiles ?? sentinel?.managed_files ?? {}).map(
+          ([path, hash]) => [path, hash.toLowerCase()],
+        ),
+      );
+  for (const [relativePath, expectedHash] of Object.entries(backupManagedFiles)) {
+    const path = join(CLAUDE_DIR, relativePath);
+    const metadata = await lstat(path).catch(() => null);
+    if (
+      !metadata?.isFile() ||
+      metadata.isSymbolicLink() ||
+      createHash("sha256")
+        .update(await readFile(path))
+        .digest("hex") !== expectedHash
+    ) {
+      throw new Error(`Cannot back up changed Claude managed file: ${relativePath}`);
+    }
+  }
+  const managedPaths = Object.keys(backupManagedFiles).map((path) => `.claude/${path}`);
+  let nodeModulesTarget: string | null = null;
+  const installedNodeModules = join(CLAUDE_DIR, "src", "node_modules");
+  const installedNodeModulesMetadata = options.managedAbsent
+    ? null
+    : await lstat(installedNodeModules).catch((cause) => {
+        if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw cause;
+      });
+  if (installedNodeModulesMetadata) {
+    if (!sentinel?.repo_path || !installedNodeModulesMetadata.isSymbolicLink()) {
+      throw new Error("Cannot back up unowned Claude src/node_modules");
+    }
+    const expected = await realpath(resolve(sentinel.repo_path, "node_modules"));
+    const linked = await realpath(installedNodeModules).catch(() => null);
+    if (linked !== expected) {
+      throw new Error("Cannot back up repointed Claude src/node_modules");
+    }
+    nodeModulesTarget = expected;
+    managedPaths.push(".claude/src/node_modules");
+  }
+  const archivePaths = options.managedAbsent
+    ? []
+    : [
+        ".claude/settings.json",
+        ".claude/.cc-settings-version",
+        ...managedPaths,
+        ".claude.json",
+      ].filter(
+        (path, index, paths) => paths.indexOf(path) === index && existsSync(join(home, path)),
+      );
+  const present = [
+    ...new Set(
+      archivePaths.map((path) => {
+        if (path === ".claude.json") return path;
+        const relativePath = path.slice(".claude/".length);
+        const topLevel = relativePath.split("/")[0] as string;
+        return `.claude/${topLevel}`;
+      }),
+    ),
   ];
-  const existing = candidates.filter((f) => existsSync(join(home, f)));
-  if (existing.length === 0) return;
+  const sharedOwnedFilesPresent = MANAGED_TOP_LEVEL_PATHS.flatMap((entry) =>
+    (sharedDirOwnedFiles(entry.rel) ?? [])
+      .map((file) => `.claude/${entry.rel}/${file}`)
+      .filter((file) => archivePaths.includes(file)),
+  );
+  const managedFilesManifestVersion = sentinel?.managed_files_manifest_version ?? null;
+  if (archivePaths.length === 0 && (options.temporary || options.backupId === undefined)) {
+    return {
+      archivePath: null,
+      present: [],
+      sharedOwnedFilesPresent,
+      managedFilesManifestVersion,
+      restoreScope: options.managedAbsent ? "managed-absent" : "exact",
+      nodeModulesTarget,
+      managedFiles: backupManagedFiles,
+    };
+  }
 
   const stamp = getTimestamp();
-  const archive = join(backupDir, `backup-${stamp}.tar.gz`);
-  const proc = Bun.spawn(["tar", "-czf", archive, ...existing], {
-    cwd: home,
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  const [stderrText, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+  const prefix = options.temporary ? "compensation" : "backup";
+  let archive = join(backupDir, `${prefix}-${options.backupId ?? stamp}.tar.gz`);
+  let suffix = 1;
+  while (
+    existsSync(archive) ||
+    existsSync(claudeBackupScheduleSidecar(archive)) ||
+    existsSync(claudeBackupStateSidecar(archive))
+  ) {
+    if (options.backupId)
+      throw new Error(`Shared Claude backup already exists: ${options.backupId}`);
+    archive = join(backupDir, `${prefix}-${stamp}z${String(suffix++).padStart(3, "0")}.tar.gz`);
+  }
+  const emptyListPath =
+    archivePaths.length === 0 ? join(backupDir, `.empty-${randomUUID()}.files`) : null;
+  if (emptyListPath) await writeFile(emptyListPath, "", { flag: "wx", mode: 0o600 });
+  const tarCommand =
+    archivePaths.length > 0
+      ? ["tar", "-czf", archive, ...archivePaths]
+      : ["tar", "-czf", archive, "--files-from", emptyListPath as string];
+  let stderrText: string;
+  let code: number;
+  try {
+    const proc = Bun.spawn(tarCommand, {
+      cwd: home,
+      stdout: "ignore",
+      stderr: "pipe",
+    });
+    [stderrText, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+  } finally {
+    if (emptyListPath) await rm(emptyListPath, { force: true });
+  }
   if (code !== 0) {
     // A silent backup failure would let the install proceed into cleanOldConfig
     // (which rm -rf's managed dirs) with no restore point — the advertised
@@ -144,15 +315,62 @@ async function createBackup(): Promise<void> {
     throw new Error(`backup failed — tar exited ${code}`);
   }
 
+  if (options.temporary) {
+    return {
+      archivePath: archive,
+      present,
+      sharedOwnedFilesPresent,
+      managedFilesManifestVersion,
+      restoreScope: options.managedAbsent ? "managed-absent" : "exact",
+      nodeModulesTarget,
+      managedFiles: backupManagedFiles,
+    };
+  }
+
+  const sidecar = claudeBackupScheduleSidecar(archive);
+  const stateSidecar = claudeBackupStateSidecar(archive);
+  const snapshot: ClaudeBackupSnapshot = {
+    archivePath: archive,
+    present,
+    sharedOwnedFilesPresent,
+    managedFilesManifestVersion,
+    restoreScope: options.managedAbsent ? "managed-absent" : "exact",
+    nodeModulesTarget,
+    managedFiles: backupManagedFiles,
+  };
+  try {
+    await Promise.all([
+      writeFile(sidecar, serializeAutoUpdateState(await snapshotAutoUpdateState()), {
+        flag: "wx",
+        mode: 0o600,
+      }),
+      writeFile(stateSidecar, serializeClaudeBackupState(snapshot), {
+        flag: "wx",
+        mode: 0o600,
+      }),
+    ]);
+  } catch (cause) {
+    await Promise.all([
+      rm(archive, { force: true }).catch(() => {}),
+      rm(sidecar, { force: true }).catch(() => {}),
+      rm(stateSidecar, { force: true }).catch(() => {}),
+    ]);
+    throw cause;
+  }
+
   // Keep last 5.
   const kept = (await readdir(backupDir)).filter((e) => /^backup-.*\.tar\.gz$/.test(e)).sort();
   if (kept.length > 5) {
+    const stale = kept.filter((name) => name !== preserveBackupName).slice(0, kept.length - 5);
     await Promise.all(
-      kept
-        .slice(0, kept.length - 5)
-        .map((old) => rm(join(backupDir, old), { force: true }).catch(() => {})),
+      stale.flatMap((old) => [
+        rm(join(backupDir, old), { force: true }).catch(() => {}),
+        rm(claudeBackupScheduleSidecar(join(backupDir, old)), { force: true }).catch(() => {}),
+        rm(claudeBackupStateSidecar(join(backupDir, old)), { force: true }).catch(() => {}),
+      ]),
     );
   }
+  return snapshot;
 }
 
 async function createDirectories(): Promise<void> {
@@ -181,98 +399,14 @@ async function createDirectories(): Promise<void> {
   await Promise.all(dirs.map((d) => mkdir(join(CLAUDE_DIR, d), { recursive: true })));
 }
 
-// Best-effort sweep of stale atomicWriteString/pointLatest staging files
-// (`.<pid>-<epoch-ms>.tmp` / `.<linkName>.<pid>-<epoch-ms>.tmp`) that survive a
-// hard kill between the staging write/symlink and the rename. Nothing else
-// sweeps these, so they'd otherwise accumulate forever; only entries older
-// than maxAgeMs are removed so an in-flight write from a concurrent process
-// is never touched.
-async function sweepStaleTmpFiles(dir: string, maxAgeMs: number): Promise<void> {
-  if (!existsSync(dir)) return;
-  const entries = await readdir(dir).catch(() => []);
-  const now = Date.now();
-  await Promise.all(
-    entries
-      .filter((e) => /^\..*\.tmp$/.test(e))
-      .map(async (e) => {
-        const full = join(dir, e);
-        try {
-          const st = await stat(full);
-          if (now - st.mtimeMs > maxAgeMs) await rm(full, { force: true });
-        } catch {
-          // vanished between readdir and stat, or a permissions blip — ignore
-        }
-      }),
-  );
-}
-
-async function cleanOldConfig(): Promise<void> {
-  const removeGlob = async (dir: string, pattern: RegExp) => {
-    const full = join(CLAUDE_DIR, dir);
-    if (!existsSync(full)) return;
-    const entries = await readdir(full).catch(() => []);
-    await Promise.all(
-      entries.filter((e) => pattern.test(e)).map((e) => rm(join(full, e), { force: true })),
-    );
-  };
-
-  const junkFiles = [
-    "skill-rules.cache",
-    "skill-activation.out",
-    "skill-index.compiled",
-    "skill-index.checksum",
-  ];
-
-  const wipeTasks = MANAGED_TOP_LEVEL_PATHS.map((entry) =>
-    entry.wipe === "recursive"
-      ? rm(join(CLAUDE_DIR, entry.rel), { recursive: true, force: true }).catch(() => {})
-      : removeGlob(entry.rel, entry.wipe.glob),
-  );
-
-  // Every removal below targets a disjoint path, so they run concurrently:
-  // MANAGED_TOP_LEVEL_PATHS wipes (legacy bash artifacts, fresh wipes of
-  // managed content re-installed after, glob-scoped prunes), managed skill
-  // directories, and stale caches + legacy top-level docs.
-  await Promise.all([
-    ...wipeTasks,
-    ...MANAGED_SKILLS.map((s) =>
-      rm(join(CLAUDE_DIR, "skills", s), { recursive: true, force: true }),
-    ),
-    ...junkFiles.map((junk) => rm(join(CLAUDE_DIR, junk), { force: true }).catch(() => {})),
-    // Stale atomic-write staging files older than 1 day — see sweepStaleTmpFiles.
-    sweepStaleTmpFiles(CLAUDE_DIR, 24 * 60 * 60 * 1000),
-  ]);
-}
-
-async function copyIfPresent(src: string, dst: string): Promise<boolean> {
-  if (!existsSync(src)) return false;
-  await cp(src, dst, { recursive: false, force: true });
-  return true;
-}
-
-/**
- * Copy entries from srcDir to dstDir, filtering by the keep predicate.
- * Skips entries where keep(name) returns false.
- */
-async function copyDirContentsFiltered(
-  srcDir: string,
-  dstDir: string,
-  keep: (name: string) => boolean,
+async function copySelectedSourceFile(
+  sourceRoot: string,
+  sourceRelativePath: string,
+  destination: string,
 ): Promise<void> {
-  if (!existsSync(srcDir)) return;
-  await mkdir(dstDir, { recursive: true });
-  const entries = await readdir(srcDir, { withFileTypes: true });
-  // Each entry copies to a distinct destination path — run them concurrently.
-  await Promise.all(
-    entries
-      .filter((e) => keep(e.name))
-      .map((e) => cp(join(srcDir, e.name), join(dstDir, e.name), { recursive: true, force: true })),
-  );
-}
-
-/** Copy all entries from srcDir to dstDir (no filtering). */
-async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
-  return copyDirContentsFiltered(srcDir, dstDir, () => true);
+  assertSelectedSourceFile(sourceRoot, sourceRelativePath);
+  await mkdir(dirname(destination), { recursive: true });
+  await cp(join(sourceRoot, sourceRelativePath), destination, { recursive: false, force: true });
 }
 
 /**
@@ -285,56 +419,56 @@ async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
  * install (full-minus-light).
  */
 async function installConfigFiles(source: string, profile: Profile): Promise<void> {
-  if (profile === "light") {
-    const lightSkillSet = new Set(LIGHT_SKILLS);
-    await copyDirContentsFiltered(join(source, "skills"), join(CLAUDE_DIR, "skills"), (name) =>
-      lightSkillSet.has(name),
-    );
-    // Execute the prune targets (skill dirs + full-only rootFiles/dirs).
-    const pruneTargets = lightProfilePruneTargets();
-    await Promise.all(
-      pruneTargets.map((rel) =>
-        rm(join(CLAUDE_DIR, rel), { recursive: true, force: true }).catch(() => {}),
-      ),
-    );
-  } else {
-    // Full profile: every rootFile + dir from the manifest. Destinations are
-    // disjoint, so all copies run in parallel.
-    const manifest = PROFILE_MANIFEST.full;
-    await Promise.all([
-      ...manifest.rootFiles.map(([src, dest]) =>
-        copyIfPresent(join(source, src), join(CLAUDE_DIR, dest)),
-      ),
-      ...manifest.dirs.map((d) => copyDirContents(join(source, d), join(CLAUDE_DIR, d))),
-    ]);
-  }
+  const files = currentClaudeManagedSourceFiles(profile).filter(
+    ({ destination }) => !destination.startsWith("src/"),
+  );
+  await Promise.all(
+    files.map(({ source: sourcePath, destination }) =>
+      copySelectedSourceFile(source, sourcePath, join(CLAUDE_DIR, destination)),
+    ),
+  );
 }
 
 async function installTsSources(source: string): Promise<void> {
-  const srcTs = join(source, "src");
-  if (!existsSync(srcTs)) return;
   const dstTs = join(CLAUDE_DIR, "src");
-  // Clean previous TS install so stale ports don't linger.
-  await rm(dstTs, { recursive: true, force: true });
+  const runtimeFiles = currentClaudeManagedSourceFiles("light").filter(({ destination }) =>
+    destination.startsWith("src/"),
+  );
+  for (const { source: sourcePath } of runtimeFiles) {
+    assertSelectedSourceFile(source, sourcePath);
+  }
   await mkdir(dstTs, { recursive: true });
-  await copyDirContents(srcTs, dstTs);
-
-  // Dep resolution: copy lockfile + config, link node_modules back to source.
-  await Promise.all([
-    copyIfPresent(join(source, "package.json"), join(dstTs, "package.json")),
-    copyIfPresent(join(source, "tsconfig.json"), join(dstTs, "tsconfig.json")),
-    copyIfPresent(join(source, "bun.lock"), join(dstTs, "bun.lock")),
-  ]);
+  await Promise.all(
+    runtimeFiles.map(({ source: sourcePath, destination }) =>
+      copySelectedSourceFile(source, sourcePath, join(CLAUDE_DIR, destination)),
+    ),
+  );
 
   const srcNm = join(source, "node_modules");
   const dstNm = join(dstTs, "node_modules");
-  if (existsSync(srcNm) && !existsSync(dstNm)) {
-    try {
-      await Bun.spawn(["ln", "-s", srcNm, dstNm], { stdout: "ignore", stderr: "ignore" }).exited;
-    } catch {
-      await cp(srcNm, dstNm, { recursive: true, force: true }).catch(() => {});
-    }
+  const existingDestination = await lstat(dstNm).catch((cause) => {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw cause;
+  });
+  if (existingDestination) {
+    throw new Error("Claude managed destination collision: src/node_modules");
+  }
+  const sourceDependencies = await lstat(srcNm).catch((cause) => {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw cause;
+  });
+  if (!sourceDependencies) {
+    if (process.env.CC_SKIP_DEPS === "1") return;
+    throw new Error(`Claude runtime dependencies are missing: ${srcNm}`);
+  }
+  if (!sourceDependencies.isDirectory() || sourceDependencies.isSymbolicLink()) {
+    throw new Error(`Claude runtime dependencies are not a real directory: ${srcNm}`);
+  }
+  await symlink(srcNm, dstNm, process.platform === "win32" ? "junction" : "dir");
+  const [sourceTarget, installedTarget] = await Promise.all([realpath(srcNm), realpath(dstNm)]);
+  if (sourceTarget !== installedTarget) {
+    throw new Error("Claude runtime dependency link does not resolve to the source dependencies");
   }
 }
 
-export { cleanOldConfig, createBackup, createDirectories, installConfigFiles, installTsSources };
+export { createBackup, createDirectories, installConfigFiles, installTsSources };

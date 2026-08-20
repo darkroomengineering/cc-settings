@@ -5,9 +5,9 @@
 // layers) and plans/swift-wiggling-lobster.md for the full design.
 
 import { existsSync } from "node:fs";
-import { chmod, mkdir, rm } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { runProcessFull } from "./git.ts";
 import { claudePath, hasCommand, os } from "./platform.ts";
 
@@ -212,6 +212,298 @@ function shouldSkipLaunchctl(): boolean {
   );
 }
 
+export interface AutoUpdateStateSnapshot {
+  plist: { present: false } | { present: true; bytes: Uint8Array; mode: number };
+  loaded: boolean;
+  repoPath: string | null;
+  restoreMode: "managed-restorable" | "independent-preserve-only";
+}
+
+interface SerializedAutoUpdateState {
+  version: 3;
+  state: null | {
+    loaded: boolean;
+    repo_path: string | null;
+    restore_mode: "managed-restorable" | "independent-preserve-only";
+    plist: { present: false } | { present: true; bytes_base64: string; mode: number };
+  };
+}
+
+export function serializeAutoUpdateState(snapshot: AutoUpdateStateSnapshot | null): string {
+  const payload: SerializedAutoUpdateState = {
+    version: 3,
+    state: snapshot
+      ? {
+          loaded: snapshot.loaded,
+          repo_path: snapshot.repoPath,
+          restore_mode: snapshot.restoreMode,
+          plist: snapshot.plist.present
+            ? {
+                present: true,
+                bytes_base64: Buffer.from(snapshot.plist.bytes).toString("base64"),
+                mode: snapshot.plist.mode,
+              }
+            : { present: false },
+        }
+      : null,
+  };
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+export function parseAutoUpdateState(serialized: string): AutoUpdateStateSnapshot | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch (cause) {
+    throw new Error("Invalid Claude backup auto-update metadata JSON", { cause });
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Invalid Claude backup auto-update metadata");
+  }
+  const payload = parsed as Record<string, unknown>;
+  if (payload.version !== 2 && payload.version !== 3) {
+    throw new Error("Unsupported Claude backup auto-update metadata");
+  }
+  if (payload.state === null) return null;
+  if (!payload.state || typeof payload.state !== "object" || Array.isArray(payload.state)) {
+    throw new Error("Invalid Claude backup auto-update state");
+  }
+  const state = payload.state as Record<string, unknown>;
+  if (typeof state.loaded !== "boolean") throw new Error("Invalid auto-update loaded state");
+  if (state.repo_path !== null && typeof state.repo_path !== "string") {
+    throw new Error("Invalid auto-update repository path");
+  }
+  const restoreMode =
+    payload.version === 2
+      ? "managed-restorable"
+      : state.restore_mode === "managed-restorable" ||
+          state.restore_mode === "independent-preserve-only"
+        ? state.restore_mode
+        : null;
+  if (!restoreMode) throw new Error("Invalid auto-update restore mode");
+  if (!state.plist || typeof state.plist !== "object" || Array.isArray(state.plist)) {
+    throw new Error("Invalid auto-update plist metadata");
+  }
+  const plist = state.plist as Record<string, unknown>;
+  if (plist.present === false) {
+    if (state.loaded) throw new Error("Loaded auto-update snapshot is missing its plist");
+    return {
+      loaded: false,
+      plist: { present: false },
+      repoPath: state.repo_path as string | null,
+      restoreMode,
+    };
+  }
+  if (
+    plist.present !== true ||
+    typeof plist.bytes_base64 !== "string" ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(plist.bytes_base64) ||
+    typeof plist.mode !== "number" ||
+    !Number.isInteger(plist.mode) ||
+    plist.mode < 0 ||
+    plist.mode > 0o777
+  ) {
+    throw new Error("Invalid auto-update plist snapshot");
+  }
+  const bytes = Buffer.from(plist.bytes_base64, "base64");
+  if (bytes.toString("base64") !== plist.bytes_base64) {
+    throw new Error("Invalid auto-update plist base64 payload");
+  }
+  return {
+    loaded: state.loaded,
+    plist: { present: true, bytes, mode: plist.mode },
+    repoPath: state.repo_path as string | null,
+    restoreMode,
+  };
+}
+
+async function readScheduledOwnership(
+  claudeDir: string,
+): Promise<{ repoPath: string | null; managed: boolean }> {
+  const sentinel = await readFile(join(claudeDir, ".cc-settings-version"), "utf8").catch(
+    () => null,
+  );
+  if (sentinel === null) return { repoPath: null, managed: false };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(sentinel);
+  } catch {
+    return { repoPath: null, managed: false };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { repoPath: null, managed: false };
+  }
+  const sentinelState = parsed as Record<string, unknown>;
+  const repoPath = sentinelState.repo_path;
+  return {
+    repoPath: typeof repoPath === "string" && isAbsolute(repoPath) ? resolve(repoPath) : null,
+    managed:
+      sentinelState.auto_update === true && sentinelState.managed_files_state !== "managed-absent",
+  };
+}
+
+/** Validate that persisted scheduler bytes can only recreate cc-settings' canonical job. */
+export async function validateAutoUpdateStateSnapshot(
+  snapshot: AutoUpdateStateSnapshot | null,
+  homeDir: string = homedir(),
+  claudeDir: string = join(homeDir, ".claude"),
+): Promise<void> {
+  if (!snapshot?.plist.present) return;
+  if (snapshot.restoreMode === "independent-preserve-only") return;
+  if (!snapshot.repoPath || !isAbsolute(snapshot.repoPath) || snapshot.plist.mode !== 0o600) {
+    throw new Error("Unsafe auto-update snapshot ownership metadata");
+  }
+  const repoMetadata = await lstat(snapshot.repoPath).catch(() => null);
+  if (!repoMetadata?.isDirectory() || repoMetadata.isSymbolicLink()) {
+    throw new Error("Unsafe auto-update snapshot repository path");
+  }
+  const common = {
+    bunPath: process.execPath,
+    scriptPath: join(claudeDir, "src", "scripts", "auto-update.ts"),
+    logPath: autoUpdateLogPath(claudeDir),
+    repoPath: snapshot.repoPath,
+  };
+  const wrapperPath = join(homeDir, ".hammerspoon", "helpers", "darkroom-run");
+  const candidates = [
+    buildPlist(common),
+    buildPlist({
+      ...common,
+      wrapperPath,
+      associatedBundleId: "com.darkroom.helpers",
+    }),
+  ];
+  const bytes = Buffer.from(snapshot.plist.bytes).toString("utf8");
+  if (!candidates.includes(bytes)) {
+    throw new Error("Auto-update snapshot plist is not the canonical cc-settings LaunchAgent");
+  }
+}
+
+/** Capture the one cc-settings LaunchAgent before a transactional lifecycle.
+ * A loaded job with no plist cannot be reconstructed exactly, so fail before
+ * either product mutates instead of claiming compensation is possible. */
+export async function snapshotAutoUpdateState(
+  homeDir: string = homedir(),
+  claudeDir: string = join(homeDir, ".claude"),
+): Promise<AutoUpdateStateSnapshot | null> {
+  if (os !== "macos") return null;
+  const path = plistPath(homeDir);
+  const metadata = await lstat(path).catch((cause: NodeJS.ErrnoException) => {
+    if (cause.code === "ENOENT") return null;
+    throw cause;
+  });
+  if (metadata?.isSymbolicLink() || (metadata && !metadata.isFile())) {
+    throw new Error(`Unsafe auto-update plist boundary: ${path}`);
+  }
+  const loaded = await strictAutoUpdateJobLoaded(homeDir);
+  if (loaded && !metadata) {
+    throw new Error(`Cannot snapshot loaded ${AUTO_UPDATE_LABEL}: its plist is missing at ${path}`);
+  }
+  const ownership = await readScheduledOwnership(claudeDir);
+  const snapshot: AutoUpdateStateSnapshot = {
+    plist: metadata
+      ? { present: true, bytes: await readFile(path), mode: metadata.mode & 0o777 }
+      : { present: false },
+    loaded,
+    repoPath: ownership.repoPath,
+    restoreMode:
+      ownership.managed || (!metadata && !loaded)
+        ? "managed-restorable"
+        : "independent-preserve-only",
+  };
+  await validateAutoUpdateStateSnapshot(snapshot, homeDir, claudeDir);
+  return snapshot;
+}
+
+/** Restore only the cc-settings LaunchAgent's exact file and load state. */
+export async function restoreAutoUpdateState(
+  snapshot: AutoUpdateStateSnapshot | null,
+  homeDir: string = homedir(),
+): Promise<void> {
+  if (!snapshot || os !== "macos") return;
+  await validateAutoUpdateStateSnapshot(snapshot, homeDir, join(homeDir, ".claude"));
+  if (snapshot.restoreMode === "independent-preserve-only") {
+    const current = await snapshotAutoUpdateState(homeDir, join(homeDir, ".claude"));
+    const exactMatch =
+      current !== null &&
+      current.loaded === snapshot.loaded &&
+      current.plist.present === snapshot.plist.present &&
+      (!current.plist.present ||
+        (snapshot.plist.present &&
+          current.plist.mode === snapshot.plist.mode &&
+          Buffer.from(current.plist.bytes).equals(Buffer.from(snapshot.plist.bytes))));
+    if (!exactMatch) {
+      throw new Error(
+        "Independent preserve-only auto-update state changed; restore its exact plist and load state before retrying.",
+      );
+    }
+    return;
+  }
+  const path = plistPath(homeDir);
+  const current = await lstat(path).catch((cause: NodeJS.ErrnoException) => {
+    if (cause.code === "ENOENT") return null;
+    throw cause;
+  });
+  if (current?.isSymbolicLink() || (current && !current.isFile())) {
+    throw new Error(`Unsafe auto-update plist boundary during restore: ${path}`);
+  }
+
+  if (!shouldSkipLaunchctl()) {
+    const uid = process.getuid?.() ?? 0;
+    const result = await runProcessFull("launchctl", [
+      "bootout",
+      `gui/${uid}/${AUTO_UPDATE_LABEL}`,
+    ]);
+    if (result.exit !== 0 && !isExactAbsentLaunchctlResult(result, uid)) {
+      throw new Error(
+        `Could not prepare ${AUTO_UPDATE_LABEL} restore: ${result.stderr.trim() || `launchctl bootout exited ${result.exit}`}`,
+      );
+    }
+  }
+
+  if (snapshot.plist.present) {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, snapshot.plist.bytes);
+    await chmod(path, snapshot.plist.mode);
+  } else {
+    await rm(path, { force: true });
+  }
+
+  if (snapshot.loaded && !shouldSkipLaunchctl()) {
+    const uid = process.getuid?.() ?? 0;
+    const result = await runProcessFull("launchctl", ["bootstrap", `gui/${uid}`, path]);
+    if (result.exit !== 0) {
+      throw new Error(
+        `Could not restore ${AUTO_UPDATE_LABEL}: ${result.stderr.trim() || `launchctl bootstrap exited ${result.exit}`}`,
+      );
+    }
+  }
+  if (!shouldSkipLaunchctl() && (await strictAutoUpdateJobLoaded(homeDir)) !== snapshot.loaded) {
+    throw new Error(`Could not restore ${AUTO_UPDATE_LABEL} load state exactly`);
+  }
+}
+
+async function strictAutoUpdateJobLoaded(homeDir: string = homedir()): Promise<boolean> {
+  if (shouldSkipLaunchctl()) return existsSync(plistPath(homeDir));
+  const uid = process.getuid?.() ?? 0;
+  const result = await runProcessFull("launchctl", ["print", `gui/${uid}/${AUTO_UPDATE_LABEL}`]);
+  if (result.exit === 0) return true;
+  const detail = `${result.stdout}\n${result.stderr}`.trim();
+  if (isExactAbsentLaunchctlResult(result, uid)) return false;
+  throw new Error(
+    `Could not query ${AUTO_UPDATE_LABEL} load state: ${detail || `launchctl print exited ${result.exit}`}`,
+  );
+}
+
+function isExactAbsentLaunchctlResult(
+  result: { exit: number; stdout: string; stderr: string },
+  uid: number,
+): boolean {
+  const detail = `${result.stdout}\n${result.stderr}`.trim();
+  const notFoundLine = `Could not find service "${AUTO_UPDATE_LABEL}" in domain for user gui:\\s*${uid}\\.?`;
+  const notFound = new RegExp(`^(?:Bad request\\.\\r?\\n)?${notFoundLine}$`);
+  return result.exit === 113 && notFound.test(detail);
+}
+
 /**
  * Whether the auto-update launchd job is actually loaded right now — real OS
  * state, used by decideAutoUpdate to corroborate a sentinel claiming
@@ -232,10 +524,9 @@ export async function autoUpdateJobLoaded(homeDir: string = homedir()): Promise<
 
 /**
  * (Re)register the auto-update launchd job: write the plist pointed at the
- * currently-installed script + bun binary, then bootout (ignore failure —
- * "not loaded" is the expected first-run case) + bootstrap. No-op on
- * non-macOS. Fail-soft throughout — a registration failure never aborts the
- * install.
+ * currently-installed script + bun binary, then bootout + bootstrap. No-op on
+ * non-macOS. The caller decides whether a returned failure aborts its
+ * transaction.
  *
  * `repoPath` (when provided) is embedded in the plist as CC_EXPECTED_REPO —
  * the source repo path known at registration time, pinned as a second
@@ -289,10 +580,15 @@ export async function registerAutoUpdate(
 
   try {
     const uid = process.getuid?.() ?? 0;
-    try {
-      await runProcessFull("launchctl", ["bootout", `gui/${uid}/${AUTO_UPDATE_LABEL}`]);
-    } catch {
-      // ignored — "not loaded" is the expected first-registration case
+    const bootout = await runProcessFull("launchctl", [
+      "bootout",
+      `gui/${uid}/${AUTO_UPDATE_LABEL}`,
+    ]);
+    if (bootout.exit !== 0 && !isExactAbsentLaunchctlResult(bootout, uid)) {
+      return {
+        ok: false,
+        reason: bootout.stderr.trim() || `launchctl bootout exited ${bootout.exit}`,
+      };
     }
     const result = await runProcessFull("launchctl", ["bootstrap", `gui/${uid}`, plist]);
     if (result.exit !== 0) {
@@ -300,6 +596,9 @@ export async function registerAutoUpdate(
         ok: false,
         reason: result.stderr.trim() || `launchctl bootstrap exited ${result.exit}`,
       };
+    }
+    if (!(await strictAutoUpdateJobLoaded(homeDir))) {
+      return { ok: false, reason: `${AUTO_UPDATE_LABEL} was not loaded after bootstrap` };
     }
     return { ok: true };
   } catch (e) {
@@ -319,9 +618,18 @@ export async function unregisterAutoUpdate(
   if (!shouldSkipLaunchctl()) {
     try {
       const uid = process.getuid?.() ?? 0;
-      await runProcessFull("launchctl", ["bootout", `gui/${uid}/${AUTO_UPDATE_LABEL}`]);
+      const result = await runProcessFull("launchctl", [
+        "bootout",
+        `gui/${uid}/${AUTO_UPDATE_LABEL}`,
+      ]);
+      if (result.exit !== 0 && !isExactAbsentLaunchctlResult(result, uid)) {
+        return { ok: false, removed: false };
+      }
+      if (await strictAutoUpdateJobLoaded(homeDir)) {
+        return { ok: false, removed: false };
+      }
     } catch {
-      // ignored — "not loaded" is expected
+      return { ok: false, removed: false };
     }
   }
 

@@ -217,18 +217,25 @@ async function walkTsFiles(dir: string, prefix = ""): Promise<string[]> {
   return out.sort();
 }
 
-/** Hash every .ts file under `installedSrcDir` and persist the manifest next
- *  to the hooks fingerprint (atomic write, same convention). Called by
- *  setup.ts immediately after installTsSources. */
+/** Hash only the explicitly installed .ts paths and persist the manifest next
+ *  to the hooks fingerprint (atomic write, same convention). Recursive live
+ *  discovery belongs to verification, where extra files are reported as
+ *  unmanifested instead of being adopted as trusted installer output. */
 export async function writeSrcManifest(
   installedSrcDir: string,
   claudeDir?: string,
+  managedRelativePaths?: readonly string[],
 ): Promise<SrcManifestRecord> {
   const dir = claudeDir ?? CLAUDE_DIR;
   const files: Record<string, string> = {};
-  for (const rel of await walkTsFiles(installedSrcDir)) {
+  const selectedPaths = managedRelativePaths ?? (await walkTsFiles(installedSrcDir));
+  for (const rel of [...new Set(selectedPaths)].sort()) {
+    if (!rel.endsWith(".ts") || rel.startsWith("/") || rel.split(/[/\\]/).includes("..")) {
+      throw new Error(`Invalid managed TypeScript manifest path: ${rel}`);
+    }
     const hash = await hashFileOrNull(join(installedSrcDir, rel));
-    if (hash) files[rel] = hash;
+    if (!hash) throw new Error(`Missing managed TypeScript manifest file: ${rel}`);
+    files[rel] = hash;
   }
   const record: SrcManifestRecord = { files, installedAt: new Date().toISOString() };
   await atomicWriteJson(join(dir, SRC_MANIFEST_FILENAME), record);

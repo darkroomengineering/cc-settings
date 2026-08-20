@@ -1,0 +1,8 @@
+interface:
+  display_name: "Lighthouse"
+  short_description: "Audit and improve browser performance metrics"
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "chrome-devtools"
+      description: "Chrome DevTools performance inspection server"

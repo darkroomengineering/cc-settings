@@ -7,7 +7,7 @@
 
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export type OS = "macos" | "linux" | "wsl" | "windows" | "unknown";
 
@@ -77,14 +77,19 @@ export function hasCommand(cmd: string): boolean {
   return Bun.which(cmd) !== null;
 }
 
-// Canonical ~/.claude directory. All code should use this rather than
-// joining homedir() + ".claude" inline — makes root overridable in tests
-// and keeps the derivation in one place.
+// Canonical ~/.claude directory. Install and inspection code must always use
+// this path so a hook-scoped environment override cannot redirect setup.
 export const CLAUDE_DIR = join(homedir(), ".claude");
 
-// Join one or more path segments under CLAUDE_DIR.
+// Hooks shared with Codex need a private state root under PLUGIN_DATA rather
+// than writing Claude-specific logs and handoffs into ~/.claude.
+const RUNTIME_DIR = process.env.CC_SETTINGS_HOME
+  ? resolve(process.env.CC_SETTINGS_HOME)
+  : CLAUDE_DIR;
+
+// Join one or more runtime-state path segments under the active product root.
 export function claudePath(...segments: string[]): string {
-  return join(CLAUDE_DIR, ...segments);
+  return join(RUNTIME_DIR, ...segments);
 }
 
 /** The install-adjacent paths a status/inspection pass reads. Bundled on

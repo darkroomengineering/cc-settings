@@ -7,9 +7,18 @@ description: Batch-review the diffs from several agents in one sitting with per-
 
 Context-switching between agents is the hidden tax: every cold reload costs minutes and you never restore the context perfectly. Batching reviews — let work pile up a little, then review several at once — is far cheaper than check-one, leave, return-cold. This skill assembles the pending work into one sitting.
 
+## Standalone Codex gathering
+
+Do not require the consumer repo to provide `bun run review-batch`, and do not
+read a Claude swarm log. Gather `git status --short`, `git diff --stat`, `git
+diff`, `git diff --cached --stat`, and `git diff --cached` directly. Read the
+current native agent state from the host's agent listing/status surface. Group
+cards by diff area and by agent task only when that provenance is actually
+available; otherwise label the producer unknown.
+
 ## Procedure
 
-1. **Gather the picture:**
+1. **Gather the picture in Claude:**
 
    ```bash
    bun run review-batch

@@ -91,7 +91,7 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
 ## Before you start
 
 If this hook uses an external library, **fetch docs first**:
-1. Use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) for the current API.
+1. Use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) in Claude or when the user configured it in standalone Codex. Otherwise use official docs through native browsing or inspect the pinned local package. cc-settings does not auto-run unpinned registry MCP packages in Codex.
 2. Run `bun info <package>` to check the latest version.
 
 ## Consider Using Hamo

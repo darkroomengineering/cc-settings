@@ -9,7 +9,21 @@ agent: explore
 
 Delegates to the Explore agent for fast, read-only investigation of the codebase.
 
-## Current State
+## Standalone Codex
+
+Claude frontmatter does not enforce a fork or tool restriction in standalone
+Codex. Keep this workflow read-only yourself, or use `spawn_agent` with an
+`explore` agent and a read-only prompt. Gather current state by explicitly
+running `pwd`, `basename "$PWD"`, `ls package.json Cargo.toml go.mod
+pyproject.toml`, and `git rev-parse --show-toplevel`; the `!command` lines below
+are Claude interpolation only.
+
+Codex does not receive TLDR from this package. In broad mode use `rg --files`,
+`rg -n` exact searches, direct import searches, and focused file reads. In
+upward-zoom mode search the symbol definition and all call sites with `rg -n`,
+then trace imports and callers one layer up. Never claim a TLDR MCP ran.
+
+## Claude current state
 - Directory: !`pwd 2>/dev/null`
 - Project: !`basename "$(pwd)" 2>/dev/null`
 - Stack: !`ls package.json Cargo.toml go.mod pyproject.toml 2>/dev/null || echo "unknown"`
@@ -20,9 +34,9 @@ Delegates to the Explore agent for fast, read-only investigation of the codebase
 ### Broad investigation mode (default)
 Use when the user is asking "how does X work" / "where is X" / "what handles Y" — finding code without a known starting point.
 
-1. **Start broad** - Use `tldr semantic` or `Glob` to find relevant files
+1. **Start broad** - In Claude use `tldr semantic` or `Glob`; in standalone Codex use the native searches above
 2. **Narrow down** - Read specific files to understand implementation
-3. **Trace connections** - Use `tldr impact` to find callers/dependencies
+3. **Trace connections** - In Claude use `tldr impact`; in standalone Codex trace callers and imports with `rg`
 4. **Summarize findings** - Return clear, actionable summary
 
 ### Upward-zoom mode
@@ -30,7 +44,7 @@ Use when the user is staring at a known function or module and needs to know **h
 
 1. Follow [../context-doc/DOMAIN-AWARENESS.md](../context-doc/DOMAIN-AWARENESS.md) — read `CONTEXT.md` and any relevant ADRs first if they exist.
 2. Identify the symbol or file the user is asking about.
-3. Use TLDR for the structural answer:
+3. In Claude, use TLDR for the structural answer:
 
    ```bash
    tldr context <symbol> --depth 3 --project .

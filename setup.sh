@@ -6,13 +6,16 @@
 #   3. exec `bun "$REPO/src/setup.ts" --source="$REPO" "$@"`.
 #
 # Flags (all forwarded to src/setup.ts):
-#   --light           light tier: raw CC + statusline + share-learning only
+#   --target=TARGET   auto, claude, codex, or both (default: auto)
+#   --light           smaller product-specific profile; see docs/install.md
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
+#   --uninstall       remove cc-settings-managed files from selected target
 #   --dry-run         print planned actions only
 #   --status          print installed vs packaged version info
-#   --migrate-only    backup + settings merge + sentinel; skip file copy
+#   --migrate-only    Claude only; both skips Codex; codex target rejects
 #   --interactive     prompt on settings.json conflicts (also: CC_INTERACTIVE=1)
 #   --help, -h
+# Unknown flags and invalid flag values fail closed.
 
 set -euo pipefail
 

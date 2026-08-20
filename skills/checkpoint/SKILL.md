@@ -8,6 +8,21 @@ allowed-tools: [Bash]
 
 # Checkpoint: Save & Restore Task State
 
+## Product-aware runner
+
+Set these once for the active host. `checkpoint.ts` uses `claudePath`, so pass
+the matching state root on every invocation.
+
+```bash
+# Standalone Codex
+CHECKPOINT_RUNNER="${CODEX_HOME:-$HOME/.codex}/darkroom/source/src/scripts/checkpoint.ts"
+CC_STATE_ROOT="${CODEX_HOME:-$HOME/.codex}/darkroom/state"
+
+# Claude Code instead uses:
+# CHECKPOINT_RUNNER="$HOME/.claude/src/scripts/checkpoint.ts"
+# CC_STATE_ROOT="$HOME/.claude"
+```
+
 ## Subcommands
 
 ### save [label]
@@ -15,7 +30,7 @@ allowed-tools: [Bash]
 Save current state with an optional label.
 
 ```bash
-bun ~/.claude/src/scripts/checkpoint.ts save "Completed phase 3 migration"
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" save "Completed phase 3 migration"
 ```
 
 ### list
@@ -23,7 +38,7 @@ bun ~/.claude/src/scripts/checkpoint.ts save "Completed phase 3 migration"
 List all checkpoints for the current project.
 
 ```bash
-bun ~/.claude/src/scripts/checkpoint.ts list
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" list
 ```
 
 ### show [checkpoint-id]
@@ -31,7 +46,7 @@ bun ~/.claude/src/scripts/checkpoint.ts list
 Show details of a specific checkpoint.
 
 ```bash
-bun ~/.claude/src/scripts/checkpoint.ts show chk-20240115-103000
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" show chk-20240115-103000
 ```
 
 ### restore [checkpoint-id] [--force]
@@ -59,13 +74,13 @@ Safety rails:
 
 ```bash
 # Restore latest
-bun ~/.claude/src/scripts/checkpoint.ts restore
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" restore
 
 # Restore specific
-bun ~/.claude/src/scripts/checkpoint.ts restore chk-20240115-103000
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" restore chk-20240115-103000
 
 # Restore across a branch/sha mismatch
-bun ~/.claude/src/scripts/checkpoint.ts restore chk-20240115-103000 --force
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" restore chk-20240115-103000 --force
 ```
 
 ### clean
@@ -73,7 +88,7 @@ bun ~/.claude/src/scripts/checkpoint.ts restore chk-20240115-103000 --force
 Remove old checkpoints, keeping the last 10.
 
 ```bash
-bun ~/.claude/src/scripts/checkpoint.ts clean
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" clean
 ```
 
 ## Examples
@@ -100,4 +115,9 @@ User: "clean up old checkpoints"
 
 ## Storage
 
-Checkpoints are stored at `~/.claude/checkpoints/<project-name>/` as JSON files with a `latest` symlink pointing to the most recent. Each checkpoint with uncommitted changes at save time also gets a sibling `chk-<id>.patch` file (`git diff HEAD` output) — this is what makes `restore` a real rollback instead of a metadata dump. Checkpoints saved before this feature existed have no patch file and restore in metadata-only (legacy) mode.
+Checkpoints are stored under `$CC_STATE_ROOT/checkpoints/<project-name>/` as
+JSON files with a `latest` symlink pointing to the most recent. Each checkpoint
+with uncommitted changes at save time also gets a sibling `chk-<id>.patch` file
+(`git diff HEAD` output) — this is what makes `restore` a real rollback instead
+of a metadata dump. Checkpoints saved before this feature existed have no patch
+file and restore in metadata-only (legacy) mode.

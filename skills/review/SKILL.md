@@ -11,7 +11,23 @@ Reviews against the full Darkroom quality checklist defined in the reviewer agen
 
 Focus areas: TypeScript strictness, React patterns, accessibility, performance, security, file structure.
 
-## Current State
+## Standalone Codex host setup
+
+Claude frontmatter does not enforce a fork or reviewer identity in standalone
+Codex. Keep the main pass read-only or create a fresh `reviewer` with
+`spawn_agent`. Deliver context to a running reviewer with `send_message`, trigger
+another turn for an idle existing reviewer with `followup_task`, wait with
+`wait_agent`, and stop its current turn with `interrupt_agent` only when
+necessary. Never spawn `codex-verifier` and never run `codex-run.ts` from inside Codex.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Reviewers may overlap because they are read-only; serialize any
+later implementer and test-writer work with non-overlapping ownership. Gather
+the current state by explicitly running `git branch --show-current`, `git diff
+--staged --stat`, and `git diff --stat`. The `!command` lines below are Claude
+interpolation only.
+
+## Claude current state
 - Branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 - Staged files: !`git diff --staged --stat 2>/dev/null || echo "nothing staged"`
 - Unstaged files: !`git diff --stat 2>/dev/null || echo "nothing unstaged"`
@@ -32,6 +48,12 @@ git diff path/to/file
 ## Large diffs: walk a reading diff, not a summary
 
 Past ~200 changed lines, present the diff walkthrough as a **reading diff** — the real diff, abridged — never a prose-only summary (prose can lie by omission; a diff can't). Every line shown is verbatim from `git diff`; the only editing allowed is removal and compression: drop whole no-signal lines, fold 2+ contiguous same-polarity lines into a `...` row, or elide a noisy span inside a kept line. Never rewrite one. Drop import churn, lockfiles, generated files, and formatting-only hunks; show one instance of a mechanical rename and fold the rest with a count; keep every behavioral change. Close with an accounting line — `showing N of M changed lines — dropped: ...` — naming any new dependency, changed import target, or lockfile version/integrity bump even though import churn is dropped. The full diff remains the merge authority. Full protocol: the "Reading diffs" section of `/review-batch` (adapted from boldsoftware/meat, Apache-2.0).
+
+## Standalone Codex review
+
+Follow the native lifecycle above, then adjudicate the fresh reviewer's findings
+against the diff. The fresh agent supplies the independent review; skip the
+Claude bridge branch below.
 
 ## Cross-model review (when the Codex bridge is available)
 

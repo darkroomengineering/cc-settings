@@ -30,6 +30,8 @@
 //                         createBackup still backs it up separately.
 //   - .claude.json      — lives outside CLAUDE_DIR entirely (home-relative);
 //                         createBackup still backs it up separately.
+//   - ownership metadata + src/ — backed up for exact rollback, but never
+//                         added to cleanOldConfig's normal install wipe.
 //   - regenerable caches (skill-rules.cache, tldr-cache, backups/, tmp/,
 //     logs/) — never backed up, cleaned via cleanOldConfig's own junkFiles
 //     list + sweepStaleTmpFiles.
@@ -100,6 +102,15 @@ export const MANAGED_TOP_LEVEL_PATHS: ManagedTopLevelEntry[] = [
   { rel: "hooks-config.json", wipe: "recursive" },
   { rel: "hooks-config.local.json", wipe: "recursive" },
 ];
+
+/** Installed ownership state restored only when the selected archive contains it. */
+export const BACKUP_ONLY_PATHS = [
+  ".cc-settings-version",
+  ".cc-settings-hooks-fingerprint",
+  ".cc-settings-src-manifest",
+  ".cc-settings-baseline.json",
+  "src",
+] as const;
 
 /**
  * The filenames cc-settings owns inside `rel` (relative to CLAUDE_DIR) — or

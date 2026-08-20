@@ -1,9 +1,11 @@
 # cc-settings
 
-AI coding configuration for the Darkroom team. The full harness installs into Claude Code, while
-Codex consumes the same standards and workflows through native import and plugin surfaces.
+AI coding configuration for the Darkroom team. One installer configures Claude Code, Codex, or both
+with shared standards and workflows plus the native features each product supports.
 
-Vanilla Claude Code is a capable but unopinionated agent. cc-settings turns it into the team's house engineer: it knows our standards, refuses to do dangerous things, proves its work before shipping it, delegates instead of grinding solo, routes work across model quotas, and detects when its own install has been tampered with.
+cc-settings turns either TUI into the team's house engineer. It knows our standards, avoids dangerous
+actions, proves work before shipping, and delegates larger tasks instead of grinding through them in
+one context.
 
 ---
 
@@ -21,18 +23,27 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
 ```
 
-Restart Claude Code after install. New to Claude Code? `bash setup.sh --light` installs a minimal tier (statusline + one skill) you can upgrade later. Flags, requirements, what lands where, rollback: [docs/install.md](./docs/install.md).
+The default `auto` target installs both products when `codex` is on `PATH`, and Claude Code only
+otherwise. Clone the repository to select a target explicitly:
 
-**Codex:** use its native `/import` flow after installing cc-settings. It translates the Darkroom
-instructions, settings, skills, hooks, MCP servers, and subagents without a second source tree. A
-skills-only native plugin preview is also available for local development. See
-[docs/codex.md](./docs/codex.md).
+```bash
+bash setup.sh --target=auto
+bash setup.sh --target=claude
+bash setup.sh --target=codex
+bash setup.sh --target=both
+```
+
+The remote one-liners cannot forward flags. Restart every selected TUI after install. In Codex,
+review the installed plugin hooks once through `/hooks`. Flags, requirements, profiles, installed
+paths, and rollback details are in [docs/install.md](./docs/install.md). Codex-specific boundaries
+are in [docs/codex.md](./docs/codex.md).
 
 ---
 
 ## After installing
 
-There are no commands to learn. Open Claude Code in a project and describe what you want in your own words — the right workflow loads on its own.
+There are no commands to learn. Open Claude Code or Codex in a project and describe what you want in
+your own words. The right workflow loads on its own.
 
 ```
 > fix the login redirect
@@ -45,42 +56,62 @@ That's the whole interface. Slash names like `/fix` and `/ship` exist so you can
 
 ---
 
-## What it adds on top of vanilla Claude Code
+## What it adds to Claude Code and Codex
 
 ### Standards & knowledge
 
-- **[AGENTS.md](./AGENTS.md)** — portable coding standards on the [open standard](https://agents.md) also read by Codex, Cursor, Copilot, and Windsurf; the source of truth, with [CLAUDE.md](./CLAUDE.md) layering Claude-Code-specific behavior (edit strategy, delegation, autonomy contract, output shaping) on top.
-- **10 path-conditioned rules** — TypeScript, React, performance, accessibility, security, git, styling — loaded only when relevant files are in play, so context isn't spent on Tauri rules during a CSS fix.
-- **6 stack profiles** — nextjs, react-native, tauri, webgl, react-router, maestro — deeper per-stack workflows activated on demand.
-- **Team knowledge system** — a shared team-knowledge repo consulted before architecture/convention calls, per-project auto-memory, and `/share-learning` to promote personal learnings team-wide.
+- **[AGENTS.md](./AGENTS.md)** contains the portable coding standards. Claude Code also receives
+  Claude-specific behavior from [CLAUDE.md](./CLAUDE.md). Codex receives a marked managed block in
+  its native `AGENTS.md`, preserving unrelated user text.
+- **Path-conditioned rules and stack profiles** give Claude Code deeper file and framework context.
+  Codex receives its native command policy plus the shared instructions and skills.
+- **The team knowledge system** provides shared conventions, project memory, and `/share-learning`.
 
-### Automation: 38 skills, 10 agents, 15 hooks
+### Automation
 
-- **38 skills** — multi-step workflows that fire from how you phrase a request, not from a command you memorize. *"fix the login redirect"* runs explore → tester → implementer → reviewer; *"ship it"* runs the full gate to an open PR; *"poke holes in this"* puts three competing agents on the claim. Each has a slash name for when you want to pin one, and [MANUAL.md](./MANUAL.md) maps situations to phrasings. The count is ratcheted in CI: adding a 39th or dropping to 37 both fail lint until the baseline is deliberately moved in a commit.
-- **10 subagents** — explore, planner, implementer, tester, reviewer, security-reviewer, deslopper, scaffolder, maestro, codex-verifier — with a mechanical delegation heuristic (3+ files or 12+ tool calls → delegate) enforced by a hook, because models under-delegate on their own.
-- **15 hook modules wired across 17 event types** (34 command bindings, including lifecycle scripts), split into hard gates and soft advisories:
-  - *Gates*: proof-of-work blocks pushing/PR-ing until typecheck/test/lint are green; the [farolero](https://github.com/darkroomengineering/farolero) ratchet gates commits in repos that use it; `/freeze` blocks edits outside a locked directory. For destructive Bash, the permissions deny-list is the enforcement boundary, with a fail-open safety-net hook as defense-in-depth on top ([SECURITY.md](./SECURITY.md)).
-  - *Advisories*: delegation nudges, model-escalation suggestions after repeated failures, quota steering, memory-promotion prompts.
+- **38 shared skills** fire from ordinary requests such as *"fix the login redirect"* or *"ship
+  it"*. [MANUAL.md](./MANUAL.md) maps situations to phrasings.
+- **Native role agents** support planning, implementation, testing, review, security, and
+  orchestration. Claude Code also gets `codex-verifier`, which is omitted from Codex because that
+  role bridges from Claude Code into Codex.
+- **Lifecycle hooks** enforce proof, safety, and workflow checks. Codex installs the compatible
+  subset through `darkroom@cc-settings`; review those hooks through `/hooks` after installation or
+  change.
 
 ### Model & quota strategy
 
-- **Model pins** — Opus 5 as session default, Sonnet for subagent fan-out, effort pinned to `high`: a deliberate cost calibration ([docs/agent-models.md](./docs/agent-models.md)).
-- **Codex bridge** — the OpenAI Codex CLI as a second model family: default-on cross-model review of every meaningful diff, bulk mechanical work routed to Codex's roomy quota, Claude kept for planning and gate decisions. Fail-open when the bridge is down ([docs/codex-bridge.md](./docs/codex-bridge.md)).
-- **Quota-aware statusline** — model + effort, context-usage bar, 5h/7d rate-limit chips, review-queue backpressure, version drift, and Codex availability in one line.
+- **Claude Code model pins and routing** keep planning, fan-out, and cross-model review on their
+  intended model pools ([docs/agent-models.md](./docs/agent-models.md)).
+- **The Codex bridge** lets Claude Code call Codex as a second model family
+  ([docs/codex-bridge.md](./docs/codex-bridge.md)). Standalone Codex workflows never invoke that
+  bridge recursively.
+- **Claude's custom statusline** shows model, context, quota, drift, and bridge health. Codex has no
+  arbitrary custom statusline API, so use Codex `/status` for session state and installer `--status`
+  for install health.
 
 ### Settings & permissions
 
-Composed `settings.json` from modular fragments: a curated allowlist of safe commands, a large denylist (force-push, `curl | bash`, credential reads, `sudo`, secret deletion), and 4 pre-wired MCP servers — context7 for library docs, tldr for token-cheap code intel, figma, chrome-devtools. Re-installs are non-destructive: existing permissions, custom hooks, and local overrides survive.
+Claude Code receives composed settings, permissions, hooks, and four MCP servers: `context7`,
+`tldr`, `figma`, and `chrome-devtools`. Codex automatically receives only the fixed HTTPS Figma MCP.
+It does not auto-run Context7 or Chrome DevTools from unpinned packages, and it does not bundle
+`tldr`. Users may configure reviewed and pinned MCP versions themselves.
 
 ### Supply-chain defense
 
-Setup writes a SHA256 fingerprint of the hooks block plus a content manifest of every installed script; every session start re-verifies both, and `bun run audit:hooks` classifies every hook command as trusted (content-hash-verified, or exact-match known-vendor templates), stale, unknown, or suspicious against known worm signatures. The auditor can never whitelist itself ([SECURITY.md](./SECURITY.md)).
+Claude setup fingerprints its hooks and installed scripts, then verifies them on session start.
+`bun run audit:hooks` classifies hook commands against trusted content and suspicious patterns
+([SECURITY.md](./SECURITY.md)). Codex uses its native plugin trust review through `/hooks`.
 
 ### The installer
 
-Non-destructive three-way merge that survives re-installs, timestamped backups with one-command rollback, dry-run preview, the `--light` beginner tier, and an upstream drift scanner that flags when Claude Code itself changed underneath the config.
+The installer supports `--target=auto|claude|codex|both` for install, dry run, status, rollback, and
+uninstall. Backups and ownership records are product-specific. Reinstalls preserve unrelated Codex
+agents, rules, and `AGENTS.md` text, plus unrelated Claude settings and extensions. Invalid or
+unknown flags fail closed. Codex copies an allowlisted runtime package, not user or ignored checkout
+files.
 
-Everything is TypeScript on Bun, tested, linted, and CI-gated — including the counts and contracts above, so this summary stays true by construction rather than by discipline.
+Everything is TypeScript on Bun, tested, linted, and CI-gated, including the shared counts and
+installer contracts above.
 
 ---
 
@@ -95,7 +126,7 @@ Rules start as advisories, work ships through gates, and an advisory is only pro
 | Doc | What's in it |
 |-----|-------------|
 | [docs/install.md](./docs/install.md) | Install flags, requirements, light vs full, what lands where, common commands |
-| [docs/codex.md](./docs/codex.md) | Codex import, native plugin setup, compatibility boundaries, distribution decision |
+| [docs/codex.md](./docs/codex.md) | Native Codex install, plugin trust, lifecycle, light profile, and platform boundaries |
 | [docs/the-flow.md](./docs/the-flow.md) | The advisory → gate → measurement loop that ties the pieces together |
 | [MANUAL.md](./MANUAL.md) | Every skill — how to invoke it, what it does |
 | [AGENTS.md](./AGENTS.md) | Coding standards and guardrails (source of truth) |

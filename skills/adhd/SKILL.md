@@ -55,6 +55,20 @@ If any fails, ABORT and answer the question directly. Optionally append
 one sentence: *"If you want a wider exploration under parallel cognitive
 frames with explicit trap detection, run `/adhd <your problem>`."*
 
+## Standalone Codex batching
+
+Read the live concurrency limit before Phase 1 and reserve a slot for the main
+session. Launch only the independent generator frames that fit. Create each
+frame with `spawn_agent` and wait for it with `wait_agent`; then launch the
+remaining frames in the next batch. Use `send_message` to deliver context to a
+running frame, `followup_task` to trigger another turn for an idle existing
+frame, and `interrupt_agent` only to stop a frame's current turn.
+
+Every frame still receives only the original problem, user context, its own
+vantage prompt, and the generator instruction. Never pass output between
+frames, even across batches. Apply the same batching to the three deepen
+agents. Do not require five simultaneous slots or promise Sonnet routing.
+
 ## The loop
 
 Two strict phases. Mixing them kills idea quality, because the critic
@@ -68,7 +82,8 @@ For the problem P:
    tags when the problem is code-shaped. Always include at least one wild
    frame to keep range.
 
-2. Spawn 5 **parallel** Agent tool calls in ONE message. One per frame.
+2. In Claude, spawn 5 **parallel** Agent tool calls in ONE message. In
+   standalone Codex, use the independent batches above. One agent per frame.
    Each Agent gets only:
    - the problem P
    - any context the user provided
@@ -85,10 +100,10 @@ For the problem P:
    > Output a JSON array only. No prose before or after.
    > `[{"text": "...", "rationale": "..."}, ...]`
 
-3. **Critical invariant.** The Agent calls must be parallel and isolated.
-   Do NOT serialize them. Do NOT pass one branch's output as context to
-   another. Branches that see each other anchor each other and the whole
-   method collapses to a wider single thought.
+3. **Critical invariant.** Branches must be isolated. Claude runs all five in
+   parallel; Codex may batch them only to respect its live slot limit. Do NOT
+   pass one branch's output as context to another. Branches that see each other
+   anchor each other and the whole method collapses to a wider single thought.
 
 ### Phase 2 — Focus (critic on)
 
@@ -123,10 +138,9 @@ After all branches return:
    > Output JSON only.
 
 Scoring, clustering, and the final synthesis stay in the main session —
-that is judgment work and belongs on the session's top-tier model. The
-generator and deepen agents are fan-out subagents and inherit
-`CLAUDE_CODE_SUBAGENT_MODEL` (Sonnet), which fits the quota doctrine:
-roomy pools carry volume, the scarce pool does the judging.
+that is judgment work. In Claude, generator and deepen agents inherit
+`CLAUDE_CODE_SUBAGENT_MODEL` (Sonnet). Standalone Codex makes no model-routing
+promise beyond the live host's configuration.
 
 ## Frames
 
@@ -208,9 +222,10 @@ These are how this skill goes wrong. Watch for them.
 
 5 diverge + 1 score + 1 cluster + 3 deepen ≈ 10 Agent calls per run.
 About 5 to 10x a single-shot answer. Not for every keystroke. For decision
-points where the cost of the obvious answer is high. Diverge/deepen agents
-run on the Sonnet subagent pool, so the Opus/Fable cost of a run is one
-synthesis pass.
+points where the cost of the obvious answer is high. In Claude,
+diverge/deepen agents run on the Sonnet subagent pool, so the Opus/Fable cost
+of a run is one synthesis pass. Standalone Codex reports its own live routing
+and slot limits instead.
 
 ## Attribution
 

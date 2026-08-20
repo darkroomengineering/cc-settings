@@ -6,7 +6,41 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [13.15.0] — 2026-08-20
+
+**cc-settings now installs a native Codex harness from the same installer and source tree as Claude
+Code.** Native setup replaces `/import` as the recommended path. `/import` remains available for
+migrating an existing hand-tuned Claude Code profile.
+
+**Added:**
+
+- **Target selection across the full lifecycle.** `--target=auto|claude|codex|both` now applies to
+  install, dry run, status, rollback, and uninstall. `auto` selects both products when `codex` is on
+  `PATH`, and Claude Code only otherwise. Unknown flags and invalid values fail closed.
+- **A native Codex install package.** Full installs manage a marked `AGENTS.md` block, Codex role
+  TOMLs, `rules/darkroom.rules`, allowlisted runtime source, a version sentinel, Codex-specific
+  backups, and the `darkroom@cc-settings` plugin. The plugin supplies the 38 shared skills, the fixed
+  HTTPS Figma MCP, compatible lifecycle hooks, and Codex UI metadata. User-created and ignored
+  checkout files are not copied into the managed runtime.
+- **Ownership-aware Codex lifecycle operations.** Reinstalls preserve unrelated agents, rules, and
+  instruction text. First installs refuse same-name collisions. Light switches, rollback, and
+  uninstall remove only sentinel-owned native agent files, while uninstall keeps backups.
+
+**Changed:**
+
+- **Codex setup documentation now leads with the native installer.** It documents one-time hook
+  trust review through `/hooks`, MCP authentication, the Codex-specific light profile, independent
+  product backups, IDE plugin limits, and Claude-only workflow boundaries.
+- **Codex MCP defaults now avoid mutable registry commands.** Context7 and Chrome DevTools are not
+  auto-run from unpinned packages. Users may configure reviewed and pinned versions. Shared Codex
+  workflows fall back from the unbundled `tldr` server to `rg` and native search.
+- **The bootstrap flag reference now covers Codex targets and uninstall.** The remote one-liners
+  still run the default target; passing flags requires running the bootstrap from a checkout.
+
+
 **`/audit` reshuffled: Maintainability and Codebase modes merged into one, new empirical-only Performance mode.** The two modes fanned the same whole-repo readers over the same files and shipped near-identical reports, so they now run as one Codebase mode with two hunt lists — a structure lens (should this code exist? — the Cursor thermo-nuclear rubric + context7 dependency audit) and a behavior lens (does it do what it promises? — the fable-audit adversarial categories). The mode router's maintainability-vs-correctness clarifying question is gone; bare "audit the codebase" routes straight in. The new **Performance mode** covers client runtime, bundle/build, server/data, and code-level hot paths with a hard evidence rule: a finding does not exist until a measurement confirms it — static reading only generates hypotheses, each confirmed or discarded by a profile/benchmark/timed run, unmeasurable leads quarantined in an ungraded appendix, and a "not measurable" repo gets a stop, not a speculative report. Severity anchors on budgets (CWV good thresholds, per-route first-load JS) where a limit is named and on leverage (measured cost × path frequency) otherwise. Client-runtime numbers delegate to the same Lighthouse protocol `/lighthouse` uses; `/lighthouse` keeps the single-page fix-until-targets loop and dropped the ambiguous "performance audit" trigger. Mode count stays eight; skill count unchanged. Updated: `skills/audit/SKILL.md`, `skills/audit/references/audit-contract.md`, `skills/audit/references/nuclear-review.workflow.js` (header), `skills/lighthouse/SKILL.md` (description), `MANUAL.md`.
+
+**Also in this release:** audit's codebase mode reconciles `SHORTCUT:` markers like documented decisions and adds `deslop-cli` as a second advisory dead-code signal; the performance mode's hypothesis sweep targets high fan-in hubs from the tldr call graph; findings hand off by type (dead code/duplication → `deslopper`, structure → `/zero-tech-debt`/`/refactor`, client runtime → `/lighthouse`); `oracle` and `strategist` cross-reference each other to resolve their trigger adjacency; the Codex native install's collision error now names its remediation.
 
 ## [13.14.0] — 2026-08-18
 

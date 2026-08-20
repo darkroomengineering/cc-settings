@@ -9,6 +9,8 @@
 //
 // Pure detection/formatting (unit-tested) + the subprocess runner.
 
+import { scrubProjectSubprocessEnv } from "./tsc.ts";
+
 export type GateName = "typecheck" | "test" | "lint";
 
 // Advisory probes run alongside the hard gates but never flip the verdict.
@@ -94,6 +96,7 @@ export function tailOutput(text: string, maxLines = 12): string {
 export async function runGate(gate: GateName, cwd: string): Promise<GateResult> {
   const proc = Bun.spawn(["bun", "run", GATE_SCRIPTS[gate]], {
     cwd,
+    env: scrubProjectSubprocessEnv(),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -122,6 +125,7 @@ export async function runGates(gates: GateName[], cwd: string): Promise<GateResu
 export async function runReactDoctor(cwd: string): Promise<GateResult> {
   const proc = Bun.spawn(["npx", "react-doctor", "--score", "--no-telemetry"], {
     cwd,
+    env: scrubProjectSubprocessEnv(),
     stdout: "pipe",
     stderr: "ignore",
   });
@@ -141,6 +145,7 @@ export async function runReactDoctor(cwd: string): Promise<GateResult> {
 export async function runDeslop(cwd: string): Promise<GateResult> {
   const proc = Bun.spawn(["npx", "deslop", "--json"], {
     cwd,
+    env: scrubProjectSubprocessEnv(),
     stdout: "pipe",
     stderr: "ignore",
   });

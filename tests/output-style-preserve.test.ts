@@ -27,6 +27,7 @@ async function install(home: string, extraArgs: string[] = []): Promise<number> 
       HOME: home,
       USERPROFILE: home,
       CC_SKIP_DEPS: "1",
+      CC_SKIP_SCHEDULE: "1",
       NO_COLOR: "1",
     },
     stdout: "pipe",
@@ -37,7 +38,7 @@ async function install(home: string, extraArgs: string[] = []): Promise<number> 
 }
 
 describe("output styles — a user's own style survives an install", () => {
-  test("re-install keeps a foreign output style and refreshes darkroom.md", async () => {
+  test("re-install fails closed when darkroom.md changed and preserves both styles", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-outputstyle-"));
     try {
       expect(await install(home)).toBe(0);
@@ -50,18 +51,25 @@ describe("output styles — a user's own style survives an install", () => {
       const mine = join(stylesDir, "rico-personal.md");
       await writeFile(mine, "---\nname: Rico\n---\n\nplain words only.\n");
       await writeFile(join(stylesDir, "darkroom.md"), "clobbered\n");
+      const sentinel = join(home, ".claude", ".cc-settings-version");
+      const settings = join(home, ".claude", "settings.json");
+      const before = await Promise.all([
+        readFile(mine),
+        readFile(join(stylesDir, "darkroom.md")),
+        readFile(sentinel),
+        readFile(settings),
+      ]);
 
-      // Second install: cleanOldConfig runs, then the copy phase.
-      expect(await install(home)).toBe(0);
+      expect(await install(home)).not.toBe(0);
 
-      // The user's style is untouched — content included, not just the path.
-      expect(existsSync(mine)).toBe(true);
-      expect(await readFile(mine, "utf8")).toContain("plain words only.");
-
-      // Ours is restored from source, not left clobbered.
-      const ours = await readFile(join(stylesDir, "darkroom.md"), "utf8");
-      expect(ours).not.toContain("clobbered");
-      expect(ours).toContain("name: Darkroom");
+      expect(
+        await Promise.all([
+          readFile(mine),
+          readFile(join(stylesDir, "darkroom.md")),
+          readFile(sentinel),
+          readFile(settings),
+        ]),
+      ).toEqual(before);
     } finally {
       await rm(home, { recursive: true, force: true });
     }
@@ -98,7 +106,7 @@ describe("output styles — a user's own style survives an install", () => {
   // directory before restoring the backed-up contents — deleting a style the
   // user hand-wrote after the last backup. Rollback must restore only the
   // files cc-settings owns (darkroom.md) and leave everything else in place.
-  test("--rollback restores darkroom.md but leaves a foreign style untouched", async () => {
+  test("--rollback fails closed when darkroom.md changed and preserves both styles", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-outputstyle-rollback-"));
     try {
       // Install 1: creates darkroom.md, and gives install 2's createBackup
@@ -112,8 +120,13 @@ describe("output styles — a user's own style survives an install", () => {
       // The user hand-writes their own style AFTER the last backup was taken.
       const mine = join(stylesDir, "rico-personal.md");
       await writeFile(mine, "---\nname: Rico\n---\n\nplain words only.\n");
-      // Also perturb darkroom.md so a real restore is observable.
       await writeFile(join(stylesDir, "darkroom.md"), "clobbered\n");
+      const sentinel = join(home, ".claude", ".cc-settings-version");
+      const before = await Promise.all([
+        readFile(mine),
+        readFile(join(stylesDir, "darkroom.md")),
+        readFile(sentinel),
+      ]);
 
       const proc = Bun.spawn(["bun", SETUP_TS, "--rollback"], {
         env: {
@@ -121,6 +134,7 @@ describe("output styles — a user's own style survives an install", () => {
           HOME: home,
           USERPROFILE: home,
           CC_SKIP_DEPS: "1",
+          CC_SKIP_SCHEDULE: "1",
           NO_COLOR: "1",
         },
         stdout: "pipe",
@@ -131,18 +145,15 @@ describe("output styles — a user's own style survives an install", () => {
         new Response(proc.stderr).text(),
       ]);
       const exitCode = await proc.exited;
-      if (exitCode !== 0) {
-        throw new Error(`rollback failed (${exitCode})\nstdout:\n${stdout}\nstderr:\n${stderr}`);
-      }
-
-      // darkroom.md is restored from the backup, not left clobbered.
-      const ours = await readFile(join(stylesDir, "darkroom.md"), "utf8");
-      expect(ours).not.toContain("clobbered");
-      expect(ours).toContain("name: Darkroom");
-
-      // The foreign style, written after the backup, survives untouched.
-      expect(existsSync(mine)).toBe(true);
-      expect(await readFile(mine, "utf8")).toContain("plain words only.");
+      expect(exitCode, `${stdout}\n${stderr}`).not.toBe(0);
+      expect(`${stdout}\n${stderr}`).toMatch(/modified managed content|changed/i);
+      expect(
+        await Promise.all([
+          readFile(mine),
+          readFile(join(stylesDir, "darkroom.md")),
+          readFile(sentinel),
+        ]),
+      ).toEqual(before);
     } finally {
       await rm(home, { recursive: true, force: true });
     }

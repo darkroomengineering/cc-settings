@@ -45,9 +45,11 @@ describe("readSentinelInfo", () => {
       expect(await readSentinelInfo(dir)).toEqual({
         version: null,
         repoPath: null,
+        profile: null,
         engine: null,
         engineExplicit: null,
         mcpWritten: null,
+        managedFiles: null,
         autoUpdate: null,
       });
     } finally {
@@ -64,9 +66,11 @@ describe("readSentinelInfo", () => {
       expect(await readSentinelInfo(dir)).toEqual({
         version: "11.12.0",
         repoPath: "/x/y",
+        profile: null,
         engine: null,
         engineExplicit: null,
         mcpWritten: null,
+        managedFiles: null,
         autoUpdate: null,
       });
     } finally {
@@ -83,16 +87,18 @@ describe("readSentinelInfo", () => {
       expect(await readSentinelInfo(dir)).toEqual({
         version: "11.30.3",
         repoPath: "/x/y",
+        profile: null,
         engine: "native-ts",
         engineExplicit: null,
         mcpWritten: null,
+        managedFiles: null,
         autoUpdate: null,
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
-  test("reads engine_explicit + mcp_written when present", async () => {
+  test("reads profile, engine ownership, and managed file hashes when present", async () => {
     const dir = await tmp();
     try {
       await writeFile(
@@ -100,17 +106,21 @@ describe("readSentinelInfo", () => {
         JSON.stringify({
           version: "12.9.0",
           repo_path: "/x/y",
+          profile: "full",
           engine: "native-ts",
           engine_explicit: true,
           mcp_written: { tldr: { command: "bun", args: ["a.ts"], serverInstructions: "x" } },
+          managed_files: { "agents/reviewer.md": "a".repeat(64) },
         }),
       );
       expect(await readSentinelInfo(dir)).toEqual({
         version: "12.9.0",
         repoPath: "/x/y",
+        profile: "full",
         engine: "native-ts",
         engineExplicit: true,
         mcpWritten: { tldr: { command: "bun", args: ["a.ts"], serverInstructions: "x" } },
+        managedFiles: { "agents/reviewer.md": "a".repeat(64) },
         autoUpdate: null,
       });
     } finally {
@@ -124,9 +134,11 @@ describe("readSentinelInfo", () => {
       expect(await readSentinelInfo(dir)).toEqual({
         version: "11.0.0",
         repoPath: null,
+        profile: null,
         engine: null,
         engineExplicit: null,
         mcpWritten: null,
+        managedFiles: null,
         autoUpdate: null,
       });
     } finally {
@@ -140,9 +152,11 @@ describe("readSentinelInfo", () => {
       expect(await readSentinelInfo(dir)).toEqual({
         version: null,
         repoPath: null,
+        profile: null,
         engine: null,
         engineExplicit: null,
         mcpWritten: null,
+        managedFiles: null,
         autoUpdate: null,
       });
     } finally {
@@ -159,10 +173,40 @@ describe("readSentinelInfo", () => {
       expect(await readSentinelInfo(dir)).toEqual({
         version: "12.3.0",
         repoPath: "/x/y",
+        profile: null,
         engine: null,
         engineExplicit: null,
         mcpWritten: null,
+        managedFiles: null,
         autoUpdate: true,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("invalid profile and managed_files shapes degrade independently", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({
+          version: "12.9.0",
+          repo_path: "/x/y",
+          profile: "custom",
+          managed_files: { "agents/reviewer.md": 42 },
+          auto_update: false,
+        }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "12.9.0",
+        repoPath: "/x/y",
+        profile: null,
+        engine: null,
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: false,
       });
     } finally {
       await rm(dir, { recursive: true, force: true });

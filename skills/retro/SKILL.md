@@ -11,7 +11,23 @@ allowed-tools:
 
 # Engineering Retrospective
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "retro" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Product-aware helper
+
+```bash
+# Claude Code
+ESCALATE_STATS_RUNNER="$HOME/.claude/src/scripts/escalate-stats.ts"
+CC_STATE_ROOT="$HOME/.claude"
+
+# Standalone Codex would resolve the helper as:
+# ESCALATE_STATS_RUNNER="${CODEX_HOME:-$HOME/.codex}/darkroom/source/src/scripts/escalate-stats.ts"
+```
+
+Codex must skip this Claude escalation telemetry entirely because the plugin
+does not expose a reliable manual state path. Do not infer or report an
+act-rate in Codex.
+
+**Claude-only marker:** standalone Codex must skip this command.
+`mkdir -p ~/.claude/tmp && echo "retro" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 **This skill is self-contained.** Do not read CLAUDE.md or agent definitions.
 
@@ -53,13 +69,14 @@ git log origin/main --since="WINDOW_START" --format="%s" | grep -oE '#[0-9]+' | 
 
 Replace `WINDOW_START` with the appropriate `--since` value for the requested window.
 
-Also run the escalate-advisory telemetry, if present:
+In Claude only, also run the escalate-advisory telemetry if present:
 
 ```bash
-bun "$HOME/.claude/src/scripts/escalate-stats.ts" --days 7
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$ESCALATE_STATS_RUNNER" --days 7
 ```
 
-If this prints stats (not "no telemetry yet"), include the act-rate in the report — see Step 13.
+If this prints stats (not "no telemetry yet"), include the act-rate in the
+report — see Step 13. Standalone Codex omits the telemetry and act-rate section.
 
 ---
 

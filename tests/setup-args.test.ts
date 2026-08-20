@@ -13,6 +13,8 @@ describe("parseArgs", () => {
     expect(a.status).toBe(false);
     expect(a.help).toBe(false);
     expect(a.migrateOnly).toBe(false);
+    expect(a.uninstall).toBe(false);
+    expect(a.target).toBe("auto");
     // Not end-anchored: when the suite runs inside a git worktree, sourceDir is
     // `.../cc-settings/.claude/worktrees/agent-<hash>` — still inside the
     // cc-settings project, but not ending in it. A substring check holds in both.
@@ -41,6 +43,29 @@ describe("parseArgs", () => {
 
   test("--migrate-only sets migrateOnly", () => {
     expect(parseArgs(["--migrate-only"]).migrateOnly).toBe(true);
+  });
+
+  test("--uninstall selects the removal lifecycle", () => {
+    expect(parseArgs(["--uninstall"]).uninstall).toBe(true);
+  });
+
+  test.each(["auto", "claude", "codex", "both"] as const)(
+    "--target=%s selects that installer surface",
+    (target) => {
+      expect(parseArgs([`--target=${target}`]).target).toBe(target);
+    },
+  );
+
+  test("an invalid --target value is recorded and leaves the target fail-closed at auto", () => {
+    const args = parseArgs(["--target=other"]);
+    expect(args.target).toBe("auto");
+    expect(args.errors).toEqual([
+      "--target=other is not valid (expected auto, claude, codex, or both)",
+    ]);
+  });
+
+  test("unknown flags are reported instead of silently ignored", () => {
+    expect(parseArgs(["--wat"]).errors).toEqual(["Unknown argument: --wat"]);
   });
 
   test("--source=<path> sets sourceDir", () => {
@@ -94,8 +119,10 @@ describe("parseArgs", () => {
     expect(parseArgs(["--auto-update=off"]).autoUpdate).toBe("off");
   });
 
-  test("--auto-update=<invalid> is ignored — autoUpdate stays null", () => {
-    expect(parseArgs(["--auto-update=maybe"]).autoUpdate).toBeNull();
+  test("--auto-update=<invalid> is recorded and leaves autoUpdate null", () => {
+    const args = parseArgs(["--auto-update=maybe"]);
+    expect(args.autoUpdate).toBeNull();
+    expect(args.errors).toEqual(['--auto-update=maybe is not valid (expected "on" or "off")']);
   });
 
   test("--auto-update composes with other flags", () => {
