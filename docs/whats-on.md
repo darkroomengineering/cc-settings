@@ -1,5 +1,9 @@
 # What's On
 
+> **Audience:** Claude Code users
+> **Purpose:** inspect the installed user-scope configuration that can shape a Claude session
+> **Status:** canonical Claude installed-state guide
+
 ```
 bun ~/.claude/src/scripts/whats-on.ts
 ```
@@ -10,11 +14,16 @@ cc-settings repo checkout around — the installer copies the TS tree to
 script. If you do have the repo checked out, `bun run whats-on` (below) is
 the same script, shorter to type.
 
-`whats-on` answers a different question than `bun src/setup.ts --status`:
-status answers install health (version drift, present/missing counts,
-"38/38 skills", auto-update enrollment). `whats-on` answers what is actually
+`whats-on` answers a different question than `bash setup.sh --target=claude --status` from a
+checkout:
+status answers install health (version drift, present/missing counts, "present:
+38/38" under "Managed skills:", auto-update enrollment). `whats-on` answers what is actually
 shaping the current session — one line per thing, what it does, and how to
 turn it off.
+
+It does not record invocation history and cannot prove which skill handled a previous prompt. Ask
+the current session what it selected when that context is still available. Standalone Codex has no
+exact equivalent; use native `/status` for session state and `/hooks` for plugin-hook trust.
 
 It reads the USER-SCOPE INSTALLED state at `~/.claude` (settings.json,
 output-styles/, CLAUDE.md, AGENTS.md, rules/, agents/, skills/) — never the
@@ -59,16 +68,16 @@ only — it doesn't merge or resolve full precedence).
    hook script actually referenced in `settings.json`, with the event(s) it's
    wired to and a one-line effect description pulled from the script's own
    leading comment (never fabricated — a script with no comment prints its
-   name alone).
+   name and wired event(s) with no trailing description).
 5. **Inventory** — skills/agents/MCP-server counts and permission allow/deny
-   counts, plus a pointer to `bun run permissions:check "<cmd>"` for a
-   permission dry-run.
-6. **Footer** — pointers to `MANUAL.md` (full inventory) and
-   `bun src/setup.ts --status` (install health).
+   counts, plus the installed
+   `bun ~/.claude/src/scripts/permissions-check.ts --installed "<cmd>"` command for a permission
+   dry-run.
+6. **Footer** — pointers to the canonical skill guide and installer status command.
 
 ## Flags
 
 - `--json` — same data as a machine-readable JSON dump, e.g.
-  `bun run whats-on --json | jq '.outputStyle'`.
+  `bun ~/.claude/src/scripts/whats-on.ts --json | jq '.outputStyle'`.
 
 Read-only: it never mutates `~/.claude` or any installed file.

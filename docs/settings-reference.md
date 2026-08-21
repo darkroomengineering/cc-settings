@@ -49,18 +49,18 @@ Environment variables injected into every Claude Code session.
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins `high` — matching Opus 4.8's own default ([model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)), a deliberate cost choice: the `xhigh` ladder allocates materially more thinking tokens per turn on 4.8/Fable and that compounds across every inheriting subagent. Raise to `/effort xhigh` per session for audits, migrations, or hard debugging. Sonnet 5 is the first Sonnet tier to support the full `low`→`xhigh` range (previous Sonnet releases capped below `xhigh`) — Sonnet subagents can take `xhigh` for hard fan-out work when explicitly raised |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins the cost-conscious `high` level. Raise to `/effort xhigh` per session for audits, migrations, or hard debugging; inheriting subagents use the same raised depth unless their agent config overrides it. See the [model configuration guide](https://code.claude.com/docs/en/model-config#choose-an-effort-level) |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
-| `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode (flat plain-text rendering); env counterpart of `axScreenReader` / `--ax-screen-reader` (v2.1.208) |
-| `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper (v2.1.208) |
-| `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` (v2.1.211) |
-| `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200) — stops runaway search loops (v2.1.212) |
-| `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Per-session cap on subagent spawns; `/clear` resets the budget — relevant to fan-out-heavy delegation (v2.1.212). **The default 200 cap was removed in v2.1.224** ("Removed 200-subagent spawn cap for long-running sessions"); the variable is still recognized, so set it explicitly if you want a ceiling |
-| `CLAUDE_CODE_MESSAGING_SOCKET` | socket path (read-only) | Set *by* Claude Code, not by you: this session's [cross-session messaging](#cross-session-messaging) inbox socket. Exported before any hook runs, `SessionStart` included, and never inherited from a parent session — a hook or Bash command can post back into its own session through it (v2.1.224) |
-| `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | integer (string) | Cap on subagents running at the same time (default 20) — one message can no longer fan out unbounded background agents (v2.1.217) |
-| `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | How deep subagents may spawn nested subagents. Upstream default was `1` (no nesting) through v2.1.218; v2.1.219 raised it to `3`. cc-settings still pins `2` so `maestro` and `deslopper` (subagents that fan out via the Agent tool) keep working when invoked as subagents (v2.1.217) |
-| `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable (v2.1.212) |
-| `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) (v2.1.214) |
+| `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode with flat plain-text rendering; env counterpart of `axScreenReader` / `--ax-screen-reader` |
+| `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper |
+| `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` |
+| `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200), which stops runaway search loops |
+| `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Optional per-session cap on subagent spawns; `/clear` resets the budget. Set it explicitly when a fan-out-heavy workflow needs a hard ceiling. |
+| `CLAUDE_CODE_MESSAGING_SOCKET` | socket path (read-only) | Set *by* Claude Code, not by you: this session's [cross-session messaging](#cross-session-messaging) inbox socket. Exported before any hook runs, `SessionStart` included, and never inherited from a parent session |
+| `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | integer (string) | Cap on subagents running at the same time (default 20), so one message cannot fan out unbounded background agents |
+| `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | Optional limit on nested subagent depth. cc-settings does not pin it; installs inherit Claude Code's current default. |
+| `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable |
+| `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
 | `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Extends prompt cache TTL from 5 min → 1 hour. cc-settings enables this (v2.1.108+) |
@@ -1054,6 +1054,11 @@ cc-settings composes this fragment and installs it into `~/.claude.json`:
 
 ### Configured Servers
 
+[`config/20-mcp.json`](../config/20-mcp.json) is the canonical installed-server list.
+[`mcp-configs/recommended.json`](../mcp-configs/recommended.json) is the canonical optional list.
+The sections below expand only the servers whose runtime behavior needs additional explanation;
+they are not a second inventory.
+
 #### context7
 
 Library documentation lookup via the Context7 MCP protocol.
@@ -1072,22 +1077,6 @@ Library documentation lookup via the Context7 MCP protocol.
 > **Note:** uses `bunx` rather than `npx` so monorepos that combine Bun's `catalog:` protocol with `overrides` in `package.json` don't break the server launch (`EOVERRIDE`). `alwaysLoad: true` (v2.1.121) opts the server out of `ENABLE_TOOL_SEARCH` deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip.
 
 **Tools provided:** `mcp__context7__resolve-library-id`, `mcp__context7__query-docs`
-
-#### Sanity
-
-Sanity CMS operations via remote HTTP.
-
-```json
-{
-  "Sanity": {
-    "type": "http",
-    "url": "https://mcp.sanity.io",
-    "serverInstructions": "Sanity CMS content and configuration operations including querying datasets, inspecting schemas, and managing content documents."
-  }
-}
-```
-
-Requires OAuth authentication on first use.
 
 #### tldr
 

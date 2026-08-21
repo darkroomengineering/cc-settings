@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import {
   chmod,
   cp,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
@@ -27,6 +28,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { currentClaudeManagedSourceFiles } from "../src/lib/claude-managed-file-manifests.ts";
 import {
   CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
   claudeManagedAllowedPaths,
@@ -81,6 +83,32 @@ async function runInstall(
   ]);
   const exitCode = await proc.exited;
   return { exitCode, stdout, stderr };
+}
+
+async function packagedVersion(): Promise<string> {
+  const manifest = JSON.parse(await readFile(join(REPO, "package.json"), "utf8")) as {
+    version: string;
+  };
+  return manifest.version;
+}
+
+function neighboringMajor(version: string, direction: "older" | "newer"): string {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) throw new Error(`Expected a semantic release version, received ${version}`);
+  const major = Number.parseInt(match[1] as string, 10);
+  if (direction === "newer") return `${major + 1}.0.0`;
+  if (major === 0) throw new Error(`Cannot construct an older major release from ${version}`);
+  return `${major - 1}.0.0`;
+}
+
+async function rewriteSentinelVersion(path: string, version: string): Promise<void> {
+  const sentinel = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  sentinel.version = version;
+  await writeFile(path, `${JSON.stringify(sentinel, null, 2)}\n`);
+}
+
+async function directoryEntries(path: string): Promise<string[]> {
+  return (await readdir(path, { recursive: true }).catch(() => [])).sort();
 }
 
 async function copySourceFixture(parent: string): Promise<string> {
@@ -239,6 +267,176 @@ async function createHistoricalSourceFixture(home: string): Promise<{
   return { source, version: legacyVersion };
 }
 
+async function runRemoteBootstrap(
+  home: string,
+  origin = "https://github.com/darkroomengineering/cc-settings.git",
+  history: "official" | "ahead" | "diverged" = "official",
+): Promise<InstallResult> {
+  const bin = join(home, "bootstrap-bin");
+  const log = join(home, "bootstrap-bun.log");
+  await mkdir(bin, { recursive: true });
+  await writeFile(
+    join(bin, "git"),
+    `#!/usr/bin/env bash
+case " $* " in
+  *" clone "*)
+    destination="\${!#}"
+    cp "$BOOTSTRAP_SOURCE" "$destination/setup.sh"
+    mkdir -p "$destination/.git/refs/heads"
+    printf '[remote "origin"]\\n  url = %s\\n' "$FAKE_ORIGIN" > "$destination/.git/config"
+    printf 'ref: refs/heads/main\\n' > "$destination/.git/HEAD"
+    printf '${"1".repeat(40)}\\n' > "$destination/.git/refs/heads/main"
+    printf fixture > "$destination/.git/index"
+    ;;
+  *" config --file "*" remote.origin.url "*) printf '%s\\n' "$FAKE_ORIGIN" ;;
+  *" merge-base --is-ancestor "*)
+    [ "$FAKE_HISTORY" = "official" ]
+    ;;
+  *" rev-parse HEAD "*) printf '${"1".repeat(40)}\\n' ;;
+  *" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
+  *) printf 'unexpected git call: %s\\n' "$*" >&2; exit 2 ;;
+esac
+`,
+  );
+  await writeFile(
+    join(bin, "bun"),
+    '#!/bin/sh\nif [ "$1" = "install" ]; then exit 0; fi\nprintf \'%s\\n\' "$*" > "$BOOTSTRAP_LOG"\n',
+  );
+  await Promise.all([chmod(join(bin, "git"), 0o755), chmod(join(bin, "bun"), 0o755)]);
+  const proc = Bun.spawn(["bash", "-c", 'bash <(cat "$BOOTSTRAP_SOURCE") --light'], {
+    env: {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      PATH: `${bin}:${process.env.PATH ?? ""}`,
+      BOOTSTRAP_SOURCE: join(REPO, "setup.sh"),
+      BOOTSTRAP_LOG: log,
+      FAKE_ORIGIN: origin,
+      FAKE_HISTORY: history,
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { stdout, stderr, exitCode };
+}
+
+describe("setup.sh remote bootstrap", () => {
+  test("every full-install source file is tracked by Git", () => {
+    const expected = [
+      ...new Set(
+        currentClaudeManagedSourceFiles("full").map(({ source }) => source.replaceAll("\\", "/")),
+      ),
+    ].sort();
+    const tracked = Bun.spawnSync(["git", "ls-files", "--", ...expected], {
+      cwd: REPO,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(tracked.exitCode, tracked.stderr.toString()).toBe(0);
+    const actual = [
+      ...new Set(
+        tracked.stdout
+          .toString()
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((path) => path.replaceAll("\\", "/")),
+      ),
+    ].sort();
+    const missing = expected.filter((path) => !actual.includes(path));
+    const unexpected = actual.filter((path) => !expected.includes(path));
+    expect(actual, JSON.stringify({ missing, unexpected }, null, 2)).toEqual(expected);
+  });
+
+  test("installs bootstrap dependencies from the frozen lockfile without lifecycle scripts", async () => {
+    const bootstrap = await readFile(join(REPO, "setup.sh"), "utf8");
+    expect(bootstrap).toContain("bun install --frozen-lockfile --ignore-scripts");
+    expect(bootstrap).not.toMatch(/\|\|\s*\(cd .*bun install(?!.*--frozen-lockfile)/);
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "installs from a durable managed checkout",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-bootstrap-durable-"));
+      try {
+        const result = await runRemoteBootstrap(home);
+        const source = join(home, ".local", "share", "cc-settings", "source");
+
+        expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0);
+        expect(existsSync(join(source, ".git", "config"))).toBe(true);
+        expect(await readFile(join(home, "bootstrap-bun.log"), "utf8")).toContain(
+          `--source=${source}`,
+        );
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test.skipIf(process.platform === "win32").each(["ahead", "diverged"] as const)(
+    "rejects a clean managed checkout whose history is %s of official main",
+    async (history) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-bootstrap-history-"));
+      const source = join(home, ".local", "share", "cc-settings", "source");
+      try {
+        await mkdir(join(source, ".git", "refs", "heads"), { recursive: true });
+        await cp(join(REPO, "setup.sh"), join(source, "setup.sh"));
+        await writeFile(
+          join(source, ".git", "config"),
+          '[remote "origin"]\n  url = https://github.com/darkroomengineering/cc-settings.git\n',
+        );
+        await writeFile(join(source, ".git", "HEAD"), "ref: refs/heads/main\n");
+        await writeFile(join(source, ".git", "refs", "heads", "main"), `${"2".repeat(40)}\n`);
+        await writeFile(join(source, ".git", "index"), "fixture\n");
+        const result = await runRemoteBootstrap(home, undefined, history);
+
+        expect(result.exitCode).not.toBe(0);
+        expect(`${result.stdout}\n${result.stderr}`).toMatch(/local commits|diverges/i);
+        expect(existsSync(join(home, "bootstrap-bun.log"))).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
+
+  test.skipIf(process.platform === "win32").each(["file", "symlink", "wrong-origin"] as const)(
+    "rejects a managed source %s collision without replacing it",
+    async (kind) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-bootstrap-collision-"));
+      const source = join(home, ".local", "share", "cc-settings", "source");
+      const original = join(home, "original-source");
+      try {
+        await mkdir(dirname(source), { recursive: true });
+        if (kind === "file") await writeFile(source, "personal bytes\n");
+        else if (kind === "symlink") {
+          await mkdir(original);
+          await symlink(original, source);
+        } else {
+          await mkdir(join(source, ".git"), { recursive: true });
+        }
+
+        const result = await runRemoteBootstrap(
+          home,
+          kind === "wrong-origin" ? "https://example.com/not-owned.git" : undefined,
+        );
+
+        expect(result.exitCode).not.toBe(0);
+        expect(existsSync(join(home, "bootstrap-bun.log"))).toBe(false);
+        if (kind === "file") expect(await readFile(source, "utf8")).toBe("personal bytes\n");
+        if (kind === "symlink") expect(await realpath(source)).toBe(await realpath(original));
+        if (kind === "wrong-origin") expect(existsSync(join(source, ".git"))).toBe(true);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 describe("install E2E — fresh HOME", () => {
   test.each([
     { args: ["--uninstall", "--target=codxe"], target: "claude" as const },
@@ -323,35 +521,71 @@ describe("install E2E — fresh HOME", () => {
     { timeout: 60_000 },
   );
 
-  test("an update moves the managed node_modules link from source A to source B", async () => {
+  test("the managed runtime is self-contained, replaces legacy links, and survives source removal", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-node-modules-source-"));
     try {
       const sourceA = await realpath(await copySourceFixture(join(home, "a")));
       const sourceB = await realpath(await copySourceFixture(join(home, "b")));
+      const bin = join(home, "bin");
+      const realBun = Bun.which("bun");
+      expect(realBun).toBeTruthy();
       await Promise.all([
         mkdir(join(sourceA, "node_modules")),
         mkdir(join(sourceB, "node_modules")),
+        mkdir(bin),
       ]);
-      const installedLink = join(home, ".claude", "src", "node_modules");
+      await writeFile(
+        join(bin, "bun"),
+        '#!/bin/sh\nif [ "$1" = "install" ]; then mkdir -p node_modules; cp -R "$REAL_ZOD" node_modules/zod; exit 0; fi\nexec "$REAL_BUN" "$@"\n',
+      );
+      await chmod(join(bin, "bun"), 0o755);
+      const runtime = join(home, ".claude", "src", "node_modules");
+      const env = {
+        CC_SKIP_DEPS: "0",
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        REAL_BUN: realBun as string,
+        REAL_ZOD: join(REPO, "node_modules", "zod"),
+      };
 
-      const first = await runInstall(home, [], "claude", {}, sourceA);
+      const first = await runInstall(home, ["--light"], "claude", env, sourceA);
       expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
-      expect(resolve(dirname(installedLink), await readlink(installedLink))).toBe(
-        join(sourceA, "node_modules"),
-      );
+      const firstRuntime = await lstat(runtime);
+      expect(firstRuntime.isDirectory()).toBe(true);
+      expect(firstRuntime.isSymbolicLink()).toBe(false);
+      expect(existsSync(join(runtime, "zod", "package.json"))).toBe(true);
 
-      const update = await runInstall(home, [], "claude", {}, sourceB);
+      const managedUpdate = await runInstall(home, ["--light"], "claude", env, sourceB);
+      expect(managedUpdate.exitCode, `${managedUpdate.stdout}\n${managedUpdate.stderr}`).toBe(0);
+      const rollback = await runInstall(home, ["--rollback"], "claude", env, sourceB);
+      expect(rollback.exitCode, `${rollback.stdout}\n${rollback.stderr}`).toBe(0);
+      expect((await lstat(runtime)).isDirectory()).toBe(true);
+      expect((await lstat(runtime)).isSymbolicLink()).toBe(false);
+
+      // A prior release installed this source-owned link. A current update must
+      // prove its legacy target from repo_path before replacing it.
+      await rm(runtime, { recursive: true, force: true });
+      await symlink(join(sourceA, "node_modules"), runtime);
+
+      const update = await runInstall(home, ["--light"], "claude", env, sourceB);
       expect(update.exitCode, `${update.stdout}\n${update.stderr}`).toBe(0);
-      expect(resolve(dirname(installedLink), await readlink(installedLink))).toBe(
-        join(sourceB, "node_modules"),
-      );
+      const updatedRuntime = await lstat(runtime);
+      expect(updatedRuntime.isDirectory()).toBe(true);
+      expect(updatedRuntime.isSymbolicLink()).toBe(false);
       expect(
         JSON.parse(await readFile(join(home, ".claude", ".cc-settings-version"), "utf8")).repo_path,
       ).toBe(sourceB);
 
-      const uninstall = await runInstall(home, ["--uninstall"], "claude", {}, sourceB);
-      expect(uninstall.exitCode, `${uninstall.stdout}\n${uninstall.stderr}`).toBe(0);
-      expect(existsSync(installedLink)).toBe(false);
+      await rm(join(home, "a"), { recursive: true, force: true });
+      await rm(join(home, "b"), { recursive: true, force: true });
+      const verify = Bun.spawn(
+        [realBun as string, join(home, ".claude", "src", "hooks", "verify-hooks.ts")],
+        {
+          env: { ...process.env, HOME: home, USERPROFILE: home },
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      expect(await verify.exited).toBe(0);
     } finally {
       await rm(home, { recursive: true, force: true });
     }
@@ -407,7 +641,7 @@ describe("install E2E — fresh HOME", () => {
       ]);
       expect((await runInstall(home, [], "claude", {}, sourceA)).exitCode).toBe(0);
       const destination = join(home, ".claude", "src", "node_modules");
-      await rm(destination);
+      await rm(destination, { recursive: true, force: true });
       await symlink(outside, destination);
       const sentinel = join(home, ".claude", ".cc-settings-version");
       const sentinelBytes = await readFile(sentinel);
@@ -426,12 +660,38 @@ describe("install E2E — fresh HOME", () => {
     }
   }, 180_000);
 
-  test("node_modules link creation is platform-native and cannot silently fall back to copying", async () => {
+  test("an unmarked runtime directory blocks an update before mutation", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-node-modules-unmarked-"));
+    try {
+      const source = await realpath(await copySourceFixture(join(home, "source-parent")));
+      await mkdir(join(source, "node_modules"));
+      expect((await runInstall(home, [], "claude", {}, source)).exitCode).toBe(0);
+      const runtime = join(home, ".claude", "src", "node_modules");
+      await mkdir(runtime);
+      await writeFile(join(runtime, "personal.txt"), "personal runtime bytes\n");
+      const sentinel = join(home, ".claude", ".cc-settings-version");
+      const sentinelBytes = await readFile(sentinel);
+
+      const update = await runInstall(home, [], "both", {}, source);
+
+      expect(update.exitCode).not.toBe(0);
+      expect(`${update.stdout}\n${update.stderr}`).toMatch(/collision.*src\/node_modules/i);
+      expect(await readFile(join(runtime, "personal.txt"), "utf8")).toBe(
+        "personal runtime bytes\n",
+      );
+      expect(await readFile(sentinel)).toEqual(sentinelBytes);
+      expect(existsSync(join(home, ".codex"))).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  test("runtime dependency installation is production-only, frozen, and script-free", async () => {
     const source = await readFile(join(REPO, "src", "lib", "install-fs.ts"), "utf8");
-    expect(source).not.toMatch(/Bun\.spawn\(\["ln"/);
-    expect(source).not.toMatch(/cp\(srcNm, dstNm/);
-    expect(source).toMatch(/process\.platform\s*===\s*"win32"[\s\S]*"junction"/);
-    expect(source).toMatch(/symlink\([^)]*"dir"/);
+    expect(source).toContain(
+      '["bun", "install", "--production", "--frozen-lockfile", "--ignore-scripts"]',
+    );
+    expect(source).not.toMatch(/symlink\([^)]*node_modules/);
   });
 
   test("empty Claude backup archives use an owned portable file list", async () => {
@@ -630,6 +890,155 @@ describe("install E2E — fresh HOME", () => {
     },
     { timeout: 90_000 },
   );
+
+  test("an older packaged source refuses to downgrade either product before state or backups change", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-downgrade-guard-"));
+    const claudeDir = join(home, ".claude");
+    const codexDir = join(home, ".codex");
+    try {
+      const first = await runInstall(home, [], "both");
+      expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
+
+      const current = await packagedVersion();
+      const installedNewer = neighboringMajor(current, "newer");
+      const claudeSentinel = join(claudeDir, ".cc-settings-version");
+      const codexSentinel = join(codexDir, ".cc-settings-version");
+      await Promise.all([
+        rewriteSentinelVersion(claudeSentinel, installedNewer),
+        rewriteSentinelVersion(codexSentinel, installedNewer),
+      ]);
+
+      const tracked = [
+        claudeSentinel,
+        join(claudeDir, "settings.json"),
+        join(claudeDir, "agents", "implementer.md"),
+        codexSentinel,
+        join(codexDir, "AGENTS.md"),
+        join(codexDir, "darkroom", "source", "package.json"),
+      ];
+      const stateBefore = await Promise.all(tracked.map((path) => readFile(path)));
+      const backupsBefore = await Promise.all([
+        directoryEntries(join(claudeDir, "backups")),
+        directoryEntries(join(codexDir, "backups", "cc-settings")),
+      ]);
+      const bin = join(home, "downgrade-bin");
+      const backupCommandCalled = join(home, ".downgrade-backup-command-called");
+      const realTar = Bun.which("tar");
+      expect(realTar).toBeTruthy();
+      await mkdir(bin);
+      await writeFile(
+        join(bin, "tar"),
+        '#!/bin/sh\ntouch "$HOME/.downgrade-backup-command-called"\nexec "$REAL_TAR" "$@"\n',
+      );
+      await chmod(join(bin, "tar"), 0o755);
+
+      const downgrade = await runInstall(home, [], "both", {
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        REAL_TAR: realTar as string,
+      });
+
+      expect(downgrade.exitCode).not.toBe(0);
+      expect(`${downgrade.stdout}\n${downgrade.stderr}`).toMatch(
+        /installed.*newer|older.*source|downgrade/i,
+      );
+      expect(existsSync(backupCommandCalled)).toBe(false);
+      expect(await Promise.all(tracked.map((path) => readFile(path)))).toEqual(stateBefore);
+      expect(
+        await Promise.all([
+          directoryEntries(join(claudeDir, "backups")),
+          directoryEntries(join(codexDir, "backups", "cc-settings")),
+        ]),
+      ).toEqual(backupsBefore);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
+
+  test.each(["claude", "codex"] as const)(
+    "%s dry-run refuses an older source without changing product state or backups",
+    async (target) => {
+      const home = await mkdtemp(join(tmpdir(), `cc-e2e-${target}-dry-run-downgrade-`));
+      const productDir = join(home, target === "claude" ? ".claude" : ".codex");
+      const sentinel = join(productDir, ".cc-settings-version");
+      const productPaths =
+        target === "claude"
+          ? [
+              sentinel,
+              join(productDir, "settings.json"),
+              join(productDir, "agents", "implementer.md"),
+            ]
+          : [
+              sentinel,
+              join(productDir, "AGENTS.md"),
+              join(productDir, "darkroom", "source", "package.json"),
+            ];
+      const backups =
+        target === "claude"
+          ? join(productDir, "backups")
+          : join(productDir, "backups", "cc-settings");
+      try {
+        const first = await runInstall(home, [], target);
+        expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
+
+        const current = await packagedVersion();
+        await rewriteSentinelVersion(sentinel, neighboringMajor(current, "newer"));
+        const stateBefore = await Promise.all(productPaths.map((path) => readFile(path)));
+        const backupsBefore = await directoryEntries(backups);
+
+        const dryRun = await runInstall(home, ["--dry-run"], target);
+
+        expect(dryRun.exitCode).not.toBe(0);
+        expect(`${dryRun.stdout}\n${dryRun.stderr}`).toMatch(
+          /installed.*newer|older.*source|downgrade/i,
+        );
+        expect(await Promise.all(productPaths.map((path) => readFile(path)))).toEqual(stateBefore);
+        expect(await directoryEntries(backups)).toEqual(backupsBefore);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    180_000,
+  );
+
+  test("a newer packaged source remains a normal supported upgrade", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-upgrade-guard-"));
+    const sentinelPath = join(home, ".claude", ".cc-settings-version");
+    try {
+      const first = await runInstall(home);
+      expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
+
+      const current = await packagedVersion();
+      await rewriteSentinelVersion(sentinelPath, neighboringMajor(current, "older"));
+
+      const upgrade = await runInstall(home);
+
+      expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
+      expect(JSON.parse(await readFile(sentinelPath, "utf8")).version).toBe(current);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  test("an explicit rollback remains available when installed metadata is newer than the source", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-explicit-rollback-"));
+    const sentinelPath = join(home, ".claude", ".cc-settings-version");
+    try {
+      const first = await runInstall(home);
+      expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
+      const second = await runInstall(home);
+      expect(second.exitCode, `${second.stdout}\n${second.stderr}`).toBe(0);
+
+      const current = await packagedVersion();
+      await rewriteSentinelVersion(sentinelPath, neighboringMajor(current, "newer"));
+
+      const rollback = await runInstall(home, ["--rollback"]);
+
+      expect(rollback.exitCode, `${rollback.stdout}\n${rollback.stderr}`).toBe(0);
+      expect(JSON.parse(await readFile(sentinelPath, "utf8")).version).toBe(current);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
 
   test("full reinstall preserves personal files in every shared managed directory", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-reinstall-personal-"));
@@ -1698,10 +2107,19 @@ describe("install E2E — uninstall ownership", () => {
         const newlyManaged = Object.keys(sentinel.managed_files).filter(
           (path) => !previousPaths.has(path),
         );
-        expect(newlyManaged).toEqual([
-          "src/lib/claude-managed-file-manifests.ts",
-          "src/lib/claude-managed-files.ts",
-        ]);
+        expect(newlyManaged.sort()).toEqual(
+          [
+            "docs/README.md",
+            "docs/claude-vs-codex.md",
+            "docs/first-session.md",
+            "docs/skills.md",
+            "docs/system-overview.md",
+            "docs/troubleshooting.md",
+            "src/lib/claude-managed-file-manifests.ts",
+            "src/lib/claude-managed-files.ts",
+            "src/scripts/migrate-legacy-codex-skills.ts",
+          ].sort(),
+        );
         for (const path of newlyManaged) delete sentinel.managed_files[path];
         (sentinel as Record<string, unknown>).managed_files_manifest_version = 1;
         const sentinelBytes = `${JSON.stringify(sentinel, null, 2)}\n`;

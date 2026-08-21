@@ -109,7 +109,7 @@ Never compensate by clipping sentences or writing in fragments.
 - **Say the effect, then the mechanism.** Never the mechanism alone.
 
 To opt out, run `/config` → Output style → Default, or set `"outputStyle"` in
-your own settings — user scope beats the shipped value. `bun run whats-on`
+your own settings — user scope beats the shipped value. `bun ~/.claude/src/scripts/whats-on.ts`
 prints which style is actually in effect.
 
 **cc-settings-specific escalation** (not part of the style): after three
@@ -248,7 +248,7 @@ The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/ra
 
 ## Effort & Context
 
-**Effort levels** — `low`, `medium`, `high`, `xhigh`, `max`. Default `high` (pinned via `CLAUDE_CODE_EFFORT_LEVEL` in settings.json — matches Anthropic's 4.8 default; a deliberate cost choice over the old `xhigh` pin). Per-session: `/effort xhigh` for deep work; `ultrathink` keyword for one-turn max depth. Per-agent: `effort` frontmatter.
+**Effort levels** — `low`, `medium`, `high`, `xhigh`, `max`. Default `high` is pinned via `CLAUDE_CODE_EFFORT_LEVEL` in settings.json. Per-session: `/effort xhigh` for deep work; `ultrathink` keyword for one-turn max depth. Per-agent: `effort` frontmatter.
 
 - `low` — trivial lookups, latency-sensitive
 - `medium` — routine edits where depth isn't required
@@ -256,11 +256,11 @@ The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/ra
 - `max` — extreme cases only; often overthinks
 - `ultracode` — session-only; `xhigh` reasoning plus automatic [dynamic workflow](https://code.claude.com/docs/en/workflows) orchestration. Useful for codebase audits, large migrations, deep research. Set via `/effort ultracode`. Resets on session end. Requires Claude Code v2.1.154+.
 
-**4.8/Fable calibration**: Anthropic's 4.8 default effort is `high` (was `xhigh` on 4.7). cc-settings now pins `high` too — the `xhigh` ladder allocates materially more thinking tokens per turn on 4.8/Fable (per-model calibration; see [model-config docs](https://code.claude.com/docs/en/model-config#choose-an-effort-level)), and on a Fable session that cost compounds across every inheriting agent. `high` is the cost-conscious default; raise to `/effort xhigh` per-session for audits/migrations/hard debugging, or use the `ultrathink` keyword for a single deep turn. At `low`/`medium` the model scopes strictly and may under-think — reach for `xhigh`, not prompt workarounds, when depth is missing.
+**Effort calibration**: `high` is the cost-conscious default. The `xhigh` ladder allocates materially more thinking tokens per turn, and that cost compounds across inheriting agents. Raise to `/effort xhigh` per session for audits, migrations, or hard debugging, or use `ultrathink` for one deep turn. At `low` or `medium`, the model scopes strictly and may under-think; raise effort when the task needs depth.
 
-**Context window** — 1M tokens default on Max. Subagents inherit. The cc-settings default model is `claude-opus-5` (Opus 5, released 2026-07-24) — the committed top tier, and a strict upgrade over the earlier `opus[1m]` (Opus 4.8) interim pin used while Fable 5 was export-control-suspended (see [docs/agent-models.md](docs/agent-models.md)). Opus 5 is 1M-native on Max, so no `[1m]` pin is needed — same as Sonnet 5 and Fable, both already 1M-native. Fable 5 is generally available again but priced at 2× Opus 5 ($10/$50 vs $5/$25 per MTok); Opus 5 lands near Fable's frontier quality at half the price, so it stays the default rather than switching back.
+**Context window** — 1M tokens default on Max. Subagents inherit. The cc-settings default model is `claude-opus-5`, which is 1M-native on Max, so no `[1m]` pin is needed. See [docs/agent-models.md](docs/agent-models.md) for current routing and cost tradeoffs.
 
-- **Manual `/compact` at 65%** — Opus 4.7/4.8's tokenizer is ~1-1.35x heavier per text vs 4.6 (was 70% on 4.6), so context burns faster. Sonnet 5 shares the same heavier tokenizer family (~30% more tokens than Sonnet 4.6 for the same text), so Sonnet subagents now burn context at that same heavier rate too — the compaction budgets below apply to Sonnet subagents, not just Opus/Fable sessions. Auto-compaction triggers at 95%; don't wait for it. The prompt cache has a 5-minute TTL — idling past it re-ingests the whole window at full price, so `/clear` between unrelated tasks and `/handoff` instead of marathon sessions both save real tokens on long 1M contexts.
+- **Manual `/compact` at 65%** — use the same budget for the main session and subagents. Auto-compaction triggers later; do not wait for it. The prompt cache has a 5-minute TTL, so `/clear` between unrelated tasks and `/handoff` instead of marathon sessions reduce repeated context ingestion.
 - **Break subtasks to complete within 45%** — conservative budget for 4.7/4.8 tokenization. Prevents context rot mid-task.
 - **After compaction**: re-read task plan + active files (see AGENTS.md "Post-Compaction Recovery").
 
@@ -289,7 +289,7 @@ Scope: consumer hardware and platform-integration questions specifically. Librar
 
 - **Profiles** (specialized workflows: `nextjs`, `react-native`, `tauri`, `webgl`, `maestro`, `react-router`) — see `docs/profiles.md`
 - **TLDR** (token-efficient codebase exploration; `native-ts` default, `llm-tldr` opt-in) — see `docs/tldr-cheatsheet.md`
-- **Hooks** (29 events, 8 categories, conditional `if` filtering) — see `docs/hooks-reference.md`
+- **Hooks** (canonical event list and conditional `if` filtering) — see `docs/hooks-reference.md`
 - **Agent frontmatter** (`tools`, `disallowedTools`, `maxTurns`, `permissionMode`, `effort`, `isolation`, `hooks`, `mcpServers`, `initialPrompt`) — see `docs/frontmatter-reference.md`
 - **Knowledge system** (shared team-knowledge repo + local auto-memory) — see `docs/knowledge-system.md`
 - **Agent teams** (parallel independent workstreams, `teammateMode: "auto"`) — see `docs/feature-agents-guide.md`

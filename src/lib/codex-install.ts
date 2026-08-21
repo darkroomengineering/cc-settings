@@ -16,7 +16,10 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { parseFrontmatter } from "./frontmatter.ts";
+import { readJsonOrNull } from "./json-io.ts";
+import { formatLegacyCodexSkillOverlap, scanLegacyCodexSkills } from "./managed-skills.ts";
 import { getTimestamp, hasCommand } from "./platform.ts";
+import { compareVersion } from "./version-delta.ts";
 
 const INSTRUCTIONS_START = "<!-- cc-settings:codex:start -->";
 const INSTRUCTIONS_END = "<!-- cc-settings:codex:end -->";
@@ -26,6 +29,7 @@ const MAX_BACKUPS = 10;
 const MANAGED_AGENT_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const SHARED_BACKUP_ID = /^\d{14}-\d{3}-\d+-\d+$/;
+const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 const RETIRED_MANAGED_AGENT_NAMES = new Set<string>();
 const MANAGED_AGENT_SOURCE_FILES = [
   "deslopper.md",
@@ -98,6 +102,8 @@ export interface CodexDryRunOptions {
 
 export interface CodexStatus {
   installedVersion: string | null;
+  packagedVersion: string | null;
+  versionWarning: string | null;
   installedProfile: CodexProfile | null;
   instructionBlockPresent: boolean;
   pluginInstalled: boolean | null;
@@ -464,6 +470,12 @@ async function readSentinel(path: string): Promise<CodexSentinel | null> {
     if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw cause;
   }
+}
+
+/** Read only the installed Codex version from the filesystem sentinel. */
+export async function readCodexInstalledVersion(homeDir?: string): Promise<string | null> {
+  const sentinel = await readSentinel(codexInstallPaths(homeDir).sentinelPath);
+  return sentinel?.version ?? null;
 }
 
 function instructionsBlock(repoAgents: string, codexAppend: string): string {
@@ -862,6 +874,7 @@ const RUNTIME_SOURCE_FILES = [
   "src/scripts/lint-shortcuts.ts",
   "src/scripts/lint-skills.ts",
   "src/scripts/log-bash.ts",
+  "src/scripts/migrate-legacy-codex-skills.ts",
   "src/scripts/new-note.ts",
   "src/scripts/new-skill.ts",
   "src/scripts/notify.ts",
@@ -898,10 +911,14 @@ const RUNTIME_SOURCE_FILES_V1 = RUNTIME_SOURCE_FILES.filter(
 const RUNTIME_SOURCE_FILES_V2 = RUNTIME_SOURCE_FILES.filter(
   (path) => path !== "src/lib/claude-managed-file-manifests.ts",
 );
-const CURRENT_RUNTIME_MANIFEST_VERSION = 3;
+const RUNTIME_SOURCE_FILES_V3 = RUNTIME_SOURCE_FILES.filter(
+  (path) => path !== "src/scripts/migrate-legacy-codex-skills.ts",
+);
+const CURRENT_RUNTIME_MANIFEST_VERSION = 4;
 const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [1, RUNTIME_SOURCE_FILES_V1],
   [2, RUNTIME_SOURCE_FILES_V2],
+  [3, RUNTIME_SOURCE_FILES_V3],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 
@@ -1921,6 +1938,10 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
   if (options.profile === "full" && !isCodexCliSkippedForTests() && !hasCommand("codex")) {
     throw new Error("Codex CLI is required for a full Codex install");
   }
+  if (options.profile === "full") {
+    const warning = formatLegacyCodexSkillOverlap(await scanLegacyCodexSkills(paths.homeDir));
+    if (warning) console.warn(warning);
+  }
   await assertCodexBoundaries(paths);
   const names = agents.map((agent) => agent.name);
   const nextManagedAgents = options.profile === "full" ? names : [];
@@ -2891,6 +2912,29 @@ async function discoverPlugin(paths: CodexInstallPaths): Promise<boolean | null>
 export async function gatherCodexStatus(options: CodexStatusOptions = {}): Promise<CodexStatus> {
   const paths = codexInstallPaths(options.homeDir);
   const sentinel = await readSentinel(paths.sentinelPath);
+  const packageJson = options.sourceDir
+    ? await readJsonOrNull(join(resolve(options.sourceDir), "package.json"))
+    : null;
+  const rawPackagedVersion = isRecord(packageJson) ? packageJson.version : undefined;
+  const packagedVersion =
+    typeof rawPackagedVersion === "string" && STRICT_VERSION.test(rawPackagedVersion)
+      ? rawPackagedVersion
+      : null;
+  const installedVersion = sentinel?.version ?? null;
+  let versionWarning: string | null = null;
+  if (options.sourceDir && installedVersion !== null) {
+    if (STRICT_VERSION.test(installedVersion) && packagedVersion !== null) {
+      const comparison = compareVersion(packagedVersion, installedVersion);
+      if (comparison > 0) {
+        versionWarning = `installed v${installedVersion} ≠ packaged v${packagedVersion} (re-run to update)`;
+      } else if (comparison < 0) {
+        versionWarning = `installed v${installedVersion} is newer than packaged v${packagedVersion}; this source checkout is older, so update or replace it before reinstalling`;
+      }
+    } else {
+      versionWarning =
+        "installed and packaged versions could not be compared; verify the source checkout and installed metadata before reinstalling";
+    }
+  }
   const instructions = await readFile(paths.globalInstructionsPath, "utf8").catch(() => "");
   const names = sentinel?.managed_agents ?? [];
   let nativeAgentCount = 0;
@@ -2898,7 +2942,9 @@ export async function gatherCodexStatus(options: CodexStatusOptions = {}): Promi
     if (existsSync(join(paths.agentsDir, `${name}.toml`))) nativeAgentCount++;
   }
   return {
-    installedVersion: sentinel?.version ?? null,
+    installedVersion,
+    packagedVersion,
+    versionWarning,
     installedProfile: sentinel?.profile ?? null,
     instructionBlockPresent:
       instructions.includes(INSTRUCTIONS_START) && instructions.includes(INSTRUCTIONS_END),
@@ -2926,7 +2972,12 @@ export async function dryRunCodex(options: CodexDryRunOptions): Promise<string[]
       previous,
     );
   }
+  const legacySkillWarning =
+    options.profile === "full"
+      ? formatLegacyCodexSkillOverlap(await scanLegacyCodexSkills(paths.homeDir))
+      : null;
   return [
+    ...(legacySkillWarning ? [legacySkillWarning] : []),
     `backup existing Codex-managed files to ${paths.backupsDir}`,
     `copy managed source to ${paths.managedSource}`,
     `merge the managed instruction block into ${paths.globalInstructionsPath}`,

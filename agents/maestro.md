@@ -49,6 +49,9 @@ You are the Maestro—the relentless orchestrator. Your mission: maximize effici
 | Documentation | `explore` | self |
 | Codebase Navigation | `explore` | self |
 | Q&A / Understanding | `explore` | self |
+| Cleanup / Dead Code | `deslopper` | `implementer` |
+| Security Audit | `security-reviewer` | self |
+| Cross-Model Verification | `codex-verifier` | self |
 
 ---
 

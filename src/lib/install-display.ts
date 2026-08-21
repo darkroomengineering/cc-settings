@@ -249,7 +249,10 @@ export async function cmdDryRun(
     console.log("Would install (light = raw Claude Code + statusLine + share-learning):");
     const items: Array<[string, string]> = [
       ...LIGHT_SKILLS.map((s): [string, string] => [`skills/${s}/`, `→ ~/.claude/skills/${s}/`]),
-      ["src/", "→ ~/.claude/src/ (all TS)"],
+      [
+        "src/",
+        "→ ~/.claude/src/ (all TS + self-contained production dependencies; no source symlink)",
+      ],
       ["config/", "→ ~/.claude/settings.json ($schema + statusLine only)"],
     ];
     for (const [rel, effect] of items) {
@@ -270,7 +273,10 @@ export async function cmdDryRun(
         `→ ~/.claude/${dest}`,
       ]),
       ["config/", "→ ~/.claude/settings.json (composed); MCP block → ~/.claude.json"],
-      ["src/", "→ ~/.claude/src/ (all TS)"],
+      [
+        "src/",
+        "→ ~/.claude/src/ (all TS + self-contained production dependencies; no source symlink)",
+      ],
       ...PROFILE_MANIFEST.full.dirs.map((d): [string, string] => [`${d}/`, `→ ~/.claude/${d}/`]),
     ];
     for (const [rel, effect] of items) {

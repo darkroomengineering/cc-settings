@@ -50,11 +50,12 @@ they point at. Two bypasses motivated this layer:
   shipped script. `settings.json` is untouched, so the fingerprint never
   trips at all.
 
-At install time, right after the TS sources are copied, `setup.sh` writes a
-SHA256 manifest of every `~/.claude/src/**/*.ts` file to
+At install time, after the runtime sources and production dependencies are
+installed, `setup.sh` writes a SHA256 manifest of every managed runtime source
+file plus every regular file under `~/.claude/src/node_modules` to
 `~/.claude/.cc-settings-src-manifest`. On every `SessionStart`,
-`verify-hooks.ts` re-hashes the installed tree and **warns loudly on any
-modified, removed, or unexpected new file**. The auditor (layer 3) also
+`verify-hooks.ts` re-hashes those installed runtime paths and **warns loudly on
+any modified, removed, or unexpected new dependency file**. The auditor (layer 3) also
 gates its "trusted" classification on this manifest.
 
 Like the fingerprint, the manifest is refreshed only by `setup.sh` — never
@@ -63,7 +64,7 @@ by the auditor or the verify hook — so malware can't whitelist itself.
 Source: `src/lib/hooks-fingerprint.ts` (manifest write/verify),
 `src/hooks/verify-hooks.ts`, `src/setup.ts`.
 
-### 3. Command auditor (`bun run audit:hooks`)
+### 3. Command auditor (`bun ~/.claude/src/scripts/audit-hooks.ts`)
 
 A standalone scanner that classifies every hook command in
 `~/.claude/settings.json` into:
@@ -128,25 +129,35 @@ what does and doesn't cover it.
   that sentinel. A compromised package that can write to `~/.claude` can
   rewrite either field; the dangerous surface is what gets *pulled*, not
   `auto-update.ts`'s own bytes. Tampering there is mitigated, not eliminated,
-  by three independent controls: an origin allowlist
-  (`isAllowedPullSource()`, pinned to the real
-  `github.com/darkroomengineering/cc-settings` repo — a manifest-covered
-  constant in `src/lib/schedule.ts`, so forging it requires ALSO beating
-  layer 2), the `--ff-only` pull (no history rewrite), and the dirty-tree
-  skip (never clobbers a working tree with local changes). A forged
-  `repo_path` pointing at an attacker clone is rejected before any pull or
-  `setup.sh` spawn, even if that clone's own history is internally
-  `--ff-only`-clean. As a second, independent surface, `registerAutoUpdate()`
-  also embeds the enrolling repo's real path in the plist itself
-  (`CC_EXPECTED_REPO`) — the nightly job cross-checks the sentinel's
-  `repo_path` against it and refuses to run if they diverge, so an attacker
-  has to compromise both the sentinel AND the plist to redirect the pull.
-  The allowlist and path pin verify the pull *source*, not the integrity of
-  `.git/hooks` in the target directory — a `post-merge` hook planted in an
-  otherwise-legit clone would run during the pull itself. The nightly pull
-  therefore runs with `core.hooksPath=/dev/null`, disabling git hooks for
-  that operation so a hooked clone can't turn a clean fast-forward into code
-  execution.
+  by four independent controls:
+  - An **origin allowlist** (`isAllowedPullSource()`, pinned to the real
+    `github.com/darkroomengineering/cc-settings` repo — a manifest-covered
+    constant in `src/lib/schedule.ts`, so forging it requires ALSO beating
+    layer 2). A forged `repo_path` pointing at an attacker clone is rejected
+    before any pull or `setup.sh` spawn, even if that clone's own history is
+    internally `--ff-only`-clean.
+  - A **fresh, isolated clone** of official `main`. System, global, and
+    checkout-local Git config never controls the network or worktree commands;
+    hooks, fsmonitor, credential helpers, proxies, and TLS weakening are
+    disabled or reset explicitly.
+  - A **dirty-tree and history gate** performed through the isolated clone's
+    object database. The updater rejects worktree/index changes and requires
+    the old commit to be an ancestor before performing an isolated `--ff-only`
+    merge. The enrolled checkout remains untouched; installation reads from
+    the isolated staging clone, which is deleted afterward.
+  - A **second, independent path check**: `registerAutoUpdate()` embeds the
+    enrolling repo's real path in the plist itself (`CC_EXPECTED_REPO`) —
+    the nightly job cross-checks the sentinel's `repo_path` against it and
+    refuses to run if they diverge, so an attacker has to compromise both
+    the sentinel AND the plist to redirect the pull.
+
+  The updater does not trust `.git/config`, `.git/hooks`, or other executable
+  Git behavior in the existing checkout. It reads only the literal origin and
+  HEAD metadata needed for validation, runs every remaining Git operation
+  against the fresh isolated clone with hooks disabled, and executes
+  `setup.sh` from that clone. The sentinel keeps the enrolled checkout path,
+  and the updater never deletes its ignored files, branches, tags, reflogs, or
+  local config.
 - **Enrollment can't be silently created from a forged sentinel alone.**
   `decideAutoUpdate()` in `src/lib/schedule.ts` is the single source of
   truth for the enrollment decision, but it no longer trusts
@@ -170,13 +181,15 @@ what does and doesn't cover it.
   ```
 - **Remove it:**
   ```bash
-  bun src/setup.ts --auto-update=off
+  bash setup.sh --target=claude --auto-update=off
   ```
-- **`--rollback` never touches `~/Library/LaunchAgents`.** Restoring a
-  backup archive (`bun src/setup.ts --rollback`) does not unregister the
-  launchd job — the plist and the enrollment decision are independent of the
-  settings.json/CLAUDE.md content a rollback restores. Use
-  `--auto-update=off` explicitly if you want the job gone after a rollback.
+- **Rollback restores captured scheduler state.** A Claude backup records the
+  launchd plist, loaded state, and enrollment decision. Restoring that backup
+  restores the recorded scheduler state too. Check `--status` after rollback
+  and run `bash setup.sh --target=claude --auto-update=off` if the restored job
+  should remain disabled.
+
+<a id="hook-warning-runbook"></a>
 
 ## What to do if `verify-hooks` warns at session start
 
@@ -184,9 +197,15 @@ what does and doesn't cover it.
 ⚠  cc-settings: hooks-block fingerprint mismatch — SUSPICIOUS HOOKS DETECTED
 ```
 
-**Step 1 — Audit.** Run `bun run audit:hooks` from anywhere. It will print
-every hook in `~/.claude/settings.json` grouped by severity, with the
-reasons each suspicious entry was flagged.
+**Step 1 — Audit.** Run the installed scanner from anywhere:
+
+```bash
+bun ~/.claude/src/scripts/audit-hooks.ts
+```
+
+It prints every hook in `~/.claude/settings.json` grouped by severity, with
+the reasons each suspicious entry was flagged. It does not need a repository
+checkout.
 
 **Step 2 — Triage.**
 
@@ -206,13 +225,15 @@ $EDITOR ~/.claude/settings.json
 # 3. Manually delete every entry the auditor flagged as suspicious.
 #    Keep the legitimate cc-settings entries (bun "$HOME/.claude/src/...").
 
-# 4. Re-run setup.sh from your cc-settings clone to refresh the fingerprint
-#    against the now-clean hooks block.
-cd ~/.claude/cc-settings && bash setup.sh
+# 4. Investigate the project where the warning appeared before changing directories.
+#    Recent packages with install scripts are the place to start:
+find "$PWD/node_modules" -mindepth 2 -maxdepth 2 -name package.json -print0 2>/dev/null \
+  | xargs -0 grep -l '"postinstall"' | tail -20
 
-# 5. Investigate which package introduced the malicious hook.
-#    Recent installs are the place to start:
-grep -l "postinstall" node_modules/*/package.json | xargs -I{} dirname {} | xargs -I{} basename {} | sort -u | tail -20
+# 5. Use a fresh checkout to reinstall and refresh the fingerprint against
+#    the now-clean hooks block. Choose another empty directory if this exists.
+git clone https://github.com/darkroomengineering/cc-settings.git ./cc-settings-recovery
+bash ./cc-settings-recovery/setup.sh --target=claude
 
 # 6. Rotate any credentials that were on disk while the hook had a chance
 #    to run: ~/.aws/credentials, ~/.npmrc auth tokens, ~/.config/gh/hosts.yml,
@@ -221,12 +242,16 @@ grep -l "postinstall" node_modules/*/package.json | xargs -I{} dirname {} | xarg
 
 **Step 4 — False positive (legitimate custom hook).**
 
-If the unknown/suspicious entry is something you added intentionally:
+If an **unknown** entry is something you added intentionally, verify the executable and arguments.
+If an entry is classified **suspicious**, rewrite shell chaining, download-and-execute patterns, or
+opaque wrappers as a direct command first. Re-run the auditor and continue only when no suspicious
+entries remain:
 
 ```bash
-# Re-run setup.sh — the merger preserves your custom hooks AND refreshes
-# the fingerprint. After this, the warning clears on the next session.
-cd ~/.claude/cc-settings && bash setup.sh
+# Use a verified checkout. The merger preserves your custom hooks and refreshes
+# the fingerprint. The warning clears on the next session.
+git clone https://github.com/darkroomengineering/cc-settings.git ./cc-settings-recovery
+bash ./cc-settings-recovery/setup.sh --target=claude
 ```
 
 The fingerprint and the src manifest are deliberately refreshed only by
@@ -238,7 +263,7 @@ either, malware could call it to whitelist itself.
 If you maintain personal hooks alongside cc-settings:
 
 1. Add the entry to `~/.claude/settings.json`.
-2. Run `bun run audit:hooks` — confirm only your new entry shows up as
+2. Run `bun ~/.claude/src/scripts/audit-hooks.ts` — confirm only your new entry shows up as
    "unknown" (not "suspicious"). Suspicious means your pattern overlaps
    with a known-bad signature; rewrite it.
 3. Run `setup.sh` to fingerprint the new state.
@@ -298,17 +323,16 @@ deny-list rather than narrowing the allow — narrowing breaks the common
 case (an interactive human confirming a legitimate `git push --force` to
 their own fork), closing the gap doesn't.
 
-**Edit is wildcard-allowed (`Edit(*)`) alongside `Write(*)`.** The
-deny-list's `Write(~/.claude/settings.json)` / `Write(~/.claude.json)`
-entries only close the `Write` tool surface for those two files — `Edit` is
-a separate tool name and is not covered by a `Write`-scoped deny rule.
-`Edit(~/.claude/settings.json)` and the `.claude.json` equivalent mirror
-the `Write` denies for exactly this reason: every mutation tool must be
-denied for a path, not just one of them, or a prompt-injected "use Edit
-instead of Write" instruction bypasses the protection entirely. (Claude
-Code's since-removed `MultiEdit` tool carried matching deny rules while it
-existed; the merger prunes those from older installs — see
-`DEPRECATED_PERMISSION_PATTERNS` in `src/lib/settings-merge.ts`.)
+**Edit is wildcard-allowed (`Edit(*)`).** As of Claude Code v2.1.210,
+`Edit(path)` deny/allow rules also govern the `Write` and `NotebookEdit`
+tools for that path — a separate `Write(path)` rule isn't just redundant,
+it triggers a startup warning. So the single deny entries
+`Edit(~/.claude/settings.json)` / `Edit(~/.claude.json)` already close the
+mutation surface for all three tools; no parallel `Write(...)` entries are
+needed or valid. (Claude Code's since-removed `MultiEdit` tool carried its
+own deny rules while it existed; the merger prunes those from older
+installs — see `DEPRECATED_PERMISSION_PATTERNS` in
+`src/lib/settings-merge.ts`.)
 
 ## What cc-settings deliberately does not do
 
@@ -330,11 +354,10 @@ What the content manifest does **not** cover:
 - **The `bun` binary itself** (or `git`, or anything else on PATH). A
   compromised runtime executes whatever it likes regardless of what the
   manifest says about the scripts it runs.
-- **`node_modules`.** The installed src tree symlinks `node_modules` back
-  to the source repo; dependency content is the territory of `snyk` /
-  `socket.dev` / lockfile auditing, not this manifest.
-- **Non-`.ts` files** under `~/.claude/src` (e.g. `package.json`,
-  `tsconfig.json`, `bun.lock`).
+- **Files outside the explicitly installed runtime set.** The manifest covers
+  every managed source/config file required at runtime plus every regular file
+  under the real production `node_modules` directory. It does not adopt
+  arbitrary unrelated files elsewhere under `~/.claude`.
 - **Coordinated tampering of the manifest + fingerprint + settings
   together.** Anything that can rewrite all three sentinels can forge a
   consistent state. The defense holds because the sentinels are refreshed

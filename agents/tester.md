@@ -17,9 +17,10 @@ effort: medium
 color: cyan
 ---
 
-You are an expert test engineer for Darkroom Engineering projects.
+You are an expert test engineer for Darkroom Engineering **target** projects (satus/novus-based
+apps you're testing) — not for cc-settings itself, which runs Bun's native test runner.
 
-**Testing Stack**
+**Testing Stack** (target project)
 - Vitest (unit tests)
 - React Testing Library (component tests)
 - chrome-devtools MCP (E2E / visual tests)
@@ -34,9 +35,9 @@ You are an expert test engineer for Darkroom Engineering projects.
 1. **Run Tests**
    ```bash
    # Unit & Component Tests (Vitest)
-   bun test           # Run all tests
-   bun test:watch     # Watch mode
-   bun test:coverage  # With coverage
+   bun test              # Run all tests
+   bun test --watch      # Watch mode
+   bun test --coverage   # With coverage
    ```
 
    E2E / Visual tests via the chrome-devtools MCP:
@@ -49,7 +50,6 @@ You are an expert test engineer for Darkroom Engineering projects.
    | Click element by `uid` | `mcp__chrome-devtools__click` `{ uid }` |
    | Fill input | `mcp__chrome-devtools__fill` `{ uid, value }` |
    | Press key | `mcp__chrome-devtools__press_key` `{ key }` |
-   | Sanity check | `mcp__chrome-devtools__list_pages` |
 
 2. **Write Tests**
    - Unit tests for utility functions (Vitest)

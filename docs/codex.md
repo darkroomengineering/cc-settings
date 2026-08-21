@@ -1,11 +1,20 @@
 # Codex support
 
+> **Audience:** standalone Codex users and administrators
+> **Purpose:** document Codex-native installation, daily use, lifecycle, and platform boundaries
+> **Status:** supporting Codex reference; shared behavior lives in [host parity](./claude-vs-codex.md)
+
 cc-settings installs a native Codex setup from the same source tree used for Claude Code. Use the
 installer as the canonical setup path. Codex's `/import` command remains useful for migrating an
 existing hand-tuned Claude Code profile, but it is no longer the recommended cc-settings setup.
 
 For running Codex as a second model from a Claude Code session, see
 [codex-bridge.md](./codex-bridge.md). This page covers standalone Codex installation and lifecycle.
+
+After installation, describe outcomes normally or pin a shared skill as `$skill-name`. Claude-style
+`/skill-name` examples do not apply in standalone Codex. Use `/status` for native session state and
+`/hooks` to review plugin hooks. Follow [your first session](./first-session.md) for a harmless
+read-only setup check.
 
 ## Install Codex
 
@@ -65,6 +74,39 @@ Claude Code into Codex.
 skills, hooks, runtime `src/` files, and package metadata needed after installation. Native role
 instructions are generated separately in `agents/*.toml`. User-created files, ignored files, and
 unrelated repository content are not copied into the managed runtime.
+
+## If Codex says skill descriptions were shortened
+
+A full install checks `~/.agents/skills` for names that duplicate skills already supplied by the
+`darkroom@cc-settings` plugin. This usually comes from an older Codex `/import`. Duplicate entries
+consume the skill selector's `skills.max_context_tokens` budget and can make Codex shorten otherwise
+complete plugin descriptions. The installer reports the names but never moves them automatically.
+
+Preview the migration from a cc-settings checkout:
+
+```bash
+bun run migrate:codex-skills
+```
+
+The preview lists only names that overlap the current 38 cc-settings skills. It leaves unrelated
+user skills, including `context7-mcp` and `programa`, out of the move. It also reads
+`$CODEX_HOME/config.toml`, or `~/.codex/config.toml` when `CODEX_HOME` is unset. When Codex
+Desktop's `[desktop] external-agent-import-sync-enabled` setting is `true`, Desktop will recreate
+directories after they move. Preview still lists the overlaps and warns about recurrence, but
+`--apply` refuses to move anything or create a backup.
+
+Disable that setting, quit and restart Codex completely, then preview again. cc-settings never
+edits `config.toml`; you own that choice. After reviewing a warning-free list, apply explicitly:
+
+```bash
+bun run migrate:codex-skills --apply
+```
+
+The command moves each overlapping real directory into one timestamped
+`~/.agents/skills-backup-cc-settings-*` directory. It never deletes a skill, never follows a
+symlink, and stops if an overlapping entry is not a normal directory. A malformed TOML file or a
+non-boolean import-sync value also stops the migration before any move. Keep the backup until Codex
+has restarted and the skill picker shows the plugin descriptions normally.
 
 ## Light profile
 
@@ -133,8 +175,8 @@ plugin-capable CLI or desktop surface, or skills installed directly at repositor
 Several shared workflows have narrower Codex branches:
 
 - `tldr` is not bundled. Shared workflows use `rg` and Codex native search instead.
-- `/freeze` cannot enforce a directory edit lock in Codex.
-- `/autoresearch` cannot run its Claude subprocess evaluation loop in Codex.
+- `$freeze` cannot enforce a directory edit lock in Codex.
+- `$autoresearch` cannot run its Claude subprocess evaluation loop in Codex.
 - Claude agent teams, dynamic workflows, and the custom statusline remain Claude-only.
 
 ## When to use `/import`

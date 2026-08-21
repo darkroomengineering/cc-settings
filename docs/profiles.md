@@ -1,6 +1,13 @@
 # Profiles
 
-Activate for specialized workflows. Profiles live in `~/.claude/profiles/` (installed by `bun src/setup.ts`) and apply via `@profile-name` references in CLAUDE.md or per-project setup.
+Profiles document the stack-specific instructions that cc-settings installs under
+`~/.claude/profiles/`. They are source material for the shared instructions and skills. There is no
+supported `settings.json` key or interactive command that activates one as a runtime mode.
+
+Use the product normally from the project root. Stack-aware skills inspect `package.json` and the
+files in play, then apply the matching Next.js, React Router, React Native, Tauri, or WebGL guidance.
+Use `/orchestrate` in Claude or `$orchestrate` in Codex when you explicitly want the maestro
+workflow. Do not copy profile frontmatter into settings; those fields are documentation only.
 
 | Profile | Use Case |
 |---------|----------|
@@ -35,7 +42,7 @@ Each profile file may carry a YAML frontmatter block at the top documenting its 
 ---
 name: nextjs
 description: Next.js web apps
-model: opus
+model: claude-opus-5
 skills: [build, component, hook, lighthouse]
 ---
 ```

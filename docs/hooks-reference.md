@@ -12,7 +12,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
-## Hook Events (29 total)
+## Hook Events (30 total)
 
 ### Session Lifecycle
 
@@ -59,6 +59,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 |-------|------|----------------|----------|
 | `CwdChanged` | Working directory changes during session | -- | No |
 | `FileChanged` | A watched file changes on disk | -- | No |
+| `DirectoryAdded` | `/add-dir` or the SDK's `register_repo_root` adds a working dir mid-session (v2.1.219) | -- | No |
 
 ### Context Management
 
@@ -217,6 +218,7 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | `prompt` | Sends a single-turn prompt to Claude for yes/no evaluation. | Complex validation requiring LLM judgment |
 | `agent` | Spawns a subagent with tool access (Read, Grep, Glob) for verification. | Multi-step validation requiring code inspection |
 | `http` | Sends a webhook to a URL. Configure with `url`, `headers`, `allowedEnvVars`. Controlled by `allowedHttpHookUrls` setting. | Remote validation, external integrations, audit logging |
+| `mcp_tool` | Calls a tool on a configured MCP server instead of running locally (v2.1.118). | Validation or context injection that needs an MCP server's own state |
 
 ---
 
@@ -241,6 +243,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `Edit` | File edit operations |
 | `Write\|Edit` | Either writes or edits |
 | `Read` | File read operations |
+| `Agent` | Any subagent spawn via the Agent tool |
 
 ### Matcher Values for SubagentStart/SubagentStop
 
@@ -359,6 +362,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
 | `delegation-detector.ts` | Regex-scores incoming prompt for breadth signals (phrases like "do all", "across the repo", path-shaped tokens, large numbered lists). At score ≥ 2, injects a compact `additionalContext` reminder: score, matched signals, and a one-line routing guide (maestro / implementer / parallel agents in ONE message). Overriding requires a stated reason. | No |
 | `quota-steer.ts` | Reads the statusline's cached rate-limit percentages; injects quota-aware model-routing guidance (Codex bridge / Sonnet downshift) once usage crosses elevated/critical/exhausted thresholds; at exhausted (≥95%) it re-injects every prompt and directs a full funnel to Codex plus a user-facing notice. Fail-open | No |
+| `escalate-model.ts` | Suggests escalating to a Fable-model subagent when the same problem signature repeats `CC_ESCALATE_THRESHOLD`+ times. Quota-gated, fail-open | No |
 
 > Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
@@ -367,7 +371,7 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.) | No |
-| Inline pre-commit tsc check | Runs `tsc --noEmit` before any `git commit` command. Blocks commit if TypeScript errors found | No |
+| `pre-commit-tsc.ts` | Runs `tsc --noEmit` before any `git commit` command. Blocks commit if TypeScript errors found | No |
 | `pre-commit-farolero.ts` | Runs `farolero ratchet --changed` before `git commit`, if the target repo has [farolero](https://github.com/darkroomengineering/farolero) as a dependency and installed (`node_modules/.bin/farolero`). Blocks the commit on a red gate (`--dry-run`/`--help` exempt). Skips silently if farolero isn't a dependency, isn't installed, or its own git hooks are already active for the repo (`core.hooksPath`/`.git/hooks/pre-commit` carrying the `farolero-managed` marker) — this hook complements, never replaces, farolero's own repo-level hooks and CI check; it just makes Claude Code a good citizen when a repo declared farolero but never ran `farolero install-hooks`. The whole point of farolero is enforcement that works *without* Claude Code in the loop — this hook only makes CC catch it earlier, one commit sooner than the hook farolero itself would have installed | No |
 | `pre-pr-proof.ts` | Runs the full proof battery (typecheck + test + lint) before `gh pr create`/`gh pr ready`. Blocks PR readiness if red (drafts exempt) | No |
 | `pre-push-proof.ts` | Runs the full proof battery (typecheck + test + lint) before `git push`. Blocks the push if red (`--dry-run`/`--help` exempt) — catches straight-to-main flows that never hit the PR gate | No |
@@ -392,6 +396,12 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `post-edit.ts` | Auto-formats edited files with Biome | No |
 | `post-edit-tsc.ts` | Runs TypeScript type check on edited files | Yes |
 | `promote-memory.ts` | Nudges (once per file) when a team-relevant auto-memory file is written under `.../memory/`, for `project`/`feedback` memory types | No |
+
+### PostToolUse (Agent matcher)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `escalate-acted.ts` | Records that a model-escalation suggestion was acted on — the "acted" half of the `escalate-model.ts`/`delegation-detector.ts` fired-vs-acted telemetry pair | No |
 
 ### PostToolUse (Bash matcher — command logging)
 

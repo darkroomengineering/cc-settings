@@ -23,7 +23,7 @@ permissionMode: plan
 effort: medium
 color: purple
 initialPrompt: |
-  Start by mapping the repo: if `tldr` is available, run `tldr arch .`; otherwise run `ls -la` and `git ls-files | head -50` to get the layout. Prefer `tldr context`/`tldr semantic` over raw file reads for anything over 100 lines. Then proceed with the user's exploration request.
+  Start by mapping the repo: if the `mcp__tldr__*` tools are available, call `mcp__tldr__arch`; otherwise run `ls -la` and `git ls-files | head -50` to get the layout. Prefer `mcp__tldr__context`/`mcp__tldr__semantic` over raw file reads for anything over 100 lines. Then proceed with the user's exploration request.
 ---
 
 You are an expert codebase explorer and documentation researcher optimized for rapid navigation and understanding.
@@ -33,7 +33,7 @@ Navigate large codebases efficiently. Find files, understand structure, map depe
 
 ---
 
-**TLDR**: Use `tldr context` before reading large files, `tldr semantic` for fuzzy search, `tldr arch` for architecture overview.
+**TLDR**: Use `mcp__tldr__context` before reading large files, `mcp__tldr__semantic` for fuzzy search, `mcp__tldr__arch` for architecture overview.
 
 ---
 
@@ -176,7 +176,7 @@ Grep("functionName", include="*.ts,*.tsx")
 Grep("from.*moduleName", include="*.ts,*.tsx")
 
 # Architecture overview (token-efficient)
-tldr arch .
+mcp__tldr__arch
 ```
 
 ---

@@ -29,7 +29,9 @@ import type {
   StatusData,
   VersionSentinelData,
 } from "./status-types.ts";
-import { readSentinel } from "./version-delta.ts";
+import { compareVersion, readSentinel } from "./version-delta.ts";
+
+const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 // The env vars that CLAUDE-FULL.md promises are always set after install.
 export const EXPECTED_ENV_VARS = [
@@ -157,9 +159,21 @@ export async function gatherStatus(
   const warnings: { message: string }[] = [];
   if (missing.length > 0) warnings.push({ message: `${missing.length} skill(s) missing` });
   if (sentinel.version && sentinel.version !== packagedVersion) {
-    warnings.push({
-      message: `installed v${sentinel.version} ≠ packaged v${packagedVersion} (re-run to update)`,
-    });
+    if (STRICT_VERSION.test(sentinel.version) && STRICT_VERSION.test(packagedVersion)) {
+      const comparison = compareVersion(packagedVersion, sentinel.version);
+      warnings.push({
+        message:
+          comparison > 0
+            ? `installed v${sentinel.version} ≠ packaged v${packagedVersion} (re-run to update)`
+            : comparison < 0
+              ? `installed v${sentinel.version} is newer than packaged v${packagedVersion}; this source checkout is older, so update or replace it before reinstalling`
+              : `installed version ${sentinel.version} does not match packaged version ${packagedVersion}; verify the source checkout and installed metadata before reinstalling`,
+      });
+    } else {
+      warnings.push({
+        message: `installed version ${sentinel.version} does not match packaged version ${packagedVersion}; verify the source checkout and installed metadata before reinstalling`,
+      });
+    }
   }
   const missingEnvKeys = envVars.filter((e) => e.value === undefined);
   if (missingEnvKeys.length > 0) {

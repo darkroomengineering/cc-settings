@@ -24,6 +24,7 @@ import { Settings } from "../schemas/settings.ts";
 import { validateClaudeManagedFileOwnership } from "./claude-managed-files.ts";
 import { error, info, success } from "./colors.ts";
 import {
+  CLAUDE_RUNTIME_MARKER,
   type ClaudeBackupSnapshot,
   claudeBackupScheduleSidecar,
   claudeBackupStateSidecar,
@@ -44,7 +45,9 @@ import { DestructiveSentinelSchema, readDestructiveSentinel } from "./version-de
 export function printHelp(version: string): void {
   console.log(`cc-settings installer v${version}
 
-Usage: bun src/setup.ts [flags]
+Usage: bash setup.sh [flags]
+       pwsh -File setup.ps1 [flags]
+       bun src/setup.ts [flags]  (advanced/direct invocation)
 
 Flags:
   --target=auto|claude|codex|both
@@ -73,8 +76,9 @@ Flags:
   --help, -h         Show this message.
 
 Rollback examples:
-  bun src/setup.ts --rollback
-  bun src/setup.ts --rollback=2026-04-20T10-00-00Z`);
+  bash setup.sh --rollback
+  bash setup.sh --rollback=2026-04-20T10-00-00Z
+  pwsh -File setup.ps1 --rollback`);
 }
 
 /** True when a `tar -tzf` listing entry is unsafe to extract: an absolute
@@ -437,12 +441,20 @@ async function regularFileHash(path: string): Promise<string | null> {
     .digest("hex");
 }
 
-async function directoryLinkMatches(path: string, expectedTarget: string): Promise<boolean> {
+async function nodeModulesMatches(path: string, expectedTarget: string): Promise<boolean> {
   const metadata = await lstat(path).catch((cause) => {
     if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw cause;
   });
-  if (!metadata?.isSymbolicLink()) return false;
+  if (!metadata) return false;
+  if (metadata.isDirectory() && !metadata.isSymbolicLink()) {
+    const marker = await readFile(join(path, ".cc-settings-owned.ts"), "utf8").catch(() => null);
+    return (
+      (await realpath(path).catch(() => null)) === expectedTarget &&
+      marker === CLAUDE_RUNTIME_MARKER
+    );
+  }
+  if (!metadata.isSymbolicLink()) return false;
   const linked = resolve(dirname(path), await readlink(path));
   if (linked === expectedTarget) return true;
   const [actual, expected] = await Promise.all([
@@ -497,11 +509,19 @@ async function captureCurrentClaudeOwnership(): Promise<CurrentClaudeOwnershipSn
   const nodeModulesMetadata = await lstat(installedNodeModules).catch(() => null);
   let nodeModulesTarget: string | null = null;
   if (nodeModulesMetadata) {
-    if (!sentinel.repo_path) {
-      throw new Error("Claude rollback cannot prove src/node_modules ownership");
+    if (nodeModulesMetadata.isSymbolicLink() && sentinel.repo_path) {
+      nodeModulesTarget = await realpath(resolve(sentinel.repo_path, "node_modules"));
+    } else if (
+      nodeModulesMetadata.isDirectory() &&
+      !nodeModulesMetadata.isSymbolicLink() &&
+      sentinel.managed_files_manifest_version
+    ) {
+      nodeModulesTarget = await realpath(installedNodeModules);
     }
-    nodeModulesTarget = await realpath(resolve(sentinel.repo_path, "node_modules"));
-    if (!(await directoryLinkMatches(installedNodeModules, nodeModulesTarget))) {
+    if (
+      !nodeModulesTarget ||
+      !(await nodeModulesMatches(installedNodeModules, nodeModulesTarget))
+    ) {
       throw new Error("Claude rollback cannot prove src/node_modules ownership");
     }
   }
@@ -530,7 +550,7 @@ async function assertCurrentClaudeOwnershipMatches(
   if (
     snapshot.nodeModulesTarget === null
       ? nodeModulesMetadata !== null
-      : !(await directoryLinkMatches(installedNodeModules, snapshot.nodeModulesTarget))
+      : !(await nodeModulesMatches(installedNodeModules, snapshot.nodeModulesTarget))
   ) {
     throw new Error("Claude src/node_modules changed after rollback preparation");
   }
@@ -565,6 +585,7 @@ async function validateStagedRestore(
     const parsed = await parseStagedJson(sentinelPath, "ownership sentinel");
     const result = DestructiveSentinelSchema.safeParse(parsed);
     if (!result.success) throw new Error("Invalid ownership sentinel in Claude backup");
+    const managedRoot = homeRelative ? join(staging, ".claude") : staging;
     if (
       expectedManifestVersion !== undefined &&
       (result.data.managed_files_manifest_version ?? null) !== expectedManifestVersion
@@ -587,7 +608,6 @@ async function validateStagedRestore(
         );
       }
       const managedFiles = sentinelManagedFiles ?? expectedManagedFiles ?? {};
-      const managedRoot = homeRelative ? join(staging, ".claude") : staging;
       if (sentinelManagedFiles) {
         if (result.data.managed_files_manifest_version === undefined) {
           throw new Error(
@@ -681,12 +701,22 @@ async function validateStagedRestore(
         throw new Error("Claude backup sidecar does not match its managed-file ownership hashes");
       }
     }
-    if (
-      result.data.managed_files_state !== "managed-absent" &&
-      result.data.repo_path &&
-      isAbsolute(result.data.repo_path)
-    ) {
+    const stagedNodeModules = join(managedRoot, "src", "node_modules");
+    const stagedNodeModulesMetadata = await lstat(stagedNodeModules).catch(() => null);
+    if (stagedNodeModulesMetadata?.isSymbolicLink()) {
+      if (!result.data.repo_path || !isAbsolute(result.data.repo_path)) {
+        throw new Error("Claude rollback cannot prove staged src/node_modules ownership");
+      }
       managedNodeModulesTarget = await realpath(resolve(result.data.repo_path, "node_modules"));
+    } else if (stagedNodeModulesMetadata?.isDirectory()) {
+      const managedRuntimeTarget = join(await realpath(CLAUDE_DIR), "src", "node_modules");
+      const marker = await readFile(join(stagedNodeModules, ".cc-settings-owned.ts"), "utf8").catch(
+        () => null,
+      );
+      if (expectedNodeModulesTarget !== managedRuntimeTarget || marker !== CLAUDE_RUNTIME_MARKER) {
+        throw new Error("Claude backup sidecar does not own its managed runtime directory");
+      }
+      managedNodeModulesTarget = managedRuntimeTarget;
     }
     if (
       expectedNodeModulesTarget !== undefined &&

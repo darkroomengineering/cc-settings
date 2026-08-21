@@ -10,7 +10,7 @@
 // or re-run setup.sh to refresh the fingerprint.
 
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
 import { z } from "zod";
@@ -155,8 +155,9 @@ export async function verifyAgainstSettings(
 //       "trusted" and downgraded the fingerprint alarm;
 //   (b) malware appends a payload to an already-registered shipped script —
 //       settings.json is untouched, so the hooks fingerprint never trips.
-// setup.ts writes a SHA256 manifest of every installed src/**/*.ts right after
-// installTsSources; verify-hooks.ts re-checks it at SessionStart and
+// setup.ts writes a SHA256 manifest of every installed runtime source and
+// production dependency right after installTsSources; verify-hooks.ts
+// re-checks it at SessionStart before importing dependency-backed modules, and
 // audit-hooks.ts gates "trusted" on it. Like the fingerprint, the manifest is
 // refreshed ONLY by setup.sh — never by the auditor or the verify hook — so
 // malware can't whitelist itself.
@@ -190,6 +191,8 @@ const SrcManifestRecordSchema = z.object({
 /** SHA256 hex of a file's content, or null when it can't be read. */
 export async function hashFileOrNull(path: string): Promise<string | null> {
   try {
+    const metadata = await lstat(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) return null;
     const data = await readFile(path);
     const hasher = new CryptoHasher("sha256");
     hasher.update(data);
@@ -199,28 +202,32 @@ export async function hashFileOrNull(path: string): Promise<string | null> {
   }
 }
 
-/** Recursively list .ts files under `dir` as sorted posix-style relative paths.
- *  Skips node_modules — it is symlinked back to the source repo at install
- *  time and is explicitly out of the manifest's threat coverage. */
-async function walkTsFiles(dir: string, prefix = ""): Promise<string[]> {
+/** List executable TypeScript plus every production dependency file.
+ * Dependency contents are all in scope because Bun may load package metadata,
+ * JavaScript, maps, or declarations while resolving an import. Symlinks are
+ * returned as candidates so hashing rejects them instead of following them. */
+async function walkIntegrityFiles(dir: string, prefix = ""): Promise<string[]> {
   const out: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name === "node_modules") continue;
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const dependencyFile = rel === "node_modules" || rel.startsWith("node_modules/");
+    if (entry.isSymbolicLink()) {
+      if (dependencyFile || entry.name.endsWith(".ts")) out.push(rel);
+      continue;
+    }
     if (entry.isDirectory()) {
-      out.push(...(await walkTsFiles(join(dir, entry.name), rel)));
-    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      out.push(...(await walkIntegrityFiles(join(dir, entry.name), rel)));
+    } else if (entry.isFile() && (dependencyFile || entry.name.endsWith(".ts"))) {
       out.push(rel);
     }
   }
   return out.sort();
 }
 
-/** Hash only the explicitly installed .ts paths and persist the manifest next
- *  to the hooks fingerprint (atomic write, same convention). Recursive live
- *  discovery belongs to verification, where extra files are reported as
- *  unmanifested instead of being adopted as trusted installer output. */
+/** Hash the explicitly installed runtime paths plus the complete production
+ * dependency tree. Recursive live discovery belongs to verification, where
+ * extra files are reported as unmanifested instead of being adopted. */
 export async function writeSrcManifest(
   installedSrcDir: string,
   claudeDir?: string,
@@ -228,13 +235,19 @@ export async function writeSrcManifest(
 ): Promise<SrcManifestRecord> {
   const dir = claudeDir ?? CLAUDE_DIR;
   const files: Record<string, string> = {};
-  const selectedPaths = managedRelativePaths ?? (await walkTsFiles(installedSrcDir));
+  const dependencyDir = join(installedSrcDir, "node_modules");
+  const dependencyPaths = existsSync(dependencyDir)
+    ? await walkIntegrityFiles(dependencyDir, "node_modules")
+    : [];
+  const selectedPaths = managedRelativePaths
+    ? [...managedRelativePaths, ...dependencyPaths]
+    : await walkIntegrityFiles(installedSrcDir);
   for (const rel of [...new Set(selectedPaths)].sort()) {
-    if (!rel.endsWith(".ts") || rel.startsWith("/") || rel.split(/[/\\]/).includes("..")) {
-      throw new Error(`Invalid managed TypeScript manifest path: ${rel}`);
+    if (rel.startsWith("/") || rel.split(/[/\\]/).includes("..")) {
+      throw new Error(`Invalid managed runtime manifest path: ${rel}`);
     }
     const hash = await hashFileOrNull(join(installedSrcDir, rel));
-    if (!hash) throw new Error(`Missing managed TypeScript manifest file: ${rel}`);
+    if (!hash) throw new Error(`Missing or unsafe managed runtime manifest file: ${rel}`);
     files[rel] = hash;
   }
   const record: SrcManifestRecord = { files, installedAt: new Date().toISOString() };
@@ -258,7 +271,7 @@ export interface SrcVerifyResult {
   status: "ok" | "missing" | "mismatch";
   /** Manifested files whose content changed — or disappeared — since install. */
   changed: string[];
-  /** .ts files on disk under ~/.claude/src that the install never wrote. */
+  /** Runtime files on disk under ~/.claude/src that the install never wrote. */
   unmanifested: string[];
 }
 
@@ -271,7 +284,7 @@ export async function verifySrcManifest(claudeDir?: string): Promise<SrcVerifyRe
   if (!manifest) return { status: "missing", changed: [], unmanifested: [] };
 
   const srcDir = join(dir, "src");
-  const onDisk = existsSync(srcDir) ? await walkTsFiles(srcDir) : [];
+  const onDisk = existsSync(srcDir) ? await walkIntegrityFiles(srcDir) : [];
 
   const changed: string[] = [];
   for (const [rel, expected] of Object.entries(manifest.files)) {

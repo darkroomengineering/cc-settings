@@ -136,7 +136,6 @@ Use Projects for the big picture. Use Issues for the actual plan. Don't conflate
 | `/project` | Reads linked issue on session start, updates on end |
 | `/handoff` | Posts progress comment on linked issue; also loads previous state on resume |
 | `/share-learning` | Stores team knowledge in the team-knowledge repo |
-| `/build`, `/fix` | Can reference issue tasks for scope |
 
 ---
 
