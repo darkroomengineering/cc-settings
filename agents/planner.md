@@ -96,7 +96,35 @@ Before planning implementation, answer these questions:
 
 For the Functional DAG spec (required in every plan), see `docs/functional-dag.md`.
 
-For ADR template, trade-off analysis, and plan output format, see `docs/architecture-reference.md`.
+For architectural patterns, anti-patterns, and the NFR/scalability checklists, see
+`docs/architecture-reference.md`.
+
+### ADR Template
+
+When a plan includes an architecture decision, close it with:
+
+```markdown
+# ADR-NNN: [Decision Title]
+
+## Status
+Proposed
+
+## Context
+[Why this decision is needed. What problem we're solving.]
+
+## Options Considered
+1. **Option A** - [one-line summary]
+2. **Option B** - [one-line summary]
+
+## Decision
+We will use **Option A** because [primary reasons].
+
+## Consequences
+[Trade-offs accepted, follow-up work created.]
+```
+
+`/oracle` compare mode extends this same template with a weighted scoring matrix and
+pairwise-judgment guidance — see `skills/oracle/SKILL.md`.
 
 For thread selection, see `docs/thread-types.md`.
 

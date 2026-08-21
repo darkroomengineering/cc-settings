@@ -9,17 +9,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, lstatSync } from "node:fs";
-import {
-  cp,
-  lstat,
-  mkdir,
-  readdir,
-  readFile,
-  realpath,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { currentClaudeManagedSourceFiles } from "./claude-managed-file-manifests.ts";
@@ -30,6 +20,8 @@ import { MANAGED_TOP_LEVEL_PATHS, sharedDirOwnedFiles } from "./managed-paths.ts
 import { CLAUDE_DIR, getTimestamp } from "./platform.ts";
 import { serializeAutoUpdateState, snapshotAutoUpdateState } from "./schedule.ts";
 import { readDestructiveSentinel } from "./version-delta.ts";
+
+export const CLAUDE_RUNTIME_MARKER = "// cc-settings managed runtime\n";
 
 // --- Install phases ------------------------------------------------------
 
@@ -225,15 +217,27 @@ async function createBackup(
         throw cause;
       });
   if (installedNodeModulesMetadata) {
-    if (!sentinel?.repo_path || !installedNodeModulesMetadata.isSymbolicLink()) {
-      throw new Error("Cannot back up unowned Claude src/node_modules");
+    if (installedNodeModulesMetadata.isSymbolicLink()) {
+      if (!sentinel?.repo_path) throw new Error("Cannot back up unowned Claude src/node_modules");
+      const expected = await realpath(resolve(sentinel.repo_path, "node_modules"));
+      const linked = await realpath(installedNodeModules).catch(() => null);
+      if (linked !== expected) {
+        throw new Error("Cannot back up repointed Claude src/node_modules");
+      }
+      nodeModulesTarget = expected;
+    } else {
+      if (
+        !installedNodeModulesMetadata.isDirectory() ||
+        !sentinel?.managed_files ||
+        !sentinel.managed_files_manifest_version ||
+        (await readFile(join(installedNodeModules, ".cc-settings-owned.ts"), "utf8").catch(
+          () => null,
+        )) !== CLAUDE_RUNTIME_MARKER
+      ) {
+        throw new Error("Cannot back up unsafe Claude src/node_modules");
+      }
+      nodeModulesTarget = await realpath(installedNodeModules);
     }
-    const expected = await realpath(resolve(sentinel.repo_path, "node_modules"));
-    const linked = await realpath(installedNodeModules).catch(() => null);
-    if (linked !== expected) {
-      throw new Error("Cannot back up repointed Claude src/node_modules");
-    }
-    nodeModulesTarget = expected;
     managedPaths.push(".claude/src/node_modules");
   }
   const archivePaths = options.managedAbsent
@@ -444,7 +448,6 @@ async function installTsSources(source: string): Promise<void> {
     ),
   );
 
-  const srcNm = join(source, "node_modules");
   const dstNm = join(dstTs, "node_modules");
   const existingDestination = await lstat(dstNm).catch((cause) => {
     if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -453,22 +456,29 @@ async function installTsSources(source: string): Promise<void> {
   if (existingDestination) {
     throw new Error("Claude managed destination collision: src/node_modules");
   }
-  const sourceDependencies = await lstat(srcNm).catch((cause) => {
-    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw cause;
+  if (process.env.CC_SKIP_DEPS === "1") return;
+  const install = Bun.spawn(
+    ["bun", "install", "--production", "--frozen-lockfile", "--ignore-scripts"],
+    { cwd: dstTs, stdout: "pipe", stderr: "pipe" },
+  );
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(install.stdout).text(),
+    new Response(install.stderr).text(),
+    install.exited,
+  ]);
+  if (code !== 0) {
+    throw new Error(
+      `Claude managed runtime dependency install failed: ${(stderr || stdout).trim()}`,
+    );
+  }
+  const installedDependencies = await lstat(dstNm).catch(() => null);
+  if (!installedDependencies?.isDirectory() || installedDependencies.isSymbolicLink()) {
+    throw new Error("Claude managed runtime dependency install produced an unsafe node_modules");
+  }
+  await writeFile(join(dstNm, ".cc-settings-owned.ts"), CLAUDE_RUNTIME_MARKER, {
+    flag: "wx",
+    mode: 0o600,
   });
-  if (!sourceDependencies) {
-    if (process.env.CC_SKIP_DEPS === "1") return;
-    throw new Error(`Claude runtime dependencies are missing: ${srcNm}`);
-  }
-  if (!sourceDependencies.isDirectory() || sourceDependencies.isSymbolicLink()) {
-    throw new Error(`Claude runtime dependencies are not a real directory: ${srcNm}`);
-  }
-  await symlink(srcNm, dstNm, process.platform === "win32" ? "junction" : "dir");
-  const [sourceTarget, installedTarget] = await Promise.all([realpath(srcNm), realpath(dstNm)]);
-  if (sourceTarget !== installedTarget) {
-    throw new Error("Claude runtime dependency link does not resolve to the source dependencies");
-  }
 }
 
 export { createBackup, createDirectories, installConfigFiles, installTsSources };

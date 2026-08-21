@@ -62,7 +62,7 @@ credentials.json  *.pem  *.key
 ```tsx
 // WRONG: Expose secrets to client
 export const config = { apiKey: process.env.API_KEY }
-// Only NEXT_PUBLIC_* vars are safe for client
+// Next.js: only NEXT_PUBLIC_* vars are safe for client. React Router/Vite: only VITE_* vars are.
 
 // WRONG: SQL injection
 const query = `SELECT * FROM users WHERE name = '${name}'`

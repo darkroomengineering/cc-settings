@@ -3,7 +3,11 @@ name: share-learning
 description: Promote a team-relevant learning to the shared team-knowledge repo, deduping against existing notes first. Triggers "share this", "promote to the team repo", "add to the knowledge base", or after a gotcha/decision/convention worth team-wide awareness.
 allowed-tools:
   - Bash(gh api*)
+  - Bash(gh auth status*)
   - Bash(base64*)
+requires:
+  - command: gh
+    install: "Install GitHub CLI, run `gh auth login`, and request access to the team-knowledge repository."
 ---
 
 # share-learning
@@ -29,12 +33,20 @@ Invoked as `/share-learning <kind> "<text>"` where `<kind>` is one of:
 If invoked without arguments, infer the most likely `kind` and a concise `text` from the
 recent conversation, then show the user what you intend to post and confirm before posting.
 
+Before starting, run `gh auth status` and confirm the authenticated account can read
+`darkroomengineering/team-knowledge` (or `$KNOWLEDGE_REPO`) with
+`gh api repos/${KNOWLEDGE_REPO:-darkroomengineering/team-knowledge} --jq .full_name`. Stop with the
+failed prerequisite if either check fails. Do not wait until the write step to surface missing
+authentication or repository access.
+
 ## Steps
 
 1. **Resolve the repo.** Read `$KNOWLEDGE_REPO` from the environment; default is
-   `darkroomengineering/team-knowledge`. If `$KNOWLEDGE_REPO` is unset and you do not want
-   to use the default, stop and tell the user to set it (see `docs/knowledge-system.md` for
-   setup).
+   `darkroomengineering/team-knowledge`:
+
+   ```bash
+   KNOWLEDGE_REPO="${KNOWLEDGE_REPO:-darkroomengineering/team-knowledge}"
+   ```
 
 2. **Dedup against the index (required).** Fetch the current index:
 

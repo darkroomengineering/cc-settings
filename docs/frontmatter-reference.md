@@ -16,7 +16,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 |-------|------|----------|-------------|
 | `name` | string | Yes | Agent identifier, used in `Agent(name, "...")` invocations |
 | `model` | string | No | Model to use: `fable`, `opus`, `sonnet`, `haiku` |
-| `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions |
+| `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions — see Memory Scopes below for the actual storage path |
 | `description` | string | Yes | Multi-line description shown in agent selection. Controls auto-invocation behavior (see below) |
 | `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, LS, Agent, ...]` |
 | `color` | string | No | Display color in the UI: `purple`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gold` |
@@ -28,6 +28,8 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `background` | boolean | No | When `true`, always run this subagent as a background task |
 | `isolation` | string | No | `worktree` runs the agent in a temporary git worktree for isolated repo access; `remote` runs it in a remote/sandboxed environment |
 | `effort` | string | No | Effort level for this agent: `low`, `medium`, `high`, `xhigh`, `max` |
+| `permissionMode` | string | No | Permission mode for this agent's subagent session (used by `explore`, `reviewer`, `security-reviewer`) |
+| `initialPrompt` | string | No | Text prepended to the agent's first turn, before the delegated task (used by `explore`) |
 
 ### Auto-Invocation via `description`
 
@@ -39,11 +41,11 @@ The `description` field serves double duty. Beyond appearing in agent selection,
 
 ### Memory Scopes
 
-| Scope | Persists Across | Storage |
-|-------|-----------------|---------|
-| `user` | All projects for this user | `~/.claude/memory/user/` |
-| `project` | Sessions in this project | `~/.claude/memory/project/` |
-| `local` | Current machine only | `~/.claude/memory/local/` |
+There's one storage convention regardless of scope value: `~/.claude/agent-memory/<agent-name>/MEMORY.md`
+for the installed (user-wide) copy, or `<project-root>/.claude/agent-memory/<agent-name>/` when
+project-scoped. The `memory:` value doesn't change *where* the file lives, only when the agent is
+expected to read/write it. First 200 lines auto-load on the agent's next invocation — see
+`AGENTS.md` "Self-Evolving Learnings".
 
 Agents with `memory` enabled: `explore`, `reviewer`, `planner`.
 
@@ -55,7 +57,7 @@ name: implementer
 model: sonnet
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
-tools: [Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite]
+tools: [Read, Write, Edit, Bash, Grep, Glob, LS]
 color: green
 ---
 ```
@@ -82,15 +84,15 @@ color: purple
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite | green |
-| `maestro` | claude-opus-5 | -- | Read, Write, Edit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
+| `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | green |
+| `maestro` | claude-opus-5 | -- | Read, Write, Edit, Bash, Grep, Glob, LS, Agent, SendMessage | red |
 | `reviewer` | sonnet | project | Read, Grep, Glob, LS, Bash | yellow |
 | `planner` | claude-opus-5 | project | Read, Grep, Glob, LS | blue |
 | `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
 | `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
-| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
+| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, SendMessage | cyan |
 | `security-reviewer` | claude-opus-5 | -- | Read, Grep, Glob, Bash | red |
-| `codex-verifier` | sonnet | -- | Bash | cyan |
+| `codex-verifier` | sonnet | -- | Bash, Read | cyan |
 
 ---
 
@@ -106,7 +108,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 |-------|------|---------|-------------|
 | `name` | string | (required) | Skill identifier, used as the slash command name (e.g., `docs` for `/docs`) |
 | `description` | string | (required) | Purpose description. Also used for auto-invocation pattern matching |
-| `context` | string | `inherit` | Context behavior: `fork` (isolated context) or `inherit` (shared with parent) |
+| `context` | string | omitted = inline | Context behavior: `fork` (isolated, backgrounded context) or `main` (runs inline in the main session — omitting the field resolves the same way) |
 | `agent` | string | -- | Route execution to a specific agent (e.g., `explore`, `oracle`, `maestro`) |
 | `allowed-tools` | list | -- | Tools available when the skill is active. Overrides default tool set |
 | `disable-model-invocation` | boolean | `false` | When `true`, prevents the model from auto-invoking this skill |
@@ -127,13 +129,15 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | Mode | Behavior | Use When |
 |------|----------|----------|
 | `fork` | Creates an isolated sub-context and runs in the background by default (v2.1.218). Output is summarized and returned to the parent as a task notification, not streamed inline. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
-| `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
+| `main` (or omitted — same behavior) | Shares context with the parent conversation, runs inline. | Skills that need to modify the current session state, or that are single-turn and lightweight |
+
+There's no third `inherit` value — `context: inherit` is never written anywhere in the repo, and `src/schemas/skill.ts` defines the field as `z.enum(["fork", "main"])`.
 
 Skills using `fork` (23): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `triage`, `verify`. All 23 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
-Skills using `main` (5): `adhd`, `audit`, `codex`, `freeze`, `zero-tech-debt`.
+Skills declaring `context: main` explicitly (5): `adhd`, `audit`, `codex`, `freeze`, `zero-tech-debt`.
 
-Skills using `inherit` (default, 10): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
+Skills that omit `context` (10, same behavior as `main`): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
 
 ### Agent Delegation
 
@@ -170,7 +174,7 @@ description: |
   - User says "checkpoint", "save state", "save progress"
 allowed-tools:
   - Bash
-argument-hint: "[save|restore|list] [name]"
+argument-hint: "[save|restore|show|list|clean] [name-or-id]"
 ---
 ```
 
@@ -188,47 +192,12 @@ argument-hint: "<skill-name>"
 ---
 ```
 
-### All Skills in cc-settings
+### Installed skills
 
-| Skill | Context | Agent | Allowed Tools | Argument Hint |
-|-------|---------|-------|---------------|---------------|
-| `adhd` | main | -- | -- | `[problem]` |
-| `audit` | main | -- | -- | `[maintainability\|codebase\|docs\|process]` |
-| `autoresearch` | fork | -- | -- | `<skill-name>` |
-| `build` | fork | -- | -- | -- |
-| `cc` | -- | -- | -- | `[sync\|update]` |
-| `checkpoint` | fork | -- | Bash | `[save\|restore\|list\|clean] [name-or-id]` |
-| `codex` | main | -- | -- | `[exec\|review\|ask] [task]` |
-| `component` | -- | -- | -- | -- |
-| `consolidate` | fork | -- | -- | -- |
-| `context-doc` | -- | -- | -- | -- |
-| `design-tokens` | fork | -- | -- | `[generate\|consolidate]` |
-| `dr-init` | -- | -- | -- | `[project-name]` |
-| `explore` | fork | explore | -- | -- |
-| `fix` | fork | -- | -- | -- |
-| `freeze` | main | -- | Bash, AskUserQuestion | `[set\|off\|status] [dir]` |
-| `handoff` | fork | -- | -- | `[save\|resume]` |
-| `hook` | -- | -- | -- | -- |
-| `lighthouse` | fork | -- | Bash, Read, Write, Edit, Grep, Glob, LS | `<url>` |
-| `oracle` | fork | -- | -- | `[advice\|risks\|compare] [question]` |
-| `orchestrate` | fork | maestro | -- | -- |
-| `plan-ceo-review` | fork | -- | Read, Grep, Glob, Bash, AskUserQuestion | -- |
-| `plan-feature` | fork | planner | -- | -- |
-| `project` | -- | -- | -- | -- |
-| `proof-of-work` | -- | -- | -- | -- |
-| `qa` | fork | -- | Bash | -- |
-| `refactor` | fork | -- | -- | -- |
-| `retro` | fork | -- | Bash, Read, Write, Glob | -- |
-| `review` | fork | reviewer | -- | -- |
-| `review-batch` | -- | -- | -- | -- |
-| `share-learning` | -- | -- | -- | -- |
-| `ship` | fork | -- | -- | -- |
-| `strategist` | -- | -- | Read, Grep, Glob, Bash | -- |
-| `test` | fork | tester | -- | -- |
-| `tldr` | fork | -- | -- | -- |
-| `triage` | fork | -- | -- | -- |
-| `verify` | fork | -- | -- | -- |
-| `zero-tech-debt` | main | -- | -- | -- |
+The executable frontmatter in each `skills/*/SKILL.md` file is the authority for context, tools,
+arguments, and prerequisites. Use the [human skill guide](./skills.md) for value, effects, output,
+host support, and nearby alternatives. The guide links every active executable source instead of
+copying another frontmatter inventory here.
 
 ---
 
@@ -236,7 +205,10 @@ argument-hint: "<skill-name>"
 
 **Location:** `~/.claude/profiles/*.md`
 
-Profile files inject specialized instructions for a particular workflow context. They are activated via `@profile-name` references in CLAUDE.md or per-project setup.
+Profile files document specialized workflow intent for package detection, agents, and skills. They
+are not activated through a settings key or `@profile-name` command. Use the relevant product
+normally; cc-settings selects applicable guidance from repository evidence, while an explicit
+`/orchestrate` in Claude or `$orchestrate` in Codex requests the broad coordinator.
 
 All frontmatter fields in profiles are **advisory** — validated at install time for well-formedness and readable as documented intent. They are not enforced at runtime: cc-settings does not switch the active model, gate skills, or restrict tools based on a profile.
 
@@ -260,7 +232,7 @@ name: maestro
 description: |
   Full orchestration mode for power users. Coordinates agents instead of executing directly.
   Activate when you want maximum delegation and parallel agent workflows.
-model: opus
+model: claude-opus-5
 skills: [orchestrate]
 effort: xhigh
 ---
@@ -270,12 +242,12 @@ effort: xhigh
 
 | Profile | Model (advisory) | Skills (advisory) | Effort (advisory) |
 |---------|-----------------|-------------------|-------------------|
-| `maestro` | opus | orchestrate | xhigh |
-| `nextjs` | opus | build, component, hook, lighthouse | — |
-| `react-native` | opus | build, component | — |
-| `tauri` | opus | build | — |
-| `webgl` | opus | component, qa | — |
-| `react-router` | opus | build, component, hook | — |
+| `maestro` | claude-opus-5 | orchestrate | xhigh |
+| `nextjs` | claude-opus-5 | build, component, hook, lighthouse | — |
+| `react-native` | claude-opus-5 | build, component | — |
+| `tauri` | claude-opus-5 | build | — |
+| `webgl` | claude-opus-5 | component, qa | — |
+| `react-router` | claude-opus-5 | build, component, hook | — |
 
 ---
 

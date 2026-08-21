@@ -78,6 +78,28 @@ async function copySourceFixture(parent: string): Promise<string> {
   return source;
 }
 
+async function packagedVersion(): Promise<string> {
+  const manifest = JSON.parse(await readFile(join(REPO, "package.json"), "utf8")) as {
+    version: string;
+  };
+  return manifest.version;
+}
+
+function neighboringMajor(version: string, direction: "older" | "newer"): string {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match) throw new Error(`Expected a semantic release version, received ${version}`);
+  const major = Number.parseInt(match[1] as string, 10);
+  if (direction === "newer") return `${major + 1}.0.0`;
+  if (major === 0) throw new Error(`Cannot construct an older major release from ${version}`);
+  return `${major - 1}.0.0`;
+}
+
+async function rewriteSentinelVersion(path: string, version: string): Promise<void> {
+  const sentinel = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  sentinel.version = version;
+  await writeFile(path, `${JSON.stringify(sentinel, null, 2)}\n`);
+}
+
 function expectSuccess(result: InstallResult): void {
   if (result.exitCode !== 0) {
     throw new Error(
@@ -241,6 +263,47 @@ describe("Codex installer lifecycle", () => {
       expect(status.exitCode).toBe(0);
       expect(status.stdout).toContain("Codex:");
       expect(status.stdout).toContain("plugin: installed");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("status tells a user with older Codex settings to run the normal update", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-codex-status-update-"));
+    const sentinel = join(home, ".codex", ".cc-settings-version");
+    try {
+      expectSuccess(await runCodex(home));
+      const packaged = await packagedVersion();
+      const installed = neighboringMajor(packaged, "older");
+      await rewriteSentinelVersion(sentinel, installed);
+
+      const status = await runCodex(home, ["--status"]);
+
+      expect(status.exitCode, `${status.stdout}\n${status.stderr}`).toBe(0);
+      expect(status.stdout).toContain(installed);
+      expect(status.stdout).toContain(packaged);
+      expect(status.stdout).toMatch(/re-?run|update/i);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("status identifies an older source checkout without recommending a Codex downgrade", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-codex-status-older-source-"));
+    const sentinel = join(home, ".codex", ".cc-settings-version");
+    try {
+      expectSuccess(await runCodex(home));
+      const packaged = await packagedVersion();
+      const installed = neighboringMajor(packaged, "newer");
+      await rewriteSentinelVersion(sentinel, installed);
+
+      const status = await runCodex(home, ["--status"]);
+
+      expect(status.exitCode, `${status.stdout}\n${status.stderr}`).toBe(0);
+      expect(status.stdout).toContain(installed);
+      expect(status.stdout).toContain(packaged);
+      expect(status.stdout).toMatch(/source checkout.*older|update or replace/i);
+      expect(status.stdout).not.toMatch(/re-?run to update/i);
     } finally {
       await rm(home, { recursive: true, force: true });
     }

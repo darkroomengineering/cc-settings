@@ -17,9 +17,12 @@ cc-settings ships with **role agents** -- general-purpose agents defined by what
 | `tester` | Test writing and execution |
 | `scaffolder` | Boilerplate generation |
 | `deslopper` | Dead code removal and cleanup |
-| `oracle` | Expert Q&A and guidance |
 | `maestro` | Multi-agent orchestration |
 | `security-reviewer` | Security audit |
+| `codex-verifier` | Cross-model verification via the Codex CLI |
+
+`oracle` isn't in this table — it's a skill (`skills/oracle/SKILL.md`, a `context: fork` of the
+session model), not a file under `~/.claude/agents/`. See `docs/agent-models.md`.
 
 **Feature agents** are project-specific agents defined by what they know. They encode domain knowledge and delegate execution to role agents.
 

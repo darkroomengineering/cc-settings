@@ -1,146 +1,144 @@
 # cc-settings
 
-AI coding configuration for the Darkroom team. One installer configures Claude Code, Codex, or both
-with shared standards and workflows plus the native features each product supports.
+cc-settings gives Claude Code and Codex the Darkroom engineering team's standards, task workflows,
+safety checks, and proof gates. One installer makes a new machine behave like the rest of the team
+without replacing personal configuration that cc-settings does not own.
 
-cc-settings turns either TUI into the team's house engineer. It knows our standards, avoids dangerous
-actions, proves work before shipping, and delegates larger tasks instead of grinding through them in
-one context.
+The practical effect is simple: "fix this bug" gets a cause-first debugging workflow, "review my
+changes" stays read-only, and "ship it" must prove the real build and tests before anything is
+published.
 
----
+## Five-minute first success
 
-## Install
+### 1. Install the product you plan to use
 
-**macOS / Linux:**
+Install and authenticate [Claude Code](https://docs.anthropic.com/en/docs/claude-code/getting-started),
+[Codex CLI](https://developers.openai.com/codex/cli/), or both. cc-settings configures those
+products; it does not install a subscription or account.
+
+### 2. Install cc-settings
+
+**macOS or Linux:**
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
 ```
 
-**Windows (PowerShell):**
+**Windows PowerShell:**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
 ```
 
-The default `auto` target installs both products when `codex` is on `PATH`, and Claude Code only
-otherwise. Clone the repository to select a target explicitly:
+The default target installs both products when `codex` is on `PATH`, and Claude Code only
+otherwise. The one-liners use that default and cannot forward flags. Clone the repository when you
+want to preview changes, select a target, choose the light tier, or control auto-update:
 
 ```bash
-bash setup.sh --target=auto
-bash setup.sh --target=claude
-bash setup.sh --target=codex
+git clone https://github.com/darkroomengineering/cc-settings.git
+cd cc-settings
+bash setup.sh --target=both --dry-run
 bash setup.sh --target=both
 ```
 
-The remote one-liners cannot forward flags. Restart every selected TUI after install. In Codex,
-review the installed plugin hooks once through `/hooks`. Flags, requirements, profiles, installed
-paths, and rollback details are in [docs/install.md](./docs/install.md). Codex-specific boundaries
-are in [docs/codex.md](./docs/codex.md).
+Review all requirements, tiers, system changes, prompts, managed paths, and undo behavior in the
+[installation reference](./docs/install.md).
 
----
+### 3. Restart and inspect
 
-## After installing
+Restart every selected product. In Codex full installs, open `/hooks` and review the installed
+plugin hooks once. Claude users can inspect the installed user-scope configuration from any
+directory:
 
-There are no commands to learn. Open Claude Code or Codex in a project and describe what you want in
-your own words. The right workflow loads on its own.
-
-```
-> fix the login redirect
-> add a dashboard with stats
-> review my changes
-> ship it
+```bash
+bun ~/.claude/src/scripts/whats-on.ts
 ```
 
-That's the whole interface. Slash names like `/fix` and `/ship` exist so you can pin a specific one when you want to, and you'll rarely need them. When you're curious what fired and why, run `bun run whats-on` or ask *"what skill handles X?"*. The [situation-to-phrase table in MANUAL.md](./MANUAL.md#quickstart) covers the common cases.
+That report shows what is installed and shaping Claude user scope. It does not identify which skill
+handled a previous prompt or fully resolve project overrides.
 
----
+### 4. Run one harmless task
 
-## What it adds to Claude Code and Codex
+Open a repository and say:
 
-### Standards & knowledge
+```text
+Explain where this project's configuration is loaded. Read only. Cite the files and lines.
+```
 
-- **[AGENTS.md](./AGENTS.md)** contains the portable coding standards. Claude Code also receives
-  Claude-specific behavior from [CLAUDE.md](./CLAUDE.md). Codex receives a marked managed block in
-  its native `AGENTS.md`, preserving unrelated user text.
-- **Path-conditioned rules and stack profiles** give Claude Code deeper file and framework context.
-  Codex receives its native command policy plus the shared instructions and skills.
-- **The team knowledge system** provides shared conventions, project memory, and `/share-learning`.
+Natural language works in both products. To pin the workflow, use `/explore` in Claude Code or
+`$explore` in standalone Codex. The result should name its read-only scope, cite evidence, and leave
+the working tree unchanged. [Your first session](./docs/first-session.md) shows the expected output,
+background behavior, follow-up, and recovery.
 
-### Automation
+## What cc-settings adds
 
-- **38 shared skills** fire from ordinary requests such as *"fix the login redirect"* or *"ship
-  it"*. [MANUAL.md](./MANUAL.md) maps situations to phrasings.
-- **Native role agents** support planning, implementation, testing, review, security, and
-  orchestration. Claude Code also gets `codex-verifier`, which is omitted from Codex because that
-  role bridges from Claude Code into Codex.
-- **Lifecycle hooks** enforce proof, safety, and workflow checks. Codex installs the compatible
-  subset through `darkroom@cc-settings`; review those hooks through `/hooks` after installation or
-  change.
+### Shared standards and skills
 
-### Model & quota strategy
+- [AGENTS.md](./AGENTS.md) contains portable coding standards for Codex and other compatible tools.
+  Claude Code receives its product-specific copy through [CLAUDE.md](./CLAUDE.md).
+- 38 shared skills turn ordinary requests into repeatable workflows. The
+  [skill guide](./docs/skills.md) explains the value, effects, approval points, output, run style,
+  prerequisites, host behavior, and nearby alternatives for every skill.
+- Role agents divide planning, exploration, implementation, testing, review, security, and
+  orchestration so one conversation does not have to hold every concern.
 
-- **Claude Code model pins and routing** keep planning, fan-out, and cross-model review on their
-  intended model pools ([docs/agent-models.md](./docs/agent-models.md)).
-- **The Codex bridge** lets Claude Code call Codex as a second model family
-  ([docs/codex-bridge.md](./docs/codex-bridge.md)). Standalone Codex workflows never invoke that
-  bridge recursively.
-- **Claude's custom statusline** shows model, context, quota, drift, and bridge health. Codex has no
-  arbitrary custom statusline API, so use Codex `/status` for session state and installer `--status`
-  for install health.
+Many Claude skills work in a forked background context and return by task notification. The main
+conversation remains usable while they run. Codex keeps the same outcome and safety boundary through
+its own agent controls, but its interface and tool set differ.
 
-### Settings & permissions
+### Automatic safety and proof
 
-Claude Code receives composed settings, permissions, hooks, and four MCP servers: `context7`,
-`tldr`, `figma`, and `chrome-devtools`. Codex automatically receives only the fixed HTTPS Figma MCP.
-It does not auto-run Context7 or Chrome DevTools from unpinned packages, and it does not bundle
-`tldr`. Users may configure reviewed and pinned MCP versions themselves.
+A lifecycle hook is a small program that runs before or after an event such as a tool call, commit,
+push, or session end. Claude receives the full hook set. Codex receives the compatible plugin subset
+and asks the user to review its trust through `/hooks`.
 
-### Supply-chain defense
+Hooks guard destructive commands and require evidence at important boundaries. Proof gates run the
+repository's actual type check, build, tests, lint, and visual checks when relevant. A failing
+configured suite stays a failure.
 
-Claude setup fingerprints its hooks and installed scripts, then verifies them on session start.
-`bun run audit:hooks` classifies hook commands against trusted content and suspicious patterns
-([SECURITY.md](./SECURITY.md)). Codex uses its native plugin trust review through `/hooks`.
+### Connected tools
 
-### The installer
+MCP, the Model Context Protocol, lets an AI product call external tool providers. The full Claude
+profile configures Context7 for current library docs, TLDR for code maps, Figma, and Chrome DevTools.
+The full Codex profile automatically configures only the fixed HTTPS Figma server. Codex workflows
+use native fallbacks or report a missing capability instead of pretending the Claude tool exists.
 
-The installer supports `--target=auto|claude|codex|both` for install, dry run, status, rollback, and
-uninstall. Backups and ownership records are product-specific. Reinstalls preserve unrelated Codex
-agents, rules, and `AGENTS.md` text, plus unrelated Claude settings and extensions. Invalid or
-unknown flags fail closed. Codex copies an allowlisted runtime package, not user or ignored checkout
-files.
+See [Claude Code and Codex](./docs/claude-vs-codex.md) for the full parity matrix.
 
-Everything is TypeScript on Bun, tested, linted, and CI-gated, including the shared counts and
-installer contracts above.
+### Ownership, rollback, and trust
 
----
+Each product gets a sentinel, which is a small version and ownership record. It lets reinstall,
+rollback, and uninstall distinguish cc-settings files from unrelated user files. Backups and
+ownership are product-specific.
 
-## How it fits together
+Claude setup fingerprints its hooks and installed scripts. If a session warns about suspicious
+hooks, inspect with the installed command:
 
-Rules start as advisories, work ships through gates, and an advisory is only promoted to a gate when telemetry proves it gets ignored. The full loop, with diagram: [docs/the-flow.md](./docs/the-flow.md).
+```bash
+bun ~/.claude/src/scripts/audit-hooks.ts
+```
 
----
+Read [SECURITY.md](./SECURITY.md) before refreshing trust. The installer can preview, report status,
+roll back, and uninstall through the same target selector.
 
-## Docs
+## Choose where to read next
 
-| Doc | What's in it |
-|-----|-------------|
-| [docs/install.md](./docs/install.md) | Install flags, requirements, light vs full, what lands where, common commands |
-| [docs/codex.md](./docs/codex.md) | Native Codex install, plugin trust, lifecycle, light profile, and platform boundaries |
-| [docs/the-flow.md](./docs/the-flow.md) | The advisory → gate → measurement loop that ties the pieces together |
-| [MANUAL.md](./MANUAL.md) | Every skill — how to invoke it, what it does |
-| [AGENTS.md](./AGENTS.md) | Coding standards and guardrails (source of truth) |
-| [CLAUDE.md](./CLAUDE.md) | Claude-Code config, delegation rules, effort levels |
-| [docs/profiles.md](./docs/profiles.md) | Stack-specific profiles (Next.js, RN, Tauri, WebGL, React Router) |
-| [docs/skill-authoring.md](./docs/skill-authoring.md) | Writing new skills |
-| [CHANGELOG.md](./CHANGELOG.md) | Release history |
+| Goal | Start here |
+|---|---|
+| Install safely and understand every side effect | [Installation](./docs/install.md) |
+| Prove the setup with a harmless first task | [Your first session](./docs/first-session.md) |
+| Choose a skill and understand what it can change | [Skill guide](./docs/skills.md) |
+| Compare Claude Code and Codex behavior | [Host parity](./docs/claude-vs-codex.md) |
+| Understand the whole system | [System overview](./docs/system-overview.md) |
+| Diagnose an installed setup | [Troubleshooting](./docs/troubleshooting.md) |
+| Browse every user, concept, maintainer, and history document | [Documentation index](./docs/README.md) |
+| Work from a task-oriented reference | [Manual](./MANUAL.md) |
+| Understand why advice becomes an enforced gate | [The flow](./docs/the-flow.md) |
 
----
+## Why the team maintains it
 
-## Why
+Written standards, workflows, and proof gates reduce per-machine drift. They also make the codebase
+more legible to humans: the conventions an agent needs are the same debt the team owes its
+engineers.
 
-Shared config means every engineer on the team runs the same agents, the same guardrails, and the same coding standards — no per-machine drift. `AGENTS.md` is the [open standard](https://agents.md) for AI coding instructions and is also read by Codex, Cursor, Copilot, and Windsurf, so the rules follow you across tools.
-
----
-
-[darkroom.engineering](https://darkroom.engineering) · MIT
+[darkroom.engineering](https://darkroom.engineering) | MIT

@@ -68,11 +68,21 @@ If TLDR returns a list, run those tests first (`bun test <file>` or `vitest run 
 
 **3b. Full suite.**
 
+Select one configured runner before executing it. Never treat a second runner as a fallback after a
+real test failure:
+
 ```bash
-bun test || vitest run
+if bun -e 'const p = await Bun.file("package.json").json(); process.exit(typeof p.scripts?.test === "string" ? 0 : 1)'; then
+  bun run test
+elif bun -e 'const p = await Bun.file("package.json").json(); process.exit(p.devDependencies?.vitest || p.dependencies?.vitest ? 0 : 1)'; then
+  ./node_modules/.bin/vitest run
+else
+  bun test
+fi
 ```
 
-If test runner is not configured, skip this step. If tests fail: fix them. Do not proceed until green.
+If no tests or runner are configured, record the evidence and skip this step. If the selected
+runner fails, stop and fix that failure. Do not run a narrower suite to turn a real failure green.
 
 ### Step 4: Lint
 ```bash

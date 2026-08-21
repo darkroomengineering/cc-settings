@@ -51,6 +51,7 @@ import {
   installCodex,
   isCodexCliSkippedForTests,
   listCodexSharedBackupIds,
+  readCodexInstalledVersion,
   restoreCodexCompensation,
   rollbackCodex,
   uninstallCodex,
@@ -84,6 +85,7 @@ import {
 } from "./lib/install-cmds.ts";
 import { cmdDryRun, printStatus, showSummary } from "./lib/install-display.ts";
 import {
+  CLAUDE_RUNTIME_MARKER,
   createBackup,
   createDirectories,
   installConfigFiles,
@@ -127,6 +129,7 @@ import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.
 import { gatherStatus } from "./lib/status.ts";
 import {
   buildVersionDelta,
+  compareVersion,
   readDestructiveSentinel,
   readSentinel,
   readSentinelInfo,
@@ -137,6 +140,7 @@ import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
 const VERSION = "13.16.0"; // Claude Code 2.1.237 sync: spellcheck key, ANTHROPIC_DEFAULT_MODEL
+const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 
 function createSharedBackupId(): string {
@@ -445,6 +449,7 @@ async function applyAutoUpdate(
   args: Args,
   prior: boolean | null,
   snapshot: AutoUpdateStateSnapshot | null,
+  enrolledRepoPath: string,
 ): Promise<boolean | undefined> {
   if (os !== "macos") {
     if (args.autoUpdate !== null) warn("--auto-update is macOS-only; ignoring");
@@ -479,7 +484,7 @@ async function applyAutoUpdate(
   }
 
   if (enrolled === true) {
-    const result = await registerAutoUpdate(CLAUDE_DIR, homedir(), args.sourceDir);
+    const result = await registerAutoUpdate(CLAUDE_DIR, homedir(), enrolledRepoPath);
     if (result.ok) success("Auto-update enabled — daily at 10:00 local time.");
     else {
       throw new Error(`Auto-update registration failed: ${result.reason ?? "unknown error"}`);
@@ -490,6 +495,24 @@ async function applyAutoUpdate(
   }
 
   return enrolled;
+}
+
+async function resolveEnrolledRepoPath(sourceDir: string): Promise<string> {
+  const override = process.env.CC_SETTINGS_ENROLLED_REPO;
+  if (!override) return sourceDir;
+
+  const expected = process.env.CC_EXPECTED_REPO;
+  if (!expected) {
+    throw new Error("CC_SETTINGS_ENROLLED_REPO requires the enrolled-path verification pin");
+  }
+  const [resolvedOverride, resolvedExpected] = await Promise.all([
+    realpath(override),
+    realpath(expected),
+  ]);
+  if (resolvedOverride !== resolvedExpected) {
+    throw new Error("CC_SETTINGS_ENROLLED_REPO does not match the enrolled-path verification pin");
+  }
+  return resolvedOverride;
 }
 
 function claudeManagedPath(relativePath: string): string {
@@ -695,7 +718,7 @@ async function captureClaudeLifecycleOwnership(
   if (
     nodeModulesMetadata &&
     (!nodeModulesTarget ||
-      !(await claudeNodeModulesLinkMatches(installedNodeModules, nodeModulesTarget)))
+      !(await claudeNodeModulesMatches(installedNodeModules, nodeModulesTarget)))
   ) {
     throw new Error("Claude src/node_modules ownership changed during lifecycle preparation");
   }
@@ -729,7 +752,7 @@ async function assertClaudeLifecycleOwnershipUnchanged(
       snapshot.nodeModulesPresent === (metadata !== null) &&
       (!snapshot.nodeModulesPresent ||
         (snapshot.nodeModulesTarget !== null &&
-          (await claudeNodeModulesLinkMatches(installedNodeModules, snapshot.nodeModulesTarget))));
+          (await claudeNodeModulesMatches(installedNodeModules, snapshot.nodeModulesTarget))));
     if (!matches) throw new Error("Claude src/node_modules changed after preparation");
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
@@ -743,15 +766,20 @@ async function assertClaudeLifecycleOwnershipUnchanged(
   }
 }
 
-async function claudeNodeModulesLinkMatches(
-  path: string,
-  expectedTarget: string,
-): Promise<boolean> {
+async function claudeNodeModulesMatches(path: string, expectedTarget: string): Promise<boolean> {
   const metadata = await lstat(path).catch((cause) => {
     if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw cause;
   });
-  if (!metadata?.isSymbolicLink()) return false;
+  if (!metadata) return false;
+  if (metadata.isDirectory() && !metadata.isSymbolicLink()) {
+    const marker = await readFile(join(path, ".cc-settings-owned.ts"), "utf8").catch(() => null);
+    return (
+      (await realpath(path).catch(() => null)) === expectedTarget &&
+      marker === CLAUDE_RUNTIME_MARKER
+    );
+  }
+  if (!metadata.isSymbolicLink()) return false;
   const linkedTarget = resolve(dirname(path), await readlink(path));
   if (linkedTarget === expectedTarget) return true;
   try {
@@ -770,12 +798,19 @@ async function validateClaudeNodeModulesOwnership(
     if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw cause;
   });
-  const expectedTarget =
-    sentinel?.managed_files_state !== "managed-absent" && sentinel?.repo_path
-      ? await realpath(resolve(sentinel.repo_path, "node_modules"))
-      : null;
-  if (!metadata) return expectedTarget;
-  if (!expectedTarget || !(await claudeNodeModulesLinkMatches(installedPath, expectedTarget))) {
+  if (!metadata) return null;
+  let expectedTarget: string | null = null;
+  if (metadata.isSymbolicLink() && sentinel?.repo_path) {
+    expectedTarget = await realpath(resolve(sentinel.repo_path, "node_modules"));
+  } else if (
+    metadata.isDirectory() &&
+    !metadata.isSymbolicLink() &&
+    sentinel?.managed_files &&
+    sentinel.managed_files_manifest_version
+  ) {
+    expectedTarget = await realpath(installedPath);
+  }
+  if (!expectedTarget || !(await claudeNodeModulesMatches(installedPath, expectedTarget))) {
     throw new Error(
       "Claude managed destination collision: src/node_modules. " +
         "Preserve or remove the unowned path before installing.",
@@ -1193,13 +1228,13 @@ async function removeClaudeFilesWithHashes(
     await lstat(installedNodeModules);
     if (
       !expectedNodeModulesTarget ||
-      !(await claudeNodeModulesLinkMatches(installedNodeModules, expectedNodeModulesTarget))
+      !(await claudeNodeModulesMatches(installedNodeModules, expectedNodeModulesTarget))
     ) {
       throw new Error(
         "Claude managed destination collision: src/node_modules changed after ownership preflight.",
       );
     }
-    await rm(installedNodeModules, { force: true });
+    await rm(installedNodeModules, { recursive: true, force: true });
     removedPaths.push(installedNodeModules);
   } catch (cause) {
     if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
@@ -1310,10 +1345,95 @@ function includesTarget(
   return target === candidate || target === "both";
 }
 
+interface ClaudeInstalledVersionForGuard {
+  version: string;
+  usesHistoricalOwnership: boolean;
+}
+
+async function readClaudeInstalledVersionForGuard(): Promise<ClaudeInstalledVersionForGuard | null> {
+  const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
+  let text: string;
+  try {
+    text = await readFile(sentinelPath, "utf8");
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw new Error(`Cannot read Claude Code install metadata: ${sentinelPath}`, { cause });
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (cause) {
+    throw new Error(`Claude Code install metadata is not valid JSON: ${sentinelPath}`, { cause });
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Claude Code install metadata has no valid version: ${sentinelPath}`);
+  }
+  const sentinel = value as Record<string, unknown>;
+  const version = sentinel.version;
+  if (version === undefined && sentinel.managed_files_state === "managed-absent") return null;
+  if (typeof version !== "string") {
+    throw new Error(`Claude Code install metadata has no valid version: ${sentinelPath}`);
+  }
+  return {
+    version,
+    usesHistoricalOwnership:
+      sentinel.managed_files === undefined && sentinel.managed_files_state === undefined,
+  };
+}
+
+async function normalInstallVersionGuard(target: Exclude<InstallTarget, "auto">): Promise<boolean> {
+  if (!STRICT_VERSION.test(VERSION)) {
+    error(`Packaged cc-settings version is invalid: ${VERSION}. Update or replace this checkout.`);
+    return false;
+  }
+
+  const installedVersions: Array<{
+    product: string;
+    version: string | null;
+    usesHistoricalOwnership: boolean;
+  }> = [];
+  if (includesTarget(target, "claude")) {
+    const installed = await readClaudeInstalledVersionForGuard();
+    installedVersions.push({
+      product: "Claude Code",
+      version: installed?.version ?? null,
+      usesHistoricalOwnership: installed?.usesHistoricalOwnership ?? false,
+    });
+  }
+  if (includesTarget(target, "codex")) {
+    installedVersions.push({
+      product: "Codex",
+      version: await readCodexInstalledVersion(),
+      usesHistoricalOwnership: false,
+    });
+  }
+
+  for (const installed of installedVersions) {
+    if (installed.version === null) continue;
+    if (!STRICT_VERSION.test(installed.version)) {
+      if (installed.usesHistoricalOwnership) continue;
+      error(
+        `${installed.product} has invalid installed version metadata (${installed.version}). Repair or remove its cc-settings sentinel before reinstalling.`,
+      );
+      return false;
+    }
+    if (compareVersion(installed.version, VERSION) > 0) {
+      error(
+        `${installed.product} has cc-settings v${installed.version}, which is newer than this source checkout (v${VERSION}). Update or replace the checkout before reinstalling, or use explicit --rollback for an intentional downgrade.`,
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
 async function printCodexStatus(sourceDir: string): Promise<void> {
   const data = await gatherCodexStatus({ sourceDir });
   console.log("Codex:");
   console.log(`  version: ${data.installedVersion ?? "not installed"}`);
+  console.log(`  packaged version: ${data.packagedVersion ?? "unknown"}`);
+  if (data.versionWarning) console.log(`  warning: ${data.versionWarning}`);
   console.log(`  profile: ${data.installedProfile ?? "unknown"}`);
   console.log(`  managed instructions: ${data.instructionBlockPresent ? "present" : "missing"}`);
   console.log(
@@ -1751,11 +1871,11 @@ async function runFullInstall(
   // Content manifest of the just-installed ~/.claude/src tree — the
   // supply-chain layer that catches dropped/patched script content. A failed
   // write aborts because the sentinel must never claim missing metadata.
-  const managedSrcTsFiles = currentClaudeManagedSourceFiles(args.profile)
+  const managedRuntimeFiles = currentClaudeManagedSourceFiles(args.profile)
     .map(({ destination }) => destination)
-    .filter((destination) => destination.startsWith("src/") && destination.endsWith(".ts"))
+    .filter((destination) => destination.startsWith("src/"))
     .map((destination) => destination.slice("src/".length));
-  await writeSrcManifest(join(CLAUDE_DIR, "src"), CLAUDE_DIR, managedSrcTsFiles);
+  await writeSrcManifest(join(CLAUDE_DIR, "src"), CLAUDE_DIR, managedRuntimeFiles);
   return await hashInstalledProfileFiles(args.sourceDir, args.profile);
 }
 
@@ -1842,6 +1962,18 @@ async function main(): Promise<number> {
     }
     return await underInstallLock(target, () => runSelectedUninstall(target, args.sourceDir));
   }
+
+  if (args.migrateOnly && target === "codex") {
+    error("--migrate-only is Claude-only; use --target=claude or omit --migrate-only");
+    return 1;
+  }
+  if (args.migrateOnly && target === "both") {
+    info("--migrate-only is Claude-only; skipping Codex");
+    target = "claude";
+  }
+
+  if (!(await normalInstallVersionGuard(target))) return 1;
+
   if (args.dryRun) {
     if (includesTarget(target, "claude")) await cmdDryRun(args.sourceDir, args.profile, VERSION);
     if (includesTarget(target, "codex")) {
@@ -1851,15 +1983,6 @@ async function main(): Promise<number> {
       for (const action of actions) console.log(`  - ${action}`);
     }
     return 0;
-  }
-
-  if (args.migrateOnly && target === "codex") {
-    error("--migrate-only is Claude-only; use --target=claude or omit --migrate-only");
-    return 1;
-  }
-  if (args.migrateOnly && target === "both") {
-    info("--migrate-only is Claude-only; skipping Codex");
-    target = "claude";
   }
 
   if (
@@ -1899,6 +2022,7 @@ async function main(): Promise<number> {
 
   if (!includesTarget(target, "claude")) {
     const installCode = await underInstallLock(target, async () => {
+      if (!(await normalInstallVersionGuard(target))) return 1;
       await installCodex({
         sourceDir: args.sourceDir,
         version: VERSION,
@@ -1938,6 +2062,7 @@ async function main(): Promise<number> {
   );
   const sentinel = await readSentinelInfo(CLAUDE_DIR);
   const sentinelState = await readSentinel(CLAUDE_DIR);
+  const enrolledRepoPath = await resolveEnrolledRepoPath(args.sourceDir);
   const prevInstalledVersion = sentinel.version;
   const priorAutoUpdate = sentinel.autoUpdate;
   // Prior install's exact echo of what it wrote to ~/.claude.json's
@@ -1969,6 +2094,7 @@ async function main(): Promise<number> {
   let mcpWritten: McpServers | null = null;
   let managedFiles = sentinelState.managed_files ?? null;
   const installCode = await underInstallLock(target, async () => {
+    if (!(await normalInstallVersionGuard(target))) return 1;
     let claudeCompensation: PreparedClaudeRollback | null = null;
     let codexCompensation: string | null = null;
     let autoUpdateSnapshot: AutoUpdateStateSnapshot | null = null;
@@ -2061,7 +2187,12 @@ async function main(): Promise<number> {
 
         schedulerSharedBaseline = await captureClaudeSharedExplicitState();
         claudePhase = "scheduler";
-        const autoUpdateEnrolled = await applyAutoUpdate(args, priorAutoUpdate, autoUpdateSnapshot);
+        const autoUpdateEnrolled = await applyAutoUpdate(
+          args,
+          priorAutoUpdate,
+          autoUpdateSnapshot,
+          enrolledRepoPath,
+        );
         claudeSharedDrift = {
           ...claudeSharedDrift,
           ...(await captureClaudeSharedExplicitDrift(schedulerSharedBaseline)),
@@ -2084,7 +2215,7 @@ async function main(): Promise<number> {
             : refreshedGenerated;
         }
         await writeVersionSentinel(
-          args.sourceDir,
+          enrolledRepoPath,
           args.profile,
           engine,
           autoUpdateEnrolled,

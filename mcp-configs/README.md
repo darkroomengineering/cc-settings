@@ -138,11 +138,14 @@ Ask: "What MCP servers are available?"
 
 ## Server Categories
 
-### Installed by Default (`recommended.json` — `mcpServers`)
+The lists below are human summaries. [`config/20-mcp.json`](../config/20-mcp.json) is the canonical
+installed set, and [`recommended.json`](./recommended.json) is the canonical optional set. Update
+those source files first; do not treat this README as installer input.
+
+### Installed by Default (`config/20-mcp.json`)
 
 These servers are configured automatically by `setup.sh`:
 - **context7** - Live documentation lookup (crucial for current APIs)
-- **Sanity** - CMS content and schema operations (OAuth on first use)
 - **tldr** - Codemap analysis: call graphs, impact, imports (`native-ts` default, no install; `pipx install llm-tldr` + `CC_CODE_INTEL_ENGINE=llm-tldr` for multi-language and semantic search)
 - **figma** - Design-to-code and Figma file inspection (MCP server's own instructions handle URL parsing and design-to-code)
 - **chrome-devtools** - Browser automation (navigate, screenshot, a11y snapshot, click/fill, Lighthouse)
@@ -153,6 +156,7 @@ Additional servers you can add manually to `~/.claude.json`:
 - **github** - GitHub integration for issues, PRs, projects (alternative: use `gh` CLI)
 - **vercel** - Deployment management
 - **memory** - Persistent knowledge across sessions (cc-settings ships its own auto-memory system at `~/.claude/projects/<hash>/memory/` — this server is redundant unless you prefer a different memory UX)
+- **Sanity** - CMS content and schema operations (OAuth on first use; project-specific)
 
 ### Adding Project-Specific Servers
 

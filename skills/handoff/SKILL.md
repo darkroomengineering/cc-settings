@@ -136,7 +136,7 @@ its own yet.
 ### When to Create Handoff
 
 1. **End of work session** - Before closing Claude Code
-2. **Context at 80%+** - Before auto-compaction
+2. **Context at 65%+** - Before manual compaction or context quality degrades
 3. **Taking a break** - Preserve state for later
 4. **Switching tasks** - Save before context switch
 5. **Before compacting** - Auto-triggered by PreCompact hook
@@ -162,13 +162,13 @@ Confirms:
 The statusline shows live context usage:
 
 ```
-Opus 4.8 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
+Opus 5 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |
 |-------|--------|
-| 70–79% | Consider wrapping up or handing off |
-| 80–89% | Start wrapping up — run `/handoff` |
+| 65–79% | Save a checkpoint and compact or prepare a handoff |
+| 80–89% | Stop expanding scope and run `/handoff` |
 | 90%+ | Run `/handoff` **now** |
 
 #### Model degradation thresholds
@@ -177,7 +177,7 @@ Degradation is not gradual — it follows a step function. Place critical inform
 
 | Model | Noticeable degradation | Severe degradation |
 |-------|------------------------|--------------------|
-| Claude Opus 4.8 | ~100K tokens | ~180K tokens |
+| Claude Opus 5 | ~100K tokens | ~180K tokens |
 | Claude Sonnet 5 | ~80K tokens | ~150K tokens |
 | Claude Haiku 4.5 | ~50K tokens | ~90K tokens |
 

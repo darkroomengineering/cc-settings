@@ -8,7 +8,8 @@ reads this file. Installed path: `~/.claude/docs/deslopper-team-mode.md`.
 
 **Team Mode Workflow**
 
-> **Naming note.** This is *subagent fan-out*, not Claude Code's "agent teams" feature. It needs nothing enabled. Earlier revisions of this file opened with `TeamCreate("deslop-scan")` and closed with `TeamDelete` — **both tools were removed upstream in v2.1.178 and no longer exist**, so those steps could only ever fail. The `team_name` argument on `Agent` is likewise accepted and ignored. The fan-out below never needed either.
+> **Naming note.** This is *subagent fan-out*, not Claude Code's "agent teams" feature. It needs
+> nothing enabled. Spawn the scanners directly and collect their returned results.
 
 In team mode the deslopper becomes a **coordinator** — it does NOT scan files itself. All scanning is delegated to read-only agents. Only the coordinator edits files.
 

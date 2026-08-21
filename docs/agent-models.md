@@ -1,21 +1,15 @@
 # Agent Model Routing
 
-> **Committed top tier: Claude Opus 5 (`claude-opus-5`).** Released 2026-07-24, it lands
-> near Fable 5's frontier quality at **half the price** ($5/$25 vs $10/$50 per MTok) and is
-> the default Opus in Claude Code **v2.1.219+**. It runs the full 1M context **natively on
-> Max — no `[1m]` pin** (that suffix, required for Opus 4.8, is now a no-op; keep it only
-> behind an `ANTHROPIC_BASE_URL` gateway that needs the hint). Fable 5 (`claude-fable-5`) is
-> generally available as a higher tier, but at 2× the price it's rarely worth it over Opus 5
-> for this work — reach for it per session (`/model fable`) when you specifically want the
-> top of the range. History: Fable was export-control-suspended 2026-06-12 and the interim
-> default was `opus[1m]` (Opus 4.8); Opus 5 replaces that as a strict upgrade at the same price.
+> **Committed top tier: Claude Opus 5 (`claude-opus-5`).** It offers a native 1M context on
+> Max with no `[1m]` suffix. Fable 5 (`claude-fable-5`) is the higher-priced specialist tier;
+> use it per session (`/model fable`) only when a measured hard slice warrants the extra cost.
 
 Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (`claude-opus-5`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
-| `maestro` | **claude-opus-5** | Orchestration needs the strongest available reasoning (was `fable`, then `opus[1m]`) |
-| `planner` | **claude-opus-5** | Architecture decisions need depth (was `fable`, then `opus[1m]`) |
+| `maestro` | **claude-opus-5** | Orchestration needs the strongest default reasoning |
+| `planner` | **claude-opus-5** | Architecture decisions need depth |
 | `oracle` | *(session model)* (skill, not an agent — `skills/oracle/SKILL.md` runs as a `context: fork` of the main session, no agent binding) | Not a dedicated `claude-opus-5` agent despite the name; the fork inherits the session's model, so on a `claude-opus-5` session oracle already thinks at the top tier |
 | `reviewer` | **sonnet** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
 | `implementer` | **sonnet** | Executes already-made plans; Sonnet 5 is near-Opus on coding, and plans come from the top tier |
@@ -34,7 +28,7 @@ Override per-invocation when a specific task warrants it: bump a cheap agent up 
 
 **Agent Teams teammates** route separately from the table above: the `CLAUDE_CODE_SUBAGENT_MODEL` env var (in `config/10-core.json`, upstream v2.1.147) picks the model for teammate subprocesses spawned under `teammateMode: "auto"` — independent of both the per-agent table and the main session's pinned model. Set to **`sonnet`** (the steady state): the session and the deep-reasoning agents stay on the top tier while wide teammate fan-out — which re-reads the repo per teammate — drops to Sonnet for cost.
 
-**Fan-out limits (upstream v2.1.217, depth raised v2.1.219)**: at most 20 subagents run concurrently by default (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` overrides; excess spawns queue). Subagent nesting depth defaulted to `1` (no nesting) through v2.1.218; v2.1.219 raised the default to `3`, so subagents can now spawn nested subagents two levels deep out of the box. cc-settings still pins `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to `2` in `config/10-core.json` — enough for `maestro` and `deslopper` (agents that themselves fan out via the Agent tool) to keep working when invoked as subagents, but now a level *below* the new upstream default rather than an override of a stricter one.
+**Fan-out limits (upstream v2.1.217, depth raised v2.1.219)**: at most 20 subagents run concurrently by default (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` overrides; excess spawns queue). Subagent nesting depth defaulted to `1` (no nesting) through v2.1.218; v2.1.219 raised the default to `3`, so subagents can now spawn nested subagents two levels deep out of the box. cc-settings no longer pins `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` — the earlier `2` pin (meant to let `maestro` and `deslopper` fan out via the Agent tool even when invoked as subagents) was removed in v13.2.1 once upstream's own default rose to `3`, which made the pin a restriction instead of a loosener; existing installs have it auto-pruned via the `DEPRECATED_ENV_KEYS` retirement mechanism.
 
 ## Advisor: strong-model consults from a cheap executor
 
@@ -66,7 +60,7 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 
 ## Automated quota steering
 
-The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json` on every refresh. A `quota-steer` `UserPromptSubmit` hook reads that cache and injects routing guidance into the session when usage crosses thresholds (5-hour ≥ 60% or weekly ≥ 65% is "elevated"; either ≥ 85% is "critical") — steering bulk work to the Codex bridge when it's available, or downshifting subagents to Sonnet when it isn't.
+The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json` on every refresh. A `quota-steer` `UserPromptSubmit` hook reads that cache and injects routing guidance into the session when usage crosses thresholds (5-hour ≥ 60% or weekly ≥ 65% is "elevated"; either ≥ 85% is "critical") — steering bulk work to the Codex bridge when it's available, or downshifting subagents to Sonnet when it isn't. Either ≥ 95% is "exhausted", which re-injects the routing directive on every prompt instead of once (see `docs/codex-bridge.md` for the full band behavior, including the bridge-down fallback).
 
 ## Automated model-escalation suggestion
 

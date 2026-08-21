@@ -388,7 +388,7 @@ export function formatWhatsOn(data: WhatsOnData): string {
         "override values in this report.",
     );
   }
-  lines.push("(install health / drift instead: `bun src/setup.ts --status`)");
+  lines.push("(install health / drift requires a checkout: `bash setup.sh --status`)");
   lines.push("");
 
   // 1. OUTPUT STYLE
@@ -466,12 +466,14 @@ export function formatWhatsOn(data: WhatsOnData): string {
   lines.push(
     `  permissions: ${data.inventory.permissionsAllowCount} allow / ${data.inventory.permissionsDenyCount} deny`,
   );
-  lines.push('  dry-run a command: `bun run permissions:check "<cmd>"`');
+  lines.push(
+    '  dry-run a command: `bun ~/.claude/src/scripts/permissions-check.ts --installed "<cmd>"`',
+  );
   lines.push("");
 
   // 6. FOOTER
-  lines.push("Full inventory: MANUAL.md");
-  lines.push("Install health: `bun src/setup.ts --status`");
+  lines.push("Skill guide: ~/.claude/docs/skills.md");
+  lines.push("Install health (from a cc-settings checkout): `bash setup.sh --status`");
 
   return lines.join("\n");
 }

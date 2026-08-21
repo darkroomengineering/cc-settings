@@ -63,10 +63,12 @@ export const SKILL_COUNT_BASELINE = 38;
 
 // The count ratchet above is a proxy — the real per-turn cost is the byte size
 // of the name+description index the Skill selector reads every turn, not the
-// number of skills contributing to it. OpenAI Codex caps its equivalent
-// skill-index surface at 2% of context or 8,000 chars
-// (learn.chatgpt.com/docs/build-skills); our descriptions totaled ~11.7 KB in
-// Aug 2026 when this was added, already over that reference cap.
+// number of skills contributing to it. Codex exposes its selector budget as
+// `skills.max_context_tokens`; it is not a fixed percentage or character cap.
+// The 12 KiB repository ceiling below is intentionally stricter than leaving
+// metadata growth unbounded. The current darkroom plugin alone was verified to
+// render every description in full under the default Codex configuration; the
+// Aug 2026 shortening warning was caused by duplicate legacy user-scope skills.
 //
 // Unlike SKILL_COUNT_BASELINE this is a ceiling, not a two-way ratchet: the
 // total fluctuates with normal description edits (tightening one description

@@ -4,9 +4,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   FINGERPRINT_FILENAME,
   hashHooks,
@@ -45,6 +45,25 @@ const SETTINGS_B = {
     ],
   },
 };
+
+const VERIFY_HOOK = resolve(import.meta.dir, "../src/hooks/verify-hooks.ts");
+
+async function runVerifyHook(home: string): Promise<{ exitCode: number; stdout: string }> {
+  return runVerifyHookAt(VERIFY_HOOK, home);
+}
+
+async function runVerifyHookAt(
+  hookPath: string,
+  home: string,
+): Promise<{ exitCode: number; stdout: string }> {
+  const proc = Bun.spawn(["bun", hookPath], {
+    env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: "1" },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  return { exitCode, stdout };
+}
 
 describe("hashHooks", () => {
   test("identical inputs produce identical hashes", () => {
@@ -500,20 +519,122 @@ describe("src manifest — write + verify", () => {
     }
   });
 
-  test("node_modules and non-.ts files are excluded from the manifest", async () => {
+  test("production dependencies are included while unrelated non-.ts files stay excluded", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
     try {
       await seedSrc(dir, {
         "hooks/safety-net.ts": "// shipped\n",
-        "node_modules/zod/index.ts": "// dependency — out of manifest scope\n",
+        "node_modules/zod/index.js": "// installed production dependency\n",
       });
       await writeFile(join(dir, "src", "package.json"), "{}\n");
       const record = await writeSrcManifest(join(dir, "src"), dir);
-      expect(Object.keys(record.files)).toEqual(["hooks/safety-net.ts"]);
-      // …and they don't count as unmanifested at verify time either.
+      expect(Object.keys(record.files).sort()).toEqual([
+        "hooks/safety-net.ts",
+        "node_modules/zod/index.js",
+      ]);
       expect((await verifySrcManifest(dir)).status).toBe("ok");
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("verify-hooks recovery command", () => {
+  test("missing manifest warns and does not load dependency-backed modules", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-manifest-missing-"));
+    const isolatedHook = join(home, "isolated", "src", "hooks", "verify-hooks.ts");
+    const importedMarker = join(home, "dependency-backed-import-loaded");
+    try {
+      await mkdir(dirname(isolatedHook), { recursive: true });
+      await writeFile(isolatedHook, await readFile(VERIFY_HOOK, "utf8"));
+      for (const moduleName of ["audit-hooks", "code-intel-engine", "hooks-fingerprint"]) {
+        const modulePath = join(home, "isolated", "src", "lib", `${moduleName}.ts`);
+        await mkdir(dirname(modulePath), { recursive: true });
+        await writeFile(
+          modulePath,
+          `await Bun.write(${JSON.stringify(importedMarker)}, ${JSON.stringify(moduleName)});\n`,
+        );
+      }
+
+      const result = await runVerifyHookAt(isolatedHook, home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("installed runtime differs from install manifest");
+      expect(result.stdout).toContain("integrity manifest (missing)");
+      expect(existsSync(importedMarker)).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("dependency tampering is reported before dependency-backed modules load", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-dependency-tamper-"));
+    const claudeDir = join(home, ".claude");
+    const dependency = join(claudeDir, "src", "node_modules", "zod", "index.js");
+    try {
+      await mkdir(dirname(dependency), { recursive: true });
+      await writeFile(dependency, "export const safe = true;\n");
+      await writeSrcManifest(join(claudeDir, "src"), claudeDir, []);
+      await writeFile(dependency, "throw new Error('dependency payload executed');\n");
+
+      const result = await runVerifyHook(home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("installed runtime differs from install manifest");
+      expect(result.stdout).toContain("node_modules/zod/index.js");
+      const verifierSource = await readFile(VERIFY_HOOK, "utf8");
+      const staticImports = [
+        ...verifierSource.matchAll(/^import .* from ["']([^"']+)["'];$/gm),
+      ].map((match) => match[1]);
+      expect(staticImports.length).toBeGreaterThan(0);
+      expect(staticImports.every((specifier) => specifier?.startsWith("node:"))).toBe(true);
+      expect(verifierSource.indexOf("verifyRuntimeIntegrityBootstrap()")).toBeLessThan(
+        verifierSource.lastIndexOf('import("../lib/audit-hooks.ts")'),
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("hooks fingerprint warning points at the installed scanner", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-hook-command-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      await mkdir(claudeDir, { recursive: true });
+      await writeSrcManifest(join(claudeDir, "src"), claudeDir, []);
+      await writeFile(join(claudeDir, "settings.json"), JSON.stringify(SETTINGS_B));
+      await writeFingerprint(SETTINGS_A, claudeDir);
+
+      const result = await runVerifyHook(home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("bun ~/.claude/src/scripts/audit-hooks.ts");
+      expect(result.stdout).not.toContain("bun run audit:hooks");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("source manifest warning points at the installed scanner", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-src-command-"));
+    const claudeDir = join(home, ".claude");
+    const srcDir = join(claudeDir, "src");
+    const managedScript = join(srcDir, "hooks", "managed.ts");
+    try {
+      await mkdir(dirname(managedScript), { recursive: true });
+      await writeFile(join(claudeDir, "settings.json"), JSON.stringify(SETTINGS_A));
+      await writeFingerprint(SETTINGS_A, claudeDir);
+      await writeFile(managedScript, "// trusted\n");
+      await writeSrcManifest(srcDir, claudeDir, ["hooks/managed.ts"]);
+      await writeFile(managedScript, "// changed\n");
+
+      const result = await runVerifyHook(home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("bun ~/.claude/src/scripts/audit-hooks.ts");
+      expect(result.stdout).not.toContain("bun run audit:hooks");
+    } finally {
+      await rm(home, { recursive: true, force: true });
     }
   });
 });
