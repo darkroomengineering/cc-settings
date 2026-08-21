@@ -327,14 +327,30 @@ esac
 
 describe("setup.sh remote bootstrap", () => {
   test("every full-install source file is tracked by Git", () => {
-    const sources = currentClaudeManagedSourceFiles("full").map(({ source }) => source);
-    const tracked = Bun.spawnSync(["git", "ls-files", "--error-unmatch", "--", ...sources], {
+    const expected = [
+      ...new Set(
+        currentClaudeManagedSourceFiles("full").map(({ source }) => source.replaceAll("\\", "/")),
+      ),
+    ].sort();
+    const tracked = Bun.spawnSync(["git", "ls-files", "--", ...expected], {
       cwd: REPO,
-      stdout: "ignore",
+      stdout: "pipe",
       stderr: "pipe",
     });
 
     expect(tracked.exitCode, tracked.stderr.toString()).toBe(0);
+    const actual = [
+      ...new Set(
+        tracked.stdout
+          .toString()
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((path) => path.replaceAll("\\", "/")),
+      ),
+    ].sort();
+    const missing = expected.filter((path) => !actual.includes(path));
+    const unexpected = actual.filter((path) => !expected.includes(path));
+    expect(actual, JSON.stringify({ missing, unexpected }, null, 2)).toEqual(expected);
   });
 
   test("installs bootstrap dependencies from the frozen lockfile without lifecycle scripts", async () => {
