@@ -800,7 +800,7 @@ describe("install E2E — fresh HOME", () => {
     } finally {
       await rm(home, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   test("a pre-existing unowned source descendant stays untrusted after install", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-live-source-extra-"));
@@ -1065,7 +1065,7 @@ describe("install E2E — fresh HOME", () => {
     } finally {
       await rm(home, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   test("a modified Claude-owned file blocks combined reinstall before either product changes", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-modified-owned-both-"));

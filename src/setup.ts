@@ -1974,6 +1974,14 @@ async function main(): Promise<number> {
 
   if (!(await normalInstallVersionGuard(target))) return 1;
 
+  // Validate Claude's packaged source before checking product-specific tools.
+  // A broken combined package should report its own defect even when Codex is
+  // not installed, and it must still fail before locks or product mutation.
+  if (includesTarget(target, "claude")) {
+    if (!args.migrateOnly) preflightInstallSource(args.sourceDir, args.profile);
+    await composeSettings(args.sourceDir);
+  }
+
   if (args.dryRun) {
     if (includesTarget(target, "claude")) await cmdDryRun(args.sourceDir, args.profile, VERSION);
     if (includesTarget(target, "codex")) {
@@ -2010,8 +2018,6 @@ async function main(): Promise<number> {
     await dryRunCodex({ sourceDir: args.sourceDir, profile: args.profile });
   }
   if (includesTarget(target, "claude")) {
-    if (!args.migrateOnly) preflightInstallSource(args.sourceDir, args.profile);
-    await composeSettings(args.sourceDir);
     if (target === "both") {
       await Promise.all([
         readJsonOrNull(join(CLAUDE_DIR, "settings.json")),
