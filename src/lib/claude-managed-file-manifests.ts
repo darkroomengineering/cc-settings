@@ -41,7 +41,6 @@ const FULL_V2 = [
   "docs/install.md",
   "docs/knowledge-system.md",
   "docs/parallel-batch-detection.md",
-  "docs/plans/knowledge-repo-migration.md",
   "docs/profiles.md",
   "docs/README.md",
   "docs/security-reference.md",

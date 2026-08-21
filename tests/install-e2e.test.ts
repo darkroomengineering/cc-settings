@@ -28,6 +28,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { currentClaudeManagedSourceFiles } from "../src/lib/claude-managed-file-manifests.ts";
 import {
   CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
   claudeManagedAllowedPaths,
@@ -325,6 +326,17 @@ esac
 }
 
 describe("setup.sh remote bootstrap", () => {
+  test("every full-install source file is tracked by Git", () => {
+    const sources = currentClaudeManagedSourceFiles("full").map(({ source }) => source);
+    const tracked = Bun.spawnSync(["git", "ls-files", "--error-unmatch", "--", ...sources], {
+      cwd: REPO,
+      stdout: "ignore",
+      stderr: "pipe",
+    });
+
+    expect(tracked.exitCode, tracked.stderr.toString()).toBe(0);
+  });
+
   test("installs bootstrap dependencies from the frozen lockfile without lifecycle scripts", async () => {
     const bootstrap = await readFile(join(REPO, "setup.sh"), "utf8");
     expect(bootstrap).toContain("bun install --frozen-lockfile --ignore-scripts");
