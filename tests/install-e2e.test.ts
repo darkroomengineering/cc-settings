@@ -9,7 +9,7 @@
 // Sets CC_SKIP_DEPS=1 to bypass `pipx install llm-tldr` and similar global
 // installs — those write outside HOME and would pollute the dev/CI environment.
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
 import {
   chmod,
@@ -38,6 +38,11 @@ import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SETUP_TS = join(REPO, "src", "setup.ts");
+
+// Whole installer runs copy and hash the managed tree several times. Windows
+// hosted runners regularly exceed Bun's 5-second unit-test default even when
+// the installer succeeds, so this E2E file uses a suite-appropriate ceiling.
+setDefaultTimeout(120_000);
 
 interface InstallResult {
   exitCode: number;
@@ -800,7 +805,7 @@ describe("install E2E — fresh HOME", () => {
     } finally {
       await rm(home, { recursive: true, force: true });
     }
-  }, 120_000);
+  });
 
   test("a pre-existing unowned source descendant stays untrusted after install", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-live-source-extra-"));
@@ -1065,7 +1070,7 @@ describe("install E2E — fresh HOME", () => {
     } finally {
       await rm(home, { recursive: true, force: true });
     }
-  }, 120_000);
+  });
 
   test("a modified Claude-owned file blocks combined reinstall before either product changes", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-modified-owned-both-"));
