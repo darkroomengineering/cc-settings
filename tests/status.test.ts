@@ -187,7 +187,7 @@ describe("gatherStatus", () => {
     }
   });
 
-  test("warnings include version mismatch when sentinel version differs from packaged", async () => {
+  test("packaged-newer status recommends the normal update path", async () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
@@ -197,7 +197,42 @@ describe("gatherStatus", () => {
       );
       const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
       const messages = data.warnings.map((w) => w.message);
-      expect(messages.some((m) => m.includes("10.0.0") && m.includes("11.2.1"))).toBe(true);
+      expect(
+        messages.some(
+          (message) =>
+            message.includes("10.0.0") &&
+            message.includes("11.2.1") &&
+            /re-?run|update/i.test(message),
+        ),
+      ).toBe(true);
+    } finally {
+      await cleanup(src);
+      await cleanup(claude);
+    }
+  });
+
+  test("installed-newer status identifies older source without recommending a downgrade", async () => {
+    const src = await makeTmpDir();
+    const claude = await makeTmpDir();
+    try {
+      await writeFile(
+        join(claude, ".cc-settings-version"),
+        JSON.stringify({ version: "12.0.0", installed_at: "2026-01-01T00:00:00Z" }),
+      );
+      const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
+      const versionMessages = data.warnings
+        .map((warning) => warning.message)
+        .filter((message) => message.includes("12.0.0") || message.includes("11.2.1"));
+
+      expect(
+        versionMessages.some(
+          (message) =>
+            message.includes("12.0.0") &&
+            message.includes("11.2.1") &&
+            /newer|older|downgrade/i.test(message),
+        ),
+      ).toBe(true);
+      expect(versionMessages.some((message) => /re-?run to update/i.test(message))).toBe(false);
     } finally {
       await cleanup(src);
       await cleanup(claude);

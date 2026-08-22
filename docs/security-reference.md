@@ -59,6 +59,11 @@ rg "console\.(log|info|debug).*key" --type ts -i
 # Find PII in responses
 rg "res\.(json|send).*email" --type ts
 rg "res\.(json|send).*phone" --type ts
+
+# Weak crypto
+rg "md5|sha1" --type ts -i
+rg "Math\.random" --type ts  # Not cryptographically secure
+rg "crypto\.createHash\(['\"]md5" --type ts
 ```
 
 ### 4. Broken Access Control (A01:2021)
@@ -113,13 +118,17 @@ rg "setTimeout.*string" --type ts
 rg "setInterval.*string" --type ts
 ```
 
-### 7. Identification Failures (A07:2021)
+### 7. Insecure Design (A04:2021)
 
 ```bash
-# Weak crypto
-rg "md5|sha1" --type ts -i
-rg "Math\.random" --type ts  # Not cryptographically secure
-rg "crypto\.createHash\(['\"]md5" --type ts
+# Missing rate limiting on sensitive endpoints (login, signup, password reset)
+rg "export (async )?function (POST|PUT)" --type ts -A5 app/api
+
+# Trust-boundary violations: client-supplied values used as authority
+rg "req\.(body|query)\.(role|isAdmin|userId|permissions)" --type ts
+
+# Business logic enforced only client-side (no matching server check)
+rg "disabled=\{.*role" --type tsx
 ```
 
 ### 8. Data Integrity Failures (A08:2021)

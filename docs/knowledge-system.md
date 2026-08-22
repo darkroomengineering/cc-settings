@@ -23,7 +23,16 @@ Two-tier knowledge management for AI-assisted development teams.
 
 The shared corpus lives at `darkroomengineering/team-knowledge`. One markdown file per note, plus a generated `INDEX.md`.
 
-**For `/share-learning` (write path):** no local clone needed — the skill writes via `gh api`. Set the repo slug in your environment if you want to override the default:
+**For `/share-learning` (write path):** install the [GitHub CLI](https://cli.github.com/), run
+`gh auth login`, and make sure the authenticated account can read the knowledge repository:
+
+```bash
+gh auth status
+gh api repos/darkroomengineering/team-knowledge --jq .full_name
+```
+
+No local clone is needed. The skill writes via `gh api` after confirming the proposed note with
+you. Set the repo slug in your environment if you want to override the default:
 ```
 KNOWLEDGE_REPO=darkroomengineering/team-knowledge
 ```

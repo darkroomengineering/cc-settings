@@ -3,6 +3,8 @@
 
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
+import { printHelp } from "../src/lib/install-cmds.ts";
+import { cmdDryRun } from "../src/lib/install-display.ts";
 import { parseArgs } from "../src/setup.ts";
 
 describe("parseArgs", () => {
@@ -78,6 +80,53 @@ describe("parseArgs", () => {
   test("--help / -h both set help", () => {
     expect(parseArgs(["--help"]).help).toBe(true);
     expect(parseArgs(["-h"]).help).toBe(true);
+  });
+
+  test("public help leads with setup.sh and lists every supported flag", () => {
+    const lines: string[] = [];
+    const original = console.log;
+    console.log = (...values: unknown[]) => lines.push(values.join(" "));
+    try {
+      printHelp("1.2.3");
+    } finally {
+      console.log = original;
+    }
+    const output = lines.join("\n");
+    expect(output).toContain("Usage: bash setup.sh [flags]");
+    expect(output).toContain("pwsh -File setup.ps1 [flags]");
+    expect(output).toContain("bun src/setup.ts [flags]  (advanced/direct invocation)");
+    expect(output).toContain("bash setup.sh --rollback");
+    expect(output).toContain("pwsh -File setup.ps1 --rollback");
+    for (const flag of [
+      "--target",
+      "--source",
+      "--rollback",
+      "--uninstall",
+      "--dry-run",
+      "--light",
+      "--status",
+      "--auto-update",
+      "--interactive",
+      "--migrate-only",
+      "--help",
+      "-h",
+    ]) {
+      expect(output).toContain(flag);
+    }
+  });
+
+  test("Claude dry-run discloses the self-contained runtime", async () => {
+    const lines: string[] = [];
+    const original = console.log;
+    console.log = (...values: unknown[]) => lines.push(values.join(" "));
+    try {
+      await cmdDryRun(resolve(import.meta.dir, ".."), "full", "1.2.3");
+    } finally {
+      console.log = original;
+    }
+    const output = lines.join("\n");
+    expect(output).toContain("self-contained production dependencies");
+    expect(output).toContain("no source symlink");
   });
 
   test("flags compose — multiple at once", () => {

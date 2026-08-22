@@ -382,6 +382,13 @@ describe("gatherWhatsOn — scope (Finding 4)", () => {
       const report = formatWhatsOn(data);
       expect(report).toContain("USER-SCOPE INSTALLED state");
       expect(report).toContain("project .claude/settings.json");
+      expect(report).toContain(
+        'bun ~/.claude/src/scripts/permissions-check.ts --installed "<cmd>"',
+      );
+      expect(report).toContain("Skill guide: ~/.claude/docs/skills.md");
+      expect(report).toContain("Install health (from a cc-settings checkout)");
+      expect(report).not.toContain("bun src/setup.ts --status");
+      expect(report).not.toContain("Full inventory: MANUAL.md");
       expect(report).not.toContain("NOTE: a project settings.json exists");
     } finally {
       await cleanup(claude, home, cwd);
@@ -434,7 +441,8 @@ describe("whats-on.ts CLI", () => {
       expect(stdout).toContain("MODEL & EFFORT");
       expect(stdout).toContain("HOOKS");
       expect(stdout).toContain("INVENTORY");
-      expect(stdout).toContain("MANUAL.md");
+      expect(stdout).toContain("Skill guide: ~/.claude/docs/skills.md");
+      expect(stdout).not.toContain("MANUAL.md");
       expect(stdout).toContain("--status");
     } finally {
       await cleanup(home);

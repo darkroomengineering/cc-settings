@@ -68,8 +68,8 @@ See \`docs/skill-authoring.md\` for structure guidance, frontmatter rules, and r
     `  1. Edit skills/${name}/SKILL.md — write the description (trigger phrases) and body`,
   );
   console.log("  2. bun run lint:skills          — validate frontmatter (0 errors required)");
-  console.log("  3. Add to MANAGED_SKILLS in src/setup.ts (alphabetical order)");
-  console.log('  4. Add a row to MANUAL.md in the appropriate section and the "All Skills" table');
+  console.log("  3. Add to ACTIVE_SKILLS in src/lib/managed-skills.ts (alphabetical order)");
+  console.log("  4. Add or update the human contract in docs/skills.md");
   console.log("  5. bun test && bun run typecheck — verify nothing broke");
 }
 

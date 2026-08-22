@@ -90,8 +90,8 @@ it in the target's own conventions, carrying the contract's fields into the file
 procedure as steps, failure modes as a DON'T / red-flags section, quality bar as
 explicit checks.
 
-For skills, complete registration: `ACTIVE_SKILLS` in `src/lib/managed-skills.ts`,
-`MANUAL.md` section + "All Skills" row, then `bun run lint:skills`.
+For skills, complete registration: `ACTIVE_SKILLS` in `src/lib/managed-skills.ts`, the human
+contract in `docs/skills.md`, then `bun run lint:skills`.
 
 ## Phase 5 — Verify: traps, then verdict
 

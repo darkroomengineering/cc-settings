@@ -6,6 +6,32 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+**Docs:**
+
+- **Full documentation drift audit** — read every reader-facing doc in the repo in full
+  (MANUAL.md, README.md, AGENTS.md, CLAUDE.md, CLAUDE-FULL.md, SECURITY.md, all of `rules/`,
+  `agents/`, and `docs/`) and cross-checked every factual claim against the actual code, via
+  six parallel read-only audits. 46 findings reported (2 were the same cross-file issue caught
+  twice); applied across 22 files this pass. Highlights: `triage` was missing from MANUAL.md's
+  "All Skills" table despite being a real, managed skill; `docs/frontmatter-reference.md` had
+  drifted hardest — stale agent tool lists (phantom `TodoWrite`, missing `SendMessage`), a
+  fabricated `context: inherit` value that's never actually valid, and every skill's
+  argument-hint/allowed-tools cells out of sync with their `SKILL.md` frontmatter; two docs
+  (`docs/settings-reference.md`, `docs/agent-models.md`) and the upstream manifest still
+  described a `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` pin removed in v13.2.1;
+  `docs/settings-merge-three-way-design.md` read as an open proposal when part of it shipped
+  (v13.1.0) and the rest was explicitly declined — now marked historical; `docs/security-reference.md`
+  had a duplicated OWASP category number (two sections both claimed A07:2021, A04:2021 Insecure
+  Design was missing); `agents/maestro.md`'s delegation matrix was missing `deslopper`,
+  `security-reviewer`, and `codex-verifier` despite MANUAL.md claiming it delegates to "all of the
+  above"; `agents/planner.md` pointed readers to an ADR template that existed nowhere in the repo —
+  it now contains one. Also rewrote MANUAL.md's eight-mode `/audit` section from one 900-word
+  paragraph into a scannable per-mode list, and split two other dense paragraphs
+  (SECURITY.md's auto-update controls, docs/codex-bridge.md's quota-steering mechanics) into
+  bulleted lists — same facts, readable without prior context. Full file list in the diff; two
+  batches of the sweep declined to report and had to be re-prompted (docs-audit-rules,
+  docs-audit-batch-a) — noted here in case the pattern recurs.
+
 ## [13.16.0] — 2026-08-20
 
 Sync with Claude Code v2.1.235–v2.1.237 (from v2.1.234). Three upstream releases, mostly bug

@@ -25,15 +25,15 @@ Claude Code automatically loads relevant rules based on:
 
 | Rule | Loaded When |
 |------|-------------|
-| `react.md` | Working with `.tsx`, `.jsx`, or `components/` |
+| `react.md` | Working with `.tsx`, `.jsx`, `components/`, or `app/` |
 | `typescript.md` | Working with `.ts`, `.tsx` files |
-| `style.md` | Working with CSS, SCSS, or styled components |
+| `style.md` | Working with CSS, SCSS, or any `.tsx`/`.jsx` file |
 | `accessibility.md` | Working with UI components |
-| `security.md` | Working with API routes, lib code, or env files |
+| `security.md` | Working with any `.ts`/`.tsx`/`.js` file, API routes, lib code, or env files |
 | `performance.md` | Working with app code or components |
 | `react-perf.md` | Working with `.tsx`, `components/`, or `app/` |
 | `ui-skills.md` | Working with `.tsx`, `.jsx`, or `components/` |
-| `ui-fix.md` | Working with `.tsx`, `.jsx`, `.css`, `app/`, or `components/` — UI bug-fix workflow, screenshot-first |
+| `ui-fix.md` | Working with `.tsx`, `.jsx`, `.css`, `.scss`, `app/`, or `components/` — UI bug-fix workflow, screenshot-first |
 | `motion-physics.md` | Working with `.tsx`, `.jsx`, or `components/` — gesture/spring physics, animation vocabulary |
 | `git.md` | Always loaded (git operations) |
 

@@ -1,6 +1,6 @@
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 2;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 3;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -28,27 +28,32 @@ const FULL_V2 = [
   "docs/cache-strategy.md",
   "docs/codex-bridge.md",
   "docs/codex.md",
+  "docs/claude-vs-codex.md",
   "docs/consolidation-audits/2026-05.md",
   "docs/deslopper-team-mode.md",
   "docs/enhanced-todos.md",
   "docs/feature-agents-guide.md",
   "docs/frontmatter-reference.md",
+  "docs/first-session.md",
   "docs/functional-dag.md",
   "docs/github-workflow.md",
   "docs/hooks-reference.md",
   "docs/install.md",
   "docs/knowledge-system.md",
   "docs/parallel-batch-detection.md",
-  "docs/plans/knowledge-repo-migration.md",
   "docs/profiles.md",
+  "docs/README.md",
   "docs/security-reference.md",
   "docs/seo-reference.md",
   "docs/settings-merge-three-way-design.md",
   "docs/settings-reference.md",
   "docs/skill-authoring.md",
+  "docs/skills.md",
+  "docs/system-overview.md",
   "docs/the-flow.md",
   "docs/thread-types.md",
   "docs/tldr-cheatsheet.md",
+  "docs/troubleshooting.md",
   "docs/upstream-bugs/mcp-needs-auth-cache-no-ttl.md",
   "docs/whats-on.md",
   "hooks/README.md",
@@ -246,6 +251,7 @@ const FULL_V2 = [
   "src/scripts/lint-shortcuts.ts",
   "src/scripts/lint-skills.ts",
   "src/scripts/log-bash.ts",
+  "src/scripts/migrate-legacy-codex-skills.ts",
   "src/scripts/new-note.ts",
   "src/scripts/new-skill.ts",
   "src/scripts/notify.ts",
@@ -398,6 +404,7 @@ const LIGHT_V2 = [
   "src/scripts/lint-shortcuts.ts",
   "src/scripts/lint-skills.ts",
   "src/scripts/log-bash.ts",
+  "src/scripts/migrate-legacy-codex-skills.ts",
   "src/scripts/new-note.ts",
   "src/scripts/new-skill.ts",
   "src/scripts/notify.ts",
@@ -423,7 +430,18 @@ const LIGHT_V2 = [
   "src/upstream/scan.ts",
 ] as const;
 
+const VERSION_2_EXCLUSIONS = new Set([
+  "docs/README.md",
+  "docs/claude-vs-codex.md",
+  "docs/first-session.md",
+  "docs/skills.md",
+  "docs/system-overview.md",
+  "docs/troubleshooting.md",
+  "src/scripts/migrate-legacy-codex-skills.ts",
+]);
+
 const VERSION_1_EXCLUSIONS = new Set([
+  ...VERSION_2_EXCLUSIONS,
   "src/lib/claude-managed-files.ts",
   "src/lib/claude-managed-file-manifests.ts",
 ]);
@@ -436,7 +454,14 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
       light: LIGHT_V2.filter((path) => !VERSION_1_EXCLUSIONS.has(path)),
     },
   ],
-  [2, { full: FULL_V2, light: LIGHT_V2 }],
+  [
+    2,
+    {
+      full: FULL_V2.filter((path) => !VERSION_2_EXCLUSIONS.has(path)),
+      light: LIGHT_V2.filter((path) => !VERSION_2_EXCLUSIONS.has(path)),
+    },
+  ],
+  [CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, { full: FULL_V2, light: LIGHT_V2 }],
 ]);
 
 const GENERATED_MANAGED_FILES = new Set([

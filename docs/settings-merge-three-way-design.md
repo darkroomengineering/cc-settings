@@ -1,5 +1,14 @@
 # Three-way settings merge — design
 
+**Status: T-1/T-2 (baseline write) shipped in v13.1.0 — see `feat(v13.1.0): record a
+settings baseline on each install; decline the three-way merge`. T-3–T-6 (the
+three-way engine itself) were designed, costed, and explicitly declined — see the
+header of `src/lib/settings-baseline.ts` and note 7 below. This document is now a
+historical record of that decision, not an open task — the "Plan complete" line at
+the end does not apply. All point-in-time numbers below (repo HEAD, test count, line
+counts) are pinned to when this was written and must be re-measured before any future
+work resumes.**
+
 Status: design only, no code changed. Repo HEAD e2560ae (v13.0.6). Baseline `bun test`
 = 1068 pass, 0 fail — this design's implementation must leave that number intact (plus
 new tests) at every step.
@@ -660,4 +669,5 @@ command/assertion, not "works correctly."
   same test contract) to split across parallel agents. T-6 can ride along with T-3's
   PR as a one-line addition, not a separate handoff.
 
-Plan complete. Delegate to implementer for execution.
+~~Plan complete. Delegate to implementer for execution.~~ (Superseded — see the status
+banner at the top of this document. T-3–T-6 were declined, not delegated.)

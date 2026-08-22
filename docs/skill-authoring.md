@@ -41,7 +41,8 @@ context: fork
 ### `context`
 
 - `fork` — skill runs in a forked context (doesn't bloat main session). Use this for most skills. As of v2.1.218 it also runs in the background by default: the result comes back as a task notification, not inline output, so don't write a fork skill's body assuming the user is watching it stream.
-- Omit (defaults to inline) — skill body is injected into main context. Use only for lightweight, single-turn instructions.
+- `main` — skill body is injected into main context (`src/schemas/skill.ts` defines `SkillContext = z.enum(["fork", "main"])`). Use for lightweight, single-turn instructions, or when the skill needs to see or shape the rest of the conversation directly. Shipped skills declaring it explicitly: `adhd`, `audit`, `codex`, `freeze`, `zero-tech-debt`.
+- Omitting the field also resolves to inline, same as `main` — but the shipped convention is to declare `context: main` explicitly rather than rely on the omission.
 
 ### Optional frontmatter fields
 
@@ -100,7 +101,7 @@ Reference from the skill: `bun "$HOME/.claude/src/scripts/<name>.ts"`.
 ## Registration
 
 1. Add `"<name>"` to `ACTIVE_SKILLS` in `src/lib/managed-skills.ts` (alphabetical order). `MANAGED_SKILLS` in `src/setup.ts` is just `[...ACTIVE_SKILLS, ...TOMBSTONE_SKILLS]` imported from that module — it isn't a list you edit directly, and `bun run lint:skills`'s `checkManaged` rule enforces `ACTIVE_SKILLS` specifically (a skill added to `TOMBSTONE_SKILLS` instead still fails as `managed-skills-missing`).
-2. Add a row to `MANUAL.md` in the appropriate section and the "All Skills" table.
+2. Add or update the human-facing value, effects, output, and host contract in `docs/skills.md`.
 
 ---
 
