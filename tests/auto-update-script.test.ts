@@ -283,7 +283,8 @@ printf '%s\n%s\n' "$CC_SETTINGS_ENROLLED_REPO" "$CC_EXPECTED_REPO" > "$HOME/setu
 printf '{"version":"2.0.0","repo_path":"%s","auto_update":true}\n' "$CC_SETTINGS_ENROLLED_REPO" > "$HOME/.claude/.cc-settings-version"
 `,
         );
-        const realGit = new TextDecoder().decode(Bun.spawnSync(["which", "git"]).stdout).trim();
+        const realGit = Bun.which("git");
+        if (!realGit) throw new Error("Test requires git");
         await writeFile(
           join(binDir, "git"),
           `#!/usr/bin/env bash
@@ -311,6 +312,7 @@ esac
         const result = await runAutoUpdateScript(fakeHome, {
           PATH: prependTestPath(binDir),
           CC_SETTINGS_TEST_GIT_COMMAND_JSON: shellFixtureCommand(join(binDir, "git")),
+          CC_SETTINGS_TEST_SETUP_COMMAND_JSON: shellFixtureCommand(stagedSetup),
           FAKE_GIT_LOG: gitBashPath(gitLog),
           FAKE_SETUP: gitBashPath(stagedSetup),
           FAKE_NEW_HEAD: newHead,

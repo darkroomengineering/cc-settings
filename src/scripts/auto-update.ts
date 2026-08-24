@@ -103,26 +103,31 @@ function shellPath(path: string): string {
   return isAutoUpdateTest() ? path.replaceAll("\\", "/") : path;
 }
 
-function gitCommand(): string[] {
-  const encoded = process.env.CC_SETTINGS_TEST_GIT_COMMAND_JSON;
-  if (!encoded || !isAutoUpdateTest()) {
-    return ["git"];
-  }
-
+function testCommand(envName: string): string[] | null {
+  const encoded = process.env[envName];
+  if (!encoded || !isAutoUpdateTest()) return null;
   let parsed: unknown;
   try {
     parsed = JSON.parse(encoded);
   } catch {
-    throw new Error("Invalid CC_SETTINGS_TEST_GIT_COMMAND_JSON");
+    throw new Error(`Invalid ${envName}`);
   }
   if (
     !Array.isArray(parsed) ||
     parsed.length === 0 ||
     parsed.some((part) => typeof part !== "string" || !isAbsolute(part))
   ) {
-    throw new Error("CC_SETTINGS_TEST_GIT_COMMAND_JSON must contain absolute command paths");
+    throw new Error(`${envName} must contain absolute command paths`);
   }
   return parsed as string[];
+}
+
+function gitCommand(): string[] {
+  return testCommand("CC_SETTINGS_TEST_GIT_COMMAND_JSON") ?? ["git"];
+}
+
+function setupCommand(): string[] {
+  return testCommand("CC_SETTINGS_TEST_SETUP_COMMAND_JSON") ?? ["/bin/bash", "setup.sh"];
 }
 
 async function runIsolatedGit(
@@ -437,7 +442,7 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     const fd = openSync(logPath, "a");
     let setupExit: number;
     try {
-      const setup = Bun.spawn(["/bin/bash", "setup.sh"], {
+      const setup = Bun.spawn(setupCommand(), {
         cwd: stagingPath,
         stdin: "ignore",
         stdout: fd,

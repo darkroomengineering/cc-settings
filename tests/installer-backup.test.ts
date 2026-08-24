@@ -467,7 +467,7 @@ console.log(JSON.stringify({
       expect(installed.exitCode, `${installed.stdout}\n${installed.stderr}`).toBe(0);
       await writeFile(
         runner,
-        `import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+        `import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createBackup } from ${JSON.stringify(join(REPO, "src/lib/install-fs.ts"))};
@@ -475,11 +475,13 @@ import { prepareClaudeCompensation } from ${JSON.stringify(join(REPO, "src/lib/i
 const home = process.env.HOME as string;
 const claude = join(home, ".claude");
 const managed = join(claude, "agents", "implementer.md");
-const skills = join(claude, "skills");
 const snapshot = await createBackup({ temporary: true });
-const prepared = await prepareClaudeCompensation(snapshot);
-await rm(skills, { recursive: true, force: true });
-await writeFile(skills, "ordinary file blocks nested managed removal\\n");
+const prepared = await prepareClaudeCompensation(snapshot, [], {
+  afterManagedRemoval: () => {
+    if (existsSync(managed)) throw new Error("managed path still exists at late failpoint");
+    throw new Error("forced late compensation failure");
+  },
+});
 let first: unknown;
 try { await prepared.execute(); } catch (cause) { first = cause; }
 const managedExistsAfterFirst = existsSync(managed);
@@ -521,7 +523,7 @@ console.log(JSON.stringify({
         managedExistsAfterFirst: boolean;
         afterSecond: string;
       };
-      expect(result.firstMessage).not.toBeNull();
+      expect(result.firstMessage).toBe("forced late compensation failure");
       expect(result.secondMessage).toBe(result.firstMessage);
       expect(result.sameError).toBe(true);
       expect(result.managedExistsAfterFirst).toBe(false);

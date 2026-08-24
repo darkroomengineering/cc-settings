@@ -184,6 +184,10 @@ interface PrepareClaudeRollbackOptions {
   };
 }
 
+interface PrepareClaudeCompensationOptions {
+  afterManagedRemoval?: () => void | Promise<void>;
+}
+
 class StagedClaudeBackupChangedError extends Error {
   constructor(cause: unknown) {
     super("Prepared Claude backup changed before execution", { cause });
@@ -786,6 +790,7 @@ interface PrepareArchiveOptions {
   announce: boolean;
   currentOwnership?: CurrentClaudeOwnershipSnapshot;
   managedScope?: readonly string[];
+  afterManagedRemoval?: () => void | Promise<void>;
 }
 
 async function prepareClaudeArchive(
@@ -931,6 +936,7 @@ async function prepareClaudeArchive(
       await rm(liveNodeModules, { recursive: true, force: true });
       await pruneEmptyParents(liveNodeModules);
     }
+    await options.afterManagedRemoval?.();
     for (const relativePath of Object.keys(target?.managedFiles ?? {})) {
       const staged = join(staging, ".claude", relativePath);
       const live = join(CLAUDE_DIR, relativePath);
@@ -1184,6 +1190,7 @@ export async function prepareClaudeRollback(
 export async function prepareClaudeCompensation(
   snapshot: ClaudeBackupSnapshot,
   additionalManagedScope: readonly string[] = [],
+  options: PrepareClaudeCompensationOptions = {},
 ): Promise<PreparedClaudeRollback> {
   const managedScope = [
     ...new Set([
@@ -1199,6 +1206,7 @@ export async function prepareClaudeCompensation(
     exactSnapshot: snapshot,
     announce: false,
     managedScope,
+    afterManagedRemoval: options.afterManagedRemoval,
   });
   if (typeof initialPrepared === "number") {
     throw new Error(`Could not prepare Claude compensation (exit ${initialPrepared})`);
@@ -1218,6 +1226,7 @@ export async function prepareClaudeCompensation(
             exactSnapshot: snapshot,
             announce: false,
             managedScope,
+            afterManagedRemoval: options.afterManagedRemoval,
           });
           if (typeof refreshed === "number") {
             throw new Error(`Could not refresh Claude compensation (exit ${refreshed})`);

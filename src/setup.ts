@@ -45,6 +45,7 @@ import {
   resolveEngine,
 } from "./lib/code-intel-engine.ts";
 import {
+  codexCliAvailable,
   codexInstallPaths,
   dryRunCodex,
   gatherCodexStatus,
@@ -1997,7 +1998,7 @@ async function main(): Promise<number> {
     args.profile === "full" &&
     includesTarget(target, "codex") &&
     !isCodexCliSkippedForTests() &&
-    !hasCommand("codex")
+    !codexCliAvailable()
   ) {
     error("Codex CLI is required for a full Codex install");
     return 1;

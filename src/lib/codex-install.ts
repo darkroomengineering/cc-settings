@@ -675,6 +675,32 @@ export function isCodexCliSkippedForTests(): boolean {
   return process.env.NODE_ENV === "test" && process.env.CC_SKIP_CODEX_CLI === "1";
 }
 
+function testCodexCommand(): string[] | null {
+  if (process.env.NODE_ENV !== "test" || process.env.CC_SETTINGS_TEST_MODE !== "codex-install") {
+    return null;
+  }
+  const encoded = process.env.CC_SETTINGS_TEST_CODEX_COMMAND_JSON;
+  if (!encoded) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(encoded);
+  } catch {
+    throw new Error("Invalid CC_SETTINGS_TEST_CODEX_COMMAND_JSON");
+  }
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length === 0 ||
+    parsed.some((part) => typeof part !== "string" || !isAbsolute(part))
+  ) {
+    throw new Error("CC_SETTINGS_TEST_CODEX_COMMAND_JSON must contain absolute command paths");
+  }
+  return parsed as string[];
+}
+
+export function codexCliAvailable(): boolean {
+  return testCodexCommand() !== null || hasCommand("codex");
+}
+
 const REQUIRED_SOURCE_ARTIFACTS = [
   "AGENTS.md",
   "codex/AGENTS.append.md",
@@ -1392,9 +1418,17 @@ async function runCommand(
   codexHome: string,
   cwd?: string,
 ): Promise<CommandResult> {
-  const child = Bun.spawn(command, {
+  const explicitCodex = command[0] === "codex" ? testCodexCommand() : null;
+  const resolvedCommand = explicitCodex ? [...explicitCodex, ...command.slice(1)] : command;
+  const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: codexHome };
+  if (explicitCodex) {
+    if (env.HOME) env.HOME = env.HOME.replaceAll("\\", "/");
+    if (env.USERPROFILE) env.USERPROFILE = env.USERPROFILE.replaceAll("\\", "/");
+    env.CODEX_HOME = codexHome.replaceAll("\\", "/");
+  }
+  const child = Bun.spawn(resolvedCommand, {
     ...(cwd ? { cwd } : {}),
-    env: { ...process.env, CODEX_HOME: codexHome },
+    env,
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -1476,7 +1510,7 @@ async function canonicalManagedSourcePath(paths: CodexInstallPaths): Promise<str
 }
 
 async function readCodexPluginState(paths: CodexInstallPaths): Promise<CodexPluginState | null> {
-  if (isCodexCliSkippedForTests() || !hasCommand("codex")) return null;
+  if (isCodexCliSkippedForTests() || !codexCliAvailable()) return null;
   const plugins = await runCommand(["codex", "plugin", "list", "--json"], paths.codexHome);
   if (plugins.exitCode !== 0) {
     throw new Error(
@@ -1633,7 +1667,7 @@ async function restorePluginState(
   state: BackupPluginState | null,
 ): Promise<void> {
   if (state === null) return;
-  if (isCodexCliSkippedForTests() || !hasCommand("codex")) {
+  if (isCodexCliSkippedForTests() || !codexCliAvailable()) {
     if (!state.pluginInstalled && !state.marketplaceEnrolled) return;
     throw new Error(
       "Cannot restore recorded Codex plugin state because the Codex CLI is unavailable",
@@ -1736,7 +1770,7 @@ async function restorePluginStateAndConfig(
 
 async function removePlugin(paths: CodexInstallPaths, required = false): Promise<void> {
   if (isCodexCliSkippedForTests()) return;
-  if (!hasCommand("codex")) {
+  if (!codexCliAvailable()) {
     if (required) {
       throw new Error("Codex CLI is required to remove managed plugin or marketplace state");
     }
@@ -1935,7 +1969,7 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
   const paths = codexInstallPaths(options.homeDir);
   const sourceDir = resolve(options.sourceDir);
   const agents = await preflightCodexSource(sourceDir);
-  if (options.profile === "full" && !isCodexCliSkippedForTests() && !hasCommand("codex")) {
+  if (options.profile === "full" && !isCodexCliSkippedForTests() && !codexCliAvailable()) {
     throw new Error("Codex CLI is required for a full Codex install");
   }
   if (options.profile === "full") {
@@ -1964,7 +1998,7 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
     options.profile === "light" &&
     previous?.profile === "full" &&
     !isCodexCliSkippedForTests() &&
-    !hasCommand("codex")
+    !codexCliAvailable()
   ) {
     throw new Error("Codex CLI is required to remove managed plugin or marketplace state");
   }
@@ -2673,7 +2707,7 @@ export async function rollbackCodex(options: CodexRollbackOptions): Promise<Code
   }
   if (
     !isCodexCliSkippedForTests() &&
-    !hasCommand("codex") &&
+    !codexCliAvailable() &&
     (current?.profile === "full" ||
       manifest.restoredProfile === "full" ||
       manifest.pluginState?.pluginInstalled === true ||
@@ -2834,7 +2868,7 @@ export async function uninstallCodex(options: CodexUninstallOptions = {}): Promi
     return basename(await createCodexBackup(paths, [], new Set(), options.backupId, false, true));
   }
   await assertPreviousManagedContentUnmodified(paths, sentinel, true);
-  if (sentinel?.profile === "full" && !isCodexCliSkippedForTests() && !hasCommand("codex")) {
+  if (sentinel?.profile === "full" && !isCodexCliSkippedForTests() && !codexCliAvailable()) {
     throw new Error("Codex CLI is required to remove managed plugin or marketplace state");
   }
   await assertManagedAgentBoundaries(paths, sentinel?.managed_agents ?? []);
@@ -2873,7 +2907,7 @@ async function removeCurrentManagedCodexState(
   await assertPreviousManagedContentUnmodified(paths, sentinel, true);
   const pluginState = await readCodexPluginState(paths);
   await assertManagedPluginProvenance(paths, sentinel, pluginState);
-  if (sentinel.profile === "full" && !isCodexCliSkippedForTests() && !hasCommand("codex")) {
+  if (sentinel.profile === "full" && !isCodexCliSkippedForTests() && !codexCliAvailable()) {
     throw new Error("Codex CLI is required to remove managed plugin or marketplace state");
   }
   await assertManagedAgentBoundaries(paths, sentinel.managed_agents);
@@ -2899,7 +2933,7 @@ async function removeCurrentManagedCodexState(
 }
 
 async function discoverPlugin(paths: CodexInstallPaths): Promise<boolean | null> {
-  if (isCodexCliSkippedForTests() || !hasCommand("codex")) return null;
+  if (isCodexCliSkippedForTests() || !codexCliAvailable()) return null;
   const result = await runCommand(["codex", "plugin", "list", "--json"], paths.codexHome);
   if (result.exitCode !== 0) return null;
   try {

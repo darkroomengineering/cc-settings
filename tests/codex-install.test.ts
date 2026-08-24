@@ -16,8 +16,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
-import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
+import { delimiter, dirname, join, relative, resolve } from "node:path";
+import { prependTestPath, shellFixtureCommand } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SETUP_TS = join(REPO, "src", "setup.ts");
@@ -38,8 +38,15 @@ async function runCodex(
   source: string = REPO,
 ): Promise<InstallResult> {
   const codexHome = join(home, ".codex");
-  const childHome = gitBashPath(extraEnv.HOME ?? home);
-  const childCodexHome = gitBashPath(extraEnv.CODEX_HOME ?? codexHome);
+  const firstPathEntry = extraEnv.PATH?.split(delimiter)[0];
+  const fixture = firstPathEntry ? join(firstPathEntry, "codex") : null;
+  const commandEnv =
+    fixture && existsSync(fixture)
+      ? {
+          CC_SETTINGS_TEST_MODE: "codex-install",
+          CC_SETTINGS_TEST_CODEX_COMMAND_JSON: shellFixtureCommand(fixture),
+        }
+      : {};
   const child = Bun.spawn(
     [process.execPath, SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
     {
@@ -51,9 +58,10 @@ async function runCodex(
         CC_SKIP_CODEX_CLI: "1",
         NO_COLOR: "1",
         ...extraEnv,
-        HOME: childHome,
-        USERPROFILE: gitBashPath(extraEnv.USERPROFILE ?? home),
-        CODEX_HOME: childCodexHome,
+        ...commandEnv,
+        HOME: extraEnv.HOME ?? home,
+        USERPROFILE: extraEnv.USERPROFILE ?? home,
+        CODEX_HOME: extraEnv.CODEX_HOME ?? codexHome,
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -1498,7 +1506,7 @@ describe("Codex installer lifecycle", () => {
     } finally {
       await rm(home, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   test.each([
     ["agents/implementer.toml", 'name = "user-replaced-implementer"\n'],
@@ -3503,6 +3511,8 @@ exit 0
         const result = await runCodex(home, [], target, {
           NODE_ENV: "production",
           CC_SKIP_CODEX_CLI: "1",
+          CC_SETTINGS_TEST_MODE: "codex-install",
+          CC_SETTINGS_TEST_CODEX_COMMAND_JSON: "not-json",
           PATH: bin,
         });
         expect(result.exitCode).not.toBe(0);

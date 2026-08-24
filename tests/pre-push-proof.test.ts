@@ -126,7 +126,13 @@ describe("pre-push-proof — subprocess block protocol", () => {
 
   async function runHook(home: string, command: string) {
     const proc = Bun.spawn([process.execPath, HOOK_PATH], {
-      env: { ...process.env, HOME: home, TOOL_INPUT_command: command },
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        CC_SETTINGS_SOURCE: join(home, ".claude"),
+        TOOL_INPUT_command: command,
+      },
       stdout: "pipe",
       stderr: "pipe",
     });
