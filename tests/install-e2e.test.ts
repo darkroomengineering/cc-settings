@@ -373,6 +373,63 @@ describe("setup.sh remote bootstrap", () => {
     }
   });
 
+  test("upgrades an exact version-2 install and removes its retired knowledge migration plan", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-v2-knowledge-plan-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+      const retired = "docs/plans/knowledge-repo-migration.md";
+      const retiredPath = join(claudeDir, retired);
+      const retiredBytes = "historical knowledge-repo migration plan bytes\n";
+      const readme = "rules/README.md";
+      await Promise.all([
+        mkdir(dirname(retiredPath), { recursive: true }),
+        writeFile(join(claudeDir, readme), await readFile(join(REPO, readme))),
+      ]);
+      await writeFile(retiredPath, retiredBytes);
+
+      const sentinelPath = join(claudeDir, ".cc-settings-version");
+      const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+        managed_files_manifest_version: number;
+      };
+      const version2Paths = await claudeManagedAllowedPaths(REPO, "full", 2);
+      version2Paths.add(retired);
+      await Promise.all(
+        Object.keys(sentinel.managed_files)
+          .filter((path) => !version2Paths.has(path))
+          .map((path) => rm(join(claudeDir, path))),
+      );
+      sentinel.managed_files = Object.fromEntries(
+        await Promise.all(
+          [...version2Paths].map(async (path) => [
+            path,
+            new Bun.CryptoHasher("sha256")
+              .update(await readFile(join(claudeDir, path)))
+              .digest("hex"),
+          ]),
+        ),
+      );
+      sentinel.managed_files_manifest_version = 2;
+      await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
+
+      const upgrade = await runInstall(home);
+
+      expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
+      expect(existsSync(retiredPath)).toBe(false);
+      const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+        managed_files_manifest_version: number;
+      };
+      expect(upgraded.managed_files_manifest_version).toBe(
+        CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+      );
+      expect(upgraded.managed_files[retired]).toBeUndefined();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   test("every full-install source file is tracked by Git", () => {
     const expected = [
       ...new Set(

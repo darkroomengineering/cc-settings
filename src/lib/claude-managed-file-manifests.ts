@@ -41,6 +41,7 @@ const FULL_V2 = [
   "docs/install.md",
   "docs/knowledge-system.md",
   "docs/parallel-batch-detection.md",
+  "docs/plans/knowledge-repo-migration.md",
   "docs/profiles.md",
   "docs/README.md",
   "docs/security-reference.md",
@@ -446,7 +447,9 @@ const VERSION_1_EXCLUSIONS = new Set([
   "src/lib/claude-managed-file-manifests.ts",
 ]);
 
-const VERSION_4_EXCLUSIONS = new Set(["rules/README.md"]);
+const VERSION_3_EXCLUSIONS = new Set(["docs/plans/knowledge-repo-migration.md"]);
+
+const VERSION_4_EXCLUSIONS = new Set([...VERSION_3_EXCLUSIONS, "rules/README.md"]);
 
 const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
   [
@@ -463,7 +466,13 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
       light: LIGHT_V2.filter((path) => !VERSION_2_EXCLUSIONS.has(path)),
     },
   ],
-  [3, { full: FULL_V2, light: LIGHT_V2 }],
+  [
+    3,
+    {
+      full: FULL_V2.filter((path) => !VERSION_3_EXCLUSIONS.has(path)),
+      light: LIGHT_V2.filter((path) => !VERSION_3_EXCLUSIONS.has(path)),
+    },
+  ],
   [
     CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
     {
