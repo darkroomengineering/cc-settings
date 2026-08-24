@@ -27,19 +27,22 @@ interface RunResult {
 }
 
 async function run(home: string, extraArgs: string[] = []): Promise<RunResult> {
-  const proc = Bun.spawn(["bun", SETUP_TS, `--source=${REPO}`, "--target=claude", ...extraArgs], {
-    env: {
-      ...process.env,
-      HOME: home,
-      USERPROFILE: home,
-      CC_SKIP_DEPS: "1",
-      CC_SKIP_SCHEDULE: "1",
-      CC_SKIP_CODEX_CLI: "1",
-      NO_COLOR: "1",
+  const proc = Bun.spawn(
+    [process.execPath, SETUP_TS, `--source=${REPO}`, "--target=claude", ...extraArgs],
+    {
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        CC_SKIP_DEPS: "1",
+        CC_SKIP_SCHEDULE: "1",
+        CC_SKIP_CODEX_CLI: "1",
+        NO_COLOR: "1",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
     },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  );
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
@@ -380,7 +383,7 @@ describe("installer backup — H7 (rollback covers cleanOldConfig's full footpri
     }
   }, 180_000);
 
-  test("prepared compensation memoizes a late restore failure without mutating twice", async () => {
+  test("prepared compensation memoizes a refresh failure without mutating", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-compensation-memo-"));
     const runner = join(home, "runner.ts");
     try {
@@ -397,9 +400,14 @@ const claude = join(home, ".claude");
 const personal = join(claude, "agents", "personal.md");
 const snapshot = await createBackup({ temporary: true });
 const prepared = await prepareClaudeCompensation(snapshot);
-const skills = join(claude, "skills");
-await rm(skills, { recursive: true, force: true });
-await writeFile(skills, "wrong live shared-directory type\\n");
+if (!snapshot.archivePath) throw new Error("expected a compensation archive");
+const stagingRoot = join(claude, "tmp");
+const stagingNames = await (await import("node:fs/promises")).readdir(stagingRoot);
+const stagingName = stagingNames.find((name) => name.startsWith("rollback-"));
+if (!stagingName) throw new Error("expected a prepared rollback staging directory");
+const staging = join(stagingRoot, stagingName);
+await rm(join(staging, ".claude", "agents", "implementer.md"), { force: true });
+await writeFile(snapshot.archivePath, "invalid archive bytes\\n");
 await writeFile(personal, "live before first execute\\n");
 let first: unknown;
 try { await prepared.execute(); } catch (cause) { first = cause; }
@@ -418,7 +426,7 @@ console.log(JSON.stringify({
 }));
 `,
       );
-      const proc = Bun.spawn(["bun", runner], {
+      const proc = Bun.spawn([process.execPath, runner], {
         env: {
           ...process.env,
           HOME: home,
@@ -441,10 +449,81 @@ console.log(JSON.stringify({
         restoredBeforeSecond: string;
         afterSecond: string;
       };
-      expect(result.firstMessage).toMatch(/ENOTDIR|not a directory/i);
+      expect(result.firstMessage).toBe("Could not refresh Claude compensation (exit 1)");
       expect(result.secondMessage).toBe(result.firstMessage);
       expect(result.sameError).toBe(true);
       expect(result.restoredBeforeSecond).toBe("live before first execute\n");
+      expect(result.afterSecond).toBe("between executes\n");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  test("prepared compensation memoizes a failure after managed paths were removed", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-compensation-late-memo-"));
+    const runner = join(home, "runner.ts");
+    try {
+      const installed = await run(home);
+      expect(installed.exitCode, `${installed.stdout}\n${installed.stderr}`).toBe(0);
+      await writeFile(
+        runner,
+        `import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { createBackup } from ${JSON.stringify(join(REPO, "src/lib/install-fs.ts"))};
+import { prepareClaudeCompensation } from ${JSON.stringify(join(REPO, "src/lib/install-cmds.ts"))};
+const home = process.env.HOME as string;
+const claude = join(home, ".claude");
+const managed = join(claude, "agents", "implementer.md");
+const blocker = join(claude, "late-blocker");
+const snapshot = await createBackup({ temporary: true });
+const prepared = await prepareClaudeCompensation(snapshot, ["late-blocker/child"]);
+await writeFile(blocker, "ordinary file blocks nested removal\\n");
+let first: unknown;
+try { await prepared.execute(); } catch (cause) { first = cause; }
+const managedExistsAfterFirst = existsSync(managed);
+await mkdir(join(claude, "agents"), { recursive: true });
+await writeFile(managed, "between executes\\n");
+let second: unknown;
+try { await prepared.execute(); } catch (cause) { second = cause; }
+const afterSecond = await readFile(managed, "utf8");
+await prepared.cleanup();
+console.log(JSON.stringify({
+  firstMessage: first instanceof Error ? first.message : null,
+  secondMessage: second instanceof Error ? second.message : null,
+  sameError: first === second,
+  managedExistsAfterFirst,
+  afterSecond,
+}));
+`,
+      );
+      const proc = Bun.spawn([process.execPath, runner], {
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          CC_SKIP_SCHEDULE: "1",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [exitCode, stdout, stderr] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ]);
+      expect(exitCode, stderr).toBe(0);
+      const result = JSON.parse(stdout) as {
+        firstMessage: string | null;
+        secondMessage: string | null;
+        sameError: boolean;
+        managedExistsAfterFirst: boolean;
+        afterSecond: string;
+      };
+      expect(result.firstMessage).not.toBeNull();
+      expect(result.secondMessage).toBe(result.firstMessage);
+      expect(result.sameError).toBe(true);
+      expect(result.managedExistsAfterFirst).toBe(false);
       expect(result.afterSecond).toBe("between executes\n");
     } finally {
       await rm(home, { recursive: true, force: true });

@@ -65,8 +65,8 @@ export const SKILL_COUNT_BASELINE = 38;
 // of the name+description index the Skill selector reads every turn, not the
 // number of skills contributing to it. Codex exposes its selector budget as
 // `skills.max_context_tokens`; it is not a fixed percentage or character cap.
-// The 12 KiB repository ceiling below is intentionally stricter than leaving
-// metadata growth unbounded. The current darkroom plugin alone was verified to
+// The 10 KiB repository ceiling below leaves measured headroom while preventing
+// unbounded metadata growth. The current darkroom plugin alone was verified to
 // render every description in full under the default Codex configuration; the
 // Aug 2026 shortening warning was caused by duplicate legacy user-scope skills.
 //
@@ -75,7 +75,7 @@ export const SKILL_COUNT_BASELINE = 38;
 // while lengthening another nets zero), so only exceeding the budget is an
 // error. The fix for a violation is tightening the longest descriptions, not
 // raising this constant.
-export const SKILL_DESCRIPTION_BYTE_BUDGET = 12288;
+export const SKILL_DESCRIPTION_BYTE_BUDGET = 10240;
 
 // Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
 // the schema `name` field regexes (agent/skill/profile/knowledge) — see

@@ -1,7 +1,7 @@
 ---
 name: adhd
 argument-hint: "[problem]"
-description: Parallel divergent ideation — spawns N isolated generator agents under different cognitive frames (regulator, biology, speedrunner, 10-year-old, zero-budget), then a critic pass scores, clusters, prunes traps, and deepens the top 3. Use for open-ended design, architecture, naming, API/SDK surface, and fuzzy debugging where the obvious answer is expensive to get wrong. Triggers "/adhd", "adhd mode", "brainstorm", "ideate", "widen the option space", "divergent ideas", "we keep landing on the same idea". Skip for lookups, syntax, bugs with a known root cause, or closed phrasing ("quick", "standard", "canonical", "textbook"). Use /oracle compare to evaluate options you already have — adhd generates the option space; use /plan-ceo-review to challenge whether to build at all.
+description: Parallel divergent ideation with isolated framed generators, then a critic that scores, clusters, and deepens the top 3. Triggers "/adhd", "brainstorm", "ideate", "widen the option space", and fuzzy design/debugging. Skip lookups, syntax, known-root-cause bugs, or quick/canonical requests. /oracle compares existing options; /plan-ceo-review challenges whether to build.
 context: main
 license: MIT
 ---

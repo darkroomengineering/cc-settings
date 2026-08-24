@@ -1,6 +1,6 @@
 ---
 name: zero-tech-debt
-description: Rework a patch from its intended end-state, not from the historical path that produced it — delete compat cruft, mode flags, fallbacks, and wrappers no one calls anymore. Triggers "zero tech debt", "rewrite as if from scratch", "delete the compat layer", "kill the legacy path", "this has too many flags", or when a feature has accreted mode props and shims over multiple iterations and you want the shape it should have shipped with.
+description: Rewrite an accreted patch into its intended end-state by removing unused compatibility layers, flags, fallbacks, and wrappers. Triggers "zero tech debt", "rewrite as if from scratch", "delete the compat layer", "kill the legacy path", "too many flags".
 context: main
 ---
 

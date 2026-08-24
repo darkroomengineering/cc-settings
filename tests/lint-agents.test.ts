@@ -232,9 +232,37 @@ describe("lintAgentsDir — missing frontmatter", () => {
   });
 });
 
+describe("lintAgentsDir — description byte budget", () => {
+  test("flags totals over the budget and reports largest agents", async () => {
+    const dir = await sandbox();
+    try {
+      await writeAgent(dir, "alpha", goodFrontmatter("alpha"));
+      const result = await lintAgentsDir(dir, { descriptionByteBudget: 10 });
+      const finding = result.findings.find((f) => f.rule === "description-byte-budget");
+      expect(finding?.message).toContain("budget 10");
+      expect(finding?.message).toContain("alpha");
+      expect(hasAgentErrors(result)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("does not flag totals under a test-only override", async () => {
+    const dir = await sandbox();
+    try {
+      await writeAgent(dir, "alpha", goodFrontmatter("alpha"));
+      const result = await lintAgentsDir(dir, { descriptionByteBudget: 1_000_000 });
+      expect(result.findings.some((f) => f.rule === "description-byte-budget")).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("lintAgentsDir — repo dogfood", () => {
   test("repo's actual agents/ all pass validation today", async () => {
     const result = await lintAgentsDir(join(import.meta.dir, "..", "agents"));
+    expect(result.findings.some((f) => f.rule === "description-byte-budget")).toBe(false);
     expect(hasAgentErrors(result)).toBe(false);
   });
 });

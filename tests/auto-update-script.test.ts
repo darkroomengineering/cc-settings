@@ -15,6 +15,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const AUTO_UPDATE_SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "auto-update.ts");
 
@@ -63,7 +64,7 @@ async function runAutoUpdateScript(
   fakeHome: string,
   extraEnv: Record<string, string> = {},
 ): Promise<{ exit: number; stderr: string }> {
-  const proc = Bun.spawn(["bun", AUTO_UPDATE_SCRIPT], {
+  const proc = Bun.spawn([process.execPath, AUTO_UPDATE_SCRIPT], {
     env: {
       ...process.env,
       ...GIT_ISOLATION_ENV,
@@ -161,10 +162,10 @@ esac
         await writeSentinel(fakeHome, repoDir);
 
         const result = await runAutoUpdateScript(fakeHome, {
-          PATH: `${binDir}:${process.env.PATH ?? ""}`,
-          FAKE_GIT_LOG: gitLog,
+          PATH: prependTestPath(binDir),
+          FAKE_GIT_LOG: gitBashPath(gitLog),
           FAKE_HISTORY: history,
-          FAKE_REPO: repoDir,
+          FAKE_REPO: gitBashPath(repoDir),
         });
 
         expect(result.exit).toBe(1);
@@ -225,9 +226,9 @@ esac
         await writeSentinel(fakeHome, repoDir);
 
         const result = await runAutoUpdateScript(fakeHome, {
-          PATH: `${binDir}:${process.env.PATH ?? ""}`,
-          FAKE_GIT_LOG: gitLog,
-          FAKE_REPO: repoDir,
+          PATH: prependTestPath(binDir),
+          FAKE_GIT_LOG: gitBashPath(gitLog),
+          FAKE_REPO: gitBashPath(repoDir),
         });
 
         expect(result.exit).toBe(0);
@@ -304,11 +305,11 @@ esac
         await writeSentinel(fakeHome, repoDir);
 
         const result = await runAutoUpdateScript(fakeHome, {
-          PATH: `${binDir}:${process.env.PATH ?? ""}`,
-          FAKE_GIT_LOG: gitLog,
-          FAKE_SETUP: stagedSetup,
+          PATH: prependTestPath(binDir),
+          FAKE_GIT_LOG: gitBashPath(gitLog),
+          FAKE_SETUP: gitBashPath(stagedSetup),
           FAKE_NEW_HEAD: newHead,
-          REAL_GIT: realGit,
+          REAL_GIT: gitBashPath(realGit),
           GIT_SSL_NO_VERIFY: "1",
           GIT_EXEC_PATH: join(fakeHome, "attacker-git-exec-path"),
         });
@@ -394,7 +395,7 @@ esac
 
         await writeSentinel(fakeHome, repoDir);
         const result = await runAutoUpdateScript(fakeHome, {
-          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(binDir),
           FAKE_HEAD: head,
           FAKE_DIFF_EXIT: mode === "dirty" ? "1" : "2",
         });
@@ -481,7 +482,7 @@ esac
 
         await writeSentinel(fakeHome, repoDir);
 
-        const proc = Bun.spawn(["bun", AUTO_UPDATE_SCRIPT], {
+        const proc = Bun.spawn([process.execPath, AUTO_UPDATE_SCRIPT], {
           env: {
             ...process.env,
             ...GIT_ISOLATION_ENV,

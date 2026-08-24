@@ -66,6 +66,17 @@ describe("version sync — every version-bearing file tracks src/setup.ts", () =
   });
 });
 
+describe("always-loaded prompt byte budgets", () => {
+  test.each([
+    ["AGENTS.md", 16 * 1024],
+    ["CLAUDE-FULL.md", 16 * 1024],
+    ["output-styles/darkroom.md", 4 * 1024],
+  ] as const)("%s stays within its byte ceiling", async (relativePath, budget) => {
+    const bytes = Buffer.byteLength(await readFile(join(ROOT, relativePath), "utf8"), "utf8");
+    expect(bytes, `${relativePath}: ${bytes} bytes exceeds ${budget}`).toBeLessThanOrEqual(budget);
+  });
+});
+
 describe("plugin manifest — mcpServers sync with config/20-mcp.json", () => {
   test("every plugin server matches its config fragment counterpart", async () => {
     const plugin = await readJson(".claude-plugin/plugin.json");

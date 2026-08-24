@@ -35,6 +35,7 @@ import {
 } from "../src/lib/claude-managed-files.ts";
 import { verifySrcManifest } from "../src/lib/hooks-fingerprint.ts";
 import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
+import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SETUP_TS = join(REPO, "src", "setup.ts");
@@ -58,7 +59,7 @@ async function runInstall(
   source: string = REPO,
 ): Promise<InstallResult> {
   const proc = Bun.spawn(
-    ["bun", SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
+    [process.execPath, SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
     {
       env: {
         ...process.env,
@@ -149,7 +150,7 @@ async function historicalCommit(sourceDir: string, version: string): Promise<str
     await gitBytes(sourceDir, [
       "log",
       "--format=%H",
-      `-G\"version\"[[:space:]]*:[[:space:]]*\"${version}\"`,
+      `-G"version"[[:space:]]*:[[:space:]]*"${version}"`,
       "--",
       "package.json",
     ])
@@ -313,9 +314,9 @@ esac
       ...process.env,
       HOME: home,
       USERPROFILE: home,
-      PATH: `${bin}:${process.env.PATH ?? ""}`,
-      BOOTSTRAP_SOURCE: join(REPO, "setup.sh"),
-      BOOTSTRAP_LOG: log,
+      PATH: prependTestPath(bin),
+      BOOTSTRAP_SOURCE: gitBashPath(join(REPO, "setup.sh")),
+      BOOTSTRAP_LOG: gitBashPath(log),
       FAKE_ORIGIN: origin,
       FAKE_HISTORY: history,
     },
@@ -331,6 +332,47 @@ esac
 }
 
 describe("setup.sh remote bootstrap", () => {
+  test("keeps the rules README source-only", () => {
+    const managed = currentClaudeManagedSourceFiles("full").map(({ source }) => source);
+    expect(managed).not.toContain("rules/README.md");
+  });
+
+  test("upgrades a version-3 install and removes its managed rules README", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-v3-rules-readme-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+      const readmePath = join(claudeDir, "rules", "README.md");
+      const readmeBytes = await readFile(join(REPO, "rules", "README.md"), "utf8");
+      await writeFile(readmePath, readmeBytes);
+      const sentinelPath = join(claudeDir, ".cc-settings-version");
+      const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+        managed_files_manifest_version: number;
+      };
+      sentinel.managed_files["rules/README.md"] = new Bun.CryptoHasher("sha256")
+        .update(readmeBytes)
+        .digest("hex");
+      sentinel.managed_files_manifest_version = 3;
+      await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
+
+      const upgrade = await runInstall(home);
+
+      expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
+      expect(existsSync(readmePath)).toBe(false);
+      const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+        managed_files_manifest_version: number;
+      };
+      expect(upgraded.managed_files_manifest_version).toBe(
+        CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+      );
+      expect(upgraded.managed_files["rules/README.md"]).toBeUndefined();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   test("every full-install source file is tracked by Git", () => {
     const expected = [
       ...new Set(
@@ -547,9 +589,9 @@ describe("install E2E — fresh HOME", () => {
       const runtime = join(home, ".claude", "src", "node_modules");
       const env = {
         CC_SKIP_DEPS: "0",
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
-        REAL_BUN: realBun as string,
-        REAL_ZOD: join(REPO, "node_modules", "zod"),
+        PATH: prependTestPath(bin),
+        REAL_BUN: gitBashPath(realBun as string),
+        REAL_ZOD: gitBashPath(join(REPO, "node_modules", "zod")),
       };
 
       const first = await runInstall(home, ["--light"], "claude", env, sourceA);
@@ -753,8 +795,8 @@ describe("install E2E — fresh HOME", () => {
         {
           CC_SKIP_DEPS: "0",
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
-          REAL_BUN: realBun as string,
+          PATH: prependTestPath(bin),
+          REAL_BUN: gitBashPath(realBun as string),
         },
         source,
       );
@@ -831,8 +873,10 @@ describe("install E2E — fresh HOME", () => {
       expect(manifest.files["setup.ts"]).toMatch(/^[a-f0-9]{64}$/);
       const verification = await verifySrcManifest(claudeDir);
       expect(verification.status).toBe("mismatch");
-      expect(verification.changed).toEqual([]);
-      expect(verification.unmanifested).toContain("lib/evil.ts");
+      expect(verification.changed.map((path) => path.replaceAll("\\", "/"))).toEqual([]);
+      expect(verification.unmanifested.map((path) => path.replaceAll("\\", "/"))).toContain(
+        "lib/evil.ts",
+      );
     } finally {
       await rm(home, { recursive: true, force: true });
     }
@@ -938,8 +982,8 @@ describe("install E2E — fresh HOME", () => {
       await chmod(join(bin, "tar"), 0o755);
 
       const downgrade = await runInstall(home, [], "both", {
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
-        REAL_TAR: realTar as string,
+        PATH: prependTestPath(bin),
+        REAL_TAR: gitBashPath(realTar as string),
       });
 
       expect(downgrade.exitCode).not.toBe(0);
@@ -1147,7 +1191,7 @@ describe("install E2E — fresh HOME", () => {
       const home = await mkdtemp(join(tmpdir(), "cc-e2e-mig-"));
       try {
         const proc = Bun.spawn(
-          ["bun", SETUP_TS, `--source=${REPO}`, "--target=claude", "--migrate-only"],
+          [process.execPath, SETUP_TS, `--source=${REPO}`, "--target=claude", "--migrate-only"],
           {
             env: {
               ...process.env,
@@ -1530,7 +1574,7 @@ describe("install E2E — uninstall ownership", () => {
         const scheduleEnv = {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         };
         const settings = join(claudeDir, "settings.json");
         const globalConfig = join(home, ".claude.json");
@@ -1699,7 +1743,7 @@ describe("install E2E — uninstall ownership", () => {
         return {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         };
       };
       const backupIds = async (

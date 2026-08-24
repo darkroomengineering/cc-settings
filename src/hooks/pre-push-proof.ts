@@ -140,7 +140,7 @@ async function main(): Promise<void> {
     "scripts",
     "proof.ts",
   );
-  const proc = Bun.spawn(["bun", proofRunner], {
+  const proc = Bun.spawn([process.execPath, proofRunner], {
     cwd: process.cwd(),
     env: scrubProjectSubprocessEnv(),
     stdout: "pipe",

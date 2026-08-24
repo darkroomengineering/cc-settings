@@ -1,7 +1,7 @@
 ---
 name: oracle
 argument-hint: "[advice|risks|compare] [question]"
-description: Expert opinions from the oracle agent — freeform advice, risk analysis, or weighted comparison of approaches. Triggers "what should I", "how should I", "advice on" (advice mode); "what could go wrong", "risks", "potential issues", "premortem" (risks mode); "compare approaches", "which is better", "evaluate options", "trade-off analysis", "tech selection", "decide between" (compare mode).
+description: Expert agent in advice, risk, or weighted-comparison mode. Triggers "what should I", "advice on"; "what could go wrong", "risks", "premortem"; or "compare approaches", "which is better", "trade-off analysis", "tech selection".
 context: fork
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: harvest
-description: Capture an unusually good workflow into a durable, reviewed artifact — a skill, rule, profile, AGENTS.md diff, or team learning — with measured evidence and an explicit contract. Runs a witnessed-behavior census (multi-witness vs single-witness), fills a harvest contract, validates with blind trap prompts, and emits a PASS / FAIL / INCONCLUSIVE verdict before promotion; seeds /autoresearch when the artifact is a skill. Use when a stronger or temporary model, a one-off session, or a teammate's transcript produced behavior worth preserving before it's lost. Triggers "harvest this workflow", "capture what the model did", "turn this session into a skill", "preserve this behavior", "model handoff", "before we lose access to this model".
+description: Turn proven session behavior into a reviewed skill, rule, profile, AGENTS.md diff, or team learning using witnesses, a contract, blind traps, and PASS/FAIL/INCONCLUSIVE; skill artifacts seed /autoresearch. Triggers "harvest this workflow", "turn this session into a skill", "preserve this behavior", "model handoff", "before we lose access to this model".
 context: fork
 argument-hint: "[what to harvest]"
 ---

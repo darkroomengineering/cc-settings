@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Verify and publish changes — push, open PR, watch CI until green; land mode merges an existing PR and cleans up. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR", "watch the PR", "babysit CI", "loop until green"; land mode "land it", "/ship land", "fix CI and merge", "merge it then clean the branches", "merge and clean up".
+description: Verify and publish by pushing, opening a PR, and watching CI; land mode merges then cleans branches. Triggers "ship it", "create PR", "/ship", "watch the PR", "babysit CI"; land mode "land it", "/ship land", "fix CI and merge".
 context: fork
 ---
 

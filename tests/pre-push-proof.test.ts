@@ -4,7 +4,7 @@
 // invocation (false block), so lock every branch.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shouldGate, splitShellSegments } from "../src/hooks/pre-push-proof.ts";
@@ -125,7 +125,7 @@ describe("pre-push-proof — subprocess block protocol", () => {
   }
 
   async function runHook(home: string, command: string) {
-    const proc = Bun.spawn(["bun", HOOK_PATH], {
+    const proc = Bun.spawn([process.execPath, HOOK_PATH], {
       env: { ...process.env, HOME: home, TOOL_INPUT_command: command },
       stdout: "pipe",
       stderr: "pipe",
@@ -148,6 +148,12 @@ describe("pre-push-proof — subprocess block protocol", () => {
     } finally {
       await rm(home, { recursive: true, force: true });
     }
+  });
+
+  test("the production hook launches the proof runner through the active runtime", async () => {
+    const source = await readFile(HOOK_PATH, "utf8");
+    expect(source.includes("Bun.spawn([process.execPath, proofRunner]")).toBe(true);
+    expect(source.includes('Bun.spawn(["bun", proofRunner]')).toBe(false);
   });
 
   test("green battery: allows silently (exit 0, no stdout)", async () => {

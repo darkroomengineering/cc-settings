@@ -1,6 +1,6 @@
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 3;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 4;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -446,6 +446,8 @@ const VERSION_1_EXCLUSIONS = new Set([
   "src/lib/claude-managed-file-manifests.ts",
 ]);
 
+const VERSION_4_EXCLUSIONS = new Set(["rules/README.md"]);
+
 const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
   [
     1,
@@ -461,7 +463,14 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
       light: LIGHT_V2.filter((path) => !VERSION_2_EXCLUSIONS.has(path)),
     },
   ],
-  [CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, { full: FULL_V2, light: LIGHT_V2 }],
+  [3, { full: FULL_V2, light: LIGHT_V2 }],
+  [
+    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+    {
+      full: FULL_V2.filter((path) => !VERSION_4_EXCLUSIONS.has(path)),
+      light: LIGHT_V2.filter((path) => !VERSION_4_EXCLUSIONS.has(path)),
+    },
+  ],
 ]);
 
 const GENERATED_MANAGED_FILES = new Set([

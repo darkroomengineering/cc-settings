@@ -42,12 +42,23 @@ export interface AgentLintResult {
   agentCount: number;
 }
 
+// The agent selector reads every description each turn. This one-way ceiling
+// leaves measured headroom; tighten the largest descriptions instead of
+// raising it when the aggregate grows.
+export const AGENT_DESCRIPTION_BYTE_BUDGET = 5120;
+
+interface LintOneResult {
+  findings: AgentFinding[];
+  descriptionBytes: number;
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-async function lintOne(agentsDir: string, filename: string): Promise<AgentFinding[]> {
+async function lintOne(agentsDir: string, filename: string): Promise<LintOneResult> {
   const findings: AgentFinding[] = [];
+  let descriptionBytes = 0;
   const name = filename.replace(/\.md$/, "");
   const filePath = join(agentsDir, filename);
 
@@ -93,6 +104,7 @@ async function lintOne(agentsDir: string, filename: string): Promise<AgentFindin
     }
 
     const fm = result.data;
+    descriptionBytes = Buffer.byteLength(fm.description, "utf8");
     if (fm.name !== name) {
       domainFindings.push({
         severity: "error",
@@ -108,10 +120,13 @@ async function lintOne(agentsDir: string, filename: string): Promise<AgentFindin
     findings.push({ agent: name, severity: f.severity, rule: f.rule, message: f.message });
   }
 
-  return findings;
+  return { findings, descriptionBytes };
 }
 
-export async function lintAgentsDir(agentsDir: string): Promise<AgentLintResult> {
+export async function lintAgentsDir(
+  agentsDir: string,
+  opts: { descriptionByteBudget?: number } = {},
+): Promise<AgentLintResult> {
   if (!existsSync(agentsDir)) {
     return { findings: [], agentCount: 0 };
   }
@@ -122,8 +137,28 @@ export async function lintAgentsDir(agentsDir: string): Promise<AgentLintResult>
     .map((e) => e.name);
 
   const findings: AgentFinding[] = [];
+  const descriptionBytesByAgent: Array<{ name: string; bytes: number }> = [];
+  let totalDescriptionBytes = 0;
   for (const filename of files) {
-    findings.push(...(await lintOne(agentsDir, filename)));
+    const { findings: agentFindings, descriptionBytes } = await lintOne(agentsDir, filename);
+    findings.push(...agentFindings);
+    descriptionBytesByAgent.push({ name: filename.replace(/\.md$/, ""), bytes: descriptionBytes });
+    totalDescriptionBytes += descriptionBytes;
+  }
+
+  const budget = opts.descriptionByteBudget ?? AGENT_DESCRIPTION_BYTE_BUDGET;
+  if (totalDescriptionBytes > budget) {
+    const topOffenders = [...descriptionBytesByAgent]
+      .sort((a, b) => b.bytes - a.bytes)
+      .slice(0, 3)
+      .map((agent) => `${agent.name} (${agent.bytes}B)`)
+      .join(", ");
+    findings.push({
+      agent: "(repo)",
+      severity: "error",
+      rule: "description-byte-budget",
+      message: `agent descriptions total ${totalDescriptionBytes} bytes, budget ${budget} — tighten the longest descriptions instead of raising AGENT_DESCRIPTION_BYTE_BUDGET (src/lib/lint-agents.ts). Largest: ${topOffenders}`,
+    });
   }
 
   return { findings, agentCount: files.length };

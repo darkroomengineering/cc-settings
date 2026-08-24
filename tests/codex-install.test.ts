@@ -17,6 +17,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
+import { prependTestPath } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SETUP_TS = join(REPO, "src", "setup.ts");
@@ -38,7 +39,7 @@ async function runCodex(
 ): Promise<InstallResult> {
   const codexHome = join(home, ".codex");
   const child = Bun.spawn(
-    ["bun", SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
+    [process.execPath, SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
     {
       env: {
         ...process.env,
@@ -254,7 +255,7 @@ describe("Codex installer lifecycle", () => {
       const fake = await createStatefulCodex(home);
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
       expectSuccess(await runCodex(home, [], "codex", env));
 
@@ -467,7 +468,7 @@ describe("Codex installer lifecycle", () => {
         ]);
         const fake = target === "both" ? await createStatefulCodex(home) : null;
         const env: Record<string, string> = fake
-          ? { CC_SKIP_CODEX_CLI: "0", PATH: `${fake.bin}:${process.env.PATH ?? ""}` }
+          ? { CC_SKIP_CODEX_CLI: "0", PATH: prependTestPath(fake.bin) }
           : {};
         expectSuccess(await runCodex(home, [], target, env, sourceA));
         const idsBefore = await sharedBackupIds(home);
@@ -643,7 +644,7 @@ describe("Codex installer lifecycle", () => {
       const fake = await createStatefulCodex(home);
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
       expectSuccess(await runCodex(home, [], "both", env));
       expectSuccess(await runCodex(home, ["--light"], "both", env));
@@ -856,7 +857,7 @@ describe("Codex installer lifecycle", () => {
         const result = await runCodex(home, args, target, {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         });
 
         expect(result.exitCode).not.toBe(0);
@@ -896,58 +897,57 @@ describe("Codex installer lifecycle", () => {
     },
   );
 
-  test.each([
-    ["install", "symlink"],
-    ["rollback", "symlink"],
-    ["uninstall", "symlink"],
-    ["install", "wrong-type"],
-    ["rollback", "wrong-type"],
-    ["uninstall", "wrong-type"],
-  ] as const)(
-    "%s fails closed when the live Codex backup source contains a %s descendant",
-    async (operation, invalidKind) => {
-      const home = await mkdtemp(join(tmpdir(), `cc-codex-backup-${operation}-${invalidKind}-`));
-      const codexHome = join(home, ".codex");
-      const backupsDir = join(codexHome, "backups", "cc-settings");
-      try {
-        expectSuccess(await runCodex(home));
-        if (operation === "rollback") expectSuccess(await runCodex(home));
-        const invalid = join(
-          codexHome,
-          "darkroom",
-          "source",
-          "src",
-          "lib",
-          `unsafe-${invalidKind}`,
-        );
-        if (invalidKind === "symlink") {
-          await symlink(join(home, "outside"), invalid);
-        } else {
-          const mkfifo = Bun.spawn(["mkfifo", invalid], { stdout: "pipe", stderr: "pipe" });
-          const [exitCode, stderr] = await Promise.all([
-            mkfifo.exited,
-            new Response(mkfifo.stderr).text(),
-          ]);
-          expect(exitCode, stderr).toBe(0);
-        }
-        const before = await snapshotPaths([
-          join(codexHome, ".cc-settings-version"),
-          join(codexHome, "AGENTS.md"),
-          join(codexHome, "agents", "implementer.toml"),
-          join(codexHome, "rules", "darkroom.rules"),
+  async function expectUnsafeBackupDescendantRejected(
+    operation: "install" | "rollback" | "uninstall",
+    invalidKind: "symlink" | "wrong-type",
+  ): Promise<void> {
+    const home = await mkdtemp(join(tmpdir(), `cc-codex-backup-${operation}-${invalidKind}-`));
+    const codexHome = join(home, ".codex");
+    const backupsDir = join(codexHome, "backups", "cc-settings");
+    try {
+      expectSuccess(await runCodex(home));
+      if (operation === "rollback") expectSuccess(await runCodex(home));
+      const invalid = join(codexHome, "darkroom", "source", "src", "lib", `unsafe-${invalidKind}`);
+      if (invalidKind === "symlink") {
+        await symlink(join(home, "outside"), invalid);
+      } else {
+        const mkfifo = Bun.spawn(["mkfifo", invalid], { stdout: "pipe", stderr: "pipe" });
+        const [exitCode, stderr] = await Promise.all([
+          mkfifo.exited,
+          new Response(mkfifo.stderr).text(),
         ]);
-        const backupsBefore = (await readdir(backupsDir)).sort();
-        const args = operation === "install" ? [] : [`--${operation}`];
-
-        const result = await runCodex(home, args);
-        expect(result.exitCode).not.toBe(0);
-        await expectPathsExact(before);
-        expect((await lstat(invalid)).isSymbolicLink()).toBe(invalidKind === "symlink");
-        expect((await readdir(backupsDir)).sort()).toEqual(backupsBefore);
-      } finally {
-        await rm(home, { recursive: true, force: true });
+        expect(exitCode, stderr).toBe(0);
       }
-    },
+      const before = await snapshotPaths([
+        join(codexHome, ".cc-settings-version"),
+        join(codexHome, "AGENTS.md"),
+        join(codexHome, "agents", "implementer.toml"),
+        join(codexHome, "rules", "darkroom.rules"),
+      ]);
+      const backupsBefore = (await readdir(backupsDir)).sort();
+      const args = operation === "install" ? [] : [`--${operation}`];
+
+      const result = await runCodex(home, args);
+      expect(result.exitCode).not.toBe(0);
+      await expectPathsExact(before);
+      expect((await lstat(invalid)).isSymbolicLink()).toBe(invalidKind === "symlink");
+      expect((await readdir(backupsDir)).sort()).toEqual(backupsBefore);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }
+
+  test.each(["install", "rollback", "uninstall"] as const)(
+    "%s fails closed when the live Codex backup source contains a symlink descendant",
+    async (operation) => expectUnsafeBackupDescendantRejected(operation, "symlink"),
+    240_000,
+  );
+
+  // Windows has no mkfifo command or POSIX FIFO file type. Keep the symlink
+  // contract above active there and skip only these three named-pipe fixtures.
+  test.skipIf(process.platform === "win32").each(["install", "rollback", "uninstall"] as const)(
+    "%s fails closed for a FIFO descendant (Windows skipped: POSIX FIFOs are unavailable)",
+    async (operation) => expectUnsafeBackupDescendantRejected(operation, "wrong-type"),
     240_000,
   );
 
@@ -1554,7 +1554,7 @@ describe("Codex installer lifecycle", () => {
         const args = operation === "light" ? ["--light"] : ["--uninstall"];
         const result = await runCodex(home, args, "codex", {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         });
         expect(result.exitCode).not.toBe(0);
         await expectPathsExact(before);
@@ -1675,7 +1675,7 @@ describe("Codex installer lifecycle", () => {
         ]);
         const env = {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         const result = await runCodex(
           home,
@@ -1724,7 +1724,7 @@ describe("Codex installer lifecycle", () => {
 
       const result = await runCodex(home, [], "both", {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(bin),
       });
       expect(result.exitCode).not.toBe(0);
       expect(existsSync(join(home, ".marketplace-added-before-failure"))).toBe(true);
@@ -1762,7 +1762,7 @@ describe("Codex installer lifecycle", () => {
 
       const result = await runCodex(home, [], "codex", {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(bin),
       });
 
       expect(result.exitCode).not.toBe(0);
@@ -1803,7 +1803,7 @@ describe("Codex installer lifecycle", () => {
 
       const install = await runCodex(home, [], "codex", {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(bin),
       });
 
       expect(install.exitCode).not.toBe(0);
@@ -1863,7 +1863,7 @@ exit 0
 
         const install = await runCodex(home, [], "codex", {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         });
 
         expect(install.exitCode).not.toBe(0);
@@ -1916,7 +1916,7 @@ exit 0
 
       const install = await runCodex(home, [], "codex", {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(bin),
       });
 
       expect(install.exitCode).not.toBe(0);
@@ -1942,7 +1942,7 @@ exit 0
       const fake = await createStatefulCodex(home);
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
       expectSuccess(await runCodex(home, [], "both", env));
       const canonicalSource = await realpath(join(codexHome, "darkroom", "source"));
@@ -2004,7 +2004,7 @@ exit 0
         const fake = await createStatefulCodex(home);
         const env = {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         let args: string[];
         let failingAction: "add" | "remove";
@@ -2116,7 +2116,7 @@ exit 0
 
       const failed = await runCodex(home, [], "both", {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(bin),
       });
       expect(failed.exitCode).not.toBe(0);
       expect(existsSync(join(home, ".codex-mutated-before-claude-failure"))).toBe(true);
@@ -2137,7 +2137,7 @@ exit 0
         const fake = await createStatefulCodex(home);
         const env = {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         expectSuccess(await runCodex(home, [], "both", env));
         const canonicalPluginSource = await realpath(join(codexHome, "darkroom", "source"));
@@ -2218,7 +2218,7 @@ exit 0
       const fake = await createStatefulCodex(runtimeHome);
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
       expectSuccess(await runCodex(runtimeHome, [], "both", env));
       const beforeLight = await sharedBackupIds(runtimeHome);
@@ -2304,7 +2304,7 @@ exit 0
       expectSuccess(
         await runCodex(home, [], "both", {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
           FAKE_CROSS_SECOND: "1",
         }),
       );
@@ -2554,7 +2554,7 @@ exit 0
 
       const failed = await runCodex(home, ["--uninstall"], "both", {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(bin),
       });
       expect(failed.exitCode).not.toBe(0);
       expect(existsSync(join(home, ".codex-mutated-before-uninstall-failure"))).toBe(true);
@@ -2603,7 +2603,7 @@ exit 0
         const scheduleEnv = {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         };
 
         const failed = await runCodex(home, ["--auto-update=on"], "both", {
@@ -2651,7 +2651,7 @@ exit 0
         const scheduleEnv = {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         };
         expectSuccess(await runCodex(home, ["--auto-update=on"], "both", scheduleEnv));
         expect(existsSync(plist)).toBe(true);
@@ -2718,7 +2718,7 @@ exit 0
         const scheduleEnv = {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         };
 
         expectSuccess(await runCodex(home, ["--auto-update=on"], "both", scheduleEnv));
@@ -2783,7 +2783,7 @@ exit 0
         const scheduleEnv = {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         };
         expectSuccess(await runCodex(home, ["--auto-update=on"], "both", scheduleEnv));
         const plistMode = (await stat(plist)).mode & 0o777;
@@ -2853,7 +2853,7 @@ exit 0
           CC_SKIP_CODEX_CLI: "0",
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         expectSuccess(await runCodex(home, ["--auto-update=on"], "both", env));
         const canonicalSource = await realpath(join(codexHome, "darkroom", "source"));
@@ -2927,7 +2927,7 @@ exit 0
           CC_SKIP_CODEX_CLI: "0",
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         expectSuccess(await runCodex(home, ["--auto-update=on"], "both", env));
         const beforeLight = await sharedBackupIds(home);
@@ -3030,7 +3030,7 @@ exit 0
         const result = await runCodex(home, ["--auto-update=off"], target, {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         });
 
         if (shouldSucceed) {
@@ -3088,7 +3088,7 @@ exit 0
         home,
         [],
         "codex",
-        { CC_SKIP_CODEX_CLI: "0", PATH: `${bin}:${process.env.PATH ?? ""}` },
+        { CC_SKIP_CODEX_CLI: "0", PATH: prependTestPath(bin) },
         source,
       );
       expect(failed.exitCode).not.toBe(0);
@@ -3146,7 +3146,7 @@ exit 0
 
         const failed = await runCodex(home, [], "codex", {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         });
         expect(failed.exitCode).not.toBe(0);
         await expectPathsExact(before);
@@ -3179,7 +3179,7 @@ exit 0
       await writeFile(config, "personal = true\n");
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
 
       expectSuccess(await runCodex(home, ["--light"], "codex", env));
@@ -3238,7 +3238,7 @@ exit 0
       const before = await snapshotPaths([fake.plugin, fake.marketplace, agentsPath, configPath]);
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
 
       expectSuccess(await runCodex(home, [`--rollback=${backupId}`], "codex", env));
@@ -3273,7 +3273,7 @@ exit 0
       const fake = await createStatefulCodex(home);
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
       expectSuccess(await runCodex(home, [], "codex", env));
       expect(existsSync(fake.plugin)).toBe(true);
@@ -3299,7 +3299,7 @@ exit 0
         const fake = await createStatefulCodex(home);
         const env = {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         expectSuccess(await runCodex(home, [], "codex", env));
         await Promise.all([
@@ -3334,7 +3334,7 @@ exit 0
       const fake = await createStatefulCodex(home);
       const env = {
         CC_SKIP_CODEX_CLI: "0",
-        PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(fake.bin),
       };
       expectSuccess(await runCodex(home, ["--light"], "codex", env));
       expect(existsSync(fake.plugin)).toBe(false);
@@ -3370,7 +3370,7 @@ exit 0
         await writeFile(config, "selected = true\n");
         const env = {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         expectSuccess(await runCodex(home, ["--light"], "codex", env));
         const before = new Set(await readdir(join(codexHome, "backups", "cc-settings")));
@@ -3459,9 +3459,6 @@ exit 0
       try {
         const bin = join(home, "bin");
         await mkdir(bin);
-        const bun = Bun.which("bun");
-        expect(bun).toBeTruthy();
-        await symlink(bun as string, join(bin, "bun"));
         const result = await runCodex(home, [], target, {
           CC_SKIP_CODEX_CLI: "0",
           PATH: bin,
@@ -3480,9 +3477,6 @@ exit 0
     try {
       const bin = join(home, "bin");
       await mkdir(bin);
-      const bun = Bun.which("bun");
-      expect(bun).toBeTruthy();
-      await symlink(bun as string, join(bin, "bun"));
       expectSuccess(
         await runCodex(home, ["--light"], "codex", {
           CC_SKIP_CODEX_CLI: "0",
@@ -3504,9 +3498,6 @@ exit 0
       try {
         const bin = join(home, "bin");
         await mkdir(bin);
-        const bun = Bun.which("bun");
-        expect(bun).toBeTruthy();
-        await symlink(bun as string, join(bin, "bun"));
         const result = await runCodex(home, [], target, {
           NODE_ENV: "production",
           CC_SKIP_CODEX_CLI: "1",
@@ -3539,9 +3530,6 @@ exit 0
         const backupsBefore = (await readdir(join(codexHome, "backups", "cc-settings"))).sort();
         const bin = join(home, "bin");
         await mkdir(bin);
-        const bun = Bun.which("bun");
-        expect(bun).toBeTruthy();
-        await symlink(bun as string, join(bin, "bun"));
         const args =
           operation === "light"
             ? ["--light"]
@@ -3589,7 +3577,7 @@ exit 0
           CC_SKIP_CODEX_CLI: "0",
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         expectSuccess(await runCodex(home, ["--auto-update=on"], "both", env));
         const canonicalSource = await realpath(join(codexHome, "darkroom", "source"));
@@ -3658,7 +3646,7 @@ exit 0
           CC_SKIP_CODEX_CLI: "0",
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         });
 
         expect(failed.exitCode).not.toBe(0);
@@ -3711,7 +3699,7 @@ exit 0
         const result = await runCodex(home, args, "claude", {
           CC_SKIP_SCHEDULE: "0",
           CI: "false",
-          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(bin),
         });
 
         if (operation === "uninstall") expect(result.exitCode).toBe(0);
@@ -3780,7 +3768,7 @@ exit 0
         const fake = await createStatefulCodex(home);
         const env = {
           CC_SKIP_CODEX_CLI: "0",
-          PATH: `${fake.bin}:${process.env.PATH ?? ""}`,
+          PATH: prependTestPath(fake.bin),
         };
         expectSuccess(await runCodex(home, [], "codex", env));
         const beforeIds = new Set(await readdir(join(codexHome, "backups", "cc-settings")));
