@@ -139,7 +139,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "13.16.0"; // Claude Code 2.1.237 sync: spellcheck key, ANTHROPIC_DEFAULT_MODEL
+const VERSION = "14.0.0"; // Leaner prompt surfaces and managed-file manifest v4
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 

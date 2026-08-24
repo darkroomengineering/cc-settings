@@ -6,6 +6,30 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [14.0.0] — 2026-08-24
+
+This major release changes the installed instruction surface and Claude managed-file ownership.
+
+**Prompt footprint:**
+
+- Compressed the always-on `AGENTS.md` surface from 26,445 to 15,938 bytes,
+  `CLAUDE-FULL.md` from 26,429 to 12,315 bytes, and the Darkroom output style from 5,698 to
+  3,375 bytes while preserving their guardrails.
+- Compressed skill selector descriptions from 12,230 to 9,937 bytes and agent selector
+  descriptions from 6,398 to 4,858 bytes. New byte ceilings prevent those surfaces from drifting
+  upward unnoticed.
+
+**Installer:**
+
+- Advanced the Claude managed-file manifest to v4. New installs no longer copy
+  `rules/README.md`, removing 1,475 installed bytes, and v3 installs upgrade without leaving the
+  previously managed file behind.
+
+**Portability:**
+
+- Made Bun subprocess and test helpers portable to Windows, and isolated FIFO coverage to POSIX
+  platforms where named pipes are available.
+
 **Docs:**
 
 - **Full documentation drift audit** — read every reader-facing doc in the repo in full
