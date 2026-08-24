@@ -87,6 +87,7 @@ describe("notify.ts", () => {
 describe("prune-mcp-auth-cache.ts", () => {
   const tmp = resolve(tmpdir(), "cc-mcp-auth-cache-test");
   const cachePath = resolve(tmp, "cache.json");
+  const backoffPath = resolve(tmp, "backoff.json");
 
   afterAll(async () => {
     const { rm } = await import("node:fs/promises");
@@ -99,6 +100,12 @@ describe("prune-mcp-auth-cache.ts", () => {
     await writeFile(cachePath, JSON.stringify(shape), "utf8");
   }
 
+  async function seedBackoff(shape: unknown): Promise<void> {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    await mkdir(tmp, { recursive: true });
+    await writeFile(backoffPath, JSON.stringify(shape), "utf8");
+  }
+
   async function readCache(): Promise<string | null> {
     const { readFile } = await import("node:fs/promises");
     try {
@@ -108,10 +115,21 @@ describe("prune-mcp-auth-cache.ts", () => {
     }
   }
 
+  async function readBackoffFile(): Promise<string | null> {
+    const { readFile } = await import("node:fs/promises");
+    try {
+      return await readFile(backoffPath, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
   test("missing cache → no-op, exit 0", async () => {
     const { rm } = await import("node:fs/promises");
     await rm(tmp, { recursive: true, force: true });
-    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_BACKOFF: backoffPath },
+    });
     expect(r.exit).toBe(0);
   });
 
@@ -122,7 +140,11 @@ describe("prune-mcp-auth-cache.ts", () => {
       fresh: { timestamp: now - 60 * 1000 }, // 1 min old
     });
     const r = await run("prune-mcp-auth-cache.ts", {
-      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_TTL_MS: "3600000" },
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "3600000",
+      },
     });
     expect(r.exit).toBe(0);
     const contents = await readCache();
@@ -133,7 +155,9 @@ describe("prune-mcp-auth-cache.ts", () => {
 
   test("all stale → file removed", async () => {
     await seed({ a: { timestamp: 1 }, b: { timestamp: 2 } });
-    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_BACKOFF: backoffPath },
+    });
     expect(r.exit).toBe(0);
     expect(await readCache()).toBeNull();
   });
@@ -145,7 +169,11 @@ describe("prune-mcp-auth-cache.ts", () => {
     const now = Date.now();
     await seed({ justCreated: { timestamp: now - 10 } });
     const r = await run("prune-mcp-auth-cache.ts", {
-      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_TTL_MS: "0" },
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "0",
+      },
     });
     expect(r.exit).toBe(0);
     expect(await readCache()).toBeNull();
@@ -155,9 +183,190 @@ describe("prune-mcp-auth-cache.ts", () => {
     const { mkdir, writeFile } = await import("node:fs/promises");
     await mkdir(tmp, { recursive: true });
     await writeFile(cachePath, "{not json", "utf8");
-    const r = await run("prune-mcp-auth-cache.ts", { env: { MCP_NEEDS_AUTH_CACHE: cachePath } });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_BACKOFF: backoffPath },
+    });
     expect(r.exit).toBe(0);
     expect(await readCache()).toBeNull();
+  });
+
+  test("keep-list: never-prune servers survive regardless of age", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(backoffPath, { force: true });
+    const now = Date.now();
+    await seed({
+      "claude.ai Granola": { timestamp: now - 48 * 60 * 60 * 1000 },
+      other: { timestamp: now - 48 * 60 * 60 * 1000 },
+    });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "3600000",
+        MCP_NEEDS_AUTH_PRUNE_KEEP: "claude.ai Granola",
+      },
+    });
+    expect(r.exit).toBe(0);
+    const contents = await readCache();
+    expect(contents).not.toBeNull();
+    const parsed = JSON.parse(contents ?? "{}") as Record<string, unknown>;
+    expect(Object.keys(parsed)).toEqual(["claude.ai Granola"]);
+  });
+
+  test("backoff lengthens effective TTL: entry survives past the base TTL", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(backoffPath, { force: true });
+    const now = Date.now();
+    await seedBackoff({ srv: { strikes: 2, prunedAt: 0 } });
+    await seed({ srv: { timestamp: now - 3 * 60 * 60 * 1000 } }); // 3h old
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "3600000", // 1h base; effective TTL 1h*2^2=4h
+      },
+    });
+    expect(r.exit).toBe(0);
+    const contents = await readCache();
+    expect(contents).not.toBeNull();
+    const parsed = JSON.parse(contents ?? "{}") as Record<string, unknown>;
+    expect(Object.keys(parsed)).toEqual(["srv"]);
+  });
+
+  test("backoff still prunes once age exceeds the effective TTL", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(backoffPath, { force: true });
+    const now = Date.now();
+    await seedBackoff({ srv: { strikes: 2, prunedAt: 0 } });
+    await seed({ srv: { timestamp: now - 5 * 60 * 60 * 1000 } }); // 5h old > 4h effective TTL
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "3600000",
+      },
+    });
+    expect(r.exit).toBe(0);
+    expect(await readCache()).toBeNull();
+    const backoffContents = await readBackoffFile();
+    expect(backoffContents).not.toBeNull();
+    const parsed = JSON.parse(backoffContents ?? "{}") as Record<
+      string,
+      { strikes: number; prunedAt: number }
+    >;
+    expect(parsed.srv?.strikes).toBe(2);
+    expect(parsed.srv?.prunedAt).toBeGreaterThan(0);
+  });
+
+  test("strike increment: a fresh cache entry newer than the last prune records a failed retry", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(backoffPath, { force: true });
+    const now = Date.now();
+    await seedBackoff({ srv: { strikes: 0, prunedAt: now - 60_000 } });
+    await seed({ srv: { timestamp: now - 1000 } }); // newer than prunedAt, fresh vs TTL
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "3600000",
+      },
+    });
+    expect(r.exit).toBe(0);
+    const contents = await readCache();
+    expect(contents).not.toBeNull();
+    expect(Object.keys(JSON.parse(contents ?? "{}"))).toEqual(["srv"]);
+    const backoffContents = await readBackoffFile();
+    expect(backoffContents).not.toBeNull();
+    const parsed = JSON.parse(backoffContents ?? "{}") as Record<
+      string,
+      { strikes: number; prunedAt: number }
+    >;
+    expect(parsed.srv).toEqual({ strikes: 1, prunedAt: 0 });
+  });
+
+  test("recovery: a server absent from the cache with prunedAt=0 has its sidecar entry cleared", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(backoffPath, { force: true });
+    const now = Date.now();
+    await seedBackoff({ srv: { strikes: 3, prunedAt: 0 } });
+    await seed({ unrelated: { timestamp: now - 1000 } }); // keeps the cache file present
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "3600000",
+      },
+    });
+    expect(r.exit).toBe(0);
+    expect(await readBackoffFile()).toBeNull();
+  });
+
+  test("MCP_NEEDS_AUTH_TTL_MS='0' with strikes still prunes immediately (0 * 2^n === 0)", async () => {
+    const { rm } = await import("node:fs/promises");
+    await rm(backoffPath, { force: true });
+    const now = Date.now();
+    await seedBackoff({ srv: { strikes: 5, prunedAt: 0 } });
+    await seed({ srv: { timestamp: now - 10 } });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "0",
+      },
+    });
+    expect(r.exit).toBe(0);
+    expect(await readCache()).toBeNull();
+  });
+
+  test("missing cache file is not an early exit: sidecar recovery still runs", async () => {
+    // Regression (Codex cross-review): after the pruner unlinks the last cache
+    // entry, later runs used to short-circuit on ENOENT and never clear the
+    // sidecar, so a recovered server kept its strikes forever. One absent run
+    // is ambiguous (the CLI may not have retried yet) and must preserve the
+    // entry with absentRuns=1; a second consecutive absent run proves recovery
+    // and must drop it.
+    const { rm } = await import("node:fs/promises");
+    await rm(cachePath, { force: true });
+    const now = Date.now();
+    await seedBackoff({ srv: { strikes: 2, prunedAt: now - 60_000 } });
+
+    const env = { MCP_NEEDS_AUTH_CACHE: cachePath, MCP_NEEDS_AUTH_BACKOFF: backoffPath };
+    const first = await run("prune-mcp-auth-cache.ts", { env });
+    expect(first.exit).toBe(0);
+    const afterFirst = await readBackoffFile();
+    expect(afterFirst).not.toBeNull();
+    const parsed = JSON.parse(afterFirst ?? "{}") as Record<
+      string,
+      { strikes: number; prunedAt: number; absentRuns: number }
+    >;
+    expect(parsed.srv?.strikes).toBe(2);
+    expect(parsed.srv?.absentRuns).toBe(1);
+
+    const second = await run("prune-mcp-auth-cache.ts", { env });
+    expect(second.exit).toBe(0);
+    expect(await readBackoffFile()).toBeNull();
+  });
+
+  test("re-latch during the ambiguous absent run still counts as a strike", async () => {
+    // absentRuns=1 means we saw the server absent once while a prune was
+    // pending. If the cache entry then reappears newer than the prune, that is
+    // the failed retry arriving late — strike, and absence bookkeeping resets.
+    const { rm } = await import("node:fs/promises");
+    await rm(backoffPath, { force: true });
+    const now = Date.now();
+    await seedBackoff({ srv: { strikes: 1, prunedAt: now - 120_000, absentRuns: 1 } });
+    await seed({ srv: { timestamp: now - 1000 } });
+    const r = await run("prune-mcp-auth-cache.ts", {
+      env: {
+        MCP_NEEDS_AUTH_CACHE: cachePath,
+        MCP_NEEDS_AUTH_BACKOFF: backoffPath,
+        MCP_NEEDS_AUTH_TTL_MS: "3600000",
+      },
+    });
+    expect(r.exit).toBe(0);
+    const backoffContents = await readBackoffFile();
+    expect(backoffContents).not.toBeNull();
+    expect(JSON.parse(backoffContents ?? "{}").srv).toEqual({ strikes: 2, prunedAt: 0 });
   });
 });
 

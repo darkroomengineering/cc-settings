@@ -101,6 +101,20 @@ everything).
 This is a client-side pure-Bun script and will be removed as soon as
 upstream gains a TTL.
 
+A plain TTL prune has its own side effect: a connector the user never
+authenticates (e.g. an optional "claude.ai Granola" integration) gets
+retried every TTL window forever, and each failed retry re-surfaces a
+visible "needs authentication" prompt. Two knobs address this:
+
+- `MCP_NEEDS_AUTH_PRUNE_KEEP` — comma-separated server names this hook
+  never prunes, latching them off exactly like unpatched upstream. Use it
+  for connectors you deliberately leave unauthenticated. The default in
+  `config/10-core.json` excludes `"claude.ai Granola"`.
+- `MCP_NEEDS_AUTH_MAX_TTL_MS` (default 7 days) plus a backoff sidecar at
+  `~/.claude/mcp-needs-auth-backoff.json` — each observed failed retry
+  doubles that server's effective prune TTL, up to the max, and a
+  successful reconnect resets it back to the base TTL.
+
 ## Related logs
 
 - `~/Library/Caches/claude-cli-nodejs/<project-slug>/mcp-logs-<server>/*.jsonl`
