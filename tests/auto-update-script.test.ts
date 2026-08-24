@@ -15,7 +15,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
+import { gitBashPath, prependTestPath, shellFixtureCommand } from "./support/portable-process.ts";
 
 const AUTO_UPDATE_SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "auto-update.ts");
 
@@ -70,6 +70,8 @@ async function runAutoUpdateScript(
       ...GIT_ISOLATION_ENV,
       HOME: fakeHome,
       USERPROFILE: fakeHome,
+      NODE_ENV: "test",
+      CC_SETTINGS_TEST_MODE: "auto-update",
       ...extraEnv,
     },
     stdout: "pipe",
@@ -163,6 +165,7 @@ esac
 
         const result = await runAutoUpdateScript(fakeHome, {
           PATH: prependTestPath(binDir),
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: shellFixtureCommand(join(binDir, "git")),
           FAKE_GIT_LOG: gitBashPath(gitLog),
           FAKE_HISTORY: history,
           FAKE_REPO: gitBashPath(repoDir),
@@ -227,6 +230,7 @@ esac
 
         const result = await runAutoUpdateScript(fakeHome, {
           PATH: prependTestPath(binDir),
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: shellFixtureCommand(join(binDir, "git")),
           FAKE_GIT_LOG: gitBashPath(gitLog),
           FAKE_REPO: gitBashPath(repoDir),
         });
@@ -306,6 +310,7 @@ esac
 
         const result = await runAutoUpdateScript(fakeHome, {
           PATH: prependTestPath(binDir),
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: shellFixtureCommand(join(binDir, "git")),
           FAKE_GIT_LOG: gitBashPath(gitLog),
           FAKE_SETUP: gitBashPath(stagedSetup),
           FAKE_NEW_HEAD: newHead,
@@ -328,7 +333,7 @@ esac
           "local reflog\n",
         );
         expect(await readFile(join(fakeHome, "setup-env"), "utf8")).toBe(
-          `${repoDir}\n${repoDir}\n`,
+          `${gitBashPath(repoDir)}\n${gitBashPath(repoDir)}\n`,
         );
         expect((await readLastRun(fakeHome))?.toVersion).toBe("2.0.0");
         const commands = await readFile(gitLog, "utf8");
@@ -396,6 +401,7 @@ esac
         await writeSentinel(fakeHome, repoDir);
         const result = await runAutoUpdateScript(fakeHome, {
           PATH: prependTestPath(binDir),
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: shellFixtureCommand(join(binDir, "git")),
           FAKE_HEAD: head,
           FAKE_DIFF_EXIT: mode === "dirty" ? "1" : "2",
         });
@@ -434,7 +440,10 @@ esac
         await git(["remote", "add", "origin", "/tmp/attacker-controlled-repo"], repoDir);
 
         await writeSentinel(fakeHome, repoDir);
-        const result = await runAutoUpdateScript(fakeHome);
+        const result = await runAutoUpdateScript(fakeHome, {
+          NODE_ENV: "production",
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: "not-json",
+        });
         expect(result.exit).toBe(0);
 
         const lastRun = await readLastRun(fakeHome);

@@ -2,6 +2,7 @@
 // duplicate: stdin-JSON parsing with env fallback, ~/.claude/tmp/<name>.json
 // state IO, top-level fail-open wrapper. Extracted in v11.1.1 — see CHANGELOG.
 
+import { writeSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { z } from "zod";
@@ -117,7 +118,7 @@ export function readToolInputEnv<T>(): Partial<T> {
  *  JSON on stdout. Shared by safety-net, freeze-guard, and pre-edit-validate so
  *  the block grammar cannot drift between hooks. */
 export function blockDecision(reason: string): never {
-  process.stdout.write(`${JSON.stringify({ decision: "block", reason })}\n`);
+  writeSync(1, `${JSON.stringify({ decision: "block", reason })}\n`);
   process.exit(2);
 }
 

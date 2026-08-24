@@ -130,17 +130,21 @@ describe("pre-push-proof — subprocess block protocol", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
-    const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
-    return { stdout, exitCode };
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    return { stdout, stderr, exitCode };
   }
 
   test("red battery: blocks with decision:block and a reason naming the failure", async () => {
     const home = await makeFakeHome(
-      `console.log("Proof of work: NOT review-ready\\ntypecheck: fail");\nprocess.exit(1);\n`,
+      `console.log("Proof of work: NOT review-ready\\ntypecheck: fail");\nprocess.exitCode = 1;\n`,
     );
     try {
-      const { stdout, exitCode } = await runHook(home, "git push origin main");
-      expect(exitCode).toBe(2);
+      const { stdout, stderr, exitCode } = await runHook(home, "git push origin main");
+      expect(exitCode, stderr).toBe(2);
       const parsed = JSON.parse(stdout);
       expect(parsed.decision).toBe("block");
       expect(parsed.reason).toContain("Pre-push proof gate");
@@ -157,7 +161,7 @@ describe("pre-push-proof — subprocess block protocol", () => {
   });
 
   test("green battery: allows silently (exit 0, no stdout)", async () => {
-    const home = await makeFakeHome(`process.exit(0);\n`);
+    const home = await makeFakeHome(`process.exitCode = 0;\n`);
     try {
       const { stdout, exitCode } = await runHook(home, "git push origin main");
       expect(exitCode).toBe(0);
@@ -179,7 +183,7 @@ describe("pre-push-proof — subprocess block protocol", () => {
 
   test("not a push: allows without spawning the runner", async () => {
     const home = await makeFakeHome(
-      `console.log("Proof of work: NOT review-ready");\nprocess.exit(1);\n`,
+      `console.log("Proof of work: NOT review-ready");\nprocess.exitCode = 1;\n`,
     );
     try {
       const { stdout, exitCode } = await runHook(home, "git pull");

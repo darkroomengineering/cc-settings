@@ -17,7 +17,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { prependTestPath } from "./support/portable-process.ts";
+import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SETUP_TS = join(REPO, "src", "setup.ts");
@@ -38,20 +38,22 @@ async function runCodex(
   source: string = REPO,
 ): Promise<InstallResult> {
   const codexHome = join(home, ".codex");
+  const childHome = gitBashPath(extraEnv.HOME ?? home);
+  const childCodexHome = gitBashPath(extraEnv.CODEX_HOME ?? codexHome);
   const child = Bun.spawn(
     [process.execPath, SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
     {
       env: {
         ...process.env,
-        HOME: home,
-        USERPROFILE: home,
-        CODEX_HOME: codexHome,
         NODE_ENV: "test",
         CC_SKIP_DEPS: "1",
         CC_SKIP_SCHEDULE: "1",
         CC_SKIP_CODEX_CLI: "1",
         NO_COLOR: "1",
         ...extraEnv,
+        HOME: childHome,
+        USERPROFILE: gitBashPath(extraEnv.USERPROFILE ?? home),
+        CODEX_HOME: childCodexHome,
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -1617,7 +1619,7 @@ describe("Codex installer lifecycle", () => {
         const candidates = [unresolved, `${unresolved}.ts`, join(unresolved, "index.ts")];
         const dependency = candidates.find((candidate) => existsSync(candidate));
         if (!dependency || !dependency.endsWith(".ts")) continue;
-        pending.push(relative(REPO, dependency));
+        pending.push(relative(REPO, dependency).replaceAll("\\", "/"));
       }
     }
 

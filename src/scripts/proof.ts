@@ -42,13 +42,13 @@ const advisoryLabels = [
 
 if (gates.length === 0 && advisoryLabels.length === 0) {
   console.log("Proof of work: no verify scripts (typecheck/test/lint) in package.json — skipping.");
-  process.exit(0);
+  process.exitCode = 0;
+} else {
+  console.log(`Running proof-of-work gates: ${[...gates, ...advisoryLabels].join(", ")} …\n`);
+  const cwd = process.cwd();
+  const results = await runGates(gates, cwd);
+  if (hasReactDoctor) results.push(await runReactDoctor(cwd));
+  if (hasDeslop) results.push(await runDeslop(cwd));
+  console.log(formatReport(results));
+  process.exitCode = allGreen(results) ? 0 : 1;
 }
-
-console.log(`Running proof-of-work gates: ${[...gates, ...advisoryLabels].join(", ")} …\n`);
-const cwd = process.cwd();
-const results = await runGates(gates, cwd);
-if (hasReactDoctor) results.push(await runReactDoctor(cwd));
-if (hasDeslop) results.push(await runDeslop(cwd));
-console.log(formatReport(results));
-process.exit(allGreen(results) ? 0 : 1);

@@ -23,7 +23,7 @@
 import { closeSync, existsSync, openSync, realpathSync } from "node:fs";
 import { appendFile, copyFile, lstat, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { writeState } from "../lib/hook-runtime.ts";
 import { CLAUDE_DIR, isoNow } from "../lib/platform.ts";
 import { autoUpdateLogPath, isAllowedPullSource } from "../lib/schedule.ts";
@@ -95,6 +95,36 @@ const SAFE_GIT_CONFIG = [
   "http.sslVerify=true",
 ] as const;
 
+function isAutoUpdateTest(): boolean {
+  return process.env.NODE_ENV === "test" && process.env.CC_SETTINGS_TEST_MODE === "auto-update";
+}
+
+function shellPath(path: string): string {
+  return isAutoUpdateTest() ? path.replaceAll("\\", "/") : path;
+}
+
+function gitCommand(): string[] {
+  const encoded = process.env.CC_SETTINGS_TEST_GIT_COMMAND_JSON;
+  if (!encoded || !isAutoUpdateTest()) {
+    return ["git"];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(encoded);
+  } catch {
+    throw new Error("Invalid CC_SETTINGS_TEST_GIT_COMMAND_JSON");
+  }
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length === 0 ||
+    parsed.some((part) => typeof part !== "string" || !isAbsolute(part))
+  ) {
+    throw new Error("CC_SETTINGS_TEST_GIT_COMMAND_JSON must contain absolute command paths");
+  }
+  return parsed as string[];
+}
+
 async function runIsolatedGit(
   args: string[],
   extraEnv: Record<string, string> = {},
@@ -111,8 +141,12 @@ async function runIsolatedGit(
     GIT_NO_REPLACE_OBJECTS: "1",
     ...extraEnv,
   });
+  if (isAutoUpdateTest()) {
+    if (env.HOME) env.HOME = shellPath(env.HOME);
+    if (env.USERPROFILE) env.USERPROFILE = shellPath(env.USERPROFILE);
+  }
 
-  const proc = Bun.spawn(["git", ...SAFE_GIT_CONFIG, ...args], {
+  const proc = Bun.spawn([...gitCommand(), ...SAFE_GIT_CONFIG, ...args], {
     env,
     stdin: "ignore",
     stdout: "pipe",
@@ -412,9 +446,11 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
         killSignal: "SIGKILL",
         env: {
           ...process.env,
-          PATH: `/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin:${homedir()}/.bun/bin`,
-          CC_SETTINGS_ENROLLED_REPO: repoPath,
-          CC_EXPECTED_REPO: repoPath,
+          HOME: shellPath(process.env.HOME ?? homedir()),
+          USERPROFILE: shellPath(process.env.USERPROFILE ?? homedir()),
+          PATH: `/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin:${shellPath(homedir())}/.bun/bin`,
+          CC_SETTINGS_ENROLLED_REPO: shellPath(repoPath),
+          CC_EXPECTED_REPO: shellPath(repoPath),
         },
       });
       setupExit = await setup.exited;

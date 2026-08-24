@@ -24,3 +24,10 @@ export function prependTestPath(bin: string, current = process.env.PATH ?? ""): 
 export function gitBashPath(path: string): string {
   return path.replaceAll("\\", "/");
 }
+
+/** Encode a shell fixture as an explicit Bash command for test-only process seams. */
+export function shellFixtureCommand(script: string): string {
+  const bash = Bun.which("bash");
+  if (!bash) throw new Error("Test shell fixture requires bash");
+  return JSON.stringify([bash, script]);
+}
