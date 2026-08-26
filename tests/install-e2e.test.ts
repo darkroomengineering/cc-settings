@@ -354,6 +354,17 @@ describe("setup.sh remote bootstrap", () => {
         .update(readmeBytes)
         .digest("hex");
       sentinel.managed_files_manifest_version = 3;
+      // A real v3 sentinel only lists paths the v3 manifest managed — strip
+      // entries added in later manifest versions before downgrading.
+      const v3Paths = await claudeManagedAllowedPaths(REPO, "full", 3);
+      for (const path of Object.keys(sentinel.managed_files)) {
+        if (v3Paths.has(path)) continue;
+        // Strip both the ownership entry and the installed file — a real v3
+        // machine has neither, and a leftover unowned file trips the
+        // destination-collision guard on upgrade.
+        delete sentinel.managed_files[path];
+        await rm(join(claudeDir, path), { force: true });
+      }
       await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
 
       const upgrade = await runInstall(home);
@@ -2218,6 +2229,8 @@ describe("install E2E — uninstall ownership", () => {
             "docs/README.md",
             "docs/claude-vs-codex.md",
             "docs/first-session.md",
+            "docs/motion-reference.md",
+            "docs/performance-reference.md",
             "docs/skills.md",
             "docs/system-overview.md",
             "docs/troubleshooting.md",

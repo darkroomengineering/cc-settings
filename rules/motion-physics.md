@@ -9,7 +9,7 @@ paths:
 
 > Adapted from emilkowalski/skills (MIT) — `apple-design`, `animation-vocabulary`, `emil-design-eng`.
 >
-> **Foundation:** `rules/ui-skills.md` "Animation Constraints" covers the easing tokens, duration budget, and the should-it-animate gate. This file extends those with gesture/spring physics for drag, swipe, and pointer-driven interactions, plus a naming reference.
+> **Foundation:** `rules/ui-skills.md` "Animation Constraints" covers the easing tokens, duration budget, and the should-it-animate gate. This file extends those with gesture/spring physics. Clip-path recipes, the debugging-feel workflow, and the naming table live in `~/.claude/docs/motion-reference.md` — read that when doing motion work.
 
 ## Interruptibility — the single most important rule for gesture-driven motion
 
@@ -37,13 +37,6 @@ browser's native pan/zoom from cancelling the drag — and handle `pointercancel
 `lostpointercapture` to settle the element instead of leaving it stranded
 mid-drag.
 
-```js
-el.addEventListener('pointerdown', (e) => {
-  el.setPointerCapture(e.pointerId);
-  const grabOffset = e.clientY - el.getBoundingClientRect().top; // respect where they grabbed
-});
-```
-
 ## Spring defaults
 
 Use Apple's designer-friendly parameters (`duration` + `bounce`) over raw
@@ -55,8 +48,8 @@ stiffness/damping — easier to reason about.
 ```
 
 - Default to **no overshoot** (critically damped, `bounce: 0`) for most UI.
-- Add bounce (**0.1–0.3**) only when the gesture itself carried momentum — a flick, a
-  throw, a drag release. Overshoot on a menu that just faded in feels wrong;
+- Add bounce (**0.1–0.3**) only when the gesture itself carried momentum — a flick,
+  a throw, a drag release. Overshoot on a menu that just faded in feels wrong;
   overshoot on a card you flicked feels right.
 
 ## Velocity handoff — the seam between drag and animation
@@ -66,7 +59,7 @@ velocity, so there's no visible seam between dragging and animating. Track a sho
 position/timestamp history during the drag (not just the current point) so velocity
 is available at release; pass it as the spring's initial velocity.
 
-## Momentum projection — animate to where the gesture is going, not where it stopped
+## Momentum projection — animate to where the gesture is going
 
 Don't snap to the nearest boundary from the release point. Project the resting
 position from velocity, then snap the nearest target to *that* projected point —
@@ -118,47 +111,3 @@ user controls, fast on the phase the system controls.
 - Translucent surfaces (`backdrop-filter`): pair with
   `prefers-reduced-transparency: reduce` → raise background opacity and drop the
   blur.
-
-## Debugging feel
-
-When a value can't be judged from code alone (a crossfade, a spring's bounce, the
-opacity/height balance in an entering list), don't guess:
-
-- Play at 2–5× duration, or step frame-by-frame in the browser's animation
-  inspector.
-- Test drag/swipe gestures on a real device, not just the simulator.
-- Review again the next day with fresh eyes — primed eyes pass defects that fresh
-  eyes catch.
-
-## Clip-path recipes
-
-`clip-path: inset(top right bottom left)` is the third sanctioned animatable
-property (alongside `transform`/`opacity`, see `rules/ui-skills.md`) — each value
-"eats" into the element from that side.
-
-- **Reveal** — `inset(0 100% 0 0)` → `inset(0 0 0 0)`, `ease-out`.
-- **Hold-to-confirm** — overlay at `inset(0 100% 0 0)`; on `:active`, transition to
-  `inset(0 0 0 0)` over 2s linear; on release, snap back with 200ms ease-out (pairs
-  with the asymmetric-timing rule above).
-- **Comparison slider** — clip the top image with `inset(0 <right>% 0 0)`, driving
-  `<right>` from drag position. No extra DOM nodes and no layout work — though
-  clip-path isn't compositor-guaranteed in every browser, so verify on target
-  devices when it runs during a gesture.
-
-## Vocabulary reference
-
-Reverse-lookup for naming an effect precisely — useful when writing a plan or
-briefing another agent.
-
-| Term | Meaning |
-| --- | --- |
-| Pop in | Element appears with a slight overshoot, like it bounces into place |
-| Origin-aware animation | An element animates out of its trigger instead of its own center |
-| Rubber-banding | Resistance and snap-back when dragging past a boundary |
-| Morph | One shape smoothly turns into another (e.g. Dynamic Island) |
-| Shared element transition | An element travels and transforms from one position into another |
-| Stagger | Several items animate in one after another with a small delay between each |
-| Crossfade | One element fades out as another fades in, in the same spot |
-| Direction-aware transition | Content slides one way going forward, the opposite way going back |
-| Perceptual duration | How long a spring feels finished, even though it keeps micro-settling underneath |
-| Interruptible animation | An animation that can be smoothly redirected mid-flight instead of finishing first |

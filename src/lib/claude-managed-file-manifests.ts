@@ -1,6 +1,6 @@
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 4;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 5;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -40,7 +40,9 @@ const FULL_V2 = [
   "docs/hooks-reference.md",
   "docs/install.md",
   "docs/knowledge-system.md",
+  "docs/motion-reference.md",
   "docs/parallel-batch-detection.md",
+  "docs/performance-reference.md",
   "docs/plans/knowledge-repo-migration.md",
   "docs/profiles.md",
   "docs/README.md",
@@ -431,6 +433,11 @@ const LIGHT_V2 = [
   "src/upstream/scan.ts",
 ] as const;
 
+// Files added after a version shipped must be excluded from every older
+// version so historical manifests keep describing exactly what that installer
+// copied (ownership/prune logic depends on it).
+const ADDED_IN_V5 = ["docs/motion-reference.md", "docs/performance-reference.md"];
+
 const VERSION_2_EXCLUSIONS = new Set([
   "docs/README.md",
   "docs/claude-vs-codex.md",
@@ -439,6 +446,7 @@ const VERSION_2_EXCLUSIONS = new Set([
   "docs/system-overview.md",
   "docs/troubleshooting.md",
   "src/scripts/migrate-legacy-codex-skills.ts",
+  ...ADDED_IN_V5,
 ]);
 
 const VERSION_1_EXCLUSIONS = new Set([
@@ -447,9 +455,16 @@ const VERSION_1_EXCLUSIONS = new Set([
   "src/lib/claude-managed-file-manifests.ts",
 ]);
 
-const VERSION_3_EXCLUSIONS = new Set(["docs/plans/knowledge-repo-migration.md"]);
+const VERSION_3_EXCLUSIONS = new Set([
+  "docs/plans/knowledge-repo-migration.md",
+  ...ADDED_IN_V5,
+]);
 
 const VERSION_4_EXCLUSIONS = new Set([...VERSION_3_EXCLUSIONS, "rules/README.md"]);
+
+const VERSION_5_EXCLUSIONS = new Set(
+  [...VERSION_4_EXCLUSIONS].filter((path) => !ADDED_IN_V5.includes(path)),
+);
 
 const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
   [
@@ -474,10 +489,17 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
     },
   ],
   [
-    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+    4,
     {
       full: FULL_V2.filter((path) => !VERSION_4_EXCLUSIONS.has(path)),
       light: LIGHT_V2.filter((path) => !VERSION_4_EXCLUSIONS.has(path)),
+    },
+  ],
+  [
+    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+    {
+      full: FULL_V2.filter((path) => !VERSION_5_EXCLUSIONS.has(path)),
+      light: LIGHT_V2.filter((path) => !VERSION_5_EXCLUSIONS.has(path)),
     },
   ],
 ]);

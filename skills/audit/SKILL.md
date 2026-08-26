@@ -415,7 +415,7 @@ Run the confirming measurement for every hypothesis:
 
 ### Severity — two anchors, both empirical
 
-**Budgets** (for surfaces with a named limit). Budget sources in priority order: a budget file already in the repo (`lighthouserc`, `budgets.json`, perf config) → the budgets table in `rules/performance.md` (Darkroom repos) → these defaults: LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (CWV "good"), first-load JS ≤ 150KB gzipped per route. State which source each grade used.
+**Budgets** (for surfaces with a named limit). Budget sources in priority order: a budget file already in the repo (`lighthouserc`, `budgets.json`, perf config) → the budgets table in `~/.claude/docs/performance-reference.md` (Darkroom installs; summary in `rules/performance.md`) → these defaults: LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (CWV "good"), first-load JS ≤ 150KB gzipped per route. State which source each grade used.
 
 **Leverage** (for measured costs with no named budget): measured cost per hit × how often the path is hit. A 300ms serial waterfall on every page load outranks a 2s cold start in a weekly script.
 

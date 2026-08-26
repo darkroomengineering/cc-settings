@@ -184,30 +184,6 @@ up to 500ms.
 
 ---
 
-## Code Examples
-
-### Good: Skeleton Loading
-```tsx
-function ProductCardSkeleton() {
-  return (
-    <div className="animate-pulse">
-      <div className="bg-gray-200 aspect-square rounded-lg" />
-      <div className="mt-4 h-4 bg-gray-200 rounded w-3/4" />
-      <div className="mt-2 h-4 bg-gray-200 rounded w-1/2" />
-    </div>
-  )
-}
-```
-
-### Good: Respecting Reduced Motion
-```tsx
-import gsap from 'gsap'
-
-const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-// Reduced motion means gentler, not zero: drop the movement, keep the fade
-gsap.fromTo(elementRef.current,
-  { opacity: 0, y: prefersReducedMotion ? 0 : 16 },
-  { opacity: 1, y: 0, duration: prefersReducedMotion ? 0.15 : 0.2 }
-)
-```
+Skeletons mirror the content's real layout (aspect boxes + text bars), and
+reduced motion means gentler, not zero — e.g. keep the fade, drop the `y`
+movement, shorten the duration.
