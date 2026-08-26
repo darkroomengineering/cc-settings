@@ -718,21 +718,35 @@ export function codexCliAvailable(): boolean {
   }
   // A binary named `codex` is on PATH, but proxy shims (e.g. cmux CLI shims
   // at $TMPDIR/cmux-cli-shims/.../codex) can pass the existence check while
-  // failing on invocation. Probe with `codex --version` before trusting the
-  // CLI for real plugin/marketplace queries. A 3s cap keeps a hung shim
-  // from stalling setup.
+  // failing on invocation. Probe with `codex --version` and require the
+  // output to actually look like a codex version banner, because at least
+  // one shim (cmux) prints "Error: codex not found in PATH" and still exits
+  // 0 — exit code alone is not enough. A 3s cap keeps a hung shim from
+  // stalling setup.
   try {
     const probe = Bun.spawnSync({
       cmd: ["codex", "--version"],
-      stdout: "ignore",
-      stderr: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
       timeout: 3000,
     });
-    codexCliAvailabilityMemo = probe.exitCode === 0;
+    const stdout = probe.stdout ? new TextDecoder().decode(probe.stdout) : "";
+    codexCliAvailabilityMemo = probe.exitCode === 0 && looksLikeCodexVersion(stdout);
   } catch {
     codexCliAvailabilityMemo = false;
   }
   return codexCliAvailabilityMemo;
+}
+
+/** Real `codex --version` prints a line like `codex-cli 0.15.2` or
+ *  `codex 0.15.2` — a leading `codex` token followed by a semver-ish
+ *  number. Shims that swallow the invocation with an error message do
+ *  not match. Kept as a fragment match so a future banner prefix (e.g.
+ *  `codex 0.16.0 (release build)`) still passes. Exported for direct
+ *  unit tests because the surrounding probe (spawn + Bun.which) reads
+ *  PATH via a boot-time snapshot that tests cannot override. */
+export function looksLikeCodexVersion(output: string): boolean {
+  return /\bcodex[\w-]*\s+\d+\.\d+/i.test(output);
 }
 
 const REQUIRED_SOURCE_ARTIFACTS = [

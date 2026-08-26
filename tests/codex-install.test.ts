@@ -3861,6 +3861,51 @@ describe.skipIf(process.platform === "win32")("codexCliAvailable — shim detect
     }
   });
 
+  test("shim that exits 0 with a bogus stdout is treated as unavailable", async () => {
+    // Real cmux shim behavior observed on macOS: `codex --version` prints
+    // "Error: codex not found in PATH" to STDOUT and exits 0. Exit code alone
+    // said "installed", the version-shape check now catches it.
+    const { codexCliAvailable, resetCodexCliAvailabilityMemoForTests } = await import(
+      "../src/lib/codex-install.ts"
+    );
+    const shimDir = await mkdtemp(join(tmpdir(), "cc-codex-shim-exit0-"));
+    try {
+      const shim = join(shimDir, "codex");
+      await writeFile(shim, "#!/bin/sh\necho 'Error: codex not found in PATH'\nexit 0\n");
+      await chmod(shim, 0o755);
+
+      const originalPath = process.env.PATH;
+      process.env.PATH = prependTestPath(shimDir);
+      resetCodexCliAvailabilityMemoForTests();
+      try {
+        expect(codexCliAvailable()).toBe(false);
+      } finally {
+        if (originalPath === undefined) delete process.env.PATH;
+        else process.env.PATH = originalPath;
+        resetCodexCliAvailabilityMemoForTests();
+      }
+    } finally {
+      await rm(shimDir, { recursive: true, force: true });
+    }
+  });
+
+  // Direct pure-function coverage for the version-shape check, because the
+  // enclosing spawn+Bun.which path reads PATH from a boot-time snapshot that
+  // tests cannot repoint at a fixture stub. Without this, no test would
+  // catch a future over-tightening of the regex that rejects real versions.
+  test("looksLikeCodexVersion accepts real banners, rejects shim errors", async () => {
+    const { looksLikeCodexVersion } = await import("../src/lib/codex-install.ts");
+    // Real banner shapes seen in the wild.
+    expect(looksLikeCodexVersion("codex-cli 0.15.2\n")).toBe(true);
+    expect(looksLikeCodexVersion("codex 0.16.0")).toBe(true);
+    expect(looksLikeCodexVersion("codex 0.16.0 (release build)\n")).toBe(true);
+    // The cmux shim behavior: prints an error to stdout and exits 0.
+    expect(looksLikeCodexVersion("Error: codex not found in PATH\n")).toBe(false);
+    // Empty / unrelated output.
+    expect(looksLikeCodexVersion("")).toBe(false);
+    expect(looksLikeCodexVersion("bash: codex: command not found\n")).toBe(false);
+  });
+
   test("no codex on PATH → unavailable (fast path, no spawn)", async () => {
     const { codexCliAvailable, resetCodexCliAvailabilityMemoForTests } = await import(
       "../src/lib/codex-install.ts"
