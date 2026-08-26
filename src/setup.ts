@@ -140,7 +140,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "14.0.0"; // Leaner prompt surfaces and managed-file manifest v4
+const VERSION = "15.0.0"; // Context-cost diet: lower defaults, rules diet, managed-file manifest v5
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 

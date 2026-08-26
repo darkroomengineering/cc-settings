@@ -6,6 +6,47 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.0.0] — 2026-08-26
+
+Context-cost diet: users were draining ~80% of their usage allowance in a couple
+of hours. This release lowers the standing defaults that multiplied token spend
+and shrinks the always-injected surfaces; depth stays available per session.
+
+**Default behavior (breaking for anyone relying on the old defaults):**
+
+- `CLAUDE_CODE_EFFORT_LEVEL` default `high` → `medium`. Thinking tokens are
+  output-priced and every inheriting subagent spends them; raise per session
+  with `/effort high|xhigh`. `planner` and `security-reviewer` now pin `xhigh`
+  in frontmatter.
+- `CC_PARALLELMAX_THRESHOLD` default 12 → 20 (config and the `tool-cadence`
+  code default) — each delegation re-pays a full system prompt.
+- Codex cross-model review batched: one review per PR / `/ship` / risky commit
+  instead of every diff-producing turn. The `codex-verify` hook now injects
+  `[codex:batched]`; `codex exec` bulk routing is unchanged.
+- Context guidance: treat 200K tokens as the working ceiling even on 1M-window
+  models — input past 200K bills at the long-context premium. Compact or
+  `/handoff` by ~150K. MANUAL.md and first-session tables are now token-based.
+- The installer preserves existing scalar env values, so these new defaults do
+  **not** reach existing installs on upgrade — apply them by hand
+  (`/config`, or edit `~/.claude/settings.json`) or reinstall fresh.
+
+**Prompt footprint:**
+
+- `CLAUDE-FULL.md` 12,315 → 9,286 bytes with the same policy content.
+- Skill selector descriptions 9,913 → 8,673 bytes; `SKILL_DESCRIPTION_BYTE_BUDGET`
+  tightened 10,240 → 8,704 (one-way ceiling).
+- Rules diet: `rules/` 54.0 KB → 37.6 KB. Reference material moved to
+  `docs/performance-reference.md` and `docs/motion-reference.md` (read on
+  demand); every enforcement rule and numeric value stays in the rules. A
+  single `.tsx` touch now injects ~38 KB of rules instead of ~52 KB, per
+  session and per subagent.
+
+**Installer:**
+
+- Claude managed-file manifest advanced to v5 to ship the two new reference
+  docs; historical manifest versions exclude them so ownership and upgrade
+  pruning stay accurate.
+
 ## [14.0.0] — 2026-08-24
 
 This major release changes the installed instruction surface and Claude managed-file ownership.
