@@ -1,6 +1,6 @@
 ---
 name: triage
-description: First-pass review of a client or unfamiliar repo — inspect the current checkout, sweep for glaring issues, and report ranked findings. READ-ONLY on external repos. Triggers "triage this repo", "point out glaring issues", "review the codebase and tell me what needs fixing", "first pass on this client repo".
+description: First-pass review of a client or unfamiliar repo — sweep for glaring issues, report ranked findings. READ-ONLY on external repos. Triggers "triage this repo", "point out glaring issues", "first pass on this client repo".
 context: fork
 ---
 

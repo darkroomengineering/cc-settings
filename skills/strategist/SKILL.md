@@ -1,6 +1,6 @@
 ---
 name: strategist
-description: Product strategy advice on vision, positioning, and how architecture decisions serve them. Triggers "strategist", "product strategy", "market positioning", "what should we build", "who is this for", "how should we position", "market analysis", "competitive advantage", "product direction".
+description: Product strategy advice on vision, positioning, and how architecture decisions serve them. Triggers "strategist", "product strategy", "market positioning", "what should we build", "product direction".
 allowed-tools:
   - Read
   - Grep

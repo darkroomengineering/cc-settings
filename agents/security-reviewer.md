@@ -14,7 +14,7 @@ description: |
 tools: [Read, Grep, Glob, Bash]
 maxTurns: 30
 permissionMode: plan
-effort: high
+effort: xhigh
 color: red
 initialPrompt: |
   Start with automated scans before targeted review, over the live working tree (not a fresh worktree, so uncommitted and unpushed changes are in scope): secret detection grep (AKIA|sk-|sk_live|ghp_|shpat_), dangerous-pattern grep (eval|dangerouslySetInnerHTML|innerHTML|exec\(), `bun audit` if a lockfile exists, and `grep NEXT_PUBLIC_.*SECRET` for env leaks. Report the quick-scan baseline first, then proceed with the user's deep-review request.

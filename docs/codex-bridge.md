@@ -14,7 +14,7 @@ src/lib/codex.ts              Core bridge logic (detection, execution, caching)
                                Invoked as: bun "$HOME/.claude/src/scripts/codex-run.ts" <subcommand> "..."
                                Also exposed as the /codex skill
   └─ src/hooks/codex-verify.ts SessionStart hook — probes availability, feeds statusline badge,
-                               injects the default-on routing policy when the bridge is available
+                               injects the batched routing policy when the bridge is available
   └─ agents/codex-verifier.md  Agent that fans out a parallel cross-model verification pass
 ```
 
@@ -79,7 +79,7 @@ Two roomy pools (Sonnet + Codex) carry volume. The one scarce pool (Opus) direct
 
 The routing convention above is enforced automatically, not just documented:
 
-- **Two hooks, one cache.** `src/hooks/codex-verify.ts` (a `SessionStart` hook) injects a default-on routing policy whenever the bridge is available: Codex review/exec is the default on diff-producing work, not something that only kicks in under quota pressure. The statusline writes `~/.claude/tmp/rate-limits.json` on every refresh, tagged with `updated_at`; `src/hooks/quota-steer.ts` (a `UserPromptSubmit` hook) reads that cache and ignores it once it's older than 10 minutes.
+- **Two hooks, one cache.** `src/hooks/codex-verify.ts` (a `SessionStart` hook) injects a batched routing policy whenever the bridge is available: bulk/mechanical work routes to `codex exec` by default, and cross-model review runs once per PR or `/ship` (or on a risky commit) rather than on every diff-producing turn — amended Aug 2026 to cut the per-turn verifier-agent cost. The statusline writes `~/.claude/tmp/rate-limits.json` on every refresh, tagged with `updated_at`; `src/hooks/quota-steer.ts` (a `UserPromptSubmit` hook) reads that cache and ignores it once it's older than 10 minutes.
 - **Bands.** `quota-steer.ts` computes normal / elevated / critical / exhausted from the cache — 60%/85%/95% for the five-hour window, 65%/85%/95% for the weekly window — reads the cached Codex verdict, and injects `additionalContext` escalating urgency toward Codex when it's available.
 - **Critical** (≥85%) re-reminds every 30 minutes rather than every turn.
 - **Exhausted** (≥95% of either window — the hard limit is imminent) re-injects on every prompt: bridge up → route ALL executable work to `codex exec`, keep Claude turns orchestration-only, tell the user work is being funneled to Codex until the window resets; bridge down → tell the user to pause until reset or drop to `/model sonnet`.

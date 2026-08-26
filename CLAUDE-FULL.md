@@ -12,28 +12,23 @@ Claude Code-specific rules.
 
 ## Voice for text written as the user
 
-For PRs, issues, release notes, Slack, and public text: use plain human language,
-no em dashes, no corporate tone, and no technical detail the audience does not
-need. State the real-world effect before the mechanism.
-
-- **Slack:** first line contains the ask or news. One topic per message. Name
-  the owner and deadline for requests. Prefer three short lines; link details.
-- **PR descriptions:** follow `rules/git.md` "Signal, not spam." Lead with
-  "What this does," number review order for large diffs, and give bounded,
-  checkable test-plan items.
-- **Issue descriptions:** lead with the observed effect, use numbered
-  one-action repro steps, and keep one problem per issue.
+For PRs, issues, release notes, Slack, and public text: plain human language, no
+em dashes, no corporate tone, no technical detail the audience does not need.
+State the real-world effect before the mechanism. Slack: ask or news in the
+first line, one topic per message, owner and deadline for requests. PRs: follow
+`rules/git.md` "Signal, not spam" — lead with "What this does", number review
+order for large diffs, bounded checkable test-plan items. Issues: observed
+effect first, numbered one-action repro steps, one problem per issue.
 
 ## Replies
 
 `output-styles/darkroom.md` is installed at `~/.claude/output-styles/` and set
-through `config/10-core.json` as `outputStyle: Darkroom`. Main conversations get
-that system-prompt style. Subagents do not; only `/fork` inherits it. Subagents
-instead receive the CLAUDE.md hierarchy, so keep the register below here.
-`AGENTS.md` is portable documentation and is not loaded by Claude Code.
-Built-in `Explore` and `Plan` skip CLAUDE.md too, so restate critical rules in
-their prompts. Do not move this subagent copy solely into the output style.
-Output-style changes apply after `/clear` or a new session, not mid-session.
+through `config/10-core.json`. Main conversations get that system-prompt style;
+subagents do not (only `/fork` inherits it). Subagents receive the CLAUDE.md
+hierarchy instead, so the register below stays here. Built-in `Explore` and
+`Plan` skip CLAUDE.md too — restate critical rules in their prompts.
+Output-style changes apply after `/clear` or a new session. Users opt out via
+`/config`; `bun ~/.claude/src/scripts/whats-on.ts` shows the effective style.
 
 ### Register for every reply, including subagents
 
@@ -42,15 +37,11 @@ Clarity is the target, not length. Never clip sentences or write fragments.
 - Put the subject before its description; move modifiers after the noun.
 - Prefer active voice and direct verbs. Name the actor when it matters.
 - Split sentences when combining subjects or decisions creates ambiguity.
-- Use the existing name for an existing thing. Do not coin or capitalize an
+- Use the existing name for an existing thing; do not coin or capitalize an
   ordinary phrase as a concept.
-- Use code identifiers only when pointing the reader at code; otherwise name
-  the behavior in plain language.
+- Use code identifiers only when pointing the reader at code.
 - Define necessary jargon inline on first use.
 - State the effect before the mechanism; never give the mechanism alone.
-
-Users can opt out through `/config` or their own `outputStyle` setting. Run
-`bun ~/.claude/src/scripts/whats-on.ts` to show the effective style.
 
 After three consecutive "still broken" turns in cc-settings, stop iterating.
 Name the questionable assumption and ask one diagnostic question. If a hook
@@ -59,16 +50,17 @@ that failing slice instead of retrying with the session model.
 
 ### Numbers
 
-Report a delta only when both sides were measured. Never claim savings, speedups,
-or percentages against a run that never happened. Report counts or measured
-before/after results. Label useful extrapolation `est.` and name its basis. This
-applies to summaries, PRs, `/retro`, `/proof-of-work`, and `/autoresearch`.
+Report a delta only when both sides were measured. Never claim savings or
+percentages against a run that never happened. Label extrapolation `est.` and
+name its basis. Applies to summaries, PRs, `/retro`, `/proof-of-work`, and
+`/autoresearch`.
 
 ## Delegation
 
-Before each unit of work, ask once: **3+ files, 12+ tool calls, or
-security-sensitive code?** The tool threshold is `CC_PARALLELMAX_THRESHOLD`
-(default 12) and the `tool-cadence` hook enforces it. If yes, delegate first:
+Every subagent is a fresh context that re-pays the system prompt and re-reads
+files, so delegate for scale, not by habit. Before each unit of work, ask once:
+**3+ files, 20+ tool calls, or security-sensitive code?** The tool threshold is
+`CC_PARALLELMAX_THRESHOLD` (default 20), enforced by `tool-cadence`. If yes:
 
 | Work | Route |
 |---|---|
@@ -81,171 +73,111 @@ security-sensitive code?** The tool threshold is `CC_PARALLELMAX_THRESHOLD`
 | 3+ independent workstreams | parallel Agent calls in one message (**MUST**) |
 | workers must debate while working | agent team |
 | full feature spanning 3+ agents | `maestro` |
-| work prone to premature stopping, self-review bias, or compaction drift | dynamic workflow or `/effort ultracode`; see `skills/orchestrate/SKILL.md` |
+| premature-stopping or self-review-bias risk | dynamic workflow or `/effort ultracode`; see `skills/orchestrate/SKILL.md` |
 
-If no threshold fires, work directly: 1–2 file edits, known-path reads, one
-search, builds/tests, and conversational answers do not need delegation.
-
-1. Re-evaluate when scope grows. Crossing a threshold means delegate the rest.
-2. State one reason before overriding a yes; sunk tool calls are not a reason.
-3. Delegation needs no narration: call Agent.
-4. Start independent delegations together.
-5. Give **every parallel writer** `isolation: "worktree"`; readers need none.
-   Writers otherwise corrupt a shared diff. Do not isolate a lone implementer.
-   Review and land each returned worktree separately. After landing or
-   discarding it, remove the worktree with `git worktree remove --force PATH`
-   and delete its `worktree-agent-*` branch. Written worktrees persist; cleanup
-   belongs to you.
-6. Resume an existing agent with `SendMessage`; do not respawn and discard its
-   reasoning. Respawn only for a deliberately cold review or second opinion.
-
-`SendMessage` also reaches live Claude Code sessions shown by `/list-agents` or
-`/peers`. Send only plain text; files and history do not cross, and a message
-requests work but never grants permissions. An exact live-session name routes
-directly; duplicate names receive a unique suffix. `@` mentions sessions.
-Other-machine sessions are reply-only. This works on macOS and Linux, not
-Bedrock, Vertex, or Foundry. See `docs/settings-reference.md`.
+If no threshold fires, work directly. Re-evaluate when scope grows; state one
+reason before overriding a yes. Start independent delegations together. Give
+**every parallel writer** `isolation: "worktree"` (readers need none; do not
+isolate a lone implementer); review and land each worktree separately, then
+`git worktree remove --force PATH` and delete its `worktree-agent-*` branch.
+Resume an existing agent with `SendMessage` instead of respawning — a respawn
+repurchases its whole context; respawn only for a deliberately cold second
+opinion. `SendMessage` also reaches live sessions (`/list-agents`, `/peers`):
+plain text only, no permission grants; see `docs/settings-reference.md`.
 
 ### Agent teams
 
-`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` makes teams available but not
-automatic. Use a team only when workers need to see, challenge, or build on one
-another's findings while working. Use parallel Agent calls for independent
-results. Cost is not the deciding factor; debate is.
-
-Team constraints:
-
-1. Teammate permission prompts appear in the lead session; stay present.
-2. `/resume` and `/rewind` do not restore teammates; teams end with the session.
-3. Teammates cannot create nested teams, so teammate `maestro` cannot fan out.
-4. Teammates share files. Assign distinct ownership; two writers on one file
-   overwrite each other and teammate calls cannot request worktree isolation.
-
-`TeamCreate` and `TeamDelete` no longer exist. The first teammate forms the
-team; session end cleans its directories. See `docs/feature-agents-guide.md`.
+Teams are available (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`) but not automatic:
+use one only when workers must see and challenge one another's findings; use
+parallel Agent calls for independent results. Teammate permission prompts land
+in the lead session; `/resume` does not restore teammates; teammates cannot
+nest teams and share files — assign distinct file ownership. See
+`docs/feature-agents-guide.md`.
 
 ### Implementer briefing contract
 
-An implementer receives only its prompt. Every prompt **MUST** include actual
-content, never references to earlier findings:
-
-1. the user's original ask verbatim;
-2. exact file paths and line ranges;
-3. the concrete change or pasted plan/fix, never "based on findings";
-4. verification commands and machine-checkable expected output;
-5. off-limits scope;
-6. conditions that require stopping instead of improvising;
-7. for port/adapt/migrate/clone work, the source artifact and version, required
-   fidelity, allowed deviations, and "STOP if the source cannot be read";
-8. prior attempts, rejected approaches, and why when work has history.
-
-Thin prompts cause regressions and must be refused. The implementer edits the
-live worktree, leaves changes uncommitted, and reports verification plus changed
-files. Full contract: `agents/implementer.md`. It also applies to
-`explore → implementer` and `planner → implementer` chains.
+An implementer receives only its prompt. Every prompt **MUST** inline: the
+user's ask verbatim; exact paths and line ranges; the concrete change (never
+"based on findings"); verification commands with expected output; off-limits
+scope; stop conditions; for port/migrate work the source artifact, fidelity,
+and "STOP if the source cannot be read"; prior attempts and why they failed.
+Thin prompts must be refused. The implementer leaves changes uncommitted and
+reports verification plus changed files. Full contract: `agents/implementer.md`.
 
 ## Autonomy
 
-Act first and report afterward for reversible work inside the approved scope,
-including:
+Act first, report after, for reversible work in the approved scope: defects
+found during requested work; dependency bumps that pass checks; branch cleanup
+after a merge; scoped CI fixes on an approved PR; doc-only commits; one rerun
+of a flaky check. This is a floor, not a whitelist.
 
-- defects found during requested work;
-- dependency bumps that pass typecheck and tests;
-- local and remote branch cleanup after a merge;
-- scoped fixes for failing CI on an approved PR;
-- doc-only or changelog-only commits;
-- one rerun of a flaky check.
-
-This is a floor, not a whitelist. Ask only where required below.
-
-**Always ask:** any work in a repository outside `darkroomengineering` (never
-open an external/agency PR; report findings only), force-push or history rewrite,
-deletion outside the pre-approved list, and any publish, release, or other
-action visible outside the team.
-
-For full orchestration, use `profiles/maestro.md`. Agent model routing lives in
-`docs/agent-models.md`.
+**Always ask:** work in repositories outside `darkroomengineering` (report
+findings only, never open an external PR), force-push or history rewrite,
+deletion outside the pre-approved list, and anything visible outside the team
+(publish, release).
 
 ## Claude and Codex routing
 
-The `/codex` skill and `codex-verifier` agent bridge to the OpenAI Codex CLI.
-They no-op unless Codex is installed and authenticated. Status shows
-`codex ✓`, `auth?`, or `⏳`; see `docs/codex-bridge.md`.
+The `/codex` skill and `codex-verifier` agent bridge to the OpenAI Codex CLI;
+they no-op unless installed and authenticated (`docs/codex-bridge.md`).
 
-- **Opus:** planning, synthesis, and gate decisions; never tight loop bodies.
-- **Sonnet:** loop bodies and most fan-out agents. The default subagent model is
-  already Sonnet; pin each invocation because `/loop` has no model setting.
-- **Codex:** default-on cross-model diff review and batched bulk/mechanical work.
-  The `codex-verify` SessionStart hook injects the current policy and commands.
-  If absent, the bridge is down: proceed Claude-only. Always review Codex's diff.
+- **Opus/Fable:** planning, synthesis, gate decisions; never tight loop bodies.
+- **Sonnet:** loop bodies and most fan-out agents (already the subagent
+  default; pin `/loop` invocations explicitly).
+- **Codex:** batched bulk/mechanical work, plus **one cross-model review per PR
+  or `/ship`** — not per diff-turn. The `codex-verify` SessionStart hook injects
+  the current policy; if absent, the bridge is down — proceed Claude-only.
+  Always review Codex's diff.
 
-Route by available quota. If Codex drains, continue Claude-only. The statusline
-stores Claude limits in `~/.claude/tmp/rate-limits.json`. `quota-steer` increases
-routing urgency at 5h ≥60% or weekly ≥65%. At either limit ≥95%, route **ALL**
-executable work to Codex; if the bridge is down, pause or switch to Sonnet, and
-tell the user. The statusline then shows `→codex`.
+Route by available quota. The statusline caches limits in
+`~/.claude/tmp/rate-limits.json`; `quota-steer` raises routing urgency at
+5h ≥60% or weekly ≥65%. At either ≥95%, route ALL executable work to Codex; if
+the bridge is down, pause or switch to Sonnet and tell the user.
 
 ## Effort and context
 
-`CLAUDE_CODE_EFFORT_LEVEL` pins the default at `high`. `/effort xhigh` changes a
-session; `ultrathink` raises one turn. Agent frontmatter can set `effort`.
+`CLAUDE_CODE_EFFORT_LEVEL` pins the default at `medium` — thinking tokens are
+output-priced and every inheriting agent spends them. Raise deliberately:
+`/effort high` for hard non-coding reasoning, `/effort xhigh` for audits,
+migrations, and hard debugging, `ultrathink` for one turn. Agent frontmatter
+pins effort where depth is non-negotiable (`security-reviewer`, `planner`).
+`ultracode`: session-only `xhigh` plus automatic dynamic workflows (2.1.154+).
 
-- `low`: trivial, latency-sensitive lookups.
-- `medium`: routine edits that do not need depth.
-- `high`: default for non-coding intelligence.
-- `xhigh`: audits, migrations, and hard debugging.
-- `max`: extreme cases only; it often overthinks.
-- `ultracode`: session-only `xhigh` plus automatic dynamic workflows; requires
-  Claude Code 2.1.154+ and resets when the session ends.
-
-Higher effort spends more thinking tokens for every inheriting agent. Raise
-effort when `low` or `medium` under-thinks; do not compensate with prompt hacks.
-
-The default `claude-opus-5` model has a native 1M-token Max context; subagents
-inherit it. Compact manually at 65% rather than waiting for auto-compaction.
-Break subtasks to finish within 45%. After compaction, re-read the plan and
-active files per AGENTS.md. The prompt cache expires after five idle minutes;
-use `/clear` between unrelated tasks and `/handoff` for long sessions. Output is
-64K tokens by default and 128K maximum. See `docs/agent-models.md`.
+Treat **200K tokens as the working context ceiling even on a 1M-window model**:
+input above 200K bills at the long-context premium, and giant contexts are the
+main driver of drained usage limits. `/clear` between unrelated tasks; compact
+or `/handoff` by ~150K; break subtasks to finish within that. Reserve a `[1m]`
+model for sessions that genuinely need it, via `/model`, and drop it after.
+After compaction, re-read the plan and active files per AGENTS.md. Output is
+64K tokens by default, 128K maximum. See `docs/agent-models.md`.
 
 ## Hardware and platform recommendations
 
 Before recommending tools or steps for hardware, firmware, OS, docks, or
-filesystem compatibility, web-search the exact model and platform. Verify:
-
-1. the tool exists for that platform, including Apple Silicon where relevant;
-2. the hardware supports the assumed licensed or chipset-gated feature;
-3. platform restrictions such as Hypervisor.framework PCIe passthrough limits,
-   unsigned-kext rejection, or iOS raw-USB restrictions.
-
-This rule covers consumer hardware and platform integration. Library and
-framework questions still use context7.
+filesystem compatibility, web-search the exact model and platform: confirm the
+tool exists there (including Apple Silicon), the hardware supports the assumed
+licensed or chipset-gated feature, and no platform restriction blocks it.
+Library and framework questions still use context7.
 
 ## Reference
 
-- Profiles: `docs/profiles.md`
-- TLDR: `docs/tldr-cheatsheet.md`
+- Profiles: `docs/profiles.md` · TLDR: `docs/tldr-cheatsheet.md`
 - Hooks and `if` filtering: `docs/hooks-reference.md`
 - Agent frontmatter: `docs/frontmatter-reference.md`
 - Knowledge system: `docs/knowledge-system.md`
 - Agent teams: `docs/feature-agents-guide.md`
 
-The native Skill tool handles matching.
-
 ### Hook supply-chain defense
 
-`setup.sh` fingerprints the merged hooks block in `~/.claude/settings.json`.
-`verify-hooks.ts` checks it at SessionStart and warns on mismatch.
-`bun run audit:hooks` classifies commands as trusted, unknown, or suspicious and
-exits 1 for suspicious hooks. The installer preserves custom hooks; after an
-intentional change, rerun `setup.sh` to refresh the fingerprint. The auditor
-must never refresh its own fingerprint. See `SECURITY.md`.
+`setup.sh` fingerprints the merged hooks block in `~/.claude/settings.json`;
+`verify-hooks.ts` checks it at SessionStart. `bun run audit:hooks` classifies
+hook commands and fails on suspicious ones. After an intentional hook change,
+rerun `setup.sh` to refresh the fingerprint; the auditor never refreshes its
+own. See `SECURITY.md`.
 
 ### Skill library ratchets
 
 The managed library contains exactly 38 skills. `SKILL_COUNT_BASELINE` in
-`src/lib/lint-skills.ts` fails when the count rises **or falls**; consolidation
-or a reviewed baseline change must accompany every movement. The same command
-checks naming, frontmatter, and `ACTIVE_SKILLS` parity. The description-byte
-ceiling is one-way: tighten the longest descriptions when it fails; do not raise
-the ceiling to accommodate drift. `bun run lint:skills` enforces both in CI.
+`src/lib/lint-skills.ts` fails when the count moves either way. The
+description-byte ceiling is one-way: tighten the longest descriptions when it
+fails; never raise the ceiling. `bun run lint:skills` enforces both in CI.

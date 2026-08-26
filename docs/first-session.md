@@ -82,15 +82,16 @@ need that exact workflow. The documentation does not assume an unverified comman
 
 ## 5. Protect long sessions
 
-The active Claude guidance uses 65 percent as the manual compaction point. Save state before the
-window becomes crowded.
+The active Claude guidance treats ~200K tokens as the working ceiling even on a 1M-window model —
+input past 200K bills at the long-context premium and drains usage limits fastest. Save state
+before the window becomes crowded.
 
 | Context use | Action |
 |---|---|
-| Below 65% | Work normally |
-| 65-79% | Save a checkpoint; compact or prepare a handoff |
-| 80-89% | Stop expanding scope and run `/handoff` |
-| 90%+ | Run `/handoff` immediately |
+| Below ~120K tokens | Work normally |
+| ~120-150K | Save a checkpoint; compact or prepare a handoff |
+| ~150-200K | Stop expanding scope and run `/handoff` |
+| 200K+ | Run `/handoff` immediately |
 
 Use `checkpoint` for a reversible mid-task snapshot. Use `handoff` to transfer the whole session to
 a later session. In Codex, pin those skills with `$checkpoint` and `$handoff`.

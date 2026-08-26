@@ -1,6 +1,6 @@
 ---
 name: review-batch
-description: Batch-review the diffs from several agents in one sitting with per-change re-entry cards and reading diffs (the real diff, abridged — never a prose-only summary). Triggers "review batch", "review all the agents", "what's pending review", "batch review", "catch up on agent work", "reading diff", or after fanning out several agents.
+description: Batch-review diffs from several agents with per-change re-entry cards and reading diffs (real diff, abridged). Triggers "review batch", "batch review", "what's pending review", "reading diff", or after fanning out several agents.
 ---
 
 # Review Batch

@@ -1,11 +1,11 @@
-// src/hooks/codex-verify.ts — SessionStart default-on policy injection.
+// src/hooks/codex-verify.ts — SessionStart batched routing policy injection.
 //
 // The hook is spawned as a subprocess with a sandboxed HOME (same pattern as
 // tests/promote-memory.test.ts) so it never touches the real ~/.claude state.
 //
 //   - "available" verdict pre-seeded in the state cache → refreshCodexVerdict
 //     short-circuits on the fresh-"available" TTL path (no live spawn needed),
-//     and the hook must emit additionalContext containing "codex:default-on".
+//     and the hook must emit additionalContext containing "codex:batched".
 //   - any other verdict (here: no cache + PATH stripped so `codex` can't be
 //     found, forcing a deterministic "not-installed" live check) → the hook
 //     must emit no additionalContext at all.
@@ -56,8 +56,8 @@ async function seedVerdict(home: string, verdict: Record<string, unknown>): Prom
   await writeFile(join(dir, "codex-verdict.json"), JSON.stringify(verdict), "utf8");
 }
 
-describe("codex-verify.ts — default-on policy injection", () => {
-  test("state 'available' (fresh cache) → emits additionalContext with codex:default-on", async () => {
+describe("codex-verify.ts — batched routing policy injection", () => {
+  test("state 'available' (fresh cache) → emits additionalContext with codex:batched", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-codexverify-avail-"));
     try {
       await seedVerdict(home, {
@@ -68,11 +68,11 @@ describe("codex-verify.ts — default-on policy injection", () => {
       const { stdout, exit } = await runHook(home);
       expect(exit).toBe(0);
       expect(stdout).toContain("additionalContext");
-      expect(stdout).toContain("codex:default-on");
+      expect(stdout).toContain("codex:batched");
 
       const parsed = JSON.parse(stdout.trim()) as HookOutput;
       expect(parsed.hookSpecificOutput?.hookEventName).toBe("SessionStart");
-      expect(parsed.hookSpecificOutput?.additionalContext).toContain("codex:default-on");
+      expect(parsed.hookSpecificOutput?.additionalContext).toContain("codex:batched");
     } finally {
       await rm(home, { recursive: true, force: true });
     }
@@ -84,7 +84,7 @@ describe("codex-verify.ts — default-on policy injection", () => {
       const { stdout, exit } = await runHook(home, { stripPath: true });
       expect(exit).toBe(0);
       expect(stdout.trim()).toBe("");
-      expect(stdout).not.toContain("codex:default-on");
+      expect(stdout).not.toContain("codex:batched");
     } finally {
       await rm(home, { recursive: true, force: true });
     }

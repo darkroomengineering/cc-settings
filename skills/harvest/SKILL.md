@@ -1,6 +1,6 @@
 ---
 name: harvest
-description: Turn proven session behavior into a reviewed skill, rule, profile, AGENTS.md diff, or team learning using witnesses, a contract, blind traps, and PASS/FAIL/INCONCLUSIVE; skill artifacts seed /autoresearch. Triggers "harvest this workflow", "turn this session into a skill", "preserve this behavior", "model handoff", "before we lose access to this model".
+description: Turn proven session behavior into a skill, rule, profile, AGENTS.md diff, or team learning; artifacts seed /autoresearch evals. Triggers "harvest this workflow", "turn this session into a skill", "preserve this behavior", "model handoff".
 context: fork
 argument-hint: "[what to harvest]"
 ---

@@ -419,7 +419,7 @@ Logs are used by `bun run claude-audit` to analyze command patterns, security co
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls and distinct file edits per streak. **One nudge per streak**: fires at threshold 12 calls OR 3+ files edited — emits a compact `additionalContext` reminder with the delegation heuristic. **One escalation per streak**: if the streak continues past the nudge by another threshold-worth of calls or 2+ more files, emits a soft block (`continueOnBlock: true`) via `blockDecision` — the turn continues but the signal is hard to ignore. Both signals suppress when the review queue is at capacity. Resets on any Agent call. 60s debounce. State at `~/.claude/tmp/parallelmax-counter.json`. `CC_PARALLELMAX_THRESHOLD` env override (default 12). | No |
+| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls and distinct file edits per streak. **One nudge per streak**: fires at threshold 20 calls OR 3+ files edited — emits a compact `additionalContext` reminder with the delegation heuristic. **One escalation per streak**: if the streak continues past the nudge by another threshold-worth of calls or 2+ more files, emits a soft block (`continueOnBlock: true`) via `blockDecision` — the turn continues but the signal is hard to ignore. Both signals suppress when the review queue is at capacity. Resets on any Agent call. 60s debounce. State at `~/.claude/tmp/parallelmax-counter.json`. `CC_PARALLELMAX_THRESHOLD` env override (default 20; raised from 12 Aug 2026 — each delegation re-pays a full system prompt). | No |
 
 ### PostToolBatch
 

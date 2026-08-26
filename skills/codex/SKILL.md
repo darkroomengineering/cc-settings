@@ -108,7 +108,7 @@ Runs in a `read-only` sandbox. Use for quick factual questions, architecture opi
 - `review` and `ask` are read-only and cheap — use them freely as a cross-check.
 - If the script reports the bridge is unavailable (not installed, not logged in, or rate-limited), continue Claude-only. Do not block the session.
 - Sessions get automatic steering: the `quota-steer` hook injects a routing reminder when Claude usage crosses 60% (5-hour) or 65% (weekly). If you see that reminder, prefer `exec`/`review` here over spawning Claude subagents.
-- The `codex-verify` SessionStart hook also injects a default-on routing policy whenever the bridge is available, so Codex review/exec is the default on diff-producing work, not just under quota pressure.
+- The `codex-verify` SessionStart hook also injects a batched routing policy whenever the bridge is available: `exec` is the default for bulk/mechanical work, and one cross-model `review` runs per PR or `/ship` (or on a risky commit), not on every diff-producing turn.
 
 ---
 

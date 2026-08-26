@@ -199,10 +199,10 @@ failures, and next actions to another session. The canonical lifecycle is:
 
 | Context use | Action |
 |---|---|
-| Below 65% | Work normally |
-| 65-79% | Save a checkpoint; compact or prepare a handoff |
-| 80-89% | Stop expanding scope and run `handoff` |
-| 90%+ | Run `handoff` immediately |
+| Below ~120K tokens | Work normally |
+| ~120-150K | Save a checkpoint; compact or prepare a handoff |
+| ~150-200K | Stop expanding scope and run `handoff` |
+| 200K+ | Run `handoff` immediately — past 200K input every request bills at the long-context premium |
 
 ### Restrict edit scope
 

@@ -1,7 +1,7 @@
 ---
 name: audit
 argument-hint: "[codebase|docs|process|performance|debt|threat-model|motion|seo]"
-description: Eight whole-repo audit modes. Codebase covers structure + correctness and owns bare "audit the codebase". Triggers "nuclear review", "code judo", "whole codebase review", "adversarial audit", "fable audit", "correctness audit". Docs/process covers drift + walkable journeys. Triggers "audit the docs", "doc drift", "process audit". Performance requires measured findings. Triggers "perf audit", "why is it slow", "bundle audit". Threat-model covers abuse/STRIDE. Triggers "threat model", "attack surface". Motion covers animation. Triggers "motion audit". SEO covers discoverability/AEO. Triggers "seo audit", "aeo", "answer engine", "llms.txt". Debt inventories `SHORTCUT:`. Triggers "debt ledger", "shortcut ledger". Single-page CWV fix loops route to /lighthouse.
+description: 'Eight audit modes (codebase — owns "audit the codebase" — docs/process, performance, threat-model, motion, SEO, debt). Triggers "nuclear review", "whole codebase review", "adversarial audit", "fable audit", "correctness audit", "audit the docs", "doc drift", "process audit", "perf audit", "why is it slow", "bundle audit", "threat model", "attack surface", "motion audit", "seo audit", "aeo", "llms.txt", "debt ledger", "shortcut ledger". Single-page CWV routes to /lighthouse.'
 context: main
 requires:
   - mcp: context7

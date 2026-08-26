@@ -41,7 +41,7 @@ Environment variables injected into every Claude Code session.
 ```json
 {
   "env": {
-    "CLAUDE_CODE_EFFORT_LEVEL": "high",
+    "CLAUDE_CODE_EFFORT_LEVEL": "medium",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }
@@ -49,7 +49,7 @@ Environment variables injected into every Claude Code session.
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins the cost-conscious `high` level. Raise to `/effort xhigh` per session for audits, migrations, or hard debugging; inheriting subagents use the same raised depth unless their agent config overrides it. See the [model configuration guide](https://code.claude.com/docs/en/model-config#choose-an-effort-level) |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins `medium` — thinking tokens are output-priced and every inheriting subagent spends them. Raise per session: `/effort high` for hard non-coding reasoning, `/effort xhigh` for audits, migrations, or hard debugging; inheriting subagents use the same raised depth unless their agent config overrides it. See the [model configuration guide](https://code.claude.com/docs/en/model-config#choose-an-effort-level) |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode with flat plain-text rendering; env counterpart of `axScreenReader` / `--ax-screen-reader` |
 | `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper |

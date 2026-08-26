@@ -48,10 +48,12 @@ import {
 } from "../lib/review-queue.ts";
 
 // Consecutive non-Agent tool calls before the delegation nudge fires.
-// Env-overridable (CC_PARALLELMAX_THRESHOLD); default 12 — high enough that
+// Env-overridable (CC_PARALLELMAX_THRESHOLD); default 20 — high enough that
 // routine multi-step edits don't trip it, low enough to catch genuine
-// "should have fanned out" runs.
-const THRESHOLD = intEnv("CC_PARALLELMAX_THRESHOLD", 12);
+// "should have fanned out" runs. Raised from 12 (Aug 2026): every delegation
+// spawns a fresh context that re-pays the system prompt, so the nudge should
+// fire on genuinely large runs, not medium ones.
+const THRESHOLD = intEnv("CC_PARALLELMAX_THRESHOLD", 20);
 // Distinct file edits before the nudge fires (regardless of call count).
 const FILES_THRESHOLD = 3;
 const DEBOUNCE_MS = 60_000;
