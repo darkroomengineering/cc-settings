@@ -1557,7 +1557,7 @@ describe("Codex installer lifecycle", () => {
         const fakeCodex = join(bin, "codex");
         await writeFile(
           fakeCodex,
-          '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  remove:*|marketplace:remove) echo "unrecognized subcommand" >&2; exit 1;;\nesac\nexit 0\n',
+          '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\nesc() { printf \'%s\' "$1" | sed \'s/\\\\/\\\\\\\\/g\'; }\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  remove:*|marketplace:remove) echo "unrecognized subcommand" >&2; exit 1;;\nesac\nexit 0\n',
         );
         await chmod(fakeCodex, 0o755);
 
@@ -1766,7 +1766,7 @@ describe("Codex installer lifecycle", () => {
       const fakeCodex = join(bin, "codex");
       await writeFile(
         fakeCodex,
-        '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$HOME/.fake-codex-first-install-calls"\nplugin="$HOME/.fake-plugin-installed"\nmarket="$HOME/.fake-marketplace-installed"\nsource="$CODEX_HOME/darkroom/source"\ncase "$2:$3" in\n  list:*) if [ -e "$plugin" ]; then printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; else printf \'{"installed":[]}\\n\'; fi; exit 0;;\n  marketplace:list) if [ -e "$market" ]; then printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; else printf \'{"marketplaces":[]}\\n\'; fi; exit 0;;\n  marketplace:add) touch "$market"; exit 0;;\n  add:*) touch "$plugin"; mkdir "$CODEX_HOME/.cc-settings-version"; exit 0;;\n  marketplace:remove) rm -f "$market"; exit 0;;\n  remove:*) rm -f "$plugin"; exit 0;;\nesac\nexit 0\n',
+        '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$HOME/.fake-codex-first-install-calls"\nplugin="$HOME/.fake-plugin-installed"\nmarket="$HOME/.fake-marketplace-installed"\nsource="$CODEX_HOME/darkroom/source"\nesc() { printf \'%s\' "$1" | sed \'s/\\\\/\\\\\\\\/g\'; }\ncase "$2:$3" in\n  list:*) if [ -e "$plugin" ]; then printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; else printf \'{"installed":[]}\\n\'; fi; exit 0;;\n  marketplace:list) if [ -e "$market" ]; then printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; else printf \'{"marketplaces":[]}\\n\'; fi; exit 0;;\n  marketplace:add) touch "$market"; exit 0;;\n  add:*) touch "$plugin"; mkdir "$CODEX_HOME/.cc-settings-version"; exit 0;;\n  marketplace:remove) rm -f "$market"; exit 0;;\n  remove:*) rm -f "$plugin"; exit 0;;\nesac\nexit 0\n',
       );
       await chmod(fakeCodex, 0o755);
 
@@ -1858,6 +1858,7 @@ describe("Codex installer lifecycle", () => {
         await writeFile(
           fakeCodex,
           `#!/bin/sh
+esc() { printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g'; }
 case "$2:$3" in
   list:*) printf '{"installed":[]}\\n'; exit 0;;
   marketplace:list) printf '{"marketplaces":[]}\\n'; exit 0;;
@@ -1911,9 +1912,10 @@ plugin="$HOME/.fake-plugin-installed"
 market="$HOME/.fake-marketplace-installed"
 source="$CODEX_HOME/darkroom/source"
 printf '%s\n' "$*" >> "$HOME/.fake-codex-post-add-calls"
+esc() { printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g'; }
 case "$2:$3" in
-  list:*) [ -e "$plugin" ] && printf '{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$source" "$source" || printf '{"installed":[]}\n'; exit 0;;
-  marketplace:list) [ -e "$market" ] && printf '{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$source" "$source" || printf '{"marketplaces":[]}\n'; exit 0;;
+  list:*) [ -e "$plugin" ] && printf '{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(esc "$source")" "$(esc "$source")" || printf '{"installed":[]}\n'; exit 0;;
+  marketplace:list) [ -e "$market" ] && printf '{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(esc "$source")" "$(esc "$source")" || printf '{"marketplaces":[]}\n'; exit 0;;
   marketplace:add) printf '%s\n' "$source" > "$market"; exit 0;;
   add:*) printf '${concurrentAgents}' > "$CODEX_HOME/AGENTS.md"; printf '${concurrentConfig}' > "$CODEX_HOME/config.toml"; touch "$plugin" "$HOME/.codex-post-add-edit-fired"; mkdir "$CODEX_HOME/.cc-settings-version"; exit 0;;
   remove:*) rm -f "$plugin"; exit 0;;
@@ -1981,9 +1983,10 @@ exit 0
 source="$CODEX_HOME/darkroom/source"
 plugin="$HOME/.fake-plugin-installed"
 market="$HOME/.fake-marketplace-installed"
+esc() { printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g'; }
 case "$2:$3" in
-  list:*) [ -e "$plugin" ] && printf '{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(cat "$plugin")" "$(cat "$plugin")" || printf '{"installed":[]}\n'; exit 0;;
-  marketplace:list) [ -e "$market" ] && printf '{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(cat "$market")" "$(cat "$market")" || printf '{"marketplaces":[]}\n'; exit 0;;
+  list:*) [ -e "$plugin" ] && printf '{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(esc "$(cat "$plugin")")" "$(esc "$(cat "$plugin")")" || printf '{"installed":[]}\n'; exit 0;;
+  marketplace:list) [ -e "$market" ] && printf '{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(esc "$(cat "$market")")" "$(esc "$(cat "$market")")" || printf '{"marketplaces":[]}\n'; exit 0;;
   remove:*) printf '${concurrentSettings}' > "$HOME/.claude/settings.json"; printf '${concurrentGlobal}' > "$HOME/.claude.json"; rm -f "$HOME/.claude/.cc-settings-version"; mkdir "$HOME/.claude/.cc-settings-version"; touch "$HOME/.codex-edited-claude-settings"; rm -f "$plugin"; exit 0;;
   add:*) realpath "$source" > "$plugin"; exit 0;;
 esac
@@ -2066,9 +2069,10 @@ exit 0
 plugin="$HOME/.fake-plugin-installed"
 market="$HOME/.fake-marketplace-installed"
 source="$CODEX_HOME/darkroom/source"
+esc() { printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g'; }
 case "$2:$3" in
-  list:*) [ -e "$plugin" ] && printf '{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(cat "$plugin")" "$(cat "$plugin")" || printf '{"installed":[]}\n'; exit 0;;
-  marketplace:list) [ -e "$market" ] && printf '{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(cat "$market")" "$(cat "$market")" || printf '{"marketplaces":[]}\n'; exit 0;;
+  list:*) [ -e "$plugin" ] && printf '{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(esc "$(cat "$plugin")")" "$(esc "$(cat "$plugin")")" || printf '{"installed":[]}\n'; exit 0;;
+  marketplace:list) [ -e "$market" ] && printf '{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\n' "$(esc "$(cat "$market")")" "$(esc "$(cat "$market")")" || printf '{"marketplaces":[]}\n'; exit 0;;
   marketplace:add) realpath "$source" > "$market"; exit 0;;
   marketplace:remove) rm -f "$market"; exit 0;;
   add:*) if [ "${failingAction}" = add ] && [ ! -e "$HOME/.codex-early-failure-fired" ]; then printf '${concurrentSettings}' > "$HOME/.claude/settings.json"; printf '${concurrentGlobal}' > "$HOME/.claude.json"; realpath "$source" > "$plugin"; touch "$HOME/.codex-early-failure-fired"; echo plugin add failure >&2; exit 1; fi; realpath "$source" > "$plugin"; exit 0;;
@@ -2120,7 +2124,7 @@ exit 0
       const fakeCodex = join(bin, "codex");
       await writeFile(
         fakeCodex,
-        '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  add:*) printf \'{bad\' > "$HOME/.claude.json"; if [ -e "$HOME/.codex-mutated-before-claude-failure" ]; then touch "$HOME/.codex-restore-failed"; echo restore failure >&2; exit 1; fi; touch "$HOME/.codex-mutated-before-claude-failure"; exit 0;;\nesac\nexit 0\n',
+        '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\nesc() { printf \'%s\' "$1" | sed \'s/\\\\/\\\\\\\\/g\'; }\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  add:*) printf \'{bad\' > "$HOME/.claude.json"; if [ -e "$HOME/.codex-mutated-before-claude-failure" ]; then touch "$HOME/.codex-restore-failed"; echo restore failure >&2; exit 1; fi; touch "$HOME/.codex-mutated-before-claude-failure"; exit 0;;\nesac\nexit 0\n',
       );
       await chmod(fakeCodex, 0o755);
 
@@ -2254,7 +2258,7 @@ exit 0
       ]);
       await writeFile(
         join(fake.bin, "codex"),
-        '#!/bin/sh\nplugin="$HOME/.fake-plugin-installed"\nmarket="$HOME/.fake-marketplace-installed"\nsource="$CODEX_HOME/darkroom/source"\nprintf \'%s\\n\' "$*" >> "$HOME/.fake-codex-calls"\ncase "$2:$3" in\n  list:*) if [ -e "$plugin" ]; then p=$(cat "$plugin"); printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$p" "$p"; else printf \'{"installed":[]}\\n\'; fi; exit 0;;\n  marketplace:list) if [ -e "$market" ]; then m=$(cat "$market"); printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$m" "$m"; else printf \'{"marketplaces":[]}\\n\'; fi; exit 0;;\n  marketplace:add) printf \'%s\\n\' "$source" > "$market"; if [ ! -e "$HOME/.rollback-mutated-codex" ]; then printf \'external edit after rollback preparation\\n\' > "$HOME/.claude/src/setup.ts"; touch "$HOME/.rollback-mutated-codex"; fi; exit 0;;\n  marketplace:remove) rm -f "$market"; exit 0;;\n  add:*) printf \'%s\\n\' "$source" > "$plugin"; exit 0;;\n  remove:*) rm -f "$plugin"; exit 0;;\nesac\nexit 0\n',
+        '#!/bin/sh\nplugin="$HOME/.fake-plugin-installed"\nmarket="$HOME/.fake-marketplace-installed"\nsource="$CODEX_HOME/darkroom/source"\nesc() { printf \'%s\' "$1" | sed \'s/\\\\/\\\\\\\\/g\'; }\nprintf \'%s\\n\' "$*" >> "$HOME/.fake-codex-calls"\ncase "$2:$3" in\n  list:*) if [ -e "$plugin" ]; then p=$(esc "$(cat "$plugin")"); printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$p" "$p"; else printf \'{"installed":[]}\\n\'; fi; exit 0;;\n  marketplace:list) if [ -e "$market" ]; then m=$(esc "$(cat "$market")"); printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$m" "$m"; else printf \'{"marketplaces":[]}\\n\'; fi; exit 0;;\n  marketplace:add) printf \'%s\\n\' "$source" > "$market"; if [ ! -e "$HOME/.rollback-mutated-codex" ]; then printf \'external edit after rollback preparation\\n\' > "$HOME/.claude/src/setup.ts"; touch "$HOME/.rollback-mutated-codex"; fi; exit 0;;\n  marketplace:remove) rm -f "$market"; exit 0;;\n  add:*) printf \'%s\\n\' "$source" > "$plugin"; exit 0;;\n  remove:*) rm -f "$plugin"; exit 0;;\nesac\nexit 0\n',
       );
       await chmod(join(fake.bin, "codex"), 0o755);
       await writeFile(fake.calls, "");
@@ -2558,7 +2562,7 @@ exit 0
       const fakeCodex = join(bin, "codex");
       await writeFile(
         fakeCodex,
-        '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  remove:*) printf \'{bad\' > "$HOME/.claude.json"; touch "$HOME/.codex-mutated-before-uninstall-failure"; exit 0;;\n  add:*) printf \'{bad\' > "$HOME/.claude.json"; touch "$HOME/.uninstall-codex-restore-failed"; echo restore failure >&2; exit 1;;\nesac\nexit 0\n',
+        '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\nesc() { printf \'%s\' "$1" | sed \'s/\\\\/\\\\\\\\/g\'; }\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  remove:*) printf \'{bad\' > "$HOME/.claude.json"; touch "$HOME/.codex-mutated-before-uninstall-failure"; exit 0;;\n  add:*) printf \'{bad\' > "$HOME/.claude.json"; touch "$HOME/.uninstall-codex-restore-failed"; echo restore failure >&2; exit 1;;\nesac\nexit 0\n',
       );
       await chmod(fakeCodex, 0o755);
 
@@ -2681,7 +2685,7 @@ exit 0
         const codex = join(bin, "codex");
         await writeFile(
           codex,
-          '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  remove:*) if [ ! -e "$HOME/.uninstall-mutated-once" ]; then rm -f "$HOME/.claude/.cc-settings-version"; mkdir "$HOME/.claude/.cc-settings-version"; touch "$HOME/.uninstall-mutated-once"; fi; exit 0;;\nesac\nexit 0\n',
+          '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\nesc() { printf \'%s\' "$1" | sed \'s/\\\\/\\\\\\\\/g\'; }\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  remove:*) if [ ! -e "$HOME/.uninstall-mutated-once" ]; then rm -f "$HOME/.claude/.cc-settings-version"; mkdir "$HOME/.claude/.cc-settings-version"; touch "$HOME/.uninstall-mutated-once"; fi; exit 0;;\nesac\nexit 0\n',
         );
         await chmod(codex, 0o755);
 
@@ -3090,7 +3094,7 @@ exit 0
       const fakeCodex = join(bin, "codex");
       await writeFile(
         fakeCodex,
-        '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$source" "$source"; exit 0;;\n  marketplace:add) touch "$HOME/.marketplace-mutated"; exit 0;;\n  add:*) touch "$HOME/.plugin-add-attempted"; echo plugin failure >&2; exit 1;;\nesac\nexit 0\n',
+        '#!/bin/sh\nsource="$CODEX_HOME/darkroom/source"\nesc() { printf \'%s\' "$1" | sed \'s/\\\\/\\\\\\\\/g\'; }\ncase "$2:$3" in\n  list:*) printf \'{"installed":[{"pluginId":"darkroom@cc-settings","installed":true,"enabled":true,"source":{"source":"local","path":"%s"},"marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  marketplace:list) printf \'{"marketplaces":[{"name":"cc-settings","root":"%s","marketplaceSource":{"sourceType":"local","source":"%s"}}]}\\n\' "$(esc "$source")" "$(esc "$source")"; exit 0;;\n  marketplace:add) touch "$HOME/.marketplace-mutated"; exit 0;;\n  add:*) touch "$HOME/.plugin-add-attempted"; echo plugin failure >&2; exit 1;;\nesac\nexit 0\n',
       );
       await chmod(fakeCodex, 0o755);
 

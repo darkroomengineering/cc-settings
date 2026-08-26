@@ -455,10 +455,7 @@ const VERSION_1_EXCLUSIONS = new Set([
   "src/lib/claude-managed-file-manifests.ts",
 ]);
 
-const VERSION_3_EXCLUSIONS = new Set([
-  "docs/plans/knowledge-repo-migration.md",
-  ...ADDED_IN_V5,
-]);
+const VERSION_3_EXCLUSIONS = new Set(["docs/plans/knowledge-repo-migration.md", ...ADDED_IN_V5]);
 
 const VERSION_4_EXCLUSIONS = new Set([...VERSION_3_EXCLUSIONS, "rules/README.md"]);
 
