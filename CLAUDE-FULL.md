@@ -20,6 +20,13 @@ first line, one topic per message, owner and deadline for requests. PRs: follow
 order for large diffs, bounded checkable test-plan items. Issues: observed
 effect first, numbered one-action repro steps, one problem per issue.
 
+Kill AI tells in that text: puffery ("pivotal", "comprehensive", "crucial",
+"delve"), "not just X but Y", groupings of three, headers that restate content,
+decorative emojis, bold overuse, hedging, "serves as" for "is", weak verb
+propped by an adverb, sycophantic closers, generic wrap-up conclusions. State a
+position with concrete specifics instead of neutral abstraction; vary sentence
+length.
+
 ## Replies
 
 `output-styles/darkroom.md` is installed at `~/.claude/output-styles/` and set
