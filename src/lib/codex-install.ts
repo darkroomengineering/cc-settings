@@ -697,8 +697,42 @@ function testCodexCommand(): string[] | null {
   return parsed as string[];
 }
 
+// Memoized probe result. `null` = not yet probed; `boolean` = final answer for
+// this process. Cleared via `resetCodexCliAvailabilityMemoForTests()` between
+// test scenarios that install/uninstall codex under a synthetic PATH.
+let codexCliAvailabilityMemo: boolean | null = null;
+
+/** Test-only: reset the memoized probe so PATH changes take effect. */
+export function resetCodexCliAvailabilityMemoForTests(): void {
+  codexCliAvailabilityMemo = null;
+}
+
 export function codexCliAvailable(): boolean {
-  return testCodexCommand() !== null || hasCommand("codex");
+  // Test escape hatch: an explicit fixture command bypasses PATH resolution
+  // entirely and is always considered available.
+  if (testCodexCommand() !== null) return true;
+  if (codexCliAvailabilityMemo !== null) return codexCliAvailabilityMemo;
+  if (!hasCommand("codex")) {
+    codexCliAvailabilityMemo = false;
+    return false;
+  }
+  // A binary named `codex` is on PATH, but proxy shims (e.g. cmux CLI shims
+  // at $TMPDIR/cmux-cli-shims/.../codex) can pass the existence check while
+  // failing on invocation. Probe with `codex --version` before trusting the
+  // CLI for real plugin/marketplace queries. A 3s cap keeps a hung shim
+  // from stalling setup.
+  try {
+    const probe = Bun.spawnSync({
+      cmd: ["codex", "--version"],
+      stdout: "ignore",
+      stderr: "ignore",
+      timeout: 3000,
+    });
+    codexCliAvailabilityMemo = probe.exitCode === 0;
+  } catch {
+    codexCliAvailabilityMemo = false;
+  }
+  return codexCliAvailabilityMemo;
 }
 
 const REQUIRED_SOURCE_ARTIFACTS = [

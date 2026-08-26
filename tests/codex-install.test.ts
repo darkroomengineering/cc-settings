@@ -3830,3 +3830,55 @@ exit 0
     240_000,
   );
 });
+
+describe.skipIf(process.platform === "win32")("codexCliAvailable — shim detection", () => {
+  test("PATH entry named 'codex' that exits non-zero is treated as unavailable", async () => {
+    // Simulates the cmux CLI shim case: a binary named `codex` is on PATH,
+    // but invocation fails. Bun.which passes; the version probe must not.
+    const { codexCliAvailable, resetCodexCliAvailabilityMemoForTests } = await import(
+      "../src/lib/codex-install.ts"
+    );
+    const shimDir = await mkdtemp(join(tmpdir(), "cc-codex-shim-"));
+    try {
+      const shim = join(shimDir, "codex");
+      // POSIX shim that mimics the cmux behavior: exits non-zero with a
+      // "codex not found" stderr message on every invocation.
+      await writeFile(shim, "#!/bin/sh\necho 'Error: codex not found in PATH' >&2\nexit 1\n");
+      await chmod(shim, 0o755);
+
+      const originalPath = process.env.PATH;
+      process.env.PATH = prependTestPath(shimDir);
+      resetCodexCliAvailabilityMemoForTests();
+      try {
+        expect(codexCliAvailable()).toBe(false);
+      } finally {
+        if (originalPath === undefined) delete process.env.PATH;
+        else process.env.PATH = originalPath;
+        resetCodexCliAvailabilityMemoForTests();
+      }
+    } finally {
+      await rm(shimDir, { recursive: true, force: true });
+    }
+  });
+
+  test("no codex on PATH → unavailable (fast path, no spawn)", async () => {
+    const { codexCliAvailable, resetCodexCliAvailabilityMemoForTests } = await import(
+      "../src/lib/codex-install.ts"
+    );
+    const emptyDir = await mkdtemp(join(tmpdir(), "cc-codex-empty-"));
+    try {
+      const originalPath = process.env.PATH;
+      process.env.PATH = emptyDir;
+      resetCodexCliAvailabilityMemoForTests();
+      try {
+        expect(codexCliAvailable()).toBe(false);
+      } finally {
+        if (originalPath === undefined) delete process.env.PATH;
+        else process.env.PATH = originalPath;
+        resetCodexCliAvailabilityMemoForTests();
+      }
+    } finally {
+      await rm(emptyDir, { recursive: true, force: true });
+    }
+  });
+});
