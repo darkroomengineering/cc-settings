@@ -697,8 +697,56 @@ function testCodexCommand(): string[] | null {
   return parsed as string[];
 }
 
+// Memoized probe result. `null` = not yet probed; `boolean` = final answer for
+// this process. Cleared via `resetCodexCliAvailabilityMemoForTests()` between
+// test scenarios that install/uninstall codex under a synthetic PATH.
+let codexCliAvailabilityMemo: boolean | null = null;
+
+/** Test-only: reset the memoized probe so PATH changes take effect. */
+export function resetCodexCliAvailabilityMemoForTests(): void {
+  codexCliAvailabilityMemo = null;
+}
+
 export function codexCliAvailable(): boolean {
-  return testCodexCommand() !== null || hasCommand("codex");
+  // Test escape hatch: an explicit fixture command bypasses PATH resolution
+  // entirely and is always considered available.
+  if (testCodexCommand() !== null) return true;
+  if (codexCliAvailabilityMemo !== null) return codexCliAvailabilityMemo;
+  if (!hasCommand("codex")) {
+    codexCliAvailabilityMemo = false;
+    return false;
+  }
+  // A binary named `codex` is on PATH, but proxy shims (e.g. cmux CLI shims
+  // at $TMPDIR/cmux-cli-shims/.../codex) can pass the existence check while
+  // failing on invocation. Probe with `codex --version` and require the
+  // output to actually look like a codex version banner, because at least
+  // one shim (cmux) prints "Error: codex not found in PATH" and still exits
+  // 0 — exit code alone is not enough. A 3s cap keeps a hung shim from
+  // stalling setup.
+  try {
+    const probe = Bun.spawnSync({
+      cmd: ["codex", "--version"],
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 3000,
+    });
+    const stdout = probe.stdout ? new TextDecoder().decode(probe.stdout) : "";
+    codexCliAvailabilityMemo = probe.exitCode === 0 && looksLikeCodexVersion(stdout);
+  } catch {
+    codexCliAvailabilityMemo = false;
+  }
+  return codexCliAvailabilityMemo;
+}
+
+/** Real `codex --version` prints a line like `codex-cli 0.15.2` or
+ *  `codex 0.15.2` — a leading `codex` token followed by a semver-ish
+ *  number. Shims that swallow the invocation with an error message do
+ *  not match. Kept as a fragment match so a future banner prefix (e.g.
+ *  `codex 0.16.0 (release build)`) still passes. Exported for direct
+ *  unit tests because the surrounding probe (spawn + Bun.which) reads
+ *  PATH via a boot-time snapshot that tests cannot override. */
+export function looksLikeCodexVersion(output: string): boolean {
+  return /\bcodex[\w-]*\s+\d+\.\d+/i.test(output);
 }
 
 const REQUIRED_SOURCE_ARTIFACTS = [

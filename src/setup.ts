@@ -1334,9 +1334,30 @@ async function cmdStatus(sourceDir: string): Promise<number> {
   return 0; // status is informational; never fail
 }
 
-function resolveInstallTarget(target: InstallTarget): Exclude<InstallTarget, "auto"> {
+/**
+ * Auto-detect used to silently pick `both` whenever a `codex` binary was on
+ * PATH — surprise-installing cc-settings for Codex when the user only wanted
+ * Claude, and hard-failing when the binary was a proxy shim (cmux drops one
+ * under $TMPDIR/cmux-cli-shims that exits 0 while printing "codex not found
+ * in PATH"). The Codex install is now opt-in on the `auto` path:
+ * ask, with the probe result as the default. Non-interactive callers (CI,
+ * piped input) fall through to the default silently — never Codex without
+ * explicit consent.
+ *
+ * Explicit `--target=claude|codex|both` bypasses the prompt entirely.
+ */
+async function resolveInstallTarget(
+  target: InstallTarget,
+): Promise<Exclude<InstallTarget, "auto">> {
   if (target !== "auto") return target;
-  return hasCommand("codex") ? "both" : "claude";
+  const codexLooksInstalled = codexCliAvailable();
+  const wantsCodex = await promptYn(
+    codexLooksInstalled
+      ? "Codex detected. Install cc-settings for Codex too?"
+      : "Also install cc-settings for the Codex CLI? (only if you use Codex)",
+    codexLooksInstalled,
+  );
+  return wantsCodex ? "both" : "claude";
 }
 
 function includesTarget(
@@ -1928,7 +1949,7 @@ async function main(): Promise<number> {
     for (const message of args.errors) error(message);
     return 1;
   }
-  let target = resolveInstallTarget(args.target);
+  let target = await resolveInstallTarget(args.target);
   if (includesTarget(target, "codex")) {
     await validateProductRootDisjointness(CLAUDE_DIR);
   }
@@ -2314,6 +2335,17 @@ if (import.meta.main) {
               .join("\n")
           : String(err);
       error(`Setup failed: ${detail}`);
+      // AggregateError.errors carries the real causes — without unwrapping,
+      // the outer wrapper message swallows them and leaves the operator with
+      // no way to see what actually failed (e.g. restoreCombinedAfterClaudeFailure
+      // wraps the underlying Claude install error plus any restore failures).
+      if (err instanceof AggregateError && Array.isArray(err.errors)) {
+        for (const [i, cause] of err.errors.entries()) {
+          const causeDetail =
+            cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
+          error(`  cause[${i}]: ${causeDetail}`);
+        }
+      }
       process.exit(1);
     });
 }
