@@ -1,20 +1,20 @@
-# cc-settings installer
+# darkroom-settings
 
 Installs [Darkroom Engineering's Claude Code + Codex configuration](https://github.com/darkroomengineering/cc-settings).
 
 ```bash
-npx cc-settings
+npx darkroom-settings
 ```
 
 Flags are forwarded to the installer — every `setup.sh` flag works:
 
 ```bash
-npx cc-settings --light --auto-update=on
-npx cc-settings --dry-run
-npx cc-settings --status
+npx darkroom-settings --light --auto-update=on
+npx darkroom-settings --dry-run
+npx darkroom-settings --status
 ```
 
-`bunx cc-settings` works the same way. On Windows, the same command runs the
+`bunx darkroom-settings` works the same way. On Windows, the same command runs the
 PowerShell installer.
 
 ## What this package is

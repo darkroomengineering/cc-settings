@@ -21,10 +21,10 @@ products; it does not install a subscription or account.
 **Any platform (Node 18+):**
 
 ```bash
-npx cc-settings
+npx darkroom-settings
 ```
 
-Every installer flag works: `npx cc-settings --light --auto-update=on`. `bunx cc-settings` is
+Every installer flag works: `npx darkroom-settings --light --auto-update=on`. `bunx darkroom-settings` is
 equivalent. The npm package is only a downloader — the configuration always installs from this
 repository's pinned GitHub origin.
 

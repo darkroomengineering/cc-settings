@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// cc-settings npm installer stub — `npx cc-settings` / `bunx cc-settings`.
+// darkroom-settings npm installer stub — `npx darkroom-settings`.
+// Installs cc-settings for Claude Code AND Codex (the repo keeps its name;
+// the npm command is product-neutral because the config covers both).
 //
 // This package deliberately contains NO configuration. It downloads the
 // official bootstrap script over HTTPS and runs it, so the trust root stays
@@ -8,7 +10,7 @@
 // cannot swap the installed payload — only this ~100-line downloader, which
 // is why the stub stays tiny and rarely republished.
 //
-// Flags are forwarded verbatim: `npx cc-settings --light --auto-update=on`.
+// Flags are forwarded verbatim: `npx darkroom-settings --light --auto-update=on`.
 // CC_SETTINGS_INSTALL_BASE overrides the download origin (tests only).
 
 const { spawnSync } = require("node:child_process");
