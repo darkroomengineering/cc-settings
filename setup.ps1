@@ -4,12 +4,15 @@
 #   2. Ensure Bun is installed.
 #   3. exec `bun "$Repo\src\setup.ts" --source="$Repo" @Args`.
 #
-# Remote one-liner (default auto target; clone the repo to pass flags):
+# Remote one-liner (default auto target):
 #   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
+# Remote with flags (script-block invocation populates $Args):
+#   powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1))) --light"
 #
 # Flags (forwarded to src\setup.ts):
 #   --target=TARGET   auto, claude, codex, or both (default: auto)
 #   --light           smaller product-specific profile; see docs\install.md
+#   --fresh           reinstall as if from scratch; see docs\install.md
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
 #   --uninstall       remove cc-settings-managed files from selected target
 #   --dry-run         print planned actions only

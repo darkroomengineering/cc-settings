@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 # cc-settings bootstrap — the only bash that remains after Phase 5.
 # All install logic lives in src/setup.ts. This file exists to:
-#   1. Handle `bash <(curl ...)` by cloning the repo.
+#   1. Handle remote runs (`curl | bash`, `bash <(curl ...)`, or a lone
+#      downloaded setup.sh) by cloning the repo first.
 #   2. Ensure Bun is installed.
 #   3. exec `bun "$REPO/src/setup.ts" --source="$REPO" "$@"`.
+#
+# Remote usage — no clone or download needed; flags go after `-s --`:
+#   curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash -s -- --light --auto-update=on
+#   bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh) --dry-run
 #
 # Flags (all forwarded to src/setup.ts):
 #   --target=TARGET   auto, claude, codex, or both (default: auto)
 #   --source=DIR      source checkout (advanced; normally set by this script)
 #   --light           smaller product-specific profile; see docs/install.md
+#   --fresh           reinstall as if from scratch; see docs/install.md
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
 #   --uninstall       remove cc-settings-managed files from selected target
 #   --dry-run         print planned actions only
@@ -19,16 +26,45 @@
 #   --help, -h
 # Unknown flags and invalid flag values fail closed.
 
+# POSIX guard — everything below uses bash features, and `set -o pipefail`
+# alone kills dash. Re-exec a script file under bash; a pipe into a non-bash
+# shell cannot be re-exec'd (stdin is already consumed), so name the correct
+# invocation instead of failing with a syntax error.
+if [ -z "${BASH_VERSION:-}" ]; then
+    if [ -f "$0" ]; then
+        exec bash "$0" "$@"
+    fi
+    echo "ERROR: this installer requires bash. Re-run as:" >&2
+    echo "  curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash -s -- [flags]" >&2
+    exit 1
+fi
+
 set -euo pipefail
 
 REPO_URL="https://github.com/darkroomengineering/cc-settings.git"
 BUN_MIN="1.2.21"
 
-# --- resolve repo dir (handle `bash <(curl ...)` via process substitution) ---
+# --- resolve repo dir ---------------------------------------------------------
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# BASH_SOURCE[0] is unset when the script arrives on stdin (`curl | bash`) —
+# guard the expansion or `set -u` kills the run before the first message.
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
+SCRIPT_DIR=""
+if [[ -n "$SCRIPT_SOURCE" && -f "$SCRIPT_SOURCE" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+fi
 
-if [[ "$SCRIPT_DIR" == "/dev/fd" || "$SCRIPT_DIR" == /proc/self/fd* ]]; then
+# Bootstrap whenever there is no full checkout next to this script: stdin
+# pipes (`curl | bash`), process substitution (`bash <(curl ...)` — a pipe
+# fd, so the -f test above already left SCRIPT_DIR empty), and a lone
+# downloaded setup.sh all land here and clone the official repo first.
+if [[ -z "$SCRIPT_DIR" || ! -f "$SCRIPT_DIR/src/setup.ts" || ! -f "$SCRIPT_DIR/package.json" ]]; then
+    # A re-exec'd clone that still fails the checkout test above would loop
+    # here forever — fail loudly instead.
+    if [[ "${CC_SETTINGS_BOOTSTRAPPED:-}" == "1" ]]; then
+        echo "ERROR: bootstrap loop — the fetched source is not a usable checkout." >&2
+        exit 1
+    fi
     DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
     CLONE_DIR="$DATA_HOME/cc-settings/source"
     echo "Fetching cc-settings..."
@@ -146,6 +182,12 @@ if [[ "$SCRIPT_DIR" == "/dev/fd" || "$SCRIPT_DIR" == /proc/self/fd* ]]; then
             echo "ERROR: managed source state could not be verified." >&2
             exit 1
         fi
+        # read-tree leaves the generated index with zeroed stat data, and
+        # diff-files treats stat-less entries as modified without comparing
+        # content — refresh first or every clean re-run is refused as
+        # "local changes". refresh exits non-zero on real differences;
+        # diff-files below is the authoritative check either way.
+        isolated_git_with_index "$GENERATED_INDEX" --git-dir="$STAGING_DIR/.git" --work-tree="$CLONE_DIR" update-index --refresh -q >/dev/null 2>&1 || true
         if ! isolated_git_with_index "$GENERATED_INDEX" --git-dir="$STAGING_DIR/.git" --work-tree="$CLONE_DIR" diff-files --quiet --; then
             echo "ERROR: managed source at $CLONE_DIR has local changes." >&2
             echo "Commit, move, or remove that checkout before using the one-line installer." >&2
@@ -205,6 +247,11 @@ if [[ "$SCRIPT_DIR" == "/dev/fd" || "$SCRIPT_DIR" == /proc/self/fd* ]]; then
     rm -rf "$CHECK_DIR"
     CHECK_DIR=""
     trap - EXIT
+    if [[ ! -f "$CLONE_DIR/src/setup.ts" || ! -f "$CLONE_DIR/package.json" ]]; then
+        echo "ERROR: fetched source at $CLONE_DIR is missing expected files." >&2
+        exit 1
+    fi
+    export CC_SETTINGS_BOOTSTRAPPED=1
     exec bash "$CLONE_DIR/setup.sh" "$@"
 fi
 

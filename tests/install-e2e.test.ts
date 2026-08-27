@@ -289,6 +289,9 @@ case " $* " in
   *" clone "*)
     destination="\${!#}"
     cp "$BOOTSTRAP_SOURCE" "$destination/setup.sh"
+    mkdir -p "$destination/src"
+    : > "$destination/src/setup.ts"
+    : > "$destination/package.json"
     mkdir -p "$destination/.git/refs/heads"
     printf '[remote "origin"]\\n  url = %s\\n' "$FAKE_ORIGIN" > "$destination/.git/config"
     printf 'ref: refs/heads/main\\n' > "$destination/.git/HEAD"
@@ -300,7 +303,7 @@ case " $* " in
     [ "$FAKE_HISTORY" = "official" ]
     ;;
   *" rev-parse HEAD "*) printf '${"1".repeat(40)}\\n' ;;
-  *" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
+  *" read-tree "*|*" update-index --refresh "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
   *) printf 'unexpected git call: %s\\n' "$*" >&2; exit 2 ;;
 esac
 `,
@@ -333,6 +336,152 @@ esac
 }
 
 describe("setup.sh remote bootstrap", () => {
+  // Offline harness for the clone-first bootstrap: a fixture repo stands in
+  // for official main, and a fake `git` on PATH rewrites the official URL to
+  // the fixture (restoring the recorded origin after clone so the managed
+  // origin pin still sees the real URL). The fixture's setup.sh is a stub
+  // that echoes its argv, so these tests assert flag forwarding without
+  // running a real install.
+  const OFFICIAL_URL = "https://github.com/darkroomengineering/cc-settings.git";
+
+  async function makeBootstrapHarness(root: string): Promise<{ env: Record<string, string> }> {
+    const fixture = join(root, "fixture");
+    const bin = join(root, "bin");
+    const home = join(root, "home");
+    await Promise.all([
+      mkdir(fixture, { recursive: true }),
+      mkdir(bin, { recursive: true }),
+      mkdir(home, { recursive: true }),
+    ]);
+    const fixtureGit = (...args: string[]) =>
+      Bun.spawnSync(["git", "-c", "user.email=t@t", "-c", "user.name=t", ...args], {
+        cwd: fixture,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+    await writeFile(join(fixture, "setup.sh"), '#!/bin/sh\necho "STUB-ARGS:[$*]"\n', {
+      mode: 0o755,
+    });
+    // The bootstrap's clone-completeness check requires the files every real
+    // clone has; the stub setup.sh above still short-circuits before install.
+    await mkdir(join(fixture, "src"), { recursive: true });
+    await Promise.all([
+      writeFile(join(fixture, "src", "setup.ts"), ""),
+      writeFile(join(fixture, "package.json"), "{}\n"),
+    ]);
+    for (const args of [
+      ["-c", "init.defaultBranch=main", "init", "."],
+      ["add", "-A"],
+      ["commit", "-qm", "init"],
+    ]) {
+      const result = fixtureGit(...args);
+      if (result.exitCode !== 0) throw new Error(`fixture git ${args[0]}: ${result.stderr}`);
+    }
+    const realGit = Bun.which("git");
+    if (!realGit) throw new Error("git not on PATH");
+    await writeFile(
+      join(bin, "git"),
+      `#!/bin/bash
+URL="${OFFICIAL_URL}"
+is_clone=0; dest=""
+args=(); for a in "$@"; do
+  [[ "$a" == "clone" ]] && is_clone=1
+  [[ "$a" == "$URL" ]] && a="${fixture}"
+  args+=("$a"); dest="$a"
+done
+"${realGit}" "\${args[@]}"; rc=$?
+if [[ $rc -eq 0 && $is_clone -eq 1 && -d "$dest/.git" ]]; then
+  "${realGit}" -C "$dest" remote set-url origin "$URL"
+fi
+exit $rc
+`,
+      { mode: 0o755 },
+    );
+    return {
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        PATH: prependTestPath(bin),
+      },
+    };
+  }
+
+  async function runBootstrap(
+    env: Record<string, string>,
+    shape: "pipe" | "file",
+    flags: string[],
+    scriptPath: string = join(REPO, "setup.sh"),
+  ) {
+    const proc =
+      shape === "pipe"
+        ? Bun.spawnSync(["bash", "-s", "--", ...flags], {
+            stdin: await readFile(scriptPath),
+            env,
+            stdout: "pipe",
+            stderr: "pipe",
+          })
+        : Bun.spawnSync(["bash", scriptPath, ...flags], { env, stdout: "pipe", stderr: "pipe" });
+    return {
+      exitCode: proc.exitCode,
+      stdout: proc.stdout.toString(),
+      stderr: proc.stderr.toString(),
+    };
+  }
+
+  test.skipIf(process.platform === "win32")(
+    "piped stdin (curl | bash -s --) bootstraps, forwards flags, and re-runs clean",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "cc-bootstrap-pipe-"));
+      try {
+        const { env } = await makeBootstrapHarness(root);
+        const first = await runBootstrap(env, "pipe", ["--light", "--auto-update=on"]);
+        expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
+        expect(first.stdout).toContain("STUB-ARGS:[--light --auto-update=on]");
+        expect(
+          existsSync(join(root, "home", ".local", "share", "cc-settings", "source", ".git")),
+        ).toBe(true);
+        // Regression: the clean-clone re-run was refused as "local changes"
+        // because diff-files ran against a read-tree index with zeroed stat
+        // data. A clean managed clone must update, not refuse.
+        const second = await runBootstrap(env, "pipe", ["--again"]);
+        expect(second.exitCode, `${second.stdout}\n${second.stderr}`).toBe(0);
+        expect(second.stdout).toContain("STUB-ARGS:[--again]");
+
+        // A genuinely dirty managed clone is still refused.
+        await writeFile(
+          join(root, "home", ".local", "share", "cc-settings", "source", "setup.sh"),
+          "#!/bin/sh\necho tampered\n",
+        );
+        const dirty = await runBootstrap(env, "pipe", []);
+        expect(dirty.exitCode).not.toBe(0);
+        expect(`${dirty.stdout}\n${dirty.stderr}`).toContain("has local changes");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+    { timeout: 60_000 },
+  );
+
+  test.skipIf(process.platform === "win32")(
+    "a lone downloaded setup.sh (no checkout next to it) bootstraps instead of failing on deps",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "cc-bootstrap-lone-"));
+      try {
+        const { env } = await makeBootstrapHarness(root);
+        const lone = join(root, "lone");
+        await mkdir(lone, { recursive: true });
+        await writeFile(join(lone, "setup.sh"), await readFile(join(REPO, "setup.sh")));
+        const result = await runBootstrap(env, "file", ["--status"], join(lone, "setup.sh"));
+        expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0);
+        expect(result.stdout).toContain("STUB-ARGS:[--status]");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+    { timeout: 60_000 },
+  );
+
   test("keeps the rules README source-only", () => {
     const managed = currentClaudeManagedSourceFiles("full").map(({ source }) => source);
     expect(managed).not.toContain("rules/README.md");

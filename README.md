@@ -21,7 +21,13 @@ products; it does not install a subscription or account.
 **macOS or Linux:**
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
+curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash
+```
+
+Flags go after `-s --`. Every `setup.sh` flag works remotely — no clone or download needed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash -s -- --light --auto-update=on
 ```
 
 **Windows PowerShell:**
@@ -30,9 +36,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
 ```
 
+To pass flags remotely on Windows, invoke the downloaded script as a script block:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1))) --light"
+```
+
 The default target installs both products when `codex` is on `PATH`, and Claude Code only
-otherwise. The one-liners use that default and cannot forward flags. Clone the repository when you
-want to preview changes, select a target, choose the light tier, or control auto-update:
+otherwise. Clone the repository only when you want a source checkout you own:
 
 ```bash
 git clone https://github.com/darkroomengineering/cc-settings.git

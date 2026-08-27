@@ -50,8 +50,20 @@ and undo.
 **macOS or Linux:**
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh)
+curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash
 ```
+
+Every `setup.sh` flag works remotely. Put flags after `-s --` in the piped form, or after the
+process-substitution form — both reach the installer unchanged:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash -s -- --target=claude --light
+bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh) --dry-run
+```
+
+A lone downloaded `setup.sh` behaves the same way: run `bash setup.sh [flags]` from anywhere and
+it clones the official repository first. Running it with `sh` instead of `bash` re-executes under
+bash automatically.
 
 **Windows PowerShell:**
 
@@ -59,8 +71,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-setti
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
 ```
 
-The one-liners run the default `auto` target and cannot forward flags. On macOS and Linux, the
-remote bootstrap maintains a durable source checkout at:
+The `iex` form runs the default `auto` target. To pass flags remotely, invoke the downloaded
+script as a script block — its arguments reach `setup.ps1` unchanged:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1))) --target=claude --light"
+```
+
+On macOS and Linux, the remote bootstrap maintains a durable source checkout at:
 
 ```text
 ${XDG_DATA_HOME:-$HOME/.local/share}/cc-settings/source
@@ -73,7 +91,7 @@ the managed checkout atomically. They do not execute hooks, filters, file monito
 other Git configuration from the existing checkout. The durable checkout makes auto-update and
 later maintenance independent of temporary directories.
 
-Clone manually when you want flags or a source checkout that you own:
+Clone manually when you want a source checkout that you own:
 
 ```bash
 git clone https://github.com/darkroomengineering/cc-settings.git
