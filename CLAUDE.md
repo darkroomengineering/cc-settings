@@ -31,6 +31,7 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Install: `bash setup.sh` (macOS/Linux) or `.\setup.ps1` (Windows)
 - Light install: `bash setup.sh --light` (raw Claude Code + statusline + `share-learning` skill only; permanent beginner tier — re-run without `--light` to upgrade)
 - Rollback: `bun src/setup.ts --rollback` (restores newest backup)
+- Fresh install: `bash setup.sh --fresh` (reinstall as if from scratch — settings.json, prior-install state, and local approvals reset; login/history/memory untouched; recover via rollback)
 - Dry-run: `bun src/setup.ts --dry-run`
 - Tests: `bun test`
 - Typecheck: `bun run typecheck`

@@ -62,6 +62,11 @@ Flags:
                        • Codex: managed AGENTS instructions + runtime source
                        • no Codex plugin, native role agents, or command rule
                      Re-run without --light to upgrade to full.
+  --fresh            Reinstall as if from scratch: removes settings.json,
+                     prior-install state, and the repo's local approvals
+                     (.claude/settings.local.json), then installs the full
+                     baseline. Login, history, and memory untouched. Recover
+                     via --rollback.
   --status           Report install health for the selected target(s).
   --auto-update=on|off  Enable/disable the daily 10am auto-update job
                      (macOS only). Asked once on first interactive install

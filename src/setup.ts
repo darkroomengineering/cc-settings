@@ -17,9 +17,14 @@
 //   --light            Claude: statusLine + share-learning only. Codex: managed
 //                      AGENTS.md + runtime source only; no plugin, native agents,
 //                      or command rule.
+//   --fresh            Reinstall as if from scratch: removes settings.json,
+//                      prior-install state, and the repo's local approvals,
+//                      then installs the full baseline. Login, history, and
+//                      memory untouched. Recover with --rollback.
 //   --help, -h         Usage.
 
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import {
   chmod,
   lstat,
@@ -27,6 +32,7 @@ import {
   readFile,
   readlink,
   realpath,
+  rename,
   rm,
   rmdir,
   writeFile,
@@ -73,6 +79,7 @@ import {
 import { composeSettings } from "./lib/compose-settings.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import {
+  FINGERPRINT_FILENAME,
   writeFingerprint as writeHooksFingerprint,
   writeSrcManifest,
 } from "./lib/hooks-fingerprint.ts";
@@ -124,7 +131,7 @@ import {
   snapshotAutoUpdateState,
   unregisterAutoUpdate,
 } from "./lib/schedule.ts";
-import { writeSettingsBaseline } from "./lib/settings-baseline.ts";
+import { BASELINE_FILENAME, writeSettingsBaseline } from "./lib/settings-baseline.ts";
 import { mergeSettings, printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
@@ -140,7 +147,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "15.0.0"; // Context-cost diet: lower defaults, rules diet, managed-file manifest v5
+const VERSION = "15.1.0"; // --fresh flag: reinstall-from-scratch (settings + prior-install state reset)
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 
@@ -163,6 +170,7 @@ type Args = {
   profile: Profile;
   autoUpdate: "on" | "off" | null;
   target: InstallTarget;
+  fresh: boolean;
   errors: string[];
 };
 
@@ -182,6 +190,7 @@ export function parseArgs(argv: string[]): Args {
     profile: "full",
     autoUpdate: null,
     target: "auto",
+    fresh: false,
     errors: [],
   };
   for (const a of argv) {
@@ -195,6 +204,7 @@ export function parseArgs(argv: string[]): Args {
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
     else if (a === "--light") args.profile = "light";
+    else if (a === "--fresh") args.fresh = true;
     else if (a.startsWith("--target=")) {
       const value = a.slice("--target=".length);
       if (value === "auto" || value === "claude" || value === "codex" || value === "both") {
@@ -2073,7 +2083,11 @@ async function main(): Promise<number> {
   // version-delta summary), autoUpdate (prior enrollment decision), and the
   // engine id all come from the same on-disk read instead of three
   // sequential ones. Captured BEFORE we overwrite the sentinel later.
-  const priorDestructiveSentinel = await readDestructiveSentinel(CLAUDE_DIR);
+  // `let`, not `const`: --fresh nulls these after physically deleting
+  // .cc-settings-version below, so the rest of the run takes the exact same
+  // branches it already takes on a genuine first install (see the --fresh
+  // cleanup block inside underInstallLock).
+  let priorDestructiveSentinel = await readDestructiveSentinel(CLAUDE_DIR);
   if (priorDestructiveSentinel?.managed_files) {
     await validateClaudeManagedFiles(
       priorDestructiveSentinel.managed_files,
@@ -2091,12 +2105,12 @@ async function main(): Promise<number> {
   const sentinel = await readSentinelInfo(CLAUDE_DIR);
   const sentinelState = await readSentinel(CLAUDE_DIR);
   const enrolledRepoPath = await resolveEnrolledRepoPath(args.sourceDir);
-  const prevInstalledVersion = sentinel.version;
-  const priorAutoUpdate = sentinel.autoUpdate;
+  let prevInstalledVersion = sentinel.version;
+  let priorAutoUpdate = sentinel.autoUpdate;
   // Prior install's exact echo of what it wrote to ~/.claude.json's
   // engine-managed servers — captured BEFORE writeVersionSentinel overwrites
   // the sentinel below (see FIX B: mcp.ts isStaleCcOutput's priorWritten arg).
-  const priorMcpWritten = sentinel.mcpWritten;
+  let priorMcpWritten = sentinel.mcpWritten;
 
   // Resolve the code-intel engine once (env > explicit prior sentinel >
   // default) and thread it through dependency install, settings, and the
@@ -2193,6 +2207,72 @@ async function main(): Promise<number> {
             true,
             backupId,
           );
+        }
+
+        // --fresh: reinstall as if from scratch. Placed AFTER the migrate-only
+        // or full-install backup above (both are non-temporary — the kind
+        // --rollback restores from — and both run before any of these files
+        // are rewritten), so settings.json and .cc-settings-version are
+        // already captured there and recoverable via --rollback before this
+        // block deletes them. Placed BEFORE installSettings so mergeSettings
+        // sees no existing settings.json and writes the team baseline
+        // verbatim instead of merging over it. Scope is config only: never
+        // touches ~/.claude.json wholesale, login/auth state, conversation
+        // history, or memory — only the files cc-settings itself writes.
+        if (args.fresh && !args.dryRun) {
+          const userSettingsPath = join(CLAUDE_DIR, "settings.json");
+          if (existsSync(userSettingsPath)) {
+            await rm(userSettingsPath, { force: true });
+            progressArrow("Fresh: removed settings.json (recoverable via --rollback)");
+          }
+          const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
+          if (existsSync(sentinelPath)) {
+            await rm(sentinelPath, { force: true });
+            progressArrow("Fresh: removed the prior-install sentinel (.cc-settings-version)");
+          }
+          const baselinePath = join(CLAUDE_DIR, BASELINE_FILENAME);
+          if (existsSync(baselinePath)) {
+            await rm(baselinePath, { force: true });
+            progressArrow(`Fresh: removed the prior settings baseline (${BASELINE_FILENAME})`);
+          }
+          const fingerprintPath = join(CLAUDE_DIR, FINGERPRINT_FILENAME);
+          if (existsSync(fingerprintPath)) {
+            await rm(fingerprintPath, { force: true });
+            progressArrow(`Fresh: removed the prior hooks fingerprint (${FINGERPRINT_FILENAME})`);
+          }
+
+          // Drop any cc-settings-managed MCP servers a prior install wrote to
+          // ~/.claude.json — the normal install path only overwrites entries
+          // it still ships, so a server we no longer ship would otherwise
+          // linger. Must run BEFORE priorMcpWritten is nulled below: it needs
+          // the real prior value to recognize what to remove.
+          await removeManagedMcpServers(
+            await composeSettings(args.sourceDir),
+            CLAUDE_JSON_PATH,
+            priorMcpWritten,
+          );
+
+          // Move aside the repo's accreted local permission approvals.
+          const localPath = join(args.sourceDir, ".claude", "settings.local.json");
+          if (existsSync(localPath)) {
+            const movedTo = `${localPath}.bak-${getTimestamp(new Date())}`;
+            await rename(localPath, movedTo);
+            progressArrow(`Fresh: moved aside ${localPath} → ${movedTo}`);
+          }
+
+          // Everything above physically deleted the ONE file all four of
+          // these were read from (.cc-settings-version) — null them so the
+          // rest of this run takes the same branches it already takes on a
+          // genuine first install, instead of consulting now-deleted prior
+          // state. managedFiles is deliberately left alone: by this point it
+          // holds the freshly-copied content-hash map runFullInstall just
+          // produced (or, on the migrate-only path, the untouched pre-existing
+          // map), not stale prior-install state — nulling it here would drop
+          // real data the sentinel write below still needs.
+          priorDestructiveSentinel = null;
+          priorMcpWritten = null;
+          priorAutoUpdate = null;
+          prevInstalledVersion = null;
         }
 
         try {

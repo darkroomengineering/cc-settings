@@ -123,6 +123,7 @@ Run `bash setup.sh --help` or `.\setup.ps1 --help` for the wrapper you use.
 | `--source=<dir>` | Use an explicit cc-settings source checkout. The wrappers normally set this. |
 | `--dry-run` | Print the planned operation without changing product state. |
 | `--light` | Install or switch to the light profile. Omit for full. |
+| `--fresh` | Reinstall as if from scratch: removes settings.json, prior-install state, and the repo's local approvals, then installs the full baseline. Login, history, and memory untouched. Recover with --rollback. |
 | `--status` | Report installed versus packaged health for the selected target. |
 | `--rollback[=TIMESTAMP]` | Restore the newest eligible backup or the named backup. |
 | `--uninstall` | Remove managed state for the selected target and keep backups. |

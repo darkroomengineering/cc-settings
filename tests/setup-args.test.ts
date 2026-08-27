@@ -104,6 +104,7 @@ describe("parseArgs", () => {
       "--uninstall",
       "--dry-run",
       "--light",
+      "--fresh",
       "--status",
       "--auto-update",
       "--interactive",
@@ -179,5 +180,24 @@ describe("parseArgs", () => {
     expect(a.autoUpdate).toBe("on");
     expect(a.profile).toBe("light");
     expect(a.dryRun).toBe(true);
+  });
+
+  test("default fresh is false", () => {
+    expect(parseArgs([]).fresh).toBe(false);
+  });
+
+  test("--fresh sets fresh to true", () => {
+    expect(parseArgs(["--fresh"]).fresh).toBe(true);
+  });
+
+  test("--fresh produces no entry in errors", () => {
+    expect(parseArgs(["--fresh"]).errors).toEqual([]);
+  });
+
+  test("--fresh composes with other flags", () => {
+    const a = parseArgs(["--fresh", "--dry-run", "--source=/tmp/cc"]);
+    expect(a.fresh).toBe(true);
+    expect(a.dryRun).toBe(true);
+    expect(a.sourceDir).toBe(resolve("/tmp/cc"));
   });
 });

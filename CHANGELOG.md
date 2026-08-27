@@ -6,6 +6,20 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.1.0] — 2026-08-27
+
+- New `--fresh` install flag: reinstalls as if cc-settings were being added to
+  a clean Claude Code setup for the first time. Removes
+  `~/.claude/settings.json`, the prior-install sentinel
+  (`.cc-settings-version`), the settings baseline
+  (`.cc-settings-baseline.json`), and the hooks fingerprint
+  (`.cc-settings-hooks-fingerprint`), drops any cc-settings-managed MCP
+  servers the current install no longer ships, and moves aside the source
+  repo's `.claude/settings.local.json` (accreted permission approvals) to a
+  timestamped `.bak-<ts>` file — then installs the full baseline fresh. Scope
+  is config only: login/auth state, conversation history, projects memory,
+  and non-cc-settings plugins are never touched. Recoverable via `--rollback`.
+
 ## [15.0.0] — 2026-08-26
 
 Context-cost diet: users were draining ~80% of their usage allowance in a couple
