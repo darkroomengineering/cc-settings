@@ -50,6 +50,12 @@ MCP packages.
    lighthouse --version    # CLI must be installed for the batched 3x3 protocol
    ```
    If lighthouse is missing: `npm install -g lighthouse`
+   If runs fail with a chrome-launcher error or every metric comes back
+   `NO_LCP`/null, no system Chrome exists — find a real Chrome/Chromium binary
+   (Chrome for Testing, Playwright's `chromium-*` — NOT `chrome-headless-shell`,
+   which produces NO_LCP) and export `CHROME_PATH=<binary>` before the loop.
+   Record which binary was used; a before/after comparison is only clean when
+   both sides ran the same binary.
    Check whether the user configured the chrome-devtools MCP. Do not install or
    auto-run an unpinned registry MCP on their behalf.
 
@@ -139,6 +145,45 @@ Sort by impact (lowest scores first). These drive the improvement loop.
 
 ---
 
+## Diagnose From the JSON, Not From a Narrative
+
+Before planning any fix, re-derive the bottleneck from the report you just ran.
+Prior session notes, state files, and issue write-ups go stale and get root
+causes wrong — treat them as hypotheses to check against the JSON, never as the
+diagnosis.
+
+**Classify the perf gap first:**
+
+- **TBT high (hundreds of ms)** → main-thread problem. Long tasks, hydration,
+  script execution. `mainthread-work-breakdown` and `long-tasks` tell you where.
+- **TBT low (~tens of ms) but LCP high under `throttlingMethod=simulate`** →
+  bytes-on-critical-path problem, NOT execution. Lantern replays observed
+  traffic over simulated slow 4G, so eager bytes inflate LCP even when the page
+  is actually fast. Fixes that defer *execution* will not move this; only
+  removing or lazy-loading *bytes* will.
+
+Do not read `mainthread-work-breakdown`'s total as "blocking work before
+paint" — it is the whole page load. TBT is the blocking measure.
+
+**For bytes-on-critical-path gaps, attribute before fixing:**
+
+```bash
+jq '.audits["resource-summary"].details.items[] | {resourceType, requestCount, transferSize}' "$LIGHTHOUSE_DIR/mobile-1.json"
+jq '.audits["bootup-time"].details.items[:5]' "$LIGHTHOUSE_DIR/mobile-1.json"
+jq '.audits["network-requests"].details.items | sort_by(-.transferSize)[:10] | .[] | {transferSize, resourceType, url}' "$LIGHTHOUSE_DIR/mobile-1.json"
+```
+
+Hunt for bytes that ship but do nothing: preloaded fonts no style consumes
+(a grep hit on the font file may be its own declaration — check for a real
+consumer), and libraries a `next/dynamic` wrapper claims to defer while a
+second static import path pulls them in anyway. Verify eager-path claims
+against the build manifest (`.next/build-manifest.json` on Next.js), not
+against the wrapper's existence. A `next/dynamic({ssr:false})` component that
+renders unconditionally still fetches its chunk at hydration — deferral only
+pays when the render is conditional.
+
+---
+
 ## Improvement Loop
 
 > **Autonomous mode:** to drive this loop turn-by-turn without re-prompting, set
@@ -204,6 +249,14 @@ LOOP until all scores >= 90 or user interrupts:
      - Show score delta: "Performance: 72 → 85 (+13)"
      - Show what was changed and why
      - Show the current failing audits for the next round
+     - Every claimed delta needs BOTH sides measured on the SAME basis:
+       • Bundle/byte savings: never quote a number from one build. Wipe the
+         build output dir on both sides first — chunk dirs accumulate stale
+         hashed files across builds, and a dirty-dir comparison can invert
+         the sign of the result.
+       • Never compare transfer bytes (from the Lighthouse JSON) against
+         on-disk bytes — same basis or no claim.
+       • A change measured worse gets reported worse, then reverted.
 
   9. CONTINUE to next round
 ```
