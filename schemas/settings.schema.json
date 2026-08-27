@@ -49,9 +49,61 @@
       "properties": {
         "excludeDefault": {
           "type": "boolean"
+        },
+        "tips": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "cooldownSessions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "priority": {
+                    "type": "integer",
+                    "minimum": -10,
+                    "maximum": 10
+                  }
+                },
+                "required": [
+                  "id",
+                  "text"
+                ],
+                "additionalProperties": {}
+              }
+            ]
+          }
+        },
+        "tipsFile": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40
         }
       },
       "additionalProperties": {}
+    },
+    "keybindingFlavor": {
+      "type": "string",
+      "enum": [
+        "classic",
+        "readline"
+      ]
     },
     "statusLine": {
       "type": "object",
@@ -719,6 +771,55 @@
         "max"
       ]
     },
+    "promptCacheTtl": {
+      "type": "string",
+      "enum": [
+        "5m",
+        "1h"
+      ]
+    },
+    "subagentPromptCacheTtl": {
+      "type": "string",
+      "enum": [
+        "5m",
+        "1h"
+      ]
+    },
+    "modelPicker": {
+      "type": "object",
+      "properties": {
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "model"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "replaceBuiltInOptions": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "modelPricing": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
     "workflowSizeGuideline": {
       "type": "string"
     },
@@ -787,6 +888,14 @@
     },
     "feedbackSurveyRate": {
       "type": "number"
+    },
+    "feedbackDrafts": {
+      "type": "string",
+      "enum": [
+        "notify",
+        "quiet",
+        "off"
+      ]
     },
     "sandbox": {
       "type": "object",

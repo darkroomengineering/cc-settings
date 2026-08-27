@@ -63,7 +63,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
-| `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Extends prompt cache TTL from 5 min → 1 hour. cc-settings enables this (v2.1.108+) |
+| `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Asks for the 1-hour prompt cache on EVERY request. Superseded by the typed `promptCacheTtl` / `subagentPromptCacheTtl` settings keys (v2.1.242), which cc-settings sets instead — main conversation `1h`, subagents `5m`. Precedence: `FORCE_PROMPT_CACHING_5M` > `CLAUDE_CODE_[SUBAGENT_]PROMPT_CACHE_TTL` env > the settings keys > this var |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context. Per-server opt-out via `alwaysLoad: true` (v2.1.121) |
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | As of v2.1.223, auto-compaction holds EVERY Claude model with a native 1M window down to 200K (not a fixed model list); set this to opt out. A startup warning appears when auto-compaction is not holding the session to 200K |
@@ -323,12 +323,17 @@ Customizes the animated spinner text shown while Claude is processing.
 
 ### `spinnerTipsOverride`
 
-Suppress the time-based tips that appear under the spinner (v2.1.122).
+Suppress the built-in spinner tips, or (v2.1.247) add your own to the rotation.
 
 ```json
 {
   "spinnerTipsOverride": {
-    "excludeDefault": true
+    "excludeDefault": true,
+    "label": "Darkroom tip",
+    "tips": [
+      "Run /review before opening a PR",
+      { "id": "cache-hint", "text": "Long break? The 1h prompt cache keeps the main conversation warm", "cooldownSessions": 5, "priority": 2 }
+    ]
   }
 }
 ```
@@ -336,6 +341,11 @@ Suppress the time-based tips that appear under the spinner (v2.1.122).
 | Field | Type | Description |
 |-------|------|-------------|
 | `excludeDefault` | boolean | When `true`, skips Claude Code's built-in tip rotation. Useful for cleaner CI output or recordings |
+| `tips` | array | v2.1.247 — up to 200 entries; each a plain string or `{id, text, cooldownSessions?, priority?}`. An `id` keys the tip's cooldown history so it survives reordering |
+| `tipsFile` | string | v2.1.247 — absolute or `~/` path to a JSON file of the same entries (≤256 KB), read once per process |
+| `label` | string | v2.1.247 — prefix shown before your tips (default `Tip`), ≤40 chars |
+
+Object tips, `tipsFile`, and `label` are honored from user, `--settings`, and managed scopes only; project and local settings contribute plain string tips.
 
 ### `modelOverrides`
 
@@ -502,7 +512,7 @@ Skip the confirmation prompt shown before entering bypass-permissions mode (via 
 
 ### `effortLevel`
 
-Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `high` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`. The official docs for this key list only the first four, but the env var and real live configs also persist `"max"` — our schema accepts it as a superset so a live `settings.json` validates.
+Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `medium` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`. The official docs for this key list only the first four, but the env var and real live configs also persist `"max"` — our schema accepts it as a superset so a live `settings.json` validates.
 
 ```json
 { "effortLevel": "high" }
@@ -589,6 +599,46 @@ Sampling rate (0.0–1.0) for the in-session feedback survey (v2.1.106, enterpri
 { "feedbackSurveyRate": 0 }
 ```
 
+### `feedbackDrafts`
+
+Control Claude-drafted feedback via the `SendFeedback` tool (v2.1.247). `"notify"` (default) shows a card when Claude queues a draft, `"quiet"` drafts silently with a footer count, `"off"` removes the tool. User or managed scope; drafts are only ever sent from `/feedback` after your review.
+
+```json
+{ "feedbackDrafts": "quiet" }
+```
+
+### `promptCacheTtl` / `subagentPromptCacheTtl`
+
+Prompt-cache lifetime per scope (v2.1.242): `"5m"` or `"1h"`. `promptCacheTtl` covers the main conversation and its inline helpers; `subagentPromptCacheTtl` covers subagents, workflows, compaction, and other background requests. cc-settings sets `1h` / `5m`: the main conversation stays warm across breaks while fan-outs skip the higher 1h cache-write rate. This replaced the blanket `ENABLE_PROMPT_CACHING_1H` env var in cc-settings v15.2.0.
+
+```json
+{ "promptCacheTtl": "1h", "subagentPromptCacheTtl": "5m" }
+```
+
+### `modelPicker`
+
+Curate the `/model` picker (v2.1.242): an ordered `options` array of `{model, label?, description?}` rows, plus `replaceBuiltInOptions` to show only your rows. `model` accepts anything `--model` accepts, including Bedrock/Vertex/Foundry IDs. User, `--settings`, or managed scope only — the highest source supplies the whole lineup; project and local settings are ignored.
+
+```json
+{
+  "modelPicker": {
+    "options": [{ "model": "claude-opus-5", "label": "Opus (default)" }]
+  }
+}
+```
+
+### `keybindingFlavor`
+
+`"readline"` makes Ctrl+W delete back to the previous whitespace as Bash does (v2.1.238); v2.1.243 extends the flavor to Alt+F, Alt+D, Ctrl/Option+arrows, and punctuation word boundaries. Default `"classic"`.
+
+```json
+{ "keybindingFlavor": "readline" }
+```
+
+### `modelPricing`
+
+Managed-only (v2.1.243): an organization's contracted per-model rates and discount multiplier, used by `/cost`, the status line, and telemetry cost figures instead of list price. No public shape is documented; the schema keeps it loose.
+
 ## Complete settings.json key reference
 
 Every top-level key typed by `src/schemas/settings.ts` — one row per key, no more and no fewer. `tests/docs-settings-keys.test.ts` fails the build if this table and the schema diverge in either direction, so "complete" is enforced rather than asserted. The Class and Description columns are hand-written on purpose: they carry judgment a schema can't emit, which is why this table is checked rather than generated.
@@ -652,6 +702,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `extraKnownMarketplaces` | object | E | Register additional marketplaces without installing them; map of marketplace ID → source object |
 | `fallbackModel` | string \| string[] | G | Up to three fallback models tried in order when the primary is overloaded/unavailable; settings.json counterpart of `--fallback-model` (v2.1.166) |
 | `fastModePerSessionOptIn` | boolean | G | Per-session fast-mode opt-in flag |
+| `feedbackDrafts` | `"notify"` \| `"quiet"` \| `"off"` | U | Claude-drafted feedback via SendFeedback: card, silent, or tool removed (v2.1.247) |
 | `feedbackSurveyRate` | number 0–1 | E | Sampling rate for in-session feedback survey; 0 = disabled (v2.1.106) |
 | `fileSuggestion` | object | G | File-suggestion UI configuration object |
 | `footerLinksRegexes` | array | G | Regex-matched link badges in the footer row; user or managed settings (v2.1.176) |
@@ -664,12 +715,15 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `includeCoAuthoredBy` | boolean | G | Deprecated: use `attribution` instead |
 | `includeGitInstructions` | boolean | G | Inject built-in git workflow instructions into the system prompt |
 | `isolatePeerMachines` | boolean | G | Require explicit approval before `SendMessage` reaches a session on another machine. `true` from any scope wins (v2.1.224) |
+| `keybindingFlavor` | `"classic"` \| `"readline"` | U | `"readline"` makes Ctrl+W delete back to whitespace, Bash-style (v2.1.238) |
 | `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
 | `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
 | `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports). **Claude Code does not read this from `settings.json` at user scope** — user-scope servers live in `~/.claude.json`, project-scope in `.mcp.json`. Typed here because cc-settings' `config/20-mcp.json` fragment carries the block through composition on its way to `~/.claude.json`; setting it in `settings.json` by hand has no effect |
 | `minimumVersion` | string | E | Minimum Claude Code version required; older clients are blocked |
 | `model` | string | G | Default model for all sessions (e.g. `"opus"`, `"sonnet"`) |
 | `modelOverrides` | Record\<string,unknown\> | G | Map model picker entries to custom provider model IDs (v2.1.105) |
+| `modelPicker` | object | G | Curate the `/model` picker: ordered `options` rows, optional `replaceBuiltInOptions`; user/managed only (v2.1.242) |
+| `modelPricing` | object | E | Managed: contracted per-model rates + discount multiplier for `/cost` and telemetry; shape not public (v2.1.243) |
 | `otelHeadersHelper` | string | G | Shell command that emits OTEL auth headers |
 | `outputStyle` | string | G | Output rendering style override |
 | `parentSettingsBehavior` | `"first-wins"` \| `"merge"` | E | How managed settings participate in the policy merge (admin-tier, v2.1.133) |
@@ -680,6 +734,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `prUrlTemplate` | string | G | Custom PR badge URL template; substitutes `{host}`, `{owner}`, `{repo}`, `{number}`, `{url}` (v2.1.119) |
 | `preferredNotifChannel` | enum | U | Preferred desktop/terminal notification channel (`auto`, `terminal_bell`, `iterm2`, …) |
 | `prefersReducedMotion` | boolean | U | Suppress animations in the TUI |
+| `promptCacheTtl` | `"5m"` \| `"1h"` | G | Prompt-cache lifetime for the main conversation; cc-settings sets `"1h"` (v2.1.242) |
 | `remoteControlAtStartup` | boolean | G | Auto-connect the session to Remote Control at startup, so it is reachable from claude.ai/phone without running `/remote-control` (v2.1.226; cc-settings sets `true`) |
 | `requiredMaximumVersion` | string | E | Managed: refuse to start if the Claude Code version is above this (v2.1.163) |
 | `requiredMinimumVersion` | string | E | Managed: refuse to start if the Claude Code version is below this; pairs with `requiredMaximumVersion` to define an allowed range (v2.1.163) |
@@ -695,12 +750,13 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `skipWebFetchPreflight` | boolean | G | Skip preflight check before web-fetch tool calls |
 | `spellcheck` | boolean \| object | G | Underline misspelled prompt words via installed aspell/hunspell/ispell; shape not pinned upstream (v2.1.235) |
 | `spinnerTipsEnabled` | boolean | U | Show tips in the thinking spinner |
-| `spinnerTipsOverride` | object | U | Suppress built-in spinner tips (`excludeDefault` boolean) (v2.1.122) |
+| `spinnerTipsOverride` | object | U | Suppress built-in spinner tips or add your own (`excludeDefault`, `tips`, `tipsFile`, `label`) (v2.1.122; entries v2.1.247) |
 | `spinnerVerbs` | object | U | Customize animated spinner verbs (`mode`, `verbs` fields) |
 | `sshConfigs` | unknown[] | G | SSH tunnel/proxy configuration entries |
 | `statusLine` | object | G | Custom status bar command displayed in the terminal |
 | `strictKnownMarketplaces` | string[] | E | Allowlist of marketplace IDs considered trusted |
 | `strictPluginOnlyCustomization` | boolean \| string[] | E | Restrict customization to plugin-provided items; `true` = all categories |
+| `subagentPromptCacheTtl` | `"5m"` \| `"1h"` | G | Prompt-cache lifetime for subagents/workflows/background requests; cc-settings sets `"5m"` (v2.1.242) |
 | `syntaxHighlightingDisabled` | boolean | U | Disable syntax highlighting in code blocks |
 | `teammateMode` | `"auto"` \| `"in-process"` \| `"tmux"` | G | Agent Teams coordination mode |
 | `terminalProgressBarEnabled` | boolean | U | Show a progress bar for long-running operations |

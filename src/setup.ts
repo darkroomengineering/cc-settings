@@ -147,7 +147,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "15.1.0"; // --fresh flag: reinstall-from-scratch (settings + prior-install state reset)
+const VERSION = "15.2.0"; // Claude Code 2.1.247 sync: typed cache-TTL keys replace ENABLE_PROMPT_CACHING_1H; 6 new settings keys
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 

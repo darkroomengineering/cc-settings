@@ -16,11 +16,25 @@ export const SpinnerVerbs = z.object({
   verbs: z.array(z.string().min(1)).min(1),
 });
 
-// Suppress built-in spinner tips (2.1.122). Shape is partially documented;
-// only `excludeDefault` is referenced upstream. Loose so future fields
-// don't break user configs at install time.
+// Spinner tips (2.1.122; entries/tipsFile/label documented 2.1.247). A `tips`
+// entry is a plain string or an object keyed by a stable `id` so its cooldown
+// survives reordering. Loose so future fields don't break user configs at
+// install time.
+export const SpinnerTip = z.union([
+  z.string(),
+  z.looseObject({
+    id: z.string().max(64), // letters, digits, ., _, - per docs; kept permissive
+    text: z.string().max(500),
+    cooldownSessions: z.number().int().min(0).max(1000).optional(),
+    priority: z.number().int().min(-10).max(10).optional(),
+  }),
+]);
+
 export const SpinnerTipsOverride = z.looseObject({
   excludeDefault: z.boolean().optional(),
+  tips: z.array(SpinnerTip).optional(), // 2.1.247 — max 200 across tips + tipsFile, invalid entries dropped upstream
+  tipsFile: z.string().optional(), // 2.1.247 — absolute or ~/ path to a JSON tips file (≤256 KB); not deployable via server-managed settings
+  label: z.string().max(40).optional(), // 2.1.247 — prefix before user/managed tips; default "Tip"
 });
 
 export const StatusLine = z.object({
@@ -209,7 +223,8 @@ export const Settings = z.looseObject({
 
   // Appearance + UX
   spinnerVerbs: SpinnerVerbs.optional(),
-  spinnerTipsOverride: SpinnerTipsOverride.optional(), // 2.1.122
+  spinnerTipsOverride: SpinnerTipsOverride.optional(), // 2.1.122; tips/tipsFile/label 2.1.247
+  keybindingFlavor: z.enum(["classic", "readline"]).optional(), // 2.1.238 — "readline" makes Ctrl+W delete back to whitespace (Bash-style); 2.1.243 extends it to Alt+F/Alt+D/word motions
   statusLine: StatusLine.optional(),
   showThinkingSummaries: z.boolean().optional(),
   emojiCompletionEnabled: z.boolean().optional(), // 2.1.217 — emoji shortcode autocomplete in the prompt input (`:heart:` → ❤️)
@@ -253,6 +268,34 @@ export const Settings = z.looseObject({
   disableBypassPermissionsMode: z.enum(["disable"]).optional(),
   skipDangerousModePermissionPrompt: z.boolean().optional(), // skip the confirmation before entering bypass-permissions mode; ignored in project settings (per docs)
   effortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // persist /effort across sessions; settings.json counterpart of CLAUDE_CODE_EFFORT_LEVEL. The key's docs list 4 values, but the env var + real live configs also use "max" — superset to not reject observed values.
+  // 2.1.242 — prompt-cache lifetime per scope. promptCacheTtl covers the main
+  // conversation (and inline helpers); subagentPromptCacheTtl covers
+  // subagents, workflows, compaction, and other background requests.
+  // Precedence per docs: FORCE_PROMPT_CACHING_5M > CLAUDE_CODE_[SUBAGENT_]
+  // PROMPT_CACHE_TTL env > these keys > ENABLE_PROMPT_CACHING_1H.
+  promptCacheTtl: z.enum(["5m", "1h"]).optional(),
+  subagentPromptCacheTtl: z.enum(["5m", "1h"]).optional(),
+  // 2.1.242 — curate the /model picker: ordered labeled rows, optionally
+  // replacing the built-in lineup. User/managed/--settings only (ignored in
+  // project and local scopes); the highest source supplies the whole lineup.
+  modelPicker: z
+    .looseObject({
+      options: z
+        .array(
+          z.looseObject({
+            model: z.string(), // anything --model accepts: alias, Anthropic ID, or provider-format ID
+            label: z.string().optional(),
+            description: z.string().optional(),
+          }),
+        )
+        .optional(),
+      replaceBuiltInOptions: z.boolean().optional(),
+    })
+    .optional(),
+  // 2.1.243 (managed) — an organization's contracted per-model rates and
+  // discount multiplier for /cost, the status line, and telemetry cost
+  // figures. No public shape documented — kept fully loose.
+  modelPricing: z.looseObject({}).optional(),
   // 2.1.219 — advisory ceiling on how many agents a dynamic workflow should
   // spawn; upstream default is "medium" (aim for fewer than 15). Settings-file
   // counterpart of /config's "Dynamic workflow size". Typed as a bare string
@@ -275,6 +318,7 @@ export const Settings = z.looseObject({
   disabledMcpjsonServers: z.array(z.string()).optional(), // blocklist for project .mcp.json server names
   modelOverrides: ModelOverrides.optional(), // 2.1.105
   feedbackSurveyRate: z.number().optional(), // 2.1.106 (enterprise)
+  feedbackDrafts: z.enum(["notify", "quiet", "off"]).optional(), // 2.1.247 — SendFeedback drafts: "notify" shows a card, "quiet" drafts silently, "off" removes the tool. User or managed scope; default "notify".
   sandbox: Sandbox.optional(), // 2.1.98–2.1.108 nested
   changelogUrl: z.string().optional(),
   prUrlTemplate: z.string().optional(), // 2.1.119 — substitutes {host}, {owner}, {repo}, {number}, {url}

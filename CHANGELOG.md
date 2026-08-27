@@ -6,6 +6,32 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.2.0] — 2026-08-27
+
+Claude Code v2.1.238 → v2.1.247 sync: six new settings keys typed, and the blanket 1-hour prompt-cache env var replaced by per-scope cache-TTL keys.
+
+**Adopted:**
+- `promptCacheTtl: "1h"` + `subagentPromptCacheTtl: "5m"` in `config/10-core.json` (upstream v2.1.242) — the main conversation keeps the 1-hour cache across breaks while subagents, workflows, and compaction drop back to 5 minutes, skipping the higher 1h cache-write rate on every fan-out.
+- `feedbackDrafts` enum in the settings schema (v2.1.247) — SendFeedback draft control: notify / quiet / off.
+- `spinnerTipsOverride` extended with `tips` entries (`{id, text, cooldownSessions, priority}` or plain strings), `tipsFile`, and `label` (v2.1.247).
+- `modelPicker` (v2.1.242) — curated `/model` lineup with `options` rows and `replaceBuiltInOptions`.
+- `keybindingFlavor` enum (v2.1.238) — `"readline"` Ctrl+W behavior.
+- `modelPricing` loose object (v2.1.243, managed) — contracted per-model rates for `/cost` and telemetry.
+- Manifest: five prompt-cache/feedback env vars added to `knownEnvVars` (reference-only).
+
+**Deletions / Native-now-redundant:**
+- `ENABLE_PROMPT_CACHING_1H` env removed from `config/10-core.json` — superseded by the typed `promptCacheTtl` / `subagentPromptCacheTtl` keys above (upstream v2.1.242); the settings keys sit above the env var in upstream precedence, so the var carried no remaining value.
+- `docs/settings-reference.md` `effortLevel` prose said cc-settings pins `high`; the config pins `medium` — corrected.
+
+**Files changed:**
+- src/schemas/settings.ts
+- schemas/settings.schema.json
+- config/10-core.json
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [15.1.0] — 2026-08-27
 
 - New `--fresh` install flag: reinstalls as if cc-settings were being added to
