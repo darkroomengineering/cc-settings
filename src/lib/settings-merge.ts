@@ -41,6 +41,14 @@ export interface MergeOptions {
    *  in contexts with no source tree to check against (e.g. a strategy called
    *  directly in a unit test), which fails open and skips that prune. */
   sourceDir?: string;
+  /** The `env` block the PREVIOUS install's baseline recorded
+   *  (~/.claude/.cc-settings-baseline.json, written since v13.1.0). Lets
+   *  envStrategy prune a key three-way — the old install wrote it, the new
+   *  config no longer sets it, and the live value still equals what we wrote
+   *  (the user never changed it) — without a hand-maintained registry entry.
+   *  Undefined (pre-baseline install, or a unit test) fails open: only the
+   *  DEPRECATED_ENV_KEYS registry prunes. */
+  baselineEnv?: Record<string, unknown>;
 }
 
 export interface MergeAccounting {
@@ -144,6 +152,13 @@ export const DEPRECATED_ENV_KEYS = new Set<string>([
   // restriction — capping nesting below stock. Dropped in v13.2.1; installs
   // now inherit whatever upstream defaults to.
   "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH",
+  // Shipped v2.1.108-era to force the 1-hour prompt cache on every request.
+  // Replaced in v15.2.0 by the typed promptCacheTtl ("1h") +
+  // subagentPromptCacheTtl ("5m") settings keys, which sit above this var in
+  // upstream precedence AND stop paying the 1h cache-write rate on subagent
+  // fan-outs. Registry entry covers pre-baseline installs; baseline-recorded
+  // installs are pruned by the three-way check in envStrategy either way.
+  "ENABLE_PROMPT_CACHING_1H",
 ]);
 
 // Union two string arrays, preserving team order. Team-only entries can be
@@ -514,6 +529,22 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
     if (k in merged && !(k in t)) {
       delete merged[k];
       ctx.accounting.envPruned++;
+    }
+  }
+
+  // Three-way prune (the registry's data-driven successor): the previous
+  // install's baseline wrote this key, the incoming team config no longer
+  // sets it, and the live value still equals what that install wrote — so
+  // removing the key removes only what cc-settings itself put there. A value
+  // the user changed since is a user edit and stays, which is exactly the
+  // discrimination the hand-maintained registry above cannot make.
+  const baselineEnv = ctx.opts.baselineEnv;
+  if (baselineEnv) {
+    for (const k of Object.keys(baselineEnv)) {
+      if (k in merged && !(k in t) && merged[k] === baselineEnv[k]) {
+        delete merged[k];
+        ctx.accounting.envPruned++;
+      }
     }
   }
 

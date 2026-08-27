@@ -131,7 +131,12 @@ import {
   snapshotAutoUpdateState,
   unregisterAutoUpdate,
 } from "./lib/schedule.ts";
-import { BASELINE_FILENAME, writeSettingsBaseline } from "./lib/settings-baseline.ts";
+import {
+  BASELINE_FILENAME,
+  readSettingsBaseline,
+  type SettingsBaseline,
+  writeSettingsBaseline,
+} from "./lib/settings-baseline.ts";
 import { mergeSettings, printMergeAccounting } from "./lib/settings-merge.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
@@ -147,7 +152,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "15.2.0"; // Claude Code 2.1.247 sync: typed cache-TTL keys replace ENABLE_PROMPT_CACHING_1H; 6 new settings keys
+const VERSION = "15.3.0"; // three-way env prune: retired managed env keys are removed on upgrade via the settings baseline
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 
@@ -234,6 +239,12 @@ async function installSettings(
   // the live ENGINES registry's serverInstructions text has since changed.
   // Undefined/null on a first install or a pre-fix sentinel.
   priorMcpWritten?: Record<string, unknown> | null,
+  // The PREVIOUS install's settings baseline, read by the caller BEFORE
+  // runFullInstall — removeClaudeFilesWithHashes deletes the managed
+  // footprint (baseline included) ahead of this function, so a read here
+  // would always come back null. Null/undefined on a first install, a light
+  // prior profile, or a pre-v13.1.0 install with no baseline.
+  priorSettingsBaseline?: SettingsBaseline | null,
 ): Promise<{ overridden: string[]; mcpWritten: McpServers | null }> {
   const userSettingsPath = join(CLAUDE_DIR, "settings.json");
   // Compose team settings from config/ fragments (always the full baseline).
@@ -311,11 +322,21 @@ async function installSettings(
   // mcpServers is deliberately absent from what the merger sees, so it is
   // neither written nor re-added on top of the prune above.
   const { mcpServers: _composedMcp, ...settingsForMerge } = fullComposed;
+  // The previous install's baseline env lets envStrategy prune keys
+  // cc-settings retired between versions without a registry entry.
+  // Best-effort — a missing/corrupt baseline degrades to registry-only prune.
+  const priorBaselineEnvRaw = priorSettingsBaseline?.settings?.env;
+  const baselineEnv =
+    priorBaselineEnvRaw &&
+    typeof priorBaselineEnvRaw === "object" &&
+    !Array.isArray(priorBaselineEnvRaw)
+      ? (priorBaselineEnvRaw as Record<string, unknown>)
+      : undefined;
   const accounting = await mergeSettings(
     userSettingsPath,
     settingsForMerge as Record<string, unknown>,
     userSettingsPath,
-    { interactive, sourceDir: source },
+    { interactive, sourceDir: source, baselineEnv },
   );
   if (accounting) printMergeAccounting(accounting, { interactive });
   if (prunedInertMcp.length > 0) {
@@ -336,10 +357,11 @@ async function installSettings(
     throw new Error("Merged Claude settings disappeared before ownership metadata was written");
   }
   await fingerprintSettingsHooks(mergedReadBack);
-  // Phase 1 of the three-way settings-merge design (docs/settings-merge-three-
-  // way-design.md §1): record what this install actually wrote, for a future
-  // merge to read — nothing reads it yet. Best-effort, same as the fingerprint
-  // above: a baseline write failure must never fail an install.
+  // Record what this install actually wrote (docs/settings-merge-three-way-
+  // design.md §1). The env block is read back by the NEXT install's merge to
+  // prune retired env keys three-way (see baselineEnv above). Best-effort,
+  // same as the fingerprint: a baseline write failure must never fail an
+  // install.
   await writeSettingsBaseline(CLAUDE_DIR, VERSION, mergedReadBack as Record<string, unknown>);
   // teamMcp is post-engine-rewrite, so the tldr entry recorded here is the
   // resolved engine's — same value the old tldr-only branch reconstructed.
@@ -2189,15 +2211,22 @@ async function main(): Promise<number> {
       claudeSharedDrift = await captureClaudeSharedExplicitDrift(claudeSharedBaseline);
 
       claudePhase = "files";
+      // Read the previous install's settings baseline BEFORE any file work —
+      // runFullInstall deletes the managed footprint (baseline included)
+      // ahead of installSettings, which threads this into the merge to prune
+      // env keys cc-settings retired between versions.
+      let priorSettingsBaseline: SettingsBaseline | null = null;
       const claudeCode = await (async (): Promise<number> => {
         // Dispatch to migrate-only or full install path.
         if (args.migrateOnly) {
+          priorSettingsBaseline = await readSettingsBaseline(CLAUDE_DIR);
           info("Migrate-only: backup + merger + sentinel; skipping file copy");
           await assertClaudeLifecycleOwnershipUnchanged(preparedClaudeInstallOwnership.snapshot);
           await createBackup({ managedFiles: preparedClaudeInstallOwnership.files });
           await assertClaudeLifecycleOwnershipUnchanged(preparedClaudeInstallOwnership.snapshot);
           await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
         } else {
+          priorSettingsBaseline = await readSettingsBaseline(CLAUDE_DIR);
           managedFiles = await runFullInstall(
             args,
             engine,
@@ -2273,6 +2302,7 @@ async function main(): Promise<number> {
           priorMcpWritten = null;
           priorAutoUpdate = null;
           prevInstalledVersion = null;
+          priorSettingsBaseline = null;
         }
 
         try {
@@ -2282,6 +2312,7 @@ async function main(): Promise<number> {
             args.profile,
             engine,
             priorMcpWritten,
+            priorSettingsBaseline,
           ));
         } catch (err) {
           // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.

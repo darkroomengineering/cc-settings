@@ -13,18 +13,16 @@
 // read on every SessionStart and must stay small. The baseline is written once
 // per full-profile install and never touched by a hot path.
 //
-// PHASE 1 ONLY — purely additive, zero behavior change. This module only
-// WRITES the baseline; readSettingsBaseline has NO production caller yet. That
-// is intentional, not dead code: it exists so (a) the write can be verified by
-// tests, and (b) a future three-way merge (design doc §1: "Read by:
-// installSettings, before calling mergeSettings, threaded through as a new
-// optional parameter") is mechanical — the data will already be sitting on
-// disk with real history behind it once that work is greenlit. The full
-// three-way merge (threading a baseline parameter through mergeSettings,
-// generalizing the deprecated-pattern registries per the design doc's case 7)
-// was designed, costed, and explicitly DECLINED for now — see the design
-// doc's note 7. Do not delete this function as unused without reading that
-// doc first.
+// As of v15.3.0 readSettingsBaseline has its first production caller:
+// installSettings reads the previous install's baseline and threads its env
+// block into mergeSettings as `baselineEnv`, so env keys cc-settings retires
+// between versions are pruned three-way (old install wrote it + new config
+// dropped it + user never changed it) instead of surviving forever or
+// requiring a DEPRECATED_ENV_KEYS registry entry. That is the first slice of
+// the design doc's engine — deliberately scoped to env only. The FULL
+// three-way merge (permissions/hooks, generalizing the deprecated-pattern
+// registries per the design doc's case 7) remains designed, costed, and
+// DECLINED — see the design doc's note 7.
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";

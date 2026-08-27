@@ -874,6 +874,79 @@ describe("envStrategy", () => {
     if (!result.keep) return;
     expect(ctx.accounting.envPruned).toBe(0);
   });
+
+  // --- three-way baseline prune (opts.baselineEnv) -------------------------
+  // The data-driven successor to DEPRECATED_ENV_KEYS: a key the previous
+  // install's baseline wrote, the new team config dropped, and the user never
+  // changed is pruned; a user-changed value survives as a user edit.
+
+  test("baseline key dropped by team, value unchanged → pruned", async () => {
+    const ctx = makeCtx({ baselineEnv: { ENABLE_PROMPT_CACHING_1H_FAKE: "1", KEPT: "x" } });
+    const team = { KEPT: "x" };
+    const user = { ENABLE_PROMPT_CACHING_1H_FAKE: "1", KEPT: "x" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect("ENABLE_PROMPT_CACHING_1H_FAKE" in merged).toBe(false);
+    expect(merged.KEPT).toBe("x");
+    expect(ctx.accounting.envPruned).toBe(1);
+  });
+
+  test("baseline key dropped by team, user CHANGED the value → kept as a user edit", async () => {
+    const ctx = makeCtx({ baselineEnv: { RETIRED: "1" } });
+    const team = {};
+    const user = { RETIRED: "0" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).RETIRED).toBe("0");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("baseline key the team config still ships is NOT pruned", async () => {
+    const ctx = makeCtx({ baselineEnv: { SHIPPED: "1" } });
+    const team = { SHIPPED: "1" };
+    const user = { SHIPPED: "1" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).SHIPPED).toBe("1");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("user-only key absent from the baseline is untouched", async () => {
+    const ctx = makeCtx({ baselineEnv: { RETIRED: "1" } });
+    const team = {};
+    const user = { MY_CUSTOM: "hello" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).MY_CUSTOM).toBe("hello");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("no baselineEnv → registry-only behavior (pre-baseline installs fail open)", async () => {
+    const ctx = makeCtx();
+    const team = {};
+    const user = { RETIRED: "1" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).RETIRED).toBe("1");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("registry and baseline both matching one key count a single prune", async () => {
+    const ctx = makeCtx({ baselineEnv: { ENABLE_PROMPT_CACHING_1H: "1" } });
+    const team = {};
+    const user = { ENABLE_PROMPT_CACHING_1H: "1" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect("ENABLE_PROMPT_CACHING_1H" in (result.value as Record<string, unknown>)).toBe(false);
+    expect(ctx.accounting.envPruned).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------

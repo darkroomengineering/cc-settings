@@ -703,6 +703,74 @@ exit $rc
 });
 
 describe("install E2E — fresh HOME", () => {
+  test("an env key retired between versions is pruned three-way via the baseline, but a user-changed value survives", async () => {
+    // Regression for the v15.2.0 ENABLE_PROMPT_CACHING_1H episode: removing a
+    // managed env key from config/ left it in every existing install because
+    // the merge added new keys but never pruned dropped ones. The baseline
+    // now closes that: prior install wrote it + new config dropped it + user
+    // never changed it → pruned on the next install.
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-env-prune-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+
+      // Simulate the previous install having shipped two now-retired keys:
+      // append them to the live settings env AND the recorded baseline env.
+      const settingsPath = join(claudeDir, "settings.json");
+      const baselinePath = join(claudeDir, ".cc-settings-baseline.json");
+      const settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
+        env?: Record<string, string>;
+      };
+      const baseline = JSON.parse(await readFile(baselinePath, "utf8")) as {
+        settings?: { env?: Record<string, string> };
+      };
+      expect(baseline.settings?.env).toBeDefined();
+      settings.env = {
+        ...settings.env,
+        CC_TEST_RETIRED_UNCHANGED: "1",
+        CC_TEST_RETIRED_EDITED: "user-changed",
+        CC_TEST_USER_OWN: "mine",
+      };
+      if (baseline.settings?.env) {
+        baseline.settings.env.CC_TEST_RETIRED_UNCHANGED = "1";
+        baseline.settings.env.CC_TEST_RETIRED_EDITED = "original";
+      }
+      await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+      const baselineBytes = `${JSON.stringify(baseline, null, 2)}\n`;
+      await writeFile(baselinePath, baselineBytes);
+      // The baseline is sentinel-managed; a real prior install would have
+      // recorded these bytes itself, so update the ownership hash to match.
+      const sentinelPath = join(claudeDir, ".cc-settings-version");
+      const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+      };
+      sentinel.managed_files[".cc-settings-baseline.json"] = new Bun.CryptoHasher("sha256")
+        .update(baselineBytes)
+        .digest("hex");
+      await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
+
+      const second = await runInstall(home);
+      expect(second.exitCode, `${second.stdout}\n${second.stderr}`).toBe(0);
+      const after = JSON.parse(await readFile(settingsPath, "utf8")) as {
+        env?: Record<string, string>;
+      };
+      // Retired + unchanged → pruned.
+      expect(after.env?.CC_TEST_RETIRED_UNCHANGED).toBeUndefined();
+      // Retired but the user changed the value → kept as a user edit.
+      expect(after.env?.CC_TEST_RETIRED_EDITED).toBe("user-changed");
+      // Never in any baseline → untouched.
+      expect(after.env?.CC_TEST_USER_OWN).toBe("mine");
+      // The new baseline no longer records the pruned key, so a THIRD install
+      // must not prune anything further.
+      const newBaseline = JSON.parse(await readFile(baselinePath, "utf8")) as {
+        settings?: { env?: Record<string, string> };
+      };
+      expect(newBaseline.settings?.env?.CC_TEST_RETIRED_UNCHANGED).toBeUndefined();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   test.each([
     { args: ["--uninstall", "--target=codxe"], target: "claude" as const },
     { args: ["--unknown"], target: "both" as const },

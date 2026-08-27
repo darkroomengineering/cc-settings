@@ -6,6 +6,26 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.3.0] — 2026-08-27
+
+Env keys cc-settings retires between versions are now removed from existing installs automatically, instead of surviving until someone remembers the registry.
+
+**Adopted:**
+- Three-way env prune in the settings merge: the previous install's recorded baseline (`~/.claude/.cc-settings-baseline.json`, written since v13.1.0) is read before the managed footprint is cleaned and threaded into `mergeSettings` as `baselineEnv`. A key the old install wrote, the new config no longer sets, and the user never changed is pruned; a user-changed value survives as a user edit. First production caller of `readSettingsBaseline` — the first shipped slice of the three-way merge design, deliberately scoped to `env` only.
+- `ENABLE_PROMPT_CACHING_1H` added to `DEPRECATED_ENV_KEYS` as the fallback for pre-v13.1.0 installs with no baseline (the v15.2.0 retirement that exposed this gap).
+
+**Deletions / Native-now-redundant:**
+- None. `DEPRECATED_ENV_KEYS` stays as the pre-baseline fallback path.
+
+**Files changed:**
+- src/setup.ts
+- src/lib/settings-merge.ts
+- src/lib/settings-baseline.ts
+- tests/settings-merge.test.ts
+- tests/install-e2e.test.ts
+- package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.2.0] — 2026-08-27
 
 Claude Code v2.1.238 → v2.1.247 sync: six new settings keys typed, and the blanket 1-hour prompt-cache env var replaced by per-scope cache-TTL keys.
