@@ -4,7 +4,7 @@
 // note (the launchd job is a persistence surface outside the four defense
 // layers) and plans/swift-wiggling-lobster.md for the full design.
 
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { chmod, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
@@ -342,6 +342,69 @@ async function readScheduledOwnership(
   };
 }
 
+/** The exact plist texts registerAutoUpdate could have written on this
+ *  machine for a given repo path: plain bun, and bun exec'd through the
+ *  Darkroom Helpers wrapper. */
+function canonicalPlistCandidates(homeDir: string, claudeDir: string, repoPath: string): string[] {
+  const common = {
+    bunPath: process.execPath,
+    scriptPath: join(claudeDir, "src", "scripts", "auto-update.ts"),
+    logPath: autoUpdateLogPath(claudeDir),
+    repoPath,
+  };
+  return [
+    buildPlist(common),
+    buildPlist({
+      ...common,
+      wrapperPath: join(homeDir, ".hammerspoon", "helpers", "darkroom-run"),
+      associatedBundleId: "com.darkroom.helpers",
+    }),
+  ];
+}
+
+function xmlUnescape(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Reclaim an orphaned cc-settings plist left by a failed registration.
+ *
+ * A registration that wrote the plist and then died (e.g. the pre-fix
+ * bootout-ESRCH abort) leaves the canonical plist on disk with no managed
+ * sentinel. Without reclamation that orphan is classified as an independent
+ * third-party job, which silently skips enrollment and hard-fails
+ * --auto-update on every later install — our own crash must never poison
+ * future installs. Byte-exact only: the repo path is read back out of the
+ * plist's CC_EXPECTED_REPO pin and the whole file must equal what
+ * registerAutoUpdate would write for it, at the 0o600 mode we chmod.
+ * Anything else stays independent-preserve-only. Returns the pinned repo
+ * path when the plist is ours, null otherwise.
+ */
+function reclaimOrphanRepoPath(
+  bytes: Uint8Array,
+  mode: number,
+  homeDir: string,
+  claudeDir: string,
+): string | null {
+  if (mode !== 0o600) return null;
+  const text = Buffer.from(bytes).toString("utf8");
+  const pin = text.match(/<key>CC_EXPECTED_REPO<\/key>\s*<string>([^<]*)<\/string>/);
+  if (!pin) return null;
+  const repoPath = xmlUnescape(pin[1] ?? "");
+  if (!isAbsolute(repoPath)) return null;
+  // The snapshot validator requires a managed repo path to be a real
+  // directory — a pin to a deleted repo must stay preserve-only rather
+  // than turn snapshotting into a hard failure.
+  const repoMetadata = lstatSync(repoPath, { throwIfNoEntry: false });
+  if (!repoMetadata?.isDirectory() || repoMetadata.isSymbolicLink()) return null;
+  return canonicalPlistCandidates(homeDir, claudeDir, repoPath).includes(text) ? repoPath : null;
+}
+
 /** Validate that persisted scheduler bytes can only recreate cc-settings' canonical job. */
 export async function validateAutoUpdateStateSnapshot(
   snapshot: AutoUpdateStateSnapshot | null,
@@ -357,23 +420,8 @@ export async function validateAutoUpdateStateSnapshot(
   if (!repoMetadata?.isDirectory() || repoMetadata.isSymbolicLink()) {
     throw new Error("Unsafe auto-update snapshot repository path");
   }
-  const common = {
-    bunPath: process.execPath,
-    scriptPath: join(claudeDir, "src", "scripts", "auto-update.ts"),
-    logPath: autoUpdateLogPath(claudeDir),
-    repoPath: snapshot.repoPath,
-  };
-  const wrapperPath = join(homeDir, ".hammerspoon", "helpers", "darkroom-run");
-  const candidates = [
-    buildPlist(common),
-    buildPlist({
-      ...common,
-      wrapperPath,
-      associatedBundleId: "com.darkroom.helpers",
-    }),
-  ];
   const bytes = Buffer.from(snapshot.plist.bytes).toString("utf8");
-  if (!candidates.includes(bytes)) {
+  if (!canonicalPlistCandidates(homeDir, claudeDir, snapshot.repoPath).includes(bytes)) {
     throw new Error("Auto-update snapshot plist is not the canonical cc-settings LaunchAgent");
   }
 }
@@ -399,14 +447,19 @@ export async function snapshotAutoUpdateState(
     throw new Error(`Cannot snapshot loaded ${AUTO_UPDATE_LABEL}: its plist is missing at ${path}`);
   }
   const ownership = await readScheduledOwnership(claudeDir);
+  const plist: AutoUpdateStateSnapshot["plist"] = metadata
+    ? { present: true, bytes: await readFile(path), mode: metadata.mode & 0o777 }
+    : { present: false };
+  const reclaimedRepoPath =
+    !ownership.managed && plist.present
+      ? reclaimOrphanRepoPath(plist.bytes, plist.mode, homeDir, claudeDir)
+      : null;
   const snapshot: AutoUpdateStateSnapshot = {
-    plist: metadata
-      ? { present: true, bytes: await readFile(path), mode: metadata.mode & 0o777 }
-      : { present: false },
+    plist,
     loaded,
-    repoPath: ownership.repoPath,
+    repoPath: ownership.managed ? ownership.repoPath : (reclaimedRepoPath ?? ownership.repoPath),
     restoreMode:
-      ownership.managed || (!metadata && !loaded)
+      ownership.managed || (!metadata && !loaded) || reclaimedRepoPath !== null
         ? "managed-restorable"
         : "independent-preserve-only",
   };

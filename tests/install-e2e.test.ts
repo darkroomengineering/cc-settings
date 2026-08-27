@@ -35,6 +35,7 @@ import {
 } from "../src/lib/claude-managed-files.ts";
 import { verifySrcManifest } from "../src/lib/hooks-fingerprint.ts";
 import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
+import { autoUpdateLogPath, buildPlist } from "../src/lib/schedule.ts";
 import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
@@ -2751,6 +2752,67 @@ exit 0
         expect(existsSync(join(home, ".fake-launchctl-loaded"))).toBe(true);
         const sentinel = JSON.parse(
           await readFile(join(home, ".claude", ".cc-settings-version"), "utf8"),
+        ) as { auto_update?: boolean };
+        expect(sentinel.auto_update).toBe(true);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 90_000 },
+  );
+
+  test.skipIf(process.platform !== "darwin")(
+    "an orphaned canonical plist from a crashed registration is reclaimed, not treated as independent",
+    async () => {
+      // Fermin's post-crash state: the pre-ESRCH-fix installer wrote the
+      // canonical plist, then aborted before bootstrap and before the
+      // compensating removal, leaving no sentinel. The next install must
+      // reclaim that orphan and enroll — not classify it as an independent
+      // third-party job (which silently skips enrollment and hard-fails
+      // --auto-update=on).
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-autoupdate-orphan-"));
+      try {
+        const claudeDir = join(home, ".claude");
+        const agents = join(home, "Library", "LaunchAgents");
+        const bin = join(home, "bin");
+        await Promise.all([mkdir(agents, { recursive: true }), mkdir(bin, { recursive: true })]);
+        const plist = join(agents, "com.darkroom.cc-settings-autoupdate.plist");
+        await writeFile(
+          plist,
+          buildPlist({
+            bunPath: process.execPath,
+            scriptPath: join(claudeDir, "src", "scripts", "auto-update.ts"),
+            logPath: autoUpdateLogPath(claudeDir),
+            repoPath: REPO,
+          }),
+        );
+        await chmod(plist, 0o600);
+        const launchctl = join(bin, "launchctl");
+        await writeFile(
+          launchctl,
+          `#!/bin/sh
+case "$1" in
+  print) [ -e "$HOME/.fake-launchctl-loaded" ] && exit 0
+    printf 'Bad request.\nCould not find service "com.darkroom.cc-settings-autoupdate" in domain for user gui: %s\n' "$(id -u)" >&2
+    exit 113;;
+  bootout) if [ -e "$HOME/.fake-launchctl-loaded" ]; then rm -f "$HOME/.fake-launchctl-loaded"; exit 0; fi
+    echo 'Boot-out failed: 3: No such process' >&2
+    exit 3;;
+  bootstrap) touch "$HOME/.fake-launchctl-loaded"; exit 0;;
+esac
+exit 0
+`,
+        );
+        await chmod(launchctl, 0o755);
+        const result = await runInstall(home, ["--auto-update=on"], "claude", {
+          CC_SKIP_SCHEDULE: "0",
+          CI: "false",
+          PATH: prependTestPath(bin),
+        });
+        expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0);
+        expect(existsSync(join(home, ".fake-launchctl-loaded"))).toBe(true);
+        const sentinel = JSON.parse(
+          await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
         ) as { auto_update?: boolean };
         expect(sentinel.auto_update).toBe(true);
       } finally {

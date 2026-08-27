@@ -4,11 +4,12 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, statSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AUTO_UPDATE_LABEL,
+  autoUpdateLogPath,
   autoUpdateStatus,
   buildPlist,
   decideAutoUpdate,
@@ -17,6 +18,7 @@ import {
   isExactAbsentLaunchctlResult,
   plistPath,
   registerAutoUpdate,
+  snapshotAutoUpdateState,
   unregisterAutoUpdate,
   xmlEscape,
 } from "../src/lib/schedule.ts";
@@ -380,4 +382,105 @@ describe("launchctl bootout absence — ESRCH (real macOS response for an unload
   ])("%s is not treated as absence", (_label, result) => {
     expect(isAbsentBootoutResult(result, uid)).toBe(false);
   });
+});
+
+describe("snapshotAutoUpdateState — orphaned canonical plist reclamation", () => {
+  // A crashed registration leaves the canonical plist with no managed
+  // sentinel. Byte-exact canonical orphans are ours to reclaim; anything
+  // off by a byte, a mode bit, or a dead repo pin stays preserve-only.
+  // CC_SKIP_SCHEDULE=1 throughout — no real launchctl.
+  async function withOrphan<T>(
+    mutate: (args: { home: string; plist: string; repo: string }) => Promise<void>,
+    fn: (home: string) => Promise<T>,
+  ): Promise<T> {
+    const home = await mkdtemp(join(tmpdir(), "cc-orphan-"));
+    const savedSkip = process.env.CC_SKIP_SCHEDULE;
+    process.env.CC_SKIP_SCHEDULE = "1";
+    try {
+      const claudeDir = join(home, ".claude");
+      const repo = join(home, "repo");
+      await Promise.all([
+        mkdir(join(home, "Library", "LaunchAgents"), { recursive: true }),
+        mkdir(repo, { recursive: true }),
+      ]);
+      const plist = plistPath(home);
+      await writeFile(
+        plist,
+        buildPlist({
+          bunPath: process.execPath,
+          scriptPath: join(claudeDir, "src", "scripts", "auto-update.ts"),
+          logPath: autoUpdateLogPath(claudeDir),
+          repoPath: repo,
+        }),
+      );
+      await chmod(plist, 0o600);
+      await mutate({ home, plist, repo });
+      return await fn(home);
+    } finally {
+      if (savedSkip === undefined) delete process.env.CC_SKIP_SCHEDULE;
+      else process.env.CC_SKIP_SCHEDULE = savedSkip;
+      await rm(home, { recursive: true, force: true });
+    }
+  }
+
+  test.skipIf(process.platform !== "darwin")(
+    "byte-exact canonical orphan → managed-restorable with the pinned repo path",
+    async () => {
+      await withOrphan(
+        async () => {},
+        async (home) => {
+          const snapshot = await snapshotAutoUpdateState(home, join(home, ".claude"));
+          expect(snapshot?.restoreMode).toBe("managed-restorable");
+          expect(snapshot?.repoPath).toBe(join(home, "repo"));
+        },
+      );
+    },
+  );
+
+  test.skipIf(process.platform !== "darwin")(
+    "tampered plist bytes stay independent-preserve-only",
+    async () => {
+      await withOrphan(
+        async ({ plist }) => {
+          const bytes = await readFile(plist, "utf8");
+          await writeFile(plist, bytes.replace("<integer>10</integer>", "<integer>11</integer>"));
+          await chmod(plist, 0o600);
+        },
+        async (home) => {
+          const snapshot = await snapshotAutoUpdateState(home, join(home, ".claude"));
+          expect(snapshot?.restoreMode).toBe("independent-preserve-only");
+        },
+      );
+    },
+  );
+
+  test.skipIf(process.platform !== "darwin")(
+    "a mode other than 0600 stays independent-preserve-only",
+    async () => {
+      await withOrphan(
+        async ({ plist }) => {
+          await chmod(plist, 0o644);
+        },
+        async (home) => {
+          const snapshot = await snapshotAutoUpdateState(home, join(home, ".claude"));
+          expect(snapshot?.restoreMode).toBe("independent-preserve-only");
+        },
+      );
+    },
+  );
+
+  test.skipIf(process.platform !== "darwin")(
+    "a pin to a deleted repo stays independent-preserve-only rather than failing the snapshot",
+    async () => {
+      await withOrphan(
+        async ({ repo }) => {
+          await rm(repo, { recursive: true, force: true });
+        },
+        async (home) => {
+          const snapshot = await snapshotAutoUpdateState(home, join(home, ".claude"));
+          expect(snapshot?.restoreMode).toBe("independent-preserve-only");
+        },
+      );
+    },
+  );
 });
