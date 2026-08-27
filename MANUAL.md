@@ -277,7 +277,8 @@ This reports what is installed and shaping Claude user scope. It is not an invoc
 does not fully resolve project or managed-policy overrides. Codex has no exact equivalent; use
 `/status` for native session state and `/hooks` for plugin-hook trust.
 
-For install health, run `bash setup.sh --target=<target> --status` from a checkout. For hook-integrity
+For install health, run `bash setup.sh --target=<target> --status` from a checkout, or
+`npx darkroom-settings --status` from anywhere. For hook-integrity
 warnings, run `bun ~/.claude/src/scripts/audit-hooks.ts`. Follow
 [troubleshooting](./docs/troubleshooting.md) before refreshing trust or rolling back.
 

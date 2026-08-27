@@ -29,7 +29,9 @@ Install and authenticate at least one supported product first:
 - [Codex CLI](https://developers.openai.com/codex/cli/)
 
 cc-settings also needs Git and Bun 1.2.21 or newer. The shell and PowerShell bootstraps install Bun
-when it is missing. That may create `~/.bun`; cc-settings uninstall does not remove Bun.
+when it is missing. That may create `~/.bun`; cc-settings uninstall does not remove Bun. The
+`npx darkroom-settings` form additionally needs Node 18+ (for `npx` itself); it runs the same
+bootstrap, so every other requirement is identical.
 
 The full Claude profile uses `jq` in several skill shell snippets. The installer can use the
 available system package manager to install it. That operation may prompt for administrator access,
@@ -169,7 +171,7 @@ outside cc-settings ownership.
 | Path or system surface | Action and possible prompt | Ownership | Rollback and uninstall |
 |---|---|---|---|
 | Claude Code or Codex executable | Required before the selected full install; authentication belongs to that product. | Not owned | Never removed. |
-| `${XDG_DATA_HOME:-$HOME/.local/share}/cc-settings/source` | Remote shell install creates or atomically replaces the durable checkout with a fresh, config-isolated copy of official `main`. It refuses a symlink, wrong origin, dirty tree, local commits, or unsafe collision. | Managed remote-install source | Product rollback does not rewind the Git checkout. Uninstall leaves it for maintenance and recovery. |
+| `${XDG_DATA_HOME:-$HOME/.local/share}/cc-settings/source` | Remote installs (`npx darkroom-settings`, the shell one-liner, or a lone downloaded `setup.sh`) create or atomically replace the durable checkout with a fresh, config-isolated copy of official `main`. It refuses a symlink, wrong origin, dirty tree, local commits, or unsafe collision. | Managed remote-install source | Product rollback does not rewind the Git checkout. Uninstall leaves it for maintenance and recovery. |
 | A manual cc-settings clone | Read and executed as the source. | User owned | Never removed or changed by uninstall. |
 | `~/.bun` | Bootstrap may install Bun when missing. | Not owned | Never removed. |
 | System `jq` package | Full Claude install may invoke brew, apt, dnf, yum, pacman, zypper, apk, choco, scoop, winget, or MacPorts. Administrator prompt depends on the manager. | Not owned | Never removed. |
@@ -186,7 +188,11 @@ outside cc-settings ownership.
 | `~/.agents/skills` and `$CODEX_HOME/config.toml` (or `~/.codex/config.toml`) | Full Codex install and dry-run read direct child names to warn about legacy entries that duplicate plugin skills. The migration reads Desktop's import-sync setting because enabled sync recreates moved directories. It never edits the Codex config. | Not owned | Run `bun run migrate:codex-skills` to preview. If Desktop import sync is enabled, disable it, restart Codex, and preview again; `--apply` otherwise refuses without moving files or creating a backup. A permitted apply writes a timestamped backup and preserves non-overlaps. |
 
 Reinstalls preserve unrelated Claude permissions, custom hooks, local overrides, and MCP servers.
-They preserve unrelated Codex agents, rules, and text outside the marked `AGENTS.md` block.
+They preserve unrelated Codex agents, rules, and text outside the marked `AGENTS.md` block. The
+Claude settings merge is three-way against the previous install's recorded baseline: a value you
+changed always wins, a value still equal to what the previous install wrote follows a changed team
+default, and env keys cc-settings retires are removed. The install output reports both as
+"Updated N stale default(s)" and "Pruned N env var(s)".
 
 If Codex reports shortened skill descriptions, follow the
 [duplicate legacy skill migration](./codex.md#if-codex-says-skill-descriptions-were-shortened).

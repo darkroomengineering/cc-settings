@@ -35,5 +35,8 @@ downloader itself changes, not per cc-settings release.
 
 ```bash
 cd npm-installer
-npm publish
+npm publish --otp=<code>   # publish requires a 2FA one-time password
 ```
+
+Bump `version` here manually before publishing; the stub is not part of the
+cc-settings release cycle.

@@ -35,9 +35,10 @@ bash setup.sh --target=claude
 bash setup.sh --target=both
 ```
 
-On Windows, use `.\setup.ps1` in place of `bash setup.sh`. The remote one-liners clone and run the
-default install, but they cannot forward flags. Clone the repository before using `--target` or
-another installer flag.
+On Windows, use `.\setup.ps1` in place of `bash setup.sh`. No clone is needed for any of these:
+every flag also works remotely through `npx darkroom-settings --target=codex`, the shell one-liner
+(`curl -fsSL .../setup.sh | bash -s -- --target=codex`), or the PowerShell script-block form — see
+the [one-line install](./install.md#one-line-install).
 
 Restart each selected TUI after installation. In Codex, open `/hooks` and review the newly installed
 plugin hooks once. Repeat that review after a plugin hook changes. The fixed HTTPS Figma MCP may ask

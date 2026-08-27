@@ -191,6 +191,35 @@ what does and doesn't cover it.
 
 <a id="hook-warning-runbook"></a>
 
+## The npm installer stub — a distribution surface outside the four layers
+
+`npx darkroom-settings` installs cc-settings through a published npm package
+(`npm-installer/` in this repository). Like the auto-update job above, it is a
+legitimate mechanism whose shape overlaps with the attack class this document
+defends against — npm packages are exactly what Shai-Hulud compromised — so
+the design keeps npm out of the trust chain:
+
+- **The package is a downloader only.** Its single ~90-line bin fetches the
+  official `setup.sh` (or `setup.ps1`) over HTTPS from
+  `raw.githubusercontent.com/darkroomengineering/cc-settings/main` and runs it
+  as a lone script. The bootstrap then performs its normal origin-pinned clone
+  of official `main` and installs from that clone. The configuration — hooks,
+  skills, scripts, settings — never transits npm.
+- **What a compromised npm token could change:** the downloader itself. A
+  malicious republish could fetch from a different host or run something else
+  entirely. That is the same power any `curl | bash` instruction in a README
+  has; the mitigation is the same too — the package requires a one-time
+  password to publish, and the stub is versioned separately so it republishes
+  rarely (a diff on the npm side is itself a signal).
+- **What it could NOT do silently:** alter what an *intact* stub installs.
+  The stub carries no configuration to patch, and the bootstrap it downloads
+  re-verifies its clone against the official origin before executing anything
+  from it.
+
+When auditing an install that came through `npx`, audit the same four layers
+as any other install — the npm path changes how the bootstrap arrives, not
+what gets installed or fingerprinted.
+
 ## What to do if `verify-hooks` warns at session start
 
 ```
