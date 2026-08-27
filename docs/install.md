@@ -47,6 +47,17 @@ and undo.
 
 ## One-line install
 
+**Any platform (Node 18+):**
+
+```bash
+npx cc-settings
+```
+
+Every installer flag is forwarded (`npx cc-settings --target=claude --light`); `bunx cc-settings`
+works the same way. The npm package (`npm-installer/` in this repository) is a downloader only: it
+fetches the official bootstrap over HTTPS and runs it, and the bootstrap installs from its pinned
+GitHub origin exactly as the curl form below does. npm never distributes the configuration itself.
+
 **macOS or Linux:**
 
 ```bash

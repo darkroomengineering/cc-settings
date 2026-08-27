@@ -18,7 +18,17 @@ products; it does not install a subscription or account.
 
 ### 2. Install cc-settings
 
-**macOS or Linux:**
+**Any platform (Node 18+):**
+
+```bash
+npx cc-settings
+```
+
+Every installer flag works: `npx cc-settings --light --auto-update=on`. `bunx cc-settings` is
+equivalent. The npm package is only a downloader — the configuration always installs from this
+repository's pinned GitHub origin.
+
+**macOS or Linux, without Node:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash

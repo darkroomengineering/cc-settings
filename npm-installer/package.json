@@ -1,0 +1,20 @@
+{
+	"name": "cc-settings",
+	"version": "1.0.0",
+	"description": "Installer for Darkroom Engineering's Claude Code + Codex configuration. Downloads and runs the official cc-settings bootstrap; the configuration itself always comes from the origin-pinned GitHub repository, never from this package.",
+	"license": "MIT",
+	"bin": {
+		"cc-settings": "bin/cc-settings.js"
+	},
+	"files": ["bin/cc-settings.js", "README.md"],
+	"engines": {
+		"node": ">=18"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/darkroomengineering/cc-settings.git",
+		"directory": "npm-installer"
+	},
+	"homepage": "https://github.com/darkroomengineering/cc-settings#readme",
+	"keywords": ["claude-code", "codex", "darkroom", "installer"]
+}

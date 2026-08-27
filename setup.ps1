@@ -32,8 +32,11 @@ $RepoUrl = "https://github.com/darkroomengineering/cc-settings.git"
 # guard before Split-Path (binding $null to -Path is a terminating error).
 $ScriptPath = $MyInvocation.MyCommand.Path
 $ScriptDir = if ($ScriptPath) { Split-Path -Parent $ScriptPath } else { $null }
-if (-not $ScriptDir -or -not (Test-Path $ScriptDir)) {
-    # Invoked via `irm ... | iex` - clone into a temp dir.
+# Bootstrap whenever there is no full checkout next to this script: `irm |
+# iex` (no script file at all), a lone downloaded setup.ps1, and the npm
+# installer stub all land here and clone the official repo first.
+if (-not $ScriptDir -or -not (Test-Path $ScriptDir) -or -not (Test-Path (Join-Path $ScriptDir "src\setup.ts"))) {
+    # No checkout next to the script - clone into a temp dir.
     $Clone = Join-Path ([System.IO.Path]::GetTempPath()) ("cc-settings-" + [System.Guid]::NewGuid().ToString("N"))
     Write-Host "Fetching cc-settings..."
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
