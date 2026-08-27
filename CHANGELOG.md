@@ -6,6 +6,21 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.4.0] — 2026-08-27
+
+Changed config defaults now reach existing installs: a value still equal to what the previous install wrote is treated as cc-settings' own old default and moved to the new team value, instead of user-wins freezing it forever. User-changed values keep winning everywhere.
+
+**Adopted:**
+- Three-way defaults update in the settings merge, driven by the recorded baseline (`baselineSettings` replaces v15.3.0's env-only `baselineEnv`): nested scalar conflicts in the default deep-merge strategy, `env` value conflicts, `permissions` scalar fields, and an uncustomized `statusLine` block (which now also picks up new sub-keys user-wins-whole silently dropped). Reported as "Updated N stale default(s) to the new team value".
+- The block-level nested-ADD gap itself was already fixed in v12-era `bf9bfdd` (deep-merge lands team-only sub-keys); this closes the remaining CHANGED-default and dedicated-strategy cases.
+
+**Files changed:**
+- src/lib/settings-merge.ts
+- src/setup.ts
+- tests/settings-merge.test.ts
+- package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.3.0] — 2026-08-27
 
 Env keys cc-settings retires between versions are now removed from existing installs automatically, instead of surviving until someone remembers the registry.

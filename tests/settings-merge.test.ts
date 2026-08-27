@@ -34,6 +34,7 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
     envUserWins: 0,
     envAdoptedScalars: 0,
     envPruned: 0,
+    defaultsUpdated: 0,
     scalarsAdopted: 0,
     defaultsAdded: 0,
     statusLineReset: false,
@@ -881,7 +882,9 @@ describe("envStrategy", () => {
   // changed is pruned; a user-changed value survives as a user edit.
 
   test("baseline key dropped by team, value unchanged → pruned", async () => {
-    const ctx = makeCtx({ baselineEnv: { ENABLE_PROMPT_CACHING_1H_FAKE: "1", KEPT: "x" } });
+    const ctx = makeCtx({
+      baselineSettings: { env: { ENABLE_PROMPT_CACHING_1H_FAKE: "1", KEPT: "x" } },
+    });
     const team = { KEPT: "x" };
     const user = { ENABLE_PROMPT_CACHING_1H_FAKE: "1", KEPT: "x" };
     const result = await envStrategy("env", team, user, ctx);
@@ -894,7 +897,7 @@ describe("envStrategy", () => {
   });
 
   test("baseline key dropped by team, user CHANGED the value → kept as a user edit", async () => {
-    const ctx = makeCtx({ baselineEnv: { RETIRED: "1" } });
+    const ctx = makeCtx({ baselineSettings: { env: { RETIRED: "1" } } });
     const team = {};
     const user = { RETIRED: "0" };
     const result = await envStrategy("env", team, user, ctx);
@@ -905,7 +908,7 @@ describe("envStrategy", () => {
   });
 
   test("baseline key the team config still ships is NOT pruned", async () => {
-    const ctx = makeCtx({ baselineEnv: { SHIPPED: "1" } });
+    const ctx = makeCtx({ baselineSettings: { env: { SHIPPED: "1" } } });
     const team = { SHIPPED: "1" };
     const user = { SHIPPED: "1" };
     const result = await envStrategy("env", team, user, ctx);
@@ -916,7 +919,7 @@ describe("envStrategy", () => {
   });
 
   test("user-only key absent from the baseline is untouched", async () => {
-    const ctx = makeCtx({ baselineEnv: { RETIRED: "1" } });
+    const ctx = makeCtx({ baselineSettings: { env: { RETIRED: "1" } } });
     const team = {};
     const user = { MY_CUSTOM: "hello" };
     const result = await envStrategy("env", team, user, ctx);
@@ -937,8 +940,34 @@ describe("envStrategy", () => {
     expect(ctx.accounting.envPruned).toBe(0);
   });
 
+  test("env conflict where the user value is still the old shipped default → team adopted", async () => {
+    // We changed our own default (e.g. effort medium → high). The user never
+    // touched it, so the value moves; user-wins must not freeze OUR default.
+    const ctx = makeCtx({ baselineSettings: { env: { LEVEL: "medium" } } });
+    const team = { LEVEL: "high" };
+    const user = { LEVEL: "medium" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).LEVEL).toBe("high");
+    expect(ctx.accounting.defaultsUpdated).toBe(1);
+    expect(ctx.accounting.envUserWins).toBe(0);
+  });
+
+  test("env conflict where the user changed the value since the baseline → user still wins", async () => {
+    const ctx = makeCtx({ baselineSettings: { env: { LEVEL: "medium" } } });
+    const team = { LEVEL: "high" };
+    const user = { LEVEL: "max" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).LEVEL).toBe("max");
+    expect(ctx.accounting.envUserWins).toBe(1);
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+
   test("registry and baseline both matching one key count a single prune", async () => {
-    const ctx = makeCtx({ baselineEnv: { ENABLE_PROMPT_CACHING_1H: "1" } });
+    const ctx = makeCtx({ baselineSettings: { env: { ENABLE_PROMPT_CACHING_1H: "1" } } });
     const team = {};
     const user = { ENABLE_PROMPT_CACHING_1H: "1" };
     const result = await envStrategy("env", team, user, ctx);
@@ -1172,5 +1201,70 @@ describe("mergeSettings — safeParse validation", () => {
     } finally {
       await cleanup(dir);
     }
+  });
+});
+
+describe("three-way defaults update (baselineSettings)", () => {
+  test("nested scalar still on the old default follows the changed team default", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { attribution: { commit: "c", pr: "p", sessionUrl: false } },
+    });
+    const team = { commit: "c", pr: "p", sessionUrl: true };
+    const user = { commit: "c", pr: "p", sessionUrl: false };
+    const result = await userWinsScalarStrategy("attribution", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).sessionUrl).toBe(true);
+    expect(ctx.accounting.defaultsUpdated).toBe(1);
+  });
+
+  test("nested scalar the user changed since the baseline stays the user's", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { attribution: { sessionUrl: false } },
+    });
+    const team = { sessionUrl: true };
+    const user = { sessionUrl: "never" };
+    const result = await userWinsScalarStrategy("attribution", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).sessionUrl).toBe("never");
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+
+  test("no baseline at the path → plain user-wins (fail open)", async () => {
+    const ctx = makeCtx({ baselineSettings: {} });
+    const result = await userWinsScalarStrategy("attribution", { x: 1 }, { x: 2 }, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).x).toBe(2);
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+
+  test("statusLine still exactly the shipped block follows the team, including new sub-keys", async () => {
+    const shipped = { type: "command", command: "bun x.ts" };
+    const ctx = makeCtx({ baselineSettings: { statusLine: shipped } });
+    const team = { type: "command", command: "bun x.ts", refreshInterval: 300 };
+    const result = await statusLineStrategy("statusLine", team, { ...shipped }, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).refreshInterval).toBe(300);
+    expect(ctx.accounting.defaultsUpdated).toBe(1);
+  });
+
+  test("a customized statusLine is preserved unchanged", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { statusLine: { type: "command", command: "bun x.ts" } },
+    });
+    const custom = { type: "command", command: "my-own-statusline" };
+    const result = await statusLineStrategy(
+      "statusLine",
+      { type: "command", command: "bun x.ts", refreshInterval: 300 },
+      custom,
+      ctx,
+    );
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual(custom);
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
   });
 });

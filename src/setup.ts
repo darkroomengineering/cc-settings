@@ -152,7 +152,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "15.3.0"; // three-way env prune: retired managed env keys are removed on upgrade via the settings baseline
+const VERSION = "15.4.0"; // three-way defaults update: values still on our old default follow changed team defaults
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 
@@ -322,21 +322,17 @@ async function installSettings(
   // mcpServers is deliberately absent from what the merger sees, so it is
   // neither written nor re-added on top of the prune above.
   const { mcpServers: _composedMcp, ...settingsForMerge } = fullComposed;
-  // The previous install's baseline env lets envStrategy prune keys
-  // cc-settings retired between versions without a registry entry.
-  // Best-effort — a missing/corrupt baseline degrades to registry-only prune.
-  const priorBaselineEnvRaw = priorSettingsBaseline?.settings?.env;
-  const baselineEnv =
-    priorBaselineEnvRaw &&
-    typeof priorBaselineEnvRaw === "object" &&
-    !Array.isArray(priorBaselineEnvRaw)
-      ? (priorBaselineEnvRaw as Record<string, unknown>)
-      : undefined;
+  // The previous install's baseline lets the merge decide three-way: prune
+  // env keys cc-settings retired, and move values still equal to what that
+  // install wrote onto changed team defaults, while user edits keep winning.
+  // Best-effort — a missing/corrupt baseline degrades to registry-only prune
+  // and plain user-wins.
+  const baselineSettings = priorSettingsBaseline?.settings;
   const accounting = await mergeSettings(
     userSettingsPath,
     settingsForMerge as Record<string, unknown>,
     userSettingsPath,
-    { interactive, sourceDir: source, baselineEnv },
+    { interactive, sourceDir: source, baselineSettings },
   );
   if (accounting) printMergeAccounting(accounting, { interactive });
   if (prunedInertMcp.length > 0) {
@@ -359,7 +355,7 @@ async function installSettings(
   await fingerprintSettingsHooks(mergedReadBack);
   // Record what this install actually wrote (docs/settings-merge-three-way-
   // design.md §1). The env block is read back by the NEXT install's merge to
-  // prune retired env keys three-way (see baselineEnv above). Best-effort,
+  // prune retired env keys three-way (see baselineSettings above). Best-effort,
   // same as the fingerprint: a baseline write failure must never fail an
   // install.
   await writeSettingsBaseline(CLAUDE_DIR, VERSION, mergedReadBack as Record<string, unknown>);

@@ -41,14 +41,15 @@ export interface MergeOptions {
    *  in contexts with no source tree to check against (e.g. a strategy called
    *  directly in a unit test), which fails open and skips that prune. */
   sourceDir?: string;
-  /** The `env` block the PREVIOUS install's baseline recorded
-   *  (~/.claude/.cc-settings-baseline.json, written since v13.1.0). Lets
-   *  envStrategy prune a key three-way — the old install wrote it, the new
-   *  config no longer sets it, and the live value still equals what we wrote
-   *  (the user never changed it) — without a hand-maintained registry entry.
-   *  Undefined (pre-baseline install, or a unit test) fails open: only the
-   *  DEPRECATED_ENV_KEYS registry prunes. */
-  baselineEnv?: Record<string, unknown>;
+  /** The full settings object the PREVIOUS install's baseline recorded
+   *  (~/.claude/.cc-settings-baseline.json, written since v13.1.0). Enables
+   *  three-way decisions: a live value that still equals what that install
+   *  wrote is cc-settings' own old default, not a user choice, so a retired
+   *  env key is pruned and a changed default is updated instead of the
+   *  user-wins rule freezing it forever. A value the user changed since
+   *  always wins, exactly as before. Undefined (pre-baseline install, or a
+   *  unit test) fails open: registry-only prune, plain user-wins. */
+  baselineSettings?: Record<string, unknown>;
 }
 
 export interface MergeAccounting {
@@ -63,6 +64,9 @@ export interface MergeAccounting {
   envUserWins: number;
   envAdoptedScalars: number;
   envPruned: number;
+  /** Values still equal to the previous install's baseline that were moved to
+   *  the new team default (three-way: our old default, not a user choice). */
+  defaultsUpdated: number;
   scalarsAdopted: number;
   defaultsAdded: number;
   statusLineReset: boolean;
@@ -213,6 +217,27 @@ export async function unionPermissionArray(
 }
 
 // Prompt for a scalar conflict: user has X, team has Y, values differ.
+/** Navigate a dotted path ("attribution.sessionUrl") into the baseline
+ *  settings. Returns undefined when there is no baseline or the path is
+ *  absent — callers treat that as "no three-way evidence" and fall back to
+ *  plain user-wins. */
+export function baselineValueAt(opts: MergeOptions, path: string): unknown {
+  let cursor: unknown = opts.baselineSettings;
+  for (const segment of path.split(".")) {
+    if (cursor === null || typeof cursor !== "object" || Array.isArray(cursor)) return undefined;
+    cursor = (cursor as UnknownRecord)[segment];
+  }
+  return cursor;
+}
+
+/** True when the user's live value is byte-for-byte what the previous install
+ *  wrote at this path — i.e. cc-settings' own old default, safe to update to
+ *  the new team value without overriding a user choice. */
+export function userMatchesBaseline(opts: MergeOptions, path: string, userVal: unknown): boolean {
+  const baseline = baselineValueAt(opts, path);
+  return baseline !== undefined && Bun.deepEquals(userVal, baseline, true);
+}
+
 export async function resolveScalarConflict(
   key: string,
   teamVal: unknown,
@@ -274,6 +299,11 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   // Scalar conflicts within permissions (defaultMode, autoMode).
   for (const k of ["defaultMode", "autoMode"]) {
     if (k in t && k in u && JSON.stringify(t[k]) !== JSON.stringify(u[k])) {
+      if (userMatchesBaseline(opts, `permissions.${k}`, u[k])) {
+        merged[k] = t[k];
+        ctx.accounting.defaultsUpdated++;
+        continue;
+      }
       const { value, adopted } = await resolveScalarConflict(`permissions.${k}`, t[k], u[k], opts);
       merged[k] = value;
       if (adopted) ctx.accounting.permissionsAdoptedScalars++;
@@ -538,7 +568,8 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   // removing the key removes only what cc-settings itself put there. A value
   // the user changed since is a user edit and stays, which is exactly the
   // discrimination the hand-maintained registry above cannot make.
-  const baselineEnv = ctx.opts.baselineEnv;
+  const baselineEnvRaw = baselineValueAt(ctx.opts, "env");
+  const baselineEnv = isPlainObject(baselineEnvRaw) ? baselineEnvRaw : undefined;
   if (baselineEnv) {
     for (const k of Object.keys(baselineEnv)) {
       if (k in merged && !(k in t) && merged[k] === baselineEnv[k]) {
@@ -550,6 +581,14 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
 
   for (const k of Object.keys(u)) {
     if (k in t && u[k] !== t[k]) {
+      // Three-way: the user's value is still what the previous install wrote,
+      // so the difference is cc-settings changing its own default — adopt the
+      // new one instead of freezing the old default as a "user" value.
+      if (baselineEnv && k in baselineEnv && u[k] === baselineEnv[k]) {
+        merged[k] = t[k];
+        ctx.accounting.defaultsUpdated++;
+        continue;
+      }
       ctx.accounting.envUserWins++;
       const { value, adopted } = await resolveScalarConflict(`env.${k}`, t[k], u[k], ctx.opts);
       merged[k] = value;
@@ -572,6 +611,18 @@ export const statusLineStrategy: Strategy = async (_key, team, user, ctx) => {
   if (u && commandIsDeprecated(u.command)) {
     ctx.accounting.statusLineReset = true;
     if (team === undefined) return { keep: false };
+    return { keep: true, value: team };
+  }
+  // Three-way: the user's block is still exactly what the previous install
+  // wrote — not a custom statusline — so it follows the team block, including
+  // new sub-keys user-wins-whole would otherwise silently drop.
+  if (
+    team !== undefined &&
+    user !== undefined &&
+    userMatchesBaseline(ctx.opts, "statusLine", user) &&
+    !Bun.deepEquals(user, team, true)
+  ) {
+    ctx.accounting.defaultsUpdated++;
     return { keep: true, value: team };
   }
   // Default object overlay: user wins when declared.
@@ -620,6 +671,15 @@ async function deepMergeUserWins(
   const uIsScalar = !(Array.isArray(user) || (user !== null && typeof user === "object"));
   if (!tIsScalar || !uIsScalar) return user;
   if (team === user) return user;
+
+  // Three-way first: the user's value is still what the previous install
+  // wrote at this path, so the conflict is cc-settings changing its own
+  // default (e.g. attribution.sessionUrl false → true) — take the new one
+  // silently rather than prompting or freezing the stale default.
+  if (userMatchesBaseline(ctx.opts, key, user)) {
+    ctx.accounting.defaultsUpdated++;
+    return team;
+  }
 
   // Scalar conflict: prompt or silent user-wins. The path (e.g. "model",
   // "spinnerVerbs.mode") names the field in the interactive prompt.
@@ -719,6 +779,7 @@ export async function mergeSettings(
       envUserWins: 0,
       envAdoptedScalars: 0,
       envPruned: 0,
+      defaultsUpdated: 0,
       scalarsAdopted: 0,
       defaultsAdded: 0,
       statusLineReset: false,
@@ -761,6 +822,9 @@ export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}
   }
   if (a.permissionsPruned > 0) {
     info(`Pruned ${a.permissionsPruned} stale permission rule(s) naming removed tools`);
+  }
+  if (a.defaultsUpdated > 0) {
+    info(`Updated ${a.defaultsUpdated} stale default(s) to the new team value`);
   }
   if (a.envPruned > 0) {
     info(`Pruned ${a.envPruned} env var(s) cc-settings no longer sets`);
