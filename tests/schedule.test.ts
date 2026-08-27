@@ -12,7 +12,9 @@ import {
   autoUpdateStatus,
   buildPlist,
   decideAutoUpdate,
+  isAbsentBootoutResult,
   isAllowedPullSource,
+  isExactAbsentLaunchctlResult,
   plistPath,
   registerAutoUpdate,
   unregisterAutoUpdate,
@@ -322,5 +324,60 @@ describe("registerAutoUpdate — CC_SKIP_SCHEDULE=1 (no real launchctl ever)", (
       else process.env.CC_SKIP_SCHEDULE = originalSkip;
       await rm(fakeHome, { recursive: true, force: true });
     }
+  });
+});
+
+describe("launchctl bootout absence — ESRCH (real macOS response for an unloaded job)", () => {
+  // Regression: `launchctl bootout gui/<uid>/<label>` on a job that is NOT
+  // loaded exits 3 with "Boot-out failed: 3: No such process" — not the 113 /
+  // "Could not find service ..." form `launchctl print` uses. Treating only
+  // the 113 form as absence aborted every fresh install that enabled
+  // auto-update. Pure predicate tests: never spawn launchctl in-process, a
+  // PATH stub does not hold and the real one would mutate the developer's
+  // own LaunchAgents.
+  const uid = 501;
+  const esrch = { exit: 3, stdout: "", stderr: "Boot-out failed: 3: No such process\n" };
+
+  test("bootout ESRCH counts as absent", () => {
+    expect(isAbsentBootoutResult(esrch, uid)).toBe(true);
+  });
+
+  test("the print-style not-found response also counts as absent for bootout", () => {
+    expect(
+      isAbsentBootoutResult(
+        {
+          exit: 113,
+          stdout: "",
+          stderr: `Bad request.\nCould not find service "${AUTO_UPDATE_LABEL}" in domain for user gui: ${uid}\n`,
+        },
+        uid,
+      ),
+    ).toBe(true);
+  });
+
+  test("ESRCH is NOT accepted by the strict print predicate", () => {
+    expect(isExactAbsentLaunchctlResult(esrch, uid)).toBe(false);
+  });
+
+  test.each([
+    [
+      "permission denied",
+      { exit: 1, stdout: "", stderr: "Boot-out failed: 1: Operation not permitted" },
+    ],
+    [
+      "ESRCH text on a different exit code",
+      { exit: 1, stdout: "", stderr: "Boot-out failed: 3: No such process" },
+    ],
+    [
+      "exit 3 with different text",
+      { exit: 3, stdout: "", stderr: "Boot-out failed: 3: Resource busy" },
+    ],
+    [
+      "exit 3 with extra output",
+      { exit: 3, stdout: "unexpected", stderr: "Boot-out failed: 3: No such process" },
+    ],
+    ["clean exit 0", { exit: 0, stdout: "", stderr: "" }],
+  ])("%s is not treated as absence", (_label, result) => {
+    expect(isAbsentBootoutResult(result, uid)).toBe(false);
   });
 });

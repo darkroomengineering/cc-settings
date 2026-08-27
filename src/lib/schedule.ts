@@ -453,7 +453,7 @@ export async function restoreAutoUpdateState(
       "bootout",
       `gui/${uid}/${AUTO_UPDATE_LABEL}`,
     ]);
-    if (result.exit !== 0 && !isExactAbsentLaunchctlResult(result, uid)) {
+    if (result.exit !== 0 && !isAbsentBootoutResult(result, uid)) {
       throw new Error(
         `Could not prepare ${AUTO_UPDATE_LABEL} restore: ${result.stderr.trim() || `launchctl bootout exited ${result.exit}`}`,
       );
@@ -494,7 +494,7 @@ async function strictAutoUpdateJobLoaded(homeDir: string = homedir()): Promise<b
   );
 }
 
-function isExactAbsentLaunchctlResult(
+export function isExactAbsentLaunchctlResult(
   result: { exit: number; stdout: string; stderr: string },
   uid: number,
 ): boolean {
@@ -502,6 +502,24 @@ function isExactAbsentLaunchctlResult(
   const notFoundLine = `Could not find service "${AUTO_UPDATE_LABEL}" in domain for user gui:\\s*${uid}\\.?`;
   const notFound = new RegExp(`^(?:Bad request\\.\\r?\\n)?${notFoundLine}$`);
   return result.exit === 113 && notFound.test(detail);
+}
+
+/**
+ * Whether a `launchctl bootout` failure means "the service was not loaded".
+ *
+ * `bootout` does not report absence the way `print` does: on current macOS it
+ * exits 3 (ESRCH) with `Boot-out failed: 3: No such process` instead of the
+ * 113 / `Could not find service ...` form. Both spellings are absence and must
+ * not abort an install; anything else (permission denied, a busy domain) still
+ * fails loudly. Kept as exact matches so a novel error can never be swallowed.
+ */
+export function isAbsentBootoutResult(
+  result: { exit: number; stdout: string; stderr: string },
+  uid: number,
+): boolean {
+  if (isExactAbsentLaunchctlResult(result, uid)) return true;
+  const detail = `${result.stdout}\n${result.stderr}`.trim();
+  return result.exit === 3 && /^Boot-out failed: 3: No such process\.?$/.test(detail);
 }
 
 /**
@@ -584,7 +602,7 @@ export async function registerAutoUpdate(
       "bootout",
       `gui/${uid}/${AUTO_UPDATE_LABEL}`,
     ]);
-    if (bootout.exit !== 0 && !isExactAbsentLaunchctlResult(bootout, uid)) {
+    if (bootout.exit !== 0 && !isAbsentBootoutResult(bootout, uid)) {
       return {
         ok: false,
         reason: bootout.stderr.trim() || `launchctl bootout exited ${bootout.exit}`,
@@ -622,7 +640,7 @@ export async function unregisterAutoUpdate(
         "bootout",
         `gui/${uid}/${AUTO_UPDATE_LABEL}`,
       ]);
-      if (result.exit !== 0 && !isExactAbsentLaunchctlResult(result, uid)) {
+      if (result.exit !== 0 && !isAbsentBootoutResult(result, uid)) {
         return { ok: false, removed: false };
       }
       if (await strictAutoUpdateJobLoaded(homeDir)) {

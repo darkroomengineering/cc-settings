@@ -2715,6 +2715,52 @@ describe("install E2E — auto-update enrollment", () => {
   );
 
   test.skipIf(process.platform !== "darwin")(
+    "--auto-update=on succeeds when bootout reports ESRCH for the not-yet-loaded job",
+    async () => {
+      // Faithful macOS behaviour: `launchctl bootout` on a job that is not
+      // loaded exits 3 with "Boot-out failed: 3: No such process", NOT the
+      // 113 / "Could not find service ..." form `print` uses. Every fresh
+      // enrolling install hits this exact response first.
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-autoupdate-esrch-"));
+      try {
+        const bin = join(home, "bin");
+        await mkdir(bin, { recursive: true });
+        const launchctl = join(bin, "launchctl");
+        await writeFile(
+          launchctl,
+          `#!/bin/sh
+case "$1" in
+  print) [ -e "$HOME/.fake-launchctl-loaded" ] && exit 0
+    printf 'Bad request.\nCould not find service "com.darkroom.cc-settings-autoupdate" in domain for user gui: %s\n' "$(id -u)" >&2
+    exit 113;;
+  bootout) if [ -e "$HOME/.fake-launchctl-loaded" ]; then rm -f "$HOME/.fake-launchctl-loaded"; exit 0; fi
+    echo 'Boot-out failed: 3: No such process' >&2
+    exit 3;;
+  bootstrap) touch "$HOME/.fake-launchctl-loaded"; exit 0;;
+esac
+exit 0
+`,
+        );
+        await chmod(launchctl, 0o755);
+        const result = await runInstall(home, ["--auto-update=on"], "claude", {
+          CC_SKIP_SCHEDULE: "0",
+          CI: "false",
+          PATH: prependTestPath(bin),
+        });
+        expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0);
+        expect(existsSync(join(home, ".fake-launchctl-loaded"))).toBe(true);
+        const sentinel = JSON.parse(
+          await readFile(join(home, ".claude", ".cc-settings-version"), "utf8"),
+        ) as { auto_update?: boolean };
+        expect(sentinel.auto_update).toBe(true);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 90_000 },
+  );
+
+  test.skipIf(process.platform !== "darwin")(
     "a second run without the flag preserves the prior enrollment decision",
     async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-e2e-autoupdate2-"));
