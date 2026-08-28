@@ -379,6 +379,8 @@ Whole-repo performance audit with one governing rule: **a finding does not exist
 - **Nothing runnable at all** (can't build, can't serve, no bench entry points)? Stop. Report "not measurable" with the list of what would need to exist to measure — never degrade into a speculative report.
 - **No invented numbers, no estimated savings.** A fix's benefit is measured after it lands by re-running the logged command — never predicted in the report (AGENTS.md "no savings against a run that never happened").
 
+**Playbook and harnesses.** `references/performance-playbook.md` is the measured fix ladder for mobile and slow-connection load (images, unused client code, inline CSS, per-route CSS chunking, font subsetting with `unicode-range`, platform elements over client widgets, WebGL gated on the renderer string) with the artifacts to discard first and the traps met on the way. `references/net-capture.mjs` records a cold load under emulated Slow 3G / 3G with 4x CPU (requests, bytes by type, TTFB/FCP/LCP/load); `references/bundle-attribution.py` attributes a route's shipped JS to packages and app directories from source maps. Both are the Phase 1 commands for a web app; copy them into the repo's audit folder so the numbers stay reproducible there.
+
 **Measurement hygiene:** ≥3 runs per number, report median + spread; production builds only (`next dev` skips optimization paths and lies); label cold vs warm; same machine for any two numbers you compare; record the exact command next to every number.
 
 ### Phase 0 — What's runnable

@@ -173,6 +173,16 @@ jq '.audits["bootup-time"].details.items[:5]' "$LIGHTHOUSE_DIR/mobile-1.json"
 jq '.audits["network-requests"].details.items | sort_by(-.transferSize)[:10] | .[] | {transferSize, resourceType, url}' "$LIGHTHOUSE_DIR/mobile-1.json"
 ```
 
+For a full attribution of a route's JS by package and app directory, and the
+measured fix ladder for bytes-on-critical-path gaps (AVIF, per-route CSS
+chunking, font subsetting with `unicode-range`, platform elements over client
+widgets), use `~/.claude/skills/audit/references/performance-playbook.md` and
+its two harness scripts. If a hosted runner (PageSpeed Insights) reports "the
+page stopped responding" while local runs pass, the page runs WebGL on a
+software renderer: reproduce with
+`--chrome-flags='--headless=new --disable-gpu --use-gl=angle --use-angle=swiftshader'`
+and gate the canvas on the renderer string (playbook rung 7).
+
 Hunt for bytes that ship but do nothing: preloaded fonts no style consumes
 (a grep hit on the font file may be its own declaration — check for a real
 consumer), and libraries a `next/dynamic` wrapper claims to defer while a
