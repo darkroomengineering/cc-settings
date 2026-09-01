@@ -1,8 +1,10 @@
 # Agent Model Routing
 
 > **Committed top tier: Claude Opus 5 (`claude-opus-5`).** It offers a native 1M context on
-> Max with no `[1m]` suffix. Fable 5 (`claude-fable-5`) is the higher-priced specialist tier;
-> use it per session (`/model fable`) only when a measured hard slice warrants the extra cost.
+> Max with no `[1m]` suffix. Fable (`claude-fable-5`, succeeded by `claude-fable-5-1`) is the
+> higher-priced specialist tier; use it per session (`/model fable`) only when a measured hard
+> slice warrants the extra cost. The `fable` alias tracks whichever Fable release Claude Code
+> currently ships, so nothing in this repo pins a Fable version.
 
 Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (`claude-opus-5`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
 
@@ -24,7 +26,7 @@ The `sonnet` tier is now Claude Sonnet 5 — near-Opus quality on coding/agentic
 
 Override per-invocation when a specific task warrants it: bump a cheap agent up — `Agent(explore, "...", model: "opus")` for a hard investigation — or drop a decision agent down for a trivial pass. The table is the default, not a ceiling.
 
-**Reach for `model: "fable"` on a genuinely stuck slice, not a hard-looking prompt.** Fable is 2x Opus 5 ($10/$50 vs $5/$25 per MTok) and the session model can't be swapped mid-task by a hook, so the move is a subagent override scoped to just the failing piece — `Agent(implementer, "<the specific failing slice>", model: "fable")` — never a blanket re-run of the whole task at the higher tier. `escalate-model.ts` (below) surfaces this suggestion automatically once it observes real struggle; treat a manual reach for `fable` the same way — after two failed attempts on the same problem, not before the first one.
+**Reach for `model: "fable"` on a genuinely stuck slice, not a hard-looking prompt.** Fable is 2x Opus 5 on base tokens ($10/$50 vs $5/$25 per MTok) and the session model can't be swapped mid-task by a hook, so the move is a subagent override scoped to just the failing piece — `Agent(implementer, "<the specific failing slice>", model: "fable")` — never a blanket re-run of the whole task at the higher tier. `escalate-model.ts` (below) surfaces this suggestion automatically once it observes real struggle; treat a manual reach for `fable` the same way — after two failed attempts on the same problem, not before the first one. Fable 5.1 softens the cost gap for exactly this scoped-subagent shape: its cache reads are $0.25/MTok (0.025x base, vs 0.1x on every other model — Opus 5 reads cost $0.50), so a long escalated slice that mostly re-reads its cached prefix pays less per re-read than Opus would. The 2x still applies to fresh input and all output; the escalation bar stays where it is. One 5.1 behavior to watch in escalated subagents: it batches parallel tool calls less consistently than Fable 5, so keep the briefing's "batch independent calls" expectation explicit if a fable slice looks serial.
 
 **Agent Teams teammates** route separately from the table above: the `CLAUDE_CODE_SUBAGENT_MODEL` env var (in `config/10-core.json`, upstream v2.1.147) picks the model for teammate subprocesses spawned under `teammateMode: "auto"` — independent of both the per-agent table and the main session's pinned model. Set to **`sonnet`** (the steady state): the session and the deep-reasoning agents stay on the top tier while wide teammate fan-out — which re-reads the repo per teammate — drops to Sonnet for cost.
 
