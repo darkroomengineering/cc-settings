@@ -50,6 +50,11 @@ export const AgentFrontmatter = z.looseObject({
   initialPrompt: z.string().optional(),
   skills: z.array(z.string()).optional(), // skills to preload into the subagent context
   background: z.boolean().optional(), // always run this subagent as a background task
+  experimental: z
+    .object({
+      cacheTtl: z.enum(["5m", "1h"]).optional(), // 2.1.248 — per-agent prompt cache TTL, used when no subagentPromptCacheTtl setting is configured
+    })
+    .optional(),
   // Future-leaning — accepted but not validated deeply.
   hooks: z.unknown().optional(),
   mcpServers: z.record(z.string(), z.unknown()).optional(),

@@ -309,6 +309,9 @@ export const Settings = z.looseObject({
   autoScrollEnabled: z.boolean().optional(), // 2.1.102
   autoMemoryDirectory: z.string().optional(), // 2.1.101
   cleanupPeriodDays: z.number().int().min(1).optional(), // transcript + orphaned-worktree retention; default 30, min 1 (0 rejected upstream)
+  desktopSessionCleanupPeriodDays: z.number().int().min(1).optional(), // 2.1.248 — caps the cleanup exemption for Claude Desktop/Cowork-written sessions
+  timeFormat: z.string().optional(), // 2.1.257 — "12h" | "24h" | "24h-utc" | strftime pattern for the turn-end clock and transcript timestamps
+  timeZone: z.string().optional(), // 2.1.257 — IANA zone for the same clocks
   channelsEnabled: z.boolean().optional(), // 2.1.128: also gates `--channels` for console (API key) auth in managed-settings orgs
   allowedChannelPlugins: z.array(z.string()).optional(), // 2.1.107 (team/enterprise)
   allowedMcpServers: z.array(z.string()).optional(), // 2.1.112

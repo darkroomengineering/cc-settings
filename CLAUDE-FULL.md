@@ -160,6 +160,8 @@ output-priced and every inheriting agent spends them. Raise deliberately:
 migrations, and hard debugging, `ultrathink` for one turn. Agent frontmatter
 pins effort where depth is non-negotiable (`security-reviewer`, `planner`).
 `ultracode`: session-only `xhigh` plus automatic dynamic workflows (2.1.154+).
+`/effort` remembers a level per model (2.1.251), so a raise on Fable does not
+follow you to `/model opus`; the `s` option keeps a change session-only.
 
 On Fable 5.1, `medium` matches Fable 5 quality at lower cost and `low` is
 viable for routine turns; but at `low` it answers from memory instead of

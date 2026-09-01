@@ -30,6 +30,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `effort` | string | No | Effort level for this agent: `low`, `medium`, `high`, `xhigh`, `max` |
 | `permissionMode` | string | No | Permission mode for this agent's subagent session (used by `explore`, `reviewer`, `security-reviewer`) |
 | `initialPrompt` | string | No | Text prepended to the agent's first turn, before the delegated task (used by `explore`) |
+| `experimental.cacheTtl` | string | No | Per-agent prompt cache TTL, `5m` or `1h`, used when no `subagentPromptCacheTtl` setting is configured (v2.1.248). cc-settings sets `subagentPromptCacheTtl: "5m"` globally, so this only matters for an agent run under a config that drops that setting |
 
 ### Auto-Invocation via `description`
 

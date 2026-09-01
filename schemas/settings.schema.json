@@ -245,6 +245,9 @@
             }
           },
           "additionalProperties": {}
+        },
+        "blockReadsOutsideWorkingDirectories": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -282,6 +285,8 @@
           "WorktreeRemove",
           "PreCompact",
           "PostCompact",
+          "PreModelSwitch",
+          "PostModelSwitch",
           "Elicitation",
           "ElicitationResult"
         ]
@@ -842,6 +847,17 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 9007199254740991
+    },
+    "desktopSessionCleanupPeriodDays": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "timeFormat": {
+      "type": "string"
+    },
+    "timeZone": {
+      "type": "string"
     },
     "channelsEnabled": {
       "type": "boolean"

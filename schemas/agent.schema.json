@@ -105,6 +105,19 @@
     "background": {
       "type": "boolean"
     },
+    "experimental": {
+      "type": "object",
+      "properties": {
+        "cacheTtl": {
+          "type": "string",
+          "enum": [
+            "5m",
+            "1h"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "hooks": {},
     "mcpServers": {
       "type": "object",

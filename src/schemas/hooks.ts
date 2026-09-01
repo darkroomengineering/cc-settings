@@ -38,6 +38,11 @@ export const HookEvent = z.enum([
   // Context
   "PreCompact",
   "PostCompact",
+  // Model — 2.1.251. Matcher filters on the canonical `to_model`. PreModelSwitch
+  // can allow/deny/ask (30s default timeout; a timeout blocks the switch);
+  // PostModelSwitch is async, display-only.
+  "PreModelSwitch",
+  "PostModelSwitch",
   // MCP
   "Elicitation",
   "ElicitationResult",

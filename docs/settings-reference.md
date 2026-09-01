@@ -36,6 +36,8 @@ cc-settings publishes its own extended schemas at `raw.githubusercontent.com/dar
 
 ### `env`
 
+Since v2.1.251 a project-level `.claude/settings.json` `env` block can no longer set `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_TMPDIR`, or `TMPDIR`/`TMP`/`TEMP`; set those in your shell, user, or managed settings. cc-settings composes into user settings, so its `env` block is unaffected.
+
 Environment variables injected into every Claude Code session.
 
 ```json
@@ -96,12 +98,15 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_ENABLE_AUTO_MODE` | `"1"` or unset | Opt in to auto mode on Bedrock, Vertex, and Foundry for Opus 4.7/4.8 (native on the first-party API) (v2.1.158) |
 | `CLAUDE_CODE_SHELL_PREFIX` | shell prefix string | Custom shell prefix for MCP stdio server launches; overrides the default shell used to spawn stdio MCP processes (v2.1.128) |
 | `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` | duration (ms) | Idle timeout for remote MCP tool calls; calls that go idle abort with an error instead of hanging (previously stuck for ~5 min) (v2.1.187) |
-| `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Routes Agent Teams teammate subprocess sessions to a specific model; main session model is unaffected. cc-settings sets `sonnet`, which now resolves to Claude Sonnet 5 (v2.1.147) |
+| `CLAUDE_CODE_SUBAGENT_MODEL` | model shortname (e.g., `sonnet`) | Default model for every subagent — Agent-tool spawns, built-in `Explore`/`Plan`/`general-purpose`, and Agent Teams teammates. Since v2.1.251 it is a *default*, not an override: an agent definition's `model:` and an explicit per-spawn `model` take precedence (before 2.1.251 it overrode both). Main session model is unaffected. cc-settings sets `sonnet` (Claude Sonnet 5) |
+| `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` | `"1"` or unset | Apply `CLAUDE_CODE_SUBAGENT_MODEL` (or the main model when unset) to **every** subagent, ignoring per-spawn and agent-definition overrides — the pre-2.1.251 behavior on demand. cc-settings leaves it unset so the per-agent pins in `agents/*.md` hold (v2.1.257) |
 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `"1"` or unset | Enable agent teams — teammates that share a task list and message each other, as distinct from subagents that only report back. Experimental and **disabled by default upstream**; cc-settings sets `"1"`. Without it "no team is set up at session start, no team directories are written, and Claude does not spawn or propose teammates". Enabling it makes teams *available*, not automatic — see `CLAUDE-FULL.md` → "Agent teams — enabled, deliberately not the default" for when to pick one over plain fan-out |
 | `CLAUDE_CODE_TMPDIR` | directory path | Overrides the temp directory used for Unix sockets and scratch files; set it shallow to avoid `EADDRINUSE` from over-long socket paths (v2.1.161) |
 | `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157) |
 | `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` | `"1"` or unset | Hide Anthropic's bundled skills, workflows, and built-in slash commands from the model. Env counterpart of the `disableBundledSkills` setting (v2.1.169) |
 | `CLAUDE_CODE_SAFE_MODE` | `"1"` or unset | Start Claude Code with all customizations disabled (CLAUDE.md, plugins, skills, hooks, MCP servers) for troubleshooting. Env counterpart of the `--safe-mode` flag (v2.1.169) |
+| `CLAUDE_CODE_RESTRICTED` | `"1"` or unset | Env counterpart of `--restricted`: removes the tools that run commands or code and `WebFetch` (unless named in `--tools`), keeps file tools inside the working directory, refuses `bypassPermissions`, and ignores user, project, and local settings files — so a restricted session never loads cc-settings (v2.1.248) |
+| `SELF_HOSTED_RUNNER_CLIENT_LABEL` | label | Label `claude self-hosted-runner` registers with instead of the hostname; env counterpart of `--client-label` (v2.1.248) |
 | `CLAUDE_CLIENT_PRESENCE_FILE` | file path | Path to a presence file Claude Code touches while active; suppresses mobile push notifications when the desktop client is present (v2.1.181) |
 | `API_FORCE_IDLE_TIMEOUT` | `"0"` to opt out, unset for default | Restores a default 5-minute idle timeout on Vertex/Foundry so a stalled stream aborts instead of hanging; set `=0` to opt out (v2.1.169) |
 | `CLAUDE_CODE_MAX_RETRIES` | integer (string) | Max API retry attempts on transient failures. Capped at `15` from v2.1.186; the cap is lifted when `CLAUDE_CODE_RETRY_WATCHDOG` is set (v2.1.199) |
@@ -133,7 +138,7 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `fable` / `claude-fable-5-1` | Claude Fable 5.1 | **cc-settings default: `claude-fable-5-1`** (since 2026-09-01; was `claude-opus-5`). Top tier, above Opus 5 — long-horizon agentic coding, research, and document work. 1M context native at standard rates (no `[1m]` pin needed); cache reads 0.025x base. Included on Max since 2026-07-20: draws the shared weekly pool at ~2x the Opus 5 rate and is capped at 50% of the weekly limit, then bills extra-usage credits ($10/$50 per Mtok). The `fable` alias tracks the current Fable release. |
+| `fable` / `claude-fable-5-1` | Claude Fable 5.1 | **cc-settings default: `claude-fable-5-1`** (since 2026-09-01; was `claude-opus-5`). Top tier, above Opus 5 — long-horizon agentic coding, research, and document work. 1M context native at standard rates (no `[1m]` pin needed); cache reads 0.025x base. Included on Max since 2026-07-20: draws the shared weekly pool at ~2x the Opus 5 rate and is capped at 50% of the weekly limit, then bills extra-usage credits ($10/$50 per Mtok). The `fable` alias resolves to Fable 5.1 from Claude Code v2.1.257; Claude apps gateway sessions keep `fable`/`best` on Fable 5 until the gateway is configured for 5.1 — pick `claude-fable-5-1` in `/model` there. |
 | `opus` / `claude-opus-5` | Claude Opus 5 | `opus` resolves to Claude Opus 5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). Near-Fable quality at half the pool burn ($5/$25 per Mtok); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native on Max — no `[1m]` pin (the suffix is a no-op on Opus 5). Effort defaults to `high`. Requires Claude Code v2.1.219+ |
 | `sonnet` | Claude Sonnet 5 | Near-Opus quality on coding/agentic work at a fraction of Opus cost. 1M context native (no `[1m]` pin needed) |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
@@ -518,6 +523,8 @@ Persist the effort level across sessions — the `settings.json` counterpart of 
 { "effortLevel": "high" }
 ```
 
+Since v2.1.251 `/effort` saves the chosen level **per model**, so each model keeps its own setting when you switch; `s` in the `/effort` picker changes effort for the current session only, matching `/model` (v2.1.257). `--effort` lifts a new model's default-effort hold for that session only rather than permanently (v2.1.257). cc-settings' `CLAUDE_CODE_EFFORT_LEVEL=medium` remains the baseline every model starts from.
+
 ### `disableSkillShellExecution`
 
 Disable the Skill tool's ability to run inline shell commands (v2.1.98). Skills can still load text and prompt the model, but `bun ~/.claude/...` invocations from within a skill are blocked.
@@ -589,6 +596,22 @@ Retention window (days) for session transcripts and orphaned subagent worktrees.
 
 ```json
 { "cleanupPeriodDays": 180 }
+```
+
+### `desktopSessionCleanupPeriodDays`
+
+Caps the retention exemption for sessions written by Claude Desktop or Cowork. Since v2.1.248 the transcript cleanup keeps desktop-written sessions while they are still in the app (unless an org policy manages retention); this key bounds that exemption in days. Minimum `1`.
+
+```json
+{ "desktopSessionCleanupPeriodDays": 90 }
+```
+
+### `timeFormat` / `timeZone`
+
+Clock format and zone for the turn-end clock and transcript-view timestamps (v2.1.257). `timeFormat` is `"12h"`, `"24h"`, `"24h-utc"`, or a strftime pattern; `timeZone` is an IANA zone name. Both also live in `/config` as "Time format".
+
+```json
+{ "timeFormat": "24h", "timeZone": "America/Argentina/Buenos_Aires" }
 ```
 
 ### `feedbackSurveyRate`
@@ -796,6 +819,10 @@ Permissions control which tool invocations are allowed, denied, or require user 
 | `ask` | Prompt user for confirmation each time | Risky but sometimes needed operations |
 
 If a tool invocation does not match any rule, Claude Code prompts the user (implicit `ask`).
+
+`permissions.blockReadsOutsideWorkingDirectories` (v2.1.257, boolean): in auto mode Claude Code asks once before the first file read outside the working directories; set this to `true` to refuse such reads outright instead. Add directories with `additionalDirectories` or `/add-dir` when a read is legitimate.
+
+`permissions.defaultMode: "bypassPermissions"` is ignored in `.claude/settings.json` and `.claude/settings.local.json` since v2.1.257, like `"auto"`; set it in user or managed settings, or pass `--permission-mode`.
 
 ### Permission Pattern Syntax
 

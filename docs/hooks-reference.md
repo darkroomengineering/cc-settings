@@ -12,7 +12,7 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
-## Hook Events (30 total)
+## Hook Events (32 total)
 
 ### Session Lifecycle
 
@@ -67,6 +67,8 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 |-------|------|----------------|----------|
 | `PreCompact` | Before context compaction | `manual` or `auto` | Yes |
 | `PostCompact` | After context compaction completes | `manual` or `auto` | No |
+| `PreModelSwitch` | Before a requested model switch is applied (v2.1.251). Input carries `from_model` and `to_model` (canonical names). Output `hookSpecificOutput.decision` is `allow`, `deny`, or `ask`; exit 2 also blocks. Default timeout 30s, and a timeout **blocks** the switch | canonical `to_model` (exact or regex, e.g. `claude-fable-5-1`, `.*fable.*`) | Yes |
+| `PostModelSwitch` | After the session model changed, including switches Claude Code makes itself (restoring the model on resume) (v2.1.251). Display-only: `systemMessage` and `terminalSequence` fire, decisions are ignored | canonical `to_model` | No (always async) |
 | `InstructionsLoaded` | CLAUDE.md or `.claude/rules/*.md` loaded | -- | No |
 | `ConfigChange` | Configuration file changes during session | `user_settings`, `project_settings`, `local_settings`, `policy_settings`, `skills` | Yes |
 
@@ -263,6 +265,8 @@ Matchers filter which specific tool invocations or events trigger a hook.
 | `resume` | Resuming a previous session |
 | `clear` | Session cleared |
 | `compact` | Session compacted |
+
+Since v2.1.251 a `resume` SessionStart also receives the session's staleness and the estimated re-cache cost, so a hook can warn before a cold resume re-pays a large prefix. The upstream hooks reference does not yet document the field names; read them from the JSON stdin payload (`jq .` in a scratch hook) before depending on them.
 
 ### Matcher Values for PreCompact
 
