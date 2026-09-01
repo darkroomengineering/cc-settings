@@ -18,7 +18,7 @@ import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } fr
 import { parseFrontmatter } from "./frontmatter.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { formatLegacyCodexSkillOverlap, scanLegacyCodexSkills } from "./managed-skills.ts";
-import { getTimestamp, hasCommand } from "./platform.ts";
+import { getTimestamp, whichCommand } from "./platform.ts";
 import { compareVersion } from "./version-delta.ts";
 
 const INSTRUCTIONS_START = "<!-- cc-settings:codex:start -->";
@@ -712,7 +712,10 @@ export function codexCliAvailable(): boolean {
   // entirely and is always considered available.
   if (testCodexCommand() !== null) return true;
   if (codexCliAvailabilityMemo !== null) return codexCliAvailabilityMemo;
-  if (!hasCommand("codex")) {
+  // Resolve against the live PATH and spawn the resolved absolute path, so a
+  // runtime PATH change (tests installing shims) actually steers the probe.
+  const codexPath = whichCommand("codex");
+  if (codexPath === null) {
     codexCliAvailabilityMemo = false;
     return false;
   }
@@ -725,7 +728,7 @@ export function codexCliAvailable(): boolean {
   // stalling setup.
   try {
     const probe = Bun.spawnSync({
-      cmd: ["codex", "--version"],
+      cmd: [codexPath, "--version"],
       stdout: "pipe",
       stderr: "pipe",
       timeout: 3000,
@@ -742,9 +745,7 @@ export function codexCliAvailable(): boolean {
  *  `codex 0.15.2` — a leading `codex` token followed by a semver-ish
  *  number. Shims that swallow the invocation with an error message do
  *  not match. Kept as a fragment match so a future banner prefix (e.g.
- *  `codex 0.16.0 (release build)`) still passes. Exported for direct
- *  unit tests because the surrounding probe (spawn + Bun.which) reads
- *  PATH via a boot-time snapshot that tests cannot override. */
+ *  `codex 0.16.0 (release build)`) still passes. */
 export function looksLikeCodexVersion(output: string): boolean {
   return /\bcodex[\w-]*\s+\d+\.\d+/i.test(output);
 }

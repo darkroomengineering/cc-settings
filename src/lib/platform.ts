@@ -71,10 +71,18 @@ export function ymd(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// Returns true if `cmd` is resolvable on PATH. Uses Bun.which which already
-// handles Windows `PATHEXT` + `.cmd`/`.exe` suffixes.
+// Resolves `cmd` to an absolute path via the LIVE `process.env.PATH`, or null.
+// The explicit PATH option matters: without it Bun.which consults the PATH
+// captured at process boot, so runtime mutations (tests installing shims under
+// a temp dir) are invisible. Bun.which already handles Windows `PATHEXT` +
+// `.cmd`/`.exe` suffixes.
+export function whichCommand(cmd: string): string | null {
+  return Bun.which(cmd, { PATH: process.env.PATH ?? "" });
+}
+
+// Returns true if `cmd` is resolvable on PATH.
 export function hasCommand(cmd: string): boolean {
-  return Bun.which(cmd) !== null;
+  return whichCommand(cmd) !== null;
 }
 
 // Canonical ~/.claude directory. Install and inspection code must always use
