@@ -109,6 +109,25 @@ symlink, and stops if an overlapping entry is not a normal directory. A malforme
 non-boolean import-sync value also stops the migration before any move. Keep the backup until Codex
 has restarted and the skill picker shows the plugin descriptions normally.
 
+If the warning persists after the dedupe, other plugins (for example a Claude Cowork import) may
+still hold more description text than the default budget — 2% of the model context window. Two
+remedies, both in `~/.codex/config.toml`, both yours to own:
+
+```toml
+# Raise the budget so every description stays complete
+# (spends that many extra context tokens per session):
+[skills]
+max_context_tokens = 16000
+
+# Or hide individual skills you never use in Codex:
+[[skills.config]]
+path = "/path/to/skill/SKILL.md"
+enabled = false
+```
+
+Restart Codex after either change. Size the budget from the installed total: each skill costs
+roughly its `description:` length in characters divided by four, in tokens.
+
 ## Light profile
 
 Codex light is intentionally different from Claude light.
