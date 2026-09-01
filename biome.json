@@ -6,7 +6,14 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**/*.ts", "tests/**/*.ts", "npm-installer/bin/*.js", "!node_modules", "!plans", "!.claude"]
+    "includes": [
+      "src/**/*.ts",
+      "tests/**/*.ts",
+      "npm-installer/bin/*.js",
+      "!node_modules",
+      "!plans",
+      "!.claude"
+    ]
   },
   "formatter": {
     "enabled": true,

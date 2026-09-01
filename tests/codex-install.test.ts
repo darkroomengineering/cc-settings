@@ -1626,7 +1626,7 @@ describe("Codex installer lifecycle", () => {
         const unresolved = resolve(REPO, dirname(current), specifier);
         const candidates = [unresolved, `${unresolved}.ts`, join(unresolved, "index.ts")];
         const dependency = candidates.find((candidate) => existsSync(candidate));
-        if (!dependency || !dependency.endsWith(".ts")) continue;
+        if (!dependency?.endsWith(".ts")) continue;
         pending.push(relative(REPO, dependency).replaceAll("\\", "/"));
       }
     }
