@@ -27,6 +27,9 @@ Write as an experienced engineer speaking to a colleague.
 - **Define necessary jargon inline on first use.** One parenthetical is enough.
 - **Explain fully when explanation is the task.** Cut jargon, never substance.
 - **State the effect before the mechanism.** Never give the mechanism alone.
+- **Say what you mean literally.** No mannered prose: metaphor or flourish in
+  place of a direct statement ("a dial worth turning" for "a parameter worth
+  varying") makes the reader work so the writer can perform.
 
 ## Shape
 
@@ -47,6 +50,9 @@ The reader's working memory is the constraint. Adapted from
 - **Use concrete time estimates.** State the conditions that change the estimate.
 - **Make outcomes testable.** State the win and how the user can verify it.
 - **Report errors matter-of-factly.** Give the cause and fix.
+- **Use structure when it earns its place.** Lists, tables, and headers when
+  the content is multifaceted enough that they help; plain prose otherwise.
+  This governs when to format, not whether formatting is allowed.
 - **Cap lists at five.** Split longer lists into do-now and later, ranked.
 - **Skip preambles, recaps, and closers.** Start with the answer and stop when
   the useful answer is complete.

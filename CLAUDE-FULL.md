@@ -5,9 +5,12 @@ Claude Code-specific rules.
 
 ## Editing
 
-- Under 10 lines: use Edit with the smallest unique `old_string`.
-- Over 15 lines: use Write for the full file.
-- After one Edit mismatch, switch to Write; do not retry Edit.
+- Edit tokens are the cost to minimize: when it does not change the result,
+  edit surgically instead of rewriting the file. Use Edit with the smallest
+  unique `old_string` for any targeted change, whatever its size.
+- Use Write only for a new file or when most of the file changes.
+- After one Edit mismatch, re-read the file and retry Edit once with a wider
+  anchor; on a second mismatch, Write.
 - Re-read a file before editing if two or more tool calls have passed.
 
 ## Voice for text written as the user
@@ -49,6 +52,12 @@ Clarity is the target, not length. Never clip sentences or write fragments.
 - Use code identifiers only when pointing the reader at code.
 - Define necessary jargon inline on first use.
 - State the effect before the mechanism; never give the mechanism alone.
+- Say what you mean literally. No mannered prose: metaphor or flourish in
+  place of a direct statement ("a dial worth turning" for "a parameter worth
+  varying") makes the reader work so the writer can perform.
+- Use lists, tables, or headers when the content is multifaceted enough that
+  they help the reader; keep to plain prose otherwise. This is a rule about
+  when structure earns its place, not a ban on structure.
 
 After three consecutive "still broken" turns in cc-settings, stop iterating.
 Name the questionable assumption and ask one diagnostic question. If a hook
@@ -83,7 +92,9 @@ files, so delegate for scale, not by habit. Before each unit of work, ask once:
 | premature-stopping or self-review-bias risk | dynamic workflow or `/effort ultracode`; see `skills/orchestrate/SKILL.md` |
 
 If no threshold fires, work directly. Re-evaluate when scope grows; state one
-reason before overriding a yes. Start independent delegations together. Give
+reason before overriding a yes. Start independent delegations together, and
+keep doing your own work while background agents run; wait only when the next
+step depends on their result. Give
 **every parallel writer** `isolation: "worktree"` (readers need none; do not
 isolate a lone implementer); review and land each worktree separately, then
 `git worktree remove --force PATH` and delete its `worktree-agent-*` branch.
@@ -150,21 +161,33 @@ migrations, and hard debugging, `ultrathink` for one turn. Agent frontmatter
 pins effort where depth is non-negotiable (`security-reviewer`, `planner`).
 `ultracode`: session-only `xhigh` plus automatic dynamic workflows (2.1.154+).
 
-Treat **200K tokens as the working context ceiling even on a 1M-window model**:
-input above 200K bills at the long-context premium, and giant contexts are the
-main driver of drained usage limits. `/clear` between unrelated tasks; compact
-or `/handoff` by ~150K; break subtasks to finish within that. Reserve a `[1m]`
-model for sessions that genuinely need it, via `/model`, and drop it after.
-After compaction, re-read the plan and active files per AGENTS.md. Output is
-64K tokens by default, 128K maximum. See `docs/agent-models.md`.
+On Fable 5.1, `medium` matches Fable 5 quality at lower cost and `low` is
+viable for routine turns; but at `low` it answers from memory instead of
+searching, so raise effort for turns that need fresh lookups.
 
-## Hardware and platform recommendations
+Treat **200K tokens as the working context ceiling even on a 1M-window model**:
+on Opus-tier models input above 200K bills at the long-context premium, and on
+every model giant contexts are the main driver of drained usage limits and
+degraded attention. `/clear` between unrelated tasks; compact or `/handoff` by
+~150K; break subtasks to finish within that. Reserve a `[1m]` model for
+sessions that genuinely need it, via `/model`, and drop it after. Fable 5 and
+5.1 are the exception on price only: 1M is their default window at standard
+per-token rates, and 5.1 cache reads cost 0.025x base, so on Fable the ceiling
+is about usage limits and attention, not premium billing, and compaction can
+run later. After compaction, re-read the plan and active files per AGENTS.md.
+Output is 64K tokens by default, 128K maximum. See `docs/agent-models.md`.
+
+## Verify fast-moving names before answering
 
 Before recommending tools or steps for hardware, firmware, OS, docks, or
 filesystem compatibility, web-search the exact model and platform: confirm the
 tool exists there (including Apple Silicon), the hardware supports the assumed
 licensed or chipset-gated feature, and no platform restriction blocks it.
-Library and framework questions still use context7.
+Library and framework questions still use context7. The same rule covers any
+name from a fast-moving area (AI models, developer tools, CLI flags):
+recognizing a name is not knowing its current state, and partial background is
+what makes a stale answer sound authoritative. Search it as the user wrote it
+before answering from memory.
 
 ## Reference
 

@@ -6,6 +6,21 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+Prompt surface adapted to Claude Fable 5.1 per Anthropic's [prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1). A scan of `CLAUDE-FULL.md`, the output style, rules, agents, and skills found none of the literal anti-patterns the guide flags (anti-formatting bans, "hold findings" lines, thinking suppression); the changes below are rules whose rationale shifted with the model.
+
+**Adopted:**
+- Editing rule now minimizes edit tokens: surgical `Edit` for any targeted change, `Write` only for new files or when most of a file changes, and one re-read-and-retry before falling back to `Write`. The old ">15 lines → Write" rule amplified 5.1's tendency to rewrite whole files.
+- Register gains "no mannered prose" (5.1 prose runs denser) and a positive-framed formatting rule (5.1 under-formats, so bans would suppress needed structure) in both `CLAUDE-FULL.md` and `output-styles/darkroom.md`.
+- Effort/context guidance is model-aware: on Fable 5.1, `medium` ≈ Fable 5 at lower cost, `low` answers from memory so raise it for lookups, and the 200K ceiling is about usage limits and attention rather than premium billing (1M at standard rates, cache reads 0.025x).
+- Delegation: keep working while background agents run; the fast-moving-names verification rule generalizes the hardware/platform search rule to AI models and dev tools.
+- `AGENTS.md` scopes committed tests to what the task asks for, sized like neighbors; scratch checks stay scratch.
+
+**Files changed:**
+- CLAUDE-FULL.md
+- output-styles/darkroom.md
+- AGENTS.md
+- docs/agent-models.md
+
 ## [15.4.0] — 2026-08-27
 
 Changed config defaults now reach existing installs: a value still equal to what the previous install wrote is treated as cc-settings' own old default and moved to the new team value, instead of user-wins freezing it forever. User-changed values keep winning everywhere.

@@ -77,6 +77,8 @@ Keep a bug fix confined to directly related files. Do not refactor adjacent code
 
 After the ladder establishes that a bounded unit should exist, finish every edge case, error path, and test when completion costs only minutes more. Do not ship 90% and defer the rest. Complete the unit you chose, but do not expand scope: this rule does not override `Bug Fix Scope` or `Surface Conflicts`.
 
+Commit tests only where the task asks for them or the repository already keeps tests for that kind of change, sized like the neighboring test files: roughly one focused test per stated behavior. Verify however you like, but scratch scripts and quick checks stay scratch; do not turn them into additional permanent test files.
+
 ### Verify After Every Fix
 
 Run the build after each fix and prove it passes before moving on. Never stack untested fixes.
