@@ -133,8 +133,8 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `fable` | Claude Fable 5 | Generally available (GA 2026-06-09). Top tier, above Opus 5 — agentic/SWE-tuned. 1M context (native; no `[1m]` pin needed). ~2× Opus 5 token cost ($10/$50 per Mtok), so rarely worth it over Opus 5 for this work. First-party API / claude.ai Max. |
-| `opus` / `claude-opus-5` | Claude Opus 5 | **cc-settings default: `claude-opus-5`.** `opus` resolves to Claude Opus 5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). Near-Fable quality at half the price ($5/$25 per Mtok). 1M context native on Max — no `[1m]` pin (the suffix is a no-op on Opus 5). Effort defaults to `high`. Requires Claude Code v2.1.219+ |
+| `fable` / `claude-fable-5-1` | Claude Fable 5.1 | **cc-settings default: `claude-fable-5-1`** (since 2026-09-01; was `claude-opus-5`). Top tier, above Opus 5 — long-horizon agentic coding, research, and document work. 1M context native at standard rates (no `[1m]` pin needed); cache reads 0.025x base. Included on Max since 2026-07-20: draws the shared weekly pool at ~2x the Opus 5 rate and is capped at 50% of the weekly limit, then bills extra-usage credits ($10/$50 per Mtok). The `fable` alias tracks the current Fable release. |
+| `opus` / `claude-opus-5` | Claude Opus 5 | `opus` resolves to Claude Opus 5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). Near-Fable quality at half the pool burn ($5/$25 per Mtok); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native on Max — no `[1m]` pin (the suffix is a no-op on Opus 5). Effort defaults to `high`. Requires Claude Code v2.1.219+ |
 | `sonnet` | Claude Sonnet 5 | Near-Opus quality on coding/agentic work at a fraction of Opus cost. 1M context native (no `[1m]` pin needed) |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 

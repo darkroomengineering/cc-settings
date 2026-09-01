@@ -1,12 +1,15 @@
 # Agent Model Routing
 
-> **Committed top tier: Claude Opus 5 (`claude-opus-5`).** It offers a native 1M context on
-> Max with no `[1m]` suffix. Fable (`claude-fable-5`, succeeded by `claude-fable-5-1`) is the
-> higher-priced specialist tier; use it per session (`/model fable`) only when a measured hard
-> slice warrants the extra cost. The `fable` alias tracks whichever Fable release Claude Code
-> currently ships, so nothing in this repo pins a Fable version.
+> **Committed session model: Claude Fable 5.1 (`claude-fable-5-1`), since 2026-09-01.** Fable is
+> included on Max plans (since 2026-07-20): it draws from the same weekly pool as every other
+> model at roughly 2x the Opus 5 rate and is capped at 50% of the weekly limit, after which it
+> bills extra-usage credits. The team runs on Max, so the default buys 5.1's long-horizon
+> agentic gains at the cost of faster pool burn; `quota-steer` still downshifts subagents at the
+> 60%/65% bands. Drop to `/model opus` per session for routine work when the pool is tight.
+> Before 2026-09-01 the default was `claude-opus-5`; existing installs that never changed
+> `model` move with the default through the three-way merge (v15.4.0).
 
-Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The top tier (`claude-opus-5`) stays on the main session plus the agents whose *output is a judgment* (orchestration, planning, code-quality review). Read-heavy and execution agents run on Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
+Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The main session runs Fable 5.1; the agents whose *output is a judgment* (orchestration, planning, code-quality review) stay on `claude-opus-5`, which is near-Fable quality at half the pool burn and doesn't count toward the 50% Fable ceiling. Read-heavy and execution agents run on Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
@@ -48,10 +51,10 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 | Session (executor) | Valid advisors | Verdict |
 |---|---|---|
 | `sonnet` (Sonnet 5) | fable, mythos, opus 5 | **The sweet spot** — near-top-tier planning at Sonnet burn rate |
-| `claude-opus-5` (our default) | fable, mythos, opus 5 | Valid but marginal — Opus already plans well, and it doesn't relieve the scarce Opus pool |
-| `fable` | fable only | Self-consult; skip |
+| `claude-opus-5` | fable, mythos, opus 5 | Valid but marginal — Opus already plans well, and it doesn't relieve the scarce Opus pool |
+| `claude-fable-5-1` (our default) | fable only | Self-consult; skip — a Fable session rejects every non-Fable advisor |
 
-**Recommended use: "workhorse mode", opt-in per session.** Run daily-driver sessions as `/model sonnet` + `/advisor opus` (or `/advisor fable` for the top-of-range tier), and reserve `claude-opus-5`/`fable` sessions for work that needs a top-tier *executor*. This is the native version of the "Sonnet loop bodies, Opus gate decisions" split — except the strong model corrects course mid-turn with full context instead of reviewing after the fact, and dozens of consults cost less than one Opus session. It is deliberately **not** the composed default: our standing `model` is `claude-opus-5`, where an advisor adds little, and a Fable session would reject every non-Fable advisor.
+**Recommended use: "workhorse mode", opt-in per session.** Run daily-driver sessions as `/model sonnet` + `/advisor opus` (or `/advisor fable` for the top-of-range tier), and reserve `claude-fable-5-1`/`claude-opus-5` sessions for work that needs a top-tier *executor*. This is the native version of the "Sonnet loop bodies, Opus gate decisions" split — except the strong model corrects course mid-turn with full context instead of reviewing after the fact, and dozens of consults cost less than one Opus session. It is deliberately **not** the composed default: our standing `model` is `claude-fable-5-1`, which only accepts a Fable advisor, so the advisor is a per-session choice that starts with `/model sonnet`.
 
 **Interactions:**
 

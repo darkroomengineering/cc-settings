@@ -19,7 +19,7 @@
 	"sandbox": {
 		"failIfUnavailable": false
 	},
-	"model": "claude-opus-5",
+	"model": "claude-fable-5-1",
 	"promptCacheTtl": "1h",
 	"subagentPromptCacheTtl": "5m",
 	"outputStyle": "Darkroom",

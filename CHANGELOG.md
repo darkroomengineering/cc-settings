@@ -21,6 +21,13 @@ Prompt surface adapted to Claude Fable 5.1 per Anthropic's [prompting guide](htt
 - AGENTS.md
 - docs/agent-models.md
 
+Default session model is now **Claude Fable 5.1** (`claude-fable-5-1`), replacing `claude-opus-5`. The whole team is on Max, where Fable has been included since 2026-07-20 (same weekly pool at ~2x the Opus 5 rate, capped at 50% of the weekly limit, extra-usage credits past that), so the default now buys 5.1's long-horizon agentic gains and the pool-burn trade-off is the team's stated preference. Judgment agents (`maestro`, `planner`, `security-reviewer`) stay pinned to `claude-opus-5`; `/model opus` remains the per-session step-down. Installs that never changed `model` move with the default through the v15.4.0 three-way merge; user-set models are untouched.
+
+**Files changed:**
+- config/10-core.json
+- docs/agent-models.md
+- docs/settings-reference.md
+
 ## [15.4.0] — 2026-08-27
 
 Changed config defaults now reach existing installs: a value still equal to what the previous install wrote is treated as cc-settings' own old default and moved to the new team value, instead of user-wins freezing it forever. User-changed values keep winning everywhere.
