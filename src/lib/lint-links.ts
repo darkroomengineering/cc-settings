@@ -15,10 +15,11 @@
 //   - src/scripts/lint-links.ts  — CLI (`bun run lint:links`)
 //   - tests/lint-links.test.ts
 
-import { type Dirent, existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, normalize, relative, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { dirname, normalize, relative, resolve } from "node:path";
 import { formatLintFindings, hasLintErrors, type LintSeverity } from "./lint-frontmatter.ts";
+import { walkFiles } from "./platform.ts";
 
 export type LinkSeverity = LintSeverity;
 
@@ -135,30 +136,14 @@ function linksOf(text: string): Link[] {
   }));
 }
 
-async function walk(dir: string, out: string[]): Promise<void> {
-  let entries: Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true, encoding: "utf8" });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      await walk(full, out);
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
-      out.push(full);
-    }
-  }
-}
-
 /** Validate every intra-repo markdown link under `root`. */
 export async function lintLinksDir(root: string): Promise<LinkResult> {
   if (!existsSync(root)) return { findings: [], fileCount: 0, linkCount: 0 };
 
-  const paths: string[] = [];
-  await walk(root, paths);
+  const paths = await walkFiles(root, {
+    skipDirs: SKIP_DIRS,
+    keep: (name) => name.toLowerCase().endsWith(".md"),
+  });
   paths.sort();
 
   // Anchor sets are computed once per file and reused across every inbound link.

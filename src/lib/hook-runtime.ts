@@ -6,17 +6,12 @@ import { writeSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { z } from "zod";
+import { isPlainObject } from "./merge-keyed.ts";
 import { claudePath } from "./platform.ts";
 
 const TMP_DIR = claudePath("tmp");
 
-/** True for a non-null, non-array object — the only JSON shape that carries
- *  named fields. The JSON boundary guard for readHookInput/readState so a
- *  parsed `null`, array, or scalar is never handed back typed as an object.
- *  Exported for the boundary tests. */
-export function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
+export { isPlainObject };
 
 /** Normalize a parsed state value against the caller's fallback. When the
  *  fallback is an object, the caller expects object semantics, so a stored

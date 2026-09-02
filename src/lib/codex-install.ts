@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   chmod,
@@ -18,7 +17,7 @@ import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } fr
 import { parseFrontmatter } from "./frontmatter.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { formatLegacyCodexSkillOverlap, scanLegacyCodexSkills } from "./managed-skills.ts";
-import { getTimestamp, whichCommand } from "./platform.ts";
+import { getTimestamp, sha256, whichCommand } from "./platform.ts";
 import { compareVersion } from "./version-delta.ts";
 
 const INSTRUCTIONS_START = "<!-- cc-settings:codex:start -->";
@@ -1264,7 +1263,7 @@ async function copyIfPresent(source: string, destination: string): Promise<boole
 }
 
 function contentHash(content: string | Uint8Array): string {
-  return createHash("sha256").update(content).digest("hex");
+  return sha256(content);
 }
 
 async function regularFileHash(path: string): Promise<string | null> {

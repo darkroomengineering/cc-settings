@@ -5,11 +5,48 @@
 // module (downstream code imports `os` from here) so future Windows fixes
 // stay local.
 
-import { readFileSync } from "node:fs";
+import { type Dirent, readFileSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 export type OS = "macos" | "linux" | "wsl" | "windows" | "unknown";
+
+export function sha256(data: string | Uint8Array): string {
+  return new Bun.CryptoHasher("sha256").update(data).digest("hex");
+}
+
+/**
+ * Recursive directory walk shared by the lint scripts: prune `opts.skipDirs`
+ * directories, keep files that pass `opts.keep(name)`. An unreadable
+ * directory is skipped rather than thrown — callers treat that as "nothing
+ * here", not a lint failure.
+ */
+export async function walkFiles(
+  dir: string,
+  opts: { skipDirs?: Set<string>; keep: (name: string) => boolean },
+): Promise<string[]> {
+  const out: string[] = [];
+  async function walk(d: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(d, { withFileTypes: true, encoding: "utf8" });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(d, entry.name);
+      if (entry.isDirectory()) {
+        if (opts.skipDirs?.has(entry.name)) continue;
+        await walk(full);
+      } else if (entry.isFile() && opts.keep(entry.name)) {
+        out.push(full);
+      }
+    }
+  }
+  await walk(dir);
+  return out;
+}
 
 function detectOS(): OS {
   switch (process.platform) {

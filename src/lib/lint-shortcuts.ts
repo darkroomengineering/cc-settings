@@ -19,10 +19,11 @@
 //   - src/scripts/lint-shortcuts.ts  — CLI (`bun run lint:shortcuts`)
 //   - tests/lint-shortcuts.test.ts
 
-import { type Dirent, existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { relative } from "node:path";
 import { formatLintFindings, hasLintErrors, type LintSeverity } from "./lint-frontmatter.ts";
+import { walkFiles } from "./platform.ts";
 
 export type ShortcutSeverity = LintSeverity;
 
@@ -178,33 +179,17 @@ function check(marker: ShortcutMarker): ShortcutFinding[] {
   return findings;
 }
 
-async function walk(dir: string, out: string[]): Promise<void> {
-  let entries: Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true, encoding: "utf8" });
-  } catch {
-    return; // unreadable dir is not a lint failure
-  }
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      await walk(full, out);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    const ext = entry.name.split(".").pop()?.toLowerCase();
-    if (ext === undefined || !SOURCE_EXTENSIONS.has(ext)) continue;
-    out.push(full);
-  }
-}
-
 /** Scan a directory tree for `SHORTCUT:` markers and validate each one. */
 export async function lintShortcutsDir(root: string): Promise<ShortcutResult> {
   if (!existsSync(root)) return { findings: [], markers: [], fileCount: 0 };
 
-  const paths: string[] = [];
-  await walk(root, paths);
+  const paths = await walkFiles(root, {
+    skipDirs: SKIP_DIRS,
+    keep: (name) => {
+      const ext = name.split(".").pop()?.toLowerCase();
+      return ext !== undefined && SOURCE_EXTENSIONS.has(ext);
+    },
+  });
 
   const findings: ShortcutFinding[] = [];
   const markers: ShortcutMarker[] = [];

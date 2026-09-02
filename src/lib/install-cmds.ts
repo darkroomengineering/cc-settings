@@ -4,7 +4,6 @@
 //   printHelp — usage text
 //   cmdRollback — restore a backup archive
 
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   lstat,
@@ -34,7 +33,7 @@ import {
   MANAGED_TOP_LEVEL_PATHS,
   sharedDirOwnedFiles,
 } from "./managed-paths.ts";
-import { CLAUDE_DIR } from "./platform.ts";
+import { CLAUDE_DIR, sha256 } from "./platform.ts";
 import {
   parseAutoUpdateState,
   restoreAutoUpdateState,
@@ -445,9 +444,7 @@ async function regularFileHash(path: string): Promise<string | null> {
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
     throw new Error(`Claude rollback expected a regular file: ${path}`);
   }
-  return createHash("sha256")
-    .update(await readFile(path))
-    .digest("hex");
+  return sha256(await readFile(path));
 }
 
 async function nodeModulesMatches(path: string, expectedTarget: string): Promise<boolean> {
@@ -684,12 +681,7 @@ async function validateStagedRestore(
         assertContained(managedRoot, managedPath);
         await assertSafeStagedPath(managedRoot, relativePath);
         const metadata = await lstat(managedPath);
-        if (
-          !metadata.isFile() ||
-          createHash("sha256")
-            .update(await readFile(managedPath))
-            .digest("hex") !== expectedHash
-        ) {
+        if (!metadata.isFile() || sha256(await readFile(managedPath)) !== expectedHash) {
           throw new Error(
             `Claude rollback archive has inconsistent managed-file ownership: ${relativePath}. ` +
               "Reinstall cc-settings once before rolling back.",
@@ -745,9 +737,7 @@ async function validateStagedRestore(
       if (
         !metadata?.isFile() ||
         metadata.isSymbolicLink() ||
-        createHash("sha256")
-          .update(await readFile(managedPath))
-          .digest("hex") !== expectedHash
+        sha256(await readFile(managedPath)) !== expectedHash
       ) {
         throw new Error(`Claude compensation payload hash mismatch: ${relativePath}`);
       }

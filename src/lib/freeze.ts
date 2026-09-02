@@ -26,12 +26,6 @@ export interface FreezeState {
 
 const NO_FREEZE: FreezeState = { root: null, sessionId: null };
 
-export async function readFreeze(): Promise<FreezeState> {
-  const state = await readState<Partial<FreezeState>>(FREEZE_STATE, NO_FREEZE);
-  // Back-compat: freeze.json written before this field existed only has `root`.
-  return { root: state.root ?? null, sessionId: state.sessionId ?? null };
-}
-
 export async function writeFreeze(
   root: string | null,
   sessionId: string | null = null,
@@ -51,7 +45,9 @@ export async function writeFreeze(
 export async function getActiveFreeze(
   currentSessionId: string | null | undefined,
 ): Promise<FreezeState> {
-  const state = await readFreeze();
+  const raw = await readState<Partial<FreezeState>>(FREEZE_STATE, NO_FREEZE);
+  // Back-compat: freeze.json written before this field existed only has `root`.
+  const state: FreezeState = { root: raw.root ?? null, sessionId: raw.sessionId ?? null };
   if (!state.root) return state;
   if (currentSessionId && state.sessionId && state.sessionId !== currentSessionId) {
     await writeFreeze(null, null);

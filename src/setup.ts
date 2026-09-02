@@ -23,7 +23,6 @@
 //                      memory untouched. Recover with --rollback.
 //   --help, -h         Usage.
 
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   chmod,
@@ -119,6 +118,7 @@ import {
   installPaths,
   isWindows,
   os,
+  sha256,
 } from "./lib/platform.ts";
 import { isInteractive, promptYn } from "./lib/prompts.ts";
 import {
@@ -560,9 +560,7 @@ async function regularFileHash(path: string): Promise<string | null> {
   try {
     const metadata = await lstat(path);
     if (!metadata.isFile()) return null;
-    return createHash("sha256")
-      .update(await readFile(path))
-      .digest("hex");
+    return sha256(await readFile(path));
   } catch (cause) {
     if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw cause;
@@ -630,7 +628,7 @@ async function captureClaudeSharedFileState(path: string): Promise<ClaudeSharedF
   const bytes = await readFile(path);
   return {
     present: true,
-    hash: createHash("sha256").update(bytes).digest("hex"),
+    hash: sha256(bytes),
     bytes,
     mode: metadata.mode & 0o777,
   };
@@ -715,9 +713,7 @@ async function captureClaudeLifecycleFileState(path: string): Promise<ClaudeLife
   }
   return {
     present: true,
-    hash: createHash("sha256")
-      .update(await readFile(path))
-      .digest("hex"),
+    hash: sha256(await readFile(path)),
   };
 }
 
@@ -1020,9 +1016,7 @@ async function historicalClaudeOwnership(
   const ownership: Record<string, string> = {};
   for (const sourcePath of sourceFiles) {
     const destination = sourceToDestination(sourcePath);
-    const expected = createHash("sha256")
-      .update(await gitOutput(sourceDir, ["show", `${commit}:${sourcePath}`]))
-      .digest("hex");
+    const expected = sha256(await gitOutput(sourceDir, ["show", `${commit}:${sourcePath}`]));
     if ((await regularFileHash(claudeManagedPath(destination))) !== expected) {
       throw new Error(
         `Historical Claude managed file is missing, unsafe, or modified: ${destination}. ` +

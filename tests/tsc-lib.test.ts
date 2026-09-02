@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runTsc, stripAnsi } from "../src/lib/tsc.ts";
+import { runTsc } from "../src/lib/tsc.ts";
 
 /** A throwaway project with one deliberately broken file. */
 function brokenProject(): string {
@@ -40,7 +40,7 @@ describe("runTsc", () => {
       // Raw pretty output does NOT contain the adjacent form the matcher wants.
       expect(/error TS\d+/.test(r.combined)).toBe(false);
       // Stripped, it does — this is what the retry check operates on.
-      const stripped = stripAnsi(r.combined);
+      const stripped = Bun.stripANSI(r.combined);
       expect(/error TS\d+/.test(stripped)).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });

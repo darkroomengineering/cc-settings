@@ -7,7 +7,7 @@
 // (phase order, dependency install, settings write) and calls into here for
 // the disk work.
 
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync } from "node:fs";
 import { cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -17,7 +17,7 @@ import { validateClaudeManagedFileOwnership } from "./claude-managed-files.ts";
 import { error } from "./colors.ts";
 import type { Profile } from "./light-profile.ts";
 import { MANAGED_TOP_LEVEL_PATHS, sharedDirOwnedFiles } from "./managed-paths.ts";
-import { CLAUDE_DIR, getTimestamp } from "./platform.ts";
+import { CLAUDE_DIR, getTimestamp, sha256 } from "./platform.ts";
 import { serializeAutoUpdateState, snapshotAutoUpdateState } from "./schedule.ts";
 import { readDestructiveSentinel } from "./version-delta.ts";
 
@@ -200,9 +200,7 @@ async function createBackup(
     if (
       !metadata?.isFile() ||
       metadata.isSymbolicLink() ||
-      createHash("sha256")
-        .update(await readFile(path))
-        .digest("hex") !== expectedHash
+      sha256(await readFile(path)) !== expectedHash
     ) {
       throw new Error(`Cannot back up changed Claude managed file: ${relativePath}`);
     }

@@ -296,14 +296,7 @@ export function parseChangelogEntries(changelogText: string): ChangelogEntry[] {
 
 /** Strict semver comparator over X.Y.Z (no pre-release suffix support). */
 export function compareVersion(a: string, b: string): number {
-  const ap = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
-  const bp = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    const av = ap[i] ?? 0;
-    const bv = bp[i] ?? 0;
-    if (av !== bv) return av - bv;
-  }
-  return 0;
+  return Bun.semver.order(a, b);
 }
 
 /**

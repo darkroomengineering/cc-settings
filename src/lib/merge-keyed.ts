@@ -76,3 +76,9 @@ function sortKeysDeep(v: unknown): unknown {
 export function asRecord(v: unknown): Record<string, unknown> {
   return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
 }
+
+/** True for a non-null, non-array object — the only JSON shape that carries
+ *  named fields. Shared boundary guard for hook state IO and settings merge. */
+export function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}

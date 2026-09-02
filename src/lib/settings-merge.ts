@@ -20,7 +20,14 @@ import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
 import { isManagedHookCommand, parseHookCommand } from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
-import { asRecord, canonicalKey, subtractByKey, unionByKey, uniqueByKey } from "./merge-keyed.ts";
+import {
+  asRecord,
+  canonicalKey,
+  isPlainObject,
+  subtractByKey,
+  unionByKey,
+  uniqueByKey,
+} from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type StringArray = string[] | undefined;
@@ -629,10 +636,6 @@ export const statusLineStrategy: Strategy = async (_key, team, user, ctx) => {
   if (user !== undefined) return { keep: true, value: user };
   return { keep: true, value: team };
 };
-
-function isPlainObject(v: unknown): v is UnknownRecord {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
-}
 
 // Recursive deep-merge for the default strategy, user winning on every conflict.
 //

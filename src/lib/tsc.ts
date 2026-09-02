@@ -4,10 +4,10 @@
 // stdout+stderr; only the downstream policy differs, and that stays in each
 // script.
 
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { sha256 } from "./platform.ts";
 
 export interface TscResult {
   /** stdout followed by stderr, untrimmed — callers filter or tail as needed. */
@@ -47,19 +47,6 @@ const TSC_TIMEOUT_MS = 120_000;
 const CACHE_UNUSABLE = /error TS\d+:[^\n]*(incremental|tsBuildInfoFile|buildinfo)/i;
 
 /**
- * `--pretty` colourises even when piped, and it splits the diagnostic header
- * as `error<ESC>[0m<ESC>[90m TS2322` — so a pattern expecting `error TS####`
- * never matches the pre-commit hook's output. Strip escapes before matching.
- */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC is the character being matched
-const ANSI = /\u001b\[[0-9;]*m/g;
-
-/** Remove ANSI colour escapes so text matching works on `--pretty` output. */
-export function stripAnsi(text: string): string {
-  return text.replace(ANSI, "");
-}
-
-/**
  * Per-project incremental cache path, under ~/.claude/tmp so a client repo
  * never gets a stray `.tsbuildinfo` showing up in `git status`. Keyed by cwd
  * so two projects can't invalidate each other's cache.
@@ -68,7 +55,7 @@ function buildInfoPath(cwd: string): string {
   const settingsHome = process.env.CC_SETTINGS_HOME ?? join(homedir(), ".claude");
   const dir = join(settingsHome, "tmp", "tsc-cache");
   mkdirSync(dir, { recursive: true });
-  return join(dir, `${createHash("sha256").update(cwd).digest("hex").slice(0, 16)}.tsbuildinfo`);
+  return join(dir, `${sha256(cwd).slice(0, 16)}.tsbuildinfo`);
 }
 
 async function spawnTsc(options: TscOptions, cachePath: string | null): Promise<TscResult> {
@@ -147,7 +134,7 @@ export async function runTsc(options: TscOptions = {}): Promise<TscResult> {
   }
 
   const result = await spawnTsc(options, cachePath);
-  if (result.exitCode !== 0 && CACHE_UNUSABLE.test(stripAnsi(result.combined))) {
+  if (result.exitCode !== 0 && CACHE_UNUSABLE.test(Bun.stripANSI(result.combined))) {
     try {
       rmSync(cachePath, { force: true });
     } catch {
