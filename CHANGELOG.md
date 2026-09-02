@@ -6,6 +6,8 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.6.1] — 2026-09-02
+
 Prompt audit against Claude Fable 5.1: removed instructions written for models that needed more pushing, and the hook text that repeated them every few tool calls.
 
 - `output-styles/darkroom.md` no longer suppresses closing summaries or caps lists at five; it asks for a summary when a message has several outcomes and for lists that stay scannable. `rules/git.md` drops the five-bullet PR cap for the same reason.
