@@ -226,6 +226,8 @@ Custom status bar displayed in the Claude Code terminal.
 
 The `statusline.ts` script displays model name, git branch, and context usage percentage.
 
+♻NN% is the session's prompt-cache hit ratio from the `prompt_cache` payload (v2.1.251+): green ≥80%, yellow ≥50%, red below; `cold` means the cached prefix has expired. Hidden until three requests have been recorded.
+
 ### `plansDirectory`
 
 Directory where Claude Code writes plan output files (from planner agent, PRD skill, etc.).
@@ -705,6 +707,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `crossSessionInbound` | `"accept"` \| `"hold"` \| `"refuse"` | G | What this session does with messages arriving from your other sessions. Unset is **not** `accept` — see [cross-session messaging](#cross-session-messaging) (v2.1.224) |
 | `defaultShell` | `"bash"` \| `"powershell"` | G | Shell used by the Bash tool |
 | `deniedMcpServers` | string[] | E | Managed blocklist of MCP server URLs/identifiers (v2.1.112) |
+| `desktopSessionCleanupPeriodDays` | integer ≥ 1 | G | Caps the retention exemption for Claude Desktop/Cowork-written sessions (v2.1.248) |
 | `dialogExpiry` | `"60s"` \| `"5m"` \| `"10m"` \| `"never"` | U | How long an unanswered approval dialog stays open before Claude Code drops it (default `"5m"`) (v2.1.224) |
 | `disableAgentView` | boolean | E | Hide the agent-activity panel in the TUI |
 | `disableAllHooks` | boolean | G | Master kill-switch for the entire hooks subsystem |
@@ -783,6 +786,8 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `syntaxHighlightingDisabled` | boolean | U | Disable syntax highlighting in code blocks |
 | `teammateMode` | `"auto"` \| `"in-process"` \| `"tmux"` | G | Agent Teams coordination mode |
 | `terminalProgressBarEnabled` | boolean | U | Show a progress bar for long-running operations |
+| `timeFormat` | `"12h"` \| `"24h"` \| `"24h-utc"` \| strftime | U | Clock format for the turn-end clock and transcript timestamps (v2.1.257) |
+| `timeZone` | IANA zone | U | Time zone for the same clocks (v2.1.257) |
 | `tui` | `"fullscreen"` \| `"default"` | U | TUI rendering mode (`fullscreen` uses alternate screen) |
 | `useAutoModeDuringPlan` | boolean | G | Run auto-mode during the plan phase |
 | `viewMode` | `"default"` \| `"verbose"` \| `"focus"` | U | Controls how much detail the TUI shows |

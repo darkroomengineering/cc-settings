@@ -152,7 +152,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "15.4.0"; // three-way defaults update: values still on our old default follow changed team defaults
+const VERSION = "15.5.0"; // Claude Code 2.1.257 sync: PreModelSwitch quota guard, statusline cache chip, Fable 5.1 default
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 

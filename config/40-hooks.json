@@ -39,6 +39,18 @@
 				]
 			}
 		],
+		"PreModelSwitch": [
+			{
+				"matcher": ".*fable.*|.*mythos.*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/model-switch-guard.ts\"",
+						"timeout": 5
+					}
+				]
+			}
+		],
 		"PreToolUse": [
 			{
 				"matcher": "Bash",

@@ -97,10 +97,29 @@ type Payload = {
       used_percentage?: number;
       resets_at?: number | string;
     };
+    // 2.1.251, gateway-only — used_percentage can exceed 100. Type-only: no
+    // visual segment reads this yet.
+    spend_limit?: { used_percentage?: number; resets_at?: number | string };
   };
   // 2.1.119 — effort level + thinking flag are now in statusline stdin.
   effort?: { level?: string };
   thinking?: { enabled?: boolean };
+  // 2.1.251 — prompt-cache diagnostics. Absent until the main conversation's
+  // first API response; subagent requests are not counted.
+  prompt_cache?: {
+    warm?: boolean;
+    caching_observed?: boolean;
+    ttl?: "5m" | "1h" | string;
+    expires_at?: number | null;
+    requests?: number;
+    misses?: number;
+    expected_rebuilds?: number;
+    hit_ratio?: number | null;
+    cache_write_tokens?: number;
+    miss_recache_tokens?: number;
+    last_miss_at?: number | null;
+    recache_tokens_if_cold?: number | null;
+  };
 };
 
 function formatTokens(n: number): string {
@@ -288,6 +307,30 @@ async function main(): Promise<void> {
       const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
       parts.push(`${color}⚡${rInt}%${palette.reset}${routing}${suffix}`);
     }
+  }
+
+  // Prompt-cache hit ratio (2.1.251) — cheapest cache diagnostic we can give
+  // users, since the default model prices cache reads far below base. Shown
+  // on every terminal, including Programa: it's cache stats, not quota, so
+  // the IN_PROGRAMA suppression above (which is quota-specific) doesn't apply.
+  // Suppressed until 3 requests have landed — too early to be meaningful.
+  const cache = input.prompt_cache;
+  if (
+    cache &&
+    cache.caching_observed === true &&
+    cache.hit_ratio !== null &&
+    cache.hit_ratio !== undefined &&
+    (cache.requests ?? 0) >= 3
+  ) {
+    const pct = Math.round(cache.hit_ratio * 100);
+    const color =
+      cache.hit_ratio >= 0.8
+        ? palette.green
+        : cache.hit_ratio >= 0.5
+          ? palette.yellow
+          : palette.red;
+    const coldSuffix = cache.warm === false ? `${palette.dim} cold${palette.reset}` : "";
+    parts.push(`${color}♻${pct}%${palette.reset}${coldSuffix}`);
   }
 
   // Review-queue backpressure: agents spawned since the last commit, awaiting

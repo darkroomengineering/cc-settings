@@ -6,6 +6,29 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.5.0] — 2026-09-01
+
+Synced with Claude Code v2.1.257 (from v2.1.247), moved the default session model to Claude Fable 5.1, and adapted the prompt surface to it. Of the ten upstream releases, 2.1.248, 2.1.251, 2.1.252, and 2.1.257 carried substance; the rest were "bug fixes and reliability improvements". No dedupe this round — nothing upstream subsumed a script we maintain.
+
+**Adopted:**
+- `PreModelSwitch` / `PostModelSwitch` hook events (upstream 2.1.251) in `src/schemas/hooks.ts` and the manifest, plus a new `src/hooks/model-switch-guard.ts` wired on `PreModelSwitch` with matcher `.*fable.*|.*mythos.*`: when the cached usage is ≥95% it answers `ask` with the pool numbers; at the critical band it answers `allow` with an annotation; otherwise it is silent. It never denies — the user owns the switch — and it does exactly one cached read because a timed-out PreModelSwitch hook blocks the switch (timeout pinned to 5s). Companion to the Fable 5.1 default below.
+- Statusline `prompt_cache` payload (upstream 2.1.251): `src/hooks/statusline.ts` renders a ♻NN% cache-hit-ratio chip after the ⚡ quota chip (green ≥80%, yellow ≥50%, red below; `cold` when the prefix expired; hidden until three requests). `rate_limits.spend_limit` typed for gateway users, no visual yet.
+- New settings keys accepted by the strict schema: `timeFormat`, `timeZone`, `permissions.blockReadsOutsideWorkingDirectories` (2.1.257), `desktopSessionCleanupPeriodDays` (2.1.248); agent frontmatter `experimental.cacheTtl` (2.1.248); env vars `CLAUDE_CODE_RESTRICTED`, `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, `SELF_HOSTED_RUNNER_CLIENT_LABEL` in the manifest and `docs/settings-reference.md`.
+- Managed-file manifest version 5 → 6 so the new hook reaches existing installs; `emitHookSpecificOutput` helper in `src/lib/hook-runtime.ts` for hooks whose output carries a decision.
+- Docs follow the 2.1.251 semantics change for `CLAUDE_CODE_SUBAGENT_MODEL` (now the default for every subagent, overridden by agent `model:` and per-spawn — built-in `Explore`/`Plan`/`general-purpose` now run on Sonnet), per-model `/effort` persistence, the `fable` alias moving to Fable 5.1, `defaultMode: "bypassPermissions"` being ignored in project settings, and project `env` no longer setting `CLAUDE_CONFIG_DIR`/`TMPDIR`.
+
+**Deletions / Native-now-redundant:** none.
+
+**Files changed:**
+- src/schemas/hooks.ts, src/schemas/settings.ts, src/schemas/permissions.ts, src/schemas/agent.ts, schemas/*.schema.json
+- upstream/claude-code-manifest.json
+- src/hooks/model-switch-guard.ts (new), src/lib/hook-runtime.ts, config/40-hooks.json
+- src/hooks/statusline.ts
+- src/lib/claude-managed-file-manifests.ts
+- tests/model-switch-guard.test.ts (new), tests/statusline-cache.test.ts (new), tests/install-e2e.test.ts
+- docs/hooks-reference.md, docs/settings-reference.md, docs/frontmatter-reference.md, docs/agent-models.md, CLAUDE-FULL.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+
 Prompt surface adapted to Claude Fable 5.1 per Anthropic's [prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1). A scan of `CLAUDE-FULL.md`, the output style, rules, agents, and skills found none of the literal anti-patterns the guide flags (anti-formatting bans, "hold findings" lines, thinking suppression); the changes below are rules whose rationale shifted with the model.
 
 **Adopted:**

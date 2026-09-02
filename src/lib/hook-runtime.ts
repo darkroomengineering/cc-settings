@@ -134,6 +134,20 @@ export function emitAdditionalContext(hookEventName: string, context: string): v
   );
 }
 
+/** Emit an arbitrary hookSpecificOutput payload on stdout — the general form of
+ *  emitAdditionalContext for hooks (e.g. PreModelSwitch's ask/allow decision)
+ *  whose contract carries fields beyond additionalContext. */
+export function emitHookSpecificOutput(
+  hookEventName: string,
+  fields: Record<string, unknown>,
+): void {
+  console.log(
+    JSON.stringify({
+      hookSpecificOutput: { hookEventName, ...fields },
+    }),
+  );
+}
+
 /** Run a hook main() with the cc-settings fail-open convention. Catches and
  *  swallows any error so a hook never blocks a tool call. */
 export async function runHook(main: () => Promise<void>): Promise<void> {

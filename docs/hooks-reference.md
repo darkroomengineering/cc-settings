@@ -370,6 +370,12 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 
 > Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
+### PreModelSwitch (matcher: `.*fable.*|.*mythos.*`)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `model-switch-guard.ts` | Reads the same cached rate-limit percentages as `quota-steer.ts` at the moment of a switch to a fable/mythos model. At ≥95% (5h or weekly) it asks for confirmation, naming the percentage — Fable draws the weekly pool at ~2x the Opus rate and is capped at 50% of it. At the critical band below that it allows the switch and annotates it with a scoping reminder. Below critical it stays silent. Never denies the switch. Fail-open | No |
+
 ### PreToolUse (Bash matcher)
 
 | Script | Purpose | Async |

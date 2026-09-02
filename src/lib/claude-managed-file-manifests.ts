@@ -1,6 +1,6 @@
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 5;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 6;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -147,6 +147,7 @@ const FULL_V2 = [
   "src/hooks/escalate-acted.ts",
   "src/hooks/escalate-model.ts",
   "src/hooks/freeze-guard.ts",
+  "src/hooks/model-switch-guard.ts",
   "src/hooks/pre-commit-farolero.ts",
   "src/hooks/pre-edit-validate.ts",
   "src/hooks/pre-pr-proof.ts",
@@ -300,6 +301,7 @@ const LIGHT_V2 = [
   "src/hooks/escalate-acted.ts",
   "src/hooks/escalate-model.ts",
   "src/hooks/freeze-guard.ts",
+  "src/hooks/model-switch-guard.ts",
   "src/hooks/pre-commit-farolero.ts",
   "src/hooks/pre-edit-validate.ts",
   "src/hooks/pre-pr-proof.ts",
@@ -437,6 +439,7 @@ const LIGHT_V2 = [
 // version so historical manifests keep describing exactly what that installer
 // copied (ownership/prune logic depends on it).
 const ADDED_IN_V5 = ["docs/motion-reference.md", "docs/performance-reference.md"];
+const ADDED_IN_V6 = ["src/hooks/model-switch-guard.ts"];
 
 const VERSION_2_EXCLUSIONS = new Set([
   "docs/README.md",
@@ -447,6 +450,7 @@ const VERSION_2_EXCLUSIONS = new Set([
   "docs/troubleshooting.md",
   "src/scripts/migrate-legacy-codex-skills.ts",
   ...ADDED_IN_V5,
+  ...ADDED_IN_V6,
 ]);
 
 const VERSION_1_EXCLUSIONS = new Set([
@@ -455,12 +459,20 @@ const VERSION_1_EXCLUSIONS = new Set([
   "src/lib/claude-managed-file-manifests.ts",
 ]);
 
-const VERSION_3_EXCLUSIONS = new Set(["docs/plans/knowledge-repo-migration.md", ...ADDED_IN_V5]);
+const VERSION_3_EXCLUSIONS = new Set([
+  "docs/plans/knowledge-repo-migration.md",
+  ...ADDED_IN_V5,
+  ...ADDED_IN_V6,
+]);
 
 const VERSION_4_EXCLUSIONS = new Set([...VERSION_3_EXCLUSIONS, "rules/README.md"]);
 
 const VERSION_5_EXCLUSIONS = new Set(
   [...VERSION_4_EXCLUSIONS].filter((path) => !ADDED_IN_V5.includes(path)),
+);
+
+const VERSION_6_EXCLUSIONS = new Set(
+  [...VERSION_5_EXCLUSIONS].filter((path) => !ADDED_IN_V6.includes(path)),
 );
 
 const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
@@ -493,10 +505,17 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
     },
   ],
   [
-    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+    5,
     {
       full: FULL_V2.filter((path) => !VERSION_5_EXCLUSIONS.has(path)),
       light: LIGHT_V2.filter((path) => !VERSION_5_EXCLUSIONS.has(path)),
+    },
+  ],
+  [
+    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+    {
+      full: FULL_V2.filter((path) => !VERSION_6_EXCLUSIONS.has(path)),
+      light: LIGHT_V2.filter((path) => !VERSION_6_EXCLUSIONS.has(path)),
     },
   ],
 ]);

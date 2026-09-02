@@ -2452,6 +2452,7 @@ describe("install E2E — uninstall ownership", () => {
             "docs/skills.md",
             "docs/system-overview.md",
             "docs/troubleshooting.md",
+            "src/hooks/model-switch-guard.ts",
             "src/lib/claude-managed-file-manifests.ts",
             "src/lib/claude-managed-files.ts",
             "src/scripts/migrate-legacy-codex-skills.ts",
