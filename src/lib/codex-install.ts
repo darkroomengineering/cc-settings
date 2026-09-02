@@ -17,6 +17,7 @@ import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } fr
 import { parseFrontmatter } from "./frontmatter.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { formatLegacyCodexSkillOverlap, scanLegacyCodexSkills } from "./managed-skills.ts";
+import { isPlainObject } from "./merge-keyed.ts";
 import { getTimestamp, sha256, whichCommand } from "./platform.ts";
 import { compareVersion } from "./version-delta.ts";
 
@@ -370,10 +371,6 @@ async function assertManagedAgentBoundaries(
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
@@ -399,7 +396,7 @@ function validatedAgentHashes(
   source: string,
 ): Record<string, string> | undefined {
   if (value === undefined) return undefined;
-  if (!isRecord(value)) throw new Error(`Invalid managed agent hashes in ${source}`);
+  if (!isPlainObject(value)) throw new Error(`Invalid managed agent hashes in ${source}`);
   const hashes: Record<string, string> = {};
   for (const [name, hash] of Object.entries(value)) {
     if (!MANAGED_AGENT_NAME.test(name) || typeof hash !== "string" || !SHA256.test(hash)) {
@@ -415,7 +412,7 @@ function validatedAgentHashes(
 async function readSentinel(path: string): Promise<CodexSentinel | null> {
   try {
     const value: unknown = JSON.parse(await readFile(path, "utf8"));
-    if (!isRecord(value)) throw new Error(`Invalid Codex sentinel: ${path}`);
+    if (!isPlainObject(value)) throw new Error(`Invalid Codex sentinel: ${path}`);
     if (
       typeof value.version !== "string" ||
       typeof value.installed_at !== "string" ||
@@ -447,11 +444,11 @@ async function readSentinel(path: string): Promise<CodexSentinel | null> {
       throw new Error(`Invalid managed instructions hash in ${path}`);
     }
     const managedSourceHashes = value.managed_source_hashes;
-    if (managedSourceHashes !== undefined && !isRecord(managedSourceHashes)) {
+    if (managedSourceHashes !== undefined && !isPlainObject(managedSourceHashes)) {
       throw new Error(`Invalid managed source hashes in ${path}`);
     }
     const sourceHashes: Record<string, string> = {};
-    if (isRecord(managedSourceHashes)) {
+    if (isPlainObject(managedSourceHashes)) {
       for (const [relativePath, hash] of Object.entries(managedSourceHashes)) {
         if (!runtimePaths.includes(relativePath)) {
           throw new Error(`Unowned managed source path in ${path}: ${relativePath}`);
@@ -582,7 +579,8 @@ async function loadNativeAgents(sourceDir: string): Promise<NativeAgent[]> {
     await assertRuntimeSourceFile(sourceDir, `agents/${entry}`);
     const markdown = await readFile(join(dir, entry), "utf8");
     const parsed = parseFrontmatter(markdown);
-    if (!isRecord(parsed)) throw new Error(`Cannot convert agents/${entry}: invalid frontmatter`);
+    if (!isPlainObject(parsed))
+      throw new Error(`Cannot convert agents/${entry}: invalid frontmatter`);
     const fallbackName = entry.slice(0, -3);
     const name = typeof parsed.name === "string" ? parsed.name : fallbackName;
     const description = typeof parsed.description === "string" ? parsed.description.trim() : "";
@@ -1494,9 +1492,9 @@ async function runCommand(
 }
 
 function nestedString(value: unknown, objectKey: string, stringKey: string): string | null {
-  if (!isRecord(value)) return null;
+  if (!isPlainObject(value)) return null;
   const nested = value[objectKey];
-  return isRecord(nested) && typeof nested[stringKey] === "string" ? nested[stringKey] : null;
+  return isPlainObject(nested) && typeof nested[stringKey] === "string" ? nested[stringKey] : null;
 }
 
 function parsePluginList(stdout: string): {
@@ -1505,12 +1503,12 @@ function parsePluginList(stdout: string): {
   source: string | null;
 } {
   const parsed: unknown = JSON.parse(stdout);
-  if (!isRecord(parsed) || !Array.isArray(parsed.installed)) {
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.installed)) {
     throw new Error("Invalid Codex plugin list response");
   }
   const matches = parsed.installed.filter(
     (item) =>
-      isRecord(item) &&
+      isPlainObject(item) &&
       (item.pluginId === "darkroom@cc-settings" ||
         (item.name === "darkroom" && item.marketplaceName === "cc-settings")),
   );
@@ -1531,15 +1529,15 @@ function parsePluginList(stdout: string): {
 
 function parseMarketplaceList(stdout: string): { enrolled: boolean; source: string | null } {
   const parsed: unknown = JSON.parse(stdout);
-  if (!isRecord(parsed) || !Array.isArray(parsed.marketplaces)) {
+  if (!isPlainObject(parsed) || !Array.isArray(parsed.marketplaces)) {
     throw new Error("Invalid Codex marketplace list response");
   }
   const matches = parsed.marketplaces.filter(
-    (item) => isRecord(item) && item.name === "cc-settings",
+    (item) => isPlainObject(item) && item.name === "cc-settings",
   );
   if (matches.length > 1) throw new Error("Ambiguous cc-settings Codex marketplace state");
   const match = matches[0];
-  if (!isRecord(match)) return { enrolled: false, source: null };
+  if (!isPlainObject(match)) return { enrolled: false, source: null };
   const source =
     nestedString(match, "marketplaceSource", "source") ??
     (typeof match.root === "string" ? match.root : null);
@@ -2157,7 +2155,7 @@ async function readBackupManifest(
     throw new Error(`Invalid Codex backup manifest file: ${backup}`);
   }
   const parsed: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (!isRecord(parsed)) throw new Error(`Invalid Codex backup manifest: ${backup}`);
+  if (!isPlainObject(parsed)) throw new Error(`Invalid Codex backup manifest: ${backup}`);
   const createdAt = parsed.createdAt;
   if (typeof createdAt !== "string") throw new Error(`Invalid Codex backup manifest: ${backup}`);
   const restoreScope = parsed.restoreScope;
@@ -2173,7 +2171,7 @@ async function readBackupManifest(
   if (runtimeManifestVersion !== null) {
     runtimePathsForVersion(runtimeManifestVersion, backup);
   }
-  if (!isRecord(parsed.payloadHashes)) {
+  if (!isPlainObject(parsed.payloadHashes)) {
     throw new Error(`Invalid Codex backup payload hashes: ${backup}`);
   }
   const payloadHashes: Record<string, string> = {};
@@ -2385,7 +2383,7 @@ async function assertBackupManifestConsistency(
 function parseBackupPluginState(value: unknown, backup: string): BackupPluginState | null {
   if (value === null) return null;
   if (
-    !isRecord(value) ||
+    !isPlainObject(value) ||
     typeof value.pluginInstalled !== "boolean" ||
     typeof value.pluginEnabled !== "boolean" ||
     typeof value.marketplaceEnrolled !== "boolean" ||
@@ -2972,7 +2970,7 @@ export async function gatherCodexStatus(options: CodexStatusOptions = {}): Promi
   const packageJson = options.sourceDir
     ? await readJsonOrNull(join(resolve(options.sourceDir), "package.json"))
     : null;
-  const rawPackagedVersion = isRecord(packageJson) ? packageJson.version : undefined;
+  const rawPackagedVersion = isPlainObject(packageJson) ? packageJson.version : undefined;
   const packagedVersion =
     typeof rawPackagedVersion === "string" && STRICT_VERSION.test(rawPackagedVersion)
       ? rawPackagedVersion

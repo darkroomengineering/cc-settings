@@ -7,6 +7,7 @@ import {
   type LegacyCodexSkillMigration,
   migrateLegacyCodexSkills,
 } from "../lib/managed-skills.ts";
+import { isPlainObject } from "../lib/merge-keyed.ts";
 
 const DESKTOP_IMPORT_SYNC_KEY = "external-agent-import-sync-enabled";
 
@@ -18,10 +19,6 @@ darkroom@cc-settings plugin into a timestamped backup. The default is a dry run.
 
   --apply  Perform the moves unless Codex Desktop import sync is enabled
   --help   Show this help`);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function desktopImportSyncEnabled(): Promise<{ enabled: boolean; configPath: string }> {
@@ -40,8 +37,8 @@ async function desktopImportSyncEnabled(): Promise<{ enabled: boolean; configPat
   } catch (cause) {
     throw new Error(`Cannot parse Codex TOML config ${configPath}`, { cause });
   }
-  const desktop = isRecord(parsed) ? parsed.desktop : undefined;
-  const value = isRecord(desktop) ? desktop[DESKTOP_IMPORT_SYNC_KEY] : undefined;
+  const desktop = isPlainObject(parsed) ? parsed.desktop : undefined;
+  const value = isPlainObject(desktop) ? desktop[DESKTOP_IMPORT_SYNC_KEY] : undefined;
   if (value === undefined) return { enabled: false, configPath };
   if (typeof value !== "boolean") {
     throw new Error(

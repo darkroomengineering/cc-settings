@@ -27,6 +27,7 @@ import {
   type LintSeverity,
   lintFrontmatterCore,
 } from "./lint-frontmatter.ts";
+import { isPlainObject } from "./merge-keyed.ts";
 
 export type AgentSeverity = LintSeverity;
 
@@ -50,10 +51,6 @@ export const AGENT_DESCRIPTION_BYTE_BUDGET = 5120;
 interface LintOneResult {
   findings: AgentFinding[];
   descriptionBytes: number;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 async function lintOne(agentsDir: string, filename: string): Promise<LintOneResult> {
@@ -82,7 +79,7 @@ async function lintOne(agentsDir: string, filename: string): Promise<LintOneResu
   const baseFindings = await lintFrontmatterCore(text, (parsed) => {
     const domainFindings: Array<{ severity: AgentSeverity; rule: string; message: string }> = [];
 
-    if (!isRecord(parsed)) {
+    if (!isPlainObject(parsed)) {
       domainFindings.push({
         severity: "error",
         rule: "schema",

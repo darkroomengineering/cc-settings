@@ -2,6 +2,7 @@
 
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isPlainObject } from "../lib/merge-keyed.ts";
 
 interface HookPayload {
   prompt?: unknown;
@@ -12,10 +13,6 @@ interface HookPayload {
 function fail(message: string): never {
   console.error(`[codex-hook] ${message}`);
   process.exit(2);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function scalarEnvValue(value: unknown): string | undefined {
@@ -65,7 +62,7 @@ async function main(): Promise<number> {
   } catch {
     fail("stdin must contain one JSON object");
   }
-  if (!isRecord(parsed)) fail("stdin must contain one JSON object");
+  if (!isPlainObject(parsed)) fail("stdin must contain one JSON object");
 
   const payload: HookPayload = parsed;
   const compatibilityEnv: Record<string, string> = {
@@ -73,7 +70,7 @@ async function main(): Promise<number> {
     CC_SETTINGS_SOURCE: pluginRoot,
   };
 
-  if (isRecord(payload.tool_input)) {
+  if (isPlainObject(payload.tool_input)) {
     compatibilityEnv.TOOL_INPUT = JSON.stringify(payload.tool_input);
     for (const [key, value] of Object.entries(payload.tool_input)) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
