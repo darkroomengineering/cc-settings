@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, type Stats } from "node:fs";
 import {
   chmod,
   cp,
@@ -148,6 +148,18 @@ interface BackupPluginState extends CodexPluginState {
   restoreMode: "managed-restorable" | "independent-preserve-only";
 }
 
+/** Drop `restoreMode` to compare a backup's recorded plugin state against a
+ *  live `CodexPluginState` reading. */
+function toPluginState(state: BackupPluginState): CodexPluginState {
+  return {
+    pluginInstalled: state.pluginInstalled,
+    pluginEnabled: state.pluginEnabled,
+    marketplaceEnrolled: state.marketplaceEnrolled,
+    pluginSource: state.pluginSource,
+    marketplaceSource: state.marketplaceSource,
+  };
+}
+
 interface NativeAgent {
   name: string;
   description: string;
@@ -164,6 +176,14 @@ interface CommandResult {
 
 function errorDetail(cause: unknown): string {
   return cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+}
+
+/** `lstat`, treating a missing path as `null` instead of throwing ENOENT. */
+async function lstatOrNull(path: string): Promise<Stats | null> {
+  return await lstat(path).catch((cause: NodeJS.ErrnoException) => {
+    if (cause.code === "ENOENT") return null;
+    throw cause;
+  });
 }
 
 export function codexInstallPaths(home?: string): CodexInstallPaths {
@@ -221,10 +241,7 @@ async function assertExistingBoundary(
   let current = codexPath;
   for (let index = 0; index < segments.length; index++) {
     current = join(current, segments[index] as string);
-    const metadata = await lstat(current).catch((cause: NodeJS.ErrnoException) => {
-      if (cause.code === "ENOENT") return null;
-      throw cause;
-    });
+    const metadata = await lstatOrNull(current);
     if (!metadata) return;
     if (metadata.isSymbolicLink()) {
       throw new Error(`Refusing symlinked Codex boundary: ${current}`);
@@ -248,10 +265,7 @@ async function assertCodexBoundaries(paths: CodexInstallPaths): Promise<void> {
   let ancestor = root;
   for (const segment of absoluteHome.slice(root.length).split(sep).filter(Boolean)) {
     ancestor = join(ancestor, segment);
-    const metadata = await lstat(ancestor).catch((cause: NodeJS.ErrnoException) => {
-      if (cause.code === "ENOENT") return null;
-      throw cause;
-    });
+    const metadata = await lstatOrNull(ancestor);
     if (!metadata) break;
     const platformRootAlias = dirname(ancestor) === root;
     if (metadata.isSymbolicLink() && !platformRootAlias) {
@@ -308,10 +322,7 @@ async function canonicalPathWithMissingSuffix(path: string): Promise<string> {
   let cursor = resolve(path);
   const missing: string[] = [];
   while (true) {
-    const metadata = await lstat(cursor).catch((cause: NodeJS.ErrnoException) => {
-      if (cause.code === "ENOENT") return null;
-      throw cause;
-    });
+    const metadata = await lstatOrNull(cursor);
     if (metadata) {
       const base = await realpath(cursor);
       return resolve(base, ...missing);
@@ -1027,10 +1038,7 @@ async function runtimeSourceFileExists(sourceDir: string, label: string): Promis
   const segments = label.split("/");
   for (let index = 0; index < segments.length; index++) {
     current = join(current, segments[index] as string);
-    const metadata = await lstat(current).catch((cause: NodeJS.ErrnoException) => {
-      if (cause.code === "ENOENT") return null;
-      throw cause;
-    });
+    const metadata = await lstatOrNull(current);
     if (!metadata) return false;
     if (metadata.isSymbolicLink()) {
       throw new Error(`Codex managed source contains a symlink: ${label}`);
@@ -1130,10 +1138,7 @@ async function assertPreviousManagedContentUnmodified(
     }
   }
 
-  const installedSource = await lstat(paths.managedSource).catch((cause: NodeJS.ErrnoException) => {
-    if (cause.code === "ENOENT") return null;
-    throw cause;
-  });
+  const installedSource = await lstatOrNull(paths.managedSource);
   if (!installedSource) {
     conflicts.push(paths.managedSource);
   } else {
@@ -1667,8 +1672,7 @@ async function installPlugin(paths: CodexInstallPaths): Promise<void> {
   }
 }
 
-async function addMarketplace(paths: CodexInstallPaths, source: string): Promise<void> {
-  const command = ["codex", "plugin", "marketplace", "add", source, "--json"];
+async function runPluginCommand(paths: CodexInstallPaths, command: string[]): Promise<void> {
   const result = await runCommand(command, paths.codexHome);
   if (result.exitCode !== 0) {
     throw new Error(
@@ -1677,14 +1681,12 @@ async function addMarketplace(paths: CodexInstallPaths, source: string): Promise
   }
 }
 
+async function addMarketplace(paths: CodexInstallPaths, source: string): Promise<void> {
+  await runPluginCommand(paths, ["codex", "plugin", "marketplace", "add", source, "--json"]);
+}
+
 async function addManagedPlugin(paths: CodexInstallPaths): Promise<void> {
-  const command = ["codex", "plugin", "add", "darkroom@cc-settings", "--json"];
-  const result = await runCommand(command, paths.codexHome);
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `Codex plugin command failed (${command.join(" ")}): ${(result.stderr || result.stdout).trim()}`,
-    );
-  }
+  await runPluginCommand(paths, ["codex", "plugin", "add", "darkroom@cc-settings", "--json"]);
 }
 
 async function removePluginCommand(
@@ -1723,13 +1725,7 @@ async function restorePluginState(
   }
   if (state.restoreMode === "independent-preserve-only") {
     const current = await readCodexPluginState(paths);
-    const expectedState: CodexPluginState = {
-      pluginInstalled: state.pluginInstalled,
-      pluginEnabled: state.pluginEnabled,
-      marketplaceEnrolled: state.marketplaceEnrolled,
-      pluginSource: state.pluginSource,
-      marketplaceSource: state.marketplaceSource,
-    };
+    const expectedState = toPluginState(state);
     if (JSON.stringify(current) === JSON.stringify(expectedState)) return;
     if (state.pluginInstalled || state.marketplaceEnrolled) {
       throw new Error(
@@ -1794,13 +1790,7 @@ async function restorePluginStateAndConfig(
   if (state !== null && !isCodexCliSkippedForTests()) {
     try {
       const restoredState = await readCodexPluginState(paths);
-      const expectedState: CodexPluginState = {
-        pluginInstalled: state.pluginInstalled,
-        pluginEnabled: state.pluginEnabled,
-        marketplaceEnrolled: state.marketplaceEnrolled,
-        pluginSource: state.pluginSource,
-        marketplaceSource: state.marketplaceSource,
-      };
+      const expectedState = toPluginState(state);
       if (JSON.stringify(restoredState) !== JSON.stringify(expectedState)) {
         throw new Error("Restored Codex plugin state does not match its backup manifest");
       }
@@ -1922,10 +1912,7 @@ interface CodexExplicitStateSnapshot {
 }
 
 async function captureCodexExplicitFileState(path: string): Promise<CodexExplicitFileState> {
-  const metadata = await lstat(path).catch((cause: NodeJS.ErrnoException) => {
-    if (cause.code === "ENOENT") return null;
-    throw cause;
-  });
+  const metadata = await lstatOrNull(path);
   if (!metadata) return { present: false, hash: null };
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
     throw new Error(`Codex explicit state is not a regular file: ${path}`);
@@ -2725,13 +2712,7 @@ export async function rollbackCodex(options: CodexRollbackOptions): Promise<Code
   }
   if (manifest.pluginState?.restoreMode === "independent-preserve-only") {
     const livePluginState = await readCodexPluginState(paths);
-    const selectedPluginState: CodexPluginState = {
-      pluginInstalled: manifest.pluginState.pluginInstalled,
-      pluginEnabled: manifest.pluginState.pluginEnabled,
-      marketplaceEnrolled: manifest.pluginState.marketplaceEnrolled,
-      pluginSource: manifest.pluginState.pluginSource,
-      marketplaceSource: manifest.pluginState.marketplaceSource,
-    };
+    const selectedPluginState = toPluginState(manifest.pluginState);
     if (
       livePluginState === null ||
       JSON.stringify(livePluginState) !== JSON.stringify(selectedPluginState)
@@ -2806,13 +2787,7 @@ export async function rollbackCodex(options: CodexRollbackOptions): Promise<Code
   }
   if (manifest.pluginState?.restoreMode === "independent-preserve-only") {
     const livePluginState = await readCodexPluginState(paths);
-    const expectedPluginState: CodexPluginState = {
-      pluginInstalled: manifest.pluginState.pluginInstalled,
-      pluginEnabled: manifest.pluginState.pluginEnabled,
-      marketplaceEnrolled: manifest.pluginState.marketplaceEnrolled,
-      pluginSource: manifest.pluginState.pluginSource,
-      marketplaceSource: manifest.pluginState.marketplaceSource,
-    };
+    const expectedPluginState = toPluginState(manifest.pluginState);
     if (
       livePluginState === null ||
       JSON.stringify(livePluginState) !== JSON.stringify(expectedPluginState)
