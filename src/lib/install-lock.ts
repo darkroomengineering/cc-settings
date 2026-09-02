@@ -47,14 +47,19 @@ interface LockRecord {
   at: string;
 }
 
-/** Read the current lockfile's owner token, or null if absent/unparsable. */
-async function readLockToken(lockPath: string): Promise<string | null> {
+/** Read the current lockfile's record, or null if absent/unparsable. */
+async function readLockRecord(lockPath: string): Promise<Partial<LockRecord> | null> {
   try {
-    const parsed = JSON.parse(await readFile(lockPath, "utf8")) as Partial<LockRecord>;
-    return typeof parsed.token === "string" ? parsed.token : null;
+    return JSON.parse(await readFile(lockPath, "utf8")) as Partial<LockRecord>;
   } catch {
     return null;
   }
+}
+
+/** Read the current lockfile's owner token, or null if absent/unparsable. */
+async function readLockToken(lockPath: string): Promise<string | null> {
+  const parsed = await readLockRecord(lockPath);
+  return typeof parsed?.token === "string" ? parsed.token : null;
 }
 
 /** Atomic exclusive create stamped with our owner token. Throws EEXIST if the
@@ -86,12 +91,8 @@ async function lockAgeMs(lockPath: string): Promise<number> {
 
 /** Read the owner pid recorded in the lockfile, or null if absent/unparsable. */
 async function readLockPid(lockPath: string): Promise<number | null> {
-  try {
-    const parsed = JSON.parse(await readFile(lockPath, "utf8")) as Partial<LockRecord>;
-    return typeof parsed.pid === "number" ? parsed.pid : null;
-  } catch {
-    return null;
-  }
+  const parsed = await readLockRecord(lockPath);
+  return typeof parsed?.pid === "number" ? parsed.pid : null;
 }
 
 /** True if a process with this pid is running on this machine. Signal 0 is a

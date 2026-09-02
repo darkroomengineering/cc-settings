@@ -475,50 +475,24 @@ const VERSION_6_EXCLUSIONS = new Set(
   [...VERSION_5_EXCLUSIONS].filter((path) => !ADDED_IN_V6.includes(path)),
 );
 
-const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>([
-  [
-    1,
-    {
-      full: FULL_V2.filter((path) => !VERSION_1_EXCLUSIONS.has(path)),
-      light: LIGHT_V2.filter((path) => !VERSION_1_EXCLUSIONS.has(path)),
-    },
-  ],
-  [
-    2,
-    {
-      full: FULL_V2.filter((path) => !VERSION_2_EXCLUSIONS.has(path)),
-      light: LIGHT_V2.filter((path) => !VERSION_2_EXCLUSIONS.has(path)),
-    },
-  ],
-  [
-    3,
-    {
-      full: FULL_V2.filter((path) => !VERSION_3_EXCLUSIONS.has(path)),
-      light: LIGHT_V2.filter((path) => !VERSION_3_EXCLUSIONS.has(path)),
-    },
-  ],
-  [
-    4,
-    {
-      full: FULL_V2.filter((path) => !VERSION_4_EXCLUSIONS.has(path)),
-      light: LIGHT_V2.filter((path) => !VERSION_4_EXCLUSIONS.has(path)),
-    },
-  ],
-  [
-    5,
-    {
-      full: FULL_V2.filter((path) => !VERSION_5_EXCLUSIONS.has(path)),
-      light: LIGHT_V2.filter((path) => !VERSION_5_EXCLUSIONS.has(path)),
-    },
-  ],
-  [
-    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
-    {
-      full: FULL_V2.filter((path) => !VERSION_6_EXCLUSIONS.has(path)),
-      light: LIGHT_V2.filter((path) => !VERSION_6_EXCLUSIONS.has(path)),
-    },
-  ],
+const EXCLUSIONS_BY_VERSION = new Map<number, Set<string>>([
+  [1, VERSION_1_EXCLUSIONS],
+  [2, VERSION_2_EXCLUSIONS],
+  [3, VERSION_3_EXCLUSIONS],
+  [4, VERSION_4_EXCLUSIONS],
+  [5, VERSION_5_EXCLUSIONS],
+  [CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, VERSION_6_EXCLUSIONS],
 ]);
+
+const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
+  [...EXCLUSIONS_BY_VERSION].map(([version, exclusions]) => [
+    version,
+    {
+      full: FULL_V2.filter((path) => !exclusions.has(path)),
+      light: LIGHT_V2.filter((path) => !exclusions.has(path)),
+    },
+  ]),
+);
 
 const GENERATED_MANAGED_FILES = new Set([
   ".cc-settings-baseline.json",

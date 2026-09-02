@@ -24,11 +24,9 @@
 // registries per the design doc's case 7) remains designed, costed, and
 // DECLINED — see the design doc's note 7.
 
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { atomicWriteJson } from "./json-io.ts";
+import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 
 /**
  * Canonical schema for `~/.claude/.cc-settings-baseline.json`.
@@ -74,9 +72,9 @@ export const BASELINE_FILENAME = ".cc-settings-baseline.json";
  */
 export async function readSettingsBaseline(claudeDir: string): Promise<SettingsBaseline | null> {
   const path = join(claudeDir, BASELINE_FILENAME);
-  if (!existsSync(path)) return null;
   try {
-    const parsed = JSON.parse(await readFile(path, "utf8"));
+    const parsed = await readJsonOrNull(path);
+    if (parsed === null) return null;
     const result = SettingsBaselineSchema.safeParse(parsed);
     return result.success ? result.data : null;
   } catch {
