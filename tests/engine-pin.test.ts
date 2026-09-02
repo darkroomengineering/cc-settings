@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { CryptoHasher } from "bun";
 import type { EngineDescriptor } from "../src/lib/code-intel-engine.ts";
 import {
@@ -12,6 +10,7 @@ import {
   verifyPinnedEngine,
 } from "../src/lib/engine-pin.ts";
 import { platformKey } from "../src/lib/platform.ts";
+import { sandbox } from "./support/tmp.ts";
 
 const CONTENT = "fake-binary-content-v1";
 
@@ -22,7 +21,7 @@ function sha256(s: string): string {
 }
 
 async function tmp(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "ccpin-"));
+  return sandbox("ccpin");
 }
 
 function makeEngine(checksums: Record<string, string>): EngineDescriptor {

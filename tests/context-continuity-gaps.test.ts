@@ -18,38 +18,15 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { GIT_ISOLATION_ENV, git, makeRepo as makeGitRepo } from "./support/git.ts";
+import { spawnCapture } from "./support/proc.ts";
 
 const HANDOFF = resolve(import.meta.dir, "..", "src", "scripts", "handoff.ts");
 const POST_COMPACT = resolve(import.meta.dir, "..", "src", "scripts", "post-compact.ts");
 
-// Fixture repos must never inherit the developer/CI machine's ambient git
-// config (commit.gpgsign + a signing program, core.hooksPath, aliases, ...).
-// Nulling both config files is what actually isolates everything in one
-// place; per-repo user.email/user.name (set below) remain the only identity
-// available once the global/system files are gone.
-const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
-
-async function git(repo: string, args: string[]): Promise<void> {
-  const proc = Bun.spawn(["git", "-C", repo, ...args], {
-    env: { ...process.env, ...GIT_ISOLATION_ENV },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const stderr = await new Response(proc.stderr).text();
-  const exit = await proc.exited;
-  if (exit !== 0) throw new Error(`git ${args.join(" ")} failed in ${repo}: ${stderr}`);
-}
-
 /** Repo with one committed baseline file, so `git log` and `git status` both work. */
 async function makeRepo(name: string): Promise<string> {
-  const repo = await mkdtemp(join(tmpdir(), `cc-gap-${name}-`));
-  await git(repo, ["init", "-q"]);
-  await git(repo, ["config", "user.email", "t@example.com"]);
-  await git(repo, ["config", "user.name", "Test"]);
-  await writeFile(join(repo, "README.md"), "baseline\n");
-  await git(repo, ["add", "-A"]);
-  await git(repo, ["commit", "-q", "-m", "initial"]);
-  return repo;
+  return makeGitRepo(`cc-gap-${name}`);
 }
 
 async function runScript(
@@ -59,20 +36,11 @@ async function runScript(
   home: string,
   stdin?: string,
 ): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", script, ...args], {
+  return spawnCapture(["bun", script, ...args], {
     cwd,
-    env: { ...process.env, ...GIT_ISOLATION_ENV, HOME: home, USERPROFILE: home },
-    stdin: stdin === undefined ? "ignore" : "pipe",
-    stdout: "pipe",
-    stderr: "pipe",
+    env: { ...GIT_ISOLATION_ENV, HOME: home, USERPROFILE: home },
+    stdin,
   });
-  if (stdin !== undefined && proc.stdin) {
-    proc.stdin.write(stdin);
-    proc.stdin.end();
-  }
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
 }
 
 async function readHandoff(

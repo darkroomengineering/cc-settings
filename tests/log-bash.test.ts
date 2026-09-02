@@ -12,26 +12,23 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ymd } from "../src/lib/platform.ts";
+import { spawnCapture } from "./support/proc.ts";
 
 const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "log-bash.ts");
 
+// TZ pinned: `bun test` runs this file on a UTC clock regardless of host
+// timezone, but a spawned child inherits the host's local zone — near UTC
+// midnight the two disagree on ymd() and the date-stamped log filename.
 async function run(
   home: string,
   command: string,
   env: Record<string, string> = {},
 ): Promise<{ exit: number }> {
-  const proc = Bun.spawn(["bun", SCRIPT], {
-    // TZ pinned: `bun test` runs this file on a UTC clock regardless of host
-    // timezone, but a spawned child inherits the host's local zone — near UTC
-    // midnight the two disagree on ymd() and the date-stamped log filename.
-    env: { ...process.env, TZ: "UTC", HOME: home, USERPROFILE: home, ...env },
-    stdin: "pipe",
-    stdout: "ignore",
+  const { exit } = await spawnCapture(["bun", SCRIPT], {
+    env: { TZ: "UTC", HOME: home, USERPROFILE: home, ...env },
+    stdin: JSON.stringify({ tool_input: { command } }),
     stderr: "ignore",
   });
-  proc.stdin.write(JSON.stringify({ tool_input: { command } }));
-  await proc.stdin.end();
-  const exit = await proc.exited;
   return { exit };
 }
 

@@ -11,18 +11,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { spawnCapture } from "./support/proc.ts";
 
 const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "project-init.ts");
 
 async function run(args: string[], home: string): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", SCRIPT, ...args], {
-    env: { ...process.env, HOME: home, USERPROFILE: home },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
+  return spawnCapture(["bun", SCRIPT, ...args], { env: { HOME: home, USERPROFILE: home } });
 }
 
 async function makeHome(): Promise<string> {

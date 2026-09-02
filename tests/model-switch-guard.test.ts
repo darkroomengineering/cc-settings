@@ -4,9 +4,10 @@
 // ~/.claude/tmp/rate-limits.json is never touched by fixture numbers.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { spawnCapture } from "./support/proc.ts";
+import { cleanup, sandbox } from "./support/tmp.ts";
 
 const HOOK = resolve(import.meta.dir, "../src/hooks/model-switch-guard.ts");
 
@@ -45,26 +46,16 @@ async function runHook(
   toModel: string,
   seed?: (home: string) => Promise<void>,
 ): Promise<{ code: number; out: string }> {
-  const home = await mkdtemp(join(tmpdir(), "cc-model-switch-guard-"));
+  const home = await sandbox("cc-model-switch-guard");
   try {
     if (seed) await seed(home);
-    const childEnv: Record<string, string> = {};
-    for (const [k, v] of Object.entries({ ...process.env, HOME: home, USERPROFILE: home })) {
-      if (v !== undefined) childEnv[k] = v;
-    }
-    const proc = Bun.spawn(["bun", HOOK], {
-      env: childEnv,
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "pipe",
+    const { stdout, exit } = await spawnCapture(["bun", HOOK], {
+      env: { HOME: home, USERPROFILE: home },
+      stdin: JSON.stringify({ to_model: toModel, from_model: "claude-opus-5" }),
     });
-    proc.stdin.write(JSON.stringify({ to_model: toModel, from_model: "claude-opus-5" }));
-    proc.stdin.end();
-    const out = await new Response(proc.stdout).text();
-    const code = await proc.exited;
-    return { code, out };
+    return { code: exit, out: stdout };
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await cleanup(home);
   }
 }
 

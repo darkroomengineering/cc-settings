@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   DEFAULT_ENGINE_ID,
@@ -10,11 +9,12 @@ import {
   KNOWN_ENGINE_IDS,
   resolveEngine,
 } from "../src/lib/code-intel-engine.ts";
+import { sandbox } from "./support/tmp.ts";
 
 const ENV_KEY = "CC_CODE_INTEL_ENGINE";
 
 async function tmp(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "ccengine-"));
+  return sandbox("ccengine");
 }
 
 async function writeSentinel(

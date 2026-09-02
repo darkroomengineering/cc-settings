@@ -2,8 +2,7 @@
 // harvest-seeded happy path passes clean.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   formatFindings,
@@ -11,6 +10,7 @@ import {
   lintResearchDir,
   lintResearchText,
 } from "../src/lib/lint-research.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 const validSeed = `# AutoResearch Config: example
 
@@ -35,7 +35,7 @@ Do the second thing.
 `;
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-lint-research-"));
+  return makeSandbox("cc-lint-research");
 }
 
 describe("lintResearchText — happy path", () => {

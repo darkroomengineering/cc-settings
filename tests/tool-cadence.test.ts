@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { spawnCapture } from "./support/proc.ts";
 
 const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "tool-cadence.ts");
 
@@ -13,24 +14,17 @@ async function runHook(
   home: string,
   threshold = "3",
 ): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", HOOK], {
+  return spawnCapture(["bun", HOOK], {
     env: {
-      ...process.env,
       HOME: home,
       USERPROFILE: home,
       CC_PARALLELMAX_THRESHOLD: threshold,
       // Suppress review-queue nudges during these tests.
       CC_MAX_UNREVIEWED: "100",
     },
-    stdin: "pipe",
-    stdout: "pipe",
+    stdin: JSON.stringify(payload),
     stderr: "ignore",
   });
-  proc.stdin.write(JSON.stringify(payload));
-  proc.stdin.end();
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
 }
 
 async function readCounterState(home: string): Promise<Record<string, unknown> | null> {

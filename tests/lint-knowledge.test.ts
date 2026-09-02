@@ -2,17 +2,17 @@
 // and that the happy-path passes cleanly.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   formatKnowledgeFindings,
   hasKnowledgeErrors,
   lintKnowledgeDir,
 } from "../src/lib/lint-knowledge.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-lint-knowledge-"));
+  return makeSandbox("cc-lint-knowledge");
 }
 
 async function writeNote(root: string, filename: string, body: string): Promise<void> {

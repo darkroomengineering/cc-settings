@@ -3,13 +3,13 @@
 // the label/count format the lib emits.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { teamKnowledgeAwareness } from "../src/lib/team-knowledge.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-tk-"));
+  return makeSandbox("cc-tk");
 }
 
 describe("teamKnowledgeAwareness — no-op cases", () => {

@@ -7,21 +7,12 @@
 
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
+import { spawnCapture } from "./support/proc.ts";
 
 const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "delegation-detector.ts");
 
 async function runHook(prompt: string): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", HOOK], {
-    env: { ...process.env },
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "ignore",
-  });
-  proc.stdin.write(JSON.stringify({ prompt }));
-  proc.stdin.end();
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
+  return spawnCapture(["bun", HOOK], { stdin: JSON.stringify({ prompt }), stderr: "ignore" });
 }
 
 function additionalContext(stdout: string): string | null {

@@ -7,20 +7,16 @@
 // tests/checkpoint.test.ts's spawn helper.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { installPaths } from "../src/lib/platform.ts";
 import { formatWhatsOn, gatherWhatsOn } from "../src/scripts/whats-on.ts";
+import { cleanup, sandbox } from "./support/tmp.ts";
 
 const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "whats-on.ts");
 
 async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-whats-on-test-"));
-}
-
-async function cleanup(...dirs: string[]): Promise<void> {
-  await Promise.all(dirs.map((d) => rm(d, { recursive: true, force: true })));
+  return sandbox("cc-whats-on-test");
 }
 
 describe("gatherWhatsOn — output style", () => {

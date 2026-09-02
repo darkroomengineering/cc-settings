@@ -2,13 +2,13 @@
 // shape and that the happy-path passes cleanly.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { formatAgentFindings, hasAgentErrors, lintAgentsDir } from "../src/lib/lint-agents.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-lint-agents-"));
+  return makeSandbox("cc-lint-agents");
 }
 
 async function writeAgent(root: string, name: string, body: string): Promise<void> {

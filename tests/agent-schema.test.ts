@@ -5,16 +5,16 @@
 //   - real repo's agents/ all parse cleanly today
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { formatFrontmatterIssues, validateFrontmatters } from "../src/lib/frontmatter-validate.ts";
 import { AgentFrontmatter } from "../src/schemas/agent.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-agent-"));
+  return makeSandbox("cc-agent");
 }
 
 describe("AgentFrontmatter schema", () => {

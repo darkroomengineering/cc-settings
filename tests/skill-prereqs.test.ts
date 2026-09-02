@@ -2,8 +2,7 @@
 // missing-prereq report formatting.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   checkSkillRequirements,
@@ -17,6 +16,7 @@ import {
   type SkillFrontmatter as SkillFrontmatterType,
   SkillRequirement,
 } from "../src/schemas/skill.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 // Test helper — mint a SkillFrontmatter with whatever fields the test cares
 // about, without re-declaring `name`/`description` every time.
@@ -25,7 +25,7 @@ function fm(extra: Record<string, unknown>): SkillFrontmatterType {
 }
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-prereq-"));
+  return makeSandbox("cc-prereq");
 }
 
 async function writeSkill(

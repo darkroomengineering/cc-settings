@@ -19,6 +19,7 @@ import {
   normalizeErrorText,
   sanitizeSample,
 } from "../src/lib/problem-signature.ts";
+import { spawnCapture } from "./support/proc.ts";
 
 const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "escalate-model.ts");
 const POST_FAILURE = resolve(import.meta.dir, "..", "src", "scripts", "post-failure.ts");
@@ -38,49 +39,28 @@ async function runHook(
   home: string,
   opts: { sessionId?: string; threshold?: string } = {},
 ): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", HOOK], {
-    env: {
-      ...process.env,
-      HOME: home,
-      USERPROFILE: home,
-      CC_ESCALATE_THRESHOLD: opts.threshold ?? "3",
-    },
-    stdin: "pipe",
-    stdout: "pipe",
+  return spawnCapture(["bun", HOOK], {
+    env: { HOME: home, USERPROFILE: home, CC_ESCALATE_THRESHOLD: opts.threshold ?? "3" },
+    stdin: JSON.stringify({ prompt: "still broken", session_id: opts.sessionId ?? SESSION_ID }),
     stderr: "ignore",
   });
-  proc.stdin.write(
-    JSON.stringify({ prompt: "still broken", session_id: opts.sessionId ?? SESSION_ID }),
-  );
-  proc.stdin.end();
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
 }
 
 async function runPostFailure(
   home: string,
   opts: { sessionId: string; toolName: string; error: string; cwd?: string; toolUseId?: string },
 ): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", POST_FAILURE], {
-    env: { ...process.env, HOME: home, USERPROFILE: home },
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "ignore",
-  });
-  proc.stdin.write(
-    JSON.stringify({
+  return spawnCapture(["bun", POST_FAILURE], {
+    env: { HOME: home, USERPROFILE: home },
+    stdin: JSON.stringify({
       session_id: opts.sessionId,
       tool_name: opts.toolName,
       error: opts.error,
       cwd: opts.cwd ?? "/tmp",
       tool_use_id: opts.toolUseId ?? "tu_1",
     }),
-  );
-  proc.stdin.end();
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
+    stderr: "ignore",
+  });
 }
 
 async function readSignatures(home: string, sessionId: string): Promise<SignatureMapFixture> {

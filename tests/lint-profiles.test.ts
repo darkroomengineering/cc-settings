@@ -2,17 +2,17 @@
 // shape and that the happy-path passes cleanly.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   formatProfileFindings,
   hasProfileErrors,
   lintProfilesDir,
 } from "../src/lib/lint-profiles.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-lint-profiles-"));
+  return makeSandbox("cc-lint-profiles");
 }
 
 async function writeProfile(root: string, name: string, body: string): Promise<void> {

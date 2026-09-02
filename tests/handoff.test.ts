@@ -17,50 +17,25 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pointLatest } from "../src/lib/artifact-store.ts";
+import { GIT_ISOLATION_ENV, makeRepo as makeGitRepo } from "./support/git.ts";
+import { spawnCapture } from "./support/proc.ts";
 
 const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "handoff.ts");
-
-// Fixture repos must never inherit the developer/CI machine's ambient git
-// config (commit.gpgsign + a signing program, core.hooksPath, aliases, ...).
-// Nulling both config files is what actually isolates everything in one
-// place; per-repo user.email/user.name (set below) remain the only identity
-// available once the global/system files are gone.
-const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
 
 async function run(
   args: string[],
   cwd: string,
   home: string,
 ): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", SCRIPT, ...args], {
+  return spawnCapture(["bun", SCRIPT, ...args], {
     cwd,
-    env: { ...process.env, ...GIT_ISOLATION_ENV, HOME: home, USERPROFILE: home },
-    stdout: "pipe",
-    stderr: "pipe",
+    env: { ...GIT_ISOLATION_ENV, HOME: home, USERPROFILE: home },
   });
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
 }
 
+// One uncommitted change so git status --porcelain / modifiedFiles is non-empty.
 async function makeRepo(name: string): Promise<string> {
-  const repo = await mkdtemp(join(tmpdir(), `cc-handoff-${name}-`));
-  const env = { ...process.env, ...GIT_ISOLATION_ENV };
-  async function git(args: string[]): Promise<void> {
-    const proc = Bun.spawn(["git", "-C", repo, ...args], { env, stdout: "pipe", stderr: "pipe" });
-    const stderr = await new Response(proc.stderr).text();
-    const exit = await proc.exited;
-    if (exit !== 0) throw new Error(`git ${args.join(" ")} failed in ${repo}: ${stderr}`);
-  }
-  await git(["init", "-q"]);
-  await git(["config", "user.email", "t@example.com"]);
-  await git(["config", "user.name", "Test"]);
-  await writeFile(join(repo, "README.md"), "hello\n");
-  await git(["add", "-A"]);
-  await git(["commit", "-q", "-m", "initial commit"]);
-  // One uncommitted change so git status --porcelain / modifiedFiles is non-empty.
-  await writeFile(join(repo, "README.md"), "hello again\n");
-  return repo;
+  return makeGitRepo(`cc-handoff-${name}`, { uncommittedChange: "hello again\n" });
 }
 
 describe("handoff.ts per-project scoping (H11)", () => {

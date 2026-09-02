@@ -8,25 +8,18 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { spawnCapture } from "./support/proc.ts";
 
 const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "pre-edit-validate.ts");
 
 async function runHook(
   toolInput: Record<string, unknown>,
 ): Promise<{ stdout: string; exit: number }> {
-  const proc = Bun.spawn(["bun", HOOK], {
-    env: {
-      ...process.env,
-      TOOL_INPUT: JSON.stringify(toolInput),
-    },
-    stdin: "pipe",
-    stdout: "pipe",
+  return spawnCapture(["bun", HOOK], {
+    env: { TOOL_INPUT: JSON.stringify(toolInput) },
+    stdin: "",
     stderr: "ignore",
   });
-  proc.stdin.end();
-  const stdout = await new Response(proc.stdout).text();
-  const exit = await proc.exited;
-  return { stdout, exit };
 }
 
 describe("pre-edit-validate — core decision paths", () => {
