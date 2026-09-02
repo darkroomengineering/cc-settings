@@ -589,8 +589,8 @@ describe("post-failure.ts", () => {
   // The warn line is delivered via the hookSpecificOutput.additionalContext
   // envelope (plain stdout on a PostToolUseFailure hook never reaches the
   // model; see docs/hooks-reference.md "Sync vs Async Behavior").
-  test("3rd failure emits warn line via the envelope", async () => {
-    const { mkdtempSync, rmSync } = await import("node:fs");
+  test("repeated failures stay silent: the tally is written, nothing is injected", async () => {
+    const { mkdtempSync, rmSync, existsSync, readdirSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const sandbox = mkdtempSync(join(tmpdir(), "cc-postfail-test-"));
@@ -600,11 +600,10 @@ describe("post-failure.ts", () => {
       await run("post-failure.ts", { env, stdin: "" });
       const r = await run("post-failure.ts", { env, stdin: "" });
       expect(r.exit).toBe(0);
-      const parsed = JSON.parse(r.stdout) as {
-        hookSpecificOutput: { hookEventName: string; additionalContext: string };
-      };
-      expect(parsed.hookSpecificOutput.hookEventName).toBe("PostToolUseFailure");
-      expect(parsed.hookSpecificOutput.additionalContext).toContain("failed 3 times");
+      expect(r.stdout.trim()).toBe("");
+      const tmp = join(sandbox, ".claude", "tmp");
+      expect(existsSync(tmp)).toBe(true);
+      expect(readdirSync(tmp).some((f) => f.startsWith("tool-failure-counts-"))).toBe(true);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }

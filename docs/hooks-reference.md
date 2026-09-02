@@ -429,7 +429,7 @@ Logs are used by `bun run claude-audit` to analyze command patterns, security co
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls and distinct file edits per streak. **One nudge per streak**: fires at threshold 20 calls OR 3+ files edited — emits a compact `additionalContext` reminder with the delegation heuristic. **One escalation per streak**: if the streak continues past the nudge by another threshold-worth of calls or 2+ more files, emits a soft block (`continueOnBlock: true`) via `blockDecision` — the turn continues but the signal is hard to ignore. Both signals suppress when the review queue is at capacity. Resets on any Agent call. 60s debounce. State at `~/.claude/tmp/parallelmax-counter.json`. `CC_PARALLELMAX_THRESHOLD` env override (default 20; raised from 12 Aug 2026 — each delegation re-pays a full system prompt). | No |
+| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls and distinct file edits per streak and records when the streak passes 20 calls or 3+ files (`nudged` flag). It injects nothing: the delegation rule lives once in CLAUDE-FULL.md and current models retain it, so the per-streak reminder and the follow-up soft block were removed. The counter feeds the review-queue branch and telemetry. Resets on any Agent call. State at `~/.claude/tmp/parallelmax-counter.json`. `CC_PARALLELMAX_THRESHOLD` env override (default 20). | No |
 
 ### PostToolBatch
 
@@ -460,7 +460,7 @@ the **full body** of every file read — the ledger deliberately never touches i
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `post-failure.ts` | Logs tool failures, warns if same tool fails 3+ times in a session, and records the exact tool + bounded/redacted error in the session ledger | No |
+| `post-failure.ts` | Logs tool failures, keeps the per-tool and per-signature tallies that `escalate-model.ts` reads, and records the exact tool + bounded/redacted error in the session ledger. Injects nothing itself. | No |
 
 Payload (verified against the 2.1.220 binary — the published page omits this
 event's shape): `{...common, hook_event_name, tool_name, tool_input,

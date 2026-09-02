@@ -191,9 +191,9 @@ tldr daemon start            # background service (~100ms queries)
 tldr semantic index . --lang typescript   # per-language; the default index is empty
 ```
 
-## CRITICAL RULES
+## Rules
 
-1. **ALWAYS pass the `language` param** — it defaults to `python` and silently returns empty results for every other language. There is no auto-detection. This rule comes first because it invalidates every rule below when broken.
+1. On the opt-in llm-tldr engine, pass the `language` param on every call: it defaults to `python` and returns empty results for other languages without an error. The default native-ts engine detects the language itself.
 2. **Reach for `context`/`structure`/`calls` BEFORE reading large files** — with an explicit language.
 3. **Before refactoring, do NOT trust an empty `impact`.** On non-Python code it returns `{"status":"ok","callers":[]}` whether or not callers exist, and it has no `language` parameter to fix that. Confirm with `Grep` or `mcp__tldr__calls` (explicit language) before concluding nothing calls a symbol.
 4. **`semantic` needs an index built with the right language** (`tldr semantic index . --lang <lang>`) and still ranks poorly on this repo — treat its hits as candidates to verify, not answers.

@@ -149,7 +149,8 @@ LOOP FOREVER (round = 1, 2, 3, ...):
      - Write a one-line description of the hypothesis
      - Mutation types (pick one per round):
        a. ADD instruction — missing guidance for a failing criterion
-       b. STRENGTHEN — weak "consider" → explicit "MUST" / "ALWAYS"
+       b. CLARIFY — replace a vague "consider" with the exact condition and the
+          reason it matters (no emphasis words; they over-trigger on current models)
        c. ADD example — concrete example showing desired behavior
        d. ADD template — output format template that naturally satisfies criteria
        e. RESTRUCTURE — move critical instructions earlier / more prominent

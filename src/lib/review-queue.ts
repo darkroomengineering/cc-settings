@@ -168,13 +168,7 @@ export function isCognitiveSurrender(
 }
 
 export function buildNudge(count: number, max: number): string {
-  return (
-    `You've spawned ${count} agents since your last commit (review queue ≥ ${max}). ` +
-    `Your review throughput is the bottleneck, not agent count — adding more agents just ` +
-    `deepens the queue in front of the one serial resource (you). Close the loop on what's ` +
-    `already done (review + commit) before fanning out further. Threshold: CC_MAX_UNREVIEWED. ` +
-    `(The Orchestration Tax.)`
-  );
+  return `Review queue: ${count} agent results unreviewed since the last commit (limit ${max}, CC_MAX_UNREVIEWED).`;
 }
 
 export function buildSurrenderNudge(count: number, dwellSeconds: number): string {

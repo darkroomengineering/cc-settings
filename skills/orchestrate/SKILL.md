@@ -106,10 +106,10 @@ Two different mechanisms get confused here, so be explicit about which one you w
 - **Subagent fan-out** (`Agent` calls in one message) needs **nothing enabled**. This is what cc-settings actually uses, and what the rest of this skill assumes. Each subagent gets its own context window and reports back to you.
 - **Agent teams** (teammates that message each other and share a task list) are experimental and disabled by default upstream; **cc-settings enables them** via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` in `config/10-core.json`. Enabled means *available*, not automatic — Claude forms a team only when you ask, or when it proposes one and you approve. Pick a team over plain fan-out only when workers need to **challenge each other mid-flight**; if you just need N results collected, fan-out is cheaper and lands them in one place. Full rule: `CLAUDE-FULL.md` → "Agent teams — enabled, deliberately not the default".
   - Feasibility gates that come before cost: teammate permission prompts surface in the **lead**, so a team is not unattended; `/resume` does not restore in-process teammates; teammates cannot spawn teammates; and two teammates editing one file overwrite each other, so split by file ownership at spawn.
-  - For split panes: tmux, or iTerm2 with the `it2` CLI. `config/10-core.json` pins `teammateMode: "auto"`; upstream's own default changed to `"in-process"` in v2.1.179.
-  - `TeamCreate` / `TeamDelete` **no longer exist** (removed upstream in v2.1.178). A team now forms implicitly when the lead spawns the first teammate, and its directories are cleaned up when the session ends. Any workflow telling you to call those tools is stale.
+  - For split panes: tmux, or iTerm2 with the `it2` CLI. `config/10-core.json` pins `teammateMode: "auto"`.
+  - A team forms when the lead spawns the first teammate and is cleaned up when the session ends; there is no create or delete tool.
 
-### Alternative: dynamic workflows (research preview, v2.1.154+)
+### Alternative: dynamic workflows (research preview)
 
 A [dynamic workflow](https://code.claude.com/docs/en/workflows) is a JS harness that spawns subagents, holds plan state *outside* your context window, runs up to 16 agents concurrently (1000 total), and resumes from cached results within a session. The trigger isn't task *size* — it's whether the task risks one of three failure modes a single context window is prone to:
 
@@ -120,11 +120,11 @@ A [dynamic workflow](https://code.claude.com/docs/en/workflows) is a JS harness 
 Shapes worth naming when you build one: **classify-and-act**, **fan-out-and-synthesize**, **generate-and-filter**, **tournament**, **loop-until-done** (spawn until a stop condition, not a fixed count). Not only for marathons — a **quick workflow** is valid: _"quick workflow to adversarially check this one assumption."_
 
 - **Budget** — workflows burn more tokens; cap with _"…budget 10k tokens"_ and the harness enforces it.
-- **Size** — dynamic workflows default to a medium size guideline, aiming for fewer than 15 agents (v2.1.219); the running workflow's status line shows the current default. Override per-project via the `workflowSizeGuideline` settings key when a task genuinely needs more.
+- **Size** — dynamic workflows default to a medium size guideline, aiming for fewer than 15 agents; the running workflow's status line shows the current default. Override per-project via the `workflowSizeGuideline` settings key when a task genuinely needs more.
 - **Quarantine** — for triage over untrusted input, agents that read public/untrusted content must not also take privileged actions; split reading from acting so an injected page can't trigger a privileged step.
 
 Two entry points:
-- One-shot: say _"use a workflow to …"_ or the keyword `ultracode` in your prompt (the force-keyword was renamed `workflow` → `ultracode` in v2.1.160). Pair with `/loop` for repeatable triage/verification/research.
+- One-shot: say _"use a workflow to …"_ or the keyword `ultracode` in your prompt. Pair with `/loop` for repeatable triage/verification/research.
 - Session-wide: `/effort ultracode` — auto-orchestrates a workflow for every substantive task.
 
 The maestro `Agent()` fan-out above is the **default** in cc-settings; workflows are for replayability or scale beyond subagent fan-out. Don't rewire skills to *depend* on the Workflow tool — its API is still preview-stage — but a skill may ship an *opt-in* example (see `audit`'s `references/nuclear-review.workflow.js`): a template you adapt, never a runtime dependency.

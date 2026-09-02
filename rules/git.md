@@ -38,8 +38,8 @@ never "tested thoroughly".
 **Signal, not spam**: every sentence earns its place; explain the why, not the
 diff restated in jargon; plain beats impressive; no filler ("This PR introduces
 a comprehensive…"). Large diff → number the review order ("start with
-`schema.ts`; the rest is fallout"). Cap any list at 5 — past five bullets it's
-probably two PRs.
+`schema.ts`; the rest is fallout"). A bullet list that keeps growing is usually
+two PRs.
 
 **Open a PR by default** — most Darkroom client projects protect `main`. Direct
 push to main is the exception for repos that explicitly allow it. Merge only

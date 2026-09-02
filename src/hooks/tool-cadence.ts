@@ -19,7 +19,6 @@
 import { runGit } from "../lib/git.ts";
 import { intEnv } from "../lib/hook-config.ts";
 import {
-  blockDecision,
   emitAdditionalContext,
   readHookInput,
   readState,
@@ -175,27 +174,6 @@ async function parallelmaxBranch(
   const now = Date.now();
   const debounceOk = !state.firedAt || now - state.firedAt >= DEBOUNCE_MS;
 
-  // --- Escalation (at most once per streak) ---------------------------------
-  // Fires AFTER nudge, when the streak continues past the reminder.
-  if (
-    state.nudged &&
-    !state.escalated &&
-    (state.count - state.countAtNudge >= THRESHOLD ||
-      state.files.length - state.filesAtNudge >= 2) &&
-    debounceOk
-  ) {
-    const rq = await readQueueState();
-    if (rq.awaiting < maxUnreviewed()) {
-      state.escalated = true;
-      state.firedAt = now;
-      // Write state BEFORE calling blockDecision (never returns).
-      await writeState(COUNTER_STATE, state);
-      blockDecision(
-        `Delegation violation: ${state.count} tool calls and ${state.files.length} file(s) edited in this streak — past a prior reminder, still no Agent call. This matches a CLAUDE.md MUST-delegate trigger. Delegate the remainder (Agent(implementer) for changes, Agent(explore) for reads) or state a one-line justification before continuing.`,
-      );
-    }
-  }
-
   // --- Soft nudge (at most once per streak) ---------------------------------
   if (
     !state.nudged &&
@@ -204,11 +182,6 @@ async function parallelmaxBranch(
   ) {
     const rq = await readQueueState();
     if (rq.awaiting < maxUnreviewed()) {
-      const filesClause = state.files.length > 0 ? ` and ${state.files.length} file(s) edited` : "";
-      emitAdditionalContext(
-        "PostToolUse",
-        `Delegation check — ${state.count} tool calls${filesClause} in this streak with no Agent call. Heuristic: ${FILES_THRESHOLD}+ files or ${THRESHOLD}+ calls → delegate (explore = read/map, implementer = multi-file change, parallel agents for independent work). Delegate the remainder now, or state a one-line reason for staying solo and continue.`,
-      );
       state.nudged = true;
       state.countAtNudge = state.count;
       state.filesAtNudge = state.files.length;

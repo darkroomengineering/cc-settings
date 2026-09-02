@@ -6,6 +6,13 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+Prompt audit against Claude Fable 5.1: removed instructions written for models that needed more pushing, and the hook text that repeated them every few tool calls.
+
+- `output-styles/darkroom.md` no longer suppresses closing summaries or caps lists at five; it asks for a summary when a message has several outcomes and for lists that stay scannable. `rules/git.md` drops the five-bullet PR cap for the same reason.
+- `CLAUDE-FULL.md` replaces the banned-phrase list in the Voice section with a positive description of the register; the no-em-dash house rule stays. Version-number parentheticals removed there and in `skills/orchestrate/SKILL.md`.
+- `tool-cadence.ts` no longer injects the "Delegation check" reminder or the follow-up "Delegation violation" soft block; the streak counter still runs. The review-queue nudge is now one line with the count and the limit. `post-failure.ts` no longer injects "Tool X has failed N times"; `escalate-model.ts` already covers repeated failures by signature.
+- `agents/planner.md` drops the "ALWAYS start by analyzing" booster; `agents/deslopper.md` drops the filled-in example report (the template stays); `skills/autoresearch/SKILL.md` replaces the STRENGTHEN mutation (which manufactured MUST/ALWAYS wording) with CLARIFY; `skills/tldr/SKILL.md` scopes the `language` rule to the opt-in llm-tldr engine, since the default engine detects the language itself.
+
 ## [15.5.0] — 2026-09-01
 
 Synced with Claude Code v2.1.257 (from v2.1.247), moved the default session model to Claude Fable 5.1, and adapted the prompt surface to it. Of the ten upstream releases, 2.1.248, 2.1.251, 2.1.252, and 2.1.257 carried substance; the rest were "bug fixes and reliability improvements". No dedupe this round — nothing upstream subsumed a script we maintain.

@@ -107,7 +107,7 @@ describe("review-queue lib", () => {
     const msg = buildNudge(7, 5);
     expect(msg).toContain("7");
     expect(msg).toContain("5");
-    expect(msg).toContain("Orchestration Tax");
+    expect(msg).toContain("CC_MAX_UNREVIEWED");
   });
 
   test("isGitCommit: matches real commits, ignores lookalikes", () => {
@@ -253,9 +253,9 @@ describe("tool-cadence hook — review-queue branch (e2e)", () => {
       const r1 = await runHook({ tool_name: "Agent", tool_input: {} }, home);
       const r2 = await runHook({ tool_name: "Agent", tool_input: {} }, home);
       const r3 = await runHook({ tool_name: "Agent", tool_input: {} }, home);
-      expect(r1.stdout).not.toContain("Orchestration Tax");
-      expect(r2.stdout).not.toContain("Orchestration Tax");
-      expect(r3.stdout).toContain("Orchestration Tax"); // CC_MAX_UNREVIEWED=3
+      expect(r1.stdout).not.toContain("Review queue:");
+      expect(r2.stdout).not.toContain("Review queue:");
+      expect(r3.stdout).toContain("Review queue:"); // CC_MAX_UNREVIEWED=3
       expect((await readQueue(home))?.awaiting).toBe(3);
     } finally {
       await rm(home, { recursive: true, force: true });

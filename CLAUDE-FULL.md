@@ -23,12 +23,9 @@ first line, one topic per message, owner and deadline for requests. PRs: follow
 order for large diffs, bounded checkable test-plan items. Issues: observed
 effect first, numbered one-action repro steps, one problem per issue.
 
-Kill AI tells in that text: puffery ("pivotal", "comprehensive", "crucial",
-"delve"), "not just X but Y", groupings of three, headers that restate content,
-decorative emojis, bold overuse, hedging, "serves as" for "is", weak verb
-propped by an adverb, sycophantic closers, generic wrap-up conclusions. State a
-position with concrete specifics instead of neutral abstraction; vary sentence
-length.
+Write it the way a colleague would: plain verbs, concrete specifics instead of
+neutral abstraction, varied sentence length, no decorative emojis, and headers
+only when they add navigation. No em dashes is house style.
 
 ## Replies
 
@@ -159,8 +156,8 @@ output-priced and every inheriting agent spends them. Raise deliberately:
 `/effort high` for hard non-coding reasoning, `/effort xhigh` for audits,
 migrations, and hard debugging, `ultrathink` for one turn. Agent frontmatter
 pins effort where depth is non-negotiable (`security-reviewer`, `planner`).
-`ultracode`: session-only `xhigh` plus automatic dynamic workflows (2.1.154+).
-`/effort` remembers a level per model (2.1.251), so a raise on Fable does not
+`ultracode`: session-only `xhigh` plus automatic dynamic workflows.
+`/effort` remembers a level per model, so a raise on Fable does not
 follow you to `/model opus`; the `s` option keeps a change session-only.
 
 On Fable 5.1, `medium` matches Fable 5 quality at lower cost and `low` is

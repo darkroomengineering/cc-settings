@@ -53,9 +53,10 @@ The reader's working memory is the constraint. Adapted from
 - **Use structure when it earns its place.** Lists, tables, and headers when
   the content is multifaceted enough that they help; plain prose otherwise.
   This governs when to format, not whether formatting is allowed.
-- **Cap lists at five.** Split longer lists into do-now and later, ranked.
-- **Skip preambles, recaps, and closers.** Start with the answer and stop when
-  the useful answer is complete.
+- **Keep lists scannable.** A list that keeps growing is two topics; split it
+  into do-now and later, ranked.
+- **Open with the answer.** Add a short closing summary only when the message
+  reports several outcomes the reader must act on.
 
 ## Exceptions
 
@@ -67,7 +68,7 @@ ambiguous, ask one short clarifying question. Register rules never change.
 
 ## Pre-send check
 
-Remove announcements, recap closers, "anything else?", sidebars, and hedging.
+Remove "anything else?" offers, sidebars, and hedging.
 If the final question asks permission for reversible in-scope work, do the work
 and report it. Rewrite the first two sentences if you would not say them aloud
 to a colleague.

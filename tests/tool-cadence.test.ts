@@ -54,149 +54,23 @@ function agentPayload() {
 }
 
 describe("tool-cadence — parallelmax branch (e2e)", () => {
-  // ── Test 1: Nudge fires once at the count threshold ─────────────────────
-  test("nudge fires once at the count threshold; no second nudge in the same streak", async () => {
+  // ── Test 1: The parallelmax branch counts silently — no nudge, no block ─────
+  test("streak past the threshold emits nothing; Agent call resets the streak", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-pm-"));
     try {
-      // Three Read calls with threshold=3 should trigger the nudge on the 3rd.
-      const r1 = await runHook(readPayload(), home);
-      const r2 = await runHook(readPayload(), home);
-      expect(r1.stdout).not.toContain("Delegation check");
-      expect(r2.stdout).not.toContain("Delegation check");
+      for (let i = 0; i < 8; i++) {
+        const r = await runHook(i % 2 === 0 ? readPayload() : writePayload(`/tmp/f${i}.ts`), home);
+        expect(r.exit).toBe(0);
+        expect(r.stdout.trim()).toBe("");
+      }
+      expect((await readCounterState(home))?.count).toBe(8);
 
-      const r3 = await runHook(readPayload(), home);
-      expect(r3.stdout).toContain("Delegation check");
-      expect(r3.exit).toBe(0);
-
-      // State should be nudged=true now.
-      const state = await readCounterState(home);
-      expect(state?.nudged).toBe(true);
-
-      // Push firedAt into the past so debounce doesn't suppress escalation,
-      // but we want to verify no second "Delegation check" fires.
-      await writeCounterState(home, {
-        ...state,
-        firedAt: Date.now() - 70_000,
-      });
-
-      // More calls — these should trigger escalation (count - countAtNudge >= THRESHOLD),
-      // NOT a second nudge. Verify no second "Delegation check" appears.
-      const r4 = await runHook(readPayload(), home);
-      const r5 = await runHook(readPayload(), home);
-      const r6 = await runHook(readPayload(), home);
-      // At least one of these might escalate, but none should have a second nudge.
-      expect(r4.stdout).not.toContain("Delegation check");
-      expect(r5.stdout).not.toContain("Delegation check");
-      expect(r6.stdout).not.toContain("Delegation check");
-    } finally {
-      await rm(home, { recursive: true, force: true });
-    }
-  });
-
-  // ── Test 2: Escalation fires once after nudge; further calls are silent ──
-  test("escalation fires once after nudge when count advances by THRESHOLD; then silent", async () => {
-    const home = await mkdtemp(join(tmpdir(), "cc-pm-"));
-    try {
-      // Manually set state to: nudged=true, countAtNudge=3, count=3, debounce expired.
-      await writeCounterState(home, {
-        count: 3,
-        lastTool: "Read",
-        firedAt: Date.now() - 70_000,
-        files: [],
-        nudged: true,
-        countAtNudge: 3,
-        filesAtNudge: 0,
-        escalated: false,
-      });
-
-      // Three more calls (threshold=3) should trigger escalation on the 3rd.
-      const r1 = await runHook(readPayload(), home);
-      const r2 = await runHook(readPayload(), home);
-      expect(r1.stdout).not.toContain('"decision":"block"');
-      expect(r2.stdout).not.toContain('"decision":"block"');
-
-      const r3 = await runHook(readPayload(), home);
-      expect(r3.stdout).toContain('"decision":"block"');
-      expect(r3.stdout).toContain("Delegation violation");
-      expect(r3.exit).toBe(2);
-
-      // State should now have escalated=true.
-      const state = await readCounterState(home);
-      expect(state?.escalated).toBe(true);
-
-      // Push firedAt into the past so debounce doesn't suppress future checks.
-      await writeCounterState(home, {
-        ...state,
-        firedAt: Date.now() - 70_000,
-      });
-
-      // Further calls after escalation should be silent.
-      const r4 = await runHook(readPayload(), home);
-      const r5 = await runHook(readPayload(), home);
-      expect(r4.stdout).toBe("");
-      expect(r4.exit).toBe(0);
-      expect(r5.stdout).toBe("");
-      expect(r5.exit).toBe(0);
-    } finally {
-      await rm(home, { recursive: true, force: true });
-    }
-  });
-
-  // ── Test 3: 3 distinct Write file_paths trigger the nudge before call count ──
-  test("3 distinct Write file_paths trigger nudge before count threshold", async () => {
-    const home = await mkdtemp(join(tmpdir(), "cc-pm-"));
-    try {
-      // Use threshold=100 so call count won't trigger, only file count will.
-      const r1 = await runHook(writePayload("src/a.ts"), home, "100");
-      const r2 = await runHook(writePayload("src/b.ts"), home, "100");
-      expect(r1.stdout).not.toContain("Delegation check");
-      expect(r2.stdout).not.toContain("Delegation check");
-
-      const r3 = await runHook(writePayload("src/c.ts"), home, "100");
-      expect(r3.stdout).toContain("Delegation check");
-      expect(r3.stdout).toContain("file(s) edited");
-      expect(r3.exit).toBe(0);
-    } finally {
-      await rm(home, { recursive: true, force: true });
-    }
-  });
-
-  // ── Test 4: Agent call resets streak; fresh streak can nudge again ────────
-  test("Agent call resets streak; calls below threshold after reset are silent", async () => {
-    const home = await mkdtemp(join(tmpdir(), "cc-pm-"));
-    try {
-      // Build up a streak to the point of nudge.
-      await runHook(readPayload(), home);
-      await runHook(readPayload(), home);
-      const r3 = await runHook(readPayload(), home);
-      expect(r3.stdout).toContain("Delegation check");
-
-      // Agent call resets streak.
       const rAgent = await runHook(agentPayload(), home);
-      expect(rAgent.stdout).not.toContain("Delegation check");
       expect(rAgent.exit).toBe(0);
-
-      const state = await readCounterState(home);
-      expect(state?.count).toBe(0);
-      expect(state?.nudged).toBe(false);
-      expect(state?.escalated).toBe(false);
-
-      // Push firedAt into the past so the debounce doesn't block fresh nudge.
-      await writeCounterState(home, {
-        ...state,
-        firedAt: Date.now() - 70_000,
-      });
-
-      // Below threshold — silent.
-      const r4 = await runHook(readPayload(), home);
-      const r5 = await runHook(readPayload(), home);
-      expect(r4.stdout).not.toContain("Delegation check");
-      expect(r5.stdout).not.toContain("Delegation check");
-
-      // Back to threshold — fresh nudge fires.
-      const r6 = await runHook(readPayload(), home);
-      expect(r6.stdout).toContain("Delegation check");
-      expect(r6.exit).toBe(0);
+      expect(rAgent.stdout.trim()).toBe("");
+      const reset = await readCounterState(home);
+      expect(reset?.count).toBe(0);
+      expect(reset?.files).toEqual([]);
     } finally {
       await rm(home, { recursive: true, force: true });
     }
