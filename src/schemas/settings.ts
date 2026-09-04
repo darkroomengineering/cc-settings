@@ -316,6 +316,12 @@ export const Settings = z.looseObject({
   allowedChannelPlugins: z.array(z.string()).optional(), // 2.1.107 (team/enterprise)
   allowedMcpServers: z.array(z.string()).optional(), // 2.1.112
   deniedMcpServers: z.array(z.string()).optional(), // 2.1.112
+  // 2.1.259 — org-delivered MCP servers. Object keyed by server name in the
+  // .mcp.json `mcpServers` shape (`type`, not `transport`; Claude Desktop's
+  // array form is rejected). Honored only from managed settings, ignored from
+  // any other scope, and NOT subject to allowedMcpServers/deniedMcpServers,
+  // which govern user-added servers only.
+  managedMcpServers: McpServers.optional(),
   allowAllClaudeAiMcps: z.boolean().optional(), // 2.1.149 — load claude.ai cloud MCP connectors alongside managed-mcp.json
   enabledMcpjsonServers: z.array(z.string()).optional(), // allowlist for project .mcp.json server names
   disabledMcpjsonServers: z.array(z.string()).optional(), // blocklist for project .mcp.json server names

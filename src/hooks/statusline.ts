@@ -118,6 +118,18 @@ type Payload = {
     cache_write_tokens?: number;
     miss_recache_tokens?: number;
     last_miss_at?: number | null;
+    // 2.1.260 — client-side diagnosis of the most recent miss. `causes` is a
+    // closed set: system_prompt_changed, tools_changed, model_changed,
+    // messages_rewritten, ttl_expired_5m, ttl_expired_1h, likely_server_side,
+    // unknown. Null when nothing was diagnosed.
+    last_miss_cause?: {
+      causes?: string[];
+      tools_added?: number;
+      tools_removed?: number;
+      system_char_delta?: number;
+    } | null;
+    // 2.1.260 — misses per diagnosed cause this session (same cause names).
+    miss_causes?: Record<string, number>;
     recache_tokens_if_cold?: number | null;
   };
 };
@@ -329,7 +341,11 @@ async function main(): Promise<void> {
         : cache.hit_ratio >= 0.5
           ? palette.yellow
           : palette.red;
-    const coldSuffix = cache.warm === false ? `${palette.dim} cold${palette.reset}` : "";
+    // When the prefix is cold, name the diagnosed cause (2.1.260) so the user
+    // can tell a TTL expiry from a tools/system-prompt change they triggered.
+    const cause = cache.warm === false ? cache.last_miss_cause?.causes?.[0] : undefined;
+    const coldSuffix =
+      cache.warm === false ? `${palette.dim} cold${cause ? ` ${cause}` : ""}${palette.reset}` : "";
     parts.push(`${color}♻${pct}%${palette.reset}${coldSuffix}`);
   }
 

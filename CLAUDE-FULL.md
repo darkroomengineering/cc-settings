@@ -159,6 +159,9 @@ pins effort where depth is non-negotiable (`security-reviewer`, `planner`).
 `ultracode`: session-only `xhigh` plus automatic dynamic workflows.
 `/effort` remembers a level per model, so a raise on Fable does not
 follow you to `/model opus`; the `s` option keeps a change session-only.
+Since Claude Code 2.1.260 an `/effort` change on Fable 5.1 no longer
+invalidates the prompt cache, so raising it mid-session costs only the extra
+thinking tokens.
 
 On Fable 5.1, `medium` matches Fable 5 quality at lower cost and `low` is
 viable for routine turns; but at `low` it answers from memory instead of

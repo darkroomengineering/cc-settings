@@ -152,7 +152,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "15.6.2"; // React Native profile: TestFlight versioning and EAS external-group distribution
+const VERSION = "15.7.0"; // Sync with Claude Code 2.1.260: managedMcpServers, prompt-cache miss causes in the statusline
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 

@@ -226,7 +226,7 @@ Custom status bar displayed in the Claude Code terminal.
 
 The `statusline.ts` script displays model name, git branch, and context usage percentage.
 
-♻NN% is the session's prompt-cache hit ratio from the `prompt_cache` payload (v2.1.251+): green ≥80%, yellow ≥50%, red below; `cold` means the cached prefix has expired. Hidden until three requests have been recorded.
+♻NN% is the session's prompt-cache hit ratio from the `prompt_cache` payload (v2.1.251+): green ≥80%, yellow ≥50%, red below; `cold` means the cached prefix has expired. Hidden until three requests have been recorded. When cold, the chip appends the diagnosed cause of the last miss from `prompt_cache.last_miss_cause` (v2.1.260), e.g. `♻42% cold ttl_expired_1h`; causes are `system_prompt_changed`, `tools_changed`, `model_changed`, `messages_rewritten`, `ttl_expired_5m`, `ttl_expired_1h`, `likely_server_side`, `unknown`.
 
 ### `plansDirectory`
 
@@ -566,10 +566,24 @@ Channels are the team-distribution mechanism for plugins and managed configurati
 
 Managed MCP server policy lists (v2.1.112). Patterns are matched against MCP server URLs / identifiers. Use for enterprise allowlisting; supports scheme wildcards (e.g., `https://*.internal.example.com`).
 
+Since v2.1.259 these lists govern only servers **users add**: user, project, and local config, `--mcp-config`, agent frontmatter, plugins, and claude.ai connectors. Servers the organization itself delivers through `managedMcpServers` or `managed-mcp.json` bypass them.
+
 ```json
 {
   "allowedMcpServers": ["https://*.internal.example.com", "claudeai-proxy"],
   "deniedMcpServers": ["http://*"]
+}
+```
+
+### `managedMcpServers`
+
+Managed setting (v2.1.259) that delivers HTTP/SSE MCP servers from the organization. The value is an object keyed by server name in the `.mcp.json` `mcpServers` shape, using `type` (not Claude Desktop's `transport`, and not its array form). It is honored only from managed settings and ignored from every other scope. Servers listed here are not filtered by `allowedMcpServers` / `deniedMcpServers`.
+
+```json
+{
+  "managedMcpServers": {
+    "internal-docs": { "type": "http", "url": "https://mcp.internal.example.com/docs" }
+  }
 }
 ```
 
@@ -683,7 +697,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `allowedChannelPlugins` | string[] | E | Allowlist of plugin identifiers channel admins can push (v2.1.107) |
 | `allowedHttpHookUrls` | string[] | E | Allowlist of HTTP endpoints hooks may call |
 | `allowedMarketplaces` | string[] | E | Friendlier alias for `strictKnownMarketplaces` (v2.1.232) |
-| `allowedMcpServers` | string[] | E | Managed allowlist of MCP server URLs/identifiers (v2.1.112) |
+| `allowedMcpServers` | string[] | E | Managed allowlist for user-added MCP servers (v2.1.112; org-delivered servers bypass it since v2.1.259) |
 | `alwaysThinkingEnabled` | boolean | G | Always show extended thinking even on short turns |
 | `apiKeyHelper` | string | A | Shell command that emits an Anthropic API key |
 | `attribution` | object | G | AI attribution in git commits/PRs (`commit`, `pr` string fields; `sessionUrl` boolean — `false` omits the claude.ai session link, v2.1.183) |
@@ -743,6 +757,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `isolatePeerMachines` | boolean | G | Require explicit approval before `SendMessage` reaches a session on another machine. `true` from any scope wins (v2.1.224) |
 | `keybindingFlavor` | `"classic"` \| `"readline"` | U | `"readline"` makes Ctrl+W delete back to whitespace, Bash-style (v2.1.238) |
 | `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
+| `managedMcpServers` | Record\<string,McpServer\> | E | Org-delivered HTTP/SSE MCP servers, keyed by name, `.mcp.json` shape; managed scope only (v2.1.259) |
 | `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
 | `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports). **Claude Code does not read this from `settings.json` at user scope** — user-scope servers live in `~/.claude.json`, project-scope in `.mcp.json`. Typed here because cc-settings' `config/20-mcp.json` fragment carries the block through composition on its way to `~/.claude.json`; setting it in `settings.json` by hand has no effect |
 | `minimumVersion` | string | E | Minimum Claude Code version required; older clients are blocked |
