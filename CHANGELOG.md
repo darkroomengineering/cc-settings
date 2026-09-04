@@ -6,6 +6,15 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+## [15.6.2] — 2026-09-04
+
+`profiles/react-native.md` gains a "Release & TestFlight" section. The profile previously ended at `eas submit --platform ios`, which reaches only internal tester groups and says nothing about versioning; that gap produced a closed-version rejection and non-monotonic build numbers across five Expo apps on 2026-09-04.
+
+- Freeze the marketing version during a beta and bump only the build number; only the first build per version string is reviewed, and a version that shipped to the App Store is closed for beta along with everything below it.
+- `eas.json` uses `"appVersionSource": "remote"` with `autoIncrement: true` so build numbers stay monotonic.
+- An EAS Workflow `testflight` job on `app_store_connect.build_upload` distributes every upload to the "Public Beta" external group with `submit_beta_review: true`; `eas submit --groups` cannot.
+- Pre-implementation checklist gains a matching item. Shared copy lives in team-knowledge as `testflight-beta-versioning-and-eas-distribution`.
+
 ## [15.6.1] — 2026-09-02
 
 Prompt audit against Claude Fable 5.1: removed instructions written for models that needed more pushing, and the hook text that repeated them every few tool calls.

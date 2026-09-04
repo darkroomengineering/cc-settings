@@ -152,7 +152,7 @@ import {
 import type { McpStdioServer } from "./schemas/mcp.ts";
 import { Settings } from "./schemas/settings.ts";
 
-const VERSION = "15.6.1"; // Prompt audit against Fable 5.1: silent tool-cadence and post-failure, de-boosted skills and output style
+const VERSION = "15.6.2"; // React Native profile: TestFlight versioning and EAS external-group distribution
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 let sharedBackupSequence = 0;
 
