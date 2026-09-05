@@ -9,7 +9,7 @@ agent: maestro
 
 ## Standalone Codex
 
-Skip every Claude heavy-skill marker in this file. Create each bounded worker
+Create each bounded worker
 with `spawn_agent`, deliver context to a running worker with `send_message`,
 trigger another turn for an idle existing worker with `followup_task`, wait with
 `wait_agent`, and stop a current turn with `interrupt_agent` only when necessary.
@@ -20,9 +20,6 @@ tree unless the live host explicitly offers isolation. Assign non-overlapping
 ownership and serialize implementer and test-writer phases; only read-only
 reviewers may overlap. Codex implementers are not promised Claude worktree
 isolation.
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "orchestrate" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 ## Phase 1: Research & Feasibility (GO/NO-GO Gate)
 
@@ -136,9 +133,6 @@ Report: team composition (when fan-out chosen), task assignments, coordination s
 ---
 
 ## Variant: Phased Long-Running Execution
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "l-thread" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 For tasks too large for a single context window. Implements checkpoint/restore, automatic verification, and graceful recovery.
 

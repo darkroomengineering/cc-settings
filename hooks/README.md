@@ -21,7 +21,7 @@ For the canonical event count, configuration format, matchers, and debugging:
 | `PostToolUse` | After Write/Edit | `post-edit.ts` (auto-format with Biome) | No |
 | `PostToolUse` | After Write/Edit | `post-edit-tsc.ts` (async TypeScript type check) | **Yes** |
 | `PostToolUse` | After Bash commands | `log-bash.ts` (command audit log) | **Yes** |
-| `PostToolUse` | After every tool (no matcher) | `tool-cadence.ts` (one spawn, two branches: parallelmax counter — consecutive non-Agent calls, N=12 delegation reminder, resets on Agent, 60s debounce — and review-queue backpressure) | No |
+| `PostToolUse` | After Bash or Agent calls | `tool-cadence.ts` (review-queue backpressure) | No |
 | `PostToolUseFailure` | Tool execution fails | `post-failure.ts` (logs failures, warns on repeats, records the exact tool+error in the session ledger) | No |
 | `PostToolBatch` | After a batch of tool calls resolves | `ledger-record.ts` (records read/changed file paths in the session ledger — metadata only) | **Yes** |
 | `PreCompact` | Before context compaction | `handoff.ts create --from-hook` (saves state + session provenance) | No |

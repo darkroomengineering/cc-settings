@@ -248,10 +248,9 @@ For remote images, configure CORS / CSP at your edge layer. There's no equivalen
 
 ## Streaming + Suspense
 
-React Router 7 supports streaming with `defer()` (or by returning unresolved promises from a loader).
+React Router 7 supports streaming by returning unresolved promises from a loader.
 
 ```tsx
-import { defer } from 'react-router'
 import { Suspense } from 'react'
 import { Await } from 'react-router'
 import type { Route } from './+types/dashboard'

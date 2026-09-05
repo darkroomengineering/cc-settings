@@ -8,13 +8,10 @@ context: fork
 
 ## Standalone Codex
 
-Skip the Claude marker below. Use Context7 only when the user configured that
+Use Context7 only when the user configured that
 MCP. Otherwise consult official library documentation through native browsing
 or inspect the pinned local package, and state which fallback supplied the API
 contract. This package does not auto-run unpinned registry MCP packages.
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "build" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 ## Phase 1: Research (GO/NO-GO Gate)
 

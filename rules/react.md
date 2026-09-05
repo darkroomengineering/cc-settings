@@ -110,23 +110,6 @@ const fullName = `${first} ${last}`
 
 Client-side fetching is correct for *post-mount* state (autocomplete, polling, mutations). It's wrong for the data the user sees on first paint.
 
-### Don't cascade setState calls
-```tsx
-// WRONG: each setter schedules its own render; later state depends on earlier
-function handleSubmit() {
-  setLoading(true)
-  setError(null)
-  setStatus('submitting')
-  setLastAttempt(Date.now())
-}
-// CORRECT: consolidate to one setter or derive
-function handleSubmit() {
-  setForm((f) => ({ ...f, loading: true, error: null, status: 'submitting', lastAttempt: Date.now() }))
-}
-```
-
-Cascading setters fight React's batching, create stale-closure bugs in async paths, and obscure intent. One state object > four boolean toggles.
-
 ### Conditional rendering with numbers
 ```tsx
 // WRONG: renders "0" when count is 0

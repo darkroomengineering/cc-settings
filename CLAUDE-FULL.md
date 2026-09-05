@@ -72,8 +72,7 @@ name its basis. Applies to summaries, PRs, `/retro`, `/proof-of-work`, and
 
 Every subagent is a fresh context that re-pays the system prompt and re-reads
 files, so delegate for scale, not by habit. Before each unit of work, ask once:
-**3+ files, 20+ tool calls, or security-sensitive code?** The tool threshold is
-`CC_PARALLELMAX_THRESHOLD` (default 20), enforced by `tool-cadence`. If yes:
+**3+ files, 20+ tool calls, or security-sensitive code?** If yes:
 
 | Work | Route |
 |---|---|

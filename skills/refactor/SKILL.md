@@ -8,7 +8,7 @@ context: fork
 
 ## Standalone Codex
 
-Skip the Claude marker below. Create each new agent with `spawn_agent`, deliver
+Create each new agent with `spawn_agent`, deliver
 context to a running agent with `send_message`, trigger another turn for an idle
 existing agent with `followup_task`, wait with `wait_agent`, and stop a current
 turn with `interrupt_agent` only when necessary. Never spawn `codex-verifier`
@@ -18,9 +18,6 @@ Writers share the working tree unless the live host explicitly offers
 isolation. Assign non-overlapping ownership and serialize planner handoff,
 implementer, and test-writer phases; only read-only reviewers may overlap.
 Codex implementers are not promised Claude worktree isolation.
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "refactor" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 You are in **Maestro orchestration mode**. Delegate immediately.
 

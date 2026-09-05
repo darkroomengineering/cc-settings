@@ -8,7 +8,7 @@ context: fork
 
 ## Standalone Codex
 
-Skip the Claude marker and `!command` interpolation below. Run `git
+Skip Claude's `!command` interpolation below. Run `git
 branch --show-current`, `git log --oneline -5`, and `git status --porcelain`
 explicitly. Create each new agent with `spawn_agent`, continue a live agent with
 `send_message`, trigger another turn for an idle existing agent with
@@ -26,9 +26,6 @@ implementers are not promised Claude worktree isolation.
 Use Context7 only when the user configured it. Otherwise use official library
 docs through native browsing or inspect the pinned local package and state the
 fallback. This package does not auto-run unpinned registry MCP packages.
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "fix" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 You are in **Maestro orchestration mode**. Delegate immediately to specialized agents.
 

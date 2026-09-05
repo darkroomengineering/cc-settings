@@ -4,11 +4,8 @@
 // the npm command is product-neutral because the config covers both).
 //
 // This package deliberately contains NO configuration. It downloads the
-// official bootstrap script over HTTPS and runs it, so the trust root stays
-// where it already is: the bootstrap's own origin-pinned clone of
-// github.com/darkroomengineering/cc-settings main. A compromised npm token
-// cannot swap the installed payload — only this ~100-line downloader, which
-// is why the stub stays tiny and rarely republished.
+// official bootstrap script over HTTPS and runs it. The bootstrap clones
+// github.com/darkroomengineering/cc-settings main from its pinned origin.
 //
 // Flags are forwarded verbatim: `npx darkroom-settings --light --auto-update=on`.
 // CC_SETTINGS_INSTALL_BASE overrides the download origin (tests only).
@@ -49,8 +46,7 @@ async function main() {
 
   // Write the bootstrap to a temp dir and run it as a lone script file. Both
   // bootstraps detect "no checkout next to me" and clone the official repo
-  // with its origin pin before installing — the downloaded bytes never
-  // install anything themselves.
+  // with its origin pin before installing.
   const dir = mkdtempSync(join(tmpdir(), "cc-settings-npx-"));
   const scriptPath = join(dir, scriptName);
   writeFileSync(scriptPath, body, { mode: 0o700 });

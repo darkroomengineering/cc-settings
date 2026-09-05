@@ -277,6 +277,16 @@ For repos that ship containers or Terraform (rarer at Darkroom, cheap to check w
 
 ## Darkroom-Specific Security Checks
 
+### cc-settings boundaries
+
+The safety-net hook checks every operand in a recognized recursive forced removal;
+a permitted build directory must not hide another dangerous target. Its tokenizer
+remains a heuristic, not a complete shell parser.
+
+Hook audits resolve source integrity from the installation being audited, including
+when only a custom settings path is supplied. MCP installation validates existing
+server definitions without stripping unknown user fields before writing them back.
+
 ### Shopify Commerce Security
 
 ```bash

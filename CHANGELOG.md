@@ -6,12 +6,16 @@ All notable changes to cc-settings are documented here.
 
 ## [Unreleased]
 
+Removed unused parallelmax and per-tool failure counters, unread skill markers, unused Node package-manager detection, and the always-success provenance stub. Tool cadence now runs only for Bash and Agent calls; review-queue and signature tracking remain. Removed conflicting editing/review instructions, false React batching advice, obsolete `defer` guidance, and overstated npm-installer guarantees.
+
+Fixed three audit findings: the safety-net checks every removal operand, MCP reinstalls retain unknown user fields, and custom-path hook audits verify the selected installation's source manifest. Existing cleanup for retired state and checksum verification remain intact.
+
 ## [15.7.0] — 2026-09-04
 
 Synced with Claude Code v2.1.260 (from v2.1.257). 2.1.258 was two fixes; 2.1.259 and 2.1.260 carried one managed settings key and one statusline payload extension for us. No dedupe this round.
 
 **Adopted:**
-- `managedMcpServers` (upstream 2.1.259) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`. Org-delivered HTTP/SSE MCP servers as an object keyed by server name in the `.mcp.json` `mcpServers` shape; modelled with the shared `McpServers` record. The binary honors it only from managed settings and exempts it from `allowedMcpServers` / `deniedMcpServers`, which now govern user-added servers only. Matters because the strict schema would otherwise reject a managed settings file that uses it.
+- `managedMcpServers` (upstream 2.1.259) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`. Org-delivered HTTP/SSE MCP servers as an object keyed by server name in the `.mcp.json` `mcpServers` shape; modelled with the shared `McpServers` record. The binary honors it only from managed settings and exempts it from `allowedMcpServers` / `deniedMcpServers`, which now govern user-added servers only.
 - `prompt_cache.last_miss_cause` and `prompt_cache.miss_causes` (upstream 2.1.260) in `src/hooks/statusline.ts`. When the ♻ chip reads `cold`, it now appends the diagnosed cause, e.g. `♻42% cold ttl_expired_1h`, so a TTL expiry is distinguishable from a tools or system-prompt change the user triggered.
 
 **Docs:**

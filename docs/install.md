@@ -187,7 +187,8 @@ outside cc-settings ownership.
 | `$CODEX_HOME/backups/cc-settings` | Stores Codex snapshots. | Managed backup store | Rollback reads it. Uninstall leaves backups. |
 | `~/.agents/skills` and `$CODEX_HOME/config.toml` (or `~/.codex/config.toml`) | Full Codex install and dry-run read direct child names to warn about legacy entries that duplicate plugin skills. The migration reads Desktop's import-sync setting because enabled sync recreates moved directories. It never edits the Codex config. | Not owned | Run `bun run migrate:codex-skills` to preview. If Desktop import sync is enabled, disable it, restart Codex, and preview again; `--apply` otherwise refuses without moving files or creating a backup. A permitted apply writes a timestamped backup and preserves non-overlaps. |
 
-Reinstalls preserve unrelated Claude permissions, custom hooks, local overrides, and MCP servers.
+Reinstalls preserve unrelated Claude permissions, custom hooks, local overrides, and MCP servers,
+including unknown fields in existing MCP server definitions.
 They preserve unrelated Codex agents, rules, and text outside the marked `AGENTS.md` block. The
 Claude settings merge is three-way against the previous install's recorded baseline: a value you
 changed always wins, a value still equal to what the previous install wrote follows a changed team

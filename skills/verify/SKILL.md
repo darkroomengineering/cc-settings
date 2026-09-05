@@ -10,7 +10,7 @@ Three agents with competing incentives: one finds issues, one disproves them, on
 
 ## Standalone Codex
 
-Skip the Claude marker below. Create each fresh panelist with `spawn_agent`,
+Create each fresh panelist with `spawn_agent`,
 deliver context while it runs with `send_message`, trigger another turn once it
 is idle with `followup_task`, wait with `wait_agent`, and stop its current turn
 with `interrupt_agent` only when necessary. Never spawn `codex-verifier` and
@@ -19,9 +19,6 @@ never run `codex-run.ts` from inside Codex.
 Only read-only reviewers may overlap. Writers share the working tree unless the
 live host explicitly offers isolation, so any implementer and test-writer
 follow-up must use non-overlapping ownership and run serially.
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "verify" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 ## When to Use
 

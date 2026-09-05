@@ -42,7 +42,7 @@ export async function loader() {
 | Stack | Pattern |
 |---|---|
 | Next.js | Server Component + `<Suspense fallback>` around an async child |
-| React Router | `defer()` in loader (return the unresolved promise) + `<Await>` inside `<Suspense>` |
+| React Router | Return unresolved promises from a loader + `<Await>` inside `<Suspense>` |
 
 **Avoid streaming when:** layout depends on data dimensions, above-fold SEO content, fast queries (< 50 ms), or layout shifts are unacceptable.
 

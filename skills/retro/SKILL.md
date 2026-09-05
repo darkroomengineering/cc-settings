@@ -26,9 +26,6 @@ Codex must skip this Claude escalation telemetry entirely because the plugin
 does not expose a reliable manual state path. Do not infer or report an
 act-rate in Codex.
 
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "retro" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
-
 **This skill is self-contained.** Do not read CLAUDE.md or agent definitions.
 
 ## Arguments

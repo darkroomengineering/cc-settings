@@ -8,7 +8,7 @@ context: fork
 
 ## Standalone Codex
 
-Skip the Claude marker and `!command` interpolation below. Run `git branch
+Skip Claude's `!command` interpolation below. Run `git branch
 --show-current`, `git status --porcelain`, and `git log --oneline -5`
 explicitly. Create a new reviewer with `spawn_agent`, continue it while live
 with `send_message`, trigger another turn once it is idle with `followup_task`,
@@ -21,9 +21,6 @@ test-writer fixes; only read-only reviewers may overlap. Codex implementers are
 not promised Claude worktree isolation. Codex also skips TLDR and uses
 `git diff --name-only`, direct import searches, and test-name searches to choose
 affected tests.
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "ship" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 You are in **Maestro orchestration mode**. Execute the shipping checklist in order.
 

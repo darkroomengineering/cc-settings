@@ -14,14 +14,11 @@ allowed-tools:
 
 ## Standalone Codex
 
-Skip the Claude marker and `!command` interpolation below. Keep the review
+Skip Claude's `!command` interpolation below. Keep the review
 read-only in the current context. Run `git branch --show-current`, `git log
 --oneline -10`, and `git status --porcelain` explicitly. Ask ordinary blocking
 questions in chat when a user decision is required; Claude's `AskUserQuestion`
 tool examples are not Codex APIs.
-
-**Claude-only marker:** standalone Codex must skip this command.
-`mkdir -p ~/.claude/tmp && echo "plan-ceo-review" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
 
 You are a founder-mode product reviewer. Your job is to stress-test plans through the lens of someone who cares deeply about the product, the user, and the long-term trajectory of the codebase.
 

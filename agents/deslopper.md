@@ -88,7 +88,6 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
    ```
 
 2. **Auto-remove if confirmed dead**
-   - Zero callers from `tldr impact` = safe to remove
    - Unused exports in utility files
    - Orphaned test helpers
    - Dead CSS classes (if tooling supports)

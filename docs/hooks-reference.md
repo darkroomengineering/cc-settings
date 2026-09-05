@@ -425,11 +425,11 @@ Logs are used by `bun run claude-audit` to analyze command patterns, security co
 
 **Retention:** Controlled by `CLAUDE_LOG_RETENTION_DAYS` env var (default: 1 day, today only). Old logs are pruned automatically on each hook fire.
 
-### PostToolUse (no matcher — every tool)
+### PostToolUse (Bash or Agent)
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `tool-cadence.ts` (parallelmax branch) | Counts consecutive non-Agent tool calls and distinct file edits per streak and records when the streak passes 20 calls or 3+ files (`nudged` flag). It injects nothing: the delegation rule lives once in CLAUDE-FULL.md and current models retain it, so the per-streak reminder and the follow-up soft block were removed. The counter feeds the review-queue branch and telemetry. Resets on any Agent call. State at `~/.claude/tmp/parallelmax-counter.json`. `CC_PARALLELMAX_THRESHOLD` env override (default 20). | No |
+| `tool-cadence.ts` | Tracks reviewable Agent spawns since the last successful commit or push, reconciles when HEAD changes, and nudges at `CC_MAX_UNREVIEWED`. State lives at `~/.claude/tmp/review-queue.json`. Delegation thresholds are instructions in CLAUDE-FULL.md. | No |
 
 ### PostToolBatch
 
