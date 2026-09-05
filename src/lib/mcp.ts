@@ -213,7 +213,8 @@ export async function installMcpToClaudeJson(
   if (currentMcpRaw !== undefined) {
     const currentResult = McpServersSchema.safeParse(currentMcpRaw);
     if (currentResult.success) {
-      currentMcp = currentResult.data;
+      // Validation proves the known shape; retain fields newer clients understand.
+      currentMcp = currentMcpRaw as McpServers;
     } else if (
       typeof currentMcpRaw === "object" &&
       currentMcpRaw !== null &&

@@ -5,8 +5,8 @@
 // pattern command is "trusted" only when the file it points at exists in the
 // install manifest AND its on-disk hash matches. Path shape alone yields
 // "unknown" (no manifest) or "suspicious" (manifest disagreement). Every
-// auditSettingsFile call below passes an explicit claudeDir so the suite is
-// hermetic — never reading the real ~/.claude manifest.
+// auditSettingsFile call below scopes its install through claudeDir or a
+// fixture settings path — never reading the real ~/.claude manifest.
 
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -611,6 +611,36 @@ describe("auditSettingsFile — file IO", () => {
       expect(result.findings[1]?.reasons.join(" ")).toMatch(/hash differs/);
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("checks the target manifest and detects a modified hook without claudeDir", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-audit-"));
+    const dir = join(sandbox, ".claude");
+    try {
+      await seedManifest(dir, { "scripts/session-start.ts": "// shipped\n" });
+      const path = join(dir, "settings.json");
+      await writeFile(
+        path,
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: 'bun "$HOME/.claude/src/scripts/session-start.ts"' },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      expect((await auditSettingsFile(path)).findings[0]?.severity).toBe("trusted");
+      await writeFile(join(dir, "src", "scripts", "session-start.ts"), "// modified\n");
+      const result = await auditSettingsFile(path);
+      expect(result.findings[0]?.severity).toBe("suspicious");
+      expect(result.findings[0]?.reasons.join(" ")).toMatch(/hash differs/);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
     }
   });
 });

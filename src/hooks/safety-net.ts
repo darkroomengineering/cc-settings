@@ -65,9 +65,7 @@ function block(reason: string, cmd = ""): never {
 // Quote-aware tokenizer: groups double/single-quoted spans into a single
 // token (dequoted) instead of splitting on the whitespace inside them, so
 // `rm -rf "$HOME/Library/Application Support"` reads as ONE target token
-// instead of three naive whitespace-split fragments (the last of which would
-// otherwise win via extractRmTarget's last-token heuristic and be misread as
-// a harmless relative path).
+// instead of three naive whitespace-split fragments that lose the real path.
 function tokenizeArgs(args: string): string[] {
   const tokens: string[] = [];
   let i = 0;
@@ -95,11 +93,20 @@ function tokenizeArgs(args: string): string[] {
   return tokens;
 }
 
-function extractRmTarget(args: string): string {
-  let result = "";
+function extractRmTargets(args: string): string[] {
+  const targets: string[] = [];
+  let optionsEnded = false;
   for (const raw of tokenizeArgs(args)) {
     const token = raw.trim();
     if (!token) continue;
+    if (optionsEnded) {
+      targets.push(token);
+      continue;
+    }
+    if (token === "--") {
+      optionsEnded = true;
+      continue;
+    }
     // Short flags (-rf, -r, -f)
     if (/^-[a-zA-Z]+$/.test(token)) continue;
     // Known long flags
@@ -115,9 +122,9 @@ function extractRmTarget(args: string): string {
     ) {
       continue;
     }
-    result = token;
+    targets.push(token);
   }
-  return result;
+  return targets;
 }
 
 // Six literal forms of "the user's home dir" that rm -rf must reject. Used
@@ -160,9 +167,12 @@ function analyzeRmPortion(rmPortion: string, cmd: string): void {
 
   if (!hasRecursive || !hasForce) return;
 
-  const target = extractRmTarget(rmPortion);
-  if (!target) block("rm -rf with no clear target path", cmd);
+  const targets = extractRmTargets(rmPortion);
+  if (targets.length === 0) block("rm -rf with no clear target path", cmd);
+  for (const target of targets) analyzeRmTarget(target, cmd);
+}
 
+function analyzeRmTarget(target: string, cmd: string): void {
   // ALWAYS BLOCK: dangerous root/home/cwd paths.
   if (target === "/" || target === "/*") block("rm -rf targeting root filesystem", cmd);
   if (target === "~" || target === "~/" || target === "~/*")

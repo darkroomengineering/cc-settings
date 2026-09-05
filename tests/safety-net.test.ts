@@ -59,6 +59,13 @@ describe("TS safety-net — rm -rf dangerous → BLOCK", () => {
     ["rm -rf .", "rm -rf ."],
     ["rm -rf ..", "rm -rf .."],
     ["rm -rf $HOME", "rm -rf $HOME"],
+    ["dangerous first operand", "rm -rf / node_modules"],
+    ["dangerous last operand", "rm -rf node_modules /"],
+    ["quoted home path before safe operand", 'rm -rf "$HOME/Library/Application Support" dist'],
+    ["dangerous operand after terminator", "rm -rf -- / node_modules"],
+    ["dangerous operand before terminator", "rm -rf / --"],
+    ["terminator without operands", "rm -rf --"],
+    ["redirection cannot hide dangerous operand", "rm -rf / > node_modules"],
   ] as const) {
     test(name, () => expectBlock(cmd));
   }
@@ -73,6 +80,10 @@ describe("TS safety-net — rm -rf safe → ALLOW", () => {
     ["rm -rf /var/tmp/build", "rm -rf /var/tmp/build"],
     ["rm -r mydir", "rm -r mydir"],
     ["rm -f myfile", "rm -f myfile"],
+    ["multiple safe operands", "rm -rf node_modules dist /tmp/cache"],
+    ["quoted safe operands", 'rm -rf "temp dir" /tmp/cache'],
+    ["flag-shaped operand after terminator", "rm -rf -- node_modules -rf"],
+    ["external build artifact remains allowed", "rm -rf /some/external/dist"],
   ] as const) {
     test(name, () => expectAllow(cmd));
   }

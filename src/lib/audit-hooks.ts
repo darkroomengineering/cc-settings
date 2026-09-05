@@ -614,7 +614,7 @@ export async function auditSettingsFile(
   // Content verification against the install manifest - shipped-pattern
   // commands are only "trusted" when the file they point at hashes to what
   // setup.ts installed.
-  const integrity = await loadSrcIntegrity(claudeDir);
+  const integrity = await loadSrcIntegrity(effectiveClaudeDir);
 
   // totalHooks counts audited command hooks (the "hook command(s) total" the
   // CLI prints) - NOT findings, which also include the schema pseudo-finding.

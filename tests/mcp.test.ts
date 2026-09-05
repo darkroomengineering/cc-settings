@@ -93,6 +93,31 @@ describe("mcp — claude.json installer", () => {
     }
   });
 
+  test("valid HTTP extensions survive unrelated and repeated same-name installs", async () => {
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-"));
+    try {
+      const claudeJsonPath = join(sandbox, ".claude.json");
+      const custom = {
+        type: "http" as const,
+        url: "https://example.test/mcp",
+        oauth: { clientId: "keep-me" },
+      };
+      await writeFile(claudeJsonPath, JSON.stringify({ mcpServers: { custom } }));
+      await installMcpToClaudeJson({ unrelated: { command: "custom-tool" } }, claudeJsonPath);
+      expect(JSON.parse(await readFile(claudeJsonPath, "utf8")).mcpServers.custom).toEqual(custom);
+
+      const teamMcp = { custom: { type: "http" as const, url: custom.url } };
+      for (let i = 0; i < 2; i++) {
+        expect(await installMcpToClaudeJson(teamMcp, claudeJsonPath, teamMcp)).toContain("custom");
+        expect(JSON.parse(await readFile(claudeJsonPath, "utf8")).mcpServers.custom).toEqual(
+          custom,
+        );
+      }
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
   test("H8: genuine user edit wins for shared key, but stale cc-settings engine output is overwritten", async () => {
     // Regression for the code-intel engine indirection (H8): a PRIOR install
     // resolved "llm-tldr" and wrote its exact shape into ~/.claude.json. This
