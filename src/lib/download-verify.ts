@@ -1,15 +1,8 @@
 // Verified-download primitive shared by the two pinned-binary installers:
 // engine-pin.ts (code-intel engine binaries) and pinned-tools.ts (standalone
-// CLI tools). Both had independently implemented the same
-// fetch → temp → checksum → cleanup state machine, which meant the security
-// boundary existed in two places and a hardening applied to one would silently
-// miss the other. See docs/audits/nuclear-review-2026-07-29.md F1.
-//
-// The callers differ only in what happens AFTER verification: engine-pin
-// renames the verified file into place; pinned-tools treats it as a .tar.xz and
-// lifts one binary out of it. Everything up to and including verification is
-// here, so the provenance gate below covers BOTH install paths — the specific
-// drift F1 identified.
+// CLI tools). Both use the same fetch → temp → checksum → cleanup flow.
+// Callers own installation after checksum verification: engine-pin renames
+// the file into place; pinned-tools extracts one binary from the archive.
 //
 // The verified temp file is handed back to the caller, which owns it from that
 // point: move it, extract it, and remove it. This module never leaves an
@@ -42,17 +35,9 @@ export interface VerifiedDownloadRequest {
   platformKey: string;
 }
 
-// Provenance gate — STUB, and deliberately the ONLY copy. Designed in now so
-// both install paths have the check wired; returns true until a real verifier
-// lands. Before F1's extraction this existed only on the engine path, so a real
-// implementation would have left the tool path (a ~55MB third-party binary from
-// a GitHub release) unverified without any warning.
 // TODO: verify SLSA L3 provenance + sigstore cosign keyless signature for the
 // downloaded bytes before trusting them. The checksum pin in downloadAndVerify
 // is the only enforced gate until this is implemented.
-function verifyProvenance(_label: string, _path: string): boolean {
-  return true;
-}
 
 /**
  * Download bytes and verify them against a pinned checksum.
@@ -60,9 +45,9 @@ function verifyProvenance(_label: string, _path: string): boolean {
  * Fail-soft (returns null, no throw): a non-OK HTTP response or a network
  * error — the caller simply skips installation and continues.
  *
- * Hard-fail (throws): the downloaded bytes don't match `expectedSha256`, or the
- * provenance gate rejects them. The temp file is removed first; an unverified
- * download is never left on disk for a caller to act on.
+ * Hard-fail (throws): the downloaded bytes don't match `expectedSha256`.
+ * The temp file is removed first; an unverified download is never left on disk
+ * for a caller to act on.
  *
  * Returns the path to the VERIFIED temp file on success. The caller owns it and
  * must move it into place and/or remove it.
@@ -103,11 +88,6 @@ export async function downloadAndVerify(req: VerifiedDownloadRequest): Promise<s
       throw new Error(
         `${req.label}: checksum mismatch for ${req.platformKey} (expected ${req.expectedSha256}, got ${actual ?? "unreadable"}) — refusing to install`,
       );
-    }
-
-    // Provenance gate (stubbed). Same fail-closed posture as the checksum.
-    if (!verifyProvenance(req.label, tmp)) {
-      throw new Error(`${req.label}: provenance verification failed — refusing to install`);
     }
 
     handedOff = true;

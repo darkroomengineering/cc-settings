@@ -1,13 +1,11 @@
 #!/usr/bin/env bun
-// PostToolUseFailure hook — log tool failures and warn on repeated failures per session.
+// PostToolUseFailure hook — log failures and record per-session problem signatures.
 // Port of scripts/post-failure.sh.
 //
 // Fail-open: always exits 0. Reads TOOL_NAME / TOOL_ERROR from env, session_id
 // from stdin JSON (falls back to CLAUDE_SESSION_ID env — same stdin+env
-// pattern as session-title.ts). The tally file is keyed by session id so
-// concurrent sessions never race on the same read-modify-write counter and a
-// fresh SessionStart never wipes another session's live tally (#85).
-// Per-session failure tally lives at ~/.claude/tmp/tool-failure-counts-<session>.
+// pattern as session-title.ts). Problem signatures are keyed by session id
+// so concurrent sessions keep independent failure histories.
 
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -83,13 +81,6 @@ await appendEntries(input.session_id, [
 // today (not attacker-reachable), but this keeps the convention consistent
 // rather than leaving this one call site as the odd one out.
 const sessionId = isSafeSessionId(input.session_id) ? input.session_id : "unknown";
-
-// Per-session tally: counts keyed by tool name, file keyed by session id.
-const STATE_FILE = `tool-failure-counts-${sessionId}`;
-const counts = await readState<Record<string, number>>(STATE_FILE, {});
-const currentCount = counts[toolName] ?? 0;
-counts[toolName] = currentCount + 1;
-await writeState(STATE_FILE, counts).catch(() => {});
 
 // Signature-keyed tally: same {tool, normalized error} collapses to one
 // bucket, so "Bash failed 3 times" for three unrelated commands doesn't read

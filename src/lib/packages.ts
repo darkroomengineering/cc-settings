@@ -1,6 +1,6 @@
 // Package-manager detection and install helpers — port of lib/packages.sh.
 //
-// Detects the first available system/Node/Python package manager, then
+// Detects the first available system/Python package manager, then
 // provides idempotent `ensure` helpers that return true on success.
 // Spawns use Bun.spawn for cross-platform argv handling.
 
@@ -21,14 +21,7 @@ export type SystemPM =
   | "winget"
   | null;
 
-type NodePM = "bun" | "pnpm" | "yarn" | "npm" | null;
 type PythonPM = "pipx" | "pip3" | "pip" | null;
-
-export interface PackageManagers {
-  system: SystemPM;
-  node: NodePM;
-  python: PythonPM;
-}
 
 let aptUpdated = false;
 
@@ -71,23 +64,11 @@ export function detectSystemPM(): SystemPM {
   );
 }
 
-function detectNodePM(): NodePM {
-  if (hasCommand("bun")) return "bun";
-  if (hasCommand("pnpm")) return "pnpm";
-  if (hasCommand("yarn")) return "yarn";
-  if (hasCommand("npm")) return "npm";
-  return null;
-}
-
 function detectPythonPM(): PythonPM {
   if (hasCommand("pipx")) return "pipx";
   if (hasCommand("pip3")) return "pip3";
   if (hasCommand("pip")) return "pip";
   return null;
-}
-
-export function detectPackageManagers(): PackageManagers {
-  return { system: detectSystemPM(), node: detectNodePM(), python: detectPythonPM() };
 }
 
 // Package installs (apt-get/brew/pip) can legitimately take minutes (cold
@@ -116,12 +97,12 @@ export async function ensureSystemPackage(pkg: string, checkCmd = pkg): Promise<
     progressOk(checkCmd);
     return true;
   }
-  const pms = detectPackageManagers();
-  if (!pms.system) {
+  const pm = detectSystemPM();
+  if (!pm) {
     progressWarn(`${pkg} - no package manager available`);
     return false;
   }
-  progressArrow(`Installing ${pkg} via ${pms.system}...`);
+  progressArrow(`Installing ${pkg} via ${pm}...`);
 
   const installCmd: Record<NonNullable<SystemPM>, string[]> = {
     brew: ["brew", "install", pkg],
@@ -137,12 +118,12 @@ export async function ensureSystemPackage(pkg: string, checkCmd = pkg): Promise<
     winget: ["winget", "install", "--id", pkg, "-e", "--silent"],
   };
 
-  if (pms.system === "apt" && !aptUpdated) {
+  if (pm === "apt" && !aptUpdated) {
     await runSilent(["sudo", "apt-get", "update", "-qq"]);
     aptUpdated = true;
   }
 
-  const ok = await runSilent(installCmd[pms.system]);
+  const ok = await runSilent(installCmd[pm]);
   if (ok) progressOk(`${pkg} installed`);
   else progressFail(`Failed to install ${pkg}`);
   return ok;
@@ -153,18 +134,18 @@ export async function ensurePythonPackage(pkg: string, checkCmd = pkg): Promise<
     progressOk(checkCmd);
     return true;
   }
-  const pms = detectPackageManagers();
-  if (!pms.python) {
+  const pm = detectPythonPM();
+  if (!pm) {
     progressWarn(`${pkg} - pip/pipx not available`);
     return false;
   }
-  progressArrow(`Installing ${pkg} via ${pms.python}...`);
+  progressArrow(`Installing ${pkg} via ${pm}...`);
   const installCmd: Record<NonNullable<PythonPM>, string[]> = {
     pipx: ["pipx", "install", pkg],
     pip3: ["pip3", "install", "--user", pkg],
     pip: ["pip", "install", "--user", pkg],
   };
-  const ok = await runSilent(installCmd[pms.python]);
+  const ok = await runSilent(installCmd[pm]);
   if (ok) progressOk(`${pkg} installed`);
   else progressFail(`Failed to install ${pkg}`);
   return ok;

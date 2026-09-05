@@ -13,7 +13,6 @@
 		"CC_CLAUDE_MD_CRITICAL_LINES": "600",
 		"CC_MAX_UNREVIEWED": "5",
 		"CC_MIN_REVIEW_SECONDS": "60",
-		"CC_PARALLELMAX_THRESHOLD": "20",
 		"MCP_NEEDS_AUTH_PRUNE_KEEP": "claude.ai Granola"
 	},
 	"sandbox": {

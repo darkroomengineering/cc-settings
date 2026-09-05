@@ -10,7 +10,7 @@
 // The seen-set is keyed by session id and written atomically (tmp+rename via
 // json-io's atomicWriteJson) so parallel sessions never race on the same
 // read-modify-write file, and is capped so it can't grow unbounded across a
-// long session (mirrors tool-cadence's files.slice(0, 20) pattern). (#85)
+// long session. (#85)
 
 import { mkdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";

@@ -8,10 +8,7 @@
 // ignored" — the resulting act-rate decides whether a harder escalation is
 // ever built.
 //
-// Matcher condition mirrors tool-cadence.ts's streak-reset check
-// (`toolName === "Agent"`) exactly — that hook is the existing authority for
-// "this tool call is a subagent spawn" in this environment, and this hook
-// must not invent a different one. Wired in config/40-hooks.json with a
+// Wired in config/40-hooks.json with a
 // `matcher: "Agent"` PostToolUse entry — never unmatched, since an unmatched
 // PostToolUse hook runs on every tool call.
 //

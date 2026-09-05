@@ -586,11 +586,8 @@ describe("log-bash.ts", () => {
 });
 
 describe("post-failure.ts", () => {
-  // The warn line is delivered via the hookSpecificOutput.additionalContext
-  // envelope (plain stdout on a PostToolUseFailure hook never reaches the
-  // model; see docs/hooks-reference.md "Sync vs Async Behavior").
-  test("repeated failures stay silent: the tally is written, nothing is injected", async () => {
-    const { mkdtempSync, rmSync, existsSync, readdirSync } = await import("node:fs");
+  test("repeated failures stay silent: signatures are written, nothing is injected", async () => {
+    const { mkdtempSync, rmSync, existsSync, readFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const sandbox = mkdtempSync(join(tmpdir(), "cc-postfail-test-"));
@@ -603,14 +600,15 @@ describe("post-failure.ts", () => {
       expect(r.stdout.trim()).toBe("");
       const tmp = join(sandbox, ".claude", "tmp");
       expect(existsSync(tmp)).toBe(true);
-      expect(readdirSync(tmp).some((f) => f.startsWith("tool-failure-counts-"))).toBe(true);
+      const signatures = JSON.parse(readFileSync(join(tmp, "problem-signatures-unknown"), "utf8"));
+      expect(Object.values(signatures)).toMatchObject([{ count: 3, tool: "Grep" }]);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }
   });
 
-  test("tally is session-keyed: a different CLAUDE_SESSION_ID gets its own counter (#85)", async () => {
-    const { mkdtempSync, rmSync, readdirSync } = await import("node:fs");
+  test("signatures are session-keyed: a different CLAUDE_SESSION_ID gets its own counts (#85)", async () => {
+    const { mkdtempSync, rmSync, readFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const sandbox = mkdtempSync(join(tmpdir(), "cc-postfail-session-test-"));
@@ -623,21 +621,24 @@ describe("post-failure.ts", () => {
       };
       const envB = { ...envA, CLAUDE_SESSION_ID: "session-b" };
 
-      // Two failures on session-a — not yet at the warn threshold.
+      // Two failures on session-a stay silent.
       await run("post-failure.ts", { env: envA, stdin: "" });
       const secondA = await run("post-failure.ts", { env: envA, stdin: "" });
       expect(secondA.stdout).not.toContain("failed");
 
-      // session-b's first failure must NOT inherit session-a's count — if the
-      // state file were global (unkeyed), this would already read as the 3rd
-      // failure and emit the warn line.
+      // session-b's first failure must not inherit session-a's count.
       const firstB = await run("post-failure.ts", { env: envB, stdin: "" });
       expect(firstB.stdout).not.toContain("failed");
 
-      // Separate on-disk state files, one per session.
-      const tmpFiles = readdirSync(join(sandbox, ".claude", "tmp"));
-      expect(tmpFiles).toContain("tool-failure-counts-session-a");
-      expect(tmpFiles).toContain("tool-failure-counts-session-b");
+      const tmp = join(sandbox, ".claude", "tmp");
+      const signaturesA = JSON.parse(
+        readFileSync(join(tmp, "problem-signatures-session-a"), "utf8"),
+      );
+      const signaturesB = JSON.parse(
+        readFileSync(join(tmp, "problem-signatures-session-b"), "utf8"),
+      );
+      expect(Object.values(signaturesA)).toMatchObject([{ count: 2, tool: "Grep" }]);
+      expect(Object.values(signaturesB)).toMatchObject([{ count: 1, tool: "Grep" }]);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }

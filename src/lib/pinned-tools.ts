@@ -3,7 +3,7 @@
 // that are never registered as an MCP engine (see tldr-code below): opt-in,
 // CLI-only tools that consumers shell out to directly.
 //
-// The download → checksum → provenance state machine is NOT implemented here:
+// The download → checksum → cleanup state machine is NOT implemented here:
 // it lives in download-verify.ts, shared with engine-pin.ts. Checksum remains
 // the security boundary — a mismatch deletes the download and throws, so no
 // unverified archive is ever extracted — and a missing checksum, non-OK HTTP

@@ -1,15 +1,13 @@
-// Review-queue backpressure — the consumer-side counterpart to the parallelmax counter.
+// Review-queue backpressure.
 //
-// The producer-side hooks (delegation-detector, tool-cadence parallelmax branch) push toward
-// spawning MORE agents. This models the constraint the "Orchestration Tax"
+// The delegation-detector hook encourages agent spawning. This models the constraint the "Orchestration Tax"
 // essay names: human review throughput. We count agent spawns since the last
 // commit and nudge when that exceeds your review rate (CC_MAX_UNREVIEWED).
 //
 // Drain model: a `git commit` resets the counter — committing means you
 // reviewed + integrated the work. It's a heuristic (commits and agents aren't
 // 1:1), but a clear, interpretable signal: "agents spawned since you last
-// closed a loop". Unlike parallelmax's consecutive-call counter, the count is
-// NOT reset on nudge — a queue's depth is real and keeps growing until drained.
+// closed a loop". The count is not reset on nudge; it keeps growing until drained.
 //
 // v2 adds the "tax meter": the age of the oldest unreviewed work (surfaced in
 // the statusline) and a cognitive-surrender proxy — committing a deep queue

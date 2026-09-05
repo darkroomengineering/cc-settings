@@ -80,8 +80,7 @@ async function writeSignatures(
 ): Promise<void> {
   const dir = join(home, ".claude", "tmp");
   await mkdir(dir, { recursive: true });
-  // No .json suffix — matches the real state-file naming convention
-  // (post-failure.ts's tool-failure-counts-<session> has none either).
+  // No .json suffix — matches post-failure.ts's signature state files.
   await writeFile(join(dir, `problem-signatures-${sessionId}`), JSON.stringify(map));
 }
 
@@ -684,14 +683,16 @@ describe("post-failure.ts / sanitizeSample — truncate-before-redact credential
     }
   });
 
-  test("an invalid session id falls back to the unknown bucket for both state files, never appears in a filename (Fix 3)", async () => {
+  test("an invalid session id falls back to the unknown signature bucket, never appears in a filename (Fix 3)", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-escalate-"));
     try {
       await runPostFailure(home, { sessionId: "../evil", toolName: "Bash", error: "boom" });
       const tmpFiles = await readdir(join(home, ".claude", "tmp"));
       expect(tmpFiles.some((f) => f.includes(".."))).toBe(false);
       expect(tmpFiles).toContain("problem-signatures-unknown");
-      expect(tmpFiles).toContain("tool-failure-counts-unknown");
+      expect(Object.values(await readSignatures(home, "unknown"))).toMatchObject([
+        { count: 1, tool: "Bash", sample: "boom" },
+      ]);
     } finally {
       await rm(home, { recursive: true, force: true });
     }

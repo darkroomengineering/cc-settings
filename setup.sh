@@ -42,7 +42,6 @@ fi
 set -euo pipefail
 
 REPO_URL="https://github.com/darkroomengineering/cc-settings.git"
-BUN_MIN="1.2.21"
 
 # --- resolve repo dir ---------------------------------------------------------
 

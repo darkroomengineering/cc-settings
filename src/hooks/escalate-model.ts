@@ -86,8 +86,7 @@ async function recordFired(
   );
 }
 
-// Same env-override precedent as CC_PARALLELMAX_THRESHOLD (hook-config.ts) —
-// default 3 matches post-failure.ts's existing "repeated failure" bar.
+// Recommend escalation after three occurrences of the same failure by default.
 const THRESHOLD = intEnv("CC_ESCALATE_THRESHOLD", 3);
 
 /** "unknown" when no session in the cache survives the staleness prune (same

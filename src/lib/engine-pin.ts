@@ -10,7 +10,7 @@
 // on-disk record, atomicWriteJson, and control-char strip on every value echoed
 // into a terminal banner.
 //
-// The download → checksum → provenance state machine itself lives in
+// The download → checksum → cleanup state machine itself lives in
 // download-verify.ts, shared with pinned-tools.ts's CLI-tool installer. Both
 // modules used to implement it separately, which put the security boundary in
 // two places (nuclear-review-2026-07-29 F1). This module now owns only what is
@@ -114,9 +114,9 @@ async function writePinRecord(
  * non-OK HTTP response, or a network error — the engine simply stays
  * uninstalled and the caller continues.
  *
- * Hard-fail (throws): the downloaded bytes don't match the pinned checksum, or
- * the provenance gate rejects them. The temp download is removed first; we
- * never leave an unverified binary on disk or fall through to running it.
+ * Hard-fail (throws): the downloaded bytes don't match the pinned checksum.
+ * The temp download is removed first; we never leave an unverified binary on
+ * disk or fall through to running it.
  *
  * Returns the installed binary path on success (or when an already-installed
  * binary already matches the pin).
