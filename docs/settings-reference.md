@@ -668,10 +668,14 @@ Curate the `/model` picker (v2.1.242): an ordered `options` array of `{model, la
 
 ### `keybindingFlavor`
 
-`"readline"` makes Ctrl+W delete back to the previous whitespace as Bash does (v2.1.238); v2.1.243 extends the flavor to Alt+F, Alt+D, Ctrl/Option+arrows, and punctuation word boundaries. Default `"classic"`.
+Inert since v2.1.261: the prompt's word-editing keys now always match Bash (Ctrl+W deletes back to whitespace, Alt+F and Alt+D stop at word end, punctuation separates words). The key is still accepted so files written for v2.1.238–v2.1.260 keep parsing; remove it at leisure.
+
+### `bashOutputMaxChars` / `taskOutputMaxChars`
+
+How many characters of Bash output or background-task output the model receives inline before the remainder is saved to a file (v2.1.261). Maximum 128000. Raise these when a command's tail is what you need and the file round-trip costs a turn.
 
 ```json
-{ "keybindingFlavor": "readline" }
+{ "bashOutputMaxChars": 64000, "taskOutputMaxChars": 64000 }
 ```
 
 ### `modelPricing`
@@ -711,6 +715,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `awsAuthRefresh` | string | A | Shell command called to refresh AWS credentials |
 | `awsCredentialExport` | string | A | Shell command that exports AWS credential env vars |
 | `axScreenReader` | boolean | U | Screen-reader mode: flat plain-text rendering without borders or animations; also `--ax-screen-reader` or `CLAUDE_AX_SCREEN_READER=1` (v2.1.208) |
+| `bashOutputMaxChars` | integer ≤ 128000 | G | Characters of Bash output the model receives inline before the rest is saved to a file (v2.1.261) |
 | `blockedMarketplaces` | string[] | E | Marketplace IDs users cannot install from |
 | `changelogUrl` | string | G | Override the URL `/release-notes` fetches from |
 | `channelsEnabled` | boolean | E | Opt into channel-based plugin distribution (v2.1.128) |
@@ -755,7 +760,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `includeCoAuthoredBy` | boolean | G | Deprecated: use `attribution` instead |
 | `includeGitInstructions` | boolean | G | Inject built-in git workflow instructions into the system prompt |
 | `isolatePeerMachines` | boolean | G | Require explicit approval before `SendMessage` reaches a session on another machine. `true` from any scope wins (v2.1.224) |
-| `keybindingFlavor` | `"classic"` \| `"readline"` | U | `"readline"` makes Ctrl+W delete back to whitespace, Bash-style (v2.1.238) |
+| `keybindingFlavor` | `"classic"` \| `"readline"` | U | Inert since v2.1.261; word-editing keys always match Bash. Still accepted so older files parse |
 | `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
 | `managedMcpServers` | Record\<string,McpServer\> | E | Org-delivered HTTP/SSE MCP servers, keyed by name, `.mcp.json` shape; managed scope only (v2.1.259) |
 | `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
@@ -799,6 +804,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `strictPluginOnlyCustomization` | boolean \| string[] | E | Restrict customization to plugin-provided items; `true` = all categories |
 | `subagentPromptCacheTtl` | `"5m"` \| `"1h"` | G | Prompt-cache lifetime for subagents/workflows/background requests; cc-settings sets `"5m"` (v2.1.242) |
 | `syntaxHighlightingDisabled` | boolean | U | Disable syntax highlighting in code blocks |
+| `taskOutputMaxChars` | integer ≤ 128000 | G | Characters of background-task output the model receives inline before the rest is saved to a file (v2.1.261) |
 | `teammateMode` | `"auto"` \| `"in-process"` \| `"tmux"` | G | Agent Teams coordination mode |
 | `terminalProgressBarEnabled` | boolean | U | Show a progress bar for long-running operations |
 | `timeFormat` | `"12h"` \| `"24h"` \| `"24h-utc"` \| strftime | U | Clock format for the turn-end clock and transcript timestamps (v2.1.257) |

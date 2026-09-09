@@ -59,7 +59,7 @@ Read all skill descriptions and flag:
 
 ### Skills
 - Merge skills with overlapping triggers
-- Remove unused skills
+- Remove unused skills. In Claude Code, run native `/skill-doctor` first: it reports which loaded skills went unused and what each costs in context, so prune from its numbers rather than by guess
 - Update outdated instructions
 - Ensure distinct, non-overlapping trigger phrases
 

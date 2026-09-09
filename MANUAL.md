@@ -275,7 +275,8 @@ bun ~/.claude/src/scripts/whats-on.ts
 
 This reports what is installed and shaping Claude user scope. It is not an invocation history and
 does not fully resolve project or managed-policy overrides. Codex has no exact equivalent; use
-`/status` for native session state and `/hooks` for plugin-hook trust.
+`/status` for native session state and `/hooks` for plugin-hook trust. In Claude Code, native
+`/skill-doctor` shows which loaded skills went unused and their context cost.
 
 For install health, run `bash setup.sh --target=<target> --status` from a checkout, or
 `npx darkroom-settings --status` from anywhere. For hook-integrity

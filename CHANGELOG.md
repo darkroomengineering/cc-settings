@@ -4,7 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [15.8.0] — 2026-09-09
+
+Synced with Claude Code v2.1.266 (from v2.1.260). 2.1.262 and 2.1.264 have no changelog entry and 2.1.263 lists only "Bug fixes and reliability improvements"; the substantive entries are in 2.1.261 and 2.1.265. Two settings keys adopted, one key marked inert, one native command folded into the consolidate skill. This release also carries the unreleased cleanup below.
+
+**Adopted:**
+- `bashOutputMaxChars` and `taskOutputMaxChars` (upstream 2.1.261) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`. Positive integers up to 128000 that raise how much Bash and background-task output reaches the model inline before the rest spills to a file. Not set in `config/10-core.json`; it is a per-user knob.
+- `keybindingFlavor` is inert since upstream 2.1.261 (the prompt's word-editing keys always match Bash now). The schema keeps the key so files written for v2.1.238–v2.1.260 still parse; the docs say so.
+
+**Native-now-redundant:**
+- `/skill-doctor` (upstream 2.1.261) measures which loaded skills went unused and their context cost. The `consolidate` skill's "remove unused skills" step now points at it instead of guessing; `MANUAL.md` mentions it next to `/status` and `/hooks`. Nothing deleted.
+
+**Skipped:** `--append-subagent-system-prompt-file`, `--plugin-dir` folder-of-plugins, the 1 GB tool-result cap (no config surface); `CLAUDE_CODE_USE_GATEWAY` regression and fix (env vars are reference-only, never set here); prompt-cache fixes for resumed subagents, teammates, and forked skills, the `/context` local estimate, the `rm -rf` prompt hardening, the auto-mode diagram-URL rule (behavior only); gateway, Bedrock, Vertex, Remote Control, Windows, VSCode, plugin-marketplace, and MCP SSE-fallback entries.
+
+**Files changed:**
+- `src/schemas/settings.ts`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `skills/consolidate/SKILL.md`
+- `MANUAL.md`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`
+- `CHANGELOG.md`
+
+**Cleanup (previously unreleased):**
 
 Removed unused parallelmax and per-tool failure counters, unread skill markers, unused Node package-manager detection, and the always-success provenance stub. Tool cadence now runs only for Bash and Agent calls; review-queue and signature tracking remain. Removed conflicting editing/review instructions, false React batching advice, obsolete `defer` guidance, and overstated npm-installer guarantees.
 
