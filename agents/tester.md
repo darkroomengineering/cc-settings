@@ -33,12 +33,20 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
 **Responsibilities**
 
 1. **Run Tests**
-   ```bash
-   # Unit & Component Tests (Vitest)
-   bun test              # Run all tests
-   bun test --watch      # Watch mode
-   bun test --coverage   # With coverage
-   ```
+   Read `package.json` and the existing tests before selecting a runner, as in
+   [ship Step 3](../skills/ship/SKILL.md#step-3-test-if-tests-exist). Use
+   `bun run test` when the project declares a test script. Without that script,
+   use `./node_modules/.bin/vitest run` only for an established Vitest suite, or
+   `bun test` only for an established native Bun suite (`bun:test` imports).
+   If neither is established, report that no runner is configured. Never switch
+   runners after a failure or download a runner to bypass project configuration.
+
+   For watch and coverage, prefer the project's dedicated scripts (for example,
+   `bun run test:watch` and `bun run test:coverage`). Otherwise use the selected
+   runner's flags: Vitest uses `./node_modules/.bin/vitest --watch` or
+   `./node_modules/.bin/vitest run --coverage`; native Bun uses `bun test --watch`
+   or `bun test --coverage`. Forward flags through a test script only after
+   inspecting the command it runs.
 
    E2E / Visual tests via the chrome-devtools MCP:
 

@@ -397,7 +397,7 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `freeze-guard.ts` | When a `/freeze` boundary is active, blocks Edit/Write calls targeting any file outside the locked directory | No |
+| `freeze-guard.ts` | When the current session's `/freeze` boundary is active, blocks Edit/Write calls targeting any file outside the locked directory. Session records are independent; legacy untagged state remains a fallback | No |
 
 ### PostToolUse (Write|Edit matcher)
 
@@ -420,6 +420,10 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 | `log-bash.ts` | Logs every Bash command to `~/.claude/logs/bash-YYYY-MM-DD.log` | Yes |
 
 Logs are used by `bun run claude-audit` to analyze command patterns, security concerns, and repeated commands. Hook receives JSON on stdin with `tool_input.command`.
+
+Before writing, the logger redacts recognized credentials, including secret-like
+assignments with quoted, escaped, or mixed quoted/unquoted values. Redaction is
+best effort; it does not guarantee arbitrary command text is free of secrets.
 
 **Log format:** `[HH:MM:SS] [project] command`
 

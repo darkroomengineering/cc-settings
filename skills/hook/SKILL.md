@@ -11,7 +11,7 @@ Create a custom React hook following Darkroom conventions. The hook itself is st
 ## Step 1 — Detect stack
 
 Read `package.json`:
-- `dependencies.next` → satus / Next.js (path alias `@/`, no `lib/hooks/` requires `'use client'` boundary)
+- `dependencies.next` → satus / Next.js (path alias `@/`, hooks require a `'use client'` boundary)
 - `dependencies["react-router"]` → novus / React Router (path alias `~/`, components isomorphic)
 
 ## Step 2 — Choose location
@@ -29,6 +29,8 @@ Confirm by checking the existing `lib/hooks/` or `hooks/` directory structure if
 ```tsx
 // lib/hooks/<name>.ts
 'use client'
+// Client Components can prerender on the server. Read browser APIs in effects
+// or event handlers, with the same initial state on the server and browser.
 
 import { useState, useEffect } from 'react'
 
@@ -52,8 +54,8 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
 ```tsx
 // hooks/<name>.ts
 // No 'use client' — RR components are isomorphic; the hook runs wherever
-// it's called from. If the hook touches browser APIs, guard with
-// `typeof window !== 'undefined'` or call from inside `useEffect`.
+// it's called from. Read browser APIs in effects or event handlers, with the
+// same initial state on the server and browser.
 
 import { useState, useEffect } from 'react'
 
@@ -79,13 +81,20 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
 2. **Named export** — `export function useX`, not default.
 3. **Prefix with `use`** — React hook naming convention.
 4. **No memoization** — React Compiler handles it automatically.
+5. **Hydration-safe state** — both stacks can render on the server. Use a
+   deterministic initial value for the server render and first browser render;
+   `'use client'` does not disable prerendering. A `typeof window` branch in a
+   lazy state initializer can still produce different markup and a hydration
+   mismatch. Read `localStorage` in an effect, and finish that read before
+   enabling an effect that persists state, so initial defaults cannot overwrite
+   stored values.
 
 ## Stack-specific
 
 | | satus | novus |
 |---|---|---|
 | Directive | `'use client'` (hooks live in client boundary) | None (isomorphic) |
-| Browser API guard | Only runs after hydration anyway | Guard with `typeof window` or use `useEffect` |
+| Browser APIs | SSR-safe initial state; effects or event handlers | SSR-safe initial state; effects or event handlers |
 | Path alias | `@/` | `~/` |
 
 ## Before you start
@@ -108,10 +117,10 @@ Only create custom hooks when `hamo` doesn't cover the use case.
 
 ```
 User: "create a useLocalStorage hook" (in satus repo)
-→ Creates lib/hooks/use-local-storage.ts with 'use client' directive
+→ Creates lib/hooks/use-local-storage.ts with 'use client', deterministic initial state, effect-based storage read before writes
 
 User: "create a useLocalStorage hook" (in novus repo)
-→ Creates hooks/use-local-storage.ts, no directive, browser-API-guarded
+→ Creates hooks/use-local-storage.ts, no directive, deterministic initial state, effect-based storage read before writes
 ```
 
 ## Arguments

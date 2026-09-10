@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.8.0"; // Audit fixes: installer ownership, runtime correctness, and documented guidance.
+const VERSION = "15.8.1"; // Audit fixes: installer ownership, runtime correctness, and documented guidance.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

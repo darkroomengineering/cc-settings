@@ -261,13 +261,17 @@ export function SmoothScrollProvider({ children }) {
       smoothWheel: true,
     })
 
+    let frameId: number
     function raf(time: number) {
       lenis.raf(time)
-      requestAnimationFrame(raf)
+      frameId = requestAnimationFrame(raf)
     }
-    requestAnimationFrame(raf)
+    frameId = requestAnimationFrame(raf)
 
-    return () => lenis.destroy()
+    return () => {
+      cancelAnimationFrame(frameId)
+      lenis.destroy()
+    }
   }, [])
 
   return children
@@ -281,15 +285,14 @@ useEffect(() => {
 
   lenis.on('scroll', ScrollTrigger.update)
 
-  gsap.ticker.add((time) => {
-    lenis.raf(time * 1000)
-  })
+  const tick = (time: number) => lenis.raf(time * 1000)
+  gsap.ticker.add(tick)
 
   gsap.ticker.lagSmoothing(0)
 
   return () => {
+    gsap.ticker.remove(tick)
     lenis.destroy()
-    gsap.ticker.remove(lenis.raf)
   }
 }, [])
 ```

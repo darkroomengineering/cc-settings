@@ -18,7 +18,7 @@ to continue without enforcement.
 
 The remaining workflow is Claude-only.
 
-Restrict `Edit` and `Write` to a single directory. Any edit targeting a file outside the boundary is **blocked** by the `freeze-guard` PreToolUse hook. State persists in `~/.claude/tmp/freeze.json`, tagged with the session that set it — a freeze forgotten from a different session or project self-heals away automatically instead of blocking the next session's edits.
+Restrict `Edit` and `Write` to a single directory. Any edit targeting a file outside the boundary is **blocked** by the `freeze-guard` PreToolUse hook. State persists per session in `~/.claude/tmp/freeze-<sha256(sessionId)>.json`; setting, checking, or clearing one session's boundary leaves other sessions untouched. Legacy `freeze.json` state without a session tag is still honored when no session record exists. Legacy state tagged to another session is ignored without deleting it.
 
 Note: notebook edits (`NotebookEdit`) and shell writes (`Bash`) are not gated — the boundary covers the file-editing tools only.
 

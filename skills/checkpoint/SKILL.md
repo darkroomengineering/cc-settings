@@ -53,17 +53,24 @@ CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" show chk-20240115-103
 
 Real, opt-in rollback — restores tracked files (working tree + index) to
 exactly what they were at save time, then reapplies whatever uncommitted
-changes existed at that moment (captured as a patch when the checkpoint was
-saved). Untracked files are never touched or deleted; if any existed at save
-time they're just listed as a warning (their content was never captured).
+changes existed at that moment (captured as a binary-complete patch when the checkpoint was
+saved). Untracked content is not captured; files untracked at save time are
+listed as a warning. A forced restore across commits can overwrite a currently
+untracked path that was tracked in the saved commit. Move that content outside
+the repository before using `--force`; the safety checkpoint cannot recover it.
 Scope note: restore reconstructs file *content* only — anything that was
 staged at save time comes back as unstaged working-tree changes (the patch
 reapplies to the worktree; index state is intentionally not reconstructed).
 
 Safety rails:
+- **Validate before reset.** The saved commit and patch are checked against a
+  temporary Git index before tracked files are changed. A missing, unreadable,
+  or non-restorable patch (including an old text-only binary diff) refuses
+  restoration without resetting the working tree.
 - **Auto safety-checkpoint first.** Before anything is touched, the current
-  state is saved as its own checkpoint and its id is printed — restore is
-  itself reversible by restoring that id (with `--force`).
+  state is saved as its own checkpoint and its id is printed —
+  tracked content is recoverable by restoring that id (with `--force`).
+  This safety checkpoint also excludes untracked content.
 - **Branch/sha guard.** If the current branch or HEAD differs from what the
   checkpoint recorded, restore refuses and tells you to check out that branch
   or pass `--force`.
@@ -118,6 +125,7 @@ User: "clean up old checkpoints"
 Checkpoints are stored under `$CC_STATE_ROOT/checkpoints/<project-name>/` as
 JSON files with a `latest` symlink pointing to the most recent. Each checkpoint
 with uncommitted changes at save time also gets a sibling `chk-<id>.patch` file
-(`git diff HEAD` output) — this is what makes `restore` a real rollback instead
+(`git diff --binary --full-index HEAD` output) — this is what makes `restore` a real rollback instead
 of a metadata dump. Checkpoints saved before this feature existed have no patch
-file and restore in metadata-only (legacy) mode.
+metadata and restore in metadata-only (legacy) mode. A checkpoint that declares
+a patch but has lost that file is an error, not a metadata-only checkpoint.

@@ -17,6 +17,12 @@ index to warm — normal use is through the `mcp__tldr__*` tools. (A local CLI
 exists at `src/codemap/cli.ts` for manual debugging; it is not something users
 install.) **TS/JS only.**
 
+`impact` and `context` match resolved TypeScript symbols, including renamed
+imports and instantiated generic methods. `calls` remains a name-based call-edge
+view; these tools do not promise to resolve arbitrary dynamic references.
+Without a tsconfig, source discovery and `change_impact` include `.mjs` and
+`.cjs` alongside `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, and `.cts`.
+
 | Instead of... | Use |
 |---|---|
 | Locating a symbol in a large file | `context` (signature, callers, callees) |

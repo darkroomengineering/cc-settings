@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.8.1] — 2026-09-11
+
+- Preserve personal settings across reinstalls by recording team contributions separately from
+  merged snapshots. Serialize installer lock transitions and refresh isolated Git indexes so
+  auto-update recognizes clean checkouts.
+- Capture binary checkpoint changes and validate restore material before resetting files.
+  Isolate freeze boundaries by session, normalize removal targets, redact quoted and escaped
+  credential assignments, and require generated ownership stamps before replacing project instructions.
+- Resolve renamed imports and generic method references in codemap caller queries; discover
+  `.mjs` and `.cjs` sources without a tsconfig and include them in change impact.
+- Split installer responsibilities into bounded modules, share the explicit current runtime
+  inventory, and ship the audit performance resources in both product installations while
+  preserving historical ownership manifests.
+- Correct test-runner selection, optional build gates, SSR-safe hook guidance, animation cleanup,
+  JSON-LD escaping, and path-containment examples. Align runtime and installer documentation with
+  the corrected behavior.
+
 ## [15.8.0] — 2026-09-09
 
 Synced with Claude Code v2.1.266 (from v2.1.260). 2.1.262 and 2.1.264 have no changelog entry and 2.1.263 lists only "Bug fixes and reliability improvements"; the substantive entries are in 2.1.261 and 2.1.265. Two settings keys adopted, one key marked inert, one native command folded into the consolidate skill. This release also carries the unreleased cleanup below.

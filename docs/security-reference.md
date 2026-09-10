@@ -280,8 +280,10 @@ For repos that ship containers or Terraform (rarer at Darkroom, cheap to check w
 ### cc-settings boundaries
 
 The safety-net hook checks every operand in a recognized recursive forced removal;
-a permitted build directory must not hide another dangerous target. Its tokenizer
-remains a heuristic, not a complete shell parser.
+a permitted build directory must not hide another dangerous target. Literal paths
+are normalized before directory containment checks, so `..` cannot escape an
+allowed prefix. Its tokenizer remains a heuristic, not a complete shell parser;
+the hook is an advisory, fail-open layer, not a filesystem enforcement boundary.
 
 Hook audits resolve source integrity from the installation being audited, including
 when only a custom settings path is supplied. MCP installation validates existing
@@ -492,23 +494,39 @@ export async function GET(request: Request) {
 }
 
 // SECURE
-import path from 'path'
+import { readFile, realpath } from 'node:fs/promises'
+import path from 'node:path'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const file = searchParams.get('file')
 
-  const uploadsDir = path.resolve('./uploads')
-  const filePath = path.resolve(uploadsDir, file || '')
-
-  if (!filePath.startsWith(uploadsDir)) {
-    return new Response('Forbidden', { status: 403 })
+  if (!file || file.includes('\0')) {
+    return new Response('Invalid file', { status: 400 })
   }
 
-  const content = await fs.readFile(filePath)
-  return new Response(content)
+  // A missing uploads root is a configuration error, not a missing user file.
+  const uploadsDir = await realpath(path.resolve('./uploads'))
+  try {
+    const filePath = await realpath(path.resolve(uploadsDir, file))
+    const relative = path.relative(uploadsDir, filePath)
+    if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      return new Response('Forbidden', { status: 403 })
+    }
+    return new Response(await readFile(filePath))
+  } catch (error) {
+    if (error instanceof Error && 'code' in error &&
+        ['ENOENT', 'ENOTDIR', 'EISDIR'].includes(String(error.code))) {
+      return new Response('Not found', { status: 404 })
+    }
+    throw error
+  }
 }
 ```
+
+This example resolves symlinks before comparing directory boundaries. It assumes
+an untrusted actor cannot replace filesystem entries between validation and the
+read; a path check alone does not prevent that race.
 
 ### Pattern 5: Insecure Direct Object Reference (IDOR)
 

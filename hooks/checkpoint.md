@@ -94,8 +94,12 @@ On restore, todos are rebuilt from checkpoint state.
 ## Integration with Git
 
 - Checkpoints record the current branch, SHA, dirty state, and a `git diff
-  HEAD` patch of uncommitted changes — `restore` uses the sha + patch to put
-  tracked files back exactly as they were (see `skills/checkpoint/SKILL.md`
+  --binary --full-index HEAD` patch of uncommitted changes, including binary
+  content. Restore validates the saved commit and patch against a temporary
+  index before resetting tracked files; missing or non-restorable patches
+  refuse without resetting. The safety checkpoint also captures binary content.
+  Restore reconstructs tracked content; previously staged edits return unstaged,
+  and untracked content is not captured (see `skills/checkpoint/SKILL.md`
   for the full restore semantics, safety checkpoint, and `--force` gate)
 - On restore, a branch/sha mismatch refuses unless `--force` is passed
 - Recommended: manually checkpoint at 80% and commit completed work to git

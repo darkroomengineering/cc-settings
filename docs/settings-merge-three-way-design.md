@@ -1,5 +1,15 @@
 # Three-way settings merge — design
 
+**Current contract (supersedes the ownership assumptions below):** the baseline's
+`settings` field is a merged restoration snapshot, not evidence of team ownership.
+Full installs now record the pre-merge team contribution separately in
+`team_settings`; `src/lib/claude-install-settings.ts` passes only that contribution
+to the merger. Unchanged team defaults can advance and retired, unchanged team
+env keys can be removed. Differing personal values survive. Legacy merged-only
+snapshots cannot establish ownership and retain user-wins behavior, alongside
+explicit legacy migrations. Equal personal/team values remain indistinguishable.
+This bounded provenance correction does not adopt the full engine proposed below.
+
 **Status: T-1/T-2 (baseline write) shipped in v13.1.0 — see `feat(v13.1.0): record a
 settings baseline on each install; decline the three-way merge`. T-3–T-6 (the
 three-way engine itself) were designed, costed, and explicitly declined — see the

@@ -55,6 +55,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 ## Structured Data (JSON-LD)
 
+Escape `<` after serialization so content cannot close the HTML script element.
+The JSON parser restores the original values, including angle brackets. This is
+the [Next.js JSON-LD serialization pattern](https://nextjs.org/docs/app/guides/json-ld).
+
 ### Organization
 ```tsx
 <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
@@ -67,7 +71,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     'https://twitter.com/company',
     'https://instagram.com/company',
   ],
-}) }} />
+}).replace(/</g, '\\u003c') }} />
 ```
 
 ### Product (Shopify)
@@ -89,7 +93,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? 'https://schema.org/InStock'
       : 'https://schema.org/OutOfStock',
   },
-}) }} />
+}).replace(/</g, '\\u003c') }} />
 ```
 
 ### Article (Sanity Blog)
@@ -107,7 +111,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     name: 'Company Name',
     logo: { '@type': 'ImageObject', url: 'https://your-site.example/logo.png' },
   },
-}) }} />
+}).replace(/</g, '\\u003c') }} />
 ```
 
 ### FAQ
@@ -120,7 +124,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     name: faq.question,
     acceptedAnswer: { '@type': 'Answer', text: faq.answer },
   })),
-}) }} />
+}).replace(/</g, '\\u003c') }} />
 ```
 
 ### Breadcrumbs
@@ -134,7 +138,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     name: crumb.label,
     item: `https://your-site.example${crumb.href}`,
   })),
-}) }} />
+}).replace(/</g, '\\u003c') }} />
 ```
 
 ---

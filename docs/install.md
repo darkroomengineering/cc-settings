@@ -190,10 +190,35 @@ outside cc-settings ownership.
 Reinstalls preserve unrelated Claude permissions, custom hooks, local overrides, and MCP servers,
 including unknown fields in existing MCP server definitions.
 They preserve unrelated Codex agents, rules, and text outside the marked `AGENTS.md` block. The
-Claude settings merge is three-way against the previous install's recorded baseline: a value you
-changed always wins, a value still equal to what the previous install wrote follows a changed team
-default, and env keys cc-settings retires are removed. The install output reports both as
-"Updated N stale default(s)" and "Pruned N env var(s)".
+Claude settings merge compares values with the previous install's recorded **team contribution**
+(`team_settings`), never the merged restoration snapshot (`settings`). A differing personal value
+survives; a value still equal to the prior team default follows a changed default, and retired env
+keys are removed only when their value still matches the prior team's value. Explicit legacy
+migrations still apply. Legacy snapshots without `team_settings` cannot prove ownership and retain
+user-wins behavior. A personal value equal to a recorded team default is indistinguishable from an
+unchanged default. The install output reports updates and retirement as "Updated N stale
+default(s)" and "Pruned N env var(s)". See [settings merge behavior](./settings-reference.md#re-install-merge-behavior)
+for field-specific policies.
+
+Project initialization uses a separate ownership check. `project-init` replaces existing
+instruction files only when their first line matches a supported generated cc-settings ownership
+stamp. A heading or personal instruction that merely mentions `cc-settings` does not authorize
+overwrite; custom files are preserved.
+
+Managed source inventories are explicit and versioned: Claude manifest 7 and Codex runtime
+manifest 5 share the current source list in `src/lib/install-source-inventory.ts`. They include
+the audit performance playbook, network capture script, and bundle attribution script.
+Historical manifests retain their original ownership lists for rollback and uninstall.
+The installer separates settings and ownership (`claude-install-settings.ts`,
+`claude-install-ownership.ts`), lifecycle coordination (`install-lifecycle.ts`), display
+(`install-display.ts`), and rollback validation (`claude-rollback-validation.ts`) under `src/lib/`.
+Codex runtime, backup, native-agent, and manifest handling live in their corresponding
+`src/lib/codex-*.ts` modules.
+
+Installer lock acquisition and release serialize ownership transitions through the exclusive
+`install.lock.guard` sidecar. A stranded guard fails closed instead of being reclaimed
+automatically: retry first, and remove it manually only after verifying that no installer is
+running. Cleanup attempts every acquired lock release and reports aggregated failures.
 
 If Codex reports shortened skill descriptions, follow the
 [duplicate legacy skill migration](./codex.md#if-codex-says-skill-descriptions-were-shortened).

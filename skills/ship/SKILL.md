@@ -37,7 +37,11 @@ ssh-add -l
 ```
 If no identities loaded: **Unlock 1Password and retry — git signing will fail otherwise.** Agent drops mid-flow are a recurring cause of failed pushes; catch it now, not after the commit.
 
-Do not commit until Steps 1–4 (typecheck/build/test/lint) are green. Skipping ahead is where amend churn comes from — `--amend` to fix a lint error you would have caught in 30 seconds invalidates signatures and CI runs.
+Read and validate `package.json` before choosing commands. Invalid JSON or invalid
+script declarations block the pipeline. Do not commit until all applicable gates
+in Steps 1–4 (typecheck/build/test/lint) are green; record an absent build script
+as N/A with its reason. Skipping ahead is where amend churn comes from — `--amend`
+to fix a lint error you would have caught in 30 seconds invalidates signatures and CI runs.
 
 ### Step 1: Type Check
 ```bash
@@ -46,10 +50,18 @@ bunx tsc --noEmit
 If errors: fix them. Do not proceed until clean.
 
 ### Step 2: Build
+
+Inspect the validated manifest: if `scripts.build` is a nonempty string, run:
+
 ```bash
 bun run build
 ```
-If errors: fix them. Do not proceed until clean.
+If the configured build fails, fix it; do not proceed until clean. If `build` is
+absent, record **N/A — no build script** and continue with the applicable
+typecheck, test, and lint gates. An empty, whitespace-only, or non-string build
+declaration is invalid and blocks the pipeline. Do not add a dummy build script
+or silently replace a failing build with typecheck. A proof runner that only
+detects typecheck/test/lint does not replace this configured-build gate.
 
 ### Step 3: Test (if tests exist)
 
@@ -217,7 +229,7 @@ Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean 
 Per the Autonomy Contract (CLAUDE-FULL.md): steps 5–7 are pre-approved once CI is green, the head is confirmed unchanged, and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
 
 ## Rules
-- NEVER skip the type check or build step
+- NEVER skip an applicable type check or configured build; an absent build script is N/A with a recorded reason
 - NEVER create a PR with failing tests
 - Conventional commit messages only (`feat:`, `fix:`, `refactor:`, etc.)
 - No AI attribution in commits or PR descriptions — see `rules/git.md`.
@@ -226,7 +238,7 @@ Per the Autonomy Contract (CLAUDE-FULL.md): steps 5–7 are pre-approved once CI
 
 ## Output
 Return:
-- **Build status**: Pass/Fail
+- **Build status**: Pass/Fail/N/A (N/A requires the reason: no build script)
 - **Test status**: Pass/Fail (with count)
 - **Lint status**: Pass/Fail
 - **Review status**: Approved/Needs Changes

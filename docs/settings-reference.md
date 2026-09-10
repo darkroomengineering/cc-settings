@@ -1293,15 +1293,23 @@ Running `setup.sh` against an existing `~/.claude/settings.json` performs a **fi
 
 | Field | Policy |
 |-------|--------|
-| Top-level scalars (`model`, `statusLine`, `theme`, …) | **User wins when declared.** If you've set a value, re-install keeps it. Team fills in keys you haven't declared. |
+| Top-level scalars (`model`, `theme`, …) and `statusLine` | **Personal changes win.** Values still equal to the previous recorded team contribution follow updated team defaults. Team fills undeclared keys; `statusLine` is compared as a whole block. |
 | `permissions.allow` / `permissions.ask` / `permissions.additionalDirectories` | **Union.** Team entries always present; your additions are preserved. Order: team-original-order, then your extras. |
 | `permissions.deny` | **Union (always additive).** Team denies re-appear even if you deleted them locally — they're safety guardrails. |
-| `permissions.defaultMode` / `permissions.autoMode` | **User wins when declared.** |
+| `permissions.defaultMode` / `permissions.autoMode` | **Personal changes win; unchanged recorded team defaults advance.** |
 | `hooks` | **Per-event union of groups.** Team's hooks (the ones that power cc-settings) run alongside any hooks you've added. Dedupe by structural equality. |
-| `env` | **Shallow merge, user wins on conflict.** Your local `ENABLE_PROMPT_CACHING_1H=0` or debug flags stick across re-installs. |
+| `env` | **Personal changes win.** Unchanged recorded team values advance, and unchanged team keys retired from the current config are pruned. User-only entries survive. Explicit deprecated-key migrations still apply. |
 | `mcpServers` | **Not written to `settings.json` at all** (since v12.16.0). Claude Code reads user-scope MCP servers from `~/.claude.json`, so that is the only file the installer touches; servers you added there are preserved by construction (the installer spreads your existing entries last). A block left in `settings.json` by an older install is removed on the next install — except entries you added yourself, which are kept. |
 
 At the end of a merge the installer logs a one-line summary, e.g. `✓ Preserved user customization: 3 permission rule(s), 1 env override(s)`.
+
+The baseline file records two different facts: `settings` is the merged snapshot
+for restoration, while `team_settings` records only the previous team's
+contribution before merging. Only `team_settings` establishes ownership for
+default updates and env retirement. Legacy snapshots without it cannot prove
+ownership and use user-wins behavior, with the existing explicit migration
+rules retained. A personal value equal to the recorded team default is
+indistinguishable from an unchanged default and will follow team updates.
 
 ### Interactive mode
 
@@ -1319,15 +1327,24 @@ Hitting Enter on every prompt accepts the default (take team addition / keep you
 
 ### Why `--interactive` exists
 
-Non-interactive "user wins when declared" has one known tradeoff: if the team file changes a scalar like `model` in a future release, users whose `settings.json` still contains the previous value won't pick up the update (the merger can't distinguish "user explicitly declared X" from "X is a stale copy from last install"). Interactive mode surfaces each such divergence so you can opt into team updates explicitly.
+Interactive mode lets you choose between a personal value and a conflicting team
+value. Recorded, unchanged team defaults advance automatically in either mode.
+For legacy installs without team provenance, the merger conservatively preserves
+existing values; interactive mode lets you adopt a new team value explicitly.
 
 ### Known limitation: array-valued defaults inside an already-present block don't propagate
 
-The scalar tradeoff above has an array-shaped sibling that's easy to miss: `deepMergeUserWins` recurses into plain objects (so a brand-new sub-key of an existing object block *does* reach existing installs — that's the fix for the general nested-default gap), but for any key whose value is an array on **both** sides, it treats the pair as a scalar conflict and keeps the user's array wholesale, with no per-element reconciliation.
+Array defaults have a separate limitation: `deepMergeUserWins` recurses into plain objects (so a brand-new sub-key of an existing object block *does* reach existing installs), but for any key whose value is an array on **both** sides, it keeps the user's array wholesale, without comparing team provenance or reconciling elements.
 
 Concretely: `spinnerVerbs.verbs` (`config/10-core.json`) is an array default nested inside an already-present `spinnerVerbs` block. If a future release adds a new verb to that list, every existing install's on-disk `spinnerVerbs.verbs` — byte-identical to the *old* team default, never touched by the user — is indistinguishable from a deliberately customized array. The merger keeps the stale array; the new verb silently never reaches any pre-existing install. Unlike the object-sub-key case, there's no log line for this — only object-shaped new-default landings are counted via `defaultsAdded`.
 
-This is a real gap, not yet fixed — a proper fix needs either a stored previous-team-default snapshot (to detect "unchanged since last install" for arrays) or per-array `STRATEGIES` entries with explicit team-adds/user-can-decline semantics, mirroring how `permissions.allow` already reconciles arrays. Until then: **after any release that changes an array default nested in an existing block, verify with `bun run compose` (the fresh-install shape) and `jq` against a real `~/.claude/settings.json` (the re-install shape) rather than assuming re-install parity.** See the team-knowledge note `cc-settings-installer-skips-nested-config-defaults` for the original (object sub-key) class of this bug.
+This gap remains: a future change could compare arrays with the recorded team
+contribution, or define per-array `STRATEGIES` with explicit reconciliation
+semantics. Until then, **after any release that changes an array default nested
+in an existing block, compare `bun run compose` (fresh install) with the actual
+reinstalled `~/.claude/settings.json` rather than assuming parity.** See the
+team-knowledge note `cc-settings-installer-skips-nested-config-defaults` for the
+original object sub-key class of this bug.
 
 ---
 
