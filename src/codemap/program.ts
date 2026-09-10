@@ -38,7 +38,7 @@ export interface CodemapContext {
   rootFiles: string[];
 }
 
-const SOURCE_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"]);
+const SOURCE_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", "out", "coverage"]);
 
 // readdirSync wrapped so a permission/ENOENT error yields []. The return type

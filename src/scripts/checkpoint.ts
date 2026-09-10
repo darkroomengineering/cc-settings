@@ -13,7 +13,8 @@
 // Usage: checkpoint.ts <save|list|show|restore|clean> [args]
 
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import {
@@ -107,7 +108,14 @@ async function performSave(description: string): Promise<SaveResult> {
     runProcessFull("git", ["rev-parse", "HEAD"]),
     runProcessFull("git", ["diff", "--quiet"]),
     runProcessFull("git", ["diff", "--name-only", "HEAD"]),
-    runProcessFull("git", ["diff", "HEAD"]),
+    runProcessFull("git", [
+      "diff",
+      "--binary",
+      "--full-index",
+      "--no-ext-diff",
+      "--no-textconv",
+      "HEAD",
+    ]),
     runProcessFull("git", ["ls-files", "--others", "--exclude-standard"]),
   ]);
   // If we're in a git repo (rev-parse worked) but the patch capture itself
@@ -285,77 +293,108 @@ async function cmdRestore(target: string, opts: { force: boolean }): Promise<num
     return 1;
   }
 
-  // Before touching anything: auto-save the CURRENT state so this restore is
-  // itself reversible, even across a --force jump to a different sha/branch.
-  const safety = await performSave(`Safety checkpoint before restoring ${chk.id}`);
-  console.log(
-    `${palette.blue}Safety checkpoint of current state saved:${palette.reset} ${safety.id}`,
-  );
-  console.log("");
-
-  // Reset tracked files (worktree + index) to the checkpoint's sha. Never
-  // touches untracked files — `restore .` only ever affects paths git already
-  // tracks (or tracked at that source).
-  const restoreRes = await runProcessFull("git", [
-    "restore",
-    `--source=${chk.git.sha}`,
-    "--worktree",
-    "--staged",
-    ".",
-  ]);
-  if (restoreRes.exit !== 0) {
-    console.log(`${palette.red}git restore failed:${palette.reset} ${restoreRes.stderr.trim()}`);
-    console.log(
-      `${palette.yellow}Nothing else was changed. Your prior state is safe in checkpoint ${safety.id}.${palette.reset}`,
-    );
-    return 1;
-  }
-
-  let patchApplied = false;
-  if (chk.hasPatch) {
-    const patchPath = join(dirname(file), chk.patchFile ?? `${chk.id}.patch`);
-    if (!existsSync(patchPath)) {
-      console.log(`${palette.red}Patch file missing:${palette.reset} ${patchPath}`);
+  // Validate the saved commit and patch against an isolated index before
+  // changing tracked files. Keep the checked patch copy for the actual apply.
+  const validationDir = await mkdtemp(join(tmpdir(), "cc-checkpoint-"));
+  try {
+    const validationEnv = { ...process.env, GIT_INDEX_FILE: join(validationDir, "index") };
+    if (!/^[a-f\d]{4,64}$/i.test(chk.git.sha)) {
+      console.log(`${palette.red}Invalid checkpoint commit.${palette.reset}`);
+      return 1;
+    }
+    const tree = await runProcessFull("git", ["read-tree", chk.git.sha], { env: validationEnv });
+    if (tree.exit !== 0) {
       console.log(
-        `${palette.yellow}Tracked files were reset to ${chk.git.sha}'s committed content, but the recorded working-tree changes could not be reapplied. Undo with: bun ~/.claude/src/scripts/checkpoint.ts restore ${safety.id} --force${palette.reset}`,
+        `${palette.red}Checkpoint commit unavailable:${palette.reset} ${tree.stderr.trim()}`,
       );
       return 1;
     }
-    const applyRes = await runProcessFull("git", ["apply", patchPath]);
-    if (applyRes.exit !== 0) {
-      console.log(
-        `${palette.red}Failed to reapply saved working-tree changes:${palette.reset} ${applyRes.stderr.trim()}`,
-      );
-      console.log(
-        `${palette.yellow}Tracked files were reset to ${chk.git.sha}'s committed content. Undo with: bun ~/.claude/src/scripts/checkpoint.ts restore ${safety.id} --force${palette.reset}`,
-      );
-      return 1;
+    const checkedPatch = join(validationDir, "saved.patch");
+    if (chk.hasPatch) {
+      const patchPath = join(dirname(file), chk.patchFile ?? `${chk.id}.patch`);
+      try {
+        await writeFile(checkedPatch, readFileSync(patchPath));
+      } catch {
+        console.log(`${palette.red}Patch file missing or unreadable:${palette.reset} ${patchPath}`);
+        return 1;
+      }
+      const check = await runProcessFull("git", ["apply", "--cached", "--check", checkedPatch], {
+        env: validationEnv,
+      });
+      if (check.exit !== 0) {
+        console.log(
+          `${palette.red}Checkpoint patch cannot be restored:${palette.reset} ${check.stderr.trim()}`,
+        );
+        return 1;
+      }
     }
-    patchApplied = true;
-  }
 
-  const untracked = chk.git.untrackedFiles ?? [];
-  if (untracked.length > 0) {
+    // Before touching anything: auto-save the CURRENT state so this restore is
+    // itself reversible, even across a --force jump to a different sha/branch.
+    const safety = await performSave(`Safety checkpoint before restoring ${chk.id}`);
     console.log(
-      `${palette.yellow}Note: ${untracked.length} untracked file(s) existed at save time and were NOT restored (their content wasn't captured):${palette.reset}`,
+      `${palette.blue}Safety checkpoint of current state saved:${palette.reset} ${safety.id}`,
     );
-    for (const f of untracked) console.log(`  ${f}`);
     console.log("");
-  }
 
-  console.log(
-    `${palette.green}Restored tracked files to checkpoint ${chk.id} (${chk.git.sha}).${palette.reset}`,
-  );
-  console.log(
-    patchApplied
-      ? `${palette.green}Reapplied the working-tree changes captured at save time.${palette.reset}`
-      : `${palette.green}Checkpoint had no uncommitted changes at save time — the tree now matches ${chk.git.sha} exactly.${palette.reset}`,
-  );
-  console.log("");
-  console.log(
-    `${palette.blue}To undo this restore:${palette.reset} bun ~/.claude/src/scripts/checkpoint.ts restore ${safety.id} --force`,
-  );
-  return 0;
+    // Reset paths tracked now or at the saved sha. Across commits, a currently
+    // untracked path tracked at that source can be overwritten; untracked
+    // content is outside the safety checkpoint's capture scope.
+    const restoreRes = await runProcessFull("git", [
+      "restore",
+      `--source=${chk.git.sha}`,
+      "--worktree",
+      "--staged",
+      ".",
+    ]);
+    if (restoreRes.exit !== 0) {
+      console.log(`${palette.red}git restore failed:${palette.reset} ${restoreRes.stderr.trim()}`);
+      console.log(
+        `${palette.yellow}Nothing else was changed. Your prior state is safe in checkpoint ${safety.id}.${palette.reset}`,
+      );
+      return 1;
+    }
+
+    let patchApplied = false;
+    if (chk.hasPatch) {
+      const applyRes = await runProcessFull("git", ["apply", checkedPatch]);
+      if (applyRes.exit !== 0) {
+        console.log(
+          `${palette.red}Failed to reapply saved working-tree changes:${palette.reset} ${applyRes.stderr.trim()}`,
+        );
+        console.log(
+          `${palette.yellow}Tracked files were reset to ${chk.git.sha}'s committed content. Undo with: bun ~/.claude/src/scripts/checkpoint.ts restore ${safety.id} --force${palette.reset}`,
+        );
+        return 1;
+      }
+      patchApplied = true;
+    }
+
+    const untracked = chk.git.untrackedFiles ?? [];
+    if (untracked.length > 0) {
+      console.log(
+        `${palette.yellow}Note: ${untracked.length} untracked file(s) existed at save time and were NOT restored (their content wasn't captured):${palette.reset}`,
+      );
+      for (const f of untracked) console.log(`  ${f}`);
+      console.log("");
+    }
+
+    console.log(
+      `${palette.green}Restored tracked files to checkpoint ${chk.id} (${chk.git.sha}).${palette.reset}`,
+    );
+    console.log(
+      patchApplied
+        ? `${palette.green}Reapplied the working-tree changes captured at save time.${palette.reset}`
+        : `${palette.green}Checkpoint had no uncommitted changes at save time — the tree now matches ${chk.git.sha} exactly.${palette.reset}`,
+    );
+    console.log("");
+    console.log(
+      `${palette.blue}To undo this restore:${palette.reset} bun ~/.claude/src/scripts/checkpoint.ts restore ${safety.id} --force`,
+    );
+    return 0;
+  } finally {
+    await rm(validationDir, { recursive: true, force: true });
+  }
 }
 
 async function cmdClean(keepStr: string): Promise<void> {

@@ -14,6 +14,7 @@ import {
   getTree,
 } from "../src/codemap/index.ts";
 import { findToolByName } from "../src/codemap/tools.ts";
+import { git, makeRepo } from "./support/git.ts";
 
 // Two-file TypeScript fixture: a.ts exports foo/bar (bar calls foo); b.ts
 // imports foo and calls it. Enough to exercise structure, impact (cross-file),
@@ -56,6 +57,76 @@ afterAll(async () => {
 const engineAvailable = (await getStatus(dir)).available;
 
 describe("native codemap", () => {
+  test("instantiated generic methods retain their declaration's callers", async () => {
+    const project = await mkdtemp(join(tmpdir(), "ccmap-generic-"));
+    try {
+      await writeFile(
+        join(project, "box.ts"),
+        'export class Box<T> { use(value: T) { return value; } }\nconst box = new Box<string>();\nexport function caller() { return box.use("foo"); }\n',
+      );
+      const context = await getContext(project, "Box.use");
+      expect(context?.callers.some((caller) => caller.file === "box.ts" && caller.line === 3)).toBe(
+        true,
+      );
+      const impact = await getImpact(project, "Box.use");
+      expect(
+        impact?.references.some((reference) => reference.file === "box.ts" && reference.line === 3),
+      ).toBe(true);
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  });
+  test("renamed imports retain their symbol's callers without unrelated names", async () => {
+    const project = await mkdtemp(join(tmpdir(), "ccmap-alias-"));
+    try {
+      await writeFile(join(project, "a.ts"), "export function auditedTarget() { return 1; }\n");
+      await writeFile(
+        join(project, "b.ts"),
+        'import { auditedTarget as renamed } from "./a";\nexport function caller() { return renamed(); }\n',
+      );
+      await writeFile(
+        join(project, "c.ts"),
+        "function auditedTarget() { return 2; }\nexport function unrelated() { return auditedTarget(); }\n",
+      );
+      const impact = await getImpact(project, "auditedTarget");
+      expect(impact).not.toBeNull();
+      expect(
+        impact?.references.some((reference) => reference.file === "b.ts" && reference.line === 2),
+      ).toBe(true);
+      expect(impact?.references.some((reference) => reference.file === "c.ts")).toBe(false);
+      const context = await getContext(project, "auditedTarget");
+      expect(context?.callers.some((caller) => caller.file === "b.ts")).toBe(true);
+      expect(context?.callers.some((caller) => caller.file === "c.ts")).toBe(false);
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  });
+
+  for (const extension of ["mjs", "cjs"]) {
+    test(`config-less .${extension} projects appear in structure and change impact`, async () => {
+      const project = await makeRepo("ccmap-js-module");
+      try {
+        const name = `entry.${extension}`;
+        const source = (value: number) =>
+          extension === "mjs"
+            ? `export function moduleEntry() { return ${value}; }\n`
+            : `function moduleEntry() { return ${value}; }\nmodule.exports = { moduleEntry };\n`;
+        await writeFile(join(project, name), source(1));
+        await git(project, ["add", name]);
+        await git(project, ["commit", "-qm", "module baseline"]);
+        await writeFile(join(project, name), source(2));
+        const tree = await getTree(project);
+        expect(tree?.files).toContain(name);
+        const impact = await getChangeImpact(project);
+        expect(impact?.changedFiles).toContain(name);
+        if (extension === "mjs") {
+          expect(impact?.changedSymbols.some((symbol) => symbol.name === "moduleEntry")).toBe(true);
+        }
+      } finally {
+        await rm(project, { recursive: true, force: true });
+      }
+    });
+  }
   test.skipIf(!engineAvailable)("structure lists exported symbols", async () => {
     const result = await getStructure(dir);
     expect(result).not.toBeNull();

@@ -8,7 +8,7 @@
 // ~/.claude state — same pattern as tests/freeze.test.ts.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnCapture } from "./support/proc.ts";
@@ -31,6 +31,25 @@ async function makeHome(): Promise<string> {
 }
 
 describe("project-init.ts --check", () => {
+  test("mentioning cc-settings does not surrender ownership of personal instructions", async () => {
+    const home = await makeHome();
+    const project = await mkdtemp(join(tmpdir(), "cc-project-"));
+    try {
+      const personal = "# Notes for cc-settings clients\nKeep these project instructions.\n";
+      for (const name of ["AGENTS.md", ".cursorrules", ".windsurfrules"]) {
+        await writeFile(join(project, name), personal);
+      }
+      for (const args of [[project], ["--update", project]]) {
+        expect((await run(args, home)).exit).toBe(0);
+        for (const name of ["AGENTS.md", ".cursorrules", ".windsurfrules"]) {
+          expect(await readFile(join(project, name), "utf8")).toBe(personal);
+        }
+      }
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(project, { recursive: true, force: true });
+    }
+  });
   test("AGENTS.md stamped with an unparseable version ('vunknown') reads as managed, not 'not managed'", async () => {
     const home = await makeHome();
     const project = await mkdtemp(join(tmpdir(), "cc-project-"));

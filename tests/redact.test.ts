@@ -76,6 +76,24 @@ describe("redactSecrets — Bearer / Authorization", () => {
 });
 
 describe("redactSecrets — *_API_KEY/TOKEN/SECRET= env-var forms", () => {
+  test("quoted credentials cannot leak into logs, including escaped quotes", () => {
+    for (const assignment of [
+      'DEPLOY_TOKEN="private value"',
+      "DEPLOY_SECRET='private value'",
+      'DEPLOY_API_KEY="private\\" value"',
+      `DEPLOY_TOKEN='private'" value"suffix`,
+      'DEPLOY_TOKEN="private\\\nvalue"',
+      "DEPLOY_TOKEN=private\\\nvalue",
+    ]) {
+      const result = redactSecrets(`${assignment} bun deploy`);
+      expect(result).not.toContain("private");
+      expect(result).not.toContain("value");
+      expect(result).not.toContain("suffix");
+      expect(result).toContain("bun deploy");
+      expect(result).toContain("[redacted]");
+      expect(redactSecrets(result)).toBe(result);
+    }
+  });
   test("OPENAI_API_KEY=<value> is redacted as one unit, not nested with sk-[redacted]", () => {
     const result = redactSecrets("OPENAI_API_KEY=sk-abcd1234efgh5678ijkl");
     expect(result).toContain("OPENAI_API_KEY=[redacted]");

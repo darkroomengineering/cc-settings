@@ -44,8 +44,10 @@ export async function runGit(args: string[], options?: { cwd?: string }): Promis
 export async function runProcessFull(
   bin: string,
   args: string[],
+  options?: { env?: NodeJS.ProcessEnv },
 ): Promise<{ exit: number; stdout: string; stderr: string }> {
   const proc = Bun.spawn([bin, ...args], {
+    env: options?.env,
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",

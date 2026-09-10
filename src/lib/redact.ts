@@ -21,20 +21,9 @@
 //   suffix collapsed before the generic `=`-pattern (below) swallows the
 //   whole thing into one clean `OPENAI_API_KEY=[redacted]`, rather than
 //   leaving a nested `OPENAI_API_KEY=sk-[redacted]` fragment.
-// - The tight, `[^ &"]+`-bounded `password=`/`token=`/`secret=` patterns run
-//   BEFORE the broad, case-insensitive `*_API_KEY|TOKEN|SECRET=` pattern.
-//   The broad pattern's value-capture also stops at `&`/`"` (not just
-//   whitespace) for the same reason: a query string like
-//   `?token=abc&foo=bar` must only lose the token's value, not swallow the
-//   unrelated `foo=bar` alongside it — which a `\S+` capture would do since
-//   it doesn't stop at `&`.
-//   `token=`/`secret=` are deliberately case-SENSITIVE (lowercase only): the
-//   broad pattern already covers uppercase `TOKEN=`/`SECRET=` env-var forms
-//   case-insensitively, so a case-insensitive tight pattern here would
-//   re-match and mangle text the broad pattern already redacted correctly
-//   (e.g. `MY_TOKEN=[redacted]` would become `MY_token=[REDACTED]`).
-//   `password=` has no such collision (PASSWORD isn't in the broad
-//   pattern's alternation) so it stays case-insensitive for wider coverage.
+// - Assignment values include adjacent bare/quoted spans (and escaped quotes).
+//   Bare values stop at query delimiters so `?token=abc&foo=bar` preserves
+//   `foo=bar`. Preserve the assignment name's casing across repeated passes.
 //
 // Do not reorder without re-checking tests/redact.test.ts and
 // tests/codex.test.ts's sanitizeOutput cases.
@@ -46,8 +35,8 @@ export function redactSecrets(text: string): string {
     .replace(/AKIA[A-Z0-9]{12,}/g, "[redacted]") // AWS access key ID
     .replace(/Bearer[\s:]+\S+/gi, "Bearer [redacted]")
     .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]")
-    .replace(/password=[^ &"]+/gi, "password=[redacted]")
-    .replace(/token=[^ &"]+/g, "token=[redacted]")
-    .replace(/secret=[^ &"]+/g, "secret=[redacted]")
-    .replace(/\b([A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET))=[^\s&"]+/gi, "$1=[redacted]");
+    .replace(
+      /\b([A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET)|password)=(?:"(?:[^"\\]|\\[\s\S])*(?:"|$)|'[^']*(?:'|$)|\\[\s\S]|[^\s&"';|\\])+/gi,
+      "$1=[redacted]",
+    );
 }

@@ -46,6 +46,15 @@ async function expectAllow(cmd: string): Promise<void> {
 
 describe("TS safety-net — rm -rf dangerous → BLOCK", () => {
   for (const [name, cmd] of [
+    [
+      "temp prefix cannot authorize a parent traversal",
+      "rm -rf /tmp/../../Users/fixture/Documents",
+    ],
+    ["var temp prefix cannot authorize a parent traversal", "rm -rf /var/tmp/../../etc/fixture"],
+    [
+      "project prefix cannot authorize a parent traversal",
+      `rm -rf ${process.cwd()}/../../fixture-victim`,
+    ],
     ["rm -rf /", "rm -rf /"],
     ["rm -rf /*", "rm -rf /*"],
     ["rm -rf ~", "rm -rf ~"],

@@ -13,9 +13,9 @@
 // --show-toplevel`) — same pattern as tests/freeze.test.ts.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { GIT_ISOLATION_ENV, makeRepo as makeGitRepo } from "./support/git.ts";
+import { GIT_ISOLATION_ENV, git, makeRepo as makeGitRepo } from "./support/git.ts";
 import { spawnCapture } from "./support/proc.ts";
 import { cleanup as cleanupDirs, sandbox } from "./support/tmp.ts";
 
@@ -43,6 +43,65 @@ async function cleanup(repo: string, home: string): Promise<void> {
 }
 
 describe("checkpoint.ts subcommand dispatch", () => {
+  test("binary work survives checkpoint restore and the safety checkpoint restores later work", async () => {
+    const { repo, home } = await makeRepo();
+    try {
+      const file = join(repo, "asset.bin");
+      await writeFile(file, new Uint8Array([0, 1, 2]));
+      await git(repo, ["add", "asset.bin"]);
+      await git(repo, ["commit", "-qm", "binary baseline"]);
+      const saved = new Uint8Array([0, 9, 9]);
+      const later = new Uint8Array([0, 8, 8]);
+      await writeFile(file, saved);
+      expect((await run(["save", "binary"], repo, home)).exit).toBe(0);
+      await writeFile(file, later);
+      expect((await run(["restore"], repo, home)).exit).toBe(0);
+      expect(new Uint8Array(await readFile(file))).toEqual(saved);
+      expect((await run(["restore"], repo, home)).exit).toBe(0);
+      expect(new Uint8Array(await readFile(file))).toEqual(later);
+    } finally {
+      await cleanup(repo, home);
+    }
+  });
+
+  for (const damage of ["missing", "corrupt", "legacy binary"] as const) {
+    test(`a ${damage} patch must be rejected before changing the worktree or index`, async () => {
+      const { repo, home } = await makeRepo();
+      try {
+        const file = join(repo, "README.md");
+        await writeFile(file, "checkpoint content\n");
+        expect((await run(["save", "damaged"], repo, home)).exit).toBe(0);
+        const checkpointDir = join(home, ".claude", "checkpoints", basename(repo));
+        const patch = (await readdir(checkpointDir)).find((name) => name.endsWith(".patch"));
+        if (!patch) throw new Error("save did not capture the dirty file");
+        const path = join(checkpointDir, patch);
+        if (damage === "missing") await rm(path);
+        else
+          await writeFile(
+            path,
+            damage === "corrupt"
+              ? "invalid patch\n"
+              : "diff --git a/README.md b/README.md\nBinary files a/README.md and b/README.md differ\n",
+          );
+        await writeFile(file, "staged later content\n");
+        await git(repo, ["add", "README.md"]);
+        await writeFile(file, "unstaged later content\n");
+        const indexBefore = await spawnCapture(["git", "show", ":README.md"], {
+          cwd: repo,
+          env: GIT_ISOLATION_ENV,
+        });
+        expect((await run(["restore"], repo, home)).exit).toBe(1);
+        expect(await readFile(file, "utf8")).toBe("unstaged later content\n");
+        const indexAfter = await spawnCapture(["git", "show", ":README.md"], {
+          cwd: repo,
+          env: GIT_ISOLATION_ENV,
+        });
+        expect(indexAfter.stdout).toBe(indexBefore.stdout);
+      } finally {
+        await cleanup(repo, home);
+      }
+    });
+  }
   test("unknown subcommand exits 1 and prints usage (M18)", async () => {
     const { repo, home } = await makeRepo();
     try {

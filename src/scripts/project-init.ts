@@ -38,7 +38,12 @@ function isManaged(file: string): boolean {
   if (!existsSync(file)) return false;
   try {
     const header = readFileSync(file, "utf8").split(/\r?\n/)[0] ?? "";
-    return header.includes("cc-settings");
+    return (
+      header === "<!-- cc-settings — DO NOT EDIT — managed by cc-settings -->" ||
+      /^<!-- cc-settings v(?:\d+\.\d+\.\d+(?:-[\w.-]+)?|unknown) \| [^|\r\n]+ \| DO NOT EDIT — managed by cc-settings -->$/.test(
+        header,
+      )
+    );
   } catch {
     return false;
   }

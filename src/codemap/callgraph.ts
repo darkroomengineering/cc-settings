@@ -1,8 +1,7 @@
 // Call graph + symbol context + impact.
 //
 // Calls are name-based (cheap, language-faithful enough for "who calls X").
-// Impact is symbol-resolved: identifiers are pre-filtered by text, then compared
-// via checker.getSymbolAtLocation to the target's symbol — following import
+// Impact and context callers compare resolved symbols — following import
 // aliases with getAliasedSymbol so a re-imported `foo` in another file still
 // counts. If the target symbol can't be resolved, impact falls back to name
 // matching so it still returns the obvious references.
@@ -122,6 +121,28 @@ function lineTextOf(sf: TS.SourceFile, node: TS.Node): string {
   return text.slice(start, nl < 0 ? text.length : nl).trim();
 }
 
+/** Compare symbol identity before spelling: imported aliases can rename the target. */
+function referenceMatcher(ctx: CodemapContext, decl: Decl | null, simple: string) {
+  const { ts, checker } = ctx;
+  const resolveSymbol = (node: TS.Node): TS.Symbol | undefined => {
+    const symbol = checker.getSymbolAtLocation(node);
+    return symbol && symbol.flags & ts.SymbolFlags.Alias
+      ? checker.getAliasedSymbol(symbol)
+      : symbol;
+  };
+  const target = decl ? resolveSymbol(decl.nameNode) : undefined;
+  return (node: TS.Node): boolean => {
+    if (!target) return ts.isIdentifier(node) && node.text === simple;
+    const reference = resolveSymbol(node);
+    // Instantiated generic methods have distinct symbols but retain the
+    // original declarations. Shared spelling alone never establishes identity.
+    return (
+      reference === target ||
+      !!reference?.declarations?.some((declaration) => target.declarations?.includes(declaration))
+    );
+  };
+}
+
 export async function getContext(projectDir: string, name: string): Promise<ContextResult | null> {
   const ctx = await buildContext(projectDir);
   if (!ctx) return null;
@@ -143,13 +164,19 @@ export async function getContext(projectDir: string, name: string): Promise<Cont
   };
   ts.forEachChild(decl.node, collect);
 
-  // Callers: calls to this simple name anywhere in the project.
+  // Callers: calls to this declaration, including imports renamed by an alias.
   const simple = name.includes(".") ? (name.split(".").pop() ?? name) : name;
+  const matches = referenceMatcher(ctx, decl, simple);
   const callers: SymbolRef[] = [];
   for (const sf of inProjectSourceFiles(ctx)) {
     const cf = relPath(ctx.projectDir, sf.fileName);
     const visit = (node: TS.Node): void => {
-      if (ts.isCallExpression(node) && calleeName(ts, node.expression) === simple) {
+      if (
+        ts.isCallExpression(node) &&
+        matches(
+          ts.isPropertyAccessExpression(node.expression) ? node.expression.name : node.expression,
+        )
+      ) {
         callers.push({
           name: enclosingName(ts, node) ?? "<module>",
           file: cf,
@@ -175,32 +202,19 @@ export async function getContext(projectDir: string, name: string): Promise<Cont
 export async function getImpact(projectDir: string, name: string): Promise<ImpactResult | null> {
   const ctx = await buildContext(projectDir);
   if (!ctx) return null;
-  const { ts, checker } = ctx;
+  const { ts } = ctx;
   const simple = name.includes(".") ? (name.split(".").pop() ?? name) : name;
 
   // Resolve the target's declaration symbol once; references must resolve to it.
   const decl = findDecl(ctx, name);
-  const targetSym = decl ? (checker.getSymbolAtLocation(decl.nameNode) ?? null) : null;
+  const matches = referenceMatcher(ctx, decl, simple);
 
   const references: Reference[] = [];
   for (const sf of inProjectSourceFiles(ctx)) {
     const cf = relPath(ctx.projectDir, sf.fileName);
     const visit = (node: TS.Node): void => {
-      if (ts.isIdentifier(node) && node.text === simple) {
-        let ok = !targetSym; // no resolvable target ⇒ fall back to name match
-        if (targetSym) {
-          let sym = checker.getSymbolAtLocation(node);
-          if (sym && sym.flags & ts.SymbolFlags.Alias) {
-            try {
-              sym = checker.getAliasedSymbol(sym);
-            } catch {
-              // not an alias after all — keep the original
-            }
-          }
-          ok = sym === targetSym;
-        }
-        if (ok)
-          references.push({ file: cf, line: lineOf(ts, sf, node), text: lineTextOf(sf, node) });
+      if (ts.isIdentifier(node) && matches(node)) {
+        references.push({ file: cf, line: lineOf(ts, sf, node), text: lineTextOf(sf, node) });
       }
       ts.forEachChild(node, visit);
     };

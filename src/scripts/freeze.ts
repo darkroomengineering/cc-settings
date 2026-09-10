@@ -13,7 +13,7 @@ async function main(argv: string[]): Promise<number> {
   // Mirrors the session_id Claude Code passes to hooks; set automatically and
   // available inside Bash tool subprocesses — this script always runs via the
   // Bash tool (invoked by the /freeze skill). Tagging the freeze with it lets
-  // getActiveFreeze self-heal a boundary forgotten from a different session.
+  // keep this session's boundary independent of other active sessions.
   const sessionId = process.env.CLAUDE_CODE_SESSION_ID ?? null;
 
   switch (cmd) {
@@ -39,7 +39,7 @@ async function main(argv: string[]): Promise<number> {
     }
     case "off": {
       const { root } = await getActiveFreeze(sessionId);
-      await writeFreeze(null);
+      await writeFreeze(null, sessionId);
       console.log(root ? `Freeze boundary cleared (was: ${root}).` : "No freeze boundary was set.");
       return 0;
     }

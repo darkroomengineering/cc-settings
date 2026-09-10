@@ -13,7 +13,7 @@
 // docs/hooks-reference.md).
 
 import { appendFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { basename, dirname, resolve, sep } from "node:path";
 import { SHELL_SEGMENT_SEP_RE } from "../lib/hook-command.ts";
 import { blockDecision } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
@@ -139,10 +139,6 @@ function isExactHomePath(target: string): boolean {
   return false;
 }
 
-function startsWithHomePath(target: string): boolean {
-  return HOME_PATH_PREFIXES.some((p) => target.startsWith(p));
-}
-
 // Known build-artifact directories that are always safe to rm -rf. Hoisted
 // to module scope since it's identical across every occurrence analyzed.
 const ALLOWED_RM_BASES = new Set([
@@ -183,30 +179,27 @@ function analyzeRmTarget(target: string, cmd: string): void {
     block("rm -rf targeting home directory", cmd);
   }
 
-  // ALLOW: safe temp directories.
-  if (target.startsWith("/tmp/") || target.startsWith("/var/tmp/")) return;
+  // Shell expansion cannot be resolved safely without executing the command.
+  if (/[$`\\]/.test(target) || target.startsWith("~")) {
+    block(`rm -rf with unresolved target path: ${target}`, cmd);
+  }
+
+  const pwd = resolve(process.cwd());
+  const absolute = resolve(pwd, target);
+  if (absolute === pwd || absolute === resolve("/")) {
+    block("rm -rf targeting current directory or root filesystem", cmd);
+  }
+  const within = (root: string): boolean => absolute.startsWith(`${resolve(pwd, root)}${sep}`);
+
+  // Normalize before checking containment so '..' cannot escape a safe prefix.
+  if (within("/tmp") || within("/var/tmp")) return;
 
   // ALLOW: known build-artifact directories.
-  const base = target.split(/[\\/]/).pop() ?? target;
+  const base = basename(absolute);
   if (ALLOWED_RM_BASES.has(base)) return;
 
   // ALLOW: absolute paths under PWD.
-  const pwd = process.cwd();
-  if (pwd && target.startsWith(`${pwd}/`)) return;
-
-  // ALLOW: relative paths within the project (no /, ~, $HOME, ..).
-  if (
-    !target.startsWith("/") &&
-    !target.startsWith("~") &&
-    !startsWithHomePath(target) &&
-    target !== "." &&
-    target !== "./" &&
-    target !== ".." &&
-    target !== "../" &&
-    !target.includes("../")
-  ) {
-    return;
-  }
+  if (within(pwd)) return;
 
   block(`rm -rf with unrecognized target path: ${target}`, cmd);
 }

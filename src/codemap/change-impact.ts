@@ -10,7 +10,7 @@ import { getContext } from "./program.ts";
 import { resolveFile } from "./structure.ts";
 import type { ChangeImpactResult, SymbolInfo } from "./types.ts";
 
-const SOURCE_RE = /\.(ts|tsx|js|jsx|mts|cts)$/;
+const SOURCE_RE = /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/;
 
 export async function getChangeImpact(projectDir: string): Promise<ChangeImpactResult | null> {
   const ctx = await getContext(projectDir);

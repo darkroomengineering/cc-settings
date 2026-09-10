@@ -115,7 +115,7 @@ async function writeFreezeState(home: string, data: unknown): Promise<void> {
 }
 
 describe("freeze — session scoping (e2e)", () => {
-  test("set stores the current session id", async () => {
+  test("set scopes enforcement to the current session", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-freeze-"));
     try {
       const target = join(home, "project");
@@ -124,14 +124,15 @@ describe("freeze — session scoping (e2e)", () => {
       const { exit } = await runFreezeCli(["set", target], home, "session-A");
       expect(exit).toBe(0);
 
-      const state = await readFreezeState(home);
-      expect(state?.sessionId).toBe("session-A");
+      expect((await runFreezeGuard(home, join(home, "outside.ts"), "session-A")).exit).toBe(2);
+      expect((await runFreezeGuard(home, join(home, "outside.ts"), "session-B")).exit).toBe(0);
+      expect((await runFreezeGuard(home, join(home, "outside.ts"), "session-A")).exit).toBe(2);
     } finally {
       await rm(home, { recursive: true, force: true });
     }
   });
 
-  test("stale session id ⇒ not frozen and the state file self-heals (root cleared)", async () => {
+  test("another session cannot clear an existing session's legacy boundary", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-freeze-"));
     try {
       const root = join(home, "project");
@@ -139,13 +140,13 @@ describe("freeze — session scoping (e2e)", () => {
       await writeFreezeState(home, { root, sessionId: "session-A" });
 
       const outsideFile = join(home, "elsewhere.ts");
-      // Different session than the one that set the boundary ⇒ self-heal:
-      // the hook must allow the edit, not block it.
+      // Different does not mean expired: both sessions can still be active.
       const { exit } = await runFreezeGuard(home, outsideFile, "session-B");
       expect(exit).toBe(0);
 
       const state = await readFreezeState(home);
-      expect(state?.root ?? null).toBeNull();
+      expect(state?.root).toBe(root);
+      expect((await runFreezeGuard(home, outsideFile, "session-A")).exit).toBe(2);
     } finally {
       await rm(home, { recursive: true, force: true });
     }
@@ -188,6 +189,25 @@ describe("freeze — session scoping (e2e)", () => {
 });
 
 describe("freeze — set target validation (e2e)", () => {
+  test("parallel sessions can set and unset their own boundaries independently", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-freeze-"));
+    try {
+      const a = join(home, "project-a");
+      const b = join(home, "project-b");
+      await mkdir(a);
+      await mkdir(b);
+      expect((await runFreezeCli(["set", a], home, "session-A")).exit).toBe(0);
+      expect((await runFreezeCli(["set", b], home, "session-B")).exit).toBe(0);
+      expect((await runFreezeCli(["status"], home, "session-B")).exit).toBe(0);
+      expect((await runFreezeGuard(home, join(b, "file.ts"), "session-A")).exit).toBe(2);
+      expect((await runFreezeGuard(home, join(a, "file.ts"), "session-B")).exit).toBe(2);
+      expect((await runFreezeCli(["off"], home, "session-B")).exit).toBe(0);
+      expect((await runFreezeGuard(home, join(b, "file.ts"), "session-A")).exit).toBe(2);
+      expect((await runFreezeGuard(home, join(a, "file.ts"), "session-B")).exit).toBe(0);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
   test("set on a file path is rejected with a clear error, not a silent full lockout", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-freeze-"));
     try {
