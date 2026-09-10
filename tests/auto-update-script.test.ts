@@ -100,6 +100,51 @@ async function readLastRun(fakeHome: string): Promise<{
 }
 
 describe("runAutoUpdate (via src/scripts/auto-update.ts)", () => {
+  test.each(["clean", "dirty"] as const)(
+    "real Git classifies a %s checkout using the generated index",
+    async (mode) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-auto-real-index-"));
+      try {
+        const repo = join(home, "repo");
+        await mkdir(repo);
+        await git(["init", "-b", "main"], repo);
+        await git(["config", "user.email", "test@example.com"], repo);
+        await git(["config", "user.name", "Test"], repo);
+        await git(
+          ["remote", "add", "origin", "https://github.com/darkroomengineering/cc-settings.git"],
+          repo,
+        );
+        await writeFile(join(repo, "package.json"), '{"version":"1.0.0"}\n');
+        await writeFile(join(repo, "README.md"), "committed bytes\n");
+        await git(["add", "."], repo);
+        await git(["commit", "-qm", "baseline"], repo);
+        if (mode === "dirty") await writeFile(join(repo, "README.md"), "personal edit\n");
+        const wrapper = join(home, "local-git.ts");
+        // Only transport is substituted; index and diff operations use real Git.
+        await writeFile(
+          wrapper,
+          `const args = process.argv.slice(2);
+if (args.includes("clone")) args[args.length - 2] = ${JSON.stringify(repo)};
+const child = Bun.spawn(["git", ...args], { env: process.env, stdin: "ignore", stdout: "inherit", stderr: "inherit" });
+process.exit(await child.exited);
+`,
+        );
+        await writeSentinel(home, repo);
+        const result = await runAutoUpdateScript(home, {
+          CC_SETTINGS_TEST_GIT_COMMAND_JSON: JSON.stringify([process.execPath, wrapper]),
+        });
+        expect(result.exit, result.stderr).toBe(0);
+        expect((await readLastRun(home))?.status).toBe(
+          mode === "clean" ? "up-to-date" : "skipped-dirty",
+        );
+        expect(await readFile(join(repo, "README.md"), "utf8")).toBe(
+          mode === "clean" ? "committed bytes\n" : "personal edit\n",
+        );
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
   test(
     "missing repo → status no-repo, exits cleanly (0)",
     async () => {
@@ -220,7 +265,7 @@ case " $* " in
     printf fixture > "$destination/.git/index"
     ;;
   *" rev-parse HEAD "*) printf '${"1".repeat(40)}\n' ;;
-  *" merge-base --is-ancestor "*|*" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
+  *" update-index --refresh -q "*|*" merge-base --is-ancestor "*|*" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
   *) exit 2 ;;
 esac
 `,
@@ -305,7 +350,7 @@ case " $* " in
     printf '%s\n' "$FAKE_NEW_HEAD" > "$destination/.git/refs/heads/main"
     ;;
   *" rev-parse HEAD "*) printf '%s\n' "$FAKE_NEW_HEAD" ;;
-  *" merge-base --is-ancestor "*|*" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
+  *" update-index --refresh -q "*|*" merge-base --is-ancestor "*|*" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
   *) exit 2 ;;
 esac
 `,
@@ -395,7 +440,7 @@ case " $* " in
   *" config --file "*" remote.origin.url "*) printf 'https://github.com/darkroomengineering/cc-settings.git\n' ;;
   *" clone "*) destination="\${!#}"; mkdir -p "$destination/.git" ;;
   *" rev-parse HEAD "*) printf '%s\n' "$FAKE_HEAD" ;;
-  *" merge-base --is-ancestor "*|*" read-tree "*) ;;
+  *" update-index --refresh -q "*|*" merge-base --is-ancestor "*|*" read-tree "*) ;;
   *" diff-files --quiet "*) exit "$FAKE_DIFF_EXIT" ;;
   *" ls-files --others "*) ;;
   *) exit 2 ;;

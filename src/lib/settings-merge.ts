@@ -48,10 +48,10 @@ export interface MergeOptions {
    *  in contexts with no source tree to check against (e.g. a strategy called
    *  directly in a unit test), which fails open and skips that prune. */
   sourceDir?: string;
-  /** The full settings object the PREVIOUS install's baseline recorded
-   *  (~/.claude/.cc-settings-baseline.json, written since v13.1.0). Enables
+  /** The PREVIOUS install's team contribution (`team_settings` in
+   *  ~/.claude/.cc-settings-baseline.json), never the merged snapshot. Enables
    *  three-way decisions: a live value that still equals what that install
-   *  wrote is cc-settings' own old default, not a user choice, so a retired
+   *  team supplied matches cc-settings' own old default, so a retired
    *  env key is pruned and a changed default is updated instead of the
    *  user-wins rule freezing it forever. A value the user changed since
    *  always wins, exactly as before. Undefined (pre-baseline install, or a
@@ -224,8 +224,8 @@ export async function unionPermissionArray(
 }
 
 // Prompt for a scalar conflict: user has X, team has Y, values differ.
-/** Navigate a dotted path ("attribution.sessionUrl") into the baseline
- *  settings. Returns undefined when there is no baseline or the path is
+/** Navigate a dotted path ("attribution.sessionUrl") into the previous team's
+ *  contribution. Returns undefined when there is no provenance or the path is
  *  absent — callers treat that as "no three-way evidence" and fall back to
  *  plain user-wins. */
 export function baselineValueAt(opts: MergeOptions, path: string): unknown {
@@ -238,7 +238,7 @@ export function baselineValueAt(opts: MergeOptions, path: string): unknown {
 }
 
 /** True when the user's live value is byte-for-byte what the previous install
- *  wrote at this path — i.e. cc-settings' own old default, safe to update to
+ *  team supplied at this path — cc-settings' own old default, safe to update to
  *  the new team value without overriding a user choice. */
 export function userMatchesBaseline(opts: MergeOptions, path: string, userVal: unknown): boolean {
   const baseline = baselineValueAt(opts, path);
@@ -570,8 +570,8 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   }
 
   // Three-way prune (the registry's data-driven successor): the previous
-  // install's baseline wrote this key, the incoming team config no longer
-  // sets it, and the live value still equals what that install wrote — so
+  // team's contribution supplied this key, the incoming config no longer
+  // sets it, and the live value still equals that team default — so
   // removing the key removes only what cc-settings itself put there. A value
   // the user changed since is a user edit and stays, which is exactly the
   // discrimination the hand-maintained registry above cannot make.
@@ -588,7 +588,7 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
 
   for (const k of Object.keys(u)) {
     if (k in t && u[k] !== t[k]) {
-      // Three-way: the user's value is still what the previous install wrote,
+      // Three-way: the user's value is still the previous team's default,
       // so the difference is cc-settings changing its own default — adopt the
       // new one instead of freezing the old default as a "user" value.
       if (baselineEnv && k in baselineEnv && u[k] === baselineEnv[k]) {
@@ -620,8 +620,8 @@ export const statusLineStrategy: Strategy = async (_key, team, user, ctx) => {
     if (team === undefined) return { keep: false };
     return { keep: true, value: team };
   }
-  // Three-way: the user's block is still exactly what the previous install
-  // wrote — not a custom statusline — so it follows the team block, including
+  // Three-way: the user's block still exactly matches the previous team's
+  // contribution, so it follows the team block, including
   // new sub-keys user-wins-whole would otherwise silently drop.
   if (
     team !== undefined &&
@@ -675,8 +675,8 @@ async function deepMergeUserWins(
   if (!tIsScalar || !uIsScalar) return user;
   if (team === user) return user;
 
-  // Three-way first: the user's value is still what the previous install
-  // wrote at this path, so the conflict is cc-settings changing its own
+  // Three-way first: the user's value still matches the previous team's
+  // contribution at this path, so cc-settings is changing its own
   // default (e.g. attribution.sessionUrl false → true) — take the new one
   // silently rather than prompting or freezing the stale default.
   if (userMatchesBaseline(ctx.opts, key, user)) {

@@ -17,10 +17,8 @@ describe("parseArgs", () => {
     expect(a.migrateOnly).toBe(false);
     expect(a.uninstall).toBe(false);
     expect(a.target).toBe("auto");
-    // Not end-anchored: when the suite runs inside a git worktree, sourceDir is
-    // `.../cc-settings/.claude/worktrees/agent-<hash>` — still inside the
-    // cc-settings project, but not ending in it. A substring check holds in both.
-    expect(a.sourceDir).toContain("cc-settings");
+    // The default is this checkout's root, regardless of its directory name.
+    expect(a.sourceDir).toBe(resolve(import.meta.dir, ".."));
   });
 
   test("--rollback (no value) sets rollback to true", () => {

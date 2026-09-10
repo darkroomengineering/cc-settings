@@ -17,6 +17,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, relative, resolve } from "node:path";
+import { RUNTIME_SOURCE_FILES } from "../src/lib/codex-runtime-manifests.ts";
+import { AUDIT_PERFORMANCE_RESOURCES } from "../src/lib/install-source-inventory.ts";
 import { prependTestPath, shellFixtureCommand } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
@@ -203,6 +205,11 @@ describe("Codex installer lifecycle", () => {
         expect(existsSync(join(codexHome, "agents", "codex-verifier.toml"))).toBe(false);
         expect(existsSync(join(codexHome, "rules", "darkroom.rules"))).toBe(true);
         expect(existsSync(join(codexHome, "darkroom", "source"))).toBe(true);
+        for (const resource of AUDIT_PERFORMANCE_RESOURCES) {
+          expect(await readFile(join(codexHome, "darkroom", "source", resource))).toEqual(
+            await readFile(join(REPO, resource)),
+          );
+        }
         expect(existsSync(join(codexHome, ".cc-settings-version"))).toBe(true);
         expect(existsSync(join(home, ".claude", "settings.json"))).toBe(false);
 
@@ -1599,14 +1606,7 @@ describe("Codex installer lifecycle", () => {
   }, 180_000);
 
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {
-    const installerSource = await readFile(join(REPO, "src", "lib", "codex-install.ts"), "utf8");
-    const manifestBody = installerSource.match(
-      /const RUNTIME_SOURCE_FILES = \[([\s\S]*?)\] as const;/,
-    )?.[1];
-    expect(manifestBody).toBeDefined();
-    const manifest = new Set(
-      [...(manifestBody as string).matchAll(/"([^"]+)"/g)].map((match) => match[1] as string),
-    );
+    const manifest = new Set(RUNTIME_SOURCE_FILES);
     const entrypointText = `${await readFile(join(REPO, "hooks", "hooks.json"), "utf8")}\n${await readFile(join(REPO, "package.json"), "utf8")}`;
     const pending = [
       "src/scripts/codex-hook.ts",

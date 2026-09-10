@@ -1,6 +1,10 @@
+import {
+  AUDIT_PERFORMANCE_RESOURCES,
+  CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+} from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 6;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 7;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -481,7 +485,7 @@ const EXCLUSIONS_BY_VERSION = new Map<number, Set<string>>([
   [3, VERSION_3_EXCLUSIONS],
   [4, VERSION_4_EXCLUSIONS],
   [5, VERSION_5_EXCLUSIONS],
-  [CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, VERSION_6_EXCLUSIONS],
+  [6, VERSION_6_EXCLUSIONS],
 ]);
 
 const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
@@ -493,6 +497,23 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
     },
   ]),
 );
+
+// Preserve versions 1–6 verbatim; only the current release follows the shared source inventory.
+const priorManifest = {
+  full: claudeManagedManifestPaths(6, "full", "current installer"),
+  light: claudeManagedManifestPaths(6, "light", "current installer"),
+};
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [
+    ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
+    ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+    ...AUDIT_PERFORMANCE_RESOURCES,
+  ],
+  light: [
+    ...priorManifest.light.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
+    ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+  ],
+});
 
 const GENERATED_MANAGED_FILES = new Set([
   ".cc-settings-baseline.json",

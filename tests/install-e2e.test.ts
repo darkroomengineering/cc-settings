@@ -34,6 +34,7 @@ import {
   claudeManagedAllowedPaths,
 } from "../src/lib/claude-managed-files.ts";
 import { verifySrcManifest } from "../src/lib/hooks-fingerprint.ts";
+import { AUDIT_PERFORMANCE_RESOURCES } from "../src/lib/install-source-inventory.ts";
 import { LIGHT_SKILLS } from "../src/lib/light-profile.ts";
 import { autoUpdateLogPath, buildPlist } from "../src/lib/schedule.ts";
 import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
@@ -58,9 +59,17 @@ async function runInstall(
   target: "claude" | "codex" | "both" = "claude",
   extraEnv: Record<string, string> = {},
   source: string = REPO,
+  preload?: string,
 ): Promise<InstallResult> {
   const proc = Bun.spawn(
-    [process.execPath, SETUP_TS, `--source=${source}`, `--target=${target}`, ...extraArgs],
+    [
+      process.execPath,
+      ...(preload ? ["--preload", preload] : []),
+      SETUP_TS,
+      `--source=${source}`,
+      `--target=${target}`,
+      ...extraArgs,
+    ],
     {
       env: {
         ...process.env,
@@ -703,6 +712,125 @@ exit $rc
 });
 
 describe("install E2E — fresh HOME", () => {
+  test("combined install releases healthy product locks when another release fails", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-release-failure-"));
+    try {
+      const preload = join(home, "fault.ts");
+      await writeFile(
+        preload,
+        `import { mock } from "bun:test";
+import * as fs from "node:fs/promises";
+const original = { ...fs };
+const failedLock = ${JSON.stringify(join(home, ".codex", "tmp", "install.lock"))};
+mock.module("node:fs/promises", () => ({ ...original,
+  rm: async (path, options) => {
+    if (path === failedLock) throw Object.assign(new Error("fixture lock cleanup failure"), { code: "EACCES" });
+    return original.rm(path, options);
+  },
+}));
+`,
+      );
+      const result = await runInstall(home, [], "both", {}, REPO, preload);
+      expect(result.exitCode).not.toBe(0);
+      expect(`${result.stdout}\n${result.stderr}`).toContain("fixture lock cleanup failure");
+      expect(existsSync(join(home, ".claude", "tmp", "install.lock"))).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+  test("installer-produced team provenance preserves personal settings across reinstalls", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-provenance-"));
+    try {
+      const claude = join(home, ".claude");
+      await mkdir(claude);
+      const personal = {
+        model: "sonnet",
+        env: { CC_TEST_PERSONAL: "keep-me" },
+        statusLine: { type: "command", command: "personal-status.ts" },
+      };
+      const settingsPath = join(claude, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(personal));
+      const first = await runInstall(home);
+      expect(first.exitCode, first.stderr).toBe(0);
+      for (const resource of AUDIT_PERFORMANCE_RESOURCES) {
+        expect(await readFile(join(claude, resource))).toEqual(
+          await readFile(join(REPO, resource)),
+        );
+      }
+      const baseline = JSON.parse(
+        await readFile(join(claude, ".cc-settings-baseline.json"), "utf8"),
+      ) as { team_settings?: { env?: Record<string, string> }; settings: Record<string, unknown> };
+      expect(baseline.settings).toMatchObject(personal);
+      expect(baseline.team_settings).toBeDefined();
+      expect(baseline.team_settings?.env?.CC_TEST_PERSONAL).toBeUndefined();
+      const second = await runInstall(home);
+      expect(second.exitCode, second.stderr).toBe(0);
+      expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject(personal);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("legacy merged snapshots do not establish ownership of personal settings", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-legacy-provenance-"));
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+      const claude = join(home, ".claude");
+      const path = join(claude, "settings.json");
+      const settings = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+      const personal = {
+        model: "sonnet",
+        env: { CC_TEST_PERSONAL: "keep-me" },
+        statusLine: { type: "command", command: "personal-status.ts" },
+      };
+      Object.assign(settings, personal);
+      await writeFile(path, JSON.stringify(settings));
+      const baselineBytes = JSON.stringify({ version: "15.8.0", settings });
+      await writeFile(join(claude, ".cc-settings-baseline.json"), baselineBytes);
+      const sentinelPath = join(claude, ".cc-settings-version");
+      const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+        managed_files: Record<string, string>;
+      };
+      sentinel.managed_files[".cc-settings-baseline.json"] = new Bun.CryptoHasher("sha256")
+        .update(baselineBytes)
+        .digest("hex");
+      await writeFile(sentinelPath, JSON.stringify(sentinel));
+      const reinstall = await runInstall(home);
+      expect(reinstall.exitCode, reinstall.stderr).toBe(0);
+      expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject(personal);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("retired team defaults are pruned using provenance written by the actual installer", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-produced-retirement-"));
+    try {
+      const source = await copySourceFixture(home);
+      const configPath = join(source, "config", "10-core.json");
+      const config = JSON.parse(await readFile(configPath, "utf8")) as {
+        env: Record<string, string>;
+      };
+      config.env.CC_TEST_RETIRED_UNCHANGED = "1";
+      config.env.CC_TEST_RETIRED_EDITED = "original";
+      await writeFile(configPath, JSON.stringify(config));
+      const first = await runInstall(home, [], "claude", {}, source);
+      expect(first.exitCode, first.stderr).toBe(0);
+      const path = join(home, ".claude", "settings.json");
+      const settings = JSON.parse(await readFile(path, "utf8")) as { env: Record<string, string> };
+      expect(settings.env.CC_TEST_RETIRED_UNCHANGED).toBe("1");
+      settings.env.CC_TEST_RETIRED_EDITED = "user-changed";
+      await writeFile(path, JSON.stringify(settings));
+      const second = await runInstall(home);
+      expect(second.exitCode, second.stderr).toBe(0);
+      const after = JSON.parse(await readFile(path, "utf8")) as { env: Record<string, string> };
+      expect(after.env.CC_TEST_RETIRED_UNCHANGED).toBeUndefined();
+      expect(after.env.CC_TEST_RETIRED_EDITED).toBe("user-changed");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   test("an env key retired between versions is pruned three-way via the baseline, but a user-changed value survives", async () => {
     // Regression for the v15.2.0 ENABLE_PROMPT_CACHING_1H episode: removing a
     // managed env key from config/ left it in every existing install because
@@ -722,18 +850,18 @@ describe("install E2E — fresh HOME", () => {
         env?: Record<string, string>;
       };
       const baseline = JSON.parse(await readFile(baselinePath, "utf8")) as {
-        settings?: { env?: Record<string, string> };
+        team_settings?: { env?: Record<string, string> };
       };
-      expect(baseline.settings?.env).toBeDefined();
+      expect(baseline.team_settings?.env).toBeDefined();
       settings.env = {
         ...settings.env,
         CC_TEST_RETIRED_UNCHANGED: "1",
         CC_TEST_RETIRED_EDITED: "user-changed",
         CC_TEST_USER_OWN: "mine",
       };
-      if (baseline.settings?.env) {
-        baseline.settings.env.CC_TEST_RETIRED_UNCHANGED = "1";
-        baseline.settings.env.CC_TEST_RETIRED_EDITED = "original";
+      if (baseline.team_settings?.env) {
+        baseline.team_settings.env.CC_TEST_RETIRED_UNCHANGED = "1";
+        baseline.team_settings.env.CC_TEST_RETIRED_EDITED = "original";
       }
       await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
       const baselineBytes = `${JSON.stringify(baseline, null, 2)}\n`;
@@ -2452,9 +2580,24 @@ describe("install E2E — uninstall ownership", () => {
             "docs/skills.md",
             "docs/system-overview.md",
             "docs/troubleshooting.md",
+            "skills/audit/references/bundle-attribution.py",
+            "skills/audit/references/net-capture.mjs",
+            "skills/audit/references/performance-playbook.md",
             "src/hooks/model-switch-guard.ts",
+            "src/lib/claude-install-ownership.ts",
+            "src/lib/claude-install-settings.ts",
             "src/lib/claude-managed-file-manifests.ts",
             "src/lib/claude-managed-files.ts",
+            "src/lib/claude-rollback-validation.ts",
+            "src/lib/codex-backup.ts",
+            "src/lib/codex-install-state.ts",
+            "src/lib/codex-native-agents.ts",
+            "src/lib/codex-plugin.ts",
+            "src/lib/codex-runtime-manifests.ts",
+            "src/lib/codex-runtime.ts",
+            "src/lib/install-lifecycle.ts",
+            "src/lib/install-source-inventory.ts",
+            "src/lib/install-types.ts",
             "src/scripts/migrate-legacy-codex-skills.ts",
           ].sort(),
         );

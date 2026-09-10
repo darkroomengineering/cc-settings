@@ -8,8 +8,10 @@
 // the second caller aborts cleanly with a clear message instead of racing.
 //
 // The lock is advisory (both callers cooperate by taking it) and time-bounded:
-// a lock older than STALE_MS is assumed to be a crashed install and reclaimed,
-// so one hard-killed run can never wedge every future install. Each run stamps
+// eligible stale locks are reclaimed. An exclusive sidecar serializes the
+// read/check/rename/create transition and token-checked release. A crashed
+// transition leaves that sidecar in place and requires manual recovery; we
+// never reclaim the guard, which would reproduce the same race. Each run stamps
 // a unique owner token so release only removes ITS OWN lock — never one a stale
 // reclaim handed to another run. This is not a fully OS-backed lock (no flock /
 // heartbeat); for the low frequency of the manual-vs-scheduled race that is a
@@ -130,14 +132,51 @@ async function lockIsStale(lockPath: string): Promise<boolean> {
  *  live lock. */
 function releaser(lockPath: string, token: string): () => Promise<void> {
   return async () => {
-    if ((await readLockToken(lockPath)) === token) {
-      await rm(lockPath, { force: true }).catch(() => {});
-    }
+    await withTransitionGuard(
+      lockPath,
+      async () => {
+        if ((await readLockToken(lockPath)) === token) {
+          await rm(lockPath, { force: true });
+        }
+      },
+      true,
+    );
   };
 }
 
+/** No automatic guard reclamation: only its holder may remove it. Release
+ *  briefly waits for a concurrent acquisition's short ownership check. */
+async function withTransitionGuard<T>(
+  lockPath: string,
+  operation: () => Promise<T>,
+  wait = false,
+): Promise<T> {
+  const guardPath = `${lockPath}.guard`;
+  const deadline = Date.now() + (wait ? 2000 : 0);
+  while (true) {
+    try {
+      await createLockExclusive(guardPath, randomUUID());
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      if (Date.now() >= deadline) {
+        throw new InstallLockError(
+          `Another install is changing lock ownership (guard: ${guardPath}). ` +
+            "Re-run in a moment. If the guard remains, verify no install is running before removing it manually.",
+        );
+      }
+      await Bun.sleep(25);
+    }
+  }
+  try {
+    return await operation();
+  } finally {
+    await rm(guardPath);
+  }
+}
+
 /**
- * Acquire the install lock. Returns a release function to call (best-effort) in
+ * Acquire the install lock. Returns a release function to await in
  * a finally once the destructive phase completes. Throws InstallLockError if a
  * live install already holds it.
  */
@@ -149,49 +188,48 @@ export async function acquireInstallLock(
   // a first-ever install.
   await mkdir(dirname(lockPath), { recursive: true });
 
-  const token = randomUUID();
-  try {
-    await createLockExclusive(lockPath, token);
-    return releaser(lockPath, token);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
-  }
+  return withTransitionGuard(lockPath, async () => {
+    const token = randomUUID();
+    try {
+      await createLockExclusive(lockPath, token);
+      return releaser(lockPath, token);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+    }
 
-  // Lock present — reclaim only if stale, else refuse.
-  if (!(await lockIsStale(lockPath))) {
-    throw new InstallLockError(
-      `Another cc-settings install is in progress (lock: ${lockPath}). ` +
-        "Wait for it to finish, or if you're sure none is running, delete the lock file and re-run.",
-    );
-  }
-  // Atomically claim the stale lock by renaming it aside. rename() is atomic, so
-  // if two runs both saw it as stale, exactly ONE wins the rename; the loser
-  // gets ENOENT and refuses rather than deleting the winner's fresh lock and
-  // double-entering the destructive section. (A plain rm-then-create can't
-  // serialize this: the loser's rm clobbers the winner's just-created lock.)
-  const quarantine = `${lockPath}.stale-${randomUUID()}`;
-  try {
-    await rename(lockPath, quarantine);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+    // Lock present — reclaim only if stale, else refuse.
+    if (!(await lockIsStale(lockPath))) {
       throw new InstallLockError(
-        `Another install reclaimed the lock first (${lockPath}). Re-run in a moment.`,
+        `Another cc-settings install is in progress (lock: ${lockPath}). ` +
+          "Wait for it to finish, or if you're sure none is running, delete the lock file and re-run.",
       );
     }
-    throw err;
-  }
-  await rm(quarantine, { force: true }).catch(() => {});
-  // We won the reclaim. A fresh EEXIST now would be a genuine concurrent create;
-  // anything else (EACCES, ENOSPC, …) is a real failure and must surface.
-  try {
-    await createLockExclusive(lockPath, token);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
-      throw new InstallLockError(
-        `Reclaimed a stale lock but another install grabbed it first (${lockPath}). Re-run in a moment.`,
-      );
+    // The transition guard protects this stale check and rename as one operation;
+    // rename alone cannot prevent a delayed claimant from moving a new live lock.
+    const quarantine = `${lockPath}.stale-${randomUUID()}`;
+    try {
+      await rename(lockPath, quarantine);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new InstallLockError(
+          `Another install reclaimed the lock first (${lockPath}). Re-run in a moment.`,
+        );
+      }
+      throw err;
     }
-    throw err;
-  }
-  return releaser(lockPath, token);
+    await rm(quarantine, { force: true }).catch(() => {});
+    // We won the reclaim. A fresh EEXIST now would be a genuine concurrent create;
+    // anything else (EACCES, ENOSPC, …) is a real failure and must surface.
+    try {
+      await createLockExclusive(lockPath, token);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+        throw new InstallLockError(
+          `Reclaimed a stale lock but another install grabbed it first (${lockPath}). Re-run in a moment.`,
+        );
+      }
+      throw err;
+    }
+    return releaser(lockPath, token);
+  });
 }

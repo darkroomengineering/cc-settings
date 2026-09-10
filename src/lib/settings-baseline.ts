@@ -1,28 +1,10 @@
-// Settings baseline snapshot — Phase 1 of the three-way settings-merge design
-// (docs/settings-merge-three-way-design.md §1). Records what cc-settings itself
-// wrote to ~/.claude/settings.json on the last successful full-profile install,
-// so a future three-way merge (base/team/user) has a real recorded fact instead
-// of reconstructing "what did we install last time" from the hand-maintained
-// DEPRECATED_PERMISSION_PATTERNS / DEPRECATED_COMMAND_PATTERNS regex registries
-// in settings-merge.ts.
-//
-// Lives in its own file (~/.claude/.cc-settings-baseline.json), not the version
-// sentinel (~/.claude/.cc-settings-version) — see the design doc §1 for why:
-// the baseline is the ENTIRE merged settings.json (multi-KB: config/40-hooks.json
-// alone is 317 lines, plus permissions/env/statusLine), while the sentinel is
-// read on every SessionStart and must stay small. The baseline is written once
-// per full-profile install and never touched by a hot path.
-//
-// As of v15.3.0 readSettingsBaseline has its first production caller:
-// installSettings reads the previous install's baseline and threads its env
-// block into mergeSettings as `baselineEnv`, so env keys cc-settings retires
-// between versions are pruned three-way (old install wrote it + new config
-// dropped it + user never changed it) instead of surviving forever or
-// requiring a DEPRECATED_ENV_KEYS registry entry. That is the first slice of
-// the design doc's engine — deliberately scoped to env only. The FULL
-// three-way merge (permissions/hooks, generalizing the deprecated-pattern
-// registries per the design doc's case 7) remains designed, costed, and
-// DECLINED — see the design doc's note 7.
+// The baseline keeps two distinct facts from the last full-profile install:
+// `settings` is the merged restoration snapshot, including personal values;
+// `team_settings` is the team's contribution before merging. Only the latter
+// establishes ownership when pruning retired env keys or updating defaults.
+// Legacy snapshots lack that evidence and must retain plain user-wins behavior.
+// This multi-KB record lives separately from the small version sentinel read
+// on every SessionStart. Permissions/hooks retain their existing merge policy.
 
 import { join } from "node:path";
 import { z } from "zod";
@@ -46,6 +28,8 @@ export const SettingsBaselineSchema = z.looseObject({
   written_at: z.string().optional().catch(undefined),
   /** The merged settings.json content this install actually wrote. */
   settings: z.record(z.string(), z.unknown()).optional().catch(undefined),
+  /** Team contribution before merging, excluding preserved personal values. */
+  team_settings: z.record(z.string(), z.unknown()).optional().catch(undefined),
 });
 
 export type SettingsBaseline = z.infer<typeof SettingsBaselineSchema>;
@@ -57,12 +41,8 @@ export const BASELINE_FILENAME = ".cc-settings-baseline.json";
  * {@link SettingsBaselineSchema}.
  *
  * Returns the full parsed WRAPPER ({@link SettingsBaseline}: version +
- * written_at + settings), not just the inner `settings` field. A future
- * three-way-merge caller wants `written_at`/`version` alongside the settings
- * snapshot (e.g. to distinguish "corrupt" from "stale"), so unwrapping to
- * bare settings here would throw that context away for no gain. A call site
- * that only wants the settings object gets it the same way the design doc's
- * own sketch does: `(await readSettingsBaseline(dir))?.settings ?? null`.
+ * written_at + settings + team_settings). Merge callers must use
+ * `team_settings`; the merged `settings` snapshot cannot prove ownership.
  *
  * Returns null on a missing file, unparseable JSON, or a non-object top
  * level (array/primitive) — identical failure contract to readSentinel in
@@ -84,7 +64,8 @@ export async function readSettingsBaseline(claudeDir: string): Promise<SettingsB
 
 /**
  * Write `~/.claude/.cc-settings-baseline.json` — the exact settings.json
- * content this install produced, stamped with the cc-settings version and a
+ * content this install produced and the team's contribution before merging,
+ * stamped with the cc-settings version and a
  * timestamp. Called once per full-profile install, right after the merged
  * settings.json is read back for the hooks fingerprint (src/setup.ts,
  * installSettings) — reuses that same read, no second disk hit. Atomic
@@ -95,11 +76,13 @@ export async function writeSettingsBaseline(
   claudeDir: string,
   version: string,
   settings: Record<string, unknown>,
+  teamSettings: Record<string, unknown>,
 ): Promise<void> {
   const record: SettingsBaseline = {
     version,
     written_at: new Date().toISOString(),
     settings,
+    team_settings: teamSettings,
   };
   await atomicWriteJson(join(claudeDir, BASELINE_FILENAME), record);
 }

@@ -342,6 +342,12 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
       process.exitCode = 1;
       return;
     }
+    // read-tree leaves zeroed stat data: refresh it before diff-files so clean
+    // tracked files are not mistaken for changes. Refresh may exit 1 for real
+    // differences; diff-files below remains the authoritative dirty check.
+    await runIsolatedGit([...safeRepoArgs, "update-index", "--refresh", "-q"], {
+      GIT_INDEX_FILE: generatedIndex,
+    });
     const worktreeDiff = await runIsolatedGit([...safeRepoArgs, "diff-files", "--quiet", "--"], {
       GIT_INDEX_FILE: generatedIndex,
     });

@@ -18,15 +18,33 @@ async function sandbox(): Promise<string> {
 }
 
 describe("writeSettingsBaseline + readSettingsBaseline", () => {
+  test("legacy or malformed team provenance never falls back to the merged snapshot", async () => {
+    const dir = await sandbox();
+    try {
+      for (const provenance of [undefined, ["invalid"]]) {
+        await writeFile(
+          join(dir, BASELINE_FILENAME),
+          JSON.stringify({ settings: { env: { PERSONAL: "keep" } }, team_settings: provenance }),
+        );
+        const result = await readSettingsBaseline(dir);
+        expect(result?.settings).toEqual({ env: { PERSONAL: "keep" } });
+        expect(result?.team_settings).toBeUndefined();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
   test("round-trips version, written_at, and settings", async () => {
     const dir = await sandbox();
     try {
       const settings = { hooks: { a: 1 }, permissions: { allow: ["Read(*)"] } };
-      await writeSettingsBaseline(dir, "13.0.6", settings);
+      const team = { permissions: { allow: ["Read(*)"] } };
+      await writeSettingsBaseline(dir, "13.0.6", settings, team);
       const result = await readSettingsBaseline(dir);
       expect(result?.version).toBe("13.0.6");
       expect(typeof result?.written_at).toBe("string");
       expect(result?.settings).toEqual(settings);
+      expect(result?.team_settings).toEqual(team);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -97,7 +115,7 @@ describe("writeSettingsBaseline + readSettingsBaseline", () => {
   test("write is atomic — no .tmp residue after successful write", async () => {
     const dir = await sandbox();
     try {
-      await writeSettingsBaseline(dir, "13.0.6", { a: 1 });
+      await writeSettingsBaseline(dir, "13.0.6", { a: 1 }, {});
       const { readdir } = await import("node:fs/promises");
       const entries = await readdir(dir);
       expect(entries.some((e) => e.endsWith(".tmp"))).toBe(false);
