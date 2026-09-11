@@ -79,6 +79,15 @@ describe("native codemap", () => {
   test("renamed imports retain their symbol's callers without unrelated names", async () => {
     const project = await mkdtemp(join(tmpdir(), "ccmap-alias-"));
     try {
+      // Name lookup selects the first declaration. Pin the intended target
+      // before its unrelated namesake instead of relying on directory order.
+      await writeFile(
+        join(project, "tsconfig.json"),
+        JSON.stringify({
+          compilerOptions: { module: "esnext", moduleResolution: "bundler", noEmit: true },
+          files: ["a.ts", "b.ts", "c.ts"],
+        }),
+      );
       await writeFile(join(project, "a.ts"), "export function auditedTarget() { return 1; }\n");
       await writeFile(
         join(project, "b.ts"),
