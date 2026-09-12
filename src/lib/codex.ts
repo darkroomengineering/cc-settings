@@ -594,62 +594,61 @@ function reviewScopeDescription(scope: ReviewScope): string {
   }
 }
 
-/** The git command(s) Codex should run to see the diff for this scope, as
- *  plain step text (no numbering — buildReviewPrompt numbers them). */
-function reviewScopeStepTexts(scope: ReviewScope): string[] {
+/** The git command that defines the diff for this scope. It is the scope
+ *  definition, not a step recipe: Codex decides how to inspect the repository. */
+function reviewScopeCommand(scope: ReviewScope): string {
   switch (scope.kind) {
     case "uncommitted":
-      return [
-        "Run `git status` to see which files are modified.",
-        "Run `git diff` to see the full uncommitted changes (also check `git diff --cached` for staged changes).",
-      ];
+      return "`git diff` plus `git diff --cached`";
     case "staged":
-      return [
-        "Run `git status` to see which files are staged.",
-        "Run `git diff --cached` to see the full staged diff. Ignore any unstaged changes.",
-      ];
+      return "`git diff --cached` only; ignore unstaged changes";
     case "base":
-      return [
-        `Run \`git diff ${scope.branch}...HEAD\` (three-dot: everything changed since HEAD diverged from ${scope.branch}, at the merge base — not a direct two-branch diff).`,
-      ];
+      return `\`git diff ${scope.branch}...HEAD\` (three-dot: everything since the merge base, not a two-branch diff)`;
     case "commit":
-      return [`Run \`git show ${scope.sha}\` to see the full diff introduced by that commit.`];
+      return `\`git show ${scope.sha}\``;
   }
 }
 
-/** Build the review prompt for a scope. For `{ kind: "uncommitted" }` (the
- *  default, used when no scope flag is passed) this must stay byte-identical
- *  to the original hardcoded prompt — callers and cached expectations rely on
- *  today's no-flag behavior being unchanged. */
+/** Build the review prompt for a scope. The prompt states the scope, the review
+ *  contract, and the report shape, and leaves the inspection method to the
+ *  model. Current Codex models find the diff themselves; a numbered `git status`
+ *  / `git diff` recipe only spent context and, with GPT-6 Astra, risked the model
+ *  treating the recipe as the whole job. */
 export function buildReviewPrompt(scope: ReviewScope): string {
-  const sharedStepLines: string[][] = [
-    [
-      "Review the diff for: correctness bugs, security issues (injection, secrets, unsafe operations),",
-      "   and obvious quality problems (logic errors, missing error handling, type unsafety).",
-    ],
-    [
-      "Report your findings grouped by severity: HIGH, MEDIUM, LOW.",
-      "   For each finding include: file + line range, description, and suggested fix.",
-    ],
-    ["If the diff is clean, say so explicitly."],
-  ];
-
-  const lines: string[] = [];
-  const scopeSteps = reviewScopeStepTexts(scope);
-  for (let i = 0; i < scopeSteps.length; i++) lines.push(`${i + 1}. ${scopeSteps[i]}`);
-  let n = scopeSteps.length;
-  for (const stepLines of sharedStepLines) {
-    n++;
-    lines.push(`${n}. ${stepLines[0]}`);
-    for (let j = 1; j < stepLines.length; j++) lines.push(stepLines[j] as string);
-  }
-
   return [
     `You are performing an independent code review of ${reviewScopeDescription(scope)}.`,
+    `The diff under review is ${reviewScopeCommand(scope)}. Read surrounding code when a finding depends on it.`,
     "",
-    "Steps:",
-    ...lines,
+    "Report only behavior or risk: correctness bugs, security issues (injection, secrets, unsafe operations),",
+    "and quality problems that change outcomes (logic errors, missing error handling, type unsafety).",
+    "Skip formatting, naming taste, and anything a linter catches.",
+    "",
+    "Group findings by severity: HIGH, MEDIUM, LOW. For each finding give file + line range,",
+    "what goes wrong, and the suggested fix. If the diff is clean, say so explicitly.",
     "",
     "Be concise and precise. Focus on real problems, not style preferences.",
+  ].join("\n");
+}
+
+/** Wrap an `exec` task with the completion contract. GPT-6 Astra stops early
+ *  when completion is undefined: it reaches a first implementation and returns
+ *  for review while work remains. The contract defines "done" up front (run,
+ *  inspect, fix, verify) and grants the local verification workflow so the
+ *  model does not pause for approval at each step inside the sandbox. */
+export function buildExecPrompt(task: string): string {
+  return [
+    "Task:",
+    task.trim(),
+    "",
+    "Completion contract:",
+    "- Done means the task's stated outcome holds and the repository's own local checks",
+    "  (typecheck, tests, lint, build; whatever the repo defines) pass for the files you touched.",
+    "- Run those checks yourself, inspect the result, and fix failures your change caused.",
+    "  Do not pause for approval between steps; the sandbox bounds what you can affect.",
+    "- Do not stop after a first implementation to ask for review. Continue until done",
+    "  or until a decision only the requester can make blocks you; then state that decision.",
+    "- Stay inside the task's scope. Do not refactor, upgrade, or reformat beyond it.",
+    "- Leave the changes uncommitted. Finish with the files changed, the checks you ran",
+    "  with their result, and anything you could not verify.",
   ].join("\n");
 }

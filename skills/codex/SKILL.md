@@ -45,6 +45,14 @@ Runs Codex in a `workspace-write` sandbox. Use this when a task is:
 
 **Quota routing**: Codex is metered by messages per ~5-hour window, not by tokens. Hand it one big complete task, not a sequence of small steps. A single `exec` call for a whole feature costs the same quota as one `exec` call for a single file.
 
+**Write the task as an outcome, not a recipe.** The script wraps every `exec` task in a completion contract (run the repo's local checks, fix what the change broke, do not stop after a first implementation, leave changes uncommitted, report what was verified). GPT-6 Astra stops early when done is undefined and over-follows step lists, so the task itself must say:
+
+- the end state that means done (which behavior holds, which files or surfaces are covered);
+- where to stop exploring, if the task is open-ended;
+- any decision Codex must bring back instead of making (leave everything else to its judgment).
+
+Do not add "ask before X" language for reversible in-scope work; the sandbox already bounds the blast radius, and Astra reads such language as a reason to stop.
+
 After `exec` returns, ALWAYS review Codex's diff before trusting it:
 
 ```bash
@@ -63,7 +71,7 @@ bun run proof
 bun "$HOME/.claude/src/scripts/codex-run.ts" review
 ```
 
-Runs in a `read-only` sandbox. Codex reads the repo itself (`git diff`, `git status`) and reports findings by severity (HIGH / MEDIUM / LOW), covering correctness bugs, security issues, and obvious quality problems.
+Runs in a `read-only` sandbox. The prompt names the diff under review and the review contract (behavior and risk only, findings by HIGH / MEDIUM / LOW with file, line range, and fix). Codex decides how to inspect the repository; the prompt no longer scripts `git status` and `git diff` steps.
 
 Use this after you have finished a diff and want a second opinion from a different model family. Codex and Claude have different blind spots — cross-model review catches what Opus self-review misses. This is the primary reason to prefer `review` over asking Claude to review its own output.
 

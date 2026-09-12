@@ -33,7 +33,8 @@ export const CODEX_ADAPTER = `Native Codex adapter:
 - Delegate with spawn_agent. Use followup_task to trigger another turn for an idle existing agent, send_message to deliver context to a running agent, wait_agent to wait, and interrupt_agent to stop its current turn when necessary.
 - Treat Agent as spawn_agent and AskUserQuestion as reporting the blocking question to the parent agent. Agent lifecycle APIs can vary by host, so prefer these capabilities over guessed aliases.
 - Follow AGENTS.md for repository instructions. Claude-specific output styles, status lines, agent teams, and worktree isolation are unavailable unless the active Codex surface explicitly exposes an equivalent; serialize file-writing agents when isolation is unavailable.
-- Do not invoke codex-verifier or codex-run.ts from inside Codex. Claude-only helper paths and the tldr binary are optional; use native Codex tools when they are absent.`;
+- Do not invoke codex-verifier or codex-run.ts from inside Codex. Claude-only helper paths and the tldr binary are optional; use native Codex tools when they are absent.
+- Define done before starting and work until it holds: run the repository's local checks, inspect the result, and fix what your change broke. Do not return after a first implementation for a review nobody asked for. Ask only for a decision the requester owns.`;
 
 export type CodexProfile = "full" | "light";
 

@@ -5,6 +5,7 @@
 //
 // Usage:
 //   codex-run.ts exec [--force] "<task>"     — delegate mechanical/bulk work to Codex
+//     (the task is wrapped in a completion contract: run checks, fix, finish, report)
 //   codex-run.ts review [--force] [scope]    — independent review, default: uncommitted diff
 //   codex-run.ts ask [--force] "<question>"  — read-only second opinion from Codex
 //
@@ -20,7 +21,13 @@
 //   real call. Useful when the quota message was a false positive (e.g. auth mismatch).
 //   Does NOT bypass not-installed or unauthenticated — those can't succeed regardless.
 
-import { buildReviewPrompt, parseReviewArgs, runCodexExec, sanitizeOutput } from "../lib/codex.ts";
+import {
+  buildExecPrompt,
+  buildReviewPrompt,
+  parseReviewArgs,
+  runCodexExec,
+  sanitizeOutput,
+} from "../lib/codex.ts";
 import { runGit } from "../lib/git.ts";
 
 function usage(): void {
@@ -82,7 +89,11 @@ switch (subcommand) {
       usage();
       process.exit(2);
     }
-    const result = await runCodexExec({ prompt: task, sandbox: "workspace-write", force });
+    const result = await runCodexExec({
+      prompt: buildExecPrompt(task),
+      sandbox: "workspace-write",
+      force,
+    });
     if (result.ok) {
       console.log(result.output);
       // Surface the changed-file summary so callers always see what exec wrote.

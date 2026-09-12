@@ -128,6 +128,22 @@ enabled = false
 Restart Codex after either change. Size the budget from the installed total: each skill costs
 roughly its `description:` length in characters divided by four, in tokens.
 
+## Writing for GPT-6 Astra
+
+Codex CLI runs GPT-6 Astra by default. The managed `AGENTS.md` block and the native role agents
+already carry the adjustments OpenAI recommends for it in
+[Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra):
+done is defined before work starts, the local check suite is granted up front, and "ask first"
+language is limited to destructive or irreversible actions. When you write a task prompt or a
+repository-level `AGENTS.md` for Codex:
+
+- State the end state, not the steps. Astra handles ambiguity well and over-follows recipes.
+- Point at docs by situation ("use `deployment.md` when preparing a deployment"), never as a
+  reading list before every edit.
+- Do not tell it to run tests; it does. Tell it which checks are safe to run without asking.
+- If the task includes running the result and fixing what fails, say so; otherwise Astra returns
+  after the first implementation.
+
 ## Light profile
 
 Codex light is intentionally different from Claude light.

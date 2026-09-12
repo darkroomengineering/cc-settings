@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.9.0] — 2026-09-12
+
+- Adapt the Codex bridge to GPT-6 Astra, following OpenAI's guidance on skills and prompts for
+  it. `codex exec` now wraps every task in a completion contract (run the repo's local checks,
+  fix what the change broke, do not stop after a first implementation, leave the diff
+  uncommitted, report what was verified). `codex review` states the diff and the review contract
+  instead of scripting `git status` and `git diff` steps.
+- Add persistence and boundary guidance to the standalone Codex adapter and to every native
+  role agent: define done before starting, run local checks without asking at each step, and
+  treat "ask first" language as covering destructive or irreversible actions only.
+- Document how to write tasks and `AGENTS.md` instructions for GPT-6 Astra in the Codex docs
+  and the `/codex` skill.
+
 ## [15.8.1] — 2026-09-11
 
 - Preserve personal settings across reinstalls by recording team contributions separately from

@@ -116,6 +116,12 @@ CODEX_REVIEW_MODEL=<model-name> bun "$HOME/.claude/src/scripts/codex-run.ts" rev
 
 `/codex` is a Claude Code skill, not a shell command, so it can't take an inline env-var prefix — the skill reads `CODEX_REVIEW_MODEL` from the session's environment. To have `/codex review` pick it up, `export CODEX_REVIEW_MODEL=<model-name>` before launching Claude Code (or in your shell profile).
 
+### What the script adds to a task
+
+`exec` wraps the task text in a completion contract before it reaches Codex. The contract defines done as "the stated outcome holds and the repository's local checks pass for the touched files", tells Codex to run those checks, inspect, and fix without pausing for approval, forbids stopping after a first implementation to ask for review, keeps the work inside the task's scope, and asks for an uncommitted diff plus a verification report. `review` states the diff under review and the review contract and leaves the inspection method to the model. `ask` sends the question verbatim.
+
+The contract exists because GPT-6 Astra, the model the Codex CLI now runs by default, is thorough but stops early when completion is undefined, and treats numbered step lists and "ask first" language more literally than earlier models did. OpenAI's guidance is in [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra). The task text still has to name the end state and any decision Codex must bring back; see the `/codex` skill.
+
 ### `codex-verifier` agent
 
 For parallel cross-model verification after a risky implementer pass:

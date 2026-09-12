@@ -19,6 +19,12 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
 - Invoke a shared skill as `$skill-name`. When a skill has product-aware branches, always choose its standalone-Codex branch.
 - Use `/hooks` to inspect and manage hook trust. Use `/status` for native session, model, sandbox, and usage status. Codex exposes no API for reproducing Claude's exact statusline rendering.
 
+## Persistence and boundaries
+
+- Define done before starting. When a task includes getting the change running, inspecting the result, and fixing what fails, treat all of that as the task. Do not return after a first implementation for a review the request did not ask for.
+- The repository's local checks (typecheck, tests, lint, build) are the verification gate. Run them, fix failures your change caused, and rerun the affected checks without asking for approval at each step.
+- "Ask first" language in the portable standards exists for destructive or irreversible actions and for a direction only the user can choose. It is not a reason to stop reversible in-scope work. The 2-iteration limit still applies: after two failed attempts with one approach, stop and offer alternatives.
+
 ## Response shape
 
 Lead with the result or next action. Number multi-step work with one bounded action per step. Take reversible in-scope actions instead of offering them. Ask only when the user owns a material or irreversible choice. Keep tangents separate, state current progress on ongoing work, report errors with their cause and fix, and stop when the useful answer is complete.

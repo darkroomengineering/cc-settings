@@ -3,6 +3,7 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  buildExecPrompt,
   buildReviewPrompt,
   type CodexVerdict,
   classifyCodexError,
@@ -727,58 +728,40 @@ describe("parseReviewArgs — unrecognized arguments", () => {
 // buildReviewPrompt — diff-scope-to-instruction-text construction
 // ---------------------------------------------------------------------------
 
-describe("buildReviewPrompt — default (uncommitted) scope stays byte-identical", () => {
-  // Locks in today's behavior: no flags passed must produce exactly the prompt
-  // that shipped before scope presets existed, so existing callers/expectations
-  // are unaffected.
-  const ORIGINAL_PROMPT = [
-    "You are performing an independent code review of the current uncommitted diff in this repository.",
-    "",
-    "Steps:",
-    "1. Run `git status` to see which files are modified.",
-    "2. Run `git diff` to see the full uncommitted changes (also check `git diff --cached` for staged changes).",
-    "3. Review the diff for: correctness bugs, security issues (injection, secrets, unsafe operations),",
-    "   and obvious quality problems (logic errors, missing error handling, type unsafety).",
-    "4. Report your findings grouped by severity: HIGH, MEDIUM, LOW.",
-    "   For each finding include: file + line range, description, and suggested fix.",
-    "5. If the diff is clean, say so explicitly.",
-    "",
-    "Be concise and precise. Focus on real problems, not style preferences.",
-  ].join("\n");
-
-  test("uncommitted scope prompt matches the original hardcoded prompt exactly", () => {
-    expect(buildReviewPrompt({ kind: "uncommitted" })).toBe(ORIGINAL_PROMPT);
+describe("buildReviewPrompt — shape", () => {
+  test("uncommitted scope names both diffs and the review contract without a git recipe", () => {
+    const prompt = buildReviewPrompt({ kind: "uncommitted" });
+    expect(prompt).toStartWith(
+      "You are performing an independent code review of the current uncommitted diff in this repository.",
+    );
+    expect(prompt).toContain("`git diff` plus `git diff --cached`");
+    expect(prompt).toContain("Report only behavior or risk");
+    expect(prompt).toContain("Group findings by severity: HIGH, MEDIUM, LOW.");
+    expect(prompt).toContain("If the diff is clean, say so explicitly.");
+    // No numbered step recipe: the model decides how to inspect the repo.
+    expect(prompt).not.toMatch(/^\d+\. /m);
+    expect(prompt).not.toContain("git status");
   });
 });
 
 describe("buildReviewPrompt — scope-specific instructions", () => {
-  test("staged scope tells Codex to run `git diff --cached` and ignore unstaged changes", () => {
+  test("staged scope names `git diff --cached` and excludes unstaged changes", () => {
     const prompt = buildReviewPrompt({ kind: "staged" });
     expect(prompt).toContain("git diff --cached");
-    expect(prompt).toContain("Ignore any unstaged changes");
+    expect(prompt).toContain("ignore unstaged changes");
     expect(prompt).toContain("the currently staged diff in this repository");
   });
 
-  test("base scope tells Codex to run a three-dot diff against the branch", () => {
+  test("base scope names a three-dot diff against the branch", () => {
     const prompt = buildReviewPrompt({ kind: "base", branch: "main" });
     expect(prompt).toContain("git diff main...HEAD");
     expect(prompt).toContain("merge base with `main`");
   });
 
-  test("commit scope tells Codex to run `git show <sha>`", () => {
+  test("commit scope names `git show <sha>`", () => {
     const prompt = buildReviewPrompt({ kind: "commit", sha: "abc1234" });
     expect(prompt).toContain("git show abc1234");
     expect(prompt).toContain("commit `abc1234`");
-  });
-
-  test("step numbering stays sequential and renumbers around a single scope step", () => {
-    // base/commit scopes contribute one step instead of two, so the shared
-    // steps (review/report/clean-check) shift from 3/4/5 to 2/3/4.
-    const prompt = buildReviewPrompt({ kind: "commit", sha: "deadbeef" });
-    expect(prompt).toContain("1. Run `git show deadbeef`");
-    expect(prompt).toContain("2. Review the diff for:");
-    expect(prompt).toContain("3. Report your findings grouped by severity");
-    expect(prompt).toContain("4. If the diff is clean, say so explicitly.");
   });
 
   test("all scopes end with the same closing guidance sentence", () => {
@@ -793,5 +776,25 @@ describe("buildReviewPrompt — scope-specific instructions", () => {
         "Be concise and precise. Focus on real problems, not style preferences.",
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildExecPrompt — completion contract around a delegated task
+// ---------------------------------------------------------------------------
+
+describe("buildExecPrompt", () => {
+  test("keeps the task verbatim and adds the completion contract", () => {
+    const prompt = buildExecPrompt("  rename every usage of foo to bar  ");
+    expect(prompt).toStartWith("Task:\nrename every usage of foo to bar\n\nCompletion contract:");
+    expect(prompt).toContain("Run those checks yourself");
+    expect(prompt).toContain("Do not stop after a first implementation to ask for review.");
+    expect(prompt).toContain("Leave the changes uncommitted.");
+  });
+
+  test("scopes the work and asks for a verification report", () => {
+    const prompt = buildExecPrompt("add a test");
+    expect(prompt).toContain("Stay inside the task's scope.");
+    expect(prompt).toContain("the checks you ran");
   });
 });

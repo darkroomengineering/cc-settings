@@ -15,7 +15,7 @@ await runHook(async () => {
   if (verdict.state === "available") {
     emitAdditionalContext(
       "SessionStart",
-      "[codex:batched] Codex bridge is up. Policy: (1) route mechanical/bulk implementation to `bun codex-run.ts exec`, batched into few large calls; (2) run ONE cross-model Codex review per PR or /ship — the codex-verifier agent or `bun codex-run.ts review` — before the branch is presented for merge, not on every diff-producing turn; also run one when the user asks or before committing a risky change; (3) Claude keeps planning, synthesis, and gate decisions. Fail-open: if Codex is unavailable or hangs (~5 min at 0 CPU — kill it), proceed Claude-only.",
+      "[codex:batched] Codex bridge is up. Policy: (1) route mechanical/bulk implementation to `bun codex-run.ts exec`, batched into few large calls, each task stating its done state (the script adds the run/inspect/fix contract); (2) run ONE cross-model Codex review per PR or /ship — the codex-verifier agent or `bun codex-run.ts review` — before the branch is presented for merge, not on every diff-producing turn; also run one when the user asks or before committing a risky change; (3) Claude keeps planning, synthesis, and gate decisions. Fail-open: if Codex is unavailable or hangs (~5 min at 0 CPU — kill it), proceed Claude-only.",
     );
   }
 });
