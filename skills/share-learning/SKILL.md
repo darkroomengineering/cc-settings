@@ -1,6 +1,6 @@
 ---
 name: share-learning
-description: Promote a team-relevant learning to the shared team-knowledge repo, deduping against existing notes first. Triggers "share this", "promote to the team repo", "add to the knowledge base", or after a gotcha/decision/convention worth team-wide awareness.
+description: Promote a team-relevant learning to the shared team-knowledge repo after deduping against existing notes. Triggers "share this", "add to the knowledge base", or a gotcha, decision, or convention worth team-wide awareness.
 allowed-tools:
   - Bash(gh api*)
   - Bash(gh auth status*)

@@ -1,6 +1,6 @@
 ---
 name: test
-description: Write/run tests, check coverage, or TDD discipline. Triggers "test", "write tests", "add tests", "run tests", "coverage", "unit test", "integration test", "TDD", "test-first", "red-green-refactor", "bugs-that-must-not-recur"; post-implementation, pre-merge.
+description: Write or run tests, check coverage, or drive TDD. Triggers "write tests", "run tests", "coverage", "TDD", "red-green-refactor", or a pre-merge test pass.
 context: fork
 agent: tester
 ---

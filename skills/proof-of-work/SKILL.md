@@ -1,6 +1,6 @@
 ---
 name: proof-of-work
-description: Run the machine-verifiable gate (typecheck/test/lint, plus a screenshot for UI) so an agent's diff is review-ready before a human sees it. Triggers "proof of work", "is this review-ready", "prove it is green".
+description: Run the machine-verifiable gate (typecheck, test, lint, plus a screenshot for UI) so a diff is review-ready. Triggers "proof of work", "is this review-ready", "prove it is green".
 ---
 
 # Proof of Work

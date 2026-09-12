@@ -1,6 +1,6 @@
 ---
 name: qa
-description: Visual + a11y QA — screenshot-first critique, contrast, touch targets, mockup-vs-impl diff. For adversarial logic checks use `/verify`. Triggers "visual QA", "QA check", "does this look right", "a11y check", "contrast check", post-component changes.
+description: Visual and accessibility QA with screenshot-first critique, contrast, touch targets, mockup-vs-implementation diff. Triggers "visual QA", "does this look right", "a11y check", or after component changes. Logic checks go to /verify.
 context: fork
 allowed-tools: [mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__evaluate_script, Read, Grep, Glob, Agent]
 requires:

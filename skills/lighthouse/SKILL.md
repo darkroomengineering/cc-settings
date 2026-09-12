@@ -1,6 +1,6 @@
 ---
 name: lighthouse
-description: Lighthouse audit + improvement loop until targets met. Triggers "lighthouse", "page speed", "improve scores", "LCP", "CLS", "INP", "core web vitals". Repo-wide perf audits ("perf audit") go to /audit performance mode instead.
+description: Lighthouse audit of one page with an improvement loop until targets are met. Triggers "lighthouse", "page speed", "LCP", "CLS", "INP", "core web vitals". Repo-wide performance audits go to /audit performance.
 context: fork
 argument-hint: "[url]"
 allowed-tools:

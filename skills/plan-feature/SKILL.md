@@ -1,6 +1,6 @@
 ---
 name: plan-feature
-description: Pre-implementation planning — interview to clarify scope, then compile into a PRD. Triggers "help me figure out", "vague scope", "define requirements" (discovery phase); "PRD", "requirements document", "product spec", "feature spec", "write requirements" (PRD phase).
+description: Clarify a vague scope through interview, then compile it into a PRD. Triggers "help me figure out", "define requirements", "PRD", "product spec", "feature spec".
 context: fork
 agent: planner
 ---

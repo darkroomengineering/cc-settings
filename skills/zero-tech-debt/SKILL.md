@@ -1,6 +1,6 @@
 ---
 name: zero-tech-debt
-description: Rewrite an accreted patch into its intended end-state by removing unused compatibility layers, flags, fallbacks, and wrappers. Triggers "zero tech debt", "rewrite as if from scratch", "delete the compat layer", "kill the legacy path", "too many flags".
+description: Rewrite an accreted patch into its intended end state by removing unused compat layers, flags, fallbacks, and wrappers. Triggers "zero tech debt", "delete the compat layer", "kill the legacy path", "too many flags".
 context: main
 ---
 

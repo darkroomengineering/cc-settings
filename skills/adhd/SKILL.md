@@ -1,7 +1,7 @@
 ---
 name: adhd
 argument-hint: "[problem]"
-description: Parallel divergent ideation — framed generators, then a critic scores, clusters, deepens top 3. Triggers "/adhd", "brainstorm", "ideate", "widen the option space", fuzzy design/debugging. Skip lookups, syntax, known-root-cause bugs.
+description: Parallel divergent ideation, framed generators, then a critic scores, clusters, and deepens the top 3. Triggers "brainstorm", "ideate", "widen the option space", or a fuzzy design or debugging question. Not for lookups or bugs with a known cause.
 context: main
 license: MIT
 ---

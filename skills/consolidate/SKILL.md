@@ -1,6 +1,6 @@
 ---
 name: consolidate
-description: Audit and prune rules/skills/learnings to prevent context bloat. Triggers "consolidate", "clean up rules", "spa day", "what's redundant", degraded agent perf.
+description: Audit and prune rules, skills, and learnings to cut context bloat. Triggers "consolidate", "clean up rules", "what's redundant", or degraded agent performance from oversized instructions.
 context: fork
 ---
 

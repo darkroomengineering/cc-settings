@@ -1,7 +1,7 @@
 ---
 name: oracle
 argument-hint: "[advice|risks|compare] [question]"
-description: Expert agent in advice, risk, or weighted-comparison mode. Triggers "what should I", "advice on"; "what could go wrong", "risks", "premortem"; or "compare approaches", "which is better", "trade-off analysis", "tech selection".
+description: Expert advice, risk review, or weighted comparison. Triggers "what should I", "advice on", "what could go wrong", "premortem", "compare approaches", "which is better", "tech selection".
 context: fork
 ---
 

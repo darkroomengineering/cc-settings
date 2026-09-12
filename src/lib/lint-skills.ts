@@ -76,7 +76,7 @@ export const SKILL_COUNT_BASELINE = 38;
 // while lengthening another nets zero), so only exceeding the budget is an
 // error. The fix for a violation is tightening the longest descriptions, not
 // raising this constant.
-export const SKILL_DESCRIPTION_BYTE_BUDGET = 8704;
+export const SKILL_DESCRIPTION_BYTE_BUDGET = 7424;
 
 // Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
 // the schema `name` field regexes (agent/skill/profile/knowledge) — see

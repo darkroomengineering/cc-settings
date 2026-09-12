@@ -1,6 +1,6 @@
 ---
 name: hook
-description: Create reusable React hook (useX pattern). Triggers "create hook", "new hook", "custom hook", "useAuth"/"useScroll"-style names, extracting logic from a component.
+description: Create a reusable React hook (useX). Triggers "create hook", "new hook", "custom hook", a useX-style name, or extracting logic out of a component.
 argument-hint: "[hookName]"
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: freeze
 argument-hint: "[set|off|status] [dir]"
-description: Block Edit/Write outside one session directory to contain debugging or parallel agents. Triggers "freeze edits", "lock editing scope", "restrict edits to", "only edit this folder", "unfreeze".
+description: Block Edit and Write outside one directory for the session to contain debugging or parallel agents. Triggers "freeze edits", "restrict edits to", "only edit this folder", "unfreeze".
 context: main
 allowed-tools: [Bash, AskUserQuestion]
 ---

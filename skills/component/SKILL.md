@@ -1,6 +1,6 @@
 ---
 name: component
-description: Create UI component / widget / reusable piece. Triggers "create component", "new component", "add component", or naming a component (Button, Header, Card).
+description: Create a UI component. Triggers "create component", "new component", "add component", or naming a component to build (Button, Header, Card).
 argument-hint: "[ComponentName]"
 ---
 

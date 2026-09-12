@@ -1,6 +1,6 @@
 ---
 name: review
-description: Review the local unstaged/staged diff with Darkroom's checklist, or summarize active-PR feedback. Triggers "review my changes", "check this diff", "PR comments", "summarize PR feedback". Native /code-review handles a diff or PR.
+description: Review the local diff against Darkroom's checklist, or summarize feedback on the active PR. Triggers "review my changes", "check this diff", "summarize PR feedback". Native /code-review handles a diff or PR without the checklist.
 context: fork
 agent: reviewer
 ---

@@ -1,6 +1,6 @@
 ---
 name: fix
-description: Debug and fix bugs/errors/failures, including merge conflicts and failing PR CI checks. Triggers "fix", "broken", "not working", "bug", "error", "failing", "merge conflict", "fix CI", "checks failing", console errors, build/test failures, regression.
+description: Debug and fix a reported defect, such as a failing build or tests, runtime or console errors, regressions, merge conflicts, red PR checks. Triggers "fix", "broken", "not working", "merge conflict", "fix CI".
 context: fork
 ---
 

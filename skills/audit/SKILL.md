@@ -1,7 +1,7 @@
 ---
 name: audit
 argument-hint: "[codebase|docs|process|performance|debt|threat-model|motion|seo]"
-description: 'Eight audit modes (codebase — owns "audit the codebase" — docs/process, performance, threat-model, motion, SEO, debt). Triggers "nuclear review", "whole codebase review", "adversarial audit", "fable audit", "correctness audit", "audit the docs", "doc drift", "process audit", "perf audit", "why is it slow", "bundle audit", "threat model", "attack surface", "motion audit", "seo audit", "aeo", "llms.txt", "debt ledger", "shortcut ledger". Single-page CWV routes to /lighthouse.'
+description: Codebase, docs/process, performance, threat-model, motion, SEO, and debt audits. Triggers "audit the codebase", "adversarial audit", "audit the docs", "perf audit", "threat model", "motion audit", "seo audit", "debt ledger". Single-page Core Web Vitals go to /lighthouse.
 context: main
 requires:
   - mcp: context7

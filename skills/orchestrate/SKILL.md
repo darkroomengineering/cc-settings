@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Multi-agent coordination across plan/implement/test/review; fan-out for 3+ workstreams. Triggers "coordinate", "orchestrate", "parallel agents", "fan out", "split work", refactor, "overnight", "autonomous task", "marathon".
+description: Coordinate agents across plan, implement, test, and review, or fan out 3+ independent workstreams. Triggers "orchestrate", "parallel agents", "fan out", "split work", "overnight", "autonomous task".
 context: fork
 agent: maestro
 ---

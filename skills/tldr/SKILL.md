@@ -1,6 +1,6 @@
 ---
 name: tldr
-description: TLDR code analysis — call graphs, semantic search, impact, dataflow, for far fewer tokens than reading the files raw. Triggers "who calls X", "what affects X", "blast radius", before large file reads or refactors.
+description: Code analysis through TLDR (call graphs, impact, dataflow, semantic search) for far fewer tokens than reading files raw. Triggers "who calls X", "blast radius", or before a large file read or refactor.
 context: fork
 allowed-tools: [mcp__tldr__semantic, mcp__tldr__context, mcp__tldr__impact, mcp__tldr__arch, mcp__tldr__slice, mcp__tldr__structure, mcp__tldr__calls, mcp__tldr__cfg, mcp__tldr__dfg, mcp__tldr__change_impact, mcp__tldr__dead, mcp__tldr__imports, mcp__tldr__importers, mcp__tldr__diagnostics, mcp__tldr__tree, mcp__tldr__search, mcp__tldr__extract, mcp__tldr__status]
 requires:

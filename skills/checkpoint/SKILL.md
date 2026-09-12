@@ -1,7 +1,7 @@
 ---
 name: checkpoint
 argument-hint: "[save|restore|show|list|clean] [name-or-id]"
-description: Mid-task rollback points — save/restore state before risky ops (refactors, migrations, destructive edits). For end-of-session save use `/handoff`. Triggers "checkpoint", "snapshot", "before this risky op", "rollback to", "list checkpoints", pre-refactor save.
+description: Save or restore a mid-task rollback point before a risky refactor, migration, or destructive edit. Triggers "checkpoint", "snapshot", "rollback to", "list checkpoints". End-of-session saves go to /handoff.
 context: fork
 allowed-tools: [Bash]
 ---

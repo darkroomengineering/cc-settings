@@ -1,7 +1,7 @@
 ---
 name: design-tokens
 argument-hint: "[generate|consolidate]"
-description: Generate WCAG-checked type, color, spacing, and dark-mode tokens, or consolidate Tailwind v4 tokens with identical rendering. Triggers "design tokens", "type scale", "color palette", "theme setup", "reduce tokens", "dedupe tokens", "consolidate tokens".
+description: Generate WCAG-checked type, color, spacing, and dark-mode tokens, or consolidate Tailwind v4 tokens without changing rendering. Triggers "design tokens", "type scale", "color palette", "theme setup", "consolidate tokens".
 context: fork
 ---
 

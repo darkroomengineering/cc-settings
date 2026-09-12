@@ -1,6 +1,6 @@
 ---
 name: plan-ceo-review
-description: CEO/founder-mode plan review — stress-tests a plan through a product lens before committing. Triggers "ceo review", "founder review", "product review", "should we even build this", or before a large architectural commitment.
+description: Stress-test a plan through a product and founder lens before committing to it. Triggers "ceo review", "founder review", "product review", "should we even build this".
 context: fork
 allowed-tools:
   - Read

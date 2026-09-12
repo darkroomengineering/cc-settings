@@ -1,7 +1,7 @@
 ---
 name: handoff
 argument-hint: "[save|resume]"
-description: End-of-session save and next-session resume. Triggers "ending session", "wrapping up", "context window", "running out of context", "done for today" (save mode); "continue where we left off", "pick up where", "last session", "previous work", "resume" (resume mode).
+description: Save state at the end of a session, or resume from the last one. Triggers "wrapping up", "running out of context", "done for today", "continue where we left off", "resume".
 context: fork
 ---
 

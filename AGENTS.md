@@ -9,9 +9,8 @@ Make the codebase legible to agents and humans through written conventions, rule
 ## Getting Started
 
 1. Read this file.
-2. Read files, search code, and run builds directly.
-3. Delegate when the host's rules require it. Claude Code's thresholds live in `CLAUDE-FULL.md`; multi-file exploration, security-sensitive code, and test writing MUST be delegated there.
-4. Start simple and add complexity only when needed.
+2. Delegate when the host's rules require it. Claude Code's thresholds live in `CLAUDE-FULL.md`; multi-file exploration, security-sensitive code, and test writing MUST be delegated there.
+3. Start simple and add complexity only when needed.
 
 ## Response Calibration
 
@@ -67,7 +66,7 @@ A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment cont
 
 ### 2-Iteration Limit
 
-After **2 failed attempts** with one approach, STOP. Summarize the attempts and failures, present **2-3 alternatives** with trade-offs, and ask which direction to take. Never spend 6+ attempts on one strategy.
+After **2 failed attempts** with one approach, stop using that approach. Summarize the attempts, pick the best of **2-3 alternatives**, and continue with it, saying so; ask only when the choice changes the user's stated direction or is hard to reverse. Never spend 6+ attempts on one strategy.
 
 ### Bug Fix Scope
 
@@ -81,7 +80,7 @@ Commit tests only where the task asks for them or the repository already keeps t
 
 ### Verify After Every Fix
 
-Run the build after each fix and prove it passes before moving on. Never stack untested fixes.
+The repository's local checks (typecheck, tests, lint, build) are safe to run without asking. Prove each fix passes them before stacking the next one.
 
 ### Pre-Commit Verification
 
@@ -144,7 +143,7 @@ Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing 
 
 ### Plan Before Multi-File Changes
 
-When a wrong approach would require a full rollback, state the plan before execution: files touched and risks. Do not request approval for reversible in-scope work. Host-specific numeric delegation thresholds remain in that host's instructions, such as Claude Code's `CLAUDE-FULL.md`.
+When a wrong approach would require a full rollback, state the plan (files touched and risks), then proceed without waiting for approval on reversible in-scope work. Host-specific numeric delegation thresholds remain in that host's instructions, such as Claude Code's `CLAUDE-FULL.md`.
 
 ### Every Plan Opens With a Functional DAG
 

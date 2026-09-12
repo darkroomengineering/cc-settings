@@ -1,7 +1,7 @@
 ---
 name: codex
 argument-hint: "[exec|review|ask] [task]"
-description: Claude-Codex bridge for bulk/mechanical execution, independent diff review, or read-only advice. Triggers "use codex", "have codex do", "codex exec", "have codex review", "have codex check", "cross-check with codex", "second opinion from codex", "ask codex".
+description: Claude-to-Codex bridge to delegate bulk mechanical work, get an independent cross-model diff review, or ask a read-only question. Triggers only when the user names Codex, as in "use codex", "have codex review", "cross-check with codex", "ask codex".
 context: main
 ---
 

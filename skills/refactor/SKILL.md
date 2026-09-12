@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Behavior-preserving restructuring of code NOT in your current diff — extract modules, rename across files, pay down tech debt. For just-changed code use /zero-tech-debt. Triggers "refactor X", "restructure", "extract Y from Z".
+description: Behavior-preserving restructuring of code outside the current diff, such as extracting modules, renaming across files, or paying down debt. Triggers "refactor X", "restructure", "extract Y from Z". Just-changed code goes to /zero-tech-debt.
 context: fork
 ---
 

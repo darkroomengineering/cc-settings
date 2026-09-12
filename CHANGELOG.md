@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.10.0] — 2026-09-12
+
+- Narrow all 38 skill descriptions to the situations each skill handles, dropping topic-word
+  triggers and most skip clauses, per OpenAI's GPT-6 Astra guidance on over-broad activation.
+  Total description bytes drop from 8674 to 7408; the lint ceiling tightens to 7424.
+- Soften the portable AGENTS.md stopping rules: after two failed attempts, continue with the best
+  alternative unless the choice changes the user's direction; local checks are granted up front
+  instead of nagged; stating a plan is no longer read as waiting for approval.
+
 ## [15.9.0] — 2026-09-12
 
 - Adapt the Codex bridge to GPT-6 Astra, following OpenAI's guidance on skills and prompts for

@@ -1,6 +1,6 @@
 ---
 name: dr-init
-description: Initialize new Darkroom project from a satus or novus starter (NOT the same as native /init which writes CLAUDE.md). Triggers "new darkroom project", "satus", "novus", "scaffold from starter".
+description: Initialize a new Darkroom project from the satus or novus starter. Triggers "new darkroom project", "satus", "novus", "scaffold from starter". Not the native /init, which writes CLAUDE.md.
 argument-hint: "[project-name]"
 ---
 

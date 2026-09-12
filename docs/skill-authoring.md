@@ -34,7 +34,8 @@ context: fork
 - Minimum ~50 characters. The Skill tool reads this to decide whether to load your skill for the current conversation — it is the only signal the selector sees.
 - Write in the user's voice: "Triggers when user says X", not "Does Y".
 - Be specific. "Helps with code" is too broad. "Triages GitHub issues through a label-based state machine" is not.
-- Include concrete trigger phrases — the words a user would actually type.
+- Include concrete trigger phrases — the words a user would actually type. Name the situation the skill handles, never the topic it touches: `fix` triggers on "broken" and "fix CI", not on "bug" or "error", because a topic word fires the skill on every conversation that mentions it. Current models (Claude 5, GPT-6 Astra) pick skills well from short precise descriptions and over-load from broad ones; see OpenAI's "Rethinking skills and prompts for GPT-6 Astra".
+- Name a neighbor only when the two collide on the same phrase ("Single-page Core Web Vitals go to /lighthouse"). A skip clause for every adjacent skill is noise.
 - Max ~1024 chars total. The description appears in every agent's system prompt; verbose descriptions burn context across the fleet.
 - No `<` or `>` characters (YAML angle-bracket issue).
 
@@ -154,7 +155,7 @@ When two skills are designed to hand off to each other (plan → implement, audi
 
 Before committing a new skill:
 
-- [ ] `description` includes specific trigger phrases in the user's voice
+- [ ] `description` includes specific trigger phrases in the user's voice, naming situations rather than topics
 - [ ] `description` is at least 50 chars, under 1024 chars
 - [ ] No `<` or `>` characters in frontmatter
 - [ ] `name` matches the directory name (kebab-case)

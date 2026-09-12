@@ -1,7 +1,7 @@
 ---
 name: cc
 argument-hint: "[sync|update]"
-description: Sync cc-settings with Claude Code upstream (maintainer) or update a local Claude Code/Codex install (user). Triggers "sync with claude code", "changelog sync", "upstream sync" (sync mode); "update cc-settings", "refresh my install" (update mode).
+description: Sync cc-settings with Claude Code upstream (maintainer) or update a local Claude Code or Codex install (user). Triggers "sync with claude code", "changelog sync", "update cc-settings", "refresh my install".
 ---
 
 # cc — cc-settings management

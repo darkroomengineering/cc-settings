@@ -1,6 +1,6 @@
 ---
 name: retro
-description: Weekly engineering retrospective with persistent metrics — commit patterns, work sessions, code-quality trends. Triggers "retro", "retrospective", "weekly review", "how was my week", "engineering metrics", "velocity", "what did I ship", "show me my stats".
+description: Weekly engineering retrospective with persistent metrics covering commit patterns, sessions, quality trends. Triggers "retro", "weekly review", "how was my week", "what did I ship", "show me my stats".
 context: fork
 allowed-tools:
   - Bash
