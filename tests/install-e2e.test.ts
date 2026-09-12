@@ -2598,6 +2598,8 @@ describe("install E2E — uninstall ownership", () => {
             "src/lib/install-lifecycle.ts",
             "src/lib/install-source-inventory.ts",
             "src/lib/install-types.ts",
+            "src/lib/claude-bridge.ts",
+            "src/scripts/claude-run.ts",
             "src/scripts/migrate-legacy-codex-skills.ts",
           ].sort(),
         );

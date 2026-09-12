@@ -20,6 +20,7 @@ cc-settings ships with **role agents** -- general-purpose agents defined by what
 | `maestro` | Multi-agent orchestration |
 | `security-reviewer` | Security audit |
 | `codex-verifier` | Cross-model verification via the Codex CLI |
+| `claude-verifier` | Codex-only twin: cross-model verification via headless Claude Code (`codex/agents/`) |
 
 `oracle` isn't in this table — it's a skill (`skills/oracle/SKILL.md`, a `context: fork` of the
 session model), not a file under `~/.claude/agents/`. See `docs/agent-models.md`.

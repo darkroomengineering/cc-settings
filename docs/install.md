@@ -136,7 +136,7 @@ light profiles are intentionally different.
 |---|---|---|---|---|
 | Shared skills | `share-learning` only | All 38 | None through plugin | All 38 through plugin |
 | Instructions | Claude defaults | Darkroom instructions, rules, and profiles | Managed Darkroom `AGENTS.md` block | Same managed block |
-| Role agents | None | All Claude roles | None | Native roles except `codex-verifier` |
+| Role agents | None | All Claude roles | None | Native roles except `codex-verifier`, plus `claude-verifier` |
 | Hooks | Statusline only | Full Claude hook set | None through plugin | Compatible plugin hooks |
 | MCP servers | None | Context7, TLDR, Figma, Chrome DevTools | None | Fixed HTTPS Figma only |
 | Runtime and sentinel | Yes | Yes | Yes | Yes |

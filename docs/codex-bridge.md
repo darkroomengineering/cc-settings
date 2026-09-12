@@ -9,13 +9,17 @@ This doc covers the runtime pairing. To install the Darkroom standards and skill
 ## Architecture
 
 ```
-src/lib/codex.ts              Core bridge logic (detection, execution, caching)
+src/lib/codex.ts              Core bridge logic (detection, execution, caching, model routing)
   └─ src/scripts/codex-run.ts CLI entry point — subcommands: exec / review / ask
                                Invoked as: bun "$HOME/.claude/src/scripts/codex-run.ts" <subcommand> "..."
                                Also exposed as the /codex skill
   └─ src/hooks/codex-verify.ts SessionStart hook — probes availability, feeds statusline badge,
                                injects the batched routing policy when the bridge is available
   └─ agents/codex-verifier.md  Agent that fans out a parallel cross-model verification pass
+
+src/lib/claude-bridge.ts        The reverse direction: standalone Codex calling headless Claude
+  └─ src/scripts/claude-run.ts  CLI entry point — subcommands: review / ask (no exec)
+  └─ codex/agents/claude-verifier.md  Codex-only agent that relays a Claude review
 ```
 
 ---
@@ -108,13 +112,24 @@ The routing convention above is enforced automatically, not just documented:
 /codex ask "what are the edge cases in this auth flow?"
 ```
 
-Set `CODEX_REVIEW_MODEL` to pin `review` to a specific model via `codex exec -m`, independent of the model an interactive Codex session would use — mirrors Codex's own `review_model` config key:
+### Model routing on the Codex side
+
+Every subcommand pins a Codex model explicitly instead of inheriting `config.toml`. Execution goes to GPT-5.6 Sol, which continues through long tasks; judgment goes to GPT-6 Astra, which returns early but judges well. Resolution order is flag, then env, then default:
+
+| Subcommand | Default | Env override | Flag |
+|---|---|---|---|
+| `exec` | `gpt-5.6-sol` | `CODEX_EXEC_MODEL` | `--model <id>` |
+| `review` | `gpt-6-astra` | `CODEX_REVIEW_MODEL` | `--model <id>` |
+| `ask` | `gpt-6-astra` | `CODEX_ASK_MODEL` | `--model <id>` |
 
 ```bash
-CODEX_REVIEW_MODEL=<model-name> bun "$HOME/.claude/src/scripts/codex-run.ts" review
+bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model gpt-6-astra "..."
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-5.6-sol --base main
 ```
 
-`/codex` is a Claude Code skill, not a shell command, so it can't take an inline env-var prefix — the skill reads `CODEX_REVIEW_MODEL` from the session's environment. To have `/codex review` pick it up, `export CODEX_REVIEW_MODEL=<model-name>` before launching Claude Code (or in your shell profile).
+`/codex` is a Claude Code skill, not a shell command, so it cannot take an inline env-var prefix; export the variable before launching Claude Code, or pass `--model` in the skill arguments.
+
+The same split applies to the native Codex agents the installer writes: agents pinned to `opus` or `fable` in their Claude frontmatter get `model = "gpt-6-astra"`, agents on `sonnet` or `haiku` get `model = "gpt-5.6-sol"`. See [agent-models.md](./agent-models.md#codex-tiers).
 
 ### What the script adds to a task
 
@@ -135,6 +150,25 @@ For parallel cross-model verification after a risky implementer pass:
 Opus delegates to the `codex-verifier` agent, which runs `codex review` and returns findings grouped by severity (Critical / High / Medium / Low / Info).
 
 ---
+
+## The reverse bridge: Codex calling Claude
+
+Standalone Codex (GPT-6 Astra) can get an independent opinion from a Claude model, Opus 5 by default, through `src/scripts/claude-run.ts`. It is review and ask only; there is no `exec`, so Claude never edits from a Codex session.
+
+```bash
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" review [--staged | --base <branch> | --commit <sha>] [--model <id>]
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" ask "question" [--model <id>]
+```
+
+The script runs `claude -p` with `--permission-mode dontAsk`, a tool set of Read, Grep, Glob, and Bash, and an allowlist of `git diff`, `git show`, `git status`, and `git log`; anything else is denied silently. The prompt goes over stdin, so it can never be read as a flag. Model resolution is `--model`, then `CLAUDE_BRIDGE_MODEL`, then `claude-opus-5`.
+
+The installer writes a Codex-only `claude-verifier` native agent (source: `codex/agents/claude-verifier.md`) that wraps the review subcommand, mirroring `codex-verifier` on the Claude side.
+
+Three constraints, all enforced by the script:
+
+- **No chaining.** It refuses when `CLAUDECODE` is set (inside a Claude session), and `codex-run.ts` refuses when `CODEX_THREAD_ID` or `CODEX_SANDBOX` is set (inside a Codex session). Neither bridge can call the other.
+- **Network.** Codex sandboxes, including read-only, set `CODEX_SANDBOX_NETWORK_DISABLED=1`, and `claude -p` needs the API. The script reports this and stops. Either rerun the command with escalated permissions when Codex prompts, or set `[sandbox_workspace_write] network_access = true` in `config.toml`; cc-settings never edits that file.
+- **Quota.** The call spends your Claude Max pool from a Codex session. Opus 5 draws from the same weekly pool as Fable, at half the rate.
 
 ## Setup Caveat
 

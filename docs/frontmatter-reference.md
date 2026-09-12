@@ -94,6 +94,7 @@ color: purple
 | `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, SendMessage | cyan |
 | `security-reviewer` | claude-opus-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash, Read | cyan |
+| `claude-verifier` (Codex-only, `codex/agents/`) | sonnet | -- | Bash, Read | cyan |
 
 ---
 

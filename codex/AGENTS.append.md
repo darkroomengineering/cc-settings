@@ -11,7 +11,8 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
   necessary.
 - Use `apply_patch` for file edits and `exec_command` for shell commands. Do not translate these back to Claude tool names.
 - Delegate before work that spans 3 or more files, is likely to need 12 or more tool calls, or touches security-sensitive code. Route exploration, implementation, testing, review, and security work to the matching native role.
-- Never spawn `codex-verifier` and never call the Claude-to-Codex bridge from standalone Codex. For independent review, spawn a fresh `reviewer` agent; for adversarial verification, use separate issue-finder, disprover, and judge agents.
+- Never spawn `codex-verifier` and never call the Claude-to-Codex bridge from standalone Codex. For an independent review from another model family, spawn `claude-verifier` (read-only, calls Claude Opus 5 through `claude-run.ts`; needs network, so approve the escalation when prompted). For a same-family second opinion, spawn a fresh `reviewer`; for adversarial verification, use separate issue-finder, disprover, and judge agents.
+- Native agents carry a `model`: judgment roles run on GPT-6 Astra, execution roles on GPT-5.6 Sol. Delegate long execution to Sol-backed roles and keep decisions in the session.
 - Writers share the working tree unless the live host explicitly offers
   isolation. Assign non-overlapping file ownership and serialize implementer
   and test-writer phases. Only read-only reviewers may overlap. Never promise a

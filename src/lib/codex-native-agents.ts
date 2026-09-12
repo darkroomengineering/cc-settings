@@ -4,8 +4,10 @@ import { basename, dirname, join } from "node:path";
 import {
   assertRuntimeSourceFile,
   CODEX_ADAPTER,
+  CODEX_ONLY_AGENT_SOURCE_FILES,
   type CodexInstallPaths,
   type CodexSentinel,
+  codexModelForClaudeModel,
   contentHash,
   EXCLUDED_AGENT_SOURCE_FILES,
   INSTRUCTIONS_END,
@@ -82,6 +84,7 @@ export function serializeNativeAgent(agent: NativeAgent, paths: CodexInstallPath
     `name = ${tomlString(agent.name)}`,
     `description = ${tomlString(agent.description)}`,
     `developer_instructions = ${tomlString(developerInstructions)}`,
+    ...(agent.model ? [`model = ${tomlString(agent.model)}`] : []),
     ...(agent.modelReasoningEffort
       ? [`model_reasoning_effort = ${tomlString(agent.modelReasoningEffort)}`]
       : []),
@@ -98,39 +101,40 @@ function markdownBody(markdown: string): string {
   return markdown.slice(match[0].length).trim();
 }
 
-export async function loadNativeAgents(sourceDir: string): Promise<NativeAgent[]> {
-  const dir = join(sourceDir, "agents");
+async function loadAgentSources(
+  sourceDir: string,
+  relativeDir: string,
+  entries: readonly string[],
+  allowedEntries: ReadonlySet<string>,
+): Promise<NativeAgent[]> {
+  const dir = join(sourceDir, relativeDir);
   const directoryMetadata = await lstat(dir);
   if (directoryMetadata.isSymbolicLink() || !directoryMetadata.isDirectory()) {
-    throw new Error("Codex source agents path is not a safe directory");
+    throw new Error(`Codex source ${relativeDir} path is not a safe directory`);
   }
-  const allowedEntries = new Set<string>([
-    ...MANAGED_AGENT_SOURCE_FILES,
-    ...EXCLUDED_AGENT_SOURCE_FILES,
-  ]);
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (!allowedEntries.has(entry.name) || !entry.isFile() || entry.isSymbolicLink()) {
-      throw new Error(`Unexpected Codex agent source artifact: agents/${entry.name}`);
+      throw new Error(`Unexpected Codex agent source artifact: ${relativeDir}/${entry.name}`);
     }
   }
   const agents: NativeAgent[] = [];
-  for (const entry of MANAGED_AGENT_SOURCE_FILES) {
-    await assertRuntimeSourceFile(sourceDir, `agents/${entry}`);
+  for (const entry of entries) {
+    await assertRuntimeSourceFile(sourceDir, `${relativeDir}/${entry}`);
     const markdown = await readFile(join(dir, entry), "utf8");
     const parsed = parseFrontmatter(markdown);
     if (!isPlainObject(parsed))
-      throw new Error(`Cannot convert agents/${entry}: invalid frontmatter`);
+      throw new Error(`Cannot convert ${relativeDir}/${entry}: invalid frontmatter`);
     const fallbackName = entry.slice(0, -3);
     const name = typeof parsed.name === "string" ? parsed.name : fallbackName;
     const description = typeof parsed.description === "string" ? parsed.description.trim() : "";
     if (!name || !description) {
-      throw new Error(`Cannot convert agents/${entry}: name and description are required`);
+      throw new Error(`Cannot convert ${relativeDir}/${entry}: name and description are required`);
     }
     if (!MANAGED_AGENT_NAME.test(name)) {
-      throw new Error(`Cannot convert agents/${entry}: unsafe agent name ${name}`);
+      throw new Error(`Cannot convert ${relativeDir}/${entry}: unsafe agent name ${name}`);
     }
     if (name !== fallbackName) {
-      throw new Error(`Cannot convert agents/${entry}: name must be ${fallbackName}`);
+      throw new Error(`Cannot convert ${relativeDir}/${entry}: name must be ${fallbackName}`);
     }
     const tools = stringArray(parsed.tools);
     const effort = parsed.effort;
@@ -140,10 +144,12 @@ export async function loadNativeAgents(sourceDir: string): Promise<NativeAgent[]
         : effort === "max"
           ? "xhigh"
           : undefined;
+    const model = codexModelForClaudeModel(parsed.model);
     agents.push({
       name,
       description,
       developerInstructions: `${markdownBody(markdown)}\n\n${CODEX_ADAPTER}`,
+      ...(model ? { model } : {}),
       ...(modelReasoningEffort ? { modelReasoningEffort } : {}),
       sandboxMode:
         tools.includes("Write") || tools.includes("Edit") ? "workspace-write" : "read-only",
@@ -152,9 +158,28 @@ export async function loadNativeAgents(sourceDir: string): Promise<NativeAgent[]
   return agents;
 }
 
+/** Native agents come from two sources: the shared `agents/*.md` (minus the
+ *  Claude-only codex-verifier) and the Codex-only `codex/agents/*.md`. */
+export async function loadNativeAgents(sourceDir: string): Promise<NativeAgent[]> {
+  const shared = await loadAgentSources(
+    sourceDir,
+    "agents",
+    MANAGED_AGENT_SOURCE_FILES,
+    new Set<string>([...MANAGED_AGENT_SOURCE_FILES, ...EXCLUDED_AGENT_SOURCE_FILES]),
+  );
+  const codexOnly = await loadAgentSources(
+    sourceDir,
+    "codex/agents",
+    CODEX_ONLY_AGENT_SOURCE_FILES,
+    new Set<string>(CODEX_ONLY_AGENT_SOURCE_FILES),
+  );
+  return [...shared, ...codexOnly];
+}
+
 export async function shippedNativeAgentNames(): Promise<Set<string>> {
   return new Set([
     ...MANAGED_AGENT_SOURCE_FILES.map((entry) => entry.slice(0, -3)),
+    ...CODEX_ONLY_AGENT_SOURCE_FILES.map((entry) => entry.slice(0, -3)),
     ...RETIRED_MANAGED_AGENT_NAMES,
   ]);
 }

@@ -242,18 +242,24 @@ const RUNTIME_SOURCE_FILES_V2 = RUNTIME_SOURCE_FILES_V4.filter(
 const RUNTIME_SOURCE_FILES_V3 = RUNTIME_SOURCE_FILES_V4.filter(
   (path) => path !== "src/scripts/migrate-legacy-codex-skills.ts",
 );
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 5;
+// Files that entered the runtime after a version was frozen. A frozen version
+// must keep reporting exactly the paths its installs own, so each later addition
+// is subtracted from the earlier lists rather than the earlier lists being edited.
+const ADDED_IN_V6 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 6;
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
   ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
   ...AUDIT_PERFORMANCE_RESOURCES,
 ];
+const RUNTIME_SOURCE_FILES_V5 = RUNTIME_SOURCE_FILES.filter((path) => !ADDED_IN_V6.includes(path));
 
 const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [1, RUNTIME_SOURCE_FILES_V1],
   [2, RUNTIME_SOURCE_FILES_V2],
   [3, RUNTIME_SOURCE_FILES_V3],
   [4, RUNTIME_SOURCE_FILES_V4],
+  [5, RUNTIME_SOURCE_FILES_V5],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

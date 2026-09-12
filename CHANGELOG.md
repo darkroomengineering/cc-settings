@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.11.0] — 2026-09-12
+
+- Route Codex calls by task shape: `codex exec` defaults to GPT-5.6 Sol, `codex review` and
+  `codex ask` to GPT-6 Astra, with `--model` and `CODEX_EXEC_MODEL` / `CODEX_REVIEW_MODEL` /
+  `CODEX_ASK_MODEL` overrides. The bridge refuses to run from inside a Codex session.
+- Give every native Codex agent a `model` derived from its Claude tier: judgment roles on Astra,
+  execution roles on Sol. One routing table now drives both products.
+- Add the Codex-to-Claude reverse bridge: `claude-run.ts review` and `ask` call headless Claude
+  Code (Opus 5 by default) read-only, refuse inside a Claude session, and report when the Codex
+  sandbox has no network. A Codex-only `claude-verifier` agent wraps it. Both product manifests
+  move to a new version to own the new files.
+
 ## [15.10.0] — 2026-09-12
 
 - Narrow all 38 skill descriptions to the situations each skill handles, dropping topic-word

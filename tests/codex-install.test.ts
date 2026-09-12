@@ -203,6 +203,7 @@ describe("Codex installer lifecycle", () => {
         expect(existsSync(join(codexHome, "AGENTS.md"))).toBe(true);
         expect(existsSync(join(codexHome, "agents", "implementer.toml"))).toBe(true);
         expect(existsSync(join(codexHome, "agents", "codex-verifier.toml"))).toBe(false);
+        expect(existsSync(join(codexHome, "agents", "claude-verifier.toml"))).toBe(true);
         expect(existsSync(join(codexHome, "rules", "darkroom.rules"))).toBe(true);
         expect(existsSync(join(codexHome, "darkroom", "source"))).toBe(true);
         for (const resource of AUDIT_PERFORMANCE_RESOURCES) {
@@ -214,7 +215,7 @@ describe("Codex installer lifecycle", () => {
         expect(existsSync(join(home, ".claude", "settings.json"))).toBe(false);
 
         const names = await managedAgentNames(codexHome);
-        expect(names).toHaveLength(9);
+        expect(names).toHaveLength(10);
         expect(names).toContain("implementer");
         expect(names).not.toContain("codex-verifier");
         for (const name of names) {
@@ -245,6 +246,16 @@ describe("Codex installer lifecycle", () => {
           expect(typeof parsed.sandbox_mode).toBe("string");
           expect(["read-only", "workspace-write"]).toContain(parsed.sandbox_mode as string);
           expect(raw).not.toContain(".claude/src");
+          if (parsed.model !== undefined) {
+            expect(["gpt-6-astra", "gpt-5.6-sol"]).toContain(parsed.model as string);
+          }
+          if (name === "planner") expect(parsed.model).toBe("gpt-6-astra");
+          if (name === "implementer") expect(parsed.model).toBe("gpt-5.6-sol");
+          if (name === "claude-verifier") {
+            expect(parsed.model).toBe("gpt-5.6-sol");
+            expect(parsed.sandbox_mode).toBe("read-only");
+            expect(raw).toContain("claude-run.ts");
+          }
           if (parsed.model_reasoning_effort !== undefined) {
             expect(typeof parsed.model_reasoning_effort).toBe("string");
             expect(["low", "medium", "high", "xhigh"]).toContain(

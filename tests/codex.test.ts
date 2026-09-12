@@ -5,10 +5,13 @@ import { describe, expect, test } from "bun:test";
 import {
   buildExecPrompt,
   buildReviewPrompt,
+  CODEX_MODEL_DEFAULTS,
   type CodexVerdict,
   classifyCodexError,
+  parseLeadingFlags,
   parseReviewArgs,
   reconcile,
+  resolveCodexModel,
   sanitizeOutput,
 } from "../src/lib/codex.ts";
 
@@ -796,5 +799,113 @@ describe("buildExecPrompt", () => {
     const prompt = buildExecPrompt("add a test");
     expect(prompt).toContain("Stay inside the task's scope.");
     expect(prompt).toContain("the checks you ran");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Model routing — Sol executes, Astra judges; flag > env > default
+// ---------------------------------------------------------------------------
+
+describe("resolveCodexModel", () => {
+  test("defaults route exec to Sol and review/ask to Astra", () => {
+    expect(CODEX_MODEL_DEFAULTS).toEqual({
+      exec: "gpt-5.6-sol",
+      review: "gpt-6-astra",
+      ask: "gpt-6-astra",
+    });
+    expect(resolveCodexModel("exec", undefined, {})).toEqual({
+      ok: true,
+      model: "gpt-5.6-sol",
+      pinned: false,
+    });
+    expect(resolveCodexModel("review", undefined, {})).toEqual({
+      ok: true,
+      model: "gpt-6-astra",
+      pinned: false,
+    });
+    expect(resolveCodexModel("ask", undefined, {})).toEqual({
+      ok: true,
+      model: "gpt-6-astra",
+      pinned: false,
+    });
+  });
+
+  test("env overrides the default per subcommand and a flag overrides env", () => {
+    const env = { CODEX_EXEC_MODEL: "gpt-6-astra", CODEX_REVIEW_MODEL: " gpt-5.6-sol " };
+    expect(resolveCodexModel("exec", undefined, env)).toEqual({
+      ok: true,
+      model: "gpt-6-astra",
+      pinned: true,
+    });
+    expect(resolveCodexModel("review", undefined, env)).toEqual({
+      ok: true,
+      model: "gpt-5.6-sol",
+      pinned: true,
+    });
+    expect(resolveCodexModel("review", "o3", env)).toEqual({ ok: true, model: "o3", pinned: true });
+    expect(resolveCodexModel("ask", undefined, { CODEX_ASK_MODEL: "" })).toEqual({
+      ok: true,
+      model: "gpt-6-astra",
+      pinned: false,
+    });
+  });
+
+  test("rejects a model id that could read as a flag or shell text", () => {
+    expect(resolveCodexModel("exec", "--sandbox", {}).ok).toBe(false);
+    expect(resolveCodexModel("exec", undefined, { CODEX_EXEC_MODEL: "x; rm -rf /" }).ok).toBe(
+      false,
+    );
+  });
+});
+
+describe("parseLeadingFlags", () => {
+  test("consumes --force and --model before the first positional only", () => {
+    const parsed = parseLeadingFlags([
+      "--model",
+      "gpt-6-astra",
+      "--force",
+      "rename",
+      "--model",
+      "x",
+    ]);
+    expect(parsed).toEqual({
+      ok: true,
+      force: true,
+      model: "gpt-6-astra",
+      rest: ["rename", "--model", "x"],
+    });
+  });
+
+  test("`--` ends flag parsing so a prompt can start with a dash", () => {
+    const parsed = parseLeadingFlags(["--", "--force", "what does it do"]);
+    expect(parsed).toEqual({
+      ok: true,
+      force: false,
+      model: undefined,
+      rest: ["--force", "what does it do"],
+    });
+  });
+
+  test("rejects a missing or unsafe --model value", () => {
+    expect(parseLeadingFlags(["--model"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--model", "--force", "task"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--model", "a b", "task"]).ok).toBe(false);
+  });
+});
+
+describe("parseReviewArgs — --model", () => {
+  test("accepts --model alongside a scope flag", () => {
+    expect(parseReviewArgs(["--model", "gpt-5.6-sol", "--base", "main"])).toEqual({
+      ok: true,
+      scope: { kind: "base", branch: "main" },
+      force: false,
+      model: "gpt-5.6-sol",
+    });
+  });
+
+  test("omits model when not passed and rejects duplicates or missing values", () => {
+    expect(parseReviewArgs([])).toEqual({ ok: true, scope: { kind: "uncommitted" }, force: false });
+    expect(parseReviewArgs(["--model", "a", "--model", "b"]).ok).toBe(false);
+    expect(parseReviewArgs(["--model"]).ok).toBe(false);
   });
 });

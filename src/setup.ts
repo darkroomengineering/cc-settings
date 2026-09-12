@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.10.0"; // Skill descriptions narrowed to situations; AGENTS.md stopping rules softened for GPT-6 Astra.
+const VERSION = "15.11.0"; // Cross-model delegation: Sol/Astra routing on the bridge and native agents, Codex-to-Claude reverse bridge.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

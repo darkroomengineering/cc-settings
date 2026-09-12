@@ -32,7 +32,8 @@ Do not rely on an undocumented precedence rule.
 |---|---|---|
 | Shared standards | `CLAUDE.md`, `AGENTS.md`, rules, and profiles | Managed block in native `AGENTS.md` plus command policy |
 | Shared skills | All 38 under `~/.claude/skills` | All 38 through `darkroom@cc-settings` |
-| Role agents | All roles, including the Claude-to-Codex `codex-verifier` | Native role agents except `codex-verifier` |
+| Role agents | All roles, including the Claude-to-Codex `codex-verifier` | Native role agents except `codex-verifier`, plus the Codex-to-Claude `claude-verifier` |
+| Delegation tiers | Fable session; Opus 5 for judgment agents, Sonnet 5 for execution | Astra session; Astra for judgment agents, Sol for execution |
 | Hooks | Full Claude hook set from composed settings | Compatible plugin subset; user reviews trust through `/hooks` |
 | MCP servers | Context7, TLDR, Figma, and Chrome DevTools | Fixed HTTPS Figma server only |
 | Runtime source | Self-contained managed source under `~/.claude/src` | Allowlisted source under `$CODEX_HOME/darkroom/source` |
@@ -57,7 +58,7 @@ skip most full-profile automation. See [installation](./install.md#full-and-ligh
 | `lighthouse` | Uses the Chrome DevTools Lighthouse tool | Requires a user-configured equivalent; must not invent scores |
 | `freeze` | Enforces a directory edit boundary through Claude hooks | Unsupported as enforcement; file ownership is a convention only |
 | `autoresearch` | Runs the controlled Claude subprocess optimization loop | Unsupported until Codex has an equivalent measured harness |
-| `codex` bridge | Calls Codex as a second model family | Never invokes Codex recursively; a native reviewer supplies a fresh opinion |
+| `codex` bridge | Calls Codex as a second model family (Sol executes, Astra reviews) | Never invokes Codex recursively; `claude-verifier` or `claude-run.ts` calls Claude for a second family, read-only |
 | Agent teams and dynamic workflows | Available when Claude supports and enables them | Use native Codex agents and orchestration; mechanics differ |
 | Forked skills | Return through Claude task notifications | Use Codex-native background or agent surfaces when available |
 

@@ -115,6 +115,11 @@ export interface CodexRunOptions {
    *  `review_model` config key — pinning review to a cheaper model than the
    *  interactive session). Unset → codex uses its configured default model. */
   model?: string;
+  /** True when `model` came from a caller pin (`--model` flag or env) rather
+   *  than the routing defaults. Only a pinned model's entitlement or quota
+   *  failure stays out of the shared verdict cache; the routing defaults are the
+   *  account's normal models, so their failures describe the account. */
+  modelPinned?: boolean;
 }
 
 export interface CodexRunResult {
@@ -452,7 +457,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // can't clobber a fresher sticky L2 verdict a concurrent exec just wrote.
   if (cls.state === "unknown") {
     await commitReconciled({ state: "available", checkedAt: now, sticky: false });
-  } else if (opts.model) {
+  } else if (opts.model && opts.modelPinned) {
     // A pinned model (e.g. CODEX_REVIEW_MODEL) can 403/quota out on its own —
     // that's model-specific, not "the account has no Codex access" or "the
     // account is rate-limited" in general. Writing it to the shared sticky
@@ -483,7 +488,7 @@ export type ReviewScope =
   | { kind: "commit"; sha: string };
 
 export type ParseReviewArgsResult =
-  | { ok: true; scope: ReviewScope; force: boolean }
+  | { ok: true; scope: ReviewScope; force: boolean; model?: string }
   | { ok: false; error: string };
 
 // `--base`/`--commit` values are interpolated verbatim into the review
@@ -492,6 +497,87 @@ export type ParseReviewArgsResult =
 // (`-s`) or one carrying shell metacharacters could still steer which git
 // command Codex ends up running in its own sandbox. Restrict to a strict git
 // ref charset: must start with an alphanumeric, then alphanumerics plus
+/** Model routing on the Codex side. Execution goes to GPT-5.6 Sol, which
+ *  continues through long tasks; judgment (review, ask) goes to GPT-6 Astra.
+ *  Flag > env > default. OpenAI's Astra guidance is the basis: Sol "takes a
+ *  request and continues for long stretches" where Astra returns early. */
+export type CodexSubcommand = "exec" | "review" | "ask";
+export const CODEX_MODEL_DEFAULTS: Readonly<Record<CodexSubcommand, string>> = {
+  exec: "gpt-5.6-sol",
+  review: "gpt-6-astra",
+  ask: "gpt-6-astra",
+};
+export const CODEX_MODEL_ENV: Readonly<Record<CodexSubcommand, string>> = {
+  exec: "CODEX_EXEC_MODEL",
+  review: "CODEX_REVIEW_MODEL",
+  ask: "CODEX_ASK_MODEL",
+};
+// Model ids are passed to `codex exec --model`; keep them to the id alphabet so
+// a value can never be read as a flag or shell text.
+export const SAFE_MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export type ResolveModelResult =
+  | { ok: true; model: string; pinned: boolean }
+  | { ok: false; error: string };
+
+export function resolveCodexModel(
+  subcommand: CodexSubcommand,
+  flag: string | undefined,
+  env: Record<string, string | undefined> = process.env,
+): ResolveModelResult {
+  const envValue = env[CODEX_MODEL_ENV[subcommand]];
+  const pin = flag ?? (envValue?.trim() ? envValue.trim() : undefined);
+  const candidate = pin ?? CODEX_MODEL_DEFAULTS[subcommand];
+  if (!SAFE_MODEL_RE.test(candidate)) {
+    return {
+      ok: false,
+      error: `${subcommand}: model "${candidate}" is not a valid model id (letters, digits, '.', '_', '-' only; must not start with '-').`,
+    };
+  }
+  return { ok: true, model: candidate, pinned: pin !== undefined };
+}
+
+/** Consume leading flags (`--force`, `--model <id>`, and an optional `--`
+ *  end-of-flags marker) from the front of `exec`/`ask` argv. Only tokens before
+ *  the first positional are flags, so a literal `--force` inside the prompt text
+ *  is preserved verbatim. */
+export interface LeadingFlags {
+  force: boolean;
+  model?: string;
+  rest: string[];
+}
+export type ParseLeadingFlagsResult = ({ ok: true } & LeadingFlags) | { ok: false; error: string };
+
+export function parseLeadingFlags(args: string[]): ParseLeadingFlagsResult {
+  let force = false;
+  let model: string | undefined;
+  let i = 0;
+  for (; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+    if (arg === "--model") {
+      const value = args[i + 1];
+      if (!value || value.startsWith("--"))
+        return { ok: false, error: "--model requires a model id." };
+      if (!SAFE_MODEL_RE.test(value)) {
+        return { ok: false, error: `--model value "${value}" is not a valid model id.` };
+      }
+      model = value;
+      i++;
+      continue;
+    }
+    if (arg === "--") {
+      i++;
+      break;
+    }
+    break;
+  }
+  return { ok: true, force, model, rest: args.slice(i) };
+}
+
 // `. _ / -`. No leading `-`, no spaces, no `;`, `$`, backticks, quotes, etc.
 const SAFE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
@@ -507,12 +593,27 @@ export function parseReviewArgs(args: string[]): ParseReviewArgsResult {
   let staged = false;
   let base: string | undefined;
   let commit: string | undefined;
+  let model: string | undefined;
   const unknown: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--force") {
       force = true;
+      continue;
+    }
+    if (arg === "--model") {
+      if (model !== undefined)
+        return { ok: false, error: "review: --model passed more than once." };
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { ok: false, error: "review: --model requires a model id." };
+      }
+      if (!SAFE_MODEL_RE.test(value)) {
+        return { ok: false, error: `review: --model value "${value}" is not a valid model id.` };
+      }
+      i++;
+      model = value;
       continue;
     }
     if (arg === "--staged") {
@@ -577,7 +678,7 @@ export function parseReviewArgs(args: string[]): ParseReviewArgsResult {
         ? { kind: "commit", sha: commit }
         : { kind: "uncommitted" };
 
-  return { ok: true, scope, force };
+  return { ok: true, scope, force, ...(model ? { model } : {}) };
 }
 
 /** One-line description of the scope, used in the prompt's opening sentence. */

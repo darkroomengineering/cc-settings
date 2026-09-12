@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 7;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 8;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -498,12 +498,15 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
   ]),
 );
 
-// Preserve versions 1–6 verbatim; only the current release follows the shared source inventory.
+// Preserve versions 1–6 verbatim; version 7 froze the inventory as it stood
+// before the Codex-to-Claude bridge; only the current release follows the shared
+// source inventory.
+const ADDED_IN_V8 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
 const priorManifest = {
   full: claudeManagedManifestPaths(6, "full", "current installer"),
   light: claudeManagedManifestPaths(6, "light", "current installer"),
 };
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const currentManifest = {
   full: [
     ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
     ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
@@ -513,7 +516,12 @@ MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
     ...priorManifest.light.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
     ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
   ],
+};
+MANIFESTS.set(7, {
+  full: currentManifest.full.filter((path) => !ADDED_IN_V8.includes(path)),
+  light: currentManifest.light.filter((path) => !ADDED_IN_V8.includes(path)),
 });
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, currentManifest);
 
 const GENERATED_MANAGED_FILES = new Set([
   ".cc-settings-baseline.json",

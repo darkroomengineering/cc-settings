@@ -27,6 +27,18 @@ Routing principle: **explore and execute on the cheaper tiers, decide on the top
 
 The `sonnet` tier is now Claude Sonnet 5 — near-Opus quality on coding/agentic work — which reinforces the split above: `tester`, `scaffolder`, `explore`, `deslopper`, `implementer`, `reviewer`, and `codex-verifier` stay on Sonnet for fan-out/mechanical/execution/consult work at a fraction of Opus cost, while the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier.
 
+## Codex tiers
+
+The same table drives standalone Codex. The installer maps each agent's Claude tier to a Codex model when it writes `$CODEX_HOME/agents/*.toml`, so there is one routing table, not two:
+
+| Claude tier in frontmatter | Codex `model` | Why |
+|---|---|---|
+| `claude-opus-5`, `opus`, `fable` | `gpt-6-astra` | Judgment: OpenAI's most aligned model, returns early but judges well |
+| `sonnet`, `haiku` | `gpt-5.6-sol` | Execution: continues through long tasks where Astra stops to check in |
+| unset | inherits the session model | |
+
+The Claude-to-Codex bridge uses the same split per call: `exec` defaults to Sol, `review` and `ask` to Astra. The Codex-to-Claude bridge (`claude-run.ts`, `claude-verifier`) defaults to `claude-opus-5`. See [codex-bridge.md](./codex-bridge.md).
+
 Override per-invocation when a specific task warrants it: bump a cheap agent up — `Agent(explore, "...", model: "opus")` for a hard investigation — or drop a decision agent down for a trivial pass. The table is the default, not a ceiling.
 
 **Reach for `model: "fable"` on a genuinely stuck slice, not a hard-looking prompt.** Fable is 2x Opus 5 on base tokens ($10/$50 vs $5/$25 per MTok) and the session model can't be swapped mid-task by a hook, so the move is a subagent override scoped to just the failing piece — `Agent(implementer, "<the specific failing slice>", model: "fable")` — never a blanket re-run of the whole task at the higher tier. `escalate-model.ts` (below) surfaces this suggestion automatically once it observes real struggle; treat a manual reach for `fable` the same way — after two failed attempts on the same problem, not before the first one. Fable 5.1 softens the cost gap for exactly this scoped-subagent shape: its cache reads are $0.25/MTok (0.025x base, vs 0.1x on every other model — Opus 5 reads cost $0.50), so a long escalated slice that mostly re-reads its cached prefix pays less per re-read than Opus would. The 2x still applies to fresh input and all output; the escalation bar stays where it is. One 5.1 behavior to watch in escalated subagents: it batches parallel tool calls less consistently than Fable 5, so keep the briefing's "batch independent calls" expectation explicit if a fable slice looks serial. `model-switch-guard.ts` (PreModelSwitch) asks before a `/model fable` switch when cached usage is ≥95% and annotates it at the critical band; it never blocks.

@@ -11,9 +11,10 @@ context: main
 
 If the active host is already standalone Codex, stop before any bridge command.
 Never recursively invoke `codex-run.ts` or launch the Codex CLI from inside
-Codex. Do the requested task locally with native tools. When the user asks for
-an independent review, spawn a fresh native `reviewer` and wait until it
-finishes; do not spawn `codex-verifier`.
+Codex; the script refuses when it detects a Codex session. Do the requested task
+locally with native tools. When the user asks for an independent review, spawn
+`claude-verifier` (a Claude model through the read-only `claude-run.ts` bridge)
+or a fresh native `reviewer`; do not spawn `codex-verifier`.
 
 Everything below is the Claude-only bridge workflow.
 
@@ -93,10 +94,11 @@ bun "$HOME/.claude/src/scripts/codex-run.ts" review --commit abc1234
 
 Codex's fourth preset ("custom instructions") is covered by `ask` above rather than a review flag.
 
-**Review model pin** — set `CODEX_REVIEW_MODEL` to pin `review` to a specific (often cheaper) model via `codex exec -m`, independent of whatever model an interactive Codex session uses. This mirrors Codex's own `review_model` config key. Unset uses codex's configured default model.
+**Model routing** — every subcommand pins a Codex model: `exec` defaults to `gpt-5.6-sol` (continues through long execution), `review` and `ask` to `gpt-6-astra` (judgment). Override per call with `--model <id>` before the task text, or per session with `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL`, `CODEX_ASK_MODEL`.
 
 ```bash
-CODEX_REVIEW_MODEL=<model-name> bun "$HOME/.claude/src/scripts/codex-run.ts" review
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-5.6-sol --base main
+bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model gpt-6-astra "..."
 ```
 
 ### ask -- read-only second opinion

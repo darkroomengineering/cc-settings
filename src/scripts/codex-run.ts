@@ -4,18 +4,20 @@
 // using the OpenAI Codex CLI as a second model in the Claude x Codex pairing.
 //
 // Usage:
-//   codex-run.ts exec [--force] "<task>"     — delegate mechanical/bulk work to Codex
+//   codex-run.ts exec [--force] [--model <id>] "<task>"     — delegate mechanical/bulk work
 //     (the task is wrapped in a completion contract: run checks, fix, finish, report)
-//   codex-run.ts review [--force] [scope]    — independent review, default: uncommitted diff
-//   codex-run.ts ask [--force] "<question>"  — read-only second opinion from Codex
+//   codex-run.ts review [--force] [--model <id>] [scope]    — independent review, default: uncommitted diff
+//   codex-run.ts ask [--force] [--model <id>] "<question>"  — read-only second opinion
+//
+// Model routing (flag > env > default): exec → gpt-5.6-sol (CODEX_EXEC_MODEL),
+//   review → gpt-6-astra (CODEX_REVIEW_MODEL), ask → gpt-6-astra (CODEX_ASK_MODEL).
+//   Sol continues through long execution; Astra holds the judgment calls.
 //
 // review scope flags (mutually exclusive, default: uncommitted working-tree diff):
 //   --staged           review only the staged diff (`git diff --cached`)
 //   --base <branch>    review the diff against a base branch (merge-base...HEAD)
 //   --commit <sha>     review a single commit
 //
-// CODEX_REVIEW_MODEL: when set, pins `review` to that model via `codex exec -m`
-//   — mirrors Codex's own `review_model` config key. Unset uses codex's default.
 //
 // --force: bypass a sticky rate-limited or no-access verdict and re-probe with a
 //   real call. Useful when the quota message was a false positive (e.g. auth mismatch).
@@ -24,7 +26,9 @@
 import {
   buildExecPrompt,
   buildReviewPrompt,
+  parseLeadingFlags,
   parseReviewArgs,
+  resolveCodexModel,
   runCodexExec,
   sanitizeOutput,
 } from "../lib/codex.ts";
@@ -35,42 +39,33 @@ function usage(): void {
     [
       "Usage: codex-run.ts <subcommand> [--force] [args]",
       "",
-      "  exec [--force] <task>      Delegate mechanical/bulk work to Codex (workspace-write sandbox)",
-      "  review [--force] [scope]   Review a diff for bugs, security issues, and quality",
-      "  ask [--force] <question>   Read-only second opinion from Codex",
+      "  exec [--force] [--model <id>] <task>      Delegate mechanical/bulk work (workspace-write sandbox)",
+      "  review [--force] [--model <id>] [scope]   Review a diff for bugs, security issues, and quality",
+      "  ask [--force] [--model <id>] <question>   Read-only second opinion from Codex",
       "",
       "  --force  Bypass a sticky rate-limited/no-access verdict and re-probe.",
       "           Useful when the quota error is a false positive (e.g. auth mismatch).",
+      "  --model  Pin the Codex model for this call. Defaults: exec gpt-5.6-sol,",
+      "           review and ask gpt-6-astra; env CODEX_EXEC_MODEL / CODEX_REVIEW_MODEL /",
+      "           CODEX_ASK_MODEL override the defaults.",
       "",
       "review scope (mutually exclusive, default: uncommitted working-tree diff):",
       "  --staged           review only the staged diff (git diff --cached)",
       "  --base <branch>    review the diff against a base branch",
       "  --commit <sha>     review a single commit",
       "",
-      "CODEX_REVIEW_MODEL env var pins review to a specific model (codex exec -m).",
     ].join("\n"),
   );
 }
 
-/** Consume a LEADING `--force` flag (and an optional `--` end-of-flags marker) from
- *  the front of argv, returning {force, rest}. Only tokens before the first
- *  positional (or before `--`) are treated as flags, so a literal `--force` inside
- *  the prompt text — e.g. `ask "what does --force do"` — is preserved verbatim. */
-function parseForce(args: string[]): { force: boolean; rest: string[] } {
-  let force = false;
-  let i = 0;
-  for (; i < args.length; i++) {
-    if (args[i] === "--force") {
-      force = true;
-      continue;
-    }
-    if (args[i] === "--") {
-      i++; // explicit end-of-flags; the prompt starts after it
-      break;
-    }
-    break; // first positional → stop flag parsing
-  }
-  return { force, rest: args.slice(i) };
+// Codex -> Claude -> Codex would loop quota and context. The Claude-to-Codex
+// bridge only runs from a Claude session (or a plain shell), never from inside a
+// Codex thread; standalone Codex uses native agents and the claude-run.ts bridge.
+if (process.env.CODEX_THREAD_ID || process.env.CODEX_SANDBOX) {
+  console.error(
+    "codex-run.ts: refusing to run inside a Codex session. Use native Codex agents, or `claude-run.ts` for a Claude opinion.",
+  );
+  process.exit(2);
 }
 
 const [, , subcommand, ...rest] = process.argv;
@@ -82,17 +77,29 @@ if (!subcommand) {
 
 switch (subcommand) {
   case "exec": {
-    const { force, rest: execArgs } = parseForce(rest);
-    const task = execArgs.join(" ").trim();
+    const flags = parseLeadingFlags(rest);
+    if (!flags.ok) {
+      console.error(`Error: exec: ${flags.error}\n`);
+      usage();
+      process.exit(2);
+    }
+    const task = flags.rest.join(" ").trim();
     if (!task) {
       console.error("Error: exec requires a task argument.\n");
       usage();
       process.exit(2);
     }
+    const model = resolveCodexModel("exec", flags.model);
+    if (!model.ok) {
+      console.error(`Error: ${model.error}`);
+      process.exit(2);
+    }
     const result = await runCodexExec({
       prompt: buildExecPrompt(task),
       sandbox: "workspace-write",
-      force,
+      force: flags.force,
+      model: model.model,
+      modelPinned: model.pinned,
     });
     if (result.ok) {
       console.log(result.output);
@@ -126,12 +133,17 @@ switch (subcommand) {
       process.exit(2);
     }
     const reviewPrompt = buildReviewPrompt(parsed.scope);
-    const model = process.env.CODEX_REVIEW_MODEL || undefined;
+    const model = resolveCodexModel("review", parsed.model);
+    if (!model.ok) {
+      console.error(`Error: ${model.error}`);
+      process.exit(2);
+    }
     const result = await runCodexExec({
       prompt: reviewPrompt,
       sandbox: "read-only",
       force: parsed.force,
-      model,
+      model: model.model,
+      modelPinned: model.pinned,
     });
     if (result.ok) {
       console.log(result.output);
@@ -144,14 +156,30 @@ switch (subcommand) {
   }
 
   case "ask": {
-    const { force, rest: askArgs } = parseForce(rest);
-    const question = askArgs.join(" ").trim();
+    const flags = parseLeadingFlags(rest);
+    if (!flags.ok) {
+      console.error(`Error: ask: ${flags.error}\n`);
+      usage();
+      process.exit(2);
+    }
+    const question = flags.rest.join(" ").trim();
     if (!question) {
       console.error("Error: ask requires a question argument.\n");
       usage();
       process.exit(2);
     }
-    const result = await runCodexExec({ prompt: question, sandbox: "read-only", force });
+    const model = resolveCodexModel("ask", flags.model);
+    if (!model.ok) {
+      console.error(`Error: ${model.error}`);
+      process.exit(2);
+    }
+    const result = await runCodexExec({
+      prompt: question,
+      sandbox: "read-only",
+      force: flags.force,
+      model: model.model,
+      modelPinned: model.pinned,
+    });
     if (result.ok) {
       console.log(result.output);
       process.exit(0);

@@ -51,7 +51,7 @@ The installer uses `$CODEX_HOME` when it is set, or `~/.codex` otherwise:
 ```text
 $CODEX_HOME/ or ~/.codex/
 |-- AGENTS.md                    # Managed marked block; surrounding user text stays intact
-|-- agents/*.toml               # Native role agents, except codex-verifier
+|-- agents/*.toml               # Native role agents, except codex-verifier, plus claude-verifier
 |-- rules/darkroom.rules         # Native command policy
 |-- darkroom/source/             # Allowlisted runtime source used by plugin hooks
 |-- .cc-settings-version         # Ownership and version sentinel
@@ -69,7 +69,9 @@ plugin provides:
 The Codex package does not auto-run Context7 or Chrome DevTools from mutable, unpinned registry
 packages. Users may configure reviewed and pinned versions themselves. The package also excludes
 Claude's `tldr` MCP server and the `codex-verifier` agent. That agent exists only to bridge from
-Claude Code into Codex.
+Claude Code into Codex. Its twin, `claude-verifier`, is installed only into Codex and bridges the
+other way: it runs the current diff past a Claude model through headless Claude Code. See
+[delegating to other models](#delegating-to-other-models).
 
 `darkroom/source` is a runtime allowlist, not a copy of the checkout. It contains only the shared
 skills, hooks, runtime `src/` files, and package metadata needed after installation. Native role
@@ -127,6 +129,28 @@ enabled = false
 
 Restart Codex after either change. Size the budget from the installed total: each skill costs
 roughly its `description:` length in characters divided by four, in tokens.
+
+## Delegating to other models
+
+Astra stays the session model and delegates by task shape. Each native role agent carries a
+`model` field the installer derives from the shared Claude tier: judgment roles (`planner`,
+`security-reviewer`, `maestro`) run on `gpt-6-astra`; execution roles (`implementer`, `tester`,
+`explore`, `scaffolder`, `deslopper`, `reviewer`) run on `gpt-5.6-sol`, which continues through
+long tasks where Astra returns early. Override a role by editing its `agents/*.toml`; the next
+reinstall restores the derived value.
+
+For an opinion from a different model family, spawn `claude-verifier` or run the bridge directly:
+
+```bash
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" review --base main
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" ask "is this retry safe?"
+```
+
+Both are read-only and default to Opus 5 (`--model` or `CLAUDE_BRIDGE_MODEL` changes that). The
+call needs network, which Codex sandboxes disable by default: approve the escalation when Codex
+prompts, or set `[sandbox_workspace_write] network_access = true` in `config.toml`. It spends your
+Claude plan's quota. Details and the no-chaining guard are in the
+[bridge doc](./codex-bridge.md#the-reverse-bridge-codex-calling-claude).
 
 ## Writing for GPT-6 Astra
 

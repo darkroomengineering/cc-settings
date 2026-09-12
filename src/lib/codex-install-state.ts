@@ -28,12 +28,34 @@ export const MANAGED_AGENT_SOURCE_FILES = [
   "tester.md",
 ] as const;
 export const EXCLUDED_AGENT_SOURCE_FILES = new Set(["codex-verifier.md"]);
+/** Agent sources that exist only for standalone Codex, under `codex/agents/`.
+ *  They mirror Claude-only agents in the other direction (claude-verifier is
+ *  the Codex-to-Claude twin of codex-verifier) and are never installed to Claude. */
+export const CODEX_ONLY_AGENT_SOURCE_FILES = ["claude-verifier.md"] as const;
+/** Claude agent tiers mapped to Codex models. Judgment tiers (opus, fable) run on
+ *  GPT-6 Astra; execution tiers (sonnet, haiku) run on GPT-5.6 Sol, which
+ *  continues through long tasks. Unknown or unset tiers inherit the session model. */
+export const CODEX_MODEL_FOR_CLAUDE_TIER: Readonly<Record<string, string>> = {
+  opus: "gpt-6-astra",
+  "claude-opus-5": "gpt-6-astra",
+  fable: "gpt-6-astra",
+  "claude-fable-5-1": "gpt-6-astra",
+  sonnet: "gpt-5.6-sol",
+  "claude-sonnet-5": "gpt-5.6-sol",
+  haiku: "gpt-5.6-sol",
+  "claude-haiku-4-5-20251001": "gpt-5.6-sol",
+};
+export function codexModelForClaudeModel(model: unknown): string | undefined {
+  if (typeof model !== "string") return undefined;
+  const base = model.replace(/\[.*\]$/, "").trim();
+  return CODEX_MODEL_FOR_CLAUDE_TIER[base];
+}
 export const CODEX_ADAPTER = `Native Codex adapter:
 - Treat Claude tool names in this shared source as capability names, not literal calls. Inspect and search with exec_command plus rg; edit with apply_patch.
 - Delegate with spawn_agent. Use followup_task to trigger another turn for an idle existing agent, send_message to deliver context to a running agent, wait_agent to wait, and interrupt_agent to stop its current turn when necessary.
 - Treat Agent as spawn_agent and AskUserQuestion as reporting the blocking question to the parent agent. Agent lifecycle APIs can vary by host, so prefer these capabilities over guessed aliases.
 - Follow AGENTS.md for repository instructions. Claude-specific output styles, status lines, agent teams, and worktree isolation are unavailable unless the active Codex surface explicitly exposes an equivalent; serialize file-writing agents when isolation is unavailable.
-- Do not invoke codex-verifier or codex-run.ts from inside Codex. Claude-only helper paths and the tldr binary are optional; use native Codex tools when they are absent.
+- Do not invoke codex-verifier or codex-run.ts from inside Codex. For an independent Claude opinion, spawn claude-verifier or run the claude-run.ts bridge (review and ask only; it never edits). Claude-only helper paths and the tldr binary are optional; use native Codex tools when they are absent.
 - Define done before starting and work until it holds: run the repository's local checks, inspect the result, and fix what your change broke. Do not return after a first implementation for a review nobody asked for. Ask only for a decision the requester owns.`;
 
 export type CodexProfile = "full" | "light";
@@ -151,6 +173,7 @@ export interface NativeAgent {
   name: string;
   description: string;
   developerInstructions: string;
+  model?: string;
   modelReasoningEffort?: "low" | "medium" | "high" | "xhigh";
   sandboxMode: "read-only" | "workspace-write";
 }
