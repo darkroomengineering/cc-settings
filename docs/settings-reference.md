@@ -63,7 +63,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | Optional limit on nested subagent depth. cc-settings does not pin it; installs inherit Claude Code's current default. |
 | `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable |
 | `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) |
-| `CLAUDE_CODE_NO_FLICKER` | `"1"` or unset | Flicker-free alt-screen rendering. Pairs with `/tui fullscreen` |
+| `CLAUDE_CODE_NO_FLICKER` | `"1"`, `"0"`, or unset | Forces fullscreen (`1`) or classic (`0`); unset honors `tui`. cc-settings leaves this unset so renderer preferences work. See [fullscreen rendering](https://code.claude.com/docs/en/fullscreen). |
 | `CLAUDE_CODE_SCRIPT_CAPS` | integer (string) | Bounds per-session hook-script invocations. cc-settings sets `500` to guard against runaway hooks (v2.1.98+) |
 | `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Asks for the 1-hour prompt cache on EVERY request. Superseded by the typed `promptCacheTtl` / `subagentPromptCacheTtl` settings keys (v2.1.242), which cc-settings sets instead — main conversation `1h`, subagents `5m`. Precedence: `FORCE_PROMPT_CACHING_5M` > `CLAUDE_CODE_[SUBAGENT_]PROMPT_CACHE_TTL` env > the settings keys > this var |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window). Not set by default — let it auto-scale |
@@ -115,7 +115,7 @@ Environment variables injected into every Claude Code session.
 | `OTEL_LOG_ASSISTANT_RESPONSES` | `"1"` / `"0"` / unset | Adds the model's response text to the `claude_code.assistant_response` OTEL log event. **Redacted unless `=1`; when unset it inherits `OTEL_LOG_USER_PROMPTS`** — so deployments already logging prompt content start logging response content on upgrade. Set `=0` to keep prompts-only (v2.1.193) |
 | `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP` | `"1"` or unset | Opt out of automatic memory-pressure reaping of idle background shell commands (v2.1.193) |
 | `CLAUDE_CODE_DISABLE_MOUSE` | `"1"` or unset | Disable mouse capture entirely (including wheel scroll) in the fullscreen renderer; the full-disable companion to `CLAUDE_CODE_DISABLE_MOUSE_CLICKS`. Honored in attached background sessions as of v2.1.203 |
-| `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` | `"1"` or unset | Disable mouse click/drag/hover in the fullscreen renderer while keeping wheel scroll; for terminals where mouse capture interferes with native text selection (v2.1.195) |
+| `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` | `"1"` or unset | Disable mouse click/drag/hover actions while keeping wheel scroll and mouse capture; this does not restore native terminal selection. Use `CLAUDE_CODE_DISABLE_MOUSE=1` to release capture, with wheel scrolling disabled (v2.1.195). |
 | `CLAUDE_CODE_ATTRIBUTION_HEADER` | `"0"` to disable, unset for default | Disable the attribution header on direct Anthropic API connections; v2.1.229 fixed auto mode failing on every tool call when this is set |
 | `CLAUDE_CODE_WORKFLOW_PREFIX_STAGGER_MS` | milliseconds (string), `"0"` to disable | Dynamic-workflow fan-outs stagger same-prefix sibling agents so later agents read the cached prompt prefix instead of re-paying it (v2.1.229) |
 | `CLAUDE_CODE_ENABLE_TODO_TOOLS` | `"1"` or unset | Restore TodoWrite and TaskCreate/Get/Update/List on Opus 4.8+, Sonnet 5, Fable 5, and Mythos 5, where v2.1.233 removed them. cc-settings strips these tools from its agents instead of setting this |
@@ -819,7 +819,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `terminalProgressBarEnabled` | boolean | U | Show a progress bar for long-running operations |
 | `timeFormat` | `"12h"` \| `"24h"` \| `"24h-utc"` \| strftime | U | Clock format for the turn-end clock and transcript timestamps (v2.1.257) |
 | `timeZone` | IANA zone | U | Time zone for the same clocks (v2.1.257) |
-| `tui` | `"fullscreen"` \| `"default"` | U | TUI rendering mode (`fullscreen` uses alternate screen) |
+| `tui` | `"fullscreen"` \| `"default"` | U | cc-settings defaults to `"default"` for native terminal selection and scrollback. `"fullscreen"` uses the alternate screen and in-app selection; explicit user preferences survive installation. |
 | `useAutoModeDuringPlan` | boolean | G | Run auto-mode during the plan phase |
 | `viewMode` | `"default"` \| `"verbose"` \| `"focus"` | U | Controls how much detail the TUI shows |
 | `vimInsertModeRemaps` | object | U | Vim mode: map two-key insert-mode sequences (e.g. `"jj"`) to `"<Esc>"` (v2.1.208) |
