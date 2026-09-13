@@ -108,7 +108,7 @@ Two different mechanisms get confused here, so be explicit about which one you w
 
 ### Alternative: dynamic workflows (research preview)
 
-A [dynamic workflow](https://code.claude.com/docs/en/workflows) is a JS harness that spawns subagents, holds plan state *outside* your context window, runs up to 16 agents concurrently (1000 total), and resumes from cached results within a session. The trigger isn't task *size* — it's whether the task risks one of three failure modes a single context window is prone to:
+A [dynamic workflow](https://code.claude.com/docs/en/workflows) is a JS harness that spawns subagents, holds plan state *outside* your context window, runs up to 16 agents concurrently (1000 total; raise the concurrency cap with `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS`, 1–256, since v2.1.269), and resumes from cached results within a session. The trigger isn't task *size* — it's whether the task risks one of three failure modes a single context window is prone to:
 
 - **Agentic laziness** — stopping at 20 of 50 items and declaring done. → *fan-out-and-synthesize*: one agent per item, barrier-join the results.
 - **Self-preferential bias** — preferring your own output when you're also the judge. → *adversarial verification*: a separate agent refutes each finding; or a *tournament* of pairwise comparisons (more reliable than absolute scoring for ranking or taste).

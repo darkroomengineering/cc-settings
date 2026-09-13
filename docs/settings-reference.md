@@ -123,6 +123,12 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS` | milliseconds (string) | WebFetch per-URL session cache TTL; default 15 minutes (v2.1.233) |
 | `CLAUDE_CODE_PROJECT_DIR_NAME` | short name | For hosts that give each session its own config directory: names the per-project transcript directory (v2.1.234) |
 | `CLAUDE_CODE_GOAL_CHECKIN_MINUTES` | minutes (string), `"0"` to opt out | When background tasks keep a `/goal` waiting 30+ minutes, Claude checks in on them instead of waiting indefinitely (v2.1.234) |
+| `CLAUDE_CODE_WEBFETCH_DEADLINE_MS` | milliseconds (string), `"0"` to disable | WebFetch fails after 300 seconds on a server that never finishes the response; this overrides the deadline (v2.1.268) |
+| `OTEL_METRICS_INCLUDE_REPOSITORY` | `"1"` or unset | Tag OpenTelemetry metrics and events with `vcs.*` repository attributes; commit events also get `vcs.ref.head.*` when `OTEL_LOG_TOOL_DETAILS` is set (v2.1.269) |
+| `CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS` | milliseconds (string) | Extend the LLM gateway `/v1/models` discovery timeout; default 3 seconds (v2.1.269) |
+| `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` | integer 1–256 (string) | Raise the Workflow tool's per-run concurrent agent limit (default 16) for inference-bound fan-outs (v2.1.269) |
+| `CLAUDE_CODE_BG_TASKS_REPORT_RUNNING` | `"0"` to restore old behavior | Remote and headless sessions now report background agents as still running instead of "waiting for your input"; `0` restores the old report (v2.1.269) |
+| `CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS` | milliseconds (string) | Oldest API-error turn `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` will re-run; default 6 hours (v2.1.269) |
 
 > **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 
@@ -715,6 +721,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `awsAuthRefresh` | string | A | Shell command called to refresh AWS credentials |
 | `awsCredentialExport` | string | A | Shell command that exports AWS credential env vars |
 | `axScreenReader` | boolean | U | Screen-reader mode: flat plain-text rendering without borders or animations; also `--ax-screen-reader` or `CLAUDE_AX_SCREEN_READER=1` (v2.1.208) |
+| `bashEditDiffEnabled` | boolean | G | Append a diff of the files a Bash command changed to the Bash tool result when Bash handles file edits (v2.1.269) |
 | `bashOutputMaxChars` | integer ≤ 128000 | G | Characters of Bash output the model receives inline before the rest is saved to a file (v2.1.261) |
 | `blockedMarketplaces` | string[] | E | Marketplace IDs users cannot install from |
 | `changelogUrl` | string | G | Override the URL `/release-notes` fetches from |
@@ -754,6 +761,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `forceLoginMethod` | `"claudeai"` \| `"console"` | A | Lock the login flow to a specific provider |
 | `forceLoginOrgUUID` | string \| string[] | A | Restrict login to a specific org UUID or list of UUIDs |
 | `forceRemoteSettingsRefresh` | boolean | E | Force a settings reload from the managed settings URL |
+| `gatewayInternalNetworks` | string[] | E | Managed: CIDR blocks of the organization's own public IPv4 space from which `/login` to a Claude apps gateway is allowed (v2.1.268) |
 | `gcpAuthRefresh` | string | A | Shell command called to refresh GCP credentials |
 | `hooks` | object | G | Hook event handlers (PreToolUse, PostToolUse, etc.) |
 | `httpHookAllowedEnvVars` | string[] | E | Env vars forwarded to HTTP hooks |
@@ -763,6 +771,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `keybindingFlavor` | `"classic"` \| `"readline"` | U | Inert since v2.1.261; word-editing keys always match Bash. Still accepted so older files parse |
 | `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
 | `managedMcpServers` | Record\<string,McpServer\> | E | Org-delivered HTTP/SSE MCP servers, keyed by name, `.mcp.json` shape; managed scope only (v2.1.259) |
+| `maxEffortLevel` | `"low"` \| `"medium"` \| `"high"` \| `"xhigh"` \| `"max"` | G | Cap the effort level on every provider, including Bedrock, Vertex and Foundry; users can still pick lower. Also accepted per model under `modelSettings` (v2.1.267) |
 | `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
 | `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports). **Claude Code does not read this from `settings.json` at user scope** — user-scope servers live in `~/.claude.json`, project-scope in `.mcp.json`. Typed here because cc-settings' `config/20-mcp.json` fragment carries the block through composition on its way to `~/.claude.json`; setting it in `settings.json` by hand has no effect |
 | `minimumVersion` | string | E | Minimum Claude Code version required; older clients are blocked |
@@ -770,6 +779,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `modelOverrides` | Record\<string,unknown\> | G | Map model picker entries to custom provider model IDs (v2.1.105) |
 | `modelPicker` | object | G | Curate the `/model` picker: ordered `options` rows, optional `replaceBuiltInOptions`; user/managed only (v2.1.242) |
 | `modelPricing` | object | E | Managed: contracted per-model rates + discount multiplier for `/cost` and telemetry; shape not public (v2.1.243) |
+| `modelSettings` | Record\<string,object\> | G | Per-model settings container; currently documented for `maxEffortLevel` only. Kept loose (v2.1.267) |
 | `otelHeadersHelper` | string | G | Shell command that emits OTEL auth headers |
 | `outputStyle` | string | G | Output rendering style override |
 | `parentSettingsBehavior` | `"first-wins"` \| `"merge"` | E | How managed settings participate in the policy merge (admin-tier, v2.1.133) |

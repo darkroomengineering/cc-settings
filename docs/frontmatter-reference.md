@@ -27,7 +27,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |
 | `background` | boolean | No | When `true`, always run this subagent as a background task |
 | `isolation` | string | No | `worktree` runs the agent in a temporary git worktree for isolated repo access; `remote` runs it in a remote/sandboxed environment |
-| `effort` | string | No | Effort level for this agent: `low`, `medium`, `high`, `xhigh`, `max` |
+| `effort` | string | No | Effort level for this agent: `low`, `medium`, `high`, `xhigh`, `max`. Honored on Fable 5 and Opus 4.7/4.8 since v2.1.267; earlier versions ignored it on models with a pinned default effort |
 | `permissionMode` | string | No | Permission mode for this agent's subagent session (used by `explore`, `reviewer`, `security-reviewer`) |
 | `initialPrompt` | string | No | Text prepended to the agent's first turn, before the delegated task (used by `explore`) |
 | `experimental.cacheTtl` | string | No | Per-agent prompt cache TTL, `5m` or `1h`, used when no `subagentPromptCacheTtl` setting is configured (v2.1.248). cc-settings sets `subagentPromptCacheTtl: "5m"` globally, so this only matters for an agent run under a config that drops that setting |

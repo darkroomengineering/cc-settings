@@ -35,7 +35,9 @@ subagents do not (only `/fork` inherits it). Subagents receive the CLAUDE.md
 hierarchy instead, so the register below stays here. Built-in `Explore` and
 `Plan` skip CLAUDE.md too — restate critical rules in their prompts.
 Output-style changes apply after `/clear` or a new session. Users opt out via
-`/config`; `bun ~/.claude/src/scripts/whats-on.ts` shows the effective style.
+`/config` or switch with `/output-style [name]` (also lists styles, works over
+Remote Control and headless); `bun ~/.claude/src/scripts/whats-on.ts` shows the
+effective style.
 
 ### Register for every reply, including subagents
 

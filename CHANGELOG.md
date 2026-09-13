@@ -4,6 +4,33 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.12.0] — 2026-09-13
+
+Synced with Claude Code v2.1.270 (from v2.1.266). 2.1.270 is a single permission regression fix; the substantive entries are in 2.1.267 through 2.1.269. Three settings keys adopted, six env vars tracked, no dedupe.
+
+**Adopted:**
+- `maxEffortLevel` (2.1.267) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`: caps effort on every provider, top-level or per model under the new `modelSettings` container, which is modelled as a loose record so per-model keys survive parse. Matters because teams that pin `CLAUDE_CODE_EFFORT_LEVEL` now have a hard ceiling instead of a default.
+- `bashEditDiffEnabled` (2.1.269), same three files: the Bash tool result carries a diff of the files the command changed. Documented, not enabled in `config/10-core.json`.
+- `gatewayInternalNetworks` (2.1.268, managed), same three files: the org's own public IPv4 CIDRs allowed for gateway `/login`. Added for schema parity with the other managed keys.
+- Six env vars in the manifest and the env table: `OTEL_METRICS_INCLUDE_REPOSITORY`, `CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS`, `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS`, `CLAUDE_CODE_BG_TASKS_REPORT_RUNNING`, `CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS` (2.1.269), `CLAUDE_CODE_WEBFETCH_DEADLINE_MS` (2.1.268). `skills/orchestrate/SKILL.md` now says the 16-agent workflow concurrency cap is raisable.
+- Docs: `/output-style [name]` noted in `CLAUDE-FULL.md` (2.1.269); `effort:` frontmatter now honored on Fable 5 and Opus 4.7/4.8 in `docs/frontmatter-reference.md` (2.1.267); `rules/git.md` notes the native attribution reminder now yields to the no-attribution rule (2.1.269).
+
+**Deletions / Native-now-redundant:** none. `claude plugin eval` scores plugin eval suites and does not overlap `/autoresearch`.
+
+**Files changed:**
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- skills/orchestrate/SKILL.md
+- CLAUDE-FULL.md
+- rules/git.md
+- src/setup.ts
+- package.json
+- .claude-plugin/plugin.json
+- .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.11.0] — 2026-09-12
 
 - Route Codex calls by task shape: `codex exec` defaults to GPT-5.6 Sol, `codex review` and

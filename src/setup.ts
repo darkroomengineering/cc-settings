@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.11.0"; // Cross-model delegation: Sol/Astra routing on the bridge and native agents, Codex-to-Claude reverse bridge.
+const VERSION = "15.12.0"; // Sync with Claude Code v2.1.270: maxEffortLevel/modelSettings, bashEditDiffEnabled, gatewayInternalNetworks, six env vars.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

@@ -776,6 +776,30 @@
     "skipDangerousModePermissionPrompt": {
       "type": "boolean"
     },
+    "maxEffortLevel": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "modelSettings": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": {}
+      }
+    },
+    "bashEditDiffEnabled": {
+      "type": "boolean"
+    },
     "effortLevel": {
       "type": "string",
       "enum": [
@@ -1536,6 +1560,12 @@
     },
     "allowManagedHooksOnly": {
       "type": "boolean"
+    },
+    "gatewayInternalNetworks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "allowManagedMcpServersOnly": {
       "type": "boolean"

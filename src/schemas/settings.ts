@@ -271,6 +271,11 @@ export const Settings = z.looseObject({
   disableAutoMode: z.enum(["disable"]).optional(),
   disableBypassPermissionsMode: z.enum(["disable"]).optional(),
   skipDangerousModePermissionPrompt: z.boolean().optional(), // skip the confirmation before entering bypass-permissions mode; ignored in project settings (per docs)
+  maxEffortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // 2.1.267 — cap the effort level on every provider; users can still pick lower. Also accepted per model under modelSettings.
+  // 2.1.267 — per-model settings container (currently documented only for
+  // maxEffortLevel). Kept loose so unmodelled per-model keys are not stripped.
+  modelSettings: z.record(z.string(), z.looseObject({})).optional(),
+  bashEditDiffEnabled: z.boolean().optional(), // 2.1.269 — append a diff of the files a Bash command changed to the Bash tool result when Bash handles file edits
   effortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // persist /effort across sessions; settings.json counterpart of CLAUDE_CODE_EFFORT_LEVEL. The key's docs list 4 values, but the env var + real live configs also use "max" — superset to not reject observed values.
   // 2.1.242 — prompt-cache lifetime per scope. promptCacheTtl covers the main
   // conversation (and inline helpers); subagentPromptCacheTtl covers
@@ -371,6 +376,7 @@ export const Settings = z.looseObject({
   // --- ENTERPRISE/MANAGED ---
   allowedHttpHookUrls: z.array(z.string()).optional(), // allowlist of HTTP endpoints hooks may call
   allowManagedHooksOnly: z.boolean().optional(), // block user-defined hooks; only managed hooks run
+  gatewayInternalNetworks: z.array(z.string()).optional(), // 2.1.268 (managed) — CIDR blocks of the organization's own public IPv4 space from which /login to a Claude apps gateway is allowed
   allowManagedMcpServersOnly: z.boolean().optional(), // block user-defined MCP servers
   allowManagedPermissionRulesOnly: z.boolean().optional(), // block user-defined permission rules
   availableModels: z.array(z.string()).optional(), // restrict the model picker to this list

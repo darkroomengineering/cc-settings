@@ -26,7 +26,9 @@ paths:
 - Ambiguous messages (`fix`, `update`, `wip`).
 - `--no-verify` without a stated reason.
 - **Any AI attribution in commits or PRs** — no `Co-Authored-By: Claude`, no
-  "Generated with Claude Code" badges, no AI mentions. Nothing.
+  "Generated with Claude Code" badges, no AI mentions. Nothing. Since Claude
+  Code 2.1.269 the native attribution reminder yields to this rule; managed
+  `attribution` settings still apply.
 
 ## PRs
 
