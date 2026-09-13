@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
 import {
   chmod,
@@ -25,6 +25,9 @@ const REPO = resolve(import.meta.dir, "..");
 const SETUP_TS = join(REPO, "src", "setup.ts");
 const START = "<!-- cc-settings:codex:start -->";
 const END = "<!-- cc-settings:codex:end -->";
+
+// Full installer subprocesses and rollback can exceed Bun's five-second default on Windows.
+setDefaultTimeout(120_000);
 
 interface InstallResult {
   exitCode: number;
