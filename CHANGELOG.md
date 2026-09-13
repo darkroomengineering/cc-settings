@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.13.0] — 2026-09-13
+
+- Align delegation between hosts so a cc-settings user gets the same behavior in Claude Code
+  and standalone Codex. Claude Code's delegation threshold drops from 20 to 12 tool calls,
+  matching Codex (3+ files, 12+ tool calls, or security-sensitive code). The Codex adapter
+  (`codex/AGENTS.append.md`) now carries the same routing table, the same MUST rows (tests,
+  security, deslop, 3+ independent workstreams in parallel), the override-with-a-reason rule,
+  the delegate-together-and-keep-working rule, resume-instead-of-respawn, and the implementer
+  briefing contract, expressed in Codex's native `spawn_agent` / `send_message` /
+  `followup_task` terms. Writers still share one working tree on Codex, so that difference
+  stays documented rather than papered over.
+
 ## [15.12.0] — 2026-09-13
 
 Synced with Claude Code v2.1.270 (from v2.1.266). 2.1.270 is a single permission regression fix; the substantive entries are in 2.1.267 through 2.1.269. Three settings keys adopted, six env vars tracked, no dedupe.
