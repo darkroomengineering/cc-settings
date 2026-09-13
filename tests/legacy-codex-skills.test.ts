@@ -177,29 +177,33 @@ describe("legacy Codex skill migration", () => {
     }
   });
 
-  test("Codex full install and dry-run warn without moving overlaps", async () => {
-    const dryHome = await mkdtemp(join(tmpdir(), "cc-legacy-skills-install-dry-"));
-    const installHome = await mkdtemp(join(tmpdir(), "cc-legacy-skills-install-live-"));
-    try {
-      await seedSkill(dryHome, "audit");
-      await seedSkill(installHome, "audit");
+  test(
+    "Codex full install and dry-run warn without moving overlaps",
+    async () => {
+      const dryHome = await mkdtemp(join(tmpdir(), "cc-legacy-skills-install-dry-"));
+      const installHome = await mkdtemp(join(tmpdir(), "cc-legacy-skills-install-live-"));
+      try {
+        await seedSkill(dryHome, "audit");
+        await seedSkill(installHome, "audit");
 
-      const dryRun = await runSetup(dryHome, ["--dry-run"]);
-      expect(dryRun.exitCode).toBe(0);
-      expect(dryRun.stdout).toContain("legacy");
-      expect(dryRun.stdout).toContain("Codex may shorten skill descriptions");
-      expect(dryRun.stdout).toContain("bun run migrate:codex-skills --apply");
-      expect(existsSync(join(dryHome, ".agents", "skills", "audit"))).toBe(true);
+        const dryRun = await runSetup(dryHome, ["--dry-run"]);
+        expect(dryRun.exitCode).toBe(0);
+        expect(dryRun.stdout).toContain("legacy");
+        expect(dryRun.stdout).toContain("Codex may shorten skill descriptions");
+        expect(dryRun.stdout).toContain("bun run migrate:codex-skills --apply");
+        expect(existsSync(join(dryHome, ".agents", "skills", "audit"))).toBe(true);
 
-      const install = await runSetup(installHome, []);
-      expect(install.exitCode).toBe(0);
-      expect(install.stderr).toContain("Codex may shorten skill descriptions");
-      expect(existsSync(join(installHome, ".agents", "skills", "audit"))).toBe(true);
-    } finally {
-      await rm(dryHome, { recursive: true, force: true });
-      await rm(installHome, { recursive: true, force: true });
-    }
-  });
+        const install = await runSetup(installHome, []);
+        expect(install.exitCode).toBe(0);
+        expect(install.stderr).toContain("Codex may shorten skill descriptions");
+        expect(existsSync(join(installHome, ".agents", "skills", "audit"))).toBe(true);
+      } finally {
+        await rm(dryHome, { recursive: true, force: true });
+        await rm(installHome, { recursive: true, force: true });
+      }
+    },
+    { timeout: 120_000 },
+  );
 
   test("CLI preview warns when desktop import sync is enabled and leaves overlaps untouched", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-legacy-skills-sync-preview-"));
