@@ -5,7 +5,6 @@
 		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
 		"CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
 		"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-		"CLAUDE_CODE_NO_FLICKER": "1",
 		"CLAUDE_CODE_SCRIPT_CAPS": "500",
 		"ENABLE_TOOL_SEARCH": "auto:50",
 		"CC_CLAUDE_MD_MONITOR_ENABLED": "true",
@@ -19,6 +18,7 @@
 		"failIfUnavailable": false
 	},
 	"model": "claude-fable-5-1",
+	"tui": "default",
 	"promptCacheTtl": "1h",
 	"subagentPromptCacheTtl": "5m",
 	"outputStyle": "Darkroom",

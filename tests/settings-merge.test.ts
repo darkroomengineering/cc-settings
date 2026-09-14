@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { composeSettings } from "../src/lib/compose-settings.ts";
 import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 import {
   DEPRECATED_COMMAND_PATTERNS,
@@ -1085,6 +1086,31 @@ describe("userWinsScalarStrategy", () => {
 
 // Integration: the merger end-to-end must land a team-only nested default into a
 // user's existing block (regression lock for attribution.sessionUrl, v11.27.0).
+describe("mergeSettings — native terminal selection defaults", () => {
+  test.each([undefined, "fullscreen"])(
+    "retires managed fullscreen forcing and preserves explicit tui=%s",
+    async (tui) => {
+      const dir = await mkdtemp(join(tmpdir(), "cc-merge-renderer-"));
+      try {
+        const team = await composeSettings(join(import.meta.dir, ".."));
+        const baselineSettings = { env: { CLAUDE_CODE_NO_FLICKER: "1" } };
+        const userPath = join(dir, "user.json");
+        const outPath = join(dir, "out.json");
+        await writeFile(userPath, JSON.stringify({ ...baselineSettings, tui }));
+
+        const accounting = await mergeSettings(userPath, team, outPath, { baselineSettings });
+
+        const merged = await Bun.file(outPath).json();
+        expect(merged.env.CLAUDE_CODE_NO_FLICKER).toBeUndefined();
+        expect(merged.tui).toBe(tui ?? "default");
+        expect(accounting?.envPruned).toBe(1);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 describe("mergeSettings — nested defaults", () => {
   test("team attribution.sessionUrl lands into a user block that lacks it", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-merge-nested-"));

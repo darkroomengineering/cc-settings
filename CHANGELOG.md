@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [Unreleased]
+
+- Default Claude Code to the classic renderer so terminal-native double-click selection and
+  scrollback remain available. Stop forcing fullscreen with `CLAUDE_CODE_NO_FLICKER`; updates
+  remove the old managed value when it still matches the installation baseline, while preserving
+  explicit user renderer preferences. Correct the mouse-capture documentation.
+
 ## [15.13.0] — 2026-09-13
 
 - Align delegation between hosts so a cc-settings user gets the same behavior in Claude Code
