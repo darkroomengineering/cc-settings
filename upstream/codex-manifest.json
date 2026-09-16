@@ -1,0 +1,21 @@
+{
+  "lastScan": "2026-09-16T00:00:00.000Z",
+  "codexVersion": "0.154.0",
+  "knownConfigSurfaces": [
+    "AGENTS.md managed block ($CODEX_HOME/AGENTS.md)",
+    "agents/*.toml: name, description, developer_instructions, model, model_reasoning_effort, sandbox_mode",
+    "rules/darkroom.rules: prefix_rule(pattern, decision, justification, match, not_match)",
+    "config.toml [skills] max_context_tokens (read-only, codex:skill-budget)",
+    "config.toml [[skills.config]] (read-only, codex:skill-budget)",
+    "config.toml [sandbox_workspace_write] network_access (documented for the reverse bridge)",
+    "config.toml [desktop] external-agent-import-sync-enabled (read-only, migrate:codex-skills)",
+    "plugin: .codex-plugin/plugin.json (name, version, description, author, homepage, repository, license, keywords, skills, mcpServers, interface)",
+    "plugin: hooks/hooks.json (shared with the Claude plugin)",
+    "plugin: .mcp.json (Figma HTTPS server only)"
+  ],
+  "notes": [
+    "codexVersion is the latest stable @openai/codex npm version this repo was last triaged against. bun run upstream:scan diffs it against the live npm version; a Codex stable release is tagged rust-v<X> on github.com/openai/codex and its notes come from `gh release view rust-v<X> -R openai/codex --json body`. Alpha and Python SDK tags are not tracked.",
+    "knownConfigSurfaces is reference-only. cc-settings has no zod schema for config.toml, agents/*.toml, or .rules files, so the scanner cannot diff this list against code; it exists so /cc sync knows which Codex surfaces to cross-reference when a release note names one. Update it by hand when the installer starts writing or reading a new Codex surface.",
+    "Baseline 2026-09-16 at 0.154.0 (GPT-6-Astra in the model picker, --worktree, codex mcp-server entry point removed). Every earlier Codex adaptation was landed without an upstream manifest: the 15.9.0 bridge pin, 15.10.0 skill-description narrowing, and 15.14.0 skill-budget report all cite codex-cli versions in their CHANGELOG entries instead."
+  ]
+}

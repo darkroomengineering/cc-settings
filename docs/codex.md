@@ -73,6 +73,10 @@ Claude Code into Codex. Its twin, `claude-verifier`, is installed only into Code
 other way: it runs the current diff past a Claude model through headless Claude Code. See
 [delegating to other models](#delegating-to-other-models).
 
+The Codex CLI version this repo was last triaged against lives in `upstream/codex-manifest.json`.
+`bun run upstream:scan` reports when npm has a newer stable `@openai/codex`, and `/cc sync`
+reads that release's GitHub notes and cross-references the surfaces listed in the manifest.
+
 `darkroom/source` is a runtime allowlist, not a copy of the checkout. It contains only the shared
 skills, hooks, runtime `src/` files, and package metadata needed after installation. Native role
 instructions are generated separately in `agents/*.toml`. User-created files, ignored files, and

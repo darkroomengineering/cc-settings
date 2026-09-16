@@ -1,22 +1,23 @@
 ---
 name: cc
 argument-hint: "[sync|update]"
-description: Sync cc-settings with Claude Code upstream (maintainer) or update a local Claude Code or Codex install (user). Triggers "sync with claude code", "changelog sync", "update cc-settings", "refresh my install".
+description: Sync cc-settings with Claude Code and Codex upstreams (maintainer) or update a local install of either (user). Triggers "sync with claude code", "changelog sync", "update cc-settings", "refresh my install".
 ---
 
 # cc — cc-settings management
 
-Two-mode skill: **sync** keeps the repo current with Claude Code upstream
-(maintainer task); **update** refreshes the active Claude Code, Codex, or
-combined local install (everyone). Sync does not track a Codex upstream.
+Two-mode skill: **sync** keeps the repo current with the Claude Code and Codex
+CLI upstreams (maintainer task); **update** refreshes the active Claude Code,
+Codex, or combined local install (everyone).
 
 ## Mode: sync
 
-Audit cc-settings against Claude Code changelog; identify features to adopt and duplication to remove; stops for approval.
+Audit cc-settings against the Claude Code changelog and the Codex release
+notes; identify features to adopt and duplication to remove; stops for approval.
 
-Track the official Claude Code changelog and keep cc-settings (schemas, config,
-hooks, agents, docs) in sync with new features. Removes anything that
-duplicates native functionality.
+Track both upstreams and keep cc-settings (schemas, config, hooks, agents,
+docs, the Codex installer surfaces) in sync with new features. Removes anything
+that duplicates native functionality.
 
 This is run on a weekly cadence. The mechanical parts are scripted; the
 judgment calls (which features to adopt, what counts as duplication) require
@@ -42,11 +43,15 @@ bun run upstream:scan
 ```
 
 This compares `upstream/claude-code-manifest.json` against the live
-`@anthropic-ai/claude-code` npm version. Two outcomes:
+`@anthropic-ai/claude-code` npm version and `upstream/codex-manifest.json`
+against the live `@openai/codex` npm version. Each upstream has two outcomes:
 
-- **No drift** — manifest matches live. Stop here. There's nothing to sync.
-  Tell the user "already in sync at v<X>" and end.
+- **No drift** — manifest matches live. Nothing to sync for that upstream.
 - **Drift detected** — capture both versions. Format: `manifest=A → live=B`.
+
+If neither drifts, tell the user "already in sync at Claude Code v<X>, Codex
+v<Y>" and end. If only one drifts, run the remaining phases for that upstream
+alone and say so in the plan.
 
 ### Phase 2 — Fetch the upstream changelog
 
@@ -61,6 +66,19 @@ prompt: Extract entries for versions <A+1> through <B> verbatim. List each
 
 Do not paraphrase. Quote the upstream bullets verbatim — the user needs to see
 exactly what was said upstream to validate your categorization.
+
+#### Codex
+
+Codex publishes release notes per GitHub release, not a changelog file. Stable
+releases are tagged `rust-v<X>`; alpha tags and Python SDK tags are not
+tracked. List the stable versions after the manifest version, then read each
+release body verbatim:
+
+```bash
+gh release list -R openai/codex --exclude-pre-releases --limit 20 \
+  | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\s' | awk '{print $1}'
+gh release view rust-v<X> -R openai/codex --json body --jq '.body'
+```
 
 ### Phase 3 — Cross-reference cc-settings
 
@@ -78,6 +96,21 @@ to inform the decision (use parallel tool calls):
 | Agent frontmatter | `agents/*.md` (currently uses `tools`, `disallowedTools`, `maxTurns`, `permissionMode`, `effort`, `isolation`, `hooks`, `mcpServers`, `initialPrompt`) |
 | Slash commands | `MANUAL.md` "All Skills" table, `skills/*/SKILL.md` triggers |
 | User-facing docs | `MANUAL.md`, `CLAUDE-FULL.md`, `docs/settings-reference.md`, `docs/hooks-reference.md` |
+
+For Codex changes, cross-reference these surfaces instead. There is no zod
+schema for any of them; `upstream/codex-manifest.json` `knownConfigSurfaces`
+lists what the installer writes or reads so a release note that names one is
+easy to spot.
+
+| Bucket | What to check |
+|---|---|
+| Native agents (`agents/*.toml` fields) | `src/lib/codex-native-agents.ts`, `codex/agents/` |
+| Command policy (`rules/*.rules`) | `codex/rules/darkroom.rules` |
+| Plugin manifest and hooks | `.codex-plugin/plugin.json`, `hooks/hooks.json`, `src/lib/codex-runtime-manifests.ts` |
+| `config.toml` keys the installer reads | `src/lib/codex-install-state.ts`, `src/lib/codex-skill-budget.ts` |
+| Skill loading and budgets | `src/lib/lint-skills.ts`, `docs/codex.md` "skill descriptions were shortened" |
+| Bridge (`codex exec`, `codex review`, model pins) | `src/lib/claude-bridge.ts`, `codex-run.ts`, `docs/codex-bridge.md` |
+| User-facing docs | `docs/codex.md`, `codex/AGENTS.append.md` |
 
 Bucket each change as one of:
 
@@ -105,7 +138,7 @@ the upstream version stabilized. Watch for these patterns:
 Write a markdown table to the chat:
 
 ```
-## v<A> → v<B> sync plan
+## Claude Code v<A> → v<B>, Codex v<C> → v<D> sync plan
 
 ### Adopt
 | Change | Files | Notes |
@@ -135,7 +168,8 @@ Do not edit before approval.
 ### Phase 5 — Execute approved changes
 
 For approved adoptions, edit the files directly. Schemas first (they're the
-contract), then config, then docs. For deduptions, delete the orphaned code
+contract), then config, then docs. Codex adoptions have no schema step: edit
+the installer surface, then `docs/codex.md`. For deduptions, delete the orphaned code
 and any tests that asserted on it.
 
 After each schema edit, also update `upstream/claude-code-manifest.json`
@@ -148,6 +182,11 @@ this as the source of truth.
 upstream/claude-code-manifest.json
   - claudeCodeVersion: "<B>"
   - lastScan: <today ISO>
+  - notes: append one entry summarizing the window (adopted, docs-only, skipped)
+upstream/codex-manifest.json
+  - codexVersion: "<D>"
+  - lastScan: <today ISO>
+  - notes: append one entry; add any new surface to knownConfigSurfaces
 src/setup.ts
   - VERSION: bump (minor for new features, patch for fixes-only)
 CHANGELOG.md
@@ -169,7 +208,7 @@ are good examples):
 ```bash
 bun run typecheck
 bun test
-bun run upstream:scan   # should now show "no drift detected"
+bun run upstream:scan   # should now show "no drift detected" for both upstreams
 bun run compose | head  # spot-check that new fields surface in settings.json
 ```
 
@@ -179,7 +218,7 @@ If any fail: fix before moving on. Tests must pass.
 
 ```bash
 git add -A
-git commit -m "feat(v<new-version>): sync with Claude Code v<B>
+git commit -m "feat(v<new-version>): sync with Claude Code v<B> and Codex v<D>
 
 <one-paragraph summary>
 
@@ -208,9 +247,10 @@ git log. Do not push if anything in Phase 7 is failing.
 
 cc-settings exists in three time zones:
 
-1. **Upstream** — what Claude Code does today. Source: changelog + docs.
+1. **Upstream** — what Claude Code and Codex do today. Source: the Claude
+   Code changelog and the Codex GitHub release notes.
 2. **Manifest** — what cc-settings believes upstream does. Source:
-   `upstream/claude-code-manifest.json`.
+   `upstream/claude-code-manifest.json` and `upstream/codex-manifest.json`.
 3. **Implementation** — what cc-settings actually wires up. Source: schemas,
    config, hooks, agents.
 

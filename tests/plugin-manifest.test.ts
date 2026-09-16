@@ -565,3 +565,34 @@ describe("Codex CLI package acceptance", () => {
     { timeout: 60_000 },
   );
 });
+
+// Both upstream manifests are hand-maintained by /cc sync. The scanner parses
+// them with zod at run time, but CI only runs it on the network; this keeps a
+// malformed version string from slipping past an offline test run.
+describe("upstream manifests", () => {
+  const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+  const ISO_RE = /^\d{4}-\d{2}-\d{2}T/;
+
+  test("claude-code manifest carries a semver version and ISO lastScan", async () => {
+    const raw = JSON.parse(
+      await readFile(join(ROOT, "upstream", "claude-code-manifest.json"), "utf8"),
+    );
+    expect(raw.claudeCodeVersion).toMatch(SEMVER_RE);
+    expect(raw.lastScan).toMatch(ISO_RE);
+  });
+
+  test("codex manifest carries a semver version, ISO lastScan, and surfaces", async () => {
+    const raw = JSON.parse(await readFile(join(ROOT, "upstream", "codex-manifest.json"), "utf8"));
+    expect(raw.codexVersion).toMatch(SEMVER_RE);
+    expect(raw.lastScan).toMatch(ISO_RE);
+    expect(Array.isArray(raw.knownConfigSurfaces)).toBe(true);
+    expect(raw.knownConfigSurfaces.length).toBeGreaterThan(0);
+  });
+
+  test("/cc sync documents both manifests", async () => {
+    const skill = await readFile(join(ROOT, "skills", "cc", "SKILL.md"), "utf8");
+    expect(skill).toContain("upstream/claude-code-manifest.json");
+    expect(skill).toContain("upstream/codex-manifest.json");
+    expect(skill).toContain("gh release view rust-v");
+  });
+});

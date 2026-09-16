@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.16.0] — 2026-09-16
+
+`/cc sync` now tracks the Codex CLI as a second upstream, since Codex is a first-class install target.
+
+- New `upstream/codex-manifest.json` records the latest stable `@openai/codex` version the repo was triaged against (baseline 0.154.0), the Codex surfaces the installer writes or reads (`agents/*.toml` fields, `rules/darkroom.rules`, the plugin manifest and hooks, the `config.toml` keys `codex:skill-budget` and `migrate:codex-skills` read), and per-window notes. The surfaces list is reference-only: there is no zod schema for Codex config, so the scanner cannot diff it.
+- `bun run upstream:scan` fetches both npm packages and reports drift per upstream. CI keeps running it.
+- `/cc sync` gains a Codex track: release notes come from `gh release view rust-v<X> -R openai/codex` per stable tag (alpha and Python SDK tags are ignored), a Codex cross-reference table points at the installer files, and Phase 6 bumps both manifests. When only one upstream drifts, the skill runs the remaining phases for that one.
+- `tests/plugin-manifest.test.ts` checks both manifests parse with semver versions and that the skill documents both.
+
+**Files changed:**
+- upstream/codex-manifest.json (new)
+- src/upstream/scan.ts
+- skills/cc/SKILL.md
+- tests/plugin-manifest.test.ts
+- docs/codex.md, CLAUDE.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.15.0] — 2026-09-16
 
 Sync with Claude Code v2.1.273 (from v2.1.270; 2.1.272 was bug fixes only).
