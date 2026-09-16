@@ -26,6 +26,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `maxTurns` | number | No | Maximum agentic turns before the subagent stops |
 | `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |
 | `background` | boolean | No | When `true`, always run this subagent as a background task |
+| `omitClaudeMd` | boolean | No | When `true`, the subagent runs without user, project, and local CLAUDE.md files; managed policy files still load (v2.1.271). No cc-settings agent sets it, because AGENTS.md standards reach subagents through the CLAUDE.md hierarchy |
 | `isolation` | string | No | `worktree` runs the agent in a temporary git worktree for isolated repo access; `remote` runs it in a remote/sandboxed environment |
 | `effort` | string | No | Effort level for this agent: `low`, `medium`, `high`, `xhigh`, `max`. Honored on Fable 5 and Opus 4.7/4.8 since v2.1.267; earlier versions ignored it on models with a pinned default effort |
 | `permissionMode` | string | No | Permission mode for this agent's subagent session (used by `explore`, `reviewer`, `security-reviewer`) |

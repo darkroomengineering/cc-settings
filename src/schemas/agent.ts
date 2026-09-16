@@ -50,6 +50,7 @@ export const AgentFrontmatter = z.looseObject({
   initialPrompt: z.string().optional(),
   skills: z.array(z.string()).optional(), // skills to preload into the subagent context
   background: z.boolean().optional(), // always run this subagent as a background task
+  omitClaudeMd: z.boolean().optional(), // 2.1.271 — run without user/project/local CLAUDE.md; managed policy files still load
   experimental: z
     .object({
       cacheTtl: z.enum(["5m", "1h"]).optional(), // 2.1.248 — per-agent prompt cache TTL, used when no subagentPromptCacheTtl setting is configured

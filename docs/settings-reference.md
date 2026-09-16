@@ -102,7 +102,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` | `"1"` or unset | Apply `CLAUDE_CODE_SUBAGENT_MODEL` (or the main model when unset) to **every** subagent, ignoring per-spawn and agent-definition overrides — the pre-2.1.251 behavior on demand. cc-settings leaves it unset so the per-agent pins in `agents/*.md` hold (v2.1.257) |
 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `"1"` or unset | Enable agent teams — teammates that share a task list and message each other, as distinct from subagents that only report back. Experimental and **disabled by default upstream**; cc-settings sets `"1"`. Without it "no team is set up at session start, no team directories are written, and Claude does not spawn or propose teammates". Enabling it makes teams *available*, not automatic — see `CLAUDE-FULL.md` → "Agent teams — enabled, deliberately not the default" for when to pick one over plain fan-out |
 | `CLAUDE_CODE_TMPDIR` | directory path | Overrides the temp directory used for Unix sockets and scratch files; set it shallow to avoid `EADDRINUSE` from over-long socket paths (v2.1.161) |
-| `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157) |
+| `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157; since v2.1.273 also puts real agent, skill, plugin and MCP server names on cost and token metrics) |
 | `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` | `"1"` or unset | Hide Anthropic's bundled skills, workflows, and built-in slash commands from the model. Env counterpart of the `disableBundledSkills` setting (v2.1.169) |
 | `CLAUDE_CODE_SAFE_MODE` | `"1"` or unset | Start Claude Code with all customizations disabled (CLAUDE.md, plugins, skills, hooks, MCP servers) for troubleshooting. Env counterpart of the `--safe-mode` flag (v2.1.169) |
 | `CLAUDE_CODE_RESTRICTED` | `"1"` or unset | Env counterpart of `--restricted`: removes the tools that run commands or code and `WebFetch` (unless named in `--tools`), keeps file tools inside the working directory, refuses `bypassPermissions`, and ignores user, project, and local settings files — so a restricted session never loads cc-settings (v2.1.248) |
@@ -125,6 +125,9 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_GOAL_CHECKIN_MINUTES` | minutes (string), `"0"` to opt out | When background tasks keep a `/goal` waiting 30+ minutes, Claude checks in on them instead of waiting indefinitely (v2.1.234) |
 | `CLAUDE_CODE_WEBFETCH_DEADLINE_MS` | milliseconds (string), `"0"` to disable | WebFetch fails after 300 seconds on a server that never finishes the response; this overrides the deadline (v2.1.268) |
 | `OTEL_METRICS_INCLUDE_REPOSITORY` | `"1"` or unset | Tag OpenTelemetry metrics and events with `vcs.*` repository attributes; commit events also get `vcs.ref.head.*` when `OTEL_LOG_TOOL_DETAILS` is set (v2.1.269) |
+| `CLAUDE_CODE_GATEWAY_HINT_HEADERS` | `"1"` or unset | Adds `x-claude-code-request-class`, `x-claude-code-agent-type`, `x-claude-code-prev-tool-durations` and `x-claude-code-compaction` request headers for LLM gateways to route or budget on (v2.1.273) |
+| `CLAUDE_CODE_AUTO_MODE_SERVER` | `"1"` or unset | On Bedrock, Vertex and Foundry, auto mode uses the local classifier by default since v2.1.273; set this to use the platform's server-side classifier |
+| `CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK` | `"1"` or unset | Skips the organization fast-mode check at startup; since v2.1.271 an API rejection of fast mode then stands for the session and its reason is shown instead of re-sending fast requests every turn |
 | `CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS` | milliseconds (string) | Extend the LLM gateway `/v1/models` discovery timeout; default 3 seconds (v2.1.269) |
 | `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` | integer 1–256 (string) | Raise the Workflow tool's per-run concurrent agent limit (default 16) for inference-bound fan-outs (v2.1.269) |
 | `CLAUDE_CODE_BG_TASKS_REPORT_RUNNING` | `"0"` to restore old behavior | Remote and headless sessions now report background agents as still running instead of "waiting for your input"; `0` restores the old report (v2.1.269) |
@@ -177,6 +180,8 @@ Added in v2.1.224. One of your Claude Code sessions can send a plain-text messag
 Available on macOS and Linux (including WSL 2), not native Windows, and not on Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, or Microsoft Foundry. It also depends on feature-flag evaluation, so `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, or `DISABLE_GROWTHBOOK` can each turn it off as a side effect.
 
 Since v2.1.236, `SendMessage` also takes `notify_when_idle` for same-machine peers: the receiving session sends back one notice when it next goes idle or exits — opt-in, one-shot, and a replacement for polling `ListAgents` or sending "are you done?" messages. Sent without a message body it's a pure subscription that costs the other session nothing.
+
+Since v2.1.271 a message the receiving session holds for approval under its permission-mode policy leaves a trace: headless senders get a delivery notice, and the `SendMessage` result no longer implies the message was read.
 
 Same-machine messages travel over a per-session Unix socket and never touch Anthropic servers. Sessions on your other machines and on Claude Code on the web are **reply-only** — Claude here can answer a message from one, but can't start the exchange — and those messages do route through Anthropic servers. Sessions can only find each other when they see the same filesystem, so a container and its host can't message each other.
 
@@ -686,7 +691,7 @@ How many characters of Bash output or background-task output the model receives 
 
 ### `modelPricing`
 
-Managed-only (v2.1.243): an organization's contracted per-model rates and discount multiplier, used by `/cost`, the status line, and telemetry cost figures instead of list price. No public shape is documented; the schema keeps it loose.
+Managed-only (v2.1.243): an organization's contracted per-model rates and discount multiplier, used by `/cost`, the status line, and telemetry cost figures instead of list price. No public shape is documented; the schema keeps it loose. Since v2.1.271 the `multiplier` may also exceed 1, up to 10, for marked-up internal chargeback rates.
 
 ## Complete settings.json key reference
 
@@ -778,7 +783,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `model` | string | G | Default model for all sessions (e.g. `"opus"`, `"sonnet"`) |
 | `modelOverrides` | Record\<string,unknown\> | G | Map model picker entries to custom provider model IDs (v2.1.105) |
 | `modelPicker` | object | G | Curate the `/model` picker: ordered `options` rows, optional `replaceBuiltInOptions`; user/managed only (v2.1.242) |
-| `modelPricing` | object | E | Managed: contracted per-model rates + discount multiplier for `/cost` and telemetry; shape not public (v2.1.243) |
+| `modelPricing` | object | E | Managed: contracted per-model rates + discount multiplier for `/cost` and telemetry; shape not public (v2.1.243; `multiplier` may exceed 1, up to 10, for marked-up internal chargeback since v2.1.271) |
 | `modelSettings` | Record\<string,object\> | G | Per-model settings container; currently documented for `maxEffortLevel` only. Kept loose (v2.1.267) |
 | `otelHeadersHelper` | string | G | Shell command that emits OTEL auth headers |
 | `outputStyle` | string | G | Output rendering style override |
@@ -826,7 +831,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `voice` | object | U | Voice input/output configuration object |
 | `voiceEnabled` | boolean | U | Enable the voice interface |
 | `wheelScrollAccelerationEnabled` | boolean | U | Toggle mouse-wheel scroll acceleration in fullscreen mode (v2.1.174) |
-| `workflowSizeGuideline` | string | G | Advisory ceiling on how many agents a dynamic workflow spawns; upstream default `"medium"` (aim for under 15). Settings-file counterpart of `/config`'s "Dynamic workflow size" (v2.1.219) |
+| `workflowSizeGuideline` | string | G | Advisory ceiling on how many agents a dynamic workflow spawns; upstream default `"medium"` (aim for under 10 since v2.1.271, previously 15; Pro plans default to `"small"`). Settings-file counterpart of `/config`'s "Dynamic workflow size" (v2.1.219) |
 | `worktree` | object | G | Git worktree configuration (`baseRef`, `bgIsolation` fields) (v2.1.133) |
 | `wslInheritsWindowsSettings` | boolean | E | WSL sessions inherit the Windows-side managed settings |
 
@@ -856,7 +861,7 @@ Permissions control which tool invocations are allowed, denied, or require user 
 
 If a tool invocation does not match any rule, Claude Code prompts the user (implicit `ask`).
 
-`permissions.blockReadsOutsideWorkingDirectories` (v2.1.257, boolean): in auto mode Claude Code asks once before the first file read outside the working directories; set this to `true` to refuse such reads outright instead. Add directories with `additionalDirectories` or `/add-dir` when a read is legitimate.
+`permissions.blockReadsOutsideWorkingDirectories` (v2.1.257, boolean): in auto mode Claude Code asks once before the first file read outside the working directories; set this to `true` to refuse such reads outright instead. Add directories with `additionalDirectories` or `/add-dir` when a read is legitimate. Since v2.1.273 it also keeps a memory directory chosen by a repository's settings out of the prompt, recall, indexing, and memory extraction.
 
 `permissions.defaultMode: "bypassPermissions"` is ignored in `.claude/settings.json` and `.claude/settings.local.json` since v2.1.257, like `"auto"`; set it in user or managed settings, or pass `--permission-mode`.
 
@@ -1122,6 +1127,8 @@ Bash(mv * ~/.bash_profile:*)
 ### `permissions.autoMode`
 
 Configuration for auto-mode classifier behavior. cc-settings does not set this — included here for completeness and managed-settings authoring.
+
+Two v2.1.271 behavior changes in auto mode need no config: a skill's or slash command's inline `!` shell commands now follow default-mode permission rules instead of the classifier, and a command no rule decides runs as a reviewed tool call; and a subagent hands its result back through a dedicated call the classifier reviews, instead of its last message being reviewed after the fact. Monitor watches also always carry a deadline now (30 minutes at most, 10 in `-p` runs) and ask Claude to re-arm; the no-timeout `persistent` option is gone.
 
 ```json
 {

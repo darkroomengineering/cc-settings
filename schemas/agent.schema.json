@@ -105,6 +105,9 @@
     "background": {
       "type": "boolean"
     },
+    "omitClaudeMd": {
+      "type": "boolean"
+    },
     "experimental": {
       "type": "object",
       "properties": {

@@ -1,6 +1,6 @@
 # Darkroom Engineering
 
-> Portable coding standards for Claude Code, Codex, Cursor, Copilot, Windsurf, and other AGENTS.md-compatible tools.
+> Portable coding standards for Claude Code, Codex, Cursor, Copilot, Windsurf, and other AGENTS.md-aware tools.
 
 ## Philosophy
 
@@ -28,7 +28,7 @@ Optimize for first-read comprehension, not brevity:
 - Define jargon inline on first use.
 - State the effect before the mechanism. Never clip sentences or remove substance to be shorter.
 
-This is the portable copy for AGENTS.md-aware tools and humans. Claude Code does not auto-load it: its subagents inherit the CLAUDE.md hierarchy, and its main sessions receive the same register from the `Darkroom` output style. Keep those delivery mechanisms distinct.
+This is the portable copy for AGENTS.md-aware tools and humans. Claude Code does not auto-load it: subagents inherit the CLAUDE.md hierarchy and main sessions get the same register from the `Darkroom` output style.
 
 ## Guardrails
 
@@ -58,7 +58,7 @@ A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment cont
 // upgrade: shard by key hash when p99 write latency climbs
 ```
 
-`bun run lint:shortcuts` fails when `upgrade:` is missing. Use this only for knowingly cut corners; it cannot excuse the protected concerns above. `/audit debt` lists every marker. Leave a marker alone until its trigger fires; then implement the upgrade and remove it in the same diff.
+`bun run lint:shortcuts` fails when `upgrade:` is missing. Use this only for knowingly cut corners; it cannot excuse the protected concerns above. `/audit debt` lists every marker. When a trigger fires, implement the upgrade and remove the marker in the same diff.
 
 ### Read Before Edit
 
@@ -66,7 +66,7 @@ A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment cont
 
 ### 2-Iteration Limit
 
-After **2 failed attempts** with one approach, stop using that approach. Summarize the attempts, pick the best of **2-3 alternatives**, and continue with it, saying so; ask only when the choice changes the user's stated direction or is hard to reverse. Never spend 6+ attempts on one strategy.
+After **2 failed attempts** with one approach, stop using it. Summarize the attempts, pick the best of **2-3 alternatives**, and continue, saying so; ask only when the choice changes the user's stated direction or is hard to reverse. Never spend 6+ attempts on one strategy.
 
 ### Bug Fix Scope
 
@@ -76,7 +76,7 @@ Keep a bug fix confined to directly related files. Do not refactor adjacent code
 
 After the ladder establishes that a bounded unit should exist, finish every edge case, error path, and test when completion costs only minutes more. Do not ship 90% and defer the rest. Complete the unit you chose, but do not expand scope: this rule does not override `Bug Fix Scope` or `Surface Conflicts`.
 
-Commit tests only where the task asks for them or the repository already keeps tests for that kind of change, sized like the neighboring test files: roughly one focused test per stated behavior. Verify however you like, but scratch scripts and quick checks stay scratch; do not turn them into additional permanent test files.
+Commit tests only where the task asks for them or the repository already keeps tests for that kind of change, sized like the neighboring test files: roughly one focused test per stated behavior. Scratch scripts and quick checks stay scratch; never turn them into permanent test files.
 
 ### Verify After Every Fix
 
@@ -97,7 +97,7 @@ If uncertain, treat it as a regression and stop to confirm. Making the suite gre
 
 ### Never Fake Measurements
 
-NEVER fabricate Lighthouse, bundle-size, profiler, test-runner, or build output. If a tool cannot run, say so. Report a delta only when both baselines were measured. Otherwise report countable facts. Label helpful extrapolations `est.` and name their source.
+NEVER fabricate Lighthouse, bundle-size, profiler, test-runner, or build output. If a tool cannot run, say so. Report a delta only when both baselines were measured; otherwise report countable facts. Label extrapolations `est.` and name their source.
 
 ### Visual/Spatial Honesty
 
@@ -143,11 +143,11 @@ Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing 
 
 ### Plan Before Multi-File Changes
 
-When a wrong approach would require a full rollback, state the plan (files touched and risks), then proceed without waiting for approval on reversible in-scope work. Host-specific numeric delegation thresholds remain in that host's instructions, such as Claude Code's `CLAUDE-FULL.md`.
+When a wrong approach would require a full rollback, state the plan (files touched and risks), then proceed without waiting for approval on reversible in-scope work. Numeric delegation thresholds live in each host's instructions, such as Claude Code's `CLAUDE-FULL.md`.
 
 ### Every Plan Opens With a Functional DAG
 
-Every markdown plan, including plan files, PRDs, ADRs, issue breakdowns, orchestration briefs, and stated multi-file plans, MUST start with `## Functional DAG`. Use the fenced recipe-table form: inputs on the left, operations merging rightward, parallelism visible by columns, and one terminal verification node. See `docs/functional-dag.md` for authoring rules and the Mermaid escape hatch. Reviews, audits, retros, and handoffs are not plans.
+Every markdown plan (plan files, PRDs, ADRs, issue breakdowns, orchestration briefs, stated multi-file plans) MUST start with `## Functional DAG`: a fenced recipe table with inputs on the left, operations merging rightward, parallelism visible by columns, and one terminal verification node. See `docs/functional-dag.md` for authoring rules and the Mermaid escape hatch. Reviews, audits, retros, and handoffs are not plans.
 
 ### Dependency Upgrades
 
@@ -155,7 +155,7 @@ Check breaking changes before every major dependency upgrade. If the build break
 
 ### Autonomous Execution
 
-Proceed without asking for non-destructive reading, searching, architecture exploration, read-only git commands, documentation fetching, and research. Confirm destructive or irreversible actions only.
+Proceed without asking for non-destructive reading, searching, exploration, read-only git commands, documentation fetching, and research. Confirm destructive or irreversible actions only.
 
 ### Recommend, Don't Override
 
@@ -223,11 +223,9 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 - Dynamically import heavy components.
 - Use `React.cache()` for server-side deduplication.
 - Native iOS/macOS animation runs at the display's maximum frame rate: built-in
-  animatable modifiers over custom `Animatable` (which reruns `body` every
-  frame), springs by default, `.animation` scoped to the changed value, never
-  motion from timers, `CADisableMinimumFrameDurationOnPhone` set for ProMotion,
-  Instruments "Animation Hitches" at zero before shipping. Full bar:
-  `rules/swift-animation.md`.
+  animatable modifiers, springs by default, `.animation` scoped to the changed
+  value, no timer-driven motion, zero Instruments hitches before shipping. Full
+  bar: `rules/swift-animation.md`.
 
 ### Accessibility
 
@@ -303,7 +301,7 @@ Put critical information at the beginning and end of prompts and structured outp
 
 ### Cache Discipline
 
-Anthropic caches require exact prefix matches and expire after 5 minutes. Keep stable content before volatile content. Do not switch models, edit pinned CLAUDE.md/AGENTS.md/skill prompts, or reorder tool definitions during a task; append tools instead. A necessary pinned edit makes the next 1-2 turns miss. Cluster work before the TTL. Compaction causes one miss but is preferable to stale context.
+Anthropic caches require exact prefix matches and expire after 5 minutes. Keep stable content before volatile content. During a task do not switch models, edit pinned CLAUDE.md/AGENTS.md/skill prompts, or reorder tool definitions; append tools instead. A necessary pinned edit costs 1-2 missed turns. Compaction costs one miss but beats stale context.
 
 ## Safety
 

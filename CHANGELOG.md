@@ -4,6 +4,38 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.15.0] — 2026-09-16
+
+Sync with Claude Code v2.1.273 (from v2.1.270; 2.1.272 was bug fixes only).
+
+**Adopted:**
+- `omitClaudeMd` agent frontmatter (v2.1.271) — optional boolean in `src/schemas/agent.ts`, documented in `docs/frontmatter-reference.md` and the subagent-context note in `CLAUDE-FULL.md`. A subagent with it runs without user, project, and local CLAUDE.md while managed policy files still load. No cc-settings agent sets it, because AGENTS.md standards reach subagents through the CLAUDE.md hierarchy; the doc says to restate critical rules in such an agent's prompt.
+- Three env vars tracked in the manifest and `docs/settings-reference.md`: `CLAUDE_CODE_GATEWAY_HINT_HEADERS` (v2.1.273, opt-in gateway hint request headers), `CLAUDE_CODE_AUTO_MODE_SERVER` (v2.1.273, server-side auto-mode classifier on Bedrock, Vertex and Foundry now that local is the default), and `CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK` (pre-existing; v2.1.271 makes an API fast-mode rejection stand for the session).
+- `modelPricing.multiplier` may exceed 1, up to 10, for marked-up internal chargeback (v2.1.271). Schema already loose; docs updated.
+
+**Docs-only:**
+- Dynamic workflow medium guideline is under 10 agents, down from 15, and Pro plans default to small (v2.1.271): `skills/orchestrate/SKILL.md`, `skills/audit/SKILL.md`, `workflowSizeGuideline` row.
+- Auto mode: inline `!` shell commands in skills follow default-mode permission rules, subagent hand-back is classifier-reviewed, and Monitor watches always carry a deadline with the `persistent` option removed (v2.1.271).
+- `SendMessage` to a session that holds the message for approval now leaves a delivery notice (v2.1.271).
+- `permissions.blockReadsOutsideWorkingDirectories` also keeps a repo-chosen memory directory out of the prompt (v2.1.273).
+- `OTEL_LOG_TOOL_DETAILS` adds real agent, skill, plugin and MCP server names to cost metrics (v2.1.273).
+
+**Deletions / Native-now-redundant:** none. The Bash permission-checker fixes and the 2.1.268 revert do not overlap `permissions-check.ts`.
+
+**Fix:** `AGENTS.md` had been over its 16 KiB always-loaded ceiling since v15.14.1 added the Swift animation bullet, failing `tests/plugin-manifest.test.ts`. Tightened that bullet and six other paragraphs without dropping a rule; the file is now 3 bytes under.
+
+**Files changed:**
+- src/schemas/agent.ts
+- upstream/claude-code-manifest.json
+- docs/frontmatter-reference.md
+- docs/settings-reference.md
+- CLAUDE-FULL.md
+- skills/orchestrate/SKILL.md
+- skills/audit/SKILL.md
+- AGENTS.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.14.2] — 2026-09-16
 
 - `codex:skill-budget` estimated listing overhead at 48 characters per skill; a live Codex run

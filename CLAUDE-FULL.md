@@ -33,7 +33,8 @@ only when they add navigation. No em dashes is house style.
 through `config/10-core.json`. Main conversations get that system-prompt style;
 subagents do not (only `/fork` inherits it). Subagents receive the CLAUDE.md
 hierarchy instead, so the register below stays here. Built-in `Explore` and
-`Plan` skip CLAUDE.md too — restate critical rules in their prompts.
+`Plan` skip CLAUDE.md too, as does any agent with `omitClaudeMd: true` in its
+frontmatter (v2.1.271) — restate critical rules in their prompts.
 Output-style changes apply after `/clear` or a new session. Users opt out via
 `/config` or switch with `/output-style [name]` (also lists styles, works over
 Remote Control and headless); `bun ~/.claude/src/scripts/whats-on.ts` shows the

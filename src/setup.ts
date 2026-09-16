@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.14.2"; // Recalibrate the Codex skill-budget listing overhead against a live trim.
+const VERSION = "15.15.0"; // Sync with Claude Code v2.1.273: omitClaudeMd frontmatter, three env vars, docs.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
