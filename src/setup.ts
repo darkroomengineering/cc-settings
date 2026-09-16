@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.14.1"; // Swift animation frame-rate bar reaches Codex through AGENTS.md.
+const VERSION = "15.14.2"; // Recalibrate the Codex skill-budget listing overhead against a live trim.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

@@ -362,9 +362,11 @@ describe("formatCodexSkillBudget", () => {
       ].join("\n"),
     );
 
+    // 1700 description chars + 2 entries * 64 overhead = 1828 listing chars;
+    // 324 tokens * 4 = 1296 chars of budget; overshoot 532.
     const report = await measureCodexSkillBudget({ home, budgetTokens: 324 });
     expect(report.overBudget).toBe(true);
-    expect(report.overshootChars).toBe(500);
+    expect(report.overshootChars).toBe(532);
 
     const output = formatCodexSkillBudget(report, home);
 

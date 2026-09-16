@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.14.2] — 2026-09-16
+
+- `codex:skill-budget` estimated listing overhead at 48 characters per skill; a live Codex run
+  showed 12 descriptions still trimmed while the report said "under budget". Back-solved from
+  Codex's own `budget_limit` line, the overhead is about 57 characters per entry, so the
+  estimator now uses 64 and an under-budget verdict means Codex renders every description whole.
+
 ## [15.14.1] — 2026-09-16
 
 - The Swift animation frame-rate bar now reaches Codex and every other AGENTS.md consumer: a

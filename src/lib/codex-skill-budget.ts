@@ -26,8 +26,14 @@ export const DEFAULT_CODEX_SKILL_BUDGET_TOKENS = 10_000;
 /** Codex's own accounting, back-solved from `budget_limit` versus measured chars. */
 const CHARS_PER_TOKEN = 4;
 
-/** Rough per-entry cost of the name and source locator Codex renders beside each description. */
-const LISTING_OVERHEAD_CHARS = 48;
+/**
+ * Per-entry cost of the name and source locator Codex renders beside each
+ * description. Calibrated 2026-09-16 against codex-cli 0.154.0: 114 skills with
+ * 33,686 description chars were trimmed by 192 chars at budget_limit=10000,
+ * which back-solves to ~57 chars per entry; 64 leaves margin so "under budget"
+ * here means untrimmed there.
+ */
+const LISTING_OVERHEAD_CHARS = 64;
 
 const MAX_WALK_DEPTH = 6;
 
