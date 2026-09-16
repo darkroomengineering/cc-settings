@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.14.1] — 2026-09-16
+
+- The Swift animation frame-rate bar now reaches Codex and every other AGENTS.md consumer: a
+  short Performance bullet in `AGENTS.md` carries the rule's decisions and points at
+  `rules/swift-animation.md` for the full text. Codex has no path-scoped rules, so this is the
+  portable form.
+
 ## [15.14.0] — 2026-09-16
 
 - Codex "skill descriptions were shortened" now has a measuring tool and correct guidance.

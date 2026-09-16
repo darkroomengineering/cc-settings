@@ -222,6 +222,12 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 - Avoid barrel imports; import directly.
 - Dynamically import heavy components.
 - Use `React.cache()` for server-side deduplication.
+- Native iOS/macOS animation runs at the display's maximum frame rate: built-in
+  animatable modifiers over custom `Animatable` (which reruns `body` every
+  frame), springs by default, `.animation` scoped to the changed value, never
+  motion from timers, `CADisableMinimumFrameDurationOnPhone` set for ProMotion,
+  Instruments "Animation Hitches" at zero before shipping. Full bar:
+  `rules/swift-animation.md`.
 
 ### Accessibility
 

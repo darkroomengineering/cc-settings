@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.14.0"; // Codex skill-budget report and correct budget guidance; Swift animation rule from WWDC23 "Explore SwiftUI animation".
+const VERSION = "15.14.1"; // Swift animation frame-rate bar reaches Codex through AGENTS.md.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
