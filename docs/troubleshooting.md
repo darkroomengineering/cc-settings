@@ -42,10 +42,13 @@ need `/clear` or a new session because the style loads once per session.
 Claude's native `/review` name can overlap with the cc-settings local review skill. Ask for "the
 cc-settings local pre-commit review" or select it visibly from the skill picker.
 
-If Codex warns that skill descriptions were shortened, run `bun run migrate:codex-skills` from a
-cc-settings checkout. A former `/import` may have placed duplicate names in `~/.agents/skills` in
-addition to the installed plugin. Review the dry-run list, then use `--apply` to move only those
-overlaps into a timestamped backup.
+If Codex warns that skill descriptions were shortened, run `bun run codex:skill-budget` from a
+cc-settings checkout. It shows how much of the budget (2% of the model context window, 10,000
+tokens on `gpt-6-astra`) each plugin and user skill directory consumes and which plugin to disable
+to get back under. `[skills] max_context_tokens` cannot raise that cap. If the report shows
+`~/.agents/skills` names that duplicate the plugin, run `bun run migrate:codex-skills`: a former
+`/import` may have placed duplicate names there in addition to the installed plugin. Review the
+dry-run list, then use `--apply` to move only those overlaps into a timestamped backup.
 
 Codex Desktop can recreate the duplicates when `[desktop]
 external-agent-import-sync-enabled = true` in `$CODEX_HOME/config.toml`, or

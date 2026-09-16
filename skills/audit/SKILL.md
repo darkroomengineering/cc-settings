@@ -491,7 +491,9 @@ work with the highest leverage — the `ease-in` that makes every dropdown feel
 sluggish, the keyframes that make toasts jump, the keyboard action that should never
 have animated. The bar and the exact values (easing curves, duration budgets, spring
 configs) live in `rules/ui-skills.md` "Animation Constraints" and
-`rules/motion-physics.md` — pull values from there, never approximate.
+`rules/motion-physics.md` — pull values from there, never approximate. For Swift
+targets the frame-rate bar (built-in animatable modifiers, no per-frame `body`,
+ProMotion unlocked) is `rules/swift-animation.md`.
 
 **Phase 1 — Recon.** Stack, motion libraries (GSAP, Motion/Framer Motion, Lenis,
 plain CSS, WAAPI), where motion lives (tokens, Tailwind config, keyframes,

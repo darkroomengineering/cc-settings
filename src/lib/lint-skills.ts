@@ -63,13 +63,15 @@ export const SKILL_COUNT_BASELINE = 38;
 
 // The count ratchet above is a proxy — the real per-turn cost is the byte size
 // of the name+description index the Skill selector reads every turn, not the
-// number of skills contributing to it. Codex exposes its selector budget as
-// `skills.max_context_tokens`; it is not a fixed percentage or character cap.
-// The 8.5 KiB repository ceiling below (tightened from 10 KiB in Aug 2026 as
-// part of the context-cost diet) leaves measured headroom while preventing
-// unbounded metadata growth. The current darkroom plugin alone was verified to
-// render every description in full under the default Codex configuration; the
-// Aug 2026 shortening warning was caused by duplicate legacy user-scope skills.
+// number of skills contributing to it. Codex caps its selector at 2% of the
+// model context window (10,000 tokens on gpt-6-astra); `skills.max_context_tokens`
+// can only lower that cap, never raise it (verified on codex-cli 0.154.0).
+// The repository ceiling below (tightened from 10 KiB in Aug 2026 as part of
+// the context-cost diet) keeps the darkroom plugin at roughly a fifth of that
+// budget so other plugins have room. The darkroom plugin alone renders every
+// description in full; shortening warnings come from the sum of all enabled
+// plugins (Aug 2026: duplicate legacy user-scope skills; Sep 2026: Claude
+// Cowork plugin imports). `bun run codex:skill-budget` measures the live total.
 //
 // Unlike SKILL_COUNT_BASELINE this is a ceiling, not a two-way ratchet: the
 // total fluctuates with normal description edits (tightening one description

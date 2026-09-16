@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 8;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 9;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -502,6 +502,14 @@ const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
 // before the Codex-to-Claude bridge; only the current release follows the shared
 // source inventory.
 const ADDED_IN_V8 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
+// Version 9: the Codex skill-budget report and the Swift animation rule
+// (full profile only; light installs carry no rules).
+const ADDED_IN_V9_RULES = ["rules/swift-animation.md"];
+const ADDED_IN_V9 = [
+  "src/lib/codex-skill-budget.ts",
+  "src/scripts/codex-skill-budget.ts",
+  ...ADDED_IN_V9_RULES,
+];
 const priorManifest = {
   full: claudeManagedManifestPaths(6, "full", "current installer"),
   light: claudeManagedManifestPaths(6, "light", "current installer"),
@@ -511,6 +519,7 @@ const currentManifest = {
     ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
     ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
     ...AUDIT_PERFORMANCE_RESOURCES,
+    ...ADDED_IN_V9_RULES,
   ],
   light: [
     ...priorManifest.light.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
@@ -518,8 +527,16 @@ const currentManifest = {
   ],
 };
 MANIFESTS.set(7, {
-  full: currentManifest.full.filter((path) => !ADDED_IN_V8.includes(path)),
-  light: currentManifest.light.filter((path) => !ADDED_IN_V8.includes(path)),
+  full: currentManifest.full.filter(
+    (path) => !ADDED_IN_V8.includes(path) && !ADDED_IN_V9.includes(path),
+  ),
+  light: currentManifest.light.filter(
+    (path) => !ADDED_IN_V8.includes(path) && !ADDED_IN_V9.includes(path),
+  ),
+});
+MANIFESTS.set(8, {
+  full: currentManifest.full.filter((path) => !ADDED_IN_V9.includes(path)),
+  light: currentManifest.light.filter((path) => !ADDED_IN_V9.includes(path)),
 });
 MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, currentManifest);
 

@@ -111,24 +111,45 @@ symlink, and stops if an overlapping entry is not a normal directory. A malforme
 non-boolean import-sync value also stops the migration before any move. Keep the backup until Codex
 has restarted and the skill picker shows the plugin descriptions normally.
 
-If the warning persists after the dedupe, other plugins (for example a Claude Cowork import) may
-still hold more description text than the default budget — 2% of the model context window. Two
-remedies, both in `~/.codex/config.toml`, both yours to own:
+If the warning persists after the dedupe, the sum of every enabled plugin (for example a Claude
+Cowork import) exceeds the budget. Measure it from a cc-settings checkout:
+
+```bash
+bun run codex:skill-budget
+```
+
+The report lists description characters per source, the estimated total against the budget, the
+longest descriptions (Codex trims those first), and which single plugin would cover the overshoot
+if disabled. It exits 1 when over budget and never edits `config.toml`.
+
+The budget is 2% of the model context window: 10,000 tokens for `gpt-6-astra`, or 8,000
+characters when the window is unknown. `[skills] max_context_tokens` only lowers that cap.
+Verified on codex-cli 0.154.0: with 16000 or 64000 configured, Codex still logs
+`budget_limit=10000`, so raising the value does nothing. The remedies are subtraction, both in
+`~/.codex/config.toml`, both yours to own:
 
 ```toml
-# Raise the budget so every description stays complete
-# (spends that many extra context tokens per session):
-[skills]
-max_context_tokens = 16000
+# Disable a plugin you never use in Codex (frees its whole description block):
+[plugins."sanity@claude-cowork"]
+enabled = false
 
-# Or hide individual skills you never use in Codex:
+# Or hide individual skills:
 [[skills.config]]
 path = "/path/to/skill/SKILL.md"
 enabled = false
 ```
 
-Restart Codex after either change. Size the budget from the installed total: each skill costs
-roughly its `description:` length in characters divided by four, in tokens.
+Restart Codex after either change. To read Codex's own accounting instead of the estimate:
+
+```bash
+RUST_LOG=codex_skills_extension::render_observability=info \
+  codex exec --skip-git-repo-check "Reply OK" 2>&1 | grep budget_limit
+```
+
+The line reports `budget_limit`, `total_skills`, `truncated_skill_descriptions`, and how many
+characters each trimmed description lost. The darkroom plugin stays under a fifth of the budget by
+construction (`bun run lint:skills` enforces the description ceiling), so its descriptions are
+never among the trimmed ones unless the rest of the install is far over.
 
 ## Delegating to other models
 

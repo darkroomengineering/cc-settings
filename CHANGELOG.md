@@ -4,8 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [Unreleased]
+## [15.14.0] — 2026-09-16
 
+- Codex "skill descriptions were shortened" now has a measuring tool and correct guidance.
+  `bun run codex:skill-budget` reads `config.toml`, walks every enabled plugin and user skill
+  directory, and reports description characters per source against the budget, the longest
+  descriptions (trimmed first), and which single plugin would cover the overshoot if disabled.
+  It exits 1 when over and never edits `config.toml`. The docs previously told users to raise
+  `[skills] max_context_tokens`; verified on codex-cli 0.154.0 that the key only lowers the 2%
+  cap (10,000 tokens on `gpt-6-astra`), so `docs/codex.md`, `docs/troubleshooting.md`, and the
+  `lint-skills` ceiling comment now say so. Claude manifest version 9, Codex runtime manifest
+  version 7.
+- New `rules/swift-animation.md`, loaded for `.swift` files: SwiftUI animations at the display's
+  maximum frame rate, distilled from WWDC23 session 10156 "Explore SwiftUI animation" (built-in
+  animatable modifiers over custom `Animatable`, springs that merge and keep velocity, scoped
+  `.animation` modifiers against accidental animations) plus the ProMotion unlock keys from
+  Apple's docs and an Instruments verification bar. `/audit motion` points Swift targets at it.
+  Full profile only; light installs carry no rules.
 - Default Claude Code to the classic renderer so terminal-native double-click selection and
   scrollback remain available. Stop forcing fullscreen with `CLAUDE_CODE_NO_FLICKER`; updates
   remove the old managed value when it still matches the installation baseline, while preserving

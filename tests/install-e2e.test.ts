@@ -2601,6 +2601,9 @@ describe("install E2E — uninstall ownership", () => {
             "src/lib/claude-bridge.ts",
             "src/scripts/claude-run.ts",
             "src/scripts/migrate-legacy-codex-skills.ts",
+            "rules/swift-animation.md",
+            "src/lib/codex-skill-budget.ts",
+            "src/scripts/codex-skill-budget.ts",
           ].sort(),
         );
         for (const path of newlyManaged) delete sentinel.managed_files[path];

@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.13.0"; // Align delegation between hosts: 12-call threshold and the same routing table on Claude Code and standalone Codex.
+const VERSION = "15.14.0"; // Codex skill-budget report and correct budget guidance; Swift animation rule from WWDC23 "Explore SwiftUI animation".
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

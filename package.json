@@ -1,6 +1,6 @@
 {
   "name": "cc-settings",
-  "version": "15.13.0",
+  "version": "15.14.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -30,6 +30,7 @@
     "check:cli-tools": "bun src/scripts/check-cli-tools.ts",
     "new-skill": "bun src/scripts/new-skill.ts",
     "migrate:codex-skills": "bun src/scripts/migrate-legacy-codex-skills.ts",
+    "codex:skill-budget": "bun src/scripts/codex-skill-budget.ts",
     "lint:knowledge": "bun src/scripts/lint-knowledge.ts",
     "new-note": "bun src/scripts/new-note.ts",
     "proof": "bun src/scripts/proof.ts",
