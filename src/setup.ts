@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.17.1"; // README explains what cc-settings adds on top of a vanilla install.
+const VERSION = "15.18.0"; // Clarify before full work mode: one interactive question round on non-trivial tasks.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

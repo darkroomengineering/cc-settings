@@ -24,9 +24,10 @@ Before any implementation, complete this research phase:
 5. **Check versions** — run `bun info <package>` for the latest version.
 6. **Assess feasibility** — can this be done cleanly within existing architecture?
 
-**GO/NO-GO Verdict**: After research, state one of:
+**GO/ASK/NO-GO Verdict**: After research, state one of:
 - **GO** — requirements are clear, approach is viable, proceed to implementation.
-- **NO-GO** — requirements are ambiguous, approach has blockers, or scope is too large. Report findings and stop.
+- **ASK** — requirements have more than one plausible reading. Run one clarifying round (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions, recommendation first), then re-issue the verdict.
+- **NO-GO** — approach has blockers or scope is too large. Report findings and stop.
 
 Do not proceed past this gate without an explicit GO verdict.
 

@@ -75,8 +75,10 @@ name its basis. Applies to summaries, PRs, `/retro`, `/proof-of-work`, and
 
 Every subagent is a fresh context that re-pays the system prompt and re-reads
 files, so delegate for scale, not by habit. Before each unit of work, ask once:
-**3+ files, 12+ tool calls, or security-sensitive code?** If yes (the same
-threshold and routing apply in standalone Codex; see `codex/AGENTS.append.md`):
+**3+ files, 12+ tool calls, or security-sensitive code?** If yes, first run
+the clarifying round from AGENTS.md ("Clarify Before Full Work Mode") through
+AskUserQuestion, then route (the same threshold and routing apply in standalone
+Codex; see `codex/AGENTS.append.md`):
 
 | Work | Route |
 |---|---|

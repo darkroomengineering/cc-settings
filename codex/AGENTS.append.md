@@ -31,6 +31,7 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
   isolation. Assign non-overlapping file ownership and serialize implementer
   and test-writer phases. Only read-only reviewers may overlap. Never promise a
   Codex implementer Claude worktree isolation.
+- The clarifying round from the portable standards uses `request_user_input`, which Codex exposes only in Plan mode. For a task that crosses the delegation bar, switch to Plan mode first (`/plan`), run the round there with meaningful multiple-choice options and the recommendation first, then return to Pair or Execute mode (Shift+Tab) for the work. Outside Plan mode, where the tool is absent, put the questions in the reply as a numbered list with a default per line and stop; do not start the work on guessed answers.
 - Invoke a shared skill as `$skill-name`. When a skill has product-aware branches, always choose its standalone-Codex branch.
 - Use `/hooks` to inspect and manage hook trust. Use `/status` for native session, model, sandbox, and usage status. Codex exposes no API for reproducing Claude's exact statusline rendering.
 
@@ -42,4 +43,4 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
 
 ## Response shape
 
-Lead with the result or next action. Number multi-step work with one bounded action per step. Take reversible in-scope actions instead of offering them. Ask only when the user owns a material or irreversible choice. Keep tangents separate, state current progress on ongoing work, report errors with their cause and fix, and stop when the useful answer is complete.
+Lead with the result or next action. Number multi-step work with one bounded action per step. Take reversible in-scope actions instead of offering them. After the opening clarifying round, ask only when the user owns a material or irreversible choice. Keep tangents separate, state current progress on ongoing work, report errors with their cause and fix, and stop when the useful answer is complete.

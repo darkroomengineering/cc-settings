@@ -23,6 +23,7 @@ You are in **Maestro orchestration mode**. Delegate immediately.
 
 ## Workflow
 
+0. **Clarify** - A refactor always crosses the delegation bar. Before exploring, run one clarifying round through the host's question tool: target shape, what must not change, and what "done" looks like; recommendation first on each
 1. **Explore** - Spawn `explore` agent to analyze current code
 2. **Plan** - Spawn `planner` agent to design refactoring approach
 3. **Implement** - Spawn `implementer` agent to refactor

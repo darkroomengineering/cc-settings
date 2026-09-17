@@ -4,6 +4,22 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.18.0] — 2026-09-17
+
+Non-trivial work now opens with one interactive round of clarifying questions. The guidance used to say "ask only for a decision the user owns", so the interactive question tool was reached for by three skills and rarely otherwise; answering a few concrete questions up front has proven the cheapest way to avoid a wrong build.
+
+- New guardrail in `AGENTS.md`, "Clarify Before Full Work Mode": when a task crosses the delegation bar (3+ files, 12+ tool calls, security-sensitive code) or its readings diverge, ask up to 4 questions through the host's interactive tool, each with 2 to 4 options and the recommendation first, then start. One round; read before asking; ask only what the user alone knows.
+- The Darkroom output style and `CLAUDE-FULL.md` carry the same rule for Claude Code (`AskUserQuestion`). The Codex adapter explains that `request_user_input` exists only in Plan mode, so a non-trivial task switches to Plan mode (`/plan`) for the round and back to Pair or Execute mode for the work.
+- `/build` gains an ASK verdict between GO and NO-GO; `/fix` and `/refactor` open with a clarify step.
+- The UserPromptSubmit breadth hook now adds the reminder to its nudge when a prompt crosses the threshold.
+
+**Files changed:**
+- AGENTS.md, CLAUDE-FULL.md, output-styles/darkroom.md, codex/AGENTS.append.md
+- skills/build/SKILL.md, skills/fix/SKILL.md, skills/refactor/SKILL.md
+- src/hooks/delegation-detector.ts, docs/system-overview.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.17.1] — 2026-09-17
 
 Docs only. The README's "What cc-settings adds" section now compares a vanilla Claude Code or Codex install with a cc-settings install request by request ("fix this bug", "ship it", a force-push, a `drizzle-kit push`), then lists the pieces with their counts: standards, 38 skills, 10 role agents, 36 hooks on 18 events, model routing, 4 MCP servers, team knowledge, ownership and rollback. `docs/system-overview.md` gains a short "Compared with a vanilla install" section that points at it.

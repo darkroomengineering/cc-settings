@@ -36,6 +36,7 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 
 ## Workflow
 
+0. **Clarify** - If the report admits more than one reading (which surface, which environment, what "fixed" looks like), run one clarifying round through the host's question tool before exploring; a report that names the file, the symptom, and the expected behaviour skips this
 1. **Explore** - Spawn `explore` agent to understand the affected codebase area
 2. **Reproduce** - Spawn `tester` agent to create a failing test if possible
 3. **Diagnose** - Analyze findings to identify root cause. Commits named in the bug report are hypotheses, not conclusions — blame the actually-affected file's history before fixing; regressions often ride in earlier on the same branch as the change that got blamed. Before blaming, fetch the team-knowledge index and read any note whose title matches the error's nouns; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable)

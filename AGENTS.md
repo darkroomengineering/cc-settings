@@ -141,6 +141,10 @@ Use neutral investigation prompts: ask to analyze logic, review a flow, or trace
 
 Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing the work. `SHORTCUT:` is the exception governed by the ladder: leave it until its `upgrade:` trigger fires, then upgrade and delete it together.
 
+### Clarify Before Full Work Mode
+
+A non-trivial task opens with one interactive round of clarifying questions, then the work starts. Non-trivial means the same bar as delegation (3+ files, 12+ tool calls, or security-sensitive code) or a request whose plausible readings lead to materially different work. The round is at most 4 questions, each with 2 to 4 concrete options and the recommended option first; free text stays open. Ask through the host's interactive question tool, never as a prose list the user has to answer by hand. One round, then proceed; a second round only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips the round. Questions that exploration can answer are not clarifying questions: read first, ask what only the user knows.
+
 ### Plan Before Multi-File Changes
 
 When a wrong approach would require a full rollback, state the plan (files touched and risks), then proceed without waiting for approval on reversible in-scope work. Numeric delegation thresholds live in each host's instructions, such as Claude Code's `CLAUDE-FULL.md`.
