@@ -907,7 +907,7 @@ As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:
 - **Credential access:** read/copy/move/write of `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.netrc`, `~/.npmrc`, `~/.docker/config.json`, `~/.kube/config`.
 - **Data exfiltration:** `curl` with `--data|-d|-F|-T|--upload-file|--json|--data-raw|--data-binary|-o|-O|-H|--header|--cookie|-X POST|PUT|DELETE|PATCH`; `curl|wget … | bash|sh`.
 - **Config tampering (Shai-Hulud vector):** shell `cp`/`mv` *into* `~/.claude/settings.json`, `~/.claude.json`, `~/.bashrc`, `~/.zshrc`, `~/.bash_profile` — closes the gap where shell copy bypasses the `Write(...)` deny.
-- **Destructive git:** `git push --force|-f|--force-with-lease`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git stash drop|clear`, `git restore .`.
+- **Destructive git:** `git push --force|-f|--force-with-lease`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git stash clear`, `git restore .`. `git branch -D` and `git stash drop` are reflog-recoverable, so they sit in `ask` instead: the user confirms each one.
 - **Privilege / dangerous:** `sudo`, `chmod 777`, `gh repo delete`, `gh secret`, `gh api -X DELETE|--method DELETE`, `gh release delete`.
 - **Remote code execution:** `node -e|-p|--eval|--print`, `awk … system(`, `find * -exec`.
 
@@ -1020,13 +1020,10 @@ Bash(git push --force:*)
 Bash(git push -f:*)
 Bash(git push -uf:*)
 Bash(git push -fu:*)
-Bash(git branch -D:*)
-Bash(git branch -d -f:*)
 Bash(git reset --hard:*)
 Bash(git clean -f:*)
 Bash(git checkout -- .:*)
 Bash(git checkout -- *)
-Bash(git stash drop:*)
 Bash(git stash clear:*)
 Bash(git restore .:*)
 Bash(git restore --staged .:*)

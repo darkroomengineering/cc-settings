@@ -62,6 +62,11 @@
 			"LS(*)",
 			"TodoWrite(*)"
 		],
+		"ask": [
+			"Bash(git branch -D:*)",
+			"Bash(git branch -d -f:*)",
+			"Bash(git stash drop:*)"
+		],
 		"deny": [
 			"Bash(rm -rf /)",
 			"Bash(rm -rf /*)",
@@ -99,13 +104,10 @@
 			"Bash(git push -f:*)",
 			"Bash(git push -uf:*)",
 			"Bash(git push -fu:*)",
-			"Bash(git branch -D:*)",
-			"Bash(git branch -d -f:*)",
 			"Bash(git reset --hard:*)",
 			"Bash(git clean -f:*)",
 			"Bash(git checkout -- .:*)",
 			"Bash(git checkout -- *)",
-			"Bash(git stash drop:*)",
 			"Bash(git stash clear:*)",
 			"Bash(git restore .:*)",
 			"Bash(git restore --staged .:*)",

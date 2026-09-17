@@ -4,6 +4,21 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.20.0] — 2026-09-17
+
+Two follow-ups from the usage-insights report, plus the repair they immediately paid for.
+
+- **`git branch -D` and `git stash drop` ask instead of deny.** Both are reflog-recoverable for about 90 days, and they were the two most frequent mid-session interruptions. `config/30-permissions.json` moves them (and `git branch -d -f`) from `deny` to a new `ask` list, and `safety-net.ts` no longer hard-blocks them; `git stash clear`, force-push, the DELETE API rules, and the `rm -rf` set stay denied. SECURITY.md and the settings reference say why.
+- **Repo-local pre-commit invariants.** `.claude/settings.json` in this repository wires `.claude/hooks/pre-commit-invariants.ts`, a PreToolUse hook that runs the fast invariant tests (prompt byte ceilings, skill/agent/profile lints, manifests, schemas, docs sync, version drift) before every `git commit` and blocks on failure. It is not installed anywhere; it guards this repo's own main branch, which takes direct pushes. The full suite still runs before a PR.
+- **Prompt budgets restored.** The first dry run of that hook found that 15.18.0 and 15.19.0 had pushed `AGENTS.md` and the output style past their byte ceilings. Both are trimmed back under budget: the AGENTS.md knowledge sections are merged into one, examples that the docs already carry are gone, and the four newest guardrails are tightened without losing a rule.
+
+**Files changed:**
+- .claude/settings.json, .claude/hooks/pre-commit-invariants.ts (new)
+- config/30-permissions.json, src/hooks/safety-net.ts, tests/safety-net.test.ts
+- AGENTS.md, output-styles/darkroom.md, SECURITY.md, docs/settings-reference.md, CLAUDE.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.19.0] — 2026-09-17
 
 Six guidance changes from the 2026-09-17 usage-insights report, which found that most interruptions were permission denials, and that two failed sessions were OS-level blockers no iteration rule caught.

@@ -108,12 +108,16 @@ describe("TS safety-net — git destructive → BLOCK", () => {
     ["git clean -fd", "git clean -fd"],
     ["git push --force", "git push --force"],
     ["git push -f origin main", "git push -f origin main"],
-    ["git branch -D feature", "git branch -D feature"],
-    ["git stash drop", "git stash drop"],
     ["git stash clear", "git stash clear"],
     ["git restore src/file.ts", "git restore src/file.ts"],
   ] as const) {
     test(name, () => expectBlock(cmd));
+  }
+});
+
+describe("TS safety-net — reflog-recoverable git → ALLOW (permission layer asks)", () => {
+  for (const cmd of ["git branch -D feature", "git stash drop", "git stash drop stash@{0}"]) {
+    test(cmd, () => expectAllow(cmd));
   }
 });
 

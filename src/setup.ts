@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.19.0"; // Insights follow-ups: denied-command handoff, stop-loss on environment blockers, shell and swarm git rules.
+const VERSION = "15.20.0"; // branch -D and stash drop ask instead of deny; repo-local pre-commit invariants; prompt budgets restored.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

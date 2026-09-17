@@ -343,9 +343,11 @@ auto-approved by the broad allow, with only fail-open safety-net.ts between
 it and the user, contradicting the "deny-list is the boundary" claim above.
 Concretely: `git push -uf`/`-fu` (bundled short flags that still carry
 `-f`, distinct from the literal `--force`/`-f` token forms already denied)
-and `git branch -D`/`-d -f` (force branch delete) each have their own deny
-entry alongside the existing `--force`/`-f`/`-D` forms, mirroring exactly
-what `safety-net.ts`'s `analyzeGitAfterVerb` already treats as must-block.
+has its own deny entry alongside the existing `--force`/`-f` forms,
+mirroring what `safety-net.ts`'s `analyzeGitAfterVerb` treats as must-block.
+`git branch -D`/`-d -f` and `git stash drop` are reflog-recoverable, so they
+sit in the `ask` list: the broad `git branch`/`git stash` allow does not
+auto-approve them, and the user confirms each one.
 When adding a new wholesale-allowed git (or other) subcommand, enumerate its
 destructive forms against safety-net.ts's checks and close the gap in the
 deny-list rather than narrowing the allow — narrowing breaks the common

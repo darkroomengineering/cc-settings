@@ -9,7 +9,7 @@ Make the codebase legible to agents and humans through written conventions, rule
 ## Getting Started
 
 1. Read this file.
-2. Delegate when the host's rules require it. Claude Code's thresholds live in `CLAUDE-FULL.md`; multi-file exploration, security-sensitive code, and test writing MUST be delegated there.
+2. Delegate when the host's rules require it; thresholds live in each host's instructions.
 3. Start simple and add complexity only when needed.
 
 ## Response Calibration
@@ -27,8 +27,6 @@ Optimize for first-read comprehension, not brevity:
 - Use identifiers when pointing at code, plain names when describing behavior.
 - Define jargon inline on first use.
 - State the effect before the mechanism. Never clip sentences or remove substance to be shorter.
-
-This is the portable copy for AGENTS.md-aware tools and humans. Claude Code does not auto-load it: subagents inherit the CLAUDE.md hierarchy and main sessions get the same register from the `Darkroom` output style.
 
 ## Guardrails
 
@@ -50,15 +48,7 @@ Default to deletion over addition, boring over clever, and the fewest files. Add
 
 The ladder never reduces trust-boundary/input validation, data-loss-preventing error handling, security, accessibility, explicit requirements, or real-world physical constraints.
 
-A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment containing both the ceiling and the trigger for upgrading it:
-
-```ts
-// SHORTCUT: single global lock, not per-key.
-// ceiling: contention above ~50 rps
-// upgrade: shard by key hash when p99 write latency climbs
-```
-
-`bun run lint:shortcuts` fails when `upgrade:` is missing. Use this only for knowingly cut corners; it cannot excuse the protected concerns above. `/audit debt` lists every marker. When a trigger fires, implement the upgrade and remove the marker in the same diff.
+A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment naming the ceiling and the upgrade trigger (`// SHORTCUT: one global lock. ceiling: ~50 rps. upgrade: shard by key when p99 write latency climbs`). `bun run lint:shortcuts` fails when `upgrade:` is missing. Use this only for knowingly cut corners; it cannot excuse the protected concerns above. `/audit debt` lists every marker. When a trigger fires, implement the upgrade and remove the marker in the same diff.
 
 ### Read Before Edit
 
@@ -70,7 +60,7 @@ After **2 failed attempts** with one approach, stop using it. Summarize the atte
 
 ### Stop-Loss on Environment Blockers
 
-The 2-iteration limit does not fire on an OS, device, vendor, or network blocker, because every attempt there is a new approach. Cap that investigation at about 20 minutes or 30 tool calls. When the cap hits, stop and write a diagnosis instead of the next attempt: what was ruled out and the evidence for each, the most likely root cause, and 2 to 3 next options ranked by effort, including the one that needs the user's hands or a vendor. A written dead end is a handoff; an unwritten one is lost time.
+The 2-iteration limit does not fire on an OS, device, vendor, or network blocker, because every attempt is a new approach. Cap that investigation at about 20 minutes or 30 tool calls, then write a diagnosis instead of the next attempt: what was ruled out with evidence, the most likely cause, and 2 to 3 next options ranked by effort, including the one that needs the user's hands or a vendor.
 
 ### Bug Fix Scope
 
@@ -78,9 +68,7 @@ Keep a bug fix confined to directly related files. Do not refactor adjacent code
 
 ### Completeness Is Cheap
 
-After the ladder establishes that a bounded unit should exist, finish every edge case, error path, and test when completion costs only minutes more. Do not ship 90% and defer the rest. Complete the unit you chose, but do not expand scope: this rule does not override `Bug Fix Scope` or `Surface Conflicts`.
-
-Commit tests only where the task asks for them or the repository already keeps tests for that kind of change, sized like the neighboring test files: roughly one focused test per stated behavior. Scratch scripts and quick checks stay scratch; never turn them into permanent test files.
+Once the ladder says a bounded unit should exist, finish its edge cases, error paths, and tests when that costs only minutes more; do not ship 90% and defer the rest. Complete the unit without expanding scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repository already keeps tests for that kind of change, sized like the neighbors; scratch checks stay scratch.
 
 ### Verify After Every Fix
 
@@ -120,7 +108,7 @@ Never say "done" without explicitly reporting:
 - features not exercised end-to-end, including UI without browser verification;
 - claims that depend on a tool or service you did not run.
 
-Typechecks and tests prove code correctness, not complete feature correctness. Surface uncertainty.
+Typechecks and tests prove code, not the feature. Surface uncertainty.
 
 ### Surface Conflicts, Don't Average
 
@@ -128,14 +116,7 @@ When existing patterns conflict, choose one, usually the newer or better-tested 
 
 ### Post-Compaction Recovery
 
-After compaction or context reset, before continuing:
-
-1. Re-read the task plan.
-2. Re-read every actively modified file.
-3. Run `git diff --stat`.
-4. Only then resume implementation.
-
-Never rely on remembered file contents or task state after context loss.
+After compaction or a context reset, re-read the task plan and every actively modified file and run `git diff --stat` before resuming. Never rely on remembered file contents or task state after context loss.
 
 ### Neutral Exploration
 
@@ -147,7 +128,7 @@ Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing 
 
 ### Clarify Before Full Work Mode
 
-A non-trivial task opens with one interactive round of clarifying questions, then the work starts. Non-trivial means the same bar as delegation (3+ files, 12+ tool calls, or security-sensitive code) or a request whose plausible readings lead to materially different work, including which repository, host, machine, or branch it targets when more than one is in play. The round is at most 4 questions, each with 2 to 4 concrete options and the recommended option first; free text stays open. Ask through the host's interactive question tool, never as a prose list the user has to answer by hand. One round, then proceed; a second round only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips the round. Questions that exploration can answer are not clarifying questions: read first, ask what only the user knows.
+A non-trivial task opens with one interactive round of clarifying questions, then the work starts. Non-trivial means the delegation bar (3+ files, 12+ tool calls, security-sensitive code) or a request whose readings lead to materially different work, including which repository, host, or branch it targets. At most 4 questions, each with 2 to 4 concrete options and the recommended one first, asked through the host's interactive question tool, never as a prose list. One round, then proceed; a second only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips it. Read before asking: ask only what the user alone knows.
 
 ### Plan Before Multi-File Changes
 
@@ -207,12 +188,7 @@ Always check the latest version before installing: `bun info <package>`.
 
 Darkroom projects are Bun-first. Never mix package managers within a session.
 
-- Install: `bun add <pkg>`; never `npm install`, `pnpm add`, or `yarn add`.
-- Run scripts: `bun run <script>`; never `npm run`.
-- Execute binaries: `bunx <bin>`; never `npx`.
-- Typecheck: `bunx tsc --noEmit`; never `npx tsc`.
-
-**Exception:** `npx expo ...` is allowed only as Expo's official React Native invocation. Elsewhere use `bunx`. Never begin with Bun and silently switch to `npx`; it causes lockfile drift.
+`bun add`, `bun run`, `bunx`, `bunx tsc --noEmit`; never `npm`, `pnpm`, `yarn`, or `npx`. The one exception is `npx expo ...`, Expo's official invocation. Switching package managers mid-session causes lockfile drift.
 
 ## Coding Standards
 
@@ -234,10 +210,7 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 - Avoid barrel imports; import directly.
 - Dynamically import heavy components.
 - Use `React.cache()` for server-side deduplication.
-- Native iOS/macOS animation runs at the display's maximum frame rate: built-in
-  animatable modifiers, springs by default, `.animation` scoped to the changed
-  value, no timer-driven motion, zero Instruments hitches before shipping. Full
-  bar: `rules/swift-animation.md`.
+- Native iOS/macOS animation: springs, built-in animatable modifiers, no timer-driven motion; full bar in `rules/swift-animation.md`.
 
 ### Accessibility
 
@@ -264,14 +237,7 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 
 ### History Belongs in Git, Not in Code
 
-Code and docs read as if the current state is the only state that ever existed.
-Remove, don't annotate: when you meet text describing what changed ("replaces
-X", "legacy Y removed", "no longer", "previously", "renamed from", "current
-violations: 0"), delete the stale thing or reword it to present tense, and sweep
-the repo for the same pattern in one pass. Delete pure-artifact files (a "Fixed
-Violations" ledger, a "moved to X" tombstone) and whatever enforced them. Keep
-functional "why" comments that prevent a bad future edit, reworded without the
-historical framing. The one home for history is `CHANGELOG.md`.
+Code and docs read as if the current state is the only one that ever existed. Remove, don't annotate: text describing what changed ("replaces X", "no longer", "previously", "renamed from", "current violations: 0") gets deleted or reworded to present tense, and the repo swept for the same pattern in one pass. Delete artifact files (a "Fixed Violations" ledger, a "moved to X" tombstone) and whatever enforced them. Keep "why" comments that prevent a bad future edit, minus the historical framing. History lives in `CHANGELOG.md`.
 
 ### Stealth Mode (Mandatory)
 
@@ -310,7 +276,6 @@ Search before building: use stdlib, then platform, then installed dependencies b
 
 1. Fetch current documentation; do not rely on remembered APIs.
 2. Check the latest version with `bun info <package>`.
-3. For new projects, use `bunx degit darkroomengineering/satus my-project`.
 
 ## Context Hygiene
 
@@ -324,7 +289,7 @@ Put critical information at the beginning and end of prompts and structured outp
 
 ### Cache Discipline
 
-Anthropic caches require exact prefix matches and expire after 5 minutes. Keep stable content before volatile content. During a task do not switch models, edit pinned CLAUDE.md/AGENTS.md/skill prompts, or reorder tool definitions; append tools instead. A necessary pinned edit costs 1-2 missed turns. Compaction costs one miss but beats stale context.
+Prompt caches need an exact prefix match. Keep stable content before volatile content; during a task do not switch models, edit pinned CLAUDE.md/AGENTS.md/skill prompts, or reorder tool definitions. Compaction costs one miss but beats stale context.
 
 ## Safety
 
@@ -341,36 +306,11 @@ Route knowledge explicitly:
 | Personal workflow preference | auto-memory: `user` or `feedback` |
 | Active project state, deadline, blocker | auto-memory: `project` |
 | External-system pointer or URL | auto-memory: `reference` |
-| Team architecture decision | team-knowledge repo via `/share-learning` |
-| Team-wide library gotcha | team-knowledge repo via `/share-learning` |
-| Team convention | team-knowledge repo via `/share-learning` |
-| Team-relevant incident postmortem | team-knowledge repo via `/share-learning` |
+| Team decision, convention, library gotcha, incident postmortem | team-knowledge repo via `/share-learning` |
 
-If another team member's agent benefits, use the team-knowledge repo; otherwise use auto-memory. See `docs/knowledge-system.md` for reading, searching, and posting commands.
-
-```bash
-cat $KNOWLEDGE_REPO_PATH/INDEX.md
-rg "smooth-scroll" $KNOWLEDGE_REPO_PATH/
-/share-learning decision "Lenis over native smooth-scroll for cross-browser consistency"
-/share-learning convention "All API routes return { data, error } — never throw to the caller"
-/share-learning gotcha "Sanity API returns UTC dates — always convert to local before display"
-```
+If another team member's agent benefits, use the team-knowledge repo; otherwise use auto-memory. Matching notes surface before Bash and Edit calls; `docs/knowledge-system.md` has the read and post commands.
 
 ## Self-Evolving Learnings (agent convention)
 
-After a session with a non-obvious bug, useful pattern, or edge case, append a terse entry to `~/.claude/agent-memory/<agent-name>/MEMORY.md`; its first 200 lines auto-load next time:
+After a session with a non-obvious bug, pattern, or edge case, append one line, `- [YYYY-MM-DD] <category>: <learning>`, to `~/.claude/agent-memory/<agent-name>/MEMORY.md`; its first 200 lines auto-load next time.
 
-```text
-- [YYYY-MM-DD] <category>: <one-line learning>
-```
-
-Categories vary per agent.
-
-## Knowledge System
-
-The two tiers are:
-
-- **Shared (Team):** the `darkroomengineering/team-knowledge` repo for architecture decisions, conventions, cross-cutting gotchas, and incident knowledge. Access it through a local clone or `gh api`.
-- **Local (Personal):** auto-memory and local config for preferences, personal learnings, and session context.
-
-See `docs/knowledge-system.md`.

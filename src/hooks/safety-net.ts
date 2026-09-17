@@ -366,16 +366,11 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
         block("git push --force can overwrite remote history", cmd);
       return;
     }
-    case "branch": {
-      if (/\s-D\s/.test(` ${subargs} `))
-        block("git branch -D force-deletes branch without merge check", cmd);
-      if (/(^|\s)-D$/.test(subargs))
-        block("git branch -D force-deletes branch without merge check", cmd);
-      return;
-    }
+    // `git branch -D` and `git stash drop` are reflog-recoverable, so the
+    // permission layer asks instead of this hook blocking (config/30-permissions.json
+    // `ask`). `git stash clear` stays a hard block: it discards every entry.
     case "stash": {
       const stashAction = (subargs.split(/\s+/)[0] ?? "").trim();
-      if (stashAction === "drop") block("git stash drop permanently deletes stashed changes", cmd);
       if (stashAction === "clear")
         block("git stash clear permanently deletes all stashed changes", cmd);
       return;
