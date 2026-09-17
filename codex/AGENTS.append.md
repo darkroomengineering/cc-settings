@@ -40,6 +40,7 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
 - Define done before starting. When a task includes getting the change running, inspecting the result, and fixing what fails, treat all of that as the task. Do not return after a first implementation for a review the request did not ask for.
 - The repository's local checks (typecheck, tests, lint, build) are the verification gate. Run them, fix failures your change caused, and rerun the affected checks without asking for approval at each step.
 - "Ask first" language in the portable standards exists for destructive or irreversible actions and for a direction only the user can choose. It is not a reason to stop reversible in-scope work. The 2-iteration limit still applies: after two failed attempts with one approach, switch to the best alternative and say so.
+- When the sandbox or approval policy denies a command, never retry, split, or rephrase it. Append the exact command to a handoff script in the session's temp directory, tell the user once how to run it, and continue with the work that does not depend on it. Before a long run, enumerate the privileged commands the plan needs into that script up front.
 
 ## Response shape
 

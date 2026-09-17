@@ -116,6 +116,7 @@ Return a concise summary:
 - Always store non-obvious bug fixes as learnings
 - Check if similar bugs were fixed before (recall learnings)
 - Run tests after fixing
+- On an OS, device, vendor, or network blocker, apply the AGENTS.md stop-loss: about 20 minutes or 30 tool calls, then a written diagnosis (ruled out with evidence, likely cause, ranked next options) instead of another attempt
 
 ---
 

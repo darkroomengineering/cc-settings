@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.18.0"; // Clarify before full work mode: one interactive question round on non-trivial tasks.
+const VERSION = "15.19.0"; // Insights follow-ups: denied-command handoff, stop-loss on environment blockers, shell and swarm git rules.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

@@ -163,7 +163,10 @@ If a commit would break either check in isolation, merge it with the next commit
 ### Step 8: Push and PR
 ```bash
 git push origin HEAD
+gh pr list --head "$(git branch --show-current)" --state open --json number,url
 ```
+
+If that list is non-empty, a PR already exists for this branch: the push updated it, so skip `gh pr create` and go to Step 9. Never open a second PR for the same branch.
 
 If `gh` is not available, provide the push command and instruct the user to create the PR manually.
 

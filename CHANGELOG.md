@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.19.0] — 2026-09-17
+
+Six guidance changes from the 2026-09-17 usage-insights report, which found that most interruptions were permission denials, and that two failed sessions were OS-level blockers no iteration rule caught.
+
+- **Denied-command handoff** (`CLAUDE-FULL.md` Autonomy, Codex adapter): a denied command is never retried, split, or rephrased. It goes into `~/.claude/tmp/handoff-<session>.sh`, the user gets one `! bash <path>` line, and work continues on what does not depend on it. Long runs enumerate their privileged commands into that script up front.
+- **Stop-loss on environment blockers** (`AGENTS.md`, `/fix`): an OS, device, vendor, or network blocker gets about 20 minutes or 30 tool calls, then a written diagnosis (ruled out with evidence, likely cause, ranked next options) instead of another attempt.
+- **Shell commands** (`AGENTS.md`): quote globs and paths, absolute paths over `cd` chains, one destructive step per command so a denial or failure stops exactly one thing.
+- **Swarm git ownership** (`/orchestrate`, `maestro`): the lead owns every git operation; subagents never commit, stash, or switch branches.
+- **`/ship` checks for an existing PR** on the branch before `gh pr create`.
+- The clarifying round names which repository, host, machine, or branch a request targets when more than one is in play.
+
+**Files changed:**
+- AGENTS.md, CLAUDE-FULL.md, codex/AGENTS.append.md, agents/maestro.md
+- skills/fix/SKILL.md, skills/orchestrate/SKILL.md, skills/ship/SKILL.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.18.0] — 2026-09-17
 
 Non-trivial work now opens with one interactive round of clarifying questions. The guidance used to say "ask only for a decision the user owns", so the interactive question tool was reached for by three skills and rarely otherwise; answering a few concrete questions up front has proven the cheapest way to avoid a wrong build.

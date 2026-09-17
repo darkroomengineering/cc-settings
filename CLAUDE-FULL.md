@@ -136,6 +136,16 @@ findings only, never open an external PR), force-push or history rewrite,
 deletion outside the pre-approved list, and anything visible outside the team
 (publish, release).
 
+**When a command is denied:** never retry it, split it, or rephrase it. Append
+the exact command to `~/.claude/tmp/handoff-<session>.sh` (create it with a
+`#!/usr/bin/env bash` and `set -euo pipefail` header), tell the user once with
+the line `! bash <path>`, and carry on with the work that does not depend on
+it. Compound commands get denied as a whole when one clause is destructive, so
+keep each destructive step on its own line. Before a long autonomous run,
+enumerate the privileged commands the plan will need (force-push, branch or
+stash deletion, remote DELETE calls, keychain, SSH) into that same script up
+front, so the run is not interrupted one denial at a time.
+
 ## Claude and Codex routing
 
 The `/codex` skill and `codex-verifier` agent bridge to the OpenAI Codex CLI;

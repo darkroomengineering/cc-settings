@@ -68,6 +68,10 @@ A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment cont
 
 After **2 failed attempts** with one approach, stop using it. Summarize the attempts, pick the best of **2-3 alternatives**, and continue, saying so; ask only when the choice changes the user's stated direction or is hard to reverse. Never spend 6+ attempts on one strategy.
 
+### Stop-Loss on Environment Blockers
+
+The 2-iteration limit does not fire on an OS, device, vendor, or network blocker, because every attempt there is a new approach. Cap that investigation at about 20 minutes or 30 tool calls. When the cap hits, stop and write a diagnosis instead of the next attempt: what was ruled out and the evidence for each, the most likely root cause, and 2 to 3 next options ranked by effort, including the one that needs the user's hands or a vendor. A written dead end is a handoff; an unwritten one is lost time.
+
 ### Bug Fix Scope
 
 Keep a bug fix confined to directly related files. Do not refactor adjacent code, upgrade dependencies, or touch outside the immediate blast radius. The PR should be reviewable in under 2 minutes.
@@ -143,7 +147,7 @@ Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing 
 
 ### Clarify Before Full Work Mode
 
-A non-trivial task opens with one interactive round of clarifying questions, then the work starts. Non-trivial means the same bar as delegation (3+ files, 12+ tool calls, or security-sensitive code) or a request whose plausible readings lead to materially different work. The round is at most 4 questions, each with 2 to 4 concrete options and the recommended option first; free text stays open. Ask through the host's interactive question tool, never as a prose list the user has to answer by hand. One round, then proceed; a second round only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips the round. Questions that exploration can answer are not clarifying questions: read first, ask what only the user knows.
+A non-trivial task opens with one interactive round of clarifying questions, then the work starts. Non-trivial means the same bar as delegation (3+ files, 12+ tool calls, or security-sensitive code) or a request whose plausible readings lead to materially different work, including which repository, host, machine, or branch it targets when more than one is in play. The round is at most 4 questions, each with 2 to 4 concrete options and the recommended option first; free text stays open. Ask through the host's interactive question tool, never as a prose list the user has to answer by hand. One round, then proceed; a second round only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips the round. Questions that exploration can answer are not clarifying questions: read first, ask what only the user knows.
 
 ### Plan Before Multi-File Changes
 
@@ -160,6 +164,10 @@ Check breaking changes before every major dependency upgrade. If the build break
 ### Autonomous Execution
 
 Proceed without asking for non-destructive reading, searching, exploration, read-only git commands, documentation fetching, and research. Confirm destructive or irreversible actions only.
+
+### Shell Commands
+
+Quote every glob and path argument. Use absolute paths instead of `cd` chains; a wrong relative `cd` fails the whole command. Put each destructive step (delete, force, reset, drop) in its own command so a failure or a denial stops exactly one thing, and so the harness can judge it on its own.
 
 ### Recommend, Don't Override
 

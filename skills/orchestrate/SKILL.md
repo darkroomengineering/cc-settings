@@ -19,7 +19,9 @@ Read the live concurrency limit and stay within it. Writers share the working
 tree unless the live host explicitly offers isolation. Assign non-overlapping
 ownership and serialize implementer and test-writer phases; only read-only
 reviewers may overlap. Codex implementers are not promised Claude worktree
-isolation.
+isolation. The lead owns every git operation: subagents never commit, stash,
+switch branches, or touch worktrees; they leave changes in place and report
+them, and the lead stages, verifies, and commits once per territory.
 
 ## Phase 1: Research & Feasibility (GO/NO-GO Gate)
 
