@@ -50,6 +50,15 @@ required to use the product; they only explain the implementation.
 The workflow may differ between Claude Code and Codex. The outcome contract should not. See
 [Claude Code and Codex](./claude-vs-codex.md) for the exact boundary.
 
+## Compared with a vanilla install
+
+A vanilla Claude Code or Codex install answers the same requests, but with no team memory and no
+gates: "fix this" edits the first plausible cause, "review this" may start editing, "ship it"
+pushes whatever is in the tree. cc-settings adds the standards, the workflows, the role split, the
+hooks that stop destructive commands, and the proof gates that run the repository's real checks.
+The request-by-request comparison is in the
+[README](../README.md#what-cc-settings-adds-on-top-of-a-vanilla-install).
+
 ## What cc-settings does not replace
 
 cc-settings does not install a Claude Code or Codex subscription for you. It does not grant GitHub,

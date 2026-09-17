@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.17.0"; // team-knowledge read path: tagged index cache, knowledge-hint hook, folded notes.
+const VERSION = "15.17.1"; // README explains what cc-settings adds on top of a vanilla install.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

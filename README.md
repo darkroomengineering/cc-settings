@@ -91,56 +91,61 @@ Natural language works in both products. To pin the workflow, use `/explore` in 
 the working tree unchanged. [Your first session](./docs/first-session.md) shows the expected output,
 background behavior, follow-up, and recovery.
 
-## What cc-settings adds
+## What cc-settings adds on top of a vanilla install
 
-### Shared standards and skills
+A fresh Claude Code or Codex install is a capable general assistant with no memory of how this
+team works. cc-settings installs that memory, plus the checks that make "done" mean the same thing
+on every machine. The same request behaves differently once it is installed:
 
-- [AGENTS.md](./AGENTS.md) contains portable coding standards for Codex and other compatible tools.
-  Claude Code receives its product-specific copy through [CLAUDE.md](./CLAUDE.md).
-- 38 shared skills turn ordinary requests into repeatable workflows. The
-  [skill guide](./docs/skills.md) explains the value, effects, approval points, output, run style,
-  prerequisites, host behavior, and nearby alternatives for every skill.
-- Role agents divide planning, exploration, implementation, testing, review, security, and
-  orchestration so one conversation does not have to hold every concern.
+| You say | Vanilla Claude Code or Codex | With cc-settings |
+|---|---|---|
+| "Fix this bug" | Edits the first plausible cause and reports done | Reproduces first, names the cause before the fix, keeps the change inside the bug's scope, runs the real tests afterwards |
+| "Review my changes" | May start editing while it reviews | Stays read-only, checks the diff against the team checklist, reports by severity |
+| "Ship it" | Pushes whatever is in the tree | Runs the repository's own type check, build, tests, and lint, opens the PR in the house style, watches CI |
+| "Build a header component" | Writes a component its way | Uses the Darkroom starter conventions: CSS modules, no manual memoization, the accessibility and performance rules |
+| `git push --force origin main` | Runs it | A permission rule denies it; a hook blocks `rm -rf` and other destructive commands before they execute |
+| `bun drizzle-kit push` on a project with data | Runs it | A hook surfaces the team note that this command can truncate production tables |
+| Working in a large repo | Reads files one at a time | Delegates to focused agents for exploration, implementation, testing, review, and security, on cheaper models |
+| Something worth remembering for the team | Lost when the session ends | `/share-learning` posts it to the shared knowledge repo, and later sessions on every machine are reminded of it when it applies |
 
-Many Claude skills work in a forked background context and return by task notification. The main
-conversation remains usable while they run. Codex keeps the same outcome and safety boundary through
-its own agent controls, but its interface and tool set differ.
+### The pieces
 
-### Automatic safety and proof
+- **Standards.** [AGENTS.md](./AGENTS.md) holds the coding standards and guardrails every tool
+  reads; Claude Code gets its copy as [CLAUDE.md](./CLAUDE.md). Twelve topic rules (TypeScript,
+  React, performance, accessibility, security, git, motion, style) load only for the files they
+  cover, and six stack profiles (Next.js, React Router, React Native, Tauri, WebGL, orchestration)
+  add the specifics of each starter.
+- **38 skills.** Named workflows selected from ordinary language or pinned with `/name` in Claude
+  and `$name` in Codex: fix, build, review, ship, audit, lighthouse, qa, verify, handoff, and the
+  rest. The [skill guide](./docs/skills.md) lists what each one changes and when it asks.
+- **10 role agents.** Planner, explorer, implementer, tester, reviewer, security reviewer,
+  scaffolder, deslopper, orchestrator, and a cross-model verifier. Big work is divided instead of
+  held in one conversation, and each role runs on the model tier its job needs.
+- **36 hooks on 18 lifecycle events.** Small programs that run around tool calls, commits, pushes,
+  compaction, and session start or end. They block destructive commands, require proof before a
+  PR, remind about docs before an install, nudge when unreviewed agent output piles up, and inject
+  context the model would otherwise never see. Claude gets the full set; Codex gets the compatible
+  plugin subset and asks you to review it once through `/hooks`.
+- **Model routing.** Effort pinned to medium, subagents on Sonnet, planning and decisions on the
+  session model, bulk or mechanical work and one cross-model review per PR routed to Codex when
+  the bridge is installed. The statusline shows the usage limits that drive that routing.
+- **Connected tools.** In Claude, four MCP servers: Context7 for current library docs, a TypeScript
+  code map for call graphs and blast radius, Figma, and Chrome DevTools for screenshots and
+  Lighthouse. Codex gets the Figma server only and reports a missing capability instead of faking
+  the rest.
+- **Team knowledge.** A shared repository of decisions, conventions, and gotchas that every
+  machine reads. Notes are posted with `/share-learning` and surface automatically before the
+  command or file edit they apply to.
+- **Ownership and rollback.** The installer records what it owns, keeps a backup per product,
+  fingerprints its hooks, and can preview, roll back, or uninstall without touching your own
+  configuration. Read [SECURITY.md](./SECURITY.md) if a session ever warns about hook trust.
 
-A lifecycle hook is a small program that runs before or after an event such as a tool call, commit,
-push, or session end. Claude receives the full hook set. Codex receives the compatible plugin subset
-and asks the user to review its trust through `/hooks`.
+### What it leaves alone
 
-Hooks guard destructive commands and require evidence at important boundaries. Proof gates run the
-repository's actual type check, build, tests, lint, and visual checks when relevant. A failing
-configured suite stays a failure.
-
-### Connected tools
-
-MCP, the Model Context Protocol, lets an AI product call external tool providers. The full Claude
-profile configures Context7 for current library docs, TLDR for code maps, Figma, and Chrome DevTools.
-The full Codex profile automatically configures only the fixed HTTPS Figma server. Codex workflows
-use native fallbacks or report a missing capability instead of pretending the Claude tool exists.
-
-See [Claude Code and Codex](./docs/claude-vs-codex.md) for the full parity matrix.
-
-### Ownership, rollback, and trust
-
-Each product gets a sentinel, which is a small version and ownership record. It lets reinstall,
-rollback, and uninstall distinguish cc-settings files from unrelated user files. Backups and
-ownership are product-specific.
-
-Claude setup fingerprints its hooks and installed scripts. If a session warns about suspicious
-hooks, inspect with the installed command:
-
-```bash
-bun ~/.claude/src/scripts/audit-hooks.ts
-```
-
-Read [SECURITY.md](./SECURITY.md) before refreshing trust. The installer can preview, report status,
-roll back, and uninstall through the same target selector.
+Your login and subscription, your permission mode, your personal memory, and any setting the
+installer does not own. It does not grant GitHub, Figma, or browser access, and it does not make
+the two products identical: see [Claude Code and Codex](./docs/claude-vs-codex.md) for what each
+host can and cannot do.
 
 ## Choose where to read next
 

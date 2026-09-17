@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.17.1] — 2026-09-17
+
+Docs only. The README's "What cc-settings adds" section now compares a vanilla Claude Code or Codex install with a cc-settings install request by request ("fix this bug", "ship it", a force-push, a `drizzle-kit push`), then lists the pieces with their counts: standards, 38 skills, 10 role agents, 36 hooks on 18 events, model routing, 4 MCP servers, team knowledge, ownership and rollback. `docs/system-overview.md` gains a short "Compared with a vanilla install" section that points at it.
+
+**Files changed:**
+- README.md, docs/system-overview.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.17.0] — 2026-09-17
 
 team-knowledge was write-only in practice: `/share-learning` posted notes, but an agent only ever saw a note count at session start and never a title. This release adds a read path and folds the generic notes into the rules and profiles that load anyway.
