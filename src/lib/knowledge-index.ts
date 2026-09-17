@@ -1,10 +1,11 @@
-// TTL-cached index of the shared team-knowledge corpus fetched from the GitHub
-// contents API via `gh api`. The cache lives in ~/.claude/tmp/knowledge-index.json
-// and is warmed by refresh-knowledge-index.ts (spawned detached at SessionStart).
+// TTL-cached index of the shared team-knowledge corpus, parsed from INDEX.md
+// in the corpus repo (fetched via `gh api ... contents/INDEX.md`). The cache
+// lives in ~/.claude/tmp/knowledge-index.json and is warmed by
+// refresh-knowledge-index.ts (spawned detached at SessionStart).
 //
 // Fail-open contract (same as codex.ts):
 //   - Never throw into a hot path.
-//   - A network/gh failure returns the existing cache (or null). Never clobbles
+//   - A network/gh failure returns the existing cache (or null). Never clobbers
 //     a good cache entry with empty/failed data.
 //   - `gh` not on PATH → return existing cache silently.
 //
@@ -26,8 +27,17 @@ const KNOWLEDGE_REPO = process.env.KNOWLEDGE_REPO ?? "darkroomengineering/team-k
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
 
+export const KnowledgeNoteSchema = z.object({
+  name: z.string(),
+  kind: z.string(),
+  tags: z.array(z.string()),
+  hook: z.string(),
+});
+
+export type KnowledgeNote = z.infer<typeof KnowledgeNoteSchema>;
+
 export const KnowledgeIndexSchema = z.object({
-  notes: z.array(z.string()),
+  notes: z.array(KnowledgeNoteSchema),
   checkedAt: z.string(),
 });
 
@@ -35,14 +45,41 @@ export type KnowledgeIndex = z.infer<typeof KnowledgeIndexSchema>;
 
 // ── Pure helpers ───────────────────────────────────────────────────────────────
 
-/** Map a GitHub contents-API listing to sorted slugs.
- *  Keeps entries where `type === "file"`, name ends with `.md`, and name is
- *  not in NON_NOTE_FILES. Returns name without the `.md` suffix, sorted. */
-export function parseContentsListing(entries: Array<{ name: string; type: string }>): string[] {
-  return entries
-    .filter((e) => e.type === "file" && e.name.endsWith(".md") && !NON_NOTE_FILES.has(e.name))
-    .map((e) => e.name.slice(0, -".md".length))
-    .sort();
+// One INDEX.md line: `- [<kind>: <name>](<name>.md) — <hook> · tags: a, b, c`
+// The ` · tags: ...` suffix is optional (omitted when the note has no tags).
+// — is U+2014, · is U+00B7.
+const INDEX_LINE = /^-\s*\[([^:\]]+):\s*([^\]]+)\]\([^)]+\)\s*—\s*(.*)$/;
+
+/** Parse the team-knowledge corpus's INDEX.md into structured notes. Tolerates
+ *  lines without the trailing tags suffix (tags = []) and skips lines that
+ *  don't match the documented format (headers, blank lines, etc). */
+export function parseIndexMarkdown(md: string): KnowledgeNote[] {
+  const notes: KnowledgeNote[] = [];
+  for (const line of md.split(/\r?\n/)) {
+    const match = INDEX_LINE.exec(line.trim());
+    if (!match) continue;
+    const kind = (match[1] ?? "").trim();
+    const name = (match[2] ?? "").trim();
+    let rest = (match[3] ?? "").trim();
+    if (!kind || !name) continue;
+
+    let tags: string[] = [];
+    const tagsSep = rest.lastIndexOf("·");
+    if (tagsSep !== -1) {
+      const tagsPart = rest.slice(tagsSep + 1).trim();
+      const tagsMatch = /^tags:\s*(.+)$/.exec(tagsPart);
+      if (tagsMatch) {
+        tags = (tagsMatch[1] ?? "")
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        rest = rest.slice(0, tagsSep).trim();
+      }
+    }
+
+    notes.push({ name, kind, tags, hook: rest });
+  }
+  return notes;
 }
 
 /** True when the cache is missing or older than the TTL. */
@@ -55,7 +92,9 @@ export function isStale(checkedAt: string | undefined): boolean {
 
 // ── Cache I/O ──────────────────────────────────────────────────────────────────
 
-/** Read the on-disk cache. Returns null on any error or schema mismatch. */
+/** Read the on-disk cache. Returns null on any error or schema mismatch — an
+ *  older cache shaped `{ notes: string[] }` fails safeParse and is treated as
+ *  absent, so the next refresh re-fetches from INDEX.md. */
 export async function readKnowledgeIndex(): Promise<KnowledgeIndex | null> {
   const raw = await readState<unknown>(CACHE_FILE, null);
   const parsed = KnowledgeIndexSchema.safeParse(raw);
@@ -78,13 +117,16 @@ export async function refreshKnowledgeIndex(): Promise<KnowledgeIndex | null> {
     return existing ?? null;
   }
 
-  // 3. Fetch via `gh api`.
+  // 3. Fetch INDEX.md via `gh api` (base64-encoded content field).
   try {
-    const proc = Bun.spawn(["gh", "api", `repos/${KNOWLEDGE_REPO}/contents`], {
-      stdout: "pipe",
-      stderr: "ignore",
-      timeout: 10_000,
-    });
+    const proc = Bun.spawn(
+      ["gh", "api", `repos/${KNOWLEDGE_REPO}/contents/INDEX.md`, "--jq", ".content"],
+      {
+        stdout: "pipe",
+        stderr: "ignore",
+        timeout: 10_000,
+      },
+    );
 
     const [text, exit] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
 
@@ -93,18 +135,20 @@ export async function refreshKnowledgeIndex(): Promise<KnowledgeIndex | null> {
       return existing ?? null;
     }
 
-    let rawEntries: unknown;
+    let md: string;
     try {
-      rawEntries = JSON.parse(text);
+      // The API's base64 payload has embedded newlines — strip whitespace first.
+      md = Buffer.from(text.replace(/\s/g, ""), "base64").toString("utf8");
     } catch {
       return existing ?? null;
     }
 
-    if (!Array.isArray(rawEntries)) {
+    const notes = parseIndexMarkdown(md);
+    if (notes.length === 0) {
+      // Empty/unparseable result — never clobber a good cache with nothing.
       return existing ?? null;
     }
 
-    const notes = parseContentsListing(rawEntries as Array<{ name: string; type: string }>);
     const index: KnowledgeIndex = {
       notes,
       checkedAt: new Date().toISOString(),

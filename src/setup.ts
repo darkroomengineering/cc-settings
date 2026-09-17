@@ -102,7 +102,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.16.0"; // Track the Codex CLI as a second upstream in the scanner and /cc sync.
+const VERSION = "15.17.0"; // team-knowledge read path: tagged index cache, knowledge-hint hook, folded notes.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

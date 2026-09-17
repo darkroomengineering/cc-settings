@@ -127,6 +127,16 @@
 						"timeout": 5
 					}
 				]
+			},
+			{
+				"matcher": "Bash|Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/knowledge-hint.ts\"",
+						"timeout": 5
+					}
+				]
 			}
 		],
 		"PostToolUse": [

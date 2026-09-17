@@ -57,6 +57,12 @@ export async function loader() {
 - **Narrow effect dependencies** — depend on `user.id`, not `user`; derive booleans for thresholds (`const isMobile = width < 768` then depend on `isMobile`).
 - **Wrap non-urgent updates in `startTransition`** — e.g. `onScroll={() => startTransition(() => setScrollY(window.scrollY))}` so scroll state can't block urgent renders.
 
+## HIGH: Frame loops (rAF, `useFrame`, `useLenis`, ScrollTrigger `onProgress`, pointer handlers)
+
+- **No layout reads inside a per-frame callback.** `getBoundingClientRect`, `clientWidth`, `offsetHeight`, `scrollTop` after a style write force a synchronous layout, once per read, before the frame can paint. It hides on an M-series laptop and stutters on Intel Macs, 4K externals, and low-end devices. Measure once outside the loop and cache: hamo `useRect` (element rect, updates on resize and scroll), `useWindowSize`, `useResizeObserver`. Rects that truly change every frame (sticky or transformed elements) derive from scroll progress plus the cached initial rect. If a read is unavoidable, batch every read before any write so there is at most one forced layout.
+- **Per-frame CSS custom property writes are not free.** `el.style.setProperty("--x", v)` invalidates style on the element and every descendant that consumes the variable, every frame; geometry-affecting consumers reflow too. Prefer `transform` and `opacity` via direct style writes or Web Animations. When a variable is the right tool: quantize to the precision the CSS needs (whole pixels, or the step count a `clamp` resolves to), skip the write when the rounded value is unchanged, scope the variable to the smallest element that needs it, and never layer a CSS `transition` on a per-frame write.
+- **Review rule:** before approving a perf or motion PR, grep the frame loops for layout reads and custom-property writes.
+
 ## MEDIUM: Rendering
 
 > Conditional rendering with numbers (`count && ...` renders "0"): see `rules/react.md`.

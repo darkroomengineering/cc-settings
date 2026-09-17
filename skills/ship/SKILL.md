@@ -201,7 +201,7 @@ gh pr checks --watch --fail-fast
 
 If a check fails:
 
-1. Identify the failing job and fetch logs (`gh run view RUN_ID --log-failed` for GHA; follow the `link` for external services).
+1. Identify the failing job and fetch logs (`gh run view RUN_ID --log-failed` for GHA; follow the `link` for external services). On a red or missing check, also fetch the team-knowledge index and read any note whose title matches the workflow/CI symptom before assuming a runner problem; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable).
 2. **Reproduce the exact failing guard locally against the real built artifact** before pushing a fix — run the same test script / check command CI ran, against the binary or output CI would see. A fix verified only by reasoning is a push-and-pray loop.
 3. Apply the smallest fix. Use the `fix` skill's "Variant: Failing PR CI" if the failure is non-trivial. For version/metadata guards, use the repo's canonical script (`bump-version.sh`-style) — never hand-edit versioned fields; hand-bumps desync the sibling fields the script maintains.
 4. Push, then re-read `gh pr checks` — the check set can change between runs.

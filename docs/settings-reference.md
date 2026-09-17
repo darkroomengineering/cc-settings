@@ -1359,9 +1359,9 @@ This gap remains: a future change could compare arrays with the recorded team
 contribution, or define per-array `STRATEGIES` with explicit reconciliation
 semantics. Until then, **after any release that changes an array default nested
 in an existing block, compare `bun run compose` (fresh install) with the actual
-reinstalled `~/.claude/settings.json` rather than assuming parity.** See the
-team-knowledge note `cc-settings-installer-skips-nested-config-defaults` for the
-original object sub-key class of this bug.
+reinstalled `~/.claude/settings.json` rather than assuming parity.** The team-knowledge note
+`cc-settings-installer-skips-nested-config-defaults` carries the same rule for
+teammates who hit it.
 
 ---
 

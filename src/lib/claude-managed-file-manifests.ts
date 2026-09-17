@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 9;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 10;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -510,6 +510,8 @@ const ADDED_IN_V9 = [
   "src/scripts/codex-skill-budget.ts",
   ...ADDED_IN_V9_RULES,
 ];
+// Version 10: the team-knowledge hint hook and its ranking lib.
+const ADDED_IN_V10 = ["src/hooks/knowledge-hint.ts", "src/lib/knowledge-hint.ts"];
 const priorManifest = {
   full: claudeManagedManifestPaths(6, "full", "current installer"),
   light: claudeManagedManifestPaths(6, "light", "current installer"),
@@ -526,17 +528,21 @@ const currentManifest = {
     ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
   ],
 };
+const notAddedAfter = (...added: readonly string[][]) => {
+  const excluded = new Set(added.flat());
+  return (path: string) => !excluded.has(path);
+};
 MANIFESTS.set(7, {
-  full: currentManifest.full.filter(
-    (path) => !ADDED_IN_V8.includes(path) && !ADDED_IN_V9.includes(path),
-  ),
-  light: currentManifest.light.filter(
-    (path) => !ADDED_IN_V8.includes(path) && !ADDED_IN_V9.includes(path),
-  ),
+  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10)),
+  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10)),
 });
 MANIFESTS.set(8, {
-  full: currentManifest.full.filter((path) => !ADDED_IN_V9.includes(path)),
-  light: currentManifest.light.filter((path) => !ADDED_IN_V9.includes(path)),
+  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V9, ADDED_IN_V10)),
+  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V9, ADDED_IN_V10)),
+});
+MANIFESTS.set(9, {
+  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V10)),
+  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V10)),
 });
 MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, currentManifest);
 

@@ -399,6 +399,12 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 |--------|---------|-------|
 | `freeze-guard.ts` | When the current session's `/freeze` boundary is active, blocks Edit/Write calls targeting any file outside the locked directory. Session records are independent; legacy untagged state remains a fallback | No |
 
+### PreToolUse (Bash|Edit|Write matcher)
+
+| Script | Purpose | Async |
+|--------|---------|-------|
+| `knowledge-hint.ts` | Surfaces up to 3 team-knowledge notes whose slug/tags match the Bash command or edited file, once per note per session; reads the 6h index cache, never the network | No |
+
 ### PostToolUse (Write|Edit matcher)
 
 | Script | Purpose | Async |

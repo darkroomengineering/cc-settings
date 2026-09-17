@@ -19,7 +19,7 @@ Before any implementation, complete this research phase:
 
 1. **Detect stack** — read `package.json`. `next` dep → satus / Next.js; `react-router` dep → novus / React Router. Note any starter signal (`name` field, `darkroom.starter` marker).
 2. **Understand requirements** — parse what the user actually needs.
-3. **Explore codebase** — find existing patterns, similar implementations.
+3. **Explore codebase** — find existing patterns, similar implementations. Fetch the team-knowledge index and read any note whose title matches the libraries and integrations this feature touches; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable).
 4. **Fetch docs** — use Context7 in Claude or when configured in Codex; otherwise use the standalone fallback above. Never code from memory.
 5. **Check versions** — run `bun info <package>` for the latest version.
 6. **Assess feasibility** — can this be done cleanly within existing architecture?

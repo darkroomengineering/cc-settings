@@ -42,3 +42,4 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Dry-run a Bash command against the permission rules: `bun run permissions:check "<cmd>"` (`--installed` to check against `~/.claude/settings.json` instead of `config/`)
 - Upstream drift scan (Claude Code and Codex CLI): `bun run upstream:scan`
 - Commits: conventional — `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`.
+- When a change closes the bug a team-knowledge note documents, rewrite or delete that note in the same push (`gh api` on `darkroomengineering/team-knowledge`, see `docs/knowledge-system.md`). A stale cc-settings note is worse than none: it prescribes a manual fix for a bug that no longer exists.

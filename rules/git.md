@@ -19,6 +19,11 @@ paths:
 - **Untrack without deleting**: `git rm --cached <file>` + add to `.gitignore` —
   gitignore alone does NOT remove already-tracked files.
 - **Never commit secrets**: see `rules/security.md` for the file list.
+- **Diff `AGENTS.md` and `CLAUDE.md` after any dev-server run.** From Next.js
+  16.3, `next dev` writes a managed `nextjs-agent-rules` block into `AGENTS.md`
+  (or scaffolds both files) whenever it detects a coding agent, with no config
+  opt-out. An unexplained modification after a dev run is that, not a stray
+  edit. Revert it unless the team has decided to adopt the block for that repo.
 
 ## DON'T
 

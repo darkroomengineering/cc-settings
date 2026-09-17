@@ -272,6 +272,14 @@ export default function Page() {
 }
 ```
 
+### `cacheComponents` (Next 16+): opt in deliberately
+
+- **Simple sites** (marketing pages, fully static or fully dynamic routes): leave it off. Static prerendering already gives instant pages, and the dev-server validation adds a ~30 ms floor to every request (measured on satus: a `<p>floor</p>` page renders in ~54 ms on vs ~27 ms off).
+- **Pages that mix a cacheable shell with per-request data** (dashboards, storefronts, instant-nav UX): turn it on; that split is the feature.
+- When on, mark boundaries explicitly: `'use cache'` with `cacheLife`/`cacheTag` on cacheable functions and components; wrap `cookies()`, `headers()`, `searchParams`, and uncached fetches in Suspense so they stream instead of blocking the shell. Treat dev validator errors ("component read X but is not marked") as real bugs; unmarked reads inside a cached shell serve stale data in production silently.
+- The dev validation overhead stays even with perfect marking; do not chase it.
+- `cacheComponents: true` breaks AWS/SST (v4.17) builds outright. Check the deploy target before enabling on a client project.
+
 ---
 
 ## Metadata

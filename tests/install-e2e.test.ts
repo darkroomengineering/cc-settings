@@ -2604,6 +2604,8 @@ describe("install E2E — uninstall ownership", () => {
             "rules/swift-animation.md",
             "src/lib/codex-skill-budget.ts",
             "src/scripts/codex-skill-budget.ts",
+            "src/hooks/knowledge-hint.ts",
+            "src/lib/knowledge-hint.ts",
           ].sort(),
         );
         for (const path of newlyManaged) delete sentinel.managed_files[path];

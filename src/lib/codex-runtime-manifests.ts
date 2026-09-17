@@ -247,13 +247,17 @@ const RUNTIME_SOURCE_FILES_V3 = RUNTIME_SOURCE_FILES_V4.filter(
 // is subtracted from the earlier lists rather than the earlier lists being edited.
 const ADDED_IN_V6 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
 const ADDED_IN_V7 = ["src/lib/codex-skill-budget.ts", "src/scripts/codex-skill-budget.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 7;
+const ADDED_IN_V8 = ["src/hooks/knowledge-hint.ts", "src/lib/knowledge-hint.ts"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 8;
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
   ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
   ...AUDIT_PERFORMANCE_RESOURCES,
 ];
-const RUNTIME_SOURCE_FILES_V6 = RUNTIME_SOURCE_FILES.filter((path) => !ADDED_IN_V7.includes(path));
+const RUNTIME_SOURCE_FILES_V7 = RUNTIME_SOURCE_FILES.filter((path) => !ADDED_IN_V8.includes(path));
+const RUNTIME_SOURCE_FILES_V6 = RUNTIME_SOURCE_FILES_V7.filter(
+  (path) => !ADDED_IN_V7.includes(path),
+);
 const RUNTIME_SOURCE_FILES_V5 = RUNTIME_SOURCE_FILES_V6.filter(
   (path) => !ADDED_IN_V6.includes(path),
 );
@@ -265,6 +269,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [4, RUNTIME_SOURCE_FILES_V4],
   [5, RUNTIME_SOURCE_FILES_V5],
   [6, RUNTIME_SOURCE_FILES_V6],
+  [7, RUNTIME_SOURCE_FILES_V7],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

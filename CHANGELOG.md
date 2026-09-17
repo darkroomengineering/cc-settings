@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.17.0] — 2026-09-17
+
+team-knowledge was write-only in practice: `/share-learning` posted notes, but an agent only ever saw a note count at session start and never a title. This release adds a read path and folds the generic notes into the rules and profiles that load anyway.
+
+- The index cache (`~/.claude/tmp/knowledge-index.json`, 6h TTL) now stores kind, hook line, and tags per note, parsed from the corpus INDEX.md. The corpus's index builder emits tags on every line (`- [kind: name](name.md) — hook · tags: a, b`); that format is the contract, documented in `docs/knowledge-system.md`.
+- New PreToolUse hook `knowledge-hint.ts` (matcher `Bash|Edit|Write`) surfaces up to 3 notes whose tags or slug words match the command or edited file, once per note per session, via the `additionalContext` envelope. Scoring: a curated tag scores 3, a slug-only word 2, a generic word 1, threshold 3; state lives in `~/.claude/tmp/knowledge-hints.json`, pruned to 30 sessions. Cache-only, never the network, fail-open.
+- The SessionStart banner now gives the `gh api` read command. `/fix`, `/lighthouse`, `/build`, and `/ship` gain a one-line, fail-open "check the index" step at the point a gotcha would bite.
+- Folded into cc-settings: frame-loop rules (no layout reads in per-frame callbacks, quantized custom-property writes) in `rules/react-perf.md`; "History Belongs in Git, Not in Code" in `AGENTS.md`; `cacheComponents` guidance in `profiles/nextjs.md`; GPU resource ownership and the software-renderer mount gate in `profiles/webgl.md`; the post-dev-server `AGENTS.md` diff check in `rules/git.md`.
+- Corpus cleanup on `darkroomengineering/team-knowledge`: four obsolete cc-settings and board-era notes removed, two rewritten to current behaviour, seven folded notes point at their cc-settings copy. This repo's CLAUDE.md now requires rewriting or deleting a note in the same push that closes the bug it documents.
+- Claude managed-files manifest v10 and Codex runtime manifest v8 carry the two new source files; earlier versions stay frozen.
+
+**Files changed:**
+- src/hooks/knowledge-hint.ts, src/lib/knowledge-hint.ts, tests/knowledge-hint.test.ts (new)
+- src/lib/knowledge-index.ts, src/lib/team-knowledge.ts, tests/knowledge-index.test.ts, tests/team-knowledge.test.ts
+- config/40-hooks.json
+- src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/install-source-inventory.ts
+- rules/react-perf.md, rules/git.md, profiles/nextjs.md, profiles/webgl.md, AGENTS.md
+- skills/fix/SKILL.md, skills/lighthouse/SKILL.md, skills/build/SKILL.md, skills/ship/SKILL.md
+- docs/knowledge-system.md, docs/hooks-reference.md, docs/settings-reference.md, CLAUDE.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.16.0] — 2026-09-16
 
 `/cc sync` now tracks the Codex CLI as a second upstream, since Codex is a first-class install target.

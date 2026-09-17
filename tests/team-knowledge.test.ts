@@ -62,12 +62,17 @@ describe("teamKnowledgeAwareness — TTL cache fallback (Branch B)", () => {
   test("no clone configured → surfaces the injected cache's note count", async () => {
     // The injected reader stands in for ~/.claude/tmp/knowledge-index.json.
     const result = await teamKnowledgeAwareness(undefined, async () => ({
-      notes: ["alpha", "beta", "gamma"],
+      notes: [
+        { name: "alpha", kind: "gotcha", tags: [], hook: "alpha hook" },
+        { name: "beta", kind: "gotcha", tags: [], hook: "beta hook" },
+        { name: "gamma", kind: "gotcha", tags: [], hook: "gamma hook" },
+      ],
       checkedAt: "2026-01-01T00:00:00.000Z",
     }));
     const text = result.join("\n");
     expect(text).toContain("3 shared notes");
-    expect(text).toContain("consult before architecture");
+    expect(text).toContain("matching notes surface before Bash/Edit calls");
+    expect(text).toContain("gh api repos/darkroomengineering/team-knowledge/contents/<name>.md");
   });
 });
 

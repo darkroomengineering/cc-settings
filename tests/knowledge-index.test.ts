@@ -2,76 +2,80 @@
 // No network, no real cache I/O.
 
 import { describe, expect, test } from "bun:test";
-import { isStale, parseContentsListing } from "../src/lib/knowledge-index.ts";
+import { isStale, parseIndexMarkdown } from "../src/lib/knowledge-index.ts";
 
-// ── parseContentsListing ───────────────────────────────────────────────────────
+// ── parseIndexMarkdown ──────────────────────────────────────────────────────────
 
-describe("parseContentsListing", () => {
-  test("drops entries with type !== 'file'", () => {
-    const entries = [
-      { name: "notes", type: "dir" },
-      { name: "foo.md", type: "file" },
-    ];
-    expect(parseContentsListing(entries)).toEqual(["foo"]);
+describe("parseIndexMarkdown", () => {
+  test("parses a line with a tags suffix", () => {
+    const md =
+      "- [gotcha: drizzle-push-sqlite-not-null-column-truncates](drizzle-push-sqlite-not-null-column-truncates.md) — **What happened.** On theca (2026-09-02), `drizzle-kit push` against the prod... · tags: drizzle, sqlite, turso, migrations, production";
+    expect(parseIndexMarkdown(md)).toEqual([
+      {
+        kind: "gotcha",
+        name: "drizzle-push-sqlite-not-null-column-truncates",
+        hook: "**What happened.** On theca (2026-09-02), `drizzle-kit push` against the prod...",
+        tags: ["drizzle", "sqlite", "turso", "migrations", "production"],
+      },
+    ]);
   });
 
-  test("drops entries whose name does not end with .md", () => {
-    const entries = [
-      { name: "foo.ts", type: "file" },
-      { name: "bar.json", type: "file" },
-      { name: "baz.md", type: "file" },
-    ];
-    expect(parseContentsListing(entries)).toEqual(["baz"]);
+  test("parses a second real-format line (convention kind)", () => {
+    const md =
+      "- [convention: testflight-beta-versioning-and-eas-distribution](testflight-beta-versioning-and-eas-distribution.md) — TestFlight treats the marketing version string as the unit of Beta App Review... · tags: ios, testflight, expo, eas, release";
+    const [note] = parseIndexMarkdown(md);
+    expect(note?.kind).toBe("convention");
+    expect(note?.name).toBe("testflight-beta-versioning-and-eas-distribution");
+    expect(note?.tags).toEqual(["ios", "testflight", "expo", "eas", "release"]);
+    expect(note?.hook).toBe(
+      "TestFlight treats the marketing version string as the unit of Beta App Review...",
+    );
   });
 
-  test("drops NON_NOTE_FILES (README.md, INDEX.md, CONTRIBUTING.md)", () => {
-    const entries = [
-      { name: "README.md", type: "file" },
-      { name: "INDEX.md", type: "file" },
-      { name: "CONTRIBUTING.md", type: "file" },
-      { name: "gotcha.md", type: "file" },
-    ];
-    expect(parseContentsListing(entries)).toEqual(["gotcha"]);
+  test("tolerates a line with no tags suffix — tags is []", () => {
+    const md = "- [gotcha: no-tags-example](no-tags-example.md) — This note has no tags at all";
+    expect(parseIndexMarkdown(md)).toEqual([
+      {
+        kind: "gotcha",
+        name: "no-tags-example",
+        hook: "This note has no tags at all",
+        tags: [],
+      },
+    ]);
   });
 
-  test("strips .md suffix → returns slug", () => {
-    const entries = [{ name: "my-note.md", type: "file" }];
-    expect(parseContentsListing(entries)).toEqual(["my-note"]);
+  test("skips malformed lines (missing link, plain text, headers)", () => {
+    const md = [
+      "# Index",
+      "",
+      "Some plain paragraph text.",
+      "- not a link at all",
+      "- [gotcha: real-note](real-note.md) — a real hook · tags: a, b",
+    ].join("\n");
+    expect(parseIndexMarkdown(md)).toEqual([
+      { kind: "gotcha", name: "real-note", hook: "a real hook", tags: ["a", "b"] },
+    ]);
   });
 
-  test("returns slugs sorted alphabetically", () => {
-    const entries = [
-      { name: "zebra.md", type: "file" },
-      { name: "apple.md", type: "file" },
-      { name: "mango.md", type: "file" },
-    ];
-    expect(parseContentsListing(entries)).toEqual(["apple", "mango", "zebra"]);
+  test("returns [] for an empty document", () => {
+    expect(parseIndexMarkdown("")).toEqual([]);
   });
 
-  test("returns [] for an empty listing", () => {
-    expect(parseContentsListing([])).toEqual([]);
+  test("hook text keeps its own punctuation/backticks intact", () => {
+    const md = "- [gotcha: foo](foo.md) — Contains a colon: and a dash - and `code` too · tags: x";
+    const [note] = parseIndexMarkdown(md);
+    expect(note?.hook).toBe("Contains a colon: and a dash - and `code` too");
   });
 
-  test("returns [] when listing has only dirs and non-.md files", () => {
-    const entries = [
-      { name: "README.md", type: "file" },
-      { name: "scripts", type: "dir" },
-      { name: "config.json", type: "file" },
-    ];
-    expect(parseContentsListing(entries)).toEqual([]);
-  });
-
-  test("mixed realistic listing", () => {
-    const entries = [
-      { name: "README.md", type: "file" },
-      { name: "INDEX.md", type: "file" },
-      { name: "CONTRIBUTING.md", type: "file" },
-      { name: "scripts", type: "dir" },
-      { name: "deployment.md", type: "file" },
-      { name: "auth-patterns.md", type: "file" },
-      { name: ".github", type: "dir" },
-    ];
-    expect(parseContentsListing(entries)).toEqual(["auth-patterns", "deployment"]);
+  test("parses multiple lines in one document", () => {
+    const md = [
+      "- [gotcha: alpha](alpha.md) — hook one · tags: a",
+      "- [convention: beta](beta.md) — hook two",
+    ].join("\n");
+    expect(parseIndexMarkdown(md)).toEqual([
+      { kind: "gotcha", name: "alpha", hook: "hook one", tags: ["a"] },
+      { kind: "convention", name: "beta", hook: "hook two", tags: [] },
+    ]);
   });
 });
 

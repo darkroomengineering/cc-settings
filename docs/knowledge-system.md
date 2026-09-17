@@ -60,6 +60,18 @@ supersedes: <name>            # optional
 <body: what + why + how to apply>
 ```
 
+### INDEX.md line format contract
+
+Every note gets one line in the generated `INDEX.md`, consumed by the
+knowledge-index cache and the `knowledge-hint` hook (see "Agent Usage"
+below):
+```
+- [<kind>: <name>](<name>.md) — <hook text> · tags: a, b, c
+```
+The ` · tags: ...` suffix (`·` = U+00B7) is omitted when the note has no
+tags. `—` is U+2014. A change to this line shape needs a matching change to
+`parseIndexMarkdown` in `src/lib/knowledge-index.ts`.
+
 ### What Goes in Shared Knowledge
 
 | Kind | Example |
@@ -72,7 +84,24 @@ supersedes: <name>            # optional
 
 ### Agent Usage
 
-**Reading shared knowledge (agents on dev machines):**
+**The read path, end to end:**
+
+1. **SessionStart banner.** `teamKnowledgeAwareness()` prints a one-line count
+   ("N shared notes") from the TTL-cached index, plus the read command below —
+   awareness only, no note content.
+2. **`knowledge-hint` hook.** A PreToolUse hook on `Bash|Edit|Write` scores
+   the cached notes' slug words + tags against the command/file being acted
+   on and surfaces up to 3 matching notes (title + one-line hook text) via
+   `additionalContext`, once per note per session. It never hits the network
+   — it only reads the same TTL cache the SessionStart banner does.
+3. **Read a note the hint pointed at:**
+```bash
+gh api repos/darkroomengineering/team-knowledge/contents/<name>.md --jq .content | base64 -d
+```
+
+**Alternative: local clone.** If you've cloned the corpus and set
+`$KNOWLEDGE_REPO_PATH` (see Setup above), you can browse and search it
+directly instead of going through `gh api`:
 ```bash
 # Browse the index
 cat $KNOWLEDGE_REPO_PATH/INDEX.md
@@ -94,7 +123,7 @@ cat $KNOWLEDGE_REPO_PATH/biome-mdx-ignored.md
 
 Two kinds of agents read this corpus:
 
-- **Dev-machine agents** (Claude Code) — read via `cat INDEX.md` + `rg` across a local clone of the repo and post via `/share-learning`, which fetches INDEX.md for dedup before writing via `gh api`.
+- **Dev-machine agents** (Claude Code) — read via the SessionStart banner and the `knowledge-hint` PreToolUse hook (both driven by the TTL-cached index, itself parsed from `INDEX.md`), fetch a flagged note with `gh api ... --jq .content | base64 -d`, or — when `$KNOWLEDGE_REPO_PATH` is set — browse a local clone with `cat`/`rg` directly. They post via `/share-learning`, which fetches `INDEX.md` for dedup before writing via `gh api`.
 - **darky** (the studio Slack bot, now in `darkroomengineering/darkroom-os` under `darky-hermes/`; standalone `darky` repo frozen 2026-06-01) — reads team-knowledge **on-demand** via the GitHub REST contents API, gated to questions that touch a team convention/decision/gotcha.
 
 ### Best Practices

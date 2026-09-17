@@ -150,7 +150,9 @@ Sort by impact (lowest scores first). These drive the improvement loop.
 Before planning any fix, re-derive the bottleneck from the report you just ran.
 Prior session notes, state files, and issue write-ups go stale and get root
 causes wrong — treat them as hypotheses to check against the JSON, never as the
-diagnosis.
+diagnosis. Fetch the team-knowledge index and read any note whose title
+matches the failing audit names; the fetch command is in
+docs/knowledge-system.md (fail-open — skip if `gh` is unavailable).
 
 **Classify the perf gap first:**
 

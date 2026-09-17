@@ -18,6 +18,8 @@
 import { readdir } from "node:fs/promises";
 import { type KnowledgeIndex, NON_NOTE_FILES, readKnowledgeIndex } from "./knowledge-index.ts";
 
+const KNOWLEDGE_REPO = process.env.KNOWLEDGE_REPO ?? "darkroomengineering/team-knowledge";
+
 /** Lines to print at session start advertising the shared corpus, or [] when
  *  there's nothing to surface (no clone configured, empty, or unreadable).
  *  `repoPath` defaults to $KNOWLEDGE_REPO_PATH. `readIndex` defaults to the
@@ -55,7 +57,8 @@ export async function teamKnowledgeAwareness(
       const label = count === 1 ? "note" : "notes";
       return [
         "",
-        `team-knowledge: ${count} shared ${label} — consult before architecture / convention / gotcha calls`,
+        `team-knowledge: ${count} shared ${label} — matching notes surface before Bash/Edit calls; ` +
+          `read one with: gh api repos/${KNOWLEDGE_REPO}/contents/<name>.md --jq .content | base64 -d`,
       ];
     }
   } catch {

@@ -149,6 +149,14 @@ function SceneWithCleanup() {
 }
 ```
 
+### GPU Resource Ownership
+
+When a hook owns a GPU resource (a fluid or flowmap sim, an FBO or render target, a renderer), the mount effect is its sole owner: create it in the effect, `.destroy()` it in the cleanup. Creating it in a `useState` initializer leaks: the initializer's instance is orphaned when the mount effect builds a second one, and GPU memory creeps up across route navigations. Keep one root `<Canvas>` and portal content into it (tunnel-rat); a non-root canvas mounts nothing and falls back to the root via `useCanvas()`. Cache session-constant device probes (Safari, WebGL, autoplay) at module level; the autoplay check spins up a `<video>` per call.
+
+### Reject Software Renderers in the Mount Gate
+
+GPU-less runners (PageSpeed Insights, cloud Lighthouse, default headless Chromium) run WebGL through SwiftShader on the CPU. A shader that renders every frame pegs the main thread and Lighthouse reports `PAGE_HUNG`. Every WebGL mount gate rejects software renderers, not just missing WebGL2: read the renderer string (`WEBGL_debug_renderer_info` then `UNMASKED_RENDERER_WEBGL`, or `gl.RENDERER` on Chrome 101+), bail to the CSS or static fallback when it matches `/swiftshader|llvmpipe|softpipe|software/i`, and release the probe context with `WEBGL_lose_context` so it does not count against the ~16 live-context cap. satus applies this in `useDeviceDetection().isWebGL`; anything mounting outside the starter's root canvas calls the gate itself. Reproduce locally with `lighthouse <url> --chrome-flags='--headless=new --disable-gpu --use-gl=angle --use-angle=swiftshader'`.
+
 ---
 
 ## GSAP Animation
@@ -388,6 +396,8 @@ import { Perf } from 'r3f-perf'
 | Too many draw calls | Use instancing via `<Instances>` |
 | `useMemo` in R3F | Not needed - React Compiler handles it |
 | Missing cleanup | Always return cleanup in `useEffect`/`useGSAP` |
+| GPU memory creeps across routes | Create GPU resources in the mount effect, never a `useState` initializer |
+| Lighthouse `PAGE_HUNG`, PSI never finishes | Mount gate rejects software renderers (SwiftShader) |
 
 ---
 

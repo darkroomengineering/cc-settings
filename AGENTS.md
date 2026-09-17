@@ -250,6 +250,17 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 - Keep commits small and atomic.
 - Never force-push `main` or `master`.
 
+### History Belongs in Git, Not in Code
+
+Code and docs read as if the current state is the only state that ever existed.
+Remove, don't annotate: when you meet text describing what changed ("replaces
+X", "legacy Y removed", "no longer", "previously", "renamed from", "current
+violations: 0"), delete the stale thing or reword it to present tense, and sweep
+the repo for the same pattern in one pass. Delete pure-artifact files (a "Fixed
+Violations" ledger, a "moved to X" tombstone) and whatever enforced them. Keep
+functional "why" comments that prevent a bad future edit, reworded without the
+historical framing. The one home for history is `CHANGELOG.md`.
+
 ### Stealth Mode (Mandatory)
 
 Git history, PRs, and descriptions MUST contain no AI fingerprints:
