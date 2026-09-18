@@ -302,7 +302,7 @@ export async function cmdDryRun(
       console.log(`  claude ${args.join(" ")}`);
     }
     console.log(
-      "  with --typesafe-key=<key> (or the interactive prompt): --config apiKey=<redacted>",
+      "  with --typesafe-key=<key> (or the interactive prompt): --config apiKey=<redacted>, and TYPESAFE_API_KEY written to settings.json env",
     );
     console.log(
       `  Plugins: fast-jev-compaction (pinned ${UPSTREAM_PINNED_SHA.slice(0, 7)}), compaction-trigger`,

@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.21.2"; // Hook `if` filters move onto the handler object so Claude Code honors them and `claude plugin` rewrites keep them.
+const VERSION = "15.21.3"; // The installer writes a freshly supplied TypeSafe key into the settings env block so hooks and the banner can read it.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

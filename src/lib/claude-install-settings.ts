@@ -352,6 +352,28 @@ async function resolveTypesafeKey(
   return typed ? { key: typed, source: "prompt" } : null;
 }
 
+/** Write TYPESAFE_API_KEY into ~/.claude/settings.json's env block. The env
+ *  merge is user-wins and cc-settings never ships this key, so later installs
+ *  keep it; the hooks fingerprint covers only the hooks block. Fail-open. */
+export async function persistTypesafeKeyToSettingsEnv(
+  key: string,
+  settingsPath: string = join(CLAUDE_DIR, "settings.json"),
+): Promise<boolean> {
+  try {
+    const current = (await readJsonOrNull(settingsPath)) as Record<string, unknown> | null;
+    if (!current || typeof current !== "object") return false;
+    const env = (current.env ?? {}) as Record<string, unknown>;
+    if (env.TYPESAFE_API_KEY === key) return true;
+    await atomicWriteJson(settingsPath, { ...current, env: { ...env, TYPESAFE_API_KEY: key } });
+    return true;
+  } catch (e) {
+    warn(
+      `Could not write TYPESAFE_API_KEY to settings env: ${redactKey((e as Error).message, key)}`,
+    );
+    return false;
+  }
+}
+
 type ClaudeCommandResult = {
   exitCode: number | null;
   stdout: string;
@@ -422,8 +444,11 @@ export async function installPlugins(
   const resolved = await resolveTypesafeKey(opts.typesafeKey, dryRun);
   // A key that already lives in the environment or the settings env block is
   // read by the plugin directly; only a freshly supplied one (flag or prompt)
-  // is stored through the plugin's sensitive option.
+  // is stored through the plugin's sensitive option AND written to the
+  // settings env block, so the session banner, hooks, and scripts can read
+  // it too (the plugin store is opaque to everything but the plugin).
   const storeKey = resolved && (resolved.source === "flag" || resolved.source === "prompt");
+  if (storeKey && !dryRun) await persistTypesafeKeyToSettingsEnv(resolved.key);
   const commands = PLUGIN_INSTALL_COMMANDS.map((args) =>
     storeKey && args.includes(FAST_JEV_PLUGIN_ID)
       ? [...args, "--config", `apiKey=${resolved.key}`]
@@ -459,7 +484,9 @@ export async function installPlugins(
   }
   if (installed.length > 0) progressOk(`Plugins: ${installed.join(", ")}`);
   if (resolved) {
-    progressOk(`Compaction: verbatim (Jev), key from ${resolved.source}`);
+    progressOk(
+      `Compaction: verbatim (Jev), key from ${resolved.source}${storeKey ? "; TYPESAFE_API_KEY written to settings env" : ""}`,
+    );
   } else {
     progressArrow(`Compaction stays native. Later: ${LATER_KEY_COMMAND}`);
   }

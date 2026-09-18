@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.21.3] — 2026-09-18
+
+- A TypeSafe key supplied to the installer (`--typesafe-key=<key>` or the prompt) is now also written as `TYPESAFE_API_KEY` into the settings `env` block. Since 15.21.0 it went only into the plugin's sensitive `apiKey` option, which nothing but the compaction plugin can read, so the session banner kept reporting native compaction and no hook or script could use Jev. Later installs keep the value (the env merge is user-wins). Re-run `setup.sh --typesafe-key=<key>` to write it on an existing install.
+
+**Files changed:** src/lib/claude-install-settings.ts, src/lib/install-display.ts, tests/typesafe-key-persist.test.ts, docs/install.md, docs/hooks-reference.md, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
 ## [15.21.2] — 2026-09-18
 
 - Hook `if` filters now live on each hook action instead of the matcher group. Claude Code only evaluates `if` on the action object, so the group-level filters on the pre-commit, pre-PR, pre-push, and package-install hooks were never applied (the scripts self-gate, so behavior was unchanged, but each spawned on every Bash call). Worse, `claude plugin marketplace add` and `claude plugin install` rewrite settings.json without the unknown group key, which the installer runs after fingerprinting the hooks block, so every session since 15.21.0 started with a hooks-fingerprint mismatch warning. Reproduced on Claude Code 2.1.276 with an isolated `CLAUDE_CONFIG_DIR`. Re-run `setup.sh` to clear the warning.
