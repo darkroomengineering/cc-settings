@@ -133,6 +133,10 @@ on every machine. The same request behaves differently once it is installed:
   code map for call graphs and blast radius, Figma, and Chrome DevTools for screenshots and
   Lighthouse. Codex gets the Figma server only and reports a missing capability instead of faking
   the rest.
+- **Verbatim compaction.** With a TypeSafe key, long sessions compact near the 200K working
+  ceiling by removing stale tool output that Jev scores as no longer needed, while every user and
+  assistant message stays word for word. Without a key, native summary compaction applies. See
+  [verbatim compaction with Jev](./docs/hooks-reference.md#verbatim-compaction-with-jev).
 - **Team knowledge.** A shared repository of decisions, conventions, and gotchas that every
   machine reads. Notes are posted with `/share-learning` and surface automatically before the
   command or file edit they apply to.

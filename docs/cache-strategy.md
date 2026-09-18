@@ -29,6 +29,10 @@ When a background agent sleeps:
 
 Default for idle ticks with no specific signal: **1200-1800s** (20-30 min).
 
+## Compaction
+
+A compaction rewrites the transcript prefix, so it costs one cache miss — this holds for the `fast-jev-compaction`/`compaction-trigger` plugins ([Function hooks](./hooks-reference.md#function-hooks-early-access)) exactly as it does for Claude Code's native compaction.
+
 ## See Also
 
 - [Anthropic prompt caching docs](https://docs.anthropic.com/en/docs/prompt-caching)

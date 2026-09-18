@@ -80,6 +80,10 @@ async function runInstall(
         CODEX_HOME: join(home, ".codex"),
         NODE_ENV: "test",
         CC_SKIP_DEPS: "1",
+        // Never touch the real claude plugin store or the network for the
+        // fast-jev-compaction/compaction-trigger install step (installPlugins
+        // in claude-install-settings.ts).
+        CC_SETTINGS_SKIP_PLUGIN_INSTALL: "1",
         // launchctl ignores a faked $HOME and would register/bootout a REAL
         // launchd job on the machine running the test suite — unconditional,
         // regardless of whether a given test even touches auto-update.
@@ -1612,6 +1616,7 @@ mock.module("node:fs/promises", () => ({ ...original,
               HOME: home,
               USERPROFILE: home,
               CC_SKIP_DEPS: "1",
+              CC_SETTINGS_SKIP_PLUGIN_INSTALL: "1",
               CC_SKIP_SCHEDULE: "1",
               NO_COLOR: "1",
             },

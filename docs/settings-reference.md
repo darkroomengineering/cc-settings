@@ -754,6 +754,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `emojiCompletionEnabled` | boolean | U | Emoji shortcode autocomplete in the prompt input (`:heart:` → ❤️); `false` disables (v2.1.217) |
 | `enableAllProjectMcpServers` | boolean | G | Auto-enable every server listed in .mcp.json |
 | `enabledMcpjsonServers` | string[] | G | Allowlist for project .mcp.json server names |
+| `enabledPlugins` | Record\<string,boolean\> | G | Plugins to enable, keyed `"<plugin>@<marketplace>"` |
 | `enforceAvailableModels` | boolean | E | Make the `availableModels` allowlist also constrain the Default model; user/project cannot widen a managed list (v2.1.175) |
 | `env` | Record\<string,string\> | G | Environment variables injected into every session |
 | `extraKnownMarketplaces` | object | E | Register additional marketplaces without installing them; map of marketplace ID → source object |
@@ -790,6 +791,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `parentSettingsBehavior` | `"first-wins"` \| `"merge"` | E | How managed settings participate in the policy merge (admin-tier, v2.1.133) |
 | `permissions` | object | G | Allow/deny/ask permission rules for tool invocations |
 | `plansDirectory` | string | G | Directory where plan output files are written |
+| `pluginConfigs` | object | G | Per-plugin `userConfig` values, keyed `"<plugin>@<marketplace>"`, each an object with an `options` map |
 | `pluginTrustMessage` | string | E | Custom trust-confirmation message shown when installing plugins |
 | `policyHelper` | object | E | Policy-helper configuration object (enterprise) |
 | `prUrlTemplate` | string | G | Custom PR badge URL template; substitutes `{host}`, `{owner}`, `{repo}`, `{number}`, `{url}` (v2.1.119) |

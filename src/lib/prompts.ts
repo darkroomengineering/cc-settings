@@ -10,6 +10,35 @@ export function isInteractive(): boolean {
   return process.stdin.isTTY === true;
 }
 
+/** Secret prompt: one line from a TTY with echo off, so the value never lands
+ *  in terminal scrollback. Uses the same readline path as promptYn (raw-mode
+ *  stdin under Bun does not reliably deliver keystrokes); echo is switched off
+ *  with `stty -echo` for the duration and restored in every exit path. Returns
+ *  "" when stdin is not a TTY, on Enter with no input, on Ctrl+C, or Ctrl+D. */
+export async function promptSecret(message: string): Promise<string> {
+  if (!isInteractive()) return "";
+  const stty = (mode: "-echo" | "echo") => {
+    try {
+      Bun.spawnSync(["stty", mode], { stdin: "inherit", stdout: "ignore", stderr: "ignore" });
+    } catch {
+      // stty missing (Windows): the prompt still works, only echoed.
+    }
+  };
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const ac = new AbortController();
+  rl.once("SIGINT", () => ac.abort());
+  stty("-echo");
+  try {
+    return (await rl.question(message, { signal: ac.signal })).trim();
+  } catch {
+    return "";
+  } finally {
+    stty("echo");
+    rl.close();
+    process.stdout.write("\n");
+  }
+}
+
 /** Yes/No prompt. Defaults to yes. Returns true for yes. */
 export async function promptYn(message: string, defaultYes = true): Promise<boolean> {
   if (!isInteractive()) return defaultYes;

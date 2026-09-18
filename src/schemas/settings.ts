@@ -354,6 +354,14 @@ export const Settings = z.looseObject({
   claudeMdExcludes: z.array(z.string()).optional(), // glob patterns for CLAUDE.md files to exclude
   defaultShell: z.enum(["bash", "powershell"]).optional(), // shell used by the Bash tool
   enableAllProjectMcpServers: z.boolean().optional(), // auto-enable every server listed in .mcp.json
+  // Plugin enablement/config. enabledPlugins keys are "<plugin>@<marketplace>";
+  // pluginConfigs mirrors the same keys with each plugin's userConfig values
+  // under `options` (also settable via `claude plugin install <id> --config
+  // key=value`). Kept loose since a plugin's own option shape is unpinned.
+  enabledPlugins: z.record(z.string(), z.boolean()).optional(),
+  pluginConfigs: z
+    .record(z.string(), z.looseObject({ options: z.record(z.string(), z.unknown()).optional() }))
+    .optional(),
   fallbackModel: z.union([z.string(), z.array(z.string())]).optional(), // 2.1.166 — up to three fallback models tried in order when the primary is overloaded/unavailable; settings.json counterpart of --fallback-model (which now also applies to interactive sessions). string | string[] superset: the CLI flag takes one model, the setting allows up to three, and upstream docs don't yet pin the shape.
   fastModePerSessionOptIn: z.boolean().optional(), // per-session fast-mode opt-in flag
   fileSuggestion: z.looseObject({}).optional(), // file-suggestion UI configuration object

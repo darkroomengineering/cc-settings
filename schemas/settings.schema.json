@@ -1471,6 +1471,34 @@
     "enableAllProjectMcpServers": {
       "type": "boolean"
     },
+    "enabledPlugins": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "pluginConfigs": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "additionalProperties": {}
+      }
+    },
     "fallbackModel": {
       "anyOf": [
         {

@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.21.0] — 2026-09-18
+
+Long sessions can now compact without losing their text. cc-settings adopts [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), a Claude Code function-hooks plugin that, at compaction time, asks TypeSafe's Jev model which tool calls and results are still needed and removes only those, keeping every user and assistant message verbatim. Native compaction is a summary; this keeps file paths, error text, and decisions intact.
+
+- **Function hooks enabled.** `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` in the composed env (early access, Claude Code 2.1.274+). `docs/hooks-reference.md` gains a "Function hooks (early access)" section with a plain-language explainer of Jev and the compaction, its cost (input $0.042 per million tokens, output free), and its limits.
+- **Upstream pinned, trigger replaced.** Settings declare the `fast-jev-compaction` marketplace pinned to commit `e3f262a` and enable the plugin with its own percentage trigger disabled (`compactAtPercent: 100`). A new cc-settings plugin, `plugins/compaction-trigger`, requests compaction from `turn.complete` when `context.tokens` passes 150,000 (configurable, with a 3-turn backoff), so compaction tracks the 200K working ceiling instead of 60% of a 1M window, which on a 200K model would have summarized every 30K tokens.
+- **Installer.** The full profile registers both marketplaces and installs both plugins through the `claude` CLI, fail-open, skipped for the light profile, under `CC_SETTINGS_SKIP_PLUGIN_INSTALL=1`, or whenever HOME resolves inside the OS temp directory, which is how every test sandbox looks, so no test can reach the real plugin store or the network. An interactive install prompts once for a TypeSafe key with input hidden; `--typesafe-key=<key>` supplies it non-interactively. The key is stored through the plugin's sensitive `apiKey` option in Claude Code's secure storage, never in a managed file, and is redacted from every printed line. Without a key the install says so and compaction stays native.
+- **Settings schema** declares `enabledPlugins` and `pluginConfigs`; the SessionStart banner reports whether verbatim compaction is active; the uninstall summary names the plugins and the removal command.
+
+- **Key prompt.** Input is hidden through `stty -echo` around a standard readline question, and Ctrl+C or Enter skips the key instead of aborting the install (the first raw-mode version hung under Bun and a Ctrl+C there left a half-copied install that both reinstall and rollback refused; restoring the drifted files from the run's backup tarball clears that state). The plugin summary line names only the plugins that actually installed. The `compaction-trigger` install needs this release on GitHub main first, because the `cc-settings` marketplace is fetched from there; on the machine that publishes a release, run `claude plugin marketplace update cc-settings && claude plugin install compaction-trigger@cc-settings` after the push.
+
+**Files changed:**
+- plugins/compaction-trigger/ (new: manifest, hooks/trigger.ts, types, tsconfig), tests/compaction-trigger.test.ts, tests/plugin-key-redaction.test.ts (new)
+- .claude-plugin/marketplace.json, config/10-core.json, src/schemas/settings.ts, schemas/settings.schema.json
+- src/setup.ts, src/lib/install-types.ts, src/lib/claude-install-settings.ts, src/lib/install-display.ts, src/lib/install-lifecycle.ts, src/lib/prompts.ts, src/scripts/session-start.ts, setup.sh, setup.ps1
+- tests/install-e2e.test.ts, tests/settings-merge.test.ts, tests/plugin-manifest.test.ts, tests/setup-args.test.ts
+- README.md, docs/hooks-reference.md, docs/install.md, docs/settings-reference.md, docs/cache-strategy.md, CLAUDE-FULL.md
+- package.json, tsconfig.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.20.0] — 2026-09-17
 
 Two follow-ups from the usage-insights report, plus the repair they immediately paid for.

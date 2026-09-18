@@ -22,6 +22,10 @@
 //                      prior-install state, and the repo's local approvals,
 //                      then installs the full baseline. Login, history, and
 //                      memory untouched. Recover with --rollback.
+//   --typesafe-key=<key>
+//                      TypeSafe API key for verbatim Jev compaction, stored in
+//                      the plugin's secure storage. Interactive installs prompt
+//                      for it when none is set; Enter skips.
 //   --help, -h         Usage.
 
 import { existsSync } from "node:fs";
@@ -42,7 +46,7 @@ import {
   validateClaudeManagedFiles,
   writeVersionSentinel,
 } from "./lib/claude-install-ownership.ts";
-import { installSettings } from "./lib/claude-install-settings.ts";
+import { installPlugins, installSettings } from "./lib/claude-install-settings.ts";
 import { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION } from "./lib/claude-managed-files.ts";
 import { resolveEngine } from "./lib/code-intel-engine.ts";
 import {
@@ -102,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.20.0"; // branch -D and stash drop ask instead of deny; repo-local pre-commit invariants; prompt budgets restored.
+const VERSION = "15.21.0"; // Verbatim Jev compaction: function-hooks flag, pinned upstream plugin, token-based trigger plugin, key prompt.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
@@ -120,6 +124,7 @@ export function parseArgs(argv: string[]): InstallArgs {
     autoUpdate: null,
     target: "auto",
     fresh: false,
+    typesafeKey: null,
     errors: [],
   };
   for (const a of argv) {
@@ -134,7 +139,11 @@ export function parseArgs(argv: string[]): InstallArgs {
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
     else if (a === "--light") args.profile = "light";
     else if (a === "--fresh") args.fresh = true;
-    else if (a.startsWith("--target=")) {
+    else if (a.startsWith("--typesafe-key=")) {
+      const value = a.slice("--typesafe-key=".length).trim();
+      if (value) args.typesafeKey = value;
+      else args.errors.push("--typesafe-key= needs a value");
+    } else if (a.startsWith("--target=")) {
       const value = a.slice("--target=".length);
       if (value === "auto" || value === "claude" || value === "codex" || value === "both") {
         args.target = value;
@@ -636,6 +645,13 @@ async function main(): Promise<number> {
           }
           throw err;
         }
+
+        // After settings.json is written (it declares enabledPlugins/
+        // pluginConfigs already): register the two marketplaces and install
+        // the two compaction plugins via the claude CLI so settings.json's
+        // declaration and the plugin store agree. Fail-open — see
+        // installPlugins' own doc comment.
+        await installPlugins(args.profile, args.dryRun, { typesafeKey: args.typesafeKey });
 
         schedulerSharedBaseline = await captureClaudeSharedExplicitState();
         claudePhase = "scheduler";

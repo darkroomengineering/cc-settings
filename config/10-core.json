@@ -12,10 +12,38 @@
 		"CC_CLAUDE_MD_CRITICAL_LINES": "600",
 		"CC_MAX_UNREVIEWED": "5",
 		"CC_MIN_REVIEW_SECONDS": "60",
-		"MCP_NEEDS_AUTH_PRUNE_KEEP": "claude.ai Granola"
+		"MCP_NEEDS_AUTH_PRUNE_KEEP": "claude.ai Granola",
+		"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1"
 	},
 	"sandbox": {
 		"failIfUnavailable": false
+	},
+	"extraKnownMarketplaces": {
+		"fast-jev-compaction": {
+			"source": {
+				"source": "github",
+				"repo": "tamaratran/fast-jev-compaction",
+				"sha": "e3f262a7f4d42bd8dd32ced30d26176f7cb545b0"
+			}
+		},
+		"cc-settings": {
+			"source": {
+				"source": "github",
+				"repo": "darkroomengineering/cc-settings"
+			}
+		}
+	},
+	"enabledPlugins": {
+		"fast-jev-compaction@fast-jev-compaction": true,
+		"compaction-trigger@cc-settings": true
+	},
+	"pluginConfigs": {
+		"fast-jev-compaction@fast-jev-compaction": {
+			"options": {
+				"compactAtPercent": 100,
+				"preserveRecentMessages": 6
+			}
+		}
 	},
 	"model": "claude-fable-5-1",
 	"tui": "default",

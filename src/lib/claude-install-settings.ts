@@ -1,4 +1,6 @@
-import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import type { McpStdioServer } from "../schemas/mcp.ts";
 import { Settings } from "../schemas/settings.ts";
 import { type EngineDescriptor, ensureEngineInstalled } from "./code-intel-engine.ts";
@@ -17,6 +19,7 @@ import {
 import { ensureSystemPackage, getInstallHint } from "./packages.ts";
 import { ensurePinnedTool, TLDR_CODE_TOOL } from "./pinned-tools.ts";
 import { CLAUDE_DIR, hasCommand } from "./platform.ts";
+import { isInteractive, promptSecret } from "./prompts.ts";
 import { type SettingsBaseline, writeSettingsBaseline } from "./settings-baseline.ts";
 import { mergeSettings, printMergeAccounting } from "./settings-merge.ts";
 
@@ -248,5 +251,213 @@ export async function installPinnedTools(profile: Profile): Promise<void> {
     } catch (e) {
       warn(`pinned tool '${id}' not installed: ${(e as Error).message}`);
     }
+  }
+}
+
+// --- Function-hook compaction plugins -------------------------------------
+
+const PLUGIN_INSTALL_TIMEOUT_MS = 90_000;
+// Keep in sync with config/10-core.json's extraKnownMarketplaces entry.
+export const UPSTREAM_PINNED_SHA = "e3f262a7f4d42bd8dd32ced30d26176f7cb545b0";
+
+// Exported so the --dry-run reporter (install-display.ts) prints exactly what
+// installPlugins would run, instead of a second hand-maintained copy.
+export const PLUGIN_INSTALL_COMMANDS: readonly (readonly string[])[] = [
+  ["plugin", "marketplace", "add", "darkroomengineering/cc-settings"],
+  ["plugin", "marketplace", "add", "tamaratran/fast-jev-compaction"],
+  [
+    "plugin",
+    "install",
+    "fast-jev-compaction@fast-jev-compaction",
+    "--config",
+    "compactAtPercent=100",
+  ],
+  ["plugin", "install", "compaction-trigger@cc-settings"],
+];
+
+/** The plugin step talks to the real Claude plugin store and the network, so
+ *  it runs only for a real install. Every test sandbox points HOME at a
+ *  directory under the OS temp dir (mkdtemp(tmpdir())), so a HOME inside
+ *  tmpdir is skipped without each spawn site having to know. (Bun's
+ *  userInfo().homedir follows $HOME too, so the account's passwd home is not
+ *  a usable reference.) `CC_SETTINGS_SKIP_PLUGIN_INSTALL=1` skips explicitly;
+ *  `CC_SETTINGS_FORCE_PLUGIN_INSTALL=1` overrides the check for a test that
+ *  exercises the step on purpose. */
+export function pluginInstallAllowed(
+  env: Record<string, string | undefined> = process.env,
+  home: string = homedir(),
+  temp: string = tmpdir(),
+): boolean {
+  if (env.CC_SETTINGS_SKIP_PLUGIN_INSTALL === "1") return false;
+  if (env.CC_SETTINGS_FORCE_PLUGIN_INSTALL === "1") return true;
+  const h = canonical(home);
+  const t = canonical(temp);
+  return h !== t && !h.startsWith(t + sep);
+}
+
+/** Absolute, symlink-resolved (macOS /var → /private/var), no trailing slash.
+ *  A path that does not exist yet resolves through its longest existing
+ *  ancestor, so "/tmp/new-sandbox" and "/private/tmp" still compare. */
+function canonical(path: string): string {
+  const abs = resolve(path);
+  let existing = abs;
+  let rest = "";
+  while (existing.length > 0) {
+    try {
+      const real = realpathSync(existing);
+      return join(real, rest).replace(/[\\/]+$/, "");
+    } catch {
+      const parent = dirname(existing);
+      if (parent === existing) break;
+      rest = join(basename(existing), rest);
+      existing = parent;
+    }
+  }
+  return abs.replace(/[\\/]+$/, "");
+}
+
+export const FAST_JEV_PLUGIN_ID = "fast-jev-compaction@fast-jev-compaction";
+export const LATER_KEY_COMMAND = `claude plugin install ${FAST_JEV_PLUGIN_ID} --config apiKey=<key>`;
+
+/** Replace every occurrence of a secret in text with a redaction marker, so
+ *  warnings and dry-run lines can never leak it. */
+export function redactKey(text: string, key: string | null | undefined): string {
+  if (!key) return text;
+  return text.split(key).join("<redacted>");
+}
+
+type KeySource = "flag" | "prompt" | "env" | "settings";
+
+/** Find a TypeSafe key: the flag, the environment, the installed settings'
+ *  env block, else an interactive prompt (TTY only). Returns null when none. */
+async function resolveTypesafeKey(
+  flagKey: string | null | undefined,
+  dryRun: boolean,
+): Promise<{ key: string; source: KeySource } | null> {
+  if (flagKey) return { key: flagKey, source: "flag" };
+  const fromEnv = process.env.TYPESAFE_API_KEY;
+  if (fromEnv) return { key: fromEnv, source: "env" };
+  const installed = await readJsonOrNull(join(CLAUDE_DIR, "settings.json"));
+  const env = (installed as { env?: Record<string, unknown> } | null)?.env;
+  const fromSettings = env?.TYPESAFE_API_KEY;
+  if (typeof fromSettings === "string" && fromSettings)
+    return { key: fromSettings, source: "settings" };
+  if (dryRun || !isInteractive()) return null;
+  const typed = await promptSecret(
+    "TypeSafe API key for verbatim Jev compaction (Enter to skip; keys at https://typesafe.ai): ",
+  );
+  return typed ? { key: typed, source: "prompt" } : null;
+}
+
+type ClaudeCommandResult = {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+};
+
+async function runClaudeCommand(args: readonly string[]): Promise<ClaudeCommandResult> {
+  const child = Bun.spawn(["claude", ...args], { stdout: "pipe", stderr: "pipe" });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, PLUGIN_INSTALL_TIMEOUT_MS);
+  try {
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    return { exitCode, stdout, stderr, timedOut };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// A marketplace/plugin already registered from a prior install exits non-zero
+// with an "already exists"/"already installed" message — that's success, not
+// a failure to warn about.
+function claudeCommandSucceeded(result: ClaudeCommandResult): boolean {
+  if (result.timedOut) return false;
+  if (result.exitCode === 0) return true;
+  const combined = `${result.stdout}\n${result.stderr}`.toLowerCase();
+  return combined.includes("already exists") || combined.includes("already installed");
+}
+
+/**
+ * Registers the two marketplaces and installs the two compaction plugins
+ * (upstream fast-jev-compaction, pinned by commit SHA — see
+ * config/10-core.json's extraKnownMarketplaces — and cc-settings' own
+ * compaction-trigger) via the `claude` CLI, mirroring what settings.json's
+ * enabledPlugins/pluginConfigs already declare.
+ *
+ * Fail-open throughout: any `claude plugin ...` command failing must never
+ * fail the cc-settings install, only warn. Skipped entirely for the light
+ * profile, when `claude` is not on PATH, or when
+ * CC_SETTINGS_SKIP_PLUGIN_INSTALL=1 (set unconditionally by the install E2E
+ * test harness so tests never touch the real plugin store or the network).
+ *
+ * `dryRun` prints the commands and runs nothing, matching --dry-run's
+ * contract; in practice setup.ts's --dry-run branch returns before this is
+ * ever called (see install-display.ts's cmdDryRun, which prints the same
+ * PLUGIN_INSTALL_COMMANDS list for that path) — this guard just means a
+ * future direct caller with dryRun:true still gets the documented behavior.
+ */
+export async function installPlugins(
+  profile: Profile,
+  dryRun: boolean,
+  opts: { typesafeKey?: string | null } = {},
+): Promise<void> {
+  if (profile === "light") return;
+  if (!pluginInstallAllowed()) {
+    debug("plugin step skipped: HOME is not the account home (test sandbox) or skip flag set");
+    return;
+  }
+  if (!hasCommand("claude")) return;
+
+  const resolved = await resolveTypesafeKey(opts.typesafeKey, dryRun);
+  // A key that already lives in the environment or the settings env block is
+  // read by the plugin directly; only a freshly supplied one (flag or prompt)
+  // is stored through the plugin's sensitive option.
+  const storeKey = resolved && (resolved.source === "flag" || resolved.source === "prompt");
+  const commands = PLUGIN_INSTALL_COMMANDS.map((args) =>
+    storeKey && args.includes(FAST_JEV_PLUGIN_ID)
+      ? [...args, "--config", `apiKey=${resolved.key}`]
+      : args,
+  );
+  const shown = (args: readonly string[]) => redactKey(`claude ${args.join(" ")}`, resolved?.key);
+
+  if (dryRun) {
+    for (const args of commands) progressArrow(`Would run: ${shown(args)}`);
+    return;
+  }
+
+  const installed: string[] = [];
+  for (const args of commands) {
+    const plugin = args[0] === "plugin" && args[1] === "install" ? args[2] : null;
+    try {
+      const result = await runClaudeCommand(args);
+      if (!claudeCommandSucceeded(result)) {
+        const detail = (result.timedOut ? "timed out" : result.stderr || result.stdout)
+          .trim()
+          .slice(0, 300);
+        warn(`${shown(args)} failed: ${redactKey(detail, resolved?.key)}`);
+      } else if (plugin) {
+        installed.push(
+          plugin === FAST_JEV_PLUGIN_ID
+            ? `fast-jev-compaction (pinned ${UPSTREAM_PINNED_SHA.slice(0, 7)})`
+            : (plugin.split("@")[0] ?? plugin),
+        );
+      }
+    } catch (e) {
+      warn(`${shown(args)} failed: ${redactKey((e as Error).message, resolved?.key)}`);
+    }
+  }
+  if (installed.length > 0) progressOk(`Plugins: ${installed.join(", ")}`);
+  if (resolved) {
+    progressOk(`Compaction: verbatim (Jev), key from ${resolved.source}`);
+  } else {
+    progressArrow(`Compaction stays native. Later: ${LATER_KEY_COMMAND}`);
   }
 }

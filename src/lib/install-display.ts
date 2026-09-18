@@ -1,11 +1,17 @@
 // Install display helpers — extracted from src/setup.ts (§1.1).
 //
 // Pure output rendering: countEntries, showSummary, cmdDryRun, printStatus.
-// No coupling to install execution; import them from setup.ts's install phases.
+// No coupling to install execution; import them from setup.ts's install
+// phases. Exception: PLUGIN_INSTALL_COMMANDS/UPSTREAM_PINNED_SHA from
+// claude-install-settings.ts are inert data (a command list and a SHA
+// string, never a function that touches disk or the network) — cmdDryRun
+// prints them so its --dry-run report can't drift from what installPlugins
+// actually runs, without a second hand-maintained copy of the command list.
 
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { PLUGIN_INSTALL_COMMANDS, UPSTREAM_PINNED_SHA } from "./claude-install-settings.ts";
 import { boxEnd, boxLine, boxStart, palette, success, warn } from "./colors.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { LIGHT_SKILLS, PROFILE_MANIFEST } from "./light-profile.ts";
@@ -283,6 +289,24 @@ export async function cmdDryRun(
       const mark = existsSync(join(source, rel)) ? "✓" : " ";
       console.log(`  ${mark} ${rel.padEnd(22)} ${effect}`);
     }
+
+    // Plugins (installPlugins in claude-install-settings.ts) — same command
+    // list, so this can't drift from what a real install actually runs.
+    // Skipped only for the light profile, so print it here alongside the
+    // full-profile file table.
+    console.log("");
+    console.log(
+      `Would run (skipped if claude is not on PATH, or CC_SETTINGS_SKIP_PLUGIN_INSTALL=1):`,
+    );
+    for (const args of PLUGIN_INSTALL_COMMANDS) {
+      console.log(`  claude ${args.join(" ")}`);
+    }
+    console.log(
+      "  with --typesafe-key=<key> (or the interactive prompt): --config apiKey=<redacted>",
+    );
+    console.log(
+      `  Plugins: fast-jev-compaction (pinned ${UPSTREAM_PINNED_SHA.slice(0, 7)}), compaction-trigger`,
+    );
   }
 
   console.log("");

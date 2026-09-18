@@ -540,6 +540,16 @@ export async function runSelectedUninstall(
     await claudeCompensation?.cleanup();
   }
   success(`Removed cc-settings from ${target === "both" ? "Claude and Codex" : target}`);
+  // Plugins are never auto-removed (a user may still want fast-jev-compaction
+  // or compaction-trigger without the rest of cc-settings) — just point at
+  // the command that does.
+  if (includesTarget(target, "claude")) {
+    info(
+      "Plugins fast-jev-compaction and compaction-trigger were left installed: " +
+        "claude plugin remove fast-jev-compaction@fast-jev-compaction && " +
+        "claude plugin remove compaction-trigger@cc-settings",
+    );
+  }
   return 0;
 }
 

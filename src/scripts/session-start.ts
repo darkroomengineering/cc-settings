@@ -23,6 +23,7 @@ import { type EngineDescriptor, resolveEngine } from "../lib/code-intel-engine.t
 import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
+import { readJsonOrNull } from "../lib/json-io.ts";
 import { CLAUDE_DIR, hasCommand, localDatetime } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import {
@@ -338,6 +339,28 @@ console.log("Auto-memory: say 'remember X' — saved to ~/.claude/projects/<hash
 // Shared team-knowledge corpus awareness (read counterpart to /share-learning).
 // Silent unless $KNOWLEDGE_REPO_PATH points at a non-empty local clone.
 for (const l of await teamKnowledgeAwareness()) console.log(l);
+
+// Compaction-plugin awareness — fast-jev-compaction + compaction-trigger are
+// always enabled (see config/10-core.json's enabledPlugins), but
+// fast-jev-compaction falls back to Claude Code's native summary compaction
+// without a TypeSafe key. Check the process env first, then the installed
+// settings.json's own env block (where a user may have set it instead of
+// their shell). Fail-soft — a broken settings.json must not cost the banner.
+try {
+  let hasTypesafeKey = Boolean(process.env.TYPESAFE_API_KEY);
+  if (!hasTypesafeKey) {
+    const settings = await readJsonOrNull(join(CLAUDE_DIR, "settings.json"));
+    const env = (settings as { env?: Record<string, unknown> } | null)?.env;
+    hasTypesafeKey = typeof env?.TYPESAFE_API_KEY === "string" && env.TYPESAFE_API_KEY.length > 0;
+  }
+  console.log(
+    hasTypesafeKey
+      ? "Compaction: verbatim (Jev) at ~150K tokens"
+      : "Compaction: native; set TYPESAFE_API_KEY for verbatim Jev compaction",
+  );
+} catch {
+  // Settings unreadable — skip the line rather than fail the session start.
+}
 
 // Code-intel engine status — engine-aware. The native engine has no index to
 // warm; a daemon-backed engine reports index/warming state as before.

@@ -1,0 +1,24 @@
+{
+  "name": "compaction-trigger",
+  "version": "0.1.0",
+  "description": "Requests a session compaction when the live context passes a token threshold, so verbatim compaction plugins run near the working ceiling instead of at the model window.",
+  "license": "MIT",
+  "author": {
+    "name": "Darkroom Engineering",
+    "url": "https://darkroom.engineering"
+  },
+  "userConfig": {
+    "compactAtTokens": {
+      "type": "number",
+      "title": "Compact at tokens",
+      "description": "Context tokens at which turn.complete requests compaction",
+      "default": 150000
+    },
+    "minTurnsBetween": {
+      "type": "number",
+      "title": "Minimum turns between requests",
+      "description": "Turns to wait after a compaction before requesting another",
+      "default": 3
+    }
+  }
+}

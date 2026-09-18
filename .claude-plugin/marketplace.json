@@ -16,6 +16,17 @@
       },
       "category": "workflow",
       "tags": ["darkroom", "react", "nextjs", "typescript", "orchestration"]
+    },
+    {
+      "name": "compaction-trigger",
+      "source": "./plugins/compaction-trigger",
+      "description": "Requests a session compaction when the live context passes a token threshold, so verbatim compaction plugins run near the working ceiling instead of at the model window.",
+      "author": {
+        "name": "Darkroom Engineering",
+        "url": "https://darkroom.engineering"
+      },
+      "category": "workflow",
+      "tags": ["compaction", "context"]
     }
   ]
 }

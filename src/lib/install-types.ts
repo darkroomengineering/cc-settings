@@ -15,6 +15,9 @@ export type InstallArgs = {
   autoUpdate: "on" | "off" | null;
   target: InstallTarget;
   fresh: boolean;
+  /** TypeSafe API key from --typesafe-key=<key>; stored through the
+   *  fast-jev-compaction plugin's sensitive option, never in a managed file. */
+  typesafeKey: string | null;
   errors: string[];
 };
 

@@ -112,6 +112,11 @@ describe("plugin manifest — mcpServers sync with config/20-mcp.json", () => {
 });
 
 describe("marketplace manifest", () => {
+  // The marketplace now carries two plugins — the self-referential "darkroom"
+  // entry (this repo's own plugin.json) and "compaction-trigger" (its own
+  // manifest under plugins/compaction-trigger/). Match by name rather than
+  // assuming a single entry, so a future third plugin doesn't need this test
+  // rewritten again.
   test("self-referential plugin entry matches plugin.json", async () => {
     const marketplace = await readJson(".claude-plugin/marketplace.json");
     const claudePlugin = await readJson(".claude-plugin/plugin.json");
@@ -121,10 +126,26 @@ describe("marketplace manifest", () => {
     expect((marketplace.owner as { name?: string })?.name).toBeTruthy();
 
     const entries = marketplace.plugins as Array<{ name: string; source: unknown }>;
-    expect(entries).toHaveLength(1);
-    expect(entries[0]?.name).toBe(claudePlugin.name as string);
-    expect(entries[0]?.name).toBe(codexPlugin.name as string);
-    expect(entries[0]?.source).toBe("./");
+    const darkroom = entries.find((e) => e.name === (claudePlugin.name as string));
+    expect(
+      darkroom,
+      "marketplace.json has no entry named after plugin.json's own name",
+    ).toBeDefined();
+    expect(darkroom?.name).toBe(codexPlugin.name as string);
+    expect(darkroom?.source).toBe("./");
+  });
+
+  test("compaction-trigger entry matches its own plugin.json", async () => {
+    const marketplace = await readJson(".claude-plugin/marketplace.json");
+    const compactionPlugin = await readJson(
+      "plugins/compaction-trigger/.claude-plugin/plugin.json",
+    );
+
+    const entries = marketplace.plugins as Array<{ name: string; source: unknown }>;
+    const entry = entries.find((e) => e.name === "compaction-trigger");
+    expect(entry, "marketplace.json has no compaction-trigger entry").toBeDefined();
+    expect(entry?.name).toBe(compactionPlugin.name as string);
+    expect(entry?.source).toBe("./plugins/compaction-trigger");
   });
 });
 

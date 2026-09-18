@@ -196,6 +196,9 @@ per-token rates, and 5.1 cache reads cost 0.025x base, so on Fable the ceiling
 is about usage limits and attention, not premium billing, and compaction can
 run later. After compaction, re-read the plan and active files per AGENTS.md.
 Output is 64K tokens by default, 128K maximum. See `docs/agent-models.md`.
+With `TYPESAFE_API_KEY` set, the compaction-trigger plugin requests a
+verbatim Jev compaction near 150K tokens, so the ceiling holds without a
+summary.
 
 ## Verify fast-moving names before answering
 

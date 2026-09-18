@@ -1050,6 +1050,46 @@ describe("userWinsScalarStrategy", () => {
     expect(ctx.accounting.defaultsAdded).toBe(0);
   });
 
+  // enabledPlugins/extraKnownMarketplaces have no dedicated strategy, so they
+  // fall to this default: a user's own plugin/marketplace entries survive and
+  // cc-settings' own (fast-jev-compaction, compaction-trigger) land alongside
+  // them, exactly like the attribution.sessionUrl case above.
+  test("team-added plugin entries land into a user's existing enabledPlugins block", async () => {
+    const ctx = makeCtx();
+    const team = {
+      "fast-jev-compaction@fast-jev-compaction": true,
+      "compaction-trigger@cc-settings": true,
+    };
+    const user = { "my-own-plugin@my-marketplace": true };
+    const result = await userWinsScalarStrategy("enabledPlugins", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({
+      "my-own-plugin@my-marketplace": true,
+      "fast-jev-compaction@fast-jev-compaction": true,
+      "compaction-trigger@cc-settings": true,
+    });
+    expect(ctx.accounting.defaultsAdded).toBe(2);
+  });
+
+  test("team-added marketplace entries land into a user's existing extraKnownMarketplaces block", async () => {
+    const ctx = makeCtx();
+    const team = {
+      "fast-jev-compaction": {
+        source: { source: "github", repo: "tamaratran/fast-jev-compaction" },
+      },
+      "cc-settings": { source: { source: "github", repo: "darkroomengineering/cc-settings" } },
+    };
+    const user = {
+      "my-marketplace": { source: { source: "github", repo: "me/my-marketplace" } },
+    };
+    const result = await userWinsScalarStrategy("extraKnownMarketplaces", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({ ...user, ...team });
+    expect(ctx.accounting.defaultsAdded).toBe(2);
+  });
+
   test("nested objects recurse (defaults land at depth > 1)", async () => {
     const ctx = makeCtx();
     const team = { enabled: true, network: { allowAppleEvents: false, proxy: "team" } };

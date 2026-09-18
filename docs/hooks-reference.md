@@ -12,6 +12,31 @@ Hooks can validate input, block operations, inject context, log activity, and tr
 
 ---
 
+## Function hooks (early access)
+
+A second, separate hook surface: a plugin's TypeScript module registers handlers directly on Claude Code's engine (`on("session.compact", async ($, event, next) => ...)`), rather than the classic hook events below (shell/TS scripts matched by event name in `settings.json`). It is early access, gated behind `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` (Claude Code 2.1.274+) — cc-settings sets this env var unconditionally in `config/10-core.json`, since both plugins below fall back to native behavior when nothing keys them.
+
+cc-settings ships two plugins through this surface, both declared in `.claude-plugin/marketplace.json` and enabled via `config/10-core.json`'s `enabledPlugins`:
+
+- **`fast-jev-compaction@fast-jev-compaction`** — upstream [tamaratran/fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), pinned to commit `e3f262a7f4d42bd8dd32ced30d26176f7cb545b0` (v0.3.0) via `extraKnownMarketplaces`. On `session.compact`, it asks a TypeSafe "Jev" model which tool calls/results in the transcript are still needed and drops the rest, leaving user and assistant text untouched — a smaller context without a lossy summary. It needs a `TYPESAFE_API_KEY` (set as a shell env var, never committed); without one, or on any Jev failure, it logs a fallback line and defers to Claude Code's native summary compaction. `pluginConfigs` sets its `compactAtPercent` to `100` — see the next plugin for why.
+- **`compaction-trigger@cc-settings`** — cc-settings' own plugin, `plugins/compaction-trigger/`. Upstream's own `turn.complete` hook requests a compaction at 60% of the model's context window by default; on a 200K+ window model that fires far more often than cc-settings' own ~150K working-context ceiling calls for (see `CLAUDE-FULL.md` "Effort and context"). Setting `fast-jev-compaction`'s `compactAtPercent` to 100 disables its own trigger, and `compaction-trigger` requests the compaction instead, once `$.session.usage()` reports `context.tokens` past its own `compactAtTokens` option (default 150,000), waiting at least `minTurnsBetween` turns (default 3) between requests.
+
+### Verbatim compaction with Jev
+
+Jev is TypeSafe's first System One model. It does not write text; it answers typed questions with calibrated probabilities, so code can consume the answer directly. Input costs $0.042 per million tokens and output is free, so one compaction of a long session costs well under a cent.
+
+How the compaction works: when Claude Code compacts, the plugin rebuilds the conversation with every tool result replaced by a one-line note ("ok, 4213 chars"), keeps user and assistant text intact, and sends that state to Jev with two questions per tool call outside the pinned newest messages: should this call stay, and should its full output stay. Calls and results scoring below the threshold are removed or truncated to their first 300 characters; everything else stays byte for byte. Requests are batched to fit a token budget and run concurrently.
+
+What it buys: native compaction is a summary, and summaries lose file paths, error text, constraints, and the exact wording of a decision. Verbatim compaction removes only stale tool noise, so a long session keeps its facts and the 200K working ceiling holds without a rewrite of what you and the model said.
+
+Limits: the scoring is probabilistic, only tool calls and results are ever removed, the function-hooks surface is early access, and the plugin falls back to native compaction without a key, on a Jev error, or when it finds too little to prune.
+
+Change either plugin's options with `/plugin configure`, `claude plugin install <plugin>@<marketplace> --config key=value`, or by editing `pluginConfigs` in `config/10-core.json` (rerun `bash setup.sh` to apply).
+
+This surface may change between Claude Code releases without notice — regenerate `plugins/compaction-trigger/types/claude-code.d.ts` with `/plugin-types` and re-audit `plugins/compaction-trigger/hooks/trigger.ts` after a Claude Code upgrade that touches it.
+
+---
+
 ## Hook Events (32 total)
 
 ### Session Lifecycle

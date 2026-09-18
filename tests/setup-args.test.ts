@@ -199,3 +199,21 @@ describe("parseArgs", () => {
     expect(a.sourceDir).toBe(resolve("/tmp/cc"));
   });
 });
+
+describe("parseArgs — --typesafe-key", () => {
+  test("stores the key and reports no error", () => {
+    const args = parseArgs(["--typesafe-key=abc123"]);
+    expect(args.typesafeKey).toBe("abc123");
+    expect(args.errors).toEqual([]);
+  });
+
+  test("defaults to null", () => {
+    expect(parseArgs([]).typesafeKey).toBeNull();
+  });
+
+  test("an empty value is an error", () => {
+    const args = parseArgs(["--typesafe-key="]);
+    expect(args.typesafeKey).toBeNull();
+    expect(args.errors).toEqual(["--typesafe-key= needs a value"]);
+  });
+});

@@ -12,6 +12,7 @@
 # Flags (forwarded to src\setup.ts):
 #   --target=TARGET   auto, claude, codex, or both (default: auto)
 #   --light           smaller product-specific profile; see docs\install.md
+#   --typesafe-key=<key>  TypeSafe key for verbatim Jev compaction (prompted when interactive)
 #   --fresh           reinstall as if from scratch; see docs\install.md
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
 #   --uninstall       remove cc-settings-managed files from selected target
