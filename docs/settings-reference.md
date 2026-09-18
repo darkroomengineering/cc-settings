@@ -61,6 +61,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_MESSAGING_SOCKET` | socket path (read-only) | Set *by* Claude Code, not by you: this session's [cross-session messaging](#cross-session-messaging) inbox socket. Exported before any hook runs, `SessionStart` included, and never inherited from a parent session |
 | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | integer (string) | Cap on subagents running at the same time (default 20), so one message cannot fan out unbounded background agents |
 | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | integer (string) | Optional limit on nested subagent depth. cc-settings does not pin it; installs inherit Claude Code's current default. |
+| `CLAUDE_CODE_MCP_STARTUP_WAIT_MS` | integer ms (string) | Bounds how long the first non-interactive (`-p`, SDK) turn waits for MCP servers still connecting; `0` = don't wait (v2.1.274). Unset here; set it in a script whose first turn must not block on a slow server |
 | `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` | ms (string) or `"0"` | MCP tool calls running longer than this auto-background (default 2 min); set `0` to disable |
 | `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | bytes (string) | Truncation limit for OpenTelemetry content attributes (default 60 KB) |
 | `CLAUDE_CODE_NO_FLICKER` | `"1"`, `"0"`, or unset | Forces fullscreen (`1`) or classic (`0`); unset honors `tui`. cc-settings leaves this unset so renderer preferences work. See [fullscreen rendering](https://code.claude.com/docs/en/fullscreen). |
@@ -113,6 +114,8 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_RETRY_WATCHDOG` | `"1"` or unset | Keeps retrying transient API failures for long unattended sessions (v2.1.186). As of v2.1.199 also raises the default retry count for non-capacity transient errors to 300 and lifts the `15` cap on `CLAUDE_CODE_MAX_RETRIES` |
 | `CLAUDE_ENABLE_STREAM_WATCHDOG` | `"0"` to disable, unset for default | Streaming idle watchdog — aborts and retries a response stream that produces no events for 5 minutes. **On by default for all providers** as of v2.1.196; set `=0` to disable. Distinct from `CLAUDE_CODE_RETRY_WATCHDOG` (which governs the retry cap, not stream idleness) |
 | `OTEL_LOG_ASSISTANT_RESPONSES` | `"1"` / `"0"` / unset | Adds the model's response text to the `claude_code.assistant_response` OTEL log event. **Redacted unless `=1`; when unset it inherits `OTEL_LOG_USER_PROMPTS`** — so deployments already logging prompt content start logging response content on upgrade. Set `=0` to keep prompts-only (v2.1.193) |
+| `OTEL_LOG_MANAGED_SETTINGS` | `"1"` or unset | Adds redacted settings and digests to the `claude_code.managed_settings_resolved` OTel event, which otherwise carries only the managed-settings sources and policy helper state (v2.1.274) |
+| `MCP_SDK_GENERATION` / `MCP_PROTOCOL_NEGOTIATION` | `"v1"` / `"legacy"` or unset | Opt out of the v2 MCP client and the MCP 2026-07-28 negotiation with direct HTTP servers, which v2.1.274 made the default on every install including Bedrock, Vertex, Foundry, and telemetry-disabled ones |
 | `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP` | `"1"` or unset | Opt out of automatic memory-pressure reaping of idle background shell commands (v2.1.193) |
 | `CLAUDE_CODE_DISABLE_MOUSE` | `"1"` or unset | Disable mouse capture entirely (including wheel scroll) in the fullscreen renderer; the full-disable companion to `CLAUDE_CODE_DISABLE_MOUSE_CLICKS`. Honored in attached background sessions as of v2.1.203 |
 | `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` | `"1"` or unset | Disable mouse click/drag/hover actions while keeping wheel scroll and mouse capture; this does not restore native terminal selection. Use `CLAUDE_CODE_DISABLE_MOUSE=1` to release capture, with wheel scrolling disabled (v2.1.195). |
@@ -681,13 +684,38 @@ Curate the `/model` picker (v2.1.242): an ordered `options` array of `{model, la
 
 Inert since v2.1.261: the prompt's word-editing keys now always match Bash (Ctrl+W deletes back to whitespace, Alt+F and Alt+D stop at word end, punctuation separates words). The key is still accepted so files written for v2.1.238–v2.1.260 keep parsing; remove it at leisure.
 
-### `bashOutputMaxChars` / `taskOutputMaxChars`
+### `bashOutputMaxChars`
 
-How many characters of Bash output or background-task output the model receives inline before the remainder is saved to a file (v2.1.261). Maximum 128000. Raise these when a command's tail is what you need and the file round-trip costs a turn.
+How many characters of Bash output the model receives inline before the remainder is saved to a file (v2.1.261). Maximum 128000. Raise it when a command's tail is what you need and the file round-trip costs a turn. Its sibling `taskOutputMaxChars` stopped doing anything in v2.1.277, when the TaskOutput tool was removed: Claude reads a background task's output file with Read, and `TASK_MAX_OUTPUT_LENGTH` is inert too.
 
 ```json
-{ "bashOutputMaxChars": 64000, "taskOutputMaxChars": 64000 }
+{ "bashOutputMaxChars": 64000 }
 ```
+
+### `syncClaudeAiSkills` / `syncClaudeAiPlugins`
+
+Since v2.1.275 a terminal session signed in with a claude.ai account receives the skills and plugins enabled on that account. Set either to `false` to keep a machine on its local set only. cc-settings does not set them; the installed skill library is local and the account sync adds to it.
+
+```json
+{ "syncClaudeAiSkills": false, "syncClaudeAiPlugins": false }
+```
+
+### `pluginConfigs["agents-md@builtin"]` — project instructions
+
+Since v2.1.277 the built-in `agents-md` plugin reads a project's `AGENTS.md` (and `.claude/AGENTS.md`) as project instructions, framed exactly like a `CLAUDE.md`, whenever the working directory and the directories above it hold no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. `~/.claude/CLAUDE.md`, managed `CLAUDE.md`, and `.claude/rules/` do not count and keep loading alongside. A `Read` under a subdirectory attaches that directory's `AGENTS.md`, and `claudeMdExcludes` patterns apply to these files too. The `/config` row "Project instructions" sets the mode; the settings key (user or managed settings only) is:
+
+```json
+{ "pluginConfigs": { "agents-md@builtin": { "options": { "instructionFiles": "claude-md-or-agents-md" } } } }
+```
+
+| Value | Reads |
+|---|---|
+| `claude-md-or-agents-md` | `CLAUDE.md` files, or `AGENTS.md` files when the project has none (default) |
+| `claude-md-and-agents-md` | Both, each directory's `CLAUDE.md` first; an `AGENTS.md` a `CLAUDE.md` already imports or symlinks is not read twice |
+| `claude-md` | `CLAUDE.md` only, as before v2.1.277 |
+| `managed-only` | Only the organization's managed `CLAUDE.md` and auto memory |
+
+cc-settings leaves the default. An `AGENTS.md` read this way is not listed in `/memory` or `/context` and does not fire `InstructionsLoaded` hooks; the session prints `no CLAUDE.md found; AGENTS.md loaded: <path>` instead. Support is absent on Bedrock, Vertex, and Foundry, with telemetry disabled, under `disableAllHooks` or `allowManagedHooksOnly`, and in the first session after the upgrade; there, keep a one-line `CLAUDE.md` holding `@AGENTS.md`. A project that still has a `CLAUDE.md` gets a hint from the SessionStart banner; `/cc migrate` renames it.
 
 ### `modelPricing`
 
@@ -803,7 +831,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `requiredMinimumVersion` | string | E | Managed: refuse to start if the Claude Code version is below this; pairs with `requiredMaximumVersion` to define an allowed range (v2.1.163) |
 | `respectGitignore` | boolean | G | Honour .gitignore when listing files |
 | `respondToBashCommands` | boolean | G | `!`-prefixed bash output auto-triggers a Claude response (default `true`); set `false` to restore the prior silent-insert behavior (v2.1.186) |
-| `sandbox` | object | G | Sandbox configuration for secure command execution (v2.1.98–2.1.108) |
+| `sandbox` | object | G | Sandbox configuration for secure command execution (v2.1.98–2.1.108). Since v2.1.277 an `excludedCommands` glob exempts a compound Bash command only when every part matches |
 | `showClearContextOnPlanAccept` | boolean | U | Offer context-clear prompt after accepting a plan |
 | `showThinkingSummaries` | boolean | U | Show inline thinking summaries in the conversation |
 | `showTurnDuration` | boolean | U | Show per-turn elapsed time in the TUI |
@@ -820,8 +848,9 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `strictKnownMarketplaces` | string[] | E | Allowlist of marketplace IDs considered trusted |
 | `strictPluginOnlyCustomization` | boolean \| string[] | E | Restrict customization to plugin-provided items; `true` = all categories |
 | `subagentPromptCacheTtl` | `"5m"` \| `"1h"` | G | Prompt-cache lifetime for subagents/workflows/background requests; cc-settings sets `"5m"` (v2.1.242) |
+| `syncClaudeAiPlugins` | boolean | G | `false` stops plugins enabled on the signed-in claude.ai account from syncing into terminal sessions (v2.1.275) |
+| `syncClaudeAiSkills` | boolean | G | `false` stops skills enabled on the signed-in claude.ai account from syncing into terminal sessions (v2.1.275) |
 | `syntaxHighlightingDisabled` | boolean | U | Disable syntax highlighting in code blocks |
-| `taskOutputMaxChars` | integer ≤ 128000 | G | Characters of background-task output the model receives inline before the rest is saved to a file (v2.1.261) |
 | `teammateMode` | `"auto"` \| `"in-process"` \| `"tmux"` | G | Agent Teams coordination mode |
 | `terminalProgressBarEnabled` | boolean | U | Show a progress bar for long-running operations |
 | `timeFormat` | `"12h"` \| `"24h"` \| `"24h-utc"` \| strftime | U | Clock format for the turn-end clock and transcript timestamps (v2.1.257) |
@@ -877,7 +906,7 @@ Patterns follow the format `ToolName(argument-pattern)`:
 | `Bash(rm -rf node_modules)` | Exact command `rm -rf node_modules` only |
 | `Read(*)` | Reading any file |
 | `Read(~/.ssh/*)` | Reading files in `~/.ssh/` directory |
-| `Edit(~/.claude/settings.json)` | Writing to that specific file (as of v2.1.210, `Edit(path)` rules also govern the Write and NotebookEdit tools; `Write(path)`/`NotebookEdit(path)`/`Glob(path)` rules trigger a startup warning) |
+| `Edit(~/.claude/settings.json)` | Writing to that specific file (as of v2.1.210, `Edit(path)` rules also govern the Write and NotebookEdit tools; `Write(path)`/`NotebookEdit(path)`/`Glob(path)` rules trigger a startup warning). `/update-config` writes `Edit(path)` rules since v2.1.275; it wrote `Write(path)` before, which the file checks never matched) |
 | `Bash(curl * \| bash)` | Any curl-to-bash pipe pattern |
 | `Bash(sudo:*)` | Any command starting with `sudo` |
 | `Agent(model:opus)` | Match a tool's input *parameter* — here, block Opus subagents (v2.1.178) |

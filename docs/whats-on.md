@@ -56,8 +56,10 @@ only — it doesn't merge or resolve full precedence).
    main conversation (subagents run their own system prompt) and needs
    `/clear` or a new session to take effect.
 2. **Always-on instructions** — `CLAUDE.md` (genuinely always injected, every
-   turn) vs. `AGENTS.md` (present but NOT auto-loaded by Claude Code —
-   `CLAUDE.md` merely *instructs* the model to read it) vs. `rules/`, split
+   turn) vs. `AGENTS.md` (loaded through the `@AGENTS.md` import at the top
+   of `CLAUDE.md`, so also every turn; Claude Code's own AGENTS.md read since
+   2.1.277 is per project and only where the project has no `CLAUDE.md`, and
+   it never reads `~/.claude/AGENTS.md` on its own) vs. `rules/`, split
    into always-on rule files (no `paths:` frontmatter key — injected every
    turn, same as `CLAUDE.md`) and path-conditioned ones (has `paths:` — only
    loaded when a matching file is in play). Always-on rule files are named,

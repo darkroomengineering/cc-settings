@@ -222,6 +222,13 @@ Say "update cc-settings" for `cc` update mode. It validates the installed source
 and refreshes the selected product. Maintainers can say "sync with Claude Code upstream" for the
 separate repository-maintenance mode.
 
+### Move a project's CLAUDE.md into AGENTS.md
+
+Since Claude Code 2.1.277 a project with no `CLAUDE.md` gets its `AGENTS.md` read as project
+instructions, and Codex and Cursor already read that file. When a project still has a `CLAUDE.md`,
+the session banner says so; say "migrate to agents.md" for `cc` migrate mode, which shows a rename
+or merge plan, applies it after approval, and tells you how to verify the native read.
+
 The installer's macOS auto-update option, schedule, trust boundary, disable command, and rollback
 behavior live in [installation](./docs/install.md) and [security](./SECURITY.md).
 

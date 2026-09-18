@@ -253,11 +253,12 @@ describe("gatherWhatsOn — always-on instructions", () => {
   // Finding 3(a): AGENTS.md is not auto-loaded by Claude Code — CLAUDE.md only
   // instructs the model to read it. The report must not describe it as
   // injected every turn the way CLAUDE.md genuinely is.
-  test("AGENTS.md is NOT described as always-injected", async () => {
+  test("AGENTS.md is NOT described as always-injected without the import", async () => {
     const claude = await makeTmpDir();
     const home = await makeTmpDir();
     try {
       await writeFile(join(claude, "AGENTS.md"), "# standards");
+      await writeFile(join(claude, "CLAUDE.md"), "Read `AGENTS.md` for standards.");
 
       const data = await gatherWhatsOn(installPaths(claude, home));
       const report = formatWhatsOn(data);
@@ -266,6 +267,25 @@ describe("gatherWhatsOn — always-on instructions", () => {
       expect(agentsLine).toBeDefined();
       expect(agentsLine).toContain("NOT auto-loaded");
       expect(agentsLine).not.toContain("always injected, every turn");
+    } finally {
+      await cleanup(claude, home);
+    }
+  });
+
+  test("AGENTS.md is reported as imported when CLAUDE.md carries @AGENTS.md", async () => {
+    const claude = await makeTmpDir();
+    const home = await makeTmpDir();
+    try {
+      await writeFile(join(claude, "AGENTS.md"), "# standards");
+      await writeFile(join(claude, "CLAUDE.md"), "# Claude\n\n@AGENTS.md\n\nClaude-only rules.\n");
+
+      const data = await gatherWhatsOn(installPaths(claude, home));
+      expect(data.alwaysOn.agentsMdImported).toBe(true);
+      const agentsLine = formatWhatsOn(data)
+        .split("\n")
+        .find((l) => l.trim().startsWith("AGENTS.md:"));
+      expect(agentsLine).toContain("imported by CLAUDE.md");
+      expect(agentsLine).not.toContain("NOT auto-loaded");
     } finally {
       await cleanup(claude, home);
     }

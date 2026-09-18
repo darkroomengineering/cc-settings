@@ -4,6 +4,34 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.24.0] — 2026-09-18
+
+Sync with Claude Code v2.1.277 and Codex v0.155.1, and move the standards file onto the path Claude Code now reads.
+
+**AGENTS.md is now the file, not a pointer.** Claude Code 2.1.277 reads a project's `AGENTS.md` as project instructions whenever the project has no `CLAUDE.md` (built-in `agents-md` mod; `/config` → Project instructions; `pluginConfigs["agents-md@builtin"].options.instructionFiles`). It has no user-level fallback, so `~/.claude/CLAUDE.md` stays, but it now `@`-imports `AGENTS.md` instead of asking the model to read it, which the upstream docs single out as the pattern to replace: the ~4K-token standards file loads every turn, in subagents too, where before it loaded only when the model chose to open it. The repo's own `CLAUDE.md` moved to `.claude/AGENTS.md` (root `AGENTS.md` is an installed artifact), `.claude/` is un-ignored so that file, `.claude/settings.json`, and the pre-commit hook are tracked, the SessionStart banner prints a hint when a project still has a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`, and `/cc migrate` renames or merges it after showing the plan. `whats-on` now checks the installed `CLAUDE.md` for the import and reports the truth either way.
+
+**Adopted:**
+- `syncClaudeAiSkills` / `syncClaudeAiPlugins` (2.1.275) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`: `false` keeps a machine off the claude.ai account sync. Not set; per-user.
+- `CLAUDE_CODE_MCP_STARTUP_WAIT_MS` and `OTEL_LOG_MANAGED_SETTINGS` (2.1.274) tracked in the manifest and env table, with the `MCP_SDK_GENERATION` / `MCP_PROTOCOL_NEGOTIATION` opt-outs now that the v2 MCP client is the default on every install (2.1.274). The startup-wait knob matters for `claude -p` scripts whose first turn must not block on a slow server.
+- `enabledPlugins` and `pluginConfigs` added to the manifest's `knownSettingsKeys`; the schema has declared them since 15.x and the scanner flagged the gap.
+- `docs/settings-reference.md` gains the Project instructions section (modes, what does and does not count as a `CLAUDE.md`, nested `AGENTS.md` on `Read`, `claudeMdExcludes` applying, where support is absent), the `/update-config` `Edit(path)` note (2.1.275), and the `sandbox.excludedCommands` every-part rule (2.1.277). `docs/hooks-reference.md` notes `/plugin install --marketplace` (2.1.275). `CLAUDE-FULL.md` says subagent results arrive under a marked, indented header (2.1.277). `docs/codex.md` notes Codex 0.155.1 leaves reasoning summaries off by default.
+
+**Deletions / Native-now-redundant:**
+- `taskOutputMaxChars` (schema, manifest, docs) and the `TaskOutput` tool (manifest `knownBuiltinTools`): 2.1.277 removed the tool, Claude reads a background task's output file with Read, and `TASK_MAX_OUTPUT_LENGTH` is inert. `bashOutputMaxChars` stays.
+
+**Skipped:** Claude apps gateway items, `"type": "sdk"` MCP entries (never in our schema), `/code-review` inline prompts, VSCode, web, Claude Tag, Code Review, Windows, Bedrock/Vertex/Foundry; on the Codex side `/voice`, Touch ID for MCP, the agents overview, daemon update schedules, Bedrock credentials, memory v2, and Guardian internals touch no installer surface.
+
+**Follow-up, not started:** `anthropics/claude-code/mods/` publishes the four built-in plugins as function-hook modules (`register(on, options)` on engine events such as `prompt.context` and `session.start`, tested with `claude plugin test`). cc-settings' SessionStart scripts and the statusline could become one such mod and read the instruction files the engine actually loaded instead of inferring them.
+
+**Files changed:**
+- `.claude/AGENTS.md` (was `CLAUDE.md`), `.claude/settings.json`, `.claude/hooks/pre-commit-invariants.ts`, `.gitignore`
+- `CLAUDE-FULL.md`, `MANUAL.md`, `docs/settings-reference.md`, `docs/hooks-reference.md`, `docs/codex.md`, `docs/whats-on.md`
+- `skills/cc/SKILL.md`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `src/lib/project-awareness.ts`, `src/scripts/whats-on.ts`, `tests/whats-on.test.ts`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `CHANGELOG.md`
+
 ## [15.23.0] — 2026-09-18
 
 - **The delegation detector asks Jev instead of matching regexes, when a TypeSafe key is set.** `src/hooks/delegation-detector.ts` sends the incoming prompt to TypeSafe's Jev model with one statement (would this touch 3+ files, need 12+ tool calls, or run several workstreams) and fires the advisory at probability ≥ 0.7. Measured on 1,102 real prompts from this machine's transcripts, judged against what the turn actually did (3+ files or 12+ tool calls): the regex fired 21 times with 10 correct; Jev at 0.7 fired 83 times with 53 correct. Latency p50 321 ms, p95 419 ms, under the hook's 3 s timeout; the whole replay cost $0.018. The prompt text leaves the machine for this call, which makes this the only cc-settings hook that sends prompt text anywhere; without a key, or on any failure or 2 s timeout, the regex score decides exactly as before. Recall stays low at every threshold because most big turns start from prompts that read small, so this is a better detector, not a complete one.

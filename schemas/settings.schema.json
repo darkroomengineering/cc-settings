@@ -133,11 +133,6 @@
       "exclusiveMinimum": 0,
       "maximum": 128000
     },
-    "taskOutputMaxChars": {
-      "type": "integer",
-      "exclusiveMinimum": 0,
-      "maximum": 128000
-    },
     "showThinkingSummaries": {
       "type": "boolean"
     },
@@ -1469,6 +1464,12 @@
       ]
     },
     "enableAllProjectMcpServers": {
+      "type": "boolean"
+    },
+    "syncClaudeAiSkills": {
+      "type": "boolean"
+    },
+    "syncClaudeAiPlugins": {
       "type": "boolean"
     },
     "enabledPlugins": {

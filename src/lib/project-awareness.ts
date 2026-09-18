@@ -44,9 +44,17 @@ export async function projectAwareness(cwd: string): Promise<string[]> {
     localClaudeSubdirs(root),
   ]);
 
+  const hasAgentsMd =
+    existsSync(join(root, "AGENTS.md")) || existsSync(join(root, ".claude", "AGENTS.md"));
+  // Any of these three makes Claude Code (2.1.277+) skip the project's
+  // AGENTS.md; ~/.claude/CLAUDE.md and .claude/rules/ do not count.
+  const claudeMdFiles = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"].filter((rel) =>
+    existsSync(join(root, rel)),
+  );
+
   const standards: string[] = [];
-  standards.push(`AGENTS.md ${existsSync(join(root, "AGENTS.md")) ? "✓" : "✗"}`);
-  standards.push(`CLAUDE.md ${existsSync(join(root, "CLAUDE.md")) ? "✓" : "✗"}`);
+  standards.push(`AGENTS.md ${hasAgentsMd ? "✓" : "✗"}`);
+  standards.push(`CLAUDE.md ${claudeMdFiles.length > 0 ? "✓" : "✗"}`);
   if (rulesCount > 0) standards.push(`rules/ (${rulesCount})`);
   if (localSubdirs.length > 0) standards.push(`.claude/{${localSubdirs.join(",")}}`);
 
@@ -56,6 +64,14 @@ export async function projectAwareness(cwd: string): Promise<string[]> {
   lines.push("------------------------------------");
   if (branch) lines.push(`Branch: ${branch}`);
   lines.push(`Standards: ${standards.join(" · ")}`);
+  if (claudeMdFiles.length > 0) {
+    lines.push(
+      `${claudeMdFiles.join(", ")} keeps Claude Code from reading this project's AGENTS.md ` +
+        `(2.1.277+ reads it natively only when no CLAUDE.md exists). ` +
+        `Run /cc migrate to ${hasAgentsMd ? "merge it into" : "rename it to"} AGENTS.md, ` +
+        "which Codex and Cursor read too.",
+    );
+  }
   if (log) {
     lines.push("Recent commits:");
     for (const l of log.split("\n")) lines.push(`  ${l}`);

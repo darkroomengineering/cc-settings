@@ -63,6 +63,11 @@ export interface RulesInfo {
 export interface AlwaysOnInfo {
   claudeMd: AlwaysOnFileInfo;
   agentsMd: AlwaysOnFileInfo;
+  /** Whether CLAUDE.md carries an `@AGENTS.md` import line. Claude Code has
+   *  no user-level AGENTS.md fallback (its 2.1.277 native read is per
+   *  project, and only where the project has no CLAUDE.md), so the import is
+   *  the only thing that makes ~/.claude/AGENTS.md load every turn. */
+  agentsMdImported: boolean;
   rules: RulesInfo;
 }
 
@@ -251,13 +256,24 @@ async function gatherRules(claudeDir: string): Promise<RulesInfo> {
   return { alwaysOnCount, pathConditionedCount, alwaysOnNames };
 }
 
+async function importsAgentsMd(claudeMdPath: string): Promise<boolean> {
+  try {
+    const text = await readFile(claudeMdPath, "utf8");
+    return /^@(?:~\/\.claude\/)?AGENTS\.md\s*$/m.test(text);
+  } catch {
+    return false;
+  }
+}
+
 async function gatherAlwaysOn(claudeDir: string): Promise<AlwaysOnInfo> {
-  const [claudeMd, agentsMd, rules] = await Promise.all([
-    fileInfo(join(claudeDir, "CLAUDE.md")),
+  const claudeMdPath = join(claudeDir, "CLAUDE.md");
+  const [claudeMd, agentsMd, agentsMdImported, rules] = await Promise.all([
+    fileInfo(claudeMdPath),
     fileInfo(join(claudeDir, "AGENTS.md")),
+    importsAgentsMd(claudeMdPath),
     gatherRules(claudeDir),
   ]);
-  return { claudeMd, agentsMd, rules };
+  return { claudeMd, agentsMd, agentsMdImported, rules };
 }
 
 function gatherModelEffort(
@@ -416,8 +432,11 @@ export function formatWhatsOn(data: WhatsOnData): string {
   );
   lines.push(
     `  AGENTS.md: ${data.alwaysOn.agentsMd.present ? `present, ${data.alwaysOn.agentsMd.bytes} bytes` : "absent"} — ` +
-      "NOT auto-loaded by Claude Code. CLAUDE.md merely instructs the model to read it; it's only " +
-      "in effect when that instruction is followed, not injected every turn on its own.",
+      (data.alwaysOn.agentsMdImported
+        ? "imported by CLAUDE.md (@AGENTS.md), so injected every turn with it."
+        : "NOT auto-loaded: CLAUDE.md has no @AGENTS.md import, and Claude Code never reads a " +
+          "user-level AGENTS.md on its own (its 2.1.277 native read is per project, and only " +
+          "where the project has no CLAUDE.md)."),
   );
   lines.push(
     `  rules/: ${data.alwaysOn.rules.alwaysOnCount} always-on (no \`paths:\` frontmatter — ` +

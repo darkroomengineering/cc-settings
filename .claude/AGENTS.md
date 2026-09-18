@@ -2,6 +2,11 @@
 
 Darkroom Engineering Claude Code configuration repository.
 
+This file is the repo's own project instructions. It lives at
+`.claude/AGENTS.md` because the root `AGENTS.md` is an installed artifact, not
+a place for repo notes. Claude Code 2.1.277+ reads both natively when a
+project has no `CLAUDE.md`; Codex reads only the root file.
+
 ## Important
 
 This repo contains two config files installed globally:
@@ -12,8 +17,8 @@ The `AGENTS.md` file is the source of truth for coding standards and guardrails.
 It works across all AI coding tools (Codex, Cursor, Copilot, Windsurf, etc.).
 
 `CLAUDE-FULL.md` contains only Claude-Code-specific settings (edit strategy,
-delegation guidance, model config, profiles, hooks). It points to AGENTS.md
-for standards.
+delegation guidance, model config, profiles, hooks). It `@`-imports AGENTS.md,
+so the standards load every turn.
 
 ## About This Repo
 

@@ -226,10 +226,11 @@ export const Settings = z.looseObject({
   spinnerTipsOverride: SpinnerTipsOverride.optional(), // 2.1.122; tips/tipsFile/label 2.1.247
   keybindingFlavor: z.enum(["classic", "readline"]).optional(), // 2.1.238–2.1.260; inert since 2.1.261 (word-editing keys always match Bash now). Kept so older files still parse
   statusLine: StatusLine.optional(),
-  // 2.1.261 — how many characters of Bash / background-task output reach the
-  // model inline before the rest is saved to a file. Max 128K.
+  // 2.1.261 — how many characters of Bash output reach the model inline
+  // before the rest is saved to a file. Max 128K. (taskOutputMaxChars went
+  // with the TaskOutput tool in 2.1.277; background-task output is read
+  // from its file with Read.)
   bashOutputMaxChars: z.number().int().positive().max(128_000).optional(),
-  taskOutputMaxChars: z.number().int().positive().max(128_000).optional(),
   showThinkingSummaries: z.boolean().optional(),
   emojiCompletionEnabled: z.boolean().optional(), // 2.1.217 — emoji shortcode autocomplete in the prompt input (`:heart:` → ❤️)
 
@@ -354,6 +355,10 @@ export const Settings = z.looseObject({
   claudeMdExcludes: z.array(z.string()).optional(), // glob patterns for CLAUDE.md files to exclude
   defaultShell: z.enum(["bash", "powershell"]).optional(), // shell used by the Bash tool
   enableAllProjectMcpServers: z.boolean().optional(), // auto-enable every server listed in .mcp.json
+  // 2.1.275 — skills and plugins enabled on the signed-in claude.ai account
+  // sync into terminal sessions; `false` opts a machine out of either.
+  syncClaudeAiSkills: z.boolean().optional(),
+  syncClaudeAiPlugins: z.boolean().optional(),
   // Plugin enablement/config. enabledPlugins keys are "<plugin>@<marketplace>";
   // pluginConfigs mirrors the same keys with each plugin's userConfig values
   // under `options` (also settable via `claude plugin install <id> --config

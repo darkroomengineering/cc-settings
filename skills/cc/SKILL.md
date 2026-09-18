@@ -1,14 +1,15 @@
 ---
 name: cc
-argument-hint: "[sync|update]"
-description: Sync cc-settings with Claude Code and Codex upstreams (maintainer) or update a local install of either (user). Triggers "sync with claude code", "changelog sync", "update cc-settings", "refresh my install".
+argument-hint: "[sync|update|migrate]"
+description: Sync cc-settings with Claude Code and Codex upstreams, update a local install, or migrate a project's CLAUDE.md to AGENTS.md. Triggers "sync with claude code", "update cc-settings", "migrate to agents.md".
 ---
 
 # cc — cc-settings management
 
-Two-mode skill: **sync** keeps the repo current with the Claude Code and Codex
-CLI upstreams (maintainer task); **update** refreshes the active Claude Code,
-Codex, or combined local install (everyone).
+Three-mode skill: **sync** keeps the repo current with the Claude Code and
+Codex CLI upstreams (maintainer task); **update** refreshes the active Claude
+Code, Codex, or combined local install (everyone); **migrate** moves a
+project's `CLAUDE.md` into `AGENTS.md` so every coding agent reads one file.
 
 ## Mode: sync
 
@@ -406,3 +407,82 @@ bash "$CC_REPO/setup.sh" --target=both --rollback    # explicit combined install
 To install an older release, check out that release in the real working repo
 first, then run `setup.sh` with the selected target. Never modify or pull the
 Codex runtime copy directly.
+
+---
+
+## Mode: migrate
+
+Move a project's `CLAUDE.md` into `AGENTS.md`. Since Claude Code 2.1.277 a
+project with no `CLAUDE.md` gets its `AGENTS.md` read natively as project
+instructions, framed exactly like a `CLAUDE.md`, with `.claude/rules/` still
+loading alongside. Codex, Cursor, and Copilot already read `AGENTS.md`. Keeping
+a `CLAUDE.md` around means Claude Code ignores the `AGENTS.md` and the two
+files drift. The SessionStart banner prints a one-line hint whenever a
+`CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` exists in the project
+root; this mode is the action behind that hint.
+
+Run it from the project root. It touches only that project's files, never
+`~/.claude/CLAUDE.md`, which has no AGENTS.md fallback and stays as installed.
+
+### Phase 1 — Inventory
+
+```bash
+git rev-parse --show-toplevel
+for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md AGENTS.md .claude/AGENTS.md; do
+  [ -f "$f" ] && printf '%s\t%s bytes\n' "$f" "$(wc -c < "$f")"
+done
+grep -n '^@' CLAUDE.md .claude/CLAUDE.md 2>/dev/null
+```
+
+Read every file found. Then classify:
+
+- **Rename** — a `CLAUDE.md` and no `AGENTS.md`. The whole file moves.
+- **Merge** — both exist. Read both; the content that is only in `CLAUDE.md`
+  goes into `AGENTS.md` under a heading that names its topic (never a heading
+  called "From CLAUDE.md"), duplicated guidance is dropped, and a conflict is
+  listed for the user instead of resolved silently.
+- **Already imported** — `CLAUDE.md` is only an `@AGENTS.md` line (plus blank
+  lines). Delete it; the import was the pre-2.1.277 workaround.
+- **Leave** — `CLAUDE.local.md` is personal and uncommitted. Report it, do not
+  move it, and say that its presence alone blocks the native read; the user
+  can set Project instructions to `claude-md-and-agents-md` in `/config` or
+  fold the file into their own notes.
+
+Claude-only content (output style, `/effort`, hook, or subagent notes) still
+goes to `AGENTS.md`: other agents ignore what they do not understand, and one
+file is the point. Only when the user objects, keep a `CLAUDE.md` holding
+`@AGENTS.md` followed by the Claude-only lines.
+
+### Phase 2 — Show the plan and stop
+
+Print the classification, the target file, the byte counts, and, for a merge,
+the sections that will move and any conflicts. Wait for approval. Do not edit
+before it.
+
+### Phase 3 — Apply
+
+```bash
+git mv CLAUDE.md AGENTS.md            # rename case
+# merge case: edit AGENTS.md, then
+git rm CLAUDE.md
+# .claude/CLAUDE.md follows the same two paths into .claude/AGENTS.md
+```
+
+Then fix references: `grep -rn 'CLAUDE\.md' --include='*.md' --include='*.json'
+--include='*.ts' --include='*.yml' .` excluding `node_modules`. Update paths
+that pointed at the moved file (README setup notes, CI steps that cat it,
+`claudeMdExcludes` patterns). Leave mentions of `~/.claude/CLAUDE.md` alone.
+
+### Phase 4 — Verify
+
+Start a new Claude Code session in the project (or `claude -p 'what are your
+project instructions?'`) and look for the line
+`no CLAUDE.md found; AGENTS.md loaded: <path>`. `/memory` and `/context` do not
+list an `AGENTS.md` read this way, so that line is the check. If the line is
+missing, the session is one that cannot load `AGENTS.md` (Bedrock, telemetry
+off, `disableAllHooks`, or the first session after the upgrade); say so and
+offer the one-line `CLAUDE.md` that holds `@AGENTS.md` as the fallback.
+
+Commit as `chore: move CLAUDE.md into AGENTS.md` on the project's usual branch
+flow (cc-settings pushes to main; client projects open a PR through `/ship`).
+

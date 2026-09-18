@@ -1,8 +1,13 @@
 .DS_Store
 .venv/
 .tldr/
+# .claude/ is tracked (AGENTS.md, settings.json, hooks/); the negation beats a
+# global gitignore that excludes the directory. Private state stays out.
+!.claude/
 .claude/agent-memory/
 .claude/settings.local.json
+.claude/settings.local.json.bak-*
+.claude/worktrees/
 hooks-config.local.json
 plans/
 node_modules/

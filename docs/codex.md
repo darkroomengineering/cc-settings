@@ -193,6 +193,11 @@ repository-level `AGENTS.md` for Codex:
 - If the task includes running the result and fixing what fails, say so; otherwise Astra returns
   after the first implementation.
 
+Codex 0.155.1 leaves reasoning summaries off by default in new local TUI
+sessions; cc-settings sets no `model_reasoning_summary`, so an install inherits
+that default. Turn it on per session if you want the summaries in the status
+row (0.155.0 added them there).
+
 ## Light profile
 
 Codex light is intentionally different from Claude light.

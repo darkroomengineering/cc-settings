@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-09-16T00:00:00.000Z",
-  "codexVersion": "0.154.0",
+  "lastScan": "2026-09-18T00:00:00.000Z",
+  "codexVersion": "0.155.1",
   "knownConfigSurfaces": [
     "AGENTS.md managed block ($CODEX_HOME/AGENTS.md)",
     "agents/*.toml: name, description, developer_instructions, model, model_reasoning_effort, sandbox_mode",
@@ -16,6 +16,7 @@
   "notes": [
     "codexVersion is the latest stable @openai/codex npm version this repo was last triaged against. bun run upstream:scan diffs it against the live npm version; a Codex stable release is tagged rust-v<X> on github.com/openai/codex and its notes come from `gh release view rust-v<X> -R openai/codex --json body`. Alpha and Python SDK tags are not tracked.",
     "knownConfigSurfaces is reference-only. cc-settings has no zod schema for config.toml, agents/*.toml, or .rules files, so the scanner cannot diff this list against code; it exists so /cc sync knows which Codex surfaces to cross-reference when a release note names one. Update it by hand when the installer starts writing or reading a new Codex surface.",
-    "Baseline 2026-09-16 at 0.154.0 (GPT-6-Astra in the model picker, --worktree, codex mcp-server entry point removed). Every earlier Codex adaptation was landed without an upstream manifest: the 15.9.0 bridge pin, 15.10.0 skill-description narrowing, and 15.14.0 skill-budget report all cite codex-cli versions in their CHANGELOG entries instead."
+    "Baseline 2026-09-16 at 0.154.0 (GPT-6-Astra in the model picker, --worktree, codex mcp-server entry point removed). Every earlier Codex adaptation was landed without an upstream manifest: the 15.9.0 bridge pin, 15.10.0 skill-description narrowing, and 15.14.0 skill-budget report all cite codex-cli versions in their CHANGELOG entries instead.",
+    "0.155.0\u20130.155.1 sync (2026-09-18). Nothing to adopt: /voice, Touch ID for MCP, agents overview archive/delete, daemon update schedules, Bedrock credential commands, memory v2, and Guardian internals touch no surface in knownConfigSurfaces; #44349 (forked sessions distinguished in session-start hooks) is moot because hooks/hooks.json wires no SessionStart hook on the Codex side. Docs only: 0.155.1 restores `none` as the TUI reasoning-summary default; cc-settings sets no model_reasoning_summary (docs/codex.md)."
   ]
 }

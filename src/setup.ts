@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.23.0"; // The delegation detector asks Jev (threshold 0.7) when a TypeSafe key is set; regex fallback unchanged.
+const VERSION = "15.24.0"; // Sync with Claude Code 2.1.277 and Codex 0.155.1; AGENTS.md is imported by CLAUDE.md and /cc migrate moves a project CLAUDE.md into AGENTS.md.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

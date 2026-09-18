@@ -31,7 +31,7 @@ What it buys: native compaction is a summary, and summaries lose file paths, err
 
 Limits: the scoring is probabilistic, only tool calls and results are ever removed, the function-hooks surface is early access, and the plugin falls back to native compaction without a key, on a Jev error, or when it finds too little to prune.
 
-Change either plugin's options with `/plugin configure`, `claude plugin install <plugin>@<marketplace> --config key=value`, or by editing `pluginConfigs` in `config/10-core.json` (rerun `bash setup.sh` to apply).
+Change either plugin's options with `/plugin configure`, `claude plugin install <plugin>@<marketplace> --config key=value` (add `--marketplace <source>` to have it offer to add a marketplace that is not registered yet, v2.1.275), or by editing `pluginConfigs` in `config/10-core.json` (rerun `bash setup.sh` to apply).
 
 This surface may change between Claude Code releases without notice — regenerate `plugins/compaction-trigger/types/claude-code.d.ts` with `/plugin-types` and re-audit `plugins/compaction-trigger/hooks/trigger.ts` after a Claude Code upgrade that touches it.
 
