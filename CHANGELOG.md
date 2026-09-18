@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.23.0] — 2026-09-18
+
+- **The delegation detector asks Jev instead of matching regexes, when a TypeSafe key is set.** `src/hooks/delegation-detector.ts` sends the incoming prompt to TypeSafe's Jev model with one statement (would this touch 3+ files, need 12+ tool calls, or run several workstreams) and fires the advisory at probability ≥ 0.7. Measured on 1,102 real prompts from this machine's transcripts, judged against what the turn actually did (3+ files or 12+ tool calls): the regex fired 21 times with 10 correct; Jev at 0.7 fired 83 times with 53 correct. Latency p50 321 ms, p95 419 ms, under the hook's 3 s timeout; the whole replay cost $0.018. The prompt text leaves the machine for this call, which makes this the only cc-settings hook that sends prompt text anywhere; without a key, or on any failure or 2 s timeout, the regex score decides exactly as before. Recall stays low at every threshold because most big turns start from prompts that read small, so this is a better detector, not a complete one.
+- `src/lib/jev.ts` is a small shared client (`typesafeKey()`, `jevNoul()`): key from the process env or the settings `env` block, one `noul` question, null on any failure. `TYPESAFE_ENDPOINT` overrides the API URL for tests.
+- The delegation "fired" telemetry line gains an optional `jev` probability next to the integer `score`; still no prompt text.
+- Managed-file manifests bump (Claude 10 → 11, Codex runtime 8 → 9) so `src/lib/jev.ts` reaches existing installs on the next `setup.sh`; earlier versions keep reporting exactly the files they own.
+- Files changed: `src/hooks/delegation-detector.ts`, `src/lib/jev.ts`, `src/lib/escalate-telemetry.ts`, `src/lib/install-source-inventory.ts`, `src/lib/claude-managed-file-manifests.ts`, `src/lib/codex-runtime-manifests.ts`, `tests/install-e2e.test.ts`, `tests/delegation-detector.test.ts`, `docs/hooks-reference.md`, four version sites.
+
 ## [15.22.2] — 2026-09-18
 
 - **`/qa` and `/lighthouse` work with `chrome-devtools` or `aside-devtools`, and no longer warn when neither is registered.** Both names run the same package, so the skills list both tool prefixes in `allowed-tools` and tell the model to use whichever is present. Without either, `/qa` reviews the code and asks for a screenshot; `/lighthouse` runs the CLI loop without screenshots. The installer's "missing MCP: chrome-devtools" warning for these two skills is gone.

@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.22.2"; // /qa and /lighthouse accept either DevTools MCP server and run without one; skill prerequisites can be any-of and optional.
+const VERSION = "15.23.0"; // The delegation detector asks Jev (threshold 0.7) when a TypeSafe key is set; regex fallback unchanged.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

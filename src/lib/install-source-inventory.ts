@@ -67,6 +67,7 @@ export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/lib/install-lock.ts",
   "src/lib/install-source-inventory.ts",
   "src/lib/install-types.ts",
+  "src/lib/jev.ts",
   "src/lib/json-io.ts",
   "src/lib/knowledge-hint.ts",
   "src/lib/knowledge-index.ts",

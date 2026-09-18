@@ -118,6 +118,9 @@ export interface DelegationFiredEvent {
   /** The breadth score that crossed delegation-detector's threshold.
    *  Integer only — never the matched phrase or prompt text. */
   score: number;
+  /** Jev's delegation probability when it decided the fire (15.23.0+);
+   *  absent when the regex decided. */
+  jev?: number;
 }
 
 export interface DelegationActedEvent {
@@ -159,6 +162,7 @@ export function buildDelegationFiredEvent(params: {
   session: string;
   at: number;
   score: number;
+  jev?: number;
 }): DelegationFiredEvent {
   return { kind: "fired", advisory: "delegation", ...params };
 }
