@@ -219,8 +219,8 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `matcher` | string | -- | Filter which tools/events trigger the hook (see Matcher Patterns below) |
-| `if` | string | -- | Conditional filter using permission rule syntax (e.g., `"Bash(git commit*)"`, `"Bash(bun add*) Bash(npm install*)"`) — more precise than `matcher` for command-level filtering |
 | `hooks` | list | (required) | Array of hook actions to execute |
+| `if` (on each hook action) | string | -- | Conditional filter using permission rule syntax (e.g., `"Bash(git commit*)"`, `"Bash(bun add*) Bash(npm install*)"`). Lives on the action object next to `command`, not on the group: Claude Code ignores a group-level `if`, and `claude plugin` commands strip it when they rewrite settings.json |
 
 **`if` vs `matcher`**: Use `matcher` to filter by tool name (`"Bash"`, `"Edit"`, `"Write|Edit"`). Use `if` to filter by specific command patterns within a tool, avoiding the need for shell-script grep matching. Space-separated patterns are OR'd together.
 

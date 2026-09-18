@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.21.2] — 2026-09-18
+
+- Hook `if` filters now live on each hook action instead of the matcher group. Claude Code only evaluates `if` on the action object, so the group-level filters on the pre-commit, pre-PR, pre-push, and package-install hooks were never applied (the scripts self-gate, so behavior was unchanged, but each spawned on every Bash call). Worse, `claude plugin marketplace add` and `claude plugin install` rewrite settings.json without the unknown group key, which the installer runs after fingerprinting the hooks block, so every session since 15.21.0 started with a hooks-fingerprint mismatch warning. Reproduced on Claude Code 2.1.276 with an isolated `CLAUDE_CONFIG_DIR`. Re-run `setup.sh` to clear the warning.
+
+**Files changed:** config/40-hooks.json, src/schemas/hooks.ts, src/scripts/pre-commit-tsc.ts, docs/hooks-reference.md, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
 ## [15.21.1] — 2026-09-18
 
 - The TypeSafe key prompt now hides input. The 15.21.0 prompt let readline run the terminal in its own raw mode, where readline echoes keystrokes itself and `stty -echo` has no effect, so the key appeared on screen. The prompt now reads a plain line with echo off; Ctrl+C still skips.

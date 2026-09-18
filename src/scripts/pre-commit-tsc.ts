@@ -13,11 +13,11 @@ import { existsSync } from "node:fs";
 import { runTsc } from "../lib/tsc.ts";
 
 async function main(): Promise<number> {
-  // Self-gate: only run on `git commit` Bash invocations. The group-level
-  // `if: "Bash(git commit*)"` filter in settings.json isn't reliably applied by
-  // Claude Code 2.1.118 (fires on every tool call including ToolSearch), so we
-  // re-check here. Matches the pattern used by safety-net.ts and
-  // check-docs-before-install.ts.
+  // Self-gate: only run on `git commit` Bash invocations. The handler-level
+  // `if: "Bash(git commit*)"` filter in settings.json should stop other calls,
+  // but 15.21.1 and earlier placed `if` on the group, where Claude Code ignores
+  // it and `claude plugin` rewrites strip it, so we re-check here. Matches
+  // the pattern used by safety-net.ts and check-docs-before-install.ts.
   const cmd = process.env.TOOL_INPUT_command ?? "";
   if (!/(^|[;&|\s])git\s+commit\b/.test(cmd)) return 0;
 

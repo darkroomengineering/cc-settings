@@ -52,7 +52,7 @@ export type HookEvent = z.infer<typeof HookEvent>;
 // --- Hook entry (discriminated union on `type`) --------------------------
 
 const HookCommon = {
-  if: z.string().optional(), // permission-rule syntax; PreToolUse/PostToolUse/PermissionRequest
+  if: z.string().optional(), // permission-rule syntax; the documented location (tool events only). config/40-hooks.json uses this.
   timeout: z.number().int().positive().optional(),
   async: z.boolean().optional(),
   statusMessage: z.string().optional(),
@@ -115,7 +115,7 @@ export type Hook = z.infer<typeof Hook>;
 
 export const HookGroup = z.object({
   matcher: z.string().optional(),
-  if: z.string().optional(), // rule syntax at the group level (current settings.json uses this)
+  if: z.string().optional(), // legacy group-level placement: Claude Code never evaluated it and `claude plugin` rewrites strip it (15.21.2); kept so old installs still parse
   hooks: z.array(Hook).min(1),
 });
 export type HookGroup = z.infer<typeof HookGroup>;

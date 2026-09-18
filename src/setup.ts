@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.21.1"; // Key prompt hides input for real; installer refreshes the cc-settings marketplace before installing.
+const VERSION = "15.21.2"; // Hook `if` filters move onto the handler object so Claude Code honors them and `claude plugin` rewrites keep them.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

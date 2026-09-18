@@ -64,14 +64,15 @@
 			},
 			{
 				"matcher": "Bash",
-				"if": "Bash(git commit*)",
 				"hooks": [
 					{
 						"type": "command",
+						"if": "Bash(git commit*)",
 						"command": "bun \"$HOME/.claude/src/scripts/pre-commit-tsc.ts\""
 					},
 					{
 						"type": "command",
+						"if": "Bash(git commit*)",
 						"command": "bun \"$HOME/.claude/src/hooks/pre-commit-farolero.ts\"",
 						"timeout": 35
 					}
@@ -79,10 +80,10 @@
 			},
 			{
 				"matcher": "Bash",
-				"if": "Bash(gh*pr create*) Bash(gh*pr ready*)",
 				"hooks": [
 					{
 						"type": "command",
+						"if": "Bash(gh*pr create*) Bash(gh*pr ready*)",
 						"command": "bun \"$HOME/.claude/src/hooks/pre-pr-proof.ts\"",
 						"timeout": 300
 					}
@@ -90,20 +91,20 @@
 			},
 			{
 				"matcher": "Bash",
-				"if": "Bash(git push*)",
 				"hooks": [
 					{
 						"type": "command",
+						"if": "Bash(git push*)",
 						"command": "bun \"$HOME/.claude/src/hooks/pre-push-proof.ts\"",
 						"timeout": 300
 					}
 				]
 			},
 			{
-				"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*) Bash(bunx*)",
 				"hooks": [
 					{
 						"type": "command",
+						"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*) Bash(bunx*)",
 						"command": "bun \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
 					}
 				]
