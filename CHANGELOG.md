@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.21.1] — 2026-09-18
+
+- The TypeSafe key prompt now hides input. The 15.21.0 prompt let readline run the terminal in its own raw mode, where readline echoes keystrokes itself and `stty -echo` has no effect, so the key appeared on screen. The prompt now reads a plain line with echo off; Ctrl+C still skips.
+- The installer runs `claude plugin marketplace update cc-settings` before installing, so a plugin added in the same release is visible; `marketplace add` alone does not refresh an existing registration, which is why 15.21.0 could not install `compaction-trigger` on upgrade.
+
+**Files changed:** src/lib/prompts.ts, src/lib/claude-install-settings.ts, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
 ## [15.21.0] — 2026-09-18
 
 Long sessions can now compact without losing their text. cc-settings adopts [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), a Claude Code function-hooks plugin that, at compaction time, asks TypeSafe's Jev model which tool calls and results are still needed and removes only those, keeping every user and assistant message verbatim. Native compaction is a summary; this keeps file paths, error text, and decisions intact.

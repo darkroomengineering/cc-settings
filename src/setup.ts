@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.21.0"; // Verbatim Jev compaction: function-hooks flag, pinned upstream plugin, token-based trigger plugin, key prompt.
+const VERSION = "15.21.1"; // Key prompt hides input for real; installer refreshes the cc-settings marketplace before installing.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

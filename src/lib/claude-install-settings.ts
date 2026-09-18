@@ -265,6 +265,9 @@ export const UPSTREAM_PINNED_SHA = "e3f262a7f4d42bd8dd32ced30d26176f7cb545b0";
 export const PLUGIN_INSTALL_COMMANDS: readonly (readonly string[])[] = [
   ["plugin", "marketplace", "add", "darkroomengineering/cc-settings"],
   ["plugin", "marketplace", "add", "tamaratran/fast-jev-compaction"],
+  // `add` is a no-op for a marketplace already registered; `update` refreshes
+  // the clone so a plugin added in this release is visible to `install`.
+  ["plugin", "marketplace", "update", "cc-settings"],
   [
     "plugin",
     "install",

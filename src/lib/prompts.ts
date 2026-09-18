@@ -24,16 +24,23 @@ export async function promptSecret(message: string): Promise<string> {
       // stty missing (Windows): the prompt still works, only echoed.
     }
   };
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  // terminal:false keeps readline out of raw mode: in terminal mode readline
+  // echoes keystrokes itself, which defeats `stty -echo`. Without terminal mode
+  // Ctrl+C raises SIGINT on the process, so it is caught here and mapped to
+  // "skip" instead of ending the install.
+  const rl = createInterface({ input: process.stdin, terminal: false });
   const ac = new AbortController();
-  rl.once("SIGINT", () => ac.abort());
+  const onSigint = () => ac.abort();
+  process.once("SIGINT", onSigint);
+  process.stdout.write(message);
   stty("-echo");
   try {
-    return (await rl.question(message, { signal: ac.signal })).trim();
+    return (await rl.question("", { signal: ac.signal })).trim();
   } catch {
     return "";
   } finally {
     stty("echo");
+    process.off("SIGINT", onSigint);
     rl.close();
     process.stdout.write("\n");
   }
