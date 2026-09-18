@@ -29,6 +29,7 @@ keep this workflow read-only through native tools or a read-only agent prompt.
 The Chrome DevTools MCP exposes browser automation as tool calls. Typical sequence:
 
 1. `mcp__chrome-devtools__navigate_page` (type: "url", url: "http://localhost:3000") — load the page
+   (the `mcp__<name>__` prefix follows the server name in `~/.claude.json`; a machine that runs the same package as `aside-devtools` uses that prefix)
 2. `mcp__chrome-devtools__take_snapshot` — text-based a11y tree with element `uid`s (cheap, preferred first step)
 3. `mcp__chrome-devtools__take_screenshot` — visual capture for review
 4. Interact via `click` / `fill` / `hover` / `press_key` using the `uid`s from the snapshot

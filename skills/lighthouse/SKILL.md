@@ -65,7 +65,7 @@ MCP packages.
    ```
 
 4. **Take baseline screenshots** before any changes:
-   - `mcp__chrome-devtools__navigate_page` (type: "url", url: `<url>`)
+   - `mcp__chrome-devtools__navigate_page` (type: "url", url: `<url>`) (prefix follows the registered server name; `aside-devtools` on machines where the Aside browser registered it)
    - `mcp__chrome-devtools__take_screenshot`
 
    Describe the current layout, key elements, and visual state. This is your **visual baseline** — you will compare against it after every change to catch regressions.

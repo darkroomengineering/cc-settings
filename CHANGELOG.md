@@ -4,6 +4,11 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.22.1] — 2026-09-18
+
+- **A DevTools MCP server you already run under another name no longer gets a second copy from cc-settings.** The Aside browser registers `aside-devtools`, which runs `chrome-devtools-mcp`, the package cc-settings ships as `chrome-devtools`. Both loaded meant every DevTools tool schema twice per turn, and deleting ours by hand lasted one install because the merge re-added any team entry `~/.claude.json` lacked. The installer now compares the npm package behind `bunx`/`npx` entries and skips a team server whose package a differently named user entry already runs (`duplicateTeamServers` in `src/lib/mcp.ts`). A user entry that only shares the name is still handled by the existing shadowing rule. `/qa` and `/lighthouse` note that the `mcp__<name>__` prefix follows the registered server name.
+- Files changed: `src/lib/mcp.ts`, `tests/mcp.test.ts`, `skills/qa/SKILL.md`, `skills/lighthouse/SKILL.md`, four version sites.
+
 ## [15.22.0] — 2026-09-18
 
 - `ENABLE_TOOL_SEARCH` drops from `auto:50` to `auto:10`, so MCP tool schemas defer instead of riding along on every turn. On a 1M-window model the 50% threshold never triggered. Measured in one Fable session: the fixed context floor was ~121K tokens (cache-read prefix on the first turn after compaction) and the first turn after every compaction already sat at 146K to 148K, so the 150K compaction trigger left 46K to 80K of real conversation per window and compaction ran five times in 48 minutes. The floor after this change is not yet measured; check the first-turn `cache_creation_input_tokens` on a fresh session.

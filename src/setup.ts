@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.22.0"; // MCP tool schemas defer at 10% of context instead of 50%, and the compaction trigger resyncs a rotated TypeSafe key before each request.
+const VERSION = "15.22.1"; // The installer skips a team MCP server whose package the user already runs under another name, so a duplicate DevTools server stays gone across installs.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

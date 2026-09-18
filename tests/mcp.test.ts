@@ -13,8 +13,10 @@ import { join } from "node:path";
 import { ENGINES } from "../src/lib/code-intel-engine.ts";
 import { JsonParseError } from "../src/lib/json-io.ts";
 import {
+  duplicateTeamServers,
   functionalKey,
   installMcpToClaudeJson,
+  launcherPackage,
   pruneSettingsMcpServers,
   removeManagedMcpServers,
 } from "../src/lib/mcp.ts";
@@ -740,5 +742,84 @@ describe("corrupt JSON is never treated as absent", () => {
         pruneSettingsMcpServers(p, { context7: { command: "bunx" } }),
       ).rejects.toBeInstanceOf(JsonParseError);
     });
+  });
+});
+
+// --- Same package under another name ---------------------------------------
+//
+// The Aside browser registers `aside-devtools`, which runs chrome-devtools-mcp:
+// the package cc-settings ships as `chrome-devtools`. Both loaded means every
+// DevTools tool schema twice per turn, and hand-deleting ours lasted one
+// install because the merge re-added any team entry the file lacked.
+
+describe("launcherPackage", () => {
+  test("reads the package from bunx/npx args and drops the version suffix", () => {
+    expect(launcherPackage({ command: "bunx", args: ["-y", "chrome-devtools-mcp@latest"] })).toBe(
+      "chrome-devtools-mcp",
+    );
+    expect(
+      launcherPackage({ command: "/usr/bin/npx", args: ["-y", "@upstash/context7-mcp@1.2.3"] }),
+    ).toBe("@upstash/context7-mcp");
+    expect(launcherPackage({ command: "npx", args: ["@scope/pkg"] })).toBe("@scope/pkg");
+  });
+
+  test("is undefined for http servers, bare binaries, and launchers with no package", () => {
+    expect(launcherPackage({ type: "http", url: "https://mcp.figma.com/mcp" })).toBeUndefined();
+    expect(launcherPackage({ command: "tldr-mcp", args: ["--project", "."] })).toBeUndefined();
+    expect(launcherPackage({ command: "bunx", args: ["-y"] })).toBeUndefined();
+  });
+});
+
+describe("installMcpToClaudeJson — same package registered under another name", () => {
+  const team = {
+    "chrome-devtools": { command: "bunx", args: ["-y", "chrome-devtools-mcp@latest"] },
+    context7: { command: "bunx", args: ["-y", "@upstash/context7-mcp"] },
+  };
+
+  test("duplicateTeamServers names the team entry whose package a user entry already runs", () => {
+    const user = {
+      "aside-devtools": {
+        command: "npx",
+        args: ["-y", "chrome-devtools-mcp@latest", "--browserUrl", "http://127.0.0.1:9223"],
+      },
+    };
+    expect(duplicateTeamServers(team, user)).toEqual(["chrome-devtools"]);
+  });
+
+  test("a user entry sharing only the NAME is a shadow, not a duplicate", () => {
+    const user = {
+      "chrome-devtools": { command: "npx", args: ["-y", "chrome-devtools-mcp@latest"] },
+    };
+    expect(duplicateTeamServers(team, user)).toEqual([]);
+  });
+
+  test("the team copy is not installed, and stays out on a second run", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-dup-"));
+    try {
+      const claudeJsonPath = join(dir, "claude.json");
+      await writeFile(
+        claudeJsonPath,
+        JSON.stringify({
+          mcpServers: {
+            "aside-devtools": {
+              type: "stdio",
+              command: "npx",
+              args: ["-y", "chrome-devtools-mcp@latest", "--browserUrl", "http://127.0.0.1:9223"],
+              env: {},
+            },
+          },
+        }),
+        "utf8",
+      );
+      await installMcpToClaudeJson(team, claudeJsonPath);
+      let written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(Object.keys(written.mcpServers).sort()).toEqual(["aside-devtools", "context7"]);
+
+      await installMcpToClaudeJson(team, claudeJsonPath, team);
+      written = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(Object.keys(written.mcpServers).sort()).toEqual(["aside-devtools", "context7"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

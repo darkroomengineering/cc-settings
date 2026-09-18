@@ -171,6 +171,44 @@ export function functionalKey(v: unknown): string {
   return canonicalKey(stripAnnotations(v));
 }
 
+/**
+ * The npm package a `bunx`/`npx` stdio server runs: the first argument that is
+ * not a flag, with any `@version` suffix dropped. Undefined for anything else
+ * (an http server, a bare binary such as `tldr-mcp`), so only launcher-style
+ * entries can ever be called duplicates of one another.
+ */
+export function launcherPackage(entry: McpServer): string | undefined {
+  if (!isStdioServer(entry)) return undefined;
+  const bin = entry.command.split(/[\\/]/).pop();
+  if (bin !== "bunx" && bin !== "npx") return undefined;
+  const spec = (entry.args ?? []).find((a) => !a.startsWith("-"));
+  if (!spec) return undefined;
+  // Strip a trailing @version from `pkg@latest` or `@scope/pkg@1.2.3`.
+  return spec.replace(/(?!^)@[^@/]*$/, "");
+}
+
+/**
+ * Team server names whose package the user already runs under a different
+ * name (e.g. `aside-devtools` registered by the Aside browser is
+ * `chrome-devtools-mcp`, the same package cc-settings ships as
+ * `chrome-devtools`). Installing ours next to theirs would load two copies of
+ * every tool schema into each turn, so the team entry is skipped and the
+ * user's copy is the one that runs. A user entry that only shares a NAME with
+ * a team entry is not a duplicate here; that case is the shadowing rule below.
+ */
+export function duplicateTeamServers(teamMcp: McpServers, userMcp: McpServers): string[] {
+  const userPackages = new Map<string, string>();
+  for (const [name, entry] of Object.entries(userMcp)) {
+    if (name in teamMcp) continue;
+    const pkg = launcherPackage(entry);
+    if (pkg) userPackages.set(pkg, name);
+  }
+  return Object.keys(teamMcp).filter((name) => {
+    const pkg = launcherPackage(teamMcp[name] as McpServer);
+    return pkg !== undefined && userPackages.has(pkg);
+  });
+}
+
 export async function installMcpToClaudeJson(
   teamMcp: McpServers,
   claudeJsonPath: string = CLAUDE_JSON_PATH,
@@ -266,9 +304,22 @@ export async function installMcpToClaudeJson(
     effectiveCurrentMcp[name] = entry;
   }
 
+  // A team server the user already runs under another name is left out
+  // entirely; see duplicateTeamServers. Deleting our copy by hand would
+  // otherwise last exactly one install, because the spread below re-adds every
+  // team entry the file lacks.
+  const duplicates = duplicateTeamServers(teamMcp, effectiveCurrentMcp);
+  const teamToInstall: McpServers = { ...teamMcp };
+  for (const name of duplicates) {
+    delete teamToInstall[name];
+    debug(
+      `Skipping team MCP server "${name}": the same package is already registered under another name`,
+    );
+  }
+
   // Team provides a baseline; user entries shadow on conflict (so the user's
   // local tweak to a shared server wins). Same semantics as the bash merge.
-  const mergedMcp: McpServers = { ...teamMcp, ...effectiveCurrentMcp };
+  const mergedMcp: McpServers = { ...teamToInstall, ...effectiveCurrentMcp };
   const next = { ...current, mcpServers: mergedMcp };
   await atomicWriteJson(claudeJsonPath, next);
   debug(`Installed MCP servers to ${claudeJsonPath}`);
