@@ -55,9 +55,12 @@ context: fork
   requires:
     - command: lighthouse
       install: "npm i -g lighthouse (CLI, used for batched 3x3 averaged audits)"
-    - mcp: chrome-devtools
-      install: "chrome-devtools MCP — provides on-demand audits + visual regression screenshots"
+    - mcp: [chrome-devtools, aside-devtools]
+      optional: true
+      install: "Either DevTools MCP adds on-demand audits and visual regression screenshots; the CLI loop runs without one."
   ```
+
+  `mcp` takes one name or a list; a list is satisfied by any one registered server. `optional: true` marks a prerequisite the skill degrades without: the installer never warns about it, and the skill body must say what happens when it is absent (since 15.22.2).
 
   See `skills/lighthouse/SKILL.md` (command + mcp), `skills/tldr/SKILL.md`, `skills/qa/SKILL.md`, and `skills/audit/SKILL.md` (mcp-only) for the 4 shipped examples.
 

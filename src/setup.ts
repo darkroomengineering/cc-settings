@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.22.1"; // The installer skips a team MCP server whose package the user already runs under another name, so a duplicate DevTools server stays gone across installs.
+const VERSION = "15.22.2"; // /qa and /lighthouse accept either DevTools MCP server and run without one; skill prerequisites can be any-of and optional.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

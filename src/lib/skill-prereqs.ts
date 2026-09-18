@@ -5,8 +5,9 @@
 //
 // Two requirement kinds (mutually exclusive per entry):
 //   command — a CLI that must be on PATH (checked with Bun.which via hasCommand)
-//   mcp     — an MCP server that must be registered in ~/.claude.json or in the
-//             team mcpServers config
+//   mcp     — an MCP server that must be registered in ~/.claude.json; a list
+//             of names is satisfied by any one of them
+// An entry with `optional: true` is skipped: the skill runs without it.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -87,13 +88,17 @@ export function checkSkillRequirements(
   if (!requires) return [];
   const missing: MissingPrereq[] = [];
   for (const req of requires) {
+    // An optional prerequisite is documentation for the skill's fallback path,
+    // never an install warning.
+    if (req.optional) continue;
     if ("command" in req) {
       if (!hasCommand(req.command)) {
         missing.push({ kind: "command", name: req.command, install: req.install });
       }
     } else if ("mcp" in req) {
-      if (!configuredMcps.has(req.mcp)) {
-        missing.push({ kind: "mcp", name: req.mcp, install: req.install });
+      const names = Array.isArray(req.mcp) ? req.mcp : [req.mcp];
+      if (!names.some((name) => configuredMcps.has(name))) {
+        missing.push({ kind: "mcp", name: names.join(" or "), install: req.install });
       }
     }
   }

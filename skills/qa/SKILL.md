@@ -2,10 +2,11 @@
 name: qa
 description: Visual and accessibility QA with screenshot-first critique, contrast, touch targets, mockup-vs-implementation diff. Triggers "visual QA", "does this look right", "a11y check", or after component changes. Logic checks go to /verify.
 context: fork
-allowed-tools: [mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__evaluate_script, Read, Grep, Glob, Agent]
+allowed-tools: [mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__evaluate_script, mcp__aside-devtools__navigate_page, mcp__aside-devtools__take_snapshot, mcp__aside-devtools__take_screenshot, mcp__aside-devtools__click, mcp__aside-devtools__fill, mcp__aside-devtools__hover, mcp__aside-devtools__press_key, mcp__aside-devtools__resize_page, mcp__aside-devtools__evaluate_script, Read, Grep, Glob, Agent]
 requires:
-  - mcp: chrome-devtools
-    install: "Configure chrome-devtools MCP — see mcp-configs/recommended.json"
+  - mcp: [chrome-devtools, aside-devtools]
+    optional: true
+    install: "Either DevTools MCP works (same package; see mcp-configs/recommended.json). Without one, the skill reviews code and asks for a screenshot."
 ---
 
 # Visual QA Validation
@@ -26,10 +27,15 @@ keep this workflow read-only through native tools or a read-only agent prompt.
 
 ## Quick Start
 
-The Chrome DevTools MCP exposes browser automation as tool calls. Typical sequence:
+The Chrome DevTools MCP exposes browser automation as tool calls. It may be
+registered as `chrome-devtools` or as `aside-devtools` (the Aside browser
+registers the same package under that name): use whichever prefix is present
+in your tool list. The steps below show the `chrome-devtools` prefix. If
+neither server is registered, skip the browser steps: review the code and the
+styles directly and ask the user for a screenshot of the affected view.
+Typical sequence:
 
 1. `mcp__chrome-devtools__navigate_page` (type: "url", url: "http://localhost:3000") — load the page
-   (the `mcp__<name>__` prefix follows the server name in `~/.claude.json`; a machine that runs the same package as `aside-devtools` uses that prefix)
 2. `mcp__chrome-devtools__take_snapshot` — text-based a11y tree with element `uid`s (cheap, preferred first step)
 3. `mcp__chrome-devtools__take_screenshot` — visual capture for review
 4. Interact via `click` / `fill` / `hover` / `press_key` using the `uid`s from the snapshot
@@ -338,5 +344,6 @@ Looks good: [What's working]
 
 ## Prerequisites
 
-Claude can use the configured `chrome-devtools` MCP server. Standalone Codex
-uses it only when the user configured it; otherwise use the fallback above.
+Claude can use the configured `chrome-devtools` or `aside-devtools` MCP
+server; both are optional. Standalone Codex uses one only when the user
+configured it; otherwise use the fallback above.

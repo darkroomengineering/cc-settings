@@ -42,6 +42,9 @@
               },
               "install": {
                 "type": "string"
+              },
+              "optional": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -53,11 +56,26 @@
             "type": "object",
             "properties": {
               "mcp": {
-                "type": "string",
-                "minLength": 1
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                ]
               },
               "install": {
                 "type": "string"
+              },
+              "optional": {
+                "type": "boolean"
               }
             },
             "required": [

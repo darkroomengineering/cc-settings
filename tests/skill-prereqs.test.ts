@@ -194,6 +194,33 @@ describe("checkSkillRequirements", () => {
     expect(missing[0]?.name).toBe("missing-mcp-server");
   });
 
+  test("a list of MCP names is satisfied by any one of them", () => {
+    const req = { mcp: ["chrome-devtools", "aside-devtools"] };
+    expect(checkSkillRequirements(fm({ requires: [req] }), new Set(["aside-devtools"]))).toEqual(
+      [],
+    );
+    expect(checkSkillRequirements(fm({ requires: [req] }), new Set(["chrome-devtools"]))).toEqual(
+      [],
+    );
+    const missing = checkSkillRequirements(fm({ requires: [req] }), new Set(["context7"]));
+    expect(missing).toHaveLength(1);
+    expect(missing[0]?.name).toBe("chrome-devtools or aside-devtools");
+  });
+
+  test("an optional prerequisite is never reported, for mcp or command", () => {
+    expect(
+      checkSkillRequirements(
+        fm({
+          requires: [
+            { mcp: ["chrome-devtools", "aside-devtools"], optional: true },
+            { command: "definitely-not-on-path-xyz123", optional: true },
+          ],
+        }),
+        new Set(),
+      ),
+    ).toEqual([]);
+  });
+
   test("returns empty when MCP IS configured", () => {
     const missing = checkSkillRequirements(
       fm({ requires: [{ mcp: "configured-server" }] }),

@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.22.2] — 2026-09-18
+
+- **`/qa` and `/lighthouse` work with `chrome-devtools` or `aside-devtools`, and no longer warn when neither is registered.** Both names run the same package, so the skills list both tool prefixes in `allowed-tools` and tell the model to use whichever is present. Without either, `/qa` reviews the code and asks for a screenshot; `/lighthouse` runs the CLI loop without screenshots. The installer's "missing MCP: chrome-devtools" warning for these two skills is gone.
+- **Skill prerequisites can be any-of and optional.** `requires: - mcp:` takes a list of names, satisfied by any one registered server, and `optional: true` marks a prerequisite the installer never warns about (`src/schemas/skill.ts`, `src/lib/skill-prereqs.ts`). Documented in `docs/skill-authoring.md`.
+- Files changed: `src/schemas/skill.ts`, `schemas/skill.schema.json`, `src/lib/skill-prereqs.ts`, `tests/skill-prereqs.test.ts`, `skills/qa/SKILL.md`, `skills/lighthouse/SKILL.md`, `docs/skill-authoring.md`, four version sites.
+
 ## [15.22.1] — 2026-09-18
 
 - **A DevTools MCP server you already run under another name no longer gets a second copy from cc-settings.** The Aside browser registers `aside-devtools`, which runs `chrome-devtools-mcp`, the package cc-settings ships as `chrome-devtools`. Both loaded meant every DevTools tool schema twice per turn, and deleting ours by hand lasted one install because the merge re-added any team entry `~/.claude.json` lacked. The installer now compares the npm package behind `bunx`/`npx` entries and skips a team server whose package a differently named user entry already runs (`duplicateTeamServers` in `src/lib/mcp.ts`). A user entry that only shares the name is still handled by the existing shadowing rule. `/qa` and `/lighthouse` note that the `mcp__<name>__` prefix follows the registered server name.

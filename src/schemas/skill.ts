@@ -14,7 +14,9 @@ export const SkillContext = z.enum(["fork", "main"]);
 // Validated at install: the installer warns the user about missing prereqs
 // before they invoke a skill that would runtime-fail. Each entry declares
 // exactly one of `command` (CLI on PATH) or `mcp` (MCP server name as
-// configured in ~/.claude.json or settings.json `mcpServers`).
+// configured in ~/.claude.json, or a list of names of which any one will do).
+// `optional: true` marks a prerequisite the skill degrades without; the
+// installer never warns about those, the skill body says what happens instead.
 // Cross-shape guard (issue #83): each branch below is a plain (non-strict)
 // z.object. An entry declaring BOTH `command` and `mcp` used to parse
 // successfully as command-only (the first union member to match), silently
@@ -33,10 +35,15 @@ export const SkillRequirement = SkillRequirementShapeGuard.pipe(
     z.object({
       command: z.string().min(1),
       install: z.string().optional(),
+      optional: z.boolean().optional(),
     }),
     z.object({
-      mcp: z.string().min(1),
+      // A list means any-of: the skill works with whichever of these servers
+      // is registered (e.g. chrome-devtools or aside-devtools, which run the
+      // same package under different names).
+      mcp: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
       install: z.string().optional(),
+      optional: z.boolean().optional(),
     }),
   ]),
 );

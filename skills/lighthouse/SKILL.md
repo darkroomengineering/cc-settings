@@ -15,11 +15,16 @@ allowed-tools:
   - mcp__chrome-devtools__take_screenshot
   - mcp__chrome-devtools__take_snapshot
   - mcp__chrome-devtools__lighthouse_audit
+  - mcp__aside-devtools__navigate_page
+  - mcp__aside-devtools__take_screenshot
+  - mcp__aside-devtools__take_snapshot
+  - mcp__aside-devtools__lighthouse_audit
 requires:
   - command: lighthouse
     install: "npm i -g lighthouse (CLI, used for batched 3x3 averaged audits)"
-  - mcp: chrome-devtools
-    install: "chrome-devtools MCP — provides on-demand audits + visual regression screenshots"
+  - mcp: [chrome-devtools, aside-devtools]
+    optional: true
+    install: "Either DevTools MCP adds on-demand audits and visual regression screenshots; the CLI loop runs without one."
 ---
 
 # Lighthouse Optimization Loop
@@ -56,8 +61,11 @@ MCP packages.
    which produces NO_LCP) and export `CHROME_PATH=<binary>` before the loop.
    Record which binary was used; a before/after comparison is only clean when
    both sides ran the same binary.
-   Check whether the user configured the chrome-devtools MCP. Do not install or
-   auto-run an unpinned registry MCP on their behalf.
+   Check whether a DevTools MCP is registered, as `chrome-devtools` or as
+   `aside-devtools` (same package, different name): use whichever prefix is in
+   your tool list. Neither is required; without one, skip the screenshot steps
+   and rely on the CLI numbers. Do not install or auto-run an unpinned registry
+   MCP on their behalf.
 
 3. **Create results directory:**
    ```bash
@@ -65,7 +73,7 @@ MCP packages.
    ```
 
 4. **Take baseline screenshots** before any changes:
-   - `mcp__chrome-devtools__navigate_page` (type: "url", url: `<url>`) (prefix follows the registered server name; `aside-devtools` on machines where the Aside browser registered it)
+   - `mcp__chrome-devtools__navigate_page` (type: "url", url: `<url>`)
    - `mcp__chrome-devtools__take_screenshot`
 
    Describe the current layout, key elements, and visual state. This is your **visual baseline** — you will compare against it after every change to catch regressions.
