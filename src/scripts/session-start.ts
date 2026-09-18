@@ -355,7 +355,7 @@ try {
   }
   console.log(
     hasTypesafeKey
-      ? "Compaction: verbatim (Jev) at ~150K tokens"
+      ? "Compaction: verbatim (Jev) at ~150K tokens, key resynced from settings before each run"
       : "Compaction: native; set TYPESAFE_API_KEY for verbatim Jev compaction",
   );
 } catch {

@@ -2,8 +2,10 @@
 // compact the session once the live context passes a token threshold, tied to
 // cc-settings' ~150K working-context ceiling rather than upstream verbatim
 // compaction plugins' percentage-of-window trigger (which fires far too often
-// on a 200K+ window model). See docs/hooks-reference.md "Function hooks
-// (early access)".
+// on a 200K+ window model). Before requesting, it copies a rotated
+// TYPESAFE_API_KEY from settings into the process env so the verbatim plugin
+// does not 401 for the rest of the session. See docs/hooks-reference.md
+// "Function hooks (early access)".
 //
 // Deliberately has NO runtime imports: `import type` erases at compile time,
 // so this module can be unit-tested under `bun test` without resolving the
@@ -58,9 +60,36 @@ export function shouldRequest(input: ShouldRequestInput): boolean {
   return input.tokens >= input.compactAtTokens;
 }
 
+/** The TypeSafe key the settings `env` block holds, or undefined. */
+export function settingsTypesafeKey(settings: Readonly<Record<string, unknown>>): string | undefined {
+  const env = settings.env;
+  if (!env || typeof env !== "object") return undefined;
+  const value = (env as Record<string, unknown>).TYPESAFE_API_KEY;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Copies a rotated TypeSafe key from settings into the process env before a
+ * compaction. The verbatim plugin reads `$.env.get("TYPESAFE_API_KEY")` before
+ * it reads settings, so a session started before a key rotation kept sending
+ * the stale key and fell back to the built-in summary on every 401.
+ * Returns true when the env was updated.
+ */
+export async function syncTypesafeKey($: {
+  env: { get: (name: string) => Promise<string | undefined>; set: (name: string, value: string | undefined) => Promise<void> };
+  settings: { read: () => Promise<Readonly<Record<string, unknown>>> };
+}): Promise<boolean> {
+  const fromSettings = settingsTypesafeKey(await $.settings.read());
+  if (!fromSettings) return false;
+  const fromEnv = await $.env.get("TYPESAFE_API_KEY");
+  if (fromEnv === fromSettings) return false;
+  await $.env.set("TYPESAFE_API_KEY", fromSettings);
+  return true;
+}
+
 // $ is never bound to a name: `claude plugin validate` requires every call on
 // it to read as `$.noun.event(...)` at the call site, so every use below goes
-// straight through the handler's own `$` parameter.
+// straight through a `$` parameter.
 export const register: Register = (on: On, options: PluginOptions) => {
   const config = resolveTriggerConfig(options);
   let compacting = false;
@@ -79,6 +108,13 @@ export const register: Register = (on: On, options: PluginOptions) => {
       });
       if (request) {
         compacting = true;
+        try {
+          if (await syncTypesafeKey($)) $.ui.log("compaction-trigger: refreshed TYPESAFE_API_KEY from settings");
+        } catch (error) {
+          $.ui.log(
+            `compaction-trigger: key sync skipped (${error instanceof Error ? error.message : String(error)})`,
+          );
+        }
         const result = await $.session.compact();
         if (result.skip) {
           $.ui.log(`compaction-trigger: skipped: ${result.skip}`);

@@ -1,6 +1,6 @@
 {
   "name": "compaction-trigger",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Requests a session compaction when the live context passes a token threshold, so verbatim compaction plugins run near the working ceiling instead of at the model window.",
   "license": "MIT",
   "author": {

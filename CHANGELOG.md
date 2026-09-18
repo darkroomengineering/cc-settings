@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.22.0] — 2026-09-18
+
+- `ENABLE_TOOL_SEARCH` drops from `auto:50` to `auto:10`, so MCP tool schemas defer instead of riding along on every turn. On a 1M-window model the 50% threshold never triggered. Measured in one Fable session: the fixed context floor was ~121K tokens (cache-read prefix on the first turn after compaction) and the first turn after every compaction already sat at 146K to 148K, so the 150K compaction trigger left 46K to 80K of real conversation per window and compaction ran five times in 48 minutes. The floor after this change is not yet measured; check the first-turn `cache_creation_input_tokens` on a fresh session.
+- The `compaction-trigger` plugin (0.2.0) copies `TYPESAFE_API_KEY` from the settings `env` block into the process env before each compaction request. The verbatim plugin reads the env first, so a session started before a key rotation kept sending the old key: three of that session's five compactions fell back to the built-in summary on a 401 and took 67 to 70 seconds each instead of 1.2 to 1.4 seconds. Whether `$.env.set` in one plugin is visible to another plugin's `$.env.get` in the same session is not yet verified live; the fallback path is unchanged if it is not.
+- The compaction threshold itself stays at 150K. Widening it was considered and rejected: on Opus and Sonnet it would cross the 200K long-context line, and both compaction paths rewrite everything after the fixed prefix, so fewer, later compactions cost more per turn without saving cache writes.
+
+**Files changed:** config/10-core.json, plugins/compaction-trigger/hooks/trigger.ts, plugins/compaction-trigger/.claude-plugin/plugin.json, tests/compaction-trigger.test.ts, src/scripts/session-start.ts, docs/settings-reference.md, docs/hooks-reference.md, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
 ## [15.21.3] — 2026-09-18
 
 - A TypeSafe key supplied to the installer (`--typesafe-key=<key>` or the prompt) is now also written as `TYPESAFE_API_KEY` into the settings `env` block. Since 15.21.0 it went only into the plugin's sensitive `apiKey` option, which nothing but the compaction plugin can read, so the session banner kept reporting native compaction and no hook or script could use Jev. Later installs keep the value (the env merge is user-wins). Re-run `setup.sh --typesafe-key=<key>` to write it on an existing install.

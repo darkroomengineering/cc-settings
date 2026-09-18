@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.21.3"; // The installer writes a freshly supplied TypeSafe key into the settings env block so hooks and the banner can read it.
+const VERSION = "15.22.0"; // MCP tool schemas defer at 10% of context instead of 50%, and the compaction trigger resyncs a rotated TypeSafe key before each request.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

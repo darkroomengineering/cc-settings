@@ -8,7 +8,9 @@ import { describe, expect, test } from "bun:test";
 import {
   register,
   resolveTriggerConfig,
+  settingsTypesafeKey,
   shouldRequest,
+  syncTypesafeKey,
 } from "../plugins/compaction-trigger/hooks/trigger.ts";
 
 describe("shouldRequest", () => {
@@ -253,5 +255,78 @@ describe("register", () => {
     // Turn 3, right after a request reset the counter: goes 0 -> 1, below 2 again.
     await handler($, { turnId: "t3" }, next);
     expect(compactCalls).toBe(1);
+  });
+});
+
+describe("syncTypesafeKey", () => {
+  const fake = (settingsKey: string | undefined, envKey: string | undefined) => {
+    const sets: Array<[string, string | undefined]> = [];
+    const $ = {
+      env: {
+        get: async (name: string) => (name === "TYPESAFE_API_KEY" ? envKey : undefined),
+        set: async (name: string, value: string | undefined) => {
+          sets.push([name, value]);
+        },
+      },
+      settings: {
+        read: async () => (settingsKey ? { env: { TYPESAFE_API_KEY: settingsKey } } : {}),
+      },
+    };
+    return { $, sets };
+  };
+
+  test("writes the settings key into env when the env holds a different (rotated-away) key", async () => {
+    const { $, sets } = fake("new-key", "old-key");
+    expect(await syncTypesafeKey($)).toBe(true);
+    expect(sets).toEqual([["TYPESAFE_API_KEY", "new-key"]]);
+  });
+
+  test("writes when env is unset", async () => {
+    const { $, sets } = fake("new-key", undefined);
+    expect(await syncTypesafeKey($)).toBe(true);
+    expect(sets).toEqual([["TYPESAFE_API_KEY", "new-key"]]);
+  });
+
+  test("no-op when env already matches settings", async () => {
+    const { $, sets } = fake("same", "same");
+    expect(await syncTypesafeKey($)).toBe(false);
+    expect(sets).toEqual([]);
+  });
+
+  test("no-op when settings has no key: never clears an env-only key", async () => {
+    const { $, sets } = fake(undefined, "env-only");
+    expect(await syncTypesafeKey($)).toBe(false);
+    expect(sets).toEqual([]);
+  });
+
+  test("settingsTypesafeKey ignores non-string and empty values", () => {
+    expect(settingsTypesafeKey({ env: { TYPESAFE_API_KEY: "" } })).toBeUndefined();
+    expect(settingsTypesafeKey({ env: { TYPESAFE_API_KEY: 7 } })).toBeUndefined();
+    expect(settingsTypesafeKey({ env: "nope" })).toBeUndefined();
+    expect(settingsTypesafeKey({})).toBeUndefined();
+    expect(settingsTypesafeKey({ env: { TYPESAFE_API_KEY: "k" } })).toBe("k");
+  });
+
+  test("register: a $ without env/settings still compacts and logs the skipped sync", async () => {
+    const { on, get } = fakeOn();
+    // biome-ignore lint/suspicious/noExplicitAny: test double for the engine surface
+    register(on as any, { compactAtTokens: 100, minTurnsBetween: 0 } as any);
+    const handler = get();
+    let compactCalls = 0;
+    const logs: string[] = [];
+    const $ = {
+      session: {
+        usage: async () => ({ context: { tokens: 200, window: 1_000_000 } }),
+        compact: async () => {
+          compactCalls += 1;
+          return { messages: [] };
+        },
+      },
+      ui: { log: (text: string) => logs.push(text) },
+    };
+    await handler($, { turnId: "t1" }, (e: unknown) => e);
+    expect(compactCalls).toBe(1);
+    expect(logs.some((l) => l.includes("key sync skipped"))).toBe(true);
+    expect(logs.some((l) => l.includes("requested at 200 tokens"))).toBe(true);
   });
 });
