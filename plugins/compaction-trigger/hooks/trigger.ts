@@ -87,6 +87,16 @@ export async function syncTypesafeKey($: {
   return true;
 }
 
+/**
+ * True for fast-jev-compaction's per-item decision dump (`decisions: t1:Bash:
+ * drop_call/call=0.30/result=0.18 ...`, chunked as `decisions (2/3): ...`).
+ * The plugin has no option to silence it; its summary line (`kept N/M
+ * messages ...`) is the one worth the transcript row.
+ */
+export function isDecisionDump(text: string): boolean {
+  return /^decisions(?: \(\d+\/\d+\))?: /.test(text);
+}
+
 // $ is never bound to a name: `claude plugin validate` requires every call on
 // it to read as `$.noun.event(...)` at the call site, so every use below goes
 // straight through a `$` parameter.
@@ -94,6 +104,11 @@ export const register: Register = (on: On, options: PluginOptions) => {
   const config = resolveTriggerConfig(options);
   let compacting = false;
   let turnsSinceCompaction = 0;
+
+  // A `$.ui.log` from a plugin seated beneath this one is a dispatch this
+  // hook sees; rewriting `to` keeps the line in the debug log and off the
+  // transcript. Only the decision dump is touched.
+  on("ui.log", ($, event, next) => (isDecisionDump(event.text) ? next({ ...event, to: "debug" }) : next(event)));
 
   on("turn.complete", async ($, event: TurnCompleteInput, next) => {
     turnsSinceCompaction += 1;

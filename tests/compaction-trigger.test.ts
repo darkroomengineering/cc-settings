@@ -6,6 +6,7 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  isDecisionDump,
   register,
   resolveTriggerConfig,
   settingsTypesafeKey,
@@ -328,5 +329,19 @@ describe("syncTypesafeKey", () => {
     expect(compactCalls).toBe(1);
     expect(logs.some((l) => l.includes("key sync skipped"))).toBe(true);
     expect(logs.some((l) => l.includes("requested at 200 tokens"))).toBe(true);
+  });
+});
+
+describe("isDecisionDump", () => {
+  test("matches fast-jev-compaction's decision lines, plain and chunked", () => {
+    expect(isDecisionDump("decisions: t1:Bash:drop_call/call=0.30/result=0.18")).toBe(true);
+    expect(isDecisionDump("decisions (2/3): t40:Bash:drop_call/call=0.29/result=0.15")).toBe(true);
+    expect(isDecisionDump("decisions: (none)")).toBe(true);
+  });
+
+  test("leaves the summary and every other line alone", () => {
+    expect(isDecisionDump("kept 234/402 messages, no summary (84% reduction)")).toBe(false);
+    expect(isDecisionDump("compaction-trigger: requested at 216171 tokens")).toBe(false);
+    expect(isDecisionDump("my decisions: none")).toBe(false);
   });
 });

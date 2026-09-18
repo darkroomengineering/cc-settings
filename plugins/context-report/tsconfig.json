@@ -10,5 +10,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["hooks/**/*", "../types/**/*"]
+  "include": ["hooks/**/*", "tests/**/*", "../types/**/*"]
 }

@@ -545,9 +545,10 @@ export async function runSelectedUninstall(
   // the command that does.
   if (includesTarget(target, "claude")) {
     info(
-      "Plugins fast-jev-compaction and compaction-trigger were left installed: " +
+      "Plugins fast-jev-compaction, compaction-trigger and context-report were left installed: " +
         "claude plugin remove fast-jev-compaction@fast-jev-compaction && " +
-        "claude plugin remove compaction-trigger@cc-settings",
+        "claude plugin remove compaction-trigger@cc-settings && " +
+        "claude plugin remove context-report@cc-settings",
     );
   }
   return 0;

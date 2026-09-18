@@ -4,7 +4,7 @@
     "name": "Darkroom Engineering",
     "url": "https://darkroom.engineering"
   },
-  "description": "Darkroom Engineering Claude Code marketplace — skills, agents, rules, and MCP connectors from the cc-settings harness.",
+  "description": "Darkroom Engineering Claude Code marketplace \u2014 skills, agents, rules, and MCP connectors from the cc-settings harness.",
   "plugins": [
     {
       "name": "darkroom",
@@ -15,7 +15,13 @@
         "url": "https://darkroom.engineering"
       },
       "category": "workflow",
-      "tags": ["darkroom", "react", "nextjs", "typescript", "orchestration"]
+      "tags": [
+        "darkroom",
+        "react",
+        "nextjs",
+        "typescript",
+        "orchestration"
+      ]
     },
     {
       "name": "compaction-trigger",
@@ -26,7 +32,25 @@
         "url": "https://darkroom.engineering"
       },
       "category": "workflow",
-      "tags": ["compaction", "context"]
+      "tags": [
+        "compaction",
+        "context"
+      ]
+    },
+    {
+      "name": "context-report",
+      "source": "./plugins/context-report",
+      "description": "Prints which instruction files the engine loaded (tier, path, @ imports, size) once per context load, and hints when a project CLAUDE.md keeps its AGENTS.md from being read.",
+      "author": {
+        "name": "Darkroom Engineering",
+        "url": "https://darkroom.engineering"
+      },
+      "category": "workflow",
+      "tags": [
+        "instructions",
+        "agents-md",
+        "context"
+      ]
     }
   ]
 }

@@ -35,7 +35,8 @@
 	},
 	"enabledPlugins": {
 		"fast-jev-compaction@fast-jev-compaction": true,
-		"compaction-trigger@cc-settings": true
+		"compaction-trigger@cc-settings": true,
+		"context-report@cc-settings": true
 	},
 	"pluginConfigs": {
 		"fast-jev-compaction@fast-jev-compaction": {

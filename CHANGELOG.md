@@ -4,6 +4,22 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.25.0] — 2026-09-18
+
+First cc-settings plugin built on the pattern of Claude Code's own built-in mods (`anthropics/claude-code/mods`), and a quieter compaction transcript.
+
+- **`context-report` plugin** (`plugins/context-report/`, `context-report@cc-settings`, enabled by `config/10-core.json` and installed by `setup.sh`). Hooks `prompt.context` and reports the `instructionFiles` the engine actually put behind the `claudeMd` block, once per context load: `Instructions loaded (6 files, 79.5 KB): user ~/.claude/CLAUDE.md +@AGENTS.md · project ./AGENTS.md ./.claude/AGENTS.md · memory 1`. It reads the chain's result, not its input, because the built-in `agents-md` mod is seated beneath it and adds a project's `AGENTS.md` inside `next()`; the first live run reported 3 files for that reason and 6 after the fix. Two hints ride on the same facts: a project-tier `CLAUDE.md` or `CLAUDE.local.md` that keeps the project's `AGENTS.md` from loading (names `/cc migrate`, rename or merge by whether an `AGENTS.md` exists on disk via `$.fs.stat`), and a user `CLAUDE.md` without the `@AGENTS.md` import. Headless sessions log to the debug sink. The classic SessionStart banner's `Standards:` line and the 15.24.0 migration hint in `src/lib/project-awareness.ts` are gone; they guessed from the filesystem and could not see imports or the native read. The live check also surfaced a stray `~/AGENTS.md` (a 27 KB Codex-only file from an earlier install) loading as a project file in every session under home.
+- **`compaction-trigger` 0.3.0** hooks `ui.log` and rewrites fast-jev-compaction's per-item `decisions:` dump to the debug log (`next({ ...e, to: "debug" })`); the `kept N/M messages` summary still shows. Upstream has no option for this and is outside darkroomengineering, so the override lives here. The Jev plugin itself stays external and pinned: it is actively maintained, and folding its 1,270 lines in would mean owning the transcript-rewriting code.
+- **Shared plugin types.** `plugins/types/claude-code.d.ts` (regenerated from 2.1.277; `claude -p '/plugin-types <dir>'` works headless) replaces the per-plugin copy; both tsconfigs include it, `bun run typecheck:plugins` checks both plugins. `bunfig.toml` pins `bun test` to `tests/` so each plugin's `tests/` folder can hold `claude-code/testing` kit tests for `claude plugin test`, which the 2.1.277 public build does not ship yet; `bun test` covers the pure `report()` and `isDecisionDump()`.
+
+**Files changed:**
+- `plugins/context-report/{.claude-plugin/plugin.json,hooks/hooks.json,hooks/register.ts,tests/register.test.ts,tsconfig.json}`
+- `plugins/types/claude-code.d.ts` (moved from `plugins/compaction-trigger/types/`), `plugins/compaction-trigger/{hooks/trigger.ts,tsconfig.json,.claude-plugin/plugin.json}`
+- `.claude-plugin/marketplace.json`, `config/10-core.json`, `src/lib/{claude-install-settings,install-display,install-lifecycle,project-awareness}.ts`
+- `bunfig.toml`, `tsconfig.json`, `package.json`
+- `tests/{context-report,compaction-trigger,plugin-manifest}.test.ts`
+- `docs/hooks-reference.md`, `src/setup.ts`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `CHANGELOG.md`
+
 ## [15.24.0] — 2026-09-18
 
 Sync with Claude Code v2.1.277 and Codex v0.155.1, and move the standards file onto the path Claude Code now reads.

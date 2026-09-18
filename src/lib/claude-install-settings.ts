@@ -276,6 +276,7 @@ export const PLUGIN_INSTALL_COMMANDS: readonly (readonly string[])[] = [
     "compactAtPercent=100",
   ],
   ["plugin", "install", "compaction-trigger@cc-settings"],
+  ["plugin", "install", "context-report@cc-settings"],
 ];
 
 /** The plugin step talks to the real Claude plugin store and the network, so

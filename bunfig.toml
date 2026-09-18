@@ -1,0 +1,5 @@
+# `bun test` runs the suite under tests/ only. Each plugin's tests/ folder holds
+# `claude-code/testing` kit tests for `claude plugin test <dir>` (not yet in the
+# 2.1.277 public build); bun cannot resolve that module and must not try.
+[test]
+root = "tests"

@@ -135,18 +135,18 @@ describe("marketplace manifest", () => {
     expect(darkroom?.source).toBe("./");
   });
 
-  test("compaction-trigger entry matches its own plugin.json", async () => {
-    const marketplace = await readJson(".claude-plugin/marketplace.json");
-    const compactionPlugin = await readJson(
-      "plugins/compaction-trigger/.claude-plugin/plugin.json",
-    );
+  for (const name of ["compaction-trigger", "context-report"]) {
+    test(`${name} entry matches its own plugin.json`, async () => {
+      const marketplace = await readJson(".claude-plugin/marketplace.json");
+      const plugin = await readJson(`plugins/${name}/.claude-plugin/plugin.json`);
 
-    const entries = marketplace.plugins as Array<{ name: string; source: unknown }>;
-    const entry = entries.find((e) => e.name === "compaction-trigger");
-    expect(entry, "marketplace.json has no compaction-trigger entry").toBeDefined();
-    expect(entry?.name).toBe(compactionPlugin.name as string);
-    expect(entry?.source).toBe("./plugins/compaction-trigger");
-  });
+      const entries = marketplace.plugins as Array<{ name: string; source: unknown }>;
+      const entry = entries.find((e) => e.name === name);
+      expect(entry, `marketplace.json has no ${name} entry`).toBeDefined();
+      expect(entry?.name).toBe(plugin.name as string);
+      expect(entry?.source).toBe(`./plugins/${name}`);
+    });
+  }
 });
 
 describe("Codex plugin manifest", () => {
