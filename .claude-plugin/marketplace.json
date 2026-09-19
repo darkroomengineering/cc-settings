@@ -4,7 +4,7 @@
     "name": "Darkroom Engineering",
     "url": "https://darkroom.engineering"
   },
-  "description": "Darkroom Engineering Claude Code marketplace \u2014 skills, agents, rules, and MCP connectors from the cc-settings harness.",
+  "description": "Darkroom Engineering Claude Code marketplace — skills, agents, rules, and MCP connectors from the cc-settings harness.",
   "plugins": [
     {
       "name": "darkroom",
@@ -50,6 +50,21 @@
         "instructions",
         "agents-md",
         "context"
+      ]
+    },
+    {
+      "name": "drift-fuse",
+      "source": "./plugins/drift-fuse",
+      "description": "Scores each unattended turn against the task the person asked for with TypeSafe's Jev model, and after consecutive off-task turns redirects or pauses the next machine-submitted prompt.",
+      "author": {
+        "name": "Darkroom Engineering",
+        "url": "https://darkroom.engineering"
+      },
+      "category": "workflow",
+      "tags": [
+        "drift",
+        "loop",
+        "jev"
       ]
     }
   ]

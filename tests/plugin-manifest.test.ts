@@ -135,7 +135,7 @@ describe("marketplace manifest", () => {
     expect(darkroom?.source).toBe("./");
   });
 
-  for (const name of ["compaction-trigger", "context-report"]) {
+  for (const name of ["compaction-trigger", "context-report", "drift-fuse"]) {
     test(`${name} entry matches its own plugin.json`, async () => {
       const marketplace = await readJson(".claude-plugin/marketplace.json");
       const plugin = await readJson(`plugins/${name}/.claude-plugin/plugin.json`);

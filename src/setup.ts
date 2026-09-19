@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.25.0"; // context-report function-hook plugin reports the instruction files the engine loaded; compaction-trigger quiets fast-jev's decision dump.
+const VERSION = "15.26.0"; // drift-fuse function-hook plugin scores unattended turns against the task with Jev; auto-update stops toasting on local work in progress.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

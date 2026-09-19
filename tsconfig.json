@@ -33,5 +33,5 @@
   // typecheck:plugins` instead. Excluding just these files keeps them out of
   // tsc's import graph without touching the plugins/** tree, which sits
   // outside "include" already.
-  "exclude": ["tests/compaction-trigger.test.ts", "tests/context-report.test.ts"]
+  "exclude": ["tests/compaction-trigger.test.ts", "tests/context-report.test.ts", "tests/drift-fuse.test.ts"]
 }

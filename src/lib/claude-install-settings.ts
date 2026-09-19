@@ -277,6 +277,7 @@ export const PLUGIN_INSTALL_COMMANDS: readonly (readonly string[])[] = [
   ],
   ["plugin", "install", "compaction-trigger@cc-settings"],
   ["plugin", "install", "context-report@cc-settings"],
+  ["plugin", "install", "drift-fuse@cc-settings"],
 ];
 
 /** The plugin step talks to the real Claude plugin store and the network, so

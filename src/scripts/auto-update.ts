@@ -364,8 +364,11 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     }
     if (worktreeDiff.exit === 1 || untracked.stdout !== "") {
       status = "skipped-dirty";
+      // Local work in progress is the developer's own state, not a failure:
+      // the log records the skip and the next clean day updates. A daily
+      // toast for it is noise (and an osascript notification has no click
+      // target, so clicking it opens Finder).
       await log("skipped — uncommitted changes in cc-settings");
-      await sendNotification("auto-update skipped — uncommitted changes in cc-settings");
       await rm(checkDir, { recursive: true, force: true });
       return;
     }
@@ -389,7 +392,6 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     if (stagedDiff.exit === 1) {
       status = "skipped-dirty";
       await log("skipped — staged changes in cc-settings");
-      await sendNotification("auto-update skipped — staged changes in cc-settings");
       return;
     }
     if (stagedDiff.exit !== 0) {

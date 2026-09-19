@@ -491,8 +491,12 @@ esac
         await git(["remote", "add", "origin", "/tmp/attacker-controlled-repo"], repoDir);
 
         await writeSentinel(fakeHome, repoDir);
+        // NODE_ENV=production proves the test-only git override is ignored
+        // outside tests; it also unmutes desktop notifications, so CI=true
+        // keeps the blocked-origin toast off the developer's screen.
         const result = await runAutoUpdateScript(fakeHome, {
           NODE_ENV: "production",
+          CI: "true",
           CC_SETTINGS_TEST_GIT_COMMAND_JSON: "not-json",
         });
         expect(result.exit).toBe(0);

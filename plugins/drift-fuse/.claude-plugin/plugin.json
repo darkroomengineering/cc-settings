@@ -1,0 +1,36 @@
+{
+  "name": "drift-fuse",
+  "version": "0.1.0",
+  "description": "Scores each unattended turn against the task the person asked for with TypeSafe's Jev model, and after consecutive off-task turns redirects or pauses the next machine-submitted prompt.",
+  "license": "MIT",
+  "author": {
+    "name": "Darkroom Engineering",
+    "url": "https://darkroom.engineering"
+  },
+  "userConfig": {
+    "driftBelow": {
+      "type": "number",
+      "title": "Drift below",
+      "description": "On-task probability under which a turn counts as drift",
+      "default": 0.35
+    },
+    "tripAfter": {
+      "type": "number",
+      "title": "Trip after",
+      "description": "Consecutive drift turns that trip the fuse",
+      "default": 2
+    },
+    "onTrip": {
+      "type": "string",
+      "title": "On trip",
+      "description": "redirect: attach a scope warning to the next machine-submitted prompt; pause: drop it",
+      "default": "redirect"
+    },
+    "scope": {
+      "type": "string",
+      "title": "Scope",
+      "description": "unattended: score only turns started by a loop, routine, notification, or SDK prompt; all: score every main-loop turn",
+      "default": "unattended"
+    }
+  }
+}
