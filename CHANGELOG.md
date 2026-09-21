@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.26.1] — 2026-09-21
+
+Sync with Claude Code v2.1.278. Docs only; Codex stays at 0.155.1.
+
+- **`CLAUDE_CODE_AUTO_MODE_SERVER` now documents the 2.1.278 default.** Auto mode runs its permission classifier server-side by default for Claude API, Enterprise, Bedrock, Vertex, Foundry and gateway sessions, with no classifier overhead billed and a warning when it falls back to the billed local classifier; `"0"` opts out on the non-first-party platforms. The row in `docs/settings-reference.md` had described the pre-2.1.278 opt-in.
+- Skipped: the `Auto mode server` row in `/status` (native UI, nothing in cc-settings mirrors it).
+- Files changed: `docs/settings-reference.md`, `upstream/claude-code-manifest.json`, four version sites.
+
 ## [15.26.0] — 2026-09-19
 
 - **`drift-fuse` plugin** (`plugins/drift-fuse/`, `drift-fuse@cc-settings`, enabled by `config/10-core.json` and installed by `setup.sh`). Watches an unattended run for drift from the task the person asked for. `prompt.submit` keeps the person's prompts (`composer` or `bridge` origin) as the task contract: one long enough to name a task replaces it, a short one or a slash command is appended (`then: fix billing`), pasted tool output changes nothing; the contract is snapshotted per turn, and a turn whose contract a person replaced mid-turn is not scored (both from the Codex review); `tool.call` records the main loop's edits, writes and Bash command heads; `turn.complete` sends the contract, those actions and the head of the answer to TypeSafe's Jev model with one `noul` question (did this turn serve the task) through `$.http.fetch`, 2.5 s timeout via `$.clock.sleep`. A turn under `driftBelow` (0.35) is a strike; `tripAfter` (2) consecutive strikes trip the fuse. A tripped fuse redirects the next prompt no person typed (a loop wakeup, a routine, a task notification, an SDK turn) by attaching one context line that names the task and the last turn's actions, or drops it when `onTrip` is `pause`; a person's prompt always passes and resets the contract and the fuse. By default only turns started by a non-person prompt are scored (`scope: "unattended"`); `scope: "all"` scores every main-loop turn. Without a `TYPESAFE_API_KEY`, or on any Jev failure, nothing is scored. The contract prompt, file paths, command heads and answer head leave the machine for each scored turn. Pure decision functions (`foldTurn`, `describeToolCall`, `scoringState`, `redirectLine`) and the hook wiring are covered by `tests/drift-fuse.test.ts` under `bun test`; `claude plugin validate` passes.

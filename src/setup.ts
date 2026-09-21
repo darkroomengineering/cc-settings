@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.26.0"; // drift-fuse function-hook plugin scores unattended turns against the task with Jev; auto-update stops toasting on local work in progress.
+const VERSION = "15.26.1"; // sync with Claude Code v2.1.278: server-side auto-mode classifier is the default, CLAUDE_CODE_AUTO_MODE_SERVER=0 opts out.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
