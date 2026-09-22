@@ -130,6 +130,7 @@ Environment variables injected into every Claude Code session.
 | `OTEL_METRICS_INCLUDE_REPOSITORY` | `"1"` or unset | Tag OpenTelemetry metrics and events with `vcs.*` repository attributes; commit events also get `vcs.ref.head.*` when `OTEL_LOG_TOOL_DETAILS` is set (v2.1.269) |
 | `CLAUDE_CODE_GATEWAY_HINT_HEADERS` | `"1"` or unset | Adds `x-claude-code-request-class`, `x-claude-code-agent-type`, `x-claude-code-prev-tool-durations` and `x-claude-code-compaction` request headers for LLM gateways to route or budget on (v2.1.273) |
 | `CLAUDE_CODE_AUTO_MODE_SERVER` | `"0"` or unset | Auto mode runs its classifier server-side by default (v2.1.278; no classifier overhead billed, `/status` shows an `Auto mode server` row, warns on billed fallback); set `"0"` on Bedrock, Vertex, Foundry or a gateway to run the local, billed classifier instead |
+| `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` | characters (string) | Raises or lowers the 2,048-character cap on MCP tool descriptions and server instructions for every MCP server in the session (v2.1.280); cc-settings leaves it unset because a higher cap spends context on every session |
 | `CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK` | `"1"` or unset | Skips the organization fast-mode check at startup; since v2.1.271 an API rejection of fast mode then stands for the session and its reason is shown instead of re-sending fast requests every turn |
 | `CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS` | milliseconds (string) | Extend the LLM gateway `/v1/models` discovery timeout; default 3 seconds (v2.1.269) |
 | `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` | integer 1–256 (string) | Raise the Workflow tool's per-run concurrent agent limit (default 16) for inference-bound fan-outs (v2.1.269) |
@@ -150,8 +151,8 @@ Default model for all sessions.
 
 | Value | Model | Notes |
 |-------|-------|-------|
-| `fable` / `claude-fable-5-1` | Claude Fable 5.1 | **cc-settings default: `claude-fable-5-1`** (since 2026-09-01; was `claude-opus-5`). Top tier, above Opus 5 — long-horizon agentic coding, research, and document work. 1M context native at standard rates (no `[1m]` pin needed); cache reads 0.025x base. Included on Max since 2026-07-20: draws the shared weekly pool at ~2x the Opus 5 rate and is capped at 50% of the weekly limit, then bills extra-usage credits ($10/$50 per Mtok). The `fable` alias resolves to Fable 5.1 from Claude Code v2.1.257; Claude apps gateway sessions keep `fable`/`best` on Fable 5 until the gateway is configured for 5.1 — pick `claude-fable-5-1` in `/model` there. |
-| `opus` / `claude-opus-5` | Claude Opus 5 | `opus` resolves to Claude Opus 5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). Near-Fable quality at half the pool burn ($5/$25 per Mtok); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native on Max — no `[1m]` pin (the suffix is a no-op on Opus 5). Effort defaults to `high`. Requires Claude Code v2.1.219+ |
+| `fable` / `claude-fable-5-1` | Claude Fable 5.1 | **cc-settings default: `claude-fable-5-1`** (since 2026-09-01; was `claude-opus-5`). Top tier, above Opus 5.5 — long-horizon agentic coding, research, and document work. 1M context native at standard rates (no `[1m]` pin needed); cache reads 0.025x base. Included on Max since 2026-07-20: draws the shared weekly pool at ~2x the Opus 5 rate and is capped at 50% of the weekly limit, then bills extra-usage credits ($10/$50 per Mtok). The `fable` alias resolves to Fable 5.1 from Claude Code v2.1.257; Claude apps gateway sessions keep `fable`/`best` on Fable 5 until the gateway is configured for 5.1 — pick `claude-fable-5-1` in `/model` there. |
+| `opus` / `claude-opus-5-5` | Claude Opus 5.5 | `opus` resolves to Claude Opus 5.5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). One tier below Fable at 40% of its per-token price ($4/$20 per Mtok, cache reads $0.20); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native — no `[1m]` pin. The API effort default is `medium` (Opus 5 used `high`); cc-settings pins `medium` through `CLAUDE_CODE_EFFORT_LEVEL` either way. Requires Claude Code v2.1.280+. `claude-opus-5` ($5/$25) stays selectable by full ID. |
 | `sonnet` | Claude Sonnet 5 | Near-Opus quality on coding/agentic work at a fraction of Opus cost. 1M context native (no `[1m]` pin needed) |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 
@@ -675,7 +676,7 @@ Curate the `/model` picker (v2.1.242): an ordered `options` array of `{model, la
 ```json
 {
   "modelPicker": {
-    "options": [{ "model": "claude-opus-5", "label": "Opus (default)" }]
+    "options": [{ "model": "claude-opus-5-5", "label": "Opus (default)" }]
   }
 }
 ```

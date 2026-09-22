@@ -33,12 +33,12 @@ describe("preflightClaudeBridge", () => {
 });
 
 describe("resolveClaudeModel", () => {
-  test("defaults to Opus 5", () => {
+  test("defaults to Opus 5.5", () => {
     expect(resolveClaudeModel(undefined, {})).toEqual({
       ok: true,
       model: CLAUDE_BRIDGE_DEFAULT_MODEL,
     });
-    expect(CLAUDE_BRIDGE_DEFAULT_MODEL).toBe("claude-opus-5");
+    expect(CLAUDE_BRIDGE_DEFAULT_MODEL).toBe("claude-opus-5-5");
   });
 
   test("flag beats env beats default", () => {
@@ -60,7 +60,7 @@ describe("resolveClaudeModel", () => {
 
 describe("buildClaudeArgs", () => {
   test("is headless, read-only, and non-interactive", () => {
-    const args = buildClaudeArgs("claude-opus-5");
+    const args = buildClaudeArgs("claude-opus-5-5");
     expect(args[0]).toBe("claude");
     expect(args).toContain("-p");
     expect(args).toContain("--no-session-persistence");

@@ -1,6 +1,6 @@
 ---
 name: planner
-model: claude-opus-5
+model: claude-opus-5-5
 memory: project
 description: |
   Task breakdown and architecture planning. Creates detailed implementation roadmaps.

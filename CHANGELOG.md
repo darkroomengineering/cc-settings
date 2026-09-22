@@ -4,6 +4,51 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.27.0] — 2026-09-22
+
+Sync with Claude Code v2.1.280 and Codex 0.156.0. The judgment agents and the Codex-to-Claude bridge now run on Claude Opus 5.5.
+
+**Adopted:**
+
+- **Claude Opus 5.5 for judgment work** (Claude Code 2.1.280). `maestro`, `planner` and `security-reviewer`, the six profiles, and the `claude-run.ts` / `claude-verifier` default move from `claude-opus-5` to `claude-opus-5-5`. Opus 5.5 is the new default Opus and costs less per token ($4/$20 per Mtok against $5/$25, cache reads $0.20 against $0.50). Without the repin those agents would have stayed on the older, pricier model while `/model opus` moved on. The Codex tier map adds `claude-opus-5-5` → `gpt-6-astra` and keeps `claude-opus-5` for anyone still pinning it.
+- **`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` documented** (2.1.280). It changes the 2,048-character cap on MCP tool descriptions and server instructions. cc-settings leaves it unset, because a higher cap spends context on every session.
+
+**Docs:** `docs/agent-models.md` cost comparison now reads Fable at 2.5x Opus 5.5 on base tokens. The cache-read argument for escalating to Fable is weaker: Fable's $0.25 re-reads now cost about the same as Opus 5.5's $0.20, not less.
+
+**Unchanged pending evidence:** the long-context-premium line in `CLAUDE-FULL.md` and `MANUAL.md` (current API docs confirm no premium only for Opus 4.7 and 4.8), the advisor pairing table, and the handoff degradation thresholds (no Opus 5.5 data yet).
+
+**Skipped:** 2.1.279's server-side auto-mode classifier default (documented in 15.26.1); dialog keys, fullscreen mouse, `/permissions` and `/config` UI; per-model effort changes (`CLAUDE_CODE_EFFORT_LEVEL` still sets the default); the `PermissionRequest` agent-hook refusal and the `~/.claude/skills` manifest trash fix (nothing here wires either). Codex 0.156.0 is UI-only for cc-settings: `/tui`, voice, `/usage`, themes, `/daemon`, command-center worktree sessions, and the `personality` deprecation touch no installed surface.
+
+**Files changed:**
+agents/maestro.md
+agents/planner.md
+agents/security-reviewer.md
+profiles/maestro.md
+profiles/nextjs.md
+profiles/react-native.md
+profiles/react-router.md
+profiles/tauri.md
+profiles/webgl.md
+src/lib/claude-bridge.ts
+src/lib/codex-install-state.ts
+src/scripts/claude-run.ts
+tests/claude-bridge.test.ts
+CLAUDE-FULL.md
+codex/AGENTS.append.md
+codex/agents/claude-verifier.md
+docs/agent-models.md
+docs/claude-vs-codex.md
+docs/codex-bridge.md
+docs/frontmatter-reference.md
+docs/profiles.md
+docs/settings-reference.md
+upstream/claude-code-manifest.json
+upstream/codex-manifest.json
+package.json
+.claude-plugin/plugin.json
+.codex-plugin/plugin.json
+src/setup.ts
+
 ## [15.26.1] — 2026-09-21
 
 Sync with Claude Code v2.1.278. Docs only; Codex stays at 0.155.1.

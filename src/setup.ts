@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.26.1"; // sync with Claude Code v2.1.278: server-side auto-mode classifier is the default, CLAUDE_CODE_AUTO_MODE_SERVER=0 opts out.
+const VERSION = "15.27.0"; // sync with Claude Code v2.1.280 and Codex 0.156.0: judgment agents and the Codex-to-Claude bridge move to Claude Opus 5.5.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

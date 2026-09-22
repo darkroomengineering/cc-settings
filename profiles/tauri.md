@@ -1,7 +1,7 @@
 ---
 name: tauri
 description: Tauri desktop apps (Rust + Web)
-model: claude-opus-5
+model: claude-opus-5-5
 skills: [build]
 ---
 

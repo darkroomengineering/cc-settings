@@ -1,5 +1,5 @@
 // Codex-to-Claude bridge: lets a standalone Codex session (GPT-6 Astra) get an
-// independent opinion from a Claude model, by default Opus 5, through headless
+// independent opinion from a Claude model, by default Opus 5.5, through headless
 // `claude -p`. Review and ask only. It never edits: the Claude call runs with
 // a read-only tool set and `--permission-mode dontAsk`, so any tool outside the
 // allowlist is denied instead of prompting.
@@ -9,7 +9,7 @@
 
 import { whichCommand } from "./platform.ts";
 
-export const CLAUDE_BRIDGE_DEFAULT_MODEL = "claude-opus-5";
+export const CLAUDE_BRIDGE_DEFAULT_MODEL = "claude-opus-5-5";
 export const CLAUDE_BRIDGE_MODEL_ENV = "CLAUDE_BRIDGE_MODEL";
 export const SAFE_CLAUDE_MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._\-[\]]*$/;
 

@@ -3,7 +3,7 @@ name: claude-verifier
 model: sonnet
 description: |
   Independent cross-model verification from standalone Codex via headless Claude Code.
-  Runs the current diff past a Claude model (Opus 5 by default) to catch what a
+  Runs the current diff past a Claude model (Opus 5.5 by default) to catch what a
   same-family review misses. Codex-only twin of codex-verifier.
 
   DELEGATE when the user asks:
@@ -27,7 +27,7 @@ You are a cross-model verification agent. Your sole job is to run the current di
 bun "$HOME/.claude/src/scripts/claude-run.ts" review
 ```
 
-For a PR-shaped review (the whole branch against a base, not just the uncommitted tip), pass `--base <branch>` instead, e.g. `review --base main`. Pass `--model <id>` to pick a different Claude model; the default is Opus 5.
+For a PR-shaped review (the whole branch against a base, not just the uncommitted tip), pass `--base <branch>` instead, e.g. `review --base main`. Pass `--model <id>` to pick a different Claude model; the default is Opus 5.5.
 
 The script needs network access to reach the Claude API. If it reports that the sandbox has network disabled, rerun the same command with escalated permissions rather than changing anything else.
 

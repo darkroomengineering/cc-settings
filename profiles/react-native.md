@@ -1,7 +1,7 @@
 ---
 name: react-native
 description: Expo mobile apps
-model: claude-opus-5
+model: claude-opus-5-5
 skills: [build, component]
 ---
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 // Codex-to-Claude bridge CLI. Standalone Codex (GPT-6 Astra) calls this for an
-// independent Claude opinion, by default from Opus 5. Two subcommands, both
+// independent Claude opinion, by default from Opus 5.5. Two subcommands, both
 // read-only; there is deliberately no `exec`.
 //
 // Usage:
@@ -9,7 +9,7 @@
 //   claude-run.ts ask [--model <id>] "<question>" — read-only second opinion
 //
 // review scope flags (mutually exclusive): --staged | --base <branch> | --commit <sha>
-// Model: --model > CLAUDE_BRIDGE_MODEL > claude-opus-5.
+// Model: --model > CLAUDE_BRIDGE_MODEL > claude-opus-5-5.
 //
 // Refuses to run inside a Claude Code session (CLAUDECODE set) so the two
 // bridges cannot chain, and reports when the Codex sandbox has no network.
@@ -35,7 +35,7 @@ function usage(): void {
       "  --base <branch>    review the diff against a base branch",
       "  --commit <sha>     review a single commit",
       "",
-      "  --model  Claude model id or alias. Default claude-opus-5; env CLAUDE_BRIDGE_MODEL overrides.",
+      "  --model  Claude model id or alias. Default claude-opus-5-5; env CLAUDE_BRIDGE_MODEL overrides.",
     ].join("\n"),
   );
 }

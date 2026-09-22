@@ -153,14 +153,14 @@ Opus delegates to the `codex-verifier` agent, which runs `codex review` and retu
 
 ## The reverse bridge: Codex calling Claude
 
-Standalone Codex (GPT-6 Astra) can get an independent opinion from a Claude model, Opus 5 by default, through `src/scripts/claude-run.ts`. It is review and ask only; there is no `exec`, so Claude never edits from a Codex session.
+Standalone Codex (GPT-6 Astra) can get an independent opinion from a Claude model, Opus 5.5 by default, through `src/scripts/claude-run.ts`. It is review and ask only; there is no `exec`, so Claude never edits from a Codex session.
 
 ```bash
 bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" review [--staged | --base <branch> | --commit <sha>] [--model <id>]
 bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" ask "question" [--model <id>]
 ```
 
-The script runs `claude -p` with `--permission-mode dontAsk`, a tool set of Read, Grep, Glob, and Bash, and an allowlist of `git diff`, `git show`, `git status`, and `git log`; anything else is denied silently. The prompt goes over stdin, so it can never be read as a flag. Model resolution is `--model`, then `CLAUDE_BRIDGE_MODEL`, then `claude-opus-5`.
+The script runs `claude -p` with `--permission-mode dontAsk`, a tool set of Read, Grep, Glob, and Bash, and an allowlist of `git diff`, `git show`, `git status`, and `git log`; anything else is denied silently. The prompt goes over stdin, so it can never be read as a flag. Model resolution is `--model`, then `CLAUDE_BRIDGE_MODEL`, then `claude-opus-5-5`.
 
 The installer writes a Codex-only `claude-verifier` native agent (source: `codex/agents/claude-verifier.md`) that wraps the review subcommand, mirroring `codex-verifier` on the Claude side.
 
@@ -168,7 +168,7 @@ Three constraints, all enforced by the script:
 
 - **No chaining.** It refuses when `CLAUDECODE` is set (inside a Claude session), and `codex-run.ts` refuses when `CODEX_THREAD_ID` or `CODEX_SANDBOX` is set (inside a Codex session). Neither bridge can call the other.
 - **Network.** Codex sandboxes, including read-only, set `CODEX_SANDBOX_NETWORK_DISABLED=1`, and `claude -p` needs the API. The script reports this and stops. Either rerun the command with escalated permissions when Codex prompts, or set `[sandbox_workspace_write] network_access = true` in `config.toml`; cc-settings never edits that file.
-- **Quota.** The call spends your Claude Max pool from a Codex session. Opus 5 draws from the same weekly pool as Fable, at half the rate.
+- **Quota.** The call spends your Claude Max pool from a Codex session. Opus 5.5 draws from the same weekly pool as Fable, at a lower rate.
 
 ## Setup Caveat
 

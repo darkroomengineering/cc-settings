@@ -33,7 +33,7 @@ Do not rely on an undocumented precedence rule.
 | Shared standards | `CLAUDE.md`, `AGENTS.md`, rules, and profiles | Managed block in native `AGENTS.md` plus command policy |
 | Shared skills | All 38 under `~/.claude/skills` | All 38 through `darkroom@cc-settings` |
 | Role agents | All roles, including the Claude-to-Codex `codex-verifier` | Native role agents except `codex-verifier`, plus the Codex-to-Claude `claude-verifier` |
-| Delegation tiers | Fable session; Opus 5 for judgment agents, Sonnet 5 for execution | Astra session; Astra for judgment agents, Sol for execution |
+| Delegation tiers | Fable session; Opus 5.5 for judgment agents, Sonnet 5 for execution | Astra session; Astra for judgment agents, Sol for execution |
 | Hooks | Full Claude hook set from composed settings | Compatible plugin subset; user reviews trust through `/hooks` |
 | MCP servers | Context7, TLDR, Figma, and Chrome DevTools | Fixed HTTPS Figma server only |
 | Runtime source | Self-contained managed source under `~/.claude/src` | Allowlisted source under `$CODEX_HOME/darkroom/source` |

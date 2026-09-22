@@ -87,13 +87,13 @@ color: purple
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
 | `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | green |
-| `maestro` | claude-opus-5 | -- | Read, Write, Edit, Bash, Grep, Glob, LS, Agent, SendMessage | red |
+| `maestro` | claude-opus-5-5 | -- | Read, Write, Edit, Bash, Grep, Glob, LS, Agent, SendMessage | red |
 | `reviewer` | sonnet | project | Read, Grep, Glob, LS, Bash | yellow |
-| `planner` | claude-opus-5 | project | Read, Grep, Glob, LS | blue |
+| `planner` | claude-opus-5-5 | project | Read, Grep, Glob, LS | blue |
 | `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
 | `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
 | `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, SendMessage | cyan |
-| `security-reviewer` | claude-opus-5 | -- | Read, Grep, Glob, Bash | red |
+| `security-reviewer` | claude-opus-5-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash, Read | cyan |
 | `claude-verifier` (Codex-only, `codex/agents/`) | sonnet | -- | Bash, Read | cyan |
 
@@ -221,7 +221,7 @@ All frontmatter fields in profiles are **advisory** — validated at install tim
 |-------|------|----------|-------------|
 | `name` | string | Yes | Profile identifier (kebab-case, must match the filename stem) |
 | `description` | string | Yes | Short description of the profile's purpose |
-| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `claude-opus-5`) |
+| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `claude-opus-5-5`) |
 | `skills` | list | No | Advisory: skill names expected to be active in this context |
 | `tools` | list | No | Advisory: tool subset relevant to this workflow |
 | `permissionMode` | string | No | Advisory: intended permission mode (`default`, `manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
@@ -235,7 +235,7 @@ name: maestro
 description: |
   Full orchestration mode for power users. Coordinates agents instead of executing directly.
   Activate when you want maximum delegation and parallel agent workflows.
-model: claude-opus-5
+model: claude-opus-5-5
 skills: [orchestrate]
 effort: xhigh
 ---
@@ -245,12 +245,12 @@ effort: xhigh
 
 | Profile | Model (advisory) | Skills (advisory) | Effort (advisory) |
 |---------|-----------------|-------------------|-------------------|
-| `maestro` | claude-opus-5 | orchestrate | xhigh |
-| `nextjs` | claude-opus-5 | build, component, hook, lighthouse | — |
-| `react-native` | claude-opus-5 | build, component | — |
-| `tauri` | claude-opus-5 | build | — |
-| `webgl` | claude-opus-5 | component, qa | — |
-| `react-router` | claude-opus-5 | build, component, hook | — |
+| `maestro` | claude-opus-5-5 | orchestrate | xhigh |
+| `nextjs` | claude-opus-5-5 | build, component, hook, lighthouse | — |
+| `react-native` | claude-opus-5-5 | build, component | — |
+| `tauri` | claude-opus-5-5 | build | — |
+| `webgl` | claude-opus-5-5 | component, qa | — |
+| `react-router` | claude-opus-5-5 | build, component, hook | — |
 
 ---
 

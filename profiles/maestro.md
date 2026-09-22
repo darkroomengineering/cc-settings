@@ -3,7 +3,7 @@ name: maestro
 description: |
   Full orchestration mode for power users. Coordinates agents instead of executing directly.
   Activate when you want maximum delegation and parallel agent workflows.
-model: claude-opus-5
+model: claude-opus-5-5
 skills: [orchestrate]
 effort: xhigh
 ---

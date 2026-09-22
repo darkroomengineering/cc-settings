@@ -38,6 +38,7 @@ export const CODEX_ONLY_AGENT_SOURCE_FILES = ["claude-verifier.md"] as const;
 export const CODEX_MODEL_FOR_CLAUDE_TIER: Readonly<Record<string, string>> = {
   opus: "gpt-6-astra",
   "claude-opus-5": "gpt-6-astra",
+  "claude-opus-5-5": "gpt-6-astra",
   fable: "gpt-6-astra",
   "claude-fable-5-1": "gpt-6-astra",
   sonnet: "gpt-5.6-sol",
