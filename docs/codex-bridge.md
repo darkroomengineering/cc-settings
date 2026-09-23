@@ -118,18 +118,18 @@ Every subcommand pins a Codex model explicitly instead of inheriting `config.tom
 
 | Subcommand | Default | Env override | Flag |
 |---|---|---|---|
-| `exec` | `gpt-5.6-sol` | `CODEX_EXEC_MODEL` | `--model <id>` |
+| `exec` | `gpt-6-sol` | `CODEX_EXEC_MODEL` | `--model <id>` |
 | `review` | `gpt-6-astra` | `CODEX_REVIEW_MODEL` | `--model <id>` |
 | `ask` | `gpt-6-astra` | `CODEX_ASK_MODEL` | `--model <id>` |
 
 ```bash
 bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model gpt-6-astra "..."
-bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-5.6-sol --base main
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-6-sol --base main
 ```
 
 `/codex` is a Claude Code skill, not a shell command, so it cannot take an inline env-var prefix; export the variable before launching Claude Code, or pass `--model` in the skill arguments.
 
-The same split applies to the native Codex agents the installer writes: agents pinned to `opus` or `fable` in their Claude frontmatter get `model = "gpt-6-astra"`, agents on `sonnet` or `haiku` get `model = "gpt-5.6-sol"`. See [agent-models.md](./agent-models.md#codex-tiers).
+The same split applies to the native Codex agents the installer writes: agents pinned to `opus` or `fable` in their Claude frontmatter get `model = "gpt-6-astra"`, agents on `sonnet` get `model = "gpt-6-sol"` and agents on `haiku` get `model = "gpt-6-luna"`. See [agent-models.md](./agent-models.md#codex-tiers).
 
 ### What the script adds to a task
 

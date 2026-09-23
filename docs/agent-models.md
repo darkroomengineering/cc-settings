@@ -34,7 +34,8 @@ The same table drives standalone Codex. The installer maps each agent's Claude t
 | Claude tier in frontmatter | Codex `model` | Why |
 |---|---|---|
 | `claude-opus-5-5`, `claude-opus-5`, `opus`, `fable` | `gpt-6-astra` | Judgment: OpenAI's most aligned model, returns early but judges well |
-| `sonnet`, `haiku` | `gpt-5.6-sol` | Execution: continues through long tasks where Astra stops to check in |
+| `sonnet` | `gpt-6-sol` | Execution: Codex's workhorse coding model |
+| `haiku` | `gpt-6-luna` | Fast, low-cost tasks |
 | unset | inherits the session model | |
 
 The Claude-to-Codex bridge uses the same split per call: `exec` defaults to Sol, `review` and `ask` to Astra. The Codex-to-Claude bridge (`claude-run.ts`, `claude-verifier`) defaults to `claude-opus-5-5`. See [codex-bridge.md](./codex-bridge.md).

@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.29.0] — 2026-09-22
+
+Move Codex execution work to the GPT-6 generation now that Codex CLI 0.156.0 lists `gpt-6-sol` and `gpt-6-luna`.
+
+**Changed:**
+- `codex-run.ts exec` defaults to `gpt-6-sol` instead of `gpt-5.6-sol`, which Codex now labels an older model. `review` and `ask` stay on `gpt-6-astra`. `CODEX_EXEC_MODEL` and `--model` still override.
+- Native Codex agents on the `sonnet` tier (`implementer`, `tester`, `explore`, `scaffolder`, `deslopper`, `reviewer`, `claude-verifier`) get `model = "gpt-6-sol"`. The `haiku` tier maps to `gpt-6-luna`; no shipped agent uses it today.
+
+**Files changed:**
+- `src/lib/codex.ts`
+- `src/lib/codex-install-state.ts`
+- `src/scripts/codex-run.ts`
+- `skills/codex/SKILL.md`
+- `docs/agent-models.md`
+- `docs/codex-bridge.md`
+- `tests/codex.test.ts`
+- `tests/codex-install.test.ts`
+- `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `src/setup.ts`
+
 ## [15.28.0] — 2026-09-22
 
 Tune the instruction files for Opus 5.5 and Fable 5.1, following Anthropic's prompt-audit guidance for those models.

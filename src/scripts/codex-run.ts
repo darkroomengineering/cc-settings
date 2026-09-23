@@ -9,7 +9,7 @@
 //   codex-run.ts review [--force] [--model <id>] [scope]    — independent review, default: uncommitted diff
 //   codex-run.ts ask [--force] [--model <id>] "<question>"  — read-only second opinion
 //
-// Model routing (flag > env > default): exec → gpt-5.6-sol (CODEX_EXEC_MODEL),
+// Model routing (flag > env > default): exec → gpt-6-sol (CODEX_EXEC_MODEL),
 //   review → gpt-6-astra (CODEX_REVIEW_MODEL), ask → gpt-6-astra (CODEX_ASK_MODEL).
 //   Sol continues through long execution; Astra holds the judgment calls.
 //
@@ -45,7 +45,7 @@ function usage(): void {
       "",
       "  --force  Bypass a sticky rate-limited/no-access verdict and re-probe.",
       "           Useful when the quota error is a false positive (e.g. auth mismatch).",
-      "  --model  Pin the Codex model for this call. Defaults: exec gpt-5.6-sol,",
+      "  --model  Pin the Codex model for this call. Defaults: exec gpt-6-sol,",
       "           review and ask gpt-6-astra; env CODEX_EXEC_MODEL / CODEX_REVIEW_MODEL /",
       "           CODEX_ASK_MODEL override the defaults.",
       "",

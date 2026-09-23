@@ -41,10 +41,10 @@ export const CODEX_MODEL_FOR_CLAUDE_TIER: Readonly<Record<string, string>> = {
   "claude-opus-5-5": "gpt-6-astra",
   fable: "gpt-6-astra",
   "claude-fable-5-1": "gpt-6-astra",
-  sonnet: "gpt-5.6-sol",
-  "claude-sonnet-5": "gpt-5.6-sol",
-  haiku: "gpt-5.6-sol",
-  "claude-haiku-4-5-20251001": "gpt-5.6-sol",
+  sonnet: "gpt-6-sol",
+  "claude-sonnet-5": "gpt-6-sol",
+  haiku: "gpt-6-luna",
+  "claude-haiku-4-5-20251001": "gpt-6-luna",
 };
 export function codexModelForClaudeModel(model: unknown): string | undefined {
   if (typeof model !== "string") return undefined;

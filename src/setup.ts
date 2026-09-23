@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.28.0"; // tune the standards for Opus 5.5 and Fable 5.1: clarifying round fires on diverging readings, not task size; blanket emphasis removed.
+const VERSION = "15.29.0"; // Codex execution roles and `codex-run.ts exec` move to gpt-6-sol; haiku-tier roles map to gpt-6-luna.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

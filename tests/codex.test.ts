@@ -809,13 +809,13 @@ describe("buildExecPrompt", () => {
 describe("resolveCodexModel", () => {
   test("defaults route exec to Sol and review/ask to Astra", () => {
     expect(CODEX_MODEL_DEFAULTS).toEqual({
-      exec: "gpt-5.6-sol",
+      exec: "gpt-6-sol",
       review: "gpt-6-astra",
       ask: "gpt-6-astra",
     });
     expect(resolveCodexModel("exec", undefined, {})).toEqual({
       ok: true,
-      model: "gpt-5.6-sol",
+      model: "gpt-6-sol",
       pinned: false,
     });
     expect(resolveCodexModel("review", undefined, {})).toEqual({

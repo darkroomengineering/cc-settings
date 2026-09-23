@@ -250,12 +250,12 @@ describe("Codex installer lifecycle", () => {
           expect(["read-only", "workspace-write"]).toContain(parsed.sandbox_mode as string);
           expect(raw).not.toContain(".claude/src");
           if (parsed.model !== undefined) {
-            expect(["gpt-6-astra", "gpt-5.6-sol"]).toContain(parsed.model as string);
+            expect(["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]).toContain(parsed.model as string);
           }
           if (name === "planner") expect(parsed.model).toBe("gpt-6-astra");
-          if (name === "implementer") expect(parsed.model).toBe("gpt-5.6-sol");
+          if (name === "implementer") expect(parsed.model).toBe("gpt-6-sol");
           if (name === "claude-verifier") {
-            expect(parsed.model).toBe("gpt-5.6-sol");
+            expect(parsed.model).toBe("gpt-6-sol");
             expect(parsed.sandbox_mode).toBe("read-only");
             expect(raw).toContain("claude-run.ts");
           }

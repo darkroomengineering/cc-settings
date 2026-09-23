@@ -503,7 +503,7 @@ export type ParseReviewArgsResult =
  *  request and continues for long stretches" where Astra returns early. */
 export type CodexSubcommand = "exec" | "review" | "ask";
 export const CODEX_MODEL_DEFAULTS: Readonly<Record<CodexSubcommand, string>> = {
-  exec: "gpt-5.6-sol",
+  exec: "gpt-6-sol",
   review: "gpt-6-astra",
   ask: "gpt-6-astra",
 };
