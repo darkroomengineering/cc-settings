@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.29.2] — 2026-09-22
+
+Docs-only: decision records for two evaluations that ended in no-go.
+
+**Added:**
+- `docs/audits/gortex-2026-09-21.md`: Gortex v0.64.4 misses a renamed cross-file TypeScript caller that native-ts finds, so native-ts stays the code-intel default.
+- `docs/audits/skill-routing-2026-09-21.md`: Laya MLX and two Jev formulations fail the recall, false-suggestion, and latency gates for suggesting skills, so both hosts keep their own skill selection.
+
+**Files changed:**
+- docs/audits/gortex-2026-09-21.md
+- docs/audits/skill-routing-2026-09-21.md
+
 ## [15.29.1] — 2026-09-22
 
 Docs-only: `docs/codex.md` catches up with the current models and explains why adaptive effort stays off.

@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.29.1"; // docs/codex.md: current model names and the adaptive reasoning effort section.
+const VERSION = "15.29.2"; // Audit records for the Gortex and local skill-routing evaluations.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
