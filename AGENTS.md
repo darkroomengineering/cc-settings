@@ -60,6 +60,10 @@ Keep a bug fix confined to directly related files. Do not refactor adjacent code
 
 Once the ladder says a bounded unit should exist, finish its edge cases, error paths, and tests when that costs only minutes more; do not ship 90% and defer the rest. Complete the unit without expanding scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repository already keeps tests for that kind of change, sized like the neighbors; scratch checks stay scratch.
 
+### No Loose Ends
+
+Finish the follow-ups your own change creates. After a delete, rename, or move, find and fix every reference (imports, links, docs, config, tests, sibling checkouts the files name) in the same pass. Do a minutes-long follow-up instead of suggesting it. Hand back only a decision the user owns, access you lack, or a change you could not reach.
+
 ### Verify After Every Fix
 
 The repository's local checks (typecheck, tests, lint, build) are safe to run without asking. Prove each fix passes them before stacking the next one.
@@ -167,8 +171,6 @@ These defaults apply to Darkroom web clients. Tooling and non-web repositories, 
 - **GSAP:** complex animations.
 - **Tempus:** RAF management.
 - **Hamo:** performance hooks.
-
-Always check the latest version before installing: `bun info <package>`.
 
 ### Package Manager: Bun Only
 

@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.30.0] — 2026-09-22
+
+Add a "No Loose Ends" guardrail to the portable standards, so Claude Code and Codex finish the follow-ups their own changes create instead of listing them.
+
+**Added:**
+- `AGENTS.md` "No Loose Ends": after a delete, rename, or move, find and fix every reference in the same pass, including sibling checkouts the files point to. A follow-up that takes minutes gets done, not suggested. Only decisions, missing access, or changes outside the task's repositories go back to the user.
+
+**Removed:**
+- The Tech Stack copy of "check the latest version before installing", which repeated External Libraries step 2. This keeps `AGENTS.md` under its 16 KiB ceiling.
+
+**Files changed:**
+- AGENTS.md
+
 ## [15.29.2] — 2026-09-22
 
 Docs-only: decision records for two evaluations that ended in no-go.
