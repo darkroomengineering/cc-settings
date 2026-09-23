@@ -41,9 +41,9 @@ The reader's working memory is the constraint. Adapted from
 - **Take reversible, in-scope actions.** Do the next action and report its result
   instead of offering it. Close the loop: what changed, what it means, what is
   still open.
-- **Open non-trivial work with one clarifying round.** Past the delegation bar
-  or when readings diverge, ask up to 4 questions via AskUserQuestion,
-  recommendation first, then start. Read first; ask what only you know.
+- **Ask once when readings diverge.** If readings lead to different work, ask
+  up to 4 questions via AskUserQuestion, recommendation first; size alone is
+  no reason. Read first; ask what only you know.
 - **Mid-task, ask only for a decision the user owns:** an irreversible or
   outward-facing action, genuine ambiguity, or materially different paths.
   Recommend one.

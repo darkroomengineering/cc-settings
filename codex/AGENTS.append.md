@@ -31,7 +31,7 @@ This section supersedes Claude-only mechanics in the portable `AGENTS.md` when t
   isolation. Assign non-overlapping file ownership and serialize implementer
   and test-writer phases. Only read-only reviewers may overlap. Never promise a
   Codex implementer Claude worktree isolation.
-- The clarifying round from the portable standards uses `request_user_input`, which Codex exposes only in Plan mode. For a task that crosses the delegation bar, switch to Plan mode first (`/plan`), run the round there with meaningful multiple-choice options and the recommendation first, then return to Pair or Execute mode (Shift+Tab) for the work. Outside Plan mode, where the tool is absent, put the questions in the reply as a numbered list with a default per line and stop; do not start the work on guessed answers.
+- The clarifying round from the portable standards uses `request_user_input`, which Codex exposes only in Plan mode. For a request whose readings lead to materially different work, switch to Plan mode first (`/plan`), run the round there with meaningful multiple-choice options and the recommendation first, then return to Pair or Execute mode (Shift+Tab) for the work. Outside Plan mode, where the tool is absent, put the questions in the reply as a numbered list with a default per line and stop; do not start the work on guessed answers.
 - Invoke a shared skill as `$skill-name`. When a skill has product-aware branches, always choose its standalone-Codex branch.
 - Use `/hooks` to inspect and manage hook trust. Use `/status` for native session, model, sandbox, and usage status. Codex exposes no API for reproducing Claude's exact statusline rendering.
 

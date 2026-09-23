@@ -22,9 +22,8 @@ so the standards load every turn.
 
 ## About This Repo
 
-**TypeScript on Bun** (migrated from bash in April 2026; see git log for history). Runtime: `bun >=1.2.21`. Skill count and the soft cap of 40 are enforced by `bun run lint:skills` — provenance and the cap rule live in `CLAUDE-FULL.md` ("Skill library soft cap"), not here.
-Deps: `zod` (only — `yaml` and `@inquirer/confirm` were dropped for `Bun.YAML`
-and `node:readline`). Dev: `@biomejs/biome`, `typescript`, `@types/bun`.
+**TypeScript on Bun.** Runtime: `bun >=1.2.21`. The skill count is enforced by `bun run lint:skills`; the rule lives in `CLAUDE-FULL.md` ("Skill library ratchets"), not here.
+Deps: `zod` only (YAML parsing uses `Bun.YAML`, prompts use `node:readline`). Dev: `@biomejs/biome`, `typescript`, `@types/bun`.
 
 Two directories aren't what their names suggest: `config/` holds settings
 fragments that are *composed* into `~/.claude/settings.json` at install time

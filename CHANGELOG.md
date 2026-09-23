@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.28.0] — 2026-09-22
+
+Tune the instruction files for Opus 5.5 and Fable 5.1, following Anthropic's prompt-audit guidance for those models.
+
+**Changed:**
+- The clarifying round now fires only when a request's readings would lead to materially different work, not whenever a task crosses the delegation bar. Size alone no longer triggers questions; the agent makes routine calls and states its assumption. Updated in `AGENTS.md`, `CLAUDE-FULL.md`, `output-styles/darkroom.md`, `codex/AGENTS.append.md`, the `delegation-detector` hook message, and the `refactor` skill.
+- `AGENTS.md` drops the blanket "These rules are non-negotiable." line and the all-caps NEVER/MUST/Mandatory markers. Current models over-apply pressure language; each rule already states its reason.
+- Redundant instructions removed, measured against v15.27.0: Claude's always-loaded files drop from 33,572 to 31,859 bytes, Codex's portable file from 16,313 to 16,066. `CLAUDE-FULL.md` loses its copies of the register rules and "Numbers" (subagents already get both through the `AGENTS.md` import); the two register lines only it had (mannered prose, when structure helps) move into `AGENTS.md`, so Codex gets them too. `AGENTS.md` loses "Philosophy", "Getting Started", "Autonomous Execution" (current models read and search without asking; destructive-action confirmation stays under Safety), and a third copy of the React Compiler rule.
+- `.claude/AGENTS.md` states the runtime and dependencies in present tense and points to the "Skill library ratchets" section instead of a soft cap that no longer exists.
+
+**Files changed:**
+- AGENTS.md
+- CLAUDE-FULL.md
+- output-styles/darkroom.md
+- codex/AGENTS.append.md
+- src/hooks/delegation-detector.ts
+- skills/refactor/SKILL.md
+- .claude/AGENTS.md
+- package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, src/setup.ts, CHANGELOG.md
+
 ## [15.27.0] — 2026-09-22
 
 Sync with Claude Code v2.1.280 and Codex 0.156.0. The judgment agents and the Codex-to-Claude bridge now run on Claude Opus 5.5.

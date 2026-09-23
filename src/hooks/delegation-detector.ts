@@ -131,8 +131,7 @@ async function main(): Promise<void> {
   // already in context — restating it here would be the same instruction twice.
   const msg =
     `Breadth signals in this prompt (${jev !== null ? `Jev ${jev.toFixed(2)}` : `score ${score}`}): ${reasons.join("; ")}. ` +
-    `Apply the delegation heuristic. If it fires, open with one clarifying round ` +
-    `(AskUserQuestion, up to 4 questions, recommendation first) before starting.`;
+    `Apply the delegation heuristic.`;
 
   emitAdditionalContext("UserPromptSubmit", msg);
 

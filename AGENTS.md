@@ -2,16 +2,6 @@
 
 > Portable coding standards for Claude Code, Codex, Cursor, Copilot, Windsurf, and other AGENTS.md-aware tools.
 
-## Philosophy
-
-Make the codebase legible to agents and humans through written conventions, rules, and intent.
-
-## Getting Started
-
-1. Read this file.
-2. Delegate when the host's rules require it; thresholds live in each host's instructions.
-3. Start simple and add complexity only when needed.
-
 ## Response Calibration
 
 Match length to the request. Lead with the answer. A lookup gets a sentence and `file:line`; a multi-file change gets a brief plan and landing summary. Skip preambles and duplicate recaps.
@@ -27,10 +17,10 @@ Optimize for first-read comprehension, not brevity:
 - Use identifiers when pointing at code, plain names when describing behavior.
 - Define jargon inline on first use.
 - State the effect before the mechanism. Never clip sentences or remove substance to be shorter.
+- Say what you mean literally. No mannered prose: metaphor or flourish in place of a direct statement ("a dial worth turning" for "a parameter worth varying") makes the reader work so the writer can perform.
+- Use lists, tables, or headers when the content is multifaceted enough that they help the reader; keep to plain prose otherwise.
 
 ## Guardrails
-
-These rules are non-negotiable.
 
 ### Laziness Ladder (Before Writing Code)
 
@@ -89,7 +79,7 @@ If uncertain, treat it as a regression and stop to confirm. Making the suite gre
 
 ### Never Fake Measurements
 
-NEVER fabricate Lighthouse, bundle-size, profiler, test-runner, or build output. If a tool cannot run, say so. Report a delta only when both baselines were measured; otherwise report countable facts. Label extrapolations `est.` and name their source.
+Never fabricate Lighthouse, bundle-size, profiler, test-runner, or build output. If a tool cannot run, say so. Report a delta only when both baselines were measured; otherwise report countable facts. Label extrapolations `est.` and name their source.
 
 ### Visual/Spatial Honesty
 
@@ -128,7 +118,7 @@ Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing 
 
 ### Clarify Before Full Work Mode
 
-A non-trivial task opens with one interactive round of clarifying questions, then the work starts. Non-trivial means the delegation bar (3+ files, 12+ tool calls, security-sensitive code) or a request whose readings lead to materially different work, including which repository, host, or branch it targets. At most 4 questions, each with 2 to 4 concrete options and the recommended one first, asked through the host's interactive question tool, never as a prose list. One round, then proceed; a second only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips it. Read before asking: ask only what the user alone knows.
+A request whose readings lead to materially different work opens with one interactive round of clarifying questions, then the work starts. That includes which repository, host, or branch it targets, and what "done" looks like. Task size alone is not a reason to ask: make routine judgment calls yourself and state the assumption. At most 4 questions, each with 2 to 4 concrete options and the recommended one first, asked through the host's interactive question tool, never as a prose list. One round, then proceed; a second only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips it. Read before asking: ask only what the user alone knows.
 
 ### Plan Before Multi-File Changes
 
@@ -136,15 +126,11 @@ When a wrong approach would require a full rollback, state the plan (files touch
 
 ### Every Plan Opens With a Functional DAG
 
-Every markdown plan (plan files, PRDs, ADRs, issue breakdowns, orchestration briefs, stated multi-file plans) MUST start with `## Functional DAG`: a fenced recipe table with inputs on the left, operations merging rightward, parallelism visible by columns, and one terminal verification node. See `docs/functional-dag.md` for authoring rules and the Mermaid escape hatch. Reviews, audits, retros, and handoffs are not plans.
+Every markdown plan (plan files, PRDs, ADRs, issue breakdowns, orchestration briefs, stated multi-file plans) start with `## Functional DAG`: a fenced recipe table with inputs on the left, operations merging rightward, parallelism visible by columns, and one terminal verification node. See `docs/functional-dag.md` for authoring rules and the Mermaid escape hatch. Reviews, audits, retros, and handoffs are not plans.
 
 ### Dependency Upgrades
 
 Check breaking changes before every major dependency upgrade. If the build breaks, rollback immediately, research the migration, then retry with a plan.
-
-### Autonomous Execution
-
-Proceed without asking for non-destructive reading, searching, exploration, read-only git commands, documentation fetching, and research. Confirm destructive or irreversible actions only.
 
 ### Shell Commands
 
@@ -173,7 +159,7 @@ These defaults apply to Darkroom web clients. Tooling and non-web repositories, 
 ### Quality
 
 - **Biome:** linting and formatting, not ESLint/Prettier.
-- **React Compiler:** no manual `useMemo`, `useCallback`, or `memo`.
+- **React Compiler:** on.
 
 ### Animation & Graphics
 
@@ -201,7 +187,7 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 ### React
 
 - Prefer Server Components; add `'use client'` only when needed.
-- With React Compiler, do NOT use `useMemo`, `useCallback`, or `React.memo`.
+- With React Compiler, do not use `useMemo`, `useCallback`, or `React.memo`.
 - Use `useRef` for object instantiation to prevent infinite loops.
 
 ### Performance
@@ -239,9 +225,9 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 
 Code and docs read as if the current state is the only one that ever existed. Remove, don't annotate: text describing what changed ("replaces X", "no longer", "previously", "renamed from", "current violations: 0") gets deleted or reworded to present tense, and the repo swept for the same pattern in one pass. Delete artifact files (a "Fixed Violations" ledger, a "moved to X" tombstone) and whatever enforced them. Keep "why" comments that prevent a bad future edit, minus the historical framing. History lives in `CHANGELOG.md`.
 
-### Stealth Mode (Mandatory)
+### Stealth Mode
 
-Git history, PRs, and descriptions MUST contain no AI fingerprints:
+Git history, PRs, and descriptions contain no AI fingerprints:
 
 - No `Co-Authored-By` naming Claude, Anthropic, or any AI.
 - No "Generated with Claude Code" or equivalent.
