@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.29.1] — 2026-09-22
+
+Docs-only: `docs/codex.md` catches up with the current models and explains why adaptive effort stays off.
+
+**Changed:**
+- Execution roles are documented as running on `gpt-6-sol`, and the Claude bridge as defaulting to Opus 5.5.
+- New "Adaptive reasoning effort" section: cc-settings does not enable Jev-driven effort changes for Astra or Fable, because neither host has a verified integration that preserves the prompt cache.
+
+**Files changed:**
+- docs/codex.md
+
 ## [15.29.0] — 2026-09-22
 
 Move Codex execution work to the GPT-6 generation now that Codex CLI 0.156.0 lists `gpt-6-sol` and `gpt-6-luna`.

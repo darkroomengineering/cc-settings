@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.29.0"; // Codex execution roles and `codex-run.ts exec` move to gpt-6-sol; haiku-tier roles map to gpt-6-luna.
+const VERSION = "15.29.1"; // docs/codex.md: current model names and the adaptive reasoning effort section.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

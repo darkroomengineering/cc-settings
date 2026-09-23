@@ -160,8 +160,8 @@ never among the trimmed ones unless the rest of the install is far over.
 Astra stays the session model and delegates by task shape. Each native role agent carries a
 `model` field the installer derives from the shared Claude tier: judgment roles (`planner`,
 `security-reviewer`, `maestro`) run on `gpt-6-astra`; execution roles (`implementer`, `tester`,
-`explore`, `scaffolder`, `deslopper`, `reviewer`) run on `gpt-5.6-sol`, which continues through
-long tasks where Astra returns early. Override a role by editing its `agents/*.toml`; the next
+`explore`, `scaffolder`, `deslopper`, `reviewer`) run on `gpt-6-sol`, Codex's workhorse coding
+model. Override a role by editing its `agents/*.toml`; the next
 reinstall restores the derived value.
 
 For an opinion from a different model family, spawn `claude-verifier` or run the bridge directly:
@@ -171,7 +171,7 @@ bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" review --base main
 bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" ask "is this retry safe?"
 ```
 
-Both are read-only and default to Opus 5 (`--model` or `CLAUDE_BRIDGE_MODEL` changes that). The
+Both are read-only and default to Opus 5.5 (`--model` or `CLAUDE_BRIDGE_MODEL` changes that). The
 call needs network, which Codex sandboxes disable by default: approve the escalation when Codex
 prompts, or set `[sandbox_workspace_write] network_access = true` in `config.toml`. It spends your
 Claude plan's quota. Details and the no-chaining guard are in the
@@ -197,6 +197,44 @@ Codex 0.155.1 leaves reasoning summaries off by default in new local TUI
 sessions; cc-settings sets no `model_reasoning_summary`, so an install inherits
 that default. Turn it on per session if you want the summaries in the status
 row (0.155.0 added them there).
+
+## Adaptive reasoning effort
+
+cc-settings does not enable Jev-driven effort adjustment for Astra or Fable.
+Automatic adjustment must preserve the prompt cache before it can be enabled
+in shared installs.
+
+Codex 0.155.1 exposes experimental app-server controls:
+`turn/settings/update` changes effort in a running turn when
+`step_model_switching` is enabled; `reasoning_effort_override` preserves the
+request-level effort and records trusted configuration updates for compatible
+models. The cache flag alone does not select effort or connect Jev to a session.
+Codex's command-hook output contract provides no effort override, and
+cc-settings has no supported connection from those hooks to the running
+app-server. Automatic control requires an adapter with access to that session's
+app-server connection, thread ID, and turn ID. See the
+[app-server protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md)
+and [Astra cache-preservation issue](https://github.com/openai/codex/issues/42996).
+
+cc-settings leaves these experimental flags unchanged. It does not rewrite
+global model settings or inject effort instructions into the prompt as a
+substitute for a runtime control.
+
+Claude Code's early-access `turn.step` function hook can change Fable 5.1 effort
+through `next({ ...event, effort })`. A local two-request transport probe on
+Claude Code 2.1.278, using synthetic credentials and local API responses,
+confirmed that Jev scores of 0.1 and 0.9 changed the outgoing effort from `low`
+to `high` while keeping `claude-fable-5-1` selected. The hook also changed the
+top-level `output_config.effort`. Anthropic's
+[effort documentation](https://platform.claude.com/docs/en/build-with-claude/effort)
+requires that top-level value to remain constant to preserve caching; only
+appended per-message effort should change. The probe confirmed request shape,
+not server-side cache hits, model quality, latency, or cost savings.
+
+The native plugin test runner also delivered the original effort to its
+downstream mock in two assertions, despite the CLI transport applying the
+rewrite. Those assertions remain unresolved in the prototype. Neither host
+has a verified cache-preserving shared integration.
 
 ## Light profile
 
