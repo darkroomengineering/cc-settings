@@ -4,6 +4,21 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.30.1] — 2026-09-23
+
+Run the one cross-model Codex review on direct pushes too, so repos that push straight to main without a PR (like this one) still get a Codex pass.
+
+**Changed:**
+- `codex-verify` hook policy: in a repo with no PR, run the single review before each push with `review --base origin/<branch>`, so it covers the unpushed commits rather than only uncommitted changes. Still one review per change, not per turn.
+- `CLAUDE-FULL.md`, `skills/codex/SKILL.md`, `docs/codex-bridge.md`, `README.md`: state the same trigger.
+
+**Files changed:**
+- src/hooks/codex-verify.ts
+- CLAUDE-FULL.md
+- skills/codex/SKILL.md
+- docs/codex-bridge.md
+- README.md
+
 ## [15.30.0] — 2026-09-22
 
 Add a "No Loose Ends" guardrail to the portable standards, so Claude Code and Codex finish the follow-ups their own changes create instead of listing them.

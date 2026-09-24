@@ -127,7 +127,7 @@ on every machine. The same request behaves differently once it is installed:
   context the model would otherwise never see. Claude gets the full set; Codex gets the compatible
   plugin subset and asks you to review it once through `/hooks`.
 - **Model routing.** Effort pinned to medium, subagents on Sonnet, planning and decisions on the
-  session model, bulk or mechanical work and one cross-model review per PR routed to Codex when
+  session model, bulk or mechanical work and one cross-model review per PR or direct push routed to Codex when
   the bridge is installed. The statusline shows the usage limits that drive that routing.
 - **Connected tools.** In Claude, four MCP servers: Context7 for current library docs, a TypeScript
   code map for call graphs and blast radius, Figma, and Chrome DevTools for screenshots and

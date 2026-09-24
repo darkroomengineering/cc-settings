@@ -138,9 +138,9 @@ read-only bridge (`claude-run.ts`, `claude-verifier`) to Opus 5.5.
 - **Opus/Fable:** planning, synthesis, gate decisions; never tight loop bodies.
 - **Sonnet:** loop bodies and most fan-out agents (already the subagent
   default; pin `/loop` invocations explicitly).
-- **Codex:** batched bulk/mechanical work, plus **one cross-model review per PR
-  or `/ship`** — not per diff-turn. The `codex-verify` SessionStart hook injects
-  the current policy; if absent, the bridge is down — proceed Claude-only.
+- **Codex:** batched bulk/mechanical work, plus **one cross-model review per PR,
+  `/ship`, or direct push to the default branch** — not per diff-turn. The
+  `codex-verify` SessionStart hook injects the current policy; if absent, the bridge is down — proceed Claude-only.
   Always review Codex's diff.
 
 Route by available quota. The statusline caches limits in
