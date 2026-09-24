@@ -11,20 +11,6 @@ import { describe, expect, test } from "bun:test";
 import { Settings } from "../src/schemas/settings.ts";
 
 describe("Settings.safeParse — installSettings validation boundary", () => {
-  test("valid minimal settings.json → success:true", () => {
-    const input = {
-      env: { CLAUDE_CODE_EFFORT_LEVEL: "xhigh" },
-      model: "claude-opus-4-5",
-    };
-    const result = Settings.safeParse(input);
-    expect(result.success).toBe(true);
-  });
-
-  test("empty object → success:true (all fields optional)", () => {
-    const result = Settings.safeParse({});
-    expect(result.success).toBe(true);
-  });
-
   test("unknown top-level key → success:true (loose schema tolerates undocumented CC keys)", () => {
     // Settings is a loose schema — unknown keys are passed through, not rejected.
     // This means a live settings.json that CC has written undocumented keys into

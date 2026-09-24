@@ -111,7 +111,7 @@ on every machine. The same request behaves differently once it is installed:
 ### The pieces
 
 - **Standards.** [AGENTS.md](./AGENTS.md) holds the coding standards and guardrails every tool
-  reads; Claude Code gets its copy as [CLAUDE.md](./CLAUDE.md). Twelve topic rules (TypeScript,
+  reads; Claude Code gets its copy as [CLAUDE-FULL.md](./CLAUDE-FULL.md), installed as `~/.claude/CLAUDE.md`. Twelve topic rules (TypeScript,
   React, performance, accessibility, security, git, motion, style) load only for the files they
   cover, and six stack profiles (Next.js, React Router, React Native, Tauri, WebGL, orchestration)
   add the specifics of each starter.

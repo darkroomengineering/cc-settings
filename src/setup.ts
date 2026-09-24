@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.31.0"; // MCP deferral on 1M windows; bun run tokens.
+const VERSION = "15.32.0"; // E2E-first testing rules.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

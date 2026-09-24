@@ -27,6 +27,8 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
 
 **Principles**
 
+- **E2E first.** Follow `AGENTS.md` E2E-First Testing: E2E tests are the default and usually the only tests. Every E2E test ends by producing a verifiable, repeatable artifact. Never write unit tests for code that already exists; an isolated test is allowed only when a failure list was written before the code, and it asserts against that list.
+
 - **Test intent, not behavior.** Every test must encode *why* the behavior matters, not just *what* it returns. A test that can't fail when business logic changes is testing the implementation, not the contract. Before writing `expect(fn()).toBe(x)`, ask: "if a teammate broke the underlying rule, would this assertion catch it?" If the answer is no, the test is wrong.
 - **Surface skips.** Never silently `.skip` or `.only` a test. If you skip something, say so explicitly in your final report — see `AGENTS.md` Fail Loud.
 
@@ -60,10 +62,8 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
    | Press key | `mcp__chrome-devtools__press_key` `{ key }` |
 
 2. **Write Tests**
-   - Unit tests for utility functions (Vitest)
-   - Component tests for React components (React Testing Library + Vitest)
-   - Integration tests for API routes (Vitest)
-   - E2E / visual tests for critical user flows (chrome-devtools MCP)
+   - E2E / visual tests for features and user flows (chrome-devtools MCP), each ending in a saved artifact: screenshot, snapshot, or output file
+   - Isolated tests (Vitest, React Testing Library) only for a system whose failure list was written before its code
 
 3. **Test Patterns**
    ```tsx
@@ -97,9 +97,8 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
    - `mcp__chrome-devtools__take_screenshot` — verify layout and styling
 
 5. **Coverage Goals**
-   - Utilities: 90%+
-   - Components: 80%+
-   - API routes: 85%+
+   - Every complex feature has an E2E test whose artifact a rerun reproduces.
+   - No line-coverage targets: they reward tests written after the code.
 
 ---
 
@@ -110,8 +109,8 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
 **Workflow**
 1. Identify what code changed and what tests are affected
 2. Use `tldr context` to understand code before testing
-3. Identify gaps in testing
-4. Write missing tests
+3. Identify features no E2E test exercises
+4. Write E2E tests for them (not unit tests for the existing code)
 5. Run full test suite
 6. Report results with actionable fixes
 

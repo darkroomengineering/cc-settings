@@ -239,18 +239,6 @@ describe("gatherStatus", () => {
     }
   });
 
-  test("packagedVersion field matches the passed-in version", async () => {
-    const src = await makeTmpDir();
-    const claude = await makeTmpDir();
-    try {
-      const data = await gatherStatus(src, installPaths(claude, claude), "99.0.0-test");
-      expect(data.packagedVersion).toBe("99.0.0-test");
-    } finally {
-      await cleanup(src);
-      await cleanup(claude);
-    }
-  });
-
   // --- safeParse validation boundary tests ---
 
   test("sentinel with extra unknown fields → still reads version (loose schema)", async () => {

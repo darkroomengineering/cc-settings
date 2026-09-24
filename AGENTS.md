@@ -58,7 +58,7 @@ Keep a bug fix confined to directly related files. Do not refactor adjacent code
 
 ### Completeness Is Cheap
 
-Once the ladder says a bounded unit should exist, finish its edge cases, error paths, and tests when that costs only minutes more; do not ship 90% and defer the rest. Complete the unit without expanding scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repository already keeps tests for that kind of change, sized like the neighbors; scratch checks stay scratch.
+Once the ladder says a bounded unit should exist, finish its edge cases and error paths when that costs only minutes more; do not ship 90% and defer the rest. Complete the unit without expanding scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repository already keeps that kind; scratch checks stay scratch.
 
 ### No Loose Ends
 
@@ -71,6 +71,10 @@ The repository's local checks (typecheck, tests, lint, build) are safe to run wi
 ### Pre-Commit Verification
 
 **Never commit code that does not typecheck, build, and pass tests.** Run all three and fix failures first.
+
+### E2E-First Testing
+
+Prefer E2E tests as the sole testing mechanism: use them to verify complex features, and end each with a verifiable, repeatable artifact. Never write unit tests after the code. To test a system in isolation, first write down every way it can fail, then write the code.
 
 ### Failing Tests: Regression vs. Contract Change
 
@@ -146,7 +150,7 @@ The user decides changes to their stated direction. Recommend the change, explai
 
 ### Bug Reports
 
-Fix reported bugs immediately without asking whether to proceed. If the work goes sideways, stop and re-plan instead of pushing ahead.
+Fix reported bugs immediately without asking whether to proceed.
 
 ## Tech Stack
 
@@ -154,11 +158,10 @@ These defaults apply to Darkroom web clients. Tooling and non-web repositories, 
 
 ### Core
 
-- **TypeScript:** strict mode; no `any`.
+- **TypeScript:** strict mode.
 - **Next.js 16+:** App Router only.
 - **React 19+:** Server Components by default; Client Components only when needed.
 - **Tailwind CSS v4:** use CSS Modules for complex components.
-- **Bun:** package manager and runtime.
 
 ### Quality
 
@@ -174,8 +177,6 @@ These defaults apply to Darkroom web clients. Tooling and non-web repositories, 
 
 ### Package Manager: Bun Only
 
-Darkroom projects are Bun-first. Never mix package managers within a session.
-
 `bun add`, `bun run`, `bunx`, `bunx tsc --noEmit`; never `npm`, `pnpm`, `yarn`, or `npx`. The one exception is `npx expo ...`, Expo's official invocation. Switching package managers mid-session causes lockfile drift.
 
 ## Coding Standards
@@ -188,7 +189,6 @@ Darkroom projects are Bun-first. Never mix package managers within a session.
 
 ### React
 
-- Prefer Server Components; add `'use client'` only when needed.
 - With React Compiler, do not use `useMemo`, `useCallback`, or `React.memo`.
 - Use `useRef` for object instantiation to prevent infinite loops.
 

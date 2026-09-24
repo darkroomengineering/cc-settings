@@ -1,4 +1,4 @@
-// Unit tests for the small shared libs: platform, packages, json-io.
+// Unit tests for the small shared libs: packages, json-io.
 // (The MCP merge integration tests live in tests/mcp.test.ts.)
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -24,22 +24,6 @@ import { isProcessAlive } from "../src/lib/install-lock.ts";
 import { atomicWriteJson, JsonParseError, readJsonOrNull } from "../src/lib/json-io.ts";
 import { BACKUP_ONLY_PATHS } from "../src/lib/managed-paths.ts";
 import { getInstallHint, getInstallHintForPM } from "../src/lib/packages.ts";
-import { getTimestamp, hasCommand, os } from "../src/lib/platform.ts";
-
-describe("platform", () => {
-  test("os is one of the known values", () => {
-    expect(["macos", "linux", "wsl", "windows", "unknown"]).toContain(os);
-  });
-  test("getTimestamp is 14 digits", () => {
-    expect(getTimestamp()).toMatch(/^\d{14}$/);
-  });
-  test("hasCommand('bun') is true in this test env", () => {
-    expect(hasCommand("bun")).toBe(true);
-  });
-  test("hasCommand('definitely-not-a-cmd-xyz') is false", () => {
-    expect(hasCommand("definitely-not-a-cmd-xyz")).toBe(false);
-  });
-});
 
 describe("packages", () => {
   test("getInstallHint returns a platform-appropriate hint", () => {

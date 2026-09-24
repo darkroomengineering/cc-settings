@@ -223,14 +223,14 @@ Build an interaction edge case table:
 Diagram all new things that need test coverage:
 
 ```
-New UX Flows:     [list]  → need E2E or integration tests
-New Data Flows:   [list]  → need integration tests
-New Codepaths:    [list]  → need unit tests
-New Branches:     [list]  → need branch coverage
+New UX Flows:     [list]  → need E2E tests
+New Data Flows:   [list]  → need E2E tests
+New Codepaths:    [list]  → covered by an E2E test, or isolated with a failure list written first
+New Branches:     [list]  → exercised by an E2E path
 ```
 
 Check:
-- Test pyramid: more unit tests than integration, more integration than E2E
+- E2E-first (AGENTS.md): does each E2E test end in a verifiable, repeatable artifact? Any isolated test must trace to a failure list written before the code.
 - Ambition check: are tests testing behavior or implementation details?
 - Flakiness risk: any time-dependent, network-dependent, or order-dependent tests?
 - Negative paths: do tests cover what happens when things fail?

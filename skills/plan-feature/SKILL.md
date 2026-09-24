@@ -303,7 +303,7 @@ When the user provides minimal input, apply these defaults:
 - **Auth:** Existing auth system
 - **Performance:** LCP <2.5s, INP <200ms, CLS <0.1
 - **Accessibility:** WCAG 2.1 AA
-- **Testing:** Unit + integration, no E2E unless requested
+- **Testing:** E2E tests that each end in a verifiable, repeatable artifact; isolated tests only against a failure list written before the code
 - **Styling:** Project's existing system (Tailwind if detected)
 
 ### Task Sizing Reference

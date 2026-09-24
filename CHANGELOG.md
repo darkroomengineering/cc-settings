@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.32.0] — 2026-09-24
+
+Agents now default to E2E tests and stop writing unit tests for code that already exists.
+
+**Added:**
+- AGENTS.md "E2E-First Testing": prefer E2E tests as the only tests, end each with a verifiable, repeatable artifact, never write unit tests after the code, and write down the failure modes before the code when a system must be tested in isolation.
+
+**Changed:**
+- `tester` agent defaults to E2E tests that save an artifact, and drops unit-test-first guidance and line-coverage targets.
+- `plan-ceo-review` test review checks for E2E coverage and artifacts instead of a unit-heavy test pyramid.
+- `plan-feature` defaults its testing requirement to E2E tests with artifacts instead of unit and integration tests.
+- AGENTS.md drops four lines that repeated other sections, to stay under its 16 KiB always-loaded budget.
+
+**Removed:**
+- Four low-signal test blocks: the `platform` checks in `lib-helpers.test.ts`, two schema restatements in `setup.test.ts`, and a passthrough check in `status.test.ts`. An audit of all 92 test files found the rest guard real hook, permission, redaction, and regression behavior.
+
+**Fixed:**
+- README and docs index links pointed at a `CLAUDE.md` that no longer exists; they point at `CLAUDE-FULL.md`.
+
 ## [15.31.0] — 2026-09-23
 
 Cut the fixed context every session starts with, and add a way to measure token spend.

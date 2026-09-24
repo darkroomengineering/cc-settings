@@ -45,7 +45,7 @@ Start with [the repository README](../README.md) if you are deciding whether to 
 | Document | Audience | Status | Use it for |
 |---|---|---|---|
 | [AGENTS.md](../AGENTS.md) | Contributors and compatible coding tools | Canonical | Portable coding standards and guardrails |
-| [CLAUDE.md](../CLAUDE.md) | Claude Code contributors | Canonical | Claude-specific session behavior |
+| [CLAUDE-FULL.md](../CLAUDE-FULL.md) | Claude Code contributors | Canonical | Claude-specific session behavior |
 | [Security](../SECURITY.md) | Users and security reviewers | Canonical | Threat model, hook integrity, recovery, and reporting |
 | [Settings reference](./settings-reference.md) | Maintainers | Canonical | Every managed Claude setting and merge rule |
 | [Settings merge design](./settings-merge-three-way-design.md) | Maintainers | Design record | Three-way ownership and conflict behavior |
