@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 11;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 12;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -514,6 +514,8 @@ const ADDED_IN_V9 = [
 const ADDED_IN_V10 = ["src/hooks/knowledge-hint.ts", "src/lib/knowledge-hint.ts"];
 // Version 11: the Jev client the delegation detector calls.
 const ADDED_IN_V11 = ["src/lib/jev.ts"];
+// Version 12: the `bun run tokens` transcript cost report.
+const ADDED_IN_V12 = ["src/lib/token-usage.ts", "src/scripts/token-report.ts"];
 const priorManifest = {
   full: claudeManagedManifestPaths(6, "full", "current installer"),
   light: claudeManagedManifestPaths(6, "light", "current installer"),
@@ -536,23 +538,31 @@ const notAddedAfter = (...added: readonly string[][]) => {
 };
 MANIFESTS.set(7, {
   full: currentManifest.full.filter(
-    notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11),
+    notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
   ),
   light: currentManifest.light.filter(
-    notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11),
+    notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
   ),
 });
 MANIFESTS.set(8, {
-  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11)),
-  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11)),
+  full: currentManifest.full.filter(
+    notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
+  ),
+  light: currentManifest.light.filter(
+    notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
+  ),
 });
 MANIFESTS.set(9, {
-  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11)),
-  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11)),
+  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
+  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
 });
 MANIFESTS.set(10, {
-  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V11)),
-  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V11)),
+  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
+  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
+});
+MANIFESTS.set(11, {
+  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V12)),
+  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V12)),
 });
 MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, currentManifest);
 

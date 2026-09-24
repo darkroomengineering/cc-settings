@@ -17,7 +17,11 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, relative, resolve } from "node:path";
-import { RUNTIME_SOURCE_FILES } from "../src/lib/codex-runtime-manifests.ts";
+import {
+  CURRENT_RUNTIME_MANIFEST_VERSION,
+  RUNTIME_SOURCE_FILES,
+  runtimePathsForVersion,
+} from "../src/lib/codex-runtime-manifests.ts";
 import { AUDIT_PERFORMANCE_RESOURCES } from "../src/lib/install-source-inventory.ts";
 import { prependTestPath, shellFixtureCommand } from "./support/portable-process.ts";
 
@@ -1618,6 +1622,16 @@ describe("Codex installer lifecycle", () => {
       ]);
     }
   }, 180_000);
+
+  test("files added to the runtime get a new manifest version, not a rewrite of the last one", () => {
+    const added = ["src/lib/token-usage.ts", "src/scripts/token-report.ts"];
+    const v9 = runtimePathsForVersion(9, "test");
+    const current = runtimePathsForVersion(CURRENT_RUNTIME_MANIFEST_VERSION, "test");
+    for (const path of added) {
+      expect(v9).not.toContain(path);
+      expect(current).toContain(path);
+    }
+  });
 
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {
     const manifest = new Set(RUNTIME_SOURCE_FILES);

@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.30.1"; // Codex review also covers direct pushes.
+const VERSION = "15.31.0"; // MCP deferral on 1M windows; bun run tokens.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

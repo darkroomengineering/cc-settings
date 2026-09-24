@@ -4,6 +4,36 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.31.0] — 2026-09-23
+
+Cut the fixed context every session starts with, and add a way to measure token spend.
+
+**Changed:**
+- `ENABLE_TOOL_SEARCH` is `auto:2` (was `auto:10`). The threshold is a share of the context window, so on 1M-window models 10% (100K) never triggered and every MCP and deferrable built-in tool schema loaded on every request. A fresh session measures 34.8K tokens in `/context` instead of 85.8K. MCP tools, context7 included when its server entry lacks `alwaysLoad`, now cost one tool search on first use.
+- This repo's `.claude/settings.json` excludes its root `AGENTS.md`, which loaded a second time next to the installed copy the user `CLAUDE.md` imports (5.9K tokens per request in cc-settings sessions).
+
+**Added:**
+- `bun run tokens` (`src/scripts/token-report.ts`, `src/lib/token-usage.ts`): API-equivalent cost from Claude Code transcripts, deduped per request, split by billing type (input, 5m and 1h cache writes, cache reads, output), main session vs subagents, subagent type, and model, with each thread's cold prefix. Managed-files manifest version 12 and Codex runtime manifest version 10 install both files, so existing installs on either host upgrade cleanly.
+
+**Measured, no change:**
+- Main-conversation cache TTL stays `1h`. Replaying 30 days of transcripts (18K requests) under a 5-minute TTL costs 57% more: 844 gaps of 5 to 60 minutes would each re-write a ~200K prefix.
+- Delegation guidance stays. Subagents were 16% of 30-day spend. The named agents start from 11-20K-token prefixes and cost $0.10-3.27 per spawn; the 170K-prefix outliers are built-in `general-purpose` spawns and forks, which the MCP deferral above also shrinks.
+
+**Files changed:**
+- config/10-core.json
+- .claude/settings.json
+- .claude/AGENTS.md
+- docs/settings-reference.md
+- src/scripts/token-report.ts
+- src/lib/token-usage.ts
+- src/lib/install-source-inventory.ts
+- src/lib/claude-managed-file-manifests.ts
+- src/lib/codex-runtime-manifests.ts
+- tests/token-usage.test.ts
+- tests/install-e2e.test.ts
+- tests/codex-install.test.ts
+- package.json
+
 ## [15.30.1] — 2026-09-23
 
 Run the one cross-model Codex review on direct pushes too, so repos that push straight to main without a PR (like this one) still get a Codex pass.

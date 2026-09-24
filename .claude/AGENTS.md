@@ -4,7 +4,9 @@ Darkroom Engineering Claude Code configuration repository.
 
 This file is the repo's own project instructions. It lives at
 `.claude/AGENTS.md` because the root `AGENTS.md` is an installed artifact, not
-a place for repo notes. Claude Code 2.1.277+ reads both natively when a
+a place for repo notes. `.claude/settings.json` excludes that root copy from
+this repo's own sessions (`claudeMdExcludes`), since the user `CLAUDE.md`
+already imports the installed one; without it the standards load twice. Claude Code 2.1.277+ reads both natively when a
 project has no `CLAUDE.md`; Codex reads only the root file.
 
 ## Important
@@ -38,6 +40,7 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Fresh install: `bash setup.sh --fresh` (reinstall as if from scratch — settings.json, prior-install state, and local approvals reset; login/history/memory untouched; recover via rollback)
 - Dry-run: `bun src/setup.ts --dry-run`
 - Tests: `bun test`
+- Token spend from local transcripts: `bun run tokens` (`--all`, `--days N`, `--json`). Price-weighted by billing type, split main vs subagent; run it before and after a harness change.
 - Typecheck: `bun run typecheck`
 - Lint: `bun run lint` / `bun run lint:fix`
 - Deliberate-shortcut markers: `bun run lint:shortcuts` (add `-- --ledger` for the `/audit debt` view). Convention lives in AGENTS.md → Laziness Ladder.

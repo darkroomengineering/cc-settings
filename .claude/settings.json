@@ -12,5 +12,8 @@
 				]
 			}
 		]
-	}
+	},
+	"claudeMdExcludes": [
+		"**/cc-settings/AGENTS.md"
+	]
 }
