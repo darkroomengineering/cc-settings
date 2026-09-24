@@ -6,7 +6,7 @@
 //   error   — blocks (CI fails, lint:skills exits non-zero)
 //   warning — surfaced but non-blocking
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SkillFrontmatter } from "../schemas/skill.ts";
@@ -361,7 +361,64 @@ export async function lintSkillsDir(
     }
   }
 
+  // Every managed skill needs at least one `claude plugin eval` case tagged
+  // with its name: the pre-push gate (src/scripts/eval-changed.ts) can only
+  // check a skill edit that has a case to run.
+  if (opts.checkManaged) {
+    const covered = new Set(evalCaseTags(join(skillsDir, "..", "evals")).flatMap(([, t]) => t));
+    for (const name of skillNames) {
+      if (!covered.has(name)) {
+        findings.push({
+          skill: name,
+          severity: "error",
+          rule: "eval-case-missing",
+          message: "no eval case under evals/ tagged with this skill — add one",
+        });
+      }
+    }
+  }
+
   return { findings, skillCount: skillNames.length };
+}
+
+/** Tags from an eval case's prompt.md frontmatter, or [] when it has none. */
+export function caseTags(promptMd: string): string[] {
+  const match = /^---\n([\s\S]*?)\n---/.exec(promptMd);
+  if (!match) return [];
+  const front = Bun.YAML.parse(match[1] ?? "") as { tags?: unknown } | null;
+  return Array.isArray(front?.tags)
+    ? front.tags.filter((t): t is string => typeof t === "string")
+    : [];
+}
+
+/** Tags from an eval case's case.yaml, or [] when it has none. */
+function caseYamlTags(caseYaml: string): string[] {
+  const doc = Bun.YAML.parse(caseYaml) as { tags?: unknown } | null;
+  return Array.isArray(doc?.tags) ? doc.tags.filter((t): t is string => typeof t === "string") : [];
+}
+
+/**
+ * [case directory name, tags] for every case under an evals/ directory. A case
+ * is a directory with prompt.md or case.yaml; tags come from either file.
+ */
+export function evalCaseTags(evalsDir: string): Array<[string, string[]]> {
+  if (!existsSync(evalsDir)) return [];
+  const read = (dir: string, file: string) => {
+    const path = join(evalsDir, dir, file);
+    return existsSync(path) ? readFileSync(path, "utf8") : null;
+  };
+  return readdirSync(evalsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .flatMap((d): Array<[string, string[]]> => {
+      const prompt = read(d.name, "prompt.md");
+      const yaml = read(d.name, "case.yaml");
+      if (prompt === null && yaml === null) return [];
+      const tags = new Set([
+        ...(prompt ? caseTags(prompt) : []),
+        ...(yaml ? caseYamlTags(yaml) : []),
+      ]);
+      return [[d.name, [...tags]]];
+    });
 }
 
 export function formatFindings(result: LintResult): string {

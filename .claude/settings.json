@@ -8,6 +8,11 @@
 						"type": "command",
 						"command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-invariants.ts\"",
 						"timeout": 120
+					},
+					{
+						"type": "command",
+						"command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-evals.ts\"",
+						"timeout": 900
 					}
 				]
 			}

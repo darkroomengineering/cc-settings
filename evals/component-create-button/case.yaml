@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: component-create-button
+tags: [component]
+context:
+  scaffold_script: fixture.sh
+execution:
+  max_turns: 8
+  allowed_tools: [Read, Glob, Write, Skill]

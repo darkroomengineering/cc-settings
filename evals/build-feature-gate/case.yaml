@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: build-feature-gate
+tags: [build]
+context:
+  scaffold_script: fixture.sh
+execution:
+  max_turns: 14
+  allowed_tools: [Read, Glob, Grep, Write, Edit, Skill]

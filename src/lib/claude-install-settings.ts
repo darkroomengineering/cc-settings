@@ -383,6 +383,191 @@ type ClaudeCommandResult = {
   timedOut: boolean;
 };
 
+// --- No-op skip detection --------------------------------------------------
+//
+// A subset of the entries `claude plugin list --json` / `claude plugin
+// marketplace list --json` print — only the fields the skip decision reads.
+
+export interface ParsedPluginEntry {
+  id: string;
+  version?: string;
+  enabled?: boolean;
+}
+
+export interface ParsedMarketplaceEntry {
+  name: string;
+  repo?: string;
+  installLocation?: string;
+}
+
+export interface PluginCommandDecision {
+  /** Commands to actually run, same shape/order as the input list (a subset). */
+  toRun: (readonly string[])[];
+  /** Human-readable "already current" labels for commands skipped, in list order. */
+  skipped: string[];
+}
+
+/**
+ * Decides which of a PLUGIN_INSTALL_COMMANDS-shaped command list are no-ops
+ * given already-fetched real state. Pure — no I/O, no spawning.
+ *
+ * Fails open (runs everything, skips nothing) whenever installedPlugins or
+ * registeredMarketplaces is null — the caller's signal that a `claude plugin
+ * ... list --json` call failed, timed out, or didn't parse.
+ */
+export function decidePluginCommands(
+  commands: readonly (readonly string[])[],
+  installedPlugins: readonly ParsedPluginEntry[] | null,
+  registeredMarketplaces: readonly ParsedMarketplaceEntry[] | null,
+  offeredVersions: Readonly<Record<string, string | null | undefined>>,
+  pinnedShaMatch: boolean,
+  storeKey: boolean,
+): PluginCommandDecision {
+  if (!installedPlugins || !registeredMarketplaces) {
+    return { toRun: commands.map((args) => args), skipped: [] };
+  }
+
+  const installedById = new Map(installedPlugins.map((p) => [p.id, p]));
+  const registeredRepos = new Set(
+    registeredMarketplaces.map((m) => (m.repo ?? "").toLowerCase()).filter(Boolean),
+  );
+
+  const toRun: (readonly string[])[] = [];
+  const skipped: string[] = [];
+
+  for (const args of commands) {
+    if (args[0] === "plugin" && args[1] === "marketplace" && args[2] === "add") {
+      const repo = args[3] ?? "";
+      if (registeredRepos.has(repo.toLowerCase())) {
+        skipped.push(`marketplace ${repo} already registered`);
+        continue;
+      }
+      toRun.push(args);
+      continue;
+    }
+
+    if (args[0] === "plugin" && args[1] === "install") {
+      const pluginId = args[2] ?? "";
+      if (pluginId === FAST_JEV_PLUGIN_ID) {
+        // A key-bearing command must always run — it's the only way a freshly
+        // supplied key reaches the plugin's sensitive config option.
+        const entry = installedById.get(pluginId);
+        if (!storeKey && entry?.enabled && pinnedShaMatch) {
+          skipped.push(`${pluginId} already at pinned ${UPSTREAM_PINNED_SHA.slice(0, 7)}`);
+          continue;
+        }
+        toRun.push(args);
+        continue;
+      }
+      const entry = installedById.get(pluginId);
+      const offered = offeredVersions[pluginId];
+      if (entry?.enabled && offered != null && entry.version === offered) {
+        skipped.push(`${pluginId} already at ${offered}`);
+        continue;
+      }
+      // `plugin install` reports success on an installed plugin without
+      // upgrading it, so a stale enabled install needs `plugin update`.
+      if (entry?.enabled && offered != null) {
+        toRun.push(["plugin", "update", pluginId]);
+        continue;
+      }
+      toRun.push(args);
+      continue;
+    }
+
+    // marketplace update (always runs) or any other shape — never skip.
+    toRun.push(args);
+  }
+
+  return { toRun, skipped };
+}
+
+function parsePluginListJson(result: ClaudeCommandResult): ParsedPluginEntry[] | null {
+  if (result.timedOut || result.exitCode !== 0) return null;
+  try {
+    const data = JSON.parse(result.stdout);
+    if (!Array.isArray(data)) return null;
+    return (
+      data
+        .filter((e): e is Record<string, unknown> => typeof e === "object" && e !== null)
+        // The installer installs user-wide. A project or local install of the same
+        // plugin must not make it skip the user install other projects rely on.
+        .filter((e) => e.scope === undefined || e.scope === "user")
+        .map((e) => ({
+          id: typeof e.id === "string" ? e.id : "",
+          version: typeof e.version === "string" ? e.version : undefined,
+          enabled: typeof e.enabled === "boolean" ? e.enabled : undefined,
+        }))
+        .filter((e) => e.id.length > 0)
+    );
+  } catch {
+    return null;
+  }
+}
+
+function parseMarketplaceListJson(result: ClaudeCommandResult): ParsedMarketplaceEntry[] | null {
+  if (result.timedOut || result.exitCode !== 0) return null;
+  try {
+    const data = JSON.parse(result.stdout);
+    if (!Array.isArray(data)) return null;
+    return data
+      .filter((e): e is Record<string, unknown> => typeof e === "object" && e !== null)
+      .map((e) => ({
+        name: typeof e.name === "string" ? e.name : "",
+        repo: typeof e.repo === "string" ? e.repo : undefined,
+        installLocation: typeof e.installLocation === "string" ? e.installLocation : undefined,
+      }))
+      .filter((e) => e.name.length > 0);
+  } catch {
+    return null;
+  }
+}
+
+/** Reads the "version" field cc-settings' own plugin.json for `pluginDir`
+ *  (a marketplace clone's `plugins/<name>` directory). Null on any failure —
+ *  callers treat an unreadable offered version the same as "unknown", never
+ *  skipping the matching install. */
+async function readPluginJsonVersion(pluginDir: string): Promise<string | null> {
+  try {
+    const raw = await Bun.file(join(pluginDir, ".claude-plugin", "plugin.json")).text();
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.version === "string" ? parsed.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** HEAD of a marketplace clone's git checkout, or null if the directory isn't
+ *  a git repo (or git isn't on PATH) — fails open to "not pinned". */
+async function readGitHead(repoDir: string): Promise<string | null> {
+  try {
+    const child = Bun.spawn(["git", "-C", repoDir, "rev-parse", "HEAD"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stdout] = await Promise.all([child.exited, new Response(child.stdout).text()]);
+    if (exitCode !== 0) return null;
+    const sha = stdout.trim();
+    return sha.length > 0 ? sha : null;
+  } catch {
+    return null;
+  }
+}
+
+function commandLabel(args: readonly string[]): string {
+  if (args[1] === "marketplace" && args[2] === "add") return `adding the ${args[3]} marketplace`;
+  if (args[1] === "marketplace" && args[2] === "update")
+    return `refreshing the ${args[3]} marketplace`;
+  if (args[1] === "update") return `updating ${(args[2] ?? "").split("@")[0]}`;
+  if (args[1] === "install") {
+    const plugin = args[2] ?? "";
+    return plugin === FAST_JEV_PLUGIN_ID
+      ? "installing fast-jev-compaction (pinned)"
+      : `installing ${plugin.split("@")[0] ?? plugin}`;
+  }
+  return args.join(" ");
+}
+
 async function runClaudeCommand(args: readonly string[]): Promise<ClaudeCommandResult> {
   const child = Bun.spawn(["claude", ...args], { stdout: "pipe", stderr: "pipe" });
   let timedOut = false;
@@ -464,10 +649,24 @@ export async function installPlugins(
   }
 
   const installed: string[] = [];
-  for (const args of commands) {
-    const plugin = args[0] === "plugin" && args[1] === "install" ? args[2] : null;
+  const total = commands.length;
+  // Reference-keyed: `commands` may hold an apiKey-injected copy of the
+  // fast-jev args, so identity (not deep equality) is what marketplace/
+  // install command subsets below were filtered from.
+  const stepOf = new Map<readonly string[], number>(commands.map((args, i) => [args, i + 1]));
+
+  const execute = async (args: readonly string[]): Promise<void> => {
+    const plugin =
+      args[0] === "plugin" && (args[1] === "install" || args[1] === "update") ? args[2] : null;
+    // An update is derived from its install command, so it takes that step number.
+    const step =
+      stepOf.get(args) ?? commands.findIndex((c) => c[1] === "install" && c[2] === plugin) + 1;
+    progressArrow(`Plugins ${step}/${total}: ${commandLabel(args)}...`);
+    const startedAt = Date.now();
     try {
       const result = await runClaudeCommand(args);
+      const elapsedS = (Date.now() - startedAt) / 1000;
+      if (elapsedS > 2) progressArrow(`...took ${elapsedS.toFixed(1)}s`);
       if (!claudeCommandSucceeded(result)) {
         const detail = (result.timedOut ? "timed out" : result.stderr || result.stdout)
           .trim()
@@ -483,7 +682,76 @@ export async function installPlugins(
     } catch (e) {
       warn(`${shown(args)} failed: ${redactKey((e as Error).message, resolved?.key)}`);
     }
+  };
+
+  // Probe real state once so a re-run doesn't repeat no-op marketplace adds
+  // or plugin installs that are already current. A failure here (a `claude
+  // plugin ... list` call erroring, timing out, or printing unparseable
+  // JSON) fails open: decidePluginCommands below then runs every command,
+  // matching the pre-skip-logic behavior.
+  const [pluginListResult, marketplaceListResult] = await Promise.all([
+    runClaudeCommand(["plugin", "list", "--json"]),
+    runClaudeCommand(["plugin", "marketplace", "list", "--json"]),
+  ]);
+  const installedPlugins = parsePluginListJson(pluginListResult);
+  const registeredMarketplaces = parseMarketplaceListJson(marketplaceListResult);
+
+  const marketplaceCommands = commands.filter((args) => args[1] === "marketplace");
+  const installCommands = commands.filter((args) => !marketplaceCommands.includes(args));
+
+  // Marketplace-add skip only needs what's already registered; it doesn't
+  // depend on the offered plugin versions (those live behind the marketplace
+  // update this phase always runs).
+  const marketplaceDecision = decidePluginCommands(
+    marketplaceCommands,
+    installedPlugins,
+    registeredMarketplaces,
+    {},
+    false,
+    !!storeKey,
+  );
+  for (const args of marketplaceDecision.toRun) await execute(args);
+
+  // Offered versions/pinned SHA can only be read now that "marketplace
+  // update cc-settings" (just run above, unconditionally) has refreshed the
+  // clones on disk.
+  const offeredVersions: Record<string, string | null> = {};
+  let pinnedShaMatch = false;
+  if (installedPlugins && registeredMarketplaces) {
+    const ccSettingsMarketplace = registeredMarketplaces.find((m) => m.name === "cc-settings");
+    const fastJevMarketplace = registeredMarketplaces.find((m) => m.name === "fast-jev-compaction");
+    const ccSettingsPlugins = ["compaction-trigger", "context-report", "drift-fuse"] as const;
+    const [versions, head] = await Promise.all([
+      Promise.all(
+        ccSettingsPlugins.map((name) =>
+          ccSettingsMarketplace?.installLocation
+            ? readPluginJsonVersion(join(ccSettingsMarketplace.installLocation, "plugins", name))
+            : Promise.resolve(null),
+        ),
+      ),
+      fastJevMarketplace?.installLocation
+        ? readGitHead(fastJevMarketplace.installLocation)
+        : Promise.resolve(null),
+    ]);
+    ccSettingsPlugins.forEach((name, i) => {
+      offeredVersions[`${name}@cc-settings`] = versions[i] ?? null;
+    });
+    pinnedShaMatch = head === UPSTREAM_PINNED_SHA;
   }
+
+  const installDecision = decidePluginCommands(
+    installCommands,
+    installedPlugins,
+    registeredMarketplaces,
+    offeredVersions,
+    pinnedShaMatch,
+    !!storeKey,
+  );
+  for (const args of installDecision.toRun) await execute(args);
+
+  const allSkipped = [...marketplaceDecision.skipped, ...installDecision.skipped];
+  if (allSkipped.length > 0) progressArrow(`Already current, skipped: ${allSkipped.join("; ")}`);
+
   if (installed.length > 0) progressOk(`Plugins: ${installed.join(", ")}`);
   if (resolved) {
     progressOk(

@@ -116,7 +116,7 @@ Runs in a `read-only` sandbox. Use for quick factual questions, architecture opi
 - Codex is on a Pro-class plan metered by messages per ~5-hour window (not by tokens). Prefer FEW LARGE calls over many small ones.
 - Batch work: give `exec` a whole feature or module, not one function at a time.
 - `review` and `ask` are read-only and cheap — use them freely as a cross-check.
-- If the script reports the bridge is unavailable (not installed, not logged in, or rate-limited), continue Claude-only. Do not block the session.
+- If the bridge is unavailable (the script is missing, Codex is not installed or not logged in, or it is rate-limited), do the delegated task yourself, Claude-only, without asking which fallback to use. Say once that Codex was unavailable. Do not block the session.
 - Sessions get automatic steering: the `quota-steer` hook injects a routing reminder when Claude usage crosses 60% (5-hour) or 65% (weekly). If you see that reminder, prefer `exec`/`review` here over spawning Claude subagents.
 - The `codex-verify` SessionStart hook also injects a batched routing policy whenever the bridge is available: `exec` is the default for bulk/mechanical work, and one cross-model `review` runs per PR, `/ship`, or direct push to the default branch (or on a risky commit), not on every diff-producing turn.
 

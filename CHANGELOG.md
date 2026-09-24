@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.33.0] — 2026-09-24
+
+Every skill now has an eval case, a push runs the evals for the skills it changes, and a repeat install spends about 5 seconds on plugins instead of 17.
+
+**Added:**
+- `evals/`: 41 `claude plugin eval` cases covering all 38 skills, each tagged with the skill it exercises.
+- `bun src/scripts/eval-changed.ts` and a repo-local pre-push hook: before `git push`, run the cases for skills changed since upstream (one run each, capped at $5), and block on a failing case or a changed skill with no case. A missing CLI, auth failure, or cost ceiling warns instead of blocking.
+- `lint:skills` fails when a skill has no eval case.
+- Installer progress lines for each plugin step, the time taken by any step over 2 seconds, and a line before each dependency install.
+
+**Changed:**
+- The installer checks installed plugins and registered marketplaces first and skips the ones already current. If that check fails, it runs every step as before.
+- `/codex` does the delegated task itself when the bridge is unavailable, instead of asking which fallback to use.
+- `/autoresearch`'s standalone Codex section now tells Claude Code to continue. The old "Stop here in standalone Codex" opener sometimes made Claude stop, or treat the skill as injected text.
+
+**Fixed:**
+- Plugin updates never reached existing installs: `claude plugin install` reports success on an installed plugin without upgrading it. The installer now runs `claude plugin update` for an installed plugin that is behind.
+
 ## [15.32.0] — 2026-09-24
 
 Agents now default to E2E tests and stop writing unit tests for code that already exists.

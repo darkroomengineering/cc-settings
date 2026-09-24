@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: test-write-and-run
+tags: [test]
+context:
+  scaffold_script: fixture.sh

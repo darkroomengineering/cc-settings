@@ -10,6 +10,8 @@
 // errors (bun missing, spawn failure) fail open: this guards invariants, it is
 // not itself a gate on the environment.
 
+import { readHookInput } from "../../src/lib/hook-runtime.ts";
+
 const INVARIANT_TESTS = [
   "tests/plugin-manifest.test.ts",
   "tests/lint-skills.test.ts",
@@ -23,7 +25,11 @@ const INVARIANT_TESTS = [
   "tests/profile-schema.test.ts",
 ];
 
-function readCommand(): string {
+// Claude Code sends the PreToolUse payload on stdin; the env vars are fallbacks.
+async function readCommand(): Promise<string> {
+  const input = await readHookInput<{ tool_input?: { command?: unknown } }>();
+  const fromStdin = input.tool_input?.command;
+  if (typeof fromStdin === "string") return fromStdin;
   const env = process.env.TOOL_INPUT_command;
   if (env) return env;
   try {
@@ -34,7 +40,7 @@ function readCommand(): string {
   }
 }
 
-const command = readCommand();
+const command = await readCommand();
 if (!/\bgit\s+(?:-C\s+\S+\s+)?commit\b/.test(command)) process.exit(0);
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();

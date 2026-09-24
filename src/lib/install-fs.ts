@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { currentClaudeManagedSourceFiles } from "./claude-managed-file-manifests.ts";
 import { validateClaudeManagedFileOwnership } from "./claude-managed-files.ts";
-import { error } from "./colors.ts";
+import { error, progressArrow } from "./colors.ts";
 import type { Profile } from "./light-profile.ts";
 import { MANAGED_TOP_LEVEL_PATHS, sharedDirOwnedFiles } from "./managed-paths.ts";
 import { CLAUDE_DIR, getTimestamp, sha256 } from "./platform.ts";
@@ -455,6 +455,7 @@ async function installTsSources(source: string): Promise<void> {
     throw new Error("Claude managed destination collision: src/node_modules");
   }
   if (process.env.CC_SKIP_DEPS === "1") return;
+  progressArrow("Installing Claude managed runtime dependencies...");
   const install = Bun.spawn(
     ["bun", "install", "--production", "--frozen-lockfile", "--ignore-scripts"],
     { cwd: dstTs, stdout: "pipe", stderr: "pipe" },

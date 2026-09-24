@@ -41,6 +41,7 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Dry-run: `bun src/setup.ts --dry-run`
 - Tests: `bun test`
 - Token spend from local transcripts: `bun run tokens` (`--all`, `--days N`, `--json`). Price-weighted by billing type, split main vs subagent; run it before and after a harness change.
+- Skill evals: every skill has cases in `evals/<skill>-<slug>/` (`claude plugin eval` format, `tags: [<skill>]`). A repo-local hook (`.claude/hooks/pre-push-evals.ts`) runs the cases for skills changed since upstream before every `git push`, capped at $5, and blocks on a failing or missing case. Run it by hand with `bun src/scripts/eval-changed.ts`; a new or reworded skill ships with its case.
 - Typecheck: `bun run typecheck`
 - Lint: `bun run lint` / `bun run lint:fix`
 - Deliberate-shortcut markers: `bun run lint:shortcuts` (add `-- --ledger` for the `/audit debt` view). Convention lives in AGENTS.md → Laziness Ladder.
