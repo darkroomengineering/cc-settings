@@ -8,13 +8,32 @@ argument-hint: "[hookName]"
 
 Create a custom React hook following Darkroom conventions. The hook itself is stack-agnostic — what differs between satus and novus is the path alias.
 
-## Step 1 — Detect stack
+## Step 1 — Check existing abstractions
+
+Apply the Laziness Ladder before scaffolding, even when the request proposes a
+hook name. Search project hooks, utilities, and callers by behavior and related
+terms; read matching implementations to check their contract and import path.
+Prefer a matching project hook, including wrappers around `hamo`, over direct
+dependency calls or a new wrapper. If one fits, use it and stop here.
+
+For example, in Satus, search for `useDeviceDetection`, `isDesktop`, and media-query
+usage before adding `useIsDesktop` or repeating a breakpoint string. When the local
+contract matches the requirement, use `const { isDesktop } = useDeviceDetection()`
+with the verified local import. Check breakpoint semantics and server/initial
+render behavior; do not assume every media query means the same thing.
+
+If no project abstraction fits, check runtime/platform APIs and installed
+dependencies. For common hook behavior, check installed `hamo` hooks using the
+documentation procedure below. Before creating a hook, name the implementations
+checked and the behavior they lack; then continue only for that gap.
+
+## Step 2 — Detect stack
 
 Read `package.json`:
 - `dependencies.next` → satus / Next.js (path alias `@/`, hooks require a `'use client'` boundary)
 - `dependencies["react-router"]` → novus / React Router (path alias `~/`, components isomorphic)
 
-## Step 2 — Choose location
+## Step 3 — Choose location
 
 | Stack | Hook path |
 |---|---|
@@ -23,7 +42,7 @@ Read `package.json`:
 
 Confirm by checking the existing `lib/hooks/` or `hooks/` directory structure if either pattern is unclear from package.json alone.
 
-## Step 3 — Emit template
+## Step 4 — Emit template
 
 ### satus / Next.js
 ```tsx
@@ -103,24 +122,14 @@ If this hook uses an external library, **fetch docs first**:
 1. Use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) in Claude or when the user configured it in standalone Codex. Otherwise use official docs through native browsing or inspect the pinned local package. cc-settings does not auto-run unpinned registry MCP packages in Codex.
 2. Run `bun info <package>` to check the latest version.
 
-## Consider Using Hamo
-
-For common use cases, prefer `hamo` hooks (fetch `hamo` docs via Context7 first):
-
-```tsx
-import { useWindowSize, useRect, useIntersectionObserver } from 'hamo'
-```
-
-Only create custom hooks when `hamo` doesn't cover the use case.
-
 ## Example
 
 ```
 User: "create a useLocalStorage hook" (in satus repo)
-→ Creates lib/hooks/use-local-storage.ts with 'use client', deterministic initial state, effect-based storage read before writes
+→ Checks project hooks, platform APIs, and installed dependencies first; only for an uncovered gap, creates lib/hooks/use-local-storage.ts with 'use client', deterministic initial state, effect-based storage read before writes
 
 User: "create a useLocalStorage hook" (in novus repo)
-→ Creates hooks/use-local-storage.ts, no directive, deterministic initial state, effect-based storage read before writes
+→ Checks project hooks, platform APIs, and installed dependencies first; only for an uncovered gap, creates hooks/use-local-storage.ts, no directive, deterministic initial state, effect-based storage read before writes
 ```
 
 ## Arguments

@@ -27,7 +27,7 @@ Optimize for first-read comprehension, not brevity:
 Stop at the first rung that holds:
 
 1. Does this need to exist? If not, skip it (YAGNI).
-2. Does this codebase already do it? Reuse or extend it.
+2. Search behavior and callers. Reuse matching project wrappers before primitives; name gaps before adding code.
 3. Does the standard library/runtime do it? Use it.
 4. Does the native platform do it? Use it.
 5. Does an installed dependency do it? Use it; add nothing.
@@ -260,7 +260,7 @@ AGENTS.md-aware reviewers use this scope. Report only behavior or risk; skip for
 
 ## External Libraries
 
-Search before building: use stdlib, then platform, then installed dependencies before adding one. Before using any external library:
+Check project abstractions, stdlib, platform, and installed dependencies before adding one. Before using any external library:
 
 1. Fetch current documentation; do not rely on remembered APIs.
 2. Check the latest version with `bun info <package>`.
@@ -301,4 +301,3 @@ If another team member's agent benefits, use the team-knowledge repo; otherwise 
 ## Self-Evolving Learnings (agent convention)
 
 After a session with a non-obvious bug, pattern, or edge case, append one line, `- [YYYY-MM-DD] <category>: <learning>`, to `~/.claude/agent-memory/<agent-name>/MEMORY.md`; its first 200 lines auto-load next time.
-
