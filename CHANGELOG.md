@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.35.0] — 2026-09-26
+
+The advisor is on by default: every session and subagent can consult Fable 5.1 at decision points, and the agents that do long work are told when to ask.
+
+**Added:**
+- `"advisorModel": "claude-fable-5-1"` in `config/10-core.json`. Fable 5.1 is the only advisor every model we run accepts: the Fable 5.1 default, the Opus 5.5 agents, and the Sonnet 5 subagents. The full ID is pinned because a Fable 5.1 session silently drops a Fable 5 advisor, and the `fable` alias follows Claude Code's default.
+- `implementer`, `tester`, and `maestro` consult the advisor, when it is available, before committing to an approach, after a second failed attempt, and before reporting done. Claude Code has no setting to force advisor calls, so the prompts ask for them.
+
+**Changed:**
+- `docs/agent-models.md` "Advisor" matches the current docs: an Opus 5.5 pairing row, `/advisor` working in `-p` and the Agent SDK since v2.1.260, what happens to an advisor the main model can't pair with, the flag-fetch requirement, and how to turn it off when quota is tight.
+
+**Files changed:**
+- `config/10-core.json`
+- `agents/implementer.md`, `agents/tester.md`, `agents/maestro.md`
+- `docs/agent-models.md`, `docs/settings-reference.md`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`
+
 ## [15.34.0] — 2026-09-26
 
 Sync with Claude Code v2.1.283 and Codex v0.157.1, plus a fix for permission deny rules that never matched.

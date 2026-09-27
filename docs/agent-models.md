@@ -50,31 +50,32 @@ Override per-invocation when a specific task warrants it: bump a cheap agent up 
 
 ## Advisor: strong-model consults from a cheap executor
 
-Claude Code has a native **advisor** layered on the API's [advisor tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool) (beta): the session ("executor") model calls an `advisor` server tool whenever it wants strategic guidance; Anthropic runs the stronger advisor model over the **full transcript** server-side and returns short advice (typically 400–700 text tokens) mid-turn. No orchestration and no briefing prompt — unlike a subagent, the advisor sees everything the executor saw. It works on **subscription billing** (advisor tokens count toward Max usage limits, visible in `/usage`) as well as API keys, but Anthropic API only — absent on Bedrock / Vertex / Foundry. Docs: [code.claude.com/docs/en/advisor](https://code.claude.com/docs/en/advisor).
+Claude Code has a native **advisor** layered on the API's [advisor tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool) (experimental): the session ("executor") model calls an `advisor` server tool at decision points; Anthropic runs the advisor model over the **full transcript** server-side and returns short guidance mid-turn. No briefing prompt is needed. Unlike a subagent, the advisor sees everything the executor saw. It works on subscription billing (advisor tokens count toward plan limits, visible in `/usage`) and on API keys, but only against the Anthropic API: not on Bedrock, Vertex, or Foundry, and through a gateway only when the gateway forwards the tool intact. `DISABLE_TELEMETRY` and other flag-fetch kill switches turn it off. Docs: [code.claude.com/docs/en/advisor](https://code.claude.com/docs/en/advisor).
 
-**Config surface** (v2.1.98+; Fable as advisor needs v2.1.170+ and Fable org access):
+**cc-settings sets `"advisorModel": "claude-fable-5-1"`** in `config/10-core.json`. Fable 5.1 is the only advisor that every model we run accepts, including the Fable 5.1 default, which rejects Opus and Sonnet advisors and gets a Fable 5 advisor refused by the API. The full ID is pinned instead of the `fable` alias because the alias follows Claude Code's built-in default; if it pointed at Fable 5, a Fable 5.1 session would drop the advisor with no error.
 
-- `/advisor opus` — set or change mid-session, persists; `/advisor off` disables
-- `"advisorModel": "opus"` in settings.json — standing default
-- `--advisor <model>` — one-session override (takes precedence over the setting)
-- `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` — hard disable
-
-**Pairing rules that matter here** (the advisor must be at least as capable as the executor):
-
-| Session (executor) | Valid advisors | Verdict |
+| Session (executor) | Accepts `claude-fable-5-1`? | What it buys |
 |---|---|---|
-| `sonnet` (Sonnet 5) | fable, mythos, opus 5 | **The sweet spot** — near-top-tier planning at Sonnet burn rate |
-| `claude-opus-5` | fable, mythos, opus 5 | Valid but marginal — Opus already plans well, and it doesn't relieve the scarce Opus pool |
-| `claude-fable-5-1` (our default) | fable only | Self-consult; skip — a Fable session rejects every non-Fable advisor |
+| `claude-fable-5-1` (composed default) | yes, the only accepted advisor | A second Fable pass on hard calls |
+| `claude-opus-5-5` (`planner`, `maestro`, `security-reviewer`) | yes (Fable, or Opus 5+) | Top-tier review of Opus plans and gate decisions |
+| `sonnet` (Sonnet 5: `implementer`, `tester`, `explore`, and the other `CLAUDE_CODE_SUBAGENT_MODEL` agents) | yes | The pairing the docs recommend first: Sonnet runs the routine turns, Fable steps in at decision points |
+| `haiku` | yes | Cheapest executor with top-tier planning |
 
-**Recommended use: "workhorse mode", opt-in per session.** Run daily-driver sessions as `/model sonnet` + `/advisor opus` (or `/advisor fable` for the top-of-range tier), and reserve `claude-fable-5-1`/`claude-opus-5-5` sessions for work that needs a top-tier *executor*. This is the native version of the "Sonnet loop bodies, Opus gate decisions" split — except the strong model corrects course mid-turn with full context instead of reviewing after the fact, and dozens of consults cost less than one Opus session. It is deliberately **not** the composed default: our standing `model` is `claude-fable-5-1`, which only accepts a Fable advisor, so the advisor is a per-session choice that starts with `/model sonnet`.
+**Config surface:**
+
+- `/advisor <model>` sets it and saves to user settings; `/advisor off` disables it. The text form works in `-p`, the Agent SDK, the desktop app, and Remote Control since v2.1.260.
+- `--advisor <model>` overrides for one session; it exits at launch when the pairing is invalid.
+- `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` ignores `advisorModel` entirely.
+- A saved advisor the main model can't pair with is not attached, and the session shows a notification. When the API refuses one mid-conversation, the advisor stays off until `/clear` or `/compact`.
+
+**When it is called:** the model decides, usually before committing to an approach, when an error recurs, and before declaring done. There is no setting to force or cap calls, so `implementer`, `tester`, and `maestro` ask for those three checkpoints in their prompts. Ask for one directly with "consult the advisor before you continue".
 
 **Interactions:**
 
-- **Subagents inherit** the configured advisor and re-check pairing against their own model — with `CLAUDE_CODE_SUBAGENT_MODEL=sonnet`, every fanned-out implementer gets strong-model advice on its own transcript. That directly targets the drift/laziness failure modes the delegation rules guard against; cost scales linearly (advice is small), but consider `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` for very wide fan-outs.
-- **Codex routing is unaffected** — the advisor is Claude advising Claude, so `codex-verifier` remains the only independent cross-model check. What changes is upstream of it: less Opus wall-time spent babysitting Sonnet loops.
-- **Fable advisor advice is opaque** — Fable/Mythos advisors return encrypted results; the executor reads them decrypted server-side, you can't audit what was advised. Use an Opus advisor when auditability matters.
-- **Not in the Agent SDK** — CLI + raw API only, so scheduled routines and SDK harnesses can't use it yet.
+- **Subagents inherit** the advisor and re-check pairing against their own model. Wide fan-outs multiply advisor calls; set `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` for a run where that cost isn't worth it.
+- **Cost:** each call rereads the full transcript uncached at the advisor's rates. Toggling `/advisor` mid-session does not invalidate the main model's prompt cache. Turn it off with `/advisor off` when quota is tight (`quota-steer` at 5h ≥60% or weekly ≥65%).
+- **Codex routing is unaffected.** The advisor is Claude advising Claude, so `codex-verifier` remains the only independent cross-model check.
+- **Fable advice is opaque.** Fable returns encrypted advisor results, so you can't audit what was advised; press `Ctrl+O` on the `Advising` line to see what is readable. Run `/advisor opus` from an Opus or Sonnet session when auditability matters.
 
 ## Automated quota steering
 

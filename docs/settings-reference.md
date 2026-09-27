@@ -735,7 +735,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 |-----|------|-------|-------------|
 | `$schema` | string | G | JSON Schema URL for editor IntelliSense |
 | `additionalMarketplaces` | object | E | Friendlier alias for `extraKnownMarketplaces` (v2.1.232) |
-| `advisorModel` | string | G | Stronger model the session consults mid-turn via the advisor server tool; `/advisor <model>` persists here (v2.1.98). Alias or full ID; advisor ≥ executor capability is validated at runtime, and Fable-as-advisor needs v2.1.170+. See `docs/agent-models.md` "Advisor" |
+| `advisorModel` | string | G | Stronger model the session consults mid-turn via the advisor server tool; `/advisor <model>` persists here (v2.1.98). Alias or full ID; advisor ≥ executor capability is validated at runtime. cc-settings sets `claude-fable-5-1`, the one advisor every model it runs accepts. See `docs/agent-models.md` "Advisor" |
 | `agent` | string | G | Default agent name for subagent invocations; also honored by `claude agents` dispatched sessions (v2.1.157) |
 | `allowAllClaudeAiMcps` | boolean | E | Load claude.ai cloud MCP connectors alongside managed-mcp.json (v2.1.149) |
 | `allowClaudeInChromeWithManagedMcp` | boolean | E | Let `claude --chrome` run alongside an exclusive `managed-mcp.json` (v2.1.282) |

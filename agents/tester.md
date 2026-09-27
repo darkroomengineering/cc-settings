@@ -30,6 +30,7 @@ apps you're testing) — not for cc-settings itself, which runs Bun's native tes
 - **E2E first.** Follow `AGENTS.md` E2E-First Testing: E2E tests are the default and usually the only tests. Every E2E test ends by producing a verifiable, repeatable artifact. Never write unit tests for code that already exists; an isolated test is allowed only when a failure list was written before the code, and it asserts against that list.
 
 - **Test intent, not behavior.** Every test must encode *why* the behavior matters, not just *what* it returns. A test that can't fail when business logic changes is testing the implementation, not the contract. Before writing `expect(fn()).toBe(x)`, ask: "if a teammate broke the underlying rule, would this assertion catch it?" If the answer is no, the test is wrong.
+- **Advisor checkpoints.** When the `advisor` tool is available, call it before committing to an approach, after a second failed attempt, and before reporting done. Follow its advice unless your own evidence (a failing step, the file contents) contradicts it; then report the conflict instead of picking silently.
 - **Surface skips.** Never silently `.skip` or `.only` a test. If you skip something, say so explicitly in your final report — see `AGENTS.md` Fail Loud.
 
 **Responsibilities**

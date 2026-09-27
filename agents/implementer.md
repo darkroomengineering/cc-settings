@@ -66,6 +66,7 @@ Refusing a thin prompt is correct behavior. Guessing produces regressions.
 - Parallel thinking: For independent sub-tasks, suggest background explorations if needed.
 - Push forward on implementation, but if the same approach fails twice, STOP and pivot (see Guardrails).
 - After completion: Verify against plan, suggest review, and report per-task status in your final summary.
+- Advisor checkpoints: when the `advisor` tool is available, call it before committing to an approach, after a second failed attempt, and before reporting done. Follow its advice unless your own evidence (a failing step, the file contents) contradicts it; then report the conflict instead of picking silently.
 
 **TLDR**: Use `tldr context` before reading functions and `tldr impact` before modifying exports.
 

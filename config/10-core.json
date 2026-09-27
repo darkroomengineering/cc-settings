@@ -48,6 +48,7 @@
 		}
 	},
 	"model": "claude-fable-5-1",
+	"advisorModel": "claude-fable-5-1",
 	"tui": "default",
 	"promptCacheTtl": "1h",
 	"subagentPromptCacheTtl": "5m",
