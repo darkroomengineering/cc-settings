@@ -4,6 +4,41 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.34.0] — 2026-09-26
+
+Sync with Claude Code v2.1.283 and Codex v0.157.1, plus a fix for permission deny rules that never matched.
+
+**Adopted:**
+- `maxProseWidth` (Claude Code 2.1.282) in `src/schemas/settings.ts` and `docs/settings-reference.md`. It caps prose width in wide terminals. cc-settings leaves it unset.
+- `attribution: false` (2.1.281) in the settings schema. `config/10-core.json` keeps the object form, because older CLI versions skip a settings file that holds the boolean.
+- Managed settings `availableModelsMatch` and `deniedModels` (2.1.283) and `allowClaudeInChromeWithManagedMcp` (2.1.282) in the settings schema, so managed files that use them still pass the strict parse.
+- `CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT` (2.1.281) in the manifest and the env table.
+
+**Fixed:**
+- 45 permission deny rules in `config/30-permissions.json` never fired. Claude Code reads a rule that mixes an inner `*` with a trailing `:*` as a literal prefix, so `curl` uploads, `curl -o` downloads, `cp`/`mv` of secret directories and shell rc files, `find -exec`, and `rm -rf $HOME/*` passed the deny list. They now end in a bare `*`. `docs/settings-reference.md` and the `permissions-check.ts` comments match.
+- Five places still said Codex execution runs on GPT-5.6 Sol after 15.29.0 moved it to GPT-6 Sol. Codex 0.156.1 now ships GPT-6 Sol and Luna.
+
+**Docs:**
+- The native AGENTS.md read now also works on Bedrock, Vertex, Foundry, LLM gateways, and with telemetry off (2.1.281). `docs/settings-reference.md` and `/cc migrate` no longer list those as blockers.
+- `CLAUDE_CODE_AUTO_MODE_SERVER` now also applies on a direct API connection (2.1.281). `CLAUDE_CODE_GATEWAY_HINT_HEADERS` now also sends `x-claude-code-prompt-id` (2.1.283).
+- `MANUAL.md` mentions `/doctor prompt-audit` (2.1.283).
+
+**Files changed:**
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `config/30-permissions.json`
+- `src/lib/permissions-check.ts`
+- `src/lib/codex.ts`
+- `src/lib/codex-install-state.ts`
+- `docs/settings-reference.md`
+- `docs/codex-bridge.md`
+- `codex/AGENTS.append.md`
+- `CLAUDE-FULL.md`
+- `MANUAL.md`
+- `skills/cc/SKILL.md`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`
+
 ## [15.33.0] — 2026-09-24
 
 Every skill now has an eval case, a push runs the evals for the skills it changes, and a repeat install spends about 5 seconds on plugins instead of 17.
@@ -599,7 +634,7 @@ Synced with Claude Code v2.1.266 (from v2.1.260). 2.1.262 and 2.1.264 have no ch
 **Skipped:** `--append-subagent-system-prompt-file`, `--plugin-dir` folder-of-plugins, the 1 GB tool-result cap (no config surface); `CLAUDE_CODE_USE_GATEWAY` regression and fix (env vars are reference-only, never set here); prompt-cache fixes for resumed subagents, teammates, and forked skills, the `/context` local estimate, the `rm -rf` prompt hardening, the auto-mode diagram-URL rule (behavior only); gateway, Bedrock, Vertex, Remote Control, Windows, VSCode, plugin-marketplace, and MCP SSE-fallback entries.
 
 **Files changed:**
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
 - `skills/consolidate/SKILL.md`
@@ -628,7 +663,7 @@ Synced with Claude Code v2.1.260 (from v2.1.257). 2.1.258 was two fixes; 2.1.259
 **Skipped:** `--permission-prompts none`, `claude plugin validate --json`, `/diff`, `/reload-plugins` in headless, `/advisor` text form (no config surface); the `model: fable` `[1m]` fix; earlier 1M auto-compact and the removed one-hour subagent background limit (behavior only); GitLab (`pr.kind`, `glab mr`); gateway, Bedrock, VSCode, Remote Control, and remaining fixes.
 
 **Files changed:**
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `src/hooks/statusline.ts`
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -1115,7 +1150,7 @@ Yes → team (competing hypotheses that should disprove each other, a review who
 
 **Files changed:**
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
 - `CLAUDE-FULL.md`
@@ -1938,7 +1973,7 @@ Upstream sync with Claude Code v2.1.216–v2.1.217. One behavioral change ships 
 **Deletions / Native-now-redundant:** none — both releases were otherwise bug fixes and upstream UX with no cc-settings surface (MCP output memory leak, quadratic message-normalization slowdown, worktree git-redirection hardening, `/ultrareview` and `/code-review ultra` error-message improvements, bundled dataviz skill update).
 
 **Files changed:**
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `config/10-core.json`
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -2558,7 +2593,7 @@ Caught the schema up to upstream `2.1.181 → 2.1.183` (2.1.182 was never publis
 
 **Files changed:**
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `config/10-core.json`
 - `docs/settings-reference.md`
 - `upstream/claude-code-manifest.json`
@@ -2771,7 +2806,7 @@ Upstream sync to Claude Code 2.1.169. One surface-area release — 2.1.169 adds 
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -2792,7 +2827,7 @@ Upstream sync to Claude Code 2.1.168. Two of the three releases (2.1.167, 2.1.16
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -2813,7 +2848,7 @@ Upstream sync to Claude Code 2.1.165. Two of the three releases (2.1.164, 2.1.16
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -3178,7 +3213,7 @@ Reconcile the `Settings` zod schema with the full documented Claude Code setting
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `upstream/claude-code-manifest.json`
 - `schemas/settings.schema.json`
 - `tests/schemas.test.ts`
@@ -3257,7 +3292,7 @@ Gap-fill bundle adopting verified Claude Code capabilities (v2.1.117–v2.1.147)
 - `docs/hooks-reference.md`
 - `docs/settings-reference.md`
 - `src/schemas/hooks.ts`
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `src/scripts/swarm-log.ts`
 - `src/scripts/worktree-create.ts` (new)
 - `src/scripts/worktree-remove.ts` (new)
@@ -3299,7 +3334,7 @@ _None this cycle._ The remaining v2.1.149 bullets are upstream bug fixes (PowerS
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
 - `src/setup.ts`

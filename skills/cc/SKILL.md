@@ -479,8 +479,8 @@ Start a new Claude Code session in the project (or `claude -p 'what are your
 project instructions?'`) and look for the line
 `no CLAUDE.md found; AGENTS.md loaded: <path>`. `/memory` and `/context` do not
 list an `AGENTS.md` read this way, so that line is the check. If the line is
-missing, the session is one that cannot load `AGENTS.md` (Bedrock, telemetry
-off, `disableAllHooks`, or the first session after the upgrade); say so and
+missing, the session is one that cannot load `AGENTS.md` (`disableAllHooks`,
+`allowManagedHooksOnly`, or the first session after the upgrade); say so and
 offer the one-line `CLAUDE.md` that holds `@AGENTS.md` as the fallback.
 
 Commit as `chore: move CLAUDE.md into AGENTS.md` on the project's usual branch

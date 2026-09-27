@@ -128,8 +128,9 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_GOAL_CHECKIN_MINUTES` | minutes (string), `"0"` to opt out | When background tasks keep a `/goal` waiting 30+ minutes, Claude checks in on them instead of waiting indefinitely (v2.1.234) |
 | `CLAUDE_CODE_WEBFETCH_DEADLINE_MS` | milliseconds (string), `"0"` to disable | WebFetch fails after 300 seconds on a server that never finishes the response; this overrides the deadline (v2.1.268) |
 | `OTEL_METRICS_INCLUDE_REPOSITORY` | `"1"` or unset | Tag OpenTelemetry metrics and events with `vcs.*` repository attributes; commit events also get `vcs.ref.head.*` when `OTEL_LOG_TOOL_DETAILS` is set (v2.1.269) |
-| `CLAUDE_CODE_GATEWAY_HINT_HEADERS` | `"1"` or unset | Adds `x-claude-code-request-class`, `x-claude-code-agent-type`, `x-claude-code-prev-tool-durations` and `x-claude-code-compaction` request headers for LLM gateways to route or budget on (v2.1.273) |
-| `CLAUDE_CODE_AUTO_MODE_SERVER` | `"0"` or unset | Auto mode runs its classifier server-side by default (v2.1.278; no classifier overhead billed, `/status` shows an `Auto mode server` row, warns on billed fallback); set `"0"` on Bedrock, Vertex, Foundry or a gateway to run the local, billed classifier instead |
+| `CLAUDE_CODE_GATEWAY_HINT_HEADERS` | `"1"` or unset | Adds `x-claude-code-request-class`, `x-claude-code-agent-type`, `x-claude-code-prev-tool-durations` and `x-claude-code-compaction` request headers for LLM gateways to route or budget on (v2.1.273), plus `x-claude-code-prompt-id` to group the requests that serve one user prompt (v2.1.283) |
+| `CLAUDE_CODE_AUTO_MODE_SERVER` | `"0"` or unset | Auto mode runs its classifier server-side by default (v2.1.278; no classifier overhead billed, `/status` shows an `Auto mode server` row, warns on billed fallback); set `"0"` to run the local, billed classifier instead; since v2.1.281 this also applies on a direct Anthropic API connection, and `"1"` opts in |
+| `CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT` | `"1"` or unset | In auto mode and `--dangerously-skip-permissions`, the dangerous-`rm` prompt denies the command with a rewrite hint after 2 minutes unanswered so unattended sessions keep going; `"1"` makes it wait indefinitely (v2.1.281). cc-settings' `safety-net.ts` hook blocks those commands before the prompt appears |
 | `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` | characters (string) | Raises or lowers the 2,048-character cap on MCP tool descriptions and server instructions for every MCP server in the session (v2.1.280); cc-settings leaves it unset because a higher cap spends context on every session |
 | `CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK` | `"1"` or unset | Skips the organization fast-mode check at startup; since v2.1.271 an API rejection of fast mode then stands for the session and its reason is shown instead of re-sending fast requests every turn |
 | `CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS` | milliseconds (string) | Extend the LLM gateway `/v1/models` discovery timeout; default 3 seconds (v2.1.269) |
@@ -225,6 +226,8 @@ Controls AI attribution in git commits and PRs. Replaces the deprecated `coautho
 ```
 
 Empty strings suppress the `commit`/`pr` attribution text. `sessionUrl` (boolean, added 2.1.183) controls the claude.ai session link appended to commits and PRs — empty strings do **not** suppress it, so `false` is required to omit it. Darkroom policy: **no AI attribution** — all three off.
+
+Since v2.1.281, `"attribution": false` hides all of it in one value. cc-settings keeps the object form because older CLI versions skip a settings file that holds the boolean.
 
 ### `statusLine`
 
@@ -716,7 +719,7 @@ Since v2.1.277 the built-in `agents-md` plugin reads a project's `AGENTS.md` (an
 | `claude-md` | `CLAUDE.md` only, as before v2.1.277 |
 | `managed-only` | Only the organization's managed `CLAUDE.md` and auto memory |
 
-cc-settings leaves the default. An `AGENTS.md` read this way is not listed in `/memory` or `/context` and does not fire `InstructionsLoaded` hooks; the session prints `no CLAUDE.md found; AGENTS.md loaded: <path>` instead. Support is absent on Bedrock, Vertex, and Foundry, with telemetry disabled, under `disableAllHooks` or `allowManagedHooksOnly`, and in the first session after the upgrade; there, keep a one-line `CLAUDE.md` holding `@AGENTS.md`. A project that still has a `CLAUDE.md` gets a hint from the SessionStart banner; `/cc migrate` renames it.
+cc-settings leaves the default. An `AGENTS.md` read this way is not listed in `/memory` or `/context` and does not fire `InstructionsLoaded` hooks; the session prints `no CLAUDE.md found; AGENTS.md loaded: <path>` instead. Since v2.1.281 it also works on Bedrock, Vertex, Foundry, LLM gateways, and with telemetry disabled. Support is absent under `disableAllHooks` or `allowManagedHooksOnly`, and in the first session after the upgrade; there, keep a one-line `CLAUDE.md` holding `@AGENTS.md`. A project that still has a `CLAUDE.md` gets a hint from the SessionStart banner; `/cc migrate` renames it.
 
 ### `modelPricing`
 
@@ -735,6 +738,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `advisorModel` | string | G | Stronger model the session consults mid-turn via the advisor server tool; `/advisor <model>` persists here (v2.1.98). Alias or full ID; advisor ≥ executor capability is validated at runtime, and Fable-as-advisor needs v2.1.170+. See `docs/agent-models.md` "Advisor" |
 | `agent` | string | G | Default agent name for subagent invocations; also honored by `claude agents` dispatched sessions (v2.1.157) |
 | `allowAllClaudeAiMcps` | boolean | E | Load claude.ai cloud MCP connectors alongside managed-mcp.json (v2.1.149) |
+| `allowClaudeInChromeWithManagedMcp` | boolean | E | Let `claude --chrome` run alongside an exclusive `managed-mcp.json` (v2.1.282) |
 | `allowManagedHooksOnly` | boolean | E | Block user-defined hooks; only managed hooks run |
 | `allowManagedMcpServersOnly` | boolean | E | Block user-defined MCP servers |
 | `allowManagedPermissionRulesOnly` | boolean | E | Block user-defined permission rules |
@@ -744,13 +748,14 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `allowedMcpServers` | string[] | E | Managed allowlist for user-added MCP servers (v2.1.112; org-delivered servers bypass it since v2.1.259) |
 | `alwaysThinkingEnabled` | boolean | G | Always show extended thinking even on short turns |
 | `apiKeyHelper` | string | A | Shell command that emits an Anthropic API key |
-| `attribution` | object | G | AI attribution in git commits/PRs (`commit`, `pr` string fields; `sessionUrl` boolean — `false` omits the claude.ai session link, v2.1.183) |
+| `attribution` | object \| `false` | G | AI attribution in git commits/PRs (`commit`, `pr` string fields; `sessionUrl` boolean — `false` omits the claude.ai session link, v2.1.183); `false` hides all attribution (v2.1.281) |
 | `autoMemoryDirectory` | string | G | Custom directory for auto-memory storage (v2.1.101) |
 | `autoMemoryEnabled` | boolean | G | Enable/disable the auto-memory system |
 | `autoMode` | object | G | Auto-mode configuration object (shape evolving) |
 | `autoScrollEnabled` | boolean | U | Auto-scroll to bottom as output streams in (v2.1.102) |
 | `autoUpdatesChannel` | `"stable"` \| `"latest"` | G | Release channel to track for automatic updates |
 | `availableModels` | string[] | E | Restrict the model picker to this list |
+| `availableModelsMatch` | string | E | `"exact"`: an `availableModels` entry allows only the model version it names, so new releases stay blocked until listed (v2.1.283) |
 | `awaySummaryEnabled` | boolean | U | Show a session recap on re-entry after background work |
 | `awsAuthRefresh` | string | A | Shell command called to refresh AWS credentials |
 | `awsCredentialExport` | string | A | Shell command that exports AWS credential env vars |
@@ -767,6 +772,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `crossSessionInbound` | `"accept"` \| `"hold"` \| `"refuse"` | G | What this session does with messages arriving from your other sessions. Unset is **not** `accept` — see [cross-session messaging](#cross-session-messaging) (v2.1.224) |
 | `defaultShell` | `"bash"` \| `"powershell"` | G | Shell used by the Bash tool |
 | `deniedMcpServers` | string[] | E | Managed blocklist of MCP server URLs/identifiers (v2.1.112) |
+| `deniedModels` | string[] | E | Block these models even when `availableModels` allows them (v2.1.283) |
 | `desktopSessionCleanupPeriodDays` | integer ≥ 1 | G | Caps the retention exemption for Claude Desktop/Cowork-written sessions (v2.1.248) |
 | `dialogExpiry` | `"60s"` \| `"5m"` \| `"10m"` \| `"never"` | U | How long an unanswered approval dialog stays open before Claude Code drops it (default `"5m"`) (v2.1.224) |
 | `disableAgentView` | boolean | E | Hide the agent-activity panel in the TUI |
@@ -807,6 +813,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `language` | string | G | UI language/locale override (e.g. `"en"`, `"ja"`) |
 | `managedMcpServers` | Record\<string,McpServer\> | E | Org-delivered HTTP/SSE MCP servers, keyed by name, `.mcp.json` shape; managed scope only (v2.1.259) |
 | `maxEffortLevel` | `"low"` \| `"medium"` \| `"high"` \| `"xhigh"` \| `"max"` | G | Cap the effort level on every provider, including Bedrock, Vertex and Foundry; users can still pick lower. Also accepted per model under `modelSettings` (v2.1.267) |
+| `maxProseWidth` | integer > 0 | U | Cap the width of Claude's prose in wide terminals; tables and code blocks keep the full width (v2.1.282) |
 | `maxSkillDescriptionChars` | integer > 0 | G | Per-skill description character cap for the model |
 | `mcpServers` | object | G | MCP server definitions (stdio and HTTP transports). **Claude Code does not read this from `settings.json` at user scope** — user-scope servers live in `~/.claude.json`, project-scope in `.mcp.json`. Typed here because cc-settings' `config/20-mcp.json` fragment carries the block through composition on its way to `~/.claude.json`; setting it in `settings.json` by hand has no effect |
 | `minimumVersion` | string | E | Minimum Claude Code version required; older clients are blocked |
@@ -1024,11 +1031,11 @@ Bash(rm -rf ~/.ssh)
 Bash(rm -rf ~/.gnupg)
 Bash(rm -rf ~/.aws)
 Bash(rm -rf $HOME:*)
-Bash(rm -rf $HOME/*:*)
+Bash(rm -rf $HOME/*)
 Bash(rm -fr /:*)
-Bash(rm -fr /*:*)
+Bash(rm -fr /*)
 Bash(rm -fr ~:*)
-Bash(rm -fr ~/*:*)
+Bash(rm -fr ~/*)
 Bash(rm -Rf /:*)
 Bash(rm -Rf ~:*)
 Read(~/.ssh/*)
@@ -1039,12 +1046,12 @@ Read(~/.netrc)
 Bash(cat ~/.ssh/*)
 Bash(cat ~/.aws/*)
 Bash(cat ~/.gnupg/*)
-Bash(cp ~/.ssh/*:*)
-Bash(cp ~/.aws/*:*)
-Bash(cp ~/.gnupg/*:*)
-Bash(mv ~/.ssh/*:*)
-Bash(mv ~/.aws/*:*)
-Bash(mv ~/.gnupg/*:*)
+Bash(cp ~/.ssh/*)
+Bash(cp ~/.aws/*)
+Bash(cp ~/.gnupg/*)
+Bash(mv ~/.ssh/*)
+Bash(mv ~/.aws/*)
+Bash(mv ~/.gnupg/*)
 Edit(~/.ssh/*)
 Edit(~/.aws/*)
 Edit(~/.gnupg/*)
@@ -1061,16 +1068,16 @@ Bash(git restore .:*)
 Bash(git restore --staged .:*)
 Bash(curl * | bash)
 Bash(curl * | sh)
-Bash(curl * --data:*)
-Bash(curl * -d :*)
-Bash(curl * -F :*)
-Bash(curl * --upload-file:*)
-Bash(curl * -T :*)
+Bash(curl * --data*)
+Bash(curl * -d*)
+Bash(curl * -F*)
+Bash(curl * --upload-file*)
+Bash(curl * -T*)
 Bash(wget * | bash)
 Bash(wget * | sh)
 Bash(sudo:*)
 Bash(chmod 777:*)
-Bash(find * -delete:*)
+Bash(find * -delete*)
 Bash(xargs rm:*)
 Read(~/.bashrc)
 Read(~/.zshrc)
@@ -1086,7 +1093,7 @@ Edit(~/.claude.json)
 Bash(gh repo delete:*)
 Bash(gh secret:*)
 Bash(gh api -X DELETE:*)
-Bash(gh api * -X DELETE:*)
+Bash(gh api * -X DELETE*)
 Bash(gh release delete:*)
 Bash(cat ~/.netrc)
 Bash(cat ~/.npmrc)
@@ -1107,49 +1114,49 @@ Bash(cp ~/.netrc:*)
 Bash(cp ~/.npmrc:*)
 Bash(cp ~/.docker/config.json:*)
 Bash(cp ~/.kube/config:*)
-Bash(cp ~/.config/gh/*:*)
+Bash(cp ~/.config/gh/*)
 Bash(mv ~/.netrc:*)
 Bash(mv ~/.npmrc:*)
 Bash(mv ~/.docker/config.json:*)
 Bash(mv ~/.kube/config:*)
-Bash(mv ~/.config/gh/*:*)
-Bash(curl * --json:*)
-Bash(curl * --data-raw:*)
-Bash(curl * --data-binary:*)
-Bash(curl * --data-urlencode:*)
+Bash(mv ~/.config/gh/*)
+Bash(curl * --json*)
+Bash(curl * --data-raw*)
+Bash(curl * --data-binary*)
+Bash(curl * --data-urlencode*)
 Bash(curl -X POST:*)
-Bash(curl * -X POST:*)
+Bash(curl * -X POST*)
 Bash(curl -X PUT:*)
-Bash(curl * -X PUT:*)
-Bash(awk * system\(:*)
-Bash(awk * system \(:*)
+Bash(curl * -X PUT*)
+Bash(awk * system\(*)
+Bash(awk * system \(*)
 Bash(node -e:*)
 Bash(node -p:*)
 Bash(node --eval:*)
 Bash(node --print:*)
-Bash(curl * -o :*)
-Bash(curl * -O:*)
-Bash(curl * -H :*)
-Bash(curl * --header :*)
-Bash(curl * --cookie :*)
+Bash(curl * -o*)
+Bash(curl * -O*)
+Bash(curl * -H*)
+Bash(curl * --header*)
+Bash(curl * --cookie*)
 Bash(curl -X DELETE:*)
-Bash(curl * -X DELETE:*)
+Bash(curl * -X DELETE*)
 Bash(curl -X PATCH:*)
-Bash(curl * -X PATCH:*)
+Bash(curl * -X PATCH*)
 Bash(gh api --method DELETE:*)
-Bash(gh api * --method DELETE:*)
-Bash(find * -exec:*)
+Bash(gh api * --method DELETE*)
+Bash(find * -exec*)
 Bash(git push --force-with-lease:*)
-Bash(cp * ~/.claude/settings.json:*)
-Bash(mv * ~/.claude/settings.json:*)
-Bash(cp * ~/.claude.json:*)
-Bash(mv * ~/.claude.json:*)
-Bash(cp * ~/.zshrc:*)
-Bash(mv * ~/.zshrc:*)
-Bash(cp * ~/.bashrc:*)
-Bash(mv * ~/.bashrc:*)
-Bash(cp * ~/.bash_profile:*)
-Bash(mv * ~/.bash_profile:*)
+Bash(cp * ~/.claude/settings.json*)
+Bash(mv * ~/.claude/settings.json*)
+Bash(cp * ~/.claude.json*)
+Bash(mv * ~/.claude.json*)
+Bash(cp * ~/.zshrc*)
+Bash(mv * ~/.zshrc*)
+Bash(cp * ~/.bashrc*)
+Bash(mv * ~/.bashrc*)
+Bash(cp * ~/.bash_profile*)
+Bash(mv * ~/.bash_profile*)
 ```
 <!-- END AUTOGEN:permissions -->
 

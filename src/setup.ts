@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.33.0"; // Skill evals and faster plugin install.
+const VERSION = "15.34.0"; // Claude Code 2.1.283 and Codex 0.157.1 sync.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

@@ -17,8 +17,10 @@
 //     before the trailing `*` is Claude Code's syntax marker, not a literal
 //     character — it does NOT appear in the command being matched.
 //   - `*` anywhere else in the pattern is a general glob wildcard (matches
-//     any run of characters), e.g. `Bash(gh api * -X DELETE:*)` — observed
-//     in config/30-permissions.json's deny list.
+//     any run of characters), e.g. `Bash(gh api * -X DELETE*)` in
+//     config/30-permissions.json's deny list. Claude Code matches a rule
+//     that mixes `*` with a trailing `:*` as a literal prefix, so config
+//     rules with an inner `*` end in a bare `*`, never `:*`.
 //   - `Bash(*)` (bare wildcard pattern) matches every command.
 //   - bare `Bash` (no parens at all) — matches every Bash command.
 //
@@ -154,8 +156,7 @@ function escapeRegexLiteral(literal: string): string {
  *  we insert) match across embedded newlines too, so a payload can't dodge
  *  a mid-pattern wildcard by smuggling a newline through it.
  *
- *  Real rules like `Bash(curl * -d :*)` (config/30-permissions.json — also
- *  the `-F `/`-T ` variants) put a literal space right before the `:*`
+ *  Rules like `Bash(curl * -d :*)` put a literal space right before the `:*`
  *  marker, so after stripping `:*` the stripped core ALREADY ends in the
  *  separator space (e.g. "curl * -d "). Appending another mandatory " "
  *  there would require a double space no real command has — `curl x -d foo`

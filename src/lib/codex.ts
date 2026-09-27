@@ -497,7 +497,7 @@ export type ParseReviewArgsResult =
 // (`-s`) or one carrying shell metacharacters could still steer which git
 // command Codex ends up running in its own sandbox. Restrict to a strict git
 // ref charset: must start with an alphanumeric, then alphanumerics plus
-/** Model routing on the Codex side. Execution goes to GPT-5.6 Sol, which
+/** Model routing on the Codex side. Execution goes to GPT-6 Sol, which
  *  continues through long tasks; judgment (review, ask) goes to GPT-6 Astra.
  *  Flag > env > default. OpenAI's Astra guidance is the basis: Sol "takes a
  *  request and continues for long stretches" where Astra returns early. */

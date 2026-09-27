@@ -232,11 +232,14 @@ export const Settings = z.looseObject({
   // from its file with Read.)
   bashOutputMaxChars: z.number().int().positive().max(128_000).optional(),
   showThinkingSummaries: z.boolean().optional(),
+  maxProseWidth: z.number().int().positive().optional(), // 2.1.282 — cap prose width in wide terminals; tables and code blocks keep the full width
   emojiCompletionEnabled: z.boolean().optional(), // 2.1.217 — emoji shortcode autocomplete in the prompt input (`:heart:` → ❤️)
 
   // Collaboration
   teammateMode: TeammateMode.optional(),
-  attribution: Attribution.optional(),
+  // 2.1.281 — `false` hides all commit and PR attribution. Older CLIs skip a
+  // settings file that holds the boolean, so shipped config keeps the object.
+  attribution: z.union([z.literal(false), Attribution]).optional(),
   // 2.1.224 cross-session messaging (macOS/Linux; not on Bedrock/Vertex/
   // Foundry). What this session does with messages arriving from your OTHER
   // sessions: "accept" delivers, "hold" shows a notice and waits for approval,
@@ -393,6 +396,9 @@ export const Settings = z.looseObject({
   allowManagedMcpServersOnly: z.boolean().optional(), // block user-defined MCP servers
   allowManagedPermissionRulesOnly: z.boolean().optional(), // block user-defined permission rules
   availableModels: z.array(z.string()).optional(), // restrict the model picker to this list
+  availableModelsMatch: z.string().optional(), // 2.1.283 — managed: "exact" makes an availableModels entry allow only the version it names, so new releases stay blocked until listed; only "exact" is documented, so kept a bare string
+  deniedModels: z.array(z.string()).optional(), // 2.1.283 — managed: block these models even when availableModels allows them
+  allowClaudeInChromeWithManagedMcp: z.boolean().optional(), // 2.1.282 — managed: let `claude --chrome` run alongside an exclusive managed-mcp.json
   blockedMarketplaces: z.array(z.string()).optional(), // marketplace IDs that users cannot install from; 2.1.223: an entry may be an owner wildcard "owner/*" matching every marketplace repo under that GitHub org
   claudeMd: z.string().optional(), // managed system-prompt override (replaces CLAUDE.md lookup)
   companyAnnouncements: z.array(z.string()).optional(), // banner messages shown at session start

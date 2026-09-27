@@ -1,12 +1,13 @@
 {
-  "lastScan": "2026-09-22T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.280",
+  "lastScan": "2026-09-26T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.283",
   "knownSettingsKeys": [
     "$schema",
     "additionalMarketplaces",
     "advisorModel",
     "agent",
     "allowAllClaudeAiMcps",
+    "allowClaudeInChromeWithManagedMcp",
     "allowedChannelPlugins",
     "allowedHttpHookUrls",
     "allowedMarketplaces",
@@ -23,6 +24,7 @@
     "autoScrollEnabled",
     "autoUpdatesChannel",
     "availableModels",
+    "availableModelsMatch",
     "awaySummaryEnabled",
     "awsAuthRefresh",
     "awsCredentialExport",
@@ -39,6 +41,7 @@
     "crossSessionInbound",
     "defaultShell",
     "deniedMcpServers",
+    "deniedModels",
     "desktopSessionCleanupPeriodDays",
     "dialogExpiry",
     "disableAgentView",
@@ -79,6 +82,7 @@
     "language",
     "managedMcpServers",
     "maxEffortLevel",
+    "maxProseWidth",
     "maxSkillDescriptionChars",
     "mcpServers",
     "minimumVersion",
@@ -195,6 +199,7 @@
     "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN",
     "CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP",
     "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS",
+    "CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT",
     "CLAUDE_CODE_DISABLE_MOUSE",
     "CLAUDE_CODE_DISABLE_MOUSE_CLICKS",
     "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK",
@@ -362,6 +367,7 @@
     "v2.1.271\u20132.1.273 sync (2.1.272 was bug fixes only). Adopted: omitClaudeMd agent frontmatter (2.1.271 \u2014 optional boolean in src/schemas/agent.ts; the subagent runs without user/project/local CLAUDE.md while managed policy files still load; no cc-settings agent sets it because AGENTS.md standards reach subagents through CLAUDE.md). Three env vars tracked: CLAUDE_CODE_GATEWAY_HINT_HEADERS and CLAUDE_CODE_AUTO_MODE_SERVER (2.1.273), CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK (pre-existing, 2.1.271 changed its rejection behavior). Docs only: modelPricing.multiplier may exceed 1 up to 10 (2.1.271); dynamic workflow medium guideline lowered from 15 to 10 agents and small default on Pro (2.1.271 \u2014 skills/orchestrate, skills/audit, settings-reference); Monitor watches always carry a deadline, persistent option removed (2.1.271 \u2014 no local reference existed); auto-mode inline `!` skill commands follow default-mode rules and subagent hand-back is classifier-reviewed (2.1.271); SendMessage held-for-approval delivery notice (2.1.271); blockReadsOutsideWorkingDirectories now also excludes a repo-chosen memory directory (2.1.273); OTEL_LOG_TOOL_DETAILS adds real agent/skill/plugin/MCP names to cost metrics (2.1.273). No dedupe: the Bash permission-checker fixes and the 2.1.268 revert do not touch permissions-check.ts. Skipped: managed MCP/org-policy fixes, --accept-command, --drain-marker-file, --host-config-snapshot, /desktop, /mobile, fast mode in Remote sessions, gateway/Bedrock/Vertex/Foundry, Artifact, Code Review, Claude Tag, VSCode, web, and Windows items.",
     "v2.1.274\u20132.1.277 sync (2.1.276 was one proxy regression fix). Adopted: syncClaudeAiSkills / syncClaudeAiPlugins (2.1.275 \u2014 schema, docs); CLAUDE_CODE_MCP_STARTUP_WAIT_MS and OTEL_LOG_MANAGED_SETTINGS (2.1.274) plus the MCP_SDK_GENERATION / MCP_PROTOCOL_NEGOTIATION v2-client opt-outs (2.1.274) tracked; enabledPlugins and pluginConfigs added to knownSettingsKeys (schema had them since 15.x). Dedupe: taskOutputMaxChars and the TaskOutput tool removed (2.1.277 removed the tool; TASK_MAX_OUTPUT_LENGTH is inert). AGENTS.md as project instructions (2.1.277, built-in agents-md mod, pluginConfigs['agents-md@builtin'].options.instructionFiles): CLAUDE-FULL.md now @-imports AGENTS.md instead of naming it in words, the repo's own CLAUDE.md moved to .claude/AGENTS.md, project-awareness prints a migration hint, and /cc migrate renames a project's CLAUDE.md. Docs only: /update-config writes Edit(path) rules (2.1.275); sandbox.excludedCommands globs must match every part of a compound command (2.1.277); subagent results arrive under a marked, indented header (2.1.277); /plugin install --marketplace (2.1.275); send-now key (2.1.275). Skipped: gateway items, type:sdk MCP entries (never in our schema), /code-review inline prompts, VSCode, web, Claude Tag, Code Review, Windows, Bedrock/Vertex/Foundry.",
     "v2.1.278 sync. Docs only: CLAUDE_CODE_AUTO_MODE_SERVER (tracked since 2.1.273) inverted its meaning \u2014 the server-side auto-mode classifier is now the default for API, Enterprise, Bedrock, Vertex, Foundry and gateway sessions with no classifier overhead billed, and =0 opts out on the non-first-party platforms (docs/settings-reference.md). Skipped: the /status Auto mode server row, native UI only. No adopt, no dedupe.",
-    "v2.1.279–2.1.280 sync (2026-09-22). Adopted: Claude Opus 5.5 (claude-opus-5-5, 2.1.280 — the new default Opus, $4/$20 per Mtok, $0.20 cache reads, 1M context). maestro, planner, security-reviewer, the six profiles and the Codex-to-Claude bridge default move from claude-opus-5 to claude-opus-5-5; the Codex tier map gains claude-opus-5-5 → gpt-6-astra and keeps claude-opus-5. Env var tracked: CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH (2.1.280, documented, left unset). 2.1.279 repeated the server-side auto-mode classifier default already documented at 2.1.278. Unchanged pending evidence: the long-context-premium claim in CLAUDE-FULL.md and MANUAL.md (the API skill confirms no premium only for Opus 4.7/4.8), the advisor pairing table and handoff degradation thresholds (no Opus 5.5 data). No dedupe: the PermissionRequest agent-hook refusal and the ~/.claude/skills manifest.json trash fix touch nothing cc-settings wires. Skipped: dialog key, fullscreen mouse, /permissions, /config, per-model effort, subagent/background fixes, VSCode, web, Claude Tag, Code Review, self-hosted runner and Windows items."
+    "v2.1.279–2.1.280 sync (2026-09-22). Adopted: Claude Opus 5.5 (claude-opus-5-5, 2.1.280 — the new default Opus, $4/$20 per Mtok, $0.20 cache reads, 1M context). maestro, planner, security-reviewer, the six profiles and the Codex-to-Claude bridge default move from claude-opus-5 to claude-opus-5-5; the Codex tier map gains claude-opus-5-5 → gpt-6-astra and keeps claude-opus-5. Env var tracked: CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH (2.1.280, documented, left unset). 2.1.279 repeated the server-side auto-mode classifier default already documented at 2.1.278. Unchanged pending evidence: the long-context-premium claim in CLAUDE-FULL.md and MANUAL.md (the API skill confirms no premium only for Opus 4.7/4.8), the advisor pairing table and handoff degradation thresholds (no Opus 5.5 data). No dedupe: the PermissionRequest agent-hook refusal and the ~/.claude/skills manifest.json trash fix touch nothing cc-settings wires. Skipped: dialog key, fullscreen mouse, /permissions, /config, per-model effort, subagent/background fixes, VSCode, web, Claude Tag, Code Review, self-hosted runner and Windows items.",
+    "v2.1.281\u20132.1.283 sync (2026-09-26). Adopted: maxProseWidth (2.1.282, user setting, not set by cc-settings); attribution accepts `false` (2.1.281; config/10-core.json keeps the object because older CLIs skip a file holding the boolean); managed availableModelsMatch and deniedModels (2.1.283) and allowClaudeInChromeWithManagedMcp (2.1.282), schema-only. Env var tracked: CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT (2.1.281). Docs only: AGENTS.md native read now works on Bedrock/Vertex/Foundry/gateways/telemetry off (2.1.281; settings-reference, skills/cc); CLAUDE_CODE_AUTO_MODE_SERVER also applies on direct API (2.1.281); CLAUDE_CODE_GATEWAY_HINT_HEADERS adds x-claude-code-prompt-id (2.1.283); /doctor prompt-audit (2.1.283, MANUAL). No dedupe: the native dangerous-rm check only prompts, safety-net.ts blocks. Skipped: project-scope OTEL var ignoring (we set none), Skill(anthropic-skills:*) and claude-ai namespace changes (no rules use them), --system-prompt-file for self-hosted runners, --agents file path, gateway/Bedrock/Mantle, Claude Tag, Cloud, VSCode, Windows, UI list polish, and fix-only bullets."
   ]
 }

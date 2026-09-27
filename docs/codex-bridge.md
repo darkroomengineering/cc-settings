@@ -114,7 +114,7 @@ The routing convention above is enforced automatically, not just documented:
 
 ### Model routing on the Codex side
 
-Every subcommand pins a Codex model explicitly instead of inheriting `config.toml`. Execution goes to GPT-5.6 Sol, which continues through long tasks; judgment goes to GPT-6 Astra, which returns early but judges well. Resolution order is flag, then env, then default:
+Every subcommand pins a Codex model explicitly instead of inheriting `config.toml`. Execution goes to GPT-6 Sol, which continues through long tasks; judgment goes to GPT-6 Astra, which returns early but judges well. Resolution order is flag, then env, then default:
 
 | Subcommand | Default | Env override | Flag |
 |---|---|---|---|

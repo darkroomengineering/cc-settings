@@ -33,8 +33,8 @@ export const EXCLUDED_AGENT_SOURCE_FILES = new Set(["codex-verifier.md"]);
  *  the Codex-to-Claude twin of codex-verifier) and are never installed to Claude. */
 export const CODEX_ONLY_AGENT_SOURCE_FILES = ["claude-verifier.md"] as const;
 /** Claude agent tiers mapped to Codex models. Judgment tiers (opus, fable) run on
- *  GPT-6 Astra; execution tiers (sonnet, haiku) run on GPT-5.6 Sol, which
- *  continues through long tasks. Unknown or unset tiers inherit the session model. */
+ *  GPT-6 Astra; sonnet runs on GPT-6 Sol, which continues through long tasks,
+ *  and haiku on GPT-6 Luna. Unknown or unset tiers inherit the session model. */
 export const CODEX_MODEL_FOR_CLAUDE_TIER: Readonly<Record<string, string>> = {
   opus: "gpt-6-astra",
   "claude-opus-5": "gpt-6-astra",
