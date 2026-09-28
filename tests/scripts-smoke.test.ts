@@ -414,40 +414,6 @@ describe("stop-failure.ts", () => {
   });
 });
 
-describe("check-docs-before-install.ts", () => {
-  test("bun add react → prompts via the additionalContext envelope", async () => {
-    const r = await run("check-docs-before-install.ts", {
-      env: { TOOL_INPUT_command: "bun add react" },
-    });
-    expect(r.exit).toBe(0);
-    const parsed = JSON.parse(r.stdout) as {
-      hookSpecificOutput: { hookEventName: string; additionalContext: string };
-    };
-    expect(parsed.hookSpecificOutput.hookEventName).toBe("PreToolUse");
-    expect(parsed.hookSpecificOutput.additionalContext).toContain("Installing 'react'");
-  });
-  test("bun add -D typescript → flags skipped", async () => {
-    // The first non-flag arg after `bun add` is `-D`, which we skip.
-    const r = await run("check-docs-before-install.ts", {
-      env: { TOOL_INPUT_command: "bun add -D typescript" },
-    });
-    expect(r.exit).toBe(0);
-    expect(r.stdout).toBe("");
-  });
-  test("empty command → no-op", async () => {
-    const r = await run("check-docs-before-install.ts", { env: { TOOL_INPUT_command: "" } });
-    expect(r.exit).toBe(0);
-    expect(r.stdout).toBe("");
-  });
-  test("non-install command → no-op", async () => {
-    const r = await run("check-docs-before-install.ts", {
-      env: { TOOL_INPUT_command: "ls -la" },
-    });
-    expect(r.exit).toBe(0);
-    expect(r.stdout).toBe("");
-  });
-});
-
 describe("post-edit-tsc.ts", () => {
   test("non-TS file → no-op", async () => {
     const r = await run("post-edit-tsc.ts", { env: { TOOL_INPUT_file_path: "foo.py" } });
@@ -524,28 +490,6 @@ describe("post-edit.ts", () => {
 });
 
 describe("log-bash.ts", () => {
-  test("logs a bash command line to dated file", async () => {
-    const { mkdtempSync, rmSync, readdirSync, readFileSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const sandbox = mkdtempSync(join(tmpdir(), "cc-logbash-test-"));
-    try {
-      const env = { HOME: sandbox };
-      const payload = JSON.stringify({ tool_input: { command: "echo hello" } });
-      const r = await run("log-bash.ts", { env, stdin: payload });
-      expect(r.exit).toBe(0);
-      const logDir = join(sandbox, ".claude", "logs");
-      const files = readdirSync(logDir).filter((f) => f.startsWith("bash-"));
-      expect(files.length).toBe(1);
-      const first = files[0];
-      if (!first) throw new Error("expected a log file");
-      const content = readFileSync(join(logDir, first), "utf8");
-      expect(content).toContain("echo hello");
-    } finally {
-      rmSync(sandbox, { recursive: true, force: true });
-    }
-  });
-
   test("multi-line command is escaped to a single physical log line, and the full text — including the continuation line — reaches claude-audit's classifier (issue #77)", async () => {
     const { mkdtempSync, rmSync, readdirSync, readFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");

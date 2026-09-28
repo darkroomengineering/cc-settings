@@ -129,16 +129,6 @@ describe("classifyCodexError — unknown fallback", () => {
 // ---------------------------------------------------------------------------
 
 describe("classifyCodexError — detail sanitization", () => {
-  test("ANSI escape sequence is stripped from detail", () => {
-    // The ANSI regex is built from charCode(27) to avoid biome's lint rule —
-    // construct the sequence the same way here.
-    const ESC = String.fromCharCode(27);
-    const stderr = `${ESC}[31msome codex error${ESC}[0m`;
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).not.toContain(ESC);
-    expect(detail).toContain("some codex error");
-  });
-
   test("sk-XXXX token (16+ chars) is redacted to sk-[redacted]", () => {
     // A leaked API key in subprocess output must never reach the verdict file
     // or the statusline.
@@ -149,28 +139,6 @@ describe("classifyCodexError — detail sanitization", () => {
     const { detail } = classifyCodexError(1, stderr);
     expect(detail).not.toContain(token);
     expect(detail).toContain("sk-[redacted]");
-  });
-
-  test("sk- token shorter than 16 chars is NOT redacted", () => {
-    // The regex requires 16+ chars after 'sk-' — short tokens must not be
-    // mangled, so the redaction is specific rather than over-broad.
-    const stderr = `error: sk-short (small) context`;
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).toContain("sk-short");
-  });
-
-  test("'Bearer <token>' is redacted to 'Bearer [redacted]'", () => {
-    const stderr = "unauthorized: Authorization header Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig";
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).not.toContain("eyJhbGciOiJSUzI1NiJ9");
-    expect(detail).toContain("Bearer [redacted]");
-  });
-
-  test("'Authorization: <value>' is redacted to 'Authorization: [redacted]'", () => {
-    const stderr = "Authorization: token_secret_value_here";
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).not.toContain("token_secret_value_here");
-    expect(detail).toContain("Authorization: [redacted]");
   });
 
   test("detail is capped at 200 characters", () => {
@@ -356,6 +324,12 @@ describe("sanitizeOutput — multi-line credential redaction", () => {
     expect(result).toContain("sk-[redacted]");
     expect(result).toContain("line1");
     expect(result).toContain("line3");
+  });
+
+  test("sk- token shorter than 16 chars is NOT redacted", () => {
+    // The regex requires 16+ chars after 'sk-' — short tokens must not be
+    // mangled, so the redaction is specific rather than over-broad.
+    expect(sanitizeOutput("error: sk-short (small) context")).toContain("sk-short");
   });
 
   test("does NOT cap length (operates on full text)", () => {

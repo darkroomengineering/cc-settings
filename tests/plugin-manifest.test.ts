@@ -174,34 +174,6 @@ describe("Codex plugin manifest", () => {
     expect(plugin.mcpServers).toBe("./.mcp.json");
     expect(Object.keys(servers)).toEqual(["figma"]);
     expect(servers.figma).toEqual({ type: "http", url: "https://mcp.figma.com/mcp" });
-    for (const [name, server] of Object.entries(servers)) {
-      const allowed =
-        server.type === "http" ? ["type", "url", "headers"] : ["command", "args", "env", "cwd"];
-      for (const key of Object.keys(server)) {
-        expect(allowed).toContain(key);
-      }
-      if (server.type !== "http") {
-        expect(typeof server.command, `${name} must use a portable stdio command`).toBe("string");
-        expect(Array.isArray(server.args), `${name} must pass stdio arguments as an array`).toBe(
-          true,
-        );
-      }
-    }
-  });
-
-  test("rejects mutable or unversioned local MCP package arguments", async () => {
-    const wrapper = await readJson(".mcp.json");
-    const servers = wrapper.mcpServers as Record<string, McpServerConfig>;
-    for (const [name, server] of Object.entries(servers)) {
-      if (!server.command) continue;
-      for (const arg of server.args ?? []) {
-        if (arg.startsWith("-")) continue;
-        expect(arg, `${name} uses a mutable package tag`).not.toMatch(
-          /@(latest|next|canary|beta)$/i,
-        );
-        expect(arg, `${name} local package arg must pin an immutable version`).toMatch(/@\d/);
-      }
-    }
   });
 });
 

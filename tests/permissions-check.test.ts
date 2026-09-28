@@ -281,12 +281,6 @@ describe("classifyCommand — compound splitting end to end", () => {
     expect(r.opaque).toBe(true);
     expect(r.decision).not.toBe("allow");
   });
-
-  test("a background & similarly must not resolve to allow via an allow-prefix match", () => {
-    const r = classifyCommand("echo hi & rm -rf ~", FIXTURE_RULES);
-    expect(r.opaque).toBe(true);
-    expect(r.decision).not.toBe("allow");
-  });
 });
 
 describe("classifyCommand — opaque deny-fragment rescan (improvement, cross-model review)", () => {
@@ -312,13 +306,6 @@ describe("classifyCommand — opaque deny-fragment rescan (improvement, cross-mo
     const r = classifyCommand("echo hi\necho bye", FIXTURE_RULES);
     expect(r.opaque).toBe(true);
     expect(r.decision).toBe("ask");
-  });
-
-  test("a whole-string deny match short-circuits before the fragment rescan even runs", () => {
-    const rules: RuleSet = { allow: [], deny: ["Bash($(rm -rf ~))"], ask: [] };
-    const r = classifyCommand("$(rm -rf ~)", rules);
-    expect(r.opaque).toBe(true);
-    expect(r.decision).toBe("deny");
   });
 
   // Known limitation, documented in the module doc and classifyOpaqueSegment:

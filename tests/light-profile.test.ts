@@ -1,32 +1,20 @@
 // Parity guard + transform unit tests for the light profile.
 //
 // Purpose:
-//   1. PARITY GUARD — share-learning skill must exist on disk.
+//   1. PARITY GUARD — LIGHT_SKILLS stays a subset of MANAGED_SKILLS.
 //   2. TRANSFORM UNITS — applyLightProfile() keeps only $schema + statusLine.
 //   3. STRIP UNITS — stripManagedSettings() removes cc-settings footprint and
 //      preserves genuinely user-authored content.
 
 import { describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { applyLightProfile, LIGHT_SKILLS, stripManagedSettings } from "../src/lib/light-profile.ts";
 import { MANAGED_SKILLS } from "../src/lib/managed-skills.ts";
 
-const REPO = resolve(import.meta.dir, "..");
-
 // ---------------------------------------------------------------------------
-// 1. PARITY GUARD — disk existence checks
+// 1. PARITY GUARD — light skills are managed skills
 // ---------------------------------------------------------------------------
 
 describe("light-profile parity guard", () => {
-  test("LIGHT_SKILLS = ['share-learning'] only", () => {
-    expect(LIGHT_SKILLS).toEqual(["share-learning"]);
-  });
-
-  test("share-learning folder exists in skills/", () => {
-    expect(existsSync(join(REPO, "skills", "share-learning"))).toBe(true);
-  });
-
   test("every LIGHT_SKILLS entry is in MANAGED_SKILLS", () => {
     const managed = new Set(MANAGED_SKILLS);
     for (const skill of LIGHT_SKILLS) {
@@ -88,31 +76,6 @@ describe("applyLightProfile transform", () => {
     const input = buildFakeSettings();
     const result = applyLightProfile(input);
     expect(result.statusLine).toEqual((input as Record<string, unknown>).statusLine);
-  });
-
-  test("env is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("env" in result).toBe(false);
-  });
-
-  test("mcpServers is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("mcpServers" in result).toBe(false);
-  });
-
-  test("hooks is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("hooks" in result).toBe(false);
-  });
-
-  test("permissions is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("permissions" in result).toBe(false);
-  });
-
-  test("model is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("model" in result).toBe(false);
   });
 
   test("works when $schema absent", () => {

@@ -139,6 +139,13 @@ describe("Recall — compaction backfills only the handoff for its own session",
       expect(createA.exit).toBe(0);
       const jsonPathA = /JSON:\s+(\S+)/.exec(createA.stdout)?.[1];
       expect(jsonPathA).toBeTruthy();
+      // A hook-created handoff records its provenance before any compaction.
+      const createdA = JSON.parse(await readFile(jsonPathA as string, "utf8")) as {
+        trigger?: string;
+        source?: string;
+      };
+      expect(createdA.trigger).toBe("auto");
+      expect(createdA.source).toBe("auto");
 
       // Handoff B is written directly rather than via a second `create` call:
       // handoff.ts's filename timestamp is second-granular, so two `create`
@@ -433,6 +440,8 @@ describe("Decision — compact_summary carries intent verbatim; the ledger never
 
       const mdAfter = await readFile(join(dir, "latest.md"), "utf8");
       expect(mdAfter).toContain(summary);
+      // The placeholder is replaced, not merely appended to.
+      expect(mdAfter).not.toContain("<!-- Add summary of what was accomplished -->");
       // The Project section is byte-identical to before compaction.
       expect(mdAfter).toContain(projectSection);
     } finally {

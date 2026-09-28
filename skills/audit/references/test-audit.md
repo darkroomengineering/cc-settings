@@ -71,7 +71,7 @@ finding at PLAUSIBLE and blocks deletion.
 - test name and `file:line`;
 - the failure it can actually detect (or "none");
 - non-test callers of the code or seam it covers;
-- the stronger test that still covers the behavior, or why none is needed;
+- the stronger test that still covers the behavior, with its assertion quoted (a line number alone is not evidence), or why none is needed;
 - why the test exists (`git log -L` or `git blame` on the test);
 - production or test-support code the deletion frees;
 - risk, plus the focused command that proves nothing regressed.

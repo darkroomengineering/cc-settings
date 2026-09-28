@@ -32,38 +32,6 @@ describe("compareVersion", () => {
 });
 
 describe("readInstalledVersion", () => {
-  test("returns null on missing sentinel", async () => {
-    const dir = await sandbox();
-    try {
-      expect(await readInstalledVersion(dir)).toBeNull();
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  test("reads version field from sentinel JSON", async () => {
-    const dir = await sandbox();
-    try {
-      await writeFile(
-        join(dir, ".cc-settings-version"),
-        JSON.stringify({ version: "10.4.1", installed_at: "2026-05-04T00:00:00Z" }),
-      );
-      expect(await readInstalledVersion(dir)).toBe("10.4.1");
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  test("returns null on malformed sentinel (no throw)", async () => {
-    const dir = await sandbox();
-    try {
-      await writeFile(join(dir, ".cc-settings-version"), "{not valid json");
-      expect(await readInstalledVersion(dir)).toBeNull();
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-
   test("returns null when version field is missing", async () => {
     const dir = await sandbox();
     try {

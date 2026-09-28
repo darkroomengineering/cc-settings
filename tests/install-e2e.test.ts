@@ -1337,27 +1337,6 @@ mock.module("node:fs/promises", () => ({ ...original,
     },
   );
 
-  test(
-    "second install on top of first prints version-delta (or 'no change')",
-    async () => {
-      const home = await mkdtemp(join(tmpdir(), "cc-e2e-"));
-      try {
-        // Two back-to-back runs against the same HOME. The second is a re-install.
-        const first = await runInstall(home);
-        expect(first.exitCode).toBe(0);
-
-        const second = await runInstall(home);
-        expect(second.exitCode).toBe(0);
-        // Same version both runs — delta is silent (per formatVersionDelta).
-        // We DO expect the 'Restart Claude Code' line and a re-emitted summary.
-        expect(second.stdout).toContain("Installed to:");
-      } finally {
-        await rm(home, { recursive: true, force: true });
-      }
-    },
-    { timeout: 90_000 },
-  );
-
   test("an older packaged source refuses to downgrade either product before state or backups change", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-downgrade-guard-"));
     const claudeDir = join(home, ".claude");
@@ -1528,6 +1507,7 @@ mock.module("node:fs/promises", () => ({ ...original,
       const reinstall = await runInstall(home);
 
       expect(reinstall.exitCode, `${reinstall.stdout}\n${reinstall.stderr}`).toBe(0);
+      expect(reinstall.stdout).toContain("Installed to:");
       for (const [path, bytes] of personal) expect(await readFile(path, "utf8"), path).toBe(bytes);
     } finally {
       await rm(home, { recursive: true, force: true });

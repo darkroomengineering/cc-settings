@@ -18,7 +18,6 @@ import {
   writeFingerprint,
   writeSrcManifest,
 } from "../src/lib/hooks-fingerprint.ts";
-import { Settings } from "../src/schemas/settings.ts";
 
 const SETTINGS_A = {
   hooks: {
@@ -46,6 +45,7 @@ const SETTINGS_B = {
   },
 };
 
+const REPO = resolve(import.meta.dir, "..");
 const VERIFY_HOOK = resolve(import.meta.dir, "../src/hooks/verify-hooks.ts");
 
 async function runVerifyHook(home: string): Promise<{ exitCode: number; stdout: string }> {
@@ -284,16 +284,6 @@ describe("regression: raw hooks block hashes identically on install and verify (
     },
   };
 
-  test("Settings.safeParse silently strips the unknown field (why fingerprinting validated.data was unsafe)", () => {
-    const validated = Settings.safeParse(settingsWithUnknownHookField);
-    expect(validated.success).toBe(true);
-    if (!validated.success) return;
-    // The stripped object hashes differently from the raw object — proving
-    // that fingerprinting `validated.data` instead of the raw settings would
-    // desync the install-time hash from what verify-time always re-derives.
-    expect(hashHooks(validated.data)).not.toBe(hashHooks(settingsWithUnknownHookField));
-  });
-
   test("install (writeFingerprint) and verify (verifyAgainstSettings) hash the same raw object → match", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
     try {
@@ -312,6 +302,76 @@ describe("regression: raw hooks block hashes identically on install and verify (
       expect(result.actual).toBe(record.hash);
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("installSettings fingerprints the raw merged hooks, so verify matches despite an unmodeled hook field", async () => {
+    // Business rule: the sentinel written by the real installer must equal what
+    // verify-hooks re-derives from disk at SessionStart. Fingerprinting the
+    // zod-stripped copy would raise a permanent false "hooks tampered" alarm.
+    // CLAUDE_DIR binds to homedir() at import time, so run the installer in a
+    // subprocess with HOME pointed at a temp dir.
+    const home = await mkdtemp(join(tmpdir(), "cc-fp-install-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      await mkdir(claudeDir, { recursive: true });
+      const settingsPath = join(claudeDir, "settings.json");
+      // A user-owned hook (the merger drops user copies of managed commands).
+      const seeded = {
+        hooks: {
+          PostToolUse: [
+            {
+              hooks: [
+                {
+                  type: "command",
+                  command: "/usr/local/bin/my-own-hook.sh",
+                  futureField: "added-by-a-newer-claude-code-release",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      await writeFile(settingsPath, JSON.stringify(seeded));
+      const script = join(home, "run-install.ts");
+      await writeFile(
+        script,
+        `import { installSettings } from ${JSON.stringify(join(REPO, "src/lib/claude-install-settings.ts"))};
+import { getEngine } from ${JSON.stringify(join(REPO, "src/lib/code-intel-engine.ts"))};
+import { CLAUDE_DIR } from ${JSON.stringify(join(REPO, "src/lib/platform.ts"))};
+await installSettings(${JSON.stringify(REPO)}, "0.0.0-test", false, "full", getEngine("native-ts", CLAUDE_DIR));
+`,
+      );
+      const proc = Bun.spawn([process.execPath, script], {
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          NODE_ENV: "test",
+          CC_SKIP_DEPS: "1",
+          CC_SETTINGS_SKIP_PLUGIN_INSTALL: "1",
+          CC_SKIP_SCHEDULE: "1",
+          CC_SKIP_CODEX_CLI: "1",
+          NO_COLOR: "1",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      expect(exitCode, `${stdout}\n${stderr}`).toBe(0);
+
+      // The merge kept the unmodeled field on disk (the precondition of the bug).
+      const merged = await readFile(settingsPath, "utf8");
+      expect(merged).toContain("futureField");
+
+      const result = await verifyAgainstSettings(settingsPath, claudeDir);
+      expect(result.status).toBe("match");
+    } finally {
+      await rm(home, { recursive: true, force: true });
     }
   });
 });

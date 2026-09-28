@@ -4,6 +4,22 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.37.1] — 2026-09-28
+
+The first `/audit tests` run on cc-settings: two coverage gaps closed and 14 low-value tests removed.
+
+**Added:**
+- A test that runs `installSettings` against a temp HOME with a user hook carrying a field the schema does not model, and checks that verify-hooks still reports a match. It fails if the installer fingerprints the zod-stripped settings instead of the raw ones.
+- A test that runs `runClaudePrint` against a fake `claude` binary and checks the prompt arrives on stdin and never on argv.
+
+**Removed:**
+- `tests/setup.test.ts` (tested only zod) and `tests/context-continuity-gaps.test.ts` (duplicated `session-continuity.test.ts`; its two unique assertions moved there).
+- Duplicate or vacuous cases in `scripts-smoke`, `light-profile`, `plugin-manifest`, `codex`, `version-delta`, `install-e2e`, `permissions-check`, `team-knowledge`, `plugin-key-redaction`, and `profile-schema`, each folded into the test that owns the behavior where it asserted anything unique.
+- The `export` on `LATER_KEY_COMMAND`, which only a removed test used.
+
+**Changed:**
+- `/audit tests` requires the covering test's assertion to be quoted in the evidence record, not just its line number. Two of the first run's findings cited covering tests that did not assert the same thing.
+
 ## [15.37.0] — 2026-09-28
 
 `/audit tests` finds tests that cost maintenance without guarding behavior, and the `tester` agent checks every new test against the same list before writing it.

@@ -1,13 +1,18 @@
-// Unit tests for the pure parts of the Codex-to-Claude bridge (src/lib/claude-bridge.ts).
-// No subprocess spawning — preflight is driven by injected env and PATH probes.
+// Tests for the Codex-to-Claude bridge (src/lib/claude-bridge.ts). Preflight and
+// arg building are pure; runClaudePrint is exercised against a fake `claude` on PATH.
 
 import { describe, expect, test } from "bun:test";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { delimiter, join, resolve } from "node:path";
 import {
   buildClaudeArgs,
   CLAUDE_BRIDGE_DEFAULT_MODEL,
   preflightClaudeBridge,
   resolveClaudeModel,
 } from "../src/lib/claude-bridge.ts";
+
+const BRIDGE = resolve(import.meta.dir, "../src/lib/claude-bridge.ts");
 
 describe("preflightClaudeBridge", () => {
   test("refuses inside a Claude Code session before checking anything else", () => {
@@ -58,7 +63,7 @@ describe("resolveClaudeModel", () => {
   });
 });
 
-describe("buildClaudeArgs", () => {
+describe("buildClaudeArgs and runClaudePrint", () => {
   test("is headless, read-only, and non-interactive", () => {
     const args = buildClaudeArgs("claude-opus-5-5");
     expect(args[0]).toBe("claude");
@@ -75,8 +80,52 @@ describe("buildClaudeArgs", () => {
     expect(allowed).not.toContain("Bash(git push");
   });
 
-  test("never puts the prompt on argv", () => {
-    const args = buildClaudeArgs("sonnet");
-    expect(args.some((arg) => arg.includes("review") || arg.includes("Task:"))).toBe(false);
+  test("never puts the prompt on argv: runClaudePrint delivers it on stdin only", async () => {
+    // Business rule: a prompt can start with "--" or carry shell text; on argv it
+    // would be parsed as flags and leak into process listings.
+    // Bun.spawn resolves the command against the PATH the process started with,
+    // so the fake `claude` must be on PATH at launch: run the bridge in a child.
+    const dir = await mkdtemp(join(tmpdir(), "cc-claude-bridge-"));
+    try {
+      const argvFile = join(dir, "argv.txt");
+      const stdinFile = join(dir, "stdin.txt");
+      const fake = join(dir, "claude");
+      await writeFile(
+        fake,
+        `#!/bin/sh\nprintf '%s\\n' "$@" > '${argvFile}'\ncat > '${stdinFile}'\necho ok\n`,
+      );
+      await chmod(fake, 0o755);
+      const prompt = "--dangerous-looking prompt\nTask: review";
+      const driver = join(dir, "driver.ts");
+      await writeFile(
+        driver,
+        `import { runClaudePrint } from ${JSON.stringify(BRIDGE)};
+console.log(JSON.stringify(await runClaudePrint({ prompt: ${JSON.stringify(prompt)}, model: "sonnet" })));
+`,
+      );
+      const env: Record<string, string | undefined> = {
+        ...process.env,
+        PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`,
+      };
+      delete env.CLAUDECODE;
+      delete env.CODEX_SANDBOX_NETWORK_DISABLED;
+      const proc = Bun.spawn([process.execPath, driver], { env, stdout: "pipe", stderr: "pipe" });
+      const [stdout, stderr] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+
+      const result = JSON.parse(stdout) as { ok: boolean; output?: string };
+      expect(result, stderr).toEqual({ ok: true, output: "ok" });
+      expect(await readFile(stdinFile, "utf8")).toBe(prompt);
+      const argv = (await readFile(argvFile, "utf8")).split("\n");
+      expect(argv).toContain("sonnet");
+      expect(
+        argv.some((line) => line.includes("dangerous-looking") || line.includes("Task:")),
+      ).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

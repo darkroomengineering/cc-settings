@@ -54,11 +54,6 @@ describe("ProfileFrontmatter schema", () => {
     expect(r.success).toBe(false);
   });
 
-  test("rejects names with uppercase", () => {
-    const r = ProfileFrontmatter.safeParse({ name: "NextJS", description: "y" });
-    expect(r.success).toBe(false);
-  });
-
   test("rejects missing description", () => {
     const r = ProfileFrontmatter.safeParse({ name: "nextjs" });
     expect(r.success).toBe(false);

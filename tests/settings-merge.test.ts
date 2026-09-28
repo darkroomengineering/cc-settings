@@ -1245,13 +1245,13 @@ describe("mergeSettings — safeParse validation", () => {
     }
   });
 
-  test("userRaw with unknown key (schema validation failure) → merger proceeds, output written", async () => {
+  test("userRaw with a key unknown to the Settings schema → merger proceeds and preserves the key", async () => {
     // Simulates a newer Claude Code version adding a settings key not yet in
     // the Settings schema. The safeParse validation logs debug + proceeds.
     const dir = await makeTmpDir();
     try {
       const team = { model: "claude-opus-4-5" };
-      // unknownFutureKey is not in the Settings schema (it uses .strict())
+      // unknownFutureKey is not in the Settings schema (a loose object, so it parses fine)
       const user = { model: "claude-sonnet-4-5", unknownFutureKey: "value-from-new-cc" };
       const userPath = join(dir, "user.json");
       const outPath = join(dir, "out.json");

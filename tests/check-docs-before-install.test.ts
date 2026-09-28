@@ -62,6 +62,12 @@ describe("check-docs-before-install", () => {
     expect(exit).toBe(0);
   });
 
+  test("an empty command is a no-op", async () => {
+    const { stdout, exit } = await run("");
+    expect(stdout).toBe("");
+    expect(exit).toBe(0);
+  });
+
   test("first arg starting with a flag is not reported as a package name", async () => {
     const { stdout } = await run("bun i --save-dev react");
     expect(stdout).not.toContain("Installing");

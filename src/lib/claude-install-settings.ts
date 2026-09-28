@@ -171,7 +171,7 @@ export async function installSettings(
  * must agree on what "raw" means. Settings.safeParse is used only to
  * debug-log validation issues; a zod-stripped object here (dropping keys the
  * local schema doesn't model) would fingerprint a value verify-hooks can
- * never reproduce, producing a permanent false "hooks tampered" alarm. The
+ * never reproduce, producing a permanent false "hooks tampered" alarm.
  * A failed write aborts installation because the sentinel claims this file by
  * hash; stamping success without it would create incomplete ownership state.
  */
@@ -322,7 +322,7 @@ function canonical(path: string): string {
 }
 
 export const FAST_JEV_PLUGIN_ID = "fast-jev-compaction@fast-jev-compaction";
-export const LATER_KEY_COMMAND = `claude plugin install ${FAST_JEV_PLUGIN_ID} --config apiKey=<key>`;
+const LATER_KEY_COMMAND = `claude plugin install ${FAST_JEV_PLUGIN_ID} --config apiKey=<key>`;
 
 /** Replace every occurrence of a secret in text with a redaction marker, so
  *  warnings and dry-run lines can never leak it. */
