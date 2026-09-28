@@ -185,6 +185,41 @@ describe("permissionsStrategy", () => {
     }
   });
 
+  test("retired workflow deny rules are pruned; a user's own variant survives", async () => {
+    const ctx = makeCtx();
+    const team = { deny: ["Bash(sudo:*)"] };
+    const user = {
+      deny: [
+        "Bash(sudo:*)",
+        "Bash(git reset --hard:*)",
+        "Bash(gh api * -X DELETE*)",
+        "Bash(git push --force-with-lease:*)",
+        "Bash(git reset --hard origin/main)",
+      ],
+    };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.deny).toEqual(["Bash(sudo:*)", "Bash(git reset --hard origin/main)"]);
+    expect(ctx.accounting.permissionsPruned).toBe(3);
+  });
+
+  test("a retired deny rule in the user's ask list is kept", async () => {
+    const ctx = makeCtx();
+    const result = await permissionsStrategy(
+      "permissions",
+      { deny: ["Bash(sudo:*)"] },
+      { ask: ["Bash(git reset --hard:*)"] },
+      ctx,
+    );
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.ask).toEqual(["Bash(git reset --hard:*)"]);
+    expect(ctx.accounting.permissionsPruned).toBe(0);
+  });
+
   test("overlapping allow with union semantics — no duplicates", async () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)", "Read(*)"] };

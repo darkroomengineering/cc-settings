@@ -142,6 +142,22 @@ export const DEPRECATED_PERMISSION_PATTERNS: RegExp[] = [
   /^Write\(~\/\.claude\.json\)$/,
 ];
 
+// Deny rules cc-settings shipped for workflow cleanup and has since allowed, so
+// agents run these commands instead of handing them back to the user. Without
+// this list the union merge keeps them on existing installs as user extras.
+// Exact strings, pruned from `deny` only: the same rule in a user's `ask` or
+// `allow` is their choice, and a user's own variant is left alone.
+export const RETIRED_PERMISSION_RULES = new Set<string>([
+  "Bash(git push --force-with-lease:*)",
+  "Bash(git reset --hard:*)",
+  "Bash(git clean -f:*)",
+  "Bash(gh api -X DELETE:*)",
+  "Bash(gh api * -X DELETE*)",
+  "Bash(gh api --method DELETE:*)",
+  "Bash(gh api * --method DELETE*)",
+  "Bash(gh release delete:*)",
+]);
+
 export function permissionRuleIsDeprecated(rule: string): boolean {
   return DEPRECATED_PERMISSION_PATTERNS.some((re) => re.test(rule));
 }
@@ -186,14 +202,16 @@ export async function unionPermissionArray(
   label: string,
   alwaysAccept = false,
   pruneDeprecated = true,
+  retired: ReadonlySet<string> = new Set(),
 ): Promise<{ merged: string[] | undefined; added: number; declined: number; pruned: number }> {
   const rawTeam = team ?? [];
   const rawUser = user ?? [];
   if (rawTeam.length === 0 && rawUser.length === 0)
     return { merged: undefined, added: 0, declined: 0, pruned: 0 };
 
-  const teamArr = pruneDeprecated ? rawTeam.filter((r) => !permissionRuleIsDeprecated(r)) : rawTeam;
-  const userArr = pruneDeprecated ? rawUser.filter((r) => !permissionRuleIsDeprecated(r)) : rawUser;
+  const stale = (r: string) => retired.has(r) || (pruneDeprecated && permissionRuleIsDeprecated(r));
+  const teamArr = rawTeam.filter((r) => !stale(r));
+  const userArr = rawUser.filter((r) => !stale(r));
   const pruned = rawTeam.length - teamArr.length + (rawUser.length - userArr.length);
   // Post-filter emptiness must return [] rather than undefined: the strategy's
   // `{ ...t, ...u }` spread would otherwise carry the raw (deprecated) array
@@ -281,6 +299,8 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
     opts,
     "deny rule",
     true, // deny always accepts team additions — guardrail
+    true,
+    RETIRED_PERMISSION_RULES,
   );
   const ask = await unionPermissionArray(
     stringArrayField(t, "ask"),
@@ -824,7 +844,7 @@ export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}
     info(`Pruned ${a.hooksPruned} stale hook reference(s) pointing at removed cc-settings scripts`);
   }
   if (a.permissionsPruned > 0) {
-    info(`Pruned ${a.permissionsPruned} stale permission rule(s) naming removed tools`);
+    info(`Pruned ${a.permissionsPruned} stale permission rule(s)`);
   }
   if (a.defaultsUpdated > 0) {
     info(`Updated ${a.defaultsUpdated} stale default(s) to the new team value`);

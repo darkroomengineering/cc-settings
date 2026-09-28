@@ -1,6 +1,6 @@
 ---
 name: reviewer
-model: sonnet
+model: claude-sonnet-5-5
 memory: project
 description: |
   Code review and quality assurance. Checks against Darkroom standards.

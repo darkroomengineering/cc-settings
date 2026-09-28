@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { evalCaseTags } from "../lib/lint-skills.ts";
 
 const ROOT = join(import.meta.dir, "..", "..");
-const MODEL = "claude-sonnet-5";
+const MODEL = "claude-sonnet-5-5";
 const JUDGE_MODEL = "claude-haiku-4-5-20251001";
 const THRESHOLD = "0.8";
 

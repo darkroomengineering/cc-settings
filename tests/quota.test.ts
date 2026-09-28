@@ -135,9 +135,9 @@ describe("buildSteerMessage", () => {
     expect(msg).toContain("resets in");
   });
 
-  test("exhausted + unauthenticated recommends /model sonnet and tells the user", () => {
+  test("exhausted + unauthenticated recommends /model claude-sonnet-5-5 and tells the user", () => {
     const msg = buildSteerMessage("exhausted", "unauthenticated", 97, 90);
-    expect(msg).toContain("/model sonnet");
+    expect(msg).toContain("/model claude-sonnet-5-5");
     expect(msg).toContain("tell the user");
   });
 

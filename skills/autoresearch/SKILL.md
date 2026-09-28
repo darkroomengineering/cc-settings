@@ -39,7 +39,7 @@ Work with the user to configure, then go autonomous.
 3. **Parse config from RESEARCH.md**:
    - `## Test Inputs` — each `### Test N:` heading is one test case (the text below is the prompt)
    - `## Checklist` — each `- [ ]` line is a binary criterion
-   - `## Settings` — optional: `samples` (default 3), `min_improvement` (default 0.05), `max_rounds` (default 50), `model` (default `claude-sonnet-5`, exported as `AUTORESEARCH_MODEL` — see Sample Isolation)
+   - `## Settings` — optional: `samples` (default 3), `min_improvement` (default 0.05), `max_rounds` (default 50), `model` (default `claude-sonnet-5-5`, exported as `AUTORESEARCH_MODEL` — see Sample Isolation)
 
 4. **Create results directory**:
    ```bash
@@ -120,7 +120,7 @@ claude -p \
   the score then varies between machines and across CLI releases. Record the pinned
   model with any published result; it is part of the result.
 
-Set `AUTORESEARCH_MODEL` once at setup (default `claude-sonnet-5`) and never change
+Set `AUTORESEARCH_MODEL` once at setup (default `claude-sonnet-5-5`) and never change
 it mid-run — a model swap invalidates every earlier row in results.tsv.
 
 **Control arm.** Mutation scores are relative: they say variant B beat variant A.
@@ -352,7 +352,7 @@ Binary pass/fail criteria. Each item is scored YES (1) or NO (0).
 - samples: 3
 - min_improvement: 0.05
 - max_rounds: 50
-- model: claude-sonnet-5
+- model: claude-sonnet-5-5
 ```
 
 ### Guidelines for good checklists

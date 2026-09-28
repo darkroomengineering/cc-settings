@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.36.0] — 2026-09-28
+
+Subagents now run on Claude Sonnet 5.5, and agents run routine git and GitHub cleanup themselves instead of handing it back as a `! bash` script.
+
+**Changed:**
+- The execution tier is `claude-sonnet-5-5`: `CLAUDE_CODE_SUBAGENT_MODEL` and the `implementer`, `tester`, `scaffolder`, `explore`, `deslopper`, `reviewer`, and `codex-verifier` agents. It costs the same as Sonnet 5 and is faster with fewer tokens per task. The full ID is pinned because Claude Code 2.1.284 still resolves `sonnet` to Sonnet 5. `planner`, `maestro`, and `security-reviewer` stay on Opus 5.5, which is stronger at review-shaped judgment.
+- The quota steer and the Fable model-switch guard point to `/model claude-sonnet-5-5` for routine turns, and the skill evals and `/autoresearch` default to it. `bun run tokens` prices it, and the Codex installer maps it to `gpt-6-sol`.
+- `git push --force-with-lease`, `git reset --hard`, `git clean -f`, `git worktree remove --force`, `gh api` DELETE calls, and `gh release delete` are allowed for Claude. Codex allows the reset, clean, worktree, and release commands; force-with-lease and `gh api` still prompt, because its prefix rules cannot see a push destination or an API endpoint. Plain `--force` stays denied.
+- The safety-net hook blocks force-with-lease toward `main` or `master`, whether named (`main`, `HEAD:refs/heads/main`) or implied by pushing from that branch, and blocks `gh api` DELETE on a repository root endpoint, which would delete the repo.
+- The installer prunes the retired deny rules from `deny` on existing installs. The same rule in a user's `ask` or `allow` list, or a user's own variant, is kept.
+
 ## [15.35.0] — 2026-09-26
 
 The advisor is on by default: every session and subagent can consult Fable 5.1 at decision points, and the agents that do long work are told when to ask.

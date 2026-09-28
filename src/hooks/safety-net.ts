@@ -341,22 +341,23 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
       }
       return;
     }
+    // `git reset --hard`, `git clean -f`, and `git worktree remove --force` are
+    // allowed so agents can finish cleanup without a manual handoff.
     case "reset": {
-      if (/(^|\s)--hard(\s|$)/.test(` ${subargs} `))
-        block("git reset --hard discards all uncommitted changes", cmd);
       if (/(^|\s)--merge(\s|$)/.test(` ${subargs} `))
         block("git reset --merge can discard uncommitted changes", cmd);
       return;
     }
-    case "clean": {
-      if (/(-n|--dry-run)/.test(` ${subargs} `)) return;
-      if (/(-[a-zA-Z]*f|--force)/.test(` ${subargs} `)) {
-        block("git clean -f permanently deletes untracked files", cmd);
-      }
-      return;
-    }
     case "push": {
-      if (subargs.includes("--force-with-lease")) return;
+      if (subargs.includes("--force-with-lease")) {
+        const targets = subargs.split(/\s+/).filter((t) => t && !t.startsWith("-"));
+        // Without a refspec (`git push --force-with-lease [remote]`) the
+        // destination is the current branch, so resolve it.
+        const refspecs = targets.length > 1 ? targets.slice(1) : [currentBranch()];
+        if (refspecs.some((t) => /(^|:)(refs\/heads\/)?(main|master)$/.test(t)))
+          block("git push --force-with-lease to main or master rewrites shared history", cmd);
+        return;
+      }
       const padded = ` ${subargs} `;
       if (/(^|\s)--force(\s|$)/.test(padded))
         block("git push --force can overwrite remote history", cmd);
@@ -375,14 +376,28 @@ function analyzeGitAfterVerb(afterVerb: string, cmd: string): void {
         block("git stash clear permanently deletes all stashed changes", cmd);
       return;
     }
-    case "worktree": {
-      if (/remove\s+.*(--force|-f)/.test(subargs))
-        block("git worktree remove --force can discard changes", cmd);
-      return;
-    }
     default:
       return;
   }
+}
+
+// Fails open to "" (no match) when git is unavailable or HEAD is detached.
+function currentBranch(): string {
+  const r = Bun.spawnSync(["git", "branch", "--show-current"], { stderr: "ignore" });
+  return r.exitCode === 0 ? r.stdout.toString().trim() : "";
+}
+
+// `gh api` DELETE is allowed for cleanup (refs, releases, comments), but a
+// DELETE on the repository root endpoint deletes the repo, which `gh repo
+// delete` guards in the permission layer.
+function checkGhApiRepoDelete(cmd: string): void {
+  const m = cmd.match(/(^|\s)gh\s+api\s+(.*)$/s);
+  if (!m?.[2]) return;
+  const rest = m[2];
+  if (!/(-X\s*|--method[\s=]+)['"]?DELETE\b/i.test(rest)) return;
+  const tokens = rest.split(/\s+/).map((t) => t.replace(/^['"]|['"]$/g, ""));
+  if (tokens.some((t) => /^\/?repos\/[^/\s]+\/[^/\s]+\/?$/.test(t)))
+    block("gh api DELETE on a repository endpoint deletes the repository", cmd);
 }
 
 function checkGitDestructive(cmd: string): void {
@@ -508,6 +523,7 @@ function analyzeFullString(cmd: string): void {
 function analyzeSegment(cmd: string): void {
   checkRmRf(cmd);
   checkGitDestructive(cmd);
+  checkGhApiRepoDelete(cmd);
 }
 
 function splitCommands(cmd: string): void {
@@ -528,6 +544,7 @@ function splitCommands(cmd: string): void {
 function analyzeCommand(cmd: string, depth: number): void {
   checkRmRf(cmd);
   checkGitDestructive(cmd);
+  checkGhApiRepoDelete(cmd);
   checkFindXargs(cmd);
   unwrapAndAnalyze(cmd, depth);
   checkInterpreterOneliners(cmd, depth);

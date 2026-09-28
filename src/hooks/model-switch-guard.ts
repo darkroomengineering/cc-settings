@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   if (band === "critical") {
     emitHookSpecificOutput("PreModelSwitch", {
       decision: "allow",
-      additionalContext: `Quota critical (${usage}). Fable draws the pool ~2x faster than Opus; keep this session's fable work scoped, or /model opus for routine turns.`,
+      additionalContext: `Quota critical (${usage}). Fable draws the pool ~2x faster than Opus; keep this session's fable work scoped, or /model claude-sonnet-5-5 for routine turns.`,
     });
   }
 }

@@ -5,7 +5,10 @@
 // Run: bun test tests/safety-net.test.ts
 
 import { describe, expect, test } from "bun:test";
-import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 const SAFETY_NET_TS = resolve(import.meta.dir, "..", "src", "hooks", "safety-net.ts");
 
@@ -13,8 +16,10 @@ type Decision = "allow" | "block";
 
 async function runSafetyNet(
   cmd: string,
+  cwd?: string,
 ): Promise<{ decision: Decision; exitCode: number; stdout: string }> {
   const proc = Bun.spawn(["bun", SAFETY_NET_TS], {
+    cwd,
     env: { ...process.env, TOOL_INPUT_command: cmd },
     stdout: "pipe",
     stderr: "ignore",
@@ -25,8 +30,8 @@ async function runSafetyNet(
   return { decision, exitCode, stdout };
 }
 
-async function expectBlock(cmd: string): Promise<void> {
-  const r = await runSafetyNet(cmd);
+async function expectBlock(cmd: string, cwd?: string): Promise<void> {
+  const r = await runSafetyNet(cmd, cwd);
   if (r.decision !== "block") {
     throw new Error(`expected BLOCK for: ${cmd}\n  got exit=${r.exitCode} stdout=${r.stdout}`);
   }
@@ -36,8 +41,8 @@ async function expectBlock(cmd: string): Promise<void> {
   expect(parsed.reason).toMatch(/\[Safety Net\]/);
 }
 
-async function expectAllow(cmd: string): Promise<void> {
-  const r = await runSafetyNet(cmd);
+async function expectAllow(cmd: string, cwd?: string): Promise<void> {
+  const r = await runSafetyNet(cmd, cwd);
   if (r.decision !== "allow") {
     throw new Error(`expected ALLOW for: ${cmd}\n  got exit=${r.exitCode} stdout=${r.stdout}`);
   }
@@ -102,10 +107,18 @@ describe("TS safety-net — git destructive → BLOCK", () => {
   for (const [name, cmd] of [
     ["git checkout -- .", "git checkout -- ."],
     ["git checkout -- src/file.ts", "git checkout -- src/file.ts"],
-    ["git reset --hard", "git reset --hard"],
-    ["git reset --hard HEAD~3", "git reset --hard HEAD~3"],
-    ["git clean -f", "git clean -f"],
-    ["git clean -fd", "git clean -fd"],
+    ["git push --force-with-lease origin main", "git push --force-with-lease origin main"],
+    [
+      "git push --force-with-lease origin HEAD:master",
+      "git push --force-with-lease origin HEAD:master",
+    ],
+    [
+      "git push --force-with-lease origin HEAD:refs/heads/main",
+      "git push --force-with-lease origin HEAD:refs/heads/main",
+    ],
+    ["gh api DELETE repo root (--method)", "gh api --method DELETE repos/owner/repo"],
+    ["gh api DELETE repo root (-X, trailing)", "gh api repos/owner/repo -X DELETE"],
+    ["gh api DELETE repo root (leading slash)", "gh api -X DELETE /repos/owner/repo/"],
     ["git push --force", "git push --force"],
     ["git push -f origin main", "git push -f origin main"],
     ["git stash clear", "git stash clear"],
@@ -113,6 +126,19 @@ describe("TS safety-net — git destructive → BLOCK", () => {
   ] as const) {
     test(name, () => expectBlock(cmd));
   }
+});
+
+describe("TS safety-net — force-with-lease without a refspec uses the current branch", () => {
+  function repoOn(branch: string): string {
+    const dir = mkdtempSync(join(tmpdir(), "cc-safety-net-branch-"));
+    spawnSync("git", ["init", "-q", "-b", branch, dir]);
+    return dir;
+  }
+  test("on main → BLOCK", () => expectBlock("git push --force-with-lease", repoOn("main")));
+  test("on master → BLOCK", () =>
+    expectBlock("git push --force-with-lease origin", repoOn("master")));
+  test("on a feature branch → ALLOW", () =>
+    expectAllow("git push --force-with-lease", repoOn("feature")));
 });
 
 describe("TS safety-net — reflog-recoverable git → ALLOW (permission layer asks)", () => {
@@ -127,7 +153,15 @@ describe("TS safety-net — git safe → ALLOW", () => {
     ["git checkout -b new-feature", "git checkout -b new-feature"],
     ["git checkout -B new-feature", "git checkout -B new-feature"],
     ["git push origin main", "git push origin main"],
-    ["git push --force-with-lease", "git push --force-with-lease"],
+    ["git push --force-with-lease origin feature", "git push --force-with-lease origin feature"],
+    ["git reset --hard", "git reset --hard"],
+    ["git reset --hard HEAD~3", "git reset --hard HEAD~3"],
+    ["git clean -f", "git clean -f"],
+    ["git clean -fd", "git clean -fd"],
+    ["git worktree remove --force ../feature", "git worktree remove --force ../feature"],
+    ["gh api DELETE branch ref", "gh api -X DELETE repos/owner/repo/git/refs/heads/feature"],
+    ["gh api DELETE release", "gh api --method DELETE repos/owner/repo/releases/1"],
+    ["gh api GET repo", "gh api repos/owner/repo"],
     ["git branch -d merged-branch", "git branch -d merged-branch"],
     ["git stash", "git stash"],
     ["git stash pop", "git stash pop"],
@@ -180,7 +214,7 @@ describe("TS safety-net — find/xargs → BLOCK", () => {
 
 describe("TS safety-net — shell wrappers → BLOCK", () => {
   test("bash -c 'rm -rf /'", () => expectBlock("bash -c 'rm -rf /'"));
-  test("sh -c 'git reset --hard'", () => expectBlock("sh -c 'git reset --hard'"));
+  test("sh -c 'git stash clear'", () => expectBlock("sh -c 'git stash clear'"));
   test('bash -c "git checkout -- ."', () => expectBlock('bash -c "git checkout -- ."'));
 });
 
@@ -192,13 +226,13 @@ describe("TS safety-net — shell wrappers safe → ALLOW", () => {
 describe("TS safety-net — interpreters → BLOCK", () => {
   test("python -c os.system rm -rf /", () =>
     expectBlock("python -c 'import os; os.system(\"rm -rf /\")'"));
-  test("node -e execSync git reset --hard", () =>
-    expectBlock(`node -e 'require("child_process").execSync("git reset --hard")'`));
+  test("node -e execSync git stash clear", () =>
+    expectBlock(`node -e 'require("child_process").execSync("git stash clear")'`));
 });
 
 describe("TS safety-net — multi-command → BLOCK", () => {
   test("echo && rm -rf /", () => expectBlock("echo hello && rm -rf /"));
-  test("ls; git reset --hard", () => expectBlock("ls; git reset --hard"));
+  test("ls; git stash clear", () => expectBlock("ls; git stash clear"));
 });
 
 describe("TS safety-net — multi-command safe → ALLOW", () => {
@@ -267,12 +301,12 @@ describe("TS safety-net — Codex cross-model review round (v12)", () => {
     expectAllow("echo confirm -rf /"));
 
   // Quoted -C path split the git global-option stripper, hiding the verb.
-  test('git -C "/tmp/repo with spaces" reset --hard (quoted -C) → BLOCK', () =>
-    expectBlock('git -C "/tmp/repo with spaces" reset --hard'));
+  test('git -C "/tmp/repo with spaces" stash clear (quoted -C) → BLOCK', () =>
+    expectBlock('git -C "/tmp/repo with spaces" stash clear'));
   test('git -C "/tmp/repo with spaces" status → ALLOW (neighbor safe)', () =>
     expectAllow('git -C "/tmp/repo with spaces" status'));
-  test('git -C "/tmp/repo \\" esc" reset --hard (escaped quote in -C) → BLOCK', () =>
-    expectBlock('git -C "/tmp/repo \\" esc" reset --hard'));
+  test('git -C "/tmp/repo \\" esc" stash clear (escaped quote in -C) → BLOCK', () =>
+    expectBlock('git -C "/tmp/repo \\" esc" stash clear'));
 });
 
 describe("TS safety-net — decision protocol", () => {

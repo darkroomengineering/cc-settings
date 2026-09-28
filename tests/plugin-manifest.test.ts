@@ -318,12 +318,19 @@ describe("Codex command policy", () => {
         ["git", "push", "origin", "+main"],
         ["git", "restore", "."],
         ["git", "stash", "clear"],
-        ["git", "worktree", "remove", "--force", "path"],
         ["rm", "-rf", "."],
       ]) {
         const result = await check(command);
         expect(["prompt", "forbidden"], command.join(" ")).toContain(result.decision as string);
         expect((result.matchedRules as unknown[]).length, command.join(" ")).toBeGreaterThan(0);
+      }
+      for (const command of [
+        ["git", "reset", "--hard", "HEAD~1"],
+        ["git", "clean", "-fd"],
+        ["git", "worktree", "remove", "--force", "path"],
+        ["gh", "release", "delete", "v1.0.0"],
+      ]) {
+        expect((await check(command)).decision, command.join(" ")).toBe("allow");
       }
     },
   );

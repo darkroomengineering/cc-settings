@@ -177,7 +177,7 @@ export function buildSteerMessage(
   }
 
   if (band === "exhausted") {
-    return `${marker} Claude usage is nearly exhausted (${usage}) — the hard limit is imminent, and the Codex bridge is ${codexState}.${resetNote} Keep turns minimal and defer all non-essential work. IMPORTANT: in your next response, tell the user plainly that Claude usage is nearly exhausted and recommend they pause until the window resets or switch to a smaller model via /model sonnet.`;
+    return `${marker} Claude usage is nearly exhausted (${usage}) — the hard limit is imminent, and the Codex bridge is ${codexState}.${resetNote} Keep turns minimal and defer all non-essential work. IMPORTANT: in your next response, tell the user plainly that Claude usage is nearly exhausted and recommend they pause until the window resets or switch to a smaller model via /model claude-sonnet-5-5.`;
   }
 
   if (codexAvailable && band === "critical") {

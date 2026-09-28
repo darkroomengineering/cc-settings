@@ -5,7 +5,7 @@
 > model at roughly 2x the Opus 5 rate and is capped at 50% of the weekly limit, after which it
 > bills extra-usage credits. The team runs on Max, so the default buys 5.1's long-horizon
 > agentic gains at the cost of faster pool burn; `quota-steer` still downshifts subagents at the
-> 60%/65% bands. Drop to `/model opus` per session for routine work when the pool is tight.
+> 60%/65% bands. Drop to `/model claude-sonnet-5-5` per session for routine work when the pool is tight.
 > Before 2026-09-01 the default was `claude-opus-5`; existing installs that never changed
 > `model` move with the default through the three-way merge (v15.4.0).
 
@@ -16,16 +16,16 @@ Routing principle: **explore and execute on the cheaper tiers, decide on the top
 | `maestro` | **claude-opus-5-5** | Orchestration needs the strongest default reasoning |
 | `planner` | **claude-opus-5-5** | Architecture decisions need depth |
 | `oracle` | *(session model)* (skill, not an agent — `skills/oracle/SKILL.md` runs as a `context: fork` of the main session, no agent binding) | Not a dedicated `claude-opus-5-5` agent despite the name; the fork inherits the session's model, so on a `claude-opus-5-5` session oracle already thinks at the top tier |
-| `reviewer` | **sonnet** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
-| `implementer` | **sonnet** | Executes already-made plans; Sonnet 5 is near-Opus on coding, and plans come from the top tier |
+| `reviewer` | **claude-sonnet-5-5** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
+| `implementer` | **claude-sonnet-5-5** | Executes already-made plans; Sonnet 5.5 matches Opus 5.5 on agentic coding, and plans come from the top tier |
 | `security-reviewer` | **claude-opus-5-5** | Analysis feeding the session's decision |
-| `tester` | **sonnet** | Test writing follows clear patterns |
-| `scaffolder` | **sonnet** | Boilerplate generation is mechanical |
-| `explore` | **sonnet** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
-| `deslopper` | **sonnet** | Deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
-| `codex-verifier` | **sonnet** | Independent cross-model check via the Codex CLI — the value is a different model family reviewing the diff, not raw reasoning depth on the Claude side |
+| `tester` | **claude-sonnet-5-5** | Test writing follows clear patterns |
+| `scaffolder` | **claude-sonnet-5-5** | Boilerplate generation is mechanical |
+| `explore` | **claude-sonnet-5-5** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
+| `deslopper` | **claude-sonnet-5-5** | Deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
+| `codex-verifier` | **claude-sonnet-5-5** | Independent cross-model check via the Codex CLI — the value is a different model family reviewing the diff, not raw reasoning depth on the Claude side |
 
-The `sonnet` tier is now Claude Sonnet 5 — near-Opus quality on coding/agentic work — which reinforces the split above: `tester`, `scaffolder`, `explore`, `deslopper`, `implementer`, `reviewer`, and `codex-verifier` stay on Sonnet for fan-out/mechanical/execution/consult work at a fraction of Opus cost, while the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier.
+The execution tier is Claude Sonnet 5.5 (`claude-sonnet-5-5`, $2/$10 per MTok, half Opus 5.5). It roughly matches Opus 5.5 on agentic coding (Terminal-Bench 4.0 70.6% vs 66.4%, CursorBench 4.0 55.5% vs 57.8%) but trails it on code review (FrontierCode 1.1 46.2% vs 54.4%), which is why the split holds: `tester`, `scaffolder`, `explore`, `deslopper`, `implementer`, `reviewer`, and `codex-verifier` stay on Sonnet for fan-out/mechanical/execution/consult work at a fraction of Opus cost, while the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier. The tier is pinned by full ID because Claude Code 2.1.284 still resolves the `sonnet` alias to Sonnet 5; return to the alias once it moves.
 
 ## Codex tiers
 
@@ -34,7 +34,7 @@ The same table drives standalone Codex. The installer maps each agent's Claude t
 | Claude tier in frontmatter | Codex `model` | Why |
 |---|---|---|
 | `claude-opus-5-5`, `claude-opus-5`, `opus`, `fable` | `gpt-6-astra` | Judgment: OpenAI's most aligned model, returns early but judges well |
-| `sonnet` | `gpt-6-sol` | Execution: Codex's workhorse coding model |
+| `claude-sonnet-5-5`, `claude-sonnet-5`, `sonnet` | `gpt-6-sol` | Execution: Codex's workhorse coding model |
 | `haiku` | `gpt-6-luna` | Fast, low-cost tasks |
 | unset | inherits the session model | |
 
@@ -58,7 +58,7 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 |---|---|---|
 | `claude-fable-5-1` (composed default) | yes, the only accepted advisor | A second Fable pass on hard calls |
 | `claude-opus-5-5` (`planner`, `maestro`, `security-reviewer`) | yes (Fable, or Opus 5+) | Top-tier review of Opus plans and gate decisions |
-| `sonnet` (Sonnet 5: `implementer`, `tester`, `explore`, and the other `CLAUDE_CODE_SUBAGENT_MODEL` agents) | yes | The pairing the docs recommend first: Sonnet runs the routine turns, Fable steps in at decision points |
+| `claude-sonnet-5-5` (`implementer`, `tester`, `explore`, and the other `CLAUDE_CODE_SUBAGENT_MODEL` agents) | yes | The pairing the docs recommend first: Sonnet runs the routine turns, Fable steps in at decision points |
 | `haiku` | yes | Cheapest executor with top-tier planning |
 
 **Config surface:**

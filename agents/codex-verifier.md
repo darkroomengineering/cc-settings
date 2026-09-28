@@ -1,6 +1,6 @@
 ---
 name: codex-verifier
-model: sonnet
+model: claude-sonnet-5-5
 description: |
   Independent cross-model verification via the OpenAI Codex CLI. Runs the current
   diff past Codex (a different model family) to catch what Claude self-review misses.

@@ -1,6 +1,6 @@
 ---
 name: tester
-model: sonnet
+model: claude-sonnet-5-5
 description: |
   Test writing and execution. Runs tests, analyzes coverage, writes missing tests.
 

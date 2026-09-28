@@ -43,6 +43,7 @@ export const CODEX_MODEL_FOR_CLAUDE_TIER: Readonly<Record<string, string>> = {
   "claude-fable-5-1": "gpt-6-astra",
   sonnet: "gpt-6-sol",
   "claude-sonnet-5": "gpt-6-sol",
+  "claude-sonnet-5-5": "gpt-6-sol",
   haiku: "gpt-6-luna",
   "claude-haiku-4-5-20251001": "gpt-6-luna",
 };

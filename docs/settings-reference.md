@@ -154,7 +154,8 @@ Default model for all sessions.
 |-------|-------|-------|
 | `fable` / `claude-fable-5-1` | Claude Fable 5.1 | **cc-settings default: `claude-fable-5-1`** (since 2026-09-01; was `claude-opus-5`). Top tier, above Opus 5.5 — long-horizon agentic coding, research, and document work. 1M context native at standard rates (no `[1m]` pin needed); cache reads 0.025x base. Included on Max since 2026-07-20: draws the shared weekly pool at ~2x the Opus 5 rate and is capped at 50% of the weekly limit, then bills extra-usage credits ($10/$50 per Mtok). The `fable` alias resolves to Fable 5.1 from Claude Code v2.1.257; Claude apps gateway sessions keep `fable`/`best` on Fable 5 until the gateway is configured for 5.1 — pick `claude-fable-5-1` in `/model` there. |
 | `opus` / `claude-opus-5-5` | Claude Opus 5.5 | `opus` resolves to Claude Opus 5.5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). One tier below Fable at 40% of its per-token price ($4/$20 per Mtok, cache reads $0.20); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native — no `[1m]` pin. The API effort default is `medium` (Opus 5 used `high`); cc-settings pins `medium` through `CLAUDE_CODE_EFFORT_LEVEL` either way. Requires Claude Code v2.1.280+. `claude-opus-5` ($5/$25) stays selectable by full ID. |
-| `sonnet` | Claude Sonnet 5 | Near-Opus quality on coding/agentic work at a fraction of Opus cost. 1M context native (no `[1m]` pin needed) |
+| `claude-sonnet-5-5` | Claude Sonnet 5.5 | The execution tier: `CLAUDE_CODE_SUBAGENT_MODEL` and the Sonnet agents pin this full ID. Same price as Sonnet 5 ($2/$10 per MTok), faster, fewer tokens per task. The pick for `/model` when the pool is tight. |
+| `sonnet` | Claude Sonnet 5 | Still Sonnet 5 on Claude Code 2.1.284; pin `claude-sonnet-5-5` for 5.5. 1M context native (no `[1m]` pin needed) |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
 
 > **Provider notes**: On Claude Platform on AWS, `opus` resolves to Opus 4.7. On Bedrock, Vertex, and Foundry, `opus` resolves to Opus 4.6 — pin `claude-opus-4-8` explicitly via `ANTHROPIC_DEFAULT_OPUS_MODEL` to get the latest model on those providers.
@@ -974,6 +975,9 @@ Bash(git push:*)
 Bash(git blame:*)
 Bash(git rev-parse:*)
 Bash(git remote:*)
+Bash(git reset:*)
+Bash(git clean:*)
+Bash(git worktree:*)
 Bash(gh:*)
 Bash(biome:*)
 Bash(lighthouse:*)
@@ -1059,8 +1063,6 @@ Bash(git push --force:*)
 Bash(git push -f:*)
 Bash(git push -uf:*)
 Bash(git push -fu:*)
-Bash(git reset --hard:*)
-Bash(git clean -f:*)
 Bash(git checkout -- .:*)
 Bash(git checkout -- *)
 Bash(git stash clear:*)
@@ -1092,9 +1094,6 @@ Edit(~/.claude/settings.json)
 Edit(~/.claude.json)
 Bash(gh repo delete:*)
 Bash(gh secret:*)
-Bash(gh api -X DELETE:*)
-Bash(gh api * -X DELETE*)
-Bash(gh release delete:*)
 Bash(cat ~/.netrc)
 Bash(cat ~/.npmrc)
 Bash(cat ~/.docker/config.json)
@@ -1143,10 +1142,7 @@ Bash(curl -X DELETE:*)
 Bash(curl * -X DELETE*)
 Bash(curl -X PATCH:*)
 Bash(curl * -X PATCH*)
-Bash(gh api --method DELETE:*)
-Bash(gh api * --method DELETE*)
 Bash(find * -exec*)
-Bash(git push --force-with-lease:*)
 Bash(cp * ~/.claude/settings.json*)
 Bash(mv * ~/.claude/settings.json*)
 Bash(cp * ~/.claude.json*)

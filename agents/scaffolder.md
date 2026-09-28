@@ -1,6 +1,6 @@
 ---
 name: scaffolder
-model: sonnet
+model: claude-sonnet-5-5
 description: |
   Boilerplate and template generator. Creates components, hooks, pages with proper structure.
 
