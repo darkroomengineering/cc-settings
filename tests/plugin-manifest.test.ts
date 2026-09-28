@@ -16,6 +16,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { codexCliAvailable } from "../src/lib/codex-install-state.ts";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -240,7 +241,7 @@ describe("Codex hook package", () => {
   });
 });
 
-describe("Codex command policy", () => {
+describe.skipIf(!codexCliAvailable())("Codex command policy", () => {
   const codex = Bun.which("codex");
 
   async function check(command: string[]): Promise<Record<string, unknown>> {
@@ -470,7 +471,7 @@ describe("standalone Codex workflow branches", () => {
   });
 });
 
-describe("Codex CLI package acceptance", () => {
+describe.skipIf(!codexCliAvailable())("Codex CLI package acceptance", () => {
   const codex = Bun.which("codex");
 
   test.skipIf(!codex)(
