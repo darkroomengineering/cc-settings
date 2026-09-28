@@ -92,6 +92,7 @@ const FULL_V2 = [
   "skills/audit/references/audit-contract.md",
   "skills/audit/references/nuclear-review.workflow.js",
   "skills/audit/references/seo-checks.md",
+  "skills/audit/references/test-audit.md",
   "skills/autoresearch/SKILL.md",
   "skills/build/SKILL.md",
   "skills/cc/SKILL.md",

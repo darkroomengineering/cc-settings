@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.37.0] — 2026-09-28
+
+`/audit tests` finds tests that cost maintenance without guarding behavior, and the `tester` agent checks every new test against the same list before writing it.
+
+**Added:**
+- `/audit tests`, a ninth audit mode. It hunts 15 junk-test patterns (T1–T15: assertion-free probes, self-computed expectations, mocks that return the asserted answer, source greps, copied inventories, test-only exports, and more), keeps anything that guards a real contract, and requires a filled evidence record before it recommends deleting a test. Adapted from openclaw's `test-audit` skill.
+- `skills/audit/references/test-audit.md` holds the patterns, the retention bar, the evidence record, and a four-question authoring gate.
+- Eval case `audit-tests-junk`.
+
+**Changed:**
+- The `tester` agent runs the four-question authoring gate and the T1–T15 check before adding or changing a test.
+
 ## [15.36.1] — 2026-09-28
 
 Agents stop writing `! bash` handoff scripts for the cleanup commands 15.36.0 allowed.

@@ -1,7 +1,7 @@
 ---
 name: audit
-argument-hint: "[codebase|docs|process|performance|debt|threat-model|motion|seo]"
-description: Codebase, docs/process, performance, threat-model, motion, SEO, and debt audits. Triggers "audit the codebase", "adversarial audit", "audit the docs", "perf audit", "threat model", "motion audit", "seo audit", "debt ledger". Single-page Core Web Vitals go to /lighthouse.
+argument-hint: "[codebase|docs|process|performance|tests|debt|threat-model|motion|seo]"
+description: Codebase, docs/process, performance, test-suite, threat-model, motion, SEO, and debt audits. Triggers "audit the codebase", "audit the docs", "perf audit", "audit the tests", "threat model", "motion audit", "seo audit", "debt ledger". Single-page Core Web Vitals go to /lighthouse.
 context: main
 requires:
   - mcp: context7
@@ -29,18 +29,19 @@ offers isolation, so the main session writes the final report after readers
 finish; any implementer and test-writer phases must be serialized with
 non-overlapping ownership.
 
-One skill, eight whole-repo audit modes. Seven of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. Six families of question:
+One skill, nine whole-repo audit modes. Eight of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. Seven families of question:
 
 - **Codebase** — one merged audit, two lenses on the same read. The **structure lens** (ported from Cursor's internal `thermo-nuclear-code-quality-review` skill, reported by Eric Zakariasson as Cursor's most-used internal skill; formerly this skill's standalone Maintainability mode) asks **should this code exist?** — 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7. The **behavior lens** (adapted from the fable audit goal-spec trio, gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; formerly the separate Codebase mode) asks **does it do what it promises?** — correctness, incoherences, affordance gaps. Merged August 2026: both modes fanned the same whole-repo readers over the same files and shipped near-identical reports, so they now run as one pass with two hunt lists. The July 2026 cc-settings audit ran the behavior lens and produced 28 findings, ~all confirmed and fixed.
 - **Docs and Process** — from the same fable audit trio. Truth and structure of the docs (docs), walkable end-to-end journeys (process). The mechanics that made the July 2026 audit work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these modes.
 - **Performance** — asks **where is time actually going, measured?** Empirical-only: a finding does not exist until a number confirms it. Covers client runtime (via the same Lighthouse protocol `/lighthouse` uses), bundle and build, server and data, and code-level hot paths, adapting to what the repo actually is (web app vs CLI vs library).
+- **Tests** — adapted from openclaw's `test-audit` skill. Asks **which tests cost maintenance without guarding behavior?** — assertion-free probes, self-computed expectations, mocks that implement the answer, copied inventories, test-only production seams — with a retention bar so contract tests survive.
 - **Threat-Model** — adapted from openai/skills `security-threat-model` (Apache-2.0). Asks **what can go wrong, and who would exploit it?** — trust boundaries, attacker capability, abuse paths tied to attacker goals, mitigations mapped to components.
 - **Motion** — adapted from emilkowalski/skills `improve-animations` (MIT). Asks **where does animation work have the highest leverage?** — purpose/frequency, easing/duration, physicality/origin, interruptibility, performance, accessibility, cohesion, and missed opportunities, turned into self-contained implementation plans rather than a findings report.
 - **SEO** — distilled from shipped Darkroom work (satus PRs #348/#405/#413 and darkroomengineering/website PRs #40/#65, which converged independently on the same architecture). Asks **will this site be found, ranked, and cited?** — canonical integrity, sitemap reachability, per-content metadata, structured data, and the AEO surfaces (llms.txt, named AI crawlers, machine-view routes) that answer engines read.
 
 Codebase mode's structure lens should push to be **ambitious** — do not merely identify local cleanup opportunities, actively search for "code judo" moves. Every adversarial mode holds **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
 
-The eighth mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
+The ninth mode, **Debt**, is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
 
 ## Mode Router
 
@@ -54,6 +55,7 @@ The bare phrase **"audit the codebase"** routes straight to Codebase mode — th
 | Docs | "audit the docs", "docs audit", "doc drift" |
 | Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
 | Performance | "perf audit", "performance audit", "why is the app slow", "bundle audit", "build is slow", "speed audit" |
+| Tests | "audit the tests", "test audit", "low-value tests", "prune the test suite", "junk tests" |
 | Threat-Model | "threat model", "STRIDE", "attack surface", "abuse paths" |
 | Motion | "motion audit", "audit the animations", "improve the animations" |
 | SEO | "seo audit", "aeo", "ai engine optimization", "answer engine", "discoverability audit", "rank better", "llms.txt" |
@@ -66,7 +68,7 @@ Debt mode is a mechanical grep — run it standalone or as a cheap first pass be
 ## When to use vs other review skills
 
 - `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security), now including an animation checklist when the diff touches motion. Every change.
-- `/audit` (this skill) — periodic whole-repo audit, eight modes. Codebase mode asks "should this code exist, and does it do what it promises?"; docs and process modes ask whether the docs tell the truth and the journeys walk end-to-end; performance mode asks "where is time actually going, measured?"; threat-model mode asks "what can go wrong, and who would exploit it?"; motion mode asks "where does the animation work have the highest leverage?"; seo mode asks "will this site be found, ranked, and cited?"; debt mode asks "what did we defer on purpose?" Run codebase mode on major version cuts, after extended velocity sprints, before a load-bearing migration. Docs and process modes shine before releases and after feature bursts. Performance mode fits before a launch, after a dependency-heavy sprint, or whenever "the site feels slow" comes up without a number attached. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface. Motion mode fits after a UI-heavy sprint or before a client showcase. SEO mode fits before a site launch and as a first pass on any client marketing/content site.
+- `/audit` (this skill) — periodic whole-repo audit, nine modes. Codebase mode asks "should this code exist, and does it do what it promises?"; docs and process modes ask whether the docs tell the truth and the journeys walk end-to-end; performance mode asks "where is time actually going, measured?"; tests mode asks "which tests guard nothing?"; threat-model mode asks "what can go wrong, and who would exploit it?"; motion mode asks "where does the animation work have the highest leverage?"; seo mode asks "will this site be found, ranked, and cited?"; debt mode asks "what did we defer on purpose?" Run codebase mode on major version cuts, after extended velocity sprints, before a load-bearing migration. Docs and process modes shine before releases and after feature bursts. Performance mode fits before a launch, after a dependency-heavy sprint, or whenever "the site feels slow" comes up without a number attached. Tests mode fits when the suite is slow or brittle, or after a burst of agent-written tests. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface. Motion mode fits after a UI-heavy sprint or before a client showcase. SEO mode fits before a site launch and as a first pass on any client marketing/content site.
 - `/lighthouse` — single-page CWV measurement plus a fix-until-targets-met loop. Performance mode delegates its client-runtime measurements to the same Lighthouse protocol and hands findings back to `/lighthouse` or `/refactor` for execution; it never duplicates the loop.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/verify` — adversarial check of a single change/claim, not a repo sweep.
@@ -81,7 +83,7 @@ A typical sequence: `/audit codebase` produces findings → engineers cherry-pic
 
 ---
 
-## Shared Contract (Codebase, Docs, Process, Threat-Model, SEO, and Performance modes)
+## Shared Contract (Codebase, Docs, Process, Tests, Threat-Model, SEO, and Performance modes)
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
@@ -540,12 +542,45 @@ order, dependencies, and status.
 | a category focus (e.g. "audit the animation performance") | Recon + that category only |
 | `plan <description>` | Skip the audit; recon just enough to specify, then write a single plan for the described improvement |
 
+## Mode: Tests
+
+Find tests that cost maintenance without guarding behavior, and prove each one
+before recommending its removal. Rides the Shared Contract above; finding IDs
+use the `T` prefix plus the pattern ID (`T10-3` is the third T10 finding).
+
+**Role additions:** a maintainer who has to update the test on every refactor;
+a reviewer asking "which regression would this catch?"
+
+**Scope.** Every test file and its test-support code (fixtures, mocks,
+helpers), plus the production code each test covers. Read the complete test
+and its production owner, callers, and overlapping tests before judging it.
+Read the repo's `AGENTS.md` first; a project rule can make a test a contract.
+
+**Hunt for:** the junk patterns T1–T15 in `references/test-audit.md`. Judge
+every candidate against that file's retention bar before it becomes a finding.
+
+**Method addition:** fill the evidence record from `references/test-audit.md`
+for each finding. A finding with every field filled is CONFIRMED; one with a
+gap stays PLAUSIBLE and is not recommended for deletion. Where cheap, confirm a
+T10, T11, or T14 finding by breaking the production code and showing the test
+still passes (revert immediately; this is the one edit the mode allows). Prefer
+a few confirmed findings over a long speculative list.
+
+**Map section:** test files grouped by the production module they cover, with
+counts, so duplicate coverage (T6, T7) is visible.
+
+**Extra output:** a "Considered & rejected" entry for every candidate the
+retention bar kept, naming the contract it guards. Recommended remedies are
+deletion, consolidation into a table-driven case, or moving the test to its
+owning boundary; the `tester` agent executes them. Report test LOC and
+production LOC each remedy removes separately.
+
 ---
 
 ## Mode: Debt
 
 Collect every deliberate shortcut in the repo into one ledger, so a deferral can't
-quietly become permanent. Unlike the other seven modes this one is mechanical: it
+quietly become permanent. Unlike the other eight modes this one is mechanical: it
 greps for markers and reports what it finds. It makes no judgement about whether
 the shortcut was right.
 
