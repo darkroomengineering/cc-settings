@@ -947,8 +947,8 @@ As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:
 - **Credential access:** read/copy/move/write of `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.netrc`, `~/.npmrc`, `~/.docker/config.json`, `~/.kube/config`.
 - **Data exfiltration:** `curl` with `--data|-d|-F|-T|--upload-file|--json|--data-raw|--data-binary|-o|-O|-H|--header|--cookie|-X POST|PUT|DELETE|PATCH`; `curl|wget … | bash|sh`.
 - **Config tampering (Shai-Hulud vector):** shell `cp`/`mv` *into* `~/.claude/settings.json`, `~/.claude.json`, `~/.bashrc`, `~/.zshrc`, `~/.bash_profile` — closes the gap where shell copy bypasses the `Write(...)` deny.
-- **Destructive git:** `git push --force|-f|--force-with-lease`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git stash clear`, `git restore .`. `git branch -D` and `git stash drop` are reflog-recoverable, so they sit in `ask` instead: the user confirms each one.
-- **Privilege / dangerous:** `sudo`, `chmod 777`, `gh repo delete`, `gh secret`, `gh api -X DELETE|--method DELETE`, `gh release delete`.
+- **Destructive git:** `git push --force|-f`, `git checkout -- .`, `git stash clear`, `git restore .`. `git branch -D` and `git stash drop` are reflog-recoverable, so they sit in `ask` instead: the user confirms each one. Workflow cleanup (`git reset --hard`, `git clean -f`, `git worktree remove --force`, `git push --force-with-lease`) is allowed; the safety-net hook still blocks force-with-lease to `main` or `master`.
+- **Privilege / dangerous:** `sudo`, `chmod 777`, `gh repo delete`, `gh secret`. `gh api` DELETE and `gh release delete` are allowed; the safety-net hook blocks a DELETE on a repository's root endpoint.
 - **Remote code execution:** `node -e|-p|--eval|--print`, `awk … system(`, `find * -exec`.
 
 #### Complete current rule list

@@ -113,9 +113,15 @@ after a merge; scoped CI fixes on an approved PR; doc-only commits; one rerun
 of a flaky check. This is a floor, not a whitelist.
 
 **Always ask:** work in repositories outside `darkroomengineering` (report
-findings only, never open an external PR), force-push or history rewrite,
-deletion outside the pre-approved list, and anything visible outside the team
-(publish, release).
+findings only, never open an external PR), a plain `--force` push or any
+force-push to `main` or `master`, deletion outside the pre-approved list, and
+anything visible outside the team (publish, release).
+
+**Run workflow cleanup yourself:** `git reset --hard`, `git clean -f`,
+`git worktree remove --force`, `git push --force-with-lease` to a feature
+branch, `gh api` DELETE calls on branches, releases, or comments, and
+`gh release delete` are allowed. Run them when the approved work needs them;
+never hand them back.
 
 **When a command is denied:** never retry it, split it, or rephrase it. Append
 the exact command to `~/.claude/tmp/handoff-<session>.sh` (create it with a
@@ -123,9 +129,8 @@ the exact command to `~/.claude/tmp/handoff-<session>.sh` (create it with a
 the line `! bash <path>`, and carry on with the work that does not depend on
 it. Compound commands get denied as a whole when one clause is destructive, so
 keep each destructive step on its own line. Before a long autonomous run,
-enumerate the privileged commands the plan will need (force-push, branch or
-stash deletion, remote DELETE calls, keychain, SSH) into that same script up
-front, so the run is not interrupted one denial at a time.
+enumerate the privileged commands the plan will need (plain `--force` push,
+`git stash clear`, `sudo`, keychain, SSH) into that same script up front, so the run is not interrupted one denial at a time.
 
 ## Claude and Codex routing
 

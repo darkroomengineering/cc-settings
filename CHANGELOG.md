@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.36.1] — 2026-09-28
+
+Agents stop writing `! bash` handoff scripts for the cleanup commands 15.36.0 allowed.
+
+**Changed:**
+- `CLAUDE.md` Autonomy tells agents to run `git reset --hard`, `git clean -f`, `git worktree remove --force`, `git push --force-with-lease` to a feature branch, `gh api` DELETE, and `gh release delete` themselves. "Always ask" now covers a plain `--force` push or any force-push to `main` or `master`, and the handoff example list names only commands that stay denied.
+- The Codex instructions say the same for Codex, and that `git push` and `gh api` ask for approval there instead of going to a handoff script.
+- `docs/settings-reference.md` no longer lists the allowed cleanup commands as denied.
+
 ## [15.36.0] — 2026-09-28
 
 Subagents now run on Claude Sonnet 5.5, and agents run routine git and GitHub cleanup themselves instead of handing it back as a `! bash` script.
