@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.39.4] — 2026-09-29
+
+Contributors without a working Codex CLI can commit again. The "Codex command policy" and "Codex CLI package acceptance" tests in `tests/plugin-manifest.test.ts` ran whenever something named `codex` was on PATH, including proxy shims such as cmux's, which answer with exit 127. Those tests sit in the pre-commit invariants hook, so the failure blocked every commit.
+
+- Both blocks now skip unless `codex --version` runs and prints a real Codex banner (`codexCliAvailable`).
+
 ## [15.39.3] — 2026-09-29
 
 `setup.sh` no longer stops when `~/.claude/CLAUDE.md` or `~/.claude/AGENTS.md` differs from what cc-settings installed. It saves the current file to `~/.claude/backups/<name>.user-edit-<timestamp>`, prints that path, and installs the new version. Before, a hand edit, a deleted file, or an install from a clone with uncommitted changes to `CLAUDE-FULL.md` failed with "destination collision" or "missing or modified", and the only way out was restoring bytes by hand.
