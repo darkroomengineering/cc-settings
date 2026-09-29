@@ -367,7 +367,7 @@ export async function persistTypesafeKeyToSettingsEnv(
     if (!current || typeof current !== "object") return false;
     const env = (current.env ?? {}) as Record<string, unknown>;
     if (env.TYPESAFE_API_KEY === key) {
-      // An install that stored the key before this file was kept owner-only.
+      // The key is already stored; still hold the file to owner-only.
       await chmod(settingsPath, 0o600);
       return true;
     }

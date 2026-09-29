@@ -23,21 +23,29 @@ describe("persistTypesafeKeyToSettingsEnv", () => {
     expect((await Bun.file(path).json()).env.TYPESAFE_API_KEY).toBe("k-2");
   });
 
-  test("leaves settings.json readable by the owner only", async () => {
-    const path = join(dir(), "settings.json");
-    await Bun.write(path, JSON.stringify({}));
-    chmodSync(path, 0o644);
-    expect(await persistTypesafeKeyToSettingsEnv("k-4", path)).toBe(true);
-    expect(statSync(path).mode & 0o777).toBe(0o600);
-  });
+  // POSIX permission bits; Windows has none to assert.
+  test.skipIf(process.platform === "win32")(
+    "leaves settings.json readable by the owner only",
+    async () => {
+      const path = join(dir(), "settings.json");
+      await Bun.write(path, JSON.stringify({}));
+      chmodSync(path, 0o644);
+      expect(await persistTypesafeKeyToSettingsEnv("k-4", path)).toBe(true);
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    },
+  );
 
-  test("tightens an existing install whose key is already stored", async () => {
-    const path = join(dir(), "settings.json");
-    await Bun.write(path, JSON.stringify({ env: { TYPESAFE_API_KEY: "k-5" } }));
-    chmodSync(path, 0o644);
-    expect(await persistTypesafeKeyToSettingsEnv("k-5", path)).toBe(true);
-    expect(statSync(path).mode & 0o777).toBe(0o600);
-  });
+  // POSIX permission bits; Windows has none to assert.
+  test.skipIf(process.platform === "win32")(
+    "tightens an existing install whose key is already stored",
+    async () => {
+      const path = join(dir(), "settings.json");
+      await Bun.write(path, JSON.stringify({ env: { TYPESAFE_API_KEY: "k-5" } }));
+      chmodSync(path, 0o644);
+      expect(await persistTypesafeKeyToSettingsEnv("k-5", path)).toBe(true);
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    },
+  );
 
   test("returns false when settings.json is missing", async () => {
     expect(await persistTypesafeKeyToSettingsEnv("k-3", join(dir(), "nope.json"))).toBe(false);
