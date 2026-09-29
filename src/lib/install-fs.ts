@@ -153,6 +153,9 @@ async function createBackup(
 ): Promise<ClaudeBackupSnapshot> {
   const backupDir = join(CLAUDE_DIR, options.temporary ? "tmp" : "backups");
   await mkdir(backupDir, { recursive: true, mode: 0o700 });
+  // mkdir's mode applies only to a new dir; an existing one from an older install stays 755,
+  // which would expose the archive (it holds settings.json) during tar's write window.
+  await chmod(backupDir, 0o700).catch(() => {});
   let preserveBackupName: string | null = null;
   if (options.preserveBackupName !== undefined) {
     const name = options.preserveBackupName;
@@ -374,6 +377,8 @@ async function createBackup(
 
   // Keep last 5.
   const kept = (await readdir(backupDir)).filter((e) => /^backup-.*\.tar\.gz$/.test(e)).sort();
+  // Archives written before they were made owner-only still carry the key at 644.
+  await Promise.all(kept.map((name) => chmod(join(backupDir, name), 0o600).catch(() => {})));
   if (kept.length > 5) {
     const stale = kept.filter((name) => name !== preserveBackupName).slice(0, kept.length - 5);
     await Promise.all(

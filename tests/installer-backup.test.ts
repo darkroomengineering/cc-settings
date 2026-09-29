@@ -12,8 +12,8 @@
 // directories come back with content.
 
 import { describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { BACKUP_ONLY_PATHS } from "../src/lib/managed-paths.ts";
@@ -340,6 +340,29 @@ describe("installer backup — H7 (rollback covers cleanOldConfig's full footpri
     180_000,
   );
 
+  test.skipIf(process.platform === "win32")(
+    "backups are owner-only, including a pre-existing 755 dir and older archives",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-backup-perms-"));
+      try {
+        expect((await run(home)).exitCode).toBe(0);
+        const backups = join(home, ".claude", "backups");
+        const old = join(backups, "backup-20000101_000000.tar.gz");
+        await writeFile(old, "");
+        await chmod(old, 0o644);
+        await chmod(backups, 0o755);
+        expect((await run(home)).exitCode).toBe(0);
+        expect(statSync(backups).mode & 0o777).toBe(0o700);
+        for (const name of (await readdir(backups)).filter((n) => n.endsWith(".tar.gz"))) {
+          expect(statSync(join(backups, name)).mode & 0o777, name).toBe(0o600);
+        }
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    180_000,
+  );
+
   test("rollback accepts an installer-produced archive with the exact managed ownership set", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-backup-complete-ownership-"));
     try {
@@ -468,7 +491,7 @@ console.log(JSON.stringify({
       await writeFile(
         runner,
         `import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createBackup } from ${JSON.stringify(join(REPO, "src/lib/install-fs.ts"))};
 import { prepareClaudeCompensation } from ${JSON.stringify(join(REPO, "src/lib/install-cmds.ts"))};

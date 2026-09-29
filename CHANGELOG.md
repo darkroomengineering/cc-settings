@@ -11,7 +11,7 @@ All notable changes to cc-settings are documented here.
 - `atomicWriteString` keeps the target's existing permission bits on a rewrite, and takes an explicit `mode` for callers that need one. A new file still gets the default.
 - Writing the key sets the file to 600. A reinstall on a machine whose key is already in the settings `env` block tightens the file too, so existing installs are fixed by the next `setup.sh` run or auto-update.
 - Setup tightens `settings.json` to 600 after the `claude plugin` step, whenever the file holds the key and whatever source the key came from, so a key exported in the shell or injected by a Claude Code session is covered too.
-- The other copies of the key are owner-only as well: `.cc-settings-baseline.json` (which stores the merged settings), the `backup-*.tar.gz` archives, and the `backups/` directory when setup creates it.
+- The other copies of the key are owner-only as well: `.cc-settings-baseline.json` (which stores the merged settings), the `backup-*.tar.gz` archives, and the `backups/` directory. Setup also tightens a `backups/` directory and archives left at 755 and 644 by earlier installs.
 - Exposure was limited to Macs with more than one account: a single-user machine has no other account to read the file. Keys do not need rotating unless the machine is shared.
 
 ## [15.39.1] — 2026-09-29
