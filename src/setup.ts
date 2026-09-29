@@ -110,7 +110,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.39.2"; // settings.json stays owner-only once it holds the TypeSafe key.
+const VERSION = "15.39.3"; // A hand-edited CLAUDE.md or AGENTS.md is backed up and replaced instead of blocking setup.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
