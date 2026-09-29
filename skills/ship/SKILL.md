@@ -154,7 +154,7 @@ git commit -m "<type>: <description>"
 
 **Per-commit validation:** Each commit must independently pass:
 ```bash
-npx tsc --noEmit && biome check .
+bunx tsc --noEmit && bunx biome check .
 ```
 If a commit would break either check in isolation, merge it with the next commit in the sequence.
 

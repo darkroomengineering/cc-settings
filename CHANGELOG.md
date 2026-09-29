@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.39.1] — 2026-09-29
+
+The Tech Stack in `AGENTS.md` now says what it always meant: its entries are defaults, not mandates. A project's config and lockfile win, and new work that departs from a default says why in the PR. Taken from Martin Fowler's [Sensible Default](https://martinfowler.com/bliki/SensibleDefault.html): "do these practices, or do better, and be prepared to explain why."
+
+- The Bun-only rule names its real exceptions. `npx react-doctor` and `npx deslop` join `npx expo`, since `/proof-of-work` and the permission allowlist already run them through `npx` to resolve the lockfile-pinned binary.
+- `/ship` per-commit validation runs `bunx tsc --noEmit && bunx biome check .` instead of `npx tsc`.
+- `/audit` calls the deslop probe as `npx deslop`, matching `/proof-of-work` and the allowlist, instead of `npx deslop-cli`.
+- To stay inside the `AGENTS.md` byte ceiling, the `SHORTCUT:` paragraph drops its two tooling pointers (`bun run lint:shortcuts` and `/audit debt`). CI still enforces the linter, and the `/audit` description still lists the debt ledger.
+
 ## [15.39.0] — 2026-09-29
 
 `/audit` can now run every vertical at once. Say "full audit", "audit everything", or name two or more areas ("performance, code quality, and security") and it runs every applicable mode in parallel and ships one merged, ranked report. Before this, the router picked one mode per run, and security was easy to miss because Codebase mode does not hunt for it.

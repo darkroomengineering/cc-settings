@@ -38,7 +38,7 @@ Default to deletion over addition, boring over clever, and the fewest files. Add
 
 The ladder never reduces trust-boundary/input validation, data-loss-preventing error handling, security, accessibility, explicit requirements, or real-world physical constraints.
 
-A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment naming the ceiling and the upgrade trigger (`// SHORTCUT: one global lock. ceiling: ~50 rps. upgrade: shard by key when p99 write latency climbs`). `bun run lint:shortcuts` fails when `upgrade:` is missing. Use this only for knowingly cut corners; it cannot excuse the protected concerns above. `/audit debt` lists every marker. When a trigger fires, implement the upgrade and remove the marker in the same diff.
+A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment naming the ceiling and the upgrade trigger (`// SHORTCUT: one global lock. ceiling: ~50 rps. upgrade: shard by key when p99 write latency climbs`). Use this only for knowingly cut corners; it cannot excuse the protected concerns above. When a trigger fires, implement the upgrade and remove the marker in the same diff.
 
 ### Read Before Edit
 
@@ -154,7 +154,7 @@ Fix reported bugs immediately without asking whether to proceed.
 
 ## Tech Stack
 
-These defaults apply to Darkroom web clients. Tooling and non-web repositories, including this one, inherit only Bun, Biome, and TypeScript unless their profiles say otherwise. Framework details live in `profiles/`.
+These defaults apply to Darkroom web clients. A project's config and lockfile win; departures in new work say why in the PR. Tooling and non-web repositories, including this one, inherit only Bun, Biome, and TypeScript unless their profiles say otherwise. Framework details live in `profiles/`.
 
 ### Core
 
@@ -177,7 +177,7 @@ These defaults apply to Darkroom web clients. Tooling and non-web repositories, 
 
 ### Package Manager: Bun Only
 
-`bun add`, `bun run`, `bunx`, `bunx tsc --noEmit`; never `npm`, `pnpm`, `yarn`, or `npx`. The one exception is `npx expo ...`, Expo's official invocation. Switching package managers mid-session causes lockfile drift.
+`bun add`, `bun run`, `bunx`, `bunx tsc --noEmit`; never `npm`, `pnpm`, `yarn`, or `npx`, except `npx expo ...` and the pinned probes `npx react-doctor` and `npx deslop`. Switching package managers mid-session causes lockfile drift.
 
 ## Coding Standards
 

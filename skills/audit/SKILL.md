@@ -179,7 +179,7 @@ finding.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live 
 code; the CLI was measured accurate, which is why it's used here instead.
 
 When the project depends on `deslop-cli` (check `package.json` — it's the same advisory probe
-`/proof-of-work` runs), add it as a second dead-code signal: `npx deslop-cli`. Same rule as
+`/proof-of-work` runs), add it as a second dead-code signal: `npx deslop`. Same rule as
 tldr-code: advisory only, Grep-confirm every candidate. Two scanners agreeing upgrades conviction;
 either one alone still needs confirmation.
 

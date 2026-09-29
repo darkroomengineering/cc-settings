@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.39.0"; // /audit full mode.
+const VERSION = "15.39.1"; // Tech Stack defaults framed as sensible defaults.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
