@@ -1613,7 +1613,9 @@ mock.module("node:fs/promises", () => ({ ...original,
     try {
       expect((await runInstall(home)).exitCode).toBe(0);
       expect(await readFile(personal, "utf8")).toStartWith("# Personal instructions\n");
-      expect(await readFile(join(claudeDir, "CLAUDE.md"), "utf8")).toContain("\n@personal.md\n");
+      expect(await readFile(join(claudeDir, "CLAUDE.md"), "utf8")).toMatch(
+        /\r?\n@personal\.md\r?\n/,
+      );
       expect(await sentinelFiles()).not.toContain("personal.md");
 
       await writeFile(personal, "always answer in haiku\n");

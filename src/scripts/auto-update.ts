@@ -510,7 +510,7 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     }
     await sendNotification(
       replaced.length > 0
-        ? `cc-settings v${toVersion ?? "?"} installed — replaced your edited ${replaced.join(", ")}; a copy is in ~/.claude/backups`
+        ? `cc-settings v${toVersion ?? "?"} installed — replaced your edited ${replaced.join(", ")}; a copy is in ~/.claude/backups, keep yours in ~/.claude/personal.md`
         : `cc-settings v${toVersion ?? "?"} installed — restart Claude Code sessions to apply`,
     );
   } finally {
