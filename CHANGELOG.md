@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.39.0] — 2026-09-29
+
+`/audit` can now run every vertical at once. Say "full audit", "audit everything", or name two or more areas ("performance, code quality, and security") and it runs every applicable mode in parallel and ships one merged, ranked report. Before this, the router picked one mode per run, and security was easy to miss because Codebase mode does not hunt for it.
+
+- **Full mode.** The coordinator maps the repo once, then selects modes from evidence. Codebase, Threat-Model, and Debt always run. Performance runs when something can be measured, Tests when a suite exists, Docs when docs exist beyond a README, SEO for public websites, and Motion when an animation library is installed. Process runs only on request. It asks one question round up front (the mode list plus the threat-model and performance questions) so no reader stops mid-run.
+- **One reader per mode, launched together.** Threat-Model runs on `security-reviewer`. Readers return findings and write nothing; the coordinator deduplicates across modes, ranks on one scale, and runs the cross-model and team-knowledge passes once.
+- **One report.** `docs/audits/full-audit-YYYY-MM-DD.md` opens with a coverage table (ran, skipped with the reason, or available), then the merged summary, the first 10 to act on with their executor, and one section per mode.
+- The `/audit` description gains the "full audit" trigger and stays inside the description byte budget. MANUAL now lists Full and Tests among the audit modes.
+- New eval case: `evals/audit-full-coverage`.
+
 ## [15.38.1] — 2026-09-29
 
 The README now teaches day-to-day use, not only installation. New team members get a short path: install, run one read-only task, then learn the daily loop.

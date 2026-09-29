@@ -39,6 +39,7 @@ Open Claude Code or Codex in a project and say the outcome:
 | "does this look right?" | `qa` captures and checks the rendered interface when a browser path is available. |
 | "first pass on this client repo" | `triage` returns ranked findings and stays read-only on external repositories. |
 | "audit the whole codebase" | `audit` performs a deep repository-wide review and reports evidence. |
+| "full audit: performance, security, all of it" | `audit` runs every applicable mode in parallel and merges one ranked report. |
 | "save this for tomorrow" | `handoff` records the session so another session can continue it. |
 
 Several of these workflows inspect code, but they answer different questions:
@@ -169,13 +170,18 @@ when the first pass shows that depth is warranted.
 
 ### Audit a whole repository
 
-`audit` has eight modes. It reads the repository and writes its full report under `docs/audits/`;
+`audit` has ten modes. It reads the repository and writes its full report under `docs/audits/`;
 optional GitHub issue filing is a separate external-state action:
 
+- **Full:** "full audit" or "audit everything" runs every mode that applies to the repository in
+  parallel (always codebase, threat model, and debt; performance, tests, docs, SEO, and motion when
+  the repository has something for them) and merges the results into one ranked report. Naming two
+  or more areas, such as "performance, code quality, and security", runs exactly those.
 - **Codebase:** asks whether the code should exist and whether it does what it promises.
 - **Docs:** checks current documentation against the implementation and human reading order.
 - **Process:** walks documented journeys and maps the real state machine and dead ends.
 - **Performance:** reports only measured findings and names the budget or leverage behind severity.
+- **Tests:** finds tests that cost maintenance without guarding behavior.
 - **Threat model:** maps trust boundaries, attacker capabilities, abuse paths, and mitigations.
 - **Motion:** reviews animation leverage, interruption, performance, and accessibility.
 - **SEO:** reviews search and answer-engine discoverability.
