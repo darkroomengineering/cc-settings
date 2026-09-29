@@ -114,22 +114,22 @@ The routing convention above is enforced automatically, not just documented:
 
 ### Model routing on the Codex side
 
-Every subcommand pins a Codex model explicitly instead of inheriting `config.toml`. Execution goes to GPT-6 Sol, which continues through long tasks; judgment goes to GPT-6 Astra, which returns early but judges well. Resolution order is flag, then env, then default:
+Every subcommand pins a Codex model explicitly instead of inheriting `config.toml`. Execution goes to GPT-6.1 Sol, which continues through long tasks; judgment goes to GPT-6 Astra, which returns early but judges well. Resolution order is flag, then env, then default:
 
 | Subcommand | Default | Env override | Flag |
 |---|---|---|---|
-| `exec` | `gpt-6-sol` | `CODEX_EXEC_MODEL` | `--model <id>` |
+| `exec` | `gpt-6.1-sol` | `CODEX_EXEC_MODEL` | `--model <id>` |
 | `review` | `gpt-6-astra` | `CODEX_REVIEW_MODEL` | `--model <id>` |
 | `ask` | `gpt-6-astra` | `CODEX_ASK_MODEL` | `--model <id>` |
 
 ```bash
 bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model gpt-6-astra "..."
-bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-6-sol --base main
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-6.1-sol --base main
 ```
 
 `/codex` is a Claude Code skill, not a shell command, so it cannot take an inline env-var prefix; export the variable before launching Claude Code, or pass `--model` in the skill arguments.
 
-The same split applies to the native Codex agents the installer writes: agents pinned to `opus` or `fable` in their Claude frontmatter get `model = "gpt-6-astra"`, agents on `sonnet` get `model = "gpt-6-sol"` and agents on `haiku` get `model = "gpt-6-luna"`. See [agent-models.md](./agent-models.md#codex-tiers).
+The same split applies to the native Codex agents the installer writes: agents pinned to `opus` or `fable` in their Claude frontmatter get `model = "gpt-6-astra"`, agents on `sonnet` get `model = "gpt-6.1-sol"` and agents on `haiku` get `model = "gpt-6-luna"`. See [agent-models.md](./agent-models.md#codex-tiers).
 
 ### What the script adds to a task
 

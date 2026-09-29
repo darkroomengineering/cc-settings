@@ -136,7 +136,7 @@ enumerate the privileged commands the plan will need (plain `--force` push,
 
 The `/codex` skill and `codex-verifier` agent bridge to the OpenAI Codex CLI;
 they no-op unless installed and authenticated (`docs/codex-bridge.md`). The
-bridge pins models per call: `exec` to GPT-6 Sol, `review` and `ask` to
+bridge pins models per call: `exec` to GPT-6.1 Sol, `review` and `ask` to
 GPT-6 Astra; `--model` overrides. Standalone Codex has the reverse,
 read-only bridge (`claude-run.ts`, `claude-verifier`) to Opus 5.5.
 
