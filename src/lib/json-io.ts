@@ -39,7 +39,7 @@ export async function atomicWriteString(
     await writeFile(
       tmp,
       content,
-      targetMode === undefined ? undefined : { mode: targetMode & 0o7777 },
+      targetMode === undefined ? undefined : { mode: targetMode & 0o777 },
     );
     await rename(tmp, path);
   } catch (err) {

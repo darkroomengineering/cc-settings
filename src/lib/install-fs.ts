@@ -9,7 +9,17 @@
 
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync } from "node:fs";
-import { cp, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { currentClaudeManagedSourceFiles } from "./claude-managed-file-manifests.ts";
@@ -142,7 +152,7 @@ async function createBackup(
   } = {},
 ): Promise<ClaudeBackupSnapshot> {
   const backupDir = join(CLAUDE_DIR, options.temporary ? "tmp" : "backups");
-  await mkdir(backupDir, { recursive: true });
+  await mkdir(backupDir, { recursive: true, mode: 0o700 });
   let preserveBackupName: string | null = null;
   if (options.preserveBackupName !== undefined) {
     const name = options.preserveBackupName;
@@ -316,6 +326,8 @@ async function createBackup(
     error("Aborting so --rollback stays possible. Fix the tar error above and re-run.");
     throw new Error(`backup failed — tar exited ${code}`);
   }
+  // The archive holds settings.json, which can carry TYPESAFE_API_KEY.
+  await chmod(archive, 0o600);
 
   if (options.temporary) {
     return {

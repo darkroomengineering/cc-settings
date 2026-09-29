@@ -46,7 +46,11 @@ import {
   validateClaudeManagedFiles,
   writeVersionSentinel,
 } from "./lib/claude-install-ownership.ts";
-import { installPlugins, installSettings } from "./lib/claude-install-settings.ts";
+import {
+  installPlugins,
+  installSettings,
+  restrictKeyedSettings,
+} from "./lib/claude-install-settings.ts";
 import { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION } from "./lib/claude-managed-files.ts";
 import { resolveEngine } from "./lib/code-intel-engine.ts";
 import {
@@ -652,6 +656,7 @@ async function main(): Promise<number> {
         // declaration and the plugin store agree. Fail-open — see
         // installPlugins' own doc comment.
         await installPlugins(args.profile, args.dryRun, { typesafeKey: args.typesafeKey });
+        if (!args.dryRun) await restrictKeyedSettings();
 
         schedulerSharedBaseline = await captureClaudeSharedExplicitState();
         claudePhase = "scheduler";

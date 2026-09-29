@@ -84,5 +84,6 @@ export async function writeSettingsBaseline(
     settings,
     team_settings: teamSettings,
   };
-  await atomicWriteJson(join(claudeDir, BASELINE_FILENAME), record);
+  // The merged settings can carry TYPESAFE_API_KEY, so the baseline is owner-only.
+  await atomicWriteJson(join(claudeDir, BASELINE_FILENAME), record, 0o600);
 }

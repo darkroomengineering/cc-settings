@@ -355,6 +355,24 @@ async function resolveTypesafeKey(
   return typed ? { key: typed, source: "prompt" } : null;
 }
 
+/** Hold ~/.claude/settings.json to owner-only (600) whenever its env block
+ *  carries TYPESAFE_API_KEY, whatever source the key resolved from. Setup runs
+ *  it after the plugin step, since `claude plugin` commands rewrite the file.
+ *  Fail-open: a missing or unreadable file is left alone. */
+export async function restrictKeyedSettings(
+  settingsPath: string = join(CLAUDE_DIR, "settings.json"),
+): Promise<void> {
+  try {
+    const current = (await readJsonOrNull(settingsPath)) as {
+      env?: Record<string, unknown>;
+    } | null;
+    const key = current?.env?.TYPESAFE_API_KEY;
+    if (typeof key === "string" && key.length > 0) await chmod(settingsPath, 0o600);
+  } catch (e) {
+    warn(`Could not restrict settings.json to owner-only: ${(e as Error).message}`);
+  }
+}
+
 /** Write TYPESAFE_API_KEY into ~/.claude/settings.json's env block. The env
  *  merge is user-wins and cc-settings never ships this key, so later installs
  *  keep it; the hooks fingerprint covers only the hooks block. Fail-open. */
@@ -644,10 +662,7 @@ export async function installPlugins(
   // settings env block, so the session banner, hooks, and scripts can read
   // it too (the plugin store is opaque to everything but the plugin).
   const storeKey = resolved && (resolved.source === "flag" || resolved.source === "prompt");
-  // A key already in the settings env block goes through too: the call is a
-  // no-op write that tightens the file to owner-only.
-  if ((storeKey || resolved?.source === "settings") && !dryRun)
-    await persistTypesafeKeyToSettingsEnv(resolved.key);
+  if (storeKey && !dryRun) await persistTypesafeKeyToSettingsEnv(resolved.key);
   const commands = PLUGIN_INSTALL_COMMANDS.map((args) =>
     storeKey && args.includes(FAST_JEV_PLUGIN_ID)
       ? [...args, "--config", `apiKey=${resolved.key}`]

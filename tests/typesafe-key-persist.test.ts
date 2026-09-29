@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { chmodSync, mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { persistTypesafeKeyToSettingsEnv } from "../src/lib/claude-install-settings.ts";
+import {
+  persistTypesafeKeyToSettingsEnv,
+  restrictKeyedSettings,
+} from "../src/lib/claude-install-settings.ts";
+import { writeSettingsBaseline } from "../src/lib/settings-baseline.ts";
 
 const dir = () => mkdtempSync(join(tmpdir(), "cc-typesafe-"));
 
@@ -49,5 +53,30 @@ describe("persistTypesafeKeyToSettingsEnv", () => {
 
   test("returns false when settings.json is missing", async () => {
     expect(await persistTypesafeKeyToSettingsEnv("k-3", join(dir(), "nope.json"))).toBe(false);
+  });
+});
+
+// POSIX permission bits; Windows has none to assert.
+describe.skipIf(process.platform === "win32")("owner-only files that can hold the key", () => {
+  test("restrictKeyedSettings tightens a keyed settings.json whatever the key source", async () => {
+    const path = join(dir(), "settings.json");
+    await Bun.write(path, JSON.stringify({ env: { TYPESAFE_API_KEY: "k-6" } }));
+    chmodSync(path, 0o644);
+    await restrictKeyedSettings(path);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
+  test("restrictKeyedSettings leaves a settings.json without the key alone", async () => {
+    const path = join(dir(), "settings.json");
+    await Bun.write(path, JSON.stringify({ env: { FOO: "1" } }));
+    chmodSync(path, 0o644);
+    await restrictKeyedSettings(path);
+    expect(statSync(path).mode & 0o777).toBe(0o644);
+  });
+
+  test("the settings baseline is written owner-only", async () => {
+    const claudeDir = dir();
+    await writeSettingsBaseline(claudeDir, "0.0.0", { env: { TYPESAFE_API_KEY: "k-7" } }, {});
+    expect(statSync(join(claudeDir, ".cc-settings-baseline.json")).mode & 0o777).toBe(0o600);
   });
 });
