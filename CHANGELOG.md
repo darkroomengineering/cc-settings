@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.39.2] — 2026-09-29
+
+`~/.claude/settings.json` is readable only by its owner once it holds a TypeSafe key, as `docs/install.md` already promised. Since 15.21.3 the installer wrote the key into a file every account on the Mac could read (mode 644), because each settings write went through a fresh temp file created with default permissions and renamed over the target.
+
+- `atomicWriteString` keeps the target's existing permission bits on a rewrite, and takes an explicit `mode` for callers that need one. A new file still gets the default.
+- Writing the key sets the file to 600. A reinstall on a machine whose key is already in the settings `env` block tightens the file too, so existing installs are fixed by the next `setup.sh` run or auto-update.
+- Exposure was limited to Macs with more than one account: a single-user machine has no other account to read the file. Keys do not need rotating unless the machine is shared.
+
 ## [15.39.1] — 2026-09-29
 
 The Tech Stack in `AGENTS.md` now says what it always meant: its entries are defaults, not mandates. A project's config and lockfile win, and new work that departs from a default says why in the PR. Taken from Martin Fowler's [Sensible Default](https://martinfowler.com/bliki/SensibleDefault.html): "do these practices, or do better, and be prepared to explain why."

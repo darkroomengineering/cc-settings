@@ -5,7 +5,7 @@
 // All writes are atomic (tmp + rename in the same directory) so a crash never
 // leaves a half-written target.
 
-import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 /** Raised when JSON is unparseable. Callers MUST treat this as a hard failure. */
@@ -24,12 +24,23 @@ export class JsonParseError extends Error {
  *  target. If the staging write or the rename itself fails, best-effort unlink
  *  the tmp file before rethrowing so a failure here doesn't leak it — the
  *  remaining leak surface (a hard process kill between writeFile and rename)
- *  is swept later by cleanOldConfig's stale-tmp sweep. */
-export async function atomicWriteString(path: string, content: string): Promise<void> {
+ *  is swept later by cleanOldConfig's stale-tmp sweep. The target keeps its
+ *  existing permission bits unless `mode` is given, so a rewrite never widens
+ *  a file that holds a secret. */
+export async function atomicWriteString(
+  path: string,
+  content: string,
+  mode?: number,
+): Promise<void> {
   const dir = dirname(path);
   const tmp = join(dir, `.${process.pid}-${Date.now()}.tmp`);
+  const targetMode = mode ?? (await stat(path).catch(() => null))?.mode;
   try {
-    await writeFile(tmp, content);
+    await writeFile(
+      tmp,
+      content,
+      targetMode === undefined ? undefined : { mode: targetMode & 0o7777 },
+    );
     await rename(tmp, path);
   } catch (err) {
     await rm(tmp, { force: true }).catch(() => {});
@@ -38,8 +49,8 @@ export async function atomicWriteString(path: string, content: string): Promise<
 }
 
 /** atomicWriteString helper that JSON-serializes (2-space indent, trailing newline). */
-export async function atomicWriteJson(path: string, data: unknown): Promise<void> {
-  await atomicWriteString(path, `${JSON.stringify(data, null, 2)}\n`);
+export async function atomicWriteJson(path: string, data: unknown, mode?: number): Promise<void> {
+  await atomicWriteString(path, `${JSON.stringify(data, null, 2)}\n`, mode);
 }
 
 export async function readJsonOrNull(path: string): Promise<unknown> {

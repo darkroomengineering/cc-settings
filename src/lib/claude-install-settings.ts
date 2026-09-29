@@ -1,4 +1,5 @@
 import { realpathSync } from "node:fs";
+import { chmod } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import type { McpStdioServer } from "../schemas/mcp.ts";
@@ -365,8 +366,16 @@ export async function persistTypesafeKeyToSettingsEnv(
     const current = (await readJsonOrNull(settingsPath)) as Record<string, unknown> | null;
     if (!current || typeof current !== "object") return false;
     const env = (current.env ?? {}) as Record<string, unknown>;
-    if (env.TYPESAFE_API_KEY === key) return true;
-    await atomicWriteJson(settingsPath, { ...current, env: { ...env, TYPESAFE_API_KEY: key } });
+    if (env.TYPESAFE_API_KEY === key) {
+      // An install that stored the key before this file was kept owner-only.
+      await chmod(settingsPath, 0o600);
+      return true;
+    }
+    await atomicWriteJson(
+      settingsPath,
+      { ...current, env: { ...env, TYPESAFE_API_KEY: key } },
+      0o600,
+    );
     return true;
   } catch (e) {
     warn(
@@ -635,7 +644,10 @@ export async function installPlugins(
   // settings env block, so the session banner, hooks, and scripts can read
   // it too (the plugin store is opaque to everything but the plugin).
   const storeKey = resolved && (resolved.source === "flag" || resolved.source === "prompt");
-  if (storeKey && !dryRun) await persistTypesafeKeyToSettingsEnv(resolved.key);
+  // A key already in the settings env block goes through too: the call is a
+  // no-op write that tightens the file to owner-only.
+  if ((storeKey || resolved?.source === "settings") && !dryRun)
+    await persistTypesafeKeyToSettingsEnv(resolved.key);
   const commands = PLUGIN_INSTALL_COMMANDS.map((args) =>
     storeKey && args.includes(FAST_JEV_PLUGIN_ID)
       ? [...args, "--config", `apiKey=${resolved.key}`]
