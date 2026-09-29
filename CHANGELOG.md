@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.37.2] — 2026-09-29
+
+`./setup.sh` works again on installs made before 15.37.0. It failed with "missing: skills/audit/references/test-audit.md".
+
+**Fixed:**
+- 15.37.0 added the `/audit tests` checklist to install manifests that had already shipped, so the installer treated the file as owned but missing on every existing install. The file now lives in a new manifest version (Claude v13, Codex runtime v11), and the shipped versions are back to exactly what 15.36.1 installed.
+- A test pins a hash of every shipped manifest version, so adding a file to one fails in CI instead of on a user's machine.
+
 ## [15.37.1] — 2026-09-28
 
 The first `/audit tests` run on cc-settings: two coverage gaps closed and 14 low-value tests removed.

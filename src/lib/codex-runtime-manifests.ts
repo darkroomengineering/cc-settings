@@ -38,7 +38,6 @@ const RUNTIME_SOURCE_FILES_V4 = [
   "skills/audit/references/audit-contract.md",
   "skills/audit/references/nuclear-review.workflow.js",
   "skills/audit/references/seo-checks.md",
-  "skills/audit/references/test-audit.md",
   "skills/autoresearch/SKILL.md",
   "skills/build/SKILL.md",
   "skills/cc/SKILL.md",
@@ -251,13 +250,20 @@ const ADDED_IN_V7 = ["src/lib/codex-skill-budget.ts", "src/scripts/codex-skill-b
 const ADDED_IN_V8 = ["src/hooks/knowledge-hint.ts", "src/lib/knowledge-hint.ts"];
 const ADDED_IN_V9 = ["src/lib/jev.ts"];
 const ADDED_IN_V10 = ["src/lib/token-usage.ts", "src/scripts/token-report.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 10;
-export const RUNTIME_SOURCE_FILES: readonly string[] = [
+const ADDED_IN_V11 = ["skills/audit/references/test-audit.md"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 11;
+const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
   ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
   ...AUDIT_PERFORMANCE_RESOURCES,
 ];
-const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES.filter((path) => !ADDED_IN_V10.includes(path));
+export const RUNTIME_SOURCE_FILES: readonly string[] = [
+  ...RUNTIME_SOURCE_FILES_V10,
+  ...ADDED_IN_V11,
+];
+const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
+  (path) => !ADDED_IN_V10.includes(path),
+);
 const RUNTIME_SOURCE_FILES_V8 = RUNTIME_SOURCE_FILES_V9.filter(
   (path) => !ADDED_IN_V9.includes(path),
 );
@@ -281,6 +287,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [7, RUNTIME_SOURCE_FILES_V7],
   [8, RUNTIME_SOURCE_FILES_V8],
   [9, RUNTIME_SOURCE_FILES_V9],
+  [10, RUNTIME_SOURCE_FILES_V10],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

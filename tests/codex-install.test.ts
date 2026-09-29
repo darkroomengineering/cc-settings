@@ -1633,6 +1633,64 @@ describe("Codex installer lifecycle", () => {
     }
   });
 
+  // Existing installs validate ownership against the manifest version their
+  // sentinel recorded. Adding a file to a shipped version makes every such
+  // install fail with "missing: <file>", so shipped versions are pinned by hash.
+  // A new file goes into a new version; never update these hashes.
+  test("shipped Claude and Codex manifest versions never change", async () => {
+    const { createHash } = await import("node:crypto");
+    const { claudeManagedManifestPaths } = await import(
+      "../src/lib/claude-managed-file-manifests.ts"
+    );
+    const hash = (paths: readonly string[]) =>
+      createHash("sha256").update(JSON.stringify(paths)).digest("hex").slice(0, 16);
+    const shipped: Record<string, string> = {
+      "claude:1:full": "6e30d3c4c821b2dd",
+      "claude:1:light": "9f4d2fa8b0606433",
+      "claude:2:full": "82e8f0801d89f8d3",
+      "claude:2:light": "af17b75e860e5ca6",
+      "claude:3:full": "beec15f6dc781f83",
+      "claude:3:light": "cb3c185fd8d2580a",
+      "claude:4:full": "f1b169cc36b2112b",
+      "claude:4:light": "cb3c185fd8d2580a",
+      "claude:5:full": "029ba1723644a96b",
+      "claude:5:light": "cb3c185fd8d2580a",
+      "claude:6:full": "b3e383ca54cc7ddc",
+      "claude:6:light": "003e73c0968e6dbc",
+      "claude:7:full": "103ef2edd1f7272b",
+      "claude:7:light": "280755f25bc90b1d",
+      "claude:8:full": "9a24297f0d5cf79a",
+      "claude:8:light": "ea63bcbef824eb89",
+      "claude:9:full": "4d697e3c3e535718",
+      "claude:9:light": "b42f650db6df9797",
+      "claude:10:full": "f18b5dff5739fbc8",
+      "claude:10:light": "c68bb80d876285bf",
+      "claude:11:full": "58b1b8cd729db510",
+      "claude:11:light": "2848f4fd7da3cbf9",
+      "claude:12:full": "edc54a20285ef5e0",
+      "claude:12:light": "a7229982ffb93176",
+      "codex:1": "4dd6aeea8177953e",
+      "codex:2": "b0d5af4920c948e9",
+      "codex:3": "04b180972c0d0929",
+      "codex:4": "28f6ed1cb257419e",
+      "codex:5": "6bb31edf09f51965",
+      "codex:6": "d6d4da6e5e098239",
+      "codex:7": "fc694ae47f0d5e26",
+      "codex:8": "e4e40ca4fd772a73",
+      "codex:9": "e834d21c75122f2c",
+      "codex:10": "be0861d86613ae12",
+    };
+    const actual: Record<string, string> = {};
+    for (const key of Object.keys(shipped)) {
+      const [kind, version, profile] = key.split(":");
+      actual[key] =
+        kind === "claude"
+          ? hash(claudeManagedManifestPaths(Number(version), profile as "full" | "light", "test"))
+          : hash(runtimePathsForVersion(Number(version), "test"));
+    }
+    expect(actual).toEqual(shipped);
+  });
+
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {
     const manifest = new Set(RUNTIME_SOURCE_FILES);
     const entrypointText = `${await readFile(join(REPO, "hooks", "hooks.json"), "utf8")}\n${await readFile(join(REPO, "package.json"), "utf8")}`;

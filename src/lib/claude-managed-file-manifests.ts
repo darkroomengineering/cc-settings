@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 12;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 13;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -92,7 +92,6 @@ const FULL_V2 = [
   "skills/audit/references/audit-contract.md",
   "skills/audit/references/nuclear-review.workflow.js",
   "skills/audit/references/seo-checks.md",
-  "skills/audit/references/test-audit.md",
   "skills/autoresearch/SKILL.md",
   "skills/build/SKILL.md",
   "skills/cc/SKILL.md",
@@ -565,7 +564,14 @@ MANIFESTS.set(11, {
   full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V12)),
   light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V12)),
 });
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, currentManifest);
+MANIFESTS.set(12, currentManifest);
+// Version 13: the `/audit tests` checklist (full profile only; light installs
+// carry no audit skill).
+const ADDED_IN_V13 = ["skills/audit/references/test-audit.md"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...currentManifest.full, ...ADDED_IN_V13],
+  light: currentManifest.light,
+});
 
 const GENERATED_MANAGED_FILES = new Set([
   ".cc-settings-baseline.json",

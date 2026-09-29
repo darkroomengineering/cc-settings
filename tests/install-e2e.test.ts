@@ -2568,6 +2568,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/audit/references/bundle-attribution.py",
             "skills/audit/references/net-capture.mjs",
             "skills/audit/references/performance-playbook.md",
+            "skills/audit/references/test-audit.md",
             "src/hooks/model-switch-guard.ts",
             "src/lib/claude-install-ownership.ts",
             "src/lib/claude-install-settings.ts",
