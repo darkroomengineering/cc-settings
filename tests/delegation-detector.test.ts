@@ -24,7 +24,13 @@ async function runHook(
   return spawnCapture(["bun", HOOK], {
     stdin: JSON.stringify({ prompt }),
     stderr: "ignore",
-    env: { HOME, TYPESAFE_API_KEY: undefined, TYPESAFE_ENDPOINT: undefined, ...env },
+    env: {
+      HOME,
+      USERPROFILE: HOME,
+      TYPESAFE_API_KEY: undefined,
+      TYPESAFE_ENDPOINT: undefined,
+      ...env,
+    },
   });
 }
 
@@ -150,6 +156,7 @@ describe("delegation-detector — Jev path", () => {
     );
     const r = await runHook("Fix the build. [p=0.9]", {
       HOME: home,
+      USERPROFILE: home,
       TYPESAFE_ENDPOINT: jevServer.url.toString(),
     });
     expect(additionalContext(r.stdout)).toContain("Jev 0.90");
