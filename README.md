@@ -8,6 +8,10 @@ The practical effect is simple: "fix this bug" gets a cause-first debugging work
 changes" stays read-only, and "ship it" must prove the real build and tests before anything is
 published.
 
+**New here?** Install it (5 minutes), run one read-only task, then learn the
+[daily loop](#the-daily-loop). That is enough to get most of the value. Everything after that
+section is reference you can come back to.
+
 ## Five-minute first success
 
 ### 1. Install the product you plan to use
@@ -25,7 +29,7 @@ npx darkroom-settings
 ```
 
 Every installer flag works: `npx darkroom-settings --light --auto-update=on`. `bunx darkroom-settings` is
-equivalent. The npm package is only a downloader — the configuration always installs from this
+equivalent. The npm package is only a downloader; the configuration always installs from this
 repository's pinned GitHub origin.
 
 **macOS or Linux, without Node:**
@@ -34,7 +38,7 @@ repository's pinned GitHub origin.
 curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash
 ```
 
-Flags go after `-s --`. Every `setup.sh` flag works remotely — no clone or download needed:
+Flags go after `-s --`. Every `setup.sh` flag works remotely, with no clone or download needed:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash -s -- --light --auto-update=on
@@ -53,7 +57,8 @@ powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw
 ```
 
 The default target installs both products when `codex` is on `PATH`, and Claude Code only
-otherwise. Clone the repository only when you want a source checkout you own:
+otherwise. `--light` installs a minimal beginner tier; re-run without it to get the full setup.
+Clone the repository only when you want a source checkout you own:
 
 ```bash
 git clone https://github.com/darkroomengineering/cc-settings.git
@@ -86,10 +91,114 @@ Open a repository and say:
 Explain where this project's configuration is loaded. Read only. Cite the files and lines.
 ```
 
-Natural language works in both products. To pin the workflow, use `/explore` in Claude Code or
-`$explore` in standalone Codex. The result should name its read-only scope, cite evidence, and leave
-the working tree unchanged. [Your first session](./docs/first-session.md) shows the expected output,
-background behavior, follow-up, and recovery.
+The result should name its read-only scope, cite evidence, and leave the working tree unchanged.
+[Your first session](./docs/first-session.md) shows the expected output, background behavior,
+follow-up, and recovery.
+
+## The daily loop
+
+You do not need to memorize commands. Describe the outcome in plain language and cc-settings picks
+the matching workflow (a "skill"). Type the skill name only when you want to force a specific one:
+`/name` in Claude Code, `$name` in Codex.
+
+Most days are some path through these steps:
+
+| Step | Say something like | Or pin | What you get back |
+|---|---|---|---|
+| Understand | "how does checkout work here?" | `/explore` | A read-only map with file and line citations |
+| Plan | "help me figure out the scope for search" | `/plan-feature` | Interview questions, then a PRD you can hand off |
+| Fix | "the login redirect loops on Safari" | `/fix` | The named cause, a reproduction, the smallest fix, and the tests that prove it |
+| Build | "add a stats dashboard to the admin page" | `/build` | A GO/NO-GO check, a plan, the implementation, tests, and a review |
+| Check | "review my changes" | `/review` | Findings on the current diff by severity, with no edits |
+| Prove | "is this review-ready?" | `/proof-of-work` | The project's real typecheck, tests, lint, and a screenshot for UI work |
+| Ship | "ship it" | `/ship` | A pushed branch, a PR in the house format, and CI watched until it settles |
+| Pause | "done for today" | `/handoff` | Saved state; "continue where we left off" resumes it in a new session |
+
+Claude Code also has a built-in `/review`. When you want the cc-settings one, say "run the
+cc-settings local pre-commit review" or pick it from the skill picker.
+
+Big tasks split themselves. Work that spans several files, a long chain of tool calls, or
+security-sensitive code gets handed to focused agents (explore, implement, test, review, security)
+that run in the background and report back. You can keep talking in the main conversation while
+they work.
+
+Every workflow for every situation, including audits, visual QA, Lighthouse, triage of a client
+repo, and adversarial verification, is in the [manual](./MANUAL.md). The
+[skill guide](./docs/skills.md) says what each one can change and when it stops to ask.
+
+## Set up the projects you work in
+
+cc-settings brings the team standards to every repository. Each project can add its own
+instructions on top.
+
+- **Starting a new Darkroom project:** say "new darkroom project" or run `/dr-init`. It creates the
+  project from the satus or novus starter. The native `/init` is a different command that only
+  writes a `CLAUDE.md`.
+- **Giving a project its own instructions:** put them in `AGENTS.md` at the project root. Claude
+  Code and Codex both read it. Good content is what an agent cannot learn from the code: the
+  commands to run, the environments, the traps, and the decisions that look wrong but are
+  deliberate.
+- **Existing project with a `CLAUDE.md`:** say "migrate to agents.md" or run `/cc migrate`. Claude
+  Code ignores `AGENTS.md` while a `CLAUDE.md` exists, so the two drift apart. The session banner
+  tells you when a project needs this.
+- **Planned work on GitHub:** `/project` treats the repository's GitHub Issues as the plan of record,
+  so agents read the issue and update it as they go.
+
+## Habits that change results
+
+Small habits make the biggest difference in how well sessions go:
+
+1. **Say the outcome, not the steps.** "Fix the flaky checkout test" works better than a list of
+   commands. Add constraints you care about ("read only", "don't touch the API").
+2. **One task per session.** Run `/clear` between unrelated tasks. Long, mixed sessions get slower,
+   cost more, and lose track of details.
+3. **Save before you stop or risk something.** `/handoff` at the end of a day or a long session;
+   `/checkpoint` before a risky refactor or migration, so you can roll back.
+4. **Raise effort only for hard turns.** The default is tuned for everyday work. Use `/effort high`
+   or `/effort xhigh` for hard debugging, audits, or migrations, or add `ultrathink` to a single
+   message.
+5. **Ask for a second opinion when it matters.** "Poke holes in this" (`/verify`) sends independent
+   agents to find and disprove problems. "What could go wrong?" (`/oracle`) runs a risk review
+   before you commit to a plan.
+6. **Read the statusline.** It shows context size and usage limits. When context passes about
+   150K tokens, hand off or compact instead of pushing on.
+7. **When something feels off, look before you guess.** `whats-on.ts` shows what is installed and
+   active; [troubleshooting](./docs/troubleshooting.md) covers hook warnings and install health.
+
+## Make it better for everyone
+
+cc-settings improves when people feed back what they learn. There are three levels, from quickest
+to most involved:
+
+1. **Share a lesson.** When you hit a gotcha, a convention, or a decision the team should know,
+   say "share this" or run `/share-learning`. It lands in the shared team-knowledge repository, and
+   every machine sees it right before the command or file edit it applies to.
+2. **Keep a workflow that worked.** When a session found a good way to do something repeatable,
+   say "turn this session into a skill" or run `/harvest`. It proposes a skill, rule, or team note
+   built from what actually happened.
+3. **Look back weekly.** `/retro` reports what you shipped, how sessions went, and quality trends,
+   and shows which guardrails fired and whether they helped.
+
+To change cc-settings itself, clone it and read the [maintainer docs](./docs/README.md#maintain-cc-settings).
+The short version:
+
+- Settings live in `config/` as fragments that the installer merges into
+  `~/.claude/settings.json`. Edit the fragments, never the installed file.
+- A new or reworded skill ships with an eval case in `evals/`; see
+  [skill authoring](./docs/skill-authoring.md).
+- Run `bun test`, `bun run typecheck`, and `bun run lint` before pushing.
+- If you only want to suggest something, open an issue with the behavior you saw and what you
+  expected.
+
+## Keep it current
+
+- **Update:** say "update cc-settings" or run `/cc update` in a session, or re-run the install
+  command. Restart the product afterwards.
+- **Auto-update (macOS):** add `--auto-update=on` to the install command for a daily check at
+  10:00 local time. `--auto-update=off` removes it.
+- **Check health:** `npx darkroom-settings --status` reports installed versus packaged state.
+- **Undo:** `bun src/setup.ts --rollback` from a checkout restores the newest backup. The
+  [installation reference](./docs/install.md) covers uninstall.
 
 ## What cc-settings adds on top of a vanilla install
 
@@ -155,15 +264,15 @@ host can and cannot do.
 
 | Goal | Start here |
 |---|---|
-| Install safely and understand every side effect | [Installation](./docs/install.md) |
-| Prove the setup with a harmless first task | [Your first session](./docs/first-session.md) |
+| Find the workflow for a specific outcome | [Manual](./MANUAL.md) |
 | Choose a skill and understand what it can change | [Skill guide](./docs/skills.md) |
+| Prove the setup with a harmless first task | [Your first session](./docs/first-session.md) |
+| Install safely and understand every side effect | [Installation](./docs/install.md) |
 | Compare Claude Code and Codex behavior | [Host parity](./docs/claude-vs-codex.md) |
-| Understand the whole system | [System overview](./docs/system-overview.md) |
 | Diagnose an installed setup | [Troubleshooting](./docs/troubleshooting.md) |
-| Browse every user, concept, maintainer, and history document | [Documentation index](./docs/README.md) |
-| Work from a task-oriented reference | [Manual](./MANUAL.md) |
+| Understand the whole system | [System overview](./docs/system-overview.md) |
 | Understand why advice becomes an enforced gate | [The flow](./docs/the-flow.md) |
+| Browse every user, concept, maintainer, and history document | [Documentation index](./docs/README.md) |
 
 ## Why the team maintains it
 

@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.38.1] — 2026-09-29
+
+The README now teaches day-to-day use, not only installation. New team members get a short path: install, run one read-only task, then learn the daily loop.
+
+- **The daily loop.** One table covering understand, plan, fix, build, check, prove, ship, and pause, with what to say, the skill to pin, and what comes back.
+- **Set up the projects you work in.** `/dr-init` for new projects, a project `AGENTS.md` for project instructions, `/cc migrate` for repositories that still have a `CLAUDE.md`, and `/project` for issue-driven work.
+- **Habits that change results.** Seven habits: outcome-first prompts, one task per session, handoff and checkpoint, effort, second opinions, the statusline, and inspecting before guessing.
+- **Make it better for everyone.** `/share-learning`, `/harvest`, `/retro`, and the short contributor checklist.
+- **Keep it current.** Update, auto-update, status, and rollback in one place.
+
 ## [15.38.0] — 2026-09-29
 
 `/autoresearch` now tells you whether a prompt change generalizes, instead of only whether it scores better on the inputs it was tuned against. Adapted from Anthropic's eval hill-climbing guidance:

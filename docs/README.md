@@ -4,7 +4,7 @@
 > **Purpose:** route each reader to the canonical page for their task
 > **Status:** canonical navigation index
 
-Start with [the repository README](../README.md) if you are deciding whether to install. Start with
+Start with [the repository README](../README.md) to install and learn the daily workflow. Start with
 [your first session](./first-session.md) if installation already finished.
 
 ## Use cc-settings
