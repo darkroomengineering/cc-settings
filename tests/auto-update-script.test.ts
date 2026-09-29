@@ -330,6 +330,7 @@ esac
           `#!/bin/bash
 printf '%s\n%s\n' "$CC_SETTINGS_ENROLLED_REPO" "$CC_EXPECTED_REPO" > "$HOME/setup-env"
 printf '{"version":"2.0.0","repo_path":"%s","auto_update":true}\n' "$CC_SETTINGS_ENROLLED_REPO" > "$HOME/.claude/.cc-settings-version"
+mkdir -p "$HOME/.claude/backups" && printf 'mine\n' > "$HOME/.claude/backups/CLAUDE.md.user-edit-20260929000000000"
 `,
         );
         const realGit = Bun.which("git");
@@ -387,6 +388,10 @@ esac
           `${gitBashPath(repoDir)}\n${gitBashPath(repoDir)}\n`,
         );
         expect((await readLastRun(fakeHome))?.toVersion).toBe("2.0.0");
+        // Setup saved a hand-edited CLAUDE.md during the run; the run reports it.
+        expect(
+          await readFile(join(fakeHome, ".claude", "logs", "auto-update.log"), "utf8"),
+        ).toContain("replaced hand-edited CLAUDE.md");
         const commands = await readFile(gitLog, "utf8");
         expect(commands).toContain("/dev/null|/dev/null|||");
         expect(commands).not.toContain(` -C ${repoDir} `);

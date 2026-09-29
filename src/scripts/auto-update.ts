@@ -21,7 +21,16 @@
 // repo_path must match. Both must pass before any pull or setup.sh spawn.
 
 import { closeSync, existsSync, openSync, realpathSync } from "node:fs";
-import { appendFile, copyFile, lstat, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  appendFile,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { writeState } from "../lib/hook-runtime.ts";
@@ -199,6 +208,14 @@ async function readManagedHead(repoPath: string): Promise<string | null> {
       (parts) => parts.length === 2 && parts[1] === ref && /^[0-9a-f]{40}$/i.test(parts[0] ?? ""),
     );
   return matches.length === 1 ? (matches[0]?.[0] ?? null) : null;
+}
+
+/** Names of the copies setup saves when it replaces a hand-edited CLAUDE.md
+ *  or AGENTS.md. Setup's own warning goes to the log, so the run compares
+ *  these before and after to tell the user through a notification. */
+async function userEditBackups(claudeDir: string): Promise<Set<string>> {
+  const names = await readdir(join(claudeDir, "backups")).catch(() => [] as string[]);
+  return new Set(names.filter((name) => name.includes(".user-edit-")));
 }
 
 export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<void> {
@@ -447,6 +464,7 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     // user-writable ~/.bun/bin comes LAST — a planted binary earlier in a
     // user-writable dir must never shadow the real bash/git/bun. bash is
     // invoked by absolute path for the same reason (no PATH lookup at all).
+    const editsBefore = await userEditBackups(claudeDir);
     const fd = openSync(logPath, "a");
     let setupExit: number;
     try {
@@ -482,8 +500,16 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     status = "updated";
     toVersion = await readInstalledVersion(claudeDir);
     await log(`setup.sh succeeded — installed v${toVersion ?? "unknown"}`);
+    const replaced = [...(await userEditBackups(claudeDir))]
+      .filter((name) => !editsBefore.has(name))
+      .map((name) => name.split(".user-edit-")[0]);
+    if (replaced.length > 0) {
+      await log(`replaced hand-edited ${replaced.join(", ")}; copies saved in ~/.claude/backups`);
+    }
     await sendNotification(
-      `cc-settings v${toVersion ?? "?"} installed — restart Claude Code sessions to apply`,
+      replaced.length > 0
+        ? `cc-settings v${toVersion ?? "?"} installed — replaced your edited ${replaced.join(", ")}; a copy is in ~/.claude/backups`
+        : `cc-settings v${toVersion ?? "?"} installed — restart Claude Code sessions to apply`,
     );
   } finally {
     if (stagingPath) await rm(stagingPath, { recursive: true, force: true }).catch(() => {});

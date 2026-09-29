@@ -10,6 +10,8 @@ All notable changes to cc-settings are documented here.
 
 - Only these two instruction files get this treatment. Hooks, scripts, agents, and generated ownership files still fail closed when modified.
 - `--migrate-only`, uninstall, and rollback keep the strict check.
+- The daily auto-update checks for new backups after setup and names the replaced file in its desktop notification, since setup's own warning only reaches the log.
+- A first install over a personal `~/.claude/CLAUDE.md` or `AGENTS.md` now backs it up and installs, where it used to stop with "destination collision".
 
 ## [15.39.2] — 2026-09-29
 

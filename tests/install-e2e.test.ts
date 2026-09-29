@@ -1598,6 +1598,31 @@ mock.module("node:fs/promises", () => ({ ...original,
     180_000,
   );
 
+  test("a personal CLAUDE.md does not block a first install", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-personal-claude-md-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      await mkdir(claudeDir, { recursive: true });
+      await writeFile(join(claudeDir, "CLAUDE.md"), "my own instructions\n");
+
+      const install = await runInstall(home);
+
+      expect(install.exitCode, install.stderr).toBe(0);
+      expect(await readFile(join(claudeDir, "CLAUDE.md"), "utf8")).toBe(
+        await readFile(join(REPO, "CLAUDE-FULL.md"), "utf8"),
+      );
+      const saved = (await readdir(join(claudeDir, "backups"))).filter((n) =>
+        n.startsWith("CLAUDE.md.user-edit-"),
+      );
+      expect(saved).toHaveLength(1);
+      expect(await readFile(join(claudeDir, "backups", saved[0] ?? ""), "utf8")).toBe(
+        "my own instructions\n",
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 180_000);
+
   test.each(["light", "uninstall"] as const)(
     "modified Claude ownership makes combined %s fail before either product mutates",
     async (operation) => {
