@@ -1,4 +1,5 @@
 import { realpathSync } from "node:fs";
+import { chmod } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import type { McpStdioServer } from "../schemas/mcp.ts";
@@ -354,6 +355,24 @@ async function resolveTypesafeKey(
   return typed ? { key: typed, source: "prompt" } : null;
 }
 
+/** Hold ~/.claude/settings.json to owner-only (600) whenever its env block
+ *  carries TYPESAFE_API_KEY, whatever source the key resolved from. Setup runs
+ *  it after the plugin step, since `claude plugin` commands rewrite the file.
+ *  Fail-open: a missing or unreadable file is left alone. */
+export async function restrictKeyedSettings(
+  settingsPath: string = join(CLAUDE_DIR, "settings.json"),
+): Promise<void> {
+  try {
+    const current = (await readJsonOrNull(settingsPath)) as {
+      env?: Record<string, unknown>;
+    } | null;
+    const key = current?.env?.TYPESAFE_API_KEY;
+    if (typeof key === "string" && key.length > 0) await chmod(settingsPath, 0o600);
+  } catch (e) {
+    warn(`Could not restrict settings.json to owner-only: ${(e as Error).message}`);
+  }
+}
+
 /** Write TYPESAFE_API_KEY into ~/.claude/settings.json's env block. The env
  *  merge is user-wins and cc-settings never ships this key, so later installs
  *  keep it; the hooks fingerprint covers only the hooks block. Fail-open. */
@@ -365,8 +384,16 @@ export async function persistTypesafeKeyToSettingsEnv(
     const current = (await readJsonOrNull(settingsPath)) as Record<string, unknown> | null;
     if (!current || typeof current !== "object") return false;
     const env = (current.env ?? {}) as Record<string, unknown>;
-    if (env.TYPESAFE_API_KEY === key) return true;
-    await atomicWriteJson(settingsPath, { ...current, env: { ...env, TYPESAFE_API_KEY: key } });
+    if (env.TYPESAFE_API_KEY === key) {
+      // The key is already stored; still hold the file to owner-only.
+      await chmod(settingsPath, 0o600);
+      return true;
+    }
+    await atomicWriteJson(
+      settingsPath,
+      { ...current, env: { ...env, TYPESAFE_API_KEY: key } },
+      0o600,
+    );
     return true;
   } catch (e) {
     warn(
