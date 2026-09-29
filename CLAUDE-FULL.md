@@ -160,7 +160,8 @@ output-priced and every inheriting agent spends them. Raise deliberately:
 `/effort high` for hard non-coding reasoning, `/effort xhigh` for audits,
 migrations, and hard debugging, `ultrathink` for one turn. Agent frontmatter
 pins effort where depth is non-negotiable (`security-reviewer`, `planner`).
-`ultracode`: session-only `xhigh` plus automatic dynamic workflows.
+`ultracode`: its own `/effort` toggle for automatic dynamic workflows at any
+effort level; pair it with `xhigh` when the run needs depth.
 `/effort` remembers a level per model, so a raise on Fable does not
 follow you to `/model opus`; the `s` option keeps a change session-only.
 Since Claude Code 2.1.260 an `/effort` change on Fable 5.1 no longer

@@ -110,7 +110,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.39.5"; // Codex execution runs on GPT-6.1 Sol.
+const VERSION = "15.40.0"; // Sync with Claude Code 2.1.285 and Codex 0.159.0; the TypeSafe key reaches the plugin on stdin.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

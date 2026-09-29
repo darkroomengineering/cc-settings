@@ -595,8 +595,15 @@ function commandLabel(args: readonly string[]): string {
   return args.join(" ");
 }
 
-async function runClaudeCommand(args: readonly string[]): Promise<ClaudeCommandResult> {
-  const child = Bun.spawn(["claude", ...args], { stdout: "pipe", stderr: "pipe" });
+async function runClaudeCommand(
+  args: readonly string[],
+  stdin?: string,
+): Promise<ClaudeCommandResult> {
+  const child = Bun.spawn(["claude", ...args], {
+    stdin: stdin === undefined ? "ignore" : new Blob([stdin]),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
@@ -622,6 +629,39 @@ function claudeCommandSucceeded(result: ClaudeCommandResult): boolean {
   if (result.exitCode === 0) return true;
   const combined = `${result.stdout}\n${result.stderr}`.toLowerCase();
   return combined.includes("already exists") || combined.includes("already installed");
+}
+
+const PLUGIN_CONFIGURE_ARGS = [
+  "plugin",
+  "configure",
+  FAST_JEV_PLUGIN_ID,
+  "--values-stdin",
+] as const;
+
+/** Stores the key in the plugin's sensitive option. The key goes on stdin so
+ *  it never appears in process arguments, which other users can read (`ps`,
+ *  /proc/<pid>/cmdline). `plugin configure --values-stdin` needs Claude Code
+ *  2.1.285+; on an older CLI the call fails and the key falls back to
+ *  `plugin install --config apiKey=<key>`. */
+async function storePluginKey(key: string): Promise<void> {
+  const configured = await runClaudeCommand(PLUGIN_CONFIGURE_ARGS, JSON.stringify({ apiKey: key }));
+  if (claudeCommandSucceeded(configured)) return;
+  warn(
+    "claude plugin configure --values-stdin failed (Claude Code before 2.1.285?); passing the key as an argument instead",
+  );
+  const legacy = await runClaudeCommand([
+    "plugin",
+    "install",
+    FAST_JEV_PLUGIN_ID,
+    "--config",
+    `apiKey=${key}`,
+  ]);
+  if (!claudeCommandSucceeded(legacy)) {
+    const detail = (legacy.timedOut ? "timed out" : legacy.stderr || legacy.stdout)
+      .trim()
+      .slice(0, 300);
+    warn(`Storing the TypeSafe key in the plugin failed: ${redactKey(detail, key)}`);
+  }
 }
 
 /**
@@ -663,22 +703,19 @@ export async function installPlugins(
   // it too (the plugin store is opaque to everything but the plugin).
   const storeKey = resolved && (resolved.source === "flag" || resolved.source === "prompt");
   if (storeKey && !dryRun) await persistTypesafeKeyToSettingsEnv(resolved.key);
-  const commands = PLUGIN_INSTALL_COMMANDS.map((args) =>
-    storeKey && args.includes(FAST_JEV_PLUGIN_ID)
-      ? [...args, "--config", `apiKey=${resolved.key}`]
-      : args,
-  );
+  const commands = PLUGIN_INSTALL_COMMANDS;
   const shown = (args: readonly string[]) => redactKey(`claude ${args.join(" ")}`, resolved?.key);
 
   if (dryRun) {
     for (const args of commands) progressArrow(`Would run: ${shown(args)}`);
+    if (storeKey)
+      progressArrow(`Would run: claude ${PLUGIN_CONFIGURE_ARGS.join(" ")} (key on stdin)`);
     return;
   }
 
   const installed: string[] = [];
   const total = commands.length;
-  // Reference-keyed: `commands` may hold an apiKey-injected copy of the
-  // fast-jev args, so identity (not deep equality) is what marketplace/
+  // Reference-keyed: identity (not deep equality) is what the marketplace/
   // install command subsets below were filtered from.
   const stepOf = new Map<readonly string[], number>(commands.map((args, i) => [args, i + 1]));
 
@@ -775,6 +812,7 @@ export async function installPlugins(
     !!storeKey,
   );
   for (const args of installDecision.toRun) await execute(args);
+  if (storeKey) await storePluginKey(resolved.key);
 
   const allSkipped = [...marketplaceDecision.skipped, ...installDecision.skipped];
   if (allSkipped.length > 0) progressArrow(`Already current, skipped: ${allSkipped.join("; ")}`);

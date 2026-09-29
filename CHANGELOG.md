@@ -4,6 +4,38 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.40.0] — 2026-09-29
+
+Sync with Claude Code 2.1.285 and Codex 0.159.0. The TypeSafe key no longer appears in process arguments during setup.
+
+**Adopted:**
+
+- **The key reaches the fast-jev plugin on stdin** (Claude Code 2.1.285, `src/lib/claude-install-settings.ts`). Setup stores it with `claude plugin configure fast-jev-compaction@fast-jev-compaction --values-stdin` instead of `claude plugin install … --config apiKey=<key>`. Other accounts on a machine can read process arguments through `ps`, so the old form briefly exposed the key. On a Claude Code older than 2.1.285 the configure call fails and setup falls back to the argument form with a warning.
+- **`allowedProviders` managed setting** (2.1.285, `src/schemas/settings.ts`). Limits which API providers a machine may use. Added to the strict schema so a managed-settings file that sets it still parses.
+- **`CLAUDE_CODE_DISABLE_WEB_FETCH` and `CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES`** (2.1.285). Tracked and documented; cc-settings sets neither.
+- **Status line spend fields** (2.1.284, `src/hooks/statusline.ts`). `rate_limits.spend_limit` gains `used_usd`, `limit_usd`, and `period` in the payload type. No segment displays them yet.
+
+**Docs:**
+
+- Ultracode is its own `/effort` toggle that stays on at any effort level and does not force `xhigh` (2.1.284). `CLAUDE-FULL.md` and `docs/settings-reference.md` say so.
+- Sessions with no configured permission mode start in auto mode (2.1.284, 2.1.285). cc-settings sets no `defaultMode`, so installs get auto mode.
+- Background Bash commands stop at their timeout, 30 minutes by default and 2 hours at most (2.1.285).
+- `/cc sync` opens a PR instead of pushing to main, which now requires the `ci-gate` workflow and the `darky/review` check.
+
+**Codex:** nothing to adopt beyond GPT-6.1 Sol, already pinned in 15.39.5. `tui.prompt_suggestions` and the bundled `plugin-creator` skill were removed upstream; cc-settings used neither.
+
+**Files changed:**
+
+- `src/lib/claude-install-settings.ts`
+- `tests/plugin-key-stdin.test.ts`
+- `src/schemas/settings.ts`
+- `src/hooks/statusline.ts`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `docs/settings-reference.md`
+- `CLAUDE-FULL.md`
+- `skills/cc/SKILL.md`
+
 ## [15.39.5] — 2026-09-29
 
 Codex execution work now runs on GPT-6.1 Sol, which Codex CLI 0.159.0 lists as its latest workhorse model and calls GPT-6 Sol "previous generation".

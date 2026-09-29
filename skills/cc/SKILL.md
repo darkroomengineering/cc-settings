@@ -228,11 +228,14 @@ Adopted:
 
 Deletions:
 - ..."
-git push origin main
+git push -u origin HEAD
+gh pr create --base main --fill
 ```
 
-Use conventional commit prefix `feat(v<X.Y.Z>):` so the version stands out in
-git log. Do not push if anything in Phase 7 is failing.
+Work on a branch: main rejects direct pushes and requires the `ci-gate`
+workflow and the `darky/review` check, which run only on a PR. Merge the PR
+once they pass. Use conventional commit prefix `feat(v<X.Y.Z>):` so the
+version stands out in git log. Do not push if anything in Phase 7 is failing.
 
 ### What this mode does NOT do
 
@@ -484,5 +487,5 @@ missing, the session is one that cannot load `AGENTS.md` (`disableAllHooks`,
 offer the one-line `CLAUDE.md` that holds `@AGENTS.md` as the fallback.
 
 Commit as `chore: move CLAUDE.md into AGENTS.md` on the project's usual branch
-flow (cc-settings pushes to main; client projects open a PR through `/ship`).
+flow (a PR through `/ship`; cc-settings main also takes changes only through a PR).
 

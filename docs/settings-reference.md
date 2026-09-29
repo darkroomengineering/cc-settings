@@ -72,6 +72,8 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | As of v2.1.223, auto-compaction holds EVERY Claude model with a native 1M window down to 200K (not a fixed model list); set this to opt out. A startup warning appears when auto-compaction is not holding the session to 200K |
 | `CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT` | `"1"` or unset | v2.1.223 made auto-compact keep sessions on unrecognized model IDs inside the assumed context window; set this to restore the previous unbounded behavior |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
+| `CLAUDE_CODE_DISABLE_WEB_FETCH` | `"1"` or unset | Turn off the WebFetch tool (v2.1.285). Unset here |
+| `CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES` | integer (string) | Cap how many times a timed-out non-streaming fallback request is re-sent (v2.1.285). Unset here |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
 | `CLAUDE_CODE_HIDE_CWD` | `"1"` or unset | Hide the working directory in the startup logo (v2.1.119) |
@@ -138,7 +140,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_BG_TASKS_REPORT_RUNNING` | `"0"` to restore old behavior | Remote and headless sessions now report background agents as still running instead of "waiting for your input"; `0` restores the old report (v2.1.269) |
 | `CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS` | milliseconds (string) | Oldest API-error turn `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` will re-run; default 6 hours (v2.1.269) |
 
-> **Note on `ultracode` mode (v2.1.154+)**: `/effort ultracode` is a Claude Code session-only mode that sends `xhigh` to the model AND has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
+> **Note on `ultracode` mode (v2.1.154+)**: Ultracode has Claude plan a [dynamic workflow](https://code.claude.com/docs/en/workflows) for each substantive task. Since v2.1.284 it is its own toggle (Tab in the `/effort` slider, or `/effort ultracode [on|off]`): it does not force `xhigh` and stays on at any effort level, so raise effort separately when the run needs depth. It is **not** a valid value for `CLAUDE_CODE_EFFORT_LEVEL`, the `effortLevel` setting, or the `--effort` flag — set it via `/effort ultracode` in-session, or pass `"ultracode": true` through `--settings` or an Agent SDK control request. Disable workflows entirely with `CLAUDE_CODE_DISABLE_WORKFLOWS=1` or `"disableWorkflows": true`.
 
 ### `model`
 
@@ -747,6 +749,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `allowedHttpHookUrls` | string[] | E | Allowlist of HTTP endpoints hooks may call |
 | `allowedMarketplaces` | string[] | E | Friendlier alias for `strictKnownMarketplaces` (v2.1.232) |
 | `allowedMcpServers` | string[] | E | Managed allowlist for user-added MCP servers (v2.1.112; org-delivered servers bypass it since v2.1.259) |
+| `allowedProviders` | string[] | E | Limit which API providers the machine may use: Anthropic API, a custom endpoint, Bedrock, Mantle, Vertex AI, Foundry, Claude Platform on AWS, or a Cloud gateway (v2.1.285) |
 | `alwaysThinkingEnabled` | boolean | G | Always show extended thinking even on short turns |
 | `apiKeyHelper` | string | A | Shell command that emits an Anthropic API key |
 | `attribution` | object \| `false` | G | AI attribution in git commits/PRs (`commit`, `pr` string fields; `sessionUrl` boolean — `false` omits the claude.ai session link, v2.1.183); `false` hides all attribution (v2.1.281) |
@@ -904,6 +907,8 @@ If a tool invocation does not match any rule, Claude Code prompts the user (impl
 `permissions.blockReadsOutsideWorkingDirectories` (v2.1.257, boolean): in auto mode Claude Code asks once before the first file read outside the working directories; set this to `true` to refuse such reads outright instead. Add directories with `additionalDirectories` or `/add-dir` when a read is legitimate. Since v2.1.273 it also keeps a memory directory chosen by a repository's settings out of the prompt, recall, indexing, and memory extraction.
 
 `permissions.defaultMode: "bypassPermissions"` is ignored in `.claude/settings.json` and `.claude/settings.local.json` since v2.1.257, like `"auto"`; set it in user or managed settings, or pass `--permission-mode`.
+
+Since v2.1.284, interactive terminal and VS Code sessions start in auto mode when no permission mode is configured, on every plan and provider (v2.1.285 extends this to `claude -p` on third-party providers or with telemetry off). cc-settings sets no `defaultMode`, so installs get auto mode; set `permissions.defaultMode` in user settings to choose another.
 
 ### Permission Pattern Syntax
 
@@ -1161,6 +1166,8 @@ Bash(mv * ~/.bash_profile*)
 Configuration for auto-mode classifier behavior. cc-settings does not set this — included here for completeness and managed-settings authoring.
 
 Two v2.1.271 behavior changes in auto mode need no config: a skill's or slash command's inline `!` shell commands now follow default-mode permission rules instead of the classifier, and a command no rule decides runs as a reviewed tool call; and a subagent hands its result back through a dedicated call the classifier reviews, instead of its last message being reviewed after the fact. Monitor watches also always carry a deadline now (30 minutes at most, 10 in `-p` runs) and ask Claude to re-arm; the no-timeout `persistent` option is gone.
+
+Since v2.1.285, background Bash and PowerShell commands stop at their time limit: the `timeout` given with `run_in_background`, 30 minutes by default and 2 hours at most. Claude is notified when one is stopped. Pass a longer `timeout` for a background job that legitimately runs past 30 minutes, such as a full test suite on a slow runner.
 
 ```json
 {
