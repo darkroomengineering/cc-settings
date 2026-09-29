@@ -256,8 +256,9 @@ on every machine. The same request behaves differently once it is installed:
 ### What it leaves alone
 
 Your login and subscription, your permission mode, your personal memory, and any setting the
-installer does not own. It does not grant GitHub, Figma, or browser access, and it does not make
-the two products identical: see [Claude Code and Codex](./docs/claude-vs-codex.md) for what each
+installer does not own. Put your own global instructions in `~/.claude/personal.md`: the
+installed `CLAUDE.md` imports it, and setup never replaces it (Claude Code only). It does not
+grant GitHub, Figma, or browser access, and it does not make the two products identical: see [Claude Code and Codex](./docs/claude-vs-codex.md) for what each
 host can and cannot do.
 
 ## Choose where to read next

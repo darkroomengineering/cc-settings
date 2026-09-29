@@ -504,7 +504,9 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
       .filter((name) => !editsBefore.has(name))
       .map((name) => name.split(".user-edit-")[0]);
     if (replaced.length > 0) {
-      await log(`replaced hand-edited ${replaced.join(", ")}; copies saved in ~/.claude/backups`);
+      await log(
+        `replaced hand-edited ${replaced.join(", ")}; copies saved in ~/.claude/backups. Keep personal instructions in ~/.claude/personal.md, which setup never replaces.`,
+      );
     }
     await sendNotification(
       replaced.length > 0

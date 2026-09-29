@@ -578,9 +578,35 @@ async function adoptUserEditedClaudeFiles(files: Record<string, string>): Promis
     await writeFile(backup, bytes, { flag: "wx" });
     warn(
       `~/.claude/${relativePath} has edits cc-settings did not write. ` +
-        `Saved a copy to ${backup}; this install replaces the file.`,
+        `Saved a copy to ${backup}; this install replaces the file. ` +
+        `Keep personal instructions in ~/.claude/${PERSONAL_INSTRUCTIONS_FILE}, which setup never replaces.`,
     );
     files[relativePath] = hash;
+  }
+}
+
+// The installed CLAUDE.md imports this file last. It is deliberately outside
+// managed_files: never hashed, backed up, replaced, or removed, so a user's
+// edits survive every install, rollback, and uninstall.
+export const PERSONAL_INSTRUCTIONS_FILE = "personal.md";
+
+const PERSONAL_INSTRUCTIONS_STUB = `# Personal instructions
+
+Your own global instructions for Claude Code. ~/.claude/CLAUDE.md imports this
+file last, so it loads in every session and subagent. cc-settings creates it
+once and never changes it. Codex does not read it.
+`;
+
+/** Create ~/.claude/personal.md when no file exists at that path. */
+export async function ensurePersonalInstructionsFile(): Promise<void> {
+  try {
+    await writeFile(claudeManagedPath(PERSONAL_INSTRUCTIONS_FILE), PERSONAL_INSTRUCTIONS_STUB, {
+      flag: "wx",
+      mode: 0o644,
+    });
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "EEXIST") return;
+    warn(`Could not create ~/.claude/${PERSONAL_INSTRUCTIONS_FILE}: ${(cause as Error).message}`);
   }
 }
 
