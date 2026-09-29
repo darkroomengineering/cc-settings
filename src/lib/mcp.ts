@@ -68,7 +68,7 @@ function isStdioServer(s: McpServer): s is McpStdioServer {
  * cc-settings output rather than a genuine user edit: it's byte-identical
  * (canonically) to `teamEntry` itself, or — for engine-managed server names —
  * to ANY code-intel engine variant cc-settings can generate for that server
- * (llm-tldr, native-ts, codebase-memory, …).
+ * (llm-tldr, native-ts, …).
  *
  * Without this distinction, installMcpToClaudeJson's `{ ...teamMcp,
  * ...currentMcp }` user-wins-on-shared-key rule treats "cc-settings wrote

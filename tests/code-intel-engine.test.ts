@@ -153,9 +153,9 @@ describe("resolveEngine", () => {
   test("legacy sentinel with a non-default engine is treated as an explicit opt-in", async () => {
     const dir = await tmp();
     try {
-      await writeSentinel(dir, "codebase-memory"); // no engine_explicit field
+      await writeSentinel(dir, "native-ts"); // no engine_explicit field
       const result = await resolveEngine(dir);
-      expect(result.engine.id).toBe("codebase-memory");
+      expect(result.engine.id).toBe("native-ts");
       expect(result.explicit).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });

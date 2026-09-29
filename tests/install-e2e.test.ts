@@ -528,6 +528,13 @@ exit $rc
         delete sentinel.managed_files[path];
         await rm(join(claudeDir, path), { force: true });
       }
+      // A real v3 install also owns files that later manifests dropped.
+      const removedBytes = "historical engine-pin bytes\n";
+      const removedPath = "src/lib/engine-pin.ts";
+      await writeFile(join(claudeDir, removedPath), removedBytes);
+      sentinel.managed_files[removedPath] = new Bun.CryptoHasher("sha256")
+        .update(removedBytes)
+        .digest("hex");
       await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
 
       const upgrade = await runInstall(home);
@@ -561,6 +568,8 @@ exit $rc
         writeFile(join(claudeDir, readme), await readFile(join(REPO, readme))),
       ]);
       await writeFile(retiredPath, retiredBytes);
+      // A real v2 install also owns files that later manifests dropped.
+      await writeFile(join(claudeDir, "src/lib/engine-pin.ts"), "historical engine-pin bytes\n");
 
       const sentinelPath = join(claudeDir, ".cc-settings-version");
       const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {

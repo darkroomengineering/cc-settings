@@ -18,26 +18,16 @@
 // being permanently pinned by whatever was the default at first-install time.
 // Per-project native-vs-external routing behind the same server name is
 // deferred to a future MCP proxy — not built here.
-//
-// engine-pin.ts owns the download/verify mechanics (and installedBinaryPath,
-// re-exported below). This module imports it for values; engine-pin imports only
-// our EngineDescriptor type back (erased — no runtime cycle).
 
 import { join } from "node:path";
 import { z } from "zod";
-import { ensurePinnedEngine, installedBinaryPath, verifyPinnedEngine } from "./engine-pin.ts";
 import { ensurePythonPackage } from "./packages.ts";
 import { CLAUDE_DIR, hasCommand } from "./platform.ts";
 import { readSentinelInfo, type SentinelInfo } from "./version-delta.ts";
 
-// Re-export so engine-pin's path helper stays the public surface through this
-// module — callers import everything engine-related from here.
-export { installedBinaryPath };
-
 // How an engine is provisioned. Discriminated on `method`:
 //   python   — a pip/pipx package exposing a CLI (the llm-tldr shape)
 //   none     — nothing to install; runs from the cc-settings src tree (native-ts)
-//   download — a pinned static binary, checksum-verified per platform
 const InstallSchema = z.discriminatedUnion("method", [
   z.object({
     method: z.literal("python"),
@@ -45,16 +35,6 @@ const InstallSchema = z.discriminatedUnion("method", [
     checkCmd: z.string(),
   }),
   z.object({ method: z.literal("none") }),
-  z.object({
-    method: z.literal("download"),
-    url: z.string(),
-    version: z.string(),
-    binName: z.string(),
-    // Per-platform (`<platform>-<arch>`) SHA256 hex. Empty ⇒ install refuses
-    // (no pin for any platform), which is how the codebase-memory placeholder
-    // stays disabled until real checksums are filled in.
-    checksums: z.record(z.string(), z.string().length(64)),
-  }),
 ]);
 
 export const EngineDescriptorSchema = z.object({
@@ -63,7 +43,7 @@ export const EngineDescriptorSchema = z.object({
   mcpServerName: z.literal("tldr"),
   install: InstallSchema,
   // What ~/.claude.json's tldr server runs. finalize() fills install-location
-  // paths (native-ts args, download command) at resolve time.
+  // paths (native-ts args) at resolve time.
   mcp: z.object({
     command: z.string(),
     args: z.array(z.string()),
@@ -78,12 +58,6 @@ export const EngineDescriptorSchema = z.object({
     verbMap: z.record(z.string(), z.string()),
   }),
   languages: z.enum(["ts-js", "multi"]),
-  provenance: z
-    .object({
-      slsa: z.boolean(),
-      sigstore: z.boolean(),
-    })
-    .optional(),
   serverInstructions: z.string(),
 });
 
@@ -131,29 +105,6 @@ export const ENGINES: Record<string, EngineDescriptor> = {
     serverInstructions:
       "Native TypeScript codemap analysis over the current project (TypeScript/JavaScript only). Use to find where something is implemented, list a file's structure, trace cross-file call graphs and imports, find a symbol's callers, and map git-change impact. Built on the TypeScript compiler. It does NOT implement semantic/embedding search, dataflow, slicing, control-flow, dead-code, diagnostics, or free-text search — those return an explicit `unsupported-by-native-engine` error rather than an empty result, and that error means the analysis DID NOT RUN. Never report it as a clean/empty finding: fall back to Grep, or re-run with CC_CODE_INTEL_ENGINE=llm-tldr and an explicit `language`.",
   },
-
-  // Reference candidate — NOT enabled. Empty checksums make ensurePinnedEngine
-  // refuse to install, so selecting it yields no working binary until real
-  // pins + a download URL are filled in. Present to prove the download path is
-  // engine-agnostic, not to ship a dependency.
-  "codebase-memory": {
-    id: "codebase-memory",
-    mcpServerName: "tldr",
-    install: {
-      method: "download",
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder tokens expanded by engine-pin.expandUrl
-      url: "https://example.invalid/codebase-memory/releases/download/v${version}/codebase-memory-${platform}-${arch}",
-      version: "0.0.0",
-      binName: "codebase-memory",
-      checksums: {},
-    },
-    mcp: { command: "", args: ["--stdio"] },
-    cli: { command: "", supportsDaemon: false, verbMap: {} },
-    languages: "multi",
-    provenance: { slsa: true, sigstore: false },
-    serverInstructions:
-      "Code-intelligence knowledge graph over the current project (150+ languages). Use to find where something is implemented, trace call graphs, map architecture, and answer questions that require scanning many files. Placeholder engine — not yet enabled in cc-settings.",
-  },
 };
 
 export const KNOWN_ENGINE_IDS = Object.keys(ENGINES);
@@ -167,15 +118,12 @@ export function nativeMcpServerPath(claudeDir: string): string {
  * Clone a descriptor and fill install-location paths that are only known once
  * an install root (claudeDir) is fixed:
  *   native-ts  → mcp.args = [native codemap server path]
- *   download   → mcp.command = installed binary path
  * Other engines are returned as-is (deep clone). Pure — never touches disk.
  */
 export function finalize(engine: EngineDescriptor, claudeDir: string): EngineDescriptor {
   const e = structuredClone(engine);
   if (e.id === "native-ts") {
     e.mcp.args = [nativeMcpServerPath(claudeDir)];
-  } else if (e.install.method === "download") {
-    e.mcp.command = installedBinaryPath(e, claudeDir);
   }
   return e;
 }
@@ -271,24 +219,11 @@ function isExplicitSentinelChoice(info: SentinelInfo): boolean {
  *   python   → install the package only if neither its CLI nor the MCP command
  *              is already on PATH (skip redundant work)
  *   none     → nothing to do (native-ts runs from the src tree)
- *   download → checksum-verified pinned-binary install (fail-soft / hard-fail
- *              per ensurePinnedEngine)
  */
-export async function ensureEngineInstalled(
-  engine: EngineDescriptor,
-  claudeDir: string = CLAUDE_DIR,
-): Promise<void> {
+export async function ensureEngineInstalled(engine: EngineDescriptor): Promise<void> {
   const { install } = engine;
-  if (install.method === "python") {
-    if (!hasCommand(install.checkCmd) && !hasCommand(engine.mcp.command)) {
-      await ensurePythonPackage(install.pkg, install.checkCmd);
-    }
-    return;
-  }
-  if (install.method === "none") return;
-  if (install.method === "download") {
-    await ensurePinnedEngine(engine, claudeDir);
+  if (install.method !== "python") return;
+  if (!hasCommand(install.checkCmd) && !hasCommand(engine.mcp.command)) {
+    await ensurePythonPackage(install.pkg, install.checkCmd);
   }
 }
-
-export { verifyPinnedEngine };

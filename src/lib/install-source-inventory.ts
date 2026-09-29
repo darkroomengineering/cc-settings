@@ -49,7 +49,6 @@ export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/lib/colors.ts",
   "src/lib/compose-settings.ts",
   "src/lib/download-verify.ts",
-  "src/lib/engine-pin.ts",
   "src/lib/escalate-telemetry.ts",
   "src/lib/escalate.ts",
   "src/lib/freeze.ts",

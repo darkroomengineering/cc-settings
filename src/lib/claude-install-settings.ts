@@ -207,7 +207,7 @@ export async function installDependencies(
   }
 
   // pipx is a prerequisite only for a python-method engine (the llm-tldr shape).
-  // A native-ts or download engine needs no Python toolchain.
+  // A native-ts engine needs no Python toolchain.
   if (engine.install.method === "python" && !hasCommand("pipx")) {
     await ensureSystemPackage("pipx").catch(() => false);
   }
@@ -216,7 +216,7 @@ export async function installDependencies(
   // Fail-soft — a provisioning error (e.g. an offline pinned-binary fetch) must
   // not abort the install; the engine simply stays unprovisioned.
   try {
-    await ensureEngineInstalled(engine, CLAUDE_DIR);
+    await ensureEngineInstalled(engine);
   } catch (e) {
     warn(`code-intel engine '${engine.id}' not provisioned: ${(e as Error).message}`);
   }

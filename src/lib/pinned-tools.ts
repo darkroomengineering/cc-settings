@@ -1,17 +1,16 @@
 // Pinned CLI-tool installer — SEPARATE from the code-intel engine registry in
-// code-intel-engine.ts/engine-pin.ts. This installs standalone CLI binaries
-// that are never registered as an MCP engine (see tldr-code below): opt-in,
-// CLI-only tools that consumers shell out to directly.
+// code-intel-engine.ts. This installs standalone CLI binaries that are never
+// registered as an MCP engine (see tldr-code below): opt-in, CLI-only tools
+// that consumers shell out to directly.
 //
 // The download → checksum → cleanup state machine is NOT implemented here:
-// it lives in download-verify.ts, shared with engine-pin.ts. Checksum remains
+// it lives in download-verify.ts. Checksum remains
 // the security boundary — a mismatch deletes the download and throws, so no
 // unverified archive is ever extracted — and a missing checksum, non-OK HTTP
 // response, network error, or extraction failure all fail soft (return null),
 // leaving the tool uninstalled while the caller continues.
 //
-// Two differences from engine-pin.ts's ensurePinnedEngine that this module
-// exists to handle:
+// Two properties this module handles:
 //   1. The release asset is a `.tar.xz` ARCHIVE, not a bare binary — the
 //      checksum is verified against the archive, then the archive is
 //      extracted and only the target binary is moved into place.
@@ -19,16 +18,13 @@
 //      platform.ts's platformKey() (`darwin-arm64` etc). Each descriptor
 //      carries its own explicit platformKey -> {triple, sha256} map.
 //
-// ONE PLACE THIS IS WEAKER THAN engine-pin.ts, stated plainly rather than
-// implied to be parity: because the descriptor pins the ARCHIVE, there is no
-// in-source checksum for the extracted binary, so the reuse check compares
-// against a `.sha256` sidecar written at install time. engine-pin compares
-// against its in-source constant and therefore self-heals from binary
-// tampering; this path cannot, since an actor able to replace the binary can
-// also rewrite the sidecar. That actor is outside the threat model
-// (SECURITY.md "a targeted attacker with full user-privilege write access"),
-// and this tool is opt-in behind CC_PINNED_TOOLS, so it is a known asymmetry
-// rather than an open hole. Closing it means pinning the extracted binary's
+// Known asymmetry, stated plainly: because the descriptor pins the ARCHIVE,
+// there is no in-source checksum for the extracted binary, so the reuse check
+// compares against a `.sha256` sidecar written at install time. An actor able
+// to replace the binary can also rewrite the sidecar. That actor is outside the
+// threat model (SECURITY.md "a targeted attacker with full user-privilege write
+// access"), and this tool is opt-in behind CC_PINNED_TOOLS, so it is a known
+// asymmetry rather than an open hole. Closing it means pinning the extracted binary's
 // sha256 per platform in the descriptor — which also deletes the sidecar
 // mechanism entirely. See nuclear-review-2026-07-29 F2 for the follow-up.
 
@@ -107,8 +103,7 @@ export const TLDR_CODE_TOOL: PinnedToolDescriptor = {
 };
 
 /** Where a pinned tool binary is installed:
- *  ~/.claude/code-intel/<toolId>/<version>/<binName>. Mirrors
- *  engine-pin.ts's installedBinaryPath layout convention. */
+ *  ~/.claude/code-intel/<toolId>/<version>/<binName>. */
 export function pinnedToolPath(
   toolId: string,
   version: string,

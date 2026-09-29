@@ -23,7 +23,6 @@ const RULE = "━━━━━━━━━━━━━━━━━━━━━━
 
 interface TrustedModules {
   audit: typeof import("../lib/audit-hooks.ts");
-  engine: typeof import("../lib/code-intel-engine.ts");
   fingerprint: typeof import("../lib/hooks-fingerprint.ts");
 }
 
@@ -212,32 +211,6 @@ async function checkSrcManifest(modules: TrustedModules): Promise<void> {
   console.log("");
 }
 
-// Third integrity layer: a downloaded ("rented") code-intel engine binary must
-// still match the checksum it was pinned to at install. Mismatch = the binary's
-// bytes changed since setup.sh — the same supply-chain swap the other two checks
-// guard against, applied to the engine. "missing" (the default python/native
-// engines pin nothing, or no binary installed) is silent.
-async function checkEnginePin(modules: TrustedModules): Promise<void> {
-  const { engine } = await modules.engine.resolveEngine();
-  if ((await modules.engine.verifyPinnedEngine(engine)) !== "mismatch") return;
-
-  console.log("");
-  console.log(RULE);
-  console.log(`⚠  cc-settings: code-intel engine binary differs from its pin (${engine.id})`);
-  console.log(RULE);
-  console.log("   The pinned engine binary's bytes changed since the last setup.sh run.");
-  console.log("");
-  console.log("   This can be supply-chain malware swapping a trusted binary for a");
-  console.log("   payload (Shai-Hulud pattern) — cc-settings only runs pinned,");
-  console.log("   checksum-verified engine binaries.");
-  console.log("");
-  console.log("   If legitimate (you replaced it deliberately): re-run setup.sh to");
-  console.log("   reinstall and re-pin the engine.");
-  console.log("   If unknown:    see SECURITY.md in cc-settings repo.");
-  console.log(RULE);
-  console.log("");
-}
-
 async function main(): Promise<void> {
   const bootstrap = await verifyRuntimeIntegrityBootstrap().catch(
     (): BootstrapResult => ({ status: "mismatch", changed: ["integrity check"], unmanifested: [] }),
@@ -247,12 +220,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const [audit, engine, fingerprint] = await Promise.all([
+  const [audit, fingerprint] = await Promise.all([
     import("../lib/audit-hooks.ts"),
-    import("../lib/code-intel-engine.ts"),
     import("../lib/hooks-fingerprint.ts"),
   ]);
-  const modules: TrustedModules = { audit, engine, fingerprint };
+  const modules: TrustedModules = { audit, fingerprint };
   // Each check is independently fail-open: a crash in one must not silence
   // the others, and none may ever block session start.
   try {
@@ -262,11 +234,6 @@ async function main(): Promise<void> {
   }
   try {
     await checkSrcManifest(modules);
-  } catch {
-    // Fail open.
-  }
-  try {
-    await checkEnginePin(modules);
   } catch {
     // Fail open.
   }

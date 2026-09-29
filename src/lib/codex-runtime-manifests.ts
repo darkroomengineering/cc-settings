@@ -251,16 +251,22 @@ const ADDED_IN_V8 = ["src/hooks/knowledge-hint.ts", "src/lib/knowledge-hint.ts"]
 const ADDED_IN_V9 = ["src/lib/jev.ts"];
 const ADDED_IN_V10 = ["src/lib/token-usage.ts", "src/scripts/token-report.ts"];
 const ADDED_IN_V11 = ["skills/audit/references/test-audit.md"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 11;
+// Version 12: the pinned-engine installer was removed from the runtime.
+// Versions 5-11 still own it, so it rejoins their source list beside download-verify.ts.
+const REMOVED_IN_V12 = ["src/lib/engine-pin.ts"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 12;
+const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.flatMap((path) =>
+  path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V12] : [path],
+);
 const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
-  ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+  ...HISTORICAL_TYPESCRIPT_SOURCES,
   ...AUDIT_PERFORMANCE_RESOURCES,
 ];
-export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V10,
-  ...ADDED_IN_V11,
-];
+const RUNTIME_SOURCE_FILES_V11: readonly string[] = [...RUNTIME_SOURCE_FILES_V10, ...ADDED_IN_V11];
+export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V11.filter(
+  (path) => !REMOVED_IN_V12.includes(path),
+);
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -288,6 +294,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [8, RUNTIME_SOURCE_FILES_V8],
   [9, RUNTIME_SOURCE_FILES_V9],
   [10, RUNTIME_SOURCE_FILES_V10],
+  [11, RUNTIME_SOURCE_FILES_V11],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

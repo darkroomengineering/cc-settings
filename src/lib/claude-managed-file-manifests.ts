@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 13;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 14;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -520,16 +520,22 @@ const priorManifest = {
   full: claudeManagedManifestPaths(6, "full", "current installer"),
   light: claudeManagedManifestPaths(6, "light", "current installer"),
 };
-const currentManifest = {
+// Version 14: the pinned-engine installer was removed from the runtime.
+// Versions 7-13 still own it, so it rejoins their source list beside download-verify.ts.
+const REMOVED_IN_V14 = ["src/lib/engine-pin.ts"];
+const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.flatMap((path) =>
+  path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V14] : [path],
+);
+const historicalManifest = {
   full: [
     ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
-    ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+    ...HISTORICAL_TYPESCRIPT_SOURCES,
     ...AUDIT_PERFORMANCE_RESOURCES,
     ...ADDED_IN_V9_RULES,
   ],
   light: [
     ...priorManifest.light.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
-    ...CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+    ...HISTORICAL_TYPESCRIPT_SOURCES,
   ],
 };
 const notAddedAfter = (...added: readonly string[][]) => {
@@ -537,40 +543,44 @@ const notAddedAfter = (...added: readonly string[][]) => {
   return (path: string) => !excluded.has(path);
 };
 MANIFESTS.set(7, {
-  full: currentManifest.full.filter(
+  full: historicalManifest.full.filter(
     notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
   ),
-  light: currentManifest.light.filter(
+  light: historicalManifest.light.filter(
     notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
   ),
 });
 MANIFESTS.set(8, {
-  full: currentManifest.full.filter(
+  full: historicalManifest.full.filter(
     notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
   ),
-  light: currentManifest.light.filter(
+  light: historicalManifest.light.filter(
     notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
   ),
 });
 MANIFESTS.set(9, {
-  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
-  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
+  full: historicalManifest.full.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
+  light: historicalManifest.light.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
 });
 MANIFESTS.set(10, {
-  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
-  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
+  full: historicalManifest.full.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
+  light: historicalManifest.light.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
 });
 MANIFESTS.set(11, {
-  full: currentManifest.full.filter(notAddedAfter(ADDED_IN_V12)),
-  light: currentManifest.light.filter(notAddedAfter(ADDED_IN_V12)),
+  full: historicalManifest.full.filter(notAddedAfter(ADDED_IN_V12)),
+  light: historicalManifest.light.filter(notAddedAfter(ADDED_IN_V12)),
 });
-MANIFESTS.set(12, currentManifest);
+MANIFESTS.set(12, historicalManifest);
 // Version 13: the `/audit tests` checklist (full profile only; light installs
 // carry no audit skill).
 const ADDED_IN_V13 = ["skills/audit/references/test-audit.md"];
+MANIFESTS.set(13, {
+  full: [...historicalManifest.full, ...ADDED_IN_V13],
+  light: historicalManifest.light,
+});
 MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
-  full: [...currentManifest.full, ...ADDED_IN_V13],
-  light: currentManifest.light,
+  full: [...historicalManifest.full, ...ADDED_IN_V13].filter(notAddedAfter(REMOVED_IN_V14)),
+  light: historicalManifest.light.filter(notAddedAfter(REMOVED_IN_V14)),
 });
 
 const GENERATED_MANAGED_FILES = new Set([

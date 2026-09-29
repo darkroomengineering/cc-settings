@@ -607,7 +607,7 @@ describe("verify-hooks recovery command", () => {
     try {
       await mkdir(dirname(isolatedHook), { recursive: true });
       await writeFile(isolatedHook, await readFile(VERIFY_HOOK, "utf8"));
-      for (const moduleName of ["audit-hooks", "code-intel-engine", "hooks-fingerprint"]) {
+      for (const moduleName of ["audit-hooks", "hooks-fingerprint"]) {
         const modulePath = join(home, "isolated", "src", "lib", `${moduleName}.ts`);
         await mkdir(dirname(modulePath), { recursive: true });
         await writeFile(

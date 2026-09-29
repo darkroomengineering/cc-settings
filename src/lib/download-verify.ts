@@ -1,8 +1,6 @@
-// Verified-download primitive shared by the two pinned-binary installers:
-// engine-pin.ts (code-intel engine binaries) and pinned-tools.ts (standalone
-// CLI tools). Both use the same fetch → temp → checksum → cleanup flow.
-// Callers own installation after checksum verification: engine-pin renames
-// the file into place; pinned-tools extracts one binary from the archive.
+// Verified-download primitive used by pinned-tools.ts (standalone CLI tools):
+// fetch → temp → checksum → cleanup. The caller owns installation after
+// checksum verification; pinned-tools extracts one binary from the archive.
 //
 // The verified temp file is handed back to the caller, which owns it from that
 // point: move it, extract it, and remove it. This module never leaves an

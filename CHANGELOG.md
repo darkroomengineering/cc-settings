@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.37.4] — 2026-09-29
+
+Nothing changes for users. codebase-memory-mcp is parked, and the disabled placeholder engine that stood in for it is gone, along with the pinned-binary download path only it used. No install ever used either.
+
+**Removed:**
+- The `codebase-memory` engine descriptor, the `download` install method, `src/lib/engine-pin.ts`, and the session-start engine-pin check in `verify-hooks`. `download-verify.ts` stays; `pinned-tools.ts` uses it for `tldr-code`.
+- Managed-file manifest versions move to 14 (Claude) and 12 (Codex runtime) because `engine-pin.ts` is no longer shipped. Older versions still list it, so ownership and rollback of earlier installs are unchanged.
+
+**Evaluation notes for codebase-memory-mcp v0.11.0 (2026-09-29), so the next evaluation starts from data:**
+- It cannot back the `tldr` server. Its 17 tool names differ from the 18 `mcp__tldr__*` names the contract fixes.
+- Release assets are archives. The binary is about 303 MB with bundled embeddings.
+- On cc-settings it indexed 7,432 nodes in 13.6 s. It found 3 of 4 real callers of `resolveEngine` (it missed a call made through a module object) and 2 of 2 for `downloadAndVerify`.
+- MCP `initialize` took 10-24 s with a cold shared daemon (about 80% of one core) and about 4 s with a warm one. The idle daemon uses about 15 MB. Tool schemas total 17 KB.
+- The daemon serves a web UI on localhost:9749 by default.
+- Its own `install` command writes hooks and instructions into every agent config, so cc-settings must never run it.
+- Parked for the startup costs above.
+
 ## [15.37.3] — 2026-09-29
 
 The `tldr` code-intelligence tools work again. Every `mcp__tldr__*` call was returning "Could not build a TypeScript program" on every install.

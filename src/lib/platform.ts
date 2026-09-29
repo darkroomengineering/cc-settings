@@ -85,9 +85,7 @@ export const platform: NodeJS.Platform = process.platform;
 export const arch: string = process.arch;
 
 /** Platform discriminator for checksum lookup ("darwin-arm64", …) — matches the
- *  keys pinned-binary descriptors store their per-platform checksums under.
- *  Lives here rather than in engine-pin.ts so download-verify.ts can name a
- *  platform without importing a descriptor module that imports it back. */
+ *  keys pinned-binary descriptors store their per-platform checksums under. */
 export function platformKey(): string {
   return `${platform}-${arch}`;
 }
