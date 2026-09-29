@@ -17,6 +17,7 @@ import {
   validateClaudeManagedFileOwnership,
 } from "./claude-managed-files.ts";
 import type { EngineDescriptor } from "./code-intel-engine.ts";
+import { warn } from "./colors.ts";
 import { ClaudePrewriteOwnershipChangedError } from "./install-cmds.ts";
 import { CLAUDE_RUNTIME_MARKER } from "./install-fs.ts";
 import type { Profile } from "./light-profile.ts";
@@ -550,6 +551,39 @@ async function isStrictLegacyGeneratedFile(relativePath: string): Promise<boolea
   }
 }
 
+// Instruction files people edit by hand. Bytes cc-settings did not write are
+// saved under backups/ and replaced, instead of blocking the install; every
+// other managed file stays fail-closed.
+const USER_EDITABLE_CLAUDE_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
+
+async function adoptUserEditedClaudeFiles(files: Record<string, string>): Promise<void> {
+  for (const relativePath of USER_EDITABLE_CLAUDE_FILES) {
+    const path = claudeManagedPath(relativePath);
+    const metadata = await lstat(path).catch((cause) => {
+      if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw cause;
+    });
+    if (!metadata) {
+      delete files[relativePath];
+      continue;
+    }
+    if (!metadata.isFile()) continue;
+    const bytes = await readFile(path);
+    const hash = sha256(bytes);
+    if (hash === files[relativePath]) continue;
+    const backupDir = join(CLAUDE_DIR, "backups");
+    await mkdir(backupDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 17);
+    const backup = join(backupDir, `${relativePath}.user-edit-${stamp}`);
+    await writeFile(backup, bytes, { flag: "wx" });
+    warn(
+      `~/.claude/${relativePath} has edits cc-settings did not write. ` +
+        `Saved a copy to ${backup}; this install replaces the file.`,
+    );
+    files[relativePath] = hash;
+  }
+}
+
 export async function prepareClaudeInstallOwnership(
   sourceDir: string,
   profile: Profile,
@@ -597,6 +631,8 @@ export async function prepareClaudeInstallOwnership(
       }
     }
   }
+
+  if (options.validateTargetCollisions !== false) await adoptUserEditedClaudeFiles(files);
 
   const targetPaths = new Set([
     ...currentClaudeManagedSourceFiles(profile).map(({ destination }) => destination),

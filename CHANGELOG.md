@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.39.3] — 2026-09-29
+
+`setup.sh` no longer stops when `~/.claude/CLAUDE.md` or `~/.claude/AGENTS.md` differs from what cc-settings installed. It saves the current file to `~/.claude/backups/<name>.user-edit-<timestamp>`, prints that path, and installs the new version. Before, a hand edit, a deleted file, or an install from a clone with uncommitted changes to `CLAUDE-FULL.md` failed with "destination collision" or "missing or modified", and the only way out was restoring bytes by hand.
+
+- Only these two instruction files get this treatment. Hooks, scripts, agents, and generated ownership files still fail closed when modified.
+- `--migrate-only`, uninstall, and rollback keep the strict check.
+
 ## [15.39.2] — 2026-09-29
 
 `~/.claude/settings.json` is readable only by its owner once it holds a TypeSafe key, as `docs/install.md` already promised. Since 15.21.3 the installer wrote the key into a file every account on the Mac could read (mode 644), because each settings write went through a fresh temp file created with default permissions and renamed over the target.
