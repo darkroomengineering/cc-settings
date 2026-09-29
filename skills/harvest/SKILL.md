@@ -124,6 +124,9 @@ When the routed artifact is a **skill**, hand its evidence forward: write or upd
 - `## Test Inputs` ← the trap prompts (one `### Test N:` per trap).
 - `## Checklist` ← the quality-bar checks (observable, binary — 3–7 items).
 - `## Settings` ← defaults (`samples: 3`, `min_improvement: 0.05`, `max_rounds: 50`).
+- No `## Held-out Inputs`: `/autoresearch` writes those itself from the skill's use
+  cases, so they stay independent of the traps. The linter's `missing-held-out`
+  warning on a fresh seed is expected.
 
 **Preserve the blind-run rule**: the seed carries only the raw prompt and the binary
 criteria — never the expected answer, the scoring rationale, or this conversation's

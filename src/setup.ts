@@ -106,7 +106,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.37.4"; // Fable 5.1 advisor on by default.
+const VERSION = "15.38.0"; // Fable 5.1 advisor on by default.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

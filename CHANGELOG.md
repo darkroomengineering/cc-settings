@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.38.0] — 2026-09-29
+
+`/autoresearch` now tells you whether a prompt change generalizes, instead of only whether it scores better on the inputs it was tuned against. Adapted from Anthropic's eval hill-climbing guidance:
+
+- **Held-out inputs.** `RESEARCH.md` gains a `## Held-out Inputs` section. The loop scores it every round but never reads its outputs. A round is kept only when the held-out score also rises; a change that improves only the training inputs reverts with status `overfit`. `/autoresearch` derives 2 held-out inputs at setup when a seed has none, which is always the case for a `/harvest` seed.
+- **Measured noise floor.** The baseline now runs twice on the unchanged skill. If the two runs differ by `min_improvement` or more, the loop doubles `samples` once, then raises `min_improvement` to the measured noise, so a round cannot be kept on judge randomness. A baseline at 0.95 or higher stops setup and asks for harder inputs, because the eval has no room to show an improvement.
+- **Judge check and baseline review.** The baseline re-scores each training output and lists checklist items whose verdict flips on identical output, plus inputs that score 0 on every sample. Before round 1 the user sees one scored output with these lists and confirms the judge matches their own reading.
+- **Stall review.** After `stall_rounds` (default 3) rounds without a kept change, the loop sorts the remaining failures into ambiguous inputs, checklist bugs, harness errors and real skill failures. It fixes the first three in `RESEARCH.md`, re-measures the baseline, and aims later mutations only at real failures.
+
+The final report leads with the held-out score against the baseline, and calls a gain no larger than the noise floor "no measurable change". `lint:research` warns on a missing held-out section, errors on an empty one, and checks `stall_rounds` is numeric. New eval case: `evals/autoresearch-adds-held-out`.
+
+`evals/harvest-workflow` now passes a run where `/harvest` finds no evidence of the described session, writes nothing, and labels its draft as unverified. That is correct behavior in the eval's empty sandbox, and the grader had been failing it on every pre-push run.
+
 ## [15.37.4] — 2026-09-29
 
 Nothing changes for users. codebase-memory-mcp is parked, and the disabled placeholder engine that stood in for it is gone, along with the pinned-binary download path only it used. No install ever used either.

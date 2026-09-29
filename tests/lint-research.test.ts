@@ -22,6 +22,11 @@ Do the first thing.
 ### Test 2: second
 Do the second thing.
 
+## Held-out Inputs
+
+### Held-out 1: third
+Do a different thing.
+
 ## Checklist
 
 - [ ] ran the failing test before reading source
@@ -39,7 +44,7 @@ async function sandbox(): Promise<string> {
 }
 
 describe("lintResearchText — happy path", () => {
-  test("a harvest-seeded RESEARCH.md produces no findings", () => {
+  test("a complete RESEARCH.md produces no findings", () => {
     const findings = lintResearchText("RESEARCH.md", validSeed);
     expect(findings).toEqual([]);
   });
@@ -56,6 +61,20 @@ describe("lintResearchText — Test Inputs", () => {
     const text = validSeed.replace("### Test 2: second\nDo the second thing.\n", "");
     const rules = lintResearchText("r.md", text).map((f) => f.rule);
     expect(rules).toContain("too-few-test-inputs");
+  });
+});
+
+describe("lintResearchText — Held-out Inputs", () => {
+  test("warns (not errors) when the section is absent, as in a harvest seed", () => {
+    const text = validSeed.replace(/## Held-out Inputs[\s\S]*?## Checklist/, "## Checklist");
+    const findings = lintResearchText("r.md", text);
+    expect(findings.map((f) => [f.rule, f.severity])).toEqual([["missing-held-out", "warning"]]);
+  });
+
+  test("errors when the section has no inputs", () => {
+    const text = validSeed.replace("### Held-out 1: third\nDo a different thing.\n", "");
+    const rules = lintResearchText("r.md", text).map((f) => f.rule);
+    expect(rules).toContain("empty-held-out");
   });
 });
 

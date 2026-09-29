@@ -24,22 +24,26 @@ Adapted from [Karpathy's autoresearch](https://github.com/karpathy/autoresearch)
 
 ## Setup
 
-Work with the user to configure, then go autonomous.
+Work with the user to configure and review the baseline, then go autonomous.
 
 1. **Parse target skill**: Get `<skill-name>` from `$ARGUMENTS`. Validate `skills/<skill-name>/SKILL.md` exists.
 
 2. **Load or create RESEARCH.md**: Check for `skills/<skill-name>/RESEARCH.md`. If it exists, read it — a skill born from `/harvest` arrives with a seeded RESEARCH.md whose `## Test Inputs` are the harvest trap prompts and whose `## Checklist` is the harvest quality bar. If not, generate one:
    - Read the target SKILL.md
    - Derive 3 test inputs from its description and use cases
+   - Derive 2 held-out inputs the same way, covering different use cases from the test inputs
    - Derive 5-7 checklist items from its workflow steps and output format
    - Write the generated RESEARCH.md and show it to the user for confirmation
 
-   Either way, validate the shape before measuring: `bun run lint:research skills/<skill-name>/RESEARCH.md` (required sections present, ≥2 test inputs, 3-7 checklist items, numeric settings). A seed that fails this parses wrong in the loop below.
+   If an existing RESEARCH.md has no `## Held-out Inputs` section (a `/harvest` seed never does), derive 2 from the SKILL.md description, add them, and show them to the user. Derive them from the skill's stated use cases only, never by rewording a test input.
+
+   Either way, validate the shape before measuring: `bun run lint:research skills/<skill-name>/RESEARCH.md` (required sections present, ≥2 test inputs, held-out inputs, 3-7 checklist items, numeric settings). A seed that fails this parses wrong in the loop below.
 
 3. **Parse config from RESEARCH.md**:
-   - `## Test Inputs` — each `### Test N:` heading is one test case (the text below is the prompt)
+   - `## Test Inputs` — each `### Test N:` heading is one training case (the text below is the prompt). The loop reads their outputs and mutates toward them.
+   - `## Held-out Inputs` — same shape. They are scored every round but never read by the loop (see Held-out Rule).
    - `## Checklist` — each `- [ ]` line is a binary criterion
-   - `## Settings` — optional: `samples` (default 3), `min_improvement` (default 0.05), `max_rounds` (default 50), `model` (default `claude-sonnet-5-5`, exported as `AUTORESEARCH_MODEL` — see Sample Isolation)
+   - `## Settings` — optional: `samples` (default 3), `min_improvement` (default 0.05), `max_rounds` (default 50), `stall_rounds` (default 3), `model` (default `claude-sonnet-5-5`, exported as `AUTORESEARCH_MODEL` — see Sample Isolation)
 
 4. **Create results directory**:
    ```bash
@@ -48,14 +52,14 @@ Work with the user to configure, then go autonomous.
 
 5. **Initialize results.tsv**:
    ```bash
-   echo -e "round\tcommit\tscore\tcorrectness\tsafety\tsamples\tstatus\tdescription" > ~/.claude/tmp/autoresearch/<skill-name>/results.tsv
+   echo -e "round\tcommit\tscore\theldout\tcorrectness\tsafety\tsamples\tstatus\tdescription" > ~/.claude/tmp/autoresearch/<skill-name>/results.tsv
    ```
 
 6. **Create branch**: `git checkout -b autoresearch/<skill-name>` from current HEAD. If the branch already exists, check it out and resume (read existing results.tsv for history).
 
 7. **Read the SKILL.md** as the baseline prompt. Note the YAML frontmatter boundaries — you will NEVER modify frontmatter.
 
-8. **Confirm and go**: Show the user the config summary (target, test count, checklist count, samples per round, **pinned model**). Get confirmation. Then go autonomous.
+8. **Confirm and go**: Show the user the config summary (target, test count, held-out count, checklist count, samples per round, **pinned model**). Get confirmation. Then measure the baseline; the loop goes autonomous after the baseline review.
 
 ---
 
@@ -69,22 +73,67 @@ Before any mutations, measure the starting score.
      spawn an in-process `Agent(...)` for a sample.
    - Capture stdout as the sample output
 
-2. Score each output using the **Scoring Protocol** (below).
+2. Run N more samples the same way over the held-out inputs.
 
-3. Compute mean score across all samples, plus `mean_correctness` and `mean_safety`.
+3. Score each output using the **Scoring Protocol** (below).
 
-4. Log to results.tsv:
+4. Compute the training score (mean over the training samples), the held-out
+   score (mean over the held-out samples), and `mean_correctness` and
+   `mean_safety` across both.
+
+5. **Measure the noise floor.** Run the N training samples a second time on the
+   unchanged skill and score them. `noise = |score_run1 - score_run2|`. A kept
+   round must beat this, or the loop keeps judge randomness.
+   - If `noise >= min_improvement`, double `samples` once and repeat steps 1-5.
+   - If it is still at or above `min_improvement`, set
+     `min_improvement = noise` and say so in the log. Adding test inputs is the
+     better fix; name it in the final report.
+
+6. **Check headroom.** If the training score is 0.95 or higher, the eval cannot
+   show improvement. Tell the user to add harder test inputs, and do not start
+   the loop until they have.
+
+7. **Check the judge.** Score each first-run training output a second time with
+   the same scoring prompt. A checklist item whose verdict flips on identical
+   output is ambiguous; list it. Also list any input that scored 0 on every
+   sample: it is more often broken or impossible than hard.
+
+8. **Baseline review.** Show the user one scored training output (the output,
+   each item's verdict, and the guardrail scores), the noise floor, and the
+   lists from step 7. Ask them to fix flagged items or confirm the judge agrees
+   with their own reading. This is the last stop before the loop; once they
+   confirm, do not pause again.
+
+9. Log to results.tsv:
    ```
-   0	baseline	{score}	{correctness}	{safety}	{N}	baseline	initial measurement
+   0	baseline	{score}	{heldout}	{correctness}	{safety}	{N}	baseline	initial measurement, noise {noise}
    ```
 
-5. Print: `Baseline score: {score} ({X}/{Y} checklist items passing on average) · correctness {c}/5 · safety {s}/5 · model {AUTORESEARCH_MODEL}`
+10. Print: `Baseline score: {score} ({X}/{Y} checklist items passing on average) · held-out {heldout} · noise {noise} · correctness {c}/5 · safety {s}/5 · model {AUTORESEARCH_MODEL}`
 
-6. Set `best_score = score`, `baseline_correctness = mean_correctness`,
-   `baseline_safety = mean_safety`. These two are the floor for every later round
-   and never move, even when a mutation improves them — a later regression is
+11. Set `best_score = score`, `best_heldout = heldout`,
+   `baseline_correctness = mean_correctness`, `baseline_safety = mean_safety`.
+   The correctness and safety values are the floor for every later round and
+   never move, even when a mutation improves them — a later regression is
    measured against the original skill, not against the best round so far. Begin
    the loop.
+
+---
+
+## Held-out Rule
+
+The loop mutates the skill toward the failures it reads, so the training score
+rises partly because the skill learns the specific test inputs. The held-out
+inputs measure whether a change generalizes. They work only while the loop has
+never seen them:
+
+- ANALYZE and HYPOTHESIZE read training outputs and training per-item pass rates
+  only. Never read a held-out output, its per-item results, or its text.
+- The held-out score is the only held-out number the loop sees, and only in DECIDE.
+- Never edit the held-out inputs after the baseline. Changing them resets
+  `best_heldout` and invalidates the comparison.
+- Never paste a test input, a failing output, or an expected answer into the
+  SKILL.md. A mutation states the general behavior the failure revealed.
 
 ---
 
@@ -169,19 +218,22 @@ LOOP FOREVER (round = 1, 2, 3, ...):
      git commit -m "autoresearch: <one-line description>"
 
   5. EVALUATE
-     - Run N samples (same process as baseline — isolated, model pinned)
+     - Run N training samples and N held-out samples (same process as
+       baseline — isolated, model pinned)
      - Score each output: checklist pass rate AND the two guardrails
-     - Compute mean_score, mean_correctness, mean_safety, blocker_count
+     - Compute mean_score (training), heldout_score, mean_correctness,
+       mean_safety, blocker_count
 
-  6. DECIDE — all four conditions must hold to KEEP
+  6. DECIDE — all five conditions must hold to KEEP
      a. no blocker in any sample                        (hard veto)
      b. mean_correctness >= baseline_correctness - 0.1  (no regression)
      c. mean_safety      >= baseline_safety - 0.1       (no regression)
      d. mean_score >= best_score + min_improvement
+     e. heldout_score > best_heldout, or both are 1.0   (it generalizes)
 
-     - All four hold:
-         KEEP — set best_score = mean_score
-         Log: round, commit, score, N, "kept", description
+     - All five hold:
+         KEEP — set best_score = mean_score, best_heldout = heldout_score
+         Log: round, commit, score, heldout, N, "kept", description
      - (a), (b), or (c) fails:
          REVERT — git reset --hard HEAD~1
          Log status "vetoed" and name which guardrail tripped. A vetoed
@@ -190,6 +242,10 @@ LOOP FOREVER (round = 1, 2, 3, ...):
      - Only (d) fails:
          REVERT — git reset --hard HEAD~1
          Log: round, commit_before_reset, score, N, "reverted", description
+     - (d) holds but (e) fails:
+         REVERT — git reset --hard HEAD~1
+         Log status "overfit": the change raised the training score without
+         helping inputs the loop never saw.
 
   7. UPDATE DASHBOARD
      - Write dashboard.md (see Dashboard section)
@@ -203,6 +259,26 @@ If a sample agent crashes or produces no output:
 - Score that sample as 0.0
 - If all N samples crash, the mutation broke something — REVERT immediately
 - Log status as "crash" in the TSV
+
+### Stall Review
+
+After `stall_rounds` consecutive rounds without a KEEP, stop mutating and
+review the current training failures before the next round. Sort each failing
+checklist item on each training input into one of:
+
+1. **Ambiguous input** — a competent reader could take the test input two ways.
+2. **Checklist bug** — the criterion checks something the input did not ask for,
+   or several things where the input asked for one.
+3. **Harness error** — crashes, empty output, or configuration leaking into the
+   sample (see Sample Isolation).
+4. **Skill failure** — the input and criterion are fair and the skill misses.
+
+Log one row with status "stall-review" and the count per category. If categories
+1-3 have any entries, fix them in RESEARCH.md (never the held-out inputs), commit,
+and measure a new baseline with status "rebaseline"; earlier rows no longer
+compare. Then resume the loop, aiming mutations only at category 4. If category 4
+is empty, the skill passes every fair case: say so on the dashboard and switch to
+SIMPLIFY and REMOVE-noise mutations.
 
 ### Convergence
 
@@ -297,10 +373,11 @@ Updated: <YYYY-MM-DD HH:MM>
 
 ## Status
 - Current best: {best_score} (baseline was {baseline_score})
+- Held-out: {best_heldout} (baseline was {baseline_heldout}) · noise floor {noise}
 - Guardrails: correctness {c}/5 (floor {baseline_correctness}) · safety {s}/5 (floor {baseline_safety})
 - Model: {AUTORESEARCH_MODEL} · isolated (`--setting-sources ""`)
 - Rounds completed: {round}
-- Kept / Reverted / Vetoed / Crashed: {k} / {r} / {v} / {c}
+- Kept / Reverted / Overfit / Vetoed / Crashed: {k} / {r} / {o} / {v} / {c}
 
 ## Per-Checklist-Item Pass Rates (last 3 rounds)
 | # | Criterion | Pass Rate | Trend |
@@ -339,6 +416,15 @@ Prompts to test the skill against. Each ### heading is one test case.
 ### Test 3: <label>
 <Another test prompt>
 
+## Held-out Inputs
+Scored every round, never read by the loop. Cover use cases the test inputs do not.
+
+### Held-out 1: <label>
+<A prompt the loop will never see>
+
+### Held-out 2: <label>
+<Another>
+
 ## Checklist
 Binary pass/fail criteria. Each item is scored YES (1) or NO (0).
 
@@ -352,6 +438,7 @@ Binary pass/fail criteria. Each item is scored YES (1) or NO (0).
 - samples: 3
 - min_improvement: 0.05
 - max_rounds: 50
+- stall_rounds: 3
 - model: claude-sonnet-5-5
 ```
 
@@ -375,7 +462,9 @@ If `autoresearch/<skill-name>` branch already exists:
 
 1. Check it out
 2. Read `~/.claude/tmp/autoresearch/<skill-name>/results.tsv`
-3. Find the last "kept" row — that's the current best_score
+3. Find the last "kept" or "rebaseline" row — its score and held-out columns are
+   `best_score` and `best_heldout`. Read the noise floor from the latest baseline
+   or rebaseline row.
 4. Find the total round count
 5. Print: `Resuming from round {N}, best score: {score}`
 6. Continue the loop from round N+1
@@ -401,6 +490,10 @@ Every number that leaves this loop names the conditions that produced it: the pi
 model, sample count, and whether the comparison was against the previous variant or
 against the control arm. A score without those is not reproducible and should not be
 quoted.
+
+Lead with the held-out score against the baseline held-out score, then the
+training score. A held-out gain no larger than the noise floor is "no measurable
+change", whatever the training score did.
 
 Report only deltas between arms that were actually run. Never extrapolate a saving
 against a counterfactual — "this skill saved N tokens on the work you did today" is

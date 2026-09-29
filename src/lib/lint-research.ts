@@ -1,7 +1,7 @@
 // RESEARCH.md shape validator. RESEARCH.md is the seam between /harvest and
 // /autoresearch: harvest seeds it from trap prompts + quality bar (skills/harvest),
-// and autoresearch parses it purely by structure — `## Test Inputs`, `## Checklist`,
-// `## Settings` (skills/autoresearch). A malformed seed silently degrades the
+// and autoresearch parses it purely by structure — `## Test Inputs`,
+// `## Held-out Inputs`, `## Checklist`, `## Settings` (skills/autoresearch). A malformed seed silently degrades the
 // optimization loop (0 test inputs → nothing to sample; a non-numeric setting →
 // NaN sampling), so this validates the shape deterministically before the loop runs.
 //
@@ -43,7 +43,7 @@ export const MAX_CHECKLIST = 7;
 // Settings autoresearch reads as numbers. A non-numeric value here is the
 // "unknown numbers must be null/INCONCLUSIVE, never aspirational" failure mode
 // surfacing as an un-parseable seed (e.g. `samples: TBD`).
-const NUMERIC_SETTINGS = new Set(["samples", "min_improvement", "max_rounds"]);
+const NUMERIC_SETTINGS = new Set(["samples", "min_improvement", "max_rounds", "stall_rounds"]);
 
 /** Group lines under their `## <heading>` (H2). H3+ (`### …`) stay as section
  *  content, so `### Test N:` lines are counted inside `## Test Inputs`. */
@@ -85,6 +85,21 @@ export function lintResearchText(label: string, text: string): ResearchFinding[]
         `${count} test input(s) (\`### …\` headings) — need at least ${MIN_TEST_INPUTS}`,
       );
     }
+  }
+
+  // --- Held-out Inputs ---
+  // A warning when absent: /harvest seeds never carry them, and autoresearch
+  // derives them at setup. An empty section is an error: the loop would score
+  // nothing and every round would fail the held-out condition.
+  const heldOutLines = sections.get("held-out inputs");
+  if (heldOutLines === undefined) {
+    push(
+      "warning",
+      "missing-held-out",
+      "no `## Held-out Inputs` section; /autoresearch derives them at setup, and without them a gain cannot be told apart from overfitting",
+    );
+  } else if (!heldOutLines.some((l) => /^###\s+/.test(l))) {
+    push("error", "empty-held-out", "`## Held-out Inputs` has no `### …` inputs");
   }
 
   // --- Checklist ---
