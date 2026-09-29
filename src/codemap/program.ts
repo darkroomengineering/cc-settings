@@ -1,9 +1,9 @@
 // TypeScript program construction + shared AST helpers for the codemap engine.
 //
-// `typescript` is a cc-settings devDep; at end-user runtime it resolves through
-// the node_modules symlink installTsSources creates under ~/.claude/src. We load
-// it via a dynamic import wrapped in try/catch so a broken symlink degrades
-// gracefully (getContext → null) instead of crashing the MCP server. The static
+// `typescript` is a runtime dependency, not a devDependency: installTsSources
+// runs `bun install --production` under ~/.claude/src, which skips devDeps. We
+// load it via a dynamic import wrapped in try/catch so a missing package
+// degrades gracefully (getContext → null) instead of crashing the MCP server. The static
 // `import type * as TS` is erased at compile time, so it adds no runtime dep —
 // it only types the annotations below.
 

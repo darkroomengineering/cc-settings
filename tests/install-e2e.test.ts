@@ -1001,7 +1001,7 @@ mock.module("node:fs/promises", () => ({ ...original,
       ]);
       await writeFile(
         join(bin, "bun"),
-        '#!/bin/sh\nif [ "$1" = "install" ]; then mkdir -p node_modules; cp -R "$REAL_ZOD" node_modules/zod; exit 0; fi\nexec "$REAL_BUN" "$@"\n',
+        '#!/bin/sh\nif [ "$1" = "install" ]; then mkdir -p node_modules/.bin; cp -R "$REAL_ZOD" node_modules/zod; ln -s ../zod/package.json node_modules/.bin/tsc; exit 0; fi\nexec "$REAL_BUN" "$@"\n',
       );
       await chmod(join(bin, "bun"), 0o755);
       const runtime = join(home, ".claude", "src", "node_modules");
@@ -1018,6 +1018,7 @@ mock.module("node:fs/promises", () => ({ ...original,
       expect(firstRuntime.isDirectory()).toBe(true);
       expect(firstRuntime.isSymbolicLink()).toBe(false);
       expect(existsSync(join(runtime, "zod", "package.json"))).toBe(true);
+      expect(existsSync(join(runtime, ".bin"))).toBe(false);
 
       const managedUpdate = await runInstall(home, ["--light"], "claude", env, sourceB);
       expect(managedUpdate.exitCode, `${managedUpdate.stdout}\n${managedUpdate.stderr}`).toBe(0);

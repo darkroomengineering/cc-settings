@@ -470,6 +470,10 @@ async function installTsSources(source: string): Promise<void> {
       `Claude managed runtime dependency install failed: ${(stderr || stdout).trim()}`,
     );
   }
+  // Bin links (typescript's tsc/tsserver) are symlinks, which the runtime
+  // integrity manifest rejects by design. Nothing under ~/.claude/src runs a
+  // dependency's CLI; runtime code only imports packages as modules.
+  await rm(join(dstNm, ".bin"), { recursive: true, force: true });
   const installedDependencies = await lstat(dstNm).catch(() => null);
   if (!installedDependencies?.isDirectory() || installedDependencies.isSymbolicLink()) {
     throw new Error("Claude managed runtime dependency install produced an unsafe node_modules");

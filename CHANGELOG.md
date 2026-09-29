@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.37.3] — 2026-09-29
+
+The `tldr` code-intelligence tools work again. Every `mcp__tldr__*` call was returning "Could not build a TypeScript program" on every install.
+
+**Fixed:**
+- The native-ts engine loads the TypeScript compiler at runtime, but `typescript` was only a devDependency, and the installer runs `bun install --production`, which skips those. `typescript` is now a regular dependency. The installer removes its `tsc`/`tsserver` bin links after installing, since the runtime integrity check rejects symlinks and nothing runs those CLIs.
+- A new test fails when any shipped `src/` file imports a package that isn't in `dependencies`, so the same gap can't come back with a different package.
+
 ## [15.37.2] — 2026-09-29
 
 `./setup.sh` works again on installs made before 15.37.0. It failed with "missing: skills/audit/references/test-audit.md".
