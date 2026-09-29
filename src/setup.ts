@@ -110,7 +110,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.39.3"; // A hand-edited CLAUDE.md or AGENTS.md is backed up and replaced instead of blocking setup.
+const VERSION = "15.39.4"; // Codex CLI tests skip when no working codex binary is on PATH.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
