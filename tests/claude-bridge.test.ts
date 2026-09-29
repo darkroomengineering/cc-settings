@@ -4,13 +4,14 @@
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import {
   buildClaudeArgs,
   CLAUDE_BRIDGE_DEFAULT_MODEL,
   preflightClaudeBridge,
   resolveClaudeModel,
 } from "../src/lib/claude-bridge.ts";
+import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const BRIDGE = resolve(import.meta.dir, "../src/lib/claude-bridge.ts");
 
@@ -92,7 +93,7 @@ describe("buildClaudeArgs and runClaudePrint", () => {
       const fake = join(dir, "claude");
       await writeFile(
         fake,
-        `#!/bin/sh\nprintf '%s\\n' "$@" > '${argvFile}'\ncat > '${stdinFile}'\necho ok\n`,
+        `#!/bin/sh\nprintf '%s\\n' "$@" > '${gitBashPath(argvFile)}'\ncat > '${gitBashPath(stdinFile)}'\necho ok\n`,
       );
       await chmod(fake, 0o755);
       const prompt = "--dangerous-looking prompt\nTask: review";
@@ -105,7 +106,7 @@ console.log(JSON.stringify(await runClaudePrint({ prompt: ${JSON.stringify(promp
       );
       const env: Record<string, string | undefined> = {
         ...process.env,
-        PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`,
+        PATH: prependTestPath(dir),
       };
       delete env.CLAUDECODE;
       delete env.CODEX_SANDBOX_NETWORK_DISABLED;

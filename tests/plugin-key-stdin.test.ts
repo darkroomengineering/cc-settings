@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const KEY = "ts-test-key-4f1c";
@@ -23,11 +24,11 @@ async function runPluginStep(configureExit: number): Promise<{ argv: string; std
     await writeFile(
       join(bin, "claude"),
       `#!/bin/sh
-printf '%s\\n' "$*" >> "${log}"
+printf '%s\\n' "$*" >> "${gitBashPath(log)}"
 case "$1 $2" in
   "plugin list"|"plugin marketplace") [ "$3" = "list" ] || [ "$2" = "list" ] && { echo '[]'; exit 0; } ;;
 esac
-if [ "$1 $2" = "plugin configure" ]; then cat >> "${stdinLog}"; exit ${configureExit}; fi
+if [ "$1 $2" = "plugin configure" ]; then cat >> "${gitBashPath(stdinLog)}"; exit ${configureExit}; fi
 exit 0
 `,
     );
@@ -36,8 +37,12 @@ exit 0
 await installPlugins("full", false, { typesafeKey: ${JSON.stringify(KEY)} });`;
     const proc = Bun.spawn([process.execPath, "-e", script], {
       env: {
-        PATH: `${bin}:/usr/bin:/bin`,
+        ...process.env,
+        PATH: prependTestPath(bin),
         HOME: home,
+        USERPROFILE: home,
+        CLAUDECODE: undefined,
+        TYPESAFE_API_KEY: undefined,
         CC_SETTINGS_FORCE_PLUGIN_INSTALL: "1",
         NO_COLOR: "1",
       },
@@ -55,7 +60,7 @@ await installPlugins("full", false, { typesafeKey: ${JSON.stringify(KEY)} });`;
   }
 }
 
-describe.skipIf(process.platform === "win32")("TypeSafe key delivery to the plugin", () => {
+describe("TypeSafe key delivery to the plugin", () => {
   test("goes on stdin through plugin configure, never in argv", async () => {
     const { argv, stdin } = await runPluginStep(0);
     expect(argv).toContain(

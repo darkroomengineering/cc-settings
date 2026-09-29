@@ -241,10 +241,9 @@ version stands out in git log. Do not push if anything in Phase 7 is failing.
 
 - It does not edit user-installed `~/.claude/settings.json`. cc-settings is the
   source — users get the changes by re-running `setup.sh`.
-- It does not auto-open PRs, and there is no longer an automated cron. The
-  daily upstream-sync GitHub Action was retired — it could only bump the
-  version number, never triage the changelog. `bun run upstream:scan` is the
-  manual drift detector; this skill is the only sync path.
+- It does not run on a schedule. A cron could only bump the version number,
+  never triage the changelog, so `bun run upstream:scan` is the manual drift
+  detector and this skill is the only sync path.
 - It does not bump dependencies. That's a separate concern.
 
 ### Mental model

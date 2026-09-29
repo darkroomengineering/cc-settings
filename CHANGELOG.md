@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.40.1] — 2026-09-29
+
+The Windows test job passes again, and the docs say that main takes changes only through a PR.
+
+**Fixed:**
+- `tests/claude-bridge.test.ts`: the fake `claude` gets a `.cmd` entry point through `prependTestPath`, so Windows finds it on PATH, and its log paths go through `gitBashPath`.
+- `tests/delegation-detector.test.ts`: sets `USERPROFILE` next to `HOME`, because `homedir()` reads `USERPROFILE` on Windows and the settings-env test never saw its fixture.
+- `tests/plugin-key-stdin.test.ts`: runs on Windows too, with the same helpers, instead of skipping there.
+
+**Docs:**
+- `.claude/AGENTS.md`: main is protected; changes land through a PR that passes `ci-gate` and `darky/review`, merged by hand.
+- `skills/cc/SKILL.md`: the sync mode no longer claims it never opens a PR.
+
+**Files changed:**
+- .claude/AGENTS.md
+- skills/cc/SKILL.md
+- tests/claude-bridge.test.ts
+- tests/delegation-detector.test.ts
+- tests/plugin-key-stdin.test.ts
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+
 ## [15.40.0] — 2026-09-29
 
 Sync with Claude Code 2.1.285 and Codex 0.159.0. The TypeSafe key no longer appears in process arguments during setup.
