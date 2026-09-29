@@ -398,6 +398,7 @@ export const Settings = z.looseObject({
   availableModels: z.array(z.string()).optional(), // restrict the model picker to this list
   availableModelsMatch: z.string().optional(), // 2.1.283 — managed: "exact" makes an availableModels entry allow only the version it names, so new releases stay blocked until listed; only "exact" is documented, so kept a bare string
   deniedModels: z.array(z.string()).optional(), // 2.1.283 — managed: block these models even when availableModels allows them
+  allowedProviders: z.array(z.string()).optional(), // 2.1.285 — managed: API providers this machine may use (Anthropic API, custom endpoint, Bedrock, Mantle, Vertex AI, Foundry, Claude Platform on AWS, Cloud gateway); value spellings are undocumented, so kept bare strings
   allowClaudeInChromeWithManagedMcp: z.boolean().optional(), // 2.1.282 — managed: let `claude --chrome` run alongside an exclusive managed-mcp.json
   blockedMarketplaces: z.array(z.string()).optional(), // marketplace IDs that users cannot install from; 2.1.223: an entry may be an owner wildcard "owner/*" matching every marketplace repo under that GitHub org
   claudeMd: z.string().optional(), // managed system-prompt override (replaces CLAUDE.md lookup)

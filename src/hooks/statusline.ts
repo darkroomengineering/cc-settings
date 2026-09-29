@@ -97,9 +97,15 @@ type Payload = {
       used_percentage?: number;
       resets_at?: number | string;
     };
-    // 2.1.251, gateway-only — used_percentage can exceed 100. Type-only: no
-    // visual segment reads this yet.
-    spend_limit?: { used_percentage?: number; resets_at?: number | string };
+    // 2.1.251, gateway-only — used_percentage can exceed 100; 2.1.284 adds the
+    // dollar amounts and period. Type-only: no visual segment reads this yet.
+    spend_limit?: {
+      used_percentage?: number;
+      resets_at?: number | string;
+      used_usd?: number;
+      limit_usd?: number;
+      period?: string;
+    };
   };
   // 2.1.119 — effort level + thinking flag are now in statusline stdin.
   effort?: { level?: string };
