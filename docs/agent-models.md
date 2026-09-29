@@ -34,7 +34,7 @@ The same table drives standalone Codex. The installer maps each agent's Claude t
 | Claude tier in frontmatter | Codex `model` | Why |
 |---|---|---|
 | `claude-opus-5-5`, `claude-opus-5`, `opus`, `fable` | `gpt-6-astra` | Judgment: OpenAI's most aligned model, returns early but judges well |
-| `claude-sonnet-5-5`, `claude-sonnet-5`, `sonnet` | `gpt-6-sol` | Execution: Codex's workhorse coding model |
+| `claude-sonnet-5-5`, `claude-sonnet-5`, `sonnet` | `gpt-6.1-sol` | Execution: Codex's workhorse coding model |
 | `haiku` | `gpt-6-luna` | Fast, low-cost tasks |
 | unset | inherits the session model | |
 

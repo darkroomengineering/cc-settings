@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.39.5] — 2026-09-29
+
+Codex execution work now runs on GPT-6.1 Sol, which Codex CLI 0.159.0 lists as its latest workhorse model and calls GPT-6 Sol "previous generation".
+
+- The bridge's `exec` default is `gpt-6.1-sol`. `review` and `ask` stay on `gpt-6-astra`. `--model` and `CODEX_EXEC_MODEL` still override it.
+- Native Codex agents mapped from the Sonnet tier (implementer, explore, reviewer, and the other execution roles) are written with `gpt-6.1-sol`. Haiku-tier agents stay on `gpt-6-luna`.
+- Existing installs pick up the new agent model on the next `setup.sh` run or auto-update.
+
 ## [15.39.4] — 2026-09-29
 
 Contributors without a working Codex CLI can commit again. The "Codex command policy" and "Codex CLI package acceptance" tests in `tests/plugin-manifest.test.ts` ran whenever something named `codex` was on PATH, including proxy shims such as cmux's, which answer with exit 127. Those tests sit in the pre-commit invariants hook, so the failure blocked every commit.

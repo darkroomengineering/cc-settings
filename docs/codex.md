@@ -160,7 +160,7 @@ never among the trimmed ones unless the rest of the install is far over.
 Astra stays the session model and delegates by task shape. Each native role agent carries a
 `model` field the installer derives from the shared Claude tier: judgment roles (`planner`,
 `security-reviewer`, `maestro`) run on `gpt-6-astra`; execution roles (`implementer`, `tester`,
-`explore`, `scaffolder`, `deslopper`, `reviewer`) run on `gpt-6-sol`, Codex's workhorse coding
+`explore`, `scaffolder`, `deslopper`, `reviewer`) run on `gpt-6.1-sol`, Codex's workhorse coding
 model. Override a role by editing its `agents/*.toml`; the next
 reinstall restores the derived value.
 

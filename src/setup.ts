@@ -110,7 +110,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.39.4"; // Codex CLI tests skip when no working codex binary is on PATH.
+const VERSION = "15.39.5"; // Codex execution runs on GPT-6.1 Sol.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
