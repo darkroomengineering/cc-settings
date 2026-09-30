@@ -402,4 +402,33 @@ describe("tool-cadence hook — review-queue branch (e2e)", () => {
       await rm(home, { recursive: true, force: true });
     }
   });
+
+  test("a HEAD-moving command after HEAD advanced drains the queue", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
+    const repo = await mkdtemp(join(tmpdir(), "cc-rq-repo-"));
+    const git = (...args: string[]) => {
+      const r = Bun.spawnSync(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
+        { cwd: repo },
+      );
+      if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+    };
+    const pull = { tool_name: "Bash", tool_input: { command: "git pull --ff-only" }, cwd: repo };
+    try {
+      git("init", "-q");
+      git("commit", "-q", "--allow-empty", "-m", "one");
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook({ ...pull, tool_response: {} }, home);
+      expect((await readQueue(home))?.awaiting).toBe(2);
+      // HEAD moves without a Claude commit (a pulled-down merge, say); the next
+      // HEAD-moving command sees the change and drains.
+      git("commit", "-q", "--allow-empty", "-m", "two");
+      await runHook({ ...pull, tool_response: {} }, home);
+      expect((await readQueue(home))?.awaiting).toBe(0);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
 });

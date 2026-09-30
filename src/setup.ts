@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.42.1"; // share-learning writes the required team-knowledge summary field.
+const VERSION = "15.42.2"; // review-queue hook test covers the HEAD-advance drain.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
