@@ -504,11 +504,13 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
       .filter((name) => !editsBefore.has(name))
       .map((name) => name.split(".user-edit-")[0]);
     if (replaced.length > 0) {
-      await log(`replaced hand-edited ${replaced.join(", ")}; copies saved in ~/.claude/backups`);
+      await log(
+        `replaced hand-edited ${replaced.join(", ")}; copies saved in ~/.claude/backups. Keep personal instructions in ~/.claude/personal.md, which setup never replaces.`,
+      );
     }
     await sendNotification(
       replaced.length > 0
-        ? `cc-settings v${toVersion ?? "?"} installed — replaced your edited ${replaced.join(", ")}; a copy is in ~/.claude/backups`
+        ? `cc-settings v${toVersion ?? "?"} installed — replaced your edited ${replaced.join(", ")}; a copy is in ~/.claude/backups, keep yours in ~/.claude/personal.md`
         : `cc-settings v${toVersion ?? "?"} installed — restart Claude Code sessions to apply`,
     );
   } finally {

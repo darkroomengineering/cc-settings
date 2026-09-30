@@ -1598,6 +1598,47 @@ mock.module("node:fs/promises", () => ({ ...original,
     180_000,
   );
 
+  test("personal.md is created once and survives reinstall, rollback, and uninstall", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-e2e-personal-md-"));
+    const claudeDir = join(home, ".claude");
+    const personal = join(claudeDir, "personal.md");
+    const sentinelFiles = async () =>
+      Object.keys(
+        (
+          JSON.parse(await readFile(join(claudeDir, ".cc-settings-version"), "utf8")) as {
+            managed_files?: Record<string, string>;
+          }
+        ).managed_files ?? {},
+      );
+    try {
+      expect((await runInstall(home)).exitCode).toBe(0);
+      expect(await readFile(personal, "utf8")).toStartWith("# Personal instructions\n");
+      expect(await readFile(join(claudeDir, "CLAUDE.md"), "utf8")).toMatch(
+        /\r?\n@personal\.md\r?\n/,
+      );
+      expect(await sentinelFiles()).not.toContain("personal.md");
+
+      await writeFile(personal, "always answer in haiku\n");
+      const reinstall = await runInstall(home);
+      expect(reinstall.exitCode, reinstall.stderr).toBe(0);
+      expect(await readFile(personal, "utf8")).toBe("always answer in haiku\n");
+      expect(
+        (await readdir(join(claudeDir, "backups"))).some((n) => n.startsWith("personal.md")),
+      ).toBe(false);
+      expect(await sentinelFiles()).not.toContain("personal.md");
+
+      const rollback = await runInstall(home, ["--rollback"]);
+      expect(rollback.exitCode, rollback.stderr).toBe(0);
+      expect(await readFile(personal, "utf8")).toBe("always answer in haiku\n");
+
+      const uninstall = await runInstall(home, ["--uninstall"]);
+      expect(uninstall.exitCode, uninstall.stderr).toBe(0);
+      expect(await readFile(personal, "utf8")).toBe("always answer in haiku\n");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  }, 300_000);
+
   test("a personal CLAUDE.md does not block a first install", async () => {
     const home = await mkdtemp(join(tmpdir(), "cc-e2e-personal-claude-md-"));
     const claudeDir = join(home, ".claude");

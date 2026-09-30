@@ -221,3 +221,11 @@ The managed library contains exactly 38 skills. `SKILL_COUNT_BASELINE` in
 `src/lib/lint-skills.ts` fails when the count moves either way. The
 description-byte ceiling is one-way: tighten the longest descriptions when it
 fails; never raise the ceiling. `bun run lint:skills` enforces both in CI.
+
+## Personal instructions
+
+`~/.claude/personal.md` holds your own global instructions. Setup creates it
+once and never replaces it; edit it instead of this file, which every install
+overwrites.
+
+@personal.md

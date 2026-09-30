@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.41.0] — 2026-09-29
+
+Your own global instructions now have a home that survives updates: `~/.claude/personal.md`. The installed `~/.claude/CLAUDE.md` imports it last, so it loads in every Claude Code session and subagent. Setup creates it once and never replaces, backs up, rolls back, or removes it. Edits to `~/.claude/CLAUDE.md` itself are still saved to `backups/` and replaced on the next install; the warning and the auto-update log now point at `personal.md`. Codex does not read the file.
+
+**Added:**
+- `CLAUDE-FULL.md`: a closing "Personal instructions" section with `@personal.md`.
+- `src/lib/claude-install-ownership.ts`: `ensurePersonalInstructionsFile` writes a short stub with an exclusive create, only on a full install, and the file is never recorded in `managed_files`.
+- `tests/install-e2e.test.ts`: fresh install creates the stub; an edit survives reinstall with no backup; rollback and uninstall leave it.
+
+**Docs:**
+- `docs/install.md`: a row for `personal.md`; the `CLAUDE.md` row describes the backup instead of the collision stop it had before 15.39.3; adding a TypeSafe key later uses `claude plugin configure --values-stdin`.
+- `README.md`: "What it leaves alone" names `personal.md`.
+
+**Files changed:**
+- CLAUDE-FULL.md
+- README.md
+- docs/install.md
+- src/lib/claude-install-ownership.ts
+- src/scripts/auto-update.ts
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- tests/install-e2e.test.ts
+
 ## [15.40.1] — 2026-09-29
 
 The Windows test job passes again, and the docs say that main takes changes only through a PR.

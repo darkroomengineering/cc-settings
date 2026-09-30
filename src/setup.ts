@@ -41,6 +41,7 @@ import {
   captureClaudeSharedExplicitDriftAfterFailure,
   captureClaudeSharedExplicitState,
   claudeManagedPath,
+  ensurePersonalInstructionsFile,
   prepareClaudeInstallOwnership,
   regularFileHash,
   validateClaudeManagedFiles,
@@ -110,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.40.1"; // Windows test fixtures and protected-main docs.
+const VERSION = "15.41.0"; // ~/.claude/personal.md: personal instructions that setup never replaces.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
@@ -657,6 +658,7 @@ async function main(): Promise<number> {
         // installPlugins' own doc comment.
         await installPlugins(args.profile, args.dryRun, { typesafeKey: args.typesafeKey });
         if (!args.dryRun) await restrictKeyedSettings();
+        if (!args.dryRun && args.profile === "full") await ensurePersonalInstructionsFile();
 
         schedulerSharedBaseline = await captureClaudeSharedExplicitState();
         claudePhase = "scheduler";
