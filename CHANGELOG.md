@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.42.1] — 2026-09-30
+
+Notes posted with `/share-learning` now include the one-line `summary` that team-knowledge requires. Without it, every new note failed the team-knowledge lint and showed up in `INDEX.md` as a cut-off first body line, which is all the `knowledge-hint` hook shows an agent before it decides to open the note. Closes #170.
+
+**Changed:**
+- `skills/share-learning/SKILL.md`: the note template and frontmatter list include `summary` (one line, at most 160 characters, no `·`, `"` or `\`, states the rule rather than the story). The body opens with the rule. The template assigns the note with a quoted heredoc, so quotes, backticks, and `$` in the note stay literal.
+- `src/schemas/knowledge.ts`: `summary` is required, with the same limits team-knowledge's lint enforces; `schemas/knowledge.schema.json` is regenerated.
+- `src/scripts/new-note.ts`: scaffolds an empty `summary`, which fails lint until it is filled in.
+- `docs/knowledge-system.md`: the frontmatter contract documents `summary`.
+- `tests/lint-knowledge.test.ts`: cases for a missing, empty, too-long, and `·`-containing summary; the existing fixtures carry a summary so each case checks only its own rule.
+
 ## [15.42.0] — 2026-09-30
 
 Adds the scroll, WebGL, and React Compiler rules from the harbor website findings (#168). Agents on harbor kept shipping these mistakes and a person had to catch them in review. Each rule is one line; the linked team-knowledge note holds the evidence.

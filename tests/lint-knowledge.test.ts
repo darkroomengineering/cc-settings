@@ -23,6 +23,7 @@ const goodNote = (name: string) =>
   `---
 name: ${name}
 kind: convention
+summary: "A one-line statement of the convention."
 added-by: test-user
 ---
 
@@ -97,6 +98,7 @@ describe("lintKnowledgeDir — missing/invalid kind", () => {
         "bad-note.md",
         `---
 name: bad-note
+summary: "Fixture summary."
 added-by: test-user
 ---
 
@@ -119,6 +121,7 @@ Some body content here.
         "bad-kind.md",
         `---
 name: bad-kind
+summary: "Fixture summary."
 kind: unknown-type
 added-by: test-user
 ---
@@ -158,6 +161,7 @@ describe("lintKnowledgeDir — non-kebab name", () => {
         "BadName.md",
         `---
 name: BadName
+summary: "Fixture summary."
 kind: pattern
 added-by: test-user
 ---
@@ -182,6 +186,7 @@ Body content.
         "bad_name.md",
         `---
 name: bad_name
+summary: "Fixture summary."
 kind: gotcha
 added-by: test-user
 ---
@@ -206,6 +211,7 @@ describe("lintKnowledgeDir — empty body", () => {
         "empty-body.md",
         `---
 name: empty-body
+summary: "Fixture summary."
 kind: decision
 added-by: test-user
 ---
@@ -227,6 +233,7 @@ added-by: test-user
         "ws-body.md",
         `---
 name: ws-body
+summary: "Fixture summary."
 kind: incident
 added-by: test-user
 ---
@@ -253,6 +260,7 @@ describe("lintKnowledgeDir — angle brackets in body are allowed", () => {
         `---
 name: angle-note
 kind: convention
+summary: "Angle brackets are fine in note bodies."
 added-by: test-user
 ---
 
@@ -278,6 +286,7 @@ describe("lintKnowledgeDir — supersedes warning", () => {
         `---
 name: new-note
 kind: convention
+summary: "Replaces an older convention."
 added-by: test-user
 supersedes: old-note
 ---
@@ -306,6 +315,7 @@ Body content here explaining the change.
         `---
 name: new-convention
 kind: convention
+summary: "Replaces the old convention."
 added-by: test-user
 supersedes: old-convention
 ---
@@ -344,6 +354,7 @@ describe("lintKnowledgeDir — missing added-by", () => {
         "no-author.md",
         `---
 name: no-author
+summary: "Fixture summary."
 kind: decision
 ---
 
@@ -356,6 +367,63 @@ Body content here.
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("lintKnowledgeDir — summary", () => {
+  const withSummary = (name: string, summaryLine: string) =>
+    `---
+name: ${name}
+kind: gotcha
+${summaryLine}
+added-by: test-user
+---
+
+Body content here.
+`;
+
+  const lint = async (summaryLine: string) => {
+    const dir = await sandbox();
+    try {
+      await writeNote(dir, "s-note.md", withSummary("s-note", summaryLine));
+      return await lintKnowledgeDir(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  test("missing summary → schema error", async () => {
+    const result = await lint("");
+    expect(hasKnowledgeErrors(result)).toBe(true);
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("empty summary → schema error", async () => {
+    const result = await lint('summary: ""');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("summary over 160 chars → schema error", async () => {
+    const result = await lint(`summary: "${"x".repeat(161)}"`);
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("summary with the INDEX.md tag separator → schema error", async () => {
+    const result = await lint('summary: "Do this · not that"');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("summary of exactly 160 chars passes", async () => {
+    const result = await lint(`summary: "${"x".repeat(160)}"`);
+    expect(result.findings).toEqual([]);
   });
 });
 

@@ -19,6 +19,12 @@
         "pattern"
       ]
     },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[^\\u00B7\\r\\n]*$"
+    },
     "tags": {
       "type": "array",
       "items": {
@@ -36,6 +42,7 @@
   "required": [
     "name",
     "kind",
+    "summary",
     "added-by"
   ],
   "additionalProperties": {}
