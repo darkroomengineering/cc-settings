@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.42.2] — 2026-09-30
+
+The review-queue hook now has a test for the case where HEAD moves without a Claude commit, such as a pulled-down merge. Before, only the pure function was tested, so a broken hook wiring would have passed CI. Follows up the tests audit from 2026-09-28, which is now committed with the other audits.
+
+**Changed:**
+- `tests/review-queue.test.ts`: runs the hook against a temp git repo, commits between two `git pull` calls, and checks the queue drains to 0.
+- `docs/audits/tests-audit-2026-09-28.md`: added.
+
 ## [15.42.1] — 2026-09-30
 
 Notes posted with `/share-learning` now include the one-line `summary` that team-knowledge requires. Without it, every new note failed the team-knowledge lint and showed up in `INDEX.md` as a cut-off first body line, which is all the `knowledge-hint` hook shows an agent before it decides to open the note. Closes #170.
