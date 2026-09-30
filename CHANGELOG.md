@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.42.0] — 2026-09-30
+
+Adds the scroll, WebGL, and React Compiler rules from the harbor website findings (#168). Agents on harbor kept shipping these mistakes and a person had to catch them in review. Each rule is one line; the linked team-knowledge note holds the evidence.
+
+**Added:**
+- `rules/react-perf.md` "Frame loops": write `transform`/`opacity` on the moving node instead of a custom property that feeds layout; gate infinite animations and per-frame writes on visibility; a "can't be avoided" comment on a layout read is a claim to test, not a waiver; no `toDataURL()` images in styles.
+- `profiles/webgl.md`: Lenis runs at Tempus order -1 and scroll readers run after it; WebGL objects follow a DOM box; no hamo measurement hooks inside `WebGLTunnel` children; values that must cancel share scroll, rounding, and event. The Tempus and vanilla Lenis examples now use the current `order` API (lower runs first). The old example said higher runs first.
+- `rules/react.md`: a ref in a `useEffect` dependency array means the effect should not exist; destructure refs carried in an object to `*Ref` names; breakpoint visibility through `desktop-only` / `mobile-only`, not `useMediaQuery`.
+- `rules/style.md`: Satus routes compose in `page.tsx` as server components; strip `<filter>` from Figma SVG exports.
+- `agents/reviewer.md`: three questions on scroll-driven writes, DOM boxes for WebGL, and Tempus order.
+
 ## [15.41.1] — 2026-09-30
 
 `.claude/AGENTS.md` now names `ci-gate` as the only check a cc-settings PR needs before merging. The org ruleset "Default branch gate" requires it on every repo's default branch; `darky/review` is not required by any ruleset and can stay pending without blocking the merge.

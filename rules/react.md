@@ -104,6 +104,15 @@ setItems((prev) => [...prev, newItem])
 const fullName = `${first} ${last}`
 ```
 
+### A ref in a `useEffect` dependency array means the effect shouldn't exist
+A `RefObject` never changes, so listing it only quiets `exhaustive-deps`. Handlers on an element you render go in JSX props; an element needed as a value comes from a ref callback; an effect that must call the latest function keeps its real deps and calls it through `useEffectEvent`. Never `useCallback`.
+
+### Destructure refs carried in an object before writing
+React Compiler recognizes refs by name. `refs.track.current = el` reads as mutating a prop, and the compiler silently skips the component. Name the fields with a `Ref` suffix and destructure first: `const { trackRef } = refs; trackRef.current = el`.
+
+### Show markup per breakpoint with CSS, not `useMediaQuery`
+Use the `desktop-only` / `mobile-only` classes. They need no JavaScript and match the server render; the hook has no value until mount. Behavior that differs by breakpoint can still use JavaScript.
+
 ### Avoid client-side fetching for initial render data
 - Next.js: use Server Components or Route Handlers
 - React Router: use loaders (`loader` export)

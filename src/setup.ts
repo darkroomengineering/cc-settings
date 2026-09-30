@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.41.1"; // .claude/AGENTS.md: ci-gate is the only required merge check.
+const VERSION = "15.42.0"; // .claude/AGENTS.md: ci-gate is the only required merge check.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
