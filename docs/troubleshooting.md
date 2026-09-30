@@ -37,15 +37,9 @@ An earlier install was killed after it copied files into `~/.claude` and before 
 sentinel names, and the installer refuses to guess which of them it owns. `~/.claude/logs/auto-update.log`
 shows the interrupted run: "Installing configuration..." with no completion line after it.
 
-Recover from the backup that run created, then install again:
-
-```bash
-bash setup.sh --target=claude --rollback
-bash setup.sh --target=claude
-```
-
-If no `backup-*.tar.gz` remains in `~/.claude/backups`, the sentinel has to be rebuilt by hand:
-its `version` must be the release whose files are on disk (the commit the log says it pulled),
+`--rollback` and `--fresh` do not get past this state. Rollback checks the files on disk against the
+old sentinel's hashes, and `--fresh` runs the same collision check before it deletes anything. Rebuild the sentinel by hand, then install
+again: its `version` must be the release whose files are on disk (the commit the log says it pulled),
 `managed_files` must map every path in that release's manifest to the file's current SHA-256, and
 `managed_files_manifest_version` must be that release's manifest version. Removing
 `~/.claude/src/node_modules` alone only moves the collision to the next managed file.
