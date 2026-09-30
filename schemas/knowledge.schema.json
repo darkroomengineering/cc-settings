@@ -31,6 +31,18 @@
         "type": "string"
       }
     },
+    "scope": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      }
+    },
+    "verified": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
     "added-by": {
       "type": "string",
       "minLength": 1

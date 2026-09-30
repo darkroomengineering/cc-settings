@@ -31,6 +31,8 @@ export const KnowledgeNoteSchema = z.object({
   name: z.string(),
   kind: z.string(),
   tags: z.array(z.string()),
+  // Optional so a cache written before scope existed still parses.
+  scope: z.array(z.string()).optional(),
   hook: z.string(),
 });
 
@@ -45,14 +47,31 @@ export type KnowledgeIndex = z.infer<typeof KnowledgeIndexSchema>;
 
 // ── Pure helpers ───────────────────────────────────────────────────────────────
 
-// One INDEX.md line: `- [<kind>: <name>](<name>.md) — <hook> · tags: a, b, c`
-// The ` · tags: ...` suffix is optional (omitted when the note has no tags).
+// One INDEX.md line:
+//   `- [<kind>: <name>](<name>.md) — <hook> · scope: x, y · tags: a, b, c`
+// Each ` · <field>: ...` suffix is optional (omitted when the note has no
+// value). Scope precedes tags, so suffixes are stripped right to left.
 // — is U+2014, · is U+00B7.
 const INDEX_LINE = /^-\s*\[([^:\]]+):\s*([^\]]+)\]\([^)]+\)\s*—\s*(.*)$/;
 
+/** Split a trailing ` · <field>: a, b` suffix off `rest`. Returns the list and
+ *  the remaining text, or null when the last `·` segment is not that field. */
+function takeListSuffix(rest: string, field: string): { list: string[]; rest: string } | null {
+  const sep = rest.lastIndexOf("·");
+  if (sep === -1) return null;
+  const match = new RegExp(`^${field}:\\s*(.+)$`).exec(rest.slice(sep + 1).trim());
+  if (!match) return null;
+  const list = (match[1] ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return { list, rest: rest.slice(0, sep).trim() };
+}
+
 /** Parse the team-knowledge corpus's INDEX.md into structured notes. Tolerates
- *  lines without the trailing tags suffix (tags = []) and skips lines that
- *  don't match the documented format (headers, blank lines, etc). */
+ *  lines without the trailing scope and tags suffixes (tags = [], no scope)
+ *  and skips lines that don't match the documented format (headers, blank
+ *  lines, etc). */
 export function parseIndexMarkdown(md: string): KnowledgeNote[] {
   const notes: KnowledgeNote[] = [];
   for (const line of md.split(/\r?\n/)) {
@@ -64,20 +83,19 @@ export function parseIndexMarkdown(md: string): KnowledgeNote[] {
     if (!kind || !name) continue;
 
     let tags: string[] = [];
-    const tagsSep = rest.lastIndexOf("·");
-    if (tagsSep !== -1) {
-      const tagsPart = rest.slice(tagsSep + 1).trim();
-      const tagsMatch = /^tags:\s*(.+)$/.exec(tagsPart);
-      if (tagsMatch) {
-        tags = (tagsMatch[1] ?? "")
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean);
-        rest = rest.slice(0, tagsSep).trim();
-      }
+    const tagsPart = takeListSuffix(rest, "tags");
+    if (tagsPart) {
+      tags = tagsPart.list;
+      rest = tagsPart.rest;
     }
 
-    notes.push({ name, kind, tags, hook: rest });
+    const note: KnowledgeNote = { name, kind, tags, hook: rest };
+    const scopePart = takeListSuffix(rest, "scope");
+    if (scopePart && scopePart.list.length > 0) {
+      note.scope = scopePart.list;
+      note.hook = scopePart.rest;
+    }
+    notes.push(note);
   }
   return notes;
 }

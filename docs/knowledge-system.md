@@ -55,15 +55,24 @@ name: <kebab-case slug; equals filename without .md>
 kind: decision | convention | gotcha | incident | pattern
 summary: "<one line, max 160 chars, no ·>"
 tags: [kebab, strings]        # optional
+scope: [repo-name]            # optional
+verified: "YYYY-MM-DD"        # optional
 added-by: <github login or name>
 supersedes: <name>            # optional
 ---
-<body: what + why + how to apply>
+<body: the rule first, then why, then how to apply>
 ```
 
 `summary` is required. It becomes the note's `<hook text>` in `INDEX.md`,
 which is all the `knowledge-hint` hook shows an agent before it decides to
 open the note, so it states the rule and what to do, not how it was found.
+
+`tags` are matched as whole words against the command or file an agent is
+working on, so literal identifiers (`drizzle-kit`, `getboundingclientrect`)
+make the hint fire at the right moment. `scope` lists the GitHub repo names a
+note applies to; the hook hides a scoped note in any other repo. `verified`
+dates a note's version-specific claims; the linter warns once it is older than
+180 days.
 
 ### INDEX.md line format contract
 
@@ -71,10 +80,11 @@ Every note gets one line in the generated `INDEX.md`, consumed by the
 knowledge-index cache and the `knowledge-hint` hook (see "Agent Usage"
 below):
 ```
-- [<kind>: <name>](<name>.md) — <hook text> · tags: a, b, c
+- [<kind>: <name>](<name>.md) — <hook text> · scope: x, y · tags: a, b, c
 ```
-The ` · tags: ...` suffix (`·` = U+00B7) is omitted when the note has no
-tags. `—` is U+2014. A change to this line shape needs a matching change to
+Each ` · <field>: ...` suffix (`·` = U+00B7) is omitted when the note has no
+value for it. Scope comes before tags, so a parser that splits only the last
+`·` still finds the tags. `—` is U+2014. A change to this line shape needs a matching change to
 `parseIndexMarkdown` in `src/lib/knowledge-index.ts`.
 
 ### What Goes in Shared Knowledge
@@ -97,7 +107,9 @@ tags. `—` is U+2014. A change to this line shape needs a matching change to
 2. **`knowledge-hint` hook.** A PreToolUse hook on `Bash|Edit|Write` scores
    the cached notes' slug words + tags against the command/file being acted
    on and surfaces up to 3 matching notes (title + one-line hook text) via
-   `additionalContext`, once per note per session. It never hits the network
+   `additionalContext`, once per note per session. A note with a `scope` is
+   shown only when the session's repo (its origin remote name or checkout
+   folder) is in that scope. It never hits the network
    — it only reads the same TTL cache the SessionStart banner does.
 3. **Read a note the hint pointed at:**
 ```bash

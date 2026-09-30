@@ -19,6 +19,9 @@ import {
 
 export type KnowledgeSeverity = LintSeverity;
 
+// Matches team-knowledge's own lint.
+const VERIFIED_STALE_DAYS = 180;
+
 export interface KnowledgeFinding {
   note: string;
   severity: KnowledgeSeverity;
@@ -88,6 +91,31 @@ async function lintOne(
         rule: "supersedes-unknown",
         message: `supersedes "${fm.supersedes}" does not match any note name in this directory`,
       });
+    }
+
+    // verified: a real past date; warn once the claims are due for a re-check.
+    if (fm.verified !== undefined) {
+      // Date.parse rolls 2026-02-30 over to March 2, so require a round trip.
+      const time = Date.parse(`${fm.verified}T00:00:00Z`);
+      if (Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== fm.verified) {
+        domainFindings.push({
+          severity: "error",
+          rule: "verified-invalid",
+          message: `verified "${fm.verified}" is not a real date`,
+        });
+      } else if (time > Date.now()) {
+        domainFindings.push({
+          severity: "error",
+          rule: "verified-future",
+          message: `verified "${fm.verified}" is in the future`,
+        });
+      } else if (Date.now() - time > VERIFIED_STALE_DAYS * 86_400_000) {
+        domainFindings.push({
+          severity: "warning",
+          rule: "verified-stale",
+          message: `verified "${fm.verified}" is older than ${VERIFIED_STALE_DAYS} days; re-check the claims`,
+        });
+      }
     }
 
     // Body must be non-empty (meaningful content after frontmatter).

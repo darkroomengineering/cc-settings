@@ -19,7 +19,7 @@ import {
   runHook,
   writeState,
 } from "../lib/hook-runtime.ts";
-import { rankNotes } from "../lib/knowledge-hint.ts";
+import { rankNotes, repoNamesFrom } from "../lib/knowledge-hint.ts";
 import { type KnowledgeNote, readKnowledgeIndex } from "../lib/knowledge-index.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
 
@@ -41,9 +41,41 @@ type ToolInput = {
 
 type Payload = {
   session_id: string;
+  cwd?: string;
   tool_name: string;
   tool_input: ToolInput;
 };
+
+/** Trimmed stdout of `git -C <cwd> <args>`, or "" on any failure. Sync
+ *  because it runs inside a filter; bounded so a stale lock can't stall the
+ *  tool call. */
+function gitOut(cwd: string, args: string[]): string {
+  try {
+    const proc = Bun.spawnSync(["git", "-C", cwd, ...args], {
+      stdout: "pipe",
+      stderr: "ignore",
+      stdin: "ignore",
+      timeout: 2_000,
+    });
+    return proc.exitCode === 0 ? proc.stdout.toString().trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Lazily resolve and memoize the current repo's names. Outside a git repo
+ *  the set is empty, so every scoped note stays hidden: a missed hint is the
+ *  hook's accepted failure mode, a hint from another project is not. */
+function repoNamesResolver(cwd: string): () => ReadonlySet<string> {
+  let names: Set<string> | undefined;
+  return () => {
+    names ??= repoNamesFrom(
+      gitOut(cwd, ["remote", "get-url", "origin"]),
+      gitOut(cwd, ["rev-parse", "--show-toplevel"]),
+    );
+    return names;
+  };
+}
 
 /** Build the lowercase haystack for a tool call — the fields the hint should
  *  search, concatenated. Unknown tool names produce an empty haystack. */
@@ -113,7 +145,8 @@ async function main(): Promise<void> {
   const safeState: HintState = validated.success ? validated.data : { sessions: {} };
   const shown = new Set(safeState.sessions[sessionId] ?? []);
 
-  const matched = rankNotes(index.notes, haystack, shown);
+  const cwd = input.cwd ?? process.cwd();
+  const matched = rankNotes(index.notes, haystack, shown, repoNamesResolver(cwd));
   if (matched.length === 0) return;
 
   emitAdditionalContext("PreToolUse", formatMessage(matched));

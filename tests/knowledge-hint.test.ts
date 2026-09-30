@@ -6,7 +6,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { GENERIC_TOKENS, rankNotes, scoreNote, tokensFor } from "../src/lib/knowledge-hint.ts";
+import {
+  GENERIC_TOKENS,
+  rankNotes,
+  repoNamesFrom,
+  scoreNote,
+  tokensFor,
+} from "../src/lib/knowledge-hint.ts";
 import type { KnowledgeIndex, KnowledgeNote } from "../src/lib/knowledge-index.ts";
 
 const DRIZZLE: KnowledgeNote = {
@@ -42,6 +48,14 @@ const API_ERROR: KnowledgeNote = {
   kind: "convention",
   tags: ["api", "conventions", "error-handling"],
   hook: "API routes return { data, error } — never throw to the caller.",
+};
+
+const PROGRAMA_LOG: KnowledgeNote = {
+  name: "programa-release-diagnostics-log",
+  kind: "convention",
+  tags: ["programa", "debugging", "diagnostics"],
+  scope: ["programa"],
+  hook: "Programa Release builds log to diagnostics.log.",
 };
 
 // ── GENERIC_TOKENS ───────────────────────────────────────────────────────────
@@ -149,6 +163,54 @@ describe("rankNotes", () => {
   });
 });
 
+describe("rankNotes — scope", () => {
+  const command = "tail ~/Library/Logs/Programa/diagnostics.log";
+
+  test("a scoped note surfaces when the current repo is in its scope", () => {
+    const ranked = rankNotes([PROGRAMA_LOG], command, new Set(), () => new Set(["programa"]));
+    expect(ranked.map((n) => n.name)).toEqual([PROGRAMA_LOG.name]);
+  });
+
+  test("a scoped note is hidden in another repo", () => {
+    expect(rankNotes([PROGRAMA_LOG], command, new Set(), () => new Set(["satus"]))).toEqual([]);
+  });
+
+  test("a scoped note is hidden when the repo is unknown", () => {
+    expect(rankNotes([PROGRAMA_LOG], command)).toEqual([]);
+  });
+
+  test("the repo is not resolved when no scoped note qualifies", () => {
+    let calls = 0;
+    const repos = () => {
+      calls++;
+      return new Set<string>();
+    };
+    expect(rankNotes([DRIZZLE, PROGRAMA_LOG], "bun drizzle-kit push", new Set(), repos)).toEqual([
+      DRIZZLE,
+    ]);
+    expect(calls).toBe(0);
+  });
+});
+
+describe("repoNamesFrom", () => {
+  test("SSH remote plus a worktree folder yields both names", () => {
+    expect(
+      repoNamesFrom("git@github.com:darkroomengineering/programa.git", "/src/programa-wt-1"),
+    ).toEqual(new Set(["programa", "programa-wt-1"]));
+  });
+
+  test("HTTPS remote with a trailing slash", () => {
+    expect(repoNamesFrom("https://github.com/darkroomengineering/cc-settings/", "")).toEqual(
+      new Set(["cc-settings"]),
+    );
+  });
+
+  test("no origin falls back to the folder; nothing yields an empty set", () => {
+    expect(repoNamesFrom("", "/src/plain")).toEqual(new Set(["plain"]));
+    expect(repoNamesFrom("", "")).toEqual(new Set());
+  });
+});
+
 // ── End-to-end: spawn the real hook, HOME sandboxed ─────────────────────────
 // Same isolation pattern as tests/freeze.test.ts — HOME points at a scratch
 // dir so this never touches the real ~/.claude/tmp/knowledge-index.json.
@@ -172,7 +234,7 @@ async function seedIndex(home: string, notes: KnowledgeNote[]): Promise<void> {
 
 async function runHintHook(
   home: string,
-  payload: { session_id: string; tool_name: string; tool_input: unknown },
+  payload: { session_id: string; tool_name: string; tool_input: unknown; cwd?: string },
 ): Promise<{ stdout: string; exit: number }> {
   const proc = Bun.spawn(["bun", HINT_HOOK], {
     env: baseEnv(home),
@@ -236,6 +298,30 @@ describe("knowledge-hint hook (e2e)", () => {
       await runHintHook(home, commandPayload("session-A"));
       const other = await runHintHook(home, commandPayload("session-B"));
       expect(other.stdout).toContain(DRIZZLE.name);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a scoped note surfaces only when cwd is a checkout of its repo", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-knowledge-hint-"));
+    try {
+      await seedIndex(home, [PROGRAMA_LOG]);
+      const repo = join(home, "programa");
+      await mkdir(repo);
+      Bun.spawnSync(["git", "init", "-q", repo]);
+      const payload = (sessionId: string, cwd: string) => ({
+        session_id: sessionId,
+        tool_name: "Bash",
+        tool_input: { command: "tail ~/Library/Logs/Programa/diagnostics.log" },
+        cwd,
+      });
+      const inRepo = await runHintHook(home, payload("session-A", repo));
+      expect(inRepo.stdout).toContain(PROGRAMA_LOG.name);
+
+      const elsewhere = await runHintHook(home, payload("session-B", home));
+      expect(elsewhere.exit).toBe(0);
+      expect(elsewhere.stdout).toBe("");
     } finally {
       await rm(home, { recursive: true, force: true });
     }
