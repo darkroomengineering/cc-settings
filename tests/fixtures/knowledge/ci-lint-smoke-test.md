@@ -1,6 +1,7 @@
 ---
 name: ci-lint-smoke-test
 kind: convention
+summary: "Schema-valid fixture note that gives CI's lint:knowledge step real content to lint."
 added-by: cc-settings-ci
 ---
 
