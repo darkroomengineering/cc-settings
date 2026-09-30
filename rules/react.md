@@ -105,7 +105,7 @@ const fullName = `${first} ${last}`
 ```
 
 ### A ref in a `useEffect` dependency array means the effect shouldn't exist
-Move the work into a JSX handler, a ref callback, or `useEffectEvent`. Never reach for `useCallback` to quiet the lint.
+A `RefObject` never changes, so listing it only quiets `exhaustive-deps`. Handlers on an element you render go in JSX props; an element needed as a value comes from a ref callback; an effect that must call the latest function keeps its real deps and calls it through `useEffectEvent`. Never `useCallback`.
 
 ### Destructure refs carried in an object before writing
 React Compiler recognizes refs by name. `refs.track.current = el` reads as mutating a prop, and the compiler silently skips the component. Name the fields with a `Ref` suffix and destructure first: `const { trackRef } = refs; trackRef.current = el`.

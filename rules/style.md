@@ -79,7 +79,7 @@ import '@/styles/globals.css'  // Only in layout.tsx
 ```
 
 - **Satus routes compose in `app/**/page.tsx` as server components.** A page-level `'use client'` component under `components/` that is all `page.tsx` renders is a smell: move the ref or state that forced it into the component that renders the element.
-- **Open every Figma-exported SVG and strip `<filter>`** before using it as a background or mask. Texture effects export as `feTurbulence` filters that re-rasterize on the main thread.
+- **Open every Figma-exported SVG and strip `<filter>`** before using it as a background or mask. Texture effects export as `feTurbulence` filters that re-rasterize on the main thread. If the effect matters visually, apply it to an inline SVG on a composited layer and measure before shipping.
 
 ---
 
