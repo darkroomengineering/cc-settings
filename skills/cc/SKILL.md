@@ -232,9 +232,9 @@ git push -u origin HEAD
 gh pr create --base main --fill
 ```
 
-Work on a branch: main rejects direct pushes and requires the `ci-gate`
-workflow and the `darky/review` check, which run only on a PR. Merge the PR
-once they pass. Use conventional commit prefix `feat(v<X.Y.Z>):` so the
+Work on a branch: main rejects direct pushes and requires the org
+`ci-gate` workflow, which runs only on a PR. Merge the PR once it passes;
+`darky/review` is not required. Use conventional commit prefix `feat(v<X.Y.Z>):` so the
 version stands out in git log. Do not push if anything in Phase 7 is failing.
 
 ### What this mode does NOT do

@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.41.1] — 2026-09-30
+
+`.claude/AGENTS.md` now names `ci-gate` as the only check a cc-settings PR needs before merging. The org ruleset "Default branch gate" requires it on every repo's default branch; `darky/review` is not required by any ruleset and can stay pending without blocking the merge.
+
+**Changed:**
+- `.claude/AGENTS.md`: the Landing line.
+- `skills/cc/SKILL.md`: the sync-mode landing note.
+- `upstream/codex-manifest.json`: synced to Codex 0.159.2. Nothing to adopt; 0.159.1 makes GPT-6.1 Sol the catalog default, which the bridge already pins, and 0.159.2 is a Windows-only fix.
+
 ## [15.41.0] — 2026-09-29
 
 Your own global instructions now have a home that survives updates: `~/.claude/personal.md`. The installed `~/.claude/CLAUDE.md` imports it last, so it loads in every Claude Code session and subagent. Setup creates it once and never replaces, backs up, rolls back, or removes it. Edits to `~/.claude/CLAUDE.md` itself are still saved to `backups/` and replaced on the next install; the warning and the auto-update log now point at `personal.md`. Codex does not read the file.
