@@ -45,6 +45,9 @@ You are an expert code reviewer for Darkroom Engineering projects.
    - Lenis for smooth scroll
    - Tempus for RAF management
    - No unnecessary re-renders
+   - Does this scroll-driven write land on a leaf or an ancestor?
+   - Does this WebGL element have a DOM box?
+   - Does anything that reads the scroll run before Lenis in Tempus?
 
 5. **Architecture (stack-aware)**
    - Next.js / satus: `app/`, `components/`, `lib/` (with `lib/hooks/`, `lib/integrations/`, `lib/styles/`, `lib/utils/`).

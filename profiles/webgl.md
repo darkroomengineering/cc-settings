@@ -259,6 +259,7 @@ export default function RootLayout({ children }) {
 'use client'
 import { useEffect } from 'react'
 import Lenis from 'lenis'
+import Tempus from 'tempus'
 
 export function SmoothScrollProvider({ children }) {
   useEffect(() => {
@@ -269,15 +270,12 @@ export function SmoothScrollProvider({ children }) {
       smoothWheel: true,
     })
 
-    let frameId: number
-    function raf(time: number) {
-      lenis.raf(time)
-      frameId = requestAnimationFrame(raf)
-    }
-    frameId = requestAnimationFrame(raf)
+    // Lenis runs first (order -1); anything that reads lenis.scroll to draw
+    // runs after it with an explicit order, e.g. canvas 1, followers 2.
+    const remove = Tempus.add(({ time }) => lenis.raf(time), { order: -1, label: 'lenis' })
 
     return () => {
-      cancelAnimationFrame(frameId)
+      remove?.()
       lenis.destroy()
     }
   }, [])
@@ -333,22 +331,18 @@ lenis?.scrollTo(target, {
 ## Tempus (RAF Management)
 
 ```tsx
-import Tempus from 'tempus'
-
-// Single global RAF
-const tempus = new Tempus()
+import { useTempus } from 'tempus/react'
 
 function Component() {
-  useEffect(() => {
-    const unsubscribe = tempus.add((time, delta) => {
-      // Animation logic
-      mesh.rotation.x += delta * 0.001
-    }, 0) // Priority 0 (higher = runs first)
-
-    return unsubscribe
-  }, [])
+  // One global RAF. `order` sorts callbacks within a frame: lower runs first,
+  // default 0. Lenis sits at -1, so scroll readers go after it.
+  useTempus(({ deltaTime }) => {
+    mesh.rotation.x += deltaTime * 0.001
+  }, { order: 1, label: 'spin' })
 }
 ```
+
+Give every callback an explicit `order` and keep the list in one comment next to the Lenis setup. Anything that reads `lenis.scroll` to draw must run after Lenis, or the canvas lags the DOM by one frame of scroll on every wheel flick.
 
 ---
 
@@ -398,6 +392,10 @@ import { Perf } from 'r3f-perf'
 | Missing cleanup | Always return cleanup in `useEffect`/`useGSAP` |
 | GPU memory creeps across routes | Create GPU resources in the mount effect, never a `useState` initializer |
 | Lighthouse `PAGE_HUNG`, PSI never finishes | Mount gate rejects software renderers (SwiftShader) |
+| Canvas slides against DOM content while scrolling | Lenis at Tempus order -1; scroll readers after it with explicit orders |
+| WebGL size or position drifts from the design | Follow a DOM box placed by CSS: `useWebGLElement` on the DOM side, `useWebGLRect` in the canvas; never a design constant times section width |
+| Canvas-side `useRect` stays `undefined` | No hamo `useRect` / `useResizeObserver` / `useIntersectionObserver` inside `WebGLTunnel` children; measure on the DOM side and pass `rect` as a prop |
+| Pinned WebGL element shakes by 1px | Values that must cancel use the same scroll, rounding, and event; hamo scroll-trigger progress floors, `useWebGLRect` rounds |
 
 ---
 
@@ -474,3 +472,5 @@ Fetch current API surface via Context7 MCP (`mcp__context7__resolve-library-id` 
 - [ ] Performance monitoring in dev mode
 - [ ] Responsive DPR and geometry quality
 - [ ] Instancing for repeated objects
+- [ ] Every `useTempus` has an explicit `order`; scroll readers run after Lenis (-1)
+- [ ] Every WebGL element follows a DOM box
