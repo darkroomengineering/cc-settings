@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.42.2"; // review-queue hook test covers the HEAD-advance drain.
+const VERSION = "15.42.3"; // status stops expecting the retired ENABLE_PROMPT_CACHING_1H env var.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
