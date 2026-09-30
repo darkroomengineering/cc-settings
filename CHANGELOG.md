@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.42.3] — 2026-09-30
+
+The status report no longer flags `ENABLE_PROMPT_CACHING_1H` as unset. v15.2.0 retired that variable in favor of the `promptCacheTtl` settings keys and v15.3.0 removes it from existing installs, so every status run since then showed one false "unset" warning.
+
+**Changed:**
+- `src/lib/status.ts`: `EXPECTED_ENV_VARS` drops `ENABLE_PROMPT_CACHING_1H`.
+- `docs/troubleshooting.md`: what "Claude managed destination collision: src/node_modules" means (an install killed after copying files and before writing the sentinel) and how to recover.
+- `docs/cache-strategy.md`: the TTL section names the `promptCacheTtl` and `subagentPromptCacheTtl` settings keys cc-settings sets, not the retired env var.
+
 ## [15.42.2] — 2026-09-30
 
 The review-queue hook now has a test for the case where HEAD moves without a Claude commit, such as a pulled-down merge. Before, only the pure function was tested, so a broken hook wiring would have passed CI. Follows up the tests audit from 2026-09-28, which is now committed with the other audits.

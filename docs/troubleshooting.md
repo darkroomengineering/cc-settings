@@ -30,6 +30,20 @@ project settings, managed policy, or command-line overrides. Codex has no exact 
 Restart the selected product after installation or a tier change. Output-style changes in Claude
 need `/clear` or a new session because the style loads once per session.
 
+### Setup fails with "Claude managed destination collision: src/node_modules"
+
+An earlier install was killed after it copied files into `~/.claude` and before it wrote
+`~/.claude/.cc-settings-version`. The files on disk then come from a newer version than the
+sentinel names, and the installer refuses to guess which of them it owns. `~/.claude/logs/auto-update.log`
+shows the interrupted run: "Installing configuration..." with no completion line after it.
+
+`--rollback` and `--fresh` do not get past this state. Rollback checks the files on disk against the
+old sentinel's hashes, and `--fresh` runs the same collision check before it deletes anything. Rebuild the sentinel by hand, then install
+again: its `version` must be the release whose files are on disk (the commit the log says it pulled),
+`managed_files` must map every path in that release's manifest to the file's current SHA-256, and
+`managed_files_manifest_version` must be that release's manifest version. Removing
+`~/.claude/src/node_modules` alone only moves the collision to the next managed file.
+
 ## A skill did not run or behaved differently
 
 1. Use ordinary language first. State the desired outcome and safety boundary.
