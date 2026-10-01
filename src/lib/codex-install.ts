@@ -225,7 +225,9 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
     }
     const managedAgentHashes: Record<string, string> = {};
     let managedRuleHash: string | undefined;
-    await stripManagedHooks(paths);
+    if (previous?.profile === "full" || options.profile === "full") {
+      await stripManagedHooks(paths);
+    }
     if (options.profile === "full") {
       for (const agent of agents) {
         const serialized = serializeNativeAgent(agent, paths);

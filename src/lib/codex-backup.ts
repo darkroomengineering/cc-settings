@@ -805,7 +805,7 @@ export async function removeCurrentManagedCodexState(
   if (sentinel.profile === "full") {
     await removeFileWithHash(join(paths.rulesDir, MANAGED_RULE_NAME), sentinel.managed_rule_hash);
   }
-  await stripManagedHooks(paths);
+  if (sentinel.profile === "full") await stripManagedHooks(paths);
   await rm(paths.sentinelPath, { force: true });
   await rm(paths.managedSource, { recursive: true, force: true });
   await rmdir(dirname(paths.managedSource)).catch((cause: NodeJS.ErrnoException) => {
