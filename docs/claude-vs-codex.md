@@ -20,7 +20,7 @@ travel across hosts. The host decides how tools, agents, hooks, and background w
 | Continue agent work | Resume or message the existing agent/task | Resume or message the existing agent/task through native agent controls |
 
 Natural language is the safest common interface. Explicit names matter when nearby skills have
-different effects, such as `review`, `proof-of-work`, `verify`, `qa`, `triage`, and `audit`.
+different effects, such as `review`, `proof-of-work`, `poke-holes`, `qa`, `triage`, and `audit`.
 
 Claude's native `/review` name can overlap with the cc-settings `review` skill. Say "run the
 cc-settings local pre-commit review" or choose the cc-settings skill from the visible skill picker.

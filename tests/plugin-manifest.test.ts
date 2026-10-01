@@ -320,7 +320,7 @@ describe("standalone Codex workflow branches", () => {
     "skills/refactor/SKILL.md",
     "skills/review/SKILL.md",
     "skills/ship/SKILL.md",
-    "skills/verify/SKILL.md",
+    "skills/poke-holes/SKILL.md",
   ])("%s uses the current native agent lifecycle", async (path) => {
     const branch = standaloneSection(await readFile(join(ROOT, path), "utf8"));
     expect(branch.length).toBeGreaterThan(0);
@@ -354,7 +354,7 @@ describe("standalone Codex workflow branches", () => {
       "skills/refactor/SKILL.md",
       "skills/review/SKILL.md",
       "skills/ship/SKILL.md",
-      "skills/verify/SKILL.md",
+      "skills/poke-holes/SKILL.md",
     ];
     for (const path of paths) {
       const content = await readFile(join(ROOT, path), "utf8");
@@ -373,7 +373,7 @@ describe("standalone Codex workflow branches", () => {
       "skills/refactor/SKILL.md",
       "skills/review/SKILL.md",
       "skills/ship/SKILL.md",
-      "skills/verify/SKILL.md",
+      "skills/poke-holes/SKILL.md",
     ];
     const closeDirective =
       /\b(?:close(?:\s+it|\s+(?:the|that|a)\s+(?:agent|explorer|writer|worker|thread)|\s+(?:spawned|running)\s+(?:agent|worker|thread))|closing\s+(?:an?\s+|the\s+)?(?:agent|worker|thread))\b/i;
@@ -398,7 +398,7 @@ describe("standalone Codex workflow branches", () => {
     "skills/refactor/SKILL.md",
     "skills/review/SKILL.md",
     "skills/ship/SKILL.md",
-    "skills/verify/SKILL.md",
+    "skills/poke-holes/SKILL.md",
   ])("%s explicitly avoids self-invoking the Claude-to-Codex bridge", async (path) => {
     const branch = standaloneSection(await readFile(join(ROOT, path), "utf8"));
     expect(branch.length).toBeGreaterThan(0);

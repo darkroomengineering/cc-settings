@@ -136,7 +136,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 There's no third `inherit` value — `context: inherit` is never written anywhere in the repo, and `src/schemas/skill.ts` defines the field as `z.enum(["fork", "main"])`.
 
-Skills using `fork` (23): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `triage`, `verify`. All 23 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
+Skills using `fork` (23): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `poke-holes`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `triage`. All 23 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
 Skills declaring `context: main` explicitly (5): `adhd`, `audit`, `codex`, `freeze`, `zero-tech-debt`.
 

@@ -1,5 +1,5 @@
 schema_version: "1.1"
-name: verify-adversarial-panel
-tags: [verify]
+name: poke-holes-adversarial-panel
+tags: [poke-holes]
 context:
   scaffold_script: fixture.sh

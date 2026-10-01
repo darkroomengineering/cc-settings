@@ -132,7 +132,7 @@ it never trips the folder conventions above.
 ## Common Pitfalls
 
 ### Over-broad description
-"Helps with testing" matches every test-related question — including those already covered by `/test`, `/verify`, `/build`. Be narrower: "Runs Lighthouse audits (3 mobile + 3 desktop, averaged) and fixes performance regressions."
+"Helps with testing" matches every test-related question — including those already covered by `/test`, `/poke-holes`, `/build`. Be narrower: "Runs Lighthouse audits (3 mobile + 3 desktop, averaged) and fixes performance regressions."
 
 ### Trigger overlap with existing skills
 Check the "All Skills" table in `MANUAL.md` before writing triggers. If your skill's triggers overlap significantly with an existing one, either narrow your triggers or propose merging.

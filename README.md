@@ -157,7 +157,7 @@ Small habits make the biggest difference in how well sessions go:
 4. **Raise effort only for hard turns.** The default is tuned for everyday work. Use `/effort high`
    or `/effort xhigh` for hard debugging, audits, or migrations, or add `ultrathink` to a single
    message.
-5. **Ask for a second opinion when it matters.** "Poke holes in this" (`/verify`) sends independent
+5. **Ask for a second opinion when it matters.** "Poke holes in this" (`/poke-holes`) sends independent
    agents to find and disprove problems. "What could go wrong?" (`/oracle`) runs a risk review
    before you commit to a plan.
 6. **Read the statusline.** It shows context size and usage limits. When context passes about

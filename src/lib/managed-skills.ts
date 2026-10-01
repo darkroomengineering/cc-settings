@@ -57,6 +57,7 @@ export const ACTIVE_SKILLS = [
   "orchestrate",
   "plan-ceo-review",
   "plan-feature",
+  "poke-holes",
   "project",
   "proof-of-work",
   "qa",
@@ -70,7 +71,6 @@ export const ACTIVE_SKILLS = [
   "test",
   "tldr",
   "triage",
-  "verify",
   "zero-tech-debt",
 ];
 
@@ -104,6 +104,7 @@ export const TOMBSTONE_SKILLS = [
   "tdd",
   "teams",
   "versions",
+  "verify",
   "write-a-skill",
   "zoom-out",
 ];
