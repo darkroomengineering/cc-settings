@@ -68,7 +68,8 @@ authentication or repository access.
    - Frontmatter: `name` = the slug; `kind` from the argument; `summary` (required,
      see below); `added-by` from
      `gh api user --jq .login` (fall back to `git config user.name` if that fails);
-     `tags` optional; `supersedes` only when this note replaces an existing one.
+     `tags`, `scope` and `verified` optional (see below); `supersedes` only when
+     this note replaces an existing one.
    - `summary`: one line, at most 160 characters, no `·`, in double quotes. It
      becomes the note's line in `INDEX.md`, which is all an agent sees before
      deciding to open the note, so state the rule and what to do, not how it was
@@ -78,8 +79,22 @@ authentication or repository access.
      `\` inside it: in YAML double quotes a backslash starts an escape sequence,
      so `\d+` fails to parse and `\b` silently turns into a control character.
      Rephrase instead (write "digits", not `\d+`).
-   - Body: open with the rule, then why it matters, then how to apply it. One
-     learning per note, atomic and self-contained.
+   - `tags`: the `knowledge-hint` hook matches them as whole words against the
+     command or file an agent is working on, and one specific tag is enough to
+     surface the note. Include the literal identifiers that appear there,
+     lowercased (`drizzle-kit`, `getboundingclientrect`, `x-fb-ck-fbp`); skip
+     identifiers used everywhere (`useref`). A hyphenated tag matches only a
+     hyphen, so tag `sendmsg`, not `scm-rights` for `SCM_RIGHTS`.
+   - `scope`: repo names (as on GitHub) the note applies to, e.g. `[programa]`.
+     The hook hides a scoped note in every other repo, so add it only when the
+     rule is wrong or irrelevant elsewhere, never because the learning came from
+     one repo. Check the name with `gh repo view darkroomengineering/<name>`.
+   - `verified`: for a note about a tool, SDK or service version, the date
+     (`"YYYY-MM-DD"`, quoted) its claims were last confirmed.
+   - Body: open with the rule in one or two sentences, then what happened or why
+     it matters, then how to apply it. An agent that reads only the first
+     paragraph should know what to do. One learning per note, atomic and
+     self-contained.
 
    Assign the note with a quoted heredoc, so the summary's double quotes and any
    backticks or `$` in the body stay literal.
@@ -92,6 +107,8 @@ authentication or repository access.
    kind: <kind>
    summary: "<one-line rule, max 160 chars>"
    tags: [<tag1>, <tag2>]
+   scope: [<repo>]             # only when the rule applies to one repo
+   verified: "<YYYY-MM-DD>"    # only for version-specific claims
    added-by: <login>
    ---
 

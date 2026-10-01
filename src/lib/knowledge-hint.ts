@@ -166,19 +166,47 @@ export function scoreNote(note: KnowledgeNote, haystack: string): number {
 }
 
 /** Rank notes against a haystack, dropping ones already shown this session,
- *  keeping only notes scoring >= QUALIFY_THRESHOLD, sorted by score desc then
- *  name asc, capped at MAX_SHOWN. */
+ *  keeping only notes scoring >= QUALIFY_THRESHOLD whose scope includes the
+ *  current repo, sorted by score desc then name asc, capped at MAX_SHOWN.
+ *  `repoNames` is only called when a scoped note qualifies, so callers can
+ *  resolve the repo lazily; unscoped notes never depend on it. */
 export function rankNotes(
   notes: KnowledgeNote[],
   haystack: string,
   shown: ReadonlySet<string> = new Set(),
+  repoNames: () => ReadonlySet<string> = () => new Set(),
 ): KnowledgeNote[] {
   const capped = haystack.slice(0, MAX_HAYSTACK_CHARS);
   return notes
     .filter((n) => !shown.has(n.name))
     .map((n) => ({ note: n, score: scoreNote(n, capped) }))
     .filter((r) => r.score >= QUALIFY_THRESHOLD)
+    .filter((r) => {
+      const scope = r.note.scope;
+      if (!scope || scope.length === 0) return true;
+      const repos = repoNames();
+      return scope.some((repo) => repos.has(repo));
+    })
     .sort((a, b) => b.score - a.score || a.note.name.localeCompare(b.note.name))
     .slice(0, MAX_SHOWN)
     .map((r) => r.note);
+}
+
+/** Repo names a working tree answers to, for matching a note's `scope`: the
+ *  origin remote's repo name (HTTPS or `git@host:owner/repo.git` form) and
+ *  the checkout's folder name. Both count, because a worktree folder such as
+ *  `cc-settings-wt-170` differs from the repo name while a repo without an
+ *  origin has only its folder. Empty inputs contribute nothing. */
+export function repoNamesFrom(originUrl: string, toplevel: string): Set<string> {
+  const names = new Set<string>();
+  const fromUrl = originUrl
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\.git$/, "")
+    .split(/[/:]/)
+    .pop();
+  if (fromUrl) names.add(fromUrl.toLowerCase());
+  const folder = toplevel.trim().split(/[\\/]/).pop();
+  if (folder) names.add(folder.toLowerCase());
+  return names;
 }

@@ -30,6 +30,18 @@ export const KnowledgeFrontmatter = z.looseObject({
     .max(SUMMARY_MAX)
     .regex(/^[^·\r\n]*$/, "summary must be one line without '·' (the INDEX.md tag separator)"),
   tags: z.array(z.string()).optional(),
+  // Repo names the note applies to. The knowledge-hint hook hides a scoped
+  // note in every other repo, so a misspelled name hides it everywhere.
+  scope: z
+    .array(z.string().regex(KEBAB_CASE_RE, "scope entries must be repo names (kebab-case)"))
+    .min(1)
+    .optional(),
+  // Date the note's version-specific claims were last confirmed. The YAML
+  // parser keeps an unquoted date as a string, so one regex covers both forms.
+  verified: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "verified must be a YYYY-MM-DD date")
+    .optional(),
   "added-by": z.string().min(1),
   supersedes: z.string().optional(),
 

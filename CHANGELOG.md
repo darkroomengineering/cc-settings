@@ -4,7 +4,7 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
-## [15.42.4] — 2026-10-01
+## [15.42.5] — 2026-10-01
 
 The daily auto-update kept skipping on developer machines. Any untracked file, uncommitted edit, feature branch, or local commit in the cc-settings checkout stopped the run, so a maintainer with one stray folder sat three releases behind without a notification. The job already installs from a fresh isolated clone of official `main`, so the checkout's state never reached the install; it only blocked it.
 
@@ -14,6 +14,19 @@ The daily auto-update kept skipping on developer machines. Any untracked file, u
 - `tests/auto-update-script.test.ts` proves a modified, staged, untracked, or feature-branch checkout still installs and is left byte-for-byte untouched. The two tests that asserted the removed gates are deleted as an intentional contract change.
 
 Reaches an existing install on the next `bash setup.sh`.
+
+## [15.42.4] — 2026-09-30
+
+The `knowledge-hint` hook no longer shows notes from one project while you work in another. Team-knowledge notes can now carry a `scope` (the repo names they apply to) and a `verified` date. The `/share-learning` skill now writes tags that match what an agent actually types and opens each note with its rule.
+
+**Changed:**
+- `src/lib/knowledge-index.ts`: `parseIndexMarkdown` reads an optional ` · scope: a, b` suffix, placed before the tags. `scope` is optional in the cache schema, so existing caches still validate.
+- `src/lib/knowledge-hint.ts`: `rankNotes` drops a scoped note unless the current repo is in its scope. It resolves the repo only when a scoped note would otherwise be shown. `repoNamesFrom` derives the names from the origin remote and the checkout folder.
+- `src/hooks/knowledge-hint.ts`: finds the repo from the payload's `cwd` with a 2 s bounded git call. Outside a git repo, scoped notes stay hidden.
+- `src/schemas/knowledge.ts`, `src/lib/lint-knowledge.ts`: `scope` must list repo names. `verified` must be a real `YYYY-MM-DD` date and not in the future, and it warns after 180 days. `schemas/knowledge.schema.json` is regenerated.
+- `skills/share-learning/SKILL.md`: guidance for identifier tags, `scope`, and `verified`. The body opens with the rule.
+- `docs/knowledge-system.md`: documents the new fields and the index line format.
+- Tests for the scope parser, the ranker, `repoNamesFrom`, a hook run inside and outside a repo, and the new lint rules.
 
 ## [15.42.3] — 2026-09-30
 
