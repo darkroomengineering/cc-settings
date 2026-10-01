@@ -53,12 +53,17 @@ git clone https://github.com/darkroomengineering/team-knowledge ~/team-knowledge
 ---
 name: <kebab-case slug; equals filename without .md>
 kind: decision | convention | gotcha | incident | pattern
+summary: "<one line, max 160 chars, no ·>"
 tags: [kebab, strings]        # optional
 added-by: <github login or name>
 supersedes: <name>            # optional
 ---
 <body: what + why + how to apply>
 ```
+
+`summary` is required. It becomes the note's `<hook text>` in `INDEX.md`,
+which is all the `knowledge-hint` hook shows an agent before it decides to
+open the note, so it states the rule and what to do, not how it was found.
 
 ### INDEX.md line format contract
 

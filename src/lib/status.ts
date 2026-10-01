@@ -36,7 +36,6 @@ const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 // The env vars that CLAUDE-FULL.md promises are always set after install.
 export const EXPECTED_ENV_VARS = [
   "CLAUDE_CODE_EFFORT_LEVEL",
-  "ENABLE_PROMPT_CACHING_1H",
   "ENABLE_TOOL_SEARCH",
   "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
 ];

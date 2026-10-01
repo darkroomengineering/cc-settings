@@ -65,22 +65,39 @@ authentication or repository access.
 3. **Post.** Derive a `name` (kebab-case slug from the essence of the learning). Assemble
    the note:
 
-   - Frontmatter: `name` = the slug; `kind` from the argument; `added-by` from
+   - Frontmatter: `name` = the slug; `kind` from the argument; `summary` (required,
+     see below); `added-by` from
      `gh api user --jq .login` (fall back to `git config user.name` if that fails);
      `tags` optional; `supersedes` only when this note replaces an existing one.
-   - Body: what happened + why it matters + how to apply it. One learning per note,
-     atomic and self-contained.
+   - `summary`: one line, at most 160 characters, no `·`, in double quotes. It
+     becomes the note's line in `INDEX.md`, which is all an agent sees before
+     deciding to open the note, so state the rule and what to do, not how it was
+     found. Good: "drizzle-kit push on SQLite plans `delete from` for any new NOT
+     NULL column, even with a default; add the column with ALTER TABLE." Bad:
+     "What happened: on theca, drizzle-kit push against prod...". Never put `"` or
+     `\` inside it: in YAML double quotes a backslash starts an escape sequence,
+     so `\d+` fails to parse and `\b` silently turns into a control character.
+     Rephrase instead (write "digits", not `\d+`).
+   - Body: open with the rule, then why it matters, then how to apply it. One
+     learning per note, atomic and self-contained.
+
+   Assign the note with a quoted heredoc, so the summary's double quotes and any
+   backticks or `$` in the body stay literal.
 
    If creating a new note:
    ```bash
-   NOTE="---
+   NOTE=$(cat <<'EOF'
+   ---
    name: <name>
    kind: <kind>
+   summary: "<one-line rule, max 160 chars>"
    tags: [<tag1>, <tag2>]
    added-by: <login>
    ---
 
-   <body>"
+   <body>
+   EOF
+   )
 
    gh api -X PUT repos/$KNOWLEDGE_REPO/contents/<name>.md \
      -f message="knowledge: add <name>" \
