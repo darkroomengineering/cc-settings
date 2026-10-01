@@ -2,7 +2,7 @@
 // No network, no real cache I/O.
 
 import { describe, expect, test } from "bun:test";
-import { isStale, parseIndexMarkdown } from "../src/lib/knowledge-index.ts";
+import { isStale, KnowledgeIndexSchema, parseIndexMarkdown } from "../src/lib/knowledge-index.ts";
 
 // ── parseIndexMarkdown ──────────────────────────────────────────────────────────
 
@@ -80,6 +80,46 @@ describe("parseIndexMarkdown", () => {
 });
 
 // ── isStale ────────────────────────────────────────────────────────────────────
+
+describe("parseIndexMarkdown — scope suffix", () => {
+  test("scope before tags: both parsed, hook keeps neither", () => {
+    const md =
+      "- [gotcha: programa-x](programa-x.md) — Replay after geometry settles. · scope: programa · tags: programa, terminal";
+    expect(parseIndexMarkdown(md)).toEqual([
+      {
+        kind: "gotcha",
+        name: "programa-x",
+        hook: "Replay after geometry settles.",
+        tags: ["programa", "terminal"],
+        scope: ["programa"],
+      },
+    ]);
+  });
+
+  test("scope with no tags: scope parsed, tags []", () => {
+    const [note] = parseIndexMarkdown("- [gotcha: a](a.md) — Hook. · scope: programa, satus");
+    expect(note).toEqual({
+      kind: "gotcha",
+      name: "a",
+      hook: "Hook.",
+      tags: [],
+      scope: ["programa", "satus"],
+    });
+  });
+
+  test("a line without scope has no scope key", () => {
+    const [note] = parseIndexMarkdown("- [gotcha: a](a.md) — Hook. · tags: x");
+    expect(note).toEqual({ kind: "gotcha", name: "a", hook: "Hook.", tags: ["x"] });
+  });
+
+  test("a cache written before scope existed still validates", () => {
+    const cache = {
+      notes: [{ name: "a", kind: "gotcha", tags: ["x"], hook: "Hook." }],
+      checkedAt: new Date().toISOString(),
+    };
+    expect(KnowledgeIndexSchema.safeParse(cache).success).toBe(true);
+  });
+});
 
 describe("isStale", () => {
   test("undefined → stale", () => {

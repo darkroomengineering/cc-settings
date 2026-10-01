@@ -427,6 +427,78 @@ Body content here.
   });
 });
 
+describe("lintKnowledgeDir — scope and verified", () => {
+  const lint = async (extraLine: string) => {
+    const dir = await sandbox();
+    try {
+      await writeNote(
+        dir,
+        "f-note.md",
+        `---\nname: f-note\nkind: gotcha\nsummary: "A rule."\n${extraLine}\nadded-by: test-user\n---\n\nBody content here.\n`,
+      );
+      return await lintKnowledgeDir(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+  const daysAgo = (days: number) =>
+    new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
+  test("valid scope and recent verified date pass", async () => {
+    const result = await lint(`scope: [programa, satus]\nverified: "${daysAgo(10)}"`);
+    expect(result.findings).toEqual([]);
+  });
+
+  test("unquoted verified date passes", async () => {
+    const result = await lint(`verified: ${daysAgo(10)}`);
+    expect(result.findings).toEqual([]);
+  });
+
+  test("scope entry that is not a repo name → schema error", async () => {
+    const result = await lint("scope: [Programa]");
+    expect(result.findings.some((f) => f.rule === "schema" && f.message.startsWith("scope"))).toBe(
+      true,
+    );
+  });
+
+  test("empty scope list → schema error", async () => {
+    const result = await lint("scope: []");
+    expect(result.findings.some((f) => f.rule === "schema" && f.message.startsWith("scope"))).toBe(
+      true,
+    );
+  });
+
+  test("verified not in YYYY-MM-DD form → schema error", async () => {
+    const result = await lint('verified: "Sept 2026"');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("verified")),
+    ).toBe(true);
+  });
+
+  test("verified with an impossible month → error", async () => {
+    const result = await lint('verified: "2026-13-01"');
+    expect(result.findings.some((f) => f.rule === "verified-invalid")).toBe(true);
+  });
+
+  test("verified on a day the month does not have → error", async () => {
+    const result = await lint('verified: "2026-02-30"');
+    expect(result.findings.some((f) => f.rule === "verified-invalid")).toBe(true);
+  });
+
+  test("verified in the future → error", async () => {
+    const result = await lint(`verified: "${daysAgo(-30)}"`);
+    expect(result.findings.some((f) => f.rule === "verified-future")).toBe(true);
+  });
+
+  test("verified older than 180 days → warning only", async () => {
+    const result = await lint(`verified: "${daysAgo(200)}"`);
+    expect(result.findings.map((f) => [f.rule, f.severity])).toEqual([
+      ["verified-stale", "warning"],
+    ]);
+    expect(hasKnowledgeErrors(result)).toBe(false);
+  });
+});
+
 describe("formatKnowledgeFindings", () => {
   test("emits header and rule lines", async () => {
     const dir = await sandbox();
