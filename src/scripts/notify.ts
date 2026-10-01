@@ -44,7 +44,7 @@ $n.ShowBalloonTip(3000, 'Claude Code', '${safeMsg}', 'Info')`;
  * True when desktop notifications must stay silent.
  *
  * The suite spawns the scripts that notify — tests/auto-update-script.test.ts
- * deliberately drives the blocked-path and skipped-dirty branches — so without
+ * deliberately drives the blocked-path and pull-failed branches — so without
  * this guard a plain `bun test` fires real toasts at whoever ran it, reporting
  * failures that only ever happened inside a fixture. `bun test` sets
  * NODE_ENV=test and the harnesses spawn children with the parent env, so the

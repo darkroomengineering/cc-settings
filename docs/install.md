@@ -232,9 +232,10 @@ official `main` from isolated staging and rerun setup each day at 10:00 local ti
 installs do not create a new decision unless `--auto-update=on|off` is explicit.
 
 The job validates the exact enrolled checkout path and official origin, clones official `main` into
-isolated staging, and proves the prior clean checkout is an ancestor. It runs setup from staging and
-leaves the enrolled checkout, including ignored files, branches, tags, reflogs, and local Git
-configuration, untouched. It never executes mutable Git configuration from the enrolled checkout.
+isolated staging, and runs setup from staging when official `main` carries a newer version than the
+installed one. Local edits, untracked files, feature branches, and local commits in the enrolled
+checkout never block the update, and the job leaves that checkout, including ignored files,
+branches, tags, reflogs, and local Git configuration, untouched. It never executes mutable Git configuration from the enrolled checkout.
 The job records the result in Claude logs. It does not roll back product files after a later setup
 failure.
 

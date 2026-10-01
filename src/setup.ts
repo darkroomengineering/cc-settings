@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.42.4"; // team-knowledge notes can be scoped to repos; knowledge-hint honors it.
+const VERSION = "15.42.5"; // Auto-update installs official main whatever the enrolled checkout's state.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
