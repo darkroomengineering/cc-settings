@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.44.0] — 2026-10-01
+
+Codex now loads the darkroom plugin from the repo's root `plugin.json` and `mcp.json`, the same way it loads any other plugin. Codex ignores hooks in plugins of that format, so `/cc update` now writes the seven Codex hooks to `$CODEX_HOME/hooks.json` as your own hooks. After the update, open `/hooks` in Codex and trust them once more: they run from the new source path under `$CODEX_HOME/darkroom/source`.
+
+**Changed:**
+- `plugin.json` and `mcp.json` at the repo root replace `.codex-plugin/plugin.json`. The Claude plugin keeps `.claude-plugin/` and `.mcp.json`; a test keeps both MCP files on the same servers and URLs.
+- `src/lib/codex-plugin.ts` generates `$CODEX_HOME/hooks.json` from `hooks/hooks.json` with absolute paths to the managed source. The sentinel records `managed_hooks_hash`, and uninstall, rollback and a failed install remove or restore the file by that hash.
+- A full Codex install stops before writing anything when `$CODEX_HOME/hooks.json` exists and is not the one cc-settings wrote. Move those hooks into the `[hooks]` table of `config.toml` or delete the file, then rerun. It also warns when `config.toml` has a `[hooks]` table, because Codex warns about hooks defined in both places.
+- `src/scripts/codex-hook.ts` always runs hooks from its own checkout and refuses a `PLUGIN_ROOT` that points anywhere else. It keeps its data in `$CODEX_HOME/plugins/data/darkroom-cc-settings`, the directory the plugin hooks already used for handoffs and logs.
+- A cloned repo can no longer redirect the Codex hooks to its own code. Bun loads a `.env` from the folder it runs in, and Codex runs hooks in your project, so a `.env` with `PLUGIN_ROOT=.` could have run that repo's scripts outside the sandbox. The generated commands and the hook runner now pass `--no-env-file`.
+- The installer writes `hooks.json` only if nothing appeared there since its ownership check, failure recovery never overwrites a file or symlink at that path, and hook generation refuses an unquoted `$PLUGIN_ROOT` or a source path with quote characters.
+- The Codex runtime manifest moves to version 14, so earlier versions still describe what they installed.
+
 ## [15.43.1] — 2026-10-01
 
 PRs finish CI in about 7 minutes instead of 23. Jobs that repeated other jobs or gave the same answer on every OS are gone, and the slow full Windows suite runs after the merge instead of on every PR.

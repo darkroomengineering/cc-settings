@@ -116,8 +116,8 @@ This ensures project progress is visible to the whole team, not just in local ha
 Handoffs are scoped per project (repo toplevel basename, or cwd basename
 outside a git repo) — a handoff saved in one project never surfaces as
 "latest" when you resume in another. Claude stores them below
-`~/.claude/handoffs`; Codex plugin hooks store them below
-`$PLUGIN_DATA/handoffs`:
+`~/.claude/handoffs`; Codex hooks store them below
+`$CODEX_HOME/plugins/data/darkroom-cc-settings/handoffs`:
 
 ```
 ~/.claude/handoffs/

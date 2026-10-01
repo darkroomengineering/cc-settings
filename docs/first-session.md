@@ -73,7 +73,7 @@ You normally describe the outcome. Explicit names are useful when two workflows 
 | Let the host choose | Say the outcome | Say the outcome |
 | Pin a shared skill | `/skill-name` | `$skill-name` |
 | Inspect the current session | Native statusline and `/status` where available | `/status` |
-| Review installed plugin hooks | Claude settings and hook docs | `/hooks` |
+| Review installed hooks | Claude settings and hook docs | `/hooks` |
 | Inspect installed cc-settings user scope | `bun ~/.claude/src/scripts/whats-on.ts` | No exact equivalent |
 
 Claude's native `/review` name can overlap with the cc-settings `review` skill. Say "run the

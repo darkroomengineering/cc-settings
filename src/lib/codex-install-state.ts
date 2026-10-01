@@ -72,6 +72,8 @@ export interface CodexInstallPaths {
   rulesDir: string;
   globalInstructionsPath: string;
   configPath: string;
+  /** User-level hooks file Codex reads from `$CODEX_HOME/hooks.json`. */
+  hooksPath: string;
 }
 
 export interface CodexInstallOptions {
@@ -130,6 +132,7 @@ export interface CodexSentinel {
   managed_agents: string[];
   managed_agent_hashes?: Record<string, string>;
   managed_rule_hash?: string;
+  managed_hooks_hash?: string;
   managed_source_hashes?: Record<string, string>;
   managed_instructions_hash?: string;
   runtime_manifest_version: number;
@@ -214,6 +217,7 @@ export function codexInstallPaths(home?: string): CodexInstallPaths {
     rulesDir: join(codexHome, "rules"),
     globalInstructionsPath: join(codexHome, "AGENTS.md"),
     configPath: join(codexHome, "config.toml"),
+    hooksPath: join(codexHome, "hooks.json"),
   };
   assertSafeManagedPaths(paths);
   return paths;
@@ -231,6 +235,7 @@ function assertSafeManagedPaths(paths: CodexInstallPaths): void {
     paths.rulesDir,
     paths.globalInstructionsPath,
     paths.configPath,
+    paths.hooksPath,
   ]) {
     const rel = relative(paths.codexHome, resolve(path));
     if (!rel || rel === ".." || rel.startsWith(`..${sep}`)) {
@@ -315,6 +320,7 @@ export async function assertCodexBoundaries(paths: CodexInstallPaths): Promise<v
     [join(paths.codexHome, "plugins", "cache"), "directory"],
     [paths.globalInstructionsPath, "file"],
     [paths.configPath, "file"],
+    [paths.hooksPath, "file"],
     [paths.sentinelPath, "file"],
     [join(paths.rulesDir, MANAGED_RULE_NAME), "file"],
   ];
@@ -447,6 +453,13 @@ export async function readSentinel(path: string): Promise<CodexSentinel | null> 
     ) {
       throw new Error(`Invalid managed rule hash in ${path}`);
     }
+    const managedHooksHash = value.managed_hooks_hash;
+    if (
+      managedHooksHash !== undefined &&
+      (typeof managedHooksHash !== "string" || !SHA256.test(managedHooksHash))
+    ) {
+      throw new Error(`Invalid managed hooks hash in ${path}`);
+    }
     const managedInstructionsHash = value.managed_instructions_hash;
     if (
       managedInstructionsHash !== undefined &&
@@ -479,6 +492,7 @@ export async function readSentinel(path: string): Promise<CodexSentinel | null> 
       managed_agents: managedAgents,
       ...(managedAgentHashes ? { managed_agent_hashes: managedAgentHashes } : {}),
       ...(typeof managedRuleHash === "string" ? { managed_rule_hash: managedRuleHash } : {}),
+      ...(typeof managedHooksHash === "string" ? { managed_hooks_hash: managedHooksHash } : {}),
       ...(managedSourceHashes ? { managed_source_hashes: sourceHashes } : {}),
       ...(typeof managedInstructionsHash === "string"
         ? { managed_instructions_hash: managedInstructionsHash }

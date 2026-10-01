@@ -13,7 +13,7 @@ For running Codex as a second model from a Claude Code session, see
 
 After installation, describe outcomes normally or pin a shared skill as `$skill-name`. Claude-style
 `/skill-name` examples do not apply in standalone Codex. Use `/status` for native session state and
-`/hooks` to review plugin hooks. Follow [your first session](./first-session.md) for a harmless
+`/hooks` to review hooks. Follow [your first session](./first-session.md) for a harmless
 read-only setup check.
 
 ## Install Codex
@@ -41,7 +41,7 @@ every flag also works remotely through `npx darkroom-settings --target=codex`, t
 the [one-line install](./install.md#one-line-install).
 
 Restart each selected TUI after installation. In Codex, open `/hooks` and review the newly installed
-plugin hooks once. Repeat that review after a plugin hook changes. The fixed HTTPS Figma MCP may ask
+user hooks once. Repeat that review after a hook changes. The fixed HTTPS Figma MCP may ask
 you to authenticate in Codex.
 
 ## What a full Codex install manages
@@ -53,7 +53,8 @@ $CODEX_HOME/ or ~/.codex/
 |-- AGENTS.md                    # Managed marked block; surrounding user text stays intact
 |-- agents/*.toml               # Native role agents, except codex-verifier, plus claude-verifier
 |-- rules/darkroom.rules         # Native command policy
-|-- darkroom/source/             # Allowlisted runtime source used by plugin hooks
+|-- darkroom/source/             # Allowlisted runtime source used by the hooks
+|-- hooks.json                   # User-level hooks that run from darkroom/source
 |-- .cc-settings-version         # Ownership and version sentinel
 `-- backups/cc-settings/         # Codex-specific backups
 ```
@@ -63,8 +64,16 @@ plugin provides:
 
 - The 38 shared skills from this repository.
 - The fixed HTTPS Figma MCP server.
-- Codex-compatible lifecycle hooks.
 - Codex UI metadata.
+
+The plugin loads from the root `plugin.json` and `mcp.json`. Codex runs no hooks from a plugin in
+that format, so the installer writes the Codex-compatible lifecycle hooks to
+`$CODEX_HOME/hooks.json` as user-level hooks, with absolute paths into `darkroom/source`. The
+sentinel records the file's hash. A full install stops before writing anything when a
+`hooks.json` already exists that cc-settings did not write; move your hooks into the `[hooks]`
+table of `config.toml` or remove the file, then rerun. Uninstall and rollback remove or restore the
+file only when its hash still matches. These hooks keep their handoffs and logs in
+`$CODEX_HOME/plugins/data/darkroom-cc-settings`.
 
 The Codex package does not auto-run Context7 or Chrome DevTools from mutable, unpinned registry
 packages. Users may configure reviewed and pinned versions themselves. The package also excludes

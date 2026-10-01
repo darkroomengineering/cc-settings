@@ -1057,7 +1057,14 @@ describe("Codex installer lifecycle", () => {
       ]) {
         expect(existsSync(join(installed, excluded)), `${excluded} must not be copied`).toBe(false);
       }
-      for (const required of [".codex-plugin", ".mcp.json", "hooks", "skills", "src"] as const) {
+      for (const required of [
+        "plugin.json",
+        "mcp.json",
+        ".mcp.json",
+        "hooks",
+        "skills",
+        "src",
+      ] as const) {
         expect(existsSync(join(installed, required)), `${required} must be copied`).toBe(true);
       }
       for (const excluded of [
@@ -1076,7 +1083,8 @@ describe("Codex installer lifecycle", () => {
       }
       for (const required of [
         ".claude-plugin/marketplace.json",
-        ".codex-plugin/plugin.json",
+        "plugin.json",
+        "mcp.json",
         ".mcp.json",
         "hooks/hooks.json",
         "skills/fix/SKILL.md",
@@ -1099,7 +1107,8 @@ describe("Codex installer lifecycle", () => {
       "codex/AGENTS.append.md",
       "codex/rules/darkroom.rules",
       "agents/implementer.md",
-      ".codex-plugin/plugin.json",
+      "plugin.json",
+      "mcp.json",
       ".mcp.json",
       "hooks/hooks.json",
     ].flatMap((artifact) => [
@@ -1633,6 +1642,20 @@ describe("Codex installer lifecycle", () => {
     }
   });
 
+  test("version 14 swaps the Codex manifest for the root plugin.json and mcp.json", () => {
+    const v13 = runtimePathsForVersion(13, "test");
+    const v14 = runtimePathsForVersion(14, "test");
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(14);
+    expect(v13).toContain(".codex-plugin/plugin.json");
+    expect(v13).not.toContain("plugin.json");
+    expect(v14).not.toContain(".codex-plugin/plugin.json");
+    expect(v14).toContain("plugin.json");
+    expect(v14).toContain("mcp.json");
+    expect([...v14].filter((path) => !["plugin.json", "mcp.json"].includes(path)).sort()).toEqual(
+      v13.filter((path) => path !== ".codex-plugin/plugin.json").sort(),
+    );
+  });
+
   // Existing installs validate ownership against the manifest version their
   // sentinel recorded. Adding a file to a shipped version makes every such
   // install fail with "missing: <file>", so shipped versions are pinned by hash.
@@ -1721,7 +1744,8 @@ describe("Codex installer lifecycle", () => {
     expect(manifest).toContain("src/lib/claude-managed-files.ts");
     for (const required of [
       ".claude-plugin/marketplace.json",
-      ".codex-plugin/plugin.json",
+      "plugin.json",
+      "mcp.json",
       ".mcp.json",
       "hooks/hooks.json",
       "package.json",
@@ -3163,6 +3187,7 @@ exit 0
         ".cc-settings-version",
         "agents/implementer.toml",
         "rules/darkroom.rules",
+        "hooks.json",
       ];
       const before = new Map(
         await Promise.all(
@@ -3921,6 +3946,210 @@ exit 0
     },
     240_000,
   );
+  describe("user-level hooks.json", () => {
+    interface HookHandler {
+      command: string;
+      commandWindows: string;
+    }
+    const handlersOf = (file: string): Array<[string, HookHandler]> => {
+      const parsed = JSON.parse(file) as {
+        hooks: Record<string, Array<{ hooks: HookHandler[] }>>;
+      };
+      return Object.entries(parsed.hooks).flatMap(([event, groups]) =>
+        groups.flatMap((group) =>
+          group.hooks.map((hook) => [event, hook] as [string, HookHandler]),
+        ),
+      );
+    };
+    const sha = (text: string): string => new Bun.CryptoHasher("sha256").update(text).digest("hex");
+    const sentinelOf = async (codexHome: string): Promise<{ managed_hooks_hash?: string }> =>
+      JSON.parse(await readFile(join(codexHome, ".cc-settings-version"), "utf8"));
+    const retimeoutHook = async (source: string): Promise<void> => {
+      const path = join(source, "hooks", "hooks.json");
+      await writeFile(
+        path,
+        (await readFile(path, "utf8")).replace('"timeout": 5,', '"timeout": 6,'),
+      );
+    };
+
+    test("writes the plugin hooks with absolute managed-source paths and records their hash", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-user-hooks-"));
+      try {
+        expectSuccess(await runCodex(home));
+        const codexHome = join(home, ".codex");
+        const written = await readFile(join(codexHome, "hooks.json"), "utf8");
+        const template = await readFile(join(REPO, "hooks", "hooks.json"), "utf8");
+        const expected = handlersOf(template);
+        const actual = handlersOf(written);
+
+        expect(actual.length).toBe(7);
+        expect(actual.map(([event]) => event)).toEqual(expected.map(([event]) => event));
+        const script = join(codexHome, "darkroom", "source", "src", "scripts", "codex-hook.ts");
+        for (const [index, [, hook]] of actual.entries()) {
+          const [, original] = expected[index] as [string, HookHandler];
+          expect(hook.command).toBe(
+            original.command
+              .replace(/^bun /, "bun --no-env-file ")
+              .replace("$PLUGIN_ROOT/src/scripts/codex-hook.ts", script),
+          );
+          expect(hook.command).toContain(`bun --no-env-file "${script}"`);
+          expect(hook.commandWindows.startsWith("bun --no-env-file ")).toBe(true);
+          expect(hook.commandWindows).toContain(script);
+        }
+        expect(written).not.toContain("PLUGIN_ROOT");
+        expect(existsSync(script)).toBe(true);
+        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBe(sha(written));
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("the hook command serializer refuses unquoted placeholders and unsafe paths", async () => {
+      const { serializeUserHooks } = await import("../src/lib/codex-plugin.ts");
+      const template = (command: string) =>
+        JSON.stringify({ hooks: { SessionEnd: [{ hooks: [{ type: "command", command }] }] } });
+      const ok = serializeUserHooks(template('bun "$PLUGIN_ROOT/x.ts"'), "/safe/source");
+      expect(ok).toContain('bun --no-env-file \\"/safe/source/x.ts\\"');
+      expect(() => serializeUserHooks(template("bun $PLUGIN_ROOT/x.ts"), "/safe/source")).toThrow(
+        /quote PLUGIN_ROOT/,
+      );
+      expect(() =>
+        serializeUserHooks(template('node "$PLUGIN_ROOT/x.ts"'), "/safe/source"),
+      ).toThrow(/must run bun/);
+      for (const bad of ['/a"b', "/a$b", "/a`b", "/a%b", "/a\nb", "/a\u201Cb"]) {
+        expect(() => serializeUserHooks(template('bun "$PLUGIN_ROOT/x.ts"'), bad)).toThrow(
+          /cannot be used in a hook command/,
+        );
+      }
+    });
+
+    test("a hooks.json that cc-settings did not write stops the install before any write", async () => {
+      for (const priorInstall of [false, true]) {
+        const home = await mkdtemp(join(tmpdir(), "cc-codex-foreign-hooks-"));
+        try {
+          const codexHome = join(home, ".codex");
+          if (priorInstall) expectSuccess(await runCodex(home));
+          await mkdir(codexHome, { recursive: true });
+          const personal = '{"hooks":{"SessionEnd":[]}}\n';
+          await writeFile(join(codexHome, "hooks.json"), personal);
+          const before = new Set(await readdir(codexHome));
+          const sentinelBefore = existsSync(join(codexHome, ".cc-settings-version"))
+            ? await readFile(join(codexHome, ".cc-settings-version"), "utf8")
+            : null;
+
+          const result = await runCodex(home);
+          expect(result.exitCode).not.toBe(0);
+          expect(`${result.stdout}\n${result.stderr}`).toContain(join(codexHome, "hooks.json"));
+          expect(`${result.stdout}\n${result.stderr}`).toMatch(/\[hooks\]|remove the file/);
+          expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe(personal);
+          expect(new Set(await readdir(codexHome))).toEqual(before);
+          const sentinelAfter = existsSync(join(codexHome, ".cc-settings-version"))
+            ? await readFile(join(codexHome, ".cc-settings-version"), "utf8")
+            : null;
+          expect(sentinelAfter).toBe(sentinelBefore);
+        } finally {
+          await rm(home, { recursive: true, force: true });
+        }
+      }
+    });
+
+    test("overwrites its own file on reinstall and refuses once the file was edited", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-own-hooks-"));
+      try {
+        const source = await copySourceFixture(home);
+        const codexHome = join(home, ".codex");
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        const first = await readFile(join(codexHome, "hooks.json"), "utf8");
+
+        await retimeoutHook(source);
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        const second = await readFile(join(codexHome, "hooks.json"), "utf8");
+        expect(second).not.toBe(first);
+        expect(second).toContain('"timeout": 6');
+        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBe(sha(second));
+
+        const edited = `${second.trimEnd()}\n`.replace('"timeout": 6', '"timeout": 9');
+        await writeFile(join(codexHome, "hooks.json"), edited);
+        const refused = await runCodex(home, [], "codex", {}, source);
+        expect(refused.exitCode).not.toBe(0);
+        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe(edited);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("uninstall and the light profile remove the file only while its hash matches", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-remove-hooks-"));
+      try {
+        const codexHome = join(home, ".codex");
+        const hooksPath = join(codexHome, "hooks.json");
+        expectSuccess(await runCodex(home));
+        expect(existsSync(hooksPath)).toBe(true);
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(existsSync(hooksPath)).toBe(false);
+
+        expectSuccess(await runCodex(home));
+        expectSuccess(await runCodex(home, ["--light"]));
+        expect(existsSync(hooksPath)).toBe(false);
+        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBeUndefined();
+
+        expectSuccess(await runCodex(home));
+        const edited = '{"hooks":{}}\n';
+        await writeFile(hooksPath, edited);
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(await readFile(hooksPath, "utf8")).toBe(edited);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("rollback restores the previous hooks file, or removes ours when there was none", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-rollback-hooks-"));
+      try {
+        const source = await copySourceFixture(home);
+        const codexHome = join(home, ".codex");
+        const hooksPath = join(codexHome, "hooks.json");
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        const first = await readFile(hooksPath, "utf8");
+        await retimeoutHook(source);
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        expect(await readFile(hooksPath, "utf8")).not.toBe(first);
+
+        expectSuccess(await runCodex(home, ["--rollback"], "codex", {}, source));
+        expect(await readFile(hooksPath, "utf8")).toBe(first);
+        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBe(sha(first));
+
+        // Rolling back to the snapshot taken before the first install.
+        const backups = (await readdir(join(codexHome, "backups", "cc-settings"))).sort();
+        expectSuccess(await runCodex(home, [`--rollback=${backups[0]}`], "codex", {}, source));
+        expect(existsSync(hooksPath)).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    }, 240_000);
+
+    test("rollback never overwrites a hooks file edited after install", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-rollback-edited-hooks-"));
+      try {
+        const source = await copySourceFixture(home);
+        const codexHome = join(home, ".codex");
+        const hooksPath = join(codexHome, "hooks.json");
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        await retimeoutHook(source);
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        const edited = '{"hooks":{"SessionEnd":[]}}\n';
+        await writeFile(hooksPath, edited);
+
+        // Rollback refuses up front; the restore step's own existsSync guard
+        // covers a file that changes between that check and the restore.
+        const refused = await runCodex(home, ["--rollback"], "codex", {}, source);
+        expect(refused.exitCode).not.toBe(0);
+        expect(await readFile(hooksPath, "utf8")).toBe(edited);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    }, 240_000);
+  });
 });
 
 describe.skipIf(process.platform === "win32")("codexCliAvailable — shim detection", () => {

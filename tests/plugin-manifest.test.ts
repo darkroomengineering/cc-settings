@@ -49,7 +49,7 @@ describe("version sync — every version-bearing file tracks src/setup.ts", () =
   });
 
   test("Codex plugin.json version matches src/setup.ts VERSION", async () => {
-    const plugin = await readJson(".codex-plugin/plugin.json");
+    const plugin = await readJson("plugin.json");
     expect(plugin.version).toBe(await installerVersion());
   });
 
@@ -121,7 +121,7 @@ describe("marketplace manifest", () => {
   test("self-referential plugin entry matches plugin.json", async () => {
     const marketplace = await readJson(".claude-plugin/marketplace.json");
     const claudePlugin = await readJson(".claude-plugin/plugin.json");
-    const codexPlugin = await readJson(".codex-plugin/plugin.json");
+    const codexPlugin = await readJson("plugin.json");
 
     expect(marketplace.name).toBe("cc-settings");
     expect((marketplace.owner as { name?: string })?.name).toBeTruthy();
@@ -151,15 +151,24 @@ describe("marketplace manifest", () => {
 });
 
 describe("Codex plugin manifest", () => {
-  test("points at the shared skill source instead of a copied fork", async () => {
-    const plugin = await readJson(".codex-plugin/plugin.json");
-    expect(plugin.skills).toBe("./skills/");
+  test("is a root Agent Plugins manifest that discovers the shared skills", async () => {
+    const plugin = await readJson("plugin.json");
+    expect(plugin.$schema).toBe("https://agent-plugins.org/schemas/1.0.0/plugin.schema.json");
     expect(plugin.name).toBe("darkroom");
+    // Skills, MCP servers, and hooks are discovered or installed separately.
+    expect(plugin.skills).toBeUndefined();
+    expect(plugin.mcpServers).toBeUndefined();
+    expect(plugin.hooks).toBeUndefined();
+    expect(existsSync(join(ROOT, "skills"))).toBe(true);
+    const extensions = plugin.extensions as {
+      "com.openai"?: { interface?: { displayName?: string } };
+    };
+    expect(extensions["com.openai"]?.interface?.displayName).toBe("Darkroom Engineering");
   });
 
   test("identity stays aligned with the Claude plugin", async () => {
     const claudePlugin = await readJson(".claude-plugin/plugin.json");
-    const codexPlugin = await readJson(".codex-plugin/plugin.json");
+    const codexPlugin = await readJson("plugin.json");
 
     expect(codexPlugin.name).toBe(claudePlugin.name);
     expect(codexPlugin.author).toEqual(claudePlugin.author);
@@ -168,13 +177,23 @@ describe("Codex plugin manifest", () => {
   });
 
   test("references a fixed HTTPS-only Figma MCP wrapper", async () => {
-    const plugin = await readJson(".codex-plugin/plugin.json");
-    const wrapper = await readJson(".mcp.json");
+    const wrapper = await readJson("mcp.json");
     const servers = wrapper.mcpServers as Record<string, McpServerConfig>;
 
-    expect(plugin.mcpServers).toBe("./.mcp.json");
+    expect(wrapper.$schema).toBe("https://agent-plugins.org/schemas/1.0.0/mcp.schema.json");
     expect(Object.keys(servers)).toEqual(["figma"]);
-    expect(servers.figma).toEqual({ type: "http", url: "https://mcp.figma.com/mcp" });
+    expect(servers.figma).toEqual({
+      type: "streamable-http",
+      url: "https://mcp.figma.com/mcp",
+    });
+  });
+
+  test("mcp.json and the Claude plugin's .mcp.json declare the same servers and URLs", async () => {
+    const codex = (await readJson("mcp.json")).mcpServers as Record<string, McpServerConfig>;
+    const claude = (await readJson(".mcp.json")).mcpServers as Record<string, McpServerConfig>;
+    const summarize = (servers: Record<string, McpServerConfig>) =>
+      Object.fromEntries(Object.entries(servers).map(([name, server]) => [name, server.url]));
+    expect(summarize(codex)).toEqual(summarize(claude));
   });
 });
 

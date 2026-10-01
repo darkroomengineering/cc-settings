@@ -9,9 +9,11 @@
     "config.toml [[skills.config]] (read-only, codex:skill-budget)",
     "config.toml [sandbox_workspace_write] network_access (documented for the reverse bridge)",
     "config.toml [desktop] external-agent-import-sync-enabled (read-only, migrate:codex-skills)",
-    "plugin: .codex-plugin/plugin.json (name, version, description, author, homepage, repository, license, keywords, skills, mcpServers, interface)",
-    "plugin: hooks/hooks.json (shared with the Claude plugin)",
-    "plugin: .mcp.json (Figma HTTPS server only)"
+    "plugin: plugin.json (Agent Plugins root manifest: $schema, name, version, description, author, homepage, repository, license, keywords, extensions.com.openai.interface)",
+    "plugin: mcp.json (Figma HTTPS server only)",
+    "plugin: hooks/hooks.json (template shared with the Claude plugin; Codex ignores hooks in a root-manifest plugin)",
+    "$CODEX_HOME/hooks.json (user-level hooks written by the installer)",
+    "plugin: .mcp.json (Claude plugin's Figma server)"
   ],
   "notes": [
     "codexVersion is the latest stable @openai/codex npm version this repo was last triaged against. bun run upstream:scan diffs it against the live npm version; a Codex stable release is tagged rust-v<X> on github.com/openai/codex and its notes come from `gh release view rust-v<X> -R openai/codex --json body`. Alpha and Python SDK tags are not tracked.",
