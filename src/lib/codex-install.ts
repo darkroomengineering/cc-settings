@@ -41,7 +41,6 @@ import {
   MANAGED_RULE_NAME,
   readSentinel,
   refreshOperationOwnedInstructions,
-  regularFileHash,
   removeFileWithHash,
   restoreCodexExplicitStateDrift,
   STRICT_VERSION,
@@ -58,12 +57,14 @@ import {
   writeManagedInstructions,
 } from "./codex-native-agents.ts";
 import {
-  assertManagedHooksWritable,
+  assertManagedHooksMergeable,
   assertManagedPluginProvenance,
   discoverPlugin,
   installPlugin,
   readCodexPluginState,
   removePlugin,
+  restoreManagedHooksFromBackup,
+  stripManagedHooks,
   warnOnConfigTomlHooks,
   writeUserHooks,
 } from "./codex-plugin.ts";
@@ -173,8 +174,10 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
   }
   await assertManagedAgentBoundaries(paths, [...(previous?.managed_agents ?? []), ...names]);
   await assertInstructionsMergeable(paths);
+  if (options.profile === "full" || previous?.profile === "full") {
+    await assertManagedHooksMergeable(paths);
+  }
   if (options.profile === "full") {
-    await assertManagedHooksWritable(paths, previous);
     await assertNoNativeCollisions(paths, names, previous);
   }
   const explicitState = await captureCodexExplicitState(paths);
@@ -200,8 +203,10 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
     }
   }
   await assertInstructionsMergeable(paths);
+  if (options.profile === "full" || previous?.profile === "full") {
+    await assertManagedHooksMergeable(paths);
+  }
   if (options.profile === "full") {
-    await assertManagedHooksWritable(paths, previous);
     await assertNoNativeCollisions(paths, names, previous);
   }
   await assertCodexExplicitStateUnchanged(paths, explicitState);
@@ -220,7 +225,7 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
     }
     const managedAgentHashes: Record<string, string> = {};
     let managedRuleHash: string | undefined;
-    await removeFileWithHash(paths.hooksPath, previous?.managed_hooks_hash);
+    await stripManagedHooks(paths);
     if (options.profile === "full") {
       for (const agent of agents) {
         const serialized = serializeNativeAgent(agent, paths);
@@ -252,13 +257,13 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
       managed_instructions_hash: managedInstructionsHash,
       runtime_manifest_version: CURRENT_RUNTIME_MANIFEST_VERSION,
       ...(managedRuleHash ? { managed_rule_hash: managedRuleHash } : {}),
-      ...(writtenHooksHash ? { managed_hooks_hash: writtenHooksHash } : {}),
+      ...(writtenHooksHash ? { managed_hook_entries_hash: writtenHooksHash } : {}),
     };
     await writeFile(paths.sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
     return basename(backup);
   } catch (cause) {
     const explicitDrift = await captureCodexExplicitStateDrift(paths, operationExplicitState);
-    await removeFileWithHash(paths.hooksPath, writtenHooksHash).catch(() => false);
+    await stripManagedHooks(paths).catch(() => false);
     if (!previous && options.profile === "full") {
       const restoreFailures: unknown[] = [];
       try {
@@ -437,18 +442,10 @@ export async function rollbackCodex(options: CodexRollbackOptions): Promise<Code
       }
     }
   }
-  const hooksRel = backupRelativePath(paths.hooksPath, paths);
-  if (present.has(hooksRel) && (await lstat(paths.hooksPath).catch(() => null))) {
-    const liveHooksHash = await regularFileHash(paths.hooksPath);
-    const backupHooksHash = await regularFileHash(join(backup, "files", hooksRel));
-    if (
-      liveHooksHash === null ||
-      (liveHooksHash !== current?.managed_hooks_hash && liveHooksHash !== backupHooksHash)
-    ) {
-      throw new Error(
-        `Codex rollback would overwrite ${paths.hooksPath}, which cc-settings does not own`,
-      );
-    }
+  await assertManagedHooksMergeable(paths);
+  const backupHooks = join(backup, "files", backupRelativePath(paths.hooksPath, paths));
+  if (present.has(backupRelativePath(paths.hooksPath, paths))) {
+    await assertManagedHooksMergeable({ ...paths, hooksPath: backupHooks });
   }
   await assertCodexExplicitStateUnchanged(paths, explicitState);
   let operationExplicitState = explicitState;
@@ -470,11 +467,8 @@ export async function rollbackCodex(options: CodexRollbackOptions): Promise<Code
     }
     const rulePath = join(paths.rulesDir, MANAGED_RULE_NAME);
     await removeFileWithHash(rulePath, current?.managed_rule_hash);
-    await removeFileWithHash(paths.hooksPath, current?.managed_hooks_hash);
-    await copyIfPresent(
-      join(backup, "files", backupRelativePath(paths.hooksPath, paths)),
-      paths.hooksPath,
-    );
+    await stripManagedHooks(paths);
+    await restoreManagedHooksFromBackup(paths, backupHooks);
     const ruleRel = backupRelativePath(rulePath, paths);
     if (!existsSync(rulePath) && present.has(ruleRel)) {
       await copyIfPresent(join(backup, "files", ruleRel), rulePath);
@@ -606,7 +600,7 @@ export async function dryRunCodex(options: CodexDryRunOptions): Promise<string[]
       ...(previous?.managed_agents ?? []),
       ...agents.map((agent) => agent.name),
     ]);
-    await assertManagedHooksWritable(paths, previous);
+    await assertManagedHooksMergeable(paths);
     await assertNoNativeCollisions(
       paths,
       agents.map((agent) => agent.name),
@@ -627,7 +621,7 @@ export async function dryRunCodex(options: CodexDryRunOptions): Promise<string[]
           `install native role agents in ${paths.agentsDir}`,
           `install ${join(paths.rulesDir, MANAGED_RULE_NAME)}`,
           "install darkroom@cc-settings through the Codex plugin CLI",
-          `write ${paths.hooksPath} (user-level hooks)`,
+          `merge cc-settings hooks into ${paths.hooksPath}`,
         ]
       : ["skip Codex plugin, native role agents, and command rules (light profile)"]),
     `write ${paths.sentinelPath}`,

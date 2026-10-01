@@ -69,10 +69,14 @@ plugin provides:
 The plugin loads from the root `plugin.json` and `mcp.json`. Codex runs no hooks from a plugin in
 that format, so the installer writes the Codex-compatible lifecycle hooks to
 `$CODEX_HOME/hooks.json` as user-level hooks, with absolute paths into `darkroom/source`. The
-sentinel records the file's hash. A full install stops before writing anything when a
-`hooks.json` already exists that cc-settings did not write; move your hooks into the `[hooks]`
-table of `config.toml` or remove the file, then rerun. Uninstall and rollback remove or restore the
-file only when its hash still matches. These hooks keep their handoffs and logs in
+installer owns individual hook groups in that file, never the file. A group is its own when every
+handler runs `darkroom/source/src/scripts/codex-hook.ts`. Install and reinstall keep every other
+group and top-level key as they are and append its groups after the existing ones in each event, so
+another tool's hooks (Programa, for example) keep their positions. The sentinel records a hash of
+the groups it wrote (`managed_hook_entries_hash`). Uninstall and rollback remove only those groups,
+restore the ones a backup held, and delete the file only when nothing else is left in it. The
+install stops before writing when the file cannot be merged into: a symlink, invalid JSON, an
+unexpected shape, or a group that mixes cc-settings and other handlers. These hooks keep their handoffs and logs in
 `$CODEX_HOME/plugins/data/darkroom-cc-settings`.
 
 The Codex package does not auto-run Context7 or Chrome DevTools from mutable, unpinned registry
