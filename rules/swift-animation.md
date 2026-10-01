@@ -23,13 +23,18 @@ refresh rate (120 Hz on ProMotion, 60 Hz elsewhere) with no dropped frames.
   SwiftUI calls `body` and reruns layout on every frame of the animation. Use it
   only when no built-in effect produces the motion (an arc through a custom
   `Layout`, custom `Shape` or `Canvas` drawing). Keep that `body` pure arithmetic:
-  no allocation, no data traversal, no fetches, no formatters.
+  no allocation, no data traversal, no fetches, no formatters. On iOS 26 and
+  macOS 26 or later, let the `@Animatable` macro write the conformance instead
+  of a hand-written `animatableData`, and mark properties that cannot
+  interpolate (Booleans, integers, configuration) `@AnimatableIgnored`.
 - `CustomAnimation.animate` runs once per frame per animating attribute. Keep it
   to vector math over the delta; return `nil` the moment the animation is done so
   the attribute stops ticking.
 - Never drive motion from `Timer`, `DispatchQueue.asyncAfter`, or a loop that
   mutates state per tick. Use SwiftUI animations, `PhaseAnimator`,
-  `KeyframeAnimator`, `TimelineView`, or `CADisplayLink`.
+  `KeyframeAnimator`, `TimelineView`, or `CADisplayLink`. To run one animation
+  after another, start the second in the `completion:` closure of
+  `withAnimation`, never in a delayed second `withAnimation` call.
 
 ## Springs by default, interruptible always
 
@@ -48,7 +53,8 @@ refresh rate (120 Hz on ProMotion, 60 Hz elsewhere) with no dropped frames.
 - Attach `.animation(_:value:)` to the value that changed. A bare
   `.transaction { $0.animation = … }` or a `withAnimation` around unrelated state
   animates every downstream change in that update and spends frames on motion no
-  one asked for.
+  one asked for. Flag the deprecated `.animation(_:)` with neither a `value:`
+  nor a body closure for the same reason.
 - For containers with arbitrary child content, use the body-closure form
   `.animation(_:) { view in … }` so the animation reaches only the effects named
   inside the closure and the children keep the original transaction.
