@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
@@ -367,10 +368,19 @@ function hookRunnerMarker(paths: CodexInstallPaths): string {
   return `${paths.managedSource}/src/scripts/codex-hook.ts`;
 }
 
+// Ours means the command starts with `bun --no-env-file "<runner>"`, as the template writes it,
+// and every command field the handler has (command, commandWindows) says so.
 function isOwnedHandler(handler: unknown, marker: string): boolean {
   if (!isPlainObject(handler)) return false;
-  return [handler.command, handler.commandWindows].some(
-    (command) => typeof command === "string" && command.includes(marker),
+  const commands = [handler.command, handler.commandWindows].filter(
+    (command) => command !== undefined,
+  );
+  return (
+    commands.length > 0 &&
+    commands.every(
+      (command) =>
+        typeof command === "string" && command.startsWith(`bun --no-env-file "${marker}"`),
+    )
   );
 }
 
@@ -380,7 +390,7 @@ function isOwnedGroup(group: HookGroup, marker: string, where: string): boolean 
   if (owned !== group.hooks.length) {
     throw new Error(
       `${where} has a hook group that mixes cc-settings and other handlers. ` +
-        "Split it into separate groups, then rerun the install.",
+        "Split it into separate groups; install, uninstall and rollback are blocked until then.",
     );
   }
   return true;
@@ -466,13 +476,16 @@ async function commitHooksFile(
     return;
   }
   await mkdir(paths.codexHome, { recursive: true });
-  const temp = join(paths.codexHome, `.hooks.json.cc-settings-${process.pid}.tmp`);
+  const temp = join(paths.codexHome, `.hooks.json.cc-settings-${process.pid}-${randomUUID()}.tmp`);
+  let created = false;
   try {
-    await writeFile(temp, content, { mode, flag: "w" });
+    // "wx" refuses an existing path, so a planted symlink is never followed.
+    await writeFile(temp, content, { mode, flag: "wx" });
+    created = true;
     if (!(await unchanged())) throw changed();
     await rename(temp, paths.hooksPath);
   } catch (cause) {
-    await rm(temp, { force: true }).catch(() => {});
+    if (created) await rm(temp, { force: true }).catch(() => {});
     throw cause;
   }
 }

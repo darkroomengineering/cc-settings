@@ -662,6 +662,19 @@ export async function prepareManagedSourceFromBackup(
   return await prepareManagedSource(join(backup, "files", relativePath), paths, artifacts);
 }
 
+/** True when a rollback or restore can read or write the shared hooks file. */
+export function hooksInvolved(
+  paths: CodexInstallPaths,
+  manifest: { restoredProfile?: string | null; present: string[] },
+  current: { profile: string } | null,
+): boolean {
+  return (
+    current?.profile === "full" ||
+    manifest.restoredProfile === "full" ||
+    manifest.present.includes(backupRelativePath(paths.hooksPath, paths))
+  );
+}
+
 export async function restoreCodexBackupExact(
   paths: CodexInstallPaths,
   backup: string,
@@ -678,6 +691,9 @@ export async function restoreCodexBackupExact(
     ...manifest.nextManagedAgents,
   ]);
   const present = new Set(manifest.present);
+  const liveSentinel = await readSentinel(paths.sentinelPath).catch(() => null);
+  const touchHooks = hooksInvolved(paths, manifest, liveSentinel);
+  if (touchHooks) await assertManagedHooksMergeable(paths);
   const preparedSource = await prepareManagedSourceFromBackup(
     paths,
     backup,
@@ -707,7 +723,7 @@ export async function restoreCodexBackupExact(
     }
     // The hooks file is shared with other tools: drop only our groups, then
     // re-add the ones the backup held. The backed-up file is never copied over it.
-    await stripManagedHooks(paths);
+    if (touchHooks) await stripManagedHooks(paths);
     if (present.has(backupRelativePath(paths.hooksPath, paths))) {
       await restoreManagedHooksFromBackup(
         paths,

@@ -4136,6 +4136,70 @@ exit 0
       }
     });
 
+    test("near-miss foreign handlers survive install and uninstall", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-nearmiss-hooks-"));
+      try {
+        const runner = join(
+          home,
+          ".codex",
+          "darkroom",
+          "source",
+          "src",
+          "scripts",
+          "codex-hook.ts",
+        );
+        const handler = (extra: Record<string, string>) => ({
+          hooks: [{ type: "command", command: "", ...extra }],
+        });
+        const original = {
+          hooks: {
+            Stop: [
+              handler({ command: `my-wrapper "${runner}"` }),
+              handler({ command: `bun "${runner}.backup" x` }),
+              handler({ command: "echo mine", commandWindows: `bun --no-env-file "${runner}" x` }),
+              handler({ command: `bun --no-env-file "${runner}" x`, commandWindows: "echo mine" }),
+            ],
+          },
+        };
+        const codexHome = await seedForeign(home, original);
+        expectSuccess(await runCodex(home));
+        const merged = await readDoc(codexHome);
+        expect(merged.hooks.Stop?.slice(0, 4)).toEqual(original.hooks.Stop);
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(JSON.parse(await readFile(join(codexHome, "hooks.json"), "utf8"))).toEqual(original);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("light install and uninstall never read an unmergeable hooks.json", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-light-hooks-"));
+      try {
+        const codexHome = join(home, ".codex");
+        await mkdir(codexHome, { recursive: true });
+        await writeFile(join(codexHome, "hooks.json"), "{nope");
+        expectSuccess(await runCodex(home, ["--light"]));
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe("{nope");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("a light-profile rollback never reads an unmergeable hooks.json", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-light-rollback-hooks-"));
+      try {
+        const codexHome = join(home, ".codex");
+        expectSuccess(await runCodex(home, ["--light"]));
+        expectSuccess(await runCodex(home, ["--light"]));
+        await writeFile(join(codexHome, "hooks.json"), "{nope");
+        expectSuccess(await runCodex(home, ["--rollback"]));
+        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe("{nope");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
     test("with no hooks file, install creates it and uninstall deletes it", async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-codex-own-file-hooks-"));
       try {
@@ -4173,7 +4237,7 @@ exit 0
                         { type: "command", command: "echo hi" },
                         {
                           type: "command",
-                          command: `bun "${join(c, "darkroom", "source", "src", "scripts", "codex-hook.ts")}" x`,
+                          command: `bun --no-env-file "${join(c, "darkroom", "source", "src", "scripts", "codex-hook.ts")}" x`,
                         },
                       ],
                     },

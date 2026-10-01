@@ -4,6 +4,7 @@ import { basename, join, resolve } from "node:path";
 import {
   createCodexBackup,
   exactCompensationBackup,
+  hooksInvolved,
   prepareManagedSourceFromBackup,
   readBackupManifest,
   removeCurrentManagedCodexState,
@@ -444,7 +445,8 @@ export async function rollbackCodex(options: CodexRollbackOptions): Promise<Code
       }
     }
   }
-  await assertManagedHooksMergeable(paths);
+  const touchHooks = hooksInvolved(paths, manifest, current);
+  if (touchHooks) await assertManagedHooksMergeable(paths);
   const backupHooks = join(backup, "files", backupRelativePath(paths.hooksPath, paths));
   if (present.has(backupRelativePath(paths.hooksPath, paths))) {
     await assertManagedHooksMergeable({ ...paths, hooksPath: backupHooks });
@@ -469,7 +471,7 @@ export async function rollbackCodex(options: CodexRollbackOptions): Promise<Code
     }
     const rulePath = join(paths.rulesDir, MANAGED_RULE_NAME);
     await removeFileWithHash(rulePath, current?.managed_rule_hash);
-    await stripManagedHooks(paths);
+    if (touchHooks) await stripManagedHooks(paths);
     await restoreManagedHooksFromBackup(paths, backupHooks);
     const ruleRel = backupRelativePath(rulePath, paths);
     if (!existsSync(rulePath) && present.has(ruleRel)) {

@@ -10,6 +10,7 @@ Setup no longer fails when another tool, such as Programa, already has hooks in 
 
 **Fixed:**
 - `src/lib/codex-plugin.ts` merges the Codex hooks into `$CODEX_HOME/hooks.json` by group instead of owning the whole file. Install, uninstall, rollback and failed-install recovery touch only groups whose handlers run the managed `codex-hook.ts`. A file it cannot merge into (symlink, invalid JSON, unexpected shape, a group mixing cc-settings and other handlers) still stops the install before any write.
+- A handler counts as ours only when every command field it has starts with `bun --no-env-file "<managed runner>"`, so wrappers and lookalike paths survive. Light-profile install, uninstall and rollback no longer read `hooks.json`, and rollback checks it before any write. The temp file for a rewrite gets a unique name and is opened with `wx`.
 - The sentinel field is now `managed_hook_entries_hash`. A `managed_hooks_hash` from 15.44.0 is ignored, and the first install after the update cleans up that older whole-file copy by group.
 
 ## [15.45.0] — 2026-10-01
