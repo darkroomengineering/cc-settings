@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.45.2] — 2026-10-01
+
+Reinstalling after `CODEX_HOME` moves no longer leaves duplicate cc-settings hooks in `hooks.json`, and setup stops warning about the `[hooks]` table that Codex keeps for its own trust records.
+
+**Fixed:**
+- `src/lib/codex-plugin.ts` treats a hook group as cc-settings' own when its runner ends in `darkroom/source/src/scripts/codex-hook.ts`, whatever absolute path comes before it. Groups written under an old home are replaced on install and removed on uninstall.
+- The `[hooks]` warning in `config.toml` fires only for hook definitions, not for `[hooks.state]` trust records.
+- The "changed since cc-settings read it" error no longer claims a guarantee the check cannot give; the remaining unlocked window is marked as a known shortcut.
+- A restore over an unmergeable `hooks.json` has a test showing it throws before any write.
+
+**Changed:**
+- The sentinel no longer records `managed_hook_entries_hash`, which nothing read. Existing sentinels that carry it still load, and the next install drops it.
+- `docs/codex.md` says hooks.json is rewritten as 2-space JSON and that rollback restores only cc-settings' groups.
+
 ## [15.45.1] — 2026-10-01
 
 Setup no longer fails when another tool, such as Programa, already has hooks in `~/.codex/hooks.json`. cc-settings adds its hooks after the existing ones and removes only its own.

@@ -364,28 +364,26 @@ interface HooksFile {
   mode: number;
 }
 
-function hookRunnerMarker(paths: CodexInstallPaths): string {
-  return `${paths.managedSource}/src/scripts/codex-hook.ts`;
-}
+// Ours means the command starts with `bun --no-env-file "<absolute path>/darkroom/source/src/scripts/codex-hook.ts"`,
+// as the template writes it, and every command field the handler has (command, commandWindows)
+// says so. The prefix before `darkroom/source` is free so groups written under a different
+// CODEX_HOME still match. The closing quote rejects `codex-hook.ts.backup`.
+const OWNED_RUNNER =
+  /^bun --no-env-file "(?:[A-Za-z]:)?[\\/](?:[^"]*[\\/])?darkroom[\\/]source[\\/]src[\\/]scripts[\\/]codex-hook\.ts"/;
 
-// Ours means the command starts with `bun --no-env-file "<runner>"`, as the template writes it,
-// and every command field the handler has (command, commandWindows) says so.
-function isOwnedHandler(handler: unknown, marker: string): boolean {
+function isOwnedHandler(handler: unknown): boolean {
   if (!isPlainObject(handler)) return false;
   const commands = [handler.command, handler.commandWindows].filter(
     (command) => command !== undefined,
   );
   return (
     commands.length > 0 &&
-    commands.every(
-      (command) =>
-        typeof command === "string" && command.startsWith(`bun --no-env-file "${marker}"`),
-    )
+    commands.every((command) => typeof command === "string" && OWNED_RUNNER.test(command))
   );
 }
 
-function isOwnedGroup(group: HookGroup, marker: string, where: string): boolean {
-  const owned = group.hooks.filter((handler) => isOwnedHandler(handler, marker)).length;
+function isOwnedGroup(group: HookGroup, where: string): boolean {
+  const owned = group.hooks.filter((handler) => isOwnedHandler(handler)).length;
   if (owned === 0) return false;
   if (owned !== group.hooks.length) {
     throw new Error(
@@ -397,7 +395,7 @@ function isOwnedGroup(group: HookGroup, marker: string, where: string): boolean 
 }
 
 /** Read and validate a hooks file for merging. Null when it does not exist. */
-async function readHooksFile(path: string, marker: string): Promise<HooksFile | null> {
+async function readHooksFile(path: string): Promise<HooksFile | null> {
   const metadata = await lstatOrNull(path);
   if (!metadata) return null;
   if (metadata.isSymbolicLink() || !metadata.isFile()) {
@@ -422,23 +420,24 @@ async function readHooksFile(path: string, marker: string): Promise<HooksFile | 
       if (!isPlainObject(group) || !Array.isArray(group.hooks)) {
         throw new Error(`${path}: a hooks.${event} group has no "hooks" array.`);
       }
-      isOwnedGroup(group as HookGroup, marker, path);
+      isOwnedGroup(group as HookGroup, path);
     }
     events[event] = groups as HookGroup[];
   }
   return { document, events, hash: contentHash(raw), mode: metadata.mode & 0o777 };
 }
 
-function splitOwned(
-  events: HookEvents,
-  marker: string,
-): { foreign: HookEvents; owned: HookEvents; removed: boolean } {
+function splitOwned(events: HookEvents): {
+  foreign: HookEvents;
+  owned: HookEvents;
+  removed: boolean;
+} {
   const foreign: HookEvents = {};
   const owned: HookEvents = {};
   let removed = false;
   for (const [event, groups] of Object.entries(events)) {
-    const keep = groups.filter((group) => !isOwnedGroup(group, marker, event));
-    const ours = groups.filter((group) => isOwnedGroup(group, marker, event));
+    const keep = groups.filter((group) => !isOwnedGroup(group, event));
+    const ours = groups.filter((group) => isOwnedGroup(group, event));
     if (ours.length > 0) {
       removed = true;
       owned[event] = ours;
@@ -449,13 +448,6 @@ function splitOwned(
   return { foreign, owned, removed };
 }
 
-function ownedHash(owned: HookEvents): string {
-  const sorted = Object.keys(owned)
-    .sort()
-    .map((event) => [event, owned[event]]);
-  return contentHash(JSON.stringify(sorted));
-}
-
 /** Replace (or, with null content, delete) the hooks file if it is unchanged since it was read. */
 async function commitHooksFile(
   paths: CodexInstallPaths,
@@ -464,13 +456,14 @@ async function commitHooksFile(
   mode: number,
 ): Promise<void> {
   const changed = () =>
-    new Error(`${paths.hooksPath} changed while cc-settings was updating it; rerun the install.`);
+    new Error(`${paths.hooksPath} changed since cc-settings read it; rerun the install.`);
   const unchanged = async (): Promise<boolean> => {
     const metadata = await lstatOrNull(paths.hooksPath);
     if (expectedHash === null) return metadata === null;
     return metadata !== null && (await regularFileHash(paths.hooksPath)) === expectedHash;
   };
   if (content === null) {
+    // Same unlocked check-then-delete as the rename below.
     if (!(await unchanged())) throw changed();
     await rm(paths.hooksPath, { force: true });
     return;
@@ -482,6 +475,10 @@ async function commitHooksFile(
     // "wx" refuses an existing path, so a planted symlink is never followed.
     await writeFile(temp, content, { mode, flag: "wx" });
     created = true;
+    // SHORTCUT: hash check, then rename, with no lock.
+    // ceiling: a write landing between the check and the rename is lost.
+    // upgrade: an advisory lock shared with other writers, when a lost hooks.json edit from a
+    // concurrent writer is reported.
     if (!(await unchanged())) throw changed();
     await rename(temp, paths.hooksPath);
   } catch (cause) {
@@ -498,16 +495,15 @@ function serializeHooksFile(document: Record<string, unknown>, events: HookEvent
 
 /** Fail closed before any write when `$CODEX_HOME/hooks.json` cannot be merged into. */
 export async function assertManagedHooksMergeable(paths: CodexInstallPaths): Promise<void> {
-  await readHooksFile(paths.hooksPath, hookRunnerMarker(paths));
+  await readHooksFile(paths.hooksPath);
 }
 
 /**
  * Merge the plugin's hook groups into the user-level hooks file: strip our
  * previous groups, append the fresh ones after each event's foreign groups, and
- * keep every other key and group as it was. Returns a hash of our groups.
+ * keep every other key and group as it was.
  */
-export async function writeUserHooks(sourceDir: string, paths: CodexInstallPaths): Promise<string> {
-  const marker = hookRunnerMarker(paths);
+export async function writeUserHooks(sourceDir: string, paths: CodexInstallPaths): Promise<void> {
   const template: unknown = JSON.parse(
     serializeUserHooks(
       await readFile(join(sourceDir, "hooks", "hooks.json"), "utf8"),
@@ -515,8 +511,8 @@ export async function writeUserHooks(sourceDir: string, paths: CodexInstallPaths
     ),
   );
   const fresh = (isPlainObject(template) ? template.hooks : {}) as HookEvents;
-  const existing = await readHooksFile(paths.hooksPath, marker);
-  const { foreign } = splitOwned(existing?.events ?? {}, marker);
+  const existing = await readHooksFile(paths.hooksPath);
+  const { foreign } = splitOwned(existing?.events ?? {});
   const merged: HookEvents = { ...foreign };
   for (const [event, groups] of Object.entries(fresh)) {
     merged[event] = [...(merged[event] ?? []), ...groups];
@@ -527,14 +523,13 @@ export async function writeUserHooks(sourceDir: string, paths: CodexInstallPaths
     serializeHooksFile(existing?.document ?? {}, merged),
     existing?.mode ?? 0o644,
   );
-  return ownedHash(fresh);
 }
 
 /** Remove only our hook groups. Deletes the file when nothing else was in it. */
 export async function stripManagedHooks(paths: CodexInstallPaths): Promise<boolean> {
-  const existing = await readHooksFile(paths.hooksPath, hookRunnerMarker(paths));
+  const existing = await readHooksFile(paths.hooksPath);
   if (!existing) return false;
-  const { foreign, removed } = splitOwned(existing.events, hookRunnerMarker(paths));
+  const { foreign, removed } = splitOwned(existing.events);
   if (!removed) return false;
   const otherKeys = Object.keys(existing.document).filter((key) => key !== "hooks");
   if (otherKeys.length === 0 && Object.keys(foreign).length === 0) {
@@ -555,13 +550,12 @@ export async function restoreManagedHooksFromBackup(
   paths: CodexInstallPaths,
   backupFile: string,
 ): Promise<boolean> {
-  const marker = hookRunnerMarker(paths);
-  const backed = await readHooksFile(backupFile, marker);
+  const backed = await readHooksFile(backupFile);
   if (!backed) return false;
-  const { owned } = splitOwned(backed.events, marker);
+  const { owned } = splitOwned(backed.events);
   if (Object.keys(owned).length === 0) return false;
-  const live = await readHooksFile(paths.hooksPath, marker);
-  const merged: HookEvents = { ...splitOwned(live?.events ?? {}, marker).foreign };
+  const live = await readHooksFile(paths.hooksPath);
+  const merged: HookEvents = { ...splitOwned(live?.events ?? {}).foreign };
   for (const [event, groups] of Object.entries(owned)) {
     merged[event] = [...(merged[event] ?? []), ...groups];
   }
@@ -584,7 +578,8 @@ export async function warnOnConfigTomlHooks(paths: CodexInstallPaths): Promise<v
   } catch {
     return;
   }
-  if (isPlainObject(hooks) && Object.keys(hooks).length > 0) {
+  // `[hooks.state."<key>"]` holds Codex's own trust records, not hook definitions.
+  if (isPlainObject(hooks) && Object.keys(hooks).some((key) => key !== "state")) {
     console.warn(
       `${paths.configPath} has a [hooks] table. Codex warns when hooks are defined in both config.toml and ${paths.hooksPath}.`,
     );

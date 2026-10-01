@@ -3974,7 +3974,7 @@ exit 0
       );
     };
 
-    test("writes the plugin hooks with absolute managed-source paths and records the entry hash", async () => {
+    test("writes the plugin hooks with absolute managed-source paths and records no hook hash", async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-codex-user-hooks-"));
       try {
         expectSuccess(await runCodex(home));
@@ -4000,7 +4000,7 @@ exit 0
         }
         expect(written).not.toContain("PLUGIN_ROOT");
         expect(existsSync(script)).toBe(true);
-        expect((await sentinelOf(codexHome)).managed_hook_entries_hash).toMatch(/^[0-9a-f]{64}$/);
+        expect((await sentinelOf(codexHome)).managed_hook_entries_hash).toBeUndefined();
         expect((await sentinelOf(codexHome)).managed_hooks_hash).toBeUndefined();
       } finally {
         await rm(home, { recursive: true, force: true });
@@ -4273,7 +4273,7 @@ exit 0
       }
     });
 
-    test("a 15.44.0 whole-file install (old sentinel field) upgrades cleanly", async () => {
+    test("a sentinel that still carries a hook hash loads, and a reinstall drops the key", async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-codex-upgrade-hooks-"));
       try {
         const codexHome = join(home, ".codex");
@@ -4281,16 +4281,152 @@ exit 0
         const current = await readFile(join(codexHome, "hooks.json"), "utf8");
         const sentinelPath = join(codexHome, ".cc-settings-version");
         const sentinel = JSON.parse(await readFile(sentinelPath, "utf8"));
-        const { managed_hook_entries_hash: entries, ...rest } = sentinel;
         await writeFile(
           sentinelPath,
-          `${JSON.stringify({ ...rest, managed_hooks_hash: sha(current) }, null, 2)}\n`,
+          `${JSON.stringify({ ...sentinel, managed_hook_entries_hash: sha("entries"), managed_hooks_hash: sha(current) }, null, 2)}\n`,
         );
         expectSuccess(await runCodex(home));
         expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe(current);
         const upgraded = await sentinelOf(codexHome);
-        expect(upgraded.managed_hook_entries_hash).toBe(entries);
+        expect(upgraded.managed_hook_entries_hash).toBeUndefined();
         expect(upgraded.managed_hooks_hash).toBeUndefined();
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("groups written under another CODEX_HOME are replaced on install and removed on uninstall", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-moved-hooks-"));
+      try {
+        const oldGroup = (runner: string) => ({
+          hooks: [
+            {
+              type: "command",
+              command: `bun --no-env-file "${runner}" "src/hooks/safety-net.ts"`,
+              commandWindows: `bun --no-env-file "${runner}" "src/hooks/safety-net.ts"`,
+            },
+          ],
+        });
+        const foreign = { hooks: [{ type: "command", command: "echo mine" }] };
+        const seed = {
+          hooks: {
+            PreToolUse: [
+              foreign,
+              oldGroup("/old/home/.codex/darkroom/source/src/scripts/codex-hook.ts"),
+              oldGroup("C:\\old\\.codex\\darkroom\\source/src/scripts/codex-hook.ts"),
+            ],
+          },
+        };
+        const codexHome = await seedForeign(home, seed);
+        expectSuccess(await runCodex(home));
+        const merged = await readDoc(codexHome);
+        const text = JSON.stringify(merged);
+        expect(text).not.toContain("/old/home");
+        expect(text).not.toContain("C:\\\\old");
+        expect(merged.hooks.PreToolUse?.[0]).toEqual(foreign);
+        const template = JSON.parse(
+          await readFile(join(REPO, "hooks", "hooks.json"), "utf8"),
+        ) as HooksDoc;
+        expect(ownedCount(merged)).toBe(Object.values(template.hooks).flat().length);
+
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(JSON.parse(await readFile(join(codexHome, "hooks.json"), "utf8"))).toEqual({
+          hooks: { PreToolUse: [foreign] },
+        });
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test.each([
+      ["invalid JSON", "{nope"],
+      [
+        "a mixed group",
+        JSON.stringify({
+          hooks: {
+            Stop: [
+              {
+                hooks: [
+                  { type: "command", command: "echo hi" },
+                  {
+                    type: "command",
+                    command: 'bun --no-env-file "/x/darkroom/source/src/scripts/codex-hook.ts" x',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      ],
+    ])(
+      "restoring a backup over %s in hooks.json throws before any write",
+      async (_label, bad) => {
+        const home = await mkdtemp(join(tmpdir(), "cc-codex-restore-guard-"));
+        try {
+          const codexHome = join(home, ".codex");
+          expectSuccess(await runCodex(home));
+          expectSuccess(await runCodex(home));
+          const backups = (await readdir(join(codexHome, "backups", "cc-settings"))).sort();
+          const backup = backups[backups.length - 1] as string;
+          await writeFile(join(codexHome, "hooks.json"), bad);
+          const tracked = [
+            join(codexHome, "hooks.json"),
+            join(codexHome, ".cc-settings-version"),
+            join(codexHome, "AGENTS.md"),
+            join(codexHome, "darkroom", "source", "src", "scripts", "codex-hook.ts"),
+          ];
+          const before = await snapshotPaths(tracked);
+          const sourceListing = await readdir(join(codexHome, "darkroom", "source"));
+          const pluginState = await readdir(join(codexHome, "plugins"), { recursive: true }).catch(
+            () => [],
+          );
+
+          const { restoreCodexCompensation } = await import("../src/lib/codex-install.ts");
+          await expect(restoreCodexCompensation(backup, { homeDir: home })).rejects.toThrow(
+            join(codexHome, "hooks.json"),
+          );
+
+          await expectPathsExact(before);
+          expect(await readdir(join(codexHome, "darkroom", "source"))).toEqual(sourceListing);
+          expect(
+            await readdir(join(codexHome, "plugins"), { recursive: true }).catch(() => []),
+          ).toEqual(pluginState);
+        } finally {
+          await rm(home, { recursive: true, force: true });
+        }
+      },
+      240_000,
+    );
+
+    test("config.toml with only Codex hook trust records draws no [hooks] warning", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-toml-state-"));
+      try {
+        const codexHome = join(home, ".codex");
+        await mkdir(codexHome, { recursive: true });
+        await writeFile(
+          join(codexHome, "config.toml"),
+          '[hooks.state."/x/hooks.json:stop:0:0"]\ntrusted_hash = "sha256:abc"\n',
+        );
+        const result = await runCodex(home);
+        expectSuccess(result);
+        expect(`${result.stdout}\n${result.stderr}`).not.toContain("[hooks] table");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("config.toml hook definitions draw a [hooks] warning", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-toml-defs-"));
+      try {
+        const codexHome = join(home, ".codex");
+        await mkdir(codexHome, { recursive: true });
+        await writeFile(
+          join(codexHome, "config.toml"),
+          '[[hooks.PreToolUse]]\nmatcher = "Bash"\n\n[[hooks.PreToolUse.hooks]]\ntype = "command"\ncommand = "echo hi"\n',
+        );
+        const result = await runCodex(home);
+        expectSuccess(result);
+        expect(`${result.stdout}\n${result.stderr}`).toContain("[hooks] table");
       } finally {
         await rm(home, { recursive: true, force: true });
       }
@@ -4311,7 +4447,7 @@ exit 0
 
         expectSuccess(await runCodex(home, ["--rollback"], "codex", {}, source));
         expect(await readFile(hooksPath, "utf8")).toBe(first);
-        expect((await sentinelOf(codexHome)).managed_hook_entries_hash).toMatch(/^[0-9a-f]{64}$/);
+        expect((await sentinelOf(codexHome)).managed_hook_entries_hash).toBeUndefined();
 
         // Rolling back to the snapshot taken before the first install.
         const backups = (await readdir(join(codexHome, "backups", "cc-settings"))).sort();
