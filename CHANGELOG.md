@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.43.1] — 2026-10-01
+
+PRs finish CI in about 7 minutes instead of 23. Jobs that repeated other jobs or gave the same answer on every OS are gone, and the slow full Windows suite runs after the merge instead of on every PR.
+
+**Changed:**
+- `.github/workflows/ci.yml`: `typecheck` runs on Ubuntu only, since `tsc` output does not depend on the OS.
+- `.github/workflows/ci.yml`: `test` runs on Ubuntu and macOS for PRs and adds Windows only on pushes to main.
+- `.github/workflows/ci.yml`: `install-e2e` runs on Windows for PRs only. On Ubuntu and macOS it repeated files `test` already runs, and on main the full Windows suite covers it.
+- `.claude/AGENTS.md`: the landing note says which Windows checks run on a PR.
+
 ## [15.43.0] — 2026-10-01
 
 The adversarial verification skill is now `/poke-holes` instead of `/verify`. Claude Code 2.1.286 tells Claude to run any skill named `verify` right before each code commit, and ours starts a panel of three or four agents, so every commit would have paid for one. Say "poke holes in this", "double check this", or "are you sure?" to reach it as before. Also syncs with Claude Code 2.1.286 and Codex 0.159.3.
