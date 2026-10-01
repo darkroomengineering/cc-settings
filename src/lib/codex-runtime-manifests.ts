@@ -8,8 +8,9 @@ export const REQUIRED_SOURCE_ARTIFACTS = [
   "codex/AGENTS.append.md",
   "codex/rules/darkroom.rules",
   ".claude-plugin/marketplace.json",
-  ".codex-plugin/plugin.json",
+  "plugin.json",
   ".mcp.json",
+  "mcp.json",
   "hooks/hooks.json",
   "agents",
   "skills",
@@ -254,7 +255,7 @@ const ADDED_IN_V11 = ["skills/audit/references/test-audit.md"];
 // Version 12: the pinned-engine installer was removed from the runtime.
 // Versions 5-11 still own it, so it rejoins their source list beside download-verify.ts.
 const REMOVED_IN_V12 = ["src/lib/engine-pin.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 13;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 14;
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.flatMap((path) =>
   path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V12] : [path],
 );
@@ -270,9 +271,17 @@ const RUNTIME_SOURCE_FILES_V12: readonly string[] = RUNTIME_SOURCE_FILES_V11.fil
 // Version 13: `verify` became `poke-holes`. Claude Code 2.1.286 tells Claude to
 // run any skill named `verify` before every commit, and ours is a multi-agent panel.
 const RENAMED_IN_V13 = new Map([["skills/verify/SKILL.md", "skills/poke-holes/SKILL.md"]]);
-export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V12.map(
+const RUNTIME_SOURCE_FILES_V13: readonly string[] = RUNTIME_SOURCE_FILES_V12.map(
   (path) => RENAMED_IN_V13.get(path) ?? path,
 );
+// Version 14: Codex loads the plugin from a root `plugin.json` and `mcp.json`
+// (Agent Plugins format) instead of `.codex-plugin/plugin.json`.
+const REPLACED_IN_V14 = ".codex-plugin/plugin.json";
+const ADDED_IN_V14 = ["plugin.json", "mcp.json"];
+export const RUNTIME_SOURCE_FILES: readonly string[] = [
+  ...RUNTIME_SOURCE_FILES_V13.filter((path) => path !== REPLACED_IN_V14),
+  ...ADDED_IN_V14,
+];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -302,6 +311,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [10, RUNTIME_SOURCE_FILES_V10],
   [11, RUNTIME_SOURCE_FILES_V11],
   [12, RUNTIME_SOURCE_FILES_V12],
+  [13, RUNTIME_SOURCE_FILES_V13],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

@@ -73,7 +73,7 @@ Review all requirements, tiers, system changes, prompts, managed paths, and undo
 ### 3. Restart and inspect
 
 Restart every selected product. In Codex full installs, open `/hooks` and review the installed
-plugin hooks once. Claude users can inspect the installed user-scope configuration from any
+hooks once. Claude users can inspect the installed user-scope configuration from any
 directory:
 
 ```bash

@@ -107,7 +107,7 @@ easy to spot.
 |---|---|
 | Native agents (`agents/*.toml` fields) | `src/lib/codex-native-agents.ts`, `codex/agents/` |
 | Command policy (`rules/*.rules`) | `codex/rules/darkroom.rules` |
-| Plugin manifest and hooks | `.codex-plugin/plugin.json`, `hooks/hooks.json`, `src/lib/codex-runtime-manifests.ts` |
+| Plugin manifest and hooks | `plugin.json`, `mcp.json`, `hooks/hooks.json` (installed as `$CODEX_HOME/hooks.json`), `src/lib/codex-runtime-manifests.ts` |
 | `config.toml` keys the installer reads | `src/lib/codex-install-state.ts`, `src/lib/codex-skill-budget.ts` |
 | Skill loading and budgets | `src/lib/lint-skills.ts`, `docs/codex.md` "skill descriptions were shortened" |
 | Bridge (`codex exec`, `codex review`, model pins) | `src/lib/claude-bridge.ts`, `codex-run.ts`, `docs/codex-bridge.md` |

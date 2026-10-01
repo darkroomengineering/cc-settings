@@ -1,4 +1,4 @@
-import { lstat, realpath } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   type BackupPluginState,
@@ -6,7 +6,10 @@ import {
   type CodexPluginState,
   type CodexSentinel,
   codexCliAvailable,
+  contentHash,
   isCodexCliSkippedForTests,
+  lstatOrNull,
+  regularFileHash,
   runCommand,
   toPluginState,
 } from "./codex-install-state.ts";
@@ -144,9 +147,7 @@ export async function isManagedPluginSource(
   pluginSource: string | null,
 ): Promise<boolean> {
   if (!pluginSource) return false;
-  if (pluginSource === managedSource || pluginSource === join(managedSource, ".codex-plugin")) {
-    return true;
-  }
+  if (pluginSource === managedSource) return true;
   const cacheRootPath = join(paths.codexHome, "plugins", "cache", "cc-settings");
   const cacheRoot = await realpath(cacheRootPath).catch(() => null);
   if (!cacheRoot) return false;
@@ -292,5 +293,109 @@ export async function discoverPlugin(paths: CodexInstallPaths): Promise<boolean 
     return parsePluginList(result.stdout).installed;
   } catch {
     return null;
+  }
+}
+
+// Codex loads no hooks from a root-manifest plugin, so the installer writes the
+// plugin's hooks as user-level hooks in `$CODEX_HOME/hooks.json`. Codex gives
+// user hooks no PLUGIN_ROOT, so each command points at the managed source.
+// Hooks run in the session's directory, and Bun loads that directory's `.env`,
+// so every command passes --no-env-file. The path goes inside double quotes;
+// these characters could end the quoted string in sh, cmd or PowerShell.
+const UNSAFE_HOOK_PATH_CHARACTERS = /["$`%\r\n“”„]/;
+const PLACEHOLDER = /\$PLUGIN_ROOT|%PLUGIN_ROOT%/g;
+const QUOTED_PLACEHOLDER = /"(?:\$PLUGIN_ROOT|%PLUGIN_ROOT%)[^"]*"/g;
+
+function rewriteHookCommand(command: string, managedSource: string): string {
+  const placeholders = command.match(PLACEHOLDER)?.length ?? 0;
+  if ((command.match(QUOTED_PLACEHOLDER)?.length ?? 0) !== placeholders) {
+    throw new Error(`hooks/hooks.json must quote PLUGIN_ROOT: ${command}`);
+  }
+  if (!command.startsWith("bun ")) {
+    throw new Error(`hooks/hooks.json commands must run bun: ${command}`);
+  }
+  return `bun --no-env-file ${command.slice("bun ".length)}`
+    .replaceAll("$PLUGIN_ROOT", managedSource)
+    .replaceAll("%PLUGIN_ROOT%", managedSource);
+}
+
+function rewriteHookCommands(value: unknown, managedSource: string): unknown {
+  if (Array.isArray(value)) return value.map((item) => rewriteHookCommands(item, managedSource));
+  if (!isPlainObject(value)) return value;
+  const rewritten: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if ((key === "command" || key === "commandWindows") && typeof child === "string") {
+      rewritten[key] = rewriteHookCommand(child, managedSource);
+    } else {
+      rewritten[key] = rewriteHookCommands(child, managedSource);
+    }
+  }
+  return rewritten;
+}
+
+/** Turn the plugin's `hooks/hooks.json` template into the user-level file. */
+export function serializeUserHooks(template: string, managedSource: string): string {
+  if (UNSAFE_HOOK_PATH_CHARACTERS.test(managedSource)) {
+    throw new Error(`Managed Codex source path cannot be used in a hook command: ${managedSource}`);
+  }
+  const parsed: unknown = JSON.parse(template);
+  if (!isPlainObject(parsed) || !isPlainObject(parsed.hooks)) {
+    throw new Error("hooks/hooks.json must contain a hooks object");
+  }
+  const output = `${JSON.stringify(rewriteHookCommands(parsed, managedSource), null, 2)}\n`;
+  if (output.includes("PLUGIN_ROOT")) {
+    throw new Error("hooks/hooks.json uses PLUGIN_ROOT outside a command field");
+  }
+  return output;
+}
+
+/** Fail closed before any write when `$CODEX_HOME/hooks.json` is not ours. */
+export async function assertManagedHooksWritable(
+  paths: CodexInstallPaths,
+  previous: CodexSentinel | null,
+): Promise<void> {
+  const metadata = await lstatOrNull(paths.hooksPath);
+  if (!metadata) return;
+  if (
+    metadata.isFile() &&
+    !metadata.isSymbolicLink() &&
+    previous?.managed_hooks_hash !== undefined &&
+    (await regularFileHash(paths.hooksPath)) === previous.managed_hooks_hash
+  ) {
+    return;
+  }
+  throw new Error(
+    `Codex install would overwrite ${paths.hooksPath}, which cc-settings does not own. ` +
+      "Move your hooks into the [hooks] table of config.toml, or remove the file, then rerun the install.",
+  );
+}
+
+/** Write the user-level hooks file and return its content hash. */
+export async function writeUserHooks(sourceDir: string, paths: CodexInstallPaths): Promise<string> {
+  const content = serializeUserHooks(
+    await readFile(join(sourceDir, "hooks", "hooks.json"), "utf8"),
+    paths.managedSource,
+  );
+  await mkdir(paths.codexHome, { recursive: true });
+  // Our previous copy was already removed by hash; "wx" refuses a file or
+  // symlink that appeared since the ownership check instead of writing through it.
+  await writeFile(paths.hooksPath, content, { flag: "wx" });
+  return contentHash(content);
+}
+
+/** Codex warns when hooks exist in both hooks.json and config.toml. Read-only. */
+export async function warnOnConfigTomlHooks(paths: CodexInstallPaths): Promise<void> {
+  const text = await readFile(paths.configPath, "utf8").catch(() => null);
+  if (text === null) return;
+  let hooks: unknown;
+  try {
+    hooks = (Bun.TOML.parse(text) as Record<string, unknown>).hooks;
+  } catch {
+    return;
+  }
+  if (isPlainObject(hooks) && Object.keys(hooks).length > 0) {
+    console.warn(
+      `${paths.configPath} has a [hooks] table. Codex warns when hooks are defined in both config.toml and ${paths.hooksPath}.`,
+    );
   }
 }

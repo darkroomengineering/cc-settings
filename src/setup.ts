@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.43.1"; // CI trims duplicate and OS-independent jobs; full Windows suite runs on main.
+const VERSION = "15.44.0"; // Codex hooks install as user hooks in $CODEX_HOME/hooks.json.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

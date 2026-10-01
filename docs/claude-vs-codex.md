@@ -16,7 +16,7 @@ travel across hosts. The host decides how tools, agents, hooks, and background w
 | Pin a shared skill | `/skill-name` | `$skill-name` |
 | Inspect session state | Claude status surfaces | `/status` |
 | Inspect installed cc-settings user scope | `bun ~/.claude/src/scripts/whats-on.ts` | No exact equivalent |
-| Review plugin hooks | Inspect Claude settings and hook reference | `/hooks` |
+| Review hooks | Inspect Claude settings and hook reference | `/hooks` |
 | Continue agent work | Resume or message the existing agent/task | Resume or message the existing agent/task through native agent controls |
 
 Natural language is the safest common interface. Explicit names matter when nearby skills have

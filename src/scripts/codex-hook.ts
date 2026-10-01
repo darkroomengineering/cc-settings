@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 
-import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { mkdirSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isPlainObject } from "../lib/merge-keyed.ts";
 
 interface HookPayload {
@@ -48,10 +49,37 @@ function resolveTarget(pluginRoot: string, relativeScript: string): string {
   return target;
 }
 
+/** The root is always this script's own checkout: a hook's environment can come
+ *  from a repository's `.env`, so an env-supplied root that points anywhere
+ *  else is refused. Plugin hooks get PLUGIN_DATA from the host; the user-level
+ *  hooks the installer writes do not, so they use the plugin's old data dir. */
+function resolveRootAndData(): { pluginRoot: string; dataDir: string } {
+  const selfRoot = realpathSync(resolve(import.meta.dir, "..", ".."));
+  const envRoot = process.env.PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_ROOT;
+  if (envRoot !== undefined) {
+    if (!envRoot) fail("PLUGIN_ROOT is required");
+    let realEnvRoot: string;
+    try {
+      realEnvRoot = realpathSync(envRoot);
+    } catch {
+      fail(`PLUGIN_ROOT does not exist: ${envRoot}`);
+    }
+    if (realEnvRoot !== selfRoot) fail("PLUGIN_ROOT must be the checkout that holds codex-hook.ts");
+    return { pluginRoot: selfRoot, dataDir: process.env.PLUGIN_DATA ?? selfRoot };
+  }
+  const codexHome = process.env.CODEX_HOME || join(homedir(), ".codex");
+  const dataDir = join(codexHome, "plugins", "data", "darkroom-cc-settings");
+  try {
+    mkdirSync(dataDir, { recursive: true });
+  } catch {
+    fail(`cannot create data directory: ${dataDir}`);
+  }
+  return { pluginRoot: selfRoot, dataDir };
+}
+
 async function main(): Promise<number> {
   const [relativeScript, ...targetArgs] = process.argv.slice(2);
-  const pluginRoot = process.env.PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_ROOT;
-  if (!pluginRoot) fail("PLUGIN_ROOT is required");
+  const { pluginRoot, dataDir } = resolveRootAndData();
   if (!relativeScript) fail("missing relative script target");
 
   const target = resolveTarget(pluginRoot, relativeScript);
@@ -66,7 +94,7 @@ async function main(): Promise<number> {
 
   const payload: HookPayload = parsed;
   const compatibilityEnv: Record<string, string> = {
-    CC_SETTINGS_HOME: process.env.PLUGIN_DATA ?? pluginRoot,
+    CC_SETTINGS_HOME: dataDir,
     CC_SETTINGS_SOURCE: pluginRoot,
   };
 
@@ -84,7 +112,7 @@ async function main(): Promise<number> {
     compatibilityEnv.CLAUDE_CODE_SESSION_ID = payload.session_id;
   }
 
-  const child = Bun.spawn(["bun", target, ...targetArgs], {
+  const child = Bun.spawn(["bun", "--no-env-file", target, ...targetArgs], {
     env: { ...process.env, ...compatibilityEnv },
     stdin: new Blob([rawInput]),
     stdout: "inherit",
