@@ -463,7 +463,7 @@ async function commitHooksFile(
     return metadata !== null && (await regularFileHash(paths.hooksPath)) === expectedHash;
   };
   if (content === null) {
-    // SHORTCUT: same unlocked check-then-delete; see below.
+    // Same unlocked check-then-delete as the rename below.
     if (!(await unchanged())) throw changed();
     await rm(paths.hooksPath, { force: true });
     return;
@@ -475,9 +475,10 @@ async function commitHooksFile(
     // "wx" refuses an existing path, so a planted symlink is never followed.
     await writeFile(temp, content, { mode, flag: "wx" });
     created = true;
-    // SHORTCUT: hash check, then rename, with no lock. ceiling: a write landing between the check
-    // and the rename is lost. upgrade: an advisory lock shared with other writers, when a lost
-    // hooks.json edit from a concurrent writer is reported.
+    // SHORTCUT: hash check, then rename, with no lock.
+    // ceiling: a write landing between the check and the rename is lost.
+    // upgrade: an advisory lock shared with other writers, when a lost hooks.json edit from a
+    // concurrent writer is reported.
     if (!(await unchanged())) throw changed();
     await rename(temp, paths.hooksPath);
   } catch (cause) {
