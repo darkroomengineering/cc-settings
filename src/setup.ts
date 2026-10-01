@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.42.5"; // Auto-update installs official main whatever the enrolled checkout's state.
+const VERSION = "15.42.6"; // swift-animation rule: @Animatable macro, completion chaining, value-less .animation.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

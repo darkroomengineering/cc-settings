@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.42.6] — 2026-10-01
+
+The Swift animation rule covers three cases it left open, taken from Paul Hudson's MIT-licensed SwiftUI agent skill (`twostraws/swiftui-agent-skill`). The rest of that skill is a full SwiftUI review checklist; install it as its own plugin rather than copying it here.
+
+**Changed:**
+- `rules/swift-animation.md`: on iOS 26 and macOS 26 or later, use the `@Animatable` macro (with `@AnimatableIgnored` for values that cannot interpolate) instead of a hand-written `animatableData`.
+- `rules/swift-animation.md`: chain one animation after another through the `completion:` closure of `withAnimation`, not a delayed second call.
+- `rules/swift-animation.md`: flag the deprecated `.animation(_:)` that has neither a `value:` nor a body closure.
+
 ## [15.42.5] — 2026-10-01
 
 The daily auto-update kept skipping on developer machines. Any untracked file, uncommitted edit, feature branch, or local commit in the cc-settings checkout stopped the run, so a maintainer with one stray folder sat three releases behind without a notification. The job already installs from a fresh isolated clone of official `main`, so the checkout's state never reached the install; it only blocked it.
@@ -14,6 +23,7 @@ The daily auto-update kept skipping on developer machines. Any untracked file, u
 - `tests/auto-update-script.test.ts` proves a modified, staged, untracked, or feature-branch checkout still installs and is left byte-for-byte untouched. The two tests that asserted the removed gates are deleted as an intentional contract change.
 
 Reaches an existing install on the next `bash setup.sh`.
+||||||| parent of 4f4fc9f (docs(v15.42.6): fold three SwiftUI animation rules from twostraws/swiftui-agent-skill)
 
 ## [15.42.4] — 2026-09-30
 
