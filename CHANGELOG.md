@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.42.1] — 2026-10-01
+
+The daily auto-update kept skipping on developer machines. Any untracked file, uncommitted edit, feature branch, or local commit in the cc-settings checkout stopped the run, so a maintainer with one stray folder sat three releases behind without a notification. The job already installs from a fresh isolated clone of official `main`, so the checkout's state never reached the install; it only blocked it.
+
+**Fixed:**
+- `src/scripts/auto-update.ts` drops the dirty-tree, staged-index, and history-ancestry gates on the enrolled checkout, along with the `skipped-dirty` and `blocked-history` statuses. The decision to run setup is now only whether official `main` carries a newer version than the installed one (`computeDrift`), so an install from a local branch at or above main's version is never downgraded.
+- The origin allowlist, the `CC_EXPECTED_REPO` path pin, the `.git/config` safety check, and the isolated, config-free clone are unchanged. `SECURITY.md` and `docs/install.md` describe the result.
+- `tests/auto-update-script.test.ts` proves a modified, staged, untracked, or feature-branch checkout still installs and is left byte-for-byte untouched. The two tests that asserted the removed gates are deleted as an intentional contract change.
+
+Reaches an existing install on the next `bash setup.sh`.
+
 ## [15.42.0] — 2026-09-30
 
 Adds the scroll, WebGL, and React Compiler rules from the harbor website findings (#168). Agents on harbor kept shipping these mistakes and a person had to catch them in review. Each rule is one line; the linked team-knowledge note holds the evidence.

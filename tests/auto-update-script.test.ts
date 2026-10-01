@@ -5,11 +5,11 @@
 // never touches the developer/CI machine's actual ~/.claude/tmp.
 //
 // Every fabricated "remote" is a local git repo on disk — zero network
-// access in any test. None of these cases reach the setup.sh spawn path:
-// no-repo/dirty-tree short-circuit before any git network op, and
-// blocked-origin/blocked-path short-circuit before the pull itself — the
-// origin allowlist and CC_EXPECTED_REPO path pin (see src/lib/schedule.ts,
-// SECURITY.md) must reject a forged repo_path before any pull or install.
+// access in any test. Cases that reach setup.sh substitute a fixture script.
+// no-repo short-circuits before any git op, and blocked-origin/blocked-path
+// short-circuit before the clone itself — the origin allowlist and
+// CC_EXPECTED_REPO path pin (see src/lib/schedule.ts, SECURITY.md) must
+// reject a forged repo_path before any pull or install.
 
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -100,13 +100,13 @@ async function readLastRun(fakeHome: string): Promise<{
 }
 
 describe("runAutoUpdate (via src/scripts/auto-update.ts)", () => {
-  test.each(["clean", "dirty"] as const)(
-    "real Git classifies a %s checkout using the generated index",
+  test.each(["clean", "modified", "staged", "untracked", "branch"] as const)(
+    "a %s enrolled checkout still installs official main and is left untouched",
     async (mode) => {
-      const home = await mkdtemp(join(tmpdir(), "cc-auto-real-index-"));
+      const home = await mkdtemp(join(tmpdir(), "cc-auto-real-checkout-"));
       try {
         const repo = join(home, "repo");
-        await mkdir(repo);
+        await mkdir(join(repo, ".claude-plugin"), { recursive: true });
         await git(["init", "-b", "main"], repo);
         await git(["config", "user.email", "test@example.com"], repo);
         await git(["config", "user.name", "Test"], repo);
@@ -114,13 +114,31 @@ describe("runAutoUpdate (via src/scripts/auto-update.ts)", () => {
           ["remote", "add", "origin", "https://github.com/darkroomengineering/cc-settings.git"],
           repo,
         );
-        await writeFile(join(repo, "package.json"), '{"version":"1.0.0"}\n');
+        await writeFile(join(repo, ".claude-plugin", "plugin.json"), '{"version":"2.0.0"}\n');
         await writeFile(join(repo, "README.md"), "committed bytes\n");
         await git(["add", "."], repo);
         await git(["commit", "-qm", "baseline"], repo);
-        if (mode === "dirty") await writeFile(join(repo, "README.md"), "personal edit\n");
+        if (mode === "modified" || mode === "staged") {
+          await writeFile(join(repo, "README.md"), "personal edit\n");
+        }
+        if (mode === "staged") await git(["add", "README.md"], repo);
+        if (mode === "untracked") await writeFile(join(repo, "scratch.md"), "wip\n");
+        if (mode === "branch") {
+          await git(["switch", "-qc", "feature"], repo);
+          await writeFile(join(repo, "README.md"), "branch bytes\n");
+          await git(["commit", "-qam", "local work"], repo);
+        }
+        const localHead = (await git(["rev-parse", "HEAD"], repo)).stdout.trim();
+        const localStatus = (await git(["status", "--porcelain"], repo)).stdout;
+        const setup = join(home, "setup.sh");
+        await writeFile(
+          setup,
+          `#!/bin/bash
+printf '{"version":"2.0.0","repo_path":"%s"}\\n' "$CC_SETTINGS_ENROLLED_REPO" > "$HOME/.claude/.cc-settings-version"
+`,
+        );
         const wrapper = join(home, "local-git.ts");
-        // Only transport is substituted; index and diff operations use real Git.
+        // Only transport is substituted; every other operation uses real Git.
         await writeFile(
           wrapper,
           `const args = process.argv.slice(2);
@@ -132,14 +150,14 @@ process.exit(await child.exited);
         await writeSentinel(home, repo);
         const result = await runAutoUpdateScript(home, {
           CC_SETTINGS_TEST_GIT_COMMAND_JSON: JSON.stringify([process.execPath, wrapper]),
+          CC_SETTINGS_TEST_SETUP_COMMAND_JSON: shellFixtureCommand(setup),
         });
         expect(result.exit, result.stderr).toBe(0);
-        expect((await readLastRun(home))?.status).toBe(
-          mode === "clean" ? "up-to-date" : "skipped-dirty",
-        );
-        expect(await readFile(join(repo, "README.md"), "utf8")).toBe(
-          mode === "clean" ? "committed bytes\n" : "personal edit\n",
-        );
+        const lastRun = await readLastRun(home);
+        expect(lastRun?.status).toBe("updated");
+        expect(lastRun?.toVersion).toBe("2.0.0");
+        expect((await git(["rev-parse", "HEAD"], repo)).stdout.trim()).toBe(localHead);
+        expect((await git(["status", "--porcelain"], repo)).stdout).toBe(localStatus);
       } finally {
         await rm(home, { recursive: true, force: true });
       }
@@ -158,71 +176,6 @@ process.exit(await child.exited);
         expect(lastRun?.status).toBe("no-repo");
       } finally {
         await rm(fakeHome, { recursive: true, force: true });
-      }
-    },
-    { timeout: 30_000 },
-  );
-
-  test.each(["ahead", "diverged"] as const)(
-    "clean official-origin checkout with %s history is blocked before setup",
-    async (history) => {
-      const fakeHome = await mkdtemp(join(tmpdir(), "cc-autoupdate-history-home-"));
-      const repoDir = await mkdtemp(join(tmpdir(), "cc-autoupdate-history-repo-"));
-      const binDir = join(fakeHome, "bin");
-      const gitLog = join(fakeHome, "git.log");
-      try {
-        await mkdir(join(repoDir, ".git"), { recursive: true });
-        await mkdir(join(repoDir, ".git", "refs", "heads"), { recursive: true });
-        await mkdir(binDir, { recursive: true });
-        await writeFile(join(repoDir, "package.json"), '{"version":"1.0.0"}\n');
-        await writeFile(join(repoDir, "setup.sh"), "#!/bin/sh\ntouch setup-ran\n");
-        await writeFile(
-          join(repoDir, ".git", "config"),
-          '[remote "origin"]\n  url = https://github.com/darkroomengineering/cc-settings.git\n',
-        );
-        await writeFile(join(repoDir, ".git", "HEAD"), "ref: refs/heads/main\n");
-        await writeFile(join(repoDir, ".git", "refs", "heads", "main"), `${"2".repeat(40)}\n`);
-        await writeFile(join(repoDir, ".git", "index"), "fixture\n");
-        await writeFile(
-          join(binDir, "git"),
-          `#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$FAKE_GIT_LOG"
-case " $* " in
-  *" config --file "*" remote.origin.url "*) printf 'https://github.com/darkroomengineering/cc-settings.git\n' ;;
-  *" clone "*)
-    destination="\${!#}"
-    mkdir -p "$destination/.git/refs/heads" "$destination/.claude-plugin"
-    cp "$FAKE_REPO/package.json" "$destination/package.json"
-    cp "$FAKE_REPO/setup.sh" "$destination/setup.sh"
-    printf '[remote "origin"]\n  url = https://github.com/darkroomengineering/cc-settings.git\n' > "$destination/.git/config"
-    printf 'ref: refs/heads/main\n' > "$destination/.git/HEAD"
-    printf '${"1".repeat(40)}\n' > "$destination/.git/refs/heads/main"
-    printf fixture > "$destination/.git/index"
-    ;;
-  *" rev-parse HEAD "*) printf '${"1".repeat(40)}\n' ;;
-  *" merge-base --is-ancestor "*) exit 1 ;;
-  *) exit 2 ;;
-esac
-`,
-        );
-        await chmod(join(binDir, "git"), 0o755);
-        await writeSentinel(fakeHome, repoDir);
-
-        const result = await runAutoUpdateScript(fakeHome, {
-          PATH: prependTestPath(binDir),
-          CC_SETTINGS_TEST_GIT_COMMAND_JSON: shellFixtureCommand(join(binDir, "git")),
-          FAKE_GIT_LOG: gitBashPath(gitLog),
-          FAKE_HISTORY: history,
-          FAKE_REPO: gitBashPath(repoDir),
-        });
-
-        expect(result.exit).toBe(1);
-        expect((await readLastRun(fakeHome))?.status).toBe("blocked-history");
-        expect(await readFile(gitLog, "utf8")).toContain("merge-base --is-ancestor");
-        expect(await readFile(join(repoDir, "setup-ran"), "utf8").catch(() => null)).toBeNull();
-      } finally {
-        await rm(fakeHome, { recursive: true, force: true });
-        await rm(repoDir, { recursive: true, force: true });
       }
     },
     { timeout: 30_000 },
@@ -265,7 +218,6 @@ case " $* " in
     printf fixture > "$destination/.git/index"
     ;;
   *" rev-parse HEAD "*) printf '${"1".repeat(40)}\n' ;;
-  *" update-index --refresh -q "*|*" merge-base --is-ancestor "*|*" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
   *) exit 2 ;;
 esac
 `,
@@ -284,7 +236,7 @@ esac
         expect((await readLastRun(fakeHome))?.status).toBe("up-to-date");
         const commands = await readFile(gitLog, "utf8");
         expect(commands).toContain("clone --branch main --single-branch");
-        expect(commands).toContain("merge --ff-only");
+        expect(commands.trim().split("\n")).toHaveLength(3);
       } finally {
         await rm(fakeHome, { recursive: true, force: true });
         await rm(repoDir, { recursive: true, force: true });
@@ -351,7 +303,6 @@ case " $* " in
     printf '%s\n' "$FAKE_NEW_HEAD" > "$destination/.git/refs/heads/main"
     ;;
   *" rev-parse HEAD "*) printf '%s\n' "$FAKE_NEW_HEAD" ;;
-  *" update-index --refresh -q "*|*" merge-base --is-ancestor "*|*" read-tree "*|*" diff-files --quiet "*|*" ls-files --others "*|*" diff-index --cached "*|*" checkout -B main "*|*" merge --ff-only "*) ;;
   *) exit 2 ;;
 esac
 `,
@@ -416,58 +367,6 @@ esac
         expect(lastRun?.status).toBe("no-repo");
       } finally {
         await rm(fakeHome, { recursive: true, force: true });
-      }
-    },
-    { timeout: 30_000 },
-  );
-
-  test.each(["dirty", "git-error"] as const)(
-    "%s result from isolated worktree check fails closed",
-    async (mode) => {
-      const fakeHome = await mkdtemp(join(tmpdir(), "cc-autoupdate-dirty-"));
-      const repoDir = await mkdtemp(join(tmpdir(), "cc-autoupdate-dirty-repo-"));
-      const binDir = join(fakeHome, "bin");
-      try {
-        await git(["init", "-b", "main"], repoDir);
-        await git(["config", "user.email", "test@example.com"], repoDir);
-        await git(["config", "user.name", "Test"], repoDir);
-        await writeFile(join(repoDir, "README.md"), "# fixture\n");
-        await git(["add", "."], repoDir);
-        await git(["commit", "-m", "init"], repoDir);
-        // Uncommitted change → `git status --porcelain` is non-empty.
-        await writeFile(join(repoDir, "README.md"), "# fixture (dirty)\n");
-        const head = (await git(["rev-parse", "HEAD"], repoDir)).stdout.trim();
-        await mkdir(binDir, { recursive: true });
-        await writeFile(
-          join(binDir, "git"),
-          `#!/usr/bin/env bash
-case " $* " in
-  *" config --file "*" remote.origin.url "*) printf 'https://github.com/darkroomengineering/cc-settings.git\n' ;;
-  *" clone "*) destination="\${!#}"; mkdir -p "$destination/.git" ;;
-  *" rev-parse HEAD "*) printf '%s\n' "$FAKE_HEAD" ;;
-  *" update-index --refresh -q "*|*" merge-base --is-ancestor "*|*" read-tree "*) ;;
-  *" diff-files --quiet "*) exit "$FAKE_DIFF_EXIT" ;;
-  *" ls-files --others "*) ;;
-  *) exit 2 ;;
-esac
-`,
-        );
-        await chmod(join(binDir, "git"), 0o755);
-
-        await writeSentinel(fakeHome, repoDir);
-        const result = await runAutoUpdateScript(fakeHome, {
-          PATH: prependTestPath(binDir),
-          CC_SETTINGS_TEST_GIT_COMMAND_JSON: shellFixtureCommand(join(binDir, "git")),
-          FAKE_HEAD: head,
-          FAKE_DIFF_EXIT: mode === "dirty" ? "1" : "2",
-        });
-        expect(result.exit).toBe(mode === "dirty" ? 0 : 1);
-
-        const lastRun = await readLastRun(fakeHome);
-        expect(lastRun?.status).toBe(mode === "dirty" ? "skipped-dirty" : "pull-failed");
-      } finally {
-        await rm(fakeHome, { recursive: true, force: true });
-        await rm(repoDir, { recursive: true, force: true });
       }
     },
     { timeout: 30_000 },

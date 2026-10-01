@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 // Nightly auto-update job — run by the launchd job registered by
-// registerAutoUpdate() (src/lib/schedule.ts). Pulls the cc-settings repo and
-// re-runs the installer non-interactively.
+// registerAutoUpdate() (src/lib/schedule.ts). Clones official main into
+// isolated staging and re-runs the installer from there non-interactively.
+// The enrolled checkout is read for its origin only and never modified.
 //
 // Enrollment is never touched here: setup.sh is spawned with stdin:"ignore",
 // so isInteractive() is false, and decideAutoUpdate() keeps whatever was
@@ -21,16 +22,7 @@
 // repo_path must match. Both must pass before any pull or setup.sh spawn.
 
 import { closeSync, existsSync, openSync, realpathSync } from "node:fs";
-import {
-  appendFile,
-  copyFile,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-} from "node:fs/promises";
+import { appendFile, lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { writeState } from "../lib/hook-runtime.ts";
@@ -47,12 +39,10 @@ import { sendNotification } from "./notify.ts";
 type RunStatus =
   | "up-to-date"
   | "updated"
-  | "skipped-dirty"
   | "pull-failed"
   | "setup-failed"
   | "no-repo"
   | "blocked-origin"
-  | "blocked-history"
   | "blocked-path";
 
 let logDirEnsured = false;
@@ -176,40 +166,6 @@ async function runIsolatedGit(
   return { exit, stdout: stdout.trim(), stderr: stderr.trim() };
 }
 
-async function readManagedHead(repoPath: string): Promise<string | null> {
-  const gitDir = join(repoPath, ".git");
-  const headPath = join(gitDir, "HEAD");
-  const headStat = await lstat(headPath).catch(() => null);
-  if (!headStat?.isFile() || headStat.isSymbolicLink()) return null;
-
-  const head = (await readFile(headPath, "utf8")).trim();
-  if (/^[0-9a-f]{40}$/i.test(head)) return head;
-  if (!head.startsWith("ref: ")) return null;
-
-  const ref = head.slice(5);
-  if (!/^refs\/heads\/[A-Za-z0-9._/-]+$/.test(ref) || ref.includes("..") || ref.includes("//")) {
-    return null;
-  }
-
-  const refPath = join(gitDir, ref);
-  const refStat = await lstat(refPath).catch(() => null);
-  if (refStat?.isFile() && !refStat.isSymbolicLink()) {
-    const hash = (await readFile(refPath, "utf8")).trim();
-    return /^[0-9a-f]{40}$/i.test(hash) ? hash : null;
-  }
-
-  const packedPath = join(gitDir, "packed-refs");
-  const packedStat = await lstat(packedPath).catch(() => null);
-  if (!packedStat?.isFile() || packedStat.isSymbolicLink()) return null;
-  const matches = (await readFile(packedPath, "utf8"))
-    .split("\n")
-    .map((line) => line.trim().split(/\s+/, 2))
-    .filter(
-      (parts) => parts.length === 2 && parts[1] === ref && /^[0-9a-f]{40}$/i.test(parts[0] ?? ""),
-    );
-  return matches.length === 1 ? (matches[0]?.[0] ?? null) : null;
-}
-
 /** Names of the copies setup saves when it replaces a hand-edited CLAUDE.md
  *  or AGENTS.md. Setup's own warning goes to the log, so the run compares
  *  these before and after to tell the user through a notification. */
@@ -280,8 +236,7 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
     const pullSource = resolvePullSource(originUrl);
 
     // Gate (a): the origin allowlist. A forged repo_path pointing at an
-    // attacker-controlled clone (even one with a clean --ff-only history
-    // against itself) is rejected here — only the real
+    // attacker-controlled clone is rejected here — only the real
     // darkroomengineering/cc-settings repo over HTTPS is ever pulled from.
     if (pullSource === null || !isAllowedPullSource(pullSource)) {
       status = "blocked-origin";
@@ -289,15 +244,6 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
       await sendNotification(
         "auto-update blocked — cc-settings origin is not the expected repo (see ~/.claude/logs/auto-update.log)",
       );
-      return;
-    }
-
-    const before = await readManagedHead(repoPath);
-    if (!before) {
-      status = "pull-failed";
-      await log("blocked — managed checkout HEAD could not be read safely");
-      await sendNotification("auto-update blocked — managed checkout HEAD is unreadable");
-      process.exitCode = 1;
       return;
     }
 
@@ -328,134 +274,24 @@ export async function runAutoUpdate(claudeDir: string = CLAUDE_DIR): Promise<voi
       process.exitCode = 1;
       return;
     }
-    const after = official.stdout;
 
-    const ancestry = await runIsolatedGit([
-      "-C",
-      stagingPath,
-      "merge-base",
-      "--is-ancestor",
-      before,
-      after,
-    ]);
-    if (ancestry.exit !== 0) {
-      status = "blocked-history";
-      await log("blocked — local checkout is ahead of or diverges from official main");
-      await sendNotification("auto-update blocked — local checkout does not match official main");
-      process.exitCode = 1;
-      return;
-    }
-
-    const checkDir = await mkdtemp(join(dirname(repoPath), ".source-check-"));
-    const generatedIndex = join(checkDir, "generated-index");
-    const safeRepoArgs = ["--git-dir", join(stagingPath, ".git"), "--work-tree", repoPath];
-    const readTree = await runIsolatedGit([...safeRepoArgs, "read-tree", before], {
-      GIT_INDEX_FILE: generatedIndex,
-    });
-    if (readTree.exit !== 0) {
-      status = "pull-failed";
-      await log(`blocked — managed checkout state could not be verified: ${readTree.stderr}`);
-      await rm(checkDir, { recursive: true, force: true });
-      process.exitCode = 1;
-      return;
-    }
-    // read-tree leaves zeroed stat data: refresh it before diff-files so clean
-    // tracked files are not mistaken for changes. Refresh may exit 1 for real
-    // differences; diff-files below remains the authoritative dirty check.
-    await runIsolatedGit([...safeRepoArgs, "update-index", "--refresh", "-q"], {
-      GIT_INDEX_FILE: generatedIndex,
-    });
-    const worktreeDiff = await runIsolatedGit([...safeRepoArgs, "diff-files", "--quiet", "--"], {
-      GIT_INDEX_FILE: generatedIndex,
-    });
-    const untracked = await runIsolatedGit(
-      [...safeRepoArgs, "ls-files", "--others", "--exclude-standard"],
-      { GIT_INDEX_FILE: generatedIndex },
-    );
-    if (worktreeDiff.exit > 1 || untracked.exit !== 0) {
-      status = "pull-failed";
-      await log("blocked — Git failed while checking the managed checkout for local changes");
-      await rm(checkDir, { recursive: true, force: true });
-      process.exitCode = 1;
-      return;
-    }
-    if (worktreeDiff.exit === 1 || untracked.stdout !== "") {
-      status = "skipped-dirty";
-      // Local work in progress is the developer's own state, not a failure:
-      // the log records the skip and the next clean day updates. A daily
-      // toast for it is noise (and an osascript notification has no click
-      // target, so clicking it opens Finder).
-      await log("skipped — uncommitted changes in cc-settings");
-      await rm(checkDir, { recursive: true, force: true });
-      return;
-    }
-
-    const oldIndex = join(repoPath, ".git", "index");
-    const oldIndexStat = await lstat(oldIndex).catch(() => null);
-    if (!oldIndexStat?.isFile() || oldIndexStat.isSymbolicLink()) {
-      status = "pull-failed";
-      await log("blocked — managed checkout index is missing or unsafe");
-      await rm(checkDir, { recursive: true, force: true });
-      process.exitCode = 1;
-      return;
-    }
-    const copiedIndex = join(checkDir, "original-index");
-    await copyFile(oldIndex, copiedIndex);
-    const stagedDiff = await runIsolatedGit(
-      [...safeRepoArgs, "diff-index", "--cached", "--quiet", before, "--"],
-      { GIT_INDEX_FILE: copiedIndex },
-    );
-    await rm(checkDir, { recursive: true, force: true });
-    if (stagedDiff.exit === 1) {
-      status = "skipped-dirty";
-      await log("skipped — staged changes in cc-settings");
-      return;
-    }
-    if (stagedDiff.exit !== 0) {
-      status = "pull-failed";
-      await log(`blocked — Git failed while checking the managed index: ${stagedDiff.stderr}`);
-      process.exitCode = 1;
-      return;
-    }
-
-    const checkout = await runIsolatedGit(["-C", stagingPath, "checkout", "-B", "main", before]);
-    const merge =
-      checkout.exit === 0
-        ? await runIsolatedGit(["-C", stagingPath, "merge", "--ff-only", after])
-        : checkout;
-    const merged = await runIsolatedGit(["-C", stagingPath, "rev-parse", "HEAD"]);
-    if (merge.exit !== 0 || merged.exit !== 0 || merged.stdout !== after) {
-      status = "blocked-history";
-      await log("blocked — isolated checkout did not land exactly on official main");
-      await sendNotification("auto-update blocked — checkout verification failed");
-      process.exitCode = 1;
-      return;
-    }
-
-    // "Nothing to pull" is NOT the same as "install is current". The repo can
-    // sit ahead of ~/.claude with no fetch to do — a local commit, a manual
-    // `git pull` that was never followed by setup.sh, or an earlier run whose
-    // setup failed. Gating the re-install on `before === after` made every one
-    // of those cases permanently invisible: the job reported "already up to
-    // date" each morning while the installed version fell further behind. Gate
-    // on the version delta instead, so any drift heals on the next run.
+    // The install decision reads only the installed version and official main.
+    // The enrolled checkout is a developer's working copy: untracked files,
+    // feature branches, and local commits are normal there and say nothing
+    // about whether ~/.claude is current, so its state never gates the run.
+    // computeDrift installs only when official main is newer, so an install
+    // from a local branch at or above main's version is never downgraded.
     const packaged = await readPackagedVersion(stagingPath);
     const { stale } = computeDrift(fromVersion, packaged);
 
     if (!stale) {
       status = "up-to-date";
-      await log(
-        before === after
-          ? "already up to date"
-          : "installed version already matches official main; enrolled checkout left untouched",
-      );
+      await log(`already up to date with official main ${official.stdout}`);
       return;
     }
 
     await log(
-      before === after
-        ? `no new commits, but installed v${fromVersion ?? "unknown"} is behind packaged v${packaged ?? "unknown"} — running setup.sh`
-        : `official main advanced beyond enrolled checkout ${before} -> ${after}; installing from isolated clone`,
+      `installed v${fromVersion ?? "unknown"} is behind official main v${packaged ?? "unknown"} (${official.stdout}) — running setup.sh from isolated clone`,
     );
     const logPath = autoUpdateLogPath();
     await mkdir(dirname(logPath), { recursive: true }).catch(() => {});

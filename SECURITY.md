@@ -129,22 +129,19 @@ what does and doesn't cover it.
   that sentinel. A compromised package that can write to `~/.claude` can
   rewrite either field; the dangerous surface is what gets *pulled*, not
   `auto-update.ts`'s own bytes. Tampering there is mitigated, not eliminated,
-  by four independent controls:
+  by three independent controls:
   - An **origin allowlist** (`isAllowedPullSource()`, pinned to the real
     `github.com/darkroomengineering/cc-settings` repo — a manifest-covered
     constant in `src/lib/schedule.ts`, so forging it requires ALSO beating
     layer 2). A forged `repo_path` pointing at an attacker clone is rejected
-    before any pull or `setup.sh` spawn, even if that clone's own history is
-    internally `--ff-only`-clean.
+    before any pull or `setup.sh` spawn.
   - A **fresh, isolated clone** of official `main`. System, global, and
     checkout-local Git config never controls the network or worktree commands;
     hooks, fsmonitor, credential helpers, proxies, and TLS weakening are
-    disabled or reset explicitly.
-  - A **dirty-tree and history gate** performed through the isolated clone's
-    object database. The updater rejects worktree/index changes and requires
-    the old commit to be an ancestor before performing an isolated `--ff-only`
-    merge. The enrolled checkout remains untouched; installation reads from
-    the isolated staging clone, which is deleted afterward.
+    disabled or reset explicitly. Installation reads only from this clone,
+    which is deleted afterward, so the enrolled checkout's worktree, index,
+    and branch never gate or feed the install, and `computeDrift()` runs
+    setup only when official `main` is newer than the installed version.
   - A **second, independent path check**: `registerAutoUpdate()` embeds the
     enrolling repo's real path in the plist itself (`CC_EXPECTED_REPO`) —
     the nightly job cross-checks the sentinel's `repo_path` against it and
@@ -152,8 +149,8 @@ what does and doesn't cover it.
     the sentinel AND the plist to redirect the pull.
 
   The updater does not trust `.git/config`, `.git/hooks`, or other executable
-  Git behavior in the existing checkout. It reads only the literal origin and
-  HEAD metadata needed for validation, runs every remaining Git operation
+  Git behavior in the existing checkout. It reads only the literal origin needed
+  for validation, runs every remaining Git operation
   against the fresh isolated clone with hooks disabled, and executes
   `setup.sh` from that clone. The sentinel keeps the enrolled checkout path,
   and the updater never deletes its ignored files, branches, tags, reflogs, or
