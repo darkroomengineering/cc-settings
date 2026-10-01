@@ -14,6 +14,7 @@ The daily auto-update kept skipping on developer machines. Any untracked file, u
 - `tests/auto-update-script.test.ts` proves a modified, staged, untracked, or feature-branch checkout still installs and is left byte-for-byte untouched. The two tests that asserted the removed gates are deleted as an intentional contract change.
 
 Reaches an existing install on the next `bash setup.sh`.
+
 ## [15.42.3] — 2026-09-30
 
 The status report no longer flags `ENABLE_PROMPT_CACHING_1H` as unset. v15.2.0 retired that variable in favor of the `promptCacheTtl` settings keys and v15.3.0 removes it from existing installs, so every status run since then showed one false "unset" warning.
