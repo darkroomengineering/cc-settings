@@ -14,11 +14,8 @@ concurrency:
 
 jobs:
   typecheck:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    # tsc output does not depend on the OS, so one runner is enough.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -28,10 +25,12 @@ jobs:
       - run: bun run typecheck
 
   test:
+    # The full Windows suite takes ~23 minutes, so it runs only on pushes to
+    # main. PRs get Windows coverage from install-e2e and install-ps1-bootstrap.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ github.event_name == 'push' && fromJSON('["ubuntu-latest","macos-latest","windows-latest"]') || fromJSON('["ubuntu-latest","macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -92,15 +91,10 @@ jobs:
       - run: bun run upstream:scan
 
   install-e2e:
-    # Dedicated job for the E2E install tests so install failures are
-    # surfaced as their own PR check (otherwise they're buried in the
-    # `test` job among 240+ other tests). Runs the same tests as `test`
-    # but only the install-e2e file, with the same matrix.
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    # Windows install tests on PRs, where the full Windows `test` run is
+    # skipped. On main the full suite covers these files.
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:

@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.43.0"; // verify skill renamed poke-holes; sync with Claude Code 2.1.286 and Codex 0.159.3.
+const VERSION = "15.43.1"; // CI trims duplicate and OS-independent jobs; full Windows suite runs on main.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
