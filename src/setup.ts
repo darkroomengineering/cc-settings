@@ -111,7 +111,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.45.0"; // Clarifying rounds until no fork is left, plus the ask-gate Stop hook.
+const VERSION = "15.45.1"; // Codex hooks.json merges by entry instead of failing on another tool's file.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

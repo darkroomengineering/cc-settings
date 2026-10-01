@@ -3962,7 +3962,9 @@ exit 0
       );
     };
     const sha = (text: string): string => new Bun.CryptoHasher("sha256").update(text).digest("hex");
-    const sentinelOf = async (codexHome: string): Promise<{ managed_hooks_hash?: string }> =>
+    const sentinelOf = async (
+      codexHome: string,
+    ): Promise<{ managed_hook_entries_hash?: string; managed_hooks_hash?: string }> =>
       JSON.parse(await readFile(join(codexHome, ".cc-settings-version"), "utf8"));
     const retimeoutHook = async (source: string): Promise<void> => {
       const path = join(source, "hooks", "hooks.json");
@@ -3972,7 +3974,7 @@ exit 0
       );
     };
 
-    test("writes the plugin hooks with absolute managed-source paths and records their hash", async () => {
+    test("writes the plugin hooks with absolute managed-source paths and records the entry hash", async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-codex-user-hooks-"));
       try {
         expectSuccess(await runCodex(home));
@@ -3998,7 +4000,8 @@ exit 0
         }
         expect(written).not.toContain("PLUGIN_ROOT");
         expect(existsSync(script)).toBe(true);
-        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBe(sha(written));
+        expect((await sentinelOf(codexHome)).managed_hook_entries_hash).toMatch(/^[0-9a-f]{64}$/);
+        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBeUndefined();
       } finally {
         await rm(home, { recursive: true, force: true });
       }
@@ -4023,66 +4026,184 @@ exit 0
       }
     });
 
-    test("a hooks.json that cc-settings did not write stops the install before any write", async () => {
-      for (const priorInstall of [false, true]) {
-        const home = await mkdtemp(join(tmpdir(), "cc-codex-foreign-hooks-"));
-        try {
-          const codexHome = join(home, ".codex");
-          if (priorInstall) expectSuccess(await runCodex(home));
-          await mkdir(codexHome, { recursive: true });
-          const personal = '{"hooks":{"SessionEnd":[]}}\n';
-          await writeFile(join(codexHome, "hooks.json"), personal);
-          const before = new Set(await readdir(codexHome));
-          const sentinelBefore = existsSync(join(codexHome, ".cc-settings-version"))
-            ? await readFile(join(codexHome, ".cc-settings-version"), "utf8")
-            : null;
-
-          const result = await runCodex(home);
-          expect(result.exitCode).not.toBe(0);
-          expect(`${result.stdout}\n${result.stderr}`).toContain(join(codexHome, "hooks.json"));
-          expect(`${result.stdout}\n${result.stderr}`).toMatch(/\[hooks\]|remove the file/);
-          expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe(personal);
-          expect(new Set(await readdir(codexHome))).toEqual(before);
-          const sentinelAfter = existsSync(join(codexHome, ".cc-settings-version"))
-            ? await readFile(join(codexHome, ".cc-settings-version"), "utf8")
-            : null;
-          expect(sentinelAfter).toBe(sentinelBefore);
-        } finally {
-          await rm(home, { recursive: true, force: true });
-        }
-      }
+    const programaFile = (): Record<string, unknown> => ({
+      hooks: Object.fromEntries(
+        [
+          ["Notification", "notification"],
+          ["SessionEnd", "session-end"],
+          ["SessionStart", "session-start"],
+          ["Stop", "stop"],
+          ["UserPromptSubmit", "prompt-submit"],
+        ].map(([event, name]) => [
+          event,
+          [
+            {
+              hooks: [
+                {
+                  command: `[ -n "$PROGRAMA_SURFACE_ID" ] && command -v programa >/dev/null 2>&1 && programa codex-hook ${name} || echo '{}'`,
+                  timeout: 10,
+                  type: "command",
+                },
+              ],
+            },
+          ],
+        ]),
+      ),
     });
+    type HooksDoc = { hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>> };
+    const readDoc = async (codexHome: string): Promise<HooksDoc> =>
+      JSON.parse(await readFile(join(codexHome, "hooks.json"), "utf8"));
+    const seedForeign = async (home: string, doc: unknown = programaFile()): Promise<string> => {
+      const codexHome = join(home, ".codex");
+      await mkdir(codexHome, { recursive: true });
+      await writeFile(join(codexHome, "hooks.json"), `${JSON.stringify(doc, null, 2)}\n`);
+      return codexHome;
+    };
+    const ownedCount = (doc: HooksDoc): number =>
+      Object.values(doc.hooks)
+        .flat()
+        .filter((group) => group.hooks.every((hook) => hook.command.includes("codex-hook.ts")))
+        .length;
 
-    test("overwrites its own file on reinstall and refuses once the file was edited", async () => {
-      const home = await mkdtemp(join(tmpdir(), "cc-codex-own-hooks-"));
+    test("merges into a hooks.json another tool owns: foreign groups stay first and unchanged", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-foreign-hooks-"));
       try {
-        const source = await copySourceFixture(home);
-        const codexHome = join(home, ".codex");
-        expectSuccess(await runCodex(home, [], "codex", {}, source));
-        const first = await readFile(join(codexHome, "hooks.json"), "utf8");
-
-        await retimeoutHook(source);
-        expectSuccess(await runCodex(home, [], "codex", {}, source));
-        const second = await readFile(join(codexHome, "hooks.json"), "utf8");
-        expect(second).not.toBe(first);
-        expect(second).toContain('"timeout": 6');
-        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBe(sha(second));
-
-        const edited = `${second.trimEnd()}\n`.replace('"timeout": 6', '"timeout": 9');
-        await writeFile(join(codexHome, "hooks.json"), edited);
-        const refused = await runCodex(home, [], "codex", {}, source);
-        expect(refused.exitCode).not.toBe(0);
-        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe(edited);
+        const original = programaFile() as unknown as HooksDoc;
+        const codexHome = await seedForeign(home);
+        expectSuccess(await runCodex(home));
+        const merged = await readDoc(codexHome);
+        for (const [event, groups] of Object.entries(original.hooks)) {
+          expect(merged.hooks[event]?.[0]).toEqual(groups[0]);
+          for (const added of merged.hooks[event]?.slice(1) ?? []) {
+            expect(added.hooks.every((hook) => hook.command.includes("codex-hook.ts"))).toBe(true);
+          }
+        }
+        expect(merged.hooks.PreToolUse?.length).toBeGreaterThan(0);
+        expect(ownedCount(merged)).toBeGreaterThan(0);
+        expect(merged.hooks.SessionEnd?.length).toBeGreaterThan(1);
       } finally {
         await rm(home, { recursive: true, force: true });
       }
     });
 
-    test("uninstall and the light profile remove the file only while its hash matches", async () => {
+    test("reinstall is idempotent and does not duplicate groups", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-idem-hooks-"));
+      try {
+        const codexHome = await seedForeign(home);
+        expectSuccess(await runCodex(home));
+        const first = await readFile(join(codexHome, "hooks.json"), "utf8");
+        expectSuccess(await runCodex(home));
+        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe(first);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("a reinstall picks up changed hook content in place", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-own-hooks-"));
+      try {
+        const source = await copySourceFixture(home);
+        const codexHome = await seedForeign(home);
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        const first = await readFile(join(codexHome, "hooks.json"), "utf8");
+        await retimeoutHook(source);
+        expectSuccess(await runCodex(home, [], "codex", {}, source));
+        const second = await readFile(join(codexHome, "hooks.json"), "utf8");
+        expect(second).not.toBe(first);
+        expect(second).toContain('"timeout": 6');
+        expect(ownedCount(JSON.parse(second))).toBe(ownedCount(JSON.parse(first)));
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("uninstall and the light profile remove only our groups and keep the foreign file", async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-codex-remove-hooks-"));
       try {
-        const codexHome = join(home, ".codex");
+        const original = programaFile();
+        const codexHome = await seedForeign(home, original);
         const hooksPath = join(codexHome, "hooks.json");
+        expectSuccess(await runCodex(home));
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(JSON.parse(await readFile(hooksPath, "utf8"))).toEqual(original);
+
+        expectSuccess(await runCodex(home));
+        expectSuccess(await runCodex(home, ["--light"]));
+        expect(JSON.parse(await readFile(hooksPath, "utf8"))).toEqual(original);
+        expect((await sentinelOf(codexHome)).managed_hook_entries_hash).toBeUndefined();
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("near-miss foreign handlers survive install and uninstall", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-nearmiss-hooks-"));
+      try {
+        const runner = join(
+          home,
+          ".codex",
+          "darkroom",
+          "source",
+          "src",
+          "scripts",
+          "codex-hook.ts",
+        );
+        const handler = (extra: Record<string, string>) => ({
+          hooks: [{ type: "command", command: "", ...extra }],
+        });
+        const original = {
+          hooks: {
+            Stop: [
+              handler({ command: `my-wrapper "${runner}"` }),
+              handler({ command: `bun "${runner}.backup" x` }),
+              handler({ command: "echo mine", commandWindows: `bun --no-env-file "${runner}" x` }),
+              handler({ command: `bun --no-env-file "${runner}" x`, commandWindows: "echo mine" }),
+            ],
+          },
+        };
+        const codexHome = await seedForeign(home, original);
+        expectSuccess(await runCodex(home));
+        const merged = await readDoc(codexHome);
+        expect(merged.hooks.Stop?.slice(0, 4)).toEqual(original.hooks.Stop);
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(JSON.parse(await readFile(join(codexHome, "hooks.json"), "utf8"))).toEqual(original);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("light install and uninstall never read an unmergeable hooks.json", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-light-hooks-"));
+      try {
+        const codexHome = join(home, ".codex");
+        await mkdir(codexHome, { recursive: true });
+        await writeFile(join(codexHome, "hooks.json"), "{nope");
+        expectSuccess(await runCodex(home, ["--light"]));
+        expectSuccess(await runCodex(home, ["--uninstall"]));
+        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe("{nope");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("a light-profile rollback never reads an unmergeable hooks.json", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-light-rollback-hooks-"));
+      try {
+        const codexHome = join(home, ".codex");
+        expectSuccess(await runCodex(home, ["--light"]));
+        expectSuccess(await runCodex(home, ["--light"]));
+        await writeFile(join(codexHome, "hooks.json"), "{nope");
+        expectSuccess(await runCodex(home, ["--rollback"]));
+        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe("{nope");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("with no hooks file, install creates it and uninstall deletes it", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-own-file-hooks-"));
+      try {
+        const hooksPath = join(home, ".codex", "hooks.json");
         expectSuccess(await runCodex(home));
         expect(existsSync(hooksPath)).toBe(true);
         expectSuccess(await runCodex(home, ["--uninstall"]));
@@ -4091,23 +4212,96 @@ exit 0
         expectSuccess(await runCodex(home));
         expectSuccess(await runCodex(home, ["--light"]));
         expect(existsSync(hooksPath)).toBe(false);
-        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBeUndefined();
-
-        expectSuccess(await runCodex(home));
-        const edited = '{"hooks":{}}\n';
-        await writeFile(hooksPath, edited);
-        expectSuccess(await runCodex(home, ["--uninstall"]));
-        expect(await readFile(hooksPath, "utf8")).toBe(edited);
       } finally {
         await rm(home, { recursive: true, force: true });
       }
     });
 
-    test("rollback restores the previous hooks file, or removes ours when there was none", async () => {
+    test("a hooks.json it cannot merge into stops the install before any write", async () => {
+      const cases: Array<[string, (codexHome: string) => Promise<void>]> = [
+        ["invalid JSON", (c) => writeFile(join(c, "hooks.json"), "{nope")],
+        ["array root", (c) => writeFile(join(c, "hooks.json"), "[]")],
+        ["hooks not an object", (c) => writeFile(join(c, "hooks.json"), '{"hooks":[]}')],
+        ["event not an array", (c) => writeFile(join(c, "hooks.json"), '{"hooks":{"Stop":{}}}')],
+        ["group without hooks", (c) => writeFile(join(c, "hooks.json"), '{"hooks":{"Stop":[{}]}}')],
+        [
+          "mixed group",
+          (c) =>
+            writeFile(
+              join(c, "hooks.json"),
+              JSON.stringify({
+                hooks: {
+                  Stop: [
+                    {
+                      hooks: [
+                        { type: "command", command: "echo hi" },
+                        {
+                          type: "command",
+                          command: `bun --no-env-file "${join(c, "darkroom", "source", "src", "scripts", "codex-hook.ts")}" x`,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              }),
+            ),
+        ],
+        [
+          "symlink",
+          async (c) => {
+            await writeFile(join(c, "real.json"), "{}");
+            await symlink(join(c, "real.json"), join(c, "hooks.json"));
+          },
+        ],
+      ];
+      for (const [label, setup] of cases) {
+        const home = await mkdtemp(join(tmpdir(), "cc-codex-badhooks-"));
+        try {
+          const codexHome = join(home, ".codex");
+          await mkdir(codexHome, { recursive: true });
+          await setup(codexHome);
+          const before = new Set(await readdir(codexHome));
+          const result = await runCodex(home);
+          expect(result.exitCode, label).not.toBe(0);
+          expect(`${result.stdout}\n${result.stderr}`, label).toContain(
+            join(codexHome, "hooks.json"),
+          );
+          expect(new Set(await readdir(codexHome)), label).toEqual(before);
+        } finally {
+          await rm(home, { recursive: true, force: true });
+        }
+      }
+    });
+
+    test("a 15.44.0 whole-file install (old sentinel field) upgrades cleanly", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-upgrade-hooks-"));
+      try {
+        const codexHome = join(home, ".codex");
+        expectSuccess(await runCodex(home));
+        const current = await readFile(join(codexHome, "hooks.json"), "utf8");
+        const sentinelPath = join(codexHome, ".cc-settings-version");
+        const sentinel = JSON.parse(await readFile(sentinelPath, "utf8"));
+        const { managed_hook_entries_hash: entries, ...rest } = sentinel;
+        await writeFile(
+          sentinelPath,
+          `${JSON.stringify({ ...rest, managed_hooks_hash: sha(current) }, null, 2)}\n`,
+        );
+        expectSuccess(await runCodex(home));
+        expect(await readFile(join(codexHome, "hooks.json"), "utf8")).toBe(current);
+        const upgraded = await sentinelOf(codexHome);
+        expect(upgraded.managed_hook_entries_hash).toBe(entries);
+        expect(upgraded.managed_hooks_hash).toBeUndefined();
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
+    test("rollback keeps foreign groups and restores our previous groups", async () => {
       const home = await mkdtemp(join(tmpdir(), "cc-codex-rollback-hooks-"));
       try {
         const source = await copySourceFixture(home);
-        const codexHome = join(home, ".codex");
+        const original = programaFile();
+        const codexHome = await seedForeign(home, original);
         const hooksPath = join(codexHome, "hooks.json");
         expectSuccess(await runCodex(home, [], "codex", {}, source));
         const first = await readFile(hooksPath, "utf8");
@@ -4117,34 +4311,28 @@ exit 0
 
         expectSuccess(await runCodex(home, ["--rollback"], "codex", {}, source));
         expect(await readFile(hooksPath, "utf8")).toBe(first);
-        expect((await sentinelOf(codexHome)).managed_hooks_hash).toBe(sha(first));
+        expect((await sentinelOf(codexHome)).managed_hook_entries_hash).toMatch(/^[0-9a-f]{64}$/);
 
         // Rolling back to the snapshot taken before the first install.
         const backups = (await readdir(join(codexHome, "backups", "cc-settings"))).sort();
         expectSuccess(await runCodex(home, [`--rollback=${backups[0]}`], "codex", {}, source));
-        expect(existsSync(hooksPath)).toBe(false);
+        expect(JSON.parse(await readFile(hooksPath, "utf8"))).toEqual(original);
       } finally {
         await rm(home, { recursive: true, force: true });
       }
     }, 240_000);
 
-    test("rollback never overwrites a hooks file edited after install", async () => {
-      const home = await mkdtemp(join(tmpdir(), "cc-codex-rollback-edited-hooks-"));
+    test("rollback to before the first install removes a hooks file we created", async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-rollback-none-hooks-"));
       try {
         const source = await copySourceFixture(home);
         const codexHome = join(home, ".codex");
-        const hooksPath = join(codexHome, "hooks.json");
         expectSuccess(await runCodex(home, [], "codex", {}, source));
         await retimeoutHook(source);
         expectSuccess(await runCodex(home, [], "codex", {}, source));
-        const edited = '{"hooks":{"SessionEnd":[]}}\n';
-        await writeFile(hooksPath, edited);
-
-        // Rollback refuses up front; the restore step's own existsSync guard
-        // covers a file that changes between that check and the restore.
-        const refused = await runCodex(home, ["--rollback"], "codex", {}, source);
-        expect(refused.exitCode).not.toBe(0);
-        expect(await readFile(hooksPath, "utf8")).toBe(edited);
+        const backups = (await readdir(join(codexHome, "backups", "cc-settings"))).sort();
+        expectSuccess(await runCodex(home, [`--rollback=${backups[0]}`], "codex", {}, source));
+        expect(existsSync(join(codexHome, "hooks.json"))).toBe(false);
       } finally {
         await rm(home, { recursive: true, force: true });
       }

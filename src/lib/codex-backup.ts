@@ -37,12 +37,15 @@ import {
   shippedNativeAgentNames,
 } from "./codex-native-agents.ts";
 import {
+  assertManagedHooksMergeable,
   assertManagedPluginProvenance,
   canonicalManagedSourcePath,
   isManagedPluginSource,
   readCodexPluginState,
   removePlugin,
+  restoreManagedHooksFromBackup,
   restorePluginState,
+  stripManagedHooks,
 } from "./codex-plugin.ts";
 import {
   assertPreviousManagedContentUnmodified,
@@ -659,6 +662,19 @@ export async function prepareManagedSourceFromBackup(
   return await prepareManagedSource(join(backup, "files", relativePath), paths, artifacts);
 }
 
+/** True when a rollback or restore can read or write the shared hooks file. */
+export function hooksInvolved(
+  paths: CodexInstallPaths,
+  manifest: { restoredProfile?: string | null; present: string[] },
+  current: { profile: string } | null,
+): boolean {
+  return (
+    current?.profile === "full" ||
+    manifest.restoredProfile === "full" ||
+    manifest.present.includes(backupRelativePath(paths.hooksPath, paths))
+  );
+}
+
 export async function restoreCodexBackupExact(
   paths: CodexInstallPaths,
   backup: string,
@@ -675,6 +691,9 @@ export async function restoreCodexBackupExact(
     ...manifest.nextManagedAgents,
   ]);
   const present = new Set(manifest.present);
+  const liveSentinel = await readSentinel(paths.sentinelPath).catch(() => null);
+  const touchHooks = hooksInvolved(paths, manifest, liveSentinel);
+  if (touchHooks) await assertManagedHooksMergeable(paths);
   const preparedSource = await prepareManagedSourceFromBackup(
     paths,
     backup,
@@ -702,19 +721,13 @@ export async function restoreCodexBackupExact(
         await copyIfPresent(join(backup, "files", rel), join(paths.codexHome, rel));
       }
     }
-    // Never rm the user hooks file outright: only the copy this installer wrote
-    // is removed (by hash). A backed-up copy is restored only into an empty
-    // slot, so a hooks file the user edited after install is never overwritten.
-    const liveSentinel = await readSentinel(paths.sentinelPath).catch(() => null);
-    await removeFileWithHash(paths.hooksPath, liveSentinel?.managed_hooks_hash);
-    if (await lstat(paths.hooksPath).catch(() => null)) {
-      console.warn(
-        `Kept ${paths.hooksPath}: it changed after install, so the backed-up copy was not restored over it.`,
-      );
-    } else if (present.has(backupRelativePath(paths.hooksPath, paths))) {
-      await copyIfPresent(
+    // The hooks file is shared with other tools: drop only our groups, then
+    // re-add the ones the backup held. The backed-up file is never copied over it.
+    if (touchHooks) await stripManagedHooks(paths);
+    if (present.has(backupRelativePath(paths.hooksPath, paths))) {
+      await restoreManagedHooksFromBackup(
+        paths,
         join(backup, "files", backupRelativePath(paths.hooksPath, paths)),
-        paths.hooksPath,
       );
     }
     for (const destination of [
@@ -800,6 +813,7 @@ export async function removeCurrentManagedCodexState(
     throw new Error("Codex CLI is required to remove managed plugin or marketplace state");
   }
   await assertManagedAgentBoundaries(paths, sentinel.managed_agents);
+  if (sentinel.profile === "full") await assertManagedHooksMergeable(paths);
   if (sentinel.profile === "full") {
     await removePlugin(paths, true);
   }
@@ -807,7 +821,7 @@ export async function removeCurrentManagedCodexState(
   if (sentinel.profile === "full") {
     await removeFileWithHash(join(paths.rulesDir, MANAGED_RULE_NAME), sentinel.managed_rule_hash);
   }
-  await removeFileWithHash(paths.hooksPath, sentinel.managed_hooks_hash);
+  if (sentinel.profile === "full") await stripManagedHooks(paths);
   await rm(paths.sentinelPath, { force: true });
   await rm(paths.managedSource, { recursive: true, force: true });
   await rmdir(dirname(paths.managedSource)).catch((cause: NodeJS.ErrnoException) => {

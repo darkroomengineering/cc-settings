@@ -132,7 +132,7 @@ export interface CodexSentinel {
   managed_agents: string[];
   managed_agent_hashes?: Record<string, string>;
   managed_rule_hash?: string;
-  managed_hooks_hash?: string;
+  managed_hook_entries_hash?: string;
   managed_source_hashes?: Record<string, string>;
   managed_instructions_hash?: string;
   runtime_manifest_version: number;
@@ -453,7 +453,7 @@ export async function readSentinel(path: string): Promise<CodexSentinel | null> 
     ) {
       throw new Error(`Invalid managed rule hash in ${path}`);
     }
-    const managedHooksHash = value.managed_hooks_hash;
+    const managedHooksHash = value.managed_hook_entries_hash;
     if (
       managedHooksHash !== undefined &&
       (typeof managedHooksHash !== "string" || !SHA256.test(managedHooksHash))
@@ -492,7 +492,9 @@ export async function readSentinel(path: string): Promise<CodexSentinel | null> 
       managed_agents: managedAgents,
       ...(managedAgentHashes ? { managed_agent_hashes: managedAgentHashes } : {}),
       ...(typeof managedRuleHash === "string" ? { managed_rule_hash: managedRuleHash } : {}),
-      ...(typeof managedHooksHash === "string" ? { managed_hooks_hash: managedHooksHash } : {}),
+      ...(typeof managedHooksHash === "string"
+        ? { managed_hook_entries_hash: managedHooksHash }
+        : {}),
       ...(managedSourceHashes ? { managed_source_hashes: sourceHashes } : {}),
       ...(typeof managedInstructionsHash === "string"
         ? { managed_instructions_hash: managedInstructionsHash }

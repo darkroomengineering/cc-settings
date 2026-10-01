@@ -218,7 +218,7 @@ export function assertSentinelAgentOwnership(
   if (sentinel.profile === "light" && sentinel.managed_rule_hash) {
     throw new Error(`Light Codex sentinel claims a managed rule in ${source}`);
   }
-  if (sentinel.profile === "light" && sentinel.managed_hooks_hash) {
+  if (sentinel.profile === "light" && sentinel.managed_hook_entries_hash) {
     throw new Error(`Light Codex sentinel claims managed hooks in ${source}`);
   }
   const sourceHashes = sentinel.managed_source_hashes ?? {};
