@@ -70,11 +70,13 @@ The plugin loads from the root `plugin.json` and `mcp.json`. Codex runs no hooks
 that format, so the installer writes the Codex-compatible lifecycle hooks to
 `$CODEX_HOME/hooks.json` as user-level hooks, with absolute paths into `darkroom/source`. The
 installer owns individual hook groups in that file, never the file. A group is its own when every
-handler runs `darkroom/source/src/scripts/codex-hook.ts`. Install and reinstall keep every other
+handler runs `darkroom/source/src/scripts/codex-hook.ts` from any absolute path, so groups written
+under another `CODEX_HOME` still count as its own. Install and reinstall keep every other
 group and top-level key as they are and append its groups after the existing ones in each event, so
-another tool's hooks (Programa, for example) keep their positions. The sentinel records a hash of
-the groups it wrote (`managed_hook_entries_hash`). Uninstall and rollback remove only those groups,
-restore the ones a backup held, and delete the file only when nothing else is left in it. The
+another tool's hooks (Programa, for example) keep their positions. cc-settings rewrites hooks.json as 2-space JSON, keeping key and group order, so custom whitespace
+and formatting are not preserved. Uninstall and rollback remove only its groups, restore the ones a
+backup held, and delete the file only when nothing else is left in it; rollback leaves other tools'
+groups as they are now. The
 install stops before writing when the file cannot be merged into: a symlink, invalid JSON, an
 unexpected shape, or a group that mixes cc-settings and other handlers. These hooks keep their handoffs and logs in
 `$CODEX_HOME/plugins/data/darkroom-cc-settings`.

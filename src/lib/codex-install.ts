@@ -212,7 +212,6 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
   }
   await assertCodexExplicitStateUnchanged(paths, explicitState);
   let operationExplicitState = explicitState;
-  let writtenHooksHash: string | undefined;
   try {
     await mkdir(paths.codexHome, { recursive: true });
     await installPreparedManagedSource(paths, preparedSource);
@@ -241,7 +240,7 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
       await cp(ruleSource, ruleDestination);
       managedRuleHash = contentHash(await readFile(ruleDestination));
       await installPlugin(paths);
-      writtenHooksHash = await writeUserHooks(sourceDir, paths);
+      await writeUserHooks(sourceDir, paths);
       await warnOnConfigTomlHooks(paths);
     } else {
       if (previous?.profile === "full") {
@@ -260,7 +259,6 @@ export async function installCodex(options: CodexInstallOptions): Promise<string
       managed_instructions_hash: managedInstructionsHash,
       runtime_manifest_version: CURRENT_RUNTIME_MANIFEST_VERSION,
       ...(managedRuleHash ? { managed_rule_hash: managedRuleHash } : {}),
-      ...(writtenHooksHash ? { managed_hook_entries_hash: writtenHooksHash } : {}),
     };
     await writeFile(paths.sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
     return basename(backup);
