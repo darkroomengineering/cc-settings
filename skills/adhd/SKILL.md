@@ -19,7 +19,7 @@ there.
 - `/adhd` — **generate** the option space when you don't have candidates yet.
 - `/oracle` (compare mode) — **evaluate** options you already have.
 - `/plan-ceo-review` — challenge whether the thing should be built at all.
-- `/verify` — adversarially check a conclusion you've already reached.
+- `/poke-holes` — adversarially check a conclusion you've already reached.
 
 They compose: `/adhd` to widen, `/oracle` to weigh the shortlist.
 

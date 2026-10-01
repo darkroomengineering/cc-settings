@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 14;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 15;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -578,9 +578,17 @@ MANIFESTS.set(13, {
   full: [...historicalManifest.full, ...ADDED_IN_V13],
   light: historicalManifest.light,
 });
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v14 = {
   full: [...historicalManifest.full, ...ADDED_IN_V13].filter(notAddedAfter(REMOVED_IN_V14)),
   light: historicalManifest.light.filter(notAddedAfter(REMOVED_IN_V14)),
+};
+MANIFESTS.set(14, v14);
+// Version 15: `verify` became `poke-holes`. Claude Code 2.1.286 tells Claude to
+// run any skill named `verify` before every commit, and ours is a multi-agent panel.
+const RENAMED_IN_V15 = new Map([["skills/verify/SKILL.md", "skills/poke-holes/SKILL.md"]]);
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: v14.full.map((path) => RENAMED_IN_V15.get(path) ?? path),
+  light: v14.light.map((path) => RENAMED_IN_V15.get(path) ?? path),
 });
 
 const GENERATED_MANAGED_FILES = new Set([

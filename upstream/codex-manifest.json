@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-09-30T00:00:00.000Z",
-  "codexVersion": "0.159.2",
+  "lastScan": "2026-10-01T00:00:00.000Z",
+  "codexVersion": "0.159.3",
   "knownConfigSurfaces": [
     "AGENTS.md managed block ($CODEX_HOME/AGENTS.md)",
     "agents/*.toml: name, description, developer_instructions, model, model_reasoning_effort, sandbox_mode",
@@ -21,6 +21,7 @@
     "0.156.0 sync (2026-09-22). Nothing to adopt: /tui fullscreen, voice on by default, /usage dashboard, six themes, Mermaid and equation rendering, /daemon and --no-daemon, and agent-command-center worktree sessions touch no surface in knownConfigSurfaces (the bridge uses codex exec and codex review, and the command-center worktrees are not subagent isolation, so codex-install-state.ts guidance stands). Deprecated friendly/pragmatic personality settings and the network-proxy `?` wildcard docs do not apply: cc-settings sets neither.",
     "0.156.1\u20130.157.1 sync (2026-09-26). Nothing to adopt: GPT-6 Sol and Luna ship in the model catalog (0.156.1), matching the gpt-6-sol/gpt-6-luna pins cc-settings adopted in 15.29.0; five leftover \"GPT-5.6 Sol\" mentions in CLAUDE-FULL.md, docs/codex-bridge.md, codex/AGENTS.append.md, codex.ts and codex-install-state.ts now say GPT-6 Sol. Fullscreen transcript and automatic daemon startup by default, the `f` fork shortcut, /import in remote sessions, Guardian extra policy, network-policy enforcement across redirects, and the ultrafast tier removed from gpt-5.6-sol (cc-settings sets no service tier) touch no knownConfigSurfaces entry. 0.157.1 has empty release notes.",
     "0.158.0\u20130.159.0 sync (2026-09-29). Nothing to adopt beyond the model pin: GPT-6.1 Sol ships in the 0.159.0 model catalog as the latest workhorse model, and cc-settings moved its exec and Sonnet-tier agent pins to gpt-6.1-sol in 15.39.5. Removed upstream: `tui.prompt_suggestions` and the bundled plugin-creator skill (0.159.0), neither referenced here. Opt-in instant_interrupt, copy-on-select and Markdown-preserving copy, the welcome screen, OAuth client secrets for MCP (`codex mcp add --oauth-client-secret`), exec-server bearer tokens, default terminal input approval for elevated commands, and `.aws` protection under writable roots touch no knownConfigSurfaces entry.",
-    "0.159.1–0.159.2 sync (2026-09-30). Nothing to adopt: GPT-6.1 Sol becomes the default model in the bundled and Bedrock catalogs (0.159.1), which changes nothing here because the bridge pins exec to gpt-6.1-sol and review/ask to gpt-6-astra explicitly. 0.159.2 suppresses Windows console flashes for background and sandboxed processes; no knownConfigSurfaces entry is touched."
+    "0.159.1–0.159.2 sync (2026-09-30). Nothing to adopt: GPT-6.1 Sol becomes the default model in the bundled and Bedrock catalogs (0.159.1), which changes nothing here because the bridge pins exec to gpt-6.1-sol and review/ask to gpt-6-astra explicitly. 0.159.2 suppresses Windows console flashes for background and sandboxed processes; no knownConfigSurfaces entry is touched.",
+    "0.159.3 sync (2026-10-01). Nothing to adopt: the release adds optional account security setup reminders for ChatGPT sign-ins (#49744), which touches no config surface the installer writes."
   ]
 }

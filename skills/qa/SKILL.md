@@ -1,6 +1,6 @@
 ---
 name: qa
-description: Visual and accessibility QA with screenshot-first critique, contrast, touch targets, mockup-vs-implementation diff. Triggers "visual QA", "does this look right", "a11y check", or after component changes. Logic checks go to /verify.
+description: Visual and accessibility QA with screenshot-first critique, contrast, touch targets, mockup-vs-implementation diff. Triggers "visual QA", "does this look right", "a11y check", or after component changes. Logic checks go to /poke-holes.
 context: fork
 allowed-tools: [mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__evaluate_script, mcp__aside-devtools__navigate_page, mcp__aside-devtools__take_snapshot, mcp__aside-devtools__take_screenshot, mcp__aside-devtools__click, mcp__aside-devtools__fill, mcp__aside-devtools__hover, mcp__aside-devtools__press_key, mcp__aside-devtools__resize_page, mcp__aside-devtools__evaluate_script, Read, Grep, Glob, Agent]
 requires:

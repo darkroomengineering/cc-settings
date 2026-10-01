@@ -535,12 +535,21 @@ exit $rc
       sentinel.managed_files[removedPath] = new Bun.CryptoHasher("sha256")
         .update(removedBytes)
         .digest("hex");
+      const renamedSkill = "skills/verify/SKILL.md";
+      const renamedBytes = "historical verify skill bytes\n";
+      await mkdir(join(claudeDir, "skills", "verify"), { recursive: true });
+      await writeFile(join(claudeDir, renamedSkill), renamedBytes);
+      sentinel.managed_files[renamedSkill] = new Bun.CryptoHasher("sha256")
+        .update(renamedBytes)
+        .digest("hex");
       await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
 
       const upgrade = await runInstall(home);
 
       expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
       expect(existsSync(readmePath)).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "poke-holes", "SKILL.md"))).toBe(true);
       const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
         managed_files: Record<string, string>;
         managed_files_manifest_version: number;
@@ -570,6 +579,8 @@ exit $rc
       await writeFile(retiredPath, retiredBytes);
       // A real v2 install also owns files that later manifests dropped.
       await writeFile(join(claudeDir, "src/lib/engine-pin.ts"), "historical engine-pin bytes\n");
+      await mkdir(join(claudeDir, "skills", "verify"), { recursive: true });
+      await writeFile(join(claudeDir, "skills/verify/SKILL.md"), "historical verify skill bytes\n");
 
       const sentinelPath = join(claudeDir, ".cc-settings-version");
       const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
@@ -600,6 +611,7 @@ exit $rc
 
       expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
       expect(existsSync(retiredPath)).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
       const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
         managed_files: Record<string, string>;
         managed_files_manifest_version: number;
@@ -2686,6 +2698,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/audit/references/net-capture.mjs",
             "skills/audit/references/performance-playbook.md",
             "skills/audit/references/test-audit.md",
+            "skills/poke-holes/SKILL.md",
             "src/hooks/model-switch-guard.ts",
             "src/lib/claude-install-ownership.ts",
             "src/lib/claude-install-settings.ts",

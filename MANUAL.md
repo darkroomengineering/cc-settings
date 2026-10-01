@@ -35,7 +35,7 @@ Open Claude Code or Codex in a project and say the outcome:
 | "where does auth happen?" | The `explore` workflow maps the code read-only with file and line evidence. |
 | "review my changes" | The cc-settings `review` workflow reads the current diff and returns findings. |
 | "is this review-ready?" | `proof-of-work` runs the real type, test, lint, and relevant visual gates. |
-| "poke holes in this" | `verify` asks independent agents to find, disprove, and judge issues. |
+| "poke holes in this" | `poke-holes` asks independent agents to find, disprove, and judge issues. |
 | "does this look right?" | `qa` captures and checks the rendered interface when a browser path is available. |
 | "first pass on this client repo" | `triage` returns ranked findings and stays read-only on external repositories. |
 | "audit the whole codebase" | `audit` performs a deep repository-wide review and reports evidence. |
@@ -46,7 +46,7 @@ Several of these workflows inspect code, but they answer different questions:
 
 - `review` asks whether this diff introduced a problem.
 - `proof-of-work` asks whether machine-verifiable gates pass.
-- `verify` asks whether independent agents can disprove a specific claim.
+- `poke-holes` asks whether independent agents can disprove a specific claim.
 - `qa` asks whether the rendered interface works visually and accessibly.
 - `triage` asks what is visibly risky in an unfamiliar repository.
 - `audit` asks what is wrong across a repository, system, or documented journey.
@@ -152,7 +152,7 @@ their actual output. It does not fabricate a gate that could not run.
 
 ### Verify a claim adversarially
 
-Say "double check this", "are you sure?", or "poke holes in this". `verify` gives separate agents
+Say "double check this", "are you sure?", or "poke holes in this". `poke-holes` gives separate agents
 competing incentives: find an issue, disprove it, and judge the remaining evidence.
 
 ### Visual and performance checks

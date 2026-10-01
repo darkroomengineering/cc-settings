@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.43.0] — 2026-10-01
+
+The adversarial verification skill is now `/poke-holes` instead of `/verify`. Claude Code 2.1.286 tells Claude to run any skill named `verify` right before each code commit, and ours starts a panel of three or four agents, so every commit would have paid for one. Say "poke holes in this", "double check this", or "are you sure?" to reach it as before. Also syncs with Claude Code 2.1.286 and Codex 0.159.3.
+
+**Adopted:**
+- Claude Code 2.1.286 pre-commit `verify` guidance: `skills/verify/` is renamed `skills/poke-holes/`, and its eval is renamed `evals/poke-holes-adversarial-panel/`. `verify` joins `TOMBSTONE_SKILLS` in `src/lib/managed-skills.ts`, so setup removes the old folder from `~/.claude/skills/`. The Claude managed-file manifest moves to version 15 and the Codex runtime manifest to version 13, so earlier versions still describe what they installed. The skill no longer lists "verify" as a trigger word.
+- References in `README.md`, `MANUAL.md`, `docs/skills.md`, `docs/frontmatter-reference.md`, `docs/claude-vs-codex.md`, `docs/skill-authoring.md`, and the `adhd`, `audit`, `harvest`, `qa`, and `review` skills now name `poke-holes`.
+
+**Docs-only:**
+- `docs/settings-reference.md`: the `CLAUDE_CODE_MAX_RETRIES` row notes that from 2.1.286 one retry limit covers a whole model call, at most 14 requests with the defaults.
+
+**Skipped:** `--bare` scoping, the worktree-subagent double CLAUDE.md load fix, task tools in foreground subagents, permission-prompt and list UI changes, secret-redaction, MCP, auth, Remote Control, cloud, VS Code and Claude Tag fixes, and npm plugin source refusal. Codex 0.159.3 adds account security reminders only.
+
 ## [15.42.6] — 2026-10-01
 
 The Swift animation rule covers three cases it left open, taken from Paul Hudson's MIT-licensed SwiftUI agent skill (`twostraws/swiftui-agent-skill`). The rest of that skill is a full SwiftUI review checklist; install it as its own plugin rather than copying it here.

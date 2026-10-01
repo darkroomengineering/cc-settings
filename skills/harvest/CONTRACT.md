@@ -59,6 +59,6 @@ trap.
 - **A trap fails** → FAIL. Fix the artifact and re-run, or stop.
 - **An unknown number** → `null`, never an aspirational guess ("~5 times", "usually").
 - **Unknown territory** — a behavior you cannot reconstruct, a judgment you cannot
-  verify from evidence on disk — → fall back to `/verify`, `/oracle`, human approval,
+  verify from evidence on disk — → fall back to `/poke-holes`, `/oracle`, human approval,
   or plain reasoning. The ratchet only tightens on what you can measure; it does not
   manufacture certainty.

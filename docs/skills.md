@@ -81,7 +81,7 @@ not need repeated approval.
 |---|---|---|---|
 | [`review`](../skills/review/SKILL.md): "review my changes" | Reviews the current diff or inbound PR comments against Darkroom correctness, security, accessibility, and performance rules. | Read-only. Returns findings by severity. | Background. Both hosts. In Claude, distinguish it from the native `/review` alias by asking for the cc-settings local review. |
 | [`proof-of-work`](../skills/proof-of-work/SKILL.md): "prove this is review-ready" | Runs the repository's type, test, lint, and relevant visual gates. Returns actual command results. | Read-only apart from tool artifacts. A red gate stays red. | Inline. Both hosts use the installed proof runner. |
-| [`verify`](../skills/verify/SKILL.md): "poke holes in this claim" | Uses an issue finder, disprover, and judge to test a specific result adversarially. | Read-only. | Background. Both hosts use separate native agents; standalone Codex never calls the Codex bridge. |
+| [`poke-holes`](../skills/poke-holes/SKILL.md): "poke holes in this claim" | Uses an issue finder, disprover, and judge to test a specific result adversarially. | Read-only. | Background. Both hosts use separate native agents; standalone Codex never calls the Codex bridge. |
 | [`qa`](../skills/qa/SKILL.md): "does this look right?" | Captures the interface and checks layout, contrast, touch targets, accessibility, and design fidelity. | Read-only browser interaction. Reports visual verification unavailable when it cannot capture. | Background. Claude uses Chrome DevTools MCP; Codex needs a configured visual path. |
 | [`triage`](../skills/triage/SKILL.md): "first pass on this client repo" | Returns up to 15 ranked, evidence-backed issues and separates safe fixes from client decisions. | Strictly read-only on external repositories. It does not checkout, pull, fetch, commit, push, or open a PR. | Background. Both hosts. Use `audit` for depth. |
 | [`audit`](../skills/audit/SKILL.md): "audit the codebase/docs/process/performance/security/motion/SEO", or "full audit" for all of them | Sweeps a whole repository with stable finding IDs, concrete scenarios, and disproof. | Reads the repository and writes a report under `docs/audits/`. Optional issue filing is a separate external write decision. | Inline coordinator. Claude performance and dependency modes use configured MCP tools; Codex uses documented fallbacks. |
@@ -93,7 +93,7 @@ The closest review tools answer different questions:
 |---|---|
 | Did this diff violate a standard or introduce a bug? | `review` |
 | Do the real machine gates pass? | `proof-of-work` |
-| Can independent agents disprove this claim? | `verify` |
+| Can independent agents disprove this claim? | `poke-holes` |
 | Does the rendered interface work visually and accessibly? | `qa` |
 | What is visibly risky in an unfamiliar repository? | `triage` |
 | What is wrong across an entire repository or journey? | `audit` |
