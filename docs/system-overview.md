@@ -40,7 +40,7 @@ required to use the product; they only explain the implementation.
 
 1. You describe an outcome in ordinary language.
 2. The host matches a skill, or you pin one explicitly.
-3. The skill checks prerequisites; non-trivial work opens with one interactive round of clarifying questions, then proceeds.
+3. The skill checks prerequisites; non-trivial work opens with interactive clarifying rounds until no fork is left, then proceeds.
 4. The host works inline or delegates to focused agents.
 5. Tools collect evidence and make changes inside the approved scope.
 6. Hooks enforce lifecycle checks around risky operations.

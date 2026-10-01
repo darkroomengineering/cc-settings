@@ -2699,6 +2699,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/audit/references/performance-playbook.md",
             "skills/audit/references/test-audit.md",
             "skills/poke-holes/SKILL.md",
+            "src/hooks/ask-gate.ts",
             "src/hooks/model-switch-guard.ts",
             "src/lib/claude-install-ownership.ts",
             "src/lib/claude-install-settings.ts",
