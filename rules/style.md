@@ -49,6 +49,13 @@ function Component() { return <div className={s.wrapper}>...</div> }
 <div className="h-dvh">  {/* Not h-screen */}
 ```
 
+### Modern CSS
+- **Native `popover` + `popovertarget`** for menus, tooltips, and non-modal overlays. They render in the top layer, so they never fight the z-index scale. Style `::backdrop` and `:popover-open`.
+- **`:has()`** for parent- or sibling-dependent styling instead of JS state or conditional classes.
+- **`@scope` with a lower bound** (`@scope (.card) to (.content)`) when a style must not leak into nested content.
+- **`text-box: trim-both cap alphabetic`** for optical text alignment instead of negative margins or line-height fudges. It degrades cleanly.
+- **`sibling-index()` / `sibling-count()`** for stagger delays and count-based spacing. Enhancement only (Chrome 138, Safari 26.2, Firefox 154): always keep a working static fallback.
+
 ---
 
 ## DON'T

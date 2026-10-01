@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.45.0] — 2026-10-01
+
+Claude now asks clarifying questions through the question tool until every decision that changes the work is settled, and a turn can no longer end with the question stuck in prose. Before, progress could freeze on a decision nobody was asked about.
+
+**Changed:**
+- `AGENTS.md` "Clarify Before Full Work Mode": any non-trivial solution opens with repeated rounds of up to 4 questions until no fork is left, and a mid-task decision is asked through the tool that turn. The "task size alone is not a reason to ask" line is gone.
+- `output-styles/darkroom.md`, `skills/build`, `skills/fix`, `skills/refactor`, `docs/system-overview.md`: say rounds, not one round.
+- Managed-file manifest version 16 ships the new hook.
+
+**Added:**
+- `src/hooks/ask-gate.ts`, wired as a `Stop` hook: blocks a turn that ends in a prose question with no `AskUserQuestion` call and tells Claude to ask through the tool. Fails open on any error.
+- `rules/style.md` "Modern CSS": native `popover`, `:has()`, bounded `@scope`, `text-box: trim-both cap alphabetic`, and `sibling-index()` / `sibling-count()` with a static fallback. From the zeroheight post "New HTML and CSS features you should be using in your design system".
+
 ## [15.44.0] — 2026-10-01
 
 Codex now loads the darkroom plugin from the repo's root `plugin.json` and `mcp.json`, the same way it loads any other plugin. Codex ignores hooks in plugins of that format, so `/cc update` now writes the seven Codex hooks to `$CODEX_HOME/hooks.json` as your own hooks. After the update, open `/hooks` in Codex and trust them once more: they run from the new source path under `$CODEX_HOME/darkroom/source`.

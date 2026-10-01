@@ -283,6 +283,11 @@
 					{
 						"type": "command",
 						"command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
+					},
+					{
+						"type": "command",
+						"command": "bun \"$HOME/.claude/src/hooks/ask-gate.ts\"",
+						"timeout": 5
 					}
 				]
 			}

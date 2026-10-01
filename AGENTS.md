@@ -126,7 +126,7 @@ Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing 
 
 ### Clarify Before Full Work Mode
 
-A request whose readings lead to materially different work opens with one interactive round of clarifying questions, then the work starts. That includes which repository, host, or branch it targets, and what "done" looks like. Task size alone is not a reason to ask: make routine judgment calls yourself and state the assumption. At most 4 questions, each with 2 to 4 concrete options and the recommended one first, asked through the host's interactive question tool, never as a prose list. One round, then proceed; a second only when an answer opens a new fork. A lookup, a one-file fix, or a request that already names the files and the change skips it. Read before asking: ask only what the user alone knows.
+Any non-trivial solution (beyond a lookup or obvious one-file fix) opens with clarifying rounds on target repo or branch, design choices, what "done" means. Repeat until no decision that changes the work is left; later rounds ask only what answers opened. Per round: at most 4 questions, 2 to 4 concrete options, recommended first, through the host's question tool (`AskUserQuestion`; Codex `request_user_input`), never a prose list. Make routine calls (conventional default) yourself; state the assumption. Read before asking; ask only what the user alone knows. When work needs a user decision, mid-task too, ask through the tool that turn; a prose-only question does not count; no turn ends waiting on one.
 
 ### Plan Before Multi-File Changes
 

@@ -26,7 +26,7 @@ Before any implementation, complete this research phase:
 
 **GO/ASK/NO-GO Verdict**: After research, state one of:
 - **GO** — requirements are clear, approach is viable, proceed to implementation.
-- **ASK** — requirements have more than one plausible reading. Run one clarifying round (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions, recommendation first), then re-issue the verdict.
+- **ASK** — requirements have more than one plausible reading. Run clarifying rounds (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions each, recommendation first) until no fork is left, then re-issue the verdict.
 - **NO-GO** — approach has blockers or scope is too large. Report findings and stop.
 
 Do not proceed past this gate without an explicit GO verdict.

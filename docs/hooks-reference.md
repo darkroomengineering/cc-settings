@@ -529,6 +529,7 @@ string, not a `tool_output` wrapper.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `stop-summary.ts` | End-of-turn summary; if >5 files were changed, reminds to store learnings | No |
+| `ask-gate.ts` | Blocks a turn that ends in a prose question with no `AskUserQuestion` call; tells Claude to ask through the tool | No |
 
 > **v2.1.163:** `Stop` and `SubagentStop` hooks may return `hookSpecificOutput.additionalContext` to feed text back to Claude and keep the turn going — it surfaces as context rather than being treated as a hook error.
 

@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 15;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 16;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -586,9 +586,17 @@ MANIFESTS.set(14, v14);
 // Version 15: `verify` became `poke-holes`. Claude Code 2.1.286 tells Claude to
 // run any skill named `verify` before every commit, and ours is a multi-agent panel.
 const RENAMED_IN_V15 = new Map([["skills/verify/SKILL.md", "skills/poke-holes/SKILL.md"]]);
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v15 = {
   full: v14.full.map((path) => RENAMED_IN_V15.get(path) ?? path),
   light: v14.light.map((path) => RENAMED_IN_V15.get(path) ?? path),
+};
+MANIFESTS.set(15, v15);
+// Version 16: the Stop hook that blocks a turn ending in a prose question. Claude-only,
+// so it stays out of the shared source inventory that the Codex runtime manifests read.
+const ADDED_IN_V16 = ["src/hooks/ask-gate.ts"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v15.full, ...ADDED_IN_V16],
+  light: [...v15.light, ...ADDED_IN_V16],
 });
 
 const GENERATED_MANAGED_FILES = new Set([
