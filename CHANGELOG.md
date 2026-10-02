@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.45.5] — 2026-10-02
+
+The nightly auto-update finishes its install. On macOS it used to stop partway through every update, and the next `setup.sh` then failed with "Claude managed destination collision".
+
+**Fixed:**
+- `registerAutoUpdate` in `src/lib/schedule.ts` writes the plist and skips the `launchctl bootout` and `bootstrap` when setup runs inside the auto-update launchd job (`XPC_SERVICE_NAME` equals the job label). A bootout from inside the job kills the caller and its children, so the install died after copying files and before writing the sentinel. launchd picks up a changed plist at the next login or the next `setup.sh` run from a terminal.
+- `restoreAutoUpdateState` skips the same reload inside the job, so recovery from a failed nightly install is not killed either.
+
+**Changed:**
+- `docs/troubleshooting.md` names this as the usual cause of the collision error.
+
 ## [15.45.4] — 2026-10-02
 
 You can now measure what the hooks cost. `bun run hooks:report` shows how often each hook fires per session, and `bun run hooks:bench` times each synchronous hook on a sample payload without touching your real `~/.claude`. Nothing about how hooks run changes.

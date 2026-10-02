@@ -36,6 +36,8 @@ An earlier install was killed after it copied files into `~/.claude` and before 
 `~/.claude/.cc-settings-version`. The files on disk then come from a newer version than the
 sentinel names, and the installer refuses to guess which of them it owns. `~/.claude/logs/auto-update.log`
 shows the interrupted run: "Installing configuration..." with no completion line after it.
+Installs older than 15.45.5 hit this on macOS whenever the nightly auto-update finds a new release:
+the job reloads itself mid-install, which kills the run.
 
 `--rollback` and `--fresh` do not get past this state. Rollback checks the files on disk against the
 old sentinel's hashes, and `--fresh` runs the same collision check before it deletes anything. Rebuild the sentinel by hand, then install
