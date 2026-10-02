@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.46.0] — 2026-10-02
+
+Synced with Claude Code 2.1.287 and Codex 0.160.0. An MCP server that stops connecting after the Claude Code update can now be fixed in cc-settings config without the parser dropping the fix.
+
+**Adopted:**
+- `bareElicitationCapability` (Claude Code 2.1.287) in `src/schemas/mcp.ts`. 2.1.287 added URL prompts, such as sign-in, for MCP servers on the 2025-11-25 protocol. A server that no longer connects needs this flag, and the schema now keeps it.
+- `CLAUDE_AX_PREPARK_MS` (2.1.287) tracked in the manifest and `docs/settings-reference.md`.
+
+**Docs:**
+- `docs/settings-reference.md`: `alwaysLoad: false` now defers every tool of a server, the OTel `user_prompt` event carries `prompt_text` that must be masked like `prompt`, and Opus 4.7+ and Fable default to a 1M window on Bedrock, Vertex, Foundry and the Claude apps gateway.
+
+**Skipped:** Claude Mods (tracked in `docs/plans/mods-migration.md`) and the You should know built-in mod. Codex 0.160.0 touches no surface the installer writes.
+
+**Files changed:**
+- src/schemas/mcp.ts, schemas/settings.schema.json, schemas/claude-json.schema.json
+- docs/settings-reference.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.45.5] — 2026-10-02
 
 The nightly auto-update finishes its install. On macOS it used to stop partway through every update, and the next `setup.sh` then failed with "Claude managed destination collision".
@@ -2488,7 +2509,7 @@ Upstream sync with Claude Code v2.1.211 (from v2.1.205). Headline: migrated the 
 - config/30-permissions.json
 - src/lib/settings-merge.ts
 - src/schemas/settings.ts
-- src/schemas/mcp.ts
+- src/schemas/mcp.ts, schemas/settings.schema.json, schemas/claude-json.schema.json
 - upstream/claude-code-manifest.json
 - docs/settings-reference.md
 - src/setup.ts
