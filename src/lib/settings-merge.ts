@@ -720,12 +720,34 @@ export const userWinsScalarStrategy: Strategy = async (key, team, user, ctx) => 
   return { keep: true, value: await deepMergeUserWins(key, team, user, ctx) };
 };
 
+// extraKnownMarketplaces: the entries cc-settings ships (cc-settings,
+// fast-jev-compaction) are team-owned, like `hooks`: a rerun replaces whatever
+// is on disk under those names, so a planted repo or sha does not survive and
+// an unpinned install drops a stale sha. Marketplaces under any other name are
+// the user's and stay.
+export const marketplacesStrategy: Strategy = async (_key, team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  if (!isPlainObject(team) || !isPlainObject(user)) {
+    return { keep: true, value: user === undefined ? team : user };
+  }
+  const out: UnknownRecord = { ...user };
+  for (const [name, entry] of Object.entries(team)) {
+    if (!(name in user)) ctx.accounting.defaultsAdded++;
+    else if (canonicalKey(user[name]) !== canonicalKey(entry)) {
+      ctx.accounting.defaultsUpdated++;
+    }
+    out[name] = entry;
+  }
+  return { keep: true, value: out };
+};
+
 // --- Strategy registry ---------------------------------------------------
 
 export const STRATEGIES: Record<string, Strategy> = {
   permissions: permissionsStrategy,
   hooks: hooksStrategy,
   env: envStrategy,
+  extraKnownMarketplaces: marketplacesStrategy,
   statusLine: statusLineStrategy,
   // mcpServers is destructured out by installSettings (src/setup.ts) before
   // this function is invoked — it is excluded from the per-key strategy loop.
@@ -752,6 +774,8 @@ export const STRATEGIES: Record<string, Strategy> = {
  *     additions are preserved.
  *   - `hooks` is per-event union of groups, with deprecation prune for
  *     user-only groups pointing at removed cc-settings scripts.
+ *   - `extraKnownMarketplaces` entries cc-settings ships are team-wins; other
+ *     entries are the user's.
  *   - `env` shallow-merges with user values winning.
  *   - `statusLine` user wins, except when the user's command targets a
  *     removed cc-settings script (then reset to team).

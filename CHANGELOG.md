@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.45.3] — 2026-10-01
+
+A plugin dropped into `~/.claude/settings.json` now trips the same session-start warning a rogue hook does, and the warning names the entries.
+
+**Fixed:**
+- The settings fingerprint covers `enabledPlugins`, `extraKnownMarketplaces` and `pluginConfigs` as well as `hooks`. The session-start warning says which part changed and lists up to ten plugin entries added, removed or changed since the last setup run. A record from before 15.45.3 is checked for hooks only, with a one-line nudge, until setup rewrites it. On a 15.45.3 or later install, a record without the plugin hash is a mismatch.
+- The `cc-settings` and `fast-jev-compaction` marketplace entries belong to cc-settings: a setup run replaces a changed repo or `sha` under those names. Marketplaces and plugins you add stay. A setup run, including the unattended nightly auto-update, accepts the plugin keys on disk, whether or not a session has shown the warning.
+- The fingerprint does not cover the plugin cache, the plugin store records, or the plugin code itself, which Claude Code fetches from the marketplace's latest commit.
+- Setup re-fingerprints after its own `claude plugin install` step, which rewrites the plugin keys.
+
 ## [15.45.2] — 2026-10-01
 
 Reinstalling after `CODEX_HOME` moves no longer leaves duplicate cc-settings hooks in `hooks.json`, and setup stops warning about the `[hooks]` table that Codex keeps for its own trust records.

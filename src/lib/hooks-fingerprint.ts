@@ -1,5 +1,6 @@
-// Hooks-block fingerprint. Setup writes a SHA256 of the canonicalized hooks
-// section after install; the SessionStart verify-hook re-hashes on every
+// Hooks-block and plugin-key fingerprint. Setup writes a SHA256 of the
+// canonicalized hooks section, plus a second SHA256 of the plugin keys
+// (enabledPlugins, extraKnownMarketplaces, pluginConfigs), after install; the SessionStart verify-hook re-hashes on every
 // session and warns on mismatch. Defense against supply-chain malware that
 // injects hooks into ~/.claude/settings.json post-install (Shai-Hulud worm
 // pattern reported May 2026).
@@ -36,6 +37,14 @@ const FingerprintRecordSchema = z.object({
   hash: z.string().min(1),
   installedAt: z.string().default("").transform(stripControl),
   hooksCount: z.number().int().nonnegative().default(0),
+  // Absent in records written before plugin keys were fingerprinted. Verify
+  // skips the plugin comparison for such a record rather than alarming; the
+  // next setup run writes it.
+  pluginsHash: z.string().min(1).optional(),
+  // Per-entry SHA256 of each plugin-key entry at the last setup run, so the
+  // mismatch warning lists only what changed since then. Absent in records
+  // written before this existed.
+  pluginEntries: z.record(z.string(), z.record(z.string(), z.string())).optional(),
 });
 
 export const FINGERPRINT_FILENAME = ".cc-settings-hooks-fingerprint";
@@ -63,10 +72,124 @@ export function hashHooks(settings: unknown): string {
   return hasher.digest("hex");
 }
 
+/** Top-level settings keys that decide which plugin code Claude Code loads. */
+export const PLUGIN_KEYS = ["enabledPlugins", "extraKnownMarketplaces", "pluginConfigs"] as const;
+
+export function hashPluginKeys(settings: unknown): string {
+  const source =
+    settings && typeof settings === "object" ? (settings as Record<string, unknown>) : {};
+  const picked: Record<string, unknown> = {};
+  for (const key of PLUGIN_KEYS) {
+    picked[key] = source[key] ?? {};
+  }
+  const hasher = new CryptoHasher("sha256");
+  hasher.update(canonicalize(picked));
+  return hasher.digest("hex");
+}
+
+/** First cc-settings version whose setup writes `pluginsHash`. A record without
+ *  it on an install at or past this version was stripped, not written by an
+ *  older setup. */
+export const PLUGIN_FINGERPRINT_SINCE = "15.45.3";
+
+function versionAtLeast(version: string, min: string): boolean {
+  const a = version.split(".").map(Number);
+  const b = min.split(".").map(Number);
+  if (a.length !== 3 || a.some((n) => !Number.isInteger(n))) return false;
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  }
+  return true;
+}
+
+async function readInstalledVersion(dir: string): Promise<string | null> {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(join(dir, ".cc-settings-version"), "utf8"));
+    const v = (parsed as { version?: unknown } | null)?.version;
+    return typeof v === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+const MAX_DIFF_LINES = 10;
+
+const sha256 = (text: string): string => {
+  const hasher = new CryptoHasher("sha256");
+  hasher.update(text);
+  return hasher.digest("hex");
+};
+
+const asMap = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/** key -> entry name -> SHA256 of the entry's canonical JSON, for each plugin key. */
+export type PluginEntrySnapshot = Record<string, Record<string, string>>;
+
+export function snapshotPluginEntries(settings: unknown): PluginEntrySnapshot {
+  const source = asMap(settings);
+  const out: PluginEntrySnapshot = {};
+  for (const key of PLUGIN_KEYS) {
+    out[key] = Object.fromEntries(
+      Object.entries(asMap(source[key])).map(([name, value]) => [
+        name,
+        sha256(canonicalize(value)),
+      ]),
+    );
+  }
+  return out;
+}
+
+/** Plugin-key entries added, removed, or changed since the last setup run.
+ *  `snapshot` is the per-entry record setup stored; a record from before it
+ *  existed falls back to the team's contribution at install (`team_settings` in
+ *  the settings baseline), which lists every user-owned entry as added. Names
+ *  are attacker-controlled text, so control characters are stripped and each
+ *  line is length-capped. */
+export async function diffPluginEntries(
+  current: unknown,
+  dir: string,
+  snapshot?: PluginEntrySnapshot,
+): Promise<string[]> {
+  let was = snapshot;
+  if (!was) {
+    let team: unknown = {};
+    try {
+      const baseline: unknown = JSON.parse(
+        await readFile(join(dir, ".cc-settings-baseline.json"), "utf8"),
+      );
+      team = (baseline as { team_settings?: unknown } | null)?.team_settings ?? {};
+    } catch {
+      // No baseline: every entry reads as added.
+    }
+    was = snapshotPluginEntries(team);
+  }
+  const now = snapshotPluginEntries(current);
+  const lines: string[] = [];
+  for (const key of PLUGIN_KEYS) {
+    const before = was[key] ?? {};
+    const after = now[key] ?? {};
+    for (const name of new Set([...Object.keys(after), ...Object.keys(before)])) {
+      let how: string | null = null;
+      if (!(name in before)) how = "added";
+      else if (!(name in after)) how = "removed";
+      else if (after[name] !== before[name]) how = "changed";
+      if (how) lines.push(`${key}: ${stripControl(name).slice(0, 80)} (${how})`);
+    }
+  }
+  if (lines.length > MAX_DIFF_LINES) {
+    const more = lines.length - MAX_DIFF_LINES;
+    return [...lines.slice(0, MAX_DIFF_LINES), `... and ${more} more`];
+  }
+  return lines;
+}
+
 export interface FingerprintRecord {
   hash: string;
   installedAt: string;
   hooksCount: number;
+  pluginsHash?: string;
+  pluginEntries?: PluginEntrySnapshot;
 }
 
 export async function readFingerprint(claudeDir?: string): Promise<FingerprintRecord | null> {
@@ -97,6 +220,8 @@ export async function writeFingerprint(
     hash: hashHooks(settings),
     installedAt: new Date().toISOString(),
     hooksCount,
+    pluginsHash: hashPluginKeys(settings),
+    pluginEntries: snapshotPluginEntries(settings),
   };
   await atomicWriteJson(path, record);
   return record;
@@ -108,6 +233,15 @@ export interface VerifyResult {
   expected: string | null;
   actual: string | null;
   installedAt: string | null;
+  /** Which fingerprinted parts differ from the install-time record. */
+  changed: Array<"hooks" | "plugins">;
+  /** False when the stored record predates plugin-key fingerprinting. */
+  pluginsCovered: boolean;
+  /** The record lacks `pluginsHash` although the install is recent enough to
+   *  have written it. */
+  pluginHashStripped: boolean;
+  /** Plugin-key entries differing from the team contribution (capped). */
+  pluginDiff: string[];
 }
 
 export async function verifyAgainstSettings(
@@ -117,11 +251,29 @@ export async function verifyAgainstSettings(
   const dir = claudeDir ?? CLAUDE_DIR;
   const sPath = settingsPath ?? join(dir, "settings.json");
   if (!existsSync(sPath)) {
-    return { status: "missing-settings", expected: null, actual: null, installedAt: null };
+    return {
+      status: "missing-settings",
+      expected: null,
+      actual: null,
+      installedAt: null,
+      changed: [],
+      pluginsCovered: false,
+      pluginHashStripped: false,
+      pluginDiff: [],
+    };
   }
   const record = await readFingerprint(dir);
   if (!record) {
-    return { status: "missing-fingerprint", expected: null, actual: null, installedAt: null };
+    return {
+      status: "missing-fingerprint",
+      expected: null,
+      actual: null,
+      installedAt: null,
+      changed: [],
+      pluginsCovered: false,
+      pluginHashStripped: false,
+      pluginDiff: [],
+    };
   }
   let parsed: unknown;
   try {
@@ -134,14 +286,34 @@ export async function verifyAgainstSettings(
       expected: record.hash,
       actual: null,
       installedAt: record.installedAt,
+      changed: ["hooks", "plugins"],
+      pluginsCovered: record.pluginsHash !== undefined,
+      pluginHashStripped: false,
+      pluginDiff: [],
     };
   }
   const actual = hashHooks(parsed);
+  const changed: Array<"hooks" | "plugins"> = [];
+  if (actual !== record.hash) changed.push("hooks");
+  let pluginHashStripped = false;
+  if (record.pluginsHash !== undefined) {
+    if (hashPluginKeys(parsed) !== record.pluginsHash) changed.push("plugins");
+  } else {
+    const installed = await readInstalledVersion(dir);
+    pluginHashStripped = installed !== null && versionAtLeast(installed, PLUGIN_FINGERPRINT_SINCE);
+    if (pluginHashStripped) changed.push("plugins");
+  }
   return {
-    status: actual === record.hash ? "match" : "mismatch",
+    status: changed.length === 0 ? "match" : "mismatch",
     expected: record.hash,
     actual,
     installedAt: record.installedAt,
+    changed,
+    pluginsCovered: record.pluginsHash !== undefined,
+    pluginHashStripped,
+    pluginDiff: changed.includes("plugins")
+      ? await diffPluginEntries(parsed, dir, record.pluginEntries)
+      : [],
   };
 }
 

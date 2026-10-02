@@ -166,7 +166,7 @@ export async function installSettings(
 }
 
 /**
- * Hash + persist the hooks block of a settings object for the SessionStart
+ * Hash + persist the hooks block and plugin keys of a settings object for the SessionStart
  * integrity check. Always fingerprints the RAW settings object — verify-hooks
  * (verifyAgainstSettings) hashes the raw on-disk JSON too, so the two sides
  * must agree on what "raw" means. Settings.safeParse is used only to
@@ -185,6 +185,24 @@ async function fingerprintSettingsHooks(settings: unknown): Promise<void> {
     debug(`settings.json failed schema validation after merge (fingerprinting raw): ${issues}`);
   }
   await writeHooksFingerprint(settings, CLAUDE_DIR);
+}
+
+/**
+ * Re-fingerprint the on-disk settings.json. `claude plugin install` rewrites
+ * enabledPlugins/pluginConfigs after installSettings has fingerprinted, so the
+ * installer calls this once its own plugin step is done; otherwise the first
+ * session after setup would report cc-settings' own write as tampering.
+ */
+export async function refreshSettingsFingerprint(): Promise<void> {
+  const path = join(CLAUDE_DIR, "settings.json");
+  let onDisk: unknown;
+  try {
+    onDisk = await readJsonOrNull(path);
+  } catch (err) {
+    throw new Error(`Cannot re-fingerprint ${path}: ${(err as Error).message}`);
+  }
+  if (onDisk === null) throw new Error(`Cannot re-fingerprint: ${path} is missing after install`);
+  await fingerprintSettingsHooks(onDisk);
 }
 
 // --- Dependencies --------------------------------------------------------
@@ -480,7 +498,7 @@ export function decidePluginCommands(
         // supplied key reaches the plugin's sensitive config option.
         const entry = installedById.get(pluginId);
         if (!storeKey && entry?.enabled && pinnedShaMatch) {
-          skipped.push(`${pluginId} already at pinned ${UPSTREAM_PINNED_SHA.slice(0, 7)}`);
+          skipped.push(`${pluginId} already at declared sha ${UPSTREAM_PINNED_SHA.slice(0, 7)}`);
           continue;
         }
         toRun.push(args);
@@ -589,7 +607,7 @@ function commandLabel(args: readonly string[]): string {
   if (args[1] === "install") {
     const plugin = args[2] ?? "";
     return plugin === FAST_JEV_PLUGIN_ID
-      ? "installing fast-jev-compaction (pinned)"
+      ? "installing fast-jev-compaction (declared sha)"
       : `installing ${plugin.split("@")[0] ?? plugin}`;
   }
   return args.join(" ");
@@ -739,7 +757,7 @@ export async function installPlugins(
       } else if (plugin) {
         installed.push(
           plugin === FAST_JEV_PLUGIN_ID
-            ? `fast-jev-compaction (pinned ${UPSTREAM_PINNED_SHA.slice(0, 7)})`
+            ? `fast-jev-compaction (declared sha ${UPSTREAM_PINNED_SHA.slice(0, 7)})`
             : (plugin.split("@")[0] ?? plugin),
         );
       }
