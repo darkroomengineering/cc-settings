@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.45.4"; // hooks:report and hooks:bench measure hook cost.
+const VERSION = "15.45.5"; // the nightly auto-update no longer unloads its own launchd job mid-install.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

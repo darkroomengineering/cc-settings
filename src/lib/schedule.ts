@@ -212,6 +212,16 @@ function shouldSkipLaunchctl(): boolean {
   );
 }
 
+/**
+ * True when this process runs inside the auto-update launchd job. launchd sets
+ * XPC_SERVICE_NAME to the job's label, and auto-update.ts passes its env on to
+ * setup.sh. `launchctl bootout` on the job from inside it kills the caller and
+ * its children, so the install would die before writing the sentinel.
+ */
+function insideAutoUpdateJob(): boolean {
+  return process.env.XPC_SERVICE_NAME === AUTO_UPDATE_LABEL;
+}
+
 export interface AutoUpdateStateSnapshot {
   plist: { present: false } | { present: true; bytes: Uint8Array; mode: number };
   loaded: boolean;
@@ -500,7 +510,9 @@ export async function restoreAutoUpdateState(
     throw new Error(`Unsafe auto-update plist boundary during restore: ${path}`);
   }
 
-  if (!shouldSkipLaunchctl()) {
+  // Inside the job it is loaded by definition, and a reload would kill this run.
+  const reload = !shouldSkipLaunchctl() && !insideAutoUpdateJob();
+  if (reload) {
     const uid = process.getuid?.() ?? 0;
     const result = await runProcessFull("launchctl", [
       "bootout",
@@ -521,7 +533,7 @@ export async function restoreAutoUpdateState(
     await rm(path, { force: true });
   }
 
-  if (snapshot.loaded && !shouldSkipLaunchctl()) {
+  if (snapshot.loaded && reload) {
     const uid = process.getuid?.() ?? 0;
     const result = await runProcessFull("launchctl", ["bootstrap", `gui/${uid}`, path]);
     if (result.exit !== 0) {
@@ -646,6 +658,10 @@ export async function registerAutoUpdate(
   } catch (e) {
     return { ok: false, reason: (e as Error).message };
   }
+
+  // The job is loaded and running this install. launchd reads the rewritten
+  // plist at the next bootstrap: a login, or a setup.sh run from a terminal.
+  if (insideAutoUpdateJob()) return { ok: true, reason: "inside-job" };
 
   if (shouldSkipLaunchctl()) return { ok: true, reason: "skipped-launchctl" };
 

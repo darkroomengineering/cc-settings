@@ -327,6 +327,29 @@ describe("registerAutoUpdate — CC_SKIP_SCHEDULE=1 (no real launchctl ever)", (
       await rm(fakeHome, { recursive: true, force: true });
     }
   });
+
+  test("inside the launchd job it writes the plist and never reloads the job", async () => {
+    if (process.platform !== "darwin") return;
+
+    const fakeHome = await mkdtemp(join(tmpdir(), "cc-schedule-test-"));
+    const originalSkip = process.env.CC_SKIP_SCHEDULE;
+    const originalService = process.env.XPC_SERVICE_NAME;
+    process.env.CC_SKIP_SCHEDULE = "1";
+    process.env.XPC_SERVICE_NAME = AUTO_UPDATE_LABEL;
+    try {
+      const result = await registerAutoUpdate(join(fakeHome, ".claude"), fakeHome);
+      // "inside-job", not "skipped-launchctl": the guard must not depend on
+      // the launchctl skip, which is off in a real nightly run.
+      expect(result).toEqual({ ok: true, reason: "inside-job" });
+      expect(statSync(plistPath(fakeHome)).mode & 0o777).toBe(0o600);
+    } finally {
+      if (originalSkip === undefined) delete process.env.CC_SKIP_SCHEDULE;
+      else process.env.CC_SKIP_SCHEDULE = originalSkip;
+      if (originalService === undefined) delete process.env.XPC_SERVICE_NAME;
+      else process.env.XPC_SERVICE_NAME = originalService;
+      await rm(fakeHome, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("launchctl bootout absence — ESRCH (real macOS response for an unloaded job)", () => {
