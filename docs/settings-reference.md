@@ -54,6 +54,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins `medium` — thinking tokens are output-priced and every inheriting subagent spends them. Raise per session: `/effort high` for hard non-coding reasoning, `/effort xhigh` for audits, migrations, or hard debugging; inheriting subagents use the same raised depth unless their agent config overrides it. See the [model configuration guide](https://code.claude.com/docs/en/model-config#choose-an-effort-level) |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode with flat plain-text rendering; env counterpart of `axScreenReader` / `--ax-screen-reader` |
+| `CLAUDE_AX_PREPARK_MS` | ms (string) or unset | Screen-reader mode: pause with the cursor at the start of a line before writing it. Off by default since v2.1.287; `50` restores the old pause |
 | `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper |
 | `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` |
 | `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200), which stops runaway search loops |
@@ -69,7 +70,7 @@ Environment variables injected into every Claude Code session.
 | `ENABLE_PROMPT_CACHING_1H` | `"1"` or unset | Asks for the 1-hour prompt cache on EVERY request. Superseded by the typed `promptCacheTtl` / `subagentPromptCacheTtl` settings keys (v2.1.242), which cc-settings sets instead — main conversation `1h`, subagents `5m`. Precedence: `FORCE_PROMPT_CACHING_5M` > `CLAUDE_CODE_[SUBAGENT_]PROMPT_CACHE_TTL` env > the settings keys > this var |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET` | number (string) | Override skill character budget (default: 2% of context window). Not set by default — let it auto-scale |
 | `ENABLE_TOOL_SEARCH` | `auto:N` | MCP tool deferral threshold. Tools deferred when descriptions exceed N% of context. cc-settings sets `auto:2`: the threshold is a share of the context window, so on a 1M-window model anything from `auto:4` up (40K) never triggers against the ~34K of MCP schemas a typical install carries. At `auto:2` a fresh session measures 34.8K tokens instead of 85.8K (`/context`), because MCP and deferrable built-in tools load on demand. Per-server opt-out via `alwaysLoad: true` (v2.1.121) |
-| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | As of v2.1.223, auto-compaction holds EVERY Claude model with a native 1M window down to 200K (not a fixed model list); set this to opt out. A startup warning appears when auto-compaction is not holding the session to 200K |
+| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | `"true"` or unset | As of v2.1.223, auto-compaction holds EVERY Claude model with a native 1M window down to 200K (not a fixed model list); set this to opt out. A startup warning appears when auto-compaction is not holding the session to 200K. Since v2.1.287 Opus 4.7+ and Fable get a 1M window by default on Bedrock, Vertex, Foundry and the Claude apps gateway with no `[1m]` suffix; `=1` keeps them at 200K |
 | `CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT` | `"1"` or unset | v2.1.223 made auto-compact keep sessions on unrecognized model IDs inside the assumed context window; set this to restore the previous unbounded behavior |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
 | `CLAUDE_CODE_DISABLE_WEB_FETCH` | `"1"` or unset | Turn off the WebFetch tool (v2.1.285). Unset here |
@@ -81,7 +82,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_FORK_SUBAGENT` | `"1"` or unset | Enable forked subagents on external builds; works in non-interactive sessions as of v2.1.121 |
 | `AI_AGENT` | set automatically | Set by Claude Code for subprocesses so `gh` can attribute traffic correctly (v2.1.120) |
 | `CLAUDE_EFFORT` | set automatically | Available inside skills as `${CLAUDE_EFFORT}` for effort-aware behavior (v2.1.120) |
-| `OTEL_LOG_USER_PROMPTS` | `"1"` or unset | Adds `user_system_prompt` to LLM request spans (v2.1.121) |
+| `OTEL_LOG_USER_PROMPTS` | `"1"` or unset | Adds `user_system_prompt` to LLM request spans (v2.1.121). Since v2.1.287 the `user_prompt` event also carries `prompt_text`, a copy of `prompt` for backends that nest dotted keys; mask or drop it wherever you mask `prompt` |
 | `ANTHROPIC_BEDROCK_SERVICE_TIER` | `default`, `flex`, `priority` | Sent as `X-Amzn-Bedrock-Service-Tier` to select a Bedrock service tier (v2.1.122) |
 | `ANTHROPIC_CUSTOM_MODEL_OPTION` | model ID string | Add a custom entry to the `/model` picker |
 | `ANTHROPIC_DEFAULT_MODEL` | model ID string | The model new sessions start on; a `/model` pick still overrides it and persists across restarts, unlike `ANTHROPIC_MODEL` which pins every session (v2.1.236) |
@@ -1275,7 +1276,8 @@ and its `language` parameter defaults to `python` — see
 | `args` | list | Arguments to the executable |
 | `type` | string | `"http"` for remote servers (default: local subprocess) |
 | `url` | string | URL for HTTP-type servers |
-| `alwaysLoad` | boolean | When `true`, all tools from this server skip tool-search deferral and are always available (v2.1.121). Use for hot-path servers like docs lookup |
+| `alwaysLoad` | boolean | When `true`, all tools from this server skip tool-search deferral and are always available (v2.1.121). Use for hot-path servers like docs lookup. When `false`, every tool from the server is deferred behind tool search (v2.1.287) |
+| `bareElicitationCapability` | boolean | Set `true` on a server that stops connecting after v2.1.287, which added URL prompts (for example sign-in) for servers on the 2025-11-25 MCP protocol |
 | `_comment` | string | Human-readable description (ignored by Claude Code) |
 | `serverInstructions` | string | Instructions for Claude on when/how to use this server |
 

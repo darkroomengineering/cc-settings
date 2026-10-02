@@ -26,6 +26,9 @@ const mcpCommon = {
   // Per-server MCP tool-call timeout in ms (overrides the 60s default).
   // 2.1.206 fixed it being ignored for `--mcp-config` / `.mcp.json` servers.
   request_timeout_ms: z.number().int().positive().optional(),
+  // Advertise the elicitation capability without the URL-mode field. Set it on
+  // a server that stops connecting since 2.1.287 added URL elicitation prompts.
+  bareElicitationCapability: z.boolean().optional(),
 };
 
 // stdio transport: command + args + env. No `type` field (or `type: "stdio"`).
