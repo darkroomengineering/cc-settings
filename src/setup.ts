@@ -50,6 +50,7 @@ import {
 import {
   installPlugins,
   installSettings,
+  refreshSettingsFingerprint,
   restrictKeyedSettings,
 } from "./lib/claude-install-settings.ts";
 import { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION } from "./lib/claude-managed-files.ts";
@@ -111,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.45.2"; // Codex hooks.json merges by entry instead of failing on another tool's file.
+const VERSION = "15.45.3"; // The settings fingerprint covers the plugin keys.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
@@ -657,6 +658,9 @@ async function main(): Promise<number> {
         // declaration and the plugin store agree. Fail-open — see
         // installPlugins' own doc comment.
         await installPlugins(args.profile, args.dryRun, { typesafeKey: args.typesafeKey });
+        // The plugin step rewrites the plugin keys the fingerprint covers, so
+        // fingerprint after it.
+        if (!args.dryRun) await refreshSettingsFingerprint();
         if (!args.dryRun) await restrictKeyedSettings();
         if (!args.dryRun && args.profile === "full") await ensurePersonalInstructionsFile();
 

@@ -3,7 +3,7 @@
 // and asserts on the result — no file I/O needed.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { composeSettings } from "../src/lib/compose-settings.ts";
@@ -1125,6 +1125,27 @@ describe("userWinsScalarStrategy", () => {
     expect(ctx.accounting.defaultsAdded).toBe(2);
   });
 
+  test("a changed marketplace sha replaces the old one when the user's value is the prior team default", async () => {
+    const oldEntry = {
+      source: { source: "github", repo: "darkroomengineering/cc-settings", sha: "a".repeat(40) },
+    };
+    const newEntry = {
+      source: { source: "github", repo: "darkroomengineering/cc-settings", sha: "b".repeat(40) },
+    };
+    const ctx = makeCtx({
+      baselineSettings: { extraKnownMarketplaces: { "cc-settings": oldEntry } },
+    });
+    const result = await userWinsScalarStrategy(
+      "extraKnownMarketplaces",
+      { "cc-settings": newEntry },
+      { "cc-settings": oldEntry },
+      ctx,
+    );
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({ "cc-settings": newEntry });
+  });
+
   test("nested objects recurse (defaults land at depth > 1)", async () => {
     const ctx = makeCtx();
     const team = { enabled: true, network: { allowAppleEvents: false, proxy: "team" } };
@@ -1367,5 +1388,82 @@ describe("three-way defaults update (baselineSettings)", () => {
     if (!result.keep) return;
     expect(result.value).toEqual(custom);
     expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+});
+
+interface MergedPlugins {
+  enabledPlugins: Record<string, boolean>;
+  extraKnownMarketplaces: Record<string, { source: { repo: string; sha?: string } }>;
+}
+
+describe("team-owned marketplace entries across a rerun", () => {
+  const entry = (repo: string, sha?: string) => ({
+    source: { source: "github", repo, ...(sha ? { sha } : {}) },
+  });
+  const OWN = "darkroomengineering/cc-settings";
+  const X = "a".repeat(40);
+  const Y = "b".repeat(40);
+  const Z = "e".repeat(40);
+
+  async function rerun(user: object, team: object, baseline: object) {
+    const dir = await mkdtemp(join(tmpdir(), "mp-"));
+    try {
+      const path = join(dir, "settings.json");
+      await writeFile(path, JSON.stringify(user));
+      await mergeSettings(path, team as Record<string, unknown>, path, {
+        interactive: false,
+        baselineSettings: baseline as Record<string, unknown>,
+      });
+      return JSON.parse(await readFile(path, "utf8")) as MergedPlugins;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("a planted sha is replaced by the team value", async () => {
+    const out = await rerun(
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Z) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Y) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, X) } },
+    );
+    expect(out.extraKnownMarketplaces["cc-settings"]?.source.sha).toBe(Y);
+  });
+
+  test("a planted repo is replaced by the team value", async () => {
+    const out = await rerun(
+      { extraKnownMarketplaces: { "cc-settings": entry("evil/cc-settings", Z) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Y) } },
+      {},
+    );
+    expect(out.extraKnownMarketplaces["cc-settings"]?.source).toEqual(entry(OWN, Y).source);
+  });
+
+  test("a team entry without a sha drops a stale sha", async () => {
+    const out = await rerun(
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, X) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, X) } },
+    );
+    expect(out.extraKnownMarketplaces["cc-settings"]?.source.sha).toBeUndefined();
+  });
+
+  test("a marketplace the user added survives", async () => {
+    const mine = entry("me/market");
+    const out = await rerun(
+      { extraKnownMarketplaces: { mine, "cc-settings": entry(OWN, Z) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Y) } },
+      {},
+    );
+    expect(out.extraKnownMarketplaces.mine).toEqual(mine);
+  });
+
+  test("a planted enabledPlugins entry survives the rerun as user-owned", async () => {
+    const out = await rerun(
+      { enabledPlugins: { "evil@evil": true } },
+      { enabledPlugins: { "compaction-trigger@cc-settings": true } },
+      {},
+    );
+    expect(out.enabledPlugins["evil@evil"]).toBe(true);
+    expect(out.enabledPlugins["compaction-trigger@cc-settings"]).toBe(true);
   });
 });

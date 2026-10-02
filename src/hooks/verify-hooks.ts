@@ -2,9 +2,11 @@
 // SessionStart hook: verify that the cc-settings install hasn't been tampered
 // with since setup.sh last ran. Two independent checks:
 //
-//   1. Hooks-block fingerprint — SHA256 of the hooks section of
+//   1. Settings fingerprint — SHA256 of the hooks section and of the plugin
+//      keys (enabledPlugins, extraKnownMarketplaces, pluginConfigs) of
 //      ~/.claude/settings.json vs the fingerprint written by setup.ts.
-//      Catches injected hook ENTRIES (the Shai-Hulud worm pattern, May 2026).
+//      Catches injected hook ENTRIES (the Shai-Hulud worm pattern, May 2026)
+//      and dropped-in plugins.
 //   2. Installed-runtime content manifest — SHA256 of managed source files and
 //      every production dependency vs the manifest written by setup.ts.
 //      A stdlib-only bootstrap runs this check before dependency-backed code.
@@ -138,7 +140,17 @@ function printRuntimeMismatch(result: BootstrapResult): void {
 
 async function checkHooksFingerprint(modules: TrustedModules): Promise<void> {
   const verify = await modules.fingerprint.verifyAgainstSettings();
-  if (verify.status === "match" || verify.status === "missing-settings") return;
+  if (verify.status === "missing-settings") return;
+  if (verify.status === "match") {
+    // Record written before plugin keys were fingerprinted: hooks are checked,
+    // plugins are not until setup rewrites the record.
+    if (!verify.pluginsCovered) {
+      console.log(
+        "ℹ cc-settings: plugin keys are not fingerprinted yet — run setup.sh to cover them.",
+      );
+    }
+    return;
+  }
 
   // No fingerprint = fresh install or pre-fingerprint cc-settings version.
   // Print a one-line nudge, no alarm.
@@ -157,11 +169,22 @@ async function checkHooksFingerprint(modules: TrustedModules): Promise<void> {
   console.log("");
   console.log(RULE);
   console.log(
-    `⚠  cc-settings: hooks-block fingerprint mismatch${suspicious ? " — SUSPICIOUS HOOKS DETECTED" : ""}`,
+    `⚠  cc-settings: settings fingerprint mismatch${suspicious ? " — SUSPICIOUS HOOKS DETECTED" : ""}`,
   );
   console.log(RULE);
-  console.log(`   settings.json hooks have changed since install.`);
-  if (verify.installedAt) console.log(`   last trusted install: ${verify.installedAt}`);
+  if (verify.changed.includes("hooks")) {
+    console.log("   settings.json hooks have changed since install.");
+  }
+  if (verify.changed.includes("plugins")) {
+    console.log(
+      "   settings.json plugin keys (enabledPlugins, extraKnownMarketplaces, pluginConfigs)",
+    );
+    console.log("   have changed since install.");
+    if (verify.pluginHashStripped) {
+      console.log("   The plugin fingerprint is missing from this install's record.");
+    }
+    for (const line of verify.pluginDiff) console.log(`     - ${line}`);
+  }
   if (suspicious) {
     console.log("");
     console.log("   One or more hooks match supply-chain malware signatures.");
@@ -170,7 +193,12 @@ async function checkHooksFingerprint(modules: TrustedModules): Promise<void> {
   }
   console.log("");
   console.log("   Inspect with:  bun ~/.claude/src/scripts/audit-hooks.ts");
-  console.log("   If legitimate: re-run setup.sh to refresh the fingerprint.");
+  if (verify.changed.includes("plugins")) {
+    console.log("   If legitimate: check that each listed entry is one you added, then");
+    console.log("                  re-run setup.sh. Setup accepts the listed entries.");
+  } else {
+    console.log("   If legitimate: re-run setup.sh to refresh the fingerprint.");
+  }
   console.log("   If unknown:    see SECURITY.md in cc-settings repo.");
   console.log(RULE);
   console.log("");

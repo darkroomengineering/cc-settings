@@ -26,15 +26,30 @@ the base product. Anything that can write `settings.json` can persist.
 
 Four layers, all installed by `setup.sh`:
 
-### 1. Hooks-block fingerprint (`SessionStart` integrity check)
+### 1. Settings fingerprint (`SessionStart` integrity check)
 
-At install time, `setup.sh` writes a SHA256 of the canonicalized `hooks`
-section of your merged `~/.claude/settings.json` to
-`~/.claude/.cc-settings-hooks-fingerprint`.
+At install time, `setup.sh` writes to `~/.claude/.cc-settings-hooks-fingerprint`
+a SHA256 of the canonicalized `hooks` section of your merged
+`~/.claude/settings.json`, a SHA256 of the plugin keys (`enabledPlugins`,
+`extraKnownMarketplaces`, `pluginConfigs`), and a per-entry hash of each plugin
+key. A dropped-in plugin plus an `enabledPlugins` line gives the same
+persistence as an injected hook, so both are covered.
 
-On every `SessionStart`, the `verify-hooks.ts` hook re-hashes the current
-`hooks` block and compares. **Mismatch surfaces a loud terminal warning**
-with remediation steps. Match is silent.
+On every `SessionStart`, the `verify-hooks.ts` hook re-hashes both parts and
+compares. **Mismatch surfaces a loud terminal warning** that names which part
+changed. For plugin keys it also lists up to ten entries added, removed, or
+changed since the last setup run. Check that each listed entry is one you
+added, then re-run setup. Match is silent. A record from an install older than
+15.45.3 holds only the hooks hash; the plugin comparison starts once setup
+rewrites it. The same record missing the plugin hash on a 15.45.3 or later
+install is reported as a mismatch.
+
+A setup run, including the unattended nightly auto-update
+(`src/scripts/auto-update.ts`), accepts the plugin keys on disk, whether or not
+a session has shown the warning. The marketplace entries cc-settings ships
+(`cc-settings`, `fast-jev-compaction`) are team-owned: a rerun replaces
+whatever is on disk under those names. Plugin entries and marketplaces you add
+yourself are yours and survive.
 
 Source: `src/lib/hooks-fingerprint.ts`, `src/hooks/verify-hooks.ts`.
 
@@ -377,7 +392,14 @@ installs — see `DEPRECATED_PERMISSION_PATTERNS` in
 - **Sandbox hook execution.** Hooks run with the user's full privileges
   by Claude Code's design. cc-settings doesn't subvert that.
 
-What the content manifest does **not** cover:
+What the fingerprint and content manifest do **not** cover:
+
+- **The plugin cache and plugin store.** `~/.claude/plugins/cache/` (the plugin
+  code itself) and the store records `installed_plugins.json` and
+  `known_marketplaces.json` are not hashed. The fingerprint covers the
+  declarations in `settings.json`, not what Claude Code fetched for them.
+  Plugin code comes from the marketplace's latest commit, so nothing here
+  verifies it.
 
 - **The `bun` binary itself** (or `git`, or anything else on PATH). A
   compromised runtime executes whatever it likes regardless of what the
@@ -393,11 +415,11 @@ What the content manifest does **not** cover:
   worms automate against defaults — but a targeted attacker with full
   user-privilege write access is outside this threat model.
 
-## Scope: the fingerprint and content manifest cover the `hooks` block only
+## Scope: the fingerprint covers `hooks` and the plugin keys only
 
-Layers 1 and 2 above (the hooks-block fingerprint and the src content
-manifest) are precisely scoped: `hashHooks()` hashes `settings.hooks` and
-nothing else, and the content manifest verifies script *files*, not other
+Layers 1 and 2 above (the settings fingerprint and the src content
+manifest) are precisely scoped: `hashHooks()` hashes `settings.hooks`,
+`hashPluginKeys()` hashes the three plugin keys, and the content manifest verifies script *files*, not other
 `settings.json` keys. Concretely, **`mcpServers`, `permissions`, `env`, and
 every other top-level key of `settings.json` are entirely outside what those
 two layers verify** — a change to any of them, however large, never trips
