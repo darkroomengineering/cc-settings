@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.46.1] — 2026-10-02
+
+Devs in more than one Linear workspace no longer have to reconnect Claude Code every time they switch projects. `docs/settings-reference.md` now documents the team convention: each dev adds one Linear MCP server per workspace, named `linear-<workspace>`, at user scope. Claude Code keys MCP tokens by server name, so a single shared `linear` entry overwrote its login on every workspace switch. cc-settings still ships no Linear server.
+
+**Files changed:** `docs/settings-reference.md`, version sites.
+
 ## [15.46.0] — 2026-10-02
 
 Synced with Claude Code 2.1.287 and Codex 0.160.0. An MCP server that stops connecting after the Claude Code update can now be fixed in cc-settings config without the parser dropping the fix.

@@ -1408,9 +1408,40 @@ teammates who hit it.
 
 ## MCP server notes
 
-Notes on the MCP servers shipped in `config/20-mcp.json`. These were previously stored as `_comment` / `_status` keys inline in the JSON (non-standard; removed to keep the composed `settings.json` schema-clean).
+Notes on the MCP servers shipped in `config/20-mcp.json`. They live here rather than as `_comment` / `_status` keys in the JSON, which keeps the composed `settings.json` schema-clean.
 
 - **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts (the dedicated `/docs` skill was retired May 2026). alwaysLoad=true (v2.1.121) opts out of tool-search deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)
 - **tldr**: Codemap analysis behind a pluggable engine. Default `native-ts` — no prerequisite, no index. `CC_CODE_INTEL_ENGINE=llm-tldr` opts into the multi-language engine, which needs `pipx install llm-tldr` (v1.5+) and `tldr warm .`. The entry in `config/20-mcp.json` is the llm-tldr template; the installer rewrites it to the resolved engine. (status: core)
 - **figma**: Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use. (status: core)
 - **chrome-devtools**: Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)
+
+### Linear: one server per workspace
+
+cc-settings does not ship a Linear server, because each dev belongs to a
+different set of Linear workspaces (Darkroom plus whichever clients run their
+own). Each dev adds their own, one server per workspace, named
+`linear-<workspace>`:
+
+```bash
+claude mcp add --scope user --transport http linear-darkroom https://mcp.linear.app/mcp
+claude mcp add --scope user --transport http linear-<client> https://mcp.linear.app/mcp
+```
+
+Then open `/mcp`, authenticate each server, and pick the matching workspace on
+Linear's consent screen. Every session can reach every workspace, and none of
+them asks you to reconnect.
+
+Why the name matters: a Linear OAuth token belongs to one workspace, and Claude
+Code stores MCP tokens under the server name plus a hash of the server config,
+not under the project. Two servers that share a name and URL share a token, so
+a single `linear` entry, in any scope, makes each workspace switch overwrite
+the last login. Distinct names get distinct tokens.
+
+- Disable any other Linear server in `/mcp`, such as a plain `linear` entry or
+  `plugin:productivity:linear`. It keeps its own single login that switches
+  workspaces, and Claude may call it instead of the named server.
+- Never authenticate a `linear-<workspace>` server into a different workspace.
+  Run `/mcp`, clear its authentication, and log in again if one drifted.
+- Permission allowlists use the server name: `mcp__linear-darkroom__get_issue`.
+- The installer leaves user-added servers in `~/.claude.json` alone, so these
+  entries survive every cc-settings install.

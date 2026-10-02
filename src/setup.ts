@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.46.0"; // sync with Claude Code 2.1.287 and Codex 0.160.0.
+const VERSION = "15.46.1"; // Linear one-server-per-workspace docs.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
