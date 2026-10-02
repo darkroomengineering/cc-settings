@@ -255,10 +255,16 @@ const ADDED_IN_V11 = ["skills/audit/references/test-audit.md"];
 // Version 12: the pinned-engine installer was removed from the runtime.
 // Versions 5-11 still own it, so it rejoins their source list beside download-verify.ts.
 const REMOVED_IN_V12 = ["src/lib/engine-pin.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 14;
-const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.flatMap((path) =>
-  path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V12] : [path],
-);
+// Version 15: the `bun run hooks:report` and `hooks:bench` measurement scripts.
+const ADDED_IN_V15 = [
+  "src/lib/hook-frequency.ts",
+  "src/scripts/hook-bench.ts",
+  "src/scripts/hook-report.ts",
+];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 15;
+const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
+  (path) => !ADDED_IN_V15.includes(path),
+).flatMap((path) => (path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V12] : [path]));
 const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
   ...HISTORICAL_TYPESCRIPT_SOURCES,
@@ -278,9 +284,13 @@ const RUNTIME_SOURCE_FILES_V13: readonly string[] = RUNTIME_SOURCE_FILES_V12.map
 // (Agent Plugins format) instead of `.codex-plugin/plugin.json`.
 const REPLACED_IN_V14 = ".codex-plugin/plugin.json";
 const ADDED_IN_V14 = ["plugin.json", "mcp.json"];
-export const RUNTIME_SOURCE_FILES: readonly string[] = [
+const RUNTIME_SOURCE_FILES_V14: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V13.filter((path) => path !== REPLACED_IN_V14),
   ...ADDED_IN_V14,
+];
+export const RUNTIME_SOURCE_FILES: readonly string[] = [
+  ...RUNTIME_SOURCE_FILES_V14,
+  ...ADDED_IN_V15,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -312,6 +322,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [11, RUNTIME_SOURCE_FILES_V11],
   [12, RUNTIME_SOURCE_FILES_V12],
   [13, RUNTIME_SOURCE_FILES_V13],
+  [14, RUNTIME_SOURCE_FILES_V14],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

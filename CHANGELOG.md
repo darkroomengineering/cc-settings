@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.45.4] — 2026-10-02
+
+You can now measure what the hooks cost. `bun run hooks:report` shows how often each hook fires per session, and `bun run hooks:bench` times each synchronous hook on a sample payload without touching your real `~/.claude`. Nothing about how hooks run changes.
+
+**Added:**
+- `src/scripts/hook-report.ts` and `src/lib/hook-frequency.ts` count tool calls, prompts, turns and compactions in local transcripts, map them onto the matchers in `config/40-hooks.json`, and list the Stop hook durations Claude Code records. `--bench <file>` multiplies firings by measured latency.
+- `src/scripts/hook-bench.ts` replays each synchronous hook under a throwaway `HOME` and reports p50 and p95 per hook and per event.
+- Managed-files manifest version 17 and Codex runtime manifest version 15 install the three files. Run from an install, which has no `config/`, both scripts read the hooks in `~/.claude/settings.json`.
+- With `--bench`, each tool's calls are priced with that tool's own latency row; a tool with no row is listed as unbenchmarked instead of borrowing another tool's timing.
+
 ## [15.45.3] — 2026-10-01
 
 A plugin dropped into `~/.claude/settings.json` now trips the same session-start warning a rogue hook does, and the warning names the entries.

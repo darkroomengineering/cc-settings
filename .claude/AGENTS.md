@@ -41,6 +41,8 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Dry-run: `bun src/setup.ts --dry-run`
 - Tests: `bun test`
 - Token spend from local transcripts: `bun run tokens` (`--all`, `--days N`, `--json`). Price-weighted by billing type, split main vs subagent; run it before and after a harness change.
+- Hook firing frequency from local transcripts: `bun run hooks:report` (`--days N`, `--project`, `--json`, `--bench <file>`). Maps tool calls, prompts, turns and compactions onto the matchers in `config/40-hooks.json` and lists the Stop hook `durationMs` Claude Code records.
+- Hook latency replay: `bun run hooks:bench` (`--runs N`, `--json`). Runs each synchronous hook with a sample payload under a throwaway `HOME`, reports p50/p95. Feed its `--json` to `hooks:report --bench`.
 - Skill evals: every skill has cases in `evals/<skill>-<slug>/` (`claude plugin eval` format, `tags: [<skill>]`). A repo-local hook (`.claude/hooks/pre-push-evals.ts`) runs the cases for skills changed since upstream before every `git push`, capped at $5, and blocks on a failing or missing case. Run it by hand with `bun src/scripts/eval-changed.ts`; a new or reworded skill ships with its case.
 - Typecheck: `bun run typecheck`
 - Lint: `bun run lint` / `bun run lint:fix`

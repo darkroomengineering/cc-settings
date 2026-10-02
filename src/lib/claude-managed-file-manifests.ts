@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 16;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 17;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -523,9 +523,16 @@ const priorManifest = {
 // Version 14: the pinned-engine installer was removed from the runtime.
 // Versions 7-13 still own it, so it rejoins their source list beside download-verify.ts.
 const REMOVED_IN_V14 = ["src/lib/engine-pin.ts"];
-const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.flatMap((path) =>
-  path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V14] : [path],
-);
+// Version 17: the `bun run hooks:report` and `hooks:bench` measurement scripts. They live in
+// the shared source inventory, so every earlier version subtracts them.
+const ADDED_IN_V17 = [
+  "src/lib/hook-frequency.ts",
+  "src/scripts/hook-bench.ts",
+  "src/scripts/hook-report.ts",
+];
+const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
+  (path) => !ADDED_IN_V17.includes(path),
+).flatMap((path) => (path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V14] : [path]));
 const historicalManifest = {
   full: [
     ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
@@ -594,9 +601,14 @@ MANIFESTS.set(15, v15);
 // Version 16: the Stop hook that blocks a turn ending in a prose question. Claude-only,
 // so it stays out of the shared source inventory that the Codex runtime manifests read.
 const ADDED_IN_V16 = ["src/hooks/ask-gate.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v16 = {
   full: [...v15.full, ...ADDED_IN_V16],
   light: [...v15.light, ...ADDED_IN_V16],
+};
+MANIFESTS.set(16, v16);
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v16.full, ...ADDED_IN_V17],
+  light: [...v16.light, ...ADDED_IN_V17],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

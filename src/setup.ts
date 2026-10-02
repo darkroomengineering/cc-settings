@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.45.3"; // The settings fingerprint covers the plugin keys.
+const VERSION = "15.45.4"; // hooks:report and hooks:bench measure hook cost.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
