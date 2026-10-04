@@ -4,6 +4,21 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.47.0] — 2026-10-04
+
+The safety net stops an agent from killing your browser while it stops a dev server. Stopping a test server with `lsof -ti :3100 | xargs kill` took down every Chromium window: without `-sTCP:LISTEN`, lsof also lists the browser that has the page open.
+
+**Added:**
+- Safety-net rule that blocks kills chosen by search: `pkill`, `killall`, `fuser -k`, `kill -1`, and `kill` fed by `pgrep`, `ps`, `pidof`, or `lsof` without `-sTCP:LISTEN`, in a pipe (`| xargs kill`) or a substitution (`kill $(…)`). It also catches them inside `bash -c`.
+- `kill <pid>`, `kill $VAR`, `kill $(cat pidfile)` and `lsof -ti tcp:<port> -sTCP:LISTEN | xargs kill` stay allowed. The block message points to those.
+- Known gap: a search and a kill in separate commands (`for p in $(lsof …); do kill $p; done`) is not linked up.
+
+**Files changed:**
+- src/hooks/safety-net.ts, tests/safety-net.test.ts
+- docs/security-reference.md
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+- CHANGELOG.md
+
 ## [15.46.0] — 2026-10-02
 
 Synced with Claude Code 2.1.287 and Codex 0.160.0. An MCP server that stops connecting after the Claude Code update can now be fixed in cc-settings config without the parser dropping the fix.

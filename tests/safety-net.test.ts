@@ -240,6 +240,54 @@ describe("TS safety-net — multi-command safe → ALLOW", () => {
   test("git status && git log --oneline", () => expectAllow("git status && git log --oneline"));
 });
 
+describe("TS safety-net — process kills by search → BLOCK", () => {
+  for (const cmd of [
+    // The 2026-10-04 incident: both halves took down the browser.
+    'pkill -f "next start.*3100" -n 2>/dev/null; lsof -ti :3100 | xargs kill 2>/dev/null',
+    "lsof -ti :3100 | xargs kill",
+    "lsof -ti :3000 | head -1 | xargs kill -9",
+    "cd /tmp && lsof -ti :3100 | xargs kill",
+    "kill $(lsof -ti :3000)",
+    "kill -9 `lsof -t -i:3000`",
+    "kill $(lsof -ti :3000 | head -1)",
+    'pkill -f "next start"',
+    "pkill -n node",
+    "/usr/bin/pkill node",
+    'killall "Google Chrome"',
+    "sudo killall Chromium",
+    "fuser -k 3000/tcp",
+    "pgrep -f chrome | xargs kill",
+    "ps aux | grep chrome | awk '{print $2}' | xargs kill -9",
+    "kill $(pgrep -f next)",
+    "kill -9 -1",
+    "kill -- -1",
+    "bash -c 'lsof -ti :3000 | xargs kill'",
+  ]) {
+    test(cmd, () => expectBlock(cmd));
+  }
+});
+
+describe("TS safety-net — process kills by PID → ALLOW", () => {
+  for (const cmd of [
+    "kill 12345",
+    "kill -9 12345",
+    "kill $PID",
+    'kill "$SERVER_PID"',
+    "kill $(cat .next/server.pid)",
+    "lsof -ti tcp:3000 -sTCP:LISTEN | xargs kill",
+    "lsof -ti :3000 -s TCP:LISTEN | xargs kill -9",
+    "kill $(lsof -ti :3000 -sTCP:LISTEN)",
+    "lsof -i :3000",
+    "pgrep -f next",
+    "fuser 3000/tcp",
+    "kill -l",
+    'git commit -m "docs: explain why pkill is blocked"',
+    'echo "kill it with lsof -ti :3000 | xargs kill"',
+  ]) {
+    test(cmd, () => expectAllow(cmd));
+  }
+});
+
 describe("TS safety-net — edge cases → ALLOW", () => {
   test("empty", () => expectAllow(""));
   test("ls -la", () => expectAllow("ls -la"));
