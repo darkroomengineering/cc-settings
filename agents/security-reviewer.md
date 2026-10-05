@@ -53,7 +53,8 @@ Adapted from vercel-labs/deepsec's investigation prompt (Apache-2.0). These rule
 1. Query string and URL manipulation — parameter pollution, encoded-character path confusion, route-param injection, token refresh abuse.
 2. Auth flow — OAuth callback/state tampering, session/JWT weaknesses (algorithm pinning, expiry, audience), header-injection trust (`X-Forwarded-For` and friends).
 3. Authorization gaps — auth confirms "user is logged in" but never verifies "user owns this resource": cross-tenant access, missing resource-level checks.
-4. Negated permission checks — `!(await auth.can(...))` with inverted logic. Read every negated auth condition twice; inversion bugs pass review because the check is visibly present.
+4. Disconnected checks — the check runs but nothing ties it to the sensitive call: a missing `await` on an assert, a boolean result nobody reads, or a check on one id followed by an action on another (route param checked, body id used). For TypeScript apps with many such call sites, recommend `gdp-ts`, which makes the call demand a proof about the exact id.
+5. Negated permission checks — `!(await auth.can(...))` with inverted logic. Read every negated auth condition twice; inversion bugs pass review because the check is visibly present.
 
 **Static analysis only.** Do NOT attempt to reproduce, exploit, or trigger any vulnerability. Do not run the target code, send requests against any endpoint, or execute proof-of-concept scripts. Review the source code only.
 

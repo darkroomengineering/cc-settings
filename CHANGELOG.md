@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.49.0] — 2026-10-05
+
+`security-reviewer` now catches authorization checks that run but do not protect anything. A check with a missing `await`, a boolean result nobody reads, or a check on one id followed by an action on another passed review before, because the check was visibly there.
+
+**Adopted:**
+- `agents/security-reviewer.md` auth-bypass checklist gains "Disconnected checks". For TypeScript apps with many authorized call sites it recommends [`gdp-ts`](https://github.com/rauchg/gdp-ts), which makes a sensitive function demand a typed proof about the exact id it acts on. The gdp-ts library and skill stay per project: the skill only applies to codebases that already use it.
+
+**Files changed:**
+- `agents/security-reviewer.md`
+- `CHANGELOG.md`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts` (version)
+
 ## [15.48.2] — 2026-10-05
 
 The Linear setup docs now cover devs who already connected Linear through the claude.ai web or desktop app. That connector also shows up in Claude Code with a single login, so it brings back workspace switching unless it is disabled there.
