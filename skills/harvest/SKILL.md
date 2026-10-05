@@ -90,6 +90,32 @@ it in the target's own conventions, carrying the contract's fields into the file
 procedure as steps, failure modes as a DON'T / red-flags section, quality bar as
 explicit checks.
 
+### Repeated corrections
+
+When the harvested behavior is a mistake agents keep making (the user corrected
+the same class twice, or reverts and review comments show it), prose is the
+weakest artifact: nothing fails when an agent skips it. Assume the next agent
+sees only the files it opened and copies the nearest example. Fix the class at
+the highest level that works, and say in the contract why each higher level
+did not:
+
+1. **Architecture.** One owner per piece of state, one supported way per task,
+   one source of truth instead of hand-synced lists. Delete the old way an agent
+   would copy.
+2. **Types**, so the bad state cannot be written.
+3. **A lint or CI check** whose error names the file, type, or function to use
+   instead. Read the actual error output: a stock message ("do not use X")
+   does not count, so set the rule's custom message or pick a check that has
+   one. If the pattern is already common, fail only when a change adds more.
+4. **A test** of the behavior (screen it against the
+   [test audit checklist](../audit/references/test-audit.md)).
+5. **A rule or AGENTS.md line**, only for judgment calls nothing can check.
+
+Prove each new check fails on a real past instance of the mistake, and run the
+same command locally and in CI. That proof is this route's trap in Phase 5.
+When a correction repeats a rule that already exists but nothing enforces,
+treat it as a repeat and move it up the ladder in the same change.
+
 For skills, complete registration: `ACTIVE_SKILLS` in `src/lib/managed-skills.ts`, the human
 contract in `docs/skills.md`, then `bun run lint:skills`.
 
