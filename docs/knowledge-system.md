@@ -31,8 +31,9 @@ gh auth status
 gh api repos/darkroomengineering/team-knowledge --jq .full_name
 ```
 
-No local clone is needed. The skill writes via `gh api` after confirming the proposed note with
-you. Set the repo slug in your environment if you want to override the default:
+No local clone is needed. After you confirm the proposed note, the skill writes it to a
+`knowledge/<name>` branch with `gh api` and opens a pull request, because the repo's `main`
+accepts changes only through a PR. The note reaches other agents once the PR is merged. Set the repo slug in your environment if you want to override the default:
 ```
 KNOWLEDGE_REPO=darkroomengineering/team-knowledge
 ```
@@ -132,7 +133,7 @@ cat $KNOWLEDGE_REPO_PATH/biome-mdx-ignored.md
 
 **Adding shared knowledge:**
 ```bash
-# Via the share-learning skill (preferred — handles dedup + gh api write)
+# Via the share-learning skill (preferred — handles dedup, then opens a PR)
 /share-learning gotcha "Biome ignores .mdx files by default"
 ```
 
