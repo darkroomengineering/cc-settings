@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "darkroom",
-  "version": "15.47.1",
+  "version": "15.48.0",
   "description": "Darkroom Engineering coding standards and reusable engineering workflows for Codex.",
   "author": {
     "name": "Darkroom Engineering",

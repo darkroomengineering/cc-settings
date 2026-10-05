@@ -96,7 +96,7 @@ This surface may change between Claude Code releases without notice — regenera
 | `PostCompact` | After context compaction completes | `manual` or `auto` | No |
 | `PreModelSwitch` | Before a requested model switch is applied (v2.1.251). Input carries `from_model` and `to_model` (canonical names). Output `hookSpecificOutput.decision` is `allow`, `deny`, or `ask`; exit 2 also blocks. Default timeout 30s, and a timeout **blocks** the switch | canonical `to_model` (exact or regex, e.g. `claude-fable-5-1`, `.*fable.*`) | Yes |
 | `PostModelSwitch` | After the session model changed, including switches Claude Code makes itself (restoring the model on resume) (v2.1.251). Display-only: `systemMessage` and `terminalSequence` fire, decisions are ignored | canonical `to_model` | No (always async) |
-| `InstructionsLoaded` | CLAUDE.md or `.claude/rules/*.md` loaded | -- | No |
+| `InstructionsLoaded` | CLAUDE.md or `.claude/rules/*.md` loaded; since v2.1.288 a load triggered by a subagent's file access carries `agent_id`, `agent_type` and `effort` | -- | No |
 | `ConfigChange` | Configuration file changes during session | `user_settings`, `project_settings`, `local_settings`, `policy_settings`, `skills` | Yes |
 
 ### MCP Events
