@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.47.0"; // safety net blocks process kills chosen by search.
+const VERSION = "15.47.1"; // Linear one-server-per-workspace docs.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

@@ -4,6 +4,12 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.47.1] — 2026-10-05
+
+Devs in more than one Linear workspace no longer have to reconnect Claude Code every time they switch projects. `docs/settings-reference.md` now documents the team convention: each dev adds one Linear MCP server per workspace, named `linear-<workspace>`, at user scope. Claude Code keys MCP tokens by server name, so a single shared `linear` entry overwrote its login on every workspace switch. cc-settings still ships no Linear server.
+
+**Files changed:** `docs/settings-reference.md`, version sites.
+
 ## [15.47.0] — 2026-10-04
 
 The safety net stops an agent from killing your browser while it stops a dev server. Stopping a test server with `lsof -ti :3100 | xargs kill` took down every Chromium window: without `-sTCP:LISTEN`, lsof also lists the browser that has the page open.
