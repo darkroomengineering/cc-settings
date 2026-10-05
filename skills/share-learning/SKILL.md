@@ -99,6 +99,16 @@ authentication or repository access.
    Assign the note with a quoted heredoc, so the summary's double quotes and any
    backticks or `$` in the body stay literal.
 
+   The repo's `main` only takes changes through a pull request, so write the note to a
+   new branch and open a PR. A `PUT` straight to `main` fails with "Changes must be made
+   through a pull request".
+
+   ```bash
+   BRANCH="knowledge/<name>"
+   BASE=$(gh api repos/$KNOWLEDGE_REPO/git/ref/heads/main --jq .object.sha)
+   gh api -X POST repos/$KNOWLEDGE_REPO/git/refs -f ref="refs/heads/$BRANCH" -f sha="$BASE"
+   ```
+
    If creating a new note:
    ```bash
    NOTE=$(cat <<'EOF'
@@ -117,6 +127,7 @@ authentication or repository access.
    )
 
    gh api -X PUT repos/$KNOWLEDGE_REPO/contents/<name>.md \
+     -f branch="$BRANCH" \
      -f message="knowledge: add <name>" \
      -f content="$(printf '%s' "$NOTE" | base64)"
    ```
@@ -125,13 +136,23 @@ authentication or repository access.
    ```bash
    SHA=$(gh api repos/$KNOWLEDGE_REPO/contents/<name>.md --jq .sha)
    gh api -X PUT repos/$KNOWLEDGE_REPO/contents/<name>.md \
+     -f branch="$BRANCH" \
      -f message="knowledge: update <name>" \
      -f content="$(printf '%s' "$NOTE" | base64)" \
      -f sha="$SHA"
    ```
 
-4. **Report.** Surface the blob URL to the user:
-   `https://github.com/$KNOWLEDGE_REPO/blob/main/<name>.md`
+   Then open the PR. Its `lint` check validates every note's frontmatter, including
+   the 160-character `summary` limit; fix a failure on the same branch.
+   ```bash
+   gh pr create -R $KNOWLEDGE_REPO --base main --head "$BRANCH" \
+     --title "knowledge: add <name>" --body "<the summary line>"
+   ```
+
+4. **Report.** Surface the PR URL to the user. Merging needs an approving review; agents
+   see the note only after the merge, when the repo's `index.yml` workflow regenerates
+   `INDEX.md`. Its final location is
+   `https://github.com/$KNOWLEDGE_REPO/blob/main/<name>.md`.
 
 ## Notes
 

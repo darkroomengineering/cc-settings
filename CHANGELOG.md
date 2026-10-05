@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.48.1] — 2026-10-05
+
+`/share-learning` works again. The team-knowledge repo now accepts changes only through a pull request, so the skill's direct write to `main` failed every time with "Changes must be made through a pull request". It now writes the note to a `knowledge/<name>` branch and opens a PR, and the note reaches other agents once that PR merges.
+
+**Fixed:**
+- `skills/share-learning/SKILL.md` creates a branch, writes or updates the note on it, opens the PR, and reports the PR URL. It also points at the repo's `lint` check, which enforces the 160-character `summary` limit.
+- `docs/knowledge-system.md` and `.claude/AGENTS.md` describe the PR-based write path.
+
+**Files changed:**
+- `skills/share-learning/SKILL.md`
+- `docs/knowledge-system.md`
+- `.claude/AGENTS.md`
+- `CHANGELOG.md`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts` (version)
+
 ## [15.48.0] — 2026-10-05
 
 Synced with Claude Code 2.1.289. Codex stays at 0.160.0. Teams behind a gateway that rejects structured outputs now have a documented switch, and the background command time limit is described correctly for interactive sessions.
