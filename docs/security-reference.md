@@ -285,6 +285,12 @@ are normalized before directory containment checks, so `..` cannot escape an
 allowed prefix. Its tokenizer remains a heuristic, not a complete shell parser;
 the hook is an advisory, fail-open layer, not a filesystem enforcement boundary.
 
+It also blocks process kills chosen by search rather than by PID: `pkill`,
+`killall`, `fuser -k`, `kill -1`, and `kill` fed by `pgrep`/`ps`/`pidof` or by
+`lsof` without `-sTCP:LISTEN`. Those searches match bystanders: a plain
+`lsof -ti :<port>` lists the browser that has the page open, so killing its
+output takes the browser down. `kill <pid>` and listener-only lsof stay allowed.
+
 Hook audits resolve source integrity from the installation being audited, including
 when only a custom settings path is supplied. MCP installation validates existing
 server definitions without stripping unknown user fields before writing them back.

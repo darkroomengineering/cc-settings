@@ -425,6 +425,73 @@ function checkFindXargs(cmd: string): void {
     block("xargs with shell -c enables arbitrary command execution", cmd);
 }
 
+// --- Rule: process kills by search ----------------------------------------
+//
+// Killing by search instead of by PID takes out bystanders. `lsof -ti :3000`
+// lists every process with a socket on the port, including a browser that has
+// the page open, so `lsof -ti :3000 | xargs kill` crashes the browser (it did,
+// 2026-10-04). `pkill -f` / `killall` match by name or argv, which browsers
+// also carry (tab URLs, --app flags), and `fuser -k` hits every socket user.
+//
+// Allowed: `kill <pid>`, `kill $VAR`, `kill $(cat pidfile)`, and lsof limited
+// to the listening socket (`-sTCP:LISTEN`), which only ever names the server.
+// Accepted residual: a search and a kill in different segments
+// (`for p in $(lsof -ti :3000); do kill $p; done`) is not linked up.
+
+const KILL_PREFIX_RE =
+  /^(?:(?:sudo|exec|nohup|command)\s+(?:-\S+\s+)*|env\s+(?:-\S+\s+|\S+=\S*\s+)*|timeout\s+(?:-\S+\s+)*\S+\s+)*/;
+const LISTEN_ONLY_RE = /-s\s*TCP:LISTEN\b/i;
+const KILL_SUBSTITUTION_RE = /\$\(([^)]*)\)|`([^`]*)`/g;
+
+function stageCommand(stage: string): { word: string; args: string } {
+  const rest = stage.trim().replace(KILL_PREFIX_RE, "");
+  const m = rest.match(/^(?:[^\s;&|]*\/)?([^\s/]+)\s*(.*)$/s);
+  return { word: m?.[1] ?? "", args: m?.[2] ?? "" };
+}
+
+function isProcessSearch(text: string): boolean {
+  if (/(^|[\s|(`])(pgrep|pidof|ps|fuser)(\s|$)/.test(text)) return true;
+  return /(^|[\s|(`])lsof(\s|$)/.test(text) && !LISTEN_ONLY_RE.test(text);
+}
+
+function checkProcessKill(segment: string): void {
+  // Segments are already split on ;/&&/||/newlines, so a lone `|` is a pipe.
+  const stages = segment.split("|");
+  for (let i = 0; i < stages.length; i++) {
+    const { word, args } = stageCommand(stages[i] ?? "");
+    if (word === "pkill" || word === "killall") {
+      block(`${word} matches by name and can hit the browser; kill the PID you started`, segment);
+    }
+    if (word === "fuser" && /(^|\s)-[a-zA-Z]*k/.test(` ${args}`)) {
+      block("fuser -k kills every process on the port, including connected browsers", segment);
+    }
+    if (word === "xargs" && /(^|\s)kill(\s|$)/.test(args)) {
+      if (isProcessSearch(stages.slice(0, i).join("|"))) {
+        block(
+          "kill fed by a process search can hit the browser; use lsof -sTCP:LISTEN or the PID you started",
+          segment,
+        );
+      }
+    }
+    if (word === "kill") {
+      // Re-join the later stages: a substitution can contain its own pipe.
+      const rest = stages.slice(i).join("|");
+      for (const sub of rest.matchAll(KILL_SUBSTITUTION_RE)) {
+        if (isProcessSearch(sub[1] ?? sub[2] ?? "")) {
+          block(
+            "kill fed by a process search can hit the browser; use lsof -sTCP:LISTEN or the PID you started",
+            segment,
+          );
+        }
+      }
+      const targets = args.split(/\s+/).filter(Boolean);
+      if (targets.length >= 2 && targets.at(-1) === "-1") {
+        block("kill -1 signals every process you own", segment);
+      }
+    }
+  }
+}
+
 // --- Rule: shell wrapper recursion (bash -c / sh -c) ---------------------
 
 const MAX_DEPTH = 3;
@@ -524,6 +591,7 @@ function analyzeSegment(cmd: string): void {
   checkRmRf(cmd);
   checkGitDestructive(cmd);
   checkGhApiRepoDelete(cmd);
+  checkProcessKill(cmd);
 }
 
 function splitCommands(cmd: string): void {
@@ -545,6 +613,7 @@ function analyzeCommand(cmd: string, depth: number): void {
   checkRmRf(cmd);
   checkGitDestructive(cmd);
   checkGhApiRepoDelete(cmd);
+  for (const seg of cmd.split(SHELL_SEGMENT_SEP_RE)) checkProcessKill(seg.trim());
   checkFindXargs(cmd);
   unwrapAndAnalyze(cmd, depth);
   checkInterpreterOneliners(cmd, depth);
@@ -557,7 +626,11 @@ async function main(): Promise<void> {
   if (!COMMAND) return;
 
   // Fast path: skip entirely if none of the high-risk verbs appear.
-  if (!/\b(rm|git|gh|find|xargs|bash|sh|zsh|python|python3|node|ruby|perl)\b/.test(COMMAND)) {
+  if (
+    !/\b(rm|git|gh|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/.test(
+      COMMAND,
+    )
+  ) {
     return;
   }
 
