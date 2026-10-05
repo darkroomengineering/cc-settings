@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.48.2"; // Linear docs cover the claude.ai connector.
+const VERSION = "15.49.0"; // security-reviewer flags disconnected authorization checks.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
