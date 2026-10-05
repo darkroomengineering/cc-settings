@@ -1441,6 +1441,14 @@ the last login. Distinct names get distinct tokens.
 - Disable any other Linear server in `/mcp`, such as a plain `linear` entry or
   `plugin:productivity:linear`. It keeps its own single login that switches
   workspaces, and Claude may call it instead of the named server.
+- A Linear connector added in the claude.ai web or desktop app also appears in
+  Claude Code, as `claude.ai Linear`, and it has the same single-login
+  problem. Disable it in `/mcp`: that hides it from Claude Code only, and it
+  keeps working in claude.ai chats. Change its workspace only from claude.ai,
+  where the connector is managed, and leave the per-workspace work in Claude
+  Code to the `linear-<workspace>` servers.
+  `ENABLE_CLAUDEAI_MCP_SERVERS=false` hides every claude.ai connector at once,
+  so prefer `/mcp` when only Linear should go.
 - Never authenticate a `linear-<workspace>` server into a different workspace.
   Run `/mcp`, clear its authentication, and log in again if one drifted.
 - Permission allowlists use the server name: `mcp__linear-darkroom__get_issue`.

@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.48.1"; // share-learning posts notes through a PR.
+const VERSION = "15.48.2"; // Linear docs cover the claude.ai connector.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
