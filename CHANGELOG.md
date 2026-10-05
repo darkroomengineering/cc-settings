@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.48.0] — 2026-10-05
+
+Synced with Claude Code 2.1.289. Codex stays at 0.160.0. Teams behind a gateway that rejects structured outputs now have a documented switch, and the background command time limit is described correctly for interactive sessions.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_STRUCTURED_OUTPUTS` (Claude Code 2.1.288) tracked in the manifest and `docs/settings-reference.md`. On Mantle or a gateway that refuses structured outputs, session titles, memory recall and prompt hooks fail without it. cc-settings does not set it.
+
+**Docs:**
+- `docs/settings-reference.md`: the background command time limit applies only in unattended sessions (`-p`, Agent SDK, CI, cloud) since 2.1.288. Terminal, desktop app and VS Code sessions have no limit.
+- `docs/hooks-reference.md`: `InstructionsLoaded` from a subagent's file access carries `agent_id`, `agent_type` and `effort` (2.1.288).
+
+**Skipped:** mods and plugin API additions (tracked in `docs/plans/mods-migration.md`), LSP `requestTimeout`, the `claude purge` rename, `--max-findings`, per-model `/autocompact`, and fix-only bullets. No dedupe: the new native `rm` and deny-rule fixes overlap `safety-net.ts`, which blocks where they prompt.
+
+**Files changed:**
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `src/setup.ts`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`
+- `CHANGELOG.md`
+
 ## [15.47.1] — 2026-10-05
 
 Devs in more than one Linear workspace no longer have to reconnect Claude Code every time they switch projects. `docs/settings-reference.md` now documents the team convention: each dev adds one Linear MCP server per workspace, named `linear-<workspace>`, at user scope. Claude Code keys MCP tokens by server name, so a single shared `linear` entry overwrote its login on every workspace switch. cc-settings still ships no Linear server.
