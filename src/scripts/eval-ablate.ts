@@ -119,7 +119,11 @@ function positive(name: string, fallback: string): string {
   return v;
 }
 const runs = positive("--runs", "1");
-const maxCost = positive("--max-cost-usd", "10");
+// No default ceiling: on a subscription the reported cost is API-equivalent,
+// not billed, and a manual run should finish. Pass the flag to bound one.
+const maxCost = process.argv.includes("--max-cost-usd")
+  ? ["--max-cost-usd", positive("--max-cost-usd", "")]
+  : [];
 
 const plugin = mkdtempSync(join(tmpdir(), "cc-settings-ablate-"));
 const out = join(plugin, "report.json");
@@ -154,8 +158,7 @@ try {
       JUDGE_MODEL,
       "--threshold",
       "0",
-      "--max-cost-usd",
-      maxCost,
+      ...maxCost,
       "--json",
       out,
     ],
