@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.49.0"; // security-reviewer flags disconnected authorization checks.
+const VERSION = "15.50.0"; // Fold pstack test, perf, safety-fact, and repeated-correction checks into existing skills.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

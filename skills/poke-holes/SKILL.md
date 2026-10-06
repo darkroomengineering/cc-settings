@@ -84,6 +84,18 @@ For each issue, state:
 
 Adversary filters aggressively but cautiously — this is the **subset** of likely-real issues.
 
+#### Find the one safety fact
+
+Most risky-looking changes are safe because of one fact ("this call only drops already-dead cache entries"). Before the Adversary runs, name that fact and record how far its evidence got:
+
+1. Asserted: worthless on its own.
+2. Cited: a real `file:line`, or the dependency's own source at its pinned version.
+3. Walked: the failure traced step by step, and it does not reach.
+4. Ran: a script or test that calls the real code and fails loud if the fact is wrong.
+5. Reproduced: shown in the running app.
+
+Push the fact to level 4 when that is cheap, usually one small script importing the same library the app ships. If it holds, it clears most finder issues at once; hand it to the Adversary as evidence. If you cannot get past level 2, say so in the report. Look past what grep shows: the dependency's source and local patches, teardown and microtask timing, JSON or DB columns, wire formats, feature flags, and code several hops downstream.
+
 ### Agent 3: Referee
 
 Takes both inputs and produces the final verdict.
@@ -125,6 +137,9 @@ Sequential — each agent depends on the previous output.
 [What was verified]
 
 ### Verdict: [PASS / FAIL / NEEDS REVIEW]
+
+### Safety Fact
+[The one fact the change is safe because of] — evidence level [1-5], proof: [script output, file:line, or "unproven"]
 
 ### Confirmed Issues
 | # | Severity | Issue | File:Line | Action Required |

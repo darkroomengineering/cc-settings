@@ -384,7 +384,11 @@ Whole-repo performance audit with one governing rule: **a finding does not exist
 
 **Playbook and harnesses.** `references/performance-playbook.md` is the measured fix ladder for mobile and slow-connection load (images, unused client code, inline CSS, per-route CSS chunking, font subsetting with `unicode-range`, platform elements over client widgets, WebGL gated on the renderer string) with the artifacts to discard first and the traps met on the way. `references/net-capture.mjs` records a cold load under emulated Slow 3G / 3G with 4x CPU (requests, bytes by type, TTFB/FCP/LCP/load); `references/bundle-attribution.py` attributes a route's shipped JS to packages and app directories from source maps. Both are the Phase 1 commands for a web app; copy them into the repo's audit folder so the numbers stay reproducible there.
 
-**Measurement hygiene:** ≥3 runs per number, report median + spread; production builds only (`next dev` skips optimization paths and lies); label cold vs warm; same machine for any two numbers you compare; record the exact command next to every number.
+**Measurement hygiene:** ≥3 runs per number, report median + spread; production builds only (`next dev` skips optimization paths and lies); label cold vs warm; same machine for any two numbers you compare; record the exact command next to every number. Alternate the sides (A, B, A, B) when comparing, and treat a gap smaller than the run-to-run spread as no measurable difference. Before reporting any number, answer three questions from a run, not from reading code:
+
+1. **What limits it?** Name the limiter (CPU on one core, I/O wait, network, the load generator itself) from a profiled run you do not report. A number with no named limiter is inconclusive.
+2. **Does it break a limit?** Check bytes per second against disk and network bandwidth, and the time saved against the time the changed piece took (removing 10% of a run can make it at most ~11% faster). A result past a limit measured a cache, a no-op, or a bug.
+3. **Did the work happen?** Confirm the timed region did the work and produced correct output: requests reached the server, rows were written, promises were awaited, errors were counted. Fast rejections and discarded lazy results produce numbers for work that never ran.
 
 ### Phase 0 — What's runnable
 

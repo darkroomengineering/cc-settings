@@ -11,9 +11,9 @@ bar below can still keep the test.
 
 | ID | Pattern | The tell |
 |---|---|---|
-| T1 | No assertion | The test runs code and checks nothing, or only that it did not throw when throwing was never plausible. |
+| T1 | No assertion | The test runs code and checks nothing, or only that it did not throw when throwing was never plausible. Weak-only checks count: `toBeDefined`, `toBeTruthy`, `toBeInstanceOf`, `toBeGreaterThan(0)`, or a bare `toHaveBeenCalled` with no assertion on the payload or the resulting state. |
 | T2 | Self-comparison | The expected value is the input, a copy of it, or the same object passed through an identity function. |
-| T3 | Copied inventory | The test hard-codes a list (exports, files, manifest keys, rule names) that must be edited in lockstep with the source it mirrors. |
+| T3 | Copied inventory | The test hard-codes a list (exports, files, manifest keys, rule names) that must be edited in lockstep with the source it mirrors. A single restated value counts too: `expect(LIMITS.maxTools).toBe(8)` or `expect(PROMPT).toContain("You are")` blocks the edit and tests nothing; test the code that reads the value instead. |
 | T4 | Source grep | The test reads source text and asserts a string, import, or identifier is present, so a rename breaks it while a behavior regression passes. |
 | T5 | Private call shape | The test asserts which internal helper was called with which arguments, when a public-boundary test already covers the outcome. |
 | T6 | Duplicate contract | Two or more tests exercise the same input class through the same path and fail for the same regression. |
@@ -22,7 +22,7 @@ bar below can still keep the test.
 | T9 | Test-only production code | Production code whose only callers are tests. Delete both. |
 | T10 | Self-computed expectation | The expected value is produced by the function under test or by the same renderer, so the assertion cannot disagree with the code. |
 | T11 | Mock implements the answer | The mock returns the asserted result, or one generic mock stands in for several different APIs. |
-| T12 | Fixture does the owner's job | The fixture supplies the ordering, receipt, or persisted record that the code under test is supposed to produce. |
+| T12 | Fixture does the owner's job | The fixture supplies the ordering, receipt, or persisted record that the code under test is supposed to produce, or the assertion reads only data the test or `beforeEach` built and the subject never runs in the test body. |
 | T13 | Restated flag | The test checks that a capability flag is set instead of exercising the behavior the flag promises. |
 | T14 | Wrong-reason negative | A "rejects X" test passes because a different guard rejects the input first, or through a path production never reaches. |
 | T15 | Overclaiming name | The name or fixture promises more than the input exercises, such as a "handles concurrent writes" test with one writer. |
@@ -43,7 +43,11 @@ test is not ready.
 4. Does it need a production seam (an export, flag, or hook) that no production
    caller needs? If so, test at the real boundary instead.
 
-Then check it against T1–T15. A bug regression test must fail on the pre-fix
+Then check it against T1–T15. The quick screen for T1, T2, T3, T10, T11, and
+T12: would the test still pass if every function it imports returned
+`undefined`? If yes, it observes no behavior. Call the subject in the test body
+with one concrete input and assert the literal output or the observable effect;
+for an absence, assert the presence on another input in the same test. A bug regression test must fail on the pre-fix
 code for the intended reason; one that never failed proves the mock, not the
 fix. Write it once, at the owning boundary, not at every layer the bug crosses.
 

@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.50.0] — 2026-10-06
+
+Four checks from Cursor's [pstack](https://github.com/cursor/plugins/tree/main/pstack) are folded into skills we already ship. The skill count is unchanged. Test reviews now catch tests that would pass even if the code did nothing, perf numbers have to name what limits them, `/poke-holes` proves the one fact a change is safe because of, and `/harvest` turns a repeated correction into a check that fails rather than another prose rule.
+
+**Adopted:**
+- `skills/audit/references/test-audit.md`: a quick screen ("would it pass if every import returned `undefined`?"), with T1 extended to weak assertions, T3 to single-constant pins, and T12 to fixture-only assertions. The `tester` agent inherits these through its authoring gate.
+- `skills/audit/SKILL.md` perf measurement hygiene: alternating A/B runs, a gap inside the spread counts as no difference, and three questions before reporting a number (what limits it, does it break a physical limit, did the work happen).
+- `skills/poke-holes/SKILL.md`: a "Find the one safety fact" step with a 5-level evidence ladder (asserted, cited, walked, ran, reproduced), plus a Safety Fact line in the report.
+- `skills/harvest/SKILL.md`: a "Repeated corrections" route that ranks architecture, then types, then a lint whose error names the fix (a stock message does not count), then a test, with prose last. Each check must be shown failing on a real past mistake.
+
+**Skipped:** pstack's mode skill and playbooks, the principle skills, and its review, swarm, and writing skills. They duplicate AGENTS.md guardrails, `/poke-holes`, `/orchestrate`, and the Voice rules. Its model-routing and Grok bot skills are Cursor-specific.
+
+**Files changed:**
+- `skills/audit/references/test-audit.md`, `skills/audit/SKILL.md`, `skills/poke-holes/SKILL.md`, `skills/harvest/SKILL.md`
+- `evals/harvest-repeated-correction/` (new case, with a fixture repo holding two past corrections and a third offender)
+- `CHANGELOG.md`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts` (version)
+
 ## [15.49.0] — 2026-10-05
 
 `security-reviewer` now catches authorization checks that run but do not protect anything. A check with a missing `await`, a boolean result nobody reads, or a check on one id followed by an action on another passed review before, because the check was visibly there.
