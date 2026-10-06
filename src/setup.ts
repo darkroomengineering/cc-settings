@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.52.0"; // Planner turn cap removed; eval-ablate runner.
+const VERSION = "15.53.0"; // eval-ablate runs uncapped by default.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
