@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.52.0] — 2026-10-06
+
+The planner agent no longer stops after 25 turns, so a large planning job finishes instead of being cut off. A new runner compares the full cc-settings setup against vanilla Claude Code on the eval cases.
+
+**Changed:**
+- `agents/planner.md`: removed `maxTurns: 25`. Effort stays `xhigh`.
+
+**Added:**
+- `src/scripts/eval-ablate.ts`: runs the eval cases with skills, agents and the standards loaded against vanilla Claude Code and lists the cases where vanilla scores as well (`--tag`, `--case`, `--runs`, `--max-cost-usd`). Not covered: settings.json hooks and permissions.
+
+**Files changed:**
+- `agents/planner.md`, `src/scripts/eval-ablate.ts`, `.claude/AGENTS.md`
+
 ## [15.51.0] — 2026-10-06
 
 Synced with Claude Code 2.1.291 and Codex 0.160.1. The new WebSearch refill setting is documented, so a long interactive research session no longer looks capped at 200 searches.

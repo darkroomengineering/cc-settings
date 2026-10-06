@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.51.0"; // Sync with Claude Code 2.1.291 and Codex 0.160.1.
+const VERSION = "15.52.0"; // Planner turn cap removed; eval-ablate runner.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

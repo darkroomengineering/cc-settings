@@ -13,7 +13,6 @@ description: |
 
   RETURNS: A Functional DAG, numbered task lists, ADRs, risk assessments, phase breakdowns
 tools: [Read, Grep, Glob, LS]
-maxTurns: 25
 effort: xhigh
 color: blue
 ---
