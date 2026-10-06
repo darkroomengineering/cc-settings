@@ -57,7 +57,8 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_AX_PREPARK_MS` | ms (string) or unset | Screen-reader mode: pause with the cursor at the start of a line before writing it. Off by default since v2.1.287; `50` restores the old pause |
 | `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper |
 | `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` |
-| `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200), which stops runaway search loops |
+| `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` | integer (string) | Session-wide cap on WebSearch tool calls (default 200), which stops runaway search loops. Interactive sessions use a refilling budget instead (see the next row) |
+| `CLAUDE_CODE_WEB_SEARCH_REFILLS_PER_HOUR` | integer (string) | Refill rate of an interactive session's WebSearch budget (default 100 calls per hour); `0` turns the refill off |
 | `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` | integer (string) | Optional per-session cap on subagent spawns; `/clear` resets the budget. Set it explicitly when a fan-out-heavy workflow needs a hard ceiling. |
 | `CLAUDE_CODE_MESSAGING_SOCKET` | socket path (read-only) | Set *by* Claude Code, not by you: this session's [cross-session messaging](#cross-session-messaging) inbox socket. Exported before any hook runs, `SessionStart` included, and never inherited from a parent session |
 | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | integer (string) | Cap on subagents running at the same time (default 20), so one message cannot fan out unbounded background agents |
