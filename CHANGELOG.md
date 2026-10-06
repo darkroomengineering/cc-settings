@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.51.0] — 2026-10-06
+
+Synced with Claude Code 2.1.291 and Codex 0.160.1. The new WebSearch refill setting is documented, so a long interactive research session no longer looks capped at 200 searches.
+
+**Adopted:**
+- `CLAUDE_CODE_WEB_SEARCH_REFILLS_PER_HOUR` (Claude Code 2.1.290) tracked in the manifest and `docs/settings-reference.md`. Interactive sessions now refill their WebSearch budget at 100 calls per hour instead of stopping at 200. cc-settings does not set it.
+
+**Docs:**
+- `docs/hooks-reference.md`: `TeammateIdle` no longer fires from a teammate's own subagents or forks (2.1.290).
+
+**Skipped:** the mods and plugin API additions (`tool.check` `agentId` and `ceiling`, `turn.step` `serverToolUses`, `ThemeKey`/`Color`, `plugin validate` `gatingHooks`) wait until `plugins/types/claude-code.d.ts` is regenerated with `/plugin-types`, which only runs interactively. Also skipped: Managed Agents onboarding, `claude attach`/`logs` by name, Chrome no longer enabled from project settings, `pyright` no longer read-only, the `DISABLE_ATTACHMENTS` and `DISABLE_NONESSENTIAL_TRAFFIC` changes (cc-settings sets neither), and fix-only bullets. Codex 0.160.1 is a Windows remote MCP backport with nothing to adopt. No dedupe.
+
+**Files changed:**
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `src/setup.ts`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`
+- `CHANGELOG.md`
+
 ## [15.50.0] — 2026-10-06
 
 Four checks from Cursor's [pstack](https://github.com/cursor/plugins/tree/main/pstack) are folded into skills we already ship. The skill count is unchanged. Test reviews now catch tests that would pass even if the code did nothing, perf numbers have to name what limits them, `/poke-holes` proves the one fact a change is safe because of, and `/harvest` turns a repeated correction into a check that fails rather than another prose rule.

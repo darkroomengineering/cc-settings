@@ -76,7 +76,7 @@ This surface may change between Claude Code releases without notice — regenera
 |-------|------|----------------|----------|
 | `SubagentStart` | A subagent spawns | Agent type (e.g., `explore`, `planner`) |  No |
 | `SubagentStop` | A subagent finishes | Agent type | No |
-| `TeammateIdle` | An Agent Teams teammate goes idle | -- | No |
+| `TeammateIdle` | An Agent Teams teammate goes idle (not its own subagents or forks) | -- | No |
 | `TaskCompleted` | A task is marked completed | -- | No |
 | `TaskCreated` | A task is created via `TaskCreate` | -- | No |
 
