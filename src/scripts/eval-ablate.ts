@@ -71,7 +71,8 @@ function buildPlugin(dir: string): void {
       description: "cc-settings ablation arm",
     }),
   );
-  for (const sub of ["skills", "agents"]) symlinkSync(join(ROOT, sub), join(dir, sub));
+  // src/ is for fixtures that copy repo scripts (proof-of-work-gate).
+  for (const sub of ["skills", "agents", "src"]) symlinkSync(join(ROOT, sub), join(dir, sub));
   // The eval runner refuses to write results into a symlinked eval dir.
   cpSync(join(ROOT, "evals"), join(dir, "evals"), {
     recursive: true,
@@ -98,47 +99,6 @@ if (!Bun.which("claude")) {
   process.exit(1);
 }
 
-const plugin = mkdtempSync(join(tmpdir(), "cc-settings-ablate-"));
-const out = join(plugin, "report.json");
-buildPlugin(plugin);
-
-const proc = Bun.spawnSync({
-  cmd: [
-    "claude",
-    "plugin",
-    "eval",
-    plugin,
-    ...flags("--tag"),
-    ...flags("--case"),
-    "--runs",
-    flag("--runs", "1"),
-    "-j",
-    "1",
-    "--ablation",
-    "with-without",
-    "--trust-plugin",
-    "--scaffold",
-    "--allow-tools",
-    "Write",
-    "Edit",
-    "Bash",
-    "--no-publish",
-    "--model",
-    flag("--model", "claude-sonnet-5-5"),
-    "--judge-model",
-    JUDGE_MODEL,
-    "--threshold",
-    "0",
-    "--max-cost-usd",
-    flag("--max-cost-usd", "10"),
-    "--json",
-    out,
-  ],
-  cwd: plugin,
-  stdout: "pipe",
-  stderr: "inherit",
-});
-
 interface AblationReport {
   partial?: boolean;
   partialReason?: string;
@@ -149,20 +109,84 @@ interface AblationReport {
     arms?: Record<string, { error?: string | null }[]>;
   }[];
 }
+
+function positive(name: string, fallback: string): string {
+  const v = flag(name, fallback);
+  if (!(Number(v) > 0)) {
+    console.error(`[eval-ablate] ${name} needs a positive number, got "${v}".`);
+    process.exit(1);
+  }
+  return v;
+}
+const runs = positive("--runs", "1");
+const maxCost = positive("--max-cost-usd", "10");
+
+const plugin = mkdtempSync(join(tmpdir(), "cc-settings-ablate-"));
+const out = join(plugin, "report.json");
+let proc: ReturnType<typeof Bun.spawnSync>;
 let report: AblationReport = {};
 try {
-  report = JSON.parse(readFileSync(out, "utf8")) as AblationReport;
-} catch {
-  // No report: the CLI failed before writing one. Handled below.
+  buildPlugin(plugin);
+  proc = Bun.spawnSync({
+    cmd: [
+      "claude",
+      "plugin",
+      "eval",
+      plugin,
+      ...flags("--tag"),
+      ...flags("--case"),
+      "--runs",
+      runs,
+      "-j",
+      "1",
+      "--ablation",
+      "with-without",
+      "--trust-plugin",
+      "--scaffold",
+      "--allow-tools",
+      "Write",
+      "Edit",
+      "Bash",
+      "--no-publish",
+      "--model",
+      flag("--model", "claude-sonnet-5-5"),
+      "--judge-model",
+      JUDGE_MODEL,
+      "--threshold",
+      "0",
+      "--max-cost-usd",
+      maxCost,
+      "--json",
+      out,
+    ],
+    cwd: plugin,
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+
+  try {
+    report = JSON.parse(readFileSync(out, "utf8")) as AblationReport;
+  } catch {
+    // No report: the CLI failed before writing one. Handled below.
+  }
+} finally {
+  rmSync(plugin, { recursive: true, force: true });
 }
-rmSync(plugin, { recursive: true, force: true });
 
 if (!report.cases) {
   console.error(`[eval-ablate] eval did not produce a report (exit ${proc.exitCode}).`);
   process.exit(1);
 }
 
-const rows = report.cases
+if (report.partial) console.log(`partial run: ${report.partialReason ?? "unknown reason"}\n`);
+const complete = report.cases.filter(
+  (c) =>
+    c.aggregates?.score !== undefined &&
+    c.aggregates.scoreWithout !== undefined &&
+    c.aggregates.delta !== undefined,
+);
+const notRun = report.cases.length - complete.length;
+const rows = complete
   .map((c) => ({
     name: c.name,
     with: c.aggregates?.score ?? 0,
@@ -182,6 +206,6 @@ for (const r of rows) {
   );
 }
 const matched = rows.filter((r) => r.errors === 0 && r.delta <= 0).length;
-console.log(`\n${matched} of ${rows.length} cases: vanilla scores at least as well.`);
+console.log(`\n${matched} of ${rows.length} compared cases: vanilla scores at least as well.`);
+if (notRun > 0) console.log(`${notRun} case(s) had no comparison (not run or not graded).`);
 if (report.costUsd !== undefined) console.log(`cost $${report.costUsd.toFixed(2)}`);
-if (report.partial) console.log(`partial run: ${report.partialReason ?? "unknown reason"}`);
