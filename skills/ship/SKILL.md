@@ -204,7 +204,14 @@ After `gh pr create`, watch the PR-attached checks until all pass. This step is 
      --jq '.[] | select(.type=="workflows" or .type=="required_status_checks") | .parameters'
    ```
 
-   A `workflows` rule names its file (`ci-gate.yml`); verify it by run, not by `gh pr checks`: `gh api "repos/{owner}/{repo}/actions/runs?head_sha=HEAD_SHA" --jq '.workflow_runs[] | "\(.name) \(.status) \(.conclusion)"'`. A `required_status_checks` rule names contexts that do appear in `gh pr checks`. An empty result from both means nothing is required, so every reported check is the gate.
+   A `workflows` rule names its file (`ci-gate.yml`); verify it by run, not by `gh pr checks`, matching the run's `path` to the rule's path (display names can collide, and a commit can have both push and PR runs):
+
+   ```bash
+   gh api "repos/{owner}/{repo}/actions/runs?head_sha=HEAD_SHA" \
+     --jq '.workflow_runs[] | select(.path==".github/workflows/ci-gate.yml") | "\(.id) \(.event) \(.status) \(.conclusion)"'
+   ```
+
+   Take the newest matching run for the PR's event. A `required_status_checks` rule names contexts that do appear in `gh pr checks`. An empty result from both means nothing is required, so every reported check is the gate.
 
 2. **Watch once, blocking:**
 
@@ -214,7 +221,7 @@ After `gh pr create`, watch the PR-attached checks until all pass. This step is 
 
    Run it in the background when other work can proceed; the harness notifies you when it exits. If it exits within seconds saying no checks are reported, the checks have not registered yet: re-run it once after 30 seconds rather than treating it as green or red.
 
-3. **Read the verdict, then the required workflows.** Green means every required check and run concluded `success`. "No failures" while something is still pending or missing is not green. Re-read `gh pr checks --json name,bucket,state,workflow,link`, then confirm each required workflow run from step 1 with the `actions/runs` query.
+3. **Read the verdict, then the required workflows.** Green means every required check and run concluded `success`. "No failures" while something is still pending or missing is not green. Re-read `gh pr checks --json name,bucket,state,workflow,link`, then confirm each required workflow run from step 1 with the `actions/runs` query. If that run is still in progress after the PR checks finish, wait on it by ID with one blocking `gh run watch RUN_ID --exit-status --interval 30`, then read its `conclusion`. That run is part of this step's watch, not a new loop.
 
 If a check fails:
 
