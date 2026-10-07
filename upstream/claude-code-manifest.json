@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-10-06T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.291",
+  "lastScan": "2026-10-07T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.292",
   "knownSettingsKeys": [
     "$schema",
     "additionalMarketplaces",
@@ -285,7 +285,8 @@
     "OTEL_LOG_MANAGED_SETTINGS",
     "MCP_SDK_GENERATION",
     "MCP_PROTOCOL_NEGOTIATION",
-    "CLAUDE_CODE_DISABLE_STRUCTURED_OUTPUTS"
+    "CLAUDE_CODE_DISABLE_STRUCTURED_OUTPUTS",
+    "CLAUDE_CODE_OVERLOADED_RETRY_BASE_DELAY_MS"
   ],
   "knownBuiltinTools": [
     "Agent",
@@ -379,6 +380,7 @@
     "v2.1.286 sync (2026-10-01). Adopted: 2.1.286 tells Claude to run any project or user skill named `verify` right before a code commit; the managed adversarial-panel skill was named `verify`, so it is now `poke-holes` (`verify` tombstoned, Claude manifest v15, Codex runtime manifest v13). Docs-only: one retry limit now covers a whole model call (at most 14 requests by default), noted on the CLAUDE_CODE_MAX_RETRIES row. Skipped: --bare scoping, worktree-subagent double CLAUDE.md load fix, task tools in foreground subagents, permission-prompt and list UI, secret-redaction, MCP, auth, Remote Control, cloud, VS Code and Claude Tag fixes, npm plugin source refusal.",
     "v2.1.287 sync (2026-10-02). Adopted: `bareElicitationCapability` MCP field in src/schemas/mcp.ts (escape hatch for servers that stop connecting after URL elicitation landed); CLAUDE_AX_PREPARK_MS tracked. Docs only: `alwaysLoad: false` now defers every tool of a server, OTel `user_prompt` gains `prompt_text`, and Opus 4.7+/Fable default to 1M on Bedrock, Vertex, Foundry and the apps gateway. Skipped: Claude Mods (tracked in docs/plans/mods-migration.md), the You should know built-in mod, asyncRewake and CLAUDE.md double-attach fixes, permission tightening, and platform, IDE, cloud and screen-reader fixes.",
     "v2.1.288\u20132.1.289 sync (2026-10-05). Adopted: CLAUDE_CODE_DISABLE_STRUCTURED_OUTPUTS tracked (2.1.288, for gateways that reject structured outputs; not set by cc-settings). Docs only: the background command time limit applies only in unattended sessions (2.1.288, settings-reference); InstructionsLoaded from a subagent's file access carries agent_id/agent_type and effort (2.1.288, hooks-reference). No dedupe: native dangerous-rm in bash -c and env-prefix deny fixes overlap safety-net.ts, which blocks rather than prompts; no hook loads path-scoped rules. Skipped: mods and plugin API additions (docs/plans/mods-migration.md; plugins/types/claude-code.d.ts still from 2.1.277, regenerate with /plugin-types alongside that work), LSP requestTimeout (no LSP servers), claude purge rename, --max-findings, per-model /autocompact, idle_prompt fix, and resume, auth, IDE, cloud, Claude Tag, Windows and screen-reader fixes.",
-    "v2.1.290–2.1.291 sync (2026-10-06). Adopted: CLAUDE_CODE_WEB_SEARCH_REFILLS_PER_HOUR tracked (2.1.290: the interactive WebSearch budget refills at 100 calls/hour instead of stopping at 200; not set by cc-settings). Docs only: TeammateIdle no longer fires from a teammate's subagents or forks (2.1.290, hooks-reference). No dedupe. Skipped: mods and plugin API additions (tool.check agentId and ceiling, turn.step serverToolUses, ThemeKey/Color, plugin validate gatingHooks) until plugins/types/claude-code.d.ts is regenerated with /plugin-types; Managed Agents onboarding, claude attach/logs by name, Chrome no longer enabled from project settings, pyright no longer read-only, DISABLE_ATTACHMENTS and NONESSENTIAL_TRAFFIC changes (cc-settings sets neither), self-hosted runners, /code-review medium output, permission and sandbox fixes, and the 2.1.291 regression fixes."
+    "v2.1.290–2.1.291 sync (2026-10-06). Adopted: CLAUDE_CODE_WEB_SEARCH_REFILLS_PER_HOUR tracked (2.1.290: the interactive WebSearch budget refills at 100 calls/hour instead of stopping at 200; not set by cc-settings). Docs only: TeammateIdle no longer fires from a teammate's subagents or forks (2.1.290, hooks-reference). No dedupe. Skipped: mods and plugin API additions (tool.check agentId and ceiling, turn.step serverToolUses, ThemeKey/Color, plugin validate gatingHooks) until plugins/types/claude-code.d.ts is regenerated with /plugin-types; Managed Agents onboarding, claude attach/logs by name, Chrome no longer enabled from project settings, pyright no longer read-only, DISABLE_ATTACHMENTS and NONESSENTIAL_TRAFFIC changes (cc-settings sets neither), self-hosted runners, /code-review medium output, permission and sandbox fixes, and the 2.1.291 regression fixes.",
+    "v2.1.292 sync (2026-10-07). Adopted: the Agent tool effort parameter (CLAUDE-FULL.md Effort and context, frontmatter-reference effort row); CLAUDE_CODE_OVERLOADED_RETRY_BASE_DELAY_MS tracked (not set by cc-settings). Docs only: MCP 2026-07-28 negotiation now default for stdio servers too (settings-reference); hook output <system-reminder> tags are escaped (hooks-reference). No dedupe. Skipped: mods and plugin API additions (prompt.autocomplete, $.model.complete cache, agent.spawn workflow agents) until plugins/types/claude-code.d.ts is regenerated with /plugin-types; permissionMode auto fix (agents use plan only); plugin install --marketplace, plugin test expect change; security, sandbox, UNC, Windows fixes; claude -p background waits, scheduled task and /loop fixes; tool input and TUI fixes; agent name 256-char cap; cloud, Remote Control, Claude Tag, Code Review."
   ]
 }

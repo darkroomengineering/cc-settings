@@ -326,6 +326,10 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 > | `PostToolUse` | sync | silent | injects |
 > | `PostToolUse` | async | silent | injects |
 >
+> `<system-reminder>` tags inside hook output are escaped before they reach
+> the model (v2.1.292), so a hook cannot pass its text off as a system
+> reminder.
+>
 > This is event-specific, not a blanket rule: `SessionStart` plain stdout DOES
 > reach the model (observed continuously across sessions). Never assume a new
 > event behaves like the ones above without checking — plain stdout on
