@@ -159,7 +159,9 @@ the bridge is down, pause or switch to Sonnet and tell the user.
 output-priced and every inheriting agent spends them. Raise deliberately:
 `/effort high` for hard non-coding reasoning, `/effort xhigh` for audits,
 migrations, and hard debugging, `ultrathink` for one turn. Agent frontmatter
-pins effort where depth is non-negotiable (`security-reviewer`, `planner`).
+pins effort where depth is non-negotiable (`security-reviewer`, `planner`);
+the Agent tool's `effort` parameter raises or lowers one spawn without
+changing the agent file.
 `ultracode`: its own `/effort` toggle for automatic dynamic workflows at any
 effort level; pair it with `xhigh` when the run needs depth.
 `/effort` remembers a level per model, so a raise on Fable does not

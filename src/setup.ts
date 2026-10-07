@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.53.1"; // eval-ablate keeps its results.
+const VERSION = "15.53.2"; // sync with Claude Code v2.1.292.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

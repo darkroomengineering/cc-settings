@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.53.2] — 2026-10-07
+
+Sync with Claude Code v2.1.292. Codex stays at v0.160.1.
+
+**Adopted:**
+- Agent tool `effort` parameter (2.1.292): `CLAUDE-FULL.md` and `docs/frontmatter-reference.md` say one spawn can run at a different effort without editing the agent file, so a hard slice gets more thinking without raising the default.
+- `CLAUDE_CODE_OVERLOADED_RETRY_BASE_DELAY_MS` (2.1.292): tracked in the manifest and documented in `docs/settings-reference.md`; cc-settings does not set it.
+
+**Docs only:**
+- `docs/settings-reference.md`: the MCP 2026-07-28 negotiation is the default for local (stdio) servers too.
+- `docs/hooks-reference.md`: `<system-reminder>` tags in hook output are escaped before they reach the model.
+
+**Files changed:**
+- `CLAUDE-FULL.md`
+- `docs/frontmatter-reference.md`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `upstream/claude-code-manifest.json`
+- `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
+
 ## [15.53.1] — 2026-10-07
 
 The vanilla comparison runner now keeps its results after a run, so a long comparison is not lost when the temp directory is cleaned up. Skills that call helper scripts under `~/.claude/src` now work inside the eval sandbox.
