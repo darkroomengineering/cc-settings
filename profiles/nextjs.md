@@ -2,7 +2,7 @@
 name: nextjs
 description: Next.js web apps
 model: claude-opus-5-5
-skills: [build, component, hook, lighthouse]
+skills: [build, component, hook]
 ---
 
 # Next.js Profile (App Router)

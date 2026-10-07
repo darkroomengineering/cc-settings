@@ -1,7 +1,7 @@
 ---
 name: audit
 argument-hint: "[full|codebase|docs|process|performance|tests|debt|threat-model|motion|seo]"
-description: Repo audits, one mode or all (codebase, docs, process, perf, tests, threat-model, motion, SEO, debt). Triggers "audit the codebase", "full audit", "perf audit", "audit the tests", "threat model", "motion audit", "seo audit", "debt ledger". Single-page CWV goes to /lighthouse.
+description: Repo audits, one mode or all (codebase, docs, process, perf, tests, threat-model, motion, SEO, debt). Triggers "audit the codebase", "full audit", "perf audit", "audit the tests", "threat model", "motion audit", "seo audit", "debt ledger".
 context: main
 requires:
   - mcp: context7
@@ -33,7 +33,7 @@ One skill, ten whole-repo audit modes. Eight of them share a skeleton: read the 
 
 - **Codebase** — one merged audit, two lenses on the same read. The **structure lens** (ported from Cursor's internal `thermo-nuclear-code-quality-review` skill, reported by Eric Zakariasson as Cursor's most-used internal skill; formerly this skill's standalone Maintainability mode) asks **should this code exist?** — 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7. The **behavior lens** (adapted from the fable audit goal-spec trio, gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; formerly the separate Codebase mode) asks **does it do what it promises?** — correctness, incoherences, affordance gaps. Merged August 2026: both modes fanned the same whole-repo readers over the same files and shipped near-identical reports, so they now run as one pass with two hunt lists. The July 2026 cc-settings audit ran the behavior lens and produced 28 findings, ~all confirmed and fixed.
 - **Docs and Process** — from the same fable audit trio. Truth and structure of the docs (docs), walkable end-to-end journeys (process). The mechanics that made the July 2026 audit work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these modes.
-- **Performance** — asks **where is time actually going, measured?** Empirical-only: a finding does not exist until a number confirms it. Covers client runtime (via the same Lighthouse protocol `/lighthouse` uses), bundle and build, server and data, and code-level hot paths, adapting to what the repo actually is (web app vs CLI vs library).
+- **Performance** — asks **where is time actually going, measured?** Empirical-only: a finding does not exist until a number confirms it. Covers client runtime (Lighthouse, 3 mobile + 3 desktop runs averaged), bundle and build, server and data, and code-level hot paths, adapting to what the repo actually is (web app vs CLI vs library).
 - **Tests** — adapted from openclaw's `test-audit` skill. Asks **which tests cost maintenance without guarding behavior?** — assertion-free probes, self-computed expectations, mocks that implement the answer, copied inventories, test-only production seams — with a retention bar so contract tests survive.
 - **Threat-Model** — adapted from openai/skills `security-threat-model` (Apache-2.0). Asks **what can go wrong, and who would exploit it?** — trust boundaries, attacker capability, abuse paths tied to attacker goals, mitigations mapped to components.
 - **Motion** — adapted from emilkowalski/skills `improve-animations` (MIT). Asks **where does animation work have the highest leverage?** — purpose/frequency, easing/duration, physicality/origin, interruptibility, performance, accessibility, cohesion, and missed opportunities, turned into self-contained implementation plans rather than a findings report.
@@ -62,19 +62,16 @@ A request for everything, or one that names two or more verticals ("audit perfor
 | SEO | "seo audit", "aeo", "ai engine optimization", "answer engine", "discoverability audit", "rank better", "llms.txt" |
 | Debt | "debt ledger", "shortcut ledger", "what did we defer", "what corners did we cut" |
 
-One remaining ambiguity, Performance vs `/lighthouse`: a page-speed ask scoped to a URL or a target score ("check page speed on /", "improve web vitals", "get LCP under 2.5s") is `/lighthouse` — it measures one page and loops fixes until targets are met. A repo-wide ask ("performance audit", "why is the app slow") is this skill's Performance mode — it measures every surface and ships a report. When the phrasing genuinely fits both, ask which the user wants; don't guess.
-
 Debt mode is a mechanical grep — run it standalone or as a cheap first pass before Codebase mode.
 
 ## When to use vs other review skills
 
 - `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security), now including an animation checklist when the diff touches motion. Every change.
 - `/audit` (this skill) — periodic whole-repo audit, ten modes. Full mode runs every mode that applies and merges them into one ranked report. Codebase mode asks "should this code exist, and does it do what it promises?"; docs and process modes ask whether the docs tell the truth and the journeys walk end-to-end; performance mode asks "where is time actually going, measured?"; tests mode asks "which tests guard nothing?"; threat-model mode asks "what can go wrong, and who would exploit it?"; motion mode asks "where does the animation work have the highest leverage?"; seo mode asks "will this site be found, ranked, and cited?"; debt mode asks "what did we defer on purpose?" Run codebase mode on major version cuts, after extended velocity sprints, before a load-bearing migration. Docs and process modes shine before releases and after feature bursts. Performance mode fits before a launch, after a dependency-heavy sprint, or whenever "the site feels slow" comes up without a number attached. Tests mode fits when the suite is slow or brittle, or after a burst of agent-written tests. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface. Motion mode fits after a UI-heavy sprint or before a client showcase. SEO mode fits before a site launch and as a first pass on any client marketing/content site.
-- `/lighthouse` — single-page CWV measurement plus a fix-until-targets-met loop. Performance mode delegates its client-runtime measurements to the same Lighthouse protocol and hands findings back to `/lighthouse` or `/refactor` for execution; it never duplicates the loop.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/poke-holes` — adversarial check of a single change/claim, not a repo sweep.
 
-A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to `/zero-tech-debt` or `/refactor`, client-runtime perf findings to `/lighthouse`.
+A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to `/zero-tech-debt` or `/refactor`, client-runtime perf findings to `/fix`.
 
 > **Claude Code only (v2.1.154+)**: standalone Codex skips this tip and the
 > Workflow command below. In Claude, run `/effort ultracode` before invoking
@@ -405,7 +402,7 @@ The plan lists each surface, the measurement command, and the budget or leverage
 
 One pass per applicable surface; every number goes into the Measurement Log.
 
-1. **Client runtime** — delegate to the same Lighthouse protocol `/lighthouse` uses (3 mobile + 3 desktop runs, averaged) against the production build, per key route. Collect LCP, INP (or TBT as lab proxy), CLS, plus long-task totals from the traces.
+1. **Client runtime** — run Lighthouse (3 mobile + 3 desktop runs, averaged) against the production build, per key route. Collect LCP, INP (or TBT as lab proxy), CLS, plus long-task totals from the traces.
 2. **Bundle & build** — the framework's build output for per-route first-load JS; a bundle analyzer pass for composition (which deps dominate); build wall-time via `hyperfine 'bun run build'` (or 3 timed runs, median, when hyperfine is absent).
 3. **Server & data** — timed requests (`curl -w '%{time_starttransfer} %{time_total}'`) against the local production serve, per key endpoint; query counts per request from logs to catch N+1s; request logs or Server-Timing headers to expose waterfalls.
 4. **Hot paths (code-level)** — CPU profile the heaviest flow (`node --cpu-prof` / bun's inspector / React Profiler for render counts), or micro-benchmark a suspect function with `hyperfine` or the test runner's bench support.
@@ -434,7 +431,7 @@ Run the confirming measurement for every hypothesis:
 
 ### Output
 
-Shared Contract report at `docs/audits/performance-audit-YYYY-MM-DD.md`, with mode-specific mechanics: the summary-table status column reads **measured** (there is no PLAUSIBLE); every finding row carries its number, the command that produced it, and its anchor (budget source or leverage math); two extra sections — **Measurement Log** (every command run, median, spread, environment) and **Unmeasured candidates**. Findings hand off to `/lighthouse` (client-runtime fixes with a target to loop against) or `/refactor` (structural fixes); this mode never applies fixes itself.
+Shared Contract report at `docs/audits/performance-audit-YYYY-MM-DD.md`, with mode-specific mechanics: the summary-table status column reads **measured** (there is no PLAUSIBLE); every finding row carries its number, the command that produced it, and its anchor (budget source or leverage math); two extra sections — **Measurement Log** (every command run, median, spread, environment) and **Unmeasured candidates**. Findings hand off to `/fix` (client-runtime fixes) or `/refactor` (structural fixes); this mode never applies fixes itself.
 
 **Boundary:** animation frame-rate and jank findings belong to Motion mode's performance category, not here — note them and move on.
 
@@ -658,7 +655,7 @@ Write `docs/audits/full-audit-YYYY-MM-DD.md`:
 2. Merged summary table (ID | mode | severity | area | issue | file:line | status) in global
    priority order.
 3. The first 10 to act on, each naming its executor: `deslopper`, `/zero-tech-debt`, `/refactor`,
-   `/fix`, `/lighthouse`, or a security fix through `security-reviewer`.
+   `/fix`, or a security fix through `security-reviewer`.
 4. One section per mode in that mode's own structure (maps, findings, Motion's plans,
    Threat-Model's diagram and mitigations, the Debt ledger).
 5. Design tensions, open questions, and considered-and-rejected, merged across modes.

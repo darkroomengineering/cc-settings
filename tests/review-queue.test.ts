@@ -138,7 +138,7 @@ describe("review-queue lib", () => {
 
   test("isReviewableAgent: read-only agents don't count, writers/unknown do", () => {
     expect(isReviewableAgent("explore")).toBe(false);
-    expect(isReviewableAgent("oracle")).toBe(false);
+    expect(isReviewableAgent("Plan")).toBe(false);
     expect(isReviewableAgent("security-reviewer")).toBe(false);
     expect(isReviewableAgent("implementer")).toBe(true);
     expect(isReviewableAgent("tester")).toBe(true);
@@ -326,7 +326,7 @@ describe("tool-cadence hook — review-queue branch (e2e)", () => {
     const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
     try {
       await runHook({ tool_name: "Agent", tool_input: { subagent_type: "explore" } }, home);
-      await runHook({ tool_name: "Agent", tool_input: { subagent_type: "oracle" } }, home);
+      await runHook({ tool_name: "Agent", tool_input: { subagent_type: "Plan" } }, home);
       // No state written at all → still null (nothing awaiting).
       expect(await readQueue(home)).toBeNull();
       // A writer agent does count.

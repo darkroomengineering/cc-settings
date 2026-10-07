@@ -261,7 +261,7 @@ const ADDED_IN_V15 = [
   "src/scripts/hook-bench.ts",
   "src/scripts/hook-report.ts",
 ];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 15;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 16;
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) => !ADDED_IN_V15.includes(path),
 ).flatMap((path) => (path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V12] : [path]));
@@ -288,10 +288,27 @@ const RUNTIME_SOURCE_FILES_V14: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V13.filter((path) => path !== REPLACED_IN_V14),
   ...ADDED_IN_V14,
 ];
-export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V14,
-  ...ADDED_IN_V15,
+const RUNTIME_SOURCE_FILES_V15: readonly string[] = [...RUNTIME_SOURCE_FILES_V14, ...ADDED_IN_V15];
+// Version 16: twelve skills left the library (see TOMBSTONE_SKILLS in managed-skills.ts).
+const REMOVED_IN_V16 = [
+  "skills/adhd/SKILL.md",
+  "skills/consolidate/SKILL.md",
+  "skills/design-tokens/SKILL.md",
+  "skills/lighthouse/SKILL.md",
+  "skills/lighthouse/agents/openai.yaml",
+  "skills/oracle/SKILL.md",
+  "skills/plan-ceo-review/SKILL.md",
+  "skills/plan-feature/SKILL.md",
+  "skills/project/SKILL.md",
+  "skills/qa/SKILL.md",
+  "skills/qa/agents/openai.yaml",
+  "skills/strategist/SKILL.md",
+  "skills/test/SKILL.md",
+  "skills/tldr/SKILL.md",
 ];
+export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V15.filter(
+  (path) => !REMOVED_IN_V16.includes(path),
+);
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -323,6 +340,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [12, RUNTIME_SOURCE_FILES_V12],
   [13, RUNTIME_SOURCE_FILES_V13],
   [14, RUNTIME_SOURCE_FILES_V14],
+  [15, RUNTIME_SOURCE_FILES_V15],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

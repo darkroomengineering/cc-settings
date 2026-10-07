@@ -35,40 +35,40 @@ context: fork
 - Write in the user's voice: "Triggers when user says X", not "Does Y".
 - Be specific. "Helps with code" is too broad. "Triages GitHub issues through a label-based state machine" is not.
 - Include concrete trigger phrases — the words a user would actually type. Name the situation the skill handles, never the topic it touches: `fix` triggers on "broken" and "fix CI", not on "bug" or "error", because a topic word fires the skill on every conversation that mentions it. Current models (Claude 5, GPT-6 Astra) pick skills well from short precise descriptions and over-load from broad ones; see OpenAI's "Rethinking skills and prompts for GPT-6 Astra".
-- Name a neighbor only when the two collide on the same phrase ("Single-page Core Web Vitals go to /lighthouse"). A skip clause for every adjacent skill is noise.
+- Name a neighbor only when the two collide on the same phrase ("Hook-level checks go to /review"). A skip clause for every adjacent skill is noise.
 - Max ~1024 chars total. The description appears in every agent's system prompt; verbose descriptions burn context across the fleet.
 - No `<` or `>` characters (YAML angle-bracket issue).
 
 ### `context`
 
 - `fork` — skill runs in a forked context (doesn't bloat main session). Use this for most skills. As of v2.1.218 it also runs in the background by default: the result comes back as a task notification, not inline output, so don't write a fork skill's body assuming the user is watching it stream.
-- `main` — skill body is injected into main context (`src/schemas/skill.ts` defines `SkillContext = z.enum(["fork", "main"])`). Use for lightweight, single-turn instructions, or when the skill needs to see or shape the rest of the conversation directly. Shipped skills declaring it explicitly: `adhd`, `audit`, `codex`, `freeze`, `zero-tech-debt`.
+- `main` — skill body is injected into main context (`src/schemas/skill.ts` defines `SkillContext = z.enum(["fork", "main"])`). Use for lightweight, single-turn instructions, or when the skill needs to see or shape the rest of the conversation directly. Shipped skills declaring it explicitly: `audit`, `codex`, `freeze`, `zero-tech-debt`.
 - Omitting the field also resolves to inline, same as `main` — but the shipped convention is to declare `context: main` explicitly rather than rely on the omission.
 
 ### Optional frontmatter fields
 
-- `agent: <name>` — delegate to a specific named agent (e.g. `agent: oracle`, `agent: tester`).
+- `agent: <name>` — delegate to a specific named agent (e.g. `agent: explore`, `agent: tester`).
 - `argument-hint: "[arg]"` — displayed in the slash command picker.
 - `requires:` — a list of external prerequisites (CLIs or MCP servers) the skill needs at runtime. The installer warns about missing ones before a skill that would runtime-fail gets invoked. Each entry declares **exactly one** of `command` or `mcp` (never both — `SkillRequirementShapeGuard` in `src/schemas/skill.ts` rejects entries that declare both), plus an optional `install` hint string:
 
   ```yaml
   requires:
-    - command: lighthouse
-      install: "npm i -g lighthouse (CLI, used for batched 3x3 averaged audits)"
+    - command: gh
+      install: "Install GitHub CLI and run `gh auth login`."
     - mcp: [chrome-devtools, aside-devtools]
       optional: true
-      install: "Either DevTools MCP adds on-demand audits and visual regression screenshots; the CLI loop runs without one."
+      install: "Either DevTools MCP adds on-demand audits and screenshots; the skill runs without one."
   ```
 
   `mcp` takes one name or a list; a list is satisfied by any one registered server. `optional: true` marks a prerequisite the skill degrades without: the installer never warns about it, and the skill body must say what happens when it is absent (since 15.22.2).
 
-  See `skills/lighthouse/SKILL.md` (command + mcp), `skills/tldr/SKILL.md`, `skills/qa/SKILL.md`, and `skills/audit/SKILL.md` (mcp-only) for the 4 shipped examples.
+  See `skills/share-learning/SKILL.md` (command) and `skills/audit/SKILL.md` (mcp-only) for the 2 shipped examples.
 
 ---
 
 ## Body Structure
 
-Match the existing skills (`skills/fix/SKILL.md`, `skills/cc/SKILL.md`, `skills/consolidate/SKILL.md` are good models):
+Match the existing skills (`skills/fix/SKILL.md`, `skills/cc/SKILL.md`, `skills/handoff/SKILL.md` are good models):
 
 1. **Open with a one-sentence statement** of what the skill produces or enforces.
 2. **Phase headings** (`## Phase 1 — …`) for multi-step workflows.
@@ -132,7 +132,7 @@ it never trips the folder conventions above.
 ## Common Pitfalls
 
 ### Over-broad description
-"Helps with testing" matches every test-related question — including those already covered by `/test`, `/poke-holes`, `/build`. Be narrower: "Runs Lighthouse audits (3 mobile + 3 desktop, averaged) and fixes performance regressions."
+"Helps with testing" matches every test-related question — including those already covered by `/review`, `/poke-holes`, `/build`. Be narrower: "Triages GitHub issues through a label-based state machine."
 
 ### Trigger overlap with existing skills
 Check the "All Skills" table in `MANUAL.md` before writing triggers. If your skill's triggers overlap significantly with an existing one, either narrow your triggers or propose merging.
@@ -182,12 +182,12 @@ Before committing a new skill:
 name: ask-auth
 description: Expert advice on authentication patterns — JWT vs sessions, OAuth providers, token refresh. Triggers "auth question", "authentication advice", "which auth approach".
 context: fork
-agent: oracle
+agent: planner
 ---
 
 # ask-auth
 
-Delegate to the oracle agent for authentication architecture guidance.
+Delegate to the planner agent for authentication architecture guidance.
 ```
 
 ### Multi-phase skill with approval gate
@@ -196,4 +196,4 @@ See `skills/cc/SKILL.md` (sync mode) as a canonical example of: phase headings, 
 
 ### Skill with supporting reference file
 
-See `skills/context-doc/` — `SKILL.md` is the entry point; `DOMAIN-AWARENESS.md` is a shared consumer doc that sibling skills (`/test`, `/explore`) reference.
+See `skills/context-doc/` — `SKILL.md` is the entry point; `DOMAIN-AWARENESS.md` is a shared consumer doc that sibling skills (`/explore`) reference.

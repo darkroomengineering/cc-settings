@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 17;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 18;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -606,9 +606,31 @@ const v16 = {
   light: [...v15.light, ...ADDED_IN_V16],
 };
 MANIFESTS.set(16, v16);
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v17 = {
   full: [...v16.full, ...ADDED_IN_V17],
   light: [...v16.light, ...ADDED_IN_V17],
+};
+MANIFESTS.set(17, v17);
+// Version 18: twelve skills left the library (see TOMBSTONE_SKILLS in managed-skills.ts).
+const REMOVED_IN_V18 = [
+  "skills/adhd/SKILL.md",
+  "skills/consolidate/SKILL.md",
+  "skills/design-tokens/SKILL.md",
+  "skills/lighthouse/SKILL.md",
+  "skills/lighthouse/agents/openai.yaml",
+  "skills/oracle/SKILL.md",
+  "skills/plan-ceo-review/SKILL.md",
+  "skills/plan-feature/SKILL.md",
+  "skills/project/SKILL.md",
+  "skills/qa/SKILL.md",
+  "skills/qa/agents/openai.yaml",
+  "skills/strategist/SKILL.md",
+  "skills/test/SKILL.md",
+  "skills/tldr/SKILL.md",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: v17.full.filter(notAddedAfter(REMOVED_IN_V18)),
+  light: v17.light.filter(notAddedAfter(REMOVED_IN_V18)),
 });
 
 const GENERATED_MANAGED_FILES = new Set([

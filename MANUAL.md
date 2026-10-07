@@ -36,7 +36,6 @@ Open Claude Code or Codex in a project and say the outcome:
 | "review my changes" | The cc-settings `review` workflow reads the current diff and returns findings. |
 | "is this review-ready?" | `proof-of-work` runs the real type, test, lint, and relevant visual gates. |
 | "poke holes in this" | `poke-holes` asks independent agents to find, disprove, and judge issues. |
-| "does this look right?" | `qa` captures and checks the rendered interface when a browser path is available. |
 | "first pass on this client repo" | `triage` returns ranked findings and stays read-only on external repositories. |
 | "audit the whole codebase" | `audit` performs a deep repository-wide review and reports evidence. |
 | "full audit: performance, security, all of it" | `audit` runs every applicable mode in parallel and merges one ranked report. |
@@ -47,7 +46,6 @@ Several of these workflows inspect code, but they answer different questions:
 - `review` asks whether this diff introduced a problem.
 - `proof-of-work` asks whether machine-verifiable gates pass.
 - `poke-holes` asks whether independent agents can disprove a specific claim.
-- `qa` asks whether the rendered interface works visually and accessibly.
 - `triage` asks what is visibly risky in an unfamiliar repository.
 - `audit` asks what is wrong across a repository, system, or documented journey.
 
@@ -80,7 +78,6 @@ for you.
 
 - Say "create a Button component" for `component`.
 - Say "create useAuth" for `hook`.
-- Say "create or consolidate design tokens" for `design-tokens`.
 - Say "start a Darkroom project" for `dr-init`, which asks you to choose satus or novus when the
   request does not already decide.
 
@@ -93,11 +90,6 @@ there is no supported `settings.json` switch that activates a profile. See
 Use `refactor` for behavior-preserving restructuring outside the current diff. Use
 `zero-tech-debt` when the current patch has accumulated compatibility layers, flags, or wrappers
 that the intended end state no longer needs.
-
-### Write tests
-
-Say "add regression tests", "check coverage", or "TDD this". The `test` workflow writes and runs
-tests. It never weakens, skips, or deletes a valid assertion to make a suite pass.
 
 ### Ship
 
@@ -116,22 +108,8 @@ owns that action under the team rules.
 Say "how does auth work?", "where is routing?", or "zoom out". `explore` stays read-only and
 returns file locations, callers, and architecture with evidence.
 
-Use `tldr` when the question is specifically about call graphs, imports, or blast radius. Claude
-uses the installed TLDR MCP server. Standalone Codex falls back to `rg` and native code navigation.
-
-### Plan a feature
-
-Say "help define this feature" or "write a PRD". `plan-feature` interviews for missing decisions,
-then produces the requirements and a dependency-aware plan.
-
-### Generate, compare, or challenge ideas
-
-- `adhd` widens the option space beyond the obvious answers.
-- `oracle` gives bounded engineering advice, a premortem, or a weighted comparison.
-- `strategist` connects product vision, positioning, and architecture.
-- `plan-ceo-review` challenges whether an existing plan should be built at all.
-
-These are recommendations. The user owns product direction.
+For call graphs, imports, or blast radius, Claude uses the installed TLDR MCP server. Standalone
+Codex falls back to `rg` and native code navigation.
 
 ### Align domain language
 
@@ -154,13 +132,6 @@ their actual output. It does not fabricate a gate that could not run.
 
 Say "double check this", "are you sure?", or "poke holes in this". `poke-holes` gives separate agents
 competing incentives: find an issue, disprove it, and judge the remaining evidence.
-
-### Visual and performance checks
-
-Use `qa` for screenshots, layout, accessibility, touch targets, and design fidelity. Use
-`lighthouse` for a measured page-performance improvement loop. Claude's full profile supplies
-Chrome DevTools MCP. Codex needs a configured browser path or must report that visual verification
-is unavailable. Neither workflow may invent a screenshot or score.
 
 ### Triage an unfamiliar repository
 
@@ -248,11 +219,6 @@ Use `harvest` to turn measured, repeated behavior into a reviewed artifact. Use 
 optimize a skill prompt through a controlled Claude loop. `autoresearch` is unsupported in
 standalone Codex until that host has an equivalent measured harness.
 
-### Consolidate configuration
-
-Say "clean up redundant rules and skills". `consolidate` finds contradictions, duplication, dead
-instructions, and context bloat. Installed caches are diagnostic copies, not source files to edit.
-
 ### Share a team learning
 
 Say "share this gotcha with the team". `share-learning` checks for a duplicate, shows the proposed
@@ -300,7 +266,7 @@ warnings, run `bun ~/.claude/src/scripts/audit-hooks.ts`. Follow
 
 ## Reference routes
 
-- [All 38 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
+- [All 26 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
 - [Installation flags, tiers, paths, side effects, rollback, and uninstall](./docs/install.md)
 - [Claude Code and Codex parity](./docs/claude-vs-codex.md)
 - [Models, effort, advisor, and quota policy](./docs/agent-models.md)

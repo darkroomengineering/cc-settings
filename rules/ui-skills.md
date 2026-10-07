@@ -86,8 +86,7 @@ See `rules/accessibility.md` and `docs/accessibility.md` for full rules.
 Curves, durations, and the should-it-animate gate below are adapted from
 emilkowalski/skills (MIT) — `animate`, `emil-design-eng`. Gesture/spring physics for
 drag, swipe, and pointer-driven interactions live in `rules/motion-physics.md`; the
-workflows that apply these values are `/qa` (finding motion opportunities) and
-`/review` (per-diff enforcement).
+workflow that applies these values is `/review` (per-diff enforcement).
 
 ### Should this animate?
 

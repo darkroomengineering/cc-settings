@@ -1,5 +1,0 @@
-schema_version: "1.1"
-name: consolidate-audit-before-delete
-tags: [consolidate]
-context:
-  scaffold_script: fixture.sh

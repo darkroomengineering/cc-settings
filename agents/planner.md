@@ -121,9 +121,6 @@ We will use **Option A** because [primary reasons].
 [Trade-offs accepted, follow-up work created.]
 ```
 
-`/oracle` compare mode extends this same template with a weighted scoring matrix and
-pairwise-judgment guidance — see `skills/oracle/SKILL.md`.
-
 For thread selection, see `docs/thread-types.md`.
 
 For task breakdown structure, see `docs/enhanced-todos.md`.

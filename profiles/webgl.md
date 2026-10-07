@@ -2,7 +2,7 @@
 name: webgl
 description: 3D web (R3F, Three.js, GSAP)
 model: claude-opus-5-5
-skills: [component, qa]
+skills: [component]
 ---
 
 # WebGL/3D Profile (R3F, GSAP, Lenis)
@@ -41,7 +41,7 @@ skills: [component, qa]
 | Dev server | `bun dev` |
 | Performance monitor | `r3f-perf` component |
 | Fetch docs | Context7 MCP — resolve then fetch (three, gsap, lenis) |
-| Visual QA | `/qa` (chrome-devtools MCP) |
+| Visual QA | chrome-devtools MCP screenshots |
 | Linting/formatting | `bun biome check --fix` |
 
 ---

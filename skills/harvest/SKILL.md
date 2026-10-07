@@ -167,7 +167,7 @@ Validate the shape before finishing: `bun run lint:research skills/<name>/RESEAR
 - **Trap prompts fail** → FAIL. Fix the artifact and re-run, or stop.
 - **Unknown numbers** → `null` / INCONCLUSIVE, never aspirational.
 - **Unknown territory** — behavior you can't reconstruct, a judgment you can't
-  verify from evidence on disk — → fall back to `/poke-holes`, `/oracle`, human
+  verify from evidence on disk — → fall back to `/poke-holes`, human
   approval, or normal reasoning rather than forcing a verdict.
 
 ## Approval gate
@@ -188,7 +188,7 @@ written freely; the gate is on anything shared.
 - `/autoresearch` — the optimization loop on a harvested skill; Phase 6 hands it a
   ready RESEARCH.md seeded from the traps and quality bar
 - `/share-learning` — the routing target for single-note learnings
-- `/poke-holes` or `/oracle` — the fallback when a behavior is real but can't be measured
+- `/poke-holes` — the fallback when a behavior is real but can't be measured
   into a verdict
 
 ## What this skill does NOT do

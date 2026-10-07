@@ -1,5 +1,0 @@
-schema_version: "1.1"
-name: strategist-advisory-only
-tags: [strategist]
-context:
-  scaffold_script: fixture.sh

@@ -317,7 +317,7 @@ plugin-capable CLI or desktop surface, or skills installed directly at repositor
 
 Several shared workflows have narrower Codex branches:
 
-- `tldr` is not bundled. Shared workflows use `rg` and Codex native search instead.
+- The `tldr` code-map MCP server is not bundled. Shared workflows use `rg` and Codex native search instead.
 - `$freeze` cannot enforce a directory edit lock in Codex.
 - `$autoresearch` cannot run its Claude subprocess evaluation loop in Codex.
 - Claude agent teams, dynamic workflows, and the custom statusline remain Claude-only.
