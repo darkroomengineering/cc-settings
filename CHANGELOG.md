@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.53.1] — 2026-10-07
+
+The vanilla comparison runner now keeps its results after a run, so a long comparison is not lost when the temp directory is cleaned up. Skills that call helper scripts under `~/.claude/src` now work inside the eval sandbox.
+
+**Fixed:**
+- `src/scripts/eval-ablate.ts`: copies the eval results and `report.json` to `~/.claude/tmp/eval-ablate-<timestamp>-<suffix>/` before the temp plugin directory is deleted, and prints that path.
+- `src/scripts/eval-ablate.ts`: rejects a repeated `--case` instead of silently keeping only the last one.
+- `src/scripts/eval-ablate.ts`: the with-arm SessionStart hook copies `src/` and `node_modules/zod` into the eval home so skills that call `~/.claude/src/scripts` can run.
+- `src/scripts/eval-ablate.ts`: labels cases whose skill calls `~/.claude/src` scripts, because the eval sandbox blocks writes to `~/.claude`.
+
 ## [15.53.0] — 2026-10-06
 
 The vanilla comparison runner now finishes a full run instead of stopping at a $10 default. On a subscription the cost it reports is the API-equivalent figure, not a bill.
