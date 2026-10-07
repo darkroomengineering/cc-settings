@@ -144,7 +144,7 @@ If the failure is on a pushed branch with an open PR (not a local bug), use `gh 
    - GitHub Actions: `gh run view RUN_ID --log-failed`.
    - External services: follow the check `link` to the provider.
 4. Extract the first actionable error. Apply the smallest safe fix.
-5. Push and re-check. The check set can change between runs — re-read `gh pr checks` after every push.
+5. Push and re-check. The check set can change between runs — re-read `gh pr checks` after every push. To wait for the result, use the `ship` skill's Step 9 watch; do not write a polling loop.
 
 Guardrails:
 

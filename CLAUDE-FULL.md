@@ -112,6 +112,11 @@ found during requested work; dependency bumps that pass checks; branch cleanup
 after a merge; scoped CI fixes on an approved PR; doc-only commits; one rerun
 of a flaky check. This is a floor, not a whitelist.
 
+Watching a PR until its checks pass ("merge when green", "babysit CI") goes
+through the `ship` skill, Step 9 or land mode. Never write a polling loop,
+watcher script, or merge script for it; those re-read the whole context per
+poll and have merged before checks finished.
+
 **Always ask:** work in repositories outside `darkroomengineering` (report
 findings only, never open an external PR), a plain `--force` push or any
 force-push to `main` or `master`, deletion outside the pre-approved list, and
