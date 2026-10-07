@@ -224,7 +224,7 @@ own. See `SECURITY.md`.
 
 ### Skill library ratchets
 
-The managed library contains exactly 38 skills. `SKILL_COUNT_BASELINE` in
+The managed library contains exactly 26 skills. `SKILL_COUNT_BASELINE` in
 `src/lib/lint-skills.ts` fails when the count moves either way. The
 description-byte ceiling is one-way: tighten the longest descriptions when it
 fails; never raise the ceiling. `bun run lint:skills` enforces both in CI.

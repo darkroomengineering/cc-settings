@@ -2,8 +2,8 @@
 
 The systematic version of what worked on shield.fi (August 2026, three PRs,
 804 KB to 443 KB cold, Slow 3G load 16.9 s to 8.4 s, Lighthouse mobile 80 to
-96). Use it inside `/audit performance` Phase 1 and 3, and from `/lighthouse`
-when the score gap is bytes rather than execution. Every step names its
+96). Use it inside `/audit performance` Phase 1 and 3, and when a page-speed
+score gap is bytes rather than execution. Every step names its
 number and its command; that is the whole method.
 
 ## 1. Measurement kit

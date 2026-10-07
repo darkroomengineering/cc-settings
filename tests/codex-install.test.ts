@@ -1645,7 +1645,7 @@ describe("Codex installer lifecycle", () => {
   test("version 14 swaps the Codex manifest for the root plugin.json and mcp.json", () => {
     const v13 = runtimePathsForVersion(13, "test");
     const v14 = runtimePathsForVersion(14, "test");
-    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(15);
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(16);
     expect(v13).toContain(".codex-plugin/plugin.json");
     expect(v13).not.toContain("plugin.json");
     expect(v14).not.toContain(".codex-plugin/plugin.json");

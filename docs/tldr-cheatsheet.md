@@ -8,7 +8,7 @@ The tool names are the stable contract — only the engine behind them changes.
 Select with `CC_CODE_INTEL_ENGINE`, but note that the `tldr` entry in
 `~/.claude.json` is written at install time: switching engines means re-running
 `setup.sh` with the variable set, not just exporting it. Full contract:
-`skills/tldr/SKILL.md`.
+`src/lib/code-intel-engine.ts`.
 
 ## Default: `native-ts`
 

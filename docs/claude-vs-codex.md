@@ -20,7 +20,7 @@ travel across hosts. The host decides how tools, agents, hooks, and background w
 | Continue agent work | Resume or message the existing agent/task | Resume or message the existing agent/task through native agent controls |
 
 Natural language is the safest common interface. Explicit names matter when nearby skills have
-different effects, such as `review`, `proof-of-work`, `poke-holes`, `qa`, `triage`, and `audit`.
+different effects, such as `review`, `proof-of-work`, `poke-holes`, `triage`, and `audit`.
 
 Claude's native `/review` name can overlap with the cc-settings `review` skill. Say "run the
 cc-settings local pre-commit review" or choose the cc-settings skill from the visible skill picker.
@@ -52,10 +52,7 @@ skip most full-profile automation. See [installation](./install.md#full-and-ligh
 
 | Skill or capability | Claude Code | Standalone Codex |
 |---|---|---|
-| `tldr` | Uses the installed TLDR MCP | Falls back to `rg`, import searches, and native code navigation |
 | Context7 lookup | Installed in the full profile | Available only when the user configured a reviewed server |
-| `qa` | Uses Chrome DevTools MCP for screenshots and accessibility inspection | Uses a configured browser path or reports that visual verification is unavailable |
-| `lighthouse` | Uses the Chrome DevTools Lighthouse tool | Requires a user-configured equivalent; must not invent scores |
 | `freeze` | Enforces a directory edit boundary through Claude hooks | Unsupported as enforcement; file ownership is a convention only |
 | `autoresearch` | Runs the controlled Claude subprocess optimization loop | Unsupported until Codex has an equivalent measured harness |
 | `codex` bridge | Calls Codex as a second model family (Sol executes, Astra reviews) | Never invokes Codex recursively; `claude-verifier` or `claude-run.ts` calls Claude for a second family, read-only |

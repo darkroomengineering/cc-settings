@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.54.0] — 2026-10-07
+
+Twelve skills leave the library: `oracle`, `strategist`, `plan-ceo-review`, `plan-feature`, `adhd`, `project`, `consolidate`, `test`, `tldr`, `lighthouse`, `design-tokens`, and `qa`. The library goes from 38 to 26 skills.
+
+**Why:** a 5-run `eval-ablate` comparison scored vanilla Claude Code level with these skills on every one of their eval cases, so they cost description budget and context without a measured gain.
+
+**Removed:**
+- The 12 `skills/<name>/` directories and their 13 `evals/` cases.
+- Existing Claude and Codex installs delete the skill directories on the next setup, because all 12 names join `TOMBSTONE_SKILLS`.
+- The Claude managed-file manifest moves to v18 and the Codex runtime manifest to v16, so installs made at older versions still validate against the files they own.
+- `SKILL_COUNT_BASELINE` drops 38 to 26. `README.md`, `MANUAL.md`, `CLAUDE-FULL.md`, and `docs/skills.md` carry the new count and no longer describe the removed skills.
+- Pointers to them in `agents/`, `rules/`, `profiles/`, `docs/`, `skills/audit`, and `skills/harvest` now name a surviving skill or are gone. The `tldr` MCP server and code-map engine are unchanged.
+- `oracle` leaves `READ_ONLY_AGENTS` in `src/lib/review-queue.ts`; it was a skill, never an agent.
+
+**Files changed:**
+- `skills/`, `evals/`, `src/lib/managed-skills.ts`, `src/lib/claude-managed-file-manifests.ts`, `src/lib/codex-runtime-manifests.ts`, `src/lib/lint-skills.ts`, `src/lib/review-queue.ts`
+- `tests/codex-install.test.ts`, `tests/plugin-manifest.test.ts`, `tests/review-queue.test.ts`
+- `README.md`, `MANUAL.md`, `CLAUDE-FULL.md`, `docs/`, `agents/`, `rules/`, `profiles/`
+- `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
+
 ## [15.53.3] — 2026-10-07
 
 `ship` now finds every required check before it watches a PR, and sessions route PR watching through it instead of writing their own loops.

@@ -15,7 +15,6 @@ Routing principle: **explore and execute on the cheaper tiers, decide on the top
 |-------|-------|-----------|
 | `maestro` | **claude-opus-5-5** | Orchestration needs the strongest default reasoning |
 | `planner` | **claude-opus-5-5** | Architecture decisions need depth |
-| `oracle` | *(session model)* (skill, not an agent — `skills/oracle/SKILL.md` runs as a `context: fork` of the main session, no agent binding) | Not a dedicated `claude-opus-5-5` agent despite the name; the fork inherits the session's model, so on a `claude-opus-5-5` session oracle already thinks at the top tier |
 | `reviewer` | **claude-sonnet-5-5** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
 | `implementer` | **claude-sonnet-5-5** | Executes already-made plans; Sonnet 5.5 matches Opus 5.5 on agentic coding, and plans come from the top tier |
 | `security-reviewer` | **claude-opus-5-5** | Analysis feeding the session's decision |

@@ -127,6 +127,39 @@ async function rewriteSentinelVersion(path: string, version: string): Promise<vo
   await writeFile(path, `${JSON.stringify(sentinel, null, 2)}\n`);
 }
 
+// Skills the library no longer ships. A real install from an older manifest version still owns
+// them, so a fixture that downgrades a current install has to put their files back.
+const SKILLS_REMOVED_IN_V18 = [
+  "skills/adhd/SKILL.md",
+  "skills/consolidate/SKILL.md",
+  "skills/design-tokens/SKILL.md",
+  "skills/lighthouse/SKILL.md",
+  "skills/lighthouse/agents/openai.yaml",
+  "skills/oracle/SKILL.md",
+  "skills/plan-ceo-review/SKILL.md",
+  "skills/plan-feature/SKILL.md",
+  "skills/project/SKILL.md",
+  "skills/qa/SKILL.md",
+  "skills/qa/agents/openai.yaml",
+  "skills/strategist/SKILL.md",
+  "skills/test/SKILL.md",
+  "skills/tldr/SKILL.md",
+];
+
+async function seedRemovedSkills(
+  claudeDir: string,
+  managedFiles?: Record<string, string>,
+): Promise<void> {
+  const bytes = "historical skill bytes\n";
+  for (const path of SKILLS_REMOVED_IN_V18) {
+    await mkdir(dirname(join(claudeDir, path)), { recursive: true });
+    await writeFile(join(claudeDir, path), bytes);
+    if (managedFiles) {
+      managedFiles[path] = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+    }
+  }
+}
+
 async function directoryEntries(path: string): Promise<string[]> {
   return (await readdir(path, { recursive: true }).catch(() => [])).sort();
 }
@@ -542,11 +575,13 @@ exit $rc
       sentinel.managed_files[renamedSkill] = new Bun.CryptoHasher("sha256")
         .update(renamedBytes)
         .digest("hex");
+      await seedRemovedSkills(claudeDir, sentinel.managed_files);
       await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
 
       const upgrade = await runInstall(home);
 
       expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
+      expect(existsSync(join(claudeDir, "skills", "oracle"))).toBe(false);
       expect(existsSync(readmePath)).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "poke-holes", "SKILL.md"))).toBe(true);
@@ -581,6 +616,7 @@ exit $rc
       await writeFile(join(claudeDir, "src/lib/engine-pin.ts"), "historical engine-pin bytes\n");
       await mkdir(join(claudeDir, "skills", "verify"), { recursive: true });
       await writeFile(join(claudeDir, "skills/verify/SKILL.md"), "historical verify skill bytes\n");
+      await seedRemovedSkills(claudeDir);
 
       const sentinelPath = join(claudeDir, ".cc-settings-version");
       const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
@@ -612,6 +648,7 @@ exit $rc
       expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
       expect(existsSync(retiredPath)).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "oracle"))).toBe(false);
       const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
         managed_files: Record<string, string>;
         managed_files_manifest_version: number;

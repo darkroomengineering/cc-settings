@@ -426,10 +426,9 @@ describe("standalone Codex workflow branches", () => {
   });
 
   test("host-specific workflows keep their standalone Codex safety contracts", async () => {
-    const [cc, bridge, tldr, freeze, autoresearch] = await Promise.all([
+    const [cc, bridge, freeze, autoresearch] = await Promise.all([
       readFile(join(ROOT, "skills/cc/SKILL.md"), "utf8"),
       readFile(join(ROOT, "skills/codex/SKILL.md"), "utf8"),
-      readFile(join(ROOT, "skills/tldr/SKILL.md"), "utf8"),
       readFile(join(ROOT, "skills/freeze/SKILL.md"), "utf8"),
       readFile(join(ROOT, "skills/autoresearch/SKILL.md"), "utf8"),
     ]);
@@ -437,8 +436,6 @@ describe("standalone Codex workflow branches", () => {
     expect(standaloneSection(bridge)).toMatch(
       /Never recursively invoke `codex-run\.ts`|do not.*recurs/i,
     );
-    expect(standaloneSection(tldr)).toMatch(/rg --files/);
-    expect(standaloneSection(tldr)).toMatch(/rg -n/);
     expect(standaloneSection(freeze)).toMatch(/fail(?:s)? closed|refuse|stop/i);
     expect(standaloneSection(autoresearch)).toMatch(/fail(?:s)? closed|refuse|stop/i);
   });

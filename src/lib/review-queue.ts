@@ -69,13 +69,7 @@ function positiveIntEnv(name: string, fallback: number): number {
  *  write/edit capability are listed. `reviewer` and `planner` CAN write (review
  *  notes, plan docs, ADRs) that you might commit, so they intentionally still
  *  count — under-counting real review debt is the failure we most want to avoid. */
-export const READ_ONLY_AGENTS = new Set([
-  "explore",
-  "Explore",
-  "oracle",
-  "Plan",
-  "security-reviewer",
-]);
+export const READ_ONLY_AGENTS = new Set(["explore", "Explore", "Plan", "security-reviewer"]);
 
 /** Does spawning this agent type produce work that lands in your diff? Unknown
  *  or omitted types default to the general-purpose agent (which can edit), so

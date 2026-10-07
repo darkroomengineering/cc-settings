@@ -57,7 +57,7 @@ with CI green, review done, no conflicts, branch up to date.
 Lead with the observed effect, not the suspected cause ("checkout 500s on
 Safari" beats "possible race in session middleware"). Repro steps numbered, one
 action per step. One problem per issue; file tangents separately. Planned work
-gets bounded, verifiable tasks — see the `/project` skill's issue template.
+gets bounded, verifiable tasks: one action each, with a check that proves it done.
 
 ## Tools
 

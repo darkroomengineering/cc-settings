@@ -100,7 +100,7 @@ async function reviewQueueBranch(payload: Partial<Payload>, toolName: string): P
   }
 
   // Producer: every agent spawned is one more unit awaiting review — except
-  // read-only agents (explore, oracle, …) that leave no diff to commit.
+  // read-only agents (explore, Plan, …) that leave no diff to commit.
   if (toolName !== "Agent") return;
   if (!isReviewableAgent(payload.tool_input?.subagent_type)) return;
 

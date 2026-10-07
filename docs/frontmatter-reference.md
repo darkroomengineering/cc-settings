@@ -112,7 +112,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 | `name` | string | (required) | Skill identifier, used as the slash command name (e.g., `docs` for `/docs`) |
 | `description` | string | (required) | Purpose description. Also used for auto-invocation pattern matching |
 | `context` | string | omitted = inline | Context behavior: `fork` (isolated, backgrounded context) or `main` (runs inline in the main session — omitting the field resolves the same way) |
-| `agent` | string | -- | Route execution to a specific agent (e.g., `explore`, `oracle`, `maestro`) |
+| `agent` | string | -- | Route execution to a specific agent (e.g., `explore`, `reviewer`, `maestro`) |
 | `allowed-tools` | list | -- | Tools available when the skill is active. Overrides default tool set |
 | `disable-model-invocation` | boolean | `false` | When `true`, prevents the model from auto-invoking this skill |
 | `user-invocable` | boolean | `true` | When `false`, hides from `/` command menu |
@@ -136,11 +136,11 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 There's no third `inherit` value — `context: inherit` is never written anywhere in the repo, and `src/schemas/skill.ts` defines the field as `z.enum(["fork", "main"])`.
 
-Skills using `fork` (23): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `harvest`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `poke-holes`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `triage`. All 23 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
+Skills using `fork` (14): `autoresearch`, `build`, `checkpoint`, `explore`, `fix`, `handoff`, `harvest`, `orchestrate`, `poke-holes`, `refactor`, `retro`, `review`, `ship`, `triage`. All 14 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
-Skills declaring `context: main` explicitly (5): `adhd`, `audit`, `codex`, `freeze`, `zero-tech-debt`.
+Skills declaring `context: main` explicitly (4): `audit`, `codex`, `freeze`, `zero-tech-debt`.
 
-Skills that omit `context` (10, same behavior as `main`): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
+Skills that omit `context` (8, same behavior as `main`): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `proof-of-work`, `review-batch`, `share-learning`.
 
 ### Agent Delegation
 
@@ -150,9 +150,7 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 |-------|--------------------|
 | `explore` | `explore` |
 | `orchestrate` | `maestro` |
-| `plan-feature` | `planner` |
 | `review` | `reviewer` |
-| `test` | `tester` |
 
 ### Example: Skill with Fork and Agent Delegation
 
@@ -246,10 +244,10 @@ effort: xhigh
 | Profile | Model (advisory) | Skills (advisory) | Effort (advisory) |
 |---------|-----------------|-------------------|-------------------|
 | `maestro` | claude-opus-5-5 | orchestrate | xhigh |
-| `nextjs` | claude-opus-5-5 | build, component, hook, lighthouse | — |
+| `nextjs` | claude-opus-5-5 | build, component, hook | — |
 | `react-native` | claude-opus-5-5 | build, component | — |
 | `tauri` | claude-opus-5-5 | build | — |
-| `webgl` | claude-opus-5-5 | component, qa | — |
+| `webgl` | claude-opus-5-5 | component | — |
 | `react-router` | claude-opus-5-5 | build, component, hook | — |
 
 ---

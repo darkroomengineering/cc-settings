@@ -106,7 +106,6 @@ Most days are some path through these steps:
 | Step | Say something like | Or pin | What you get back |
 |---|---|---|---|
 | Understand | "how does checkout work here?" | `/explore` | A read-only map with file and line citations |
-| Plan | "help me figure out the scope for search" | `/plan-feature` | Interview questions, then a PRD you can hand off |
 | Fix | "the login redirect loops on Safari" | `/fix` | The named cause, a reproduction, the smallest fix, and the tests that prove it |
 | Build | "add a stats dashboard to the admin page" | `/build` | A GO/NO-GO check, a plan, the implementation, tests, and a review |
 | Check | "review my changes" | `/review` | Findings on the current diff by severity, with no edits |
@@ -122,7 +121,7 @@ security-sensitive code gets handed to focused agents (explore, implement, test,
 that run in the background and report back. You can keep talking in the main conversation while
 they work.
 
-Every workflow for every situation, including audits, visual QA, Lighthouse, triage of a client
+Every workflow for every situation, including audits, triage of a client
 repo, and adversarial verification, is in the [manual](./MANUAL.md). The
 [skill guide](./docs/skills.md) says what each one can change and when it stops to ask.
 
@@ -141,8 +140,8 @@ instructions on top.
 - **Existing project with a `CLAUDE.md`:** say "migrate to agents.md" or run `/cc migrate`. Claude
   Code ignores `AGENTS.md` while a `CLAUDE.md` exists, so the two drift apart. The session banner
   tells you when a project needs this.
-- **Planned work on GitHub:** `/project` treats the repository's GitHub Issues as the plan of record,
-  so agents read the issue and update it as they go.
+- **Planned work on GitHub:** link the issue and `/handoff` posts progress to it, so agents read the
+  issue and update it as they go.
 
 ## Habits that change results
 
@@ -158,8 +157,8 @@ Small habits make the biggest difference in how well sessions go:
    or `/effort xhigh` for hard debugging, audits, or migrations, or add `ultrathink` to a single
    message.
 5. **Ask for a second opinion when it matters.** "Poke holes in this" (`/poke-holes`) sends independent
-   agents to find and disprove problems. "What could go wrong?" (`/oracle`) runs a risk review
-   before you commit to a plan.
+   agents to find and disprove problems. Asking "what could go wrong?" before you commit to a plan
+   gets a risk review.
 6. **Read the statusline.** It shows context size and usage limits. When context passes about
    150K tokens, hand off or compact instead of pushing on.
 7. **When something feels off, look before you guess.** `whats-on.ts` shows what is installed and
@@ -224,8 +223,8 @@ on every machine. The same request behaves differently once it is installed:
   React, performance, accessibility, security, git, motion, style) load only for the files they
   cover, and six stack profiles (Next.js, React Router, React Native, Tauri, WebGL, orchestration)
   add the specifics of each starter.
-- **38 skills.** Named workflows selected from ordinary language or pinned with `/name` in Claude
-  and `$name` in Codex: fix, build, review, ship, audit, lighthouse, qa, verify, handoff, and the
+- **26 skills.** Named workflows selected from ordinary language or pinned with `/name` in Claude
+  and `$name` in Codex: fix, build, review, ship, audit, poke-holes, handoff, and the
   rest. The [skill guide](./docs/skills.md) lists what each one changes and when it asks.
 - **10 role agents.** Planner, explorer, implementer, tester, reviewer, security reviewer,
   scaffolder, deslopper, orchestrator, and a cross-model verifier. Big work is divided instead of

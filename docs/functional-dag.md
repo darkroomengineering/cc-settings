@@ -73,8 +73,7 @@ diagram:
 
 Columns are topological levels, so the batches fall out of the diagram — don't hand-write
 a dependency list next to it and let the two drift. Same column + disjoint inputs =
-same batch. This is the input to `docs/parallel-batch-detection.md` and to
-`plan-feature`'s `## Execution Plan`, not a parallel copy of it.
+same batch. This is the input to `docs/parallel-batch-detection.md`, not a parallel copy of it.
 
 From the example above:
 
@@ -86,8 +85,7 @@ Batch 3:              wire e2e    (needs: POST route, login form)
 Batch 4 (terminal):   typecheck + test
 ```
 
-Where a plan also carries per-task `Dependencies:` metadata (`plan-feature` Phase 4,
-`docs/enhanced-todos.md` `dependsOn`) those fields feed the machine algorithm and must
+Where a plan also carries per-task `Dependencies:` metadata (`docs/enhanced-todos.md` `dependsOn`) those fields feed the machine algorithm and must
 match the DAG's joins. On any conflict the DAG wins — reconcile the metadata to it rather
 than editing the diagram to match a stale field.
 

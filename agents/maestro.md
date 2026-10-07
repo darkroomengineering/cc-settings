@@ -92,7 +92,7 @@ Select thread type based on task shape:
 - **B** (Base): Simple, < 3 steps → single agent
 - **P** (Parallel): Independent parts → spawn all in one message
 - **C** (Chained): Sequential dependencies → pipeline agents
-- **F** (Fusion): Compare approaches → `/oracle` (compare mode)
+- **F** (Fusion): Compare approaches → `planner` (options table)
 - **L** (Long-duration): Exceeds context window → `/orchestrate`
 
 Quick decision: Simple? → B. Independent parts? → P. Sequential? → C. Comparison? → F. Long? → L.

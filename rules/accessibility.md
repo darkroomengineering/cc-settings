@@ -85,9 +85,8 @@ button:focus { outline: none; }
 
 ## Requirements
 
-Canonical copy of these thresholds. `AGENTS.md`, `skills/qa`, and `skills/design-tokens` each
-restate a subset because they run where this file isn't loadable — when a threshold changes here,
-update those three too.
+Canonical copy of these thresholds. `AGENTS.md` restates a subset because it runs where this file isn't
+loadable — when a threshold changes here, update it too.
 
 | Requirement | Standard |
 |------------|----------|

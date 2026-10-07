@@ -86,7 +86,7 @@ if (COMPONENT.has(ext)) {
     "  • Perf: barrel imports, waterfalls, memoization",
     "",
     "Visual QA (if dev server running):",
-    "  • Run /qa to validate via chrome-devtools MCP",
+    "  • Use the chrome-devtools MCP to validate",
     "  • Screenshot + accessibility tree analysis",
     "  • Touch targets, contrast, layout validation",
     "",
