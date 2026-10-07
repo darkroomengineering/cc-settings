@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.53.3] — 2026-10-07
+
+`ship` now finds every required check before it watches a PR, and sessions route PR watching through it instead of writing their own loops.
+
+**Fixed:**
+- `skills/ship/SKILL.md` Step 9 reads the base branch's ruleset first. `gh pr checks --required` misses workflows an org ruleset requires, such as `ci-gate`, so earlier watchers waited forever or exited without merging. Required workflows are confirmed by their run on the head commit.
+- Step 9 runs one blocking `gh pr checks --watch`, re-runs it once when checks have not registered yet, and counts green only when every required check concluded `success`.
+- Land mode merges with `--match-head-commit`, and does not wait on `--auto` in repos that disallow auto-merge.
+- `CLAUDE-FULL.md` (Autonomy) routes "merge when green" and "babysit CI" to `ship`, and `skills/fix` points its CI variant at Step 9. A history audit found about 120 hand-written watchers across Claude Code and Codex sessions, costing roughly $110 to $135 in polling turns.
+
+**Files changed:**
+- `skills/ship/SKILL.md`
+- `skills/fix/SKILL.md`
+- `CLAUDE-FULL.md`
+- `evals/ship-required-workflow/`
+- `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
+
 ## [15.53.2] — 2026-10-07
 
 Sync with Claude Code v2.1.292. Codex stays at v0.160.1.

@@ -195,12 +195,33 @@ reach for bigger words.
 
 ### Step 9: Watch CI Until Green (post-push)
 
-After `gh pr create`, watch the PR-attached checks until all pass. Use `gh pr checks` as the source of truth — it covers all PR checks, not just GitHub Actions runs (which `gh run list` would miss).
+After `gh pr create`, watch the PR-attached checks until all pass. This step is the watcher: never hand-roll an `until`/`while` poll, a `sleep N && gh ...` loop, a heredoc merge script, or one model turn per poll. Each of those re-reads the whole context to learn "still pending", and the improvised ones have merged before checks finished, waited forever on a check that never appears, and outlived their PR.
 
-```bash
-gh pr checks --json name,bucket,state,workflow,link
-gh pr checks --watch --fail-fast
-```
+1. **Find the required set first.** `gh pr checks --required` misses checks that an org ruleset requires as a workflow (Darkroom's `ci-gate` is one: it never appears in the PR rollup). Read the base branch's rules:
+
+   ```bash
+   gh api "repos/{owner}/{repo}/rules/branches/BASE" \
+     --jq '.[] | select(.type=="workflows" or .type=="required_status_checks") | .parameters'
+   ```
+
+   A `workflows` rule names its file (`ci-gate.yml`); verify it by run, not by `gh pr checks`, matching the run's `path` to the rule's path (display names can collide, and a commit can have both push and PR runs):
+
+   ```bash
+   gh api "repos/{owner}/{repo}/actions/runs?head_sha=HEAD_SHA" \
+     --jq '.workflow_runs[] | select(.path==".github/workflows/ci-gate.yml") | "\(.id) \(.event) \(.status) \(.conclusion)"'
+   ```
+
+   Take the newest matching run for the PR's event. A `required_status_checks` rule names contexts that do appear in `gh pr checks`. An empty result from both means nothing is required, so every reported check is the gate.
+
+2. **Watch once, blocking:**
+
+   ```bash
+   gh pr checks --watch --fail-fast --interval 30
+   ```
+
+   Run it in the background when other work can proceed; the harness notifies you when it exits. If it exits within seconds saying no checks are reported, the checks have not registered yet: re-run it once after 30 seconds rather than treating it as green or red.
+
+3. **Read the verdict, then the required workflows.** Green means every required check and run concluded `success`. "No failures" while something is still pending or missing is not green. Re-read `gh pr checks --json name,bucket,state,workflow,link`, then confirm each required workflow run from step 1 with the `actions/runs` query. If that run is still in progress after the PR checks finish, wait on it by ID with one blocking `gh run watch RUN_ID --exit-status --interval 30`, then read its `conclusion`. That run is part of this step's watch, not a new loop.
 
 If a check fails:
 
@@ -222,10 +243,10 @@ Guardrails:
 Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean up" on a PR that already exists. Skip Steps 0–8; run:
 
 1. Capture the head you're validating: `gh pr view --json headRefOid,reviewDecision,mergeable`. Everything below is checked against THIS `headRefOid`.
-2. `gh pr checks` — if red, run the Step 9 CI-fix loop until green. A CI fix that pushes a new commit moves the head: re-capture `headRefOid` and re-check against it.
+2. Run Step 9 (required set, one blocking watch, verdict). If red, run its CI-fix loop until green. A CI fix that pushes a new commit moves the head: re-capture `headRefOid` and re-check against it.
 3. Confirm review state from step 1: if `reviewDecision` is CHANGES_REQUESTED or `mergeable` is CONFLICTING, stop and report — do not merge through either.
 4. **Re-validate immediately before merging** — `gh pr view --json headRefOid,reviewDecision,mergeable`. All three can drift while the CI loop ran (a new push moves `headRefOid`; a late review flips `reviewDecision` to CHANGES_REQUESTED; a base-branch change flips `mergeable`) — the head moving is not the only race. If `headRefOid` differs from the SHA you validated, STOP and re-run checks against the new head; if `reviewDecision`/`mergeable` regressed, STOP and report. Don't merge stale-green. (A post-*merge* SHA check can't catch a moved head: a squash commit does not contain the PR head as an ancestor, so the guard has to run *before* merge. See the `gh-merge-race` learning.)
-5. Merge with the repo's preferred strategy (`gh pr merge --squash --delete-branch` unless repo convention says otherwise). Branch protection / a merge queue, if enabled, is the atomic final gate.
+5. Merge with the repo's preferred strategy (`gh pr merge --squash --delete-branch --match-head-commit SHA` unless repo convention says otherwise; `--match-head-commit` makes GitHub refuse the merge if the head moved after your check). If the repo disallows auto-merge, never wait on `--auto`; merge directly once Step 9 is green. Branch protection / a merge queue, if enabled, is the atomic final gate.
 6. Cleanup: `git checkout main && git pull`, delete the local branch, prune remotes (`git remote prune origin`). Leave only main unless other branches have open PRs.
 7. Report: PR link, merge commit, branches deleted.
 
