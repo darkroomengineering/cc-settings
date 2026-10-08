@@ -439,4 +439,21 @@ describe("stripManagedSettings", () => {
     // Value differs from full → preserve
     expect(env.CLAUDE_CODE_EFFORT_LEVEL).toBe("max");
   });
+
+  test("env key the previous install shipped but full dropped is stripped", () => {
+    const user: Record<string, unknown> = {
+      env: { CLAUDE_CODE_EFFORT_LEVEL: "medium", MY_VAR: "1" },
+    };
+    const full: Record<string, unknown> = { env: {} };
+    const previous: Record<string, unknown> = { env: { CLAUDE_CODE_EFFORT_LEVEL: "medium" } };
+    const result = stripManagedSettings(user, full, previous);
+    expect(result.env).toEqual({ MY_VAR: "1" });
+  });
+
+  test("env key the user changed since the previous install is preserved", () => {
+    const user: Record<string, unknown> = { env: { CLAUDE_CODE_EFFORT_LEVEL: "high" } };
+    const previous: Record<string, unknown> = { env: { CLAUDE_CODE_EFFORT_LEVEL: "medium" } };
+    const result = stripManagedSettings(user, { env: {} }, previous);
+    expect((result.env as Record<string, unknown>).CLAUDE_CODE_EFFORT_LEVEL).toBe("high");
+  });
 });

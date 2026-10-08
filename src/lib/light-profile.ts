@@ -161,7 +161,9 @@ export function applyLightProfile(settings: Record<string, unknown>): Record<str
  * Pure function — does NOT mutate either input. Returns a deep clone of `user`
  * with the cc-settings full footprint removed:
  *
- *   env          — delete any key whose value equals full.env[key]. Drop the
+ *   env          — delete any key whose value equals full.env[key] or, when
+ *                  `previous` is given, the previous install's env[key], so a
+ *                  key cc-settings stopped shipping still leaves. Drop the
  *                  `env` key if it becomes empty.
  *   permissions  — for each sub-key (allow/deny/ask/additionalDirectories),
  *                  remove entries present in full.permissions[that]. Drop empty
@@ -181,16 +183,22 @@ export function applyLightProfile(settings: Record<string, unknown>): Record<str
 export function stripManagedSettings(
   user: Record<string, unknown>,
   full: Record<string, unknown>,
+  // The previous install's team settings (SettingsBaseline.team_settings).
+  // Light and uninstall bypass the merge's three-way env prune, so without it
+  // a retired key would survive on the very installs leaving cc-settings.
+  previous?: Record<string, unknown>,
 ): Record<string, unknown> {
   // Deep clone user so we never mutate the input.
   const out = structuredClone(user) as Record<string, unknown>;
 
   // --- env ---
   const fullEnv = asRecord(full.env);
+  const previousEnv = asRecord(previous?.env);
   if (out.env !== null && typeof out.env === "object") {
     const userEnv = out.env as Record<string, unknown>;
     for (const key of Object.keys(userEnv)) {
-      if (key in fullEnv && userEnv[key] === fullEnv[key]) {
+      const managed = (env: Record<string, unknown>) => key in env && userEnv[key] === env[key];
+      if (managed(fullEnv) || managed(previousEnv)) {
         delete userEnv[key];
       }
     }
