@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.55.0] — 2026-10-08
+
+Rules adopt patterns from good-css.com and settle three contradictions.
+
+- Viewport units: `svh` for documents and heroes, `dvh` only for app shells, never `h-screen`/`100vh`. `AGENTS.md`, `rules/style.md`, and `rules/ui-fix.md` agree.
+- Reduced motion: `rules/accessibility.md` prescribes the opt-in `no-preference` pattern instead of the global `0.01ms` rule, matching `rules/ui-skills.md`.
+- Hover gating: `rules/ui-skills.md` notes that Tailwind v4's `hover:` variant is already gated.
+- `rules/style.md`, `rules/accessibility.md`, and `rules/ui-skills.md` add modern CSS bullets: logical properties, `overflow: clip`, intrinsic grids, `@starting-style`, anchor positioning, hit areas, focus rings, fluid type, and press feedback.
+
 ## [15.54.0] — 2026-10-07
 
 Twelve skills leave the library: `oracle`, `strategist`, `plan-ceo-review`, `plan-feature`, `adhd`, `project`, `consolidate`, `test`, `tldr`, `lighthouse`, `design-tokens`, and `qa`. The library goes from 38 to 26 skills.

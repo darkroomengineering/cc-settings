@@ -7,7 +7,7 @@ paths:
 
 # UI Skills Reference
 
-> Opinionated constraints for building better interfaces. Source: [ui-skills.com](https://ui-skills.com)
+> Opinionated constraints for building better interfaces. Source: [ui-skills.com](https://ui-skills.com). Modern CSS patterns adapted from [good-css.com](https://good-css.com)
 >
 > **Foundation:** `rules/style.md` covers core patterns (CSS modules as 's', Tailwind conventions, viewport units, z-index scale, compositor-only animations). This file extends those with stack constraints, component/interaction/animation/typography/layout rules.
 
@@ -79,6 +79,10 @@ See `rules/accessibility.md` and `docs/accessibility.md` for full rules.
 - Allow password managers to function properly
 - Support autofill attributes (`autocomplete`)
 
+### Press Feedback
+- Removing the tap highlight makes `:active` feedback mandatory: `scale(0.95-0.98)`, 100-160ms, transition inside `prefers-reduced-motion: no-preference`.
+- Script listeners use `pointerdown` for immediate feedback.
+
 ---
 
 ## Animation Constraints
@@ -137,7 +141,7 @@ up to 500ms.
   transitions instead, so retriggering retargets from the current value instead of
   restarting from zero.
 - Ungated `:hover` motion — gate behind `@media (hover: hover) and (pointer: fine)`
-  (touch fires false hovers on tap).
+  (touch fires false hovers on tap). Tailwind v4's `hover:` variant already wraps in `(hover: hover)`; hand-written CSS Module hover motion uses the media query.
 - Reduced motion treated as "zero" — `prefers-reduced-motion: reduce` means fewer and
   gentler animations, not none. Keep opacity/color transitions that aid
   comprehension; drop movement.

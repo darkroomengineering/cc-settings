@@ -211,7 +211,7 @@ These defaults apply to Darkroom web clients. A project's config and lockfile wi
 
 ### UI
 
-- Use `h-dvh`, not `h-screen`.
+- Use `h-svh`, not `h-screen`.
 - Never block paste in inputs.
 - Animate only compositor properties: `transform` and `opacity`.
 - Interaction feedback: maximum 200ms.

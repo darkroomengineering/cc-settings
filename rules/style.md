@@ -9,7 +9,7 @@ paths:
 
 # Style
 
-> CSS modules as 's', Tailwind conventions, no inline styles
+> CSS modules as 's', Tailwind conventions, no inline styles. Modern CSS patterns adapted from [good-css.com](https://good-css.com)
 
 ---
 
@@ -46,8 +46,9 @@ function Component() { return <div className={s.wrapper}>...</div> }
 
 ### Viewport Units
 ```tsx
-<div className="h-dvh">  {/* Not h-screen */}
+<div className="min-h-svh">  {/* Documents and heroes. Never h-screen / 100vh */}
 ```
+Use `dvh` (`h-dvh`) only for app shells that should track browser toolbar retraction.
 
 ### Modern CSS
 - **Native `popover` + `popovertarget`** for menus, tooltips, and non-modal overlays. They render in the top layer, so they never fight the z-index scale. Style `::backdrop` and `:popover-open`.
@@ -55,6 +56,14 @@ function Component() { return <div className={s.wrapper}>...</div> }
 - **`@scope` with a lower bound** (`@scope (.card) to (.content)`) when a style must not leak into nested content.
 - **`text-box: trim-both cap alphabetic`** for optical text alignment instead of negative margins or line-height fudges. It degrades cleanly.
 - **`sibling-index()` / `sibling-count()`** for stagger delays and count-based spacing. Enhancement only (Chrome 138, Safari 26.2, Firefox 154): always keep a working static fallback.
+- **Logical properties** (`padding-inline`, `margin-block`, `inset-inline-start`) instead of left/right/top/bottom.
+- **`overflow: clip`** instead of `hidden` when nothing should scroll; it keeps `position: sticky` working.
+- **`justify-content: safe center`** on rows that can overflow, so the start edge stays reachable.
+- **Intrinsic grids** `repeat(auto-fit, minmax(min(100%, 16rem), 1fr))`, and container queries + `cqi` before viewport breakpoints for components in variable-width slots.
+- **`:user-invalid` / `:user-valid`** for form feedback (pair color with text). **`field-sizing: content`** with `min-height`/`max-height` in `lh` for growing textareas.
+- **Dialogs and popovers** enter and exit with `@starting-style` + `transition: display ... allow-discrete, overlay ... allow-discrete`. **Anchor positioning** (`position-area` + `position-try-fallbacks`) for popovers tied to a trigger.
+- **`light-dark()` + `color-scheme`** for two-theme color tokens. Projects with 3+ themes keep `[data-theme]` overrides.
+- **Reset:** `min-width: 0` on flex/grid children and `text-wrap: balance` on headings.
 
 ---
 
