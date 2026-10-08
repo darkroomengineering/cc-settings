@@ -82,7 +82,7 @@ button:focus-visible {
 /* WRONG: Removing focus outline */
 button:focus { outline: none; }
 /* Box-shadow rings: keep a transparent outline for forced-colors mode */
-button:focus-visible { outline-color: transparent; box-shadow: 0 0 0 2px var(--focus-color); }
+button:focus-visible { outline: 2px solid transparent; box-shadow: 0 0 0 2px var(--focus-color); }
 ```
 
 ---
