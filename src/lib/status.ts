@@ -34,11 +34,7 @@ import { compareVersion, readSentinel } from "./version-delta.ts";
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 // The env vars that CLAUDE-FULL.md promises are always set after install.
-export const EXPECTED_ENV_VARS = [
-  "CLAUDE_CODE_EFFORT_LEVEL",
-  "ENABLE_TOOL_SEARCH",
-  "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
-];
+export const EXPECTED_ENV_VARS = ["ENABLE_TOOL_SEARCH", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"];
 
 async function gatherGitDrift(sourceDir: string, claudeDir: string): Promise<GitDriftData> {
   const sha = await runGit(["rev-parse", "--short", "HEAD"], { cwd: sourceDir });

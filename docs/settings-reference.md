@@ -43,7 +43,6 @@ Environment variables injected into every Claude Code session.
 ```json
 {
   "env": {
-    "CLAUDE_CODE_EFFORT_LEVEL": "medium",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }
@@ -51,7 +50,7 @@ Environment variables injected into every Claude Code session.
 
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Default adaptive thinking depth. cc-settings pins `medium` — thinking tokens are output-priced and every inheriting subagent spends them. Raise per session: `/effort high` for hard non-coding reasoning, `/effort xhigh` for audits, migrations, or hard debugging; inheriting subagents use the same raised depth unless their agent config overrides it. See the [model configuration guide](https://code.claude.com/docs/en/model-config#choose-an-effort-level) |
+| `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Adaptive thinking depth. While set it overrides `/effort`, `--effort` and saved per-model levels, so cc-settings does not set it; use `/effort` instead, which saves a default per model. See the [model configuration guide](https://code.claude.com/docs/en/model-config#choose-an-effort-level) |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
 | `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode with flat plain-text rendering; env counterpart of `axScreenReader` / `--ax-screen-reader` |
 | `CLAUDE_AX_PREPARK_MS` | ms (string) or unset | Screen-reader mode: pause with the cursor at the start of a line before writing it. Off by default since v2.1.287; `50` restores the old pause |
@@ -159,7 +158,7 @@ Default model for all sessions.
 | Value | Model | Notes |
 |-------|-------|-------|
 | `fable` / `claude-fable-5-1` | Claude Fable 5.1 | **cc-settings default: `claude-fable-5-1`** (since 2026-09-01; was `claude-opus-5`). Top tier, above Opus 5.5 — long-horizon agentic coding, research, and document work. 1M context native at standard rates (no `[1m]` pin needed); cache reads 0.025x base. Included on Max since 2026-07-20: draws the shared weekly pool at ~2x the Opus 5 rate and is capped at 50% of the weekly limit, then bills extra-usage credits ($10/$50 per Mtok). The `fable` alias resolves to Fable 5.1 from Claude Code v2.1.257; Claude apps gateway sessions keep `fable`/`best` on Fable 5 until the gateway is configured for 5.1 — pick `claude-fable-5-1` in `/model` there. |
-| `opus` / `claude-opus-5-5` | Claude Opus 5.5 | `opus` resolves to Claude Opus 5.5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). One tier below Fable at 40% of its per-token price ($4/$20 per Mtok, cache reads $0.20); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native — no `[1m]` pin. The API effort default is `medium` (Opus 5 used `high`); cc-settings pins `medium` through `CLAUDE_CODE_EFFORT_LEVEL` either way. Requires Claude Code v2.1.280+. `claude-opus-5` ($5/$25) stays selectable by full ID. |
+| `opus` / `claude-opus-5-5` | Claude Opus 5.5 | `opus` resolves to Claude Opus 5.5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). One tier below Fable at 40% of its per-token price ($4/$20 per Mtok, cache reads $0.20); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native — no `[1m]` pin. The API effort default is `medium` (Opus 5 used `high`); cc-settings sets no effort level, so this default applies until you pick one with `/effort`. Requires Claude Code v2.1.280+. `claude-opus-5` ($5/$25) stays selectable by full ID. |
 | `claude-sonnet-5-5` | Claude Sonnet 5.5 | The execution tier: `CLAUDE_CODE_SUBAGENT_MODEL` and the Sonnet agents pin this full ID. Same price as Sonnet 5 ($2/$10 per MTok), faster, fewer tokens per task. The pick for `/model` when the pool is tight. |
 | `sonnet` | Claude Sonnet 5 | Still Sonnet 5 on Claude Code 2.1.284; pin `claude-sonnet-5-5` for 5.5. 1M context native (no `[1m]` pin needed) |
 | `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
@@ -544,13 +543,13 @@ Skip the confirmation prompt shown before entering bypass-permissions mode (via 
 
 ### `effortLevel`
 
-Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings pins `medium` via the env var). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`. The official docs for this key list only the first four, but the env var and real live configs also persist `"max"` — our schema accepts it as a superset so a live `settings.json` validates.
+Persist the effort level across sessions — the `settings.json` counterpart of the `CLAUDE_CODE_EFFORT_LEVEL` env var (cc-settings sets neither). Values: `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`. The official docs for this key list only the first four, but the env var and real live configs also persist `"max"` — our schema accepts it as a superset so a live `settings.json` validates.
 
 ```json
 { "effortLevel": "high" }
 ```
 
-Since v2.1.251 `/effort` saves the chosen level **per model**, so each model keeps its own setting when you switch; `s` in the `/effort` picker changes effort for the current session only, matching `/model` (v2.1.257). `--effort` lifts a new model's default-effort hold for that session only rather than permanently (v2.1.257). cc-settings' `CLAUDE_CODE_EFFORT_LEVEL=medium` remains the baseline every model starts from.
+Since v2.1.251 `/effort` saves the chosen level **per model**, so each model keeps its own setting when you switch; `s` in the `/effort` picker changes effort for the current session only, matching `/model` (v2.1.257). `--effort` lifts a new model's default-effort hold for that session only rather than permanently (v2.1.257). cc-settings sets no effort level, so each model starts from its own default until you pick one.
 
 ### `disableSkillShellExecution`
 

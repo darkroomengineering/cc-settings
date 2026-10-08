@@ -160,8 +160,11 @@ the bridge is down, pause or switch to Sonnet and tell the user.
 
 ## Effort and context
 
-`CLAUDE_CODE_EFFORT_LEVEL` pins the default at `medium` — thinking tokens are
-output-priced and every inheriting agent spends them. Raise deliberately:
+cc-settings sets no effort level, so `/effort` choices stick per model.
+Opus 5.5 and Sonnet 5.5 default to `medium`, Fable 5.1 to `high`. Thinking
+tokens are output-priced and every inheriting agent spends them, so drop
+Fable to `/effort medium` for routine work. Never export
+`CLAUDE_CODE_EFFORT_LEVEL`: while set, it overrides `/effort`. Raise deliberately:
 `/effort high` for hard non-coding reasoning, `/effort xhigh` for audits,
 migrations, and hard debugging, `ultrathink` for one turn. Agent frontmatter
 pins effort where depth is non-negotiable (`security-reviewer`, `planner`);

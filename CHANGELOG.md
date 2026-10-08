@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.56.0] — 2026-10-08
+
+cc-settings no longer sets `CLAUDE_CODE_EFFORT_LEVEL`. While that variable is set, Claude Code ignores `/effort`, `--effort` and saved per-model levels, so every dev was stuck on `medium` no matter what they chose locally.
+
+**Changed:**
+- `config/10-core.json` drops the `CLAUDE_CODE_EFFORT_LEVEL: "medium"` env entry. Each model now starts from Claude Code's own default (`medium` on Opus 5.5 and Sonnet 5.5, `high` on Fable 5.1), and `/effort` choices persist per model.
+- Existing installs lose the key on the next setup through the env three-way prune, but only where it still reads `medium`. A value a dev set by hand stays.
+- The install status check stops expecting the variable.
+- `CLAUDE-FULL.md` and `docs/settings-reference.md` describe the unpinned default and warn against exporting the variable.
+
 ## [15.55.0] — 2026-10-08
 
 Rules adopt patterns from good-css.com and settle three contradictions.
