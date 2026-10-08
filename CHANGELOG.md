@@ -10,7 +10,7 @@ cc-settings no longer sets `CLAUDE_CODE_EFFORT_LEVEL`. While that variable is se
 
 **Changed:**
 - `config/10-core.json` drops the `CLAUDE_CODE_EFFORT_LEVEL: "medium"` env entry. Each model now starts from Claude Code's own default (`medium` on Opus 5.5 and Sonnet 5.5, `high` on Fable 5.1), and `/effort` choices persist per model.
-- Existing installs lose the key on the next setup through the env three-way prune, but only where it still reads `medium`. A value a dev set by hand stays.
+- Existing installs lose the key on the next setup, `--light` and `--uninstall` included, but only where it still reads `medium`. A value a dev set by hand stays. `stripManagedSettings` now also strips env values the previous install's baseline shipped, so the light and uninstall paths match the full merge's three-way prune.
 - The install status check stops expecting the variable.
 - `CLAUDE-FULL.md` and `docs/settings-reference.md` describe the unpinned default and warn against exporting the variable.
 

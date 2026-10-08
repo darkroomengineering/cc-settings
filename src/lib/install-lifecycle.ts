@@ -69,6 +69,7 @@ import {
   snapshotAutoUpdateState,
   unregisterAutoUpdate,
 } from "./schedule.ts";
+import { readSettingsBaseline } from "./settings-baseline.ts";
 import { readDestructiveSentinel, type Sentinel } from "./version-delta.ts";
 
 let sharedBackupSequence = 0;
@@ -178,6 +179,7 @@ interface PreparedClaudeUninstall {
   settingsPath: string;
   nodeModulesTarget: string | null;
   snapshot: ClaudeLifecycleOwnershipSnapshot;
+  previousTeamSettings: Record<string, unknown> | undefined;
 }
 
 async function prepareClaudeUninstall(sourceDir: string): Promise<PreparedClaudeUninstall | null> {
@@ -204,7 +206,18 @@ async function prepareClaudeUninstall(sourceDir: string): Promise<PreparedClaude
     Object.keys(managedFiles),
     nodeModulesTarget,
   );
-  return { sourceDir, sentinel, full, settingsPath, nodeModulesTarget, snapshot };
+  // Read before removeOwnedClaudeFiles deletes the baseline with the rest of
+  // the managed footprint.
+  const previousTeamSettings = (await readSettingsBaseline(CLAUDE_DIR))?.team_settings;
+  return {
+    sourceDir,
+    sentinel,
+    full,
+    settingsPath,
+    nodeModulesTarget,
+    snapshot,
+    previousTeamSettings,
+  };
 }
 
 async function uninstallClaude(
@@ -215,14 +228,26 @@ async function uninstallClaude(
     after: () => Promise<void>;
   },
 ): Promise<void> {
-  const { sourceDir, sentinel, full, settingsPath, nodeModulesTarget, snapshot } = prepared;
+  const {
+    sourceDir,
+    sentinel,
+    full,
+    settingsPath,
+    nodeModulesTarget,
+    snapshot,
+    previousTeamSettings,
+  } = prepared;
   await assertClaudeLifecycleOwnershipUnchanged(snapshot);
   const teamMcp = structuredClone(full.mcpServers ?? {}) as McpServers;
   await pruneSettingsMcpServers(settingsPath, teamMcp, sentinel.mcp_written);
   const current = await readJsonOrNull(settingsPath);
   if (current !== null && typeof current === "object" && !Array.isArray(current)) {
     const { mcpServers: _managedMcp, ...settingsWithoutMcp } = full;
-    const cleaned = stripManagedSettings(current as Record<string, unknown>, settingsWithoutMcp);
+    const cleaned = stripManagedSettings(
+      current as Record<string, unknown>,
+      settingsWithoutMcp,
+      previousTeamSettings,
+    );
     for (const key of ["$schema", "statusLine"] as const) {
       if (key in cleaned && JSON.stringify(cleaned[key]) === JSON.stringify(full[key])) {
         delete cleaned[key];

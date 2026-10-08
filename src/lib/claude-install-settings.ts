@@ -73,6 +73,7 @@ export async function installSettings(
       const cleaned = stripManagedSettings(
         existingRaw as Record<string, unknown>,
         settingsWithoutMcp,
+        priorSettingsBaseline?.team_settings,
       );
       result = { ...cleaned, ...lightBaseline };
     }
