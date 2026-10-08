@@ -4,6 +4,10 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.56.1] — 2026-10-08
+
+`rules/accessibility.md` drops the fluid type rule that asked for `rem + vw` text. Darkroom layouts scale in `vw` to the design frame, so text that grows with browser zoom outgrows its fixed containers and breaks the layout. Type now scales with the layout through the project's type utilities.
+
 ## [15.56.0] — 2026-10-08
 
 cc-settings no longer sets `CLAUDE_CODE_EFFORT_LEVEL`. While that variable is set, Claude Code ignores `/effort`, `--effort` and saved per-model levels, so every dev was stuck on `medium` no matter what they chose locally.
