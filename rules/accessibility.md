@@ -52,6 +52,8 @@ button:focus-visible {
   outline: 2px solid var(--focus-color);
   outline-offset: 2px;
 }
+/* Default ring: scales with font size */
+:focus-visible { outline: max(2px, 0.08em) solid currentColor; outline-offset: 0.25em; }
 ```
 
 ---
@@ -79,6 +81,8 @@ button:focus-visible {
 ```css
 /* WRONG: Removing focus outline */
 button:focus { outline: none; }
+/* Box-shadow rings: keep a transparent outline for forced-colors mode */
+button:focus-visible { outline: 2px solid transparent; box-shadow: 0 0 0 2px var(--focus-color); }
 ```
 
 ---
@@ -97,14 +101,18 @@ loadable — when a threshold changes here, update it too.
 | Focus order | Logical flow |
 | Motion | Respect `prefers-reduced-motion` |
 
+Reduced motion means gentler, not zero. Declare movement inside the opt-in query; opacity and color fades stay outside. Scripts check `matchMedia('(prefers-reduced-motion: no-preference)')`. Never ship a global `0.01ms !important` rule.
+
 ```css
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+.card { transition: opacity 200ms var(--ease-out); }
+@media (prefers-reduced-motion: no-preference) {
+  .card { transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
 }
 ```
+
+### Hit areas and fluid type
+- Sub-44px icon buttons grow the hit area with `position: relative` + `::after { content: ""; position: absolute; inset: min(0px, (100% - 44px) / 2); }`. It breaks under `overflow: hidden/clip`.
+- Fluid type: preferred value is `rem + vw`, never bare `vw` for text (it ignores zoom and user font size). Bounds in `rem`, max at most 2.5x min (WCAG 1.4.4).
 
 ## Tools
 

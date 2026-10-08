@@ -42,7 +42,7 @@ Identify the one element causing the cutoff first. One precise rule beats four h
 // CORRECT
 <div className="h-svh overflow-y-auto">
 ```
-`100svh` / `h-svh` matches the smallest viewport (chrome visible). Use `100dvh` only when the layout is meant to grow with chrome retraction.
+`100svh` / `h-svh` matches the smallest viewport (chrome visible). Use `100dvh` only for app shells meant to track chrome retraction.
 
 ### Don't rebuild a native input to fix a styling diff
 Safari and Chrome render `<input type="date">` pickers differently. Before building a custom date component:
