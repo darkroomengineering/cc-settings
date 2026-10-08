@@ -110,9 +110,9 @@ Reduced motion means gentler, not zero. Declare movement inside the opt-in query
 }
 ```
 
-### Hit areas and fluid type
+### Hit areas and type
 - Sub-44px icon buttons grow the hit area with `position: relative` + `::after { content: ""; position: absolute; inset: min(0px, (100% - 44px) / 2); }`. It breaks under `overflow: hidden/clip`.
-- Fluid type: preferred value is `rem + vw`, never bare `vw` for text (it ignores zoom and user font size). Bounds in `rem`, max at most 2.5x min (WCAG 1.4.4).
+- Type scales with the layout, not with browser zoom. Size text with the project's type utilities, which scale in `vw` to the design frame like the rest of the layout. Never use `rem` or `rem + vw` for type in a frame-scaled layout: zoom then grows the text while its containers stay fixed, and the layout breaks.
 
 ## Tools
 
