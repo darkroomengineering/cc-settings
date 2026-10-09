@@ -440,7 +440,7 @@ describe("standalone Codex workflow branches", () => {
     expect(standaloneSection(autoresearch)).toMatch(/fail(?:s)? closed|refuse|stop/i);
   });
 
-  test("cc update trusts only the exact GitHub HTTPS origin before pull or setup", async () => {
+  test("cc update trusts only the exact GitHub origin, HTTPS or SSH, before pull or setup", async () => {
     const cc = await readFile(join(ROOT, "skills/cc/SKILL.md"), "utf8");
     expect(cc).not.toMatch(/remote get-url origin[^\n]*grep/);
     expect(cc).toContain(
@@ -454,6 +454,9 @@ describe("standalone Codex workflow branches", () => {
       "https://github.com/darkroomengineering/cc-settings.git",
       "https://github.com/darkroomengineering/cc-settings/",
       "https://github.com/darkroomengineering/cc-settings.git/",
+      "git@github.com:darkroomengineering/cc-settings.git",
+      "git@github.com:darkroomengineering/cc-settings",
+      "ssh://git@github.com/darkroomengineering/cc-settings.git",
     ];
     const rejected = [
       "https://evil.example/darkroomengineering/cc-settings",
@@ -464,6 +467,12 @@ describe("standalone Codex workflow branches", () => {
       "https://github.com/darkroomengineering/cc-settings#main",
       "file:///tmp/cc-settings",
       "/tmp/cc-settings",
+      "git@evil.example:darkroomengineering/cc-settings.git",
+      "git@github.com:darkroomengineering/cc-settings-extra.git",
+      "git@github.com.evil.example:darkroomengineering/cc-settings.git",
+      "ssh://git@evil.example/darkroomengineering/cc-settings.git",
+      "ssh://git@github.com:2222/darkroomengineering/cc-settings.git",
+      "evil@github.com:darkroomengineering/cc-settings.git",
     ];
     const trusted = "https://github.com/darkroomengineering/cc-settings";
     const normalize = async (origin: string): Promise<string> => {

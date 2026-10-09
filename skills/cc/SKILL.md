@@ -309,7 +309,7 @@ for candidate in "${CANDIDATES[@]}"; do
   [ "$candidate" != "$CODEX_RUNTIME" ] || continue
   [ -d "$candidate/.git" ] || continue
   ORIGIN=$(git -C "$candidate" remote get-url origin 2>/dev/null) || continue
-  NORMALIZED_ORIGIN=$(printf '%s' "$ORIGIN" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s:/+$::; s:[.]git$::')
+  NORMALIZED_ORIGIN=$(printf '%s' "$ORIGIN" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s#^git@github[.]com:#https://github.com/#; s#^ssh://git@github[.]com/#https://github.com/#; s:/+$::; s:[.]git$::')
   [ "$NORMALIZED_ORIGIN" = "https://github.com/darkroomengineering/cc-settings" ] || continue
   CC_REPO="$candidate"
   break
