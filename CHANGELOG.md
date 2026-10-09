@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.57.1] — 2026-10-09
+
+`/cc update` accepts a cc-settings checkout cloned over SSH. The origin check compared the remote only against the GitHub HTTPS URL, so a `git@github.com:` or `ssh://git@github.com/` remote was rejected and the update stopped with "no real cc-settings git checkout was found". Both SSH forms now normalize to the HTTPS URL before the comparison; any other host or user is still rejected.
+
+**Files changed:**
+- skills/cc/SKILL.md
+- tests/plugin-manifest.test.ts
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.57.0] — 2026-10-09
 
 Sync with Claude Code 2.1.295 and Codex 0.162.0.
