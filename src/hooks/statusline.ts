@@ -375,10 +375,13 @@ async function main(): Promise<void> {
   // cc-settings install staleness — surfaced only when the cached SessionStart
   // drift check found the repo's packaged version ahead of what's installed.
   // Suppressed otherwise (like the review queue), so it costs nothing when current.
+  // The cache is only rewritten at SessionStart, so an install mid-session would
+  // leave it flagging the old version; drop it once the sentinel has moved on.
+  const installedNow = await readInstalledVersion(claudePath());
   const drift = await readValidatedState("version-drift.json", VersionDriftSchema, {
     stale: false,
   });
-  if (drift.stale && drift.installed) {
+  if (drift.stale && drift.installed && (!installedNow || installedNow === drift.installed)) {
     parts.push(`${palette.yellow}⬆ cc v${drift.installed}${palette.dim} stale${palette.reset}`);
   }
 
@@ -388,7 +391,6 @@ async function main(): Promise<void> {
   // (`claude -c` resumes the conversation on the new install). Inverse of the
   // ⬆ stale check above, which flags an install BEHIND the repo.
   // sessionId was hoisted near the top of main() — reused here.
-  const installedNow = await readInstalledVersion(claudePath());
   if (sessionId && installedNow) {
     const sessionVersions = await readValidatedState(
       SESSION_INSTALL_STATE,
