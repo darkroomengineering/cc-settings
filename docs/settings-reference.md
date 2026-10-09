@@ -117,6 +117,7 @@ Environment variables injected into every Claude Code session.
 | `API_FORCE_IDLE_TIMEOUT` | `"0"` to opt out, unset for default | Restores a default 5-minute idle timeout on Vertex/Foundry so a stalled stream aborts instead of hanging; set `=0` to opt out (v2.1.169) |
 | `CLAUDE_CODE_MAX_RETRIES` | integer (string) | Max API retry attempts on transient failures. Capped at `15` from v2.1.186; the cap is lifted when `CLAUDE_CODE_RETRY_WATCHDOG` is set (v2.1.199). From v2.1.286 one limit covers a whole model call, so with the defaults a failing call sends at most 14 requests |
 | `CLAUDE_CODE_RETRY_WATCHDOG` | `"1"` or unset | Keeps retrying transient API failures for long unattended sessions (v2.1.186). As of v2.1.199 also raises the default retry count for non-capacity transient errors to 300 and lifts the `15` cap on `CLAUDE_CODE_MAX_RETRIES` |
+| `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` | integer (string) | Caps how long `CLAUDE_CODE_RETRY_WATCHDOG` waits out 429 and 529 errors (v2.1.295) |
 | `CLAUDE_ENABLE_STREAM_WATCHDOG` | `"0"` to disable, unset for default | Streaming idle watchdog — aborts and retries a response stream that produces no events for 5 minutes. **On by default for all providers** as of v2.1.196; set `=0` to disable. Distinct from `CLAUDE_CODE_RETRY_WATCHDOG` (which governs the retry cap, not stream idleness) |
 | `OTEL_LOG_ASSISTANT_RESPONSES` | `"1"` / `"0"` / unset | Adds the model's response text to the `claude_code.assistant_response` OTEL log event. **Redacted unless `=1`; when unset it inherits `OTEL_LOG_USER_PROMPTS`** — so deployments already logging prompt content start logging response content on upgrade. Set `=0` to keep prompts-only (v2.1.193) |
 | `OTEL_LOG_MANAGED_SETTINGS` | `"1"` or unset | Adds redacted settings and digests to the `claude_code.managed_settings_resolved` OTel event, which otherwise carries only the managed-settings sources and policy helper state (v2.1.274) |
@@ -161,7 +162,7 @@ Default model for all sessions.
 | `opus` / `claude-opus-5-5` | Claude Opus 5.5 | `opus` resolves to Claude Opus 5.5 on Anthropic API / claude.ai Max (still Opus 4.6 on Microsoft Foundry — pin the full ID). One tier below Fable at 40% of its per-token price ($4/$20 per Mtok, cache reads $0.20); the pin for judgment-bearing agents (`maestro`, `planner`, `security-reviewer`) and the per-session step-down (`/model opus`) when the pool is tight. 1M context native — no `[1m]` pin. The API effort default is `medium` (Opus 5 used `high`); cc-settings sets no effort level, so this default applies until you pick one with `/effort`. Requires Claude Code v2.1.280+. `claude-opus-5` ($5/$25) stays selectable by full ID. |
 | `claude-sonnet-5-5` | Claude Sonnet 5.5 | The execution tier: `CLAUDE_CODE_SUBAGENT_MODEL` and the Sonnet agents pin this full ID. Same price as Sonnet 5 ($2/$10 per MTok), faster, fewer tokens per task. The pick for `/model` when the pool is tight. |
 | `sonnet` | Claude Sonnet 5 | Still Sonnet 5 on Claude Code 2.1.284; pin `claude-sonnet-5-5` for 5.5. 1M context native (no `[1m]` pin needed) |
-| `haiku` | Claude Haiku 4.5 | Fastest, lowest cost |
+| `haiku` | Claude Haiku 5.5 | Fastest, lowest cost; 1M context (v2.1.293) |
 
 > **Provider notes**: On Claude Platform on AWS, `opus` resolves to Opus 4.7. On Bedrock, Vertex, and Foundry, `opus` resolves to Opus 4.6 — pin `claude-opus-4-8` explicitly via `ANTHROPIC_DEFAULT_OPUS_MODEL` to get the latest model on those providers.
 
@@ -251,6 +252,8 @@ Custom status bar displayed in the Claude Code terminal.
 The `statusline.ts` script displays model name, git branch, and context usage percentage.
 
 ♻NN% is the session's prompt-cache hit ratio from the `prompt_cache` payload (v2.1.251+): green ≥80%, yellow ≥50%, red below; `cold` means the cached prefix has expired. Hidden until three requests have been recorded. When cold, the chip appends the diagnosed cause of the last miss from `prompt_cache.last_miss_cause` (v2.1.260), e.g. `♻42% cold ttl_expired_1h`; causes are `system_prompt_changed`, `tools_changed`, `model_changed`, `messages_rewritten`, `ttl_expired_5m`, `ttl_expired_1h`, `likely_server_side`, `unknown`.
+
+Claude Code's separate `subagentStatusLine` setting gets an `agentType` field in its payload (v2.1.293), so a script can tell custom subagent types apart. cc-settings does not set it.
 
 ### `plansDirectory`
 
@@ -806,7 +809,8 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `feedbackSurveyRate` | number 0–1 | E | Sampling rate for in-session feedback survey; 0 = disabled (v2.1.106) |
 | `fileSuggestion` | object | G | File-suggestion UI configuration object |
 | `footerLinksRegexes` | array | G | Regex-matched link badges in the footer row; user or managed settings (v2.1.176) |
-| `forceLoginMethod` | `"claudeai"` \| `"console"` | A | Lock the login flow to a specific provider |
+| `forceLoginGatewayUrl` | string | A | Gateway URL used when `forceLoginMethod` is `"gateway"` |
+| `forceLoginMethod` | `"claudeai"` \| `"console"` \| `"gateway"` | A | Lock the login flow to a specific provider |
 | `forceLoginOrgUUID` | string \| string[] | A | Restrict login to a specific org UUID or list of UUIDs |
 | `forceRemoteSettingsRefresh` | boolean | E | Force a settings reload from the managed settings URL |
 | `gatewayInternalNetworks` | string[] | E | Managed: CIDR blocks of the organization's own public IPv4 space from which `/login` to a Claude apps gateway is allowed (v2.1.268) |

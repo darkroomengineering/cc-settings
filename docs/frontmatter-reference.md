@@ -20,7 +20,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `description` | string | Yes | Multi-line description shown in agent selection. Controls auto-invocation behavior (see below) |
 | `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, LS, Agent, ...]` |
 | `color` | string | No | Display color in the UI: `purple`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gold` |
-| `skills` | list | No | Skills to preload into the subagent context at startup |
+| `skills` | list | No | Skills to preload into the subagent context at startup. Claude Code preloads at most 32, each once (v2.1.295); a subagent with the Skill tool can still invoke the rest |
 | `mcpServers` | object | No | MCP servers scoped to this agent (inline definitions or references) |
 | `hooks` | object | No | Lifecycle hooks scoped to this specific subagent |
 | `maxTurns` | number | No | Maximum agentic turns before the subagent stops |

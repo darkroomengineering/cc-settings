@@ -4,6 +4,34 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.57.0] — 2026-10-09
+
+Sync with Claude Code 2.1.295 and Codex 0.162.0.
+
+**Adopted:**
+- Hook `onFailure: "block"` (Claude Code 2.1.295): `src/schemas/hooks.ts`, `docs/hooks-reference.md`, `config/40-hooks.json`. The Bash safety net now blocks the command when its hook cannot start or times out, instead of letting it through.
+- `forceLoginMethod: "gateway"` and `forceLoginGatewayUrl` (2.1.295): `src/schemas/settings.ts`. Settings files that use them parse.
+- `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` (2.1.295): `docs/settings-reference.md`. Caps how long unattended retry mode waits out 429 and 529 errors.
+- Claude Haiku 5.5 is the `haiku` alias (2.1.293): `docs/settings-reference.md`, `src/lib/token-usage.ts`, so `bun run tokens` prices Haiku 5.5 turns, including its higher rate above a 100K prompt.
+
+**Docs only:**
+- `docs/codex-bridge.md` no longer calls GPT-6 Astra the Codex CLI default; GPT-6.1 Sol is (Codex 0.161.0).
+- `subagentStatusLine` payloads carry `agentType` (2.1.293); subagents preload at most 32 skills from `skills:` (2.1.295).
+
+**Files changed:**
+- src/schemas/hooks.ts
+- src/schemas/settings.ts
+- config/40-hooks.json
+- src/lib/token-usage.ts
+- tests/token-usage.test.ts
+- schemas/settings.schema.json
+- docs/hooks-reference.md
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/codex-bridge.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+
 ## [15.56.1] — 2026-10-08
 
 `rules/accessibility.md` drops the fluid type rule that asked for `rem + vw` text. Darkroom layouts scale in `vw` to the design frame, so text that grows with browser zoom outgrows its fixed containers and breaks the layout. Type now scales with the layout through the project's type utilities.
