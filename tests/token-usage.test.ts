@@ -74,6 +74,14 @@ describe("costOf", () => {
     expect(costOf("claude-haiku-4-5-20251001", t).output).toBe(5);
     expect(costOf("gpt-x", t).output).toBe(0);
   });
+
+  test("switches Haiku 5.5 to its long-context rates above a 100K prompt", () => {
+    const at = { ...zero(), input: 100_000, output: 1e6 };
+    expect(costOf("claude-haiku-5-5", at).output).toBe(0.5);
+    const over = { ...zero(), input: 200_000, output: 1000 };
+    expect(costOf("claude-haiku-5-5", over).input).toBeCloseTo(0.1);
+    expect(costOf("claude-haiku-5-5", over).output).toBeCloseTo(0.0025);
+  });
 });
 
 describe("buildReport", () => {

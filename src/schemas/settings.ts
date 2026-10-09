@@ -431,7 +431,8 @@ export const Settings = z.looseObject({
   apiKeyHelper: z.string().optional(), // shell command that emits an Anthropic API key
   awsAuthRefresh: z.string().optional(), // shell command called to refresh AWS credentials
   awsCredentialExport: z.string().optional(), // shell command that exports AWS credential env vars
-  forceLoginMethod: z.enum(["claudeai", "console"]).optional(), // lock the login flow to a specific provider
+  forceLoginGatewayUrl: z.string().optional(), // Claude apps gateway that /login opens on, with forceLoginMethod "gateway"
+  forceLoginMethod: z.enum(["claudeai", "console", "gateway"]).optional(), // lock the login flow to a specific provider
   forceLoginOrgUUID: z.union([z.string(), z.array(z.string())]).optional(), // restrict login to a specific org UUID (or list)
   gcpAuthRefresh: z.string().optional(), // shell command called to refresh GCP credentials
 

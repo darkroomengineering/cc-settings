@@ -15,6 +15,8 @@ interface ModelPrice {
   input: number;
   output: number;
   cacheRead: number;
+  /** Rates for a request whose prompt exceeds `above` tokens. */
+  longContext?: { above: number; input: number; output: number; cacheRead: number };
 }
 
 const PRICES: Record<string, ModelPrice> = {
@@ -25,6 +27,13 @@ const PRICES: Record<string, ModelPrice> = {
   "claude-opus-4-8": { input: 5, output: 25, cacheRead: 0.5 },
   "claude-sonnet-5": { input: 2, output: 10, cacheRead: 0.2 },
   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
+  // cacheRead est.: 0.1x input; the 2.1.293 changelog lists only input and output.
+  "claude-haiku-5-5": {
+    input: 0.1,
+    output: 0.5,
+    cacheRead: 0.01,
+    longContext: { above: 100_000, input: 0.5, output: 2.5, cacheRead: 0.05 },
+  },
   "claude-haiku-4-5": { input: 1, output: 5, cacheRead: 0.1 },
 };
 
@@ -68,9 +77,11 @@ export function priceFor(model: string): ModelPrice | undefined {
 }
 
 export function costOf(model: string, t: Breakdown): Breakdown {
-  const p = priceFor(model);
+  const base = priceFor(model);
   const out = zero();
-  if (!p) return out;
+  if (!base) return out;
+  const lc = base.longContext;
+  const p = lc && promptSize(t) > lc.above ? lc : base;
   const m = 1e6;
   out.input = (t.input * p.input) / m;
   out.write5m = (t.write5m * p.input * 1.25) / m;

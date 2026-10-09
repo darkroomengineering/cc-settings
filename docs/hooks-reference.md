@@ -236,6 +236,7 @@ The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<
 | `async` | boolean | `false` | Run in background without blocking Claude |
 | `timeout` | number | `600` | Timeout in seconds (max: 600) |
 | `once` | boolean | `false` | Run exactly once per session, then disable |
+| `onFailure` | string | -- | (v2.1.295, `command` and `http` types) `"block"` blocks the action when the hook cannot start, times out, or exits with an unexpected code. Unset, such a failure lets the action through. `safety-net.ts` sets it. |
 | `continueOnBlock` | boolean | `false` | (v2.1.139, `PostToolUse` only) When the hook returns a block signal, the turn continues — the block surfaces in context but doesn't abort. Use for soft warnings. |
 | `terminalSequence` | string | -- | (v2.1.141, hook output) Raw terminal escape sequence the hook returns in its JSON output. Lets hooks emit desktop notifications, set window titles, or ring the bell without owning a controlling terminal. |
 

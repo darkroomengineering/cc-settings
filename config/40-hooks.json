@@ -58,7 +58,8 @@
 					{
 						"type": "command",
 						"command": "bun \"$HOME/.claude/src/hooks/safety-net.ts\"",
-						"timeout": 5
+						"timeout": 5,
+						"onFailure": "block"
 					}
 				]
 			},
