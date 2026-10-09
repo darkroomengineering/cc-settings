@@ -23,6 +23,7 @@ Sync with Claude Code 2.1.295 and Codex 0.162.0.
 - src/schemas/settings.ts
 - config/40-hooks.json
 - src/lib/token-usage.ts
+- src/lib/codex-install-state.ts
 - tests/token-usage.test.ts
 - schemas/settings.schema.json
 - docs/hooks-reference.md
