@@ -1,6 +1,7 @@
 {
   "lastScan": "2026-10-12T00:00:00.000Z",
   "codexVersion": "0.162.1",
+  "appChangelogLastScan": "2026-10-12",
   "knownConfigSurfaces": [
     "AGENTS.md managed block ($CODEX_HOME/AGENTS.md)",
     "agents/*.toml: name, description, developer_instructions, model, model_reasoning_effort, sandbox_mode",
@@ -28,6 +29,7 @@
     "0.160.0 sync (2026-10-02). Nothing to adopt: projectless sessions with workspace defaults, opt-in Guardian history and handoff context (cc-settings configures no Guardian), agent command center pagination, X11 middle-click paste, and fixes for Windows sandbox, SQLite stalls, subagent environments, provider catalogs and plugin manifest caching touch no knownConfigSurfaces entry.",
     "0.160.1 sync (2026-10-06). Nothing to adopt: a backport that keeps SYSTEMROOT, TEMP and TMP when launching remote stdio MCP servers for a Windows executor touches no knownConfigSurfaces entry.",
     "0.161.0\u20130.162.0 sync (2026-10-09). GPT-6.1 Sol became the CLI default model (0.161.0); the bridge pins models per call, so only docs/codex-bridge.md changed. Nothing else touches a knownConfigSurfaces entry: /mcp login, worktree tools, tui.mouse_scroll_speed, Daybreak/Cyber opt-ins, voice, Windows and sandbox fixes skipped. codex-skill-budget keeps the 10K default until Sol's window is documented.",
-    "0.162.1 sync (2026-10-12). Nothing to adopt: a TUI crash fix for multiline asynchronous questions (#51866) and a startup fix that limits background-server feature compatibility checks to explicit CLI overrides (#52648). Neither touches a knownConfigSurfaces entry."
+    "0.162.1 sync (2026-10-12). Nothing to adopt: a TUI crash fix for multiline asynchronous questions (#51866) and a startup fix that limits background-server feature compatibility checks to explicit CLI overrides (#52648). Neither touches a knownConfigSurfaces entry.",
+    "appChangelogLastScan is the date /cc sync last triaged https://learn.chatgpt.com/docs/changelog for Codex app and IDE extension entries. That page has its own version numbers (Codex app 26.x) and no npm package to diff, so upstream:scan prints the days since this date instead of a drift finding. Baseline set 2026-10-12: the entries from 2026-09-14 through 2026-10-08 are model launches and retirements (already handled by the CLI syncs and the bridge model pins), iOS releases, and a macOS security update; none touches a knownConfigSurfaces entry. Older app entries (hook trust review in app 26.506, primary-folder discovery of AGENTS.md, skills and config.toml on 2026-07-23) predate the baseline and were not re-triaged."
   ]
 }

@@ -5,7 +5,9 @@
 //       diffs it against the manifest's recorded claudeCodeVersion, then does
 //       the same for @openai/codex against upstream/codex-manifest.json.
 //       These two registry lookups are the ONLY network/external calls the
-//       scanner makes.
+//       scanner makes. The Codex app and IDE extension changelog has no
+//       version feed, so the scanner only prints the days since
+//       appChangelogLastScan; /cc sync reads that page every run.
 //   (b) LOCAL-ONLY — diffs upstream/claude-code-manifest.json against the
 //       zod schemas' enumerated values (src/schemas/*.ts). Both files are
 //       hand-maintained by cc-settings authors (updated via `/cc sync` after
@@ -47,6 +49,7 @@ import { Settings } from "../schemas/settings.ts";
 const ROOT = resolve(import.meta.dir, "..", "..");
 const MANIFEST = resolve(ROOT, "upstream", "claude-code-manifest.json");
 const CODEX_MANIFEST = resolve(ROOT, "upstream", "codex-manifest.json");
+const CODEX_APP_CHANGELOG = "https://learn.chatgpt.com/docs/changelog";
 
 const Manifest = z.looseObject({
   lastScan: z.string(),
@@ -70,6 +73,7 @@ type Manifest = z.infer<typeof Manifest>;
 const CodexManifest = z.looseObject({
   lastScan: z.string(),
   codexVersion: z.string(),
+  appChangelogLastScan: z.iso.date(),
   knownConfigSurfaces: z.array(z.string()),
 });
 
@@ -190,6 +194,12 @@ async function main() {
     `    manifest version: ${codexManifest.codexVersion} (scanned ${codexManifest.lastScan})`,
   );
   console.log(`    live version:     ${liveCodexVersion ?? "<unknown — network offline>"}`);
+  const appDays = Math.floor(
+    (Date.now() - Date.parse(codexManifest.appChangelogLastScan)) / 86_400_000,
+  );
+  console.log(
+    `    app/IDE changelog: last triaged ${codexManifest.appChangelogLastScan} (${appDays}d ago; no version feed, /cc sync reads ${CODEX_APP_CHANGELOG})`,
+  );
   console.log(
     "  reference-only (not diffed — no local schema source of truth; see manifest notes): knownEnvVars, knownBuiltinTools, codex knownConfigSurfaces",
   );

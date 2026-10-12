@@ -21,6 +21,8 @@ Sync with Claude Code 2.1.296 and Codex 0.162.1. `bun run tokens` now prices Son
 
 Codex 0.162.1 is two bug fixes with nothing to adopt.
 
+**Codex app tracking:** `/cc sync` now covers members who run cc-settings in the Codex desktop app or IDE extension. Those apps publish release notes only on learn.chatgpt.com/docs/changelog, and they read the same `AGENTS.md`, skills, plugins, hooks and `config.toml` as the CLI, so app-only changes could reach Codex users without anyone triaging them. The skill now reads that page on every sync. `upstream/codex-manifest.json` records the last triage date in `appChangelogLastScan`, and `bun run upstream:scan` prints how many days ago that was, because the page has no version feed to compare. A new eval case, `evals/cc-sync-codex-app-changelog`, checks that a sync with no version drift still reads the app changelog.
+
 **Files changed:**
 - src/lib/token-usage.ts
 - docs/settings-reference.md
@@ -32,6 +34,10 @@ Codex 0.162.1 is two bug fixes with nothing to adopt.
 - package.json
 - plugin.json
 - .claude-plugin/plugin.json
+- skills/cc/SKILL.md
+- src/upstream/scan.ts
+- docs/codex.md
+- evals/cc-sync-codex-app-changelog/
 - CHANGELOG.md
 
 ## [15.57.2] — 2026-10-09

@@ -13,8 +13,8 @@ project's `CLAUDE.md` into `AGENTS.md` so every coding agent reads one file.
 
 ## Mode: sync
 
-Audit cc-settings against the Claude Code changelog and the Codex release
-notes; identify features to adopt and duplication to remove; stops for approval.
+Audit cc-settings against the Claude Code changelog, the Codex CLI release
+notes, and the Codex app and IDE extension changelog; identify features to adopt and duplication to remove; stops for approval.
 
 Track both upstreams and keep cc-settings (schemas, config, hooks, agents,
 docs, the Codex installer surfaces) in sync with new features. Removes anything
@@ -50,9 +50,16 @@ against the live `@openai/codex` npm version. Each upstream has two outcomes:
 - **No drift** — manifest matches live. Nothing to sync for that upstream.
 - **Drift detected** — capture both versions. Format: `manifest=A → live=B`.
 
-If neither drifts, tell the user "already in sync at Claude Code v<X>, Codex
-v<Y>" and end. If only one drifts, run the remaining phases for that upstream
-alone and say so in the plan.
+The scan also prints `app/IDE changelog: last triaged <date>`. The Codex
+desktop app and IDE extension ship on their own version line (Codex app 26.x)
+with no npm package, so the scanner cannot detect new entries there. Phase 2
+reads that changelog on every run, drift or not.
+
+If neither version drifts and the app changelog has no Codex entry after
+`appChangelogLastScan`, tell the user "already in sync at Claude Code v<X>,
+Codex v<Y>, Codex app changelog through <date>", set `appChangelogLastScan` to
+today, and end. Otherwise run the remaining phases for whichever sources
+changed and say which in the plan.
 
 ### Phase 2 — Fetch the upstream changelog
 
@@ -80,6 +87,24 @@ gh release list -R openai/codex --exclude-pre-releases --limit 20 \
   | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\s' | awk '{print $1}'
 gh release view rust-v<X> -R openai/codex --json body --jq '.body'
 ```
+
+#### Codex app and IDE extension
+
+Members who install cc-settings for Codex may run it in the desktop app or the
+IDE extension instead of the CLI. Both read the same `AGENTS.md`, skills,
+plugins, hooks and `config.toml`, and their release notes live only on the
+shared changelog (the CLI's `rust-v` notes do not repeat them):
+
+```
+WebFetch url: https://learn.chatgpt.com/docs/changelog
+prompt: List every entry dated after <appChangelogLastScan> verbatim, with its
+        date, title and product (Codex app, IDE extension, CLI, cloud, iOS).
+```
+
+Keep entries for the Codex app, the IDE extension, or Codex in general. Drop
+ChatGPT-only and iOS entries. Triage the rest like CLI notes; the ones that
+matter name `AGENTS.md`, skills, plugins, hooks, `config.toml`, sandboxing, or
+a model the bridge pins.
 
 ### Phase 3 — Cross-reference cc-settings
 
@@ -112,6 +137,7 @@ easy to spot.
 | Skill loading and budgets | `src/lib/lint-skills.ts`, `docs/codex.md` "skill descriptions were shortened" |
 | Bridge (`codex exec`, `codex review`, model pins) | `src/lib/claude-bridge.ts`, `codex-run.ts`, `docs/codex-bridge.md` |
 | User-facing docs | `docs/codex.md`, `codex/AGENTS.append.md` |
+| App or IDE-only behavior (a surface that loads differently outside the CLI) | `docs/codex.md` (the IDE extension and plugins note) |
 
 Bucket each change as one of:
 
@@ -139,7 +165,7 @@ the upstream version stabilized. Watch for these patterns:
 Write a markdown table to the chat:
 
 ```
-## Claude Code v<A> → v<B>, Codex v<C> → v<D> sync plan
+## Claude Code v<A> → v<B>, Codex v<C> → v<D>, Codex app changelog <date> → <today> sync plan
 
 ### Adopt
 | Change | Files | Notes |
@@ -187,6 +213,7 @@ upstream/claude-code-manifest.json
 upstream/codex-manifest.json
   - codexVersion: "<D>"
   - lastScan: <today ISO>
+  - appChangelogLastScan: <today YYYY-MM-DD>
   - notes: append one entry; add any new surface to knownConfigSurfaces
 src/setup.ts
   - VERSION: bump (minor for new features, patch for fixes-only)
@@ -209,7 +236,7 @@ are good examples):
 ```bash
 bun run typecheck
 bun test
-bun run upstream:scan   # should now show "no drift detected" for both upstreams
+bun run upstream:scan   # "no drift detected", app/IDE changelog triaged 0d ago
 bun run compose | head  # spot-check that new fields surface in settings.json
 ```
 
@@ -251,7 +278,8 @@ version stands out in git log. Do not push if anything in Phase 7 is failing.
 cc-settings exists in three time zones:
 
 1. **Upstream** — what Claude Code and Codex do today. Source: the Claude
-   Code changelog and the Codex GitHub release notes.
+   Code changelog, the Codex GitHub release notes, and the Codex app and IDE
+   extension changelog.
 2. **Manifest** — what cc-settings believes upstream does. Source:
    `upstream/claude-code-manifest.json` and `upstream/codex-manifest.json`.
 3. **Implementation** — what cc-settings actually wires up. Source: schemas,
