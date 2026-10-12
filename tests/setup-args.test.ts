@@ -64,6 +64,15 @@ describe("parseArgs", () => {
     ]);
   });
 
+  test("--dry-run with --uninstall or --rollback is refused, never run for real", () => {
+    expect(parseArgs(["--uninstall", "--dry-run"]).errors).toEqual([
+      "--dry-run cannot preview --uninstall",
+    ]);
+    expect(parseArgs(["--dry-run", "--rollback"]).errors).toEqual([
+      "--dry-run cannot preview --rollback",
+    ]);
+  });
+
   test("unknown flags are reported instead of silently ignored", () => {
     expect(parseArgs(["--wat"]).errors).toEqual(["Unknown argument: --wat"]);
   });
