@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.58.1] — 2026-10-12
+
+`setup.sh --uninstall --dry-run` and `--rollback --dry-run` no longer run for real. Both flags dispatched before the dry-run check, so the "preview" uninstalled or restored for real. The installer now refuses either combination with an error and exits without touching disk.
+
+**Files changed:**
+- src/setup.ts, tests/setup-args.test.ts
+- package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.58.0] — 2026-10-12
 
 Sync with Claude Code 2.1.296 and Codex 0.162.1. `bun run tokens` now prices Sonnet 5.5 cache reads at the new rate, so subagent cost is no longer overstated.

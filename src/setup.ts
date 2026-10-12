@@ -112,7 +112,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.58.0";
+const VERSION = "15.58.1";
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
@@ -161,6 +161,12 @@ export function parseArgs(argv: string[]): InstallArgs {
       if (value === "on" || value === "off") args.autoUpdate = value;
       else args.errors.push(`--auto-update=${value} is not valid (expected "on" or "off")`);
     } else args.errors.push(`Unknown argument: ${a}`);
+  }
+  // --uninstall and --rollback dispatch before the dry-run path, so a preview
+  // would run for real. Refuse the combination instead of mutating disk.
+  if (args.dryRun && args.uninstall) args.errors.push("--dry-run cannot preview --uninstall");
+  if (args.dryRun && args.rollback !== null) {
+    args.errors.push("--dry-run cannot preview --rollback");
   }
   return args;
 }
