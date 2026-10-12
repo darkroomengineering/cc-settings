@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.59.0] — 2026-10-12
+
+The default session model is Claude Opus 5.5 (`claude-opus-5-5`); the advisor stays on Claude Fable 5.1 (`claude-fable-5-1`), the latest Fable. Fable was the session default since v15.4.0, which spent the weekly pool at about 2x the Opus rate on every turn. Opus 5.5 runs the session at 40% of Fable's per-token price and keeps Fable in the loop where it pays: the advisor reviews the full transcript at decision points, and `/model fable` or a scoped `model: "fable"` subagent remains the step-up for a stuck slice.
+
+Installs that never changed `model` move to Opus 5.5 on the next `setup.sh` through the three-way merge; a user-set model is kept. `advisorModel` keeps the full ID instead of the `fable` alias because the alias resolves to Fable 5 on gateway sessions, which an Opus session pairs with but a Fable 5.1 session silently drops.
+
+**Files changed:**
+- config/10-core.json
+- docs/agent-models.md, docs/settings-reference.md, CLAUDE-FULL.md
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.58.1] — 2026-10-12
 
 `setup.sh --uninstall --dry-run` and `--rollback --dry-run` no longer run for real. Both flags dispatched before the dry-run check, so the "preview" uninstalled or restored for real. The installer now refuses either combination with an error and exits without touching disk.

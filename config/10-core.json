@@ -46,7 +46,7 @@
 			}
 		}
 	},
-	"model": "claude-fable-5-1",
+	"model": "claude-opus-5-5",
 	"advisorModel": "claude-fable-5-1",
 	"tui": "default",
 	"promptCacheTtl": "1h",
