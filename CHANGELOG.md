@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.60.0] — 2026-10-12
+
+Agents write code comments only when the context helps the next agent that reads the code. The AGENTS.md "TODO Comments Are Instructions" guardrail becomes "Comments": no comment by default, one only for an invariant, a non-obvious why, an outside fact, or a warning against a safe-looking edit, and never one that restates the code, narrates the change, addresses the reviewer, or echoes types in JSDoc. `deslopper` auto-removes comments that fail the rule in any language, keeps directives, license headers, and `TODO`/`SHORTCUT:` markers, and lists borderline comments as recommendations.
+
+To fit the 16 KB AGENTS.md budget, the Code Review Rules P1 list now points at the Performance, Accessibility, and React standards instead of restating them, and External Libraries points at the Laziness Ladder. External reviewers that read AGENTS.md (Codex, Copilot) see the same checks in one bullet.
+
+**Files changed:**
+- AGENTS.md, agents/deslopper.md, skills/audit/SKILL.md
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.59.0] — 2026-10-12
 
 The default session model is Claude Opus 5.5 (`claude-opus-5-5`); the advisor stays on Claude Fable 5.1 (`claude-fable-5-1`), the latest Fable. Fable was the session default since v15.4.0, which spent the weekly pool at about 2x the Opus rate on every turn. Opus 5.5 runs the session at 40% of Fable's per-token price and keeps Fable in the loop where it pays: the advisor reviews the full transcript at decision points, and `/model fable` or a scoped `model: "fable"` subagent remains the step-up for a stuck slice.
