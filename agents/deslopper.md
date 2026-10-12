@@ -99,8 +99,10 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
      reviewer, is a section banner, or is JSDoc that only repeats the types
    - Keep invariants, non-obvious whys, outside facts, and warnings against tempting edits
    - Never remove `SHORTCUT:`, `TODO`, `FIXME`, `HACK`, license or copyright headers,
-     shebangs, or tool directives (`@ts-expect-error`, `biome-ignore`, `eslint-disable`,
-     `# noqa`, `"use client"`, `@refresh`, `istanbul ignore`)
+     shebangs, or any comment a tool reads: directives (`@ts-expect-error`, `@ts-ignore`,
+     `biome-ignore`, `eslint-disable`, `prettier-ignore`, `# noqa`, `@refresh`,
+     `istanbul ignore`) and generated-file or sync markers (`<!-- BEGIN ... -->`,
+     `@generated`, "do not edit")
    - When unsure whether a comment carries a why, keep it and list it under Recommendations
 
 4. **Document removals**
