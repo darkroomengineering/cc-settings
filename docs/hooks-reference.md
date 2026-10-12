@@ -643,6 +643,8 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.ts`) |
 | `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.ts`) |
 
+`claude --debug` logs each command hook on tool calls, prompts, `SessionStart` and `Stop` when it finishes, with its command, plugin, outcome and duration (v2.1.296). Use it to find the slow hook in one live session; `bun run hooks:bench` measures every synchronous hook offline.
+
 ### Common Issues
 
 | Symptom | Likely Cause | Fix |

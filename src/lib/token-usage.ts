@@ -26,7 +26,7 @@ const PRICES: Record<string, ModelPrice> = {
   "claude-opus-5": { input: 5, output: 25, cacheRead: 0.5 },
   "claude-opus-4-8": { input: 5, output: 25, cacheRead: 0.5 },
   "claude-sonnet-5": { input: 2, output: 10, cacheRead: 0.2 },
-  "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
+  "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.1 },
   // cacheRead est.: 0.1x input; the 2.1.293 changelog lists only input and output.
   "claude-haiku-5-5": {
     input: 0.1,
