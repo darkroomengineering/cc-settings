@@ -120,9 +120,9 @@ After compaction or a context reset, re-read the task plan and every actively mo
 
 Use neutral investigation prompts: ask to analyze logic, review a flow, or trace data and report all findings. Do not presuppose a bug or leak; biased prompts manufacture issues.
 
-### TODO Comments Are Instructions
+### Comments
 
-Implement `TODO`, `FIXME`, and `HACK` comments; never delete them without doing the work. `SHORTCUT:` is the exception governed by the ladder: leave it until its `upgrade:` trigger fires, then upgrade and delete it together.
+Default to no comment. Add one only when an agent without it would make a wrong edit or waste a search: an invariant, a non-obvious why, an outside fact (linked), or a warning against a safe-looking edit. Never restate the code, narrate the change, address the reviewer, or echo types in JSDoc. Implement `TODO`/`FIXME`/`HACK`; never delete one without doing the work. `SHORTCUT:` stays until its `upgrade:` trigger fires; then upgrade and delete it together.
 
 ### Clarify Before Full Work Mode
 
@@ -162,9 +162,6 @@ These defaults apply to Darkroom web clients. A project's config and lockfile wi
 - **Next.js 16+:** App Router only.
 - **React 19+:** Server Components by default; Client Components only when needed.
 - **Tailwind CSS v4:** use CSS Modules for complex components.
-
-### Quality
-
 - **Biome:** linting and formatting, not ESLint/Prettier.
 - **React Compiler:** on.
 
@@ -252,15 +249,13 @@ AGENTS.md-aware reviewers use this scope. Report only behavior or risk; skip for
 
 **P1 — fix before merge:**
 
-- Request waterfalls from sequential independent awaits, or heavy-library barrel imports.
-- Accessibility misses in touched UI: missing `alt`, `aria-label`, labels, `<div onClick>`, or sub-44x44px targets.
-- Manual `useMemo`, `useCallback`, or `React.memo` in React Compiler projects.
+- Touched code that breaks Performance, Accessibility, or React above: waterfalls, barrel imports, missing `alt`/labels, `<div onClick>`, sub-44x44px targets, manual memoization.
 - New dependencies when stdlib, platform, or an installed dependency suffices.
 - Scope creep in a bug-fix diff.
 
 ## External Libraries
 
-Check project abstractions, stdlib, platform, and installed dependencies before adding one. Before using any external library:
+After the Laziness Ladder, before using any external library:
 
 1. Fetch current documentation; do not rely on remembered APIs.
 2. Check the latest version with `bun info <package>`.
@@ -287,8 +282,6 @@ Prompt caches need an exact prefix match. Keep stable content before volatile co
 
 ## Knowledge Routing
 
-Route knowledge explicitly:
-
 | Situation | Destination |
 |---|---|
 | Personal workflow preference | auto-memory: `user` or `feedback` |
@@ -298,6 +291,6 @@ Route knowledge explicitly:
 
 If another team member's agent benefits, use the team-knowledge repo; otherwise use auto-memory. Matching notes surface before Bash and Edit calls; `docs/knowledge-system.md` has the read and post commands.
 
-## Self-Evolving Learnings (agent convention)
+## Self-Evolving Learnings
 
 After a session with a non-obvious bug, pattern, or edge case, append one line, `- [YYYY-MM-DD] <category>: <learning>`, to `~/.claude/agent-memory/<agent-name>/MEMORY.md`; its first 200 lines auto-load next time.

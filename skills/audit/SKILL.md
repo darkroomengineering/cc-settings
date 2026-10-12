@@ -716,7 +716,7 @@ End with: `<N> markers, <M> with no trigger.` Nothing found: `No SHORTCUT: debt.
 ### Boundaries
 
 Reads and reports only — never edits, never implements a marker. A `SHORTCUT:` is
-not a TODO to clear on sight (see `AGENTS.md` → TODO Comments Are Instructions); it
+not a TODO to clear on sight (see `AGENTS.md` → Comments); it
 comes out only when its trigger has actually fired, and then via `/zero-tech-debt`
 or `/refactor`, not here.
 
