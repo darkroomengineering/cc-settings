@@ -50,16 +50,16 @@ against the live `@openai/codex` npm version. Each upstream has two outcomes:
 - **No drift** — manifest matches live. Nothing to sync for that upstream.
 - **Drift detected** — capture both versions. Format: `manifest=A → live=B`.
 
-The scan also prints `app/IDE changelog: last triaged <date>`. The Codex
-desktop app and IDE extension ship on their own version line (Codex app 26.x)
-with no npm package, so the scanner cannot detect new entries there. Phase 2
-reads that changelog on every run, drift or not.
+The Codex desktop app and IDE extension ship on their own version line
+(Codex app 26.x) with no npm package. The scan reads their changelog feed
+instead and reports every non-iOS entry dated after `appChangelogLastScan` as
+`codex app changelog: N entries after <date>`. If the feed is unreachable it
+prints `<unknown — feed unreachable>`; say so in the plan rather than treating
+it as no drift.
 
-If neither version drifts and the app changelog has no Codex entry after
-`appChangelogLastScan`, tell the user "already in sync at Claude Code v<X>,
-Codex v<Y>, Codex app changelog through <date>", set `appChangelogLastScan` to
-today, and end. Otherwise run the remaining phases for whichever sources
-changed and say which in the plan.
+If nothing drifts, tell the user "already in sync at Claude Code v<X>, Codex
+v<Y>, Codex app changelog through <date>" and end. If only some sources drift,
+run the remaining phases for those alone and say which in the plan.
 
 ### Phase 2 — Fetch the upstream changelog
 
@@ -95,16 +95,14 @@ IDE extension instead of the CLI. Both read the same `AGENTS.md`, skills,
 plugins, hooks and `config.toml`, and their release notes live only on the
 shared changelog (the CLI's `rust-v` notes do not repeat them):
 
-```
-WebFetch url: https://learn.chatgpt.com/docs/changelog
-prompt: List every entry dated after <appChangelogLastScan> verbatim, with its
-        date, title and product (Codex app, IDE extension, CLI, cloud, iOS).
+```bash
+bun src/upstream/scan.ts --codex-app-entries
 ```
 
-Keep entries for the Codex app, the IDE extension, or Codex in general. Drop
-ChatGPT-only and iOS entries. Triage the rest like CLI notes; the ones that
-matter name `AGENTS.md`, skills, plugins, hooks, `config.toml`, sandboxing, or
-a model the bridge pins.
+This prints each entry from the scan's list verbatim, iOS releases already
+dropped. Triage them like CLI notes; the ones that matter name `AGENTS.md`,
+skills, plugins, hooks, `config.toml`, sandboxing, or a model the bridge pins.
+A ChatGPT-only entry is a SKIP.
 
 ### Phase 3 — Cross-reference cc-settings
 
@@ -236,7 +234,7 @@ are good examples):
 ```bash
 bun run typecheck
 bun test
-bun run upstream:scan   # "no drift detected", app/IDE changelog triaged 0d ago
+bun run upstream:scan   # should now show "no drift detected" for all three sources
 bun run compose | head  # spot-check that new fields surface in settings.json
 ```
 

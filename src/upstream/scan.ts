@@ -5,9 +5,10 @@
 //       diffs it against the manifest's recorded claudeCodeVersion, then does
 //       the same for @openai/codex against upstream/codex-manifest.json.
 //       These two registry lookups are the ONLY network/external calls the
-//       scanner makes. The Codex app and IDE extension changelog has no
-//       version feed, so the scanner only prints the days since
-//       appChangelogLastScan; /cc sync reads that page every run.
+//       scanner makes, plus one RSS read: the Codex app and IDE extension
+//       changelog has no npm package, so its feed entries dated after
+//       appChangelogLastScan count as drift. `--codex-app-entries` prints
+//       those entries verbatim for /cc sync to triage.
 //   (b) LOCAL-ONLY — diffs upstream/claude-code-manifest.json against the
 //       zod schemas' enumerated values (src/schemas/*.ts). Both files are
 //       hand-maintained by cc-settings authors (updated via `/cc sync` after
@@ -49,7 +50,7 @@ import { Settings } from "../schemas/settings.ts";
 const ROOT = resolve(import.meta.dir, "..", "..");
 const MANIFEST = resolve(ROOT, "upstream", "claude-code-manifest.json");
 const CODEX_MANIFEST = resolve(ROOT, "upstream", "codex-manifest.json");
-const CODEX_APP_CHANGELOG = "https://learn.chatgpt.com/docs/changelog";
+const CODEX_APP_FEED = "https://learn.chatgpt.com/codex/changelog/rss.xml";
 
 const Manifest = z.looseObject({
   lastScan: z.string(),
@@ -135,6 +136,54 @@ function agentMemoryFromSchema(): string[] {
   return [...AgentMemory.options].sort();
 }
 
+interface CodexAppEntry {
+  date: string; // YYYY-MM-DD
+  id: string; // guid fragment, e.g. codex-2026-10-07-mobile
+  title: string;
+  body: string;
+}
+
+function decodeXml(text: string): string {
+  return text
+    .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function parseCodexAppFeed(xml: string): CodexAppEntry[] {
+  return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].flatMap(([, item = ""]) => {
+    const tag = (name: string) =>
+      item.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1] ?? "";
+    const published = new Date(tag("pubDate"));
+    if (Number.isNaN(published.getTime())) return [];
+    return [
+      {
+        date: published.toISOString().slice(0, 10),
+        id: tag("guid").split("#").pop() ?? "",
+        title: decodeXml(tag("title")),
+        body: decodeXml(tag("content:encoded")),
+      },
+    ];
+  });
+}
+
+// Entries after the last triage date, minus the ChatGPT iOS releases
+// (guid ends in -mobile), which touch no surface a Codex install writes.
+async function fetchCodexAppEntries(since: string): Promise<CodexAppEntry[] | null> {
+  try {
+    const res = await fetch(CODEX_APP_FEED, { headers: { accept: "application/rss+xml" } });
+    if (!res.ok) return null;
+    return parseCodexAppFeed(await res.text())
+      .filter((e) => e.date > since && !e.id.endsWith("-mobile"))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return null;
+  }
+}
+
 async function fetchLatestNpmVersion(pkg: string): Promise<string | null> {
   // Try `bun pm view` first (works offline in CI cache, no fetch dep).
   try {
@@ -171,6 +220,14 @@ function diffSets(label: string, manifest: string[], live: string[]): string[] {
 }
 
 async function main() {
+  if (process.argv.includes("--codex-app-entries")) {
+    const { appChangelogLastScan } = await loadCodexManifest();
+    const entries = await fetchCodexAppEntries(appChangelogLastScan);
+    if (entries === null) throw new Error(`could not read ${CODEX_APP_FEED}`);
+    if (entries.length === 0) console.log(`no Codex app entries after ${appChangelogLastScan}.`);
+    for (const e of entries) console.log(`=== ${e.date} ${e.id}\n${e.body.trim()}\n`);
+    return;
+  }
   const manifest = await loadManifest();
   const liveSettingsKeys = settingsKeysFromSchema();
   const liveHookEvents = hookEventsFromSchema();
@@ -180,9 +237,10 @@ async function main() {
   const liveAgentIsolation = agentIsolationFromSchema();
   const liveAgentMemory = agentMemoryFromSchema();
   const codexManifest = await loadCodexManifest();
-  const [liveVersion, liveCodexVersion] = await Promise.all([
+  const [liveVersion, liveCodexVersion, codexAppEntries] = await Promise.all([
     fetchLatestNpmVersion("@anthropic-ai/claude-code"),
     fetchLatestNpmVersion("@openai/codex"),
+    fetchCodexAppEntries(codexManifest.appChangelogLastScan),
   ]);
 
   console.log("cc-settings upstream scan");
@@ -194,11 +252,8 @@ async function main() {
     `    manifest version: ${codexManifest.codexVersion} (scanned ${codexManifest.lastScan})`,
   );
   console.log(`    live version:     ${liveCodexVersion ?? "<unknown — network offline>"}`);
-  const appDays = Math.floor(
-    (Date.now() - Date.parse(codexManifest.appChangelogLastScan)) / 86_400_000,
-  );
   console.log(
-    `    app/IDE changelog: last triaged ${codexManifest.appChangelogLastScan} (${appDays}d ago; no version feed, /cc sync reads ${CODEX_APP_CHANGELOG})`,
+    `    app/IDE changelog: triaged through ${codexManifest.appChangelogLastScan}, ${codexAppEntries === null ? "<unknown — feed unreachable>" : `${codexAppEntries.length} newer entries`}`,
   );
   console.log(
     "  reference-only (not diffed — no local schema source of truth; see manifest notes): knownEnvVars, knownBuiltinTools, codex knownConfigSurfaces",
@@ -219,6 +274,12 @@ async function main() {
   if (codexDrift) {
     findings.push(
       `  codex version drift: manifest=${codexManifest.codexVersion} → live=${codexDrift}`,
+    );
+  }
+  if (codexAppEntries?.length) {
+    findings.push(
+      `  codex app changelog: ${codexAppEntries.length} entries after ${codexManifest.appChangelogLastScan} (read them with \`bun src/upstream/scan.ts --codex-app-entries\`)`,
+      ...codexAppEntries.map((e) => `    ${e.date} ${e.title}`),
     );
   }
   findings.push(...diffSets("settings keys", manifest.knownSettingsKeys, liveSettingsKeys));

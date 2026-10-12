@@ -93,8 +93,8 @@ The Codex CLI version this repo was last triaged against lives in `upstream/code
 reads that release's GitHub notes and cross-references the surfaces listed in the manifest.
 The Codex desktop app and IDE extension have their own release notes on
 [learn.chatgpt.com/docs/changelog](https://learn.chatgpt.com/docs/changelog), with no npm package
-to compare, so `/cc sync` reads that page on every run for entries after the manifest's
-`appChangelogLastScan` date, and the scan prints how many days ago that was.
+to compare. The scan reads that page's RSS feed and reports every entry after the manifest's
+`appChangelogLastScan` date, skipping ChatGPT iOS releases; `/cc sync` triages them with the CLI notes.
 
 `darkroom/source` is a runtime allowlist, not a copy of the checkout. It contains only the shared
 skills, hooks, runtime `src/` files, and package metadata needed after installation. Native role
