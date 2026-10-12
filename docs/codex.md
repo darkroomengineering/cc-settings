@@ -91,6 +91,10 @@ other way: it runs the current diff past a Claude model through headless Claude 
 The Codex CLI version this repo was last triaged against lives in `upstream/codex-manifest.json`.
 `bun run upstream:scan` reports when npm has a newer stable `@openai/codex`, and `/cc sync`
 reads that release's GitHub notes and cross-references the surfaces listed in the manifest.
+The Codex desktop app and IDE extension have their own release notes on
+[learn.chatgpt.com/docs/changelog](https://learn.chatgpt.com/docs/changelog), with no npm package
+to compare. The scan reads that page's RSS feed and reports every entry after the manifest's
+`appChangelogLastScan` date, skipping ChatGPT iOS releases; `/cc sync` triages them with the CLI notes.
 
 `darkroom/source` is a runtime allowlist, not a copy of the checkout. It contains only the shared
 skills, hooks, runtime `src/` files, and package metadata needed after installation. Native role

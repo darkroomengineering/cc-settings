@@ -4,6 +4,42 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.58.0] — 2026-10-12
+
+Sync with Claude Code 2.1.296 and Codex 0.162.1. `bun run tokens` now prices Sonnet 5.5 cache reads at the new rate, so subagent cost is no longer overstated.
+
+**Adopted:**
+- Sonnet 5.5 cache reads cost $0.10 per million tokens (2.1.296). `src/lib/token-usage.ts` charged $0.20, which doubled the cache-read cost of every Sonnet 5.5 subagent in the main-vs-subagent split.
+- `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS` and `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` (2.1.296) are tracked in the manifest and `docs/settings-reference.md`. Neither is set: workflow agents already run on Sonnet 5.5 through `CLAUDE_CODE_SUBAGENT_MODEL`.
+- `autoCompactWindow` agent frontmatter (2.1.296) is documented in `docs/frontmatter-reference.md`. The schema accepts it without type checks until upstream documents its value format.
+
+**Docs only:**
+- The default cap on MCP tool descriptions and server instructions is 4,096 characters (2.1.296).
+- `claude --debug` logs each hook's command, outcome and duration (2.1.296); `docs/hooks-reference.md` points to it next to `hooks:bench`.
+
+**Deletions / Native-now-redundant:** none. The new `--debug` warning for unrecognized agent frontmatter fields runs only at runtime; the install-time zod check still catches bad values.
+
+Codex 0.162.1 is two bug fixes with nothing to adopt.
+
+**Codex app tracking:** `/cc sync` now covers members who run cc-settings in the Codex desktop app or IDE extension. Those apps publish release notes only on learn.chatgpt.com/docs/changelog, and they read the same `AGENTS.md`, skills, plugins, hooks and `config.toml` as the CLI, so app-only changes could reach Codex users without anyone triaging them. `bun run upstream:scan` now reads that page's RSS feed and reports every entry dated after `appChangelogLastScan` in `upstream/codex-manifest.json` as drift, skipping ChatGPT iOS releases. `bun src/upstream/scan.ts --codex-app-entries` prints those entries verbatim for the sync to triage. A new eval case, `evals/cc-sync-codex-app-changelog`, checks that a sync triages app entries even when neither CLI version moved.
+
+**Files changed:**
+- src/lib/token-usage.ts
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/hooks-reference.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- src/setup.ts
+- package.json
+- plugin.json
+- .claude-plugin/plugin.json
+- skills/cc/SKILL.md
+- src/upstream/scan.ts
+- docs/codex.md
+- evals/cc-sync-codex-app-changelog/
+- CHANGELOG.md
+
 ## [15.57.2] — 2026-10-09
 
 The statusline no longer shows a stale "cc vX stale" badge after you install a newer cc-settings mid-session. The badge came from a cache that is only rewritten at SessionStart, so it kept flagging the old version. The statusline now compares the cached version with the installed sentinel and hides the badge once they differ.
