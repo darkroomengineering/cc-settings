@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.61.0] — 2026-10-13
+
+Setup now offers to remove skills cc-settings stopped shipping that older installs left behind. Full installs delete only files the install sentinel recorded, so a skill installed before the sentinel existed survived every reinstall: `~/.claude/skills/effort`, removed from the repo in April, still loaded and still called `high` the default effort. Setup lists the leftovers, asks once (y/N), and moves accepted directories to `~/.claude/backups/retired-skills-<timestamp>`. Non-interactive runs only warn.
+
+A skill qualifies only when its `SKILL.md` is a byte-exact copy of a version cc-settings shipped, checked against the git blob id of every historical copy of each retired name. A user's own skill that reuses a name such as `docs` or `context`, or a shipped copy the user edited, is never offered. `effort` and `pinchtab` join `TOMBSTONE_SKILLS`; they were the two retired names missing from it.
+
+**Files changed:**
+- src/lib/managed-skills.ts, src/setup.ts
+- tests/legacy-codex-skills.test.ts, tests/fixtures/retired-skills/effort-SKILL.md
+- package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.60.0] — 2026-10-12
 
 Agents write code comments only when the context helps the next agent that reads the code. The AGENTS.md "TODO Comments Are Instructions" guardrail becomes "Comments": no comment by default, one only for an invariant, a non-obvious why, an outside fact, or a warning against a safe-looking edit, and never one that restates the code, narrates the change, addresses the reviewer, or echoes types in JSDoc. `deslopper` auto-removes comments that fail the rule in any language, keeps directives, license headers, and `TODO`/`SHORTCUT:` markers, and lists borderline comments as recommendations.
