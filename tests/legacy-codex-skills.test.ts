@@ -3,7 +3,12 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { migrateLegacyCodexSkills, scanLegacyCodexSkills } from "../src/lib/managed-skills.ts";
+import {
+  migrateLegacyCodexSkills,
+  retireSkills,
+  scanLegacyCodexSkills,
+  scanRetiredSkills,
+} from "../src/lib/managed-skills.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SETUP = join(REPO, "src", "setup.ts");
@@ -305,6 +310,43 @@ describe("legacy Codex skill migration", () => {
       expect(await legacySkillBackups(home)).toEqual([]);
     } finally {
       await rm(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("retired cc-settings skills", () => {
+  const shippedEffort = join(REPO, "tests", "fixtures", "retired-skills", "effort-SKILL.md");
+
+  test("flags only unmodified shipped copies and moves them to a backup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "cc-retired-skills-"));
+    try {
+      const skills = join(root, "skills");
+      // An exact shipped copy of a tombstoned skill: offered for removal.
+      await mkdir(join(skills, "effort"), { recursive: true });
+      await writeFile(join(skills, "effort", "SKILL.md"), await readFile(shippedEffort));
+      // The user's own skill reusing a tombstoned name: never touched.
+      await mkdir(join(skills, "docs"), { recursive: true });
+      await writeFile(join(skills, "docs", "SKILL.md"), "---\nname: docs\n---\nmine\n");
+      // A shipped copy the user edited: left in place.
+      await mkdir(join(skills, "pinchtab"), { recursive: true });
+      await writeFile(join(skills, "pinchtab", "SKILL.md"), "edited\n");
+      // An active skill: never a candidate.
+      await mkdir(join(skills, "fix"), { recursive: true });
+      await writeFile(join(skills, "fix", "SKILL.md"), "x\n");
+
+      const found = await scanRetiredSkills(skills);
+      expect(found).toEqual(["effort"]);
+
+      const backup = await retireSkills(skills, found, join(root, "backups"), "20261013000000");
+      expect(existsSync(join(skills, "effort"))).toBe(false);
+      expect(await readFile(join(backup, "effort", "SKILL.md"))).toEqual(
+        await readFile(shippedEffort),
+      );
+      expect(existsSync(join(skills, "docs", "SKILL.md"))).toBe(true);
+      expect(existsSync(join(skills, "pinchtab", "SKILL.md"))).toBe(true);
+      expect(await scanRetiredSkills(skills)).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 });
