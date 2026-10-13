@@ -91,9 +91,10 @@ import {
 } from "./lib/install-lifecycle.ts";
 import { type InstallArgs, type InstallTarget, includesTarget } from "./lib/install-types.ts";
 import { JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
+import { retireSkills, scanRetiredSkills } from "./lib/managed-skills.ts";
 import { CLAUDE_JSON_PATH, type McpServers, removeManagedMcpServers } from "./lib/mcp.ts";
 import { CLAUDE_DIR, getTimestamp, installPaths, isWindows } from "./lib/platform.ts";
-import { promptYn } from "./lib/prompts.ts";
+import { isInteractive, promptYn } from "./lib/prompts.ts";
 import { type AutoUpdateStateSnapshot, snapshotAutoUpdateState } from "./lib/schedule.ts";
 import {
   BASELINE_FILENAME,
@@ -763,6 +764,29 @@ async function main(): Promise<number> {
   if (prereqWarnings) {
     console.log("");
     warn(prereqWarnings);
+  }
+
+  if (includesTarget(target, "claude") && !args.migrateOnly) {
+    const retired = await scanRetiredSkills(skillsDir).catch(() => []);
+    if (retired.length > 0) {
+      console.log("");
+      const list = retired.join(", ");
+      if (!isInteractive()) {
+        warn(
+          `Retired cc-settings skills still installed: ${list}. Re-run setup in a terminal to remove them.`,
+        );
+      } else if (
+        await promptYn(`cc-settings no longer ships these skills: ${list}. Remove them?`, false)
+      ) {
+        const moved = await retireSkills(
+          skillsDir,
+          retired,
+          join(CLAUDE_DIR, "backups"),
+          getTimestamp(),
+        );
+        success(`Removed ${retired.length} retired skill(s); copies kept in ${moved}`);
+      }
+    }
   }
 
   console.log("");
