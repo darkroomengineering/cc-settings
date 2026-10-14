@@ -195,7 +195,8 @@ run later. After compaction, re-read the plan and active files per AGENTS.md.
 Output is 64K tokens by default, 128K maximum. See `docs/agent-models.md`.
 With `TYPESAFE_API_KEY` set, the compaction-trigger plugin requests a
 verbatim Jev compaction near 150K tokens, so the ceiling holds without a
-summary.
+summary. Past 200K, native idle compaction summarizes a conversation left
+idle about 54 minutes, before its one-hour cache expires.
 
 ## Verify fast-moving names before answering
 

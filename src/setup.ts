@@ -113,7 +113,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.61.0"; // setup offers to remove retired skills left by older installs.
+const VERSION = "15.62.0"; // sync with Claude Code v2.1.299.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

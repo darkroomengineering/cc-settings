@@ -400,6 +400,8 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 | `quota-steer.ts` | Reads the statusline's cached rate-limit percentages; injects quota-aware model-routing guidance (Codex bridge / Sonnet downshift) once usage crosses elevated/critical/exhausted thresholds; at exhausted (≥95%) it re-injects every prompt and directs a full funnel to Codex plus a user-facing notice. Fail-open | No |
 | `escalate-model.ts` | Suggests escalating to a Fable-model subagent when the same problem signature repeats `CC_ESCALATE_THRESHOLD`+ times. Quota-gated, fail-open | No |
 
+> Note: Since v2.1.299, `UserPromptSubmit` hooks run before a skill or custom slash command expands, so a hook that blocks the prompt also stops the command's embedded shell lines. A skill's own front-matter `UserPromptSubmit` hook first runs on the prompt after the one that invokes the skill.
+
 > Note: Since v2.1.108 Claude Code has a native `Skill` tool that auto-matches skills; the old `skill-activation` hook was removed. Correction detection was removed as low-signal.
 
 ### PreModelSwitch (matcher: `.*fable.*|.*mythos.*`)

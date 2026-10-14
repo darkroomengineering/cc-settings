@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.62.0] — 2026-10-14
+
+Sync with Claude Code v2.1.299 (2.1.297 and 2.1.298 were never published). Codex 0.162.1 and the Codex app changelog had no new entries.
+
+**Adopted:**
+- `idleCompaction` settings key (2.1.299): `src/schemas/settings.ts`, `docs/settings-reference.md`. The settings schema is strict, so setting the key to turn idle compaction off failed the parse. Idle compaction stays on: it compacts a 200K+ conversation left idle about 54 minutes before the one-hour cache expires, and only overlaps the compaction-trigger plugin past 200K, where it writes a summary instead of a verbatim compaction (`CLAUDE-FULL.md`).
+- Env vars tracked (2.1.299): `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`, `CLAUDE_CODE_DISABLE_FILE_MENTIONS`, `CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT`. None are set.
+- Docs: `UserPromptSubmit` hooks run before a skill or custom command expands (`docs/hooks-reference.md`); MCP allow rules and agent `tools:` lists match the whole normalized server name (`docs/settings-reference.md`; cc-settings ships no `mcp__` rules); `claude plugin eval` cases accept `disallowed_tools` (`.claude/AGENTS.md`).
+
+**Deletions / Native-now-redundant:** none.
+
+**Files changed:**
+- src/schemas/settings.ts, schemas/
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md, docs/hooks-reference.md, CLAUDE-FULL.md, .claude/AGENTS.md
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.61.0] — 2026-10-13
 
 Setup now offers to remove skills cc-settings stopped shipping that older installs left behind. Full installs delete only files the install sentinel recorded, so a skill installed before the sentinel existed survived every reinstall: `~/.claude/skills/effort`, removed from the repo in April, still loaded and still called `high` the default effort. Setup lists the leftovers, asks once (y/N), and moves accepted directories to `~/.claude/backups/retired-skills-<timestamp>`. Non-interactive runs only warn.
