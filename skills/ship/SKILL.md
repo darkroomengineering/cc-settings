@@ -185,6 +185,9 @@ not the mechanism. A teammate who didn't write it should get it on one read.>
 
 ## Test Plan
 - [ ] <how it was verified>
+
+<Visible change only: link the Figma frame or Linear ticket, then
+"Screenshots: before/after needed". Omit the section otherwise.>
 EOF
 )"
 ```

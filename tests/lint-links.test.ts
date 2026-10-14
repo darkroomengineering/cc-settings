@@ -60,6 +60,10 @@ describe("anchorsOf", () => {
     expect(a.has("not-a-heading")).toBe(false);
   });
 
+  test("inline code in a heading keeps its text in the slug", () => {
+    expect(anchorsOf("### `idleCompaction`\n").has("idlecompaction")).toBe(true);
+  });
+
   test("explicit HTML ids count", () => {
     expect(anchorsOf('<a id="custom-target"></a>\n').has("custom-target")).toBe(true);
   });

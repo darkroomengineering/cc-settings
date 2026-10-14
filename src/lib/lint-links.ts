@@ -103,7 +103,9 @@ export function anchorsOf(text: string): Set<string> {
   const anchors = new Set<string>();
   const seen = new Map<string, number>();
 
-  for (const line of body.split(/\r?\n/)) {
+  // Inline code in a heading is part of its text: GitHub slugs
+  // "### `idleCompaction`" to "idlecompaction", so strip fences only.
+  for (const line of stripFences(text).split(/\r?\n/)) {
     const heading = line.match(/^#{1,6}\s+(.+?)\s*$/);
     if (heading?.[1] === undefined) continue;
     const base = slugify(heading[1]);

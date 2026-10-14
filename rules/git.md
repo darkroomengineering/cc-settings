@@ -48,6 +48,11 @@ a comprehensive…"). Large diff → number the review order ("start with
 `schema.ts`; the rest is fallout"). A bullet list that keeps growing is usually
 two PRs.
 
+**Screenshots only for visible changes**: when a PR changes what a user sees,
+link the Figma frame or Linear ticket it implements and add a "Screenshots:
+before/after needed" line for the author; agents cannot attach images through
+`gh`. Refactor, logic, API, and tooling PRs get no screenshots.
+
 **Open a PR by default** — most Darkroom client projects protect `main`. Direct
 push to main is the exception for repos that explicitly allow it. Merge only
 with CI green, review done, no conflicts, branch up to date.
