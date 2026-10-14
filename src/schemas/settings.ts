@@ -374,6 +374,7 @@ export const Settings = z.looseObject({
   fastModePerSessionOptIn: z.boolean().optional(), // per-session fast-mode opt-in flag
   fileSuggestion: z.looseObject({}).optional(), // file-suggestion UI configuration object
   footerLinksRegexes: z.array(z.unknown()).optional(), // 2.1.176 — regex-matched link badges in the footer row (user or managed settings); entry shape not yet pinned upstream
+  idleCompaction: z.boolean().optional(), // 2.1.299 — `false` turns off compacting a 200K+ conversation left idle ~54 min (before the 1h cache expires); default on
   includeCoAuthoredBy: z.boolean().optional(), // deprecated: use attribution instead
   language: z.string().optional(), // UI language / locale override (e.g. "en", "ja")
   maxSkillDescriptionChars: z.number().int().positive().optional(), // per-skill description character cap for the model

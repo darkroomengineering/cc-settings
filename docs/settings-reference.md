@@ -81,6 +81,9 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES` | integer (string) | Cap how many times a timed-out non-streaming fallback request is re-sent (v2.1.285). Unset here |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
+| `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` | integer (string) | Minimum conversation size for idle compaction (default 200K tokens); see [`idleCompaction`](#idlecompaction) (v2.1.299). Unset here |
+| `CLAUDE_CODE_DISABLE_FILE_MENTIONS` | `"1"` or unset | `@` file mentions hand Claude the paths to read with its file tools instead of inlining the files' contents (v2.1.299). Unset here |
+| `CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT` | `"1"` or unset | Prompt on an `rm` built at run time inside a shell `-c` script Claude Code can't read; by default such scripts no longer prompt (v2.1.299). Unset here |
 | `CLAUDE_CODE_HIDE_CWD` | `"1"` or unset | Hide the working directory in the startup logo (v2.1.119) |
 | `DISABLE_UPDATES` | `"1"` or unset | Block all update paths including manual `claude update`. Stricter than `DISABLE_AUTOUPDATER` (v2.1.118) |
 | `CLAUDE_CODE_FORK_SUBAGENT` | `"1"` or unset | Enable forked subagents on external builds; works in non-interactive sessions as of v2.1.121 |
@@ -683,6 +686,14 @@ Prompt-cache lifetime per scope (v2.1.242): `"5m"` or `"1h"`. `promptCacheTtl` c
 { "promptCacheTtl": "1h", "subagentPromptCacheTtl": "5m" }
 ```
 
+### `idleCompaction`
+
+Idle compaction (v2.1.299, on by default): a terminal conversation of 200K+ tokens left idle for about 54 minutes is compacted before its one-hour prompt cache expires, so the next message does not reprocess the whole context. `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` changes the 200K minimum; `false` turns it off. cc-settings leaves it on. It rarely fires alongside the compaction-trigger plugin, which requests a verbatim compaction near 150K; past 200K (a long Fable session) idle compaction writes a normal summary, not a verbatim one.
+
+```json
+{ "idleCompaction": false }
+```
+
 ### `modelPicker`
 
 Curate the `/model` picker (v2.1.242): an ordered `options` array of `{model, label?, description?}` rows, plus `replaceBuiltInOptions` to show only your rows. `model` accepts anything `--model` accepts, including Bedrock/Vertex/Foundry IDs. User, `--settings`, or managed scope only — the highest source supplies the whole lineup; project and local settings are ignored.
@@ -819,6 +830,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `gcpAuthRefresh` | string | A | Shell command called to refresh GCP credentials |
 | `hooks` | object | G | Hook event handlers (PreToolUse, PostToolUse, etc.) |
 | `httpHookAllowedEnvVars` | string[] | E | Env vars forwarded to HTTP hooks |
+| `idleCompaction` | boolean | G | `false` turns off compacting a 200K+ conversation left idle about 54 minutes (v2.1.299) |
 | `includeCoAuthoredBy` | boolean | G | Deprecated: use `attribution` instead |
 | `includeGitInstructions` | boolean | G | Inject built-in git workflow instructions into the system prompt |
 | `isolatePeerMachines` | boolean | G | Require explicit approval before `SendMessage` reaches a session on another machine. `true` from any scope wins (v2.1.224) |
@@ -935,6 +947,8 @@ Patterns follow the format `ToolName(argument-pattern)`:
 | `Agent(model:opus)` | Match a tool's input *parameter* — here, block Opus subagents (v2.1.178) |
 
 The `:*` suffix means "followed by anything". Without it, the match is exact.
+
+MCP rules match the whole normalized server name (v2.1.299): `mcp__a` covers only server `a`, not `a__b` or `a_`. Write `mcp__<server>__*` for a server whose name contains `__`; the same applies to an agent's `tools:` list.
 
 As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:value)` syntax, where `value` supports the `*` wildcard — e.g. `Agent(model:opus)` matches subagent spawns requesting an Opus model. cc-settings does not yet ship any param-matched rules (`config/30-permissions.json` uses command/path patterns only), but the schema accepts them since permission rules are plain strings.
 

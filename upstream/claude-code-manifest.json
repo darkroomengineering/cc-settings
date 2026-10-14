@@ -1,6 +1,6 @@
 {
-  "lastScan": "2026-10-12T00:00:00.000Z",
-  "claudeCodeVersion": "2.1.296",
+  "lastScan": "2026-10-14T00:00:00.000Z",
+  "claudeCodeVersion": "2.1.299",
   "knownSettingsKeys": [
     "$schema",
     "additionalMarketplaces",
@@ -77,6 +77,7 @@
     "gcpAuthRefresh",
     "hooks",
     "httpHookAllowedEnvVars",
+    "idleCompaction",
     "includeCoAuthoredBy",
     "includeGitInstructions",
     "isolatePeerMachines",
@@ -202,6 +203,7 @@
     "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN",
     "CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP",
     "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS",
+    "CLAUDE_CODE_DISABLE_FILE_MENTIONS",
     "CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT",
     "CLAUDE_CODE_DISABLE_MOUSE",
     "CLAUDE_CODE_DISABLE_MOUSE_CLICKS",
@@ -222,6 +224,7 @@
     "CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS",
     "CLAUDE_CODE_GOAL_CHECKIN_MINUTES",
     "CLAUDE_CODE_HIDE_CWD",
+    "CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS",
     "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS",
     "CLAUDE_CODE_MAX_RETRIES",
     "CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION",
@@ -259,6 +262,7 @@
     "CLAUDE_CODE_SESSION_ID",
     "CLAUDE_CODE_SHELL_PREFIX",
     "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP",
+    "CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT",
     "CLAUDE_CODE_SUBAGENT_MODEL",
     "CLAUDE_CODE_SUBAGENT_MODEL_FORCE",
     "CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL",
@@ -387,6 +391,7 @@
     "v2.1.290\u20132.1.291 sync (2026-10-06). Adopted: CLAUDE_CODE_WEB_SEARCH_REFILLS_PER_HOUR tracked (2.1.290: the interactive WebSearch budget refills at 100 calls/hour instead of stopping at 200; not set by cc-settings). Docs only: TeammateIdle no longer fires from a teammate's subagents or forks (2.1.290, hooks-reference). No dedupe. Skipped: mods and plugin API additions (tool.check agentId and ceiling, turn.step serverToolUses, ThemeKey/Color, plugin validate gatingHooks) until plugins/types/claude-code.d.ts is regenerated with /plugin-types; Managed Agents onboarding, claude attach/logs by name, Chrome no longer enabled from project settings, pyright no longer read-only, DISABLE_ATTACHMENTS and NONESSENTIAL_TRAFFIC changes (cc-settings sets neither), self-hosted runners, /code-review medium output, permission and sandbox fixes, and the 2.1.291 regression fixes.",
     "v2.1.292 sync (2026-10-07). Adopted: the Agent tool effort parameter (CLAUDE-FULL.md Effort and context, frontmatter-reference effort row); CLAUDE_CODE_OVERLOADED_RETRY_BASE_DELAY_MS tracked (not set by cc-settings). Docs only: MCP 2026-07-28 negotiation now default for stdio servers too (settings-reference); hook output <system-reminder> tags are escaped (hooks-reference). No dedupe. Skipped: mods and plugin API additions (prompt.autocomplete, $.model.complete cache, agent.spawn workflow agents) until plugins/types/claude-code.d.ts is regenerated with /plugin-types; permissionMode auto fix (agents use plan only); plugin install --marketplace, plugin test expect change; security, sandbox, UNC, Windows fixes; claude -p background waits, scheduled task and /loop fixes; tool input and TUI fixes; agent name 256-char cap; cloud, Remote Control, Claude Tag, Code Review.",
     "v2.1.293\u20132.1.295 sync (2026-10-09). Adopted: hook onFailure \"block\" (2.1.295 \u2014 schema, docs, set on safety-net.ts); forceLoginMethod \"gateway\" and forceLoginGatewayUrl (2.1.295 \u2014 schema); CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS (2.1.295 \u2014 env table); Claude Haiku 5.5 as the haiku alias (2.1.293 \u2014 docs, token-usage price). Docs only: subagentStatusLine agentType (2.1.293); subagents preload at most 32 skills (2.1.295). Skipped: prompt/agent hook fixes (2.1.294; we wire only command hooks), gateway, mods, Claude Tag, VSCode, Code Review, cloud sessions, self-hosted runner, Windows.",
-    "v2.1.296 sync (2026-10-12). Adopted: Sonnet 5.5 cache reads repriced to $0.10/MTok in src/lib/token-usage.ts; CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS and CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL tracked (not set; workflow agents already inherit CLAUDE_CODE_SUBAGENT_MODEL); autoCompactWindow agent frontmatter documented but not typed in src/schemas/agent.ts because upstream does not document its value format. Docs only: MCP description cap default 2,048 to 4,096 (settings-reference); --debug hook timing (hooks-reference). No dedupe: the --debug unrecognized-frontmatter warning is runtime-only, the zod check still validates values at install. Skipped: Claude apps gateway code policy and login fixes, Read allow_large, managed-settings hook fixes, plugin and mod API fixes, Bash/Edit/redaction fixes, TUI, self-hosted runner, Windows, VSCode, cloud, Claude Tag, Code Review."
+    "v2.1.296 sync (2026-10-12). Adopted: Sonnet 5.5 cache reads repriced to $0.10/MTok in src/lib/token-usage.ts; CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS and CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL tracked (not set; workflow agents already inherit CLAUDE_CODE_SUBAGENT_MODEL); autoCompactWindow agent frontmatter documented but not typed in src/schemas/agent.ts because upstream does not document its value format. Docs only: MCP description cap default 2,048 to 4,096 (settings-reference); --debug hook timing (hooks-reference). No dedupe: the --debug unrecognized-frontmatter warning is runtime-only, the zod check still validates values at install. Skipped: Claude apps gateway code policy and login fixes, Read allow_large, managed-settings hook fixes, plugin and mod API fixes, Bash/Edit/redaction fixes, TUI, self-hosted runner, Windows, VSCode, cloud, Claude Tag, Code Review.",
+    "v2.1.299 sync (2026-10-14; 2.1.297 and 2.1.298 were never published). Adopted: idleCompaction settings key (default on; compacts a 200K+ conversation idle ~54 min before the 1h cache expires; complements plugins/compaction-trigger, which fires near 150K, and writes a summary, not a verbatim compaction). Env vars tracked: CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS, CLAUDE_CODE_DISABLE_FILE_MENTIONS, CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT. Docs only: UserPromptSubmit hooks run before a skill or custom command expands (hooks-reference); MCP allow rules and agent tools: lists match the whole normalized server name (settings-reference; cc-settings ships no mcp__ rules or agent mcp__ tool entries); claude plugin eval --disallow-tools / disallowed_tools (.claude/AGENTS.md). No dedupe. Skipped: mod API additions and fixes, Claude apps gateway and attribution header, self-hosted runner, Windows fail-closed hook shell (setup.ps1 already requires git), sandbox, Remote Control, cloud, VSCode, Claude Tag, Code Review, TUI fixes."
   ]
 }
