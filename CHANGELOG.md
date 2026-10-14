@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.62.1] — 2026-10-14
+
+PR descriptions carry screenshots only when the change is visible. `rules/git.md` and the `/ship` PR template tell agents to link the Figma frame or Linear ticket a visual change implements and to leave a "Screenshots: before/after needed" line for the author, because `gh` cannot attach images. Refactor, logic, API, and tooling PRs get no screenshots. Adopts the team-knowledge convention `pr-screenshots-only-for-visual-changes`.
+
+**Files changed:**
+- rules/git.md, skills/ship/SKILL.md
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.62.0] — 2026-10-14
 
 Sync with Claude Code v2.1.299 (2.1.297 and 2.1.298 were never published). Codex 0.162.1 and the Codex app changelog had no new entries.
