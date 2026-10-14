@@ -8,8 +8,11 @@ All notable changes to cc-settings are documented here.
 
 PR descriptions carry screenshots only when the change is visible. `rules/git.md` and the `/ship` PR template tell agents to link the Figma frame or Linear ticket a visual change implements and to leave a "Screenshots: before/after needed" line for the author, because `gh` cannot attach images. Refactor, logic, API, and tooling PRs get no screenshots. Adopts the team-knowledge convention `pr-screenshots-only-for-visual-changes`.
 
+`lint:links` reads heading anchors with inline code kept, as GitHub does: ``### `idleCompaction` `` slugs to `idlecompaction`. It blanked inline code first, so any link to a backticked heading failed CI.
+
 **Files changed:**
 - rules/git.md, skills/ship/SKILL.md
+- src/lib/lint-links.ts, tests/lint-links.test.ts
 - src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
 
 ## [15.62.0] — 2026-10-14
