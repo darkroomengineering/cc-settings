@@ -30,8 +30,8 @@ Folds in the mechanisms worth keeping from EveryInc's compound-engineering-plugi
 - rules/git.md, docs/skills.md, docs/skill-authoring.md, docs/knowledge-system.md
 - src/lib/lint-skills.ts, src/lib/artifact-store.ts, src/schemas/knowledge.ts, schemas/knowledge.schema.json
 - src/scripts/eval-changed.ts, src/scripts/eval-ablate.ts, src/scripts/handoff.ts
-- tests/lint-skills.test.ts, tests/eval-scripts.test.ts, tests/handoff.test.ts, tests/lint-knowledge.test.ts
-- evals/: 9 new cases across review, ship, share-learning, fix, handoff, autoresearch
+- tests/lint-skills.test.ts, tests/eval-scripts.test.ts, tests/handoff.test.ts, tests/lint-knowledge.test.ts, tests/skill-contracts.test.ts
+- evals/: 7 new cases across review, ship, share-learning, fix, autoresearch. The ship commit and PR rules and the handoff stop-and-ask rule are pinned by `tests/skill-contracts.test.ts` instead: both skills run forked, so an eval case sees only the fork's report.
 - src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
 
 ## [15.62.1] — 2026-10-14
