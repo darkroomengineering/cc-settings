@@ -2,7 +2,7 @@
 // decision logic. Registers/unregisters a launchd job that pulls cc-settings
 // and re-runs the installer nightly. See SECURITY.md for the threat-model
 // note (the launchd job is a persistence surface outside the four defense
-// layers) and plans/swift-wiggling-lobster.md for the full design.
+// layers).
 
 import { existsSync, lstatSync } from "node:fs";
 import { chmod, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";

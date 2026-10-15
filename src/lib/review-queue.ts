@@ -165,11 +165,9 @@ export function buildNudge(count: number, max: number): string {
 
 export function buildSurrenderNudge(count: number, dwellSeconds: number): string {
   return (
-    `You just committed ${count} agents' work ~${dwellSeconds}s after the first spawn — ` +
-    `faster than a real review of that much output plausibly takes. If you genuinely read ` +
-    `it, ignore this; if you rubber-stamped because forming an opinion cost attention you ` +
-    `didn't have, that's the cognitive-surrender failure mode — the tax getting paid as ` +
-    `silently-lowered standards. Threshold: CC_MIN_REVIEW_SECONDS. (The Orchestration Tax.)`
+    `You committed ${count} agents' work ~${dwellSeconds}s after the first spawn, faster than ` +
+    `reading that much output takes. If you did not read it all, review it before moving on ` +
+    `(cognitive-surrender check; threshold CC_MIN_REVIEW_SECONDS).`
   );
 }
 

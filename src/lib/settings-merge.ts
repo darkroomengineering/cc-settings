@@ -375,7 +375,7 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // cc-settings v11.5.1 removed the parallelmax-judge Stop hook: it spawned a
   // nested `claude -p` session whose prompt + SessionStart banner leaked into
   // the user's terminal. Prune any lingering reference so upgraders stop firing
-  // it. As a shared `Stop` group with stop-summary.ts, this is a partial prune.
+  // it. In a shared `Stop` group this is a partial prune.
   /parallelmax-judge\.ts\b/,
   // cc-settings v11.6.1 removed the WorktreeCreate/WorktreeRemove hooks added in
   // v11.6.0. In this harness WorktreeCreate is a *provisioning* hook expected to
@@ -403,6 +403,11 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // anchored at the end, so `create --from-hook` is untouched, and a user's
   // own `create --summary "..."` hook is left alone.
   /handoff\.ts["']?\s+create\s*$/,
+  // cc-settings removed the Stop/StopFailure hooks stop-summary.ts and
+  // stop-failure.ts: their plain stdout never reaches the model. Prune so
+  // upgraders stop seeing "No such file or directory".
+  /stop-summary\.ts\b/,
+  /stop-failure\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {
@@ -534,7 +539,7 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
       if (pruned) {
         ctx.accounting.hooksPruned++; // partial prune (either mechanism, or both)
         // A partial prune can collapse a user group into one the team already
-        // provides (e.g. [stop-summary, removed-hook] → [stop-summary]). Drop it
+        // provides (e.g. [ask-gate, removed-hook] → [ask-gate]). Drop it
         // rather than emit a duplicate of the team-provided group.
         if (teamJson.has(keyOf(cleaned))) continue;
       }

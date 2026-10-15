@@ -9,7 +9,7 @@
 // `sanitizeOutput` (4 patterns: sk-, Bearer, Authorization:, *_API_KEY/
 // TOKEN/SECRET=). log-bash.ts — the HIGHER-exposure surface, since it logs
 // every Bash command, not just blocked ones — inherited the weaker of the
-// two. See M23 in docs/audits/codebase-audit-2026-07-08.md.
+// two.
 //
 // This is the union of both pattern sets, plus: fine-grained GitHub PATs
 // (`github_pat_...`, GitHub's newer token format alongside the classic

@@ -78,6 +78,15 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 - **Codex routing is unaffected.** The advisor is Claude advising Claude, so `codex-verifier` remains the only independent cross-model check.
 - **Fable advice is opaque.** Fable returns encrypted advisor results, so you can't audit what was advised; press `Ctrl+O` on the `Advising` line to see what is readable. Run `/advisor opus` from an Opus or Sonnet session when auditability matters.
 
+## Effort and context details
+
+- Opus 5.5 and Sonnet 5.5 default to `medium` effort, Fable 5.1 to `high`. `/effort` remembers a level per model, so a raise on Fable does not follow you to `/model opus`; the `s` option keeps a change session-only. An `/effort` change on Fable 5.1 does not invalidate the prompt cache.
+- On Fable 5.1, `medium` matches Fable 5 quality at lower cost and `low` is viable for routine turns, but at `low` it answers from memory instead of searching.
+- `ultracode` is its own `/effort` toggle for automatic dynamic workflows at any effort level; pair it with `xhigh` when the run needs depth.
+- The 200K working ceiling exists because Opus-tier input above 200K bills at the long-context premium. Fable 5 and 5.1 default to a 1M window at standard rates, so on Fable the ceiling is about usage limits and attention, and compaction can run later.
+- With `TYPESAFE_API_KEY` set, the `compaction-trigger` plugin requests a verbatim Jev compaction near 150K tokens. Past 200K, native idle compaction summarizes a conversation left idle about 54 minutes, before its one-hour cache expires.
+- Output is 64K tokens by default, 128K maximum.
+
 ## Automated quota steering
 
 The statusline persists Claude's own rate-limit percentages to `~/.claude/tmp/rate-limits.json` on every refresh. A `quota-steer` `UserPromptSubmit` hook reads that cache and injects routing guidance into the session when usage crosses thresholds (5-hour ≥ 60% or weekly ≥ 65% is "elevated"; either ≥ 85% is "critical") — steering bulk work to the Codex bridge when it's available, or downshifting subagents to Sonnet when it isn't. Either ≥ 95% is "exhausted", which re-injects the routing directive on every prompt instead of once (see `docs/codex-bridge.md` for the full band behavior, including the bridge-down fallback).

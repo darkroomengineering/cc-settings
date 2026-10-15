@@ -4,6 +4,32 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.64.0] — 2026-10-15
+
+A consolidation pass over the prompt surface: duplicate rules, contradictions, dead hooks, and instructions that could not run are gone. Every session loads about 6 KB less (CLAUDE-FULL.md 13.1 → 9.1 KB, output style 4.1 → 2.0 KB); a `.tsx` session loads about 12 KB less from rules.
+
+**Fixed:**
+- Agents with a `tools:` allowlist receive no MCP tools, so every "use tldr" instruction in agent bodies was dead. Agents now list the `mcp__tldr__*` tools they are told to use. `LS`, which no longer exists, is gone from every list.
+- `pre-edit-validate` no longer suggests Write for edits over 15 lines; that contradicted the Editing rule.
+- `reviewer` (read-only) is no longer told to implement the elegant version; `deslopper` no longer reports gap-fills its own rules forbid.
+- Stale references: skill links to deleted rules, a missing implementer heading, deslopper paths that do not exist, a plan file cited from `schedule.ts`.
+
+**Removed:**
+- The `stop-summary` and `stop-failure` hooks. Their plain stdout never reached the model; `DEPRECATED_COMMAND_PATTERNS` prunes them from existing installs. Rerun `setup.sh` to refresh the hooks fingerprint.
+- `rules/react-perf.md` (merged into `performance.md`) and `rules/ui-skills.md` (split into `style.md` and `motion-physics.md`), plus textbook content in `typescript.md`, `security.md`, `react.md`, and `accessibility.md`.
+- `profiles/maestro.md`; the five stack profiles are cut to studio-specific content (62 → 16 KB).
+- Dated audit reports under `docs/audits/` and `docs/consolidation-audits/`. Code comments that cited their finding IDs keep the invariant inline.
+- The "Self-Evolving Learnings" rule: it wrote memory files that only agents with native `memory:` frontmatter ever load.
+- SessionStart lines the model gains nothing from (auto-memory pointer, codemap-ready, default compaction state) and the repeated `gh api` read command on every knowledge hint.
+
+**Changed:**
+- `AGENTS.md` E2E rule: prefer E2E for new verification; where a repo already keeps unit tests, follow its convention.
+- `CLAUDE-FULL.md` drops the quota-routing paragraph (`quota-steer` injects it at the threshold) and model trivia (moved to `docs/agent-models.md`); the skill ratchet and hook fingerprint notes move to the repo's `.claude/AGENTS.md`.
+- The output style keeps shape and reply rules; register lives once, in `AGENTS.md`.
+- Agent descriptions drop their trigger-phrase lists (the CLAUDE-FULL routing table already covers them); agent bodies drop restated standards (72 → 52 KB).
+- The component-edit review banner is one line instead of a 16-line box.
+- Managed-files manifest 19 and Codex runtime manifest 17 retire the deleted files on upgrade.
+
 ## [15.63.1] — 2026-10-15
 
 `rules/style.md` gains a "Full-Bleed Color Behind Mobile Safari's Toolbars" section. `theme-color` alone leaves Safari's status bar and bottom toolbar white and takes one color; the rule pins a thin fixed strip to each edge so each toolbar gets its own solid color.

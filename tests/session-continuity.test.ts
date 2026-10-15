@@ -344,11 +344,14 @@ describe("Continuation — SessionStart(source:compact) surfaces the artifact tr
       expect(exit).toBe(0);
 
       const outLines = stdout.split("\n");
-      // "Auto-memory: ..." is printed unconditionally right after an unconditional
-      // blank line — everything strictly before that pair is the compact block.
-      const markerIndex = outLines.findIndex((l) => l.startsWith("Auto-memory: say 'remember X'"));
+      // The compact block is the leading run of blank, "[compact]", and
+      // "  - " file-bullet lines; the normal startup banner follows it.
+      const markerIndex = outLines.findIndex(
+        (l, i) => i > 0 && l !== "" && !l.startsWith("[compact]") && !l.startsWith("  - "),
+      );
       expect(markerIndex).toBeGreaterThan(0);
-      const compactBlock = outLines.slice(0, markerIndex - 1);
+      const compactBlock = outLines.slice(0, markerIndex);
+      while (compactBlock.at(-1) === "") compactBlock.pop();
 
       expect(compactBlock.length).toBeLessThanOrEqual(15);
 

@@ -13,7 +13,7 @@ For the canonical event count, configuration format, matchers, and debugging:
 |-------|---------|--------|-------|
 | `SessionStart` | New session begins | `session-start.ts` (auto-memory pointer, auto-warms TLDR) | No |
 | `UserPromptSubmit` | Before Claude sees prompt | `session-title.ts` (sets session title from prompt for `--resume`) | **Yes** |
-| `UserPromptSubmit` | Before Claude sees prompt | `delegation-detector.ts` (regex-scores prompt for breadth signals; at score ≥ 2 injects delegation reminder via `additionalContext`) | No |
+| `UserPromptSubmit` | Before Claude sees prompt | `delegation-detector.ts` (with a TypeSafe key, Jev scores the prompt against a delegation statement and fires at probability ≥ 0.7; without a key, or if the call fails or times out, a regex breadth score ≥ 2 decides; names the signals via `additionalContext`) | No |
 | `PreToolUse` | Before Bash commands (Bash matcher) | `safety-net.ts` (blocks destructive commands) | No |
 | `PreToolUse` | Before git commit (Bash matcher) | Pre-commit tsc check (TypeScript validation) | No |
 | `PreToolUse` | Before package install (Bash matcher) | `check-docs-before-install.ts` (doc-fetch reminder) | No |
@@ -26,8 +26,7 @@ For the canonical event count, configuration format, matchers, and debugging:
 | `PostToolBatch` | After a batch of tool calls resolves | `ledger-record.ts` (records read/changed file paths in the session ledger — metadata only) | **Yes** |
 | `PreCompact` | Before context compaction | `handoff.ts create --from-hook` (saves state + session provenance) | No |
 | `PostCompact` | After context compaction | `post-compact.ts` (persists `compact_summary` into the matching handoff — stdout is user-visible only, never injected) | No |
-| `Stop` | Claude finishes | `stop-summary.ts` (learning reminder if >5 files changed) | No |
-| `StopFailure` | Turn ends due to API error | `stop-failure.ts` (logs, surfaces rate limit info) | No |
+| `Stop` | Claude finishes | `ask-gate.ts` (blocks a turn that ends in a prose question without `AskUserQuestion`) | No |
 | `SessionEnd` | Session ending | `handoff.ts create --from-hook` | **Yes** |
 | `SubagentStart` | Subagent spawns | Logs to `~/.claude/swarm.log` | **Yes** |
 | `SubagentStop` | Subagent finishes | Logs to `~/.claude/swarm.log` | **Yes** |

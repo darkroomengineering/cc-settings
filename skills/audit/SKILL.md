@@ -409,7 +409,7 @@ One pass per applicable surface; every number goes into the Measurement Log.
 
 ### Phase 2 — Hypothesis sweep (static, generates no findings)
 
-Now read source for suspect patterns, each recorded as a hypothesis **with the measurement that would confirm it**: sequential `await`s on independent work → time the flow before/after in a scratch branch, or profile the waterfall; N+1-shaped data access → query count per request; heavyweight imports in client components → analyzer composition; missing `dynamic()` splits → per-route first-load JS; sync I/O or allocation in loops → micro-benchmark; unmemoized components in hot trees → React Profiler render counts. Cross-check against `rules/performance.md` and `rules/react-perf.md` for the patterns Darkroom already bans. When the project has `tldr`, use the call graph to target the sweep — high fan-in hubs from `tldr calls`/`tldr arch` are the hot-path candidates worth profiling first — instead of grepping blind.
+Now read source for suspect patterns, each recorded as a hypothesis **with the measurement that would confirm it**: sequential `await`s on independent work → time the flow before/after in a scratch branch, or profile the waterfall; N+1-shaped data access → query count per request; heavyweight imports in client components → analyzer composition; missing `dynamic()` splits → per-route first-load JS; sync I/O or allocation in loops → micro-benchmark; unmemoized components in hot trees → React Profiler render counts. Cross-check against `rules/performance.md` for the patterns Darkroom already bans. When the project has `tldr`, use the call graph to target the sweep — high fan-in hubs from `tldr calls`/`tldr arch` are the hot-path candidates worth profiling first — instead of grepping blind.
 
 ### Phase 3 — Confirm or discard
 
@@ -494,8 +494,7 @@ audit-then-plan workflow.
 work with the highest leverage — the `ease-in` that makes every dropdown feel
 sluggish, the keyframes that make toasts jump, the keyboard action that should never
 have animated. The bar and the exact values (easing curves, duration budgets, spring
-configs) live in `rules/ui-skills.md` "Animation Constraints" and
-`rules/motion-physics.md` — pull values from there, never approximate. For Swift
+configs) live in `rules/motion-physics.md` — pull values from there, never approximate. For Swift
 targets the frame-rate bar (built-in animatable modifiers, no per-frame `body`,
 ProMotion unlocked) is `rules/swift-animation.md`.
 

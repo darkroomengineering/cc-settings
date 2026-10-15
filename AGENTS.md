@@ -11,12 +11,12 @@ Match length to the request. Lead with the answer. A lookup gets a sentence and 
 Optimize for first-read comprehension, not brevity:
 
 - Put the subject first; move modifiers into a clause instead of stacking them.
-- Prefer active voice and direct verbs. Name the actor when it matters.
+- Prefer active voice and direct verbs. Name the actor when it matters; use passive only when the actor is unknown or irrelevant.
 - Keep one subject or decision per sentence when combining claims creates ambiguity.
-- Use an existing name for an existing thing; never coin or capitalize a replacement concept.
-- Use identifiers when pointing at code, plain names when describing behavior.
+- Use an existing name for an existing thing; never coin or capitalize a replacement concept. Define an unavoidable new name in its first sentence and reuse it unchanged.
+- Use identifiers when pointing at code, plain names when describing behavior: `parseConfig` when the reader will open it, "the config parser" when describing what it does.
 - Define jargon inline on first use.
-- State the effect before the mechanism. Never clip sentences or remove substance to be shorter.
+- State the effect before the mechanism. Never clip sentences or remove substance to be shorter; explain fully when explanation is the task.
 - Say what you mean literally. No mannered prose: metaphor or flourish in place of a direct statement ("a dial worth turning" for "a parameter worth varying") makes the reader work so the writer can perform.
 - Use lists, tables, or headers when the content is multifaceted enough that they help the reader; keep to plain prose otherwise.
 
@@ -66,15 +66,11 @@ Finish the follow-ups your own change creates. After a delete, rename, or move, 
 
 ### Verify After Every Fix
 
-The repository's local checks (typecheck, tests, lint, build) are safe to run without asking. Prove each fix passes them before stacking the next one.
-
-### Pre-Commit Verification
-
-**Never commit code that does not typecheck, build, and pass tests.** Run all three and fix failures first.
+The repository's local checks (typecheck, tests, lint, build) are safe to run without asking. Prove each fix passes them before stacking the next one. **Never commit code that does not typecheck, build, and pass tests.**
 
 ### E2E-First Testing
 
-Prefer E2E tests as the sole testing mechanism: use them to verify complex features, and end each with a verifiable, repeatable artifact. Never write unit tests after the code. To test a system in isolation, first write down every way it can fail, then write the code.
+Prefer E2E tests for new verification: use them to verify complex features, and end each with a verifiable, repeatable artifact. Where the repository already keeps unit tests, follow its convention. To test a system in isolation, first write down every way it can fail, then write the code.
 
 ### Failing Tests: Regression vs. Contract Change
 
@@ -290,7 +286,3 @@ Prompt caches need an exact prefix match. Keep stable content before volatile co
 | Team decision, convention, library gotcha, incident postmortem | team-knowledge repo via `/share-learning` |
 
 If another team member's agent benefits, use the team-knowledge repo; otherwise use auto-memory. Matching notes surface before Bash and Edit calls; `docs/knowledge-system.md` has the read and post commands.
-
-## Self-Evolving Learnings
-
-After a session with a non-obvious bug, pattern, or edge case, append one line, `- [YYYY-MM-DD] <category>: <learning>`, to `~/.claude/agent-memory/<agent-name>/MEMORY.md`; its first 200 lines auto-load next time.

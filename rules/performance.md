@@ -9,88 +9,42 @@ paths:
 
 # Performance
 
-> Eliminate waterfalls, minimize bundles, defer non-critical work. Implementation
-> reference (resource hints, images, fonts, cache headers, DOM, third-party, CLS
-> debugging): `~/.claude/docs/performance-reference.md` — read it when doing that
-> work.
+> Waterfalls, barrels, dynamic imports, and `React.cache` are in `AGENTS.md`. This file holds the stack-specific forms, thresholds, and frame-loop rules. Implementation reference (resource hints, images, fonts, cache headers, DOM, third-party, CLS debugging): `~/.claude/docs/performance-reference.md` — read it when doing that work.
 
-## DO
+## Stack forms
 
-### Parallel data fetching (any stack)
-```tsx
-const [user, posts, comments] = await Promise.all([
-  fetchUser(),
-  fetchPosts(),
-  fetchComments(),
-])
-```
+- **Dynamic import:** Next.js `next/dynamic` with `ssr: false` for browser-only libs; React Router / Vite `React.lazy()` + `<Suspense>`; plain `import()` inside an event handler for true on-demand. Never static-import heavy libs (`gsap`, analytics, editors) into the initial bundle.
+- **Direct imports:** a path import (`lucide-react/dist/esm/icons/check`) or, in Next.js, `experimental.optimizePackageImports`.
+- **Deduplication:** Next.js Server Components use `cache()` from `react`; React Router composes loaders so each piece is fetched once at the right level; client side uses SWR or TanStack Query.
+- **Waterfalls:** in Server Components prefer sibling composition so each child fetches in parallel instead of nesting awaits. Defer an `await` past early exits (`if (!req.query.id) return` before `await getUser(req)`). React Router loaders `Promise.all` independent fetches or split them across nested routes, which run in parallel.
+- **Inline JSX literals are fine under React Compiler:** `<Button style={{ color: 'red' }} onClick={() => doThing()} />` does not cause referential-identity re-renders. The "no object or function literals in JSX" advice is pre-Compiler folklore; do not extract them into `useMemo` / `useCallback`.
 
-### Defer awaits past early exits (any stack)
-```tsx
-async function handler(req: Request) {
-  if (!req.query.id) return { error: 'Missing ID' }  // early exit
-  const user = await getUser(req)
-  return user
-}
-```
+## Streaming
 
-### Direct imports over barrels (any stack)
-```tsx
-import Check from 'lucide-react/dist/esm/icons/check'
-// Next.js alternative: experimental.optimizePackageImports in next.config
-```
+| Stack | Pattern |
+|---|---|
+| Next.js | Server Component + `<Suspense fallback>` around an async child |
+| React Router | Return unresolved promises from a loader + `<Await>` inside `<Suspense>` |
 
-### Dynamic imports for heavy components
-```tsx
-// Next.js: next/dynamic with ssr: false for browser-only libs
-const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
-// React Router / Vite: React.lazy() + <Suspense>
-// Either: plain import() inside an event handler for true on-demand
-```
+Avoid streaming when layout depends on data dimensions, for above-fold SEO content, for fast queries (< 50 ms), or where layout shifts are unacceptable.
 
-### Request deduplication
-```tsx
-// Next.js Server Components: import { cache } from 'react'
-export const getUser = cache(async (id: string) => db.user.findUnique({ where: { id } }))
-// React Router: compose loaders so each piece is fetched once at the right level
-// Client side (either): SWR / TanStack Query
-```
+## Client-side data and re-renders
 
-### Lazy state initialization (any stack)
-```tsx
-const [index, setIndex] = useState(() => buildSearchIndex(items))
-```
+- Route-level loaders / Server Components for initial load; SWR for client-side cache, revalidation, and mutations.
+- **Deduplicate window listeners.** One `scroll`/`resize` listener with a callback registry (Map keyed by subscriber id), not one listener per hook instance.
+- **Extract expensive work into the child that needs it.** Computation above an early `return` runs on every render of the parent; in a child it is skipped entirely.
+- **Narrow effect dependencies.** Depend on `user.id`, not `user`; derive booleans for thresholds (`const isMobile = width < 768`, then depend on `isMobile`).
+- **Wrap non-urgent updates in `startTransition`**, e.g. `onScroll={() => startTransition(() => setScrollY(window.scrollY))}`, so scroll state cannot block urgent renders.
+- **Stable subscriptions.** Store the latest handler in a ref (`handlerRef.current = handler` in an effect) and subscribe once with a wrapper that calls `handlerRef.current(e)`; the subscription effect then depends only on the event type.
 
-### Hoist static JSX
-```tsx
-const icon = <svg>...</svg>
-function Icon() { return icon }  // created once
-```
+## Frame loops (rAF, `useFrame`, `useLenis`, ScrollTrigger `onProgress`, pointer handlers)
 
-## DON'T
-
-```tsx
-// WRONG (any stack): sequential when independent
-const user = await fetchUser()
-const posts = await fetchPosts()  // could've been Promise.all
-
-// WRONG (Next.js): nested async waterfall in Server Components
-async function Page() {
-  const header = await fetchHeader()
-  return <Layout><Sidebar /></Layout>  // Sidebar waits for header
-}
-
-// WRONG (any stack): barrel imports
-import { Check } from 'lucide-react'        // 10,000+ re-exports
-import { Button } from '@/components'       // barrel file
-
-// WRONG (any stack): static import of heavy libs
-import MonacoEditor from '@monaco-editor/react'  // 300KB+
-
-// WRONG (any stack): wide effect dependencies
-useEffect(() => { fetch(user.id) }, [user])      // runs on any user change
-// CORRECT: [user.id]
-```
+- **No layout reads inside a per-frame callback.** `getBoundingClientRect`, `clientWidth`, `offsetHeight`, `scrollTop` after a style write force a synchronous layout, once per read, before the frame can paint. It hides on an M-series laptop and stutters on Intel Macs, 4K externals, and low-end devices. Measure once outside the loop and cache: hamo `useRect` (element rect, updates on resize and scroll), `useWindowSize`, `useResizeObserver`. Rects that truly change every frame (sticky or transformed elements) derive from scroll progress plus the cached initial rect. A comment saying a read "can't be avoided" is a claim to test against the stylesheet, not a waiver; if it survives that test, batch every read before any write so there is at most one forced layout.
+- **Per-frame CSS custom property writes are not free.** `el.style.setProperty("--x", v)` invalidates style on the element and every descendant that consumes the variable, every frame; geometry-affecting consumers reflow too. Prefer `transform` and `opacity` via direct style writes or Web Animations. When a variable is the right tool: quantize to the precision the CSS needs (whole pixels, or the step count a `clamp` resolves to), skip the write when the rounded value is unchanged, scope the variable to the smallest element that needs it, and never layer a CSS `transition` on a per-frame write.
+- **Write `style.transform` / `style.opacity` on the moving node**, not a custom property that only feeds one of them. A variable read by `top`, `left`, `width`, `height`, `padding`, `font-size`, or `line-height` is a layout write every frame.
+- **Gate infinite CSS animations and per-frame writes on visibility** (IntersectionObserver). Opacity 0 does not stop the work, and `::after` animations run on the main thread.
+- **No `toDataURL()` images on `style` or custom properties.** The string is inherited and carried through every style recalculation under that element. Ship a static tile from `public/`, or use a blob URL if it must be dynamic.
+- **Review rule:** before approving a perf or motion PR, grep the frame loops for layout reads and custom-property writes.
 
 ## Also enforce (details in the reference doc)
 
@@ -107,9 +61,3 @@ useEffect(() => { fetch(user.id) }, [user])      // runs on any user change
   `content-visibility: auto` for long offscreen sections.
 - Third-party JS < 200 KB total; heavy embeds behind a facade. Page budgets:
   JS < 300 KB, CSS < 100 KB, fonts < 100 KB, above-fold images < 500 KB.
-
-## Tools
-
-- **Turbopack** (Next.js) / **Vite** (React Router) — fast dev builds
-- **Bundle Analyzer** — `@next/bundle-analyzer` or `rollup-plugin-visualizer`
-- **Lighthouse** — performance audits (any stack)

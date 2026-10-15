@@ -24,8 +24,8 @@ const LOG_FILE = claudePath("safety-net.log");
 
 // --- Utilities ------------------------------------------------------------
 //
-// Secret redaction moved to src/lib/redact.ts (canonical, shared with
-// codex.ts and log-bash.ts) — see M23 in docs/audits/codebase-audit-2026-07-08.md.
+// Secret redaction lives in src/lib/redact.ts (canonical, shared with
+// codex.ts and log-bash.ts).
 
 async function logBlocked(cmd: string, reason: string): Promise<void> {
   const redacted = redactSecrets(cmd);

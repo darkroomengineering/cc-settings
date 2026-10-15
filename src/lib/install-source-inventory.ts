@@ -161,8 +161,6 @@ export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/scripts/review-batch.ts",
   "src/scripts/session-start.ts",
   "src/scripts/session-title.ts",
-  "src/scripts/stop-failure.ts",
-  "src/scripts/stop-summary.ts",
   "src/scripts/swarm-log.ts",
   "src/scripts/token-report.ts",
   "src/scripts/whats-on.ts",

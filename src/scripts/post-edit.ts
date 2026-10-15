@@ -74,23 +74,6 @@ if (engine.cli.supportsDaemon && daemonVerb && hasCommand(engine.cli.command)) {
 // replicated twice — see docs/hooks-reference.md "Sync vs Async Behavior").
 // Emitted via the hookSpecificOutput.additionalContext envelope instead.
 if (COMPONENT.has(ext)) {
-  const banner = [
-    "",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    `🔍 AUTO-REVIEW: ${basename(filePath)}`,
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "",
-    "Code Review:",
-    "  • A11y: alt, aria-label, semantic elements, keyboard",
-    "  • UI: Tailwind defaults, animations (transform/opacity)",
-    "  • Perf: barrel imports, waterfalls, memoization",
-    "",
-    "Visual QA (if dev server running):",
-    "  • Use the chrome-devtools MCP to validate",
-    "  • Screenshot + accessibility tree analysis",
-    "  • Touch targets, contrast, layout validation",
-    "",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-  ].join("\n");
+  const banner = `[review] ${basename(filePath)} edited: check a11y labels, alt text, 44px targets, transform/opacity-only animation.`;
   emitAdditionalContext("PostToolUse", banner);
 }

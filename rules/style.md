@@ -78,6 +78,16 @@ body { background: var(--edge-bottom); }
 - **`light-dark()` + `color-scheme`** for two-theme color tokens. Projects with 3+ themes keep `[data-theme]` overrides.
 - **Reset:** `min-width: 0` on flex/grid children and `text-wrap: balance` on headings.
 
+### Stack Constraints
+- Use Tailwind default values unless the project already defines custom ones or the design asks for them. Never invent custom spacing, colors, or breakpoints when a default suffices.
+- Use `size-*` for square elements (`size-8`, not `w-8 h-8`).
+- Interactive primitives come from **Base UI**, **React Aria**, or **Radix UI**, or from the project's own component library. Never mix primitive systems within one interaction surface, and prefer what the project already has over a new dependency.
+- Loading states use structural skeletons that mirror the content's real layout (aspect boxes + text bars), not generic spinners for content areas.
+
+### Typography
+- `text-balance` on headings, `text-pretty` on body text.
+- `tabular-nums` (`font-variant-numeric: tabular-nums`) on prices, stats, and tables so columns align.
+
 ---
 
 ## DON'T
@@ -109,14 +119,3 @@ import '@/styles/globals.css'  // Only in layout.tsx
 
 - **Satus routes compose in `app/**/page.tsx` as server components.** A page-level `'use client'` component under `components/` that is all `page.tsx` renders is a smell: move the ref or state that forced it into the component that renders the element.
 - **Open every Figma-exported SVG and strip `<filter>`** before using it as a background or mask. Texture effects export as `feTurbulence` filters that re-rasterize on the main thread. If the effect matters visually, apply it to an inline SVG on a composited layer and measure before shipping.
-
----
-
-## Typography
-
-> Typography utilities (`text-balance`, `text-pretty`, `tabular-nums`): see `rules/ui-skills.md`.
-
-## Tools
-- **Tailwind CSS v4**
-- **CSS Modules**
-- **Biome**

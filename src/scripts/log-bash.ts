@@ -16,8 +16,7 @@ import { redactSecrets } from "../lib/redact.ts";
 const LOG_DIR = claudePath("logs");
 
 // An explicit CLAUDE_LOG_RETENTION_DAYS=0 must stay 0 (delete everything on
-// every prune), not silently coerce back to the 1-day default — see M19 in
-// docs/audits/codebase-audit-2026-07-08.md.
+// every prune), not silently coerce back to the 1-day default.
 const RETENTION = intEnv("CLAUDE_LOG_RETENTION_DAYS", 1);
 
 async function pruneOldLogs(): Promise<void> {
@@ -61,7 +60,7 @@ type HookInput = { tool_input?: { command?: string } };
  * redactSecrets internally; the explicit second call here is a deliberate
  * belt-and-suspenders import (idempotent — a no-op on already-redacted text)
  * so this file's own coverage doesn't silently regress if codex.ts's
- * internals ever change. See M23 in docs/audits/codebase-audit-2026-07-08.md.
+ * internals ever change.
  */
 function escapeForLog(s: string): string {
   return redactSecrets(sanitizeOutput(s))

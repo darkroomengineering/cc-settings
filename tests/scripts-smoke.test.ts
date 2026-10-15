@@ -393,27 +393,6 @@ describe("post-compact.ts", () => {
   });
 });
 
-describe("stop-failure.ts", () => {
-  test("rate-limit message produces rate-limit branch", async () => {
-    const payload = JSON.stringify({ error: { type: "rate_limit", message: "429 overloaded" } });
-    const r = await run("stop-failure.ts", { stdin: payload });
-    expect(r.exit).toBe(0);
-    expect(r.stdout).toContain("Rate limit hit");
-  });
-  test("generic error produces generic branch", async () => {
-    const payload = JSON.stringify({ error: { type: "server", message: "boom" } });
-    const r = await run("stop-failure.ts", { stdin: payload });
-    expect(r.exit).toBe(0);
-    expect(r.stdout).toContain("API error");
-  });
-  test("empty stdin → unknown/Unknown error", async () => {
-    const r = await run("stop-failure.ts", { stdin: "" });
-    expect(r.exit).toBe(0);
-    expect(r.stdout).toContain("API error");
-    expect(r.stdout).toContain("unknown");
-  });
-});
-
 describe("post-edit-tsc.ts", () => {
   test("non-TS file → no-op", async () => {
     const r = await run("post-edit-tsc.ts", { env: { TOOL_INPUT_file_path: "foo.py" } });

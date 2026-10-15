@@ -122,7 +122,7 @@ spring configs, or WAAPI usage, not just added imports. Adapted from emilkowalsk
    animation; tens/day gets reduced motion; occasional gets standard; rare/first-time
    can have delight.
 3. **Responsive easing** — `ease-out` or a strong custom curve on entering/exiting
-   elements (see `rules/ui-skills.md`). `ease-in` on UI is a block.
+   elements (see `rules/motion-physics.md`). `ease-in` on UI is a block.
 4. **Sub-300ms UI** — press 100–160ms, tooltips/popovers 125–200ms, dropdowns/selects
    150–250ms, modals/drawers 200–500ms.
 5. **Origin & physical correctness** — popovers/dropdowns/tooltips scale from

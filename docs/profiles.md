@@ -4,14 +4,13 @@ Profiles document the stack-specific instructions that cc-settings installs unde
 `~/.claude/profiles/`. They are source material for the shared instructions and skills. There is no
 supported `settings.json` key or interactive command that activates one as a runtime mode.
 
-Use the product normally from the project root. Stack-aware skills inspect `package.json` and the
-files in play, then apply the matching Next.js, React Router, React Native, Tauri, or WebGL guidance.
-Use `/orchestrate` in Claude or `$orchestrate` in Codex when you explicitly want the maestro
-workflow. Do not copy profile frontmatter into settings; those fields are documentation only.
+Profiles are never loaded automatically. Read the one that matches the project when you need the
+studio's conventions for that stack. Use `/orchestrate` in Claude or `$orchestrate` in Codex when you
+explicitly want the maestro workflow. Do not copy profile frontmatter into settings; those fields are
+documentation only.
 
 | Profile | Use Case |
 |---------|----------|
-| `maestro` | Full orchestration mode — agent delegation for everything |
 | `nextjs` | Next.js web apps |
 | `react-native` | Expo mobile apps |
 | `tauri` | Tauri desktop apps (Rust + Web) |
