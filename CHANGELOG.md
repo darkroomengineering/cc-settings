@@ -4,6 +4,10 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.63.1] — 2026-10-15
+
+`rules/style.md` gains a "Full-Bleed Color Behind Mobile Safari's Toolbars" section. `theme-color` alone leaves Safari's status bar and bottom toolbar white and takes one color; the rule pins a thin fixed strip to each edge so each toolbar gets its own solid color.
+
 ## [15.63.0] — 2026-10-15
 
 Folds in the mechanisms worth keeping from EveryInc's compound-engineering-plugin. No skills were added; each change lands in an existing skill, agent, rule, or script.
