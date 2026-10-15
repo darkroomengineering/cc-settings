@@ -113,7 +113,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.63.0"; // Compound-engineering fold-ins.
+const VERSION = "15.63.1"; // Mobile Safari edge-strip rule.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

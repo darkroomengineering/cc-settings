@@ -50,6 +50,19 @@ function Component() { return <div className={s.wrapper}>...</div> }
 ```
 Use `dvh` (`h-dvh`) only for app shells that should track browser toolbar retraction.
 
+### Full-Bleed Color Behind Mobile Safari's Toolbars
+`theme-color` alone leaves Safari's status bar and bottom toolbar white in the browser, and it takes one color. Safari does extend a fixed element's background behind its controls, so pin a thin strip to each edge ([source](https://joshpuckett.me/seamless-mobile-safari)):
+```css
+html { background: var(--edge-top); }
+body { background: var(--edge-bottom); }
+.edge { position: fixed; inset-inline: 0; pointer-events: none; }
+.edge[data-edge='top']    { top: 0;    height: max(12px, env(safe-area-inset-top));    background: var(--edge-top); }
+.edge[data-edge='bottom'] { bottom: 0; height: max(12px, env(safe-area-inset-bottom)); background: var(--edge-bottom); }
+```
+- Render the strips as `aria-hidden` elements outside any transformed ancestor; a transform breaks `position: fixed`.
+- Set `viewport-fit=cover`, keep content out of the strips, and sync `<meta name="theme-color">` to the top color.
+- Each edge is one solid color. It can change on scroll, but gradients and images cannot extend behind the toolbars.
+
 ### Modern CSS
 - **Native `popover` + `popovertarget`** for menus, tooltips, and non-modal overlays. They render in the top layer, so they never fight the z-index scale. Style `::backdrop` and `:popover-open`.
 - **`:has()`** for parent- or sibling-dependent styling instead of JS state or conditional classes.
