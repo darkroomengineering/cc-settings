@@ -58,6 +58,7 @@ summary: "<one line, max 160 chars, no ·>"
 tags: [kebab, strings]        # optional
 scope: [repo-name]            # optional
 verified: "YYYY-MM-DD"        # optional
+retire_when: "<condition>"    # optional
 added-by: <github login or name>
 supersedes: <name>            # optional
 ---
@@ -73,7 +74,9 @@ working on, so literal identifiers (`drizzle-kit`, `getboundingclientrect`)
 make the hint fire at the right moment. `scope` lists the GitHub repo names a
 note applies to; the hook hides a scoped note in any other repo. `verified`
 dates a note's version-specific claims; the linter warns once it is older than
-180 days.
+180 days. `retire_when` names the outside change that makes the note obsolete
+(for example "Next.js 17 ships the fix"); a met condition is contradicting
+evidence about the note, independent of its age or `verified` date.
 
 ### INDEX.md line format contract
 

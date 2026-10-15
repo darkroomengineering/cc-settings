@@ -42,6 +42,9 @@ export const KnowledgeFrontmatter = z.looseObject({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "verified must be a YYYY-MM-DD date")
     .optional(),
+  // Names the outside change that makes the note obsolete (for example "Next.js
+  // 17 ships the fix"). A met condition is contradicting evidence, whatever the age.
+  retire_when: z.string().min(1).optional(),
   "added-by": z.string().min(1),
   supersedes: z.string().optional(),
 

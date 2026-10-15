@@ -168,6 +168,7 @@ export async function resolveArtifact(
       return null;
     }
   }
+  if (/[\\/]/.test(idOrLatest)) return null;
   const full = join(dir, spec.idToName(idOrLatest));
   return existsSync(full) ? full : null;
 }

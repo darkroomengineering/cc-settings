@@ -25,6 +25,15 @@ convention, an incident postmortem, or a reusable pattern. If it is a personal p
 local project state, or an external pointer, let auto-memory handle it instead — do NOT
 post it.
 
+## Write gate
+
+Run this first, before any network call. Ask: if this note disappeared, would an engineer
+reading the final code, tests, and comments still repeat the mistake or redo the
+investigation? If not, write nothing and tell the user why in one line. An explicit request
+asks for the judgment now; it does not lower the bar. Effort spent and diff size do not
+qualify a learning. An existing note that is inaccurate qualifies for an update, not a
+duplicate.
+
 ## Inputs
 
 Invoked as `/share-learning <kind> "<text>"` where `<kind>` is one of:
@@ -68,8 +77,8 @@ authentication or repository access.
    - Frontmatter: `name` = the slug; `kind` from the argument; `summary` (required,
      see below); `added-by` from
      `gh api user --jq .login` (fall back to `git config user.name` if that fails);
-     `tags`, `scope` and `verified` optional (see below); `supersedes` only when
-     this note replaces an existing one.
+     `tags`, `scope`, `verified` and `retire_when` optional (see below); `supersedes`
+     only when this note replaces an existing one.
    - `summary`: one line, at most 160 characters, no `·`, in double quotes. It
      becomes the note's line in `INDEX.md`, which is all an agent sees before
      deciding to open the note, so state the rule and what to do, not how it was
@@ -91,6 +100,9 @@ authentication or repository access.
      one repo. Check the name with `gh repo view darkroomengineering/<name>`.
    - `verified`: for a note about a tool, SDK or service version, the date
      (`"YYYY-MM-DD"`, quoted) its claims were last confirmed.
+   - `retire_when`: for a workaround or a note about a bug in someone else's tool,
+     the outside change that makes it obsolete, in double quotes (`"Next.js 17
+     ships the fix"`). A met condition is contradicting evidence regardless of age.
    - Body: open with the rule in one or two sentences, then what happened or why
      it matters, then how to apply it. An agent that reads only the first
      paragraph should know what to do. One learning per note, atomic and
@@ -119,6 +131,7 @@ authentication or repository access.
    tags: [<tag1>, <tag2>]
    scope: [<repo>]             # only when the rule applies to one repo
    verified: "<YYYY-MM-DD>"    # only for version-specific claims
+   retire_when: "<condition>"  # only for workarounds with an outside exit
    added-by: <login>
    ---
 
@@ -153,6 +166,31 @@ authentication or repository access.
    see the note only after the merge, when the repo's `index.yml` workflow regenerates
    `INDEX.md`. Its final location is
    `https://github.com/$KNOWLEDGE_REPO/blob/main/<name>.md`.
+
+## Refresh
+
+When asked to refresh or audit existing notes, read each note, check its claims against
+the current code, and assign exactly one outcome:
+
+| Outcome | Meaning |
+|---------|---------|
+| Keep | Still accurate and useful. No edit. |
+| Update | The rule holds; names, paths, links, or `verified` drifted. Fix in place. |
+| Consolidate | Two correct notes overlap. Merge the unique content into one and delete the other. |
+| Replace | The guidance misleads and a trustworthy successor can be written. Write it with `supersedes`. |
+| Delete | The problem domain is gone and no other note substantively cites it. |
+
+- Unverifiable is not false: act on a contradiction in the code, never on the absence of
+  a confirming artifact.
+- Age alone is not staleness. A met `retire_when`, or code that contradicts a claim, is
+  grounds for Update, Replace, or Delete. When the code still carries the workaround, keep
+  the note and recommend removing the workaround.
+- Missing files prove the implementation is gone, not the problem. If the problem domain is
+  still active, that is Replace.
+- Before a Delete, search the corpus for the note's name; a note that another note relies on
+  is Replace or Keep.
+- Do not edit for typos or wording. Changes land as one team-knowledge PR, like any other
+  note change.
 
 ## Notes
 

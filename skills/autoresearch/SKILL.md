@@ -82,8 +82,10 @@ Before any mutations, measure the starting score.
    `mean_safety` across both.
 
 5. **Measure the noise floor.** Run the N training samples a second time on the
-   unchanged skill and score them. `noise = |score_run1 - score_run2|`. A kept
-   round must beat this, or the loop keeps judge randomness.
+   unchanged skill and score them; two identical runs is the minimum.
+   `noise = |score_run1 - score_run2|`. A change from `best_score` within this
+   spread is `inconclusive`, not a keep or a discard, or the loop keeps judge
+   randomness.
    - If `noise >= min_improvement`, double `samples` once and repeat steps 1-5.
    - If it is still at or above `min_improvement`, set
      `min_improvement = noise` and say so in the log. Adding test inputs is the
@@ -106,7 +108,7 @@ Before any mutations, measure the starting score.
 
 9. Log to results.tsv:
    ```
-   0	baseline	{score}	{heldout}	{correctness}	{safety}	{N}	baseline	initial measurement, noise {noise}
+   0	baseline	{score}	{heldout}	{correctness}	{safety}	{N}	baseline	initial measurement, noise {noise}, bar +{min_improvement}
    ```
 
 10. Print: `Baseline score: {score} ({X}/{Y} checklist items passing on average) · held-out {heldout} · noise {noise} · correctness {c}/5 · safety {s}/5 · model {AUTORESEARCH_MODEL}`
@@ -115,7 +117,9 @@ Before any mutations, measure the starting score.
    `baseline_correctness = mean_correctness`, `baseline_safety = mean_safety`.
    The correctness and safety values are the floor for every later round and
    never move, even when a mutation improves them — a later regression is
-   measured against the original skill, not against the best round so far. Begin
+   measured against the original skill, not against the best round so far.
+   The pass bar (`min_improvement`, the noise floor, the guardrail floors) is
+   registered now, before the first mutation, and holds until a rebaseline. Begin
    the loop.
 
 ---
@@ -239,7 +243,10 @@ LOOP FOREVER (round = 1, 2, 3, ...):
          Log status "vetoed" and name which guardrail tripped. A vetoed
          mutation is a finding, not noise: it found a way to score higher by
          dropping correctness or safety. Never re-propose it.
-     - Only (d) fails:
+     - Only (d) fails, and |mean_score - best_score| <= noise:
+         REVERT — git reset --hard HEAD~1; the current best stands.
+         Log status "inconclusive": the change cannot be told from judge noise.
+     - Only (d) fails, outside noise:
          REVERT — git reset --hard HEAD~1
          Log: round, commit_before_reset, score, N, "reverted", description
      - (d) holds but (e) fails:
@@ -282,11 +289,9 @@ SIMPLIFY and REMOVE-noise mutations.
 
 ### Convergence
 
-If the score reaches 0.95+ on three consecutive kept rounds, print:
-```
-Converged at {score} after {round} rounds. Still running — interrupt to stop.
-```
-Keep going (there may still be room for improvement or simplification).
+If the score reaches 0.95+ on three consecutive kept rounds, print
+`Converged at {score} after {round} rounds. Still running — interrupt to stop.`
+and keep going: there may still be room for improvement or simplification.
 
 ---
 
@@ -377,7 +382,7 @@ Updated: <YYYY-MM-DD HH:MM>
 - Guardrails: correctness {c}/5 (floor {baseline_correctness}) · safety {s}/5 (floor {baseline_safety})
 - Model: {AUTORESEARCH_MODEL} · isolated (`--setting-sources ""`)
 - Rounds completed: {round}
-- Kept / Reverted / Overfit / Vetoed / Crashed: {k} / {r} / {o} / {v} / {c}
+- Kept / Reverted / Inconclusive / Overfit / Vetoed / Crashed: {k} / {r} / {i} / {o} / {v} / {c}
 
 ## Per-Checklist-Item Pass Rates (last 3 rounds)
 | # | Criterion | Pass Rate | Trend |
@@ -475,14 +480,8 @@ If the results.tsv doesn't exist (branch exists but no tracking), measure a new 
 
 ## Applying Results
 
-When the user is satisfied (or after convergence), they merge the optimized skill:
-
-```bash
-git checkout main
-git merge autoresearch/<skill-name>
-```
-
-The original skill on `main` was never modified during optimization. The branch contains the full history of every mutation that was kept.
+When the user is satisfied (or after convergence), they merge the optimized skill
+with `git checkout main && git merge autoresearch/<skill-name>`. The original skill on `main` was never modified during optimization. The branch contains the full history of every mutation that was kept.
 
 ### Reporting the result
 

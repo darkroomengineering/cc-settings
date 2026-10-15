@@ -5,7 +5,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { formatFindings, hasErrors, lintSkillsDir } from "../src/lib/lint-skills.ts";
+import {
+  formatFindings,
+  hasErrors,
+  lintSkillsDir,
+  SKILL_BODY_LINE_EXEMPTIONS,
+  SKILL_BODY_LINE_LIMIT,
+} from "../src/lib/lint-skills.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 
@@ -308,6 +314,61 @@ describe("lintSkillsDir — description byte budget", () => {
   test("real repo skills/ dir stays under SKILL_DESCRIPTION_BYTE_BUDGET", async () => {
     const result = await lintSkillsDir(resolve(ROOT, "skills"), { checkManaged: true });
     expect(result.findings.some((f) => f.rule === "description-byte-budget")).toBe(false);
+  });
+});
+
+describe("lintSkillsDir — body length ratchet", () => {
+  // goodFrontmatter ends with "# Body\n" (6 lines + the newline after it); pad to an exact `wc -l` count.
+  const withLines = (name: string, total: number) => {
+    const base = goodFrontmatter(name);
+    const have = (base.match(/\n/g) ?? []).length;
+    return base + "filler\n".repeat(total - have);
+  };
+  const bodyFindings = async (name: string, total: number) => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(dir, name, withLines(name, total));
+      const result = await lintSkillsDir(dir);
+      return result.findings.filter((f) => f.rule.startsWith("body-"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  test("a skill at the limit passes", async () => {
+    expect(await bodyFindings("alpha", SKILL_BODY_LINE_LIMIT)).toEqual([]);
+  });
+
+  test("a skill over the limit errors", async () => {
+    const findings = await bodyFindings("alpha", SKILL_BODY_LINE_LIMIT + 1);
+    expect(findings.map((f) => f.rule)).toEqual(["body-too-long"]);
+    expect(findings[0]?.severity).toBe("error");
+  });
+
+  test("an exempt skill passes at its recorded count", async () => {
+    expect(await bodyFindings("audit", SKILL_BODY_LINE_EXEMPTIONS.audit as number)).toEqual([]);
+  });
+
+  test("an exempt skill over its recorded count errors", async () => {
+    const findings = await bodyFindings("audit", (SKILL_BODY_LINE_EXEMPTIONS.audit as number) + 1);
+    expect(findings.map((f) => f.rule)).toEqual(["body-too-long"]);
+  });
+
+  test("an exempt skill below its recorded count is told to lower the number", async () => {
+    const findings = await bodyFindings("audit", (SKILL_BODY_LINE_EXEMPTIONS.audit as number) - 1);
+    expect(findings.map((f) => f.rule)).toEqual(["body-line-ratchet"]);
+    expect(findings[0]?.message).toContain("ratchet down");
+  });
+
+  test("an exempt skill at or under the limit is told to drop its entry", async () => {
+    const findings = await bodyFindings("audit", SKILL_BODY_LINE_LIMIT);
+    expect(findings.map((f) => f.rule)).toEqual(["body-line-ratchet"]);
+    expect(findings[0]?.message).toContain("remove the audit entry");
+  });
+
+  test("every exemption equals the line count of its skill on disk", async () => {
+    const result = await lintSkillsDir(resolve(ROOT, "skills"), { checkManaged: true });
+    expect(result.findings.filter((f) => f.rule.startsWith("body-"))).toEqual([]);
   });
 });
 
