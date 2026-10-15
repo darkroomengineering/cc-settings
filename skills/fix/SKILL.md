@@ -41,7 +41,7 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 2. **Reproduce** - Spawn `tester` agent to create a failing test if possible
 3. **Diagnose** - Analyze findings to identify root cause. Commits named in the bug report are hypotheses, not conclusions — blame the actually-affected file's history before fixing; regressions often ride in earlier on the same branch as the change that got blamed. Before blaming, fetch the team-knowledge index and read any note whose title matches the error's nouns; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable)
    - A prediction must name something not yet looked at (another code path, an observable the first hypothesis did not touch). One that restates the symptom or only re-reads the suspect line is rejected.
-   - The user's own uncommitted edits are hypothesis 1. Test them: `git stash push -u -m <unique-tag>`, rerun the reproducer, then restore only the entry this run created, found by its tag (`git stash apply` it, then drop it). Never pop other entries. If the push reports nothing to save, restore nothing.
+   - The user's own uncommitted edits are hypothesis 1. Test them: `git stash push -u -m <unique-tag>`, rerun the reproducer, then restore only the entry this run created, found by its tag (`git stash apply --index` it so staged state comes back too, and drop it only after the apply succeeds). Never pop other entries. If the push reports nothing to save, restore nothing.
    - No fix until the causal chain from trigger to symptom is complete, with file:line evidence at each link. "Somehow X leads to Y" is a gap.
 4. **Implement** - Spawn `implementer` agent to fix the issue
 5. **Verify** - Spawn `tester` agent to confirm the fix

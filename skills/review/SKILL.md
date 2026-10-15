@@ -206,7 +206,7 @@ GitHub shows a PENDING review only to its author, so any id returned is the view
 Default to fixing. Most feedback, nitpicks included, is correct. Judge every thread on its merits regardless of whether a human or a bot wrote it, and read the code before deciding; the comment text alone settles nothing. Assign one verdict:
 
 - **valid**: the finding holds and the fix is clear. Includes small real improvements.
-- **invalid**: the finding does not hold (the code already handles it), the concern is outdated (search the same file once for the comment's anchor; absent means invalid), the fix would make the code worse (dead defensive code, a broken project rule), or the change buys nothing. Reply with the reason and the evidence.
+- **invalid**: the finding does not hold (the code already handles it), the concern is outdated (the anchored code is gone and tracing the behavior it described, including where it moved or was renamed, shows the defect no longer exists), the fix would make the code worse (dead defensive code, a broken project rule), or the change buys nothing. Reply with the reason and the evidence.
 - **needs-decision**: the fix would reverse a deliberate choice that has an artifact behind it (a comment, a test, a commit or PR rationale) and engineers could reasonably disagree; the change is risky on a hot path or a boundary other code relies on and reading the callers did not bound the risk; reviewers ask for opposite things; or the comment is a question only the user can answer. Investigate first so the user can decide in under 30 seconds.
 
 A question the code answers gets a reply, not a decision.

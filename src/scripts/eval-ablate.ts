@@ -141,13 +141,15 @@ export interface CaseNoise {
   scoreSpread: number;
   armGap: number;
   costRatio: number;
+  /** Fewer graded runs than expected in either arm: the spread understates the noise. */
+  incomplete: boolean;
 }
 
 function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-export function caseNoise(rows: AaRow[]): CaseNoise[] {
+export function caseNoise(rows: AaRow[], runsPerArm = 1): CaseNoise[] {
   const byCase = Map.groupBy(rows, (r) => r.name);
   return [...byCase].map(([name, group]) => {
     const a = group.filter((r) => r.arm === "A").map((r) => r.score);
@@ -159,6 +161,7 @@ export function caseNoise(rows: AaRow[]): CaseNoise[] {
       scoreSpread: spread(group.map((r) => r.score)),
       armGap: a.length && b.length ? Math.abs(mean(a) - mean(b)) : 0,
       costRatio: costs.length ? Math.max(...costs) / Math.min(...costs) : 1,
+      incomplete: a.length < runsPerArm || b.length < runsPerArm,
     };
   });
 }
@@ -296,8 +299,8 @@ function reportAa(
   rows: AaRow[],
   errored: number,
   costUsd: number | undefined,
-): void {
-  const noise = caseNoise(rows);
+): boolean {
+  const noise = caseNoise(rows, pairs);
   const order = Array.from({ length: pairs }, (_, p) => pairOrder(p).join("")).join(" ");
   console.log(
     `A/A noise floor: ${rows.length} graded runs, ${pairs} pairs (${order}), one plugin.`,
@@ -309,8 +312,15 @@ function reportAa(
     );
   }
   const floor = Math.max(0, ...noise.map((n) => n.scoreSpread));
-  console.log(`\nnoise floor (largest case spread): ${floor.toFixed(2)}`);
-  console.log(`pass it to a normal run: --noise ${floor.toFixed(2)}`);
+  const incomplete = noise.filter((n) => n.incomplete).map((n) => n.name);
+  if (incomplete.length > 0) {
+    console.log(
+      `\nno usable noise floor: ${incomplete.join(", ")} lack ${pairs} graded run(s) in each arm. Rerun before passing --noise.`,
+    );
+  } else {
+    console.log(`\nnoise floor (largest case spread): ${floor.toFixed(2)}`);
+    console.log(`pass it to a normal run: --noise ${floor.toFixed(2)}`);
+  }
   console.log(
     "The report carries score, cost and turns per run but no token counts, so cost max/min stands in for output-token spread.",
   );
@@ -321,6 +331,7 @@ function reportAa(
   }
   if (errored > 0) console.log(`${errored} run(s) errored and are excluded.`);
   if (costUsd !== undefined) console.log(`cost $${costUsd.toFixed(2)}`);
+  return incomplete.length === 0;
 }
 
 function main(): void {
@@ -345,7 +356,12 @@ function main(): void {
     console.error("[eval-ablate] --pairs needs an integer of at least 2.");
     process.exit(1);
   }
-  const noise = process.argv.includes("--noise") ? Number(positive("--noise", "")) : null;
+  const noiseArg = flag("--noise", "");
+  const noise = process.argv.includes("--noise") ? Number(noiseArg) : null;
+  if (noise !== null && !(Number.isFinite(noise) && noise >= 0 && noiseArg !== "")) {
+    console.error(`[eval-ablate] --noise needs a number of 0 or more, got "${noiseArg}".`);
+    process.exit(1);
+  }
   // No default ceiling: on a subscription the reported cost is API-equivalent,
   // not billed, and a manual run should finish. Pass the flag to bound one.
   const invocations = aa ? pairs * 2 : 1;
@@ -429,8 +445,9 @@ function main(): void {
       console.error(`[eval-ablate] no graded runs to measure (exit ${exitCode}).`);
       process.exit(1);
     }
-    reportAa(pairs, aaResult.rows, aaResult.errored, aaResult.costUsd);
+    const usable = reportAa(pairs, aaResult.rows, aaResult.errored, aaResult.costUsd);
     if (existsSync(kept)) console.log(`results and transcripts: ${kept}`);
+    if (!usable) process.exit(1);
     return;
   }
 

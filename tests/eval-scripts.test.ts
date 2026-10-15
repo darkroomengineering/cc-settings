@@ -108,5 +108,24 @@ describe("eval-ablate", () => {
     expect(n?.scoreSpread).toBeCloseTo(0.5);
     expect(n?.armGap).toBeCloseTo(0.5);
     expect(n?.costRatio).toBeCloseTo(4);
+    expect(n?.incomplete).toBe(false);
+  });
+
+  test("caseNoise marks a case incomplete when an arm lacks its expected runs", () => {
+    const row = (arm: "A" | "B") => ({
+      arm,
+      pair: 0,
+      position: 1 as const,
+      name: "c",
+      score: 1,
+      costUsd: 0.1,
+    });
+    const [oneArm] = caseNoise([row("A"), row("A"), row("A")], 3);
+    expect(oneArm?.scoreSpread).toBe(0);
+    expect(oneArm?.incomplete).toBe(true);
+    const [short] = caseNoise([row("A"), row("A"), row("B")], 2);
+    expect(short?.incomplete).toBe(true);
+    const [full] = caseNoise([row("A"), row("A"), row("B"), row("B")], 2);
+    expect(full?.incomplete).toBe(false);
   });
 });
