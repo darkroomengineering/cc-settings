@@ -113,7 +113,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.63.1"; // Mobile Safari edge-strip rule.
+const VERSION = "15.64.0"; // Consolidation pass.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

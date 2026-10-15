@@ -9,7 +9,60 @@ paths:
 
 > Adapted from emilkowalski/skills (MIT) — `apple-design`, `animation-vocabulary`, `emil-design-eng`.
 >
-> **Foundation:** `rules/ui-skills.md` "Animation Constraints" covers the easing tokens, duration budget, and the should-it-animate gate. This file extends those with gesture/spring physics. Clip-path recipes, the debugging-feel workflow, and the naming table live in `~/.claude/docs/motion-reference.md` — read that when doing motion work.
+> Clip-path recipes, the debugging-feel workflow, and the naming table live in `~/.claude/docs/motion-reference.md` — read that when doing motion work. Per-diff enforcement of these values is `/review`.
+
+## Should this animate?
+
+| Frequency | Decision |
+| --- | --- |
+| 100+ times/day (keyboard shortcuts, command palette toggle) | No animation. Ever. |
+| Tens of times/day (hover, list navigation) | Near-imperceptible only, or nothing |
+| Occasional (modals, drawers, toasts) | Standard animation |
+| Rare / first-time (onboarding, success, celebration) | The delight budget lives here |
+
+Purpose must be one of: feedback, spatial consistency, state indication, preventing a
+jarring change, explanation (marketing/onboarding only), or delight (rare tier only).
+"It looks cool" on a frequently-seen element is not a reason to animate.
+
+## Easing tokens
+
+```css
+--ease-out: cubic-bezier(0.23, 1, 0.32, 1);        /* entering/exiting */
+--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);    /* moving/morphing on screen */
+--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);     /* iOS-like drawer curve */
+```
+
+Built-in CSS easings are too weak for deliberate UI motion — extend these tokens,
+never invent parallel ones. Use plain `ease` for hover/color changes, `linear` for
+constant motion (marquee, progress bars).
+
+## Duration budget
+
+| Element | Duration |
+| --- | --- |
+| Button press feedback | 100–160ms |
+| Tooltips, small popovers | 125–200ms |
+| Dropdowns, selects | 150–250ms |
+| Modals, drawers | 200–500ms |
+| Marketing / explanatory | Can be longer |
+
+UI animations stay under 300ms — modals and drawers are the sanctioned exception,
+up to 500ms.
+
+## Never ship
+
+- `ease-in` on a UI element — use `ease-out` or a token above.
+- `transform: scale(0)` entrances — start `scale(0.9–0.97)` + `opacity: 0`.
+- Animating anything but `transform` and `opacity` — `width`/`height`/`margin`/`padding`/`top`/`left` trigger layout and paint. The one named exception is `clip-path` for reveals and wipes: it repaints without layout. It is not compositor-guaranteed in every browser, so verify on target devices when it runs during a gesture.
+- Keyframes on toasts, toggles, or anything a user can trigger rapidly — use CSS
+  transitions instead, so retriggering retargets from the current value instead of
+  restarting from zero.
+- Ungated `:hover` motion — gate behind `@media (hover: hover) and (pointer: fine)`
+  (touch fires false hovers on tap). Tailwind v4's `hover:` variant already wraps in `(hover: hover)`; hand-written CSS Module hover motion uses the media query.
+
+## Press feedback
+
+Removing the tap highlight makes `:active` feedback mandatory: `scale(0.95-0.98)`, 100-160ms, transition inside `prefers-reduced-motion: no-preference`. Script listeners use `pointerdown` for immediate feedback.
 
 ## Interruptibility — the single most important rule for gesture-driven motion
 
@@ -101,13 +154,8 @@ user controls, fast on the phase the system controls.
 - Enter and exit along the same path — a panel that slides in from the right
   dismisses to the right.
 - Anchor popovers/menus/tooltips to their trigger via `transform-origin` — modals
-  are the exception, they stay centered (see `rules/ui-skills.md`).
+  are the exception, they stay centered.
 
-## Reduced motion & materials
+## Translucent materials
 
-- `prefers-reduced-motion: reduce` → cross-fade or a static transition instead of a
-  slide/spring/parallax; drop overshoot; keep opacity/color changes that aid
-  comprehension.
-- Translucent surfaces (`backdrop-filter`): pair with
-  `prefers-reduced-transparency: reduce` → raise background opacity and drop the
-  blur.
+Translucent surfaces (`backdrop-filter`): pair with `prefers-reduced-transparency: reduce` → raise background opacity and drop the blur. Reduced-motion behavior lives in `rules/accessibility.md`.

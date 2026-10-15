@@ -1,7 +1,7 @@
-// log-bash.ts regression: M19 — an explicit CLAUDE_LOG_RETENTION_DAYS=0 must
+// log-bash.ts regression: an explicit CLAUDE_LOG_RETENTION_DAYS=0 must
 // stay 0 (prune everything not created in "this instant"), not silently
 // coerce back to the 1-day default via the falsy-zero `Number.parseInt(...)
-// || 1` bug. See docs/audits/codebase-audit-2026-07-08.md.
+// || 1` bug.
 //
 // HOME is sandboxed to a tmp dir per test — log-bash.ts writes under
 // ~/.claude/logs (claudePath), so pruning behavior is fully observable

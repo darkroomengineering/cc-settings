@@ -27,14 +27,12 @@ Claude Code automatically loads relevant rules based on:
 |------|-------------|
 | `react.md` | Working with `.tsx`, `.jsx`, `components/`, or `app/` |
 | `typescript.md` | Working with `.ts`, `.tsx` files |
-| `style.md` | Working with CSS, SCSS, or any `.tsx`/`.jsx` file |
+| `style.md` | Working with CSS, SCSS, or any `.tsx`/`.jsx` file — CSS Modules, Tailwind, stack constraints |
 | `accessibility.md` | Working with UI components |
 | `security.md` | Working with any `.ts`/`.tsx`/`.js` file, API routes, lib code, or env files |
-| `performance.md` | Working with app code or components |
-| `react-perf.md` | Working with `.tsx`, `components/`, or `app/` |
-| `ui-skills.md` | Working with `.tsx`, `.jsx`, or `components/` |
+| `performance.md` | Working with `.ts`, `.tsx`, `.js`, `components/`, or `app/` — stack forms, streaming, frame loops, budgets |
 | `ui-fix.md` | Working with `.tsx`, `.jsx`, `.css`, `.scss`, `app/`, or `components/` — UI bug-fix workflow, screenshot-first |
-| `motion-physics.md` | Working with `.tsx`, `.jsx`, or `components/` — gesture/spring physics, animation vocabulary |
+| `motion-physics.md` | Working with `.tsx`, `.jsx`, or `components/` — should-it-animate gate, easing and duration tokens, gesture/spring physics, animation vocabulary |
 | `swift-animation.md` | Working with `.swift` files — SwiftUI animation at the display's maximum frame rate (WWDC23 "Explore SwiftUI animation") |
 | `git.md` | Always loaded (git operations) |
 

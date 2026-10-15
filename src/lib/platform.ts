@@ -169,7 +169,7 @@ export function isoNow(): string {
 
 // YYYY-MM-DD HH:MM:SS in local time — bash parity: `date '+%Y-%m-%d %H:%M:%S'`.
 // Replaces the three private formatters (formatTimestamp/formatDate/hms) that
-// produced identical output across stop-failure.ts, session-start.ts, log-bash.ts.
+// produced identical output across session-start.ts, log-bash.ts.
 export function localDatetime(d: Date = new Date()): string {
   return `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }

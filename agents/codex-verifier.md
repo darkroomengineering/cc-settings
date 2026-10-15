@@ -2,14 +2,8 @@
 name: codex-verifier
 model: claude-sonnet-5-5
 description: |
-  Independent cross-model verification via the OpenAI Codex CLI. Runs the current
-  diff past Codex (a different model family) to catch what Claude self-review misses.
-
-  DELEGATE when user asks:
-  - "have codex verify/check this" / "cross-check with codex" / "second model on this diff"
-  - After an implementer completes a risky change and you want a non-Claude opinion
-
-  RETURNS: Codex's findings on the current diff by severity, or a clear note if the Codex bridge is unavailable
+  Independent cross-model verification of the current diff via the OpenAI Codex CLI, to catch what Claude self-review misses. Delegate after a risky change when you want a non-Claude opinion.
+  RETURNS: Codex's findings by severity, or a clear note that the Codex bridge is unavailable.
 tools: [Bash, Read]
 maxTurns: 6
 effort: low

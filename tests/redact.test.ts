@@ -1,7 +1,6 @@
 // Tests for the canonical secret redactor (src/lib/redact.ts). This module
 // is the union of what used to be two independently-evolved redactors
-// (safety-net.ts's local redactSecrets, codex.ts's sanitizeOutput) — see M23
-// in docs/audits/codebase-audit-2026-07-08.md. Every pattern from both
+// (safety-net.ts redactSecrets, codex.ts sanitizeOutput). Every pattern from both
 // originals, plus the explicitly-required GitHub token / AWS key / password=
 // coverage, gets its own case here so a future edit can't silently narrow
 // the union back down.

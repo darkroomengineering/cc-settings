@@ -242,9 +242,7 @@ async function compactRecoveryLines(): Promise<string[]> {
   if (lastFailure)
     out.push(`[compact] Last tool failure — ${lastFailure.tool}: ${lastFailure.error}`);
 
-  out.push(
-    "[compact] Re-read your task plan and the files above before continuing — do not trust remembered contents.",
-  );
+  out.push("[compact] Re-read your task plan and the files above; remembered contents are stale.");
   return out.slice(0, COMPACT_MAX_LINES);
 }
 
@@ -290,7 +288,6 @@ const logRotations = [
   rotateLog(join(CLAUDE_DIR, "safety-net.log")),
   rotateLog(join(CLAUDE_DIR, "logs", "tool-failures.log")),
   rotateLog(join(CLAUDE_DIR, "swarm.log")),
-  rotateLog(join(CLAUDE_DIR, "api-failures.log")),
 ];
 const handoffCleanup = cleanupAllHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
 const sessionTitlePrune = pruneSessionTitles(join(CLAUDE_DIR, "session-titles"), 30);
@@ -332,16 +329,12 @@ if (startSource === "compact") {
   }
 }
 
-// Auto-memory pointer (local tier retired in v11.1.0; auto-memory is the active store)
-console.log("");
-console.log("Auto-memory: say 'remember X' — saved to ~/.claude/projects/<hash>/memory/");
-
 // Shared team-knowledge corpus awareness (read counterpart to /share-learning).
 // Silent unless $KNOWLEDGE_REPO_PATH points at a non-empty local clone.
 for (const l of await teamKnowledgeAwareness()) console.log(l);
 
-// Compaction-plugin awareness — fast-jev-compaction + compaction-trigger are
-// always enabled (see config/10-core.json's enabledPlugins), but
+// Compaction-plugin awareness — prints only the non-default state.
+// fast-jev-compaction + compaction-trigger are always enabled (see config/10-core.json's enabledPlugins), but
 // fast-jev-compaction falls back to Claude Code's native summary compaction
 // without a TypeSafe key. Check the process env first, then the installed
 // settings.json's own env block (where a user may have set it instead of
@@ -353,21 +346,16 @@ try {
     const env = (settings as { env?: Record<string, unknown> } | null)?.env;
     hasTypesafeKey = typeof env?.TYPESAFE_API_KEY === "string" && env.TYPESAFE_API_KEY.length > 0;
   }
-  console.log(
-    hasTypesafeKey
-      ? "Compaction: verbatim (Jev) at ~150K tokens, key resynced from settings before each run"
-      : "Compaction: native; set TYPESAFE_API_KEY for verbatim Jev compaction",
-  );
+  if (!hasTypesafeKey) {
+    console.log("Compaction: native; set TYPESAFE_API_KEY for verbatim Jev compaction");
+  }
 } catch {
   // Settings unreadable — skip the line rather than fail the session start.
 }
 
 // Code-intel engine status — engine-aware. The native engine has no index to
 // warm; a daemon-backed engine reports index/warming state as before.
-if (engine.id === "native-ts") {
-  console.log("");
-  console.log("Native TS codemap ready (TypeScript/JavaScript)");
-} else if (engine.cli.supportsDaemon && hasCommand(engine.cli.command)) {
+if (engine.id !== "native-ts" && engine.cli.supportsDaemon && hasCommand(engine.cli.command)) {
   console.log("");
   if (existsSync(join(PROJECT_DIR, ".tldr"))) {
     console.log("TLDR index available for semantic search");

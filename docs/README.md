@@ -20,7 +20,7 @@ Start with [the repository README](../README.md) to install and learn the daily 
 | [Codex support](./codex.md) | Codex users | Supporting | Codex-native installation and lifecycle details |
 | [GitHub workflow](./github-workflow.md) | Teams using GitHub | Supporting | Issues, Projects, branch links, handoffs, and progress updates |
 | [Knowledge system](./knowledge-system.md) | Darkroom teammates | Canonical | Shared knowledge versus local memory and the `share-learning` prerequisite |
-| [Profiles](./profiles.md) | Web, mobile, desktop, and 3D teams | Supporting | What profile files mean and how stack-aware workflows choose guidance |
+| [Profiles](./profiles.md) | Web, mobile, desktop, and 3D teams | Supporting | What profile files mean and what each stack profile covers |
 | [Accessibility](./accessibility.md) | UI engineers and reviewers | Reference | Accessibility checks and implementation expectations |
 | [SEO reference](./seo-reference.md) | Web engineers | Reference | Search and answer-engine implementation guidance |
 | [TLDR cheatsheet](./tldr-cheatsheet.md) | Claude Code users and maintainers | Reference | Code-map operations and engine limits |
@@ -61,19 +61,13 @@ Start with [the repository README](../README.md) to install and learn the daily 
 | [Codex bridge](./codex-bridge.md) | Claude Code users and maintainers | Reference | Calling Codex from Claude without recursive standalone use |
 | [Deslopper team mode](./deslopper-team-mode.md) | Deslopper maintainers | Internal reference | Read-only scanner fan-out and merge protocol |
 
-## History and audits
+## History
 
 These documents explain past decisions and findings. They are not current setup instructions.
 
 | Document | Audience | Status | Contents |
 |---|---|---|---|
 | [Changelog](../CHANGELOG.md) | Everyone | Release history | Version-by-version changes |
-| [Documentation audit, 2026-08-21](./audits/docs-audit-2026-08-21.md) | Maintainers | Audit record | First-time-reader and contract audit |
-| [Codebase audit, 2026-07-08](./audits/codebase-audit-2026-07-08.md) | Maintainers | Audit record | Repository-wide findings |
-| [Nuclear review, 2026-07-20](./audits/nuclear-review-2026-07-20.md) | Maintainers | Audit record | Review snapshot |
-| [Nuclear review, 2026-07-29](./audits/nuclear-review-2026-07-29.md) | Maintainers | Audit record | Review snapshot |
-| [Nuclear review, 2026-07-31](./audits/nuclear-review-2026-07-31.md) | Maintainers | Audit record | Review snapshot |
-| [Consolidation audit, 2026-05](./consolidation-audits/2026-05.md) | Maintainers | Audit record | Skill and rule consolidation |
 | [MCP auth-cache upstream bug](./upstream-bugs/mcp-needs-auth-cache-no-ttl.md) | Maintainers | Upstream record | Authentication cache behavior and evidence |
 
 If a current guide and a history document disagree, follow the current guide and file a drift issue.

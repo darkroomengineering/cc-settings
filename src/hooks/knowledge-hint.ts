@@ -23,7 +23,6 @@ import { rankNotes, repoNamesFrom } from "../lib/knowledge-hint.ts";
 import { type KnowledgeNote, readKnowledgeIndex } from "../lib/knowledge-index.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
 
-const KNOWLEDGE_REPO = process.env.KNOWLEDGE_REPO ?? "darkroomengineering/team-knowledge";
 const HINT_STATE_FILE = "knowledge-hints.json";
 const MAX_TRACKED_SESSIONS = 30;
 
@@ -118,7 +117,6 @@ function formatMessage(notes: KnowledgeNote[]): string {
   const lines = [
     "[team-knowledge] Notes that may apply to this step:",
     ...notes.map((n) => `  - ${n.kind}: ${n.name} — ${n.hook}`),
-    `Read one: gh api repos/${KNOWLEDGE_REPO}/contents/<name>.md --jq .content | base64 -d`,
   ];
   return lines.join("\n");
 }

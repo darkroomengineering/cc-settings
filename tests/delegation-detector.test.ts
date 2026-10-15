@@ -1,5 +1,4 @@
-// Behavioral tests for delegation-detector.ts's scoring/steering path — see
-// M25 in docs/audits/codebase-audit-2026-07-08.md. The blanket fail-open smoke
+// Behavioral tests for delegation-detector.ts's scoring/steering path. The blanket fail-open smoke
 // test (hook-fail-open.test.ts) only feeds garbage input; these exercise the
 // real scoring branches: breadth phrases, path-token count, list-item count,
 // and the score < 2 allow threshold. The nudge text was later narrowed to report

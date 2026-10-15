@@ -18,22 +18,11 @@ paths:
 - **Feature branches**: `feat/user-profile`, `fix/login-redirect`.
 - **Untrack without deleting**: `git rm --cached <file>` + add to `.gitignore` —
   gitignore alone does NOT remove already-tracked files.
-- **Never commit secrets**: see `rules/security.md` for the file list.
-- **Diff `AGENTS.md` and `CLAUDE.md` after any dev-server run.** From Next.js
-  16.3, `next dev` writes a managed `nextjs-agent-rules` block into `AGENTS.md`
-  (or scaffolds both files) whenever it detects a coding agent, with no config
-  opt-out. An unexplained modification after a dev run is that, not a stray
-  edit. Revert it unless the team has decided to adopt the block for that repo.
 
 ## DON'T
 
-- Force-push to main.
 - Ambiguous messages (`fix`, `update`, `wip`).
 - `--no-verify` without a stated reason.
-- **Any AI attribution in commits or PRs** — no `Co-Authored-By: Claude`, no
-  "Generated with Claude Code" badges, no AI mentions. Nothing. Since Claude
-  Code 2.1.269 the native attribution reminder yields to this rule; managed
-  `attribution` settings still apply.
 
 ## PRs
 
@@ -88,7 +77,3 @@ Lead with the observed effect, not the suspected cause ("checkout 500s on
 Safari" beats "possible race in session middleware"). Repro steps numbered, one
 action per step. One problem per issue; file tangents separately. Planned work
 gets bounded, verifiable tasks: one action each, with a check that proves it done.
-
-## Tools
-
-**Biome** (pre-commit formatting) · **husky** (hooks) · **commitlint** (conventions)

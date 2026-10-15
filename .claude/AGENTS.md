@@ -24,8 +24,22 @@ so the standards load every turn.
 
 ## About This Repo
 
-**TypeScript on Bun.** Runtime: `bun >=1.2.21`. The skill count is enforced by `bun run lint:skills`; the rule lives in `CLAUDE-FULL.md` ("Skill library ratchets"), not here.
+**TypeScript on Bun.** Runtime: `bun >=1.2.21`.
 Deps: `zod` and `typescript` (the native-ts codemap engine loads the compiler at runtime; YAML parsing uses `Bun.YAML`, prompts use `node:readline`). Dev: `@biomejs/biome`, `@types/bun`.
+
+**Skill library ratchets.** The managed library contains exactly 26 skills.
+`SKILL_COUNT_BASELINE` in `src/lib/lint-skills.ts` fails when the count moves
+either way. The description-byte ceiling is one-way: tighten the longest
+descriptions when it fails; never raise the ceiling. `bun run lint:skills`
+enforces both in CI.
+
+**Hook supply-chain defense.** `setup.sh` fingerprints the merged hooks block in
+`~/.claude/settings.json`; `verify-hooks.ts` checks it at SessionStart. `bun run
+audit:hooks` classifies hook commands and fails on suspicious ones. After an
+intentional hook change, rerun `setup.sh` to refresh the fingerprint; the
+auditor never refreshes its own. When a hook is removed or renamed, add its old
+command to `DEPRECATED_COMMAND_PATTERNS` in `src/lib/settings-merge.ts`. See
+`SECURITY.md`.
 
 Two directories aren't what their names suggest: `config/` holds settings
 fragments that are *composed* into `~/.claude/settings.json` at install time

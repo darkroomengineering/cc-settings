@@ -18,7 +18,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `model` | string | No | Model to use: `fable`, `opus`, `sonnet`, `haiku` |
 | `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions — see Memory Scopes below for the actual storage path |
 | `description` | string | Yes | Multi-line description shown in agent selection. Controls auto-invocation behavior (see below) |
-| `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, LS, Agent, ...]` |
+| `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, Agent, ...]` |
 | `color` | string | No | Display color in the UI: `purple`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gold` |
 | `skills` | list | No | Skills to preload into the subagent context at startup. Claude Code preloads at most 32, each once (v2.1.295); a subagent with the Skill tool can still invoke the rest |
 | `mcpServers` | object | No | MCP servers scoped to this agent (inline definitions or references) |
@@ -39,16 +39,15 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 The `description` field serves double duty. Beyond appearing in agent selection, certain keywords in the description trigger automatic delegation:
 
 - Including `PROACTIVELY` or `Use this agent` causes Claude Code to auto-invoke the agent when it detects matching context in user prompts.
-- Including `DELEGATE when user asks:` followed by example phrases helps the orchestrator route requests to the correct agent.
+- Keep it to one or two sentences: what the agent does and when to delegate. Descriptions load into every session, and the routing table in `CLAUDE.md` already maps work to agents.
 - Including `RETURNS:` documents what the agent produces, helping the orchestrator set expectations.
 
 ### Memory Scopes
 
-There's one storage convention regardless of scope value: `~/.claude/agent-memory/<agent-name>/MEMORY.md`
-for the installed (user-wide) copy, or `<project-root>/.claude/agent-memory/<agent-name>/` when
-project-scoped. The `memory:` value doesn't change *where* the file lives, only when the agent is
-expected to read/write it. First 200 lines auto-load on the agent's next invocation — see
-`AGENTS.md` "Self-Evolving Learnings".
+`memory: user` stores the agent's notes in `~/.claude/agent-memory/<agent-name>/MEMORY.md`;
+`memory: project` stores them in `<project-root>/.claude/agent-memory/<agent-name>/`. Claude Code
+manages reading and writing; the first 200 lines auto-load on the agent's next invocation. An agent
+without `memory:` frontmatter never loads such a file.
 
 Agents with `memory` enabled: `explore`, `reviewer`, `planner`.
 
@@ -60,7 +59,7 @@ name: implementer
 model: sonnet
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
-tools: [Read, Write, Edit, Bash, Grep, Glob, LS]
+tools: [Read, Write, Edit, Bash, Grep, Glob]
 color: green
 ---
 ```
@@ -74,10 +73,9 @@ model: sonnet
 memory: project
 description: |
   Fast codebase exploration, navigation, and documentation fetching.
-  DELEGATE when user asks:
-  - "How does X work?" / "Where is X?"
+
   RETURNS: File locations, architecture maps, code summaries
-tools: [Read, Grep, Glob, LS, Bash, WebFetch]
+tools: [Read, Grep, Glob, Bash, WebFetch]
 color: purple
 ---
 ```
@@ -86,14 +84,14 @@ color: purple
 
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
-| `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | green |
-| `maestro` | claude-opus-5-5 | -- | Read, Write, Edit, Bash, Grep, Glob, LS, Agent, SendMessage | red |
-| `reviewer` | sonnet | project | Read, Grep, Glob, LS, Bash | yellow |
-| `planner` | claude-opus-5-5 | project | Read, Grep, Glob, LS | blue |
-| `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
-| `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
-| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, SendMessage | cyan |
+| `explore` | sonnet | project | Read, Grep, Glob, Bash, WebFetch | purple |
+| `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob | green |
+| `maestro` | claude-opus-5-5 | -- | Read, Write, Edit, Bash, Grep, Glob, Agent, SendMessage | red |
+| `reviewer` | sonnet | project | Read, Grep, Glob, Bash | yellow |
+| `planner` | claude-opus-5-5 | project | Read, Grep, Glob | blue |
+| `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob | cyan |
+| `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob | magenta |
+| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage | cyan |
 | `security-reviewer` | claude-opus-5-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash, Read | cyan |
 | `claude-verifier` (Codex-only, `codex/agents/`) | sonnet | -- | Bash, Read | cyan |
@@ -207,10 +205,10 @@ copying another frontmatter inventory here.
 
 **Location:** `~/.claude/profiles/*.md`
 
-Profile files document specialized workflow intent for package detection, agents, and skills. They
-are not activated through a settings key or `@profile-name` command. Use the relevant product
-normally; cc-settings selects applicable guidance from repository evidence, while an explicit
-`/orchestrate` in Claude or `$orchestrate` in Codex requests the broad coordinator.
+Profile files hold stack-specific conventions (Next.js, React Router, React Native, Tauri, WebGL). They
+are never loaded automatically and are not activated through a settings key or `@profile-name` command.
+Read the one that matches the project; an explicit `/orchestrate` in Claude or `$orchestrate` in Codex
+requests the broad coordinator.
 
 All frontmatter fields in profiles are **advisory** — validated at install time for well-formedness and readable as documented intent. They are not enforced at runtime: cc-settings does not switch the active model, gate skills, or restrict tools based on a profile.
 
@@ -226,30 +224,16 @@ All frontmatter fields in profiles are **advisory** — validated at install tim
 | `permissionMode` | string | No | Advisory: intended permission mode (`default`, `manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
 | `effort` | string | No | Advisory: default effort level (`low`, `medium`, `high`, `xhigh`, `max`) |
 
-### Example: Profile with Advisory Fields
+### Example
 
 ```yaml
 ---
-name: maestro
-description: |
-  Full orchestration mode for power users. Coordinates agents instead of executing directly.
-  Activate when you want maximum delegation and parallel agent workflows.
-model: claude-opus-5-5
-skills: [orchestrate]
-effort: xhigh
+name: nextjs
+description: Next.js web apps
 ---
 ```
 
-### Profiles in cc-settings
-
-| Profile | Model (advisory) | Skills (advisory) | Effort (advisory) |
-|---------|-----------------|-------------------|-------------------|
-| `maestro` | claude-opus-5-5 | orchestrate | xhigh |
-| `nextjs` | claude-opus-5-5 | build, component, hook | — |
-| `react-native` | claude-opus-5-5 | build, component | — |
-| `tauri` | claude-opus-5-5 | build | — |
-| `webgl` | claude-opus-5-5 | component | — |
-| `react-router` | claude-opus-5-5 | build, component, hook | — |
+The shipped profiles carry only `name` and `description`.
 
 ---
 

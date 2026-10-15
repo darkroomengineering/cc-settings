@@ -79,8 +79,7 @@ export type AuditFinding = HookFinding | SchemaFinding;
  * server definitions, so there is no "trusted" tier here — only a match or
  * no match. Reported in its own section (formatAuditReport) rather than
  * folded into `findings`, and does NOT extend the hooks-block fingerprint
- * (src/lib/hooks-fingerprint.ts) or the src content manifest — see H12 in
- * docs/audits/codebase-audit-2026-07-08.md and SECURITY.md's "What the
+ * (src/lib/hooks-fingerprint.ts) or the src content manifest — see SECURITY.md's "What the
  * fingerprint and content manifest cover" section.
  */
 export interface EnvMcpFinding {

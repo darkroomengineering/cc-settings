@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 18;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 19;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -530,9 +530,17 @@ const ADDED_IN_V17 = [
   "src/scripts/hook-bench.ts",
   "src/scripts/hook-report.ts",
 ];
+// Version 19: two Stop hooks whose plain stdout never reached the model. Versions 7-18 still
+// own them, so they rejoin the historical source list.
+const REMOVED_SOURCES_IN_V19 = ["src/scripts/stop-failure.ts", "src/scripts/stop-summary.ts"];
+// Each removed file rejoins at its original position: shipped manifests are hashed in order.
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) => !ADDED_IN_V17.includes(path),
-).flatMap((path) => (path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V14] : [path]));
+).flatMap((path) => {
+  if (path === "src/lib/download-verify.ts") return [path, ...REMOVED_IN_V14];
+  if (path === "src/scripts/session-title.ts") return [path, ...REMOVED_SOURCES_IN_V19];
+  return [path];
+});
 const historicalManifest = {
   full: [
     ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
@@ -628,9 +636,27 @@ const REMOVED_IN_V18 = [
   "skills/test/SKILL.md",
   "skills/tldr/SKILL.md",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v18 = {
   full: v17.full.filter(notAddedAfter(REMOVED_IN_V18)),
   light: v17.light.filter(notAddedAfter(REMOVED_IN_V18)),
+};
+MANIFESTS.set(18, v18);
+// Version 19: consolidation pass. Merged rule files, the maestro profile, dated audit
+// reports, and the two Stop hooks above.
+const REMOVED_IN_V19 = [
+  ...REMOVED_SOURCES_IN_V19,
+  "docs/audits/codebase-audit-2026-07-08.md",
+  "docs/audits/nuclear-review-2026-07-20.md",
+  "docs/audits/nuclear-review-2026-07-29.md",
+  "docs/audits/nuclear-review-2026-07-31.md",
+  "docs/consolidation-audits/2026-05.md",
+  "profiles/maestro.md",
+  "rules/react-perf.md",
+  "rules/ui-skills.md",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: v18.full.filter(notAddedAfter(REMOVED_IN_V19)),
+  light: v18.light.filter(notAddedAfter(REMOVED_IN_V19)),
 });
 
 const GENERATED_MANAGED_FILES = new Set([

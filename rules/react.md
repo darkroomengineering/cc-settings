@@ -75,34 +75,9 @@ function Animation() {
 }
 ```
 
-> Lazy state initialization: see `rules/performance.md` (`useState(() => ...)` for expensive initial values).
-
 ---
 
 ## DON'T
-
-> See `rules/react-perf.md` "React Compiler Note" for the full useMemo/useCallback/React.memo rule.
-
-### Never mutate state
-```tsx
-// WRONG: state.items.push(newItem)
-// CORRECT
-setItems((prev) => [...prev, newItem])
-```
-
-### Never use index as key
-```tsx
-// WRONG: {items.map((item, i) => <Item key={i} />)}
-// CORRECT
-{items.map((item) => <Item key={item.id} {...item} />)}
-```
-
-### Avoid useEffect for derived state (any stack)
-```tsx
-// WRONG: useEffect(() => setFullName(...), [first, last])
-// CORRECT
-const fullName = `${first} ${last}`
-```
 
 ### A ref in a `useEffect` dependency array means the effect shouldn't exist
 A `RefObject` never changes, so listing it only quiets `exhaustive-deps`. Handlers on an element you render go in JSX props; an element needed as a value comes from a ref callback; an effect that must call the latest function keeps its real deps and calls it through `useEffectEvent`. Never `useCallback`.
@@ -118,14 +93,6 @@ Use the `desktop-only` / `mobile-only` classes. They need no JavaScript and matc
 - React Router: use loaders (`loader` export)
 
 Client-side fetching is correct for *post-mount* state (autocomplete, polling, mutations). It's wrong for the data the user sees on first paint.
-
-### Conditional rendering with numbers
-```tsx
-// WRONG: renders "0" when count is 0
-{count && <Badge count={count} />}
-// CORRECT
-{count > 0 ? <Badge count={count} /> : null}
-```
 
 ### Don't put `useState` / `useEffect` / refs in a Server Component
 ```tsx
@@ -165,16 +132,6 @@ async function ProfilePage({ id }: { id: string }) {
 
 Only Server Components can be async. If you find yourself reaching for `await` inside a `'use client'` file, the data fetch belongs one boundary up.
 
----
-
-## Patterns
-
-### Parallel data fetching
-
-> Next.js sibling-component and React Router loader parallelization: see `rules/react-perf.md` ("CRITICAL: Eliminate Waterfalls").
-
 ## Tools
-- **React Compiler** — automatic memoization
-- **React DevTools** — inspection
-- **Biome** — linting
+
 - **react-doctor** *(optional — only when it's in the project's deps)* — deterministic scan (oxlint + `eslint-plugin-react-hooks`) scoring security/perf/correctness/a11y/bundle/architecture 0–100. Use as a fast **pre-filter before** LLM review, never the authority. Run pinned with telemetry off: `npx react-doctor --diff --verbose --no-telemetry` (resolves the lockfile-pinned binary, never `@latest`). `bun run proof` auto-includes it as an advisory signal when present.

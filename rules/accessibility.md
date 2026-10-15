@@ -12,78 +12,20 @@ paths:
 
 ---
 
-## DO
+## Patterns
 
-### Images, Buttons, Forms
-```tsx
-// Images need alt text
-<Image src="/chart.png" alt="Sales increased 40% in Q4" />
-<Image src="/decoration.svg" alt="" aria-hidden="true" />  // Decorative
-
-// Icon buttons need labels
-<button aria-label="Close menu"><CloseIcon /></button>
-
-// Form inputs need labels
-<label htmlFor="email">Email</label>
-<input id="email" type="email" />
-```
-
-### Semantic Elements
-```tsx
-<nav aria-label="Main navigation">
-  <ul><li><a href="/">Home</a></li></ul>
-</nav>
-<main>
-  <article>
-    <header><h1>Title</h1></header>
-    <section>...</section>
-  </article>
-</main>
-```
-
-### Heading Hierarchy & Focus
-```tsx
-<h1>Page Title</h1>
-<h2>Section</h2>      {/* No skipping levels */}
-<h3>Subsection</h3>
-```
 ```css
-button:focus-visible {
-  outline: 2px solid var(--focus-color);
-  outline-offset: 2px;
-}
-/* Default ring: scales with font size */
+/* Default focus ring: scales with font size */
 :focus-visible { outline: max(2px, 0.08em) solid currentColor; outline-offset: 0.25em; }
-```
-
----
-
-## DON'T
-
-```tsx
-// WRONG: div for interaction
-<div onClick={handleClick}>Click me</div>
-// CORRECT
-<button onClick={handleClick}>Click me</button>
-
-// WRONG: Color-only indicator
-<span className="text-red-500">Error</span>
-// CORRECT: Icon + text
-<span className="text-red-500"><ErrorIcon /> Error: Invalid email</span>
-
-// WRONG: Skipping heading levels
-<h1>Title</h1>
-<h3>Subsection</h3>  {/* Skipped h2 */}
-
-// WRONG: Blocking paste
-<input onPaste={e => e.preventDefault()} />
-```
-```css
-/* WRONG: Removing focus outline */
-button:focus { outline: none; }
-/* Box-shadow rings: keep a transparent outline for forced-colors mode */
+/* Custom-colored ring */
+button:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+/* Box-shadow ring (alternative): keep a transparent outline so forced-colors mode still shows focus */
 button:focus-visible { outline: 2px solid transparent; box-shadow: 0 0 0 2px var(--focus-color); }
 ```
+
+- Never remove the focus outline (`button:focus { outline: none }`) without a replacement ring.
+- State is never color-only: pair a red error with an icon and text.
+- Decorative images take `alt=""` (plus `aria-hidden="true"` for SVG). Keep heading levels sequential.
 
 ---
 
@@ -116,6 +58,4 @@ Reduced motion means gentler, not zero. Declare movement inside the opt-in query
 
 ## Tools
 
-- **axe DevTools** - Browser extension
 - **`mcp__chrome-devtools__take_snapshot`** — text-based accessibility tree with element `uid`s
-- **Lighthouse** - Audits

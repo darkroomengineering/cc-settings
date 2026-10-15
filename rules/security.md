@@ -10,72 +10,9 @@ paths:
 
 # Security
 
-> Protect secrets, validate inputs, prevent common vulnerabilities
+> `AGENTS.md` owns the secrets, injection, and trust-boundary rules. This file holds the stack details.
 
----
-
-## DO
-
-### Secret Management
-```bash
-# Environment variables for secrets
-DATABASE_URL=postgres://...
-API_KEY=sk-...
-# .env.local for dev (gitignored), platform secrets for prod
-```
-```tsx
-const apiKey = process.env.API_KEY  // Server-side only
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL required')
-```
-
-### Input Validation
-```tsx
-import { z } from 'zod'
-
-const UserInput = z.object({
-  email: z.string().email(),
-  age: z.number().int().positive().max(150),
-})
-
-export async function createUser(input: unknown) {
-  const data = UserInput.parse(input)  // Throws on invalid
-}
-```
-
-### SQL Injection Prevention
-```tsx
-// Parameterized queries
-const user = await db.query('SELECT * FROM users WHERE id = $1', [userId])
-// Or ORM
-const user = await prisma.user.findUnique({ where: { id: userId } })
-```
-
----
-
-## DON'T
-
-```bash
-# Never commit these
-.env  .env.local  .env.production
-credentials.json  *.pem  *.key
-```
-```tsx
-// WRONG: Expose secrets to client
-export const config = { apiKey: process.env.API_KEY }
-// Next.js: only NEXT_PUBLIC_* vars are safe for client. React Router/Vite: only VITE_* vars are.
-
-// WRONG: SQL injection
-const query = `SELECT * FROM users WHERE name = '${name}'`
-
-// WRONG: XSS
-<div dangerouslySetInnerHTML={{ __html: userContent }} />
-
-// WRONG: Open redirect
-redirect(req.query.returnUrl)
-```
-
----
-
-## Tools
-- **git-secrets** - Prevents committing secrets
-- **Snyk/Dependabot** - Vulnerability scanning
+- **Client exposure:** only `NEXT_PUBLIC_*` (Next.js) or `VITE_*` (React Router / Vite) variables reach the browser. Never export a config object that reads a secret into client code.
+- **Never commit:** `.env`, `.env.local`, `.env.production`, `credentials.json`, `*.pem`, `*.key`. Secrets live in `.env.local` for dev (gitignored) and platform secrets for prod.
+- **Fail fast on missing config:** `if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL required')`.
+- **Trust boundaries:** parse API-route, webhook, and form-handler input with zod (`Schema.parse(input)`); use parameterized queries or the ORM; validate `redirect()` targets against an allowlist; never pass user content to `dangerouslySetInnerHTML`.

@@ -146,12 +146,26 @@ const SKILLS_REMOVED_IN_V18 = [
   "skills/tldr/SKILL.md",
 ];
 
-async function seedRemovedSkills(
+// Full-profile files manifest version 19 dropped; every earlier version owns them.
+const FILES_REMOVED_IN_V19 = [
+  "docs/audits/codebase-audit-2026-07-08.md",
+  "docs/audits/nuclear-review-2026-07-20.md",
+  "docs/audits/nuclear-review-2026-07-29.md",
+  "docs/audits/nuclear-review-2026-07-31.md",
+  "docs/consolidation-audits/2026-05.md",
+  "profiles/maestro.md",
+  "rules/react-perf.md",
+  "rules/ui-skills.md",
+  "src/scripts/stop-failure.ts",
+  "src/scripts/stop-summary.ts",
+];
+
+async function seedRemovedFiles(
   claudeDir: string,
   managedFiles?: Record<string, string>,
 ): Promise<void> {
-  const bytes = "historical skill bytes\n";
-  for (const path of SKILLS_REMOVED_IN_V18) {
+  const bytes = "historical bytes\n";
+  for (const path of [...SKILLS_REMOVED_IN_V18, ...FILES_REMOVED_IN_V19]) {
     await mkdir(dirname(join(claudeDir, path)), { recursive: true });
     await writeFile(join(claudeDir, path), bytes);
     if (managedFiles) {
@@ -575,7 +589,7 @@ exit $rc
       sentinel.managed_files[renamedSkill] = new Bun.CryptoHasher("sha256")
         .update(renamedBytes)
         .digest("hex");
-      await seedRemovedSkills(claudeDir, sentinel.managed_files);
+      await seedRemovedFiles(claudeDir, sentinel.managed_files);
       await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
 
       const upgrade = await runInstall(home);
@@ -616,7 +630,7 @@ exit $rc
       await writeFile(join(claudeDir, "src/lib/engine-pin.ts"), "historical engine-pin bytes\n");
       await mkdir(join(claudeDir, "skills", "verify"), { recursive: true });
       await writeFile(join(claudeDir, "skills/verify/SKILL.md"), "historical verify skill bytes\n");
-      await seedRemovedSkills(claudeDir);
+      await seedRemovedFiles(claudeDir);
 
       const sentinelPath = join(claudeDir, ".cc-settings-version");
       const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {

@@ -7,7 +7,7 @@
 ## Clip-path recipes
 
 `clip-path: inset(top right bottom left)` is the third sanctioned animatable
-property (alongside `transform`/`opacity`, see `rules/ui-skills.md`) — each value
+property (alongside `transform`/`opacity`, see `rules/motion-physics.md`) — each value
 "eats" into the element from that side.
 
 - **Reveal** — `inset(0 100% 0 0)` → `inset(0 0 0 0)`, `ease-out`.

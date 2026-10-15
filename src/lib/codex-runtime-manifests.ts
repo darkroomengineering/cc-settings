@@ -261,10 +261,18 @@ const ADDED_IN_V15 = [
   "src/scripts/hook-bench.ts",
   "src/scripts/hook-report.ts",
 ];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 16;
+// Version 17: two Stop hooks whose plain stdout never reached the model. Versions 5-16 still
+// own them, so they rejoin the historical source list.
+const REMOVED_IN_V17 = ["src/scripts/stop-failure.ts", "src/scripts/stop-summary.ts"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 17;
+// Each removed file rejoins at its original position: shipped manifests are hashed in order.
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) => !ADDED_IN_V15.includes(path),
-).flatMap((path) => (path === "src/lib/download-verify.ts" ? [path, ...REMOVED_IN_V12] : [path]));
+).flatMap((path) => {
+  if (path === "src/lib/download-verify.ts") return [path, ...REMOVED_IN_V12];
+  if (path === "src/scripts/session-title.ts") return [path, ...REMOVED_IN_V17];
+  return [path];
+});
 const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
   ...HISTORICAL_TYPESCRIPT_SOURCES,
@@ -306,8 +314,11 @@ const REMOVED_IN_V16 = [
   "skills/test/SKILL.md",
   "skills/tldr/SKILL.md",
 ];
-export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V15.filter(
+const RUNTIME_SOURCE_FILES_V16: readonly string[] = RUNTIME_SOURCE_FILES_V15.filter(
   (path) => !REMOVED_IN_V16.includes(path),
+);
+export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V16.filter(
+  (path) => !REMOVED_IN_V17.includes(path),
 );
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -341,6 +352,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [13, RUNTIME_SOURCE_FILES_V13],
   [14, RUNTIME_SOURCE_FILES_V14],
   [15, RUNTIME_SOURCE_FILES_V15],
+  [16, RUNTIME_SOURCE_FILES_V16],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

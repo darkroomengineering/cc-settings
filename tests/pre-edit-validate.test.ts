@@ -106,24 +106,15 @@ describe("pre-edit-validate — core decision paths", () => {
     }
   });
 
-  test("advisory: old_string over 15 lines warns but still allows (exit 0)", async () => {
+  test("a long unique old_string is allowed silently (exit 0, no advisory)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-pev-"));
     try {
       const file = join(dir, "a.ts");
-      const lines = Array.from({ length: 20 }, (_, i) => `line ${i}`);
-      const body = lines.join("\n");
+      const body = Array.from({ length: 20 }, (_, i) => `line ${i}`).join("\n");
       await writeFile(file, `${body}\n`);
-      // 20 lines → 19 newlines → lineCount 20 (> 15).
       const r = await runHook({ file_path: file, old_string: body });
       expect(r.exit).toBe(0);
-      // Advisory output goes through the hookSpecificOutput.additionalContext
-      // envelope (plain stdout never reaches the model on PreToolUse).
-      const parsed = JSON.parse(r.stdout) as {
-        hookSpecificOutput: { hookEventName: string; additionalContext: string };
-      };
-      expect(parsed.hookSpecificOutput.hookEventName).toBe("PreToolUse");
-      expect(parsed.hookSpecificOutput.additionalContext).toContain("Large edit target");
-      expect(parsed.hookSpecificOutput.additionalContext).toContain("20 lines");
+      expect(r.stdout).toBe("");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

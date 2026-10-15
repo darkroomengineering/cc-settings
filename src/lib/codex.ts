@@ -268,8 +268,7 @@ export async function refreshCodexVerdict(): Promise<CodexVerdict> {
  *
  * Secret redaction is delegated to the canonical redactSecrets (src/lib/
  * redact.ts) rather than a local pattern set, so this surface always carries
- * the same coverage as safety-net.ts and log-bash.ts (see M23 in
- * docs/audits/codebase-audit-2026-07-08.md).
+ * the same coverage as safety-net.ts and log-bash.ts.
  */
 export function sanitizeOutput(s: string): string {
   return redactSecrets(s.replace(OSC_RE, "").replace(CSI_RE, "").replace(CONTROL_RE, ""));

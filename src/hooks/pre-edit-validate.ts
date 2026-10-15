@@ -84,25 +84,10 @@ async function main(): Promise<void> {
     blockDecision(`${diagnosis} For complex edits, use Write tool for full file replacement.`);
   }
 
-  // Check 3: large old_string.
-  // Plain console.log stdout on a PreToolUse hook never reaches the model
-  // (verified against Claude Code 2.1.220 by a headless marker probe,
-  // replicated twice — see docs/hooks-reference.md "Sync vs Async
-  // Behavior"). Advisory (non-blocking) output below goes through the
-  // hookSpecificOutput.additionalContext envelope instead. The blockDecision
-  // branches above are unaffected — the exit-2 + JSON protocol they use is a
-  // separate, already-working mechanism.
-  const lineCount = (oldString.match(/\n/g)?.length ?? 0) + 1;
-  if (lineCount > 15) {
-    emitAdditionalContext(
-      "PreToolUse",
-      `[Harness] Large edit target (${lineCount} lines) in ${base}. ` +
-        "Large string-replace edits are error-prone. Consider Write tool for full file replacement.",
-    );
-    return;
-  }
-
-  // Check 4: ambiguous old_string.
+  // Check 3: ambiguous old_string. Advisory only: plain console.log stdout on
+  // a PreToolUse hook never reaches the model (see docs/hooks-reference.md
+  // "Sync vs Async Behavior"), so it goes through the
+  // hookSpecificOutput.additionalContext envelope instead.
   let occurrences = 0;
   let searchFrom = 0;
   while (true) {

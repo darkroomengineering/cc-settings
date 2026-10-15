@@ -62,12 +62,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Handles authentication features for this project.
-
-  DELEGATE when user asks:
-  - "Add login flow" / "Fix auth issue" / "Session handling"
-  - "OAuth setup" / "JWT token" / "Protected route"
-  - Any task involving authentication, authorization, or sessions
-
   RETURNS: Implementation via role agents, domain-aware guidance
 ---
 
@@ -148,10 +142,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Manages CMS content integration (Sanity).
-
-  DELEGATE when user asks:
-  - "Add content type" / "GROQ query" / "Schema change"
-  - "Fetch content" / "Preview" / "Webhook"
 ---
 
 # CMS Agent
@@ -194,10 +184,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Handles animations and transitions using GSAP, Lenis, and Tempus.
-
-  DELEGATE when user asks:
-  - "Add animation" / "Scroll effect" / "Page transition"
-  - "GSAP timeline" / "ScrollTrigger" / "Smooth scroll"
 ---
 
 # Animation Agent
@@ -230,10 +216,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Manages external API integrations (Stripe, SendGrid, etc.).
-
-  DELEGATE when user asks:
-  - "Add Stripe payment" / "Send email" / "Third-party API"
-  - "Webhook handler" / "API client" / "Rate limiting"
 ---
 
 # API Integration Agent

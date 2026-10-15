@@ -137,7 +137,6 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
         },
       },
     ],
-    "stop-summary": [{ payload: { ...base, hook_event_name: "Stop", stop_hook_active: false } }],
     "ask-gate": [
       {
         payload: {
@@ -145,16 +144,6 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
           hook_event_name: "Stop",
           stop_hook_active: false,
           last_assistant_message: "Done. The change is in place.",
-        },
-      },
-    ],
-    "stop-failure": [
-      {
-        payload: {
-          ...base,
-          hook_event_name: "StopFailure",
-          error: "rate_limit",
-          error_details: "bench",
         },
       },
     ],
