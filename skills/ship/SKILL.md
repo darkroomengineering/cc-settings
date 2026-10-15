@@ -139,8 +139,9 @@ git diff --cached --stat | tail -1
 **Small diff** (<50 lines changed across <4 files): Single commit.
 ```bash
 git add <relevant files>
-git commit -m "<type>: <description>"
+git commit -F <msgfile> -- <relevant files>
 ```
+Every commit, split ones included, names its paths in both calls and takes its message from a file; see `rules/git.md` "Commit and PR mechanics".
 
 **Larger diff**: Split into ordered commits by dependency layer. Each commit must be independently valid — no broken imports, no forward references.
 
@@ -161,21 +162,27 @@ If a commit would break either check in isolation, merge it with the next commit
 **Commit messages:** Each gets a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`).
 
 ### Step 8: Push and PR
+
+No git remote (`git remote` prints nothing) means a local-only run: skip every push and PR step and report the commits.
+
 ```bash
 git push origin HEAD
-gh pr list --head "$(git branch --show-current)" --state open --json number,url
+gh pr list --head "$(git branch --show-current)" --state open --json number,url,headRefName,headRepositoryOwner
 ```
 
-If that list is non-empty, a PR already exists for this branch: the push updated it, so skip `gh pr create` and go to Step 9. Never open a second PR for the same branch.
+Read the PR list by the rules in `rules/git.md` "Commit and PR mechanics": branch name only, a non-zero exit means PR state is unknown (stop, do not create), and a non-empty list means the push updated that PR. In that case skip `gh pr create`, rewrite the body only if it does not match the full range, and go to Step 9. Never open a second PR for the same branch.
 
 If `gh` is not available, provide the push command and instruct the user to create the PR manually.
 
-**Author the PR body — do NOT use `--fill`.** `--fill` dumps the commit messages
-into the description, which reads as technical and over-engineered. Lead with a
-plain-English "What this does" (see `rules/git.md` "Signal, not spam"):
+**Author the PR body, never `--fill`.** `--fill` dumps the commit messages
+into the description, which reads as technical and over-engineered. Use the repo's
+own PR template when it has one; otherwise lead with a plain-English "What this
+does" (see `rules/git.md` "PRs" and "Commit and PR mechanics"). Write from the
+full `git log <base>..HEAD` range and the diff, then pass the file with
+`--body-file`:
 
 ```bash
-gh pr create --title "<type>: <concise, plain-English title>" --body "$(cat <<'EOF'
+BODY_FILE=$(mktemp "${TMPDIR:-/tmp}/pr-body.XXXXXX") && cat > "$BODY_FILE" <<'EOF'
 ## What this does
 <2–3 plain sentences: what changed and why it matters — the real-world effect,
 not the mechanism. A teammate who didn't write it should get it on one read.>
@@ -189,7 +196,7 @@ not the mechanism. A teammate who didn't write it should get it on one read.>
 <Visible change only: link the Figma frame or Linear ticket, then
 "Screenshots: before/after needed". Omit the section otherwise.>
 EOF
-)"
+gh pr create --title "<type>: <concise, plain-English title>" --body-file "$BODY_FILE"
 ```
 
 Write "What this does" from the *diff and its purpose*, not by pasting commit
