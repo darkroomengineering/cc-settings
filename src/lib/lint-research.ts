@@ -43,7 +43,7 @@ export const MAX_CHECKLIST = 7;
 // Settings autoresearch reads as numbers. A non-numeric value here is the
 // "unknown numbers must be null/INCONCLUSIVE, never aspirational" failure mode
 // surfacing as an un-parseable seed (e.g. `samples: TBD`).
-const NUMERIC_SETTINGS = new Set(["samples", "min_improvement", "max_rounds", "stall_rounds"]);
+const NUMERIC_SETTINGS = new Set(["samples", "min_improvement", "stall_rounds"]);
 
 /** Group lines under their `## <heading>` (H2). H3+ (`### …`) stay as section
  *  content, so `### Test N:` lines are counted inside `## Test Inputs`. */

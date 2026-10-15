@@ -44,10 +44,9 @@ Confirm by checking the existing `lib/hooks/` or `hooks/` directory structure if
 
 ## Step 4 — Emit template
 
-### satus / Next.js
 ```tsx
-// lib/hooks/<name>.ts
-'use client'
+// lib/hooks/<name>.ts (novus: hooks/<name>.ts)
+'use client' // satus only, hooks live in the client boundary; novus is isomorphic, omit it
 // Client Components can prerender on the server. Read browser APIs in effects
 // or event handlers, with the same initial state on the server and browser.
 
@@ -69,32 +68,7 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
 }
 ```
 
-### novus / React Router
-```tsx
-// hooks/<name>.ts
-// No 'use client' — RR components are isomorphic; the hook runs wherever
-// it's called from. Read browser APIs in effects or event handlers, with the
-// same initial state on the server and browser.
-
-import { useState, useEffect } from 'react'
-
-interface Use<Name>Options {
-  // Hook configuration options
-}
-
-interface Use<Name>Return {
-  // Return type definition
-}
-
-export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
-  // Implementation
-  return {
-    // Return values
-  }
-}
-```
-
-## Conventions (both stacks)
+## Conventions
 
 1. **Type everything** — options interface, return interface.
 2. **Named export** — `export function useX`, not default.
@@ -108,29 +82,11 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
    enabling an effect that persists state, so initial defaults cannot overwrite
    stored values.
 
-## Stack-specific
-
-| | satus | novus |
-|---|---|---|
-| Directive | `'use client'` (hooks live in client boundary) | None (isomorphic) |
-| Browser APIs | SSR-safe initial state; effects or event handlers | SSR-safe initial state; effects or event handlers |
-| Path alias | `@/` | `~/` |
-
 ## Before you start
 
 If this hook uses an external library, **fetch docs first**:
 1. Use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) in Claude or when the user configured it in standalone Codex. Otherwise use official docs through native browsing or inspect the pinned local package. cc-settings does not auto-run unpinned registry MCP packages in Codex.
 2. Run `bun info <package>` to check the latest version.
-
-## Example
-
-```
-User: "create a useLocalStorage hook" (in satus repo)
-→ Checks project hooks, platform APIs, and installed dependencies first; only for an uncovered gap, creates lib/hooks/use-local-storage.ts with 'use client', deterministic initial state, effect-based storage read before writes
-
-User: "create a useLocalStorage hook" (in novus repo)
-→ Checks project hooks, platform APIs, and installed dependencies first; only for an uncovered gap, creates hooks/use-local-storage.ts, no directive, deterministic initial state, effect-based storage read before writes
-```
 
 ## Arguments
 

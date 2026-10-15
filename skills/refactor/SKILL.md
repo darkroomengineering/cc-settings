@@ -61,17 +61,9 @@ Agent(reviewer, "Review refactoring for quality and completeness.")
 
 **Standalone Codex branch:** follow the lifecycle and serialization rules at
 the top. Use a fresh read-only `reviewer` for the independent pass after the
-writer and tester finish. Skip the Claude bridge branch below.
+writer and tester finish.
 
-Refactors are a top source of subtle regressions — behavior that "shouldn't change" quietly does. When the Codex bridge is available, run a cross-model review in parallel with the reviewer:
-
-```
-Agent(codex-verifier, "Cross-model review of the refactor diff. Confirm behavior is preserved; report findings by severity.")
-```
-
-The bridge is gated and fails open: if Codex is unavailable, the reviewer agent alone is fine.
-
-If the `codex-verifier` spawn fails, or it reports that Bash was stripped (forked skill contexts), run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly instead — never skip the cross-model pass.
+Refactors are a top source of subtle regressions. The one cross-model Codex review per PR (run by `/ship`, or on request) covers the refactor diff; do not run a separate Codex pass here. The reviewer agent above is the in-workflow review.
 
 ## Output
 

@@ -47,8 +47,8 @@ Evidence comes two ways — use whichever the user has:
 2. **Transcript / diff analysis** — the user points at a session, PR, or outputs.
    Read them, reconstruct the same answers yourself, then confirm with the user.
 
-An unknown witness count is `null`, never an optimistic guess. Single-witness is a
-valid census result — it just caps how far the artifact can travel (Phase 5).
+Single-witness is a valid census result; it caps how far the artifact can travel
+(the contract's promotion scope gate).
 
 ## Phase 2 — Filter to the harvestable
 
@@ -59,7 +59,7 @@ The bar is **a repeatable procedure, not raw intelligence**. Test each candidate
 - Would the same steps help a weaker model or a fresh session? If the value was
   depth of reasoning alone, **stop and say so** — that can't be harvested, and prose
   about it is context bloat, not capability.
-- Is it already covered? In Claude check the "All Skills" table in `MANUAL.md`
+- Is it already covered? In Claude check `docs/skills.md`
   and `~/.claude/rules/`; in standalone Codex use the source boundary above. If
   an existing artifact covers 80% of it, the deliverable
   is a *diff to that artifact*, not a new one.
@@ -71,7 +71,8 @@ and fill every field: trigger, observed evidence, procedure, known failure modes
 quality bar, trap prompts, required tools, verification result, promotion decision.
 
 If you can't fill a row with something concrete, it is `null` / INCONCLUSIVE — that
-is data, not a blank to paper over. A missing failure mode usually means the
+is data, not a blank to paper over; an unknown witness count is `null`, never an
+optimistic guess. A missing failure mode usually means the
 behavior wasn't actually different from the default; go back to Phase 1.
 
 ## Phase 4 — Route to the smallest artifact, then write it
@@ -130,17 +131,9 @@ artifact takes the documented bad path. For each:
 2. Judge the transcript against the contract's quality bar: did it avoid the
    specific failure mode?
 
-Then set the **verification result** per the contract's rubric:
-
-- **PASS** — multi-witness, or single-witness with all traps passing.
-- **FAIL** — a trap reproduced the bad path with the artifact loaded. Do not
-  promote; revise and re-run, or stop.
-- **INCONCLUSIVE** — evidence missing, single-witness with no passing trap, or any
-  required field still `null`. Personal draft only; never a shared standard.
-
-The **promotion scope gate** ([CONTRACT.md](./CONTRACT.md)) binds the verdict to how
-far the artifact travels: single-witness never reaches `AGENTS.md`, `rules/`,
-`profiles/`, or team-knowledge on its own.
+Then set the **verification result** (PASS / FAIL / INCONCLUSIVE) per the contract's
+verdict rubric, and let its promotion scope gate decide how far the artifact
+travels. On FAIL, revise and re-run, or stop.
 
 ## Phase 6 — Seed autoresearch (skills only)
 
@@ -149,7 +142,7 @@ When the routed artifact is a **skill**, hand its evidence forward: write or upd
 
 - `## Test Inputs` ← the trap prompts (one `### Test N:` per trap).
 - `## Checklist` ← the quality-bar checks (observable, binary — 3–7 items).
-- `## Settings` ← defaults (`samples: 3`, `min_improvement: 0.05`, `max_rounds: 50`).
+- `## Settings` ← defaults (`samples: 3`, `min_improvement: 0.05`, `stall_rounds: 3`).
 - No `## Held-out Inputs`: `/autoresearch` writes those itself from the skill's use
   cases, so they stay independent of the traps. The linter's `missing-held-out`
   warning on a fresh seed is expected.
@@ -163,12 +156,10 @@ Validate the shape before finishing: `bun run lint:research skills/<name>/RESEAR
 
 ## Deopt / fallback
 
-- **Evidence missing** → mark INCONCLUSIVE. Do not promote; do not invent a PASS.
-- **Trap prompts fail** → FAIL. Fix the artifact and re-run, or stop.
-- **Unknown numbers** → `null` / INCONCLUSIVE, never aspirational.
-- **Unknown territory** — behavior you can't reconstruct, a judgment you can't
-  verify from evidence on disk — → fall back to `/poke-holes`, human
-  approval, or normal reasoning rather than forcing a verdict.
+Evidence missing, a trap failing, or an unknown number follows the contract's
+Deopt section. For unknown territory (behavior you can't reconstruct, a judgment
+you can't verify from evidence on disk), fall back to `/poke-holes`, human
+approval, or normal reasoning rather than forcing a verdict.
 
 ## Approval gate
 
@@ -183,19 +174,10 @@ approval before:**
 Personal-scope drafts (a new unregistered skill file, a RESEARCH.md seed) may be
 written freely; the gate is on anything shared.
 
-## Pairs with
-
-- `/autoresearch` — the optimization loop on a harvested skill; Phase 6 hands it a
-  ready RESEARCH.md seeded from the traps and quality bar
-- `/share-learning` — the routing target for single-note learnings
-- `/poke-holes` — the fallback when a behavior is real but can't be measured
-  into a verdict
-
 ## What this skill does NOT do
 
 - **Clone model reasoning.** It captures procedures — steps, checks, gates. If the
   magic was the model itself, the honest output is "not harvestable".
 - **Call model APIs** to sample or distill behavior. Evidence comes from the user,
   transcripts, and artifacts already on disk.
-- **Assert what it didn't witness.** Unknown counts are `null`; unproven behavior is
-  INCONCLUSIVE. Every promotion carries a verdict, or it isn't done.
+- **Assert what it didn't witness.** Every promotion carries a verdict, or it isn't done.

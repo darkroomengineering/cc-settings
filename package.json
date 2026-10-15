@@ -1,6 +1,6 @@
 {
 	"name": "cc-settings",
-	"version": "15.64.0",
+	"version": "15.65.0",
 	"private": true,
 	"type": "module",
 	"engines": {

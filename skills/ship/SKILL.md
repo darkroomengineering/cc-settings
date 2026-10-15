@@ -118,7 +118,7 @@ Agent(reviewer, "Review all staged changes for quality, TypeScript strictness, a
 **Standalone Codex branch:** follow the native lifecycle above and use a fresh
 read-only `reviewer`. Skip the Claude bridge branch below.
 
-When the Codex bridge is available, run a cross-model review **in parallel** — a different model family catches what Claude self-review misses, and this is right before a commit lands, the cheapest place to catch a Critical:
+When the Codex bridge is available, run the one cross-model review for this PR **in parallel** — a different model family catches what Claude self-review misses, and this is right before a commit lands, the cheapest place to catch a Critical. Skip it if a Codex review already covered this diff:
 
 ```
 Agent(codex-verifier, "Cross-model review of the staged diff. Report findings by severity.")
@@ -174,34 +174,14 @@ Read the PR list by the rules in `rules/git.md` "Commit and PR mechanics": branc
 
 If `gh` is not available, provide the push command and instruct the user to create the PR manually.
 
-**Author the PR body, never `--fill`.** `--fill` dumps the commit messages
-into the description, which reads as technical and over-engineered. Use the repo's
-own PR template when it has one; otherwise lead with a plain-English "What this
-does" (see `rules/git.md` "PRs" and "Commit and PR mechanics"). Write from the
-full `git log <base>..HEAD` range and the diff, then pass the file with
-`--body-file`:
+**Author the PR body, never `--fill`** (it pastes commit messages into the description). Write it from the full `git log <base>..HEAD` range and the diff, using the repo's own PR template or the structure in `rules/git.md` "PRs", then pass it with `--body-file`:
 
 ```bash
 BODY_FILE=$(mktemp "${TMPDIR:-/tmp}/pr-body.XXXXXX") && cat > "$BODY_FILE" <<'EOF'
-## What this does
-<2–3 plain sentences: what changed and why it matters — the real-world effect,
-not the mechanism. A teammate who didn't write it should get it on one read.>
-
-## Summary
-- <technical bullet — the how>
-
-## Test Plan
-- [ ] <how it was verified>
-
-<Visible change only: link the Figma frame or Linear ticket, then
-"Screenshots: before/after needed". Omit the section otherwise.>
+<body per rules/git.md>
 EOF
 gh pr create --title "<type>: <concise, plain-English title>" --body-file "$BODY_FILE"
 ```
-
-Write "What this does" from the *diff and its purpose*, not by pasting commit
-subjects. If you can't explain it plainly, the change is unclear — say so, don't
-reach for bigger words.
 
 ### Step 9: Watch CI Until Green (post-push)
 
@@ -260,15 +240,7 @@ Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean 
 6. Cleanup: `git checkout main && git pull`, delete the local branch, prune remotes (`git remote prune origin`). Leave only main unless other branches have open PRs.
 7. Report: PR link, merge commit, branches deleted.
 
-Per the Autonomy Contract (CLAUDE-FULL.md): steps 5–7 are pre-approved once CI is green, the head is confirmed unchanged, and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
-
-## Rules
-- NEVER skip an applicable type check or configured build; an absent build script is N/A with a recorded reason
-- NEVER create a PR with failing tests
-- Conventional commit messages only (`feat:`, `fix:`, `refactor:`, etc.)
-- No AI attribution in commits or PR descriptions — see `rules/git.md`.
-- Each bisectable commit must pass `tsc --noEmit` AND `biome check` independently
-- If total diff is small, single commit is fine -- don't over-split
+Per `CLAUDE-FULL.md` "Autonomy": steps 5–7 are pre-approved once CI is green, the head is confirmed unchanged, and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
 
 ## Output
 Return:

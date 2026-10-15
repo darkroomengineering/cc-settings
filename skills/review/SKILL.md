@@ -7,10 +7,6 @@ agent: reviewer
 
 # Code Review
 
-Reviews against the full Darkroom quality checklist defined in the reviewer agent.
-
-Focus areas: TypeScript strictness, React patterns, accessibility, performance, security, file structure.
-
 ## Standalone Codex host setup
 
 Claude frontmatter does not enforce a fork or reviewer identity in standalone
@@ -47,7 +43,7 @@ git diff path/to/file
 
 ## Large diffs: walk a reading diff, not a summary
 
-Past ~200 changed lines, present the diff walkthrough as a **reading diff** — the real diff, abridged — never a prose-only summary (prose can lie by omission; a diff can't). Every line shown is verbatim from `git diff`; the only editing allowed is removal and compression: drop whole no-signal lines, fold 2+ contiguous same-polarity lines into a `...` row, or elide a noisy span inside a kept line. Never rewrite one. Drop import churn, lockfiles, generated files, and formatting-only hunks; show one instance of a mechanical rename and fold the rest with a count; keep every behavioral change. Close with an accounting line — `showing N of M changed lines — dropped: ...` — naming any new dependency, changed import target, or lockfile version/integrity bump even though import churn is dropped. The full diff remains the merge authority. Full protocol: the "Reading diffs" section of `/review-batch` (adapted from boldsoftware/meat, Apache-2.0).
+Past ~200 changed lines, present the walkthrough as a **reading diff** (the real diff, abridged, never a prose-only summary), following the "Reading diffs" protocol in `/review-batch`.
 
 ## Standalone Codex review
 
@@ -57,7 +53,7 @@ Claude bridge branch below.
 
 ## Cross-model review (when the Codex bridge is available)
 
-This skill runs as the Claude `reviewer` agent — often Claude reviewing a diff Claude just wrote, the self-preferential-bias case. Run an independent review from a different model family in parallel and reconcile (the reviewer has `Bash`, so call the bridge directly):
+This skill runs as the Claude `reviewer` agent, often Claude reviewing a diff Claude just wrote, the self-preferential-bias case. The one cross-model Codex review per PR, `/ship`, or direct push (see `CLAUDE-FULL.md` "Claude and Codex routing") covers that case. Run it here only when the user asks or no Codex review has run for this PR (the reviewer has `Bash`, so call the bridge directly):
 
 ```bash
 bun "$HOME/.claude/src/scripts/codex-run.ts" review
@@ -95,66 +91,28 @@ Then fold the confirmed findings into the verdict below — map HIGH→Critical,
 
 Each finding carries severity, a 0/25/50/75/100 confidence, the quoted motivating line with `file:line`, and an `introduced` or `pre-existing` tag, as the reviewer agent defines them. **Verdict rule:** only `introduced` findings at confidence 75 or 100 can block. `pre-existing` findings and anything below 75 never do. A confirmed Codex finding goes through the same gate: quote the line or it stays a Suggestion.
 
-## Remember
+## Escalation
 
-- Be constructive, not just critical
-- Explain WHY something is an issue
-- Comments in plain English — explain the issue and its impact like you're talking to a teammate, not citing a rulebook. No jargon dump.
-- Suggest specific fixes
-- If you find a pattern worth remembering, save it via auto-memory (personal) or `/share-learning` (team-wide).
-- **Escalate to `/poke-holes`** when the diff touches auth, payments, crypto, input validation, or a breaking public API — this skill is the fast checklist pass; `/poke-holes` runs three adversarial agents (issue-finder, disprover, judge) and is the gate for security-sensitive or financial code.
+Escalate to `/poke-holes` when the diff touches auth, payments, crypto, input validation, or a breaking public API. This skill is the fast checklist pass; `/poke-holes` runs three adversarial agents (issue-finder, disprover, judge) and is the gate for security-sensitive or financial code.
 
 ---
 
 ## Animation & Motion Checklist
 
-Fires whenever the diff touches CSS transitions/animations or any motion-library
-code — new or edited GSAP/Motion/Framer Motion/Lenis calls, animation props,
-spring configs, or WAAPI usage, not just added imports. Adapted from emilkowalski/skills
-`review-animations` (MIT). Default to flagging — approval is earned, not assumed.
+Fires when the diff touches CSS transitions/animations or motion-library code (GSAP, Motion, Framer Motion, Lenis calls, animation props, spring configs, WAAPI), not just added imports. Values live in `rules/motion-physics.md`; it is path-scoped and may not be loaded in this fork, so read it before flagging. Default to flagging; approval is earned, not assumed. Adapted from emilkowalski/skills `review-animations` (MIT).
 
-**Ten standards — each violation is a finding:**
+Each of these is a finding, and a block-tier one is Critical:
 
-1. **Justified motion** — every animation answers "why does this animate?" (spatial
-   consistency / state indication / feedback / explanation / preventing a jarring
-   change). "It looks cool" on a frequently-seen element is a block.
-2. **Frequency-appropriate** — keyboard-initiated and 100+/day actions get zero
-   animation; tens/day gets reduced motion; occasional gets standard; rare/first-time
-   can have delight.
-3. **Responsive easing** — `ease-out` or a strong custom curve on entering/exiting
-   elements (see `rules/motion-physics.md`). `ease-in` on UI is a block.
-4. **Sub-300ms UI** — press 100–160ms, tooltips/popovers 125–200ms, dropdowns/selects
-   150–250ms, modals/drawers 200–500ms.
-5. **Origin & physical correctness** — popovers/dropdowns/tooltips scale from
-   `transform-origin` at the trigger, not center (modals exempt). Never `scale(0)` —
-   start `scale(0.9–0.97)` + opacity.
-6. **Interruptibility** — rapidly-triggered or gesture-driven motion uses CSS
-   transitions or a retargeting spring, never keyframes that restart from zero.
-7. **GPU-only properties** — `transform`/`opacity` (`clip-path` is the sanctioned
-   third) only. Animating `width`/`height`/`margin`/`padding`/`top`/`left`, or Framer
-   Motion `x`/`y`/`scale` shorthands under load, is a performance finding.
-8. **Accessibility** — `prefers-reduced-motion` honored (gentler, not zero); hover
-   motion gated behind `@media (hover: hover) and (pointer: fine)`.
-9. **Asymmetric enter/exit** — deliberate actions (press, hold, destructive confirm)
-   animate slower; system responses snap back fast.
-10. **Cohesion** — motion matches the component's and product's personality.
+- **Unjustified motion:** animation on a keyboard shortcut or 100+/day action, or "it looks cool" on a frequently-seen element.
+- **Wrong easing or entrance:** `ease-in` on UI, `transition: all`, `scale(0)` or a pure-fade entrance (a reduced-motion crossfade is exempt).
+- **Too slow:** UI duration over 300ms with no stated reason (modals and drawers up to 500ms).
+- **Wrong origin:** `transform-origin: center` on a trigger-anchored popover, dropdown, or tooltip (modals exempt).
+- **Not interruptible:** keyframes on toasts, toggles, or anything rapidly triggered or gesture-driven; use CSS transitions or a retargeting spring.
+- **Not GPU-only:** animating `width`/`height`/`margin`/`padding`/`top`/`left`, or Framer Motion `x`/`y`/`scale` shorthands under load. `transform`, `opacity`, and `clip-path` only.
+- **Accessibility:** missing `prefers-reduced-motion` (gentler, not zero), or hover motion not gated behind `@media (hover: hover) and (pointer: fine)`.
+- **Timing and cohesion:** symmetric enter/exit on a press-and-hold interaction, or motion that does not match the component's personality.
 
-**Escalation triggers (flag on sight):** `transition: all`; `scale(0)` or pure-fade
-entrances (reduced-motion fallbacks exempt — a crossfade is the correct fallback
-there); `ease-in` on any UI interaction; animation on a keyboard shortcut or
-100+/day action; UI duration > 300ms with no stated reason (modals/drawers exempt
-up to 500ms); `transform-origin: center`
-on a trigger-anchored popover; keyframes on toasts/toggles/anything rapidly
-triggered; animating layout properties; missing `prefers-reduced-motion`; ungated
-`:hover` motion; symmetric enter/exit timing on a press-and-hold interaction.
-
-**Remedial order** (prefer earlier moves over later ones): delete the animation →
-reduce it → fix the easing → fix the origin/physicality → make it interruptible →
-move it to the GPU → asymmetric timing → polish (stagger, blur-masked crossfades) →
-accessibility & cohesion.
-
-Fold findings into the Critical/Warnings/Suggestions verdict above — a block-tier
-finding here is Critical.
+Remedial order, earliest first: delete the animation, reduce it, fix the easing, fix the origin, make it interruptible, move it to the GPU, asymmetric timing, polish, accessibility and cohesion.
 
 ---
 

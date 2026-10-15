@@ -72,11 +72,11 @@ bun run proof
 bun "$HOME/.claude/src/scripts/codex-run.ts" review
 ```
 
-Runs in a `read-only` sandbox. The prompt names the diff under review and the review contract (behavior and risk only, findings by HIGH / MEDIUM / LOW with file, line range, and fix). Codex decides how to inspect the repository; the prompt no longer scripts `git status` and `git diff` steps.
+Runs in a `read-only` sandbox. The prompt names the diff under review and the review contract (behavior and risk only, findings by HIGH / MEDIUM / LOW with file, line range, and fix). Codex decides how to inspect the repository.
 
 Use this after you have finished a diff and want a second opinion from a different model family. Codex and Claude have different blind spots — cross-model review catches what Opus self-review misses. This is the primary reason to prefer `review` over asking Claude to review its own output.
 
-**Scope presets** — mirrors Codex's own `/review` presets (base-branch / uncommitted / commit / custom). Default with no flags is the uncommitted working-tree diff, unchanged from before. Flags are mutually exclusive:
+**Scope presets** — mirrors Codex's own `/review` presets (base-branch / uncommitted / commit / custom). Default with no flags is the uncommitted working-tree diff. Flags are mutually exclusive:
 
 ```bash
 # Default: review the current uncommitted diff (git diff + git diff --cached)
@@ -113,12 +113,9 @@ Runs in a `read-only` sandbox. Use for quick factual questions, architecture opi
 
 ## Quota and cost guidance
 
-- Codex is on a Pro-class plan metered by messages per ~5-hour window (not by tokens). Prefer FEW LARGE calls over many small ones.
-- Batch work: give `exec` a whole feature or module, not one function at a time.
-- `review` and `ask` are read-only and cheap — use them freely as a cross-check.
+- `review` and `ask` are read-only and cheap — use them freely as a cross-check; `exec` follows the quota routing above.
 - If the bridge is unavailable (the script is missing, Codex is not installed or not logged in, or it is rate-limited), do the delegated task yourself, Claude-only, without asking which fallback to use. Say once that Codex was unavailable. Do not block the session.
-- Sessions get automatic steering: the `quota-steer` hook injects a routing reminder when Claude usage crosses 60% (5-hour) or 65% (weekly). If you see that reminder, prefer `exec`/`review` here over spawning Claude subagents.
-- The `codex-verify` SessionStart hook also injects a batched routing policy whenever the bridge is available: `exec` is the default for bulk/mechanical work, and one cross-model `review` runs per PR, `/ship`, or direct push to the default branch (or on a risky commit), not on every diff-producing turn.
+- Routing policy comes from the `quota-steer` and `codex-verify` hooks (see "Claude and Codex routing" in `~/.claude/CLAUDE.md`); when either injects a reminder, prefer `exec`/`review` here over spawning Claude subagents.
 
 ---
 

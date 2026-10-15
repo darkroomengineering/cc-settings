@@ -12,18 +12,10 @@ requires:
 
 # share-learning
 
-Promote a single learning to the team's shared knowledge repo (`darkroomengineering/team-knowledge`) —
-the "public corpus" tier of the knowledge system (see `docs/knowledge-system.md`). Local,
-personal knowledge stays in auto-memory; this skill is only for things another teammate's
-agent would benefit from knowing.
-
-## When to use
-
-Use when a learning meets the shared-tier bar from `AGENTS.md` (Knowledge Routing): an
-architecture decision the team must follow, a library gotcha that affects everyone, a
-convention, an incident postmortem, or a reusable pattern. If it is a personal preference,
-local project state, or an external pointer, let auto-memory handle it instead — do NOT
-post it.
+Promote a single learning to the team's shared knowledge repo (`darkroomengineering/team-knowledge`),
+the "public corpus" tier of `docs/knowledge-system.md`. Use it when `AGENTS.md` "Knowledge Routing"
+sends the learning to the team repo; personal preferences, local project state, and external
+pointers go to auto-memory instead. Do NOT post those.
 
 ## Write gate
 
@@ -194,8 +186,5 @@ the current code, and assign exactly one outcome:
 
 ## Notes
 
-- This skill posts to a shared, team-visible repo — treat it like publishing. Never post
-  secrets, credentials, or anything from `.env`. When unsure whether something is
-  team-relevant, ask the user rather than over-sharing.
-- The dedup step is what makes this more than a `gh` wrapper: you are exercising judgment
-  about whether the corpus already knows this.
+This skill publishes to a shared, team-visible repo, so apply `AGENTS.md` "Safety" strictly. When unsure
+whether something is team-relevant, ask the user rather than over-sharing.

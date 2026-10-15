@@ -14,11 +14,8 @@ project's `CLAUDE.md` into `AGENTS.md` so every coding agent reads one file.
 ## Mode: sync
 
 Audit cc-settings against the Claude Code changelog, the Codex CLI release
-notes, and the Codex app and IDE extension changelog; identify features to adopt and duplication to remove; stops for approval.
-
-Track both upstreams and keep cc-settings (schemas, config, hooks, agents,
-docs, the Codex installer surfaces) in sync with new features. Removes anything
-that duplicates native functionality.
+notes, and the Codex app and IDE extension changelog (schemas, config, hooks, agents,
+docs, Codex installer surfaces); identify features to adopt and native duplication to remove; stops for approval.
 
 This is run on a weekly cadence. The mechanical parts are scripted; the
 judgment calls (which features to adopt, what counts as duplication) require
@@ -112,13 +109,13 @@ to inform the decision (use parallel tool calls):
 | Bucket | What to check |
 |---|---|
 | Settings keys | `src/schemas/settings.ts` (zod schema, strict — drift fails parse) |
-| Hook events / types | `src/schemas/hooks.ts` (5-arm discriminated union as of v10.3.0) |
+| Hook events / types | `src/schemas/hooks.ts` (discriminated union) |
 | MCP fields | `src/schemas/mcp.ts` (shared `mcpCommon` for cross-transport fields) |
 | Env vars | `upstream/claude-code-manifest.json` `knownEnvVars`, `docs/settings-reference.md` env table, `config/10-core.json` `env` block |
 | Hook wiring | `config/40-hooks.json`, `src/hooks/`, `src/scripts/` |
 | Statusline | `src/hooks/statusline.ts` (Payload type) |
 | Agent frontmatter | `agents/*.md` (currently uses `tools`, `disallowedTools`, `maxTurns`, `permissionMode`, `effort`, `isolation`, `hooks`, `mcpServers`, `initialPrompt`) |
-| Slash commands | `MANUAL.md` "All Skills" table, `skills/*/SKILL.md` triggers |
+| Slash commands | `docs/skills.md`, `skills/*/SKILL.md` triggers |
 | User-facing docs | `MANUAL.md`, `CLAUDE-FULL.md`, `docs/settings-reference.md`, `docs/hooks-reference.md` |
 
 For Codex changes, cross-reference these surfaces instead. There is no zod
@@ -149,12 +146,10 @@ Bucket each change as one of:
 
 #### Common DEDUPE patterns to look for
 
-cc-settings has historically duplicated upstream work, then deleted it once
-the upstream version stabilized. Watch for these patterns:
+Watch for these patterns:
 
 - A new built-in hook event subsumes a custom hook script.
-- A new tool replaces a wrapper we maintain (e.g. native `Skill` tool
-  replaced our `skill-activation.ts` in v10.1.0).
+- A new tool replaces a wrapper we maintain.
 - A new frontmatter field replaces a script-driven workaround.
 - A new env var replaces a custom env-var dance.
 
@@ -213,14 +208,13 @@ upstream/codex-manifest.json
   - lastScan: <today ISO>
   - appChangelogLastScan: <today YYYY-MM-DD>
   - notes: append one entry; add any new surface to knownConfigSurfaces
-src/setup.ts
-  - VERSION: bump (minor for new features, patch for fixes-only)
+package.json, .claude-plugin/plugin.json, plugin.json (Codex), src/setup.ts (VERSION)
+  - bump all three together (minor for new features, patch for fixes-only)
 CHANGELOG.md
   - Prepend new section: "## [<new-version>] — <today YYYY-MM-DD>"
 ```
 
-CHANGELOG entry structure (mirror prior entries — 10.1.0, 10.2.0, 10.2.1, 10.3.0
-are good examples):
+CHANGELOG entry structure (mirror the latest sync entries):
 
 1. One-line summary.
 2. **Adopted:** bullet per feature. State the upstream version, the file(s)
@@ -243,19 +237,15 @@ If any fail: fix before moving on. Tests must pass.
 ### Phase 8 — Commit + push
 
 ```bash
-git add -A
-git commit -m "feat(v<new-version>): sync with Claude Code v<B> and Codex v<D>
-
-<one-paragraph summary>
-
-Adopted:
-- ...
-
-Deletions:
-- ..."
+git add <changed paths>
+git commit -F "$MSG_FILE" -- <changed paths>
 git push -u origin HEAD
-gh pr create --base main --fill
+gh pr create --base main --body-file "$BODY_FILE"
 ```
+
+`$MSG_FILE` holds `feat(v<new-version>): sync with Claude Code v<B> and Codex v<D>`,
+a one-paragraph summary, and Adopted / Deletions lists. Commit and PR mechanics
+follow `rules/git.md`.
 
 Work on a branch: main rejects direct pushes and requires the org
 `ci-gate` workflow, which runs only on a PR. Merge the PR once it passes;
@@ -270,24 +260,6 @@ version stands out in git log. Do not push if anything in Phase 7 is failing.
   never triage the changelog, so `bun run upstream:scan` is the manual drift
   detector and this skill is the only sync path.
 - It does not bump dependencies. That's a separate concern.
-
-### Mental model
-
-cc-settings exists in three time zones:
-
-1. **Upstream** — what Claude Code and Codex do today. Source: the Claude
-   Code changelog, the Codex GitHub release notes, and the Codex app and IDE
-   extension changelog.
-2. **Manifest** — what cc-settings believes upstream does. Source:
-   `upstream/claude-code-manifest.json` and `upstream/codex-manifest.json`.
-3. **Implementation** — what cc-settings actually wires up. Source: schemas,
-   config, hooks, agents.
-
-Drift between (1) and (2) means the scanner is stale.
-Drift between (2) and (3) means our schemas accept things our installer never
-configures, or vice versa — usually fine, but worth flagging.
-
-This mode aligns all three.
 
 ---
 
@@ -470,7 +442,7 @@ Read every file found. Then classify:
   called "From CLAUDE.md"), duplicated guidance is dropped, and a conflict is
   listed for the user instead of resolved silently.
 - **Already imported** — `CLAUDE.md` is only an `@AGENTS.md` line (plus blank
-  lines). Delete it; the import was the pre-2.1.277 workaround.
+  lines). Delete it; native reading makes the import redundant.
 - **Leave** — `CLAUDE.local.md` is personal and uncommitted. Report it, do not
   move it, and say that its presence alone blocks the native read; the user
   can set Project instructions to `claude-md-and-agents-md` in `/config` or

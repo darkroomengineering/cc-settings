@@ -30,9 +30,7 @@ Before delegating to agents:
 1. **Parse requirements** - Break down what needs to happen
 2. **Identify workstreams** - Which are independent? Which have dependencies?
 3. **Assess scope** - Is this actually multi-agent work, or simpler than it looks?
-4. **Sort into two piles** (the Orchestration Tax — your review attention is the serial bottleneck and it doesn't parallelize):
-   - **Delegate-async** — isolated, well-specified work where your judgment lands at the *gate* (you review the finished result): scaffolding, mechanical refactors, test writing, doc generation, independent file areas. Fan these out.
-   - **Hold-the-lock** — work where the judgment *is* the work: a subtle bug, an architecture decision, anything that needs your evolving mental model of the system. Parallelizing these doesn't scale output — it thrashes the one serial resource and everything comes back worse. Do them yourself, serially, one at a time.
+4. **Sort into two piles** (maestro principle 3): *delegate-async* work (isolated, well-specified) fans out; *hold-the-lock* work (the judgment is the work) stays with you, serially.
 
 **GO/NO-GO Verdict**:
 - **GO** - 3+ *delegate-async* workstreams, clear boundaries, agents work independently. Proceed — fan out the first pile only.
@@ -43,11 +41,7 @@ Do not proceed past this gate without an explicit verdict.
 
 ## Phase 2: Orchestrate
 
-Delegate to the Maestro agent for multi-agent task orchestration.
-
-The Maestro agent handles: agent selection, parallel execution, workflow coordination, and agent teams.
-
-For simple delegation (1-2 agents), use Agent() directly without invoking this skill.
+This skill runs as the maestro agent: select agents, run them in parallel, and coordinate per `agents/maestro.md`. For simple delegation (1-2 agents), call `Agent()` directly without this skill.
 
 ## Verify Subagent Claims Independently
 
@@ -78,14 +72,7 @@ and discovering three phases later that the build never ran.
 
 ## Standalone Codex orchestration
 
-Follow the native lifecycle at the top of this skill. Keep the number of live
-agents within the concurrency limit reported by the current Codex session;
-queue dependent work instead of over-subscribing it. Use `spawn_agent` for each
-new bounded workstream and never invoke the Claude-to-Codex bridge.
-
-Claude agent teams and dynamic workflows are Claude-only. Do not try to emulate
-their APIs in Codex; native agents plus the current concurrency limit are the
-Codex path for the fan-out guidance below.
+Follow the native lifecycle at the top of this skill: use `spawn_agent` for each new bounded workstream, queue dependent work instead of exceeding the live concurrency limit, and never invoke the Claude-to-Codex bridge. Claude agent teams and dynamic workflows are Claude-only; do not emulate their APIs in Codex.
 
 ## When to Fan Out (Teams mode)
 
@@ -105,10 +92,7 @@ Use full parallel team fan-out instead of sequential subagent delegation when:
 Two different mechanisms get confused here, so be explicit about which one you want:
 
 - **Subagent fan-out** (`Agent` calls in one message) needs **nothing enabled**. This is what cc-settings actually uses, and what the rest of this skill assumes. Each subagent gets its own context window and reports back to you.
-- **Agent teams** (teammates that message each other and share a task list) are experimental and disabled by default upstream; **cc-settings enables them** via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` in `config/10-core.json`. Enabled means *available*, not automatic — Claude forms a team only when you ask, or when it proposes one and you approve. Pick a team over plain fan-out only when workers need to **challenge each other mid-flight**; if you just need N results collected, fan-out is cheaper and lands them in one place. Full rule: `CLAUDE-FULL.md` → "Agent teams — enabled, deliberately not the default".
-  - Feasibility gates that come before cost: teammate permission prompts surface in the **lead**, so a team is not unattended; `/resume` does not restore in-process teammates; teammates cannot spawn teammates; and two teammates editing one file overwrite each other, so split by file ownership at spawn.
-  - For split panes: tmux, or iTerm2 with the `it2` CLI. `config/10-core.json` pins `teammateMode: "auto"`.
-  - A team forms when the lead spawns the first teammate and is cleaned up when the session ends; there is no create or delete tool.
+- **Agent teams** (teammates that message each other and share a task list) are available but not automatic. Pick a team over plain fan-out only when workers must challenge each other mid-flight; to collect N results, fan-out is cheaper. Rules and feasibility gates: `CLAUDE-FULL.md` → "Agent teams". For split panes, `config/10-core.json` pins `teammateMode: "auto"` (tmux, or iTerm2 with the `it2` CLI).
 
 ### Alternative: dynamic workflows (research preview)
 
@@ -121,7 +105,7 @@ A [dynamic workflow](https://code.claude.com/docs/en/workflows) is a JS harness 
 Shapes worth naming when you build one: **classify-and-act**, **fan-out-and-synthesize**, **generate-and-filter**, **tournament**, **loop-until-done** (spawn until a stop condition, not a fixed count). Not only for marathons — a **quick workflow** is valid: _"quick workflow to adversarially check this one assumption."_
 
 - **Budget** — workflows burn more tokens; cap with _"…budget 10k tokens"_ and the harness enforces it.
-- **Size** — dynamic workflows default to a medium size guideline, aiming for fewer than 10 agents (lowered from 15 in v2.1.271; Pro plans default to small); the running workflow's status line shows the current default. Override per-project via the `workflowSizeGuideline` settings key when a task genuinely needs more.
+- **Size** — dynamic workflows default to a medium size guideline, aiming for fewer than 10 agents (Pro plans default to small); the running workflow's status line shows the current default. Override per-project via the `workflowSizeGuideline` settings key when a task genuinely needs more.
 - **Quarantine** — for triage over untrusted input, agents that read public/untrusted content must not also take privileged actions; split reading from acting so an injected page can't trigger a privileged step.
 
 Two entry points:
@@ -212,15 +196,7 @@ so a goal set before a handoff carries into the next session.
 
 #### Phase 3: Completion
 
-```markdown
-## Verification Summary
-- [x] TypeScript compiles
-- [x] Biome lint passes
-- [x] Tests pass (N/N)
-- [x] All phases completed
-
-<promise>COMPLETE</promise>
-```
+End with the Completion Promise below.
 
 ### Recovery from Interruption
 
@@ -250,23 +226,3 @@ Only then output:
 ```
 
 **Never claim completion with failing verification.**
-
-### Example
-
-```
-User: "Migrate all class components to hooks across the app"
-
-→ Agent(planner, "Break migration into phases by module")
-Plan: 6 phases, ~4 context windows estimated
-
-Phase 1: Core hooks (auth, routing)
-  → Implement → Verify → Checkpoint at 30%
-Phase 2: Feature hooks (dashboard, settings)
-  → Implement → Verify → Checkpoint at 55%
-  → Context at 70% → agent checkpoints, continue
-Phase 3: Shared components
-  → Context at 90% → agent checkpoints, hands off
-  [New session resumes from checkpoint]
-Phase 4-6: Continue...
-  → Final verification → <promise>COMPLETE</promise>
-```

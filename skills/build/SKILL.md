@@ -52,9 +52,10 @@ Use the right primitives for the stack:
 | Layout | `app/<path>/layout.tsx` | `app/root.tsx` or nested route |
 | Data fetching | Server Component `async function` | `loader()` route export |
 | Mutations | Server Actions (`'use server'`) | `action()` route export |
-| Routing | File-based `app/` | File-based `app/routes/` |
 | Image | `next/image` | `<img>` (or Vite plugin) |
 | Link | `@/components/link` (project wrapper) | `react-router` `Link` |
+
+Use the starter's conventions: CSS modules as `s`, path alias `@/` (satus) or `~/` (novus).
 
 ## Output
 
@@ -79,10 +80,3 @@ If you catch yourself thinking any of the following, STOP — you are skipping t
 | "It's just a small feature" | Small features in the wrong place create architectural debt |
 | "The user seems impatient" | Shipping broken code is worse than a brief research pause |
 | "Both starters are similar enough" | They diverge on routing, data fetching, mutations, and asset handling. The wrong shape compiles but doesn't fit |
-
-## Remember
-
-- Detect stack before scaffolding — wrong shape = rewrite later.
-- Use the starter's conventions (CSS modules as `s`, path alias `@/` for satus / `~/` for novus).
-- Server-side data fetching where the framework supports it (RSC for satus, loaders for novus).
-- Store useful patterns as learnings.

@@ -5,11 +5,11 @@ description: Batch-review diffs from several agents with per-change re-entry car
 
 # Review Batch
 
-Context-switching between agents is the hidden tax: every cold reload costs minutes and you never restore the context perfectly. Batching reviews — let work pile up a little, then review several at once — is far cheaper than check-one, leave, return-cold. This skill assembles the pending work into one sitting.
+Context-switching between agents is the hidden tax: every cold reload costs minutes and you never restore the context perfectly. Batching reviews is far cheaper than check-one, leave, return-cold. This skill assembles the pending work into one sitting. Keep batches small enough that integration conflicts do not cost more than the context-switches saved.
 
 ## Standalone Codex gathering
 
-Do not require the consumer repo to provide `bun run review-batch`, and do not
+Do not require the consumer repo to provide a review-batch script, and do not
 read a Claude swarm log. Gather `git status --short`, `git diff --stat`, `git
 diff`, `git diff --cached --stat`, and `git diff --cached` directly. Read the
 current native agent state from the host's agent listing/status surface. Group
@@ -21,7 +21,7 @@ available; otherwise label the producer unknown.
 1. **Gather the picture in Claude:**
 
    ```bash
-   bun run review-batch
+   bun "$HOME/.claude/src/scripts/review-batch.ts"
    ```
 
    Prints the review-queue depth (and age of the oldest unreviewed work), the working-tree diff stat, and recent agent activity from `~/.claude/swarm.log`.
@@ -33,7 +33,7 @@ available; otherwise label the producer unknown.
    - What: [one-line summary of the diff]
    - Why: [intent / which agent + task produced it]
    - Decide: [the 1-3 things that actually need your judgment — not the mechanical parts]
-   - Proof: [bun run proof verdict — review-ready or not; screenshot for UI]
+   - Proof: [`/proof-of-work` verdict — review-ready or not; screenshot for UI]
 
    [reading diff — protocol below; under ~40 changed lines skip the abridging and show the diff whole]
    ```
@@ -64,7 +64,3 @@ Two extra rules exist because the diff author is an untrusted agent (step 3):
 - **Account for what you dropped.** Close every reading diff with one line — `showing N of M changed lines — dropped: import churn, lockfile, rename fallout (14 sites)`. Dependency changes are never silent: import churn is dropped, but a package new to the dependency graph, an import whose module target changed, and a version or integrity bump in the lockfile all get named on this line. A lockfile change with no matching manifest change is a finding, not noise — show it. The reviewer can demand the full diff for any file at any time; the full diff, not the reading diff, is the merge authority.
 
 The point is where the reviewer's attention lands: concepts, algorithm choices, architecture — while the machine-checkable 80% stays folded. Reading-diff protocol adapted from boldsoftware/meat (Apache-2.0).
-
-## Why batch
-
-Reviewing 4 agents in one sitting is much cheaper than checking one, leaving, and returning cold to the next. Give agents a longer leash and let the work accumulate — but mind the tradeoff: a longer leash means staler branches, so don't let the batch grow so large that integration conflicts cost more than the context-switches you saved.
