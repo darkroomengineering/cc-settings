@@ -294,7 +294,7 @@ ${recentCommitsSection}
 
 async function cmdResume(id: string): Promise<number> {
   const dir = await resolveHandoffDir();
-  const resolved = /[\\/]/.test(id) ? null : await resolveArtifact(dir, id, RESOLVE_SPEC);
+  const resolved = await resolveArtifact(dir, id, RESOLVE_SPEC);
   const file = resolved && (await isContainedRegularFile(dir, resolved)) ? resolved : null;
   if (!file) {
     console.log("");

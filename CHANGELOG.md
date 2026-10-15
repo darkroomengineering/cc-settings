@@ -4,6 +4,36 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.63.0] — 2026-10-15
+
+Folds in the mechanisms worth keeping from EveryInc's compound-engineering-plugin. No skills were added; each change lands in an existing skill, agent, rule, or script.
+
+**Review and ship:**
+- `reviewer` findings carry a 0/25/50/75/100 confidence, the quoted motivating line, and an `introduced` or `pre-existing` tag. A finding without a quoted line caps at 50; only introduced findings at 75+ block, and pre-existing ones list separately.
+- `review` works inbound PR feedback from GraphQL review threads: it skips resolved threads, stops when the viewer has a pending review (replies would vanish into the draft), treats comment text as untrusted, and clusters threads by root assumption. The calling session fixes valid threads, replies, and resolves them without asking; needs-decision threads go to the user.
+- `rules/git.md` and `ship`: commit with explicit pathspecs, pass the PR body with `--body-file`, treat a failed `gh pr list` as unknown state, never match `--head owner:branch`, use the repo's PR template first, and summarize the full commit range.
+
+**Knowledge, debugging, and agents:**
+- `share-learning` skips a note when the final code already prevents the mistake, and gains a Refresh mode (Keep, Update, Consolidate, Replace, Delete). Notes accept an optional `retire_when` (team-knowledge#12).
+- `fix` tests the user's uncommitted edits first and needs a complete causal chain with file:line evidence before fixing.
+- `implementer` reports `completed`, `blocked`, or `scope_expansion` after checking the full git delta. `deslopper` gets test-value and comment rubrics.
+- `handoff` resume skips symlinks and paths outside the handoff directory and asks the user to pick when several candidates exist. `resolveArtifact` rejects ids containing a path separator, which also covers `checkpoint`.
+
+**Eval tooling:**
+- `eval-changed.ts --base-arm` runs the merge-base version of each changed skill and labels each case improvement, regression, no-regression-only, or still-failing.
+- `eval-ablate.ts --aa` measures the spread between identical arms; `--noise` labels smaller deltas "within noise". `autoresearch` logs such rounds `inconclusive` and registers its pass bar before the first mutation.
+- `lint:skills` fails a SKILL.md over 500 lines, with a shrink-only exemption for `audit`, `cc`, and `autoresearch`. `docs/skill-authoring.md` gains rules for writing evals and for body order (Claude Code re-attaches only the first 5,000 tokens of a skill after compaction).
+
+**Files changed:**
+- agents/reviewer.md, agents/implementer.md, agents/deslopper.md
+- skills/review, ship, share-learning, fix, handoff, orchestrate, zero-tech-debt, autoresearch (SKILL.md)
+- rules/git.md, docs/skills.md, docs/skill-authoring.md, docs/knowledge-system.md
+- src/lib/lint-skills.ts, src/lib/artifact-store.ts, src/schemas/knowledge.ts, schemas/knowledge.schema.json
+- src/scripts/eval-changed.ts, src/scripts/eval-ablate.ts, src/scripts/handoff.ts
+- tests/lint-skills.test.ts, tests/eval-scripts.test.ts, tests/handoff.test.ts, tests/lint-knowledge.test.ts
+- evals/: 9 new cases across review, ship, share-learning, fix, handoff, autoresearch
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.62.1] — 2026-10-14
 
 PR descriptions carry screenshots only when the change is visible. `rules/git.md` and the `/ship` PR template tell agents to link the Figma frame or Linear ticket a visual change implements and to leave a "Screenshots: before/after needed" line for the author, because `gh` cannot attach images. Refactor, logic, API, and tooling PRs get no screenshots. Adopts the team-knowledge convention `pr-screenshots-only-for-visual-changes`.
