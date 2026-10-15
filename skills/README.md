@@ -1,7 +1,7 @@
 # Skills
 
 Skills turn ordinary requests into repeatable workflows. Claude Code and standalone Codex install
-the same 38 active skill sources, but each host uses its own invocation, agent, hook, and tool
+the same active skill sources, but each host uses its own invocation, agent, hook, and tool
 mechanics.
 
 - Start with the [human skill guide](../docs/skills.md) for value, effects, approvals, output,

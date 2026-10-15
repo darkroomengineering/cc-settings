@@ -46,7 +46,7 @@ user runs to confirm compliance, and what the trap-prompt judge scores against.
 | Target | Minimum evidence |
 |---|---|
 | Personal draft skill (unregistered file) | Single-witness + filled contract |
-| Registered skill / `MANUAL.md` row | PASS (traps pass) |
+| Registered skill / `docs/skills.md` entry | PASS (traps pass) |
 | Shared standard — `AGENTS.md`, `rules/`, `profiles/`, team-knowledge | Multi-witness **and** PASS |
 
 Single-witness never reaches a shared standard on its own. One observation is not

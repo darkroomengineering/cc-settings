@@ -26,10 +26,4 @@ git remote get-url origin
    - (c) obvious perf and a11y issues on key pages
    - (d) security smells (exposed env, secrets in history, unpinned actions)
 4. Rank findings: Critical / Should-fix / Cosmetic. Each with `file:line` and a one-line fix sketch. Max 15 findings — this is a triage, not an audit; recommend `/audit codebase` if depth is warranted.
-5. End with a split: "safe to fix directly" vs "needs client conversation".
-
-## Output
-
-- Ranked findings table (Critical / Should-fix / Cosmetic)
-- Org-boundary status: internal (fixes allowed) or external (report-only)
-- Recommended next skill: `/fix`, `/audit codebase`, or nothing
+5. End with a split: "safe to fix directly" vs "needs client conversation". State the org-boundary status (internal: fixes allowed; external: report-only) and the recommended next skill: `/fix`, `/audit codebase`, or nothing.

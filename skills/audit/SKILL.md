@@ -29,23 +29,13 @@ offers isolation, so the main session writes the final report after readers
 finish; any implementer and test-writer phases must be serialized with
 non-overlapping ownership.
 
-One skill, ten whole-repo audit modes. Eight of them share a skeleton: read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. Seven families of question:
+One skill, ten modes. Eight audit modes (Codebase, Docs, Process, Performance, Tests, Threat-Model, Motion, SEO) read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. **Full** runs every applicable mode and merges the reports (see Mode: Full). **Debt** is a mechanical grep that collects `SHORTCUT:` markers into a ledger and makes no judgement (see Mode: Debt).
 
-- **Codebase** — one merged audit, two lenses on the same read. The **structure lens** (ported from Cursor's internal `thermo-nuclear-code-quality-review` skill, reported by Eric Zakariasson as Cursor's most-used internal skill; formerly this skill's standalone Maintainability mode) asks **should this code exist?** — 1k-line sprawl, thin wrappers, code-judo deletions, dependency freshness via context7. The **behavior lens** (adapted from the fable audit goal-spec trio, gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`; formerly the separate Codebase mode) asks **does it do what it promises?** — correctness, incoherences, affordance gaps. Merged August 2026: both modes fanned the same whole-repo readers over the same files and shipped near-identical reports, so they now run as one pass with two hunt lists. The July 2026 cc-settings audit ran the behavior lens and produced 28 findings, ~all confirmed and fixed.
-- **Docs and Process** — from the same fable audit trio. Truth and structure of the docs (docs), walkable end-to-end journeys (process). The mechanics that made the July 2026 audit work (stable IDs, CONFIRMED/PLAUSIBLE, concrete failure scenarios, design tensions vs line findings, open questions for the maintainer) are the contract for these modes.
-- **Performance** — asks **where is time actually going, measured?** Empirical-only: a finding does not exist until a number confirms it. Covers client runtime (Lighthouse, 3 mobile + 3 desktop runs averaged), bundle and build, server and data, and code-level hot paths, adapting to what the repo actually is (web app vs CLI vs library).
-- **Tests** — adapted from openclaw's `test-audit` skill. Asks **which tests cost maintenance without guarding behavior?** — assertion-free probes, self-computed expectations, mocks that implement the answer, copied inventories, test-only production seams — with a retention bar so contract tests survive.
-- **Threat-Model** — adapted from openai/skills `security-threat-model` (Apache-2.0). Asks **what can go wrong, and who would exploit it?** — trust boundaries, attacker capability, abuse paths tied to attacker goals, mitigations mapped to components.
-- **Motion** — adapted from emilkowalski/skills `improve-animations` (MIT). Asks **where does animation work have the highest leverage?** — purpose/frequency, easing/duration, physicality/origin, interruptibility, performance, accessibility, cohesion, and missed opportunities, turned into self-contained implementation plans rather than a findings report.
-- **SEO** — distilled from shipped Darkroom work (satus PRs #348/#405/#413 and darkroomengineering/website PRs #40/#65, which converged independently on the same architecture). Asks **will this site be found, ranked, and cited?** — canonical integrity, sitemap reachability, per-content metadata, structured data, and the AEO surfaces (llms.txt, named AI crawlers, machine-view routes) that answer engines read.
-
-Codebase mode's structure lens should push to be **ambitious** — do not merely identify local cleanup opportunities, actively search for "code judo" moves. Every adversarial mode holds **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
-
-Two modes sit outside that list. **Full** runs every applicable mode at once and merges their reports; see Mode: Full. **Debt** is the odd one out: a mechanical grep that collects `SHORTCUT:` markers into a ledger. It shares none of the skeleton above and makes no judgement — see Mode: Debt at the end of this file.
+Codebase mode's structure lens should push to be **ambitious**: do not merely identify local cleanup opportunities, actively search for "code judo" moves. Every adversarial mode holds **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
 
 ## Mode Router
 
-A request for everything, or one that names two or more verticals ("audit performance, code quality, and security"), routes to Full mode. The bare phrase **"audit the codebase"** routes straight to Codebase mode — the merge removed the old maintainability-vs-correctness question, because one pass now carries both lenses.
+A request for everything, or one that names two or more verticals ("audit performance, code quality, and security"), routes to Full mode. The bare phrase **"audit the codebase"** routes straight to Codebase mode, whose single pass carries both lenses.
 
 **Trigger phrases by mode:**
 
@@ -66,16 +56,29 @@ Debt mode is a mechanical grep — run it standalone or as a cheap first pass be
 
 ## When to use vs other review skills
 
-- `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security), now including an animation checklist when the diff touches motion. Every change.
-- `/audit` (this skill) — periodic whole-repo audit, ten modes. Full mode runs every mode that applies and merges them into one ranked report. Codebase mode asks "should this code exist, and does it do what it promises?"; docs and process modes ask whether the docs tell the truth and the journeys walk end-to-end; performance mode asks "where is time actually going, measured?"; tests mode asks "which tests guard nothing?"; threat-model mode asks "what can go wrong, and who would exploit it?"; motion mode asks "where does the animation work have the highest leverage?"; seo mode asks "will this site be found, ranked, and cited?"; debt mode asks "what did we defer on purpose?" Run codebase mode on major version cuts, after extended velocity sprints, before a load-bearing migration. Docs and process modes shine before releases and after feature bursts. Performance mode fits before a launch, after a dependency-heavy sprint, or whenever "the site feels slow" comes up without a number attached. Tests mode fits when the suite is slow or brittle, or after a burst of agent-written tests. Threat-model mode fits before a security-sensitive launch or a new internet-facing surface. Motion mode fits after a UI-heavy sprint or before a client showcase. SEO mode fits before a site launch and as a first pass on any client marketing/content site.
+- `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security, plus motion when the diff touches it). Every change.
+- `/audit` (this skill) — periodic whole-repo audit; Full mode merges every mode that applies into one ranked report.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/poke-holes` — adversarial check of a single change/claim, not a repo sweep.
+
+Each mode answers one question:
+
+| Mode | Asks | Fits when |
+|---|---|---|
+| Codebase | Should this code exist, and does it do what it promises? | Major version cuts, after velocity sprints, before a load-bearing migration |
+| Docs, Process | Do the docs tell the truth, and do the journeys walk end-to-end? | Before releases, after feature bursts |
+| Performance | Where is time actually going, measured? | Before a launch, after a dependency-heavy sprint, "the site feels slow" with no number |
+| Tests | Which tests guard nothing? | Slow or brittle suite, after a burst of agent-written tests |
+| Threat-Model | What can go wrong, and who would exploit it? | Before a security-sensitive launch or a new internet-facing surface |
+| Motion | Where does the animation work have the highest leverage? | After a UI-heavy sprint, before a client showcase |
+| SEO | Will this site be found, ranked, and cited? | Before a site launch, first pass on any client marketing/content site |
+| Debt | What did we defer on purpose? | Cheap first pass before Codebase |
 
 A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to `/zero-tech-debt` or `/refactor`, client-runtime perf findings to `/fix`.
 
 > **Claude Code only (v2.1.154+)**: standalone Codex skips this tip and the
 > Workflow command below. In Claude, run `/effort ultracode` before invoking
-> this skill. Whole-repo audits are the canonical shape that benefits from dynamic workflows — phase state lives in the workflow script rather than Claude's context window, individual areas can be reviewed in parallel (up to 16 concurrent), and the run can resume from cached agent results within the session. Dynamic workflows default to a medium size guideline, aiming for fewer than 10 agents (v2.1.219; lowered from 15 in v2.1.271, and Pro plans default to small) — it's advisory, not enforced, but a repo with more modules than that is worth raising `workflowSizeGuideline` for explicitly before the fan-out phase rather than silently exceeding the default.
+> this skill. Whole-repo audits are the canonical shape that benefits from dynamic workflows — phase state lives in the workflow script rather than Claude's context window, individual areas can be reviewed in parallel (up to 16 concurrent), and the run can resume from cached agent results within the session. Dynamic workflows default to a medium size guideline, aiming for fewer than 10 agents (Pro plans default to small) — it's advisory, not enforced, but a repo with more modules than that is worth raising `workflowSizeGuideline` for explicitly before the fan-out phase rather than silently exceeding the default.
 >
 > A ready-made example for codebase mode's structure lens ships at `references/nuclear-review.workflow.js` (installed to `~/.claude/skills/audit/references/`). It is **opt-in, not a dependency** — the mode works with no Workflow tool. Run it with `Workflow({ scriptPath: "~/.claude/skills/audit/references/nuclear-review.workflow.js" })`, or copy it into `.claude/workflows/`. It maps the repo, fans out one structural reviewer per module, audits dependencies, and synthesizes one report. Treat it as a **template** — adapt its module list, schemas, and phases to the repo at hand rather than running it verbatim.
 
@@ -85,11 +88,7 @@ A typical sequence: `/audit codebase` produces findings → engineers cherry-pic
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
-**Method.**
-- Per area, state how it SHOULD behave, then read (or run) to confirm or refute. Every expectation-vs-reality gap is a finding.
-- Every finding needs a concrete scenario: specific inputs/state leading to the wrong or surprising result. No vague "could be improved."
-- Mark each finding **CONFIRMED** (traced or reproduced) or **PLAUSIBLE** (suspected). Try to disprove yourself first; discard findings that don't survive. (Performance mode tightens this: PLAUSIBLE does not exist there — see its evidence rule.)
-- Where something is sound, say so once and move on — spend effort where it isn't.
+**Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
 
 **Cross-model + intent passes.** In Claude, run the shared procedures in
 `references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier`
@@ -102,14 +101,14 @@ deletes a finding**.
 **Output.** Write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
 1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.
 2. Map (system map / doc map / process state machine — per mode below).
-3. Findings by hunt category, severity order. Each: stable ID (H1/M1/L1 by severity, or C/D/P prefix per mode), location, one-line issue, concrete scenario, status, recommended direction.
+3. Findings by hunt category, severity order. Each: stable ID (H1/M1/L1 by severity, or the mode prefix from Mode: Full), location, one-line issue, concrete scenario, status, recommended direction.
 4. Design tensions: the 3-5 deepest structural issues ("the approach, not a line"), each with the alternative you'd weigh.
 5. Open questions: what the artifact alone can't resolve — maintainer answers required.
-6. Considered & rejected: candidate findings you investigated and disproved (or reclassified as by-design), each with a one-line reason. This ledger is what stops the next audit from re-litigating them — check it before hunting.
+6. Considered & rejected: the ledger from the finding contract. Check it before hunting.
 
 Chat reply = exec summary only: counts by severity + top 3-5 findings + report path.
 
-**Optional issue filing.** When the maintainer wants findings executable by agents, file each as a GitHub issue (one per finding, severity labels, CONFIRMED/PLAUSIBLE in the body, an epic for the design tensions, `question`-labeled issues for the open questions). This is how the July 2026 cc-settings remediation ran: issues → parallel fix agents → PRs citing the IDs.
+**Optional issue filing.** When the maintainer wants findings executable by agents, file each as a GitHub issue (one per finding, severity labels, CONFIRMED/PLAUSIBLE in the body, an epic for the design tensions, `question`-labeled issues for the open questions), then run parallel fix agents whose PRs cite the IDs.
 
 ## Mode: Codebase
 
@@ -255,67 +254,36 @@ Severity ordering within the report: structural regressions and missed code-judo
 
 #### Phase 4 — Documentation updates (after fixes land)
 
-An audit that produces fixes but leaves the docs stale is half-done. Whenever findings from this mode turn into code changes, the same pass must touch the docs that describe them. If you only produce the report (no fixes in this session), skip this phase — but flag it for whoever applies the fixes.
-
-For each commit that lands from the audit, update the docs in scope for the change:
+When findings turn into code changes, the same pass updates the docs that describe them. A report-only run skips this phase but flags it for whoever applies the fixes.
 
 | Type of change | What to update |
 |---|---|
-| New skill / agent / hook / profile | `MANUAL.md` (the "All Skills" / "All Agents" table + the appropriate prose section), `CHANGELOG.md`, skill-count references in `CLAUDE.md` / `CLAUDE-FULL.md` if the count moves |
-| Structural refactor (dedup, extract module, rename across files) | `CHANGELOG.md` — a one-paragraph entry under `[Unreleased]` explaining what moved and why |
-| Dependency upgrade or deprecated-API swap | `CHANGELOG.md` — note the package, the old vs new pattern, and any caller-visible behavior |
-| New canonical helper that supersedes inline duplicates | `CHANGELOG.md`, and `rules/*.md` if the helper is now the project-wide recommended pattern |
-| Type/boundary cleanup at a JSON or external-input boundary | `CHANGELOG.md`, and `docs/security-reference.md` if the change affects validation |
-| API surface change (exported function signature, public schema) | `CHANGELOG.md`, `docs/*-reference.md` for any reference docs that mention the symbol, schemas via `bun run schemas:emit` if the zod surface moved |
+| New skill / agent / hook / profile | `docs/skills.md` (skills) or the matching `docs/*-reference.md`, `CHANGELOG.md`, and every stated skill/agent count (`CLAUDE-FULL.md`, the baseline in `src/lib/lint-skills.ts`) |
+| Structural refactor (dedup, extract module, rename across files) | `CHANGELOG.md`: what moved and why |
+| Dependency upgrade or deprecated-API swap | `CHANGELOG.md`: the package, old vs new pattern, caller-visible behavior |
+| New canonical helper that supersedes inline duplicates | `CHANGELOG.md`, and `rules/*.md` if it is now the project-wide pattern |
+| Type/boundary cleanup at a JSON or external-input boundary | `CHANGELOG.md`, and `docs/security-reference.md` if validation changed |
+| API surface change (exported signature, public schema) | `CHANGELOG.md`, any `docs/*-reference.md` naming the symbol; `bun run schemas:emit` if the zod surface moved |
 
-Rules for the doc pass:
+- **Follow the repo's CHANGELOG format** (this repo dates entries per version), one short paragraph per entry naming the files changed and why.
+- **Counts must match reality.** Update every reference when a skill, agent, or rule is added or removed.
+- **Regenerate derived docs.** After changing a zod schema in `src/schemas/`, run `bun run schemas:emit` and keep the `schemas/*.schema.json` diff with the source change.
+- **Update `docs/skills.md` and the routing prose in `MANUAL.md`** when a skill's invocation phrasing changes or a skill is added.
 
-- **One `[Unreleased]` entry per landed commit, or one consolidated entry if multiple commits ship together.** Don't leave audit-driven refactors anonymous in git history.
-- **Skill / agent / rule counts must match reality.** If you added or removed one, update every reference (`MANUAL.md` intro, `CLAUDE.md`, `CLAUDE-FULL.md`).
-- **One short paragraph per entry**, naming the file(s) changed and the why. The global Action-First rules (installed CLAUDE.md) apply to doc artifacts too — no padding, no victory laps.
-- **Regenerate derived docs.** If you changed a zod schema in `src/schemas/`, run `bun run schemas:emit` and commit the resulting `schemas/*.schema.json` diff alongside the source change.
-- **Update `MANUAL.md` triggers tables** when a skill's invocation phrasing changes or when a new skill goes in.
-
-Verify the doc pass landed correctly before finishing:
+Verify the doc pass:
 
 ```bash
 bun run lint:skills            # frontmatter sanity
 bun run schemas:check          # derived schemas in sync with sources
-git diff --stat HEAD~N HEAD    # confirm doc files are in the diff
 ```
 
-### Preferred Remedies
+### Remedies and approval bar
 
-- Delete a whole layer of indirection rather than polishing it.
-- Reframe the state model so conditionals disappear instead of getting centralized.
-- Change the ownership boundary so a feature becomes a natural extension of an existing abstraction.
-- Turn special-case logic into a simpler default flow with fewer exceptions.
-- Split a large file into smaller focused modules; extract helpers or pure functions.
-- Replace condition chains with a typed model or explicit dispatcher; make type boundaries explicit so control flow gets simpler.
-- Separate orchestration from business logic; collapse duplicate branches into one clearer flow.
-- Delete wrappers that do not meaningfully clarify the API; reuse the existing canonical helper instead of a near-duplicate.
-- Move logic to the package/module/layer that already owns the concept.
-- Parallelize independent work when that also simplifies the orchestration; restructure related updates into a more atomic flow.
-- Upgrade dependencies to the current major and adopt the modern API; replace a redundant dependency with the one already in the project, or with the platform built-in.
+Preferred remedies are the structure-lens standards turned into actions: delete a layer of indirection rather than polish it, reframe state so conditionals disappear, split oversized files, replace condition chains with a typed model, move logic to the layer that owns the concept, reuse the canonical helper, and upgrade or replace dependencies. Do not accept "maybe rename this" feedback when the real issue is structural.
 
-Do not be satisfied with "maybe rename this" feedback when the real issue is structural.
+**Review tone.** Direct, serious, demanding about quality. Not rude, but do not soften major issues into mild suggestions. If the codebase is messier than its features warrant, say so clearly. If a path to a dramatic simplification was missed, say that too.
 
-### Review Tone
-
-Direct, serious, demanding about quality. Not rude, but do not soften major issues into mild suggestions. If the codebase is messier than its features warrant, say so clearly. If a path to a dramatic simplification was missed, say that too.
-
-### Approval Bar
-
-A codebase passes this mode when:
-
-- No file exceeds 1000 lines without an explicit justification.
-- No obvious code-judo move is sitting on the table.
-- No spaghetti special-casing in shared flows; no thin wrappers or identity abstractions.
-- No casts / `any` / `unknown` papering over an unclear invariant; no architecture-boundary leaks or duplicated canonical helpers.
-- No CONFIRMED correctness, incoherence, or affordance finding left unaddressed or unacknowledged.
-- All direct dependencies are within one major of current, used in their maintainer-recommended modern form, with no two duplicating roles.
-
-If any of those fail, the report must include explicit, actionable feedback and push for the cleaner shape.
+A codebase passes when every structure-lens standard holds (no file over 1000 lines without explicit justification, no code-judo move left on the table, dependencies within one major of current) and no CONFIRMED correctness, incoherence, or affordance finding is left unaddressed or unacknowledged. Otherwise the report gives explicit, actionable feedback and pushes for the cleaner shape.
 
 ### Attribution
 
@@ -547,7 +515,8 @@ order, dependencies, and status.
 
 Find tests that cost maintenance without guarding behavior, and prove each one
 before recommending its removal. Rides the Shared Contract above; finding IDs
-use the `T` prefix plus the pattern ID (`T10-3` is the third T10 finding).
+use the `X` prefix plus the pattern number (`X10-3` is the third finding for
+pattern T10).
 
 **Role additions:** a maintainer who has to update the test on every refactor;
 a reviewer asking "which regression would this catch?"

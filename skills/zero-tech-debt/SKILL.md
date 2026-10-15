@@ -15,7 +15,7 @@ Rework the change from the intended end-state, not from the historical path that
 - You catch yourself preserving an old shape "just in case" with no concrete caller in mind
 - The diff is bigger than the change it represents because it's making the old structure better instead of removing it
 
-For restructuring code outside the current diff use `/refactor`. This skill is for the patch in front of you. (Claude Code 2.1.147 renamed `/simplify` to `/code-review` and removed the old cleanup-and-fix behavior; the native command is now a correctness reporter, not a code tightener.)
+For restructuring code outside the current diff use `/refactor`. This skill is for the patch in front of you. The native `/code-review` reports correctness issues; it does not tighten code.
 
 ## Steps
 
@@ -27,8 +27,5 @@ For restructuring code outside the current diff use `/refactor`. This skill is f
 
 ## Rules
 
-- Optimize for the code that should exist, not the smallest diff from the old shape.
-- Delete dead compatibility paths instead of making them better.
-- Don't invent a generic framework for one feature.
-- Keep the rework scoped to what makes the final shape coherent — don't drag in unrelated cleanup.
-- Prefer names that describe product intent over implementation history (`AdminDashboard` over `LegacyDashboardV2`).
+- Scope the rework to what makes the final shape coherent; leave unrelated cleanup alone.
+- Name things for product intent, not implementation history (`AdminDashboard` over `LegacyDashboardV2`).

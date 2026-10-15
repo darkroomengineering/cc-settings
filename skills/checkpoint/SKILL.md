@@ -74,10 +74,10 @@ Safety rails:
 - **Branch/sha guard.** If the current branch or HEAD differs from what the
   checkpoint recorded, restore refuses and tells you to check out that branch
   or pass `--force`.
-- **Legacy checkpoints** (saved before this patch-capture feature existed)
-  have no recorded diff to restore from. Restoring one prints "legacy
-  checkpoint: metadata only, nothing restored" and falls back to the old
-  print-only behavior — review the dumped JSON and continue manually.
+- **Legacy checkpoints** (no recorded patch) have no diff to restore from.
+  Restoring one prints "legacy checkpoint: metadata only, nothing restored"
+  and falls back to print-only behavior — review the dumped JSON and continue
+  manually.
 
 ```bash
 # Restore latest
@@ -98,34 +98,12 @@ Remove old checkpoints, keeping the last 10.
 CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$CHECKPOINT_RUNNER" clean
 ```
 
-## Examples
-
-```
-User: "save a checkpoint"
-  -> /checkpoint save
-
-User: "checkpoint before this refactor"
-  -> /checkpoint save "Before auth refactor"
-
-User: "list my checkpoints"
-  -> /checkpoint list
-
-User: "restore from last checkpoint"
-  -> /checkpoint restore
-
-User: "show checkpoint details"
-  -> /checkpoint show <id>
-
-User: "clean up old checkpoints"
-  -> /checkpoint clean
-```
-
 ## Storage
 
 Checkpoints are stored under `$CC_STATE_ROOT/checkpoints/<project-name>/` as
 JSON files with a `latest` symlink pointing to the most recent. Each checkpoint
 with uncommitted changes at save time also gets a sibling `chk-<id>.patch` file
 (`git diff --binary --full-index HEAD` output) — this is what makes `restore` a real rollback instead
-of a metadata dump. Checkpoints saved before this feature existed have no patch
-metadata and restore in metadata-only (legacy) mode. A checkpoint that declares
+of a metadata dump. A checkpoint without patch metadata restores in
+metadata-only (legacy) mode. A checkpoint that declares
 a patch but has lost that file is an error, not a metadata-only checkpoint.

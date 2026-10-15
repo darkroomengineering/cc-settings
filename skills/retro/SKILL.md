@@ -283,7 +283,7 @@ Structure:
 9. **3 Things to Improve** — concrete, specific, actionable
 10. **3 Habits for Next Week** — small behavioral changes
 11. **Week-over-Week Trends** (if applicable, from Step 9)
-12. **Escalate Advisory Act-Rate** (if `bun run escalate:stats` printed stats in Step 1 — otherwise omit this section)
+12. **Escalate Advisory Act-Rate** (if the escalate-stats helper printed stats in Step 1 — otherwise omit this section)
 
 ---
 
@@ -315,6 +315,4 @@ When `/retro compare` is used:
 - Always use `origin/main` — local-only commits are not shipped
 - Use local timezone for display (detect from system)
 - Handle zero-commit windows gracefully ("No commits in this window")
-- Round LOC/hour to nearest 50
 - Treat merge commits as PR boundaries
-- This skill is self-contained — do not read CLAUDE.md or other docs

@@ -49,9 +49,7 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 
 ## Scope Rules
 
-Follow CLAUDE.md Guardrails (scope constraint, 2-iteration limit). Only modify files directly related to the bug.
-
-**Build after every fix**: Run the build after each individual fix attempt. Never stack multiple untested fixes -- verify green before moving on. If the build breaks, fix *that* before continuing.
+Follow the AGENTS.md guardrails (Bug Fix Scope, 2-Iteration Limit, Name the Cause, Verify After Every Fix). Only modify files directly related to the bug.
 
 **Autonomous fix-verify loop**: once the reproducer exists, set
 `/goal the reproducer test passes and the full suite is green, or stop after 5 attempts`
@@ -115,10 +113,6 @@ Return a concise summary:
 
 ## Remember
 
-- If the fix involves a library API, fetch current docs first using the host-specific path above
-- Always store non-obvious bug fixes as learnings
-- Check if similar bugs were fixed before (recall learnings)
-- Run tests after fixing
 - On an OS, device, vendor, or network blocker, apply the AGENTS.md stop-loss: about 20 minutes or 30 tool calls, then a written diagnosis (ruled out with evidence, likely cause, ranked next options) instead of another attempt
 
 ---

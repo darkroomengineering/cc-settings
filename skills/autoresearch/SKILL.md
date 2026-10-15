@@ -43,7 +43,7 @@ Work with the user to configure and review the baseline, then go autonomous.
    - `## Test Inputs` — each `### Test N:` heading is one training case (the text below is the prompt). The loop reads their outputs and mutates toward them.
    - `## Held-out Inputs` — same shape. They are scored every round but never read by the loop (see Held-out Rule).
    - `## Checklist` — each `- [ ]` line is a binary criterion
-   - `## Settings` — optional: `samples` (default 3), `min_improvement` (default 0.05), `max_rounds` (default 50), `stall_rounds` (default 3), `model` (default `claude-sonnet-5-5`, exported as `AUTORESEARCH_MODEL` — see Sample Isolation)
+   - `## Settings` — optional: `samples` (default 3), `min_improvement` (default 0.05), `stall_rounds` (default 3), `model` (default `claude-sonnet-5-5`, exported as `AUTORESEARCH_MODEL` — see Sample Isolation)
 
 4. **Create results directory**:
    ```bash
@@ -442,7 +442,6 @@ Binary pass/fail criteria. Each item is scored YES (1) or NO (0).
 ## Settings
 - samples: 3
 - min_improvement: 0.05
-- max_rounds: 50
 - stall_rounds: 3
 - model: claude-sonnet-5-5
 ```

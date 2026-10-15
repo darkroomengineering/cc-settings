@@ -14,9 +14,9 @@ Delegates to the Explore agent for fast, read-only investigation of the codebase
 Claude frontmatter does not enforce a fork or tool restriction in standalone
 Codex. Keep this workflow read-only yourself, or use `spawn_agent` with an
 `explore` agent and a read-only prompt. Gather current state by explicitly
-running `pwd`, `basename "$PWD"`, `ls package.json Cargo.toml go.mod
-pyproject.toml`, and `git rev-parse --show-toplevel`; the `!command` lines below
-are Claude interpolation only.
+running `ls package.json Cargo.toml go.mod pyproject.toml` and
+`git rev-parse --show-toplevel`; the `!command` lines below are Claude
+interpolation only.
 
 Codex does not receive TLDR from this package. In broad mode use `rg --files`,
 `rg -n` exact searches, direct import searches, and focused file reads. In
@@ -24,8 +24,6 @@ upward-zoom mode search the symbol definition and all call sites with `rg -n`,
 then trace imports and callers one layer up. Never claim a TLDR MCP ran.
 
 ## Claude current state
-- Directory: !`pwd 2>/dev/null`
-- Project: !`basename "$(pwd)" 2>/dev/null`
 - Stack: !`ls package.json Cargo.toml go.mod pyproject.toml 2>/dev/null || echo "unknown"`
 - Git root: !`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repo"`
 

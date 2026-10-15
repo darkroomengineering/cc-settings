@@ -6,8 +6,6 @@ context: fork
 
 # Adversarial Verification
 
-Three agents with competing incentives: one finds issues, one disproves them, one judges.
-
 ## Standalone Codex
 
 Create each fresh panelist with `spawn_agent`,
@@ -196,8 +194,3 @@ If any agent (including yourself) uses these phrases, verification is NOT comple
 - "This is straightforward"
 
 Each of these must be replaced with evidence: a specific test, a concrete trace through the code, or a cited invariant.
-
-## Remember
-
-- For critical code, inspect referee output yourself
-- Store verified patterns as learnings

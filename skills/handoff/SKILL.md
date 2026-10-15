@@ -78,7 +78,7 @@ Beyond that, what's actually filled in depends on how the handoff was created:
   know your in-progress todos, decisions, or learnings on its own.
 - **Automatic** (PreCompact/SessionEnd hooks call `create --from-hook`,
   `source: "auto"`) — Active Todos, Current Task, and Notes for Next Session
-  stay as unfilled placeholders, but **Session Summary is no longer blank on
+  stay as unfilled placeholders, but **Session Summary is filled on
   the compaction path**: the `PostCompact` hook writes Claude Code's own
   `compact_summary` into the handoff that the preceding `PreCompact` created,
   matched on session id. That summary is the one record of intent, decisions,
@@ -86,10 +86,11 @@ Beyond that, what's actually filled in depends on how the handoff was created:
   stored separately and never merged, so nothing inferred is presented as
   observed.
 
-Standalone Codex hooks capture the git-derived fields through the shared
-runner, but Codex does not provide Claude's PostToolBatch session ledger or
-PostCompact `compact_summary` backfill. Do not claim those sections were
-observed in Codex.
+Standalone Codex hooks create git-derived handoffs through the shared runner
+before compaction and at session end, but Codex provides none of Claude's
+PostToolBatch session ledger, PostCompact `compact_summary` backfill,
+SessionStart handoff display, or automatic pruning. Do not claim or promise
+those in Codex.
 
 On a Claude `SessionEnd` handoff (no compaction involved) Session Summary can still be
 empty — pair it with the structured compaction template below, or run a manual
@@ -128,10 +129,8 @@ outside a git repo) — a handoff saved in one project never surfaces as
     └── ...
 ```
 
-Handoffs saved before this per-project scoping existed live under the flat
-`~/.claude/handoffs/` directory; `resume`/`list` fall back to that legacy
-directory exactly once, only when the current project has no scoped store of
-its own yet.
+`resume`/`list` fall back to a flat legacy `~/.claude/handoffs/` directory
+once, only when the current project has no scoped store of its own yet.
 
 ### When to Create Handoff
 
@@ -140,13 +139,6 @@ its own yet.
 3. **Taking a break** - Preserve state for later
 4. **Switching tasks** - Save before context switch
 5. **Before compacting** - Auto-triggered by PreCompact hook
-
-### Auto-Handoff
-
-Both products create git-derived handoffs before compaction and at session end.
-Claude additionally provides the session-ledger and PostCompact behavior
-described above. Codex does not provide Claude's SessionStart handoff display or
-automatic pruning contract; do not promise either.
 
 ### Output
 
@@ -157,12 +149,12 @@ Confirms:
 
 ---
 
-### Claude context-window runbook (folded in from former `/context` skill)
+### Claude context-window runbook
 
 The statusline shows live context usage:
 
 ```
-Opus 5 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
+Opus 5.5 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 ```
 
 | Usage | Action |
@@ -171,19 +163,9 @@ Opus 5 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 | 80–89% | Stop expanding scope and run `/handoff` |
 | 90%+ | Run `/handoff` **now** |
 
-#### Model degradation thresholds
+#### Degradation
 
-Degradation is not gradual — it follows a step function. Place critical information at the beginning and end — see `AGENTS.md` "Context Hygiene". Avoid burying key facts in the middle.
-
-| Model | Noticeable degradation | Severe degradation |
-|-------|------------------------|--------------------|
-| Claude Opus 5 | ~100K tokens | ~180K tokens |
-| Claude Sonnet 5 | ~80K tokens | ~150K tokens |
-| Claude Haiku 4.5 | ~50K tokens | ~90K tokens |
-
-Sonnet 5's tokenizer is ~30% heavier than Sonnet 4.6's, so it reaches these thresholds on noticeably less actual text — the token counts above are unchanged, but the same conversation fills them faster.
-
-**Key patterns:**
+Degradation follows a step function, not a slope, and it starts earlier on smaller-window models, so treat the statusline percentage above as the trigger rather than a raw token count. Key patterns:
 - **Lost-in-middle** — information in the center gets less attention
 - **Context poisoning** — a single wrong fact can corrupt reasoning on related topics
 - **Context distraction** — irrelevant info degrades performance on a step function, not proportionally
@@ -235,8 +217,6 @@ If any probe returns vague or incorrect answers, re-read the handoff file (`/han
 2. **Delegate exploration** — let agents handle research
 3. **Clean summaries** — agents return summaries, not raw output
 4. **Avoid large file reads** — use TLDR for token-efficient analysis
-5. **Offload large tool output** — write outputs >2000 tokens to scratch files; return summary + path
-6. **Place critical info at edges** — beginning and end of context get more attention
 
 ---
 
@@ -321,9 +301,9 @@ several, follow "Untrusted source" and ask which to load.
 
 #### Specific Handoff
 ```
-/handoff project-name-2024-01-15-1430
+/handoff resume 20260115_143000
 ```
-Loads a specific handoff file.
+Loads a specific handoff (the id is the timestamp in `handoff_<id>.md`).
 
 #### List All
 ```

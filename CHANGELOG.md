@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.65.0] — 2026-10-15
+
+Skill bodies lose about 20 KB of text that restated AGENTS.md, CLAUDE-FULL.md, rules, or other skills, and the skills now agree with the one-Codex-review-per-PR policy.
+
+**Fixed:**
+- `proof-of-work`, `review`, and `refactor` each ran their own Codex review, so a refactor followed by `/ship` triggered three or four. They now defer to the single per-PR review that `/ship` runs.
+- `review-batch` and `retro` called `bun run` scripts that exist only in this repo; they now call the installed scripts.
+- `cc` committed with `git add -A` and opened PRs with `--fill`, against `rules/git.md`.
+- `context-doc` asked one question at a time, against the AGENTS.md rule of rounds of up to four.
+- `audit` Tests mode used the `T` finding prefix, which Full mode assigns to Threat-Model; it now uses `X`.
+- Stale references: a `MANUAL.md` "All Skills" table that does not exist (now `docs/skills.md`), wrong CLAUDE-FULL heading names, a nonexistent `[Unreleased]` CHANGELOG convention, and `cc` listing one version site instead of four.
+
+**Removed:**
+- `max_rounds` from `autoresearch` and the research linter: the loop never read it.
+- `handoff`'s per-model degradation table, tied to retired models.
+- Echo intros, "Remember" footers, generic examples, duplicate templates, and dated history notes across the library.
+
 ## [15.64.0] — 2026-10-15
 
 A consolidation pass over the prompt surface: duplicate rules, contradictions, dead hooks, and instructions that could not run are gone. Every session loads about 6 KB less (CLAUDE-FULL.md 13.1 → 9.1 KB, output style 4.1 → 2.0 KB); a `.tsx` session loads about 12 KB less from rules.
