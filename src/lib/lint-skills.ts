@@ -80,6 +80,19 @@ export const SKILL_COUNT_BASELINE = 26;
 // raising this constant.
 export const SKILL_DESCRIPTION_BYTE_BUDGET = 7424;
 
+// Claude Code re-attaches only the first 5,000 tokens of an invoked skill after
+// compaction, and Anthropic's skill docs ask for SKILL.md bodies under 500 lines
+// (https://code.claude.com/docs/en/skills). Three skills run over the limit and
+// are held to their recorded line count (`wc -l`): they may shrink, never grow.
+// When one shrinks, lower its number; once it is at or under the limit, delete
+// its entry.
+export const SKILL_BODY_LINE_LIMIT = 500;
+export const SKILL_BODY_LINE_EXEMPTIONS: Readonly<Record<string, number>> = {
+  audit: 728,
+  cc: 516,
+  autoresearch: 505,
+};
+
 // Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
 // the schema `name` field regexes (agent/skill/profile/knowledge) — see
 // KEBAB_CASE_RE in frontmatter.ts for why this used to disagree with them.
@@ -142,6 +155,31 @@ async function lintOne(skillsDir: string, name: string): Promise<LintOneResult> 
   }
 
   const text = await readFile(skillPath, "utf8");
+
+  // Same count as `wc -l`: newline characters, not split segments.
+  const lines = (text.match(/\n/g) ?? []).length;
+  const exempt = SKILL_BODY_LINE_EXEMPTIONS[name];
+  if (exempt === undefined && lines > SKILL_BODY_LINE_LIMIT) {
+    push(
+      "error",
+      "body-too-long",
+      `SKILL.md is ${lines} lines (limit ${SKILL_BODY_LINE_LIMIT}) — move reference detail into sibling files`,
+    );
+  } else if (exempt !== undefined && lines > exempt) {
+    push(
+      "error",
+      "body-too-long",
+      `SKILL.md is ${lines} lines, exemption ${exempt} — trim it instead of raising SKILL_BODY_LINE_EXEMPTIONS (src/lib/lint-skills.ts)`,
+    );
+  } else if (exempt !== undefined && lines < exempt) {
+    push(
+      "error",
+      "body-line-ratchet",
+      lines > SKILL_BODY_LINE_LIMIT
+        ? `SKILL.md is ${lines} lines, exemption ${exempt} — ratchet down: set the ${name} entry of SKILL_BODY_LINE_EXEMPTIONS to ${lines} in src/lib/lint-skills.ts and commit it`
+        : `SKILL.md is ${lines} lines, within the ${SKILL_BODY_LINE_LIMIT} limit — remove the ${name} entry from SKILL_BODY_LINE_EXEMPTIONS in src/lib/lint-skills.ts`,
+    );
+  }
 
   // Raw-text scan: catches angle brackets in any field, including passthrough
   // ones like argument-hint where the schema doesn't validate the value.

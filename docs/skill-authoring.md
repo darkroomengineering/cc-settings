@@ -76,6 +76,12 @@ Match the existing skills (`skills/fix/SKILL.md`, `skills/cc/SKILL.md`, `skills/
 4. **Approval gates** for destructive or judgment-call work — mark them clearly: **Stop. Present the plan.**
 5. **"What this skill does NOT do"** section if there's a real boundary worth flagging.
 
+### Body order and length
+
+After compaction, Claude Code re-attaches only the first 5,000 tokens of each invoked skill, within a shared 25,000-token budget across all invoked skills ([Skill content lifecycle](https://code.claude.com/docs/en/skills)). Whatever sits past that point is gone from a long session. Put the steps and gates that must survive first, and put reference detail (formats, examples, long tables) last or in separate files.
+
+Keep `SKILL.md` under 500 lines, the limit the same page gives under "Add supporting files". `bun run lint:skills` fails a longer body (`body-too-long`). `audit`, `cc`, and `autoresearch` exceed it and are held to their recorded line counts in `SKILL_BODY_LINE_EXEMPTIONS` (`src/lib/lint-skills.ts`): they may shrink but not grow, and the linter tells you to lower the number when one shrinks.
+
 ---
 
 ## When to Add Reference Files
@@ -129,6 +135,21 @@ it never trips the folder conventions above.
 
 ---
 
+## Evaluating a skill change
+
+Every skill has cases in `evals/<skill>-<slug>/`, and the pre-push hook runs the cases for skills changed since upstream (`bun src/scripts/eval-changed.ts`). A change to routing, questions, stopping points, or side effects needs a case that can fail. Build the cases by these rules:
+
+- **Build cases from caller-shaped tasks.** Write the prompt the way a user, or a calling skill, reaches this skill, with the same one-line context and none of the skill's own wording. A task that tells the agent what the skill is about measures the task text, and an agent given loose text does extra work on its own.
+- **Grade overreach, not only the intended edit.** Assert the skill left alone what it should leave alone: unrelated files, commits, new files, tests nobody asked for. A grader that checks only the intended outcome passes a run that did the job and then some.
+- **Add one restraint case per rule the skill adds.** A plain input with no triggering condition must not trigger the new behavior. A rule that fires on everything is as broken as one that never fires.
+- **Reproduce at least one case from a real failure.** A session that went wrong or a review finding. Cases invented to fit the mechanism contain its happy path: one matcher scored 100% recall on its authored corpus and 20-36% on a pair captured from a real run.
+- **Treat 100% on every arm as a corpus smell.** When old and new, or skill and vanilla, all pass, the cases do not discriminate, and the result says nothing about the change.
+- **Show improvement with a base arm.** A change that passes both before and after proves only that nothing regressed, and a strong model often masks a defensive fix. Run `bun src/scripts/eval-changed.ts --base-arm`: it also runs each changed skill's cases against the merge-base version and labels every case `improvement` (old fails, new passes), `regression`, `no-regression-only` (both pass), or `still-failing`. The cost ceiling covers both arms.
+
+A score difference smaller than run-to-run variance is not a result. `bun src/scripts/eval-ablate.ts --aa` runs the same plugin twice per pair, alternating run order, and prints the spread; pass it as `--noise <n>` to a normal comparison and deltas below it print as "within noise".
+
+---
+
 ## Common Pitfalls
 
 ### Over-broad description
@@ -168,6 +189,8 @@ Before committing a new skill:
 - [ ] Row added to `MANUAL.md`
 - [ ] Concrete examples or commands in the body
 - [ ] Approval gates marked for destructive operations
+- [ ] Steps and gates that must survive compaction come first; `SKILL.md` is under 500 lines
+- [ ] Eval cases follow "Evaluating a skill change" (caller-shaped, overreach graded, one restraint case)
 - [ ] No hardcoded versions or dates in the body
 - [ ] `bun test && bun run typecheck` pass
 
