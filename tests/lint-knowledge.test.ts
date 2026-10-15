@@ -490,6 +490,18 @@ describe("lintKnowledgeDir — scope and verified", () => {
     expect(result.findings.some((f) => f.rule === "verified-future")).toBe(true);
   });
 
+  test("retire_when condition passes", async () => {
+    const result = await lint('retire_when: "Next.js 17 ships the fix"');
+    expect(result.findings).toEqual([]);
+  });
+
+  test("empty retire_when → schema error", async () => {
+    const result = await lint('retire_when: ""');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("retire_when")),
+    ).toBe(true);
+  });
+
   test("verified older than 180 days → warning only", async () => {
     const result = await lint(`verified: "${daysAgo(200)}"`);
     expect(result.findings.map((f) => [f.rule, f.severity])).toEqual([

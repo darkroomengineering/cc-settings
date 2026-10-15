@@ -23,7 +23,7 @@ For restructuring code outside the current diff use `/refactor`. This skill is f
 2. **Search for real callers before preserving compatibility.** For each mode prop, route alias, fallback branch, or wrapper: grep for current callers. No caller → delete it, don't improve it.
 3. **Reshape around the final product surface.** Prefer one clear component or flow over mode flags. Split only when there's an obvious boundary — state, layout, controls, or domain commands.
 4. **Move shared rules to one place.** Feature flags, permissions, route gating, URL state, and command naming should not be duplicated across pages or hidden inside view components.
-5. **Verify the intended flow.** Test the new behavior and any deleted assumptions that affect navigation, permissions, or persisted state.
+5. **Verify the intended flow.** Test the new behavior and any deleted assumptions that affect navigation, permissions, or persisted state. Apply the `deslopper` test-value rubric to tests the patch orphans or duplicates before deleting any.
 
 ## Rules
 

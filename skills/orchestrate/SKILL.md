@@ -65,7 +65,9 @@ or reporting success:
 3. **Re-delegate vs fix solo.** A trivial break found during verification
    (single file, few lines) — fix it solo with a one-line stated reason;
    round-tripping to a fresh subagent costs more than the fix. Anything that
-   adds scope goes back out as a new, fully-briefed delegation.
+   adds scope goes back out as a new, fully-briefed delegation. A
+   `scope_expansion` status from an implementer is reviewed against its listed
+   paths before anything lands.
 4. **Resume, don't respawn.** If a subagent's report was cut off or is
    missing a section, Claude uses SendMessage; standalone Codex uses
    `send_message` while it is running or `followup_task` once idle. A respawn

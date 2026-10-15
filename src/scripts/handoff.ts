@@ -9,8 +9,8 @@
 //   handoff.ts clean [keep]
 
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { lstat, mkdir, realpath, stat, unlink, writeFile } from "node:fs/promises";
+import { basename, join, sep } from "node:path";
 import {
   listArtifacts,
   pointLatest,
@@ -56,6 +56,27 @@ async function resolveHandoffDir(): Promise<string> {
   const dir = await projectHandoffDir();
   if (existsSync(dir)) return dir;
   return existsSync(LEGACY_HANDOFF_DIR) ? LEGACY_HANDOFF_DIR : dir;
+}
+
+/**
+ * True when `file` is a regular file (not a symlink) whose resolved path sits
+ * inside `dir`. Handoff content is untrusted data on resume, so discovery and
+ * loading refuse anything that could point outside the handoff directory.
+ */
+async function isContainedRegularFile(dir: string, file: string): Promise<boolean> {
+  try {
+    if (!(await lstat(file)).isFile()) return false;
+    const root = await realpath(dir);
+    return (await realpath(file)).startsWith(root + sep);
+  } catch {
+    return false;
+  }
+}
+
+async function listSafeHandoffs(dir: string): Promise<string[]> {
+  const names = await listArtifacts(dir, /^handoff_.*\.md$/);
+  const safe = await Promise.all(names.map((n) => isContainedRegularFile(dir, join(dir, n))));
+  return names.filter((_, i) => safe[i]);
 }
 
 async function cmdCreate(args: string[]): Promise<void> {
@@ -273,7 +294,8 @@ ${recentCommitsSection}
 
 async function cmdResume(id: string): Promise<number> {
   const dir = await resolveHandoffDir();
-  const file = await resolveArtifact(dir, id, RESOLVE_SPEC);
+  const resolved = /[\\/]/.test(id) ? null : await resolveArtifact(dir, id, RESOLVE_SPEC);
+  const file = resolved && (await isContainedRegularFile(dir, resolved)) ? resolved : null;
   if (!file) {
     console.log("");
     if (id) {
@@ -311,7 +333,7 @@ async function cmdList(): Promise<void> {
     return;
   }
   const latestTarget = await readLatestTarget(dir, "latest.md");
-  const entries = await listArtifacts(dir, /^handoff_.*\.md$/);
+  const entries = await listSafeHandoffs(dir);
   for (const entry of entries) {
     const full = join(dir, entry);
     const id = entry.replace(/^handoff_|\.md$/g, "");

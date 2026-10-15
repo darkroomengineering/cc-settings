@@ -13,7 +13,7 @@
 // repo — same pattern as tests/checkpoint.test.ts / tests/freeze.test.ts.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pointLatest } from "../src/lib/artifact-store.ts";
@@ -115,6 +115,39 @@ describe("handoff.ts per-project scoping (H11)", () => {
       expect(resumeAfter.exit).toBe(0);
       expect(resumeAfter.stdout).toContain("fresh session");
       expect(resumeAfter.stdout).not.toContain("legacy content");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("handoff.ts treats stored handoffs as untrusted", () => {
+  test("symlinked and path-traversing handoffs are not listed or resumable", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-handoff-home-"));
+    const repo = await makeRepo("untrusted");
+    try {
+      await run(["create", "--summary", "real work"], repo, home);
+      const projectDir = join(home, ".claude", "handoffs", basename(repo));
+      const secret = join(home, "secret.md");
+      await writeFile(secret, "# Session Handoff - outside\n\nsecret outside content\n");
+      await symlink(secret, join(projectDir, "handoff_evil.md"));
+
+      const list = await run(["list"], repo, home);
+      expect(list.stdout).not.toContain("evil");
+      expect(list.stdout).toContain("(latest)");
+
+      const viaSymlink = await run(["resume", "evil"], repo, home);
+      expect(viaSymlink.exit).toBe(1);
+      expect(viaSymlink.stdout).not.toContain("secret outside content");
+
+      const viaTraversal = await run(["resume", "../../../secret"], repo, home);
+      expect(viaTraversal.exit).toBe(1);
+      expect(viaTraversal.stdout).not.toContain("secret outside content");
+
+      const latest = await run(["resume"], repo, home);
+      expect(latest.exit).toBe(0);
+      expect(latest.stdout).toContain("real work");
     } finally {
       await rm(home, { recursive: true, force: true });
       await rm(repo, { recursive: true, force: true });

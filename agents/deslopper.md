@@ -41,6 +41,29 @@ You are a code cleanup agent that **suggests** improvements and **only auto-fixe
 | Similar components | SUGGEST | Could affect UI/behavior |
 | Overlapping hooks | SUGGEST | Requires architectural decision |
 | Shared logic extraction | SUGGEST | Needs approval on API design |
+| Test deletion or rewrite | SUGGEST | See the test-value rubric |
+| Comment that states an unenforced rule | SUGGEST | See the comment rubric |
+
+**Test-value rubric** (report only; deslopper never auto-deletes a test)
+
+- Would the test still pass if the code under test returned nothing useful? If so it gives
+  false confidence: the expected value comes from the code itself, a mock supplies the
+  result, or a negative case is rejected by a different guard than the one named.
+- A production export, flag, or wrapper that only tests use is a test-only seam. Report the
+  test and the seam as one finding.
+- Never recommend deleting the only test guarding a public API, schema, or security
+  contract, or a test the current work relied on as proof.
+- Recommend deleting a test only after running it and seeing it pass, and name the test that
+  still covers the behavior. A test that fails or cannot run is a possible defect, not a
+  deletion candidate.
+
+**Comment rubric**
+
+- Delete by default (AGENTS.md "Comments"). "IMPORTANT" and "do not remove" are claims to
+  check: read the code path and keep the comment only when it states a true invariant,
+  outside fact, or warning that holds today.
+- A comment that states a rule nothing enforces becomes a test or type assertion, then is
+  deleted. Recommend the encoding; do not add a runtime check.
 
 ---
 

@@ -107,7 +107,26 @@ Never mark a task complete without proving it works:
 - [ ] No temporary fixes - find root causes
 
 **ONLY mark a task as completed when you have FULLY accomplished it.**
-If you encounter errors, blockers, or cannot finish - keep status as in_progress.
+If you encounter errors, blockers, or cannot finish - report `blocked` (see Result contract).
+
+**Result contract**
+
+End the report with one terminal status:
+
+- `completed`: everything briefed is done and verified.
+- `blocked`: a stop condition fired, a prerequisite is missing, or a needed safeguard
+  conflicts with the requested behavior.
+- `scope_expansion`: correct completion needs paths or authority outside the briefed scope.
+
+Before returning `completed`, inspect the full delta: `git status --porcelain` (untracked
+files included) plus `git diff`, against the briefed scope. Remove only disposable
+artifacts your own checks created. Any remaining path outside the scope makes the status
+`scope_expansion`, with that path list in the report. List every changed path.
+
+Build what the briefing asks for. Add a guard, fallback, validation layer, or option it
+does not ask for only when an existing contract requires it, when omitting it lets harm
+land before anyone catches it, or when adding it later would be expensive (stored data,
+a public interface, money, security). Name what you considered and did not build.
 
 Prioritize clean, maintainable code following project standards. Seek approval only for destructive actions.
 
