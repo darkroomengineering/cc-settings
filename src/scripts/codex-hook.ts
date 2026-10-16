@@ -35,8 +35,8 @@ function resolveTarget(pluginRoot: string, relativeScript: string): string {
   let root: string;
   let target: string;
   try {
-    root = realpathSync(pluginRoot);
-    target = realpathSync(resolve(root, relativeScript));
+    root = realpathSync.native(pluginRoot);
+    target = realpathSync.native(resolve(root, relativeScript));
   } catch {
     fail(`target does not exist: ${relativeScript}`);
   }
@@ -53,14 +53,16 @@ function resolveTarget(pluginRoot: string, relativeScript: string): string {
  *  from a repository's `.env`, so an env-supplied root that points anywhere
  *  else is refused. Plugin hooks get PLUGIN_DATA from the host; the user-level
  *  hooks the installer writes do not, so they use the plugin's old data dir. */
+// realpathSync.native: the JS realpath keeps Windows 8.3 short names (RUNNER~1)
+// while import.meta.dir is the long name, so the two never compare equal.
 function resolveRootAndData(): { pluginRoot: string; dataDir: string } {
-  const selfRoot = realpathSync(resolve(import.meta.dir, "..", ".."));
+  const selfRoot = realpathSync.native(resolve(import.meta.dir, "..", ".."));
   const envRoot = process.env.PLUGIN_ROOT ?? process.env.CLAUDE_PLUGIN_ROOT;
   if (envRoot !== undefined) {
     if (!envRoot) fail("PLUGIN_ROOT is required");
     let realEnvRoot: string;
     try {
-      realEnvRoot = realpathSync(envRoot);
+      realEnvRoot = realpathSync.native(envRoot);
     } catch {
       fail(`PLUGIN_ROOT does not exist: ${envRoot}`);
     }

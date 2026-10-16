@@ -6,7 +6,7 @@
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -988,6 +988,17 @@ describe("TS safety-net — gh writes, more forms", () => {
       expectBlock(`cd ${slash(outsideRepo)} && gh issue comment 3 -b hi`, orgRepo, NO_GH_REPO));
     test("cd into an org checkout → allow", () =>
       expectAllow(`cd ${slash(orgRepo)} && gh issue comment 3 -b hi`, outsideRepo, NO_GH_REPO));
+    test("cd into a path with a mid-word ~ (Windows short name) → allow", () => {
+      const parent = mkdtempSync(join(tmpdir(), "cc-safety-short~1-"));
+      cleanups.push(parent);
+      const dir = join(parent, "repo");
+      mkdirSync(dir);
+      spawnSync("git", ["init", "-q"], { cwd: dir });
+      spawnSync("git", ["remote", "add", "origin", "git@github.com:darkroomengineering/x.git"], {
+        cwd: dir,
+      });
+      return expectAllow(`cd ${slash(dir)} && gh issue comment 3 -b hi`, outsideRepo, NO_GH_REPO);
+    });
     test("cd to a computed directory → block", () =>
       expectBlock('cd "$TARGET" && gh issue comment 3 -b hi', orgRepo, NO_GH_REPO));
     test("pushd into an outside checkout → block", () =>

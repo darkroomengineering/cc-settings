@@ -23,7 +23,7 @@
 import { writeSync } from "node:fs";
 import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, posix, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import {
   type ParsedShellCommand,
   PROCESS_SUBSTITUTION_RE,
@@ -584,7 +584,9 @@ function trackState(c: ParsedShellCommand, ctx: ShellCtx): void {
     const target = c.args.find((t) => !t.startsWith("-"));
     if (target === undefined) ctx.dir = homedir();
     else if (target === "~" || target.startsWith("~/")) ctx.dir = join(homedir(), target.slice(1));
-    else if (/[$`*?[~]/.test(target) || target === "-" || !ctx.dir) ctx.dir = null;
+    // Bash expands `~` only at the start of a word; Windows short names (`RUNNER~1`) carry one mid-path.
+    else if (/[$`*?[]/.test(target) || target.startsWith("~") || target === "-" || !ctx.dir)
+      ctx.dir = null;
     else ctx.dir = resolve(ctx.dir, target);
   } else if (c.word === "popd") {
     ctx.dir = null;
@@ -730,7 +732,15 @@ function isSecretPath(raw: string): boolean {
 function isSecretIn(raw: string, ctx: ShellCtx): boolean {
   if (isSecretPath(raw)) return true;
   const rel = !raw.startsWith("/") && !raw.startsWith("~") && !raw.startsWith("$");
-  return rel && ctx.dir !== null && isSecretPath(join(ctx.dir, raw));
+  return rel && ctx.dir !== null && isSecretPath(homeRelative(join(ctx.dir, raw)));
+}
+
+// SECRET_HOME_RE matches POSIX spellings, so a resolved Windows path
+// (`C:\Users\me\.ssh\id_rsa`) is rewritten as `~/.ssh/id_rsa` first.
+function homeRelative(path: string): string {
+  const rel = relative(homedir(), path);
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return path;
+  return `~/${rel.replaceAll(sep, "/")}`;
 }
 
 const SECRET_READERS = new Set([
@@ -840,7 +850,7 @@ function checkSecretReaders(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): 
         else if (t.startsWith("--directory=")) from = t.slice("--directory=".length);
         if (from !== null && secret(from)) deny(from);
         if (t.startsWith("-")) continue;
-        if (secret(t) || (from !== null && secret(join(from, t)))) deny(t);
+        if (secret(t) || (from !== null && secret(posix.join(from, t)))) deny(t);
       }
       return;
     }

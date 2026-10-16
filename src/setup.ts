@@ -113,7 +113,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.67.0"; // /ship creates and links a Linear issue when the work has none.
+const VERSION = "15.67.1"; // Windows: safety net and Codex hook adapter handle home and short-name paths.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
