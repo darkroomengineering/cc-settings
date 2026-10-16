@@ -199,11 +199,7 @@ async function makeSandbox(repoRoot: string): Promise<Sandbox> {
   };
 }
 
-function childEnv(
-  sb: Sandbox,
-  repoRoot: string,
-  payload: Record<string, unknown>,
-): Record<string, string> {
+function childEnv(sb: Sandbox, repoRoot: string): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
@@ -215,17 +211,6 @@ function childEnv(
   env.CLAUDE_PROJECT_DIR = repoRoot;
   env.CLAUDE_SESSION_ID = SESSION;
   env.CLAUDE_CODE_SESSION_ID = SESSION;
-  // Hooks fall back to these when stdin carries no field; real Claude Code
-  // sets the TOOL_* variables for tool events.
-  const input = payload.tool_input as Record<string, unknown> | undefined;
-  if (typeof payload.tool_name === "string") env.TOOL_NAME = payload.tool_name;
-  if (input) {
-    env.TOOL_INPUT = JSON.stringify(input);
-    for (const [k, v] of Object.entries(input)) {
-      env[`TOOL_INPUT_${k}`] = typeof v === "string" ? v : JSON.stringify(v);
-    }
-  }
-  if (typeof payload.prompt === "string") env.PROMPT = payload.prompt;
   return env;
 }
 
@@ -324,7 +309,7 @@ async function main(): Promise<void> {
 
   try {
     // Process-start floor: the same sh + bun spawn running an empty script.
-    const floorEnv = childEnv(sb, repoRoot, {});
+    const floorEnv = childEnv(sb, repoRoot);
     const floorCmd = `bun "$HOME/noop.ts"`;
     const floorMs: number[] = [];
     for (let i = 0; i < warmup + runs; i++) {
@@ -354,7 +339,7 @@ async function main(): Promise<void> {
       for (const v of variants) {
         if (v.tool && !matchesTool(e.matcher, v.tool)) continue;
         const payload = { ...v.payload, cwd: repoRoot };
-        const env = childEnv(sb, repoRoot, payload);
+        const env = childEnv(sb, repoRoot);
         const stdin = JSON.stringify(payload);
         const cwd = v.cwdWork ? sb.work : repoRoot;
         const samples: Sample[] = [];

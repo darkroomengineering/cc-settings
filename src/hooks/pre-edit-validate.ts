@@ -13,7 +13,7 @@
 //   exit 2 + JSON stdout → BLOCK {"decision":"block","reason":"[Harness] ..."}
 //
 // Fail-open: any unexpected error → exit 0 (allow the edit), and unparseable
-// TOOL_INPUT never blocks (readToolInputEnv returns {}).
+// input never blocks (readToolInput returns {}).
 //
 // Checks:
 //   1. Target file exists.                           (block)
@@ -26,7 +26,7 @@ import { basename } from "node:path";
 import {
   blockDecision,
   emitAdditionalContext,
-  readToolInputEnv,
+  readToolInput,
   runHook,
 } from "../lib/hook-runtime.ts";
 
@@ -36,11 +36,9 @@ type EditInput = {
 };
 
 async function main(): Promise<void> {
-  // Claude Code passes the Edit tool input as a JSON blob in TOOL_INPUT; both
-  // file_path and old_string are read from it. (The per-field TOOL_INPUT_*
-  // scalars carry the same data — one source avoids the file_path/old_string
-  // asymmetry.)
-  const parsed = readToolInputEnv<EditInput>();
+  // Claude Code passes the Edit tool input as `tool_input` in the stdin JSON;
+  // both file_path and old_string are read from it.
+  const parsed = await readToolInput<EditInput>();
 
   const resolvedPath = parsed.file_path ?? "";
   if (!resolvedPath) return;

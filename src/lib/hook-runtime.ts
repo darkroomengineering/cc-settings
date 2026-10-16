@@ -1,6 +1,6 @@
-// Shared runtime for cc-settings hooks. Three patterns the parallelmax hooks
-// duplicate: stdin-JSON parsing with env fallback, ~/.claude/tmp/<name>.json
-// state IO, top-level fail-open wrapper. Extracted in v11.1.1 — see CHANGELOG.
+// Shared runtime for cc-settings hooks. Patterns the hooks share: stdin-JSON
+// parsing (hook input and tool_input) with env fallback, ~/.claude/tmp/<name>.json
+// state IO, top-level fail-open wrapper.
 
 import { writeSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -23,6 +23,22 @@ export function coerceState<T>(parsed: unknown, fallback: T): T {
   return parsed as T;
 }
 
+// stdin is a one-shot stream; memoize so readHookInput and readToolInput can
+// both run in one hook process.
+let stdinText: Promise<string> | undefined;
+function readStdin(): Promise<string> {
+  stdinText ??= Bun.stdin.text();
+  return stdinText;
+}
+
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Read a stdin JSON payload; on parse failure OR a non-object payload, fall
  *  back to env.
  *
@@ -35,13 +51,7 @@ export function coerceState<T>(parsed: unknown, fallback: T): T {
 export async function readHookInput<T extends Record<string, unknown>>(
   envFallbacks?: Partial<Record<keyof T & string, string>>,
 ): Promise<Partial<T>> {
-  const raw = await Bun.stdin.text();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    parsed = undefined;
-  }
+  const parsed = parseJson(await readStdin());
   if (isPlainObject(parsed)) return parsed as Partial<T>;
   if (!envFallbacks) return {};
   const out: Record<string, unknown> = {};
@@ -97,15 +107,26 @@ export async function writeState(name: string, data: unknown): Promise<void> {
   await rename(tmp, target);
 }
 
-/** Parse the TOOL_INPUT env JSON blob (the full tool input Claude Code passes
- *  to PreToolUse hooks). Returns {} on missing or malformed JSON — fail-open:
- *  unparseable input must never produce a block. */
-export function readToolInputEnv<T>(): Partial<T> {
-  try {
-    return JSON.parse(process.env.TOOL_INPUT ?? "{}") as Partial<T>;
-  } catch {
-    return {};
+/** Read the tool input of a PreToolUse/PostToolUse hook. Claude Code delivers
+ *  it as `tool_input` in the stdin JSON payload. The `TOOL_INPUT` JSON env var
+ *  plus `TOOL_INPUT_<key>` scalars are the fallback, used only when stdin is
+ *  empty, unparseable, or not an object; the Codex shim (scripts/codex-hook.ts)
+ *  sets them. Returns {} when neither source has input — fail-open: missing
+ *  input must never produce a block. */
+export async function readToolInput<T>(): Promise<Partial<T>> {
+  const payload = parseJson(await readStdin());
+  if (isPlainObject(payload)) {
+    return (isPlainObject(payload.tool_input) ? payload.tool_input : {}) as Partial<T>;
   }
+  const fromEnv = parseJson(process.env.TOOL_INPUT ?? "");
+  const out: Record<string, unknown> = isPlainObject(fromEnv) ? { ...fromEnv } : {};
+  const prefix = "TOOL_INPUT_";
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith(prefix) && key.length > prefix.length && value !== undefined) {
+      out[key.slice(prefix.length)] = value;
+    }
+  }
+  return out as Partial<T>;
 }
 
 /** Emit the documented PreToolUse block decision and exit 2.

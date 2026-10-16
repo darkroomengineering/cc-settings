@@ -93,7 +93,7 @@
 	},
 	"statusLine": {
 		"type": "command",
-		"command": "bun \"$HOME/.claude/src/hooks/statusline.ts\"",
+		"command": "bun --no-env-file \"$HOME/.claude/src/hooks/statusline.ts\"",
 		"refreshInterval": 30
 	}
 }

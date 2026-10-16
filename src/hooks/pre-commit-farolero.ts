@@ -27,7 +27,7 @@
 
 import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import { blockDecision, runHook } from "../lib/hook-runtime.ts";
+import { blockDecision, readToolInput, runHook } from "../lib/hook-runtime.ts";
 
 const RATCHET_TIMEOUT_MS = 30_000;
 const REASON_TAIL_CHARS = 2000;
@@ -165,7 +165,7 @@ async function runFaroleroRatchetChanged(
 async function main(): Promise<void> {
   // Self-gate: the group-level `if:` filter isn't reliably applied by every Claude Code build
   // (see pre-commit-tsc.ts's comment) — re-check the command here.
-  const cmd = process.env.TOOL_INPUT_command ?? "";
+  const { command: cmd = "" } = await readToolInput<{ command: string }>();
   if (!shouldGateCommit(cmd)) return; // allow
 
   const cwd = process.cwd();

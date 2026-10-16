@@ -331,12 +331,13 @@ The enforcement boundary for dangerous Bash commands is the permission
 deny-list (`config/30-permissions.json`) evaluated by Claude Code's own
 permission matcher. That layer decides what is blocked.
 
-`src/hooks/safety-net.ts` is **advisory defense-in-depth, fail-open by
-design**: it pattern-matches on a best-effort regex parse of the command
-and nudges/blocks what it recognizes, but a hook crash, timeout, or parser
-gap allows the command through (`tests/hook-fail-open.test.ts` encodes
-this deliberately — a broken guard must not brick every Bash call).
-Consequences of that stance:
+`src/hooks/safety-net.ts` is **advisory defense-in-depth**: it
+pattern-matches on a best-effort scan of the command (quote-aware, not a
+full shell parser) and blocks what it recognizes, but a parser gap or a hook timeout allows the command
+through. An unexpected internal error exits 1, which the `"onFailure":
+"block"` wiring turns into a block (malformed or missing input still
+allows; `tests/hook-fail-open.test.ts` encodes that). Consequences of that
+stance:
 
 - Parser gaps in safety-net are hardening opportunities, not security
   holes; the deny-list and the human-in-the-loop permission prompt remain
@@ -351,7 +352,7 @@ requiring per-flag confirmation on every `git status`/`git log`/routine
 `git push` would make the deny-list unusable. That tradeoff only holds if
 the deny-list has an explicit override for every destructive *form* of a
 wholesale-allowed subcommand — otherwise the dangerous form is silently
-auto-approved by the broad allow, with only fail-open safety-net.ts between
+auto-approved by the broad allow, with only advisory safety-net.ts between
 it and the user, contradicting the "deny-list is the boundary" claim above.
 Concretely: `git push -uf`/`-fu` (bundled short flags that still carry
 `-f`, distinct from the literal `--force`/`-f` token forms already denied)

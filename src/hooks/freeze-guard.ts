@@ -7,7 +7,7 @@
 //   exit 0               → ALLOW (silent)
 //   exit 2 + JSON stdout → BLOCK {"decision":"block","reason":"[Freeze] ..."}
 // Fail-open: any unexpected error → allow (never break a tool call), and
-// unparseable TOOL_INPUT never blocks (readToolInputEnv returns {}).
+// unparseable input never blocks (readToolInput returns {}).
 //
 // Only Edit/Write are gated (all carry `file_path`). NotebookEdit
 // (notebook_path) and Bash writes are intentionally not covered.
@@ -21,12 +21,12 @@
 // it that way — same fallback pattern as session-title.ts.
 
 import { getActiveFreeze, isWithinBoundary } from "../lib/freeze.ts";
-import { blockDecision, readHookInput, readToolInputEnv, runHook } from "../lib/hook-runtime.ts";
+import { blockDecision, readHookInput, readToolInput, runHook } from "../lib/hook-runtime.ts";
 
 type EditLikeInput = { file_path?: string };
 
 async function main(): Promise<void> {
-  const parsed = readToolInputEnv<EditLikeInput>();
+  const parsed = await readToolInput<EditLikeInput>();
 
   const filePath = parsed.file_path;
   if (!filePath) return;

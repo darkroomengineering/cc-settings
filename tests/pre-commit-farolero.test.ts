@@ -219,7 +219,7 @@ describe("pre-commit-farolero — subprocess block protocol", () => {
   async function runHook(cwd: string, command: string) {
     const proc = Bun.spawn(["bun", HOOK_PATH], {
       cwd,
-      env: { ...process.env, TOOL_INPUT_command: command },
+      stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command } })]),
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -311,14 +311,14 @@ describe("pre-commit-farolero — subprocess block protocol", () => {
     }
   });
 
-  test("garbage TOOL_INPUT_command: allows", async () => {
+  test("garbage tool_input.command: allows", async () => {
     const { dir, sentinelPath } = await makeGitRepo();
     try {
       await writePackageJson(dir, true);
       await writeFakeFaroleroBin(dir, sentinelPath, 1);
       const proc = Bun.spawn(["bun", HOOK_PATH], {
         cwd: dir,
-        env: { ...process.env, TOOL_INPUT_command: "not json{{{" },
+        stdin: new Blob([JSON.stringify({ tool_input: { command: "not json{{{" } })]),
         stdout: "pipe",
         stderr: "pipe",
       });

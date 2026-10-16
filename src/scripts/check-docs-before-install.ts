@@ -3,7 +3,7 @@
 // Port of scripts/check-docs-before-install.sh. Triggers on bun add, npm
 // install, npx add, pnpm add, `bun i`, `npm i`.
 //
-// Reads TOOL_INPUT_command from env (hook contract). Exits 0 no matter what
+// Reads tool_input.command from the stdin JSON payload. Exits 0 no matter what
 // — a regex/string-handling crash here must never block a package install.
 //
 // Delivery: plain console.log stdout on a PreToolUse hook never reaches the
@@ -12,10 +12,10 @@
 // The reminder below is emitted via the hookSpecificOutput.additionalContext
 // envelope instead.
 
-import { emitAdditionalContext } from "../lib/hook-runtime.ts";
+import { emitAdditionalContext, readToolInput } from "../lib/hook-runtime.ts";
 
 try {
-  const cmd = process.env.TOOL_INPUT_command ?? "";
+  const { command: cmd = "" } = await readToolInput<{ command: string }>();
   if (cmd) {
     // Same regex shape as the bash version: match well-known install verbs.
     // `bun i`/`npm i` must NOT include the trailing space here — the outer

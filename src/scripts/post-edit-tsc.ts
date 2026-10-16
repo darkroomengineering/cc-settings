@@ -15,7 +15,7 @@
 
 import { existsSync } from "node:fs";
 import { relative } from "node:path";
-import { emitAdditionalContext } from "../lib/hook-runtime.ts";
+import { emitAdditionalContext, readToolInput } from "../lib/hook-runtime.ts";
 import { runTsc } from "../lib/tsc.ts";
 
 // A broken file can produce many tsc diagnostic lines; injecting all of them
@@ -23,13 +23,13 @@ import { runTsc } from "../lib/tsc.ts";
 const MAX_LINES = 20;
 
 try {
-  const filePath = process.env.TOOL_INPUT_file_path ?? "";
+  const { file_path: filePath = "" } = await readToolInput<{ file_path: string }>();
   if (filePath && /\.tsx?$/.test(filePath) && existsSync("tsconfig.json")) {
     // Run tsc, filter to lines mentioning the edited file. Bash version used:
     //   bunx tsc --noEmit 2>&1 | grep -E "$FILE_PATH" || true
     const { combined } = await runTsc();
     // tsc prints diagnostics with paths relative to cwd ("src/lib/foo.ts(1,2):
-    // error TS...") but Claude Code passes TOOL_INPUT_file_path as an absolute
+    // error TS...") but Claude Code passes tool_input.file_path as an absolute
     // path. Matching only the absolute form silently matched nothing, so the
     // hook burned a full typecheck per edit and never reported anything.
     // Match either form; substring matching avoids escaping the path as regex.

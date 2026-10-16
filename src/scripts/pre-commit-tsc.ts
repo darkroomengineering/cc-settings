@@ -10,6 +10,7 @@
 // guard rail we want to preserve.
 
 import { existsSync } from "node:fs";
+import { readToolInput } from "../lib/hook-runtime.ts";
 import { runTsc } from "../lib/tsc.ts";
 
 async function main(): Promise<number> {
@@ -18,7 +19,7 @@ async function main(): Promise<number> {
   // but 15.21.1 and earlier placed `if` on the group, where Claude Code ignores
   // it and `claude plugin` rewrites strip it, so we re-check here. Matches
   // the pattern used by safety-net.ts and check-docs-before-install.ts.
-  const cmd = process.env.TOOL_INPUT_command ?? "";
+  const { command: cmd = "" } = await readToolInput<{ command: string }>();
   if (!/(^|[;&|\s])git\s+commit\b/.test(cmd)) return 0;
 
   if (!existsSync("tsconfig.json")) {
