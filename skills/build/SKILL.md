@@ -26,7 +26,7 @@ Before any implementation, complete this research phase:
 
 **GO/ASK/NO-GO Verdict**: After research, state one of:
 - **GO** — requirements are clear, approach is viable, proceed to implementation.
-- **ASK** — requirements have more than one plausible reading. Run clarifying rounds (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions each, recommendation first) until no fork is left, then re-issue the verdict.
+- **ASK** — requirements have more than one plausible reading. Run clarifying rounds (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions each, recommendation first) until no fork is left, then re-issue the verdict. If the user named no Linear issue, the first round also asks whether to create one now (recommended: yes); create it per the `ship` skill's "Linear issue" step and put its ID in the branch name. Never open a round only for this: `/ship` creates the issue anyway.
 - **NO-GO** — approach has blockers or scope is too large. Report findings and stop.
 
 Do not proceed past this gate without an explicit GO verdict.
