@@ -221,8 +221,8 @@ on every machine. The same request behaves differently once it is installed:
 - **Standards.** [AGENTS.md](./AGENTS.md) holds the coding standards and guardrails every tool
   reads; Claude Code gets its copy as [CLAUDE-FULL.md](./CLAUDE-FULL.md), installed as `~/.claude/CLAUDE.md`. Twelve topic rules (TypeScript,
   React, performance, accessibility, security, git, motion, style) load only for the files they
-  cover, and six stack profiles (Next.js, React Router, React Native, Tauri, WebGL, orchestration)
-  add the specifics of each starter.
+  cover, and six stack profiles (Next.js, React Router, React Native, Tauri, WebGL, durable agents)
+  add the specifics of each stack.
 - **26 skills.** Named workflows selected from ordinary language or pinned with `/name` in Claude
   and `$name` in Codex: fix, build, review, ship, audit, poke-holes, handoff, and the
   rest. The [skill guide](./docs/skills.md) lists what each one changes and when it asks.

@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 20;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 21;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -661,9 +661,16 @@ const v19 = {
   light: v18.light.filter(notAddedAfter(REMOVED_IN_V19)),
 };
 MANIFESTS.set(19, v19);
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v20 = {
   full: [...v19.full, ...ADDED_IN_V20],
   light: [...v19.light, ...ADDED_IN_V20],
+};
+MANIFESTS.set(20, v20);
+// Version 21: the durable-agents profile. Full only; light installs carry no profiles.
+const ADDED_IN_V21 = ["profiles/durable-agents.md"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v20.full, ...ADDED_IN_V21],
+  light: v20.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([
