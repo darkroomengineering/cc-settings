@@ -102,7 +102,7 @@ describe("Codex hook adapter", () => {
       expect(result.stderr).toContain("target-stderr");
       const observed = JSON.parse(result.stdout) as Record<string, unknown>;
       expect(observed.raw).toBe(raw);
-      expect(observed.source).toBe(realpathSync(pluginRoot));
+      expect(observed.source).toBe(realpathSync.native(pluginRoot));
       expect(observed.home).toBe(join(pluginRoot, "plugin-data"));
       expect(observed.prompt).toBe("ship it");
       expect(observed.session).toBe("session-42");
