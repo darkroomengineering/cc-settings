@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.68.0] — 2026-10-16
+
+Agents building a bot, assistant, or autonomous job inside a product now have a standard to work from. The new `profiles/durable-agents.md` covers what has to survive a crash or restart: which tools may rerun, how webhook and cron triggers avoid duplicate runs, why approvals and waits live in storage, and why agent PRs never auto-merge on client repos. Pi Durable is the reference implementation, with its API notes pinned to 1.3.0 and kept apart from the runtime-independent rules. `/build` points to the profile in Claude Code. Full installs only; light installs and Codex get no profiles. The Claude managed-files manifest moves to version 20, and version 19 is now pinned by hash. The README profile list names durable agents in place of the orchestration profile that version 19 removed.
+
+**Files changed:**
+- profiles/durable-agents.md, docs/profiles.md, skills/build/SKILL.md, README.md
+- src/lib/claude-managed-file-manifests.ts, tests/codex-install.test.ts, tests/install-e2e.test.ts
+- src/setup.ts, package.json, plugin.json
+
 ## [15.67.1] — 2026-10-16
 
 The full Windows test suite on main is green again. Three real Windows bugs were behind its six failures:
@@ -18,6 +27,7 @@ One installer test expected all-backslash separators where the installer writes 
 - src/hooks/safety-net.ts, tests/safety-net.test.ts
 - src/scripts/codex-hook.ts, tests/codex-hook.test.ts
 - tests/codex-install.test.ts
+
 ## [15.67.0] — 2026-10-16
 
 Every PR opened through `/ship` now has a Linear issue, even when the work started before anyone filed one. If the branch, title, body, or commits name no real issue, `/ship` creates one in the repo's team, assigned to you, and adds `Fixes <ID>` to the PR body so Linear links the PR and closes the issue on merge. It asks once per repo which team to use and remembers the answer in `~/.claude/linear-teams.json`; answering "No Linear" turns it off for that repo. Without a connected Linear MCP server the step is skipped and reported, never blocking. `/build` and `/fix` offer to create the issue up front when they are already asking clarifying questions, so the branch can carry the ID from the first push.
