@@ -3986,7 +3986,8 @@ exit 0
 
         expect(actual.length).toBe(7);
         expect(actual.map(([event]) => event)).toEqual(expected.map(([event]) => event));
-        const script = join(codexHome, "darkroom", "source", "src", "scripts", "codex-hook.ts");
+        // The installer swaps only $PLUGIN_ROOT, so the template's forward-slash tail stays (mixed separators on Windows).
+        const script = `${join(codexHome, "darkroom", "source")}/src/scripts/codex-hook.ts`;
         for (const [index, [, hook]] of actual.entries()) {
           const [, original] = expected[index] as [string, HookHandler];
           expect(hook.command).toBe(
