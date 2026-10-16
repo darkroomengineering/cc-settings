@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.67.1] — 2026-10-16
+
+The full Windows test suite on main is green again. Three real Windows bugs were behind its six failures:
+
+- The safety net let `cd ~ && cat .ssh/id_rsa` and `tar czf keys.tgz -C ~ .ssh` through under Git Bash on Windows. It resolved both to backslash paths, which its home-directory secret patterns never matched. Resolved paths under home are now rewritten as `~/...` first, and `tar -C` members are joined as shell paths.
+- The safety net treated any `~` in a `cd` target as unresolvable, so a Windows short path like `C:/Users/RUNNER~1/...` lost track of the directory and blocked a `gh` write in an org checkout. Only a leading `~` is special now, as in bash.
+- The Codex hook adapter refused its own checkout when reached through a short path: `realpathSync` keeps `RUNNER~1` while `import.meta.dir` uses the long name. It compares with `realpathSync.native` now.
+
+One installer test expected all-backslash separators where the installer writes the template's forward-slash tail after the managed source path. The path is valid either way, so the test now spells it the way the installer writes it.
+
+**Files changed:**
+- src/hooks/safety-net.ts, tests/safety-net.test.ts
+- src/scripts/codex-hook.ts, tests/codex-hook.test.ts
+- tests/codex-install.test.ts
 ## [15.67.0] — 2026-10-16
 
 Every PR opened through `/ship` now has a Linear issue, even when the work started before anyone filed one. If the branch, title, body, or commits name no real issue, `/ship` creates one in the repo's team, assigned to you, and adds `Fixes <ID>` to the PR body so Linear links the PR and closes the issue on merge. It asks once per repo which team to use and remembers the answer in `~/.claude/linear-teams.json`; answering "No Linear" turns it off for that repo. Without a connected Linear MCP server the step is skipped and reported, never blocking. `/build` and `/fix` offer to create the issue up front when they are already asking clarifying questions, so the branch can carry the ID from the first push.
