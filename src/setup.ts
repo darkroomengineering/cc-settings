@@ -113,7 +113,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.66.1"; // Claude Code 2.1.301 and Codex 0.163.0 sync.
+const VERSION = "15.66.2"; // setup prunes stale wildcard deny rules from older installs.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

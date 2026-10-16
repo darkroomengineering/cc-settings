@@ -18,6 +18,7 @@ import {
   permissionsStrategy,
   pruneDeprecatedHooks,
   pruneStaleManagedHooks,
+  RETIRED_PERMISSION_RULES,
   statusLineStrategy,
   userWinsScalarStrategy,
 } from "../src/lib/settings-merge.ts";
@@ -203,6 +204,23 @@ describe("permissionsStrategy", () => {
     const merged = result.value as Record<string, unknown>;
     expect(merged.deny).toEqual(["Bash(sudo:*)", "Bash(git reset --hard origin/main)"]);
     expect(ctx.accounting.permissionsPruned).toBe(3);
+  });
+
+  test("stale wildcard deny rules from older installs are pruned against the shipped config", async () => {
+    const ctx = makeCtx();
+    const team = (await composeSettings(join(import.meta.dir, ".."))).permissions as Record<
+      string,
+      unknown
+    >;
+    const teamDeny = team.deny as string[];
+    expect(teamDeny.filter((r) => RETIRED_PERMISSION_RULES.has(r))).toEqual([]);
+    const user = { deny: [...teamDeny, ...RETIRED_PERMISSION_RULES, "Bash(curl * --my-flag:*)"] };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const deny = (result.value as Record<string, unknown>).deny as string[];
+    expect(deny).toEqual([...teamDeny, "Bash(curl * --my-flag:*)"]);
+    expect(deny).toContain("Bash(rm -rf $HOME/*)");
   });
 
   test("a retired deny rule in the user's ask list is kept", async () => {
