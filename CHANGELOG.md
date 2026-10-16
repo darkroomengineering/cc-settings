@@ -4,6 +4,23 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.66.1] — 2026-10-16
+
+Sync with Claude Code v2.1.301, Codex v0.163.0, and the Codex app changelog through 2026-10-16. Nothing to adopt beyond one tracked env var.
+
+**Adopted:**
+- `CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS` (Claude Code 2.1.301) in the env table and `knownEnvVars`: it ends unattended retry mode when a usage-limit reset is far away, which matters for overnight runs. cc-settings does not set it.
+
+**Docs:**
+- `docs/hooks-reference.md` notes that hook `updatedInput` is validated like Claude's own input (2.1.300).
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- docs/settings-reference.md
+- docs/hooks-reference.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.66.0] — 2026-10-16
 
 The safety hooks block again. Ten hooks read their input from environment variables that Claude Code never sets, so safety-net, the proof gates, and the edit guards saw an empty command and allowed everything. They now read the JSON Claude Code sends on stdin, and safety-net closes four gaps in its rules (#219, #221).
@@ -16,6 +33,7 @@ The safety hooks block again. Ten hooks read their input from environment variab
 - safety-net blocks `gh pr`, `gh issue`, `gh release`, `gh repo edit`, and `gh api` writes (including GraphQL mutations) to repos outside darkroomengineering and your own account, which was only a rule in the `triage` skill. The owner comes from `-R`, `GH_REPO`, a URL argument, the `repos/` path, or the repo's remotes; your login comes from `gh api user`; an unknown owner is blocked (#221).
 - safety-net blocks skipping git hooks on commit, push, and merge: `--no-verify` and its prefixes, `commit -n`, `HUSKY`/`LEFTHOOK` set to `0` or `false`, `SKIP*` prefixes, and setting `core.hooksPath` through `-c`, `--config-env`, `GIT_CONFIG_*`, or `git config`. `git push -n` stays allowed as a dry run (#221).
 - safety-net exits 1 on an internal error instead of allowing the command, so its `onFailure: "block"` setting takes effect (#221).
+||||||| parent of 553d9ef (feat(v15.66.1): sync with Claude Code v2.1.301 and Codex v0.163.0)
 
 ## [15.65.0] — 2026-10-15
 

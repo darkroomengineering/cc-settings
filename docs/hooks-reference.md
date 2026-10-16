@@ -321,6 +321,10 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 
 ## Sync vs Async Behavior
 
+> `updatedInput` returned by a `PreToolUse` or `PermissionRequest` hook is
+> validated like Claude's own tool input (v2.1.300), so a rewrite that breaks
+> the tool's schema is rejected. No cc-settings hook returns it.
+
 > **Probe-verified (Claude Code 2.1.220, headless marker probe, replicated
 > twice):** on tool events, plain stdout is NEVER injected into the model's
 > context — sync or async. The ONLY delivery mechanism is the
