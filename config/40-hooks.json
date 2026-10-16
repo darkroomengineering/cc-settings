@@ -5,7 +5,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/session-title.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/session-title.ts\"",
 						"async": true,
 						"timeout": 3
 					}
@@ -15,7 +15,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/delegation-detector.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/delegation-detector.ts\"",
 						"timeout": 3
 					}
 				]
@@ -24,7 +24,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/quota-steer.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/quota-steer.ts\"",
 						"timeout": 3
 					}
 				]
@@ -33,7 +33,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/escalate-model.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/escalate-model.ts\"",
 						"timeout": 3
 					}
 				]
@@ -45,7 +45,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/model-switch-guard.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/model-switch-guard.ts\"",
 						"timeout": 5
 					}
 				]
@@ -57,7 +57,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/safety-net.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/safety-net.ts\"",
 						"timeout": 5,
 						"onFailure": "block"
 					}
@@ -69,12 +69,12 @@
 					{
 						"type": "command",
 						"if": "Bash(git commit*)",
-						"command": "bun \"$HOME/.claude/src/scripts/pre-commit-tsc.ts\""
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/pre-commit-tsc.ts\""
 					},
 					{
 						"type": "command",
 						"if": "Bash(git commit*)",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-commit-farolero.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/pre-commit-farolero.ts\"",
 						"timeout": 35
 					}
 				]
@@ -85,7 +85,7 @@
 					{
 						"type": "command",
 						"if": "Bash(gh*pr create*) Bash(gh*pr ready*)",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-pr-proof.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/pre-pr-proof.ts\"",
 						"timeout": 300
 					}
 				]
@@ -96,7 +96,7 @@
 					{
 						"type": "command",
 						"if": "Bash(git push*)",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-push-proof.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/pre-push-proof.ts\"",
 						"timeout": 300
 					}
 				]
@@ -106,7 +106,7 @@
 					{
 						"type": "command",
 						"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*)",
-						"command": "bun \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
 					}
 				]
 			},
@@ -115,7 +115,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-edit-validate.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/pre-edit-validate.ts\"",
 						"timeout": 5
 					}
 				]
@@ -125,7 +125,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/freeze-guard.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/freeze-guard.ts\"",
 						"timeout": 5
 					}
 				]
@@ -135,7 +135,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/knowledge-hint.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/knowledge-hint.ts\"",
 						"timeout": 5
 					}
 				]
@@ -147,7 +147,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-edit.ts\""
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/post-edit.ts\""
 					}
 				]
 			},
@@ -156,7 +156,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-edit-tsc.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/post-edit-tsc.ts\"",
 						"async": true
 					}
 				]
@@ -166,7 +166,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/log-bash.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/log-bash.ts\"",
 						"async": true,
 						"timeout": 10
 					}
@@ -177,7 +177,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/tool-cadence.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/tool-cadence.ts\"",
 						"timeout": 3
 					}
 				]
@@ -187,7 +187,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/promote-memory.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/promote-memory.ts\"",
 						"timeout": 3
 					}
 				]
@@ -197,7 +197,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/escalate-acted.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/escalate-acted.ts\"",
 						"timeout": 3
 					}
 				]
@@ -208,7 +208,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-compact.ts\""
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/post-compact.ts\""
 					}
 				]
 			}
@@ -218,7 +218,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/handoff.ts\" create --from-hook"
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/handoff.ts\" create --from-hook"
 					}
 				]
 			}
@@ -228,16 +228,16 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/verify-hooks.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/verify-hooks.ts\"",
 						"timeout": 3
 					},
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/session-start.ts\""
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/session-start.ts\""
 					},
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/codex-verify.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/codex-verify.ts\"",
 						"timeout": 3,
 						"async": true
 					}
@@ -249,7 +249,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/cwd-changed.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/cwd-changed.ts\"",
 						"async": true,
 						"timeout": 5
 					}
@@ -261,7 +261,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/handoff.ts\" create --from-hook",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/handoff.ts\" create --from-hook",
 						"async": true,
 						"timeout": 30
 					}
@@ -273,7 +273,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/ask-gate.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/hooks/ask-gate.ts\"",
 						"timeout": 5
 					}
 				]
@@ -284,7 +284,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-failure.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/post-failure.ts\"",
 						"async": false,
 						"timeout": 10
 					}
@@ -296,7 +296,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/ledger-record.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/ledger-record.ts\"",
 						"async": true,
 						"timeout": 5
 					}
@@ -308,7 +308,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" start",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/swarm-log.ts\" start",
 						"async": true,
 						"timeout": 5
 					}
@@ -320,7 +320,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" stop",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/swarm-log.ts\" stop",
 						"async": true,
 						"timeout": 5
 					}
@@ -332,7 +332,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/notify.ts\"",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/notify.ts\"",
 						"async": true,
 						"timeout": 10
 					}
@@ -344,7 +344,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" task",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/swarm-log.ts\" task",
 						"async": true,
 						"timeout": 5
 					}
@@ -356,7 +356,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" complete",
+						"command": "bun --no-env-file \"$HOME/.claude/src/scripts/swarm-log.ts\" complete",
 						"async": true,
 						"timeout": 5
 					}

@@ -27,6 +27,7 @@ import {
   type SrcIntegrity,
   SUSPICIOUS_PATTERNS,
 } from "../src/lib/audit-hooks.ts";
+import { parseHookCommand } from "../src/lib/hook-command.ts";
 import { writeSrcManifest } from "../src/lib/hooks-fingerprint.ts";
 
 /**
@@ -1145,6 +1146,27 @@ describe("pattern self-tests — match/notMatch examples (execpolicy-inspired)",
       for (const cmd of match) {
         expect(classifyHookCommand(cmd).severity).toBe("trusted");
       }
+    }
+  });
+});
+
+describe("managed hook command shape", () => {
+  test("accepts the --no-env-file form and the flagless form of older installs", () => {
+    for (const cmd of [
+      'bun --no-env-file "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file "$HOME/.claude/src/scripts/handoff.ts" create --from-hook',
+      'bun "$HOME/.claude/src/hooks/safety-net.ts"',
+    ]) {
+      expect(parseHookCommand(cmd).managed).toBe(true);
+    }
+  });
+  test("rejects other flags and shell tails", () => {
+    for (const cmd of [
+      'bun --preload evil.ts "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --preload=x "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file "$HOME/.claude/src/hooks/safety-net.ts"; evil',
+    ]) {
+      expect(parseHookCommand(cmd).managed).toBe(false);
     }
   });
 });

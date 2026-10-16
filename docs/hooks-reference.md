@@ -134,7 +134,7 @@ Available in all hooks:
 |-------|----------|-------------|
 | `UserPromptSubmit` | `$PROMPT` | The user's prompt text |
 | `PreToolUse` | `$TOOL_NAME` | Name of the tool about to execute |
-| `PreToolUse` | `$TOOL_INPUT` | JSON string of tool input parameters |
+| `PreToolUse` | stdin (JSON) | Full hook context: `tool_name`, `tool_input`, `session_id`, `cwd` |
 | `PostToolUse` | `$TOOL_NAME` | Name of the tool that executed |
 | `PostToolUse` | stdin (JSON) | Full hook context: `tool_input`, `tool_response`, `tool_name`, `session_id`, `cwd`, `duration_ms` |
 | `PostToolUse` | `duration_ms` (JSON) | Tool execution time in ms, excluding permission prompts and PreToolUse (v2.1.119) |
@@ -165,30 +165,36 @@ As of v2.1.133, hooks that receive JSON on stdin also see the active effort leve
 
 Use this when a hook should change behavior based on effort — e.g., skip an expensive lint pass on `low`, run a stricter validator on `max`.
 
-### Flattened Tool Input Variables
+### Tool Input
 
-For `PreToolUse` hooks, Claude Code also provides **flattened** versions of the `$TOOL_INPUT` JSON object as individual environment variables. **Note: these are NOT available in `PostToolUse` hooks** — PostToolUse receives data on stdin instead. Each top-level key in the tool input becomes `TOOL_INPUT_<key>`.
+Claude Code delivers tool input to `PreToolUse` and `PostToolUse` hooks only as JSON on stdin. It sets no `TOOL_INPUT` or `TOOL_INPUT_<key>` environment variables. The tool's parameters sit under `tool_input`:
 
-This is more convenient than parsing the raw `$TOOL_INPUT` JSON string in shell scripts.
+```json
+{
+  "tool_name": "Bash",
+  "tool_input": { "command": "git push --force origin main" },
+  "session_id": "…",
+  "cwd": "…"
+}
+```
 
-| Variable | Available In | Description |
-|----------|-------------|-------------|
-| `TOOL_INPUT_command` | `PreToolUse(Bash)`, `PostToolUse(Bash)` | The shell command being executed |
-| `TOOL_INPUT_file_path` | `PreToolUse(Edit)`, `PostToolUse(Write\|Edit)` | The file path being written or edited |
+| Field | Tools | Description |
+|-------|-------|-------------|
+| `tool_input.command` | `Bash` | The shell command being executed |
+| `tool_input.file_path` | `Edit`, `Write` | The file path being written or edited |
+
+Hooks in this repo read it through `readToolInput()` in `src/lib/hook-runtime.ts`. Only our Codex shim (`src/scripts/codex-hook.ts`) sets `TOOL_INPUT` (the `tool_input` object as JSON) and `TOOL_INPUT_<key>` (one per scalar key) in the hook's environment, and it forwards the same JSON on stdin too. `readToolInput()` uses those variables only when stdin is empty or not a JSON object.
 
 **Example usage in a hook script:**
 
 ```bash
 #!/usr/bin/env bash
-# Access the file path directly instead of parsing $TOOL_INPUT JSON
-FILE_PATH="${TOOL_INPUT_file_path:-}"
+# Read the file path from the stdin JSON
+FILE_PATH="$(jq -r '.tool_input.file_path // empty')"
 [[ -z "$FILE_PATH" ]] && exit 0
 
-# Now use $FILE_PATH directly
 echo "Edited file: $FILE_PATH"
 ```
-
-The flattened variables follow the naming convention `TOOL_INPUT_<key>` where `<key>` matches the parameter name from the tool's input schema (e.g., `file_path`, `command`, `old_string`, `new_string`, `pattern`).
 
 ---
 
@@ -414,7 +420,7 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.) | No |
+| `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.), content reads of secret files (`~/.ssh`, `~/.aws`, `.env`, ...), git hook skips (`--no-verify`, `HUSKY=0`, `-c core.hooksPath`), and `gh` writes outside `darkroomengineering` and the user's own account. An unexpected internal error exits 1 and blocks | No |
 | `pre-commit-tsc.ts` | Runs `tsc --noEmit` before any `git commit` command. Blocks commit if TypeScript errors found | No |
 | `pre-commit-farolero.ts` | Runs `farolero ratchet --changed` before `git commit`, if the target repo has [farolero](https://github.com/darkroomengineering/farolero) as a dependency and installed (`node_modules/.bin/farolero`). Blocks the commit on a red gate (`--dry-run`/`--help` exempt). Skips silently if farolero isn't a dependency, isn't installed, or its own git hooks are already active for the repo (`core.hooksPath`/`.git/hooks/pre-commit` carrying the `farolero-managed` marker) — this hook complements, never replaces, farolero's own repo-level hooks and CI check; it just makes Claude Code a good citizen when a repo declared farolero but never ran `farolero install-hooks`. The whole point of farolero is enforcement that works *without* Claude Code in the loop — this hook only makes CC catch it earlier, one commit sooner than the hook farolero itself would have installed | No |
 | `pre-pr-proof.ts` | Runs the full proof battery (typecheck + test + lint) before `gh pr create`/`gh pr ready`. Blocks PR readiness if red (drafts exempt) | No |
@@ -649,19 +655,18 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | Hook blocks unexpectedly | Script exits non-zero | Add error handling; check exit codes |
 | Hook output not visible | Using `console.log` instead of the envelope | Plain stdout never reaches the model on tool events (sync or async — see "Sync vs Async Behavior" above); use `emitAdditionalContext` |
 | Hook causes timeout | Script hangs | Add timeout to the script itself; reduce `timeout` value |
-| `$TOOL_INPUT` is empty | Wrong event | `TOOL_INPUT` is only available in `PreToolUse` and `PostToolUse` |
+| Hook sees no tool input | Reading `$TOOL_INPUT*` env vars | Claude Code sets none; read `tool_input` from the stdin JSON (`readToolInput()` in `src/lib/hook-runtime.ts`) |
 | Path not found | Missing quotes | Always quote the path: `bun "$HOME/.claude/src/scripts/..."` (or `src/hooks/...`) |
 
 ### Testing a Hook Manually
 
 ```bash
-# Simulate PreToolUse environment
-export TOOL_NAME="Bash"
-export TOOL_INPUT='{"command":"git commit -m test"}'
-bun ~/.claude/src/hooks/safety-net.ts
+# Simulate a PreToolUse payload on stdin
+echo '{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' \
+  | bun ~/.claude/src/hooks/safety-net.ts
 
 # Check exit code
-echo $?  # 0 = allow, 1 = block
+echo $?  # 0 = allow, 2 = block
 ```
 
 ### Monitoring Live Hook Activity

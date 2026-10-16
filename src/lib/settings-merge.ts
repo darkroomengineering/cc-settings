@@ -548,8 +548,12 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
       // "user extra" forever. A user extra whose hooks are all cc-settings-
       // managed scripts the team already wires for this event is that stale
       // old shape, not a customization — the team definition supersedes it.
+      // Managed commands now ship as `bun --no-env-file "$HOME/…"`; the flagless
+      // form older installs wrote is the same hook, so it is superseded too.
       const cmds = commandsOf(cleaned);
-      if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamCommands.has(c))) {
+      const teamHas = (c: string): boolean =>
+        teamCommands.has(c) || teamCommands.has(c.replace(/^bun[ \t]+/, "bun --no-env-file "));
+      if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamHas(c))) {
         ctx.accounting.hooksSuperseded++;
         continue;
       }

@@ -184,8 +184,7 @@ function classifyShippedPath(
 // Compound commands that chain multiple trusted bun scripts with `;` or `&&`.
 // Each sub-command must match MANAGED_HOOK_CMD *and* pass content verification;
 // the compound's severity is the worst of its parts. Segment separator is the
-// shared SHELL_SEGMENT_SEP_RE (hook-command.ts) - mirrors safety-net.ts's
-// destructive-command segment splitter.
+// shared SHELL_SEGMENT_SEP_RE (hook-command.ts).
 function classifyCompound(
   cmd: string,
   integrity: SrcIntegrity | null | undefined,

@@ -131,8 +131,8 @@ describe("pre-push-proof — subprocess block protocol", () => {
         HOME: home,
         USERPROFILE: home,
         CC_SETTINGS_SOURCE: join(home, ".claude"),
-        TOOL_INPUT_command: command,
       },
+      stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command } })]),
       stdout: "pipe",
       stderr: "pipe",
     });

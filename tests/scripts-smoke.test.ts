@@ -20,6 +20,11 @@ const SRC = resolve(import.meta.dir, "..", "src", "scripts");
 // the comment at its per-key `git config` call below.
 const GIT_ISOLATION_ENV = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
 
+/** The PreToolUse/PostToolUse stdin payload Claude Code sends. */
+function toolInput(input: Record<string, unknown>): string {
+  return JSON.stringify({ tool_name: "Tool", tool_input: input });
+}
+
 async function run(
   script: string,
   opts: { env?: Record<string, string>; stdin?: string; args?: string[]; cwd?: string } = {},
@@ -395,11 +400,11 @@ describe("post-compact.ts", () => {
 
 describe("post-edit-tsc.ts", () => {
   test("non-TS file → no-op", async () => {
-    const r = await run("post-edit-tsc.ts", { env: { TOOL_INPUT_file_path: "foo.py" } });
+    const r = await run("post-edit-tsc.ts", { stdin: toolInput({ file_path: "foo.py" }) });
     expect(r.exit).toBe(0);
   });
   test("empty file_path → no-op", async () => {
-    const r = await run("post-edit-tsc.ts", { env: { TOOL_INPUT_file_path: "" } });
+    const r = await run("post-edit-tsc.ts", { stdin: toolInput({ file_path: "" }) });
     expect(r.exit).toBe(0);
   });
   // Regression: Claude Code passes file_path as an ABSOLUTE path, but tsc
@@ -422,7 +427,7 @@ describe("post-edit-tsc.ts", () => {
     try {
       const r = await run("post-edit-tsc.ts", {
         cwd: repoRoot,
-        env: { TOOL_INPUT_file_path: probeAbs },
+        stdin: toolInput({ file_path: probeAbs }),
       });
       expect(r.exit).toBe(0);
       const parsed = JSON.parse(r.stdout) as {
@@ -448,7 +453,8 @@ describe("post-edit-tsc.ts", () => {
     try {
       const r = await run("post-edit-tsc.ts", {
         cwd: repoRoot,
-        env: { HOME: sandbox, TOOL_INPUT_file_path: join(repoRoot, "src/lib/tsc.ts") },
+        env: { HOME: sandbox },
+        stdin: toolInput({ file_path: join(repoRoot, "src/lib/tsc.ts") }),
       });
       expect(r.exit).toBe(0);
       const cacheDir = join(sandbox, ".claude", "tmp", "tsc-cache");
@@ -463,7 +469,7 @@ describe("post-edit-tsc.ts", () => {
 
 describe("post-edit.ts", () => {
   test("empty file_path → no-op", async () => {
-    const r = await run("post-edit.ts", { env: { TOOL_INPUT_file_path: "" } });
+    const r = await run("post-edit.ts", { stdin: toolInput({ file_path: "" }) });
     expect(r.exit).toBe(0);
   });
 });

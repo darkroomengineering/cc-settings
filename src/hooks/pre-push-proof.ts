@@ -45,7 +45,7 @@
 // ever following (or vice versa), so there's no single result to share.
 
 import { join } from "node:path";
-import { blockDecision, runHook } from "../lib/hook-runtime.ts";
+import { blockDecision, readToolInput, runHook } from "../lib/hook-runtime.ts";
 import { CLAUDE_DIR } from "../lib/platform.ts";
 import { scrubProjectSubprocessEnv } from "../lib/tsc.ts";
 
@@ -131,7 +131,7 @@ export function shouldGate(cmd: string): boolean {
 async function main(): Promise<void> {
   // Self-gate: the group-level `if:` filter isn't reliably applied by every
   // Claude Code build (see pre-commit-tsc.ts), so re-check the command here.
-  const cmd = process.env.TOOL_INPUT_command ?? "";
+  const { command: cmd = "" } = await readToolInput<{ command: string }>();
   if (!shouldGate(cmd)) return; // allow
 
   const proofRunner = join(

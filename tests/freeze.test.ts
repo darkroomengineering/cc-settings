@@ -87,12 +87,18 @@ async function runFreezeGuard(
   sessionId?: string,
 ): Promise<{ stdout: string; exit: number }> {
   const proc = Bun.spawn(["bun", FREEZE_GUARD], {
-    env: { ...baseEnv(home), TOOL_INPUT: JSON.stringify({ file_path: filePath }) },
+    env: baseEnv(home),
     stdin: "pipe",
     stdout: "pipe",
     stderr: "ignore",
   });
-  proc.stdin.write(JSON.stringify(sessionId !== undefined ? { session_id: sessionId } : {}));
+  proc.stdin.write(
+    JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: filePath },
+      ...(sessionId !== undefined ? { session_id: sessionId } : {}),
+    }),
+  );
   proc.stdin.end();
   const stdout = await new Response(proc.stdout).text();
   const exit = await proc.exited;

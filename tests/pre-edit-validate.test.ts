@@ -16,8 +16,7 @@ async function runHook(
   toolInput: Record<string, unknown>,
 ): Promise<{ stdout: string; exit: number }> {
   return spawnCapture(["bun", HOOK], {
-    env: { TOOL_INPUT: JSON.stringify(toolInput) },
-    stdin: "",
+    stdin: JSON.stringify({ tool_name: "Edit", tool_input: toolInput }),
     stderr: "ignore",
   });
 }

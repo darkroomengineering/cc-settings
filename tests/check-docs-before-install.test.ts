@@ -14,7 +14,7 @@ const SCRIPT = resolve(import.meta.dir, "..", "src", "scripts", "check-docs-befo
 
 async function run(command: string): Promise<{ stdout: string; exit: number }> {
   const proc = Bun.spawn(["bun", SCRIPT], {
-    env: { ...process.env, TOOL_INPUT_command: command },
+    stdin: new Blob([JSON.stringify({ tool_name: "Bash", tool_input: { command } })]),
     stdout: "pipe",
     stderr: "pipe",
   });

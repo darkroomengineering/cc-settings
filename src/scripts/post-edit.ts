@@ -2,16 +2,16 @@
 // PostToolUse Write|Edit hook — auto-format, console.log warning, review reminder.
 // Port of scripts/post-edit.sh.
 //
-// TOOL_INPUT_file_path comes via env. Never fails the hook: all side effects
+// tool_input.file_path comes via the stdin JSON payload. Never fails the hook: all side effects
 // are best-effort.
 
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
 import { resolveEngine } from "../lib/code-intel-engine.ts";
-import { emitAdditionalContext } from "../lib/hook-runtime.ts";
+import { emitAdditionalContext, readToolInput } from "../lib/hook-runtime.ts";
 import { hasCommand } from "../lib/platform.ts";
 
-const filePath = process.env.TOOL_INPUT_file_path ?? "";
+const { file_path: filePath = "" } = await readToolInput<{ file_path: string }>();
 if (!filePath) process.exit(0);
 
 const ext = extname(filePath).toLowerCase();

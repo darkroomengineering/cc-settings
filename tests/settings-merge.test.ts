@@ -391,6 +391,21 @@ describe("hooksStrategy", () => {
     expect(ctx.accounting.hooksAdded).toBe(0);
   });
 
+  test("flagless managed command from an older install is superseded by the --no-env-file form", async () => {
+    const ctx = makeCtx();
+    const hook = (command: string) => ({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command, timeout: 5 }] }],
+    });
+    const team = hook(`bun --no-env-file "$HOME/.claude/src/hooks/safety-net.ts"`);
+    const user = hook(`bun "$HOME/.claude/src/hooks/safety-net.ts"`);
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const groups = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+    expect(groups).toEqual(team.PreToolUse);
+    expect(ctx.accounting.hooksSuperseded).toBe(1);
+  });
+
   test("user group wiring their own (non-managed) script is never superseded", async () => {
     const ctx = makeCtx();
     const team = {

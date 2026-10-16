@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.66.0] — 2026-10-16
+
+The safety hooks block again. Ten hooks read their input from environment variables that Claude Code never sets, so safety-net, the proof gates, and the edit guards saw an empty command and allowed everything. They now read the JSON Claude Code sends on stdin, and safety-net closes four gaps in its rules (#219, #221).
+
+**Fixed:**
+- safety-net, freeze-guard, pre-edit-validate, pre-pr-proof, pre-push-proof, pre-commit-farolero, pre-commit-tsc, check-docs-before-install, post-edit, and post-edit-tsc read `tool_input` from stdin through `readToolInput` in `src/lib/hook-runtime.ts`. The `TOOL_INPUT*` env vars stay as a fallback for the Codex shim. Tests and `hooks:bench` feed stdin the way Claude Code does, and `docs/hooks-reference.md` describes the real contract (#219).
+- Every hook and the statusline run as `bun --no-env-file`, so a project's `.env` can no longer change hook settings such as the allowed gh account or the state directory. Re-run `setup.sh` to pick this up.
+- safety-net reads commands with a quote-aware parser, so flags after a quoted message or heredoc are checked, a commit message that mentions a flag is not mistaken for it, and commands inside `( )`, loops, `if` blocks, `$( )`, `xargs`, and after `export` or `cd` are analyzed.
+- safety-net blocks commands that print or copy secret files (`~/.ssh`, `~/.aws`, `~/.netrc`, `~/.gnupg`, `~/.git-credentials`, `~/.npmrc`, `~/.docker/config.json`, `~/.kube/config`, `gh/hosts.yml`, `.env` and `.envrc` files other than the example templates) with any reader, plus `gh auth token`. Using the files (`ssh -i`, `ssh-add`, `chmod`, `ls`, `sed -i`) stays allowed (#221).
+- safety-net blocks `gh pr`, `gh issue`, `gh release`, `gh repo edit`, and `gh api` writes (including GraphQL mutations) to repos outside darkroomengineering and your own account, which was only a rule in the `triage` skill. The owner comes from `-R`, `GH_REPO`, a URL argument, the `repos/` path, or the repo's remotes; your login comes from `gh api user`; an unknown owner is blocked (#221).
+- safety-net blocks skipping git hooks on commit, push, and merge: `--no-verify` and its prefixes, `commit -n`, `HUSKY`/`LEFTHOOK` set to `0` or `false`, `SKIP*` prefixes, and setting `core.hooksPath` through `-c`, `--config-env`, `GIT_CONFIG_*`, or `git config`. `git push -n` stays allowed as a dry run (#221).
+- safety-net exits 1 on an internal error instead of allowing the command, so its `onFailure: "block"` setting takes effect (#221).
+
 ## [15.65.0] — 2026-10-15
 
 Skill bodies lose about 20 KB of text that restated AGENTS.md, CLAUDE-FULL.md, rules, or other skills, and the skills now agree with the one-Codex-review-per-PR policy.
