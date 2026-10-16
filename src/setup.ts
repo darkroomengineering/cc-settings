@@ -113,7 +113,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.66.2"; // setup prunes stale wildcard deny rules from older installs.
+const VERSION = "15.67.0"; // /ship creates and links a Linear issue when the work has none.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
