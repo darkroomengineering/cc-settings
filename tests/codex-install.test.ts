@@ -1692,6 +1692,8 @@ describe("Codex installer lifecycle", () => {
       "claude:11:light": "2848f4fd7da3cbf9",
       "claude:12:full": "edc54a20285ef5e0",
       "claude:12:light": "a7229982ffb93176",
+      "claude:19:full": "25b33c7f8bea2a5c",
+      "claude:19:light": "9e50b07bdad07c25",
       "codex:1": "4dd6aeea8177953e",
       "codex:2": "b0d5af4920c948e9",
       "codex:3": "04b180972c0d0929",
@@ -1712,6 +1714,19 @@ describe("Codex installer lifecycle", () => {
           : hash(runtimePathsForVersion(Number(version), "test"));
     }
     expect(actual).toEqual(shipped);
+  });
+
+  test("Claude version 20 adds only the durable-agents profile, to full installs", async () => {
+    const { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, claudeManagedManifestPaths } =
+      await import("../src/lib/claude-managed-file-manifests.ts");
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(20);
+    expect(claudeManagedManifestPaths(20, "full", "test")).toEqual([
+      ...claudeManagedManifestPaths(19, "full", "test"),
+      "profiles/durable-agents.md",
+    ]);
+    expect(claudeManagedManifestPaths(20, "light", "test")).toEqual(
+      claudeManagedManifestPaths(19, "light", "test"),
+    );
   });
 
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {

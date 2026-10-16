@@ -113,7 +113,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.67.1"; // Windows: safety net and Codex hook adapter handle home and short-name paths.
+const VERSION = "15.68.0"; // full installs ship the durable-agents profile.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

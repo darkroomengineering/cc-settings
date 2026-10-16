@@ -2745,6 +2745,7 @@ describe("install E2E — uninstall ownership", () => {
             "docs/skills.md",
             "docs/system-overview.md",
             "docs/troubleshooting.md",
+            "profiles/durable-agents.md",
             "skills/audit/references/bundle-attribution.py",
             "skills/audit/references/net-capture.mjs",
             "skills/audit/references/performance-playbook.md",
