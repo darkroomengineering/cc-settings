@@ -11,22 +11,22 @@
 > Existing installs that never changed `model` move with the default through the three-way
 > merge (v15.4.0).
 
-Routing principle: **explore and execute on the cheaper tiers, decide on the top tier.** The main session and the agents whose *output is a judgment* (orchestration, planning, security review) run on `claude-opus-5-5`; Fable 5.1 sits above them as the advisor. Read-heavy and execution agents run on Sonnet (mechanical), then feed their findings back to the session for the decision. All tiers get 1M context on Max plans.
+Routing principle: **explore on the cheaper tier, edit on the session's model, decide on the top tier.** The main session and the agents whose *output is a judgment* (orchestration, planning, security review) run on `claude-opus-5-5`; Fable 5.1 sits above them as the advisor. Read-heavy agents run on Sonnet (mechanical) and feed their findings back to the session for the decision. Agents that edit code use `model: inherit`, so they run on whatever model the session uses; the user's model choice is never overridden by a pin. All tiers get 1M context on Max plans.
 
 | Agent | Model | Rationale |
 |-------|-------|-----------|
 | `maestro` | **claude-opus-5-5** | Orchestration needs the strongest default reasoning |
 | `planner` | **claude-opus-5-5** | Architecture decisions need depth |
 | `reviewer` | **claude-sonnet-5-5** | Diff-reading is bulk work; cross-model `codex-verifier` provides the independent second gate |
-| `implementer` | **claude-sonnet-5-5** | Executes already-made plans; Sonnet 5.5 matches Opus 5.5 on agentic coding, and plans come from the top tier |
+| `implementer` | **inherit** | Edits code, so it follows the session model instead of a pin |
 | `security-reviewer` | **claude-opus-5-5** | Analysis feeding the session's decision |
-| `tester` | **claude-sonnet-5-5** | Test writing follows clear patterns |
-| `scaffolder` | **claude-sonnet-5-5** | Boilerplate generation is mechanical |
+| `tester` | **inherit** | Writes and edits test files, so it follows the session model |
+| `scaffolder` | **inherit** | Writes new files, so it follows the session model |
 | `explore` | **claude-sonnet-5-5** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
-| `deslopper` | **claude-sonnet-5-5** | Deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
+| `deslopper` | **inherit** | Edits code; deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
 | `codex-verifier` | **claude-sonnet-5-5** | Independent cross-model check via the Codex CLI — the value is a different model family reviewing the diff, not raw reasoning depth on the Claude side |
 
-The execution tier is Claude Sonnet 5.5 (`claude-sonnet-5-5`, $2/$10 per MTok, half Opus 5.5). It roughly matches Opus 5.5 on agentic coding (Terminal-Bench 4.0 70.6% vs 66.4%, CursorBench 4.0 55.5% vs 57.8%) but trails it on code review (FrontierCode 1.1 46.2% vs 54.4%), which is why the split holds: `tester`, `scaffolder`, `explore`, `deslopper`, `implementer`, `reviewer`, and `codex-verifier` stay on Sonnet for fan-out/mechanical/execution/consult work at a fraction of Opus cost, while the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier. The tier is pinned by full ID because Claude Code 2.1.284 still resolves the `sonnet` alias to Sonnet 5; return to the alias once it moves.
+The fan-out tier is Claude Sonnet 5.5 (`claude-sonnet-5-5`, $2/$10 per MTok, half Opus 5.5). It roughly matches Opus 5.5 on agentic coding (Terminal-Bench 4.0 70.6% vs 66.4%, CursorBench 4.0 55.5% vs 57.8%) but trails it on code review (FrontierCode 1.1 46.2% vs 54.4%), which is why the split holds: `explore`, `reviewer`, and `codex-verifier` stay on Sonnet for read-only fan-out and consult work at a fraction of Opus cost, the code-editing agents (`implementer`, `tester`, `scaffolder`, `deslopper`) follow the session model, and the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier. The tier is pinned by full ID because Claude Code 2.1.284 still resolves the `sonnet` alias to Sonnet 5; return to the alias once it moves.
 
 ## Codex tiers
 
@@ -37,7 +37,7 @@ The same table drives standalone Codex. The installer maps each agent's Claude t
 | `claude-opus-5-5`, `claude-opus-5`, `opus`, `fable` | `gpt-6-astra` | Judgment: OpenAI's most aligned model, returns early but judges well |
 | `claude-sonnet-5-5`, `claude-sonnet-5`, `sonnet` | `gpt-6.1-sol` | Execution: Codex's workhorse coding model |
 | `haiku` | `gpt-6-luna` | Fast, low-cost tasks |
-| unset | inherits the session model | |
+| `inherit`, unset | no `model` line, so the agent runs on the Codex session model | |
 
 The Claude-to-Codex bridge uses the same split per call: `exec` defaults to Sol, `review` and `ask` to Astra. The Codex-to-Claude bridge (`claude-run.ts`, `claude-verifier`) defaults to `claude-opus-5-5`. See [codex-bridge.md](./codex-bridge.md).
 
@@ -45,7 +45,7 @@ Override per-invocation when a specific task warrants it: bump a cheap agent up 
 
 **Reach for `model: "fable"` on a genuinely stuck slice, not a hard-looking prompt.** Fable is 2.5x Opus 5.5 on base tokens ($10/$50 vs $4/$20 per MTok) and the session model can't be swapped mid-task by a hook, so the move is a subagent override scoped to just the failing piece — `Agent(implementer, "<the specific failing slice>", model: "fable")` — never a blanket re-run of the whole task at the higher tier. `escalate-model.ts` (below) surfaces this suggestion automatically once it observes real struggle; treat a manual reach for `fable` the same way — after two failed attempts on the same problem, not before the first one. Fable 5.1 narrows the cost gap for exactly this scoped-subagent shape: its cache reads are $0.25/MTok (0.025x base), close to Opus 5.5's $0.20, so a long escalated slice that mostly re-reads its cached prefix costs about the same per re-read as Opus would. The 2.5x still applies to fresh input and all output; the escalation bar stays where it is. One 5.1 behavior to watch in escalated subagents: it batches parallel tool calls less consistently than Fable 5, so keep the briefing's "batch independent calls" expectation explicit if a fable slice looks serial. `model-switch-guard.ts` (PreModelSwitch) asks before a `/model fable` switch when cached usage is ≥95% and annotates it at the critical band; it never blocks.
 
-**`CLAUDE_CODE_SUBAGENT_MODEL` is the floor under the table above.** The env var (in `config/10-core.json`, upstream v2.1.147) sets the *default* model for every subagent — Agent-tool spawns, the built-in `Explore`/`Plan`/`general-purpose` agents, and Agent Teams teammates under `teammateMode: "auto"`. Since Claude Code v2.1.251 it is a default, not an override: an agent definition's `model:` and an explicit per-spawn `model` take precedence, which is what keeps `maestro`, `planner`, and `security-reviewer` on `claude-opus-5-5` while everything unpinned — including built-in agents, which used to inherit the session model — runs on **`sonnet`**. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (v2.1.257) restores the old override-everything behavior; cc-settings leaves it unset. The steady state: the session and the deep-reasoning agents stay on Opus 5.5 while wide fan-out — which re-reads the repo per agent — drops to Sonnet for cost.
+**`CLAUDE_CODE_SUBAGENT_MODEL` is the floor under the table above.** The env var (in `config/10-core.json`, upstream v2.1.147) sets the *default* model for every subagent — Agent-tool spawns, the built-in `Explore`/`Plan`/`general-purpose` agents, and Agent Teams teammates under `teammateMode: "auto"`. Since Claude Code v2.1.251 it is a default, not an override: an agent definition's `model:` and an explicit per-spawn `model` take precedence, which is what keeps `maestro`, `planner`, and `security-reviewer` on `claude-opus-5-5` while everything unpinned — including built-in agents, which used to inherit the session model — runs on **`sonnet`**. The four code-editing agents set `model: inherit`, which resolves to the model of whoever spawns them: the session model when you call them, `maestro`'s Opus when it does. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` (v2.1.257) restores the old override-everything behavior; cc-settings leaves it unset. The steady state: the session and the deep-reasoning agents stay on Opus 5.5 while wide fan-out — which re-reads the repo per agent — drops to Sonnet for cost.
 
 **Fan-out limits (upstream v2.1.217, depth raised v2.1.219)**: at most 20 subagents run concurrently by default (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` overrides; excess spawns queue). Subagent nesting depth defaulted to `1` (no nesting) through v2.1.218; v2.1.219 raised the default to `3`, so subagents can now spawn nested subagents two levels deep out of the box. cc-settings no longer pins `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` — the earlier `2` pin (meant to let `maestro` and `deslopper` fan out via the Agent tool even when invoked as subagents) was removed in v13.2.1 once upstream's own default rose to `3`, which made the pin a restriction instead of a loosener; existing installs have it auto-pruned via the `DEPRECATED_ENV_KEYS` retirement mechanism.
 
@@ -59,7 +59,7 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 |---|---|---|
 | `claude-opus-5-5` (composed default; `planner`, `maestro`, `security-reviewer`) | yes (Fable, or Opus 5+) | Top-tier review of plans and gate decisions at Opus session cost |
 | `claude-fable-5-1` (`/model fable`, escalated subagents) | yes, the only accepted advisor | A second Fable pass on hard calls |
-| `claude-sonnet-5-5` (`implementer`, `tester`, `explore`, and the other `CLAUDE_CODE_SUBAGENT_MODEL` agents) | yes | The pairing the docs recommend first: Sonnet runs the routine turns, Fable steps in at decision points |
+| `claude-sonnet-5-5` (`explore`, `reviewer`, and the other `CLAUDE_CODE_SUBAGENT_MODEL` agents) | yes | The pairing the docs recommend first: Sonnet runs the routine turns, Fable steps in at decision points |
 | `haiku` | yes | Cheapest executor with top-tier planning |
 
 **Config surface:**

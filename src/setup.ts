@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.69.2"; // a test blocks committed merge-conflict markers.
+const VERSION = "15.70.0"; // Editing agents inherit the session model; git rules load only on git files.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

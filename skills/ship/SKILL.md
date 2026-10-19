@@ -130,6 +130,8 @@ If the `codex-verifier` spawn fails, or it reports that Bash was stripped (forke
 
 ### Step 7: Commit (Bisectable)
 
+Read `~/.claude/rules/git.md` if present; Steps 7 and 8 follow its "Commit and PR mechanics".
+
 Analyze the diff to decide commit strategy:
 
 ```bash

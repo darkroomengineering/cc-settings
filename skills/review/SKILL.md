@@ -201,7 +201,7 @@ The reviewer agent is read-only, so it ends at step 4 and returns, for each vali
 Apply the valid fixes and answer the invalid ones without asking. Invoking this variant on the user's own PR authorizes the commit, push, replies and resolves below; do not ask for a go-ahead on any of them. Ask the user (AskUserQuestion) only about needs-decision threads, with the options and a recommendation, and leave those threads open.
 
 1. Fix each valid thread in the files it points at. Run the repo's checks (typecheck, tests, lint) until they pass.
-2. Commit the fixes (see `rules/git.md` for explicit pathspecs) and push. Never force-push.
+2. Commit the fixes (read `~/.claude/rules/git.md` if present; use explicit pathspecs either way) and push. Never force-push.
 3. Reply on each thread with what changed, quoting the sentence addressed. Replies are posted as the user, in plain language:
 
 ```bash

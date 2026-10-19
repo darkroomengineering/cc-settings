@@ -54,7 +54,7 @@ Start with [the repository README](../README.md) to install and learn the daily 
 | [Frontmatter reference](./frontmatter-reference.md) | Agent and skill authors | Canonical | Supported metadata fields |
 | [Skill authoring](./skill-authoring.md) | Skill authors | Canonical | Creating, registering, validating, and documenting a skill |
 | [Skills README](../skills/README.md) | Repository browsers | Pointer | Short platform-neutral link to the human and executable skill sources |
-| [Rules README](../rules/README.md) | Rule authors | Reference | Rule structure and scope |
+| [Rules](./rules.md) | Rule authors | Reference | Rule structure and scope |
 | [Hooks README](../hooks/README.md) | Hook authors | Pointer | Short route to the hook reference |
 | [MCP configuration README](../mcp-configs/README.md) | MCP maintainers | Reference | Core and optional server configuration |
 | [Feature agents guide](./feature-agents-guide.md) | Agent authors | Reference | Specialized agent composition |
