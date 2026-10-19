@@ -421,11 +421,11 @@ describe("hooksStrategy", () => {
       PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command, timeout: 5 }] }],
     });
     const team = hook(
-      `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/safety-net.ts"`,
+      `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/model-switch-guard.ts"`,
     );
     for (const older of [
-      `bun "$HOME/.claude/src/hooks/safety-net.ts"`,
-      `bun --no-env-file "$HOME/.claude/src/hooks/safety-net.ts"`,
+      `bun "$HOME/.claude/src/hooks/model-switch-guard.ts"`,
+      `bun --no-env-file "$HOME/.claude/src/hooks/model-switch-guard.ts"`,
     ]) {
       const ctx = makeCtx();
       const result = await hooksStrategy("hooks", team, hook(older), ctx);
@@ -605,7 +605,7 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
     await mkdir(join(dir, "src", "scripts"), { recursive: true });
     // Only the CURRENT names ship in this source tree — the renamed-away
     // hook referenced by the "stale" tests below is deliberately absent.
-    await writeFile(join(dir, "src", "hooks", "pre-edit-validate.ts"), "// current hook\n");
+    await writeFile(join(dir, "src", "hooks", "model-switch-guard.ts"), "// current hook\n");
     await writeFile(
       join(dir, "src", "scripts", "check-docs-before-install.ts"),
       "// still shipped\n",
@@ -635,7 +635,7 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
     const { dir, cleanup } = await makeSourceTree();
     try {
       const ctx = makeCtx({ sourceDir: dir });
-      const liveCmd = `bun "$HOME/.claude/src/hooks/pre-edit-validate.ts"`;
+      const liveCmd = `bun "$HOME/.claude/src/hooks/model-switch-guard.ts"`;
       const team = {};
       const user = { PreToolUse: [{ hooks: [{ type: "command", command: liveCmd }] }] };
       const result = await hooksStrategy("hooks", team, user, ctx);
@@ -662,7 +662,7 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
             if: "Bash(git commit*)",
             hooks: [
               { type: "command", command: docsCmd },
-              { type: "command", command: `bun "$HOME/.claude/src/hooks/pre-edit-validate.ts"` },
+              { type: "command", command: `bun "$HOME/.claude/src/hooks/model-switch-guard.ts"` },
             ],
           },
         ],
@@ -695,7 +695,7 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
       // second, redundant `git commit*` group.
       expect(groups.length).toBe(1);
       expect(JSON.stringify(groups)).not.toContain("pre-commit-sondeo");
-      expect(JSON.stringify(groups)).toContain("pre-edit-validate");
+      expect(JSON.stringify(groups)).toContain("model-switch-guard");
       expect(ctx.accounting.hooksPruned).toBe(1);
       expect(ctx.accounting.hooksSuperseded).toBe(1);
     } finally {
@@ -857,6 +857,48 @@ describe("pruneDeprecatedHooks", () => {
       "bun /repo/tools/pre-commit-tsc.ts",
       'bun "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-proof.ts"',
       "node scripts/session-title.ts",
+    ]) {
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok)),
+        ok,
+      ).toBe(false);
+    }
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches the per-script entries the dispatcher replaced", () => {
+    const prefix = `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src`;
+    for (const rel of [
+      "hooks/delegation-detector",
+      "hooks/quota-steer",
+      "hooks/escalate-model",
+      "hooks/safety-net",
+      "hooks/pre-edit-validate",
+      "hooks/freeze-guard",
+      "hooks/knowledge-hint",
+      "hooks/tool-cadence",
+      "hooks/promote-memory",
+      "hooks/escalate-acted",
+      "scripts/post-edit",
+    ]) {
+      const bad = `${prefix}/${rel}.ts"`;
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(bad)),
+        bad,
+      ).toBe(true);
+    }
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS leaves the dispatcher and the entries that stay separate alone", () => {
+    const prefix = `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src`;
+    for (const ok of [
+      `${prefix}/hooks/dispatch.ts" UserPromptSubmit`,
+      `${prefix}/hooks/dispatch.ts" PreToolUse`,
+      `${prefix}/hooks/dispatch.ts" PostToolUse`,
+      `${prefix}/scripts/post-edit-tsc.ts"`,
+      `${prefix}/scripts/check-docs-before-install.ts"`,
+      `${prefix}/scripts/log-bash.ts"`,
+      `${prefix}/hooks/model-switch-guard.ts"`,
+      `bun "/opt/mine/hooks/safety-net.ts"`,
     ]) {
       expect(
         DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok)),

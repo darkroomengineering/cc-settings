@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 23;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 24;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -697,9 +697,17 @@ const v22 = {
   light: [...v21.light, ...ADDED_IN_V22],
 };
 MANIFESTS.set(22, v22);
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v23 = {
   full: v22.full.filter(notAddedAfter(REMOVED_SOURCES_IN_V23)),
   light: v22.light.filter(notAddedAfter(REMOVED_SOURCES_IN_V23)),
+};
+MANIFESTS.set(23, v23);
+// Version 24: the hook dispatcher that runs each event's synchronous handlers in one process.
+// Claude-only like ask-gate: the Codex plugin wires its handlers one per entry.
+const ADDED_IN_V24 = ["src/hooks/dispatch.ts"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v23.full, ...ADDED_IN_V24],
+  light: [...v23.light, ...ADDED_IN_V24],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

@@ -268,7 +268,7 @@ echo "Edited file: $FILE_PATH"
 | `async` | boolean | `false` | Run in background without blocking Claude |
 | `timeout` | number | `600` | Timeout in seconds (max: 600) |
 | `once` | boolean | `false` | Run exactly once per session, then disable |
-| `onFailure` | string | -- | (v2.1.295, `command` and `http` types) `"block"` blocks the action when the hook cannot start, times out, or exits with an unexpected code. Unset, such a failure lets the action through. `safety-net.ts` sets it. |
+| `onFailure` | string | -- | (v2.1.295, `command` and `http` types) `"block"` blocks the action when the hook cannot start, times out, or exits with an unexpected code. Unset, such a failure lets the action through. The `dispatch.ts PreToolUse` entry for the Bash matcher sets it; the Edit and Write entry does not, so a failed dispatcher cannot block an edit. |
 | `continueOnBlock` | boolean | `false` | (v2.1.139, `PostToolUse` only) When the hook returns a block signal, the turn continues — the block surfaces in context but doesn't abort. Use for soft warnings. |
 | `terminalSequence` | string | -- | (v2.1.141, hook output) Raw terminal escape sequence the hook returns in its JSON output. Lets hooks emit desktop notifications, set window titles, or ring the bell without owning a controlling terminal. |
 
@@ -419,6 +419,26 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 
 ## Configured Hooks
 
+### Dispatcher (`hooks/dispatch.ts`)
+
+Three events run their synchronous hooks through one process each: `dispatch.ts <Event>` for `UserPromptSubmit`, `PreToolUse` and `PostToolUse`. A Bash call starts one PreToolUse process instead of two, an Edit call one PreToolUse and one PostToolUse process instead of five, and a prompt one process instead of three. The entry matchers together cover exactly the tools some handler covers, so tools no handler covers (Read, Grep, Glob) still start nothing.
+
+The dispatcher reads stdin once, runs the handlers whose own matcher matches `tool_name` in the order below, and prints one response:
+
+| Event | Entry matcher | Entry timeout | Handlers, in order (each handler's own matcher) |
+|-------|---------------|---------------|--------------------------------------------------|
+| `UserPromptSubmit` | none | 3 s | `delegation-detector`, `quota-steer`, `escalate-model` |
+| `PreToolUse` | `Bash` and `Edit\|Write`, two entries with the same command so a Bash call and an Edit call each start one process | 5 s each; `onFailure: "block"` on the Bash entry only | `safety-net` (Bash), `pre-edit-validate` (Edit), `freeze-guard` (Edit\|Write), `knowledge-hint` (Bash\|Edit\|Write) |
+| `PostToolUse` | `Write\|Edit\|Bash\|Agent` | none (the default) | `post-edit` (Write\|Edit), `tool-cadence` (Bash\|Agent), `promote-memory` (Write\|Edit), `escalate-acted` (Agent) |
+
+- **Block.** The first handler that blocks wins. The response is exactly what that handler prints when it runs alone: `{"decision":"block","reason":…}` on stdout and exit 2. The reason carries the handler's prefix (`[Safety Net]`, `[Harness]`, `[Freeze]`), so it names the handler. Handlers after the blocker still run, except after `safety-net`: its block is answered at once so a slow advisory handler cannot delay it. The `additionalContext` of the other handlers is dropped when the call is blocked.
+- **Context.** Every handler's `additionalContext` is joined with newlines into one `hookSpecificOutput` envelope, exit 0. Tool events inject only through that envelope (see Sync vs Async Behavior).
+- **Failure.** `safety-net` is fail-closed: if it throws, times out or fails to load, the dispatcher blocks with `[Safety Net] internal error, failing closed: <detail>`, as a crashed safety-net process does when run alone. Any other handler that throws or times out is skipped, its error goes to stderr, and the rest still run. Unparseable stdin matches no tool, so nothing runs and the exit is 0.
+- **Time.** `safety-net` runs first and gets the whole entry timeout. Each other handler gets the timeout its own entry had (3 s or 5 s), capped by what is left of the entry timeout minus 400 ms, and a handler that overruns is abandoned. Handlers run one after another, so a slow handler shortens the time the later ones get: a 2 s Jev call in `delegation-detector` leaves about 0.6 s for the two handlers after it. `knowledge-hint` runs `git` synchronously (2 s cap per call), which no timeout can interrupt.
+- **Still separate entries.** `post-edit-tsc`, `log-bash` and `codex-verify` are `async: true`. `check-docs-before-install` is gated by an `if` filter, and the dispatcher cannot evaluate that filter, so it runs only on install commands as its own process. `verify-hooks` must run before dependency-backed code loads, and `session-start` is a plain-stdout script with top-level side effects, so both stay as SessionStart entries.
+
+Every handler still runs as its own script (`bun src/hooks/<name>.ts < payload.json`), which is how the tests, `bun run hooks:bench` and the Codex plugin invoke them. A handler exports `main(io: HookIO)` (`src/lib/hook-runtime.ts`) and calls `io.hookInput`, `io.toolInput`, `io.context` and `io.block` instead of printing and exiting; run alone it gets `processIO`, run by the dispatcher it gets a `captureIO` over the payload the dispatcher read.
+
 ### SessionStart
 
 | Script | Purpose | Async |
@@ -449,7 +469,7 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.), content reads of secret files (`~/.ssh`, `~/.aws`, `.env`, ...), git hook skips (`--no-verify`, `HUSKY=0`, `-c core.hooksPath`), and `gh` writes outside `darkroomengineering` and the user's own account. An unexpected internal error exits 1 and blocks | No |
+| `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.), content reads of secret files (`~/.ssh`, `~/.aws`, `.env`, ...), git hook skips (`--no-verify`, `HUSKY=0`, `-c core.hooksPath`), and `gh` writes outside `darkroomengineering` and the user's own account. An unexpected internal error exits 1 and blocks when it runs alone; the dispatcher blocks with the same reason | No |
 | `check-docs-before-install.ts` | Reminds to fetch docs before installing new packages | No |
 
 ### PreToolUse (Edit matcher)
@@ -641,6 +661,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 ### Best Practices
 
 - **Use the shared runtime.** Import from `src/lib/hook-runtime.ts` — `readHookInput<T>()` (reads stdin JSON with env-var fallback), `readState<T>(name, fallback)` / `writeState(name, data)` (atomic IO against `~/.claude/tmp/<name>.json`), and `runHook(main)` (top-level fail-open wrapper). The cadence hooks (`tool-cadence.ts`, `delegation-detector.ts`) are the reference implementations.
+- A synchronous hook on `UserPromptSubmit`, `PreToolUse` or `PostToolUse` joins the dispatcher instead of getting its own entry: export `main(io: HookIO)`, add it to `HANDLERS` in `src/hooks/dispatch.ts` with the matcher and timeout it would have had, widen the dispatcher entry's matcher in `config/40-hooks.json` if it covers a new tool, and keep the entry timeout equal to the max of the handlers' (`tests/dispatch.test.ts` checks both). A hook that must be `async`, gated by `if`, or isolated in its own process keeps its own entry.
 - Always quote `$HOME` paths in the `command` string.
 - Use `async: true` for non-blocking operations (logging, metrics).
 - Set reasonable `timeout` values (default 600s is often too long for simple scripts).

@@ -12,13 +12,7 @@
 // emitted via hookSpecificOutput.additionalContext (see hook-runtime.ts).
 
 import { z } from "zod";
-import {
-  emitAdditionalContext,
-  readHookInput,
-  readState,
-  runHook,
-  writeState,
-} from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, readState, runHook, writeState } from "../lib/hook-runtime.ts";
 import { rankNotes, repoNamesFrom } from "../lib/knowledge-hint.ts";
 import { type KnowledgeNote, readKnowledgeIndex } from "../lib/knowledge-index.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
@@ -46,15 +40,15 @@ type Payload = {
 };
 
 /** Trimmed stdout of `git -C <cwd> <args>`, or "" on any failure. Sync
- *  because it runs inside a filter; bounded so a stale lock can't stall the
- *  tool call. */
+ *  because it runs inside a filter. Bounded tightly: the dispatcher cannot
+ *  interrupt a sync spawn, and an overrun on the Bash entry blocks the call. */
 function gitOut(cwd: string, args: string[]): string {
   try {
     const proc = Bun.spawnSync(["git", "-C", cwd, ...args], {
       stdout: "pipe",
       stderr: "ignore",
       stdin: "ignore",
-      timeout: 2_000,
+      timeout: 500,
     });
     return proc.exitCode === 0 ? proc.stdout.toString().trim() : "";
   } catch {
@@ -121,8 +115,8 @@ function formatMessage(notes: KnowledgeNote[]): string {
   return lines.join("\n");
 }
 
-async function main(): Promise<void> {
-  const input = await readHookInput<Payload>({
+export async function main(io: HookIO = processIO): Promise<void> {
+  const input = await io.hookInput<Payload>({
     session_id: "CLAUDE_SESSION_ID",
     tool_name: "TOOL_NAME",
   });
@@ -147,7 +141,7 @@ async function main(): Promise<void> {
   const matched = rankNotes(index.notes, haystack, shown, repoNamesResolver(cwd));
   if (matched.length === 0) return;
 
-  emitAdditionalContext("PreToolUse", formatMessage(matched));
+  io.context("PreToolUse", formatMessage(matched));
 
   // Read-modify-write without a lock: two hooks racing on the same session can
   // both miss the other's write, and a note then surfaces twice. Accepted: the
@@ -157,4 +151,4 @@ async function main(): Promise<void> {
   await writeState(HINT_STATE_FILE, next).catch(() => {});
 }
 
-await runHook(main);
+if (import.meta.main) await runHook(main);

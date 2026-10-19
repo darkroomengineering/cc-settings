@@ -24,7 +24,8 @@ export function coerceState<T>(parsed: unknown, fallback: T): T {
 }
 
 // stdin is a one-shot stream; memoize so readHookInput and readToolInput can
-// both run in one hook process.
+// both run in one hook process. Handlers run by the dispatcher never touch it:
+// they get a HookIO over the dispatcher's own copy of the payload (captureIO).
 let stdinText: Promise<string> | undefined;
 function readStdin(): Promise<string> {
   stdinText ??= Bun.stdin.text();
@@ -39,19 +40,20 @@ function parseJson(raw: string): unknown {
   }
 }
 
-/** Read a stdin JSON payload; on parse failure OR a non-object payload, fall
- *  back to env.
+/** Parse a hook payload; on parse failure OR a non-object payload, fall back to
+ *  env.
  *
- *  Subtlety: the env fallback fires when stdin fails to parse as JSON, or parses
- *  to something that isn't an object (null, an array, a scalar) — none of those
- *  carry hook fields, so treating them like a parse failure keeps callers from
- *  destructuring a non-object. A valid-but-empty payload (`{}`) parses fine and
- *  intentionally skips the env fallbacks — well-formed input with missing fields
- *  means "the event really had no fields", not "look elsewhere". */
-export async function readHookInput<T extends Record<string, unknown>>(
+ *  Subtlety: the env fallback fires when the text fails to parse as JSON, or
+ *  parses to something that isn't an object (null, an array, a scalar) — none of
+ *  those carry hook fields, so treating them like a parse failure keeps callers
+ *  from destructuring a non-object. A valid-but-empty payload (`{}`) parses fine
+ *  and intentionally skips the env fallbacks — well-formed input with missing
+ *  fields means "the event really had no fields", not "look elsewhere". */
+export function parseHookInput<T extends Record<string, unknown>>(
+  raw: string,
   envFallbacks?: Partial<Record<keyof T & string, string>>,
-): Promise<Partial<T>> {
-  const parsed = parseJson(await readStdin());
+): Partial<T> {
+  const parsed = parseJson(raw);
   if (isPlainObject(parsed)) return parsed as Partial<T>;
   if (!envFallbacks) return {};
   const out: Record<string, unknown> = {};
@@ -59,6 +61,13 @@ export async function readHookInput<T extends Record<string, unknown>>(
     if (envVar && process.env[envVar]) out[k] = process.env[envVar];
   }
   return out as Partial<T>;
+}
+
+/** Read the stdin JSON payload through parseHookInput. */
+export async function readHookInput<T extends Record<string, unknown>>(
+  envFallbacks?: Partial<Record<keyof T & string, string>>,
+): Promise<Partial<T>> {
+  return parseHookInput<T>(await readStdin(), envFallbacks);
 }
 
 /** Read a JSON state file at ~/.claude/tmp/<name>.json. Returns fallback on any
@@ -107,14 +116,14 @@ export async function writeState(name: string, data: unknown): Promise<void> {
   await rename(tmp, target);
 }
 
-/** Read the tool input of a PreToolUse/PostToolUse hook. Claude Code delivers
- *  it as `tool_input` in the stdin JSON payload. The `TOOL_INPUT` JSON env var
- *  plus `TOOL_INPUT_<key>` scalars are the fallback, used only when stdin is
- *  empty, unparseable, or not an object; the Codex shim (scripts/codex-hook.ts)
- *  sets them. Returns {} when neither source has input — fail-open: missing
- *  input must never produce a block. */
-export async function readToolInput<T>(): Promise<Partial<T>> {
-  const payload = parseJson(await readStdin());
+/** Parse the tool input of a PreToolUse/PostToolUse payload. Claude Code
+ *  delivers it as `tool_input` in the stdin JSON payload. The `TOOL_INPUT` JSON
+ *  env var plus `TOOL_INPUT_<key>` scalars are the fallback, used only when the
+ *  payload is empty, unparseable, or not an object; the Codex shim
+ *  (scripts/codex-hook.ts) sets them. Returns {} when neither source has input —
+ *  fail-open: missing input must never produce a block. */
+export function parseToolInput<T>(raw: string): Partial<T> {
+  const payload = parseJson(raw);
   if (isPlainObject(payload)) {
     return (isPlainObject(payload.tool_input) ? payload.tool_input : {}) as Partial<T>;
   }
@@ -127,6 +136,11 @@ export async function readToolInput<T>(): Promise<Partial<T>> {
     }
   }
   return out as Partial<T>;
+}
+
+/** Read the stdin payload's tool input through parseToolInput. */
+export async function readToolInput<T>(): Promise<Partial<T>> {
+  return parseToolInput<T>(await readStdin());
 }
 
 /** Emit the documented PreToolUse block decision and exit 2.
@@ -172,4 +186,60 @@ export async function runHook(main: () => Promise<void>): Promise<void> {
   } catch {
     // Fail open — never break a tool call due to a hook error.
   }
+}
+
+/** What a hook handler does to the outside world: read its payload, hand
+ *  context to the model, and block. A handler takes a HookIO so one function
+ *  serves both launch modes: its own process (processIO) and inside
+ *  src/hooks/dispatch.ts (captureIO). */
+export interface HookIO {
+  hookInput<T extends Record<string, unknown>>(
+    envFallbacks?: Partial<Record<keyof T & string, string>>,
+  ): Promise<Partial<T>>;
+  toolInput<T>(): Promise<Partial<T>>;
+  context(hookEventName: string, text: string): void;
+  block(reason: string): never;
+}
+
+/** This process's stdin and stdout: `block` prints the block decision and exits 2. */
+export const processIO: HookIO = {
+  hookInput: readHookInput,
+  toolInput: readToolInput,
+  context: emitAdditionalContext,
+  block: blockDecision,
+};
+
+/** Thrown by `captureIO(...).block`. A handler that catches it must rethrow. */
+export class HookBlocked extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+    this.name = "HookBlocked";
+  }
+}
+
+export interface CapturedIO extends HookIO {
+  /** additionalContext strings in emission order. */
+  readonly contexts: string[];
+  /** Drop everything the handler emits from now on (it timed out). */
+  close(): void;
+}
+
+/** A HookIO over an already-read payload that collects output instead of printing it. */
+export function captureIO(raw: string): CapturedIO {
+  let closed = false;
+  const contexts: string[] = [];
+  return {
+    contexts,
+    close: () => {
+      closed = true;
+    },
+    hookInput: async (envFallbacks) => parseHookInput(raw, envFallbacks),
+    toolInput: async () => parseToolInput(raw),
+    context: (_hookEventName, text) => {
+      if (!closed) contexts.push(text);
+    },
+    block: (reason) => {
+      throw new HookBlocked(reason);
+    },
+  };
 }

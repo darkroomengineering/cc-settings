@@ -41,13 +41,7 @@ import {
   toJsonLine,
 } from "../lib/escalate-telemetry.ts";
 import { intEnv } from "../lib/hook-config.ts";
-import {
-  emitAdditionalContext,
-  readHookInput,
-  readState,
-  runHook,
-  writeState,
-} from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, readState, runHook, writeState } from "../lib/hook-runtime.ts";
 import { isoNow } from "../lib/platform.ts";
 import type { SignatureMap } from "../lib/problem-signature.ts";
 import {
@@ -101,8 +95,8 @@ async function resolveBand(): Promise<QuotaBand | "unknown"> {
   return computeBand(resolved.five_hour?.used_percentage, resolved.seven_day?.used_percentage);
 }
 
-async function main(): Promise<void> {
-  const input = await readHookInput<{ prompt: string; session_id: string }>({
+export async function main(io: HookIO = processIO): Promise<void> {
+  const input = await io.hookInput<{ prompt: string; session_id: string }>({
     prompt: "PROMPT",
     session_id: "CLAUDE_SESSION_ID",
   });
@@ -125,9 +119,9 @@ async function main(): Promise<void> {
   // top is non-null here: shouldEscalate returns false when top is null.
   if (!top) return;
 
-  emitAdditionalContext("UserPromptSubmit", buildEscalateMessage(top, THRESHOLD, sessionModel));
+  io.context("UserPromptSubmit", buildEscalateMessage(top, THRESHOLD, sessionModel));
   await writeEscalateState(withAnnouncement(state, sessionId, top.key, now));
   await recordFired(sessionId, top, sessionModel);
 }
 
-await runHook(main);
+if (import.meta.main) await runHook(main);

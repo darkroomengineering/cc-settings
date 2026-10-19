@@ -35,7 +35,7 @@ import {
   TELEMETRY_LOG,
   toJsonLine,
 } from "../lib/escalate-telemetry.ts";
-import { readHookInput, readState, runHook, writeState } from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, readState, runHook, writeState } from "../lib/hook-runtime.ts";
 import { isoNow } from "../lib/platform.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
 
@@ -111,8 +111,8 @@ async function recordDelegationActed(sessionId: string, now: number): Promise<vo
   await appendFile(TELEMETRY_LOG, toJsonLine(event)).catch(() => {});
 }
 
-async function main(): Promise<void> {
-  const input = await readHookInput<Payload>({
+export async function main(io: HookIO = processIO): Promise<void> {
+  const input = await io.hookInput<Payload>({
     tool_name: "TOOL_NAME",
     session_id: "CLAUDE_SESSION_ID",
   });
@@ -129,4 +129,4 @@ async function main(): Promise<void> {
   await recordDelegationActed(sessionId, now);
 }
 
-await runHook(main);
+if (import.meta.main) await runHook(main);

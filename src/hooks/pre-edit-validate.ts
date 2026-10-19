@@ -23,22 +23,17 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import {
-  blockDecision,
-  emitAdditionalContext,
-  readToolInput,
-  runHook,
-} from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, runHook } from "../lib/hook-runtime.ts";
 
 type EditInput = {
   file_path?: string;
   old_string?: string;
 };
 
-async function main(): Promise<void> {
+export async function main(io: HookIO = processIO): Promise<void> {
   // Claude Code passes the Edit tool input as `tool_input` in the stdin JSON;
   // both file_path and old_string are read from it.
-  const parsed = await readToolInput<EditInput>();
+  const parsed = await io.toolInput<EditInput>();
 
   const resolvedPath = parsed.file_path ?? "";
   if (!resolvedPath) return;
@@ -51,9 +46,7 @@ async function main(): Promise<void> {
     isFile = false;
   }
   if (!isFile) {
-    blockDecision(
-      `[Harness] File does not exist: ${resolvedPath}. Use Write tool to create new files.`,
-    );
+    io.block(`[Harness] File does not exist: ${resolvedPath}. Use Write tool to create new files.`);
   }
 
   const oldString = parsed.old_string;
@@ -79,7 +72,7 @@ async function main(): Promise<void> {
           "Re-read the file with Read tool, then retry."
         : `[Harness] old_string not found in ${base}. ` +
           "File may have changed since last read. Re-read before editing.";
-    blockDecision(`${diagnosis} For complex edits, use Write tool for full file replacement.`);
+    io.block(`${diagnosis} For complex edits, use Write tool for full file replacement.`);
   }
 
   // Check 3: ambiguous old_string. Advisory only: plain console.log stdout on
@@ -95,7 +88,7 @@ async function main(): Promise<void> {
     searchFrom = found + oldString.length;
   }
   if (occurrences > 1) {
-    emitAdditionalContext(
+    io.context(
       "PreToolUse",
       `[Harness] old_string appears ${occurrences} times in ${base}. ` +
         "Add more surrounding context to make old_string unique, or use replace_all.",
@@ -105,4 +98,4 @@ async function main(): Promise<void> {
 
 // Fail-open: an unexpected throw must never block the edit. Intentional
 // blocks exit(2) inside blockDecision and never reach this catch.
-await runHook(main);
+if (import.meta.main) await runHook(main);
