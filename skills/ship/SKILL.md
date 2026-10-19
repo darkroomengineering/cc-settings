@@ -181,11 +181,15 @@ If `gh` is not available, provide the push command and instruct the user to crea
 Every PR carries a Linear issue. Work often starts before anyone files one, so this step creates it when it is missing, without asking, and reports the link:
 
 1. **Find an existing ID** (`ABC-123`) in the branch name, the PR title and body, and `git log <base>..HEAD`. Confirm each candidate with the Linear MCP `get_issue`: `UTF-8` and `SHA-256` have the same shape and are not issues.
-2. **Resolve the repo's team** from `~/.claude/linear-teams.json`, keyed by `gh repo view --json nameWithOwner --jq .nameWithOwner`. Each value is `{"server": "<Linear MCP server name>", "team": "<team key>", "project": "<project ID>"}`, or `null` for a repo with no Linear, which ends this step. `project` is optional. A missing key means ask once with AskUserQuestion (the teams from each connected Linear server's `list_teams`, plus "No Linear for this repo"), then the project (that team's `list_projects`, plus "No project"), then write the answers into the file. Where the question tool is unavailable, skip the step and report that the repo needs a mapping.
-3. **No confirmed ID:** create the issue with `save_issue` in that team and, when the mapping names one, that project, assigned to the user. Write its title and description from the same plain-English summary as the PR body, effect first, per `rules/git.md` "Issue descriptions".
-4. **Link it.** Put `Fixes <ID>` on its own line in the PR body for an issue this step created or one named only in commits; Linear's GitHub integration links the PR, moves the issue through the team's workflow, and closes it on merge. An ID already in the branch name, title, or body is linked; leave it as the author wrote it. For an existing PR, add the line with `gh pr edit --body-file`.
+2. **Resolve the repo's team** for `gh repo view --json nameWithOwner --jq .nameWithOwner`, matching `owner/repo` ignoring case. Look in two files, the first hit wins:
+   - `~/.claude/linear-teams.json`, a per-person override. Each value is `{"server": "<Linear MCP server name>", "team": "<team key>", "project": "<project ID>"}`, or `null`. `project` is optional.
+   - `~/.claude/tmp/linear-map.json`, the shared map that SessionStart caches from team-knowledge: `{"map": {"owner/repo": {"team": "<team key>", "project": "<project ID>", "projectName": "<optional>"}}, "checkedAt": "..."}`. It names no MCP server, so use the connected Linear server whose `list_teams` has that team.
 
-No Linear MCP server connected, or a call fails: skip the step, say so in the output, and continue. A missing issue never blocks a ship.
+   A `null` value means the repo has no Linear, which ends this step. Missing from both files means ask once with AskUserQuestion (the teams from each connected Linear server's `list_teams`, plus "No Linear for this repo"), then the project (that team's `list_projects`, plus "No project"), then write the answers into `linear-teams.json`. For a `darkroomengineering` repo, also tell the user to add it to `linear-map.json` in team-knowledge by PR. Where the question tool is unavailable, skip the step and report that the repo needs a mapping.
+3. **No confirmed ID:** create the issue with `save_issue` in that team and, when the mapping names one, that project, assigned to the user. Write its title and description from the same plain-English summary as the PR body, effect first, per `rules/git.md` "Issue descriptions".
+4. **Link it.** Put the ID at the end of the PR title (`<type>: <title> (DR-123)`) and `Fixes <ID>` on its own line in the PR body, for an issue this step created or one named only in commits; Linear's GitHub integration links the PR, moves the issue through the team's workflow, and closes it on merge. An ID already in the branch name, title, or body is linked; leave it as the author wrote it. The branch is already pushed, so never rename it to add the ID. For an existing PR, add the title suffix with `gh pr edit --title` and the body line with `gh pr edit --body-file`.
+
+No Linear MCP server connected, or a call fails: skip the step, say so in the output, leave the ID out of the title, and continue. A missing issue never blocks a ship.
 
 **Author the PR body, never `--fill`** (it pastes commit messages into the description). Write it from the full `git log <base>..HEAD` range and the diff, using the repo's own PR template or the structure in `rules/git.md` "PRs", then pass it with `--body-file`:
 
@@ -193,7 +197,7 @@ No Linear MCP server connected, or a call fails: skip the step, say so in the ou
 BODY_FILE=$(mktemp "${TMPDIR:-/tmp}/pr-body.XXXXXX") && cat > "$BODY_FILE" <<'EOF'
 <body per rules/git.md>
 EOF
-gh pr create --title "<type>: <concise, plain-English title>" --body-file "$BODY_FILE"
+gh pr create --title "<type>: <concise, plain-English title> (<Linear ID>)" --body-file "$BODY_FILE"
 ```
 
 ### Step 9: Watch CI Until Green (post-push)

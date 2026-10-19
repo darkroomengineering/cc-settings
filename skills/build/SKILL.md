@@ -42,6 +42,8 @@ diagram — inputs left, operations merging rightward, one terminal verification
 
 ## Phase 3: Implement
 
+**Linear.** When the session has a Linear project (a `Linear: team ..., project ...` line at startup, or a mapping found by the `ship` skill's "Linear issue" step 2), the work needs an issue before the first commit: use the one the user named, or create it per that step. Start the branch from it (`feat/DR-123-newsletter-form`) so Linear links the PR; `/ship` then adds the ID to the PR title and `Fixes DR-123` to the body. No Linear project for the repo: skip this.
+
 Follow standard Maestro workflow: scaffold → implement → test → review.
 
 Use the right primitives for the stack:

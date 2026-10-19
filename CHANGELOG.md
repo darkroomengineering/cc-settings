@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.74.0] — 2026-10-19
+
+Every session in a Darkroom repo now knows the repo's Linear team and project without anyone setting it up. The map lives in team-knowledge as `linear-map.json`, so one PR there updates it for the whole team. SessionStart caches it with `gh api` at most every 6 hours and prints `Linear: team DR, project "<name>"` for a mapped repo, or asks you to add an unmapped `darkroomengineering` repo by PR. `/ship` reads the shared map after your own `~/.claude/linear-teams.json` and puts the issue ID at the end of the PR title; `/build` starts the branch from the issue. Fixes #228.
+
+**Files changed:**
+- src/lib/knowledge-index.ts, src/lib/team-knowledge.ts, src/scripts/refresh-knowledge-index.ts, src/scripts/session-start.ts
+- skills/ship/SKILL.md, skills/build/SKILL.md, docs/knowledge-system.md
+- evals/ship-linear-issue, evals/ship-linear-shared-map, evals/build-linear-branch
+- tests/linear-map.test.ts
+
 ## [15.73.0] — 2026-10-19
 
 The shared React, style and performance rules now hold only advice that fits any React or CSS project. Next.js App Router, React Router, Tailwind and satus/novus specifics moved into the starters' own `.claude/rules/` files (satus#554, novus#36), so a Solid, Remix or plain-CSS project that touches a `.tsx` file no longer gets Server Component and `cn()` instructions. The React and performance rules also stop matching `app/**` and `components/**`. The three files go from 321 to 190 lines. Closes #222.

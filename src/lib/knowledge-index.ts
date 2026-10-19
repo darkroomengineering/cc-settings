@@ -11,6 +11,10 @@
 //
 // The corpus repo defaults to darkroomengineering/team-knowledge, overridable
 // via $KNOWLEDGE_REPO env var.
+//
+// The same repo's linear-map.json (repo -> Linear team and project) is cached
+// the same way in ~/.claude/tmp/linear-map.json. Anyone without read access to
+// the repo gets a failed fetch, no cache and no feature.
 
 import { z } from "zod";
 import { readState, writeState } from "./hook-runtime.ts";
@@ -44,6 +48,34 @@ export const KnowledgeIndexSchema = z.object({
 });
 
 export type KnowledgeIndex = z.infer<typeof KnowledgeIndexSchema>;
+
+// A map entry is validated tightly because its values reach the model through
+// the SessionStart line: no newlines, no free text beyond a short project name.
+export const LinearEntrySchema = z.object({
+  team: z.string().regex(/^[A-Za-z0-9]{1,16}$/),
+  project: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+  projectName: z
+    .string()
+    .regex(/^[^\r\n]{1,80}$/)
+    .optional(),
+});
+
+export type LinearEntry = z.infer<typeof LinearEntrySchema>;
+
+/** `owner/repo` -> Linear entry, or null for a repo that deliberately has no Linear. */
+export const LinearMapSchema = z.record(
+  z.string().regex(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/),
+  LinearEntrySchema.nullable(),
+);
+
+export type LinearMap = z.infer<typeof LinearMapSchema>;
+
+export const LinearMapCacheSchema = z.object({
+  map: LinearMapSchema,
+  checkedAt: z.string(),
+});
+
+export type LinearMapCache = z.infer<typeof LinearMapCacheSchema>;
 
 // ── Pure helpers ───────────────────────────────────────────────────────────────
 
@@ -121,6 +153,20 @@ export async function readKnowledgeIndex(): Promise<KnowledgeIndex | null> {
 
 // ── Refresh (TTL-gated, fail-open) ─────────────────────────────────────────────
 
+/** Fetch one file from the corpus repo via `gh api` and return its decoded text.
+ *  Null on a non-zero exit (404, no access, network). Throws on spawn errors and
+ *  timeouts; callers wrap it in try/catch. */
+async function fetchCorpusFile(path: string): Promise<string | null> {
+  const proc = Bun.spawn(
+    ["gh", "api", `repos/${KNOWLEDGE_REPO}/contents/${path}`, "--jq", ".content"],
+    { stdout: "pipe", stderr: "ignore", timeout: 10_000 },
+  );
+  const [text, exit] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  if (exit !== 0) return null;
+  // The API's base64 payload has embedded newlines — strip whitespace first.
+  return Buffer.from(text.replace(/\s/g, ""), "base64").toString("utf8");
+}
+
 /** Refresh the knowledge index if stale, otherwise return the cached value.
  *  Network/gh failures return the existing cache (or null) without overwriting it. */
 export async function refreshKnowledgeIndex(): Promise<KnowledgeIndex | null> {
@@ -135,31 +181,10 @@ export async function refreshKnowledgeIndex(): Promise<KnowledgeIndex | null> {
     return existing ?? null;
   }
 
-  // 3. Fetch INDEX.md via `gh api` (base64-encoded content field).
+  // 3. Fetch INDEX.md via `gh api`; a failed fetch must not clobber a good cache.
   try {
-    const proc = Bun.spawn(
-      ["gh", "api", `repos/${KNOWLEDGE_REPO}/contents/INDEX.md`, "--jq", ".content"],
-      {
-        stdout: "pipe",
-        stderr: "ignore",
-        timeout: 10_000,
-      },
-    );
-
-    const [text, exit] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
-
-    if (exit !== 0) {
-      // Non-zero exit — don't clobber good cache.
-      return existing ?? null;
-    }
-
-    let md: string;
-    try {
-      // The API's base64 payload has embedded newlines — strip whitespace first.
-      md = Buffer.from(text.replace(/\s/g, ""), "base64").toString("utf8");
-    } catch {
-      return existing ?? null;
-    }
+    const md = await fetchCorpusFile("INDEX.md");
+    if (md === null) return existing ?? null;
 
     const notes = parseIndexMarkdown(md);
     if (notes.length === 0) {
@@ -176,5 +201,49 @@ export async function refreshKnowledgeIndex(): Promise<KnowledgeIndex | null> {
   } catch {
     // timeout, spawn error, write error — return existing cache (or null).
     return existing ?? null;
+  }
+}
+
+// ── Linear map ─────────────────────────────────────────────────────────────────
+
+const LINEAR_CACHE_FILE = "linear-map.json";
+// A failed fetch keeps the old cache, so a person who lost access to the repo
+// would otherwise keep the map forever. Past this age the reader ignores it.
+const LINEAR_MAP_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function readLinearCache(): Promise<LinearMapCache | null> {
+  const raw = await readState<unknown>(LINEAR_CACHE_FILE, null);
+  const parsed = LinearMapCacheSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+/** The cached Linear map, or null when it is missing, malformed or older than
+ *  a week. Never touches the network. */
+export async function readLinearMap(): Promise<LinearMap | null> {
+  const cache = await readLinearCache();
+  if (!cache) return null;
+  const t = Date.parse(cache.checkedAt);
+  if (Number.isNaN(t) || Date.now() - t > LINEAR_MAP_MAX_AGE_MS) return null;
+  return cache.map;
+}
+
+/** Refresh the Linear map cache if stale. A failed fetch (no gh, no access,
+ *  404, bad JSON, wrong shape, empty map) never overwrites a good cache. */
+export async function refreshLinearMap(): Promise<LinearMapCache | null> {
+  const existing = await readLinearCache();
+  if (existing && !isStale(existing.checkedAt)) return existing;
+  if (!hasCommand("gh")) return existing;
+
+  try {
+    const text = await fetchCorpusFile("linear-map.json");
+    if (text === null) return existing;
+    const parsed = LinearMapSchema.safeParse(JSON.parse(text));
+    if (!parsed.success || Object.keys(parsed.data).length === 0) return existing;
+
+    const cache: LinearMapCache = { map: parsed.data, checkedAt: new Date().toISOString() };
+    await writeState(LINEAR_CACHE_FILE, cache);
+    return cache;
+  } catch {
+    return existing;
   }
 }

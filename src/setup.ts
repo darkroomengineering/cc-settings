@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.73.0"; // Shared React, style and performance rules hold only stack-neutral lines.
+const VERSION = "15.74.0"; // Linear project per repo comes from the team-knowledge map.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
