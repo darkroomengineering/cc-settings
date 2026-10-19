@@ -66,17 +66,19 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
       failClosed: "Safety Net",
       load: () => import("./safety-net.ts"),
     },
-    {
-      name: "pre-edit-validate",
-      matcher: "Edit",
-      timeoutS: 5,
-      load: () => import("./pre-edit-validate.ts"),
-    },
+    // freeze-guard runs before pre-edit-validate so a slow validation cannot
+    // spend the shared entry budget and skip the freeze boundary check.
     {
       name: "freeze-guard",
       matcher: "Edit|Write",
       timeoutS: 5,
       load: () => import("./freeze-guard.ts"),
+    },
+    {
+      name: "pre-edit-validate",
+      matcher: "Edit",
+      timeoutS: 5,
+      load: () => import("./pre-edit-validate.ts"),
     },
     {
       name: "knowledge-hint",
@@ -174,7 +176,10 @@ export async function runHandlers(
       await within(main(io), limitMs);
       result.context.push(...io.contexts);
     } catch (err) {
+      // Keep guidance emitted before the failure (quota-steer and
+      // escalate-model emit before writing state); drop anything emitted later.
       io.close();
+      result.context.push(...io.contexts);
       if (err instanceof HookBlocked) {
         result.block ??= { handler: handler.name, reason: err.reason };
       } else if (handler.failClosed) {

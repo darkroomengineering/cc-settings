@@ -146,6 +146,17 @@ describe("runHandlers: failures", () => {
     expect(skipped.context).toEqual(["hint"]);
   });
 
+  test("context a handler emitted before failing is kept", async () => {
+    const result = await runHandlers(payload("Edit"), [
+      fake("steer", (io) => {
+        io.context("UserPromptSubmit", "steer");
+        throw new Error("state write failed");
+      }),
+    ]);
+    expect(result.context).toEqual(["steer"]);
+    expect(result.errors).toEqual(["[dispatch] steer: skipped, state write failed"]);
+  });
+
   test("a hung advisory is cut at its own timeout and its late output is dropped", async () => {
     const hung = fake(
       "slow",
@@ -301,6 +312,11 @@ describe("the handler table agrees with config/40-hooks.json", () => {
         .flat()
         .filter((h) => h.failClosed),
     ).toHaveLength(1);
+  });
+
+  test("freeze-guard runs before pre-edit-validate, so validation cannot spend its budget", () => {
+    const names = HANDLERS.PreToolUse.map((h) => h.name);
+    expect(names.indexOf("freeze-guard")).toBeLessThan(names.indexOf("pre-edit-validate"));
   });
 
   test("the hook auditor trusts each dispatcher command once dispatch.ts is in the install manifest", async () => {
