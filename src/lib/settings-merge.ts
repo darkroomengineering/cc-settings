@@ -24,6 +24,8 @@ import {
   asRecord,
   canonicalKey,
   isPlainObject,
+  isRetiredDefault,
+  RETIRED_SCALAR_DEFAULTS,
   subtractByKey,
   unionByKey,
   uniqueByKey,
@@ -780,29 +782,19 @@ export const userWinsScalarStrategy: Strategy = async (key, team, user, ctx) => 
   return { keep: true, value: await deepMergeUserWins(key, team, user, ctx) };
 };
 
-// Top-level keys cc-settings used to ship and no longer does, with the exact
-// value it shipped. The default strategy keeps a key the team dropped (user
-// wins), so without this an existing install carries the old default forever.
-// `plansDirectory` was "./plans" until it was removed: it wrote plan files into
-// every repo, client repos included.
-const RETIRED_SCALAR_DEFAULTS: Record<string, unknown> = {
-  plansDirectory: "./plans",
-};
-
 // Drop a retired key when the team no longer sets it and the live value is
 // still the value cc-settings shipped. With a baseline, the previous install
 // must have supplied that value too; a baseline lacking the key means the user
 // typed it themselves, so it stays.
-function retiredDefaultStrategy(retired: unknown): Strategy {
+function retiredDefaultStrategy(): Strategy {
   return async (key, team, user, ctx) => {
-    if (team === undefined && user !== undefined && Bun.deepEquals(user, retired, true)) {
-      const baseline = baselineValueAt(ctx.opts, key);
-      const shippedIt =
-        ctx.opts.baselineSettings === undefined || Bun.deepEquals(baseline, retired, true);
-      if (shippedIt) {
-        ctx.accounting.retiredDefaultsPruned++;
-        return { keep: false };
-      }
+    if (
+      team === undefined &&
+      user !== undefined &&
+      isRetiredDefault(key, user, ctx.opts.baselineSettings)
+    ) {
+      ctx.accounting.retiredDefaultsPruned++;
+      return { keep: false };
     }
     return userWinsScalarStrategy(key, team, user, ctx);
   };
@@ -838,10 +830,7 @@ export const STRATEGIES: Record<string, Strategy> = {
   extraKnownMarketplaces: marketplacesStrategy,
   statusLine: statusLineStrategy,
   ...Object.fromEntries(
-    Object.entries(RETIRED_SCALAR_DEFAULTS).map(([key, value]) => [
-      key,
-      retiredDefaultStrategy(value),
-    ]),
+    Object.keys(RETIRED_SCALAR_DEFAULTS).map((key) => [key, retiredDefaultStrategy()]),
   ),
   // mcpServers is destructured out by installSettings (src/setup.ts) before
   // this function is invoked — it is excluded from the per-key strategy loop.
