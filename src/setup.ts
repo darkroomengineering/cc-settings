@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.75.0"; // Hooks cannot be made to print secrets or load a project's bunfig.
+const VERSION = "15.76.0"; // /ship links the Linear copy of a synced GitHub issue.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
