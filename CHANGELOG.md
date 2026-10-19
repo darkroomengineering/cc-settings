@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.75.0] — 2026-10-19
+
+Claude can no longer read your secrets without asking. The safety-net hook blocks any Bash command that names `dotenvx` followed by `get`, `decrypt` or `keypair` before a `--`, and any command that names a secret `.env` file next to a file reader (`cat`, `grep`, `sed`, `paste`, `dd` and the rest), however many wrappers, flags or quoting tricks come first. Read denies cover `.env` files, editing `.claude/settings.json` or `settings.local.json` asks first, and `cp`/`mv` onto those files is denied. A few harmless commands now block too, such as `grep .env README.md` or `dotenvx set get value`; run them yourself with `!`. SECURITY.md lists what stays out of reach: variable and command substitution, globs, brace expansion, `bun -e` scripts, and `dotenvx run -- <a program that prints its environment>`.
+
+Every hook command now runs with `--config="$HOME/.claude/src/bunfig.toml"`, a comment-only file, so a project's `bunfig.toml` `preload` cannot run code inside a hook. The hook audit trusts such a command only when both the script and that file match the install manifest. Re-run setup to rewrite the hook commands. Fixes #227.
+
+**Files changed:**
+- src/hooks/safety-net.ts, src/lib/hook-command.ts, src/lib/audit-hooks.ts, src/lib/hooks-fingerprint.ts, src/lib/settings-merge.ts, src/lib/platform.ts
+- src/bunfig.toml, src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/codex-plugin.ts, src/scripts/codex-hook.ts, src/scripts/session-start.ts
+- config/10-core.json, config/30-permissions.json, config/40-hooks.json
+- SECURITY.md, docs/settings-reference.md
+- tests/safety-net.test.ts, tests/audit-hooks.test.ts, tests/session-start-preload.test.ts, tests/settings-merge.test.ts, tests/install-e2e.test.ts, tests/codex-hook.test.ts, tests/codex-install.test.ts, tests/hook-fail-open.test.ts
+
 ## [15.74.0] — 2026-10-19
 
 Every session in a Darkroom repo now knows the repo's Linear team and project without anyone setting it up. The map lives in team-knowledge as `linear-map.json`, so one PR there updates it for the whole team. SessionStart caches it with `gh api` at most every 6 hours and prints `Linear: team DR, project "<name>"` for a mapped repo, or asks you to add an unmapped `darkroomengineering` repo by PR. `/ship` reads the shared map after your own `~/.claude/linear-teams.json` and puts the issue ID at the end of the PR title; `/build` starts the branch from the issue. Fixes #228.
