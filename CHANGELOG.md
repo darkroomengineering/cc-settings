@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.76.0] — 2026-10-19
+
+When a PR fixes a GitHub issue in a repo whose issues sync to Linear, `/ship` now finds the Linear copy the sync created and links that one, instead of filing a duplicate. It searches the mapped team by the GitHub issue's title and accepts a hit only when the Linear issue's attachment points at that GitHub issue. cc-settings now syncs its GitHub issues to the Open Source team.
+
+**Files changed:**
+- skills/ship/SKILL.md
+- evals/ship-linear-synced-issue
+
 ## [15.75.0] — 2026-10-19
 
 Claude can no longer read your secrets without asking. The safety-net hook blocks any Bash command that names `dotenvx` followed by `get`, `decrypt` or `keypair` before a `--`, and any command that names a secret `.env` file next to a file reader (`cat`, `grep`, `sed`, `paste`, `dd` and the rest), however many wrappers, flags or quoting tricks come first. Read denies cover `.env` files, editing `.claude/settings.json` or `settings.local.json` asks first, and `cp`/`mv` onto those files is denied. A few harmless commands now block too, such as `grep .env README.md` or `dotenvx set get value`; run them yourself with `!`. SECURITY.md lists what stays out of reach: variable and command substitution, globs, brace expansion, `bun -e` scripts, and `dotenvx run -- <a program that prints its environment>`.
