@@ -2780,6 +2780,7 @@ describe("install E2E — uninstall ownership", () => {
             "src/lib/hook-frequency.ts",
             "src/scripts/hook-bench.ts",
             "src/scripts/hook-report.ts",
+            "src/lib/copilot-instructions.ts",
           ].sort(),
         );
         for (const path of newlyManaged) delete sentinel.managed_files[path];

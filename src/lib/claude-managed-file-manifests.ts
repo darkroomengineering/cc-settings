@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 19;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 20;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -533,9 +533,11 @@ const ADDED_IN_V17 = [
 // Version 19: two Stop hooks whose plain stdout never reached the model. Versions 7-18 still
 // own them, so they rejoin the historical source list.
 const REMOVED_SOURCES_IN_V19 = ["src/scripts/stop-failure.ts", "src/scripts/stop-summary.ts"];
+// Version 20: the Copilot CLI instructions sync.
+const ADDED_IN_V20 = ["src/lib/copilot-instructions.ts"];
 // Each removed file rejoins at its original position: shipped manifests are hashed in order.
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
-  (path) => !ADDED_IN_V17.includes(path),
+  (path) => !ADDED_IN_V17.includes(path) && !ADDED_IN_V20.includes(path),
 ).flatMap((path) => {
   if (path === "src/lib/download-verify.ts") return [path, ...REMOVED_IN_V14];
   if (path === "src/scripts/session-title.ts") return [path, ...REMOVED_SOURCES_IN_V19];
@@ -654,9 +656,14 @@ const REMOVED_IN_V19 = [
   "rules/react-perf.md",
   "rules/ui-skills.md",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v19 = {
   full: v18.full.filter(notAddedAfter(REMOVED_IN_V19)),
   light: v18.light.filter(notAddedAfter(REMOVED_IN_V19)),
+};
+MANIFESTS.set(19, v19);
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v19.full, ...ADDED_IN_V20],
+  light: [...v19.light, ...ADDED_IN_V20],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

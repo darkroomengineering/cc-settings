@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.68.0] — 2026-10-19
+
+GitHub Copilot CLI now follows the Darkroom standards in every repo, not only in repos set up with `project-init.ts`. When `~/.copilot` exists (or `COPILOT_HOME` is set), setup writes `AGENTS.md` into Copilot's personal instructions file, `copilot-instructions.md`, between `cc-settings:copilot` markers, plus a short note that Claude Code-only references don't apply there. Anything the user wrote in that file outside the markers stays as it is. Rollback and uninstall re-sync the block from the restored `~/.claude/AGENTS.md`, or remove it when that file is gone. A machine without Copilot CLI gets no `~/.copilot` directory. A malformed marker pair is reported and the file is left untouched; it never fails the install.
+
+The new module ships under Claude managed-file manifest v20 and Codex runtime manifest v18. The Codex instruction-block helpers now take their markers as a parameter, so both hosts share them.
+
+**Files changed:**
+- src/lib/copilot-instructions.ts, tests/copilot-instructions.test.ts
+- src/lib/codex-native-agents.ts, src/setup.ts
+- src/lib/install-source-inventory.ts, src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts
+- tests/codex-install.test.ts, tests/install-e2e.test.ts
+
 ## [15.67.1] — 2026-10-16
 
 The full Windows test suite on main is green again. Three real Windows bugs were behind its six failures:
