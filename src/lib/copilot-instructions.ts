@@ -8,12 +8,7 @@ import { existsSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import {
-  type BlockMarkers,
-  managedBlockRange,
-  mergeInstructions,
-  removeInstructions,
-} from "./codex-native-agents.ts";
+import { type BlockMarkers, mergeInstructions, removeInstructions } from "./codex-native-agents.ts";
 import { info, warn } from "./colors.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 
@@ -32,6 +27,15 @@ export function copilotHome(env: NodeJS.ProcessEnv = process.env): string {
   return env.COPILOT_HOME ? resolve(env.COPILOT_HOME) : join(homedir(), ".copilot");
 }
 
+// Only a missing file counts as absent; any other read error propagates so an
+// unreadable personal file is never overwritten or stripped.
+function missingAs<T>(value: T): (err: unknown) => T {
+  return (err) => {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return value;
+    throw err;
+  };
+}
+
 export async function syncCopilotInstructions(
   claudeDir: string = CLAUDE_DIR,
   home: string = copilotHome(),
@@ -40,10 +44,9 @@ export async function syncCopilotInstructions(
   if (!existsSync(home)) return "skipped";
   const target = join(home, "copilot-instructions.md");
   const [agents, existing] = await Promise.all([
-    readFile(join(claudeDir, "AGENTS.md"), "utf8").catch(() => null),
-    readFile(target, "utf8").catch(() => ""),
+    readFile(join(claudeDir, "AGENTS.md"), "utf8").catch(missingAs(null)),
+    readFile(target, "utf8").catch(missingAs("")),
   ]);
-  managedBlockRange(existing, COPILOT_MARKERS);
   if (agents === null) {
     const updated = removeInstructions(existing, COPILOT_MARKERS);
     if (updated === existing) return "unchanged";

@@ -743,7 +743,7 @@ async function main(): Promise<number> {
   if (installCode !== 0) return installCode;
 
   if (!args.migrateOnly) await showSummary(args.profile, args.sourceDir, mcpOverridden);
-  await reportCopilotSync();
+  if (includesTarget(target, "claude")) await reportCopilotSync();
   if (includesTarget(target, "codex")) {
     console.log("");
     await printCodexStatus(args.sourceDir);
