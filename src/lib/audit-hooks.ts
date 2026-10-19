@@ -37,6 +37,8 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   iterCommandHooks,
+  MANAGED_BUNFIG_REL,
+  type ParsedHookCommand,
   parseHookCommand,
   parseHooksBlock,
   SHELL_SEGMENT_SEP_RE,
@@ -181,6 +183,39 @@ function classifyShippedPath(
   };
 }
 
+// `--config` loads code as surely as the script does, so the bunfig it names is
+// verified like a script.
+function manifestPaths(p: ParsedHookCommand): string[] {
+  const rel = p.relPath ?? "";
+  return p.usesConfig ? [rel, MANAGED_BUNFIG_REL] : [rel];
+}
+
+/** Worst severity across the verified paths; null when all are trusted. */
+function worstOf(
+  results: { severity: HookSeverity; reasons: string[] }[],
+): { severity: HookSeverity; reasons: string[] } | null {
+  for (const severity of ["suspicious", "stale", "unknown"] as const) {
+    const hits = results.filter((r) => r.severity === severity);
+    if (hits.length > 0) {
+      return { severity, reasons: [...new Set(hits.flatMap((r) => r.reasons))] };
+    }
+  }
+  return null;
+}
+
+function classifyManaged(
+  p: ParsedHookCommand,
+  integrity: SrcIntegrity | null | undefined,
+): { severity: HookSeverity; reasons: string[] } {
+  const results = manifestPaths(p).map((rel) => classifyShippedPath(rel, integrity));
+  return (
+    worstOf(results) ?? {
+      severity: "trusted",
+      reasons: ["matches cc-settings shipped script pattern; content matches install manifest"],
+    }
+  );
+}
+
 // Compound commands that chain multiple trusted bun scripts with `;` or `&&`.
 // Each sub-command must match MANAGED_HOOK_CMD *and* pass content verification;
 // the compound's severity is the worst of its parts. Segment separator is the
@@ -199,16 +234,11 @@ function classifyCompound(
   const parsed = parts.map((p) => parseHookCommand(p));
   if (!parsed.every((p) => p.managed && p.relPath)) return null;
 
-  const results = parsed.map((p) => classifyShippedPath(p.relPath ?? "", integrity));
-  const suspicious = results.filter((r) => r.severity === "suspicious");
-  if (suspicious.length > 0) {
-    return { severity: "suspicious", reasons: suspicious.flatMap((r) => r.reasons) };
-  }
-  const staleResults = results.filter((r) => r.severity === "stale");
-  if (staleResults.length > 0) {
-    return { severity: "stale", reasons: staleResults.flatMap((r) => r.reasons) };
-  }
-  if (results.some((r) => r.severity === "unknown")) {
+  const results = parsed.flatMap((p) =>
+    manifestPaths(p).map((rel) => classifyShippedPath(rel, integrity)),
+  );
+  const worst = worstOf(results);
+  if (worst?.severity === "unknown") {
     return {
       severity: "unknown",
       reasons: [
@@ -216,6 +246,7 @@ function classifyCompound(
       ],
     };
   }
+  if (worst) return worst;
   return {
     severity: "trusted",
     reasons: ["chains multiple cc-settings shipped scripts; content matches install manifest"],
@@ -472,7 +503,7 @@ export function classifyHookCommand(
   // not path-based. lib/ files are NOT in the managed pattern (tightened).
   const parsed = parseHookCommand(cmd);
   if (parsed.managed && parsed.relPath) {
-    return classifyShippedPath(parsed.relPath, integrity);
+    return classifyManaged(parsed, integrity);
   }
   const compound = classifyCompound(cmd, integrity);
   if (compound) return compound;

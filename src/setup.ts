@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.74.0"; // Linear project per repo comes from the team-knowledge map.
+const VERSION = "15.75.0"; // Hooks cannot be made to print secrets or load a project's bunfig.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

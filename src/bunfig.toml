@@ -1,0 +1,4 @@
+# Installed as ~/.claude/src/bunfig.toml (and into the Codex runtime). Every
+# cc-settings hook runs `bun --config=<this file>`, so a project's own
+# bunfig.toml (a `preload` there runs code before the hook starts) is never
+# read. Keep the file free of settings.

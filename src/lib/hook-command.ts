@@ -22,10 +22,21 @@ import { HooksBlock } from "../schemas/hooks.ts";
 // NOTE: [ \t] (not \s) arg-separation is a deliberate security property —
 // do NOT widen to \s; that would allow newline-chained payloads to match.
 // The shipped form carries --no-env-file so a project's .env cannot inject
-// variables into the hook; the flagless form is what older installs wrote.
-// Capture group 1 is the path relative to ~/.claude/src — the install-manifest key.
+// variables into the hook, and `--config="$HOME/.claude/src/bunfig.toml"` (a
+// comment-only file we ship) so a project's bunfig.toml `preload` cannot run
+// code inside it. The file sits under src/ so the install manifest hashes it.
+// `--config` is as powerful as `--preload`, so only that exact path is accepted,
+// and only after --no-env-file. The flagless form is what older installs wrote.
+// Group `rel` is the script path relative to ~/.claude/src and `config` marks
+// the bunfig flag; both are install-manifest keys the auditor must verify.
 export const MANAGED_HOOK_CMD: RegExp =
-  /^bun(?:[ \t]+--no-env-file)?[ \t]+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks)\/[a-zA-Z0-9_-]+\.ts)"?(?:[ \t]+[A-Za-z0-9_.:=/-]+)*[ \t]*$/;
+  /^bun(?:[ \t]+--no-env-file(?<config>[ \t]+--config="?\$\{?HOME\}?\/\.claude\/src\/bunfig\.toml"?)?)?[ \t]+"?\$\{?HOME\}?\/\.claude\/src\/(?<rel>(?:scripts|hooks)\/[a-zA-Z0-9_-]+\.ts)"?(?:[ \t]+[A-Za-z0-9_.:=/-]+)*[ \t]*$/;
+
+/** Install-manifest key of the bunfig every shipped hook command passes. */
+export const MANAGED_BUNFIG_REL = "bunfig.toml";
+
+/** The runtime prefix every shipped hook command starts with. */
+export const MANAGED_BUN_PREFIX = 'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" ';
 
 // Shell-segment separator: splits a compound command on ; && || and newline
 // variants including U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR.
@@ -43,17 +54,19 @@ export interface ParsedHookCommand {
   dir: "scripts" | "hooks" | null;
   /** e.g. "hooks/safety-net.ts", or null when not managed */
   relPath: string | null;
+  /** true when the command passes the managed bunfig with --config */
+  usesConfig: boolean;
 }
 
 /** Parse a hook command string against the managed pattern. */
 export function parseHookCommand(command: string): ParsedHookCommand {
   const m = command.match(MANAGED_HOOK_CMD);
-  if (!m?.[1]) {
-    return { raw: command, managed: false, dir: null, relPath: null };
+  const relPath = m?.groups?.rel;
+  if (!relPath) {
+    return { raw: command, managed: false, dir: null, relPath: null, usesConfig: false };
   }
-  const relPath = m[1];
   const dir = relPath.startsWith("scripts/") ? "scripts" : "hooks";
-  return { raw: command, managed: true, dir, relPath };
+  return { raw: command, managed: true, dir, relPath, usesConfig: Boolean(m.groups?.config) };
 }
 
 /** Shorthand predicate — equivalent to parseHookCommand(command).managed */

@@ -975,10 +975,11 @@ As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:
 **Deny (always blocked; overrides allow)** — grouped by intent:
 
 - **Catastrophic deletion:** `rm -rf` of `/`, `/*`, `~`, `~/*`, `$HOME`, `~/.ssh|.gnupg|.aws` (plus `-fr`/`-Rf` variants); `find * -delete`, `xargs rm`.
-- **Credential access:** read/copy/move/write of `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.netrc`, `~/.npmrc`, `~/.docker/config.json`, `~/.kube/config`.
+- **Credential access:** read/copy/move/write of `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.netrc`, `~/.npmrc`, `~/.docker/config.json`, `~/.kube/config`. The Read tool is denied `.env` (any directory) and the usual per-environment files: `.env.local`, `.env.*.local`, `.env.development`, `.env.production`, `.env.staging`, `.env.test`, `.env.keys`, `.envrc`. `.env.example` and other templates stay readable, because a deny cannot be overridden by an allow, so a broad `.env.*` deny would block them too.
 - **Data exfiltration:** `curl` with `--data|-d|-F|-T|--upload-file|--json|--data-raw|--data-binary|-o|-O|-H|--header|--cookie|-X POST|PUT|DELETE|PATCH`; `curl|wget … | bash|sh`.
 - **Config tampering (Shai-Hulud vector):** shell `cp`/`mv` *into* `~/.claude/settings.json`, `~/.claude.json`, `~/.bashrc`, `~/.zshrc`, `~/.bash_profile` — closes the gap where shell copy bypasses the `Write(...)` deny.
 - **Destructive git:** `git push --force|-f`, `git checkout -- .`, `git stash clear`, `git restore .`. `git branch -D` and `git stash drop` are reflog-recoverable, so they sit in `ask` instead: the user confirms each one. Workflow cleanup (`git reset --hard`, `git clean -f`, `git worktree remove --force`, `git push --force-with-lease`) is allowed; the safety-net hook still blocks force-with-lease to `main` or `master`.
+- **Project settings (ask):** editing `.claude/settings.json` or `.claude/settings.local.json` in any project prompts. Shell `cp` and `mv` into either file are denied. Their `env` block reaches hook processes, so a silent edit could set variables such as `CC_SAFETY_GH_LOGIN`, `GH_REPO` or `BUN_OPTIONS` for the hooks.
 - **Privilege / dangerous:** `sudo`, `chmod 777`, `gh repo delete`, `gh secret`. `gh api` DELETE and `gh release delete` are allowed; the safety-net hook blocks a DELETE on a repository's root endpoint.
 - **Remote code execution:** `node -e|-p|--eval|--print`, `awk … system(`, `find * -exec`.
 
@@ -1078,6 +1079,16 @@ Read(~/.aws/*)
 Read(~/.gnupg/*)
 Read(~/.config/gh/*)
 Read(~/.netrc)
+Read(.env)
+Read(**/.env)
+Read(**/.env.local)
+Read(**/.env.*.local)
+Read(**/.env.development)
+Read(**/.env.production)
+Read(**/.env.staging)
+Read(**/.env.test)
+Read(**/.env.keys)
+Read(**/.envrc)
 Bash(cat ~/.ssh/*)
 Bash(cat ~/.aws/*)
 Bash(cat ~/.gnupg/*)
@@ -1176,6 +1187,10 @@ Bash(curl * -X PATCH*)
 Bash(find * -exec*)
 Bash(cp * ~/.claude/settings.json*)
 Bash(mv * ~/.claude/settings.json*)
+Bash(cp * *.claude/settings.json*)
+Bash(mv * *.claude/settings.json*)
+Bash(cp * *.claude/settings.local.json*)
+Bash(mv * *.claude/settings.local.json*)
 Bash(cp * ~/.claude.json*)
 Bash(mv * ~/.claude.json*)
 Bash(cp * ~/.zshrc*)

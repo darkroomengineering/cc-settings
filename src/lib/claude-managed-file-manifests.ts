@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 21;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 22;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -668,9 +668,18 @@ const v20 = {
 MANIFESTS.set(20, v20);
 // Version 21: the durable-agents profile. Full only; light installs carry no profiles.
 const ADDED_IN_V21 = ["profiles/durable-agents.md"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v21 = {
   full: [...v20.full, ...ADDED_IN_V21],
   light: v20.light,
+};
+MANIFESTS.set(21, v21);
+// Version 22: the comment-only bunfig every hook command passes as `--config`, so a project's
+// bunfig.toml `preload` cannot run inside a hook. It lives under src/ so the install manifest
+// hashes it. Both profiles: the light statusLine is a bun command too.
+const ADDED_IN_V22 = ["src/bunfig.toml"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v21.full, ...ADDED_IN_V22],
+  light: [...v21.light, ...ADDED_IN_V22],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

@@ -27,9 +27,11 @@ interface HookGroup {
   hooks: HookEntry[];
 }
 
-/** `bun [--no-env-file] "$HOME/.claude/<rel>.ts" [args…]` → { rel, args }, or null. */
+/** `bun [--no-env-file] [--config="$HOME/.claude/src/bunfig.toml"] "$HOME/.claude/<rel>.ts" [args…]` → { rel, args }, or null. */
 function parseWiredCommand(cmd: string): { rel: string; args: string[] } | null {
-  const m = cmd.match(/^bun(?:\s+--no-env-file)?\s+"\$HOME\/\.claude\/([^"\s]+\.ts)"(?:\s+(.*))?$/);
+  const m = cmd.match(
+    /^bun(?:\s+--no-env-file)?(?:\s+--config="\$HOME\/\.claude\/src\/bunfig\.toml")?\s+"\$HOME\/\.claude\/([^"\s]+\.ts)"(?:\s+(.*))?$/,
+  );
   if (!m?.[1]) return null;
   const args = (m[2] ?? "").split(/\s+/).filter((a) => a.length > 0);
   return { rel: m[1], args };

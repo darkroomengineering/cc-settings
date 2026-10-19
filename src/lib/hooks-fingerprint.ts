@@ -15,7 +15,7 @@ import { lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
 import { z } from "zod";
-import { iterCommandHooks } from "./hook-command.ts";
+import { iterCommandHooks, MANAGED_BUNFIG_REL } from "./hook-command.ts";
 import { readValidatedState } from "./hook-runtime.ts";
 import { atomicWriteJson } from "./json-io.ts";
 import { CLAUDE_DIR } from "./platform.ts";
@@ -385,12 +385,15 @@ async function walkIntegrityFiles(dir: string, prefix = ""): Promise<string[]> {
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
     const dependencyFile = rel === "node_modules" || rel.startsWith("node_modules/");
     if (entry.isSymbolicLink()) {
-      if (dependencyFile || entry.name.endsWith(".ts")) out.push(rel);
+      if (dependencyFile || entry.name.endsWith(".ts") || rel === MANAGED_BUNFIG_REL) out.push(rel);
       continue;
     }
     if (entry.isDirectory()) {
       out.push(...(await walkIntegrityFiles(join(dir, entry.name), rel)));
-    } else if (entry.isFile() && (dependencyFile || entry.name.endsWith(".ts"))) {
+    } else if (
+      entry.isFile() &&
+      (dependencyFile || entry.name.endsWith(".ts") || rel === MANAGED_BUNFIG_REL)
+    ) {
       out.push(rel);
     }
   }

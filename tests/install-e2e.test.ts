@@ -1036,6 +1036,47 @@ mock.module("node:fs/promises", () => ({ ...original,
         expect(settings.statusLine?.command).toContain("statusline.ts");
         expect(settings.$schema).toBe("https://json.schemastore.org/claude-code-settings.json");
 
+        // Every hook runs with the shipped bunfig, so a project bunfig.toml `preload` never loads.
+        expect(existsSync(join(claudeDir, "src", "bunfig.toml"))).toBe(true);
+        const srcManifest = JSON.parse(
+          await readFile(join(claudeDir, ".cc-settings-src-manifest"), "utf8"),
+        );
+        expect(Object.keys(srcManifest.files)).toContain("bunfig.toml");
+        const hookCommands: string[] = [];
+        const collectCommands = (node: unknown): void => {
+          if (node === null || typeof node !== "object") return;
+          for (const [key, value] of Object.entries(node)) {
+            if (key === "command" && typeof value === "string") hookCommands.push(value);
+            else collectCommands(value);
+          }
+        };
+        collectCommands(settings.hooks);
+        expect(hookCommands.length).toBeGreaterThan(10);
+        for (const command of hookCommands) {
+          expect(command).toStartWith(
+            'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/',
+          );
+        }
+
+        expect(settings.statusLine.command).toStartWith(
+          'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/',
+        );
+        expect(settings.permissions.ask).toEqual(
+          expect.arrayContaining([
+            "Edit(**/.claude/settings.json)",
+            "Edit(**/.claude/settings.local.json)",
+          ]),
+        );
+        expect(settings.permissions.deny).toEqual(
+          expect.arrayContaining([
+            "Read(**/.env)",
+            "Read(**/.env.keys)",
+            "Read(**/.envrc)",
+            "Bash(cp * *.claude/settings.local.json*)",
+            "Bash(mv * *.claude/settings.json*)",
+          ]),
+        );
+
         // Version sentinel was written.
         const sentinel = JSON.parse(
           await readFile(join(claudeDir, ".cc-settings-version"), "utf8"),
@@ -2805,6 +2846,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/audit/references/performance-playbook.md",
             "skills/audit/references/test-audit.md",
             "skills/poke-holes/SKILL.md",
+            "src/bunfig.toml",
             "src/hooks/ask-gate.ts",
             "src/hooks/model-switch-guard.ts",
             "src/lib/claude-install-ownership.ts",
