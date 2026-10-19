@@ -2,55 +2,15 @@
 paths:
   - "**/*.tsx"
   - "**/*.jsx"
-  - "components/**/*"
-  - "app/**/*"
 ---
 
 # React
 
-> No manual memoization, composition over props drilling, server-first data fetching where the framework supports it.
-
-The model picks the right server/client split by reading visible imports — `'use client'` directives + `next/*` imports → Next.js Server Components mental model; loader/action exports + `react-router` imports → React Router mental model.
+> No manual memoization, composition over props drilling.
 
 ---
 
 ## DO
-
-### Default to server-side data fetching where supported
-
-```tsx
-// Next.js — Server Component (default)
-async function Page() {
-  const data = await fetchData()
-  return <DataDisplay data={data} />
-}
-
-// React Router — loader (runs on server)
-export async function loader() {
-  return { data: await fetchData() }
-}
-export default function Page({ loaderData }: Route.ComponentProps) {
-  return <DataDisplay data={loaderData.data} />
-}
-```
-
-Both keep secrets on the server, eliminate client roundtrips, and make data part of the initial HTML.
-
-### Client-side state only when needed
-```tsx
-// Next.js — Client Component (explicit)
-'use client'
-function Counter() {
-  const [count, setCount] = useState(0)
-  return <button onClick={() => setCount((c) => c + 1)}>{count}</button>
-}
-
-// React Router — components are isomorphic; no directive needed
-function Counter() {
-  const [count, setCount] = useState(0)
-  return <button onClick={() => setCount((c) => c + 1)}>{count}</button>
-}
-```
 
 ### Composition over props drilling (any stack)
 ```tsx
@@ -85,52 +45,8 @@ A `RefObject` never changes, so listing it only quiets `exhaustive-deps`. Handle
 ### Destructure refs carried in an object before writing
 React Compiler recognizes refs by name. `refs.track.current = el` reads as mutating a prop, and the compiler silently skips the component. Name the fields with a `Ref` suffix and destructure first: `const { trackRef } = refs; trackRef.current = el`.
 
-### Show markup per breakpoint with CSS, not `useMediaQuery`
-Use the `desktop-only` / `mobile-only` classes. They need no JavaScript and match the server render; the hook has no value until mount. Behavior that differs by breakpoint can still use JavaScript.
-
 ### Avoid client-side fetching for initial render data
-- Next.js: use Server Components or Route Handlers
-- React Router: use loaders (`loader` export)
-
-Client-side fetching is correct for *post-mount* state (autocomplete, polling, mutations). It's wrong for the data the user sees on first paint.
-
-### Don't put `useState` / `useEffect` / refs in a Server Component
-```tsx
-// WRONG: Server Component (no 'use client') with client-only hooks
-async function Page() {
-  const [open, setOpen] = useState(false)  // build error
-  return <Modal open={open} />
-}
-// CORRECT: split — Server fetches, Client owns interaction
-async function Page() {
-  const data = await fetchData()
-  return <PageClient data={data} />
-}
-'use client'
-function PageClient({ data }: { data: Data }) {
-  const [open, setOpen] = useState(false)
-  return <Modal open={open} data={data} />
-}
-```
-
-Applies to Next.js App Router. React Router components are isomorphic — no directive boundary to police, but the loader-vs-effect split has the same shape.
-
-### Don't make a Client Component `async`
-```tsx
-// WRONG: 'use client' + async function = runtime error
-'use client'
-async function Profile({ id }: { id: string }) {
-  const user = await getUser(id)  // can't await in a Client Component
-  return <ProfileView user={user} />
-}
-// CORRECT: fetch in the parent Server Component, pass data down
-async function ProfilePage({ id }: { id: string }) {
-  const user = await getUser(id)
-  return <Profile user={user} />  // Client Component, sync, takes data as prop
-}
-```
-
-Only Server Components can be async. If you find yourself reaching for `await` inside a `'use client'` file, the data fetch belongs one boundary up.
+Client-side fetching is correct for post-mount state (autocomplete, polling, mutations). It's wrong for the data the user sees on first paint.
 
 ## Tools
 

@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.73.0] — 2026-10-19
+
+The shared React, style and performance rules now hold only advice that fits any React or CSS project. Next.js App Router, React Router, Tailwind and satus/novus specifics moved into the starters' own `.claude/rules/` files (satus#554, novus#36), so a Solid, Remix or plain-CSS project that touches a `.tsx` file no longer gets Server Component and `cn()` instructions. The React and performance rules also stop matching `app/**` and `components/**`. The three files go from 321 to 190 lines. Closes #222.
+
+**Files changed:**
+- rules/react.md, rules/style.md, rules/performance.md, profiles/nextjs.md
+
 ## [15.72.0] — 2026-10-19
 
 The Codex bridge and the native Codex agents stop pinning a model. Each `codex-run.ts` call runs on the model Codex itself is configured to use, and each native agent runs on the session's model, so a Codex CLI upgrade brings newer models with no cc-settings release. `--model` and the `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL` and `CODEX_ASK_MODEL` env vars still pin a model for one call or one session. Re-run setup to regenerate the native agent files without their `model` lines.

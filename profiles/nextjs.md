@@ -5,7 +5,7 @@ description: Next.js web apps
 
 # Next.js Profile (App Router)
 
-> Darkroom conventions for Next.js 16+ App Router projects. Server-first defaults live in `AGENTS.md` and `rules/react.md`.
+> Darkroom conventions for Next.js 16+ App Router projects. Server-first defaults live in `AGENTS.md` and, in satus projects, `.claude/rules/next-app-router.md`.
 
 ## Satus Starter Specifics
 

@@ -9,40 +9,11 @@ paths:
 
 # Style
 
-> CSS modules as 's', Tailwind conventions, no inline styles. Modern CSS patterns adapted from [good-css.com](https://good-css.com)
+> Modern CSS patterns adapted from [good-css.com](https://good-css.com); no inline styles.
 
 ---
 
 ## DO
-
-### CSS Module Import Convention
-```tsx
-import s from './component.module.css'
-function Component() { return <div className={s.wrapper}>...</div> }
-```
-
-### Tailwind for Utilities
-```tsx
-<div className="flex items-center gap-4 p-6">
-<h1 className="text-2xl font-bold text-balance">
-```
-
-### CSS Modules for Complex Components
-```css
-.button { /* Base */ }
-.button[data-variant='primary'] { /* Variant */ }
-```
-
-### Theming with CSS Custom Properties
-```css
-:root { --color-primary: #0066cc; }
-[data-theme='dark'] { --color-primary: #66b3ff; }
-```
-
-### Conditional Classes with cn()
-```tsx
-<button className={cn('px-4 py-2', variant === 'primary' && 'bg-blue-500')}>
-```
 
 ### Viewport Units
 ```tsx
@@ -78,14 +49,11 @@ body { background: var(--edge-bottom); }
 - **`light-dark()` + `color-scheme`** for two-theme color tokens. Projects with 3+ themes keep `[data-theme]` overrides.
 - **Reset:** `min-width: 0` on flex/grid children and `text-wrap: balance` on headings.
 
-### Stack Constraints
-- Use Tailwind default values unless the project already defines custom ones or the design asks for them. Never invent custom spacing, colors, or breakpoints when a default suffices.
-- Use `size-*` for square elements (`size-8`, not `w-8 h-8`).
+### Constraints
 - Interactive primitives come from **Base UI**, **React Aria**, or **Radix UI**, or from the project's own component library. Never mix primitive systems within one interaction surface, and prefer what the project already has over a new dependency.
 - Loading states use structural skeletons that mirror the content's real layout (aspect boxes + text bars), not generic spinners for content areas.
 
 ### Typography
-- `text-balance` on headings, `text-pretty` on body text.
 - `tabular-nums` (`font-variant-numeric: tabular-nums`) on prices, stats, and tables so columns align.
 
 ---
@@ -112,10 +80,5 @@ body { background: var(--edge-bottom); }
 /* WRONG: will-change always on */
 .element { will-change: transform; }
 ```
-```tsx
-// WRONG: Global styles in components
-import '@/styles/globals.css'  // Only in layout.tsx
-```
 
-- **Satus routes compose in `app/**/page.tsx` as server components.** A page-level `'use client'` component under `components/` that is all `page.tsx` renders is a smell: move the ref or state that forced it into the component that renders the element.
 - **Open every Figma-exported SVG and strip `<filter>`** before using it as a background or mask. Texture effects export as `feTurbulence` filters that re-rasterize on the main thread. If the effect matters visually, apply it to an inline SVG on a composited layer and measure before shipping.

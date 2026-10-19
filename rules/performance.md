@@ -3,34 +3,25 @@ paths:
   - "**/*.ts"
   - "**/*.tsx"
   - "**/*.js"
-  - "app/**/*"
-  - "components/**/*"
 ---
 
 # Performance
 
-> Waterfalls, barrels, dynamic imports, and `React.cache` are in `AGENTS.md`. This file holds the stack-specific forms, thresholds, and frame-loop rules. Implementation reference (resource hints, images, fonts, cache headers, DOM, third-party, CLS debugging): `~/.claude/docs/performance-reference.md` — read it when doing that work.
+> Waterfalls, barrels, dynamic imports, and `React.cache` are in `AGENTS.md`. This file holds the forms, thresholds, and frame-loop rules. Implementation reference (resource hints, images, fonts, cache headers, DOM, third-party, CLS debugging): `~/.claude/docs/performance-reference.md` — read it when doing that work.
 
-## Stack forms
+## Forms
 
-- **Dynamic import:** Next.js `next/dynamic` with `ssr: false` for browser-only libs; React Router / Vite `React.lazy()` + `<Suspense>`; plain `import()` inside an event handler for true on-demand. Never static-import heavy libs (`gsap`, analytics, editors) into the initial bundle.
-- **Direct imports:** a path import (`lucide-react/dist/esm/icons/check`) or, in Next.js, `experimental.optimizePackageImports`.
-- **Deduplication:** Next.js Server Components use `cache()` from `react`; React Router composes loaders so each piece is fetched once at the right level; client side uses SWR or TanStack Query.
-- **Waterfalls:** in Server Components prefer sibling composition so each child fetches in parallel instead of nesting awaits. Defer an `await` past early exits (`if (!req.query.id) return` before `await getUser(req)`). React Router loaders `Promise.all` independent fetches or split them across nested routes, which run in parallel.
+- **Dynamic import:** plain `import()` inside an event handler for true on-demand. Never static-import heavy libs (`gsap`, analytics, editors) into the initial bundle.
+- **Direct imports:** a path import (`lucide-react/dist/esm/icons/check`).
+- **Waterfalls:** defer an `await` past early exits (`if (!req.query.id) return` before `await getUser(req)`).
 - **Inline JSX literals are fine under React Compiler:** `<Button style={{ color: 'red' }} onClick={() => doThing()} />` does not cause referential-identity re-renders. The "no object or function literals in JSX" advice is pre-Compiler folklore; do not extract them into `useMemo` / `useCallback`.
 
 ## Streaming
-
-| Stack | Pattern |
-|---|---|
-| Next.js | Server Component + `<Suspense fallback>` around an async child |
-| React Router | Return unresolved promises from a loader + `<Await>` inside `<Suspense>` |
 
 Avoid streaming when layout depends on data dimensions, for above-fold SEO content, for fast queries (< 50 ms), or where layout shifts are unacceptable.
 
 ## Client-side data and re-renders
 
-- Route-level loaders / Server Components for initial load; SWR for client-side cache, revalidation, and mutations.
 - **Deduplicate window listeners.** One `scroll`/`resize` listener with a callback registry (Map keyed by subscriber id), not one listener per hook instance.
 - **Extract expensive work into the child that needs it.** Computation above an early `return` runs on every render of the parent; in a child it is skipped entirely.
 - **Narrow effect dependencies.** Depend on `user.id`, not `user`; derive booleans for thresholds (`const isMobile = width < 768`, then depend on `isMobile`).
@@ -39,19 +30,18 @@ Avoid streaming when layout depends on data dimensions, for above-fold SEO conte
 
 ## Frame loops (rAF, `useFrame`, `useLenis`, ScrollTrigger `onProgress`, pointer handlers)
 
-- **No layout reads inside a per-frame callback.** `getBoundingClientRect`, `clientWidth`, `offsetHeight`, `scrollTop` after a style write force a synchronous layout, once per read, before the frame can paint. It hides on an M-series laptop and stutters on Intel Macs, 4K externals, and low-end devices. Measure once outside the loop and cache: hamo `useRect` (element rect, updates on resize and scroll), `useWindowSize`, `useResizeObserver`. Rects that truly change every frame (sticky or transformed elements) derive from scroll progress plus the cached initial rect. A comment saying a read "can't be avoided" is a claim to test against the stylesheet, not a waiver; if it survives that test, batch every read before any write so there is at most one forced layout.
+- **No layout reads inside a per-frame callback.** `getBoundingClientRect`, `clientWidth`, `offsetHeight`, `scrollTop` after a style write force a synchronous layout, once per read, before the frame can paint. It hides on an M-series laptop and stutters on Intel Macs, 4K externals, and low-end devices. Measure once outside the loop and cache with `ResizeObserver` or equivalent. Rects that truly change every frame (sticky or transformed elements) derive from scroll progress plus the cached initial rect. A comment saying a read "can't be avoided" is a claim to test against the stylesheet, not a waiver; if it survives that test, batch every read before any write so there is at most one forced layout.
 - **Per-frame CSS custom property writes are not free.** `el.style.setProperty("--x", v)` invalidates style on the element and every descendant that consumes the variable, every frame; geometry-affecting consumers reflow too. Prefer `transform` and `opacity` via direct style writes or Web Animations. When a variable is the right tool: quantize to the precision the CSS needs (whole pixels, or the step count a `clamp` resolves to), skip the write when the rounded value is unchanged, scope the variable to the smallest element that needs it, and never layer a CSS `transition` on a per-frame write.
 - **Write `style.transform` / `style.opacity` on the moving node**, not a custom property that only feeds one of them. A variable read by `top`, `left`, `width`, `height`, `padding`, `font-size`, or `line-height` is a layout write every frame.
 - **Gate infinite CSS animations and per-frame writes on visibility** (IntersectionObserver). Opacity 0 does not stop the work, and `::after` animations run on the main thread.
-- **No `toDataURL()` images on `style` or custom properties.** The string is inherited and carried through every style recalculation under that element. Ship a static tile from `public/`, or use a blob URL if it must be dynamic.
+- **No `toDataURL()` images on `style` or custom properties.** The string is inherited and carried through every style recalculation under that element. Ship a static asset, or use a blob URL if it must be dynamic.
 - **Review rule:** before approving a perf or motion PR, grep the frame loops for layout reads and custom-property writes.
 
 ## Also enforce (details in the reference doc)
 
 - Explicit `width`/`height` (or `aspect-ratio`) on every `img`/`video`/`iframe`;
   reserve space for dynamic content. CLS target < 0.1.
-- LCP image: `fetchPriority="high"` + `loading="eager"` (`priority` on
-  `next/image`); below-fold media lazy. Format priority AVIF > WebP > JPEG/PNG.
+- LCP image: `fetchPriority="high"` + `loading="eager"`; below-fold media lazy. Format priority AVIF > WebP > JPEG/PNG.
 - Fonts: woff2, `font-display: swap` with fallback metrics (`size-adjust`,
   `ascent-override`), variable fonts, subset, self-host.
 - `preconnect` critical third-party origins; `preload` the critical font and LCP
