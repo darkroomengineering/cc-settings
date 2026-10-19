@@ -301,7 +301,9 @@ export async function discoverPlugin(paths: CodexInstallPaths): Promise<boolean 
 // plugin's hooks as user-level hooks in `$CODEX_HOME/hooks.json`. Codex gives
 // user hooks no PLUGIN_ROOT, so each command points at the managed source.
 // Hooks run in the session's directory, and Bun loads that directory's `.env`,
-// so every command passes --no-env-file. The path goes inside double quotes;
+// so every command passes --no-env-file. Bun also loads that directory's
+// bunfig.toml, whose `preload` runs code, so every command passes --config with
+// the managed bunfig. The path goes inside double quotes;
 // these characters could end the quoted string in sh, cmd or PowerShell.
 const UNSAFE_HOOK_PATH_CHARACTERS = /["$`%\r\n“”„]/;
 const PLACEHOLDER = /\$PLUGIN_ROOT|%PLUGIN_ROOT%/g;
@@ -315,7 +317,7 @@ function rewriteHookCommand(command: string, managedSource: string): string {
   if (!command.startsWith("bun ")) {
     throw new Error(`hooks/hooks.json commands must run bun: ${command}`);
   }
-  return `bun --no-env-file ${command.slice("bun ".length)}`
+  return `bun --no-env-file --config="${managedSource}/src/bunfig.toml" ${command.slice("bun ".length)}`
     .replaceAll("$PLUGIN_ROOT", managedSource)
     .replaceAll("%PLUGIN_ROOT%", managedSource);
 }
@@ -364,12 +366,14 @@ interface HooksFile {
   mode: number;
 }
 
-// Ours means the command starts with `bun --no-env-file "<absolute path>/darkroom/source/src/scripts/codex-hook.ts"`,
-// as the template writes it, and every command field the handler has (command, commandWindows)
-// says so. The prefix before `darkroom/source` is free so groups written under a different
-// CODEX_HOME still match. The closing quote rejects `codex-hook.ts.backup`.
+// Ours means the command starts with `bun --no-env-file [--config="<path>/darkroom/source/src/bunfig.toml"]
+// "<absolute path>/darkroom/source/src/scripts/codex-hook.ts"`, as the template writes it, and every
+// command field the handler has (command, commandWindows) says so. The --config part is optional so
+// groups an earlier install wrote still match and get replaced. The prefix before `darkroom/source`
+// is free so groups written under a different CODEX_HOME still match. The closing quote rejects
+// `codex-hook.ts.backup`.
 const OWNED_RUNNER =
-  /^bun --no-env-file "(?:[A-Za-z]:)?[\\/](?:[^"]*[\\/])?darkroom[\\/]source[\\/]src[\\/]scripts[\\/]codex-hook\.ts"/;
+  /^bun --no-env-file (?:--config="(?:[A-Za-z]:)?[\\/](?:[^"]*[\\/])?darkroom[\\/]source[\\/]src[\\/]bunfig\.toml" )?"(?:[A-Za-z]:)?[\\/](?:[^"]*[\\/])?darkroom[\\/]source[\\/]src[\\/]scripts[\\/]codex-hook\.ts"/;
 
 function isOwnedHandler(handler: unknown): boolean {
   if (!isPlainObject(handler)) return false;

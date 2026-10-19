@@ -1641,7 +1641,7 @@ describe("Codex installer lifecycle", () => {
   test("version 14 swaps the Codex manifest for the root plugin.json and mcp.json", () => {
     const v13 = runtimePathsForVersion(13, "test");
     const v14 = runtimePathsForVersion(14, "test");
-    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(18);
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBeGreaterThanOrEqual(18);
     expect(v13).toContain(".codex-plugin/plugin.json");
     expect(v13).not.toContain("plugin.json");
     expect(v14).not.toContain(".codex-plugin/plugin.json");
@@ -1650,6 +1650,14 @@ describe("Codex installer lifecycle", () => {
     expect([...v14].filter((path) => !["plugin.json", "mcp.json"].includes(path)).sort()).toEqual(
       v13.filter((path) => path !== ".codex-plugin/plugin.json").sort(),
     );
+  });
+
+  test("version 19 adds only the hook bunfig to the Codex runtime", () => {
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(19);
+    expect(runtimePathsForVersion(19, "test")).toEqual([
+      ...runtimePathsForVersion(18, "test"),
+      "src/bunfig.toml",
+    ]);
   });
 
   // Existing installs validate ownership against the manifest version their
@@ -1692,6 +1700,8 @@ describe("Codex installer lifecycle", () => {
       "claude:19:light": "9e50b07bdad07c25",
       "claude:20:full": "d63af72e48dbf954",
       "claude:20:light": "1f36c8faee1e842b",
+      "claude:21:full": "c0ba185baf234a24",
+      "claude:21:light": "1f36c8faee1e842b",
       "codex:1": "4dd6aeea8177953e",
       "codex:2": "b0d5af4920c948e9",
       "codex:3": "04b180972c0d0929",
@@ -1702,6 +1712,7 @@ describe("Codex installer lifecycle", () => {
       "codex:8": "e4e40ca4fd772a73",
       "codex:9": "e834d21c75122f2c",
       "codex:10": "be0861d86613ae12",
+      "codex:18": "c747ec91d6dc2ebb",
     };
     const actual: Record<string, string> = {};
     for (const key of Object.keys(shipped)) {
@@ -1717,7 +1728,7 @@ describe("Codex installer lifecycle", () => {
   test("Claude version 21 adds only the durable-agents profile, to full installs", async () => {
     const { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, claudeManagedManifestPaths } =
       await import("../src/lib/claude-managed-file-manifests.ts");
-    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(21);
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBeGreaterThanOrEqual(21);
     expect(claudeManagedManifestPaths(21, "full", "test")).toEqual([
       ...claudeManagedManifestPaths(20, "full", "test"),
       "profiles/durable-agents.md",
@@ -1725,6 +1736,25 @@ describe("Codex installer lifecycle", () => {
     expect(claudeManagedManifestPaths(21, "light", "test")).toEqual(
       claudeManagedManifestPaths(20, "light", "test"),
     );
+  });
+
+  test("Claude version 22 adds only the hook bunfig, to both profiles", async () => {
+    const {
+      CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+      claudeManagedManifestPaths,
+      currentClaudeManagedSourceFiles,
+    } = await import("../src/lib/claude-managed-file-manifests.ts");
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(22);
+    for (const profile of ["full", "light"] as const) {
+      expect(claudeManagedManifestPaths(22, profile, "test")).toEqual([
+        ...claudeManagedManifestPaths(21, profile, "test"),
+        "src/bunfig.toml",
+      ]);
+      expect(currentClaudeManagedSourceFiles(profile)).toContainEqual({
+        source: "src/bunfig.toml",
+        destination: "src/bunfig.toml",
+      });
+    }
   });
 
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {
@@ -4003,13 +4033,16 @@ exit 0
         const script = `${join(codexHome, "darkroom", "source")}/src/scripts/codex-hook.ts`;
         for (const [index, [, hook]] of actual.entries()) {
           const [, original] = expected[index] as [string, HookHandler];
+          const bunfig = `${join(codexHome, "darkroom", "source")}/src/bunfig.toml`;
+          const runtime = `bun --no-env-file --config="${bunfig}"`;
           expect(hook.command).toBe(
             original.command
-              .replace(/^bun /, "bun --no-env-file ")
+              .replace(/^bun /, `${runtime} `)
               .replace("$PLUGIN_ROOT/src/scripts/codex-hook.ts", script),
           );
-          expect(hook.command).toContain(`bun --no-env-file "${script}"`);
-          expect(hook.commandWindows.startsWith("bun --no-env-file ")).toBe(true);
+          expect(hook.command).toContain(`${runtime} "${script}"`);
+          expect(hook.commandWindows.startsWith(`${runtime} `)).toBe(true);
+          expect(existsSync(bunfig)).toBe(true);
           expect(hook.commandWindows).toContain(script);
         }
         expect(written).not.toContain("PLUGIN_ROOT");
@@ -4026,7 +4059,9 @@ exit 0
       const template = (command: string) =>
         JSON.stringify({ hooks: { SessionEnd: [{ hooks: [{ type: "command", command }] }] } });
       const ok = serializeUserHooks(template('bun "$PLUGIN_ROOT/x.ts"'), "/safe/source");
-      expect(ok).toContain('bun --no-env-file \\"/safe/source/x.ts\\"');
+      expect(ok).toContain(
+        'bun --no-env-file --config=\\"/safe/source/src/bunfig.toml\\" \\"/safe/source/x.ts\\"',
+      );
       expect(() => serializeUserHooks(template("bun $PLUGIN_ROOT/x.ts"), "/safe/source")).toThrow(
         /quote PLUGIN_ROOT/,
       );
@@ -4321,6 +4356,14 @@ exit 0
             },
           ],
         });
+        const configured = (root: string) => ({
+          hooks: [
+            {
+              type: "command",
+              command: `bun --no-env-file --config="${root}/src/bunfig.toml" "${root}/src/scripts/codex-hook.ts" "src/hooks/safety-net.ts"`,
+            },
+          ],
+        });
         const foreign = { hooks: [{ type: "command", command: "echo mine" }] };
         const seed = {
           hooks: {
@@ -4328,6 +4371,7 @@ exit 0
               foreign,
               oldGroup("/old/home/.codex/darkroom/source/src/scripts/codex-hook.ts"),
               oldGroup("C:\\old\\.codex\\darkroom\\source/src/scripts/codex-hook.ts"),
+              configured("/older/home/.codex/darkroom/source"),
             ],
           },
         };
@@ -4336,6 +4380,7 @@ exit 0
         const merged = await readDoc(codexHome);
         const text = JSON.stringify(merged);
         expect(text).not.toContain("/old/home");
+        expect(text).not.toContain("/older/home");
         expect(text).not.toContain("C:\\\\old");
         expect(merged.hooks.PreToolUse?.[0]).toEqual(foreign);
         const template = JSON.parse(

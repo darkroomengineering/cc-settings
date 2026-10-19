@@ -68,7 +68,9 @@
 		"ask": [
 			"Bash(git branch -D:*)",
 			"Bash(git branch -d -f:*)",
-			"Bash(git stash drop:*)"
+			"Bash(git stash drop:*)",
+			"Edit(**/.claude/settings.json)",
+			"Edit(**/.claude/settings.local.json)"
 		],
 		"deny": [
 			"Bash(rm -rf /)",
@@ -91,6 +93,16 @@
 			"Read(~/.gnupg/*)",
 			"Read(~/.config/gh/*)",
 			"Read(~/.netrc)",
+			"Read(.env)",
+			"Read(**/.env)",
+			"Read(**/.env.local)",
+			"Read(**/.env.*.local)",
+			"Read(**/.env.development)",
+			"Read(**/.env.production)",
+			"Read(**/.env.staging)",
+			"Read(**/.env.test)",
+			"Read(**/.env.keys)",
+			"Read(**/.envrc)",
 			"Bash(cat ~/.ssh/*)",
 			"Bash(cat ~/.aws/*)",
 			"Bash(cat ~/.gnupg/*)",
@@ -189,6 +201,10 @@
 			"Bash(find * -exec*)",
 			"Bash(cp * ~/.claude/settings.json*)",
 			"Bash(mv * ~/.claude/settings.json*)",
+			"Bash(cp * *.claude/settings.json*)",
+			"Bash(mv * *.claude/settings.json*)",
+			"Bash(cp * *.claude/settings.local.json*)",
+			"Bash(mv * *.claude/settings.local.json*)",
 			"Bash(cp * ~/.claude.json*)",
 			"Bash(mv * ~/.claude.json*)",
 			"Bash(cp * ~/.zshrc*)",

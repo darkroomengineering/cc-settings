@@ -124,6 +124,12 @@ export function hasCommand(cmd: string): boolean {
 // this path so a hook-scoped environment override cannot redirect setup.
 export const CLAUDE_DIR = join(homedir(), ".claude");
 
+/** argv prefix for a bun child started from a hook: no project .env, and the shipped
+ *  comment-only bunfig so a project bunfig.toml `preload` cannot run in the child. */
+export function hookBunArgv(): string[] {
+  return ["bun", "--no-env-file", `--config=${join(CLAUDE_DIR, "src", "bunfig.toml")}`];
+}
+
 // Hooks shared with Codex need a private state root under PLUGIN_DATA rather
 // than writing Claude-specific logs and handoffs into ~/.claude.
 const RUNTIME_DIR = process.env.CC_SETTINGS_HOME

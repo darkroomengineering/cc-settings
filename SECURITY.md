@@ -115,6 +115,14 @@ the content hash. Injected hooks from compromised packages either don't
 match this shape (inline Node/Python, decoded base64, `/tmp/` payloads) or
 match it and fail content verification. Either way they surface.
 
+Each of those commands also passes `--no-env-file` (a project `.env` cannot
+set variables inside the hook) and `--config="$HOME/.claude/src/bunfig.toml"`.
+Bun reads a `bunfig.toml` from the directory it starts in, and its `preload`
+entry runs code before the hook does; the shipped `bunfig.toml` is a
+comment-only file, so a project's own is never read. The file sits under
+`src/`, so the content manifest (layer 2) hashes it. `--config` is as powerful
+as `--preload`, so the auditor accepts it only with exactly that path.
+
 Future hook additions to `config/40-hooks.json` must follow the same
 convention. If a third-party tool needs a hook, wrap it in a cc-settings
 script under `src/scripts/` rather than referencing the third-party binary
@@ -377,6 +385,87 @@ needed or valid. (Claude Code's since-removed `MultiEdit` tool carried its
 own deny rules while it existed; the merger prunes those from older
 installs — see `DEPRECATED_PERMISSION_PATTERNS` in
 `src/lib/settings-merge.ts`.)
+
+## Safety-net evasions that stay open by design
+
+An agent that is trying to get around safety-net can. These forms are
+deliberate evasions, not mistakes an agent makes by accident, and catching
+them would need a full shell interpreter rather than the best-effort scan
+safety-net uses. The permission prompt and the deny-list remain the boundary.
+
+- gh aliases, and the destination of `gh issue transfer`.
+- `git rebase`, `git am` and `git pull` with `--no-verify`.
+- `declare -x HUSKY=0`, `caffeinate gh ...`, `time -p gh ...`, and a variable
+  as the command word (`g=gh; $g ...`).
+- `GIT_DIR=... gh ...` and `git -c alias.c='commit --no-verify' c`.
+- Commands inside `$(( ))` arithmetic.
+- Interpreter one-liners that read secrets (`python3 -c`, `node -e`,
+  `bun -e`), `grep -r` over a directory that holds a secret file, and paths
+  built at runtime, including globs in the command word (`dotenv? get K`).
+- Brace expansion, `xargs` stdin, and a variable passed as an argument
+  (`cat {.en,}v`, `echo .env | xargs cat`, `f=.env; cat "$f"`).
+
+Related limits sit in the permission rules rather than safety-net:
+
+- The Read tool is denied `.env`, `.env.local`, `.env.*.local`,
+  `.env.development`, `.env.production`, `.env.staging`, `.env.test`,
+  `.env.keys` and `.envrc`. A deny cannot be overridden by an allow, so a broad
+  `.env.*` deny would also block `.env.example`, and any other `.env.<suffix>`
+  name stays readable.
+- `dotenvx run -- env` prints every decrypted value, because the child process
+  holds them, and safety-net does not block it.
+- Safety-net checks dotenvx and `.env` readers with a flat word scan, not by
+  following wrappers. It turns the command string into one list of words and
+  ignores command position. Quoted strings are split again, ANSI-C and
+  `$"..."` quoting and backslash-newline are decoded, every `\_` becomes a
+  space, and operators, parentheses, backticks, `=` and `,` break words.
+  After any word naming dotenvx (the bin, a path to it, or the package with a
+  version, `#ref` or `github:` spelling), a `get`, `decrypt`, `dec` or
+  `keypair` word blocks, up to the `--` that follows `run`. The word right
+  after that `--` is checked too, because `-l run -- get` has `run` as a flag
+  value. A later dotenvx word starts its own scan. A word naming a secret
+  `.env` file blocks when any word is a known reader (`cat`, `grep`, `sed`,
+  `paste`, `dd`, the `g`-prefixed GNU names, `source`, ...), except the
+  target of an output redirect. Wrappers and flag spellings are covered
+  because none of them is parsed. Out of scope: variable or command
+  substitution (`${IFS}`, `$(printf ...)`), brace expansion, globs, and
+  `xargs` stdin. The cost is false positives, which are safe because the user
+  can run the command with `!`: `dotenvx set get value`,
+  `dotenvx encrypt -k get`, `grep .env README.md`, `sed -i ... .env`, and a
+  commit message that contains `dotenvx get`.
+
+## Project settings `env` reaches hooks
+
+The `env` block of a project's `.claude/settings.json` and
+`.claude/settings.local.json` is set in the environment of every hook process.
+A hook that logs its environment shows the values (checked on Claude Code
+2.1.303). Safety-net cannot tell those variables from the user's shell, so a
+project file could set `CC_SAFETY_GH_LOGIN` or `GH_REPO` to switch off the
+outside-org `gh` rule, or `BUN_OPTIONS` to put `--preload` back on the hook's
+bun, which bypasses the shipped `--config`. What is guarded:
+
+- The Edit, Write and NotebookEdit tools ask before touching
+  `.claude/settings.json` or `.claude/settings.local.json` (an `ask` rule on
+  `Edit(**/.claude/settings.json)` and `Edit(**/.claude/settings.local.json)`).
+- `cp` and `mv` commands that name `.claude/settings.json` or
+  `.claude/settings.local.json` by a literal path are denied.
+
+Known limits of that deny:
+
+- Only literal-path forms match. A directory destination
+  (`cp x/settings.local.json .claude/`), path tricks
+  (`.claude/./settings.local.json`, globs such as `.claude/settings.l*.json`) and
+  other tools are not matched.
+- Some harmless commands are denied too. A `cp` or `mv` with one of those paths
+  after its first argument matches, for example `cp -p .claude/settings.json
+  /tmp/b.json` or copying a settings file to a `.bak` inside `.claude/`.
+
+What is not guarded: arbitrary code that writes the file, such as
+`bun -e 'Bun.write(...)'` or a script run with `bun`. `Bash(bun:*)` already
+allows arbitrary code, so the permission rules cannot close this; they stop
+the plain tool and copy routes. Shell redirects (`echo ... >
+.claude/settings.local.json`), `tee` and `sed -i` fall to the ordinary Bash
+permission prompt.
 
 ## What cc-settings deliberately does not do
 

@@ -29,6 +29,7 @@ async function adapterIn(pluginRoot: string): Promise<string> {
     join(REPO, "src", "lib", "merge-keyed.ts"),
     join(pluginRoot, "src", "lib", "merge-keyed.ts"),
   );
+  await copyFile(join(REPO, "src", "bunfig.toml"), join(pluginRoot, "src", "bunfig.toml"));
   return copy;
 }
 
@@ -328,6 +329,10 @@ process.exit(1);
         resolve(import.meta.dir, "../src/lib/merge-keyed.ts"),
         join(tree, "checkout", "src", "lib", "merge-keyed.ts"),
       );
+      await copyFile(
+        resolve(import.meta.dir, "../src/bunfig.toml"),
+        join(tree, "checkout", "src", "bunfig.toml"),
+      );
       await writeFile(
         join(tree, "checkout", "src", "probe.ts"),
         "console.log(JSON.stringify({ home: process.env.CC_SETTINGS_HOME, source: process.env.CC_SETTINGS_SOURCE }));\n",
@@ -371,6 +376,38 @@ process.exit(1);
       expect(escaped.stdout).not.toContain("escaped");
     } finally {
       await rm(tree, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // A repository's bunfig.toml `preload` runs inside every bun started in its directory.
+  test("a project bunfig.toml preload never runs in the adapter or the hook it starts", async () => {
+    const project = await mkdtemp(join(tmpdir(), "cc-codex-hook-preload-"));
+    try {
+      const marker = join(project, "preload-ran");
+      await writeFile(join(project, "bunfig.toml"), 'preload = ["./p.ts"]\n');
+      await writeFile(join(project, "p.ts"), `await Bun.write(${JSON.stringify(marker)}, "x");\n`);
+      const run = async (...flags: string[]) => {
+        const child = Bun.spawn(
+          ["bun", "--no-env-file", ...flags, ADAPTER, "src/hooks/safety-net.ts"],
+          {
+            cwd: project,
+            env: { ...process.env, PLUGIN_ROOT: REPO },
+            stdin: new Blob([JSON.stringify({ tool_input: { command: "ls" } })]),
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        return await child.exited;
+      };
+
+      expect(await run(`--config=${join(REPO, "src", "bunfig.toml")}`)).toBe(0);
+      expect(existsSync(marker)).toBe(false);
+
+      // Without --config the project's preload does run, so the check above can fail.
+      await run();
+      expect(existsSync(marker)).toBe(true);
+    } finally {
+      await rm(project, { recursive: true, force: true });
     }
   }, 30_000);
 

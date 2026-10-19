@@ -22,10 +22,17 @@ import { HooksBlock } from "../schemas/hooks.ts";
 // NOTE: [ \t] (not \s) arg-separation is a deliberate security property —
 // do NOT widen to \s; that would allow newline-chained payloads to match.
 // The shipped form carries --no-env-file so a project's .env cannot inject
-// variables into the hook; the flagless form is what older installs wrote.
+// variables into the hook, and `--config="$HOME/.claude/src/bunfig.toml"` (a
+// comment-only file we ship) so a project's bunfig.toml `preload` cannot run
+// code inside it. The file sits under src/ so the install manifest hashes it.
+// `--config` is as powerful as `--preload`, so only that exact path is accepted,
+// and only after --no-env-file. The flagless form is what older installs wrote.
 // Capture group 1 is the path relative to ~/.claude/src — the install-manifest key.
 export const MANAGED_HOOK_CMD: RegExp =
-  /^bun(?:[ \t]+--no-env-file)?[ \t]+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks)\/[a-zA-Z0-9_-]+\.ts)"?(?:[ \t]+[A-Za-z0-9_.:=/-]+)*[ \t]*$/;
+  /^bun(?:[ \t]+--no-env-file(?:[ \t]+--config="?\$\{?HOME\}?\/\.claude\/src\/bunfig\.toml"?)?)?[ \t]+"?\$\{?HOME\}?\/\.claude\/src\/((?:scripts|hooks)\/[a-zA-Z0-9_-]+\.ts)"?(?:[ \t]+[A-Za-z0-9_.:=/-]+)*[ \t]*$/;
+
+/** The runtime prefix every shipped hook command starts with. */
+export const MANAGED_BUN_PREFIX = 'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" ';
 
 // Shell-segment separator: splits a compound command on ; && || and newline
 // variants including U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR.

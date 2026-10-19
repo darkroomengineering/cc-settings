@@ -18,7 +18,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
-import { isManagedHookCommand, parseHookCommand } from "./hook-command.ts";
+import { isManagedHookCommand, MANAGED_BUN_PREFIX, parseHookCommand } from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
 import {
   asRecord,
@@ -601,11 +601,12 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
       // "user extra" forever. A user extra whose hooks are all cc-settings-
       // managed scripts the team already wires for this event is that stale
       // old shape, not a customization — the team definition supersedes it.
-      // Managed commands now ship as `bun --no-env-file "$HOME/…"`; the flagless
-      // form older installs wrote is the same hook, so it is superseded too.
+      // Managed commands ship as `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/…"`;
+      // the flagless and `--no-env-file`-only forms older installs wrote are the
+      // same hook, so they are superseded too.
       const cmds = commandsOf(cleaned);
       const teamHas = (c: string): boolean =>
-        teamCommands.has(c) || teamCommands.has(c.replace(/^bun[ \t]+/, "bun --no-env-file "));
+        teamCommands.has(c) || teamCommands.has(withManagedPrefix(c));
       if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamHas(c))) {
         ctx.accounting.hooksSuperseded++;
         continue;
@@ -690,6 +691,11 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   return { keep: true, value: merged };
 };
 
+/** The current shipped form of an older managed bun command. */
+function withManagedPrefix(command: string): string {
+  return command.replace(/^bun[ \t]+(?:--no-env-file[ \t]+)?/, () => MANAGED_BUN_PREFIX);
+}
+
 // statusLine: object — user's value normally wins. Exception: if user's
 // command points at a removed cc-settings script (see DEPRECATED_COMMAND_PATTERNS),
 // reset to team. Other custom statuslines (pointing at the user's own scripts)
@@ -701,6 +707,20 @@ export const statusLineStrategy: Strategy = async (_key, team, user, ctx) => {
     ctx.accounting.statusLineReset = true;
     if (team === undefined) return { keep: false };
     return { keep: true, value: team };
+  }
+  // An older shipped command shape (flagless or --no-env-file only) is the same
+  // statusline, so it takes the current command whatever the baseline says.
+  const teamCommand = (team as { command?: unknown } | undefined)?.command;
+  if (
+    u &&
+    typeof u.command === "string" &&
+    typeof teamCommand === "string" &&
+    isManagedCommand(u.command) &&
+    u.command !== teamCommand &&
+    withManagedPrefix(u.command) === teamCommand
+  ) {
+    ctx.accounting.defaultsUpdated++;
+    return { keep: true, value: { ...u, command: teamCommand } };
   }
   // Three-way: the user's block still exactly matches the previous team's
   // contribution, so it follows the team block, including

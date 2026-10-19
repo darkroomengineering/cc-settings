@@ -114,7 +114,8 @@ async function main(): Promise<number> {
     compatibilityEnv.CLAUDE_CODE_SESSION_ID = payload.session_id;
   }
 
-  const child = Bun.spawn(["bun", "--no-env-file", target, ...targetArgs], {
+  const bunfig = join(pluginRoot, "src", "bunfig.toml");
+  const child = Bun.spawn(["bun", "--no-env-file", `--config=${bunfig}`, target, ...targetArgs], {
     env: { ...process.env, ...compatibilityEnv },
     stdin: new Blob([rawInput]),
     stdout: "inherit",

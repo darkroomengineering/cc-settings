@@ -1156,8 +1156,24 @@ describe("managed hook command shape", () => {
       'bun --no-env-file "$HOME/.claude/src/hooks/safety-net.ts"',
       'bun --no-env-file "$HOME/.claude/src/scripts/handoff.ts" create --from-hook',
       'bun "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/scripts/handoff.ts" create --from-hook',
     ]) {
       expect(parseHookCommand(cmd).managed).toBe(true);
+    }
+  });
+  test("accepts --config only for the shipped bunfig path", () => {
+    for (const cmd of [
+      'bun --no-env-file --config="./evil.toml" "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config=evil.toml "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config="$HOME/.claude/bunfig.toml.evil" "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml/../evil.toml" "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config="/tmp/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" --preload=x "$HOME/.claude/src/hooks/safety-net.ts"',
+      'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" --config=evil.toml "$HOME/.claude/src/hooks/safety-net.ts"',
+    ]) {
+      expect(parseHookCommand(cmd).managed).toBe(false);
     }
   });
   test("rejects other flags and shell tails", () => {

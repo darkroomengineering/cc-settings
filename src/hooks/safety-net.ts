@@ -702,18 +702,19 @@ function checkGitHookSkips(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): v
 //
 // Printing, copying, or uploading a credential file puts its contents into the
 // transcript or onto the network. Blocked: readers/copiers/uploaders whose
-// input is a secret path. Not blocked: commands that only name the path
+// input is a secret path (plus the flat word scan below for .env and dotenvx).
+// Not blocked: commands that only name the path
 // (`ssh -i ~/.ssh/id_ed25519`, `chmod 600`, `ls`), writes into it
-// (`cp .env.example .env`, `echo X >> .env`, `sed -i`), and public keys
-// (`*.pub`).
+// (`cp .env.example .env`, `echo X >> .env`), and public keys (`*.pub`). `sed -i` on
+// a .env file is blocked by the flat word scan below, like any other reader.
 // Accepted residual: paths built at runtime (`$(echo ~)/.ssh`), interpreter
 // one-liners (`python -c 'print(open(".env").read())'`), and recursive greps
 // over a directory that happens to contain one.
 
 const SECRET_HOME_RE =
-  /^(?:~|\$HOME|\$\{HOME\}|\/(?:Users|home)\/[^/]+|\/root)\/(?:\.(?:ssh|aws|gnupg)(?:\/|$)|\.(?:netrc|git-credentials|npmrc)$|\.config\/gh\/hosts\.yml$|\.docker\/config\.json$|\.kube\/config$)/;
-const SECRET_ENV_FILE_RE = /^\.env(?:rc|\.[^/]*|\*)?$/;
-const ENV_TEMPLATE_RE = /\.(?:example|sample|template)$/;
+  /^(?:~|\$HOME|\$\{HOME\}|\/(?:Users|home)\/[^/]+|\/root)\/(?:\.(?:ssh|aws|gnupg)(?:\/|$)|\.(?:netrc|git-credentials|npmrc)$|\.config\/gh\/hosts\.yml$|\.docker\/config\.json$|\.kube\/config$)/i;
+const SECRET_ENV_FILE_RE = /^\.env(?:rc|\.[^/]*|\*)?$/i;
+const ENV_TEMPLATE_RE = /\.(?:example|sample|template)$/i;
 
 // `~user/x` → `~/x`, and `.` / `..` / `//` segments resolved.
 function normalizePath(path: string): string {
@@ -772,6 +773,23 @@ const SECRET_READERS = new Set([
   "hexdump",
   "hd",
   "base64",
+  "paste",
+  "dd",
+  // GNU coreutils under Homebrew's `g` prefix.
+  "gcat",
+  "ghead",
+  "gtail",
+  "gtac",
+  "gnl",
+  "gsort",
+  "gcut",
+  "gdiff",
+  "ggrep",
+  "gsed",
+  "god",
+  "gbase64",
+  "gpaste",
+  "gdd",
   "source",
   ".",
 ]);
@@ -804,8 +822,92 @@ function positionals(args: string[], valueFlags: string[] = []): string[] {
   return out;
 }
 
+// --- Rule: dotenvx and .env readers, by flat word scan ---------------------
+//
+// `dotenvx get` prints decrypted values, `keypair` prints the private key, and
+// `decrypt` writes plaintext back into the file (`dec` is its alias). Wrappers are
+// not followed, because each wrapper (`env -iu X`, `sudo -Eu root`, `nice`,
+// `timeout --signal KILL 5`, `pnpm --shell-mode exec`, `coproc`, `bun exec '...'`)
+// has its own flag grammar and every parser gap was a bypass. Instead the command
+// string becomes one flat list of words and position is ignored:
+//  - after any word naming dotenvx, a `get`, `decrypt`, `dec` or `keypair` word blocks,
+//    up to the `--` that follows a `run` (what comes after it is a command of its own,
+//    and a later dotenvx word starts its own scan);
+//  - a word naming a secret .env file blocks when any word is a known reader.
+// Accepted false positives (the user can run the command with `!`): `dotenvx set get v`,
+// `grep .env README.md`, `git commit -m "dotenvx get"`, `sed -i s/a/b/ .env`.
+const DOTENVX_PRINTERS = new Set(["get", "decrypt", "dec", "keypair"]);
+// The bin, its script, or the package, with an optional version: `dotenvx`,
+// `node_modules/.bin/dotenvx`, `.../@dotenvx/dotenvx/src/cli/dotenvx.js`, `@dotenvx/dotenvx@1`,
+// `github:dotenvx/dotenvx#main`.
+const DOTENVX_TOKEN_RE =
+  /(?:^|[\\/:])(?:@dotenvx[\\/])?dotenvx(?:[@#][^\\/]*)?(?:\.(?:[cm]?js|cmd|exe|ps1|git))?$/i;
+// Output redirections write the file named after them; they do not read it.
+const OUTPUT_REDIRECT_RE = /\d*>>?[|&]?\s*[^\s;|&()<>]+/g;
+
+// Three views of the string: quotes and backslashes as word breaks (so quoted strings are
+// split again); quotes removed (so `dot"env"x` and `g$'et'` are one word); and the shell's
+// own word decoding. Every `\_` becomes a space (`env -S 'cat\_.env'`), and a backslash
+// before a newline joins the word. Operators, parentheses, backticks, `=` and `,` always
+// break words.
+function flatWordLists(text: string): string[][] {
+  // A backslash followed by a newline is a continuation, so it joins the word.
+  const spaced = text.replace(/\\\r?\n/g, "").replace(/\\_/g, " ");
+  const breaks = /[\s;|&()<>`=,]+/;
+  return [
+    spaced.split(/[\s;|&()<>`"'\\=,]+/).filter(Boolean),
+    // `$'et'` and `$"et"` are quoted words with a `$` in front.
+    spaced
+      .replace(/\$(?=["'])/g, "")
+      .replace(/["'\\]/g, "")
+      .split(breaks)
+      .filter(Boolean),
+    // The shell's own decoding of ANSI-C quotes: `$'\x67et'`, `$'g\145t'`.
+    shellWords(spaced)
+      .flatMap((w) => w.split(breaks))
+      .filter(Boolean),
+  ];
+}
+
+function isSecretEnvWord(word: string): boolean {
+  const base = word.slice(word.lastIndexOf("/") + 1);
+  return SECRET_ENV_FILE_RE.test(base) && !ENV_TEMPLATE_RE.test(base);
+}
+
+function checkFlatWords(cmd: string): void {
+  for (const words of flatWordLists(cmd)) {
+    for (const [i, word] of words.entries()) {
+      if (!DOTENVX_TOKEN_RE.test(word)) continue;
+      let sawRun = false;
+      for (const [j, next] of words.slice(i + 1).entries()) {
+        const w = next.toLowerCase();
+        if (next === "--") {
+          if (!sawRun) continue;
+          // `-l run -- get K`: `run` was a flag's value, so the verb follows the `--`.
+          const after = (words[i + j + 2] ?? "").toLowerCase();
+          if (DOTENVX_PRINTERS.has(after)) {
+            block(`dotenvx ${after} would expose decrypted .env values or the private key`, cmd);
+          }
+          break;
+        } else if (DOTENVX_PRINTERS.has(w)) {
+          block(`dotenvx ${w} would expose decrypted .env values or the private key`, cmd);
+        } else if (w === "run") {
+          sawRun = true;
+        }
+      }
+    }
+  }
+  for (const words of flatWordLists(cmd.replace(OUTPUT_REDIRECT_RE, " "))) {
+    const reader = words.find((w) => SECRET_READERS.has(basename(w).toLowerCase()));
+    const file = words.find(isSecretEnvWord);
+    if (reader && file) block(`${basename(reader)} would expose the contents of ${file}`, cmd);
+  }
+}
+
 function checkSecretReaders(c: ParsedShellCommand, ctx: ShellCtx, cmd: string): void {
-  const { word, args } = c;
+  // Case-insensitive filesystems resolve `CAT` to cat.
+  const word = c.word.toLowerCase();
+  const { args } = c;
   const deny = (path: string): never =>
     block(`${word || "redirect"} would expose the contents of ${path}`, cmd);
   const secret = (path: string): boolean => isSecretIn(path, ctx);
@@ -1380,6 +1482,7 @@ function analyzeShell(cmd: string, depth: number, inherited: ShellCtx): void {
 
 function splitCommands(cmd: string): void {
   analyzeFullString(cmd);
+  checkFlatWords(cmd);
   analyzeShell(cmd, 0, rootCtx());
 }
 
@@ -1405,7 +1508,7 @@ function analyzeCommand(cmd: string, depth: number, ctx: ShellCtx = rootCtx()): 
 const FAST_PATH_VERBS_RE =
   /\b(rm|git|gh|find|xargs|kill|pkill|killall|fuser|bash|sh|zsh|python|python3|node|ruby|perl)\b/;
 const SECRET_MARKER_RE =
-  /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)/;
+  /\.(?:ssh|aws|gnupg|netrc|git-credentials|npmrc|kube)\b|\.docker\/config|hosts\.yml|\.env(?:rc|\b)|dotenvx/i;
 
 function failClosed(err: unknown): never {
   const detail = err instanceof Error ? err.message : String(err);

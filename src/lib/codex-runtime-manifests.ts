@@ -266,7 +266,10 @@ const ADDED_IN_V15 = [
 const REMOVED_IN_V17 = ["src/scripts/stop-failure.ts", "src/scripts/stop-summary.ts"];
 // Version 18: the Copilot CLI instructions sync that setup.ts imports.
 const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 18;
+// Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
+// bunfig.toml `preload` cannot run inside a hook.
+const ADDED_IN_V19 = ["src/bunfig.toml"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 19;
 // Each removed file rejoins at its original position: shipped manifests are hashed in order.
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) => !ADDED_IN_V15.includes(path) && !ADDED_IN_V18.includes(path),
@@ -322,9 +325,10 @@ const RUNTIME_SOURCE_FILES_V16: readonly string[] = RUNTIME_SOURCE_FILES_V15.fil
 const RUNTIME_SOURCE_FILES_V17: readonly string[] = RUNTIME_SOURCE_FILES_V16.filter(
   (path) => !REMOVED_IN_V17.includes(path),
 );
+const RUNTIME_SOURCE_FILES_V18: readonly string[] = [...RUNTIME_SOURCE_FILES_V17, ...ADDED_IN_V18];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V17,
-  ...ADDED_IN_V18,
+  ...RUNTIME_SOURCE_FILES_V18,
+  ...ADDED_IN_V19,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -360,6 +364,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [15, RUNTIME_SOURCE_FILES_V15],
   [16, RUNTIME_SOURCE_FILES_V16],
   [17, RUNTIME_SOURCE_FILES_V17],
+  [18, RUNTIME_SOURCE_FILES_V18],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

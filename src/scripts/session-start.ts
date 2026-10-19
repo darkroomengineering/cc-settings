@@ -24,7 +24,7 @@ import { runGit } from "../lib/git.ts";
 import { getClaudeMdMonitor } from "../lib/hook-config.ts";
 import { readHookInput, readState, writeState } from "../lib/hook-runtime.ts";
 import { readJsonOrNull } from "../lib/json-io.ts";
-import { CLAUDE_DIR, hasCommand, localDatetime } from "../lib/platform.ts";
+import { CLAUDE_DIR, hasCommand, hookBunArgv, localDatetime } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import {
   onHeadObserved,
@@ -264,17 +264,20 @@ await Promise.all([
 
 // Prune stale entries from the MCP needs-auth cache so OAuth servers whose
 // tokens have since refreshed can reconnect. See prune-mcp-auth-cache.ts.
-const mcpPrune = Bun.spawn(["bun", join(CLAUDE_DIR, "src", "scripts", "prune-mcp-auth-cache.ts")], {
-  stdout: "ignore",
-  stderr: "ignore",
-});
+const mcpPrune = Bun.spawn(
+  [...hookBunArgv(), join(CLAUDE_DIR, "src", "scripts", "prune-mcp-auth-cache.ts")],
+  {
+    stdout: "ignore",
+    stderr: "ignore",
+  },
+);
 mcpPrune.unref?.();
 
 // Warm the team-knowledge TTL cache in the background. The TTL gate inside
 // refreshKnowledgeIndex means this only calls `gh api` when the cache is stale
 // (>6h), so spawning it every session is cheap.
 const knowledgeRefresh = Bun.spawn(
-  ["bun", join(CLAUDE_DIR, "src", "scripts", "refresh-knowledge-index.ts")],
+  [...hookBunArgv(), join(CLAUDE_DIR, "src", "scripts", "refresh-knowledge-index.ts")],
   {
     stdout: "ignore",
     stderr: "ignore",
