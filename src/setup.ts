@@ -67,6 +67,7 @@ import {
 } from "./lib/codex-install.ts";
 import { error, info, palette, progressArrow, showBanner, success, warn } from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
+import { reportCopilotSync } from "./lib/copilot-instructions.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
 import { FINGERPRINT_FILENAME } from "./lib/hooks-fingerprint.ts";
 import {
@@ -113,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.67.1"; // Windows: safety net and Codex hook adapter handle home and short-name paths.
+const VERSION = "15.68.0"; // Copilot CLI gets the standards as a managed block in its personal instructions.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
@@ -334,9 +335,11 @@ async function main(): Promise<number> {
     // Rollback now deletes + restores the managed footprint, so it takes the
     // same lock as an install to avoid racing a concurrent setup run.
     const backup = args.rollback;
-    return await underInstallLock(target, () =>
+    const code = await underInstallLock(target, () =>
       runSelectedRollback(target, backup, args.sourceDir),
     );
+    if (code === 0 && includesTarget(target, "claude")) await reportCopilotSync();
+    return code;
   }
   if (args.uninstall) {
     if (includesTarget(target, "claude")) {
@@ -348,7 +351,9 @@ async function main(): Promise<number> {
         destructiveSentinel?.managed_files_manifest_version,
       );
     }
-    return await underInstallLock(target, () => runSelectedUninstall(target, args.sourceDir));
+    const code = await underInstallLock(target, () => runSelectedUninstall(target, args.sourceDir));
+    if (code === 0 && includesTarget(target, "claude")) await reportCopilotSync();
+    return code;
   }
 
   if (args.migrateOnly && target === "codex") {
@@ -738,6 +743,7 @@ async function main(): Promise<number> {
   if (installCode !== 0) return installCode;
 
   if (!args.migrateOnly) await showSummary(args.profile, args.sourceDir, mcpOverridden);
+  if (includesTarget(target, "claude")) await reportCopilotSync();
   if (includesTarget(target, "codex")) {
     console.log("");
     await printCodexStatus(args.sourceDir);

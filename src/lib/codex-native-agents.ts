@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   assertRuntimeSourceFile,
   CODEX_ADAPTER,
@@ -31,7 +31,17 @@ function instructionsBlock(repoAgents: string, codexAppend: string): string {
   return `${INSTRUCTIONS_START}\n${body}${INSTRUCTIONS_END}`;
 }
 
-export function managedBlockRange(text: string): { start: number; end: number } | null {
+export interface BlockMarkers {
+  start: string;
+  end: string;
+}
+
+const CODEX_MARKERS: BlockMarkers = { start: INSTRUCTIONS_START, end: INSTRUCTIONS_END };
+
+export function managedBlockRange(
+  text: string,
+  markers: BlockMarkers = CODEX_MARKERS,
+): { start: number; end: number } | null {
   const markerIndexes = (marker: string): number[] => {
     const indexes: number[] = [];
     let cursor = 0;
@@ -42,24 +52,31 @@ export function managedBlockRange(text: string): { start: number; end: number } 
       cursor = index + marker.length;
     }
   };
-  const starts = markerIndexes(INSTRUCTIONS_START);
-  const ends = markerIndexes(INSTRUCTIONS_END);
+  const starts = markerIndexes(markers.start);
+  const ends = markerIndexes(markers.end);
   if (starts.length === 0 && ends.length === 0) return null;
   if (starts.length !== 1 || ends.length !== 1 || (starts[0] as number) > (ends[0] as number)) {
-    throw new Error(`Malformed ${basename("AGENTS.md")}: invalid managed marker topology`);
+    throw new Error(`Malformed instructions file: invalid ${markers.start} marker topology`);
   }
-  return { start: starts[0] as number, end: (ends[0] as number) + INSTRUCTIONS_END.length };
+  return { start: starts[0] as number, end: (ends[0] as number) + markers.end.length };
 }
 
-function mergeInstructions(existing: string, block: string): string {
-  const range = managedBlockRange(existing);
+export function mergeInstructions(
+  existing: string,
+  block: string,
+  markers: BlockMarkers = CODEX_MARKERS,
+): string {
+  const range = managedBlockRange(existing, markers);
   if (range) return `${existing.slice(0, range.start)}${block}${existing.slice(range.end)}`;
   if (existing.length === 0) return `${block}\n`;
   return `${existing}\n${block}\n`;
 }
 
-export function removeInstructions(existing: string): string {
-  const range = managedBlockRange(existing);
+export function removeInstructions(
+  existing: string,
+  markers: BlockMarkers = CODEX_MARKERS,
+): string {
+  const range = managedBlockRange(existing, markers);
   if (!range) return existing;
   const start =
     range.start > 0 && existing[range.start - 1] === "\n" ? range.start - 1 : range.start;
