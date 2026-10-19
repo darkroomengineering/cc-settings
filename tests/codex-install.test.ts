@@ -1795,6 +1795,26 @@ describe("Codex installer lifecycle", () => {
     }
   });
 
+  test("Claude version 24 adds only the hook dispatcher, to both profiles and not to the Codex runtime", async () => {
+    const {
+      CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+      claudeManagedManifestPaths,
+      currentClaudeManagedSourceFiles,
+    } = await import("../src/lib/claude-managed-file-manifests.ts");
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBeGreaterThanOrEqual(24);
+    for (const profile of ["full", "light"] as const) {
+      expect(claudeManagedManifestPaths(24, profile, "test")).toEqual([
+        ...claudeManagedManifestPaths(23, profile, "test"),
+        "src/hooks/dispatch.ts",
+      ]);
+      expect(currentClaudeManagedSourceFiles(profile)).toContainEqual({
+        source: "src/hooks/dispatch.ts",
+        destination: "src/hooks/dispatch.ts",
+      });
+    }
+    expect(RUNTIME_SOURCE_FILES).not.toContain("src/hooks/dispatch.ts");
+  });
+
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {
     const manifest = new Set(RUNTIME_SOURCE_FILES);
     const entrypointText = `${await readFile(join(REPO, "hooks", "hooks.json"), "utf8")}\n${await readFile(join(REPO, "package.json"), "utf8")}`;

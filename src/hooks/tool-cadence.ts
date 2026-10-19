@@ -5,13 +5,7 @@
 // runHook keeps failures silent so they never break a tool call.
 
 import { runGit } from "../lib/git.ts";
-import {
-  emitAdditionalContext,
-  readHookInput,
-  readState,
-  runHook,
-  writeState,
-} from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, readState, runHook, writeState } from "../lib/hook-runtime.ts";
 import {
   type BashResult,
   buildNudge,
@@ -60,7 +54,11 @@ async function readQueueState(): Promise<ReviewQueueState> {
   return parsed.success ? parsed.data : { awaiting: 0 };
 }
 
-async function reviewQueueBranch(payload: Partial<Payload>, toolName: string): Promise<void> {
+async function reviewQueueBranch(
+  io: HookIO,
+  payload: Partial<Payload>,
+  toolName: string,
+): Promise<void> {
   if (toolName === "Bash") {
     const command = payload.tool_input?.command ?? "";
     if (!command) return;
@@ -74,7 +72,7 @@ async function reviewQueueBranch(payload: Partial<Payload>, toolName: string): P
       const now = Date.now();
       if (isCognitiveSurrender(state, now, maxUnreviewed(), minReviewSeconds() * 1000)) {
         const dwellSeconds = Math.round((now - (state.firstSpawnAt ?? now)) / 1000);
-        emitAdditionalContext("PostToolUse", buildSurrenderNudge(state.awaiting, dwellSeconds));
+        io.context("PostToolUse", buildSurrenderNudge(state.awaiting, dwellSeconds));
       }
       await writeState(QUEUE_STATE, onCommit(await currentHead(cwd)));
       return;
@@ -109,14 +107,16 @@ async function reviewQueueBranch(payload: Partial<Payload>, toolName: string): P
   const max = maxUnreviewed();
 
   if (shouldNudge(next, max, now)) {
-    emitAdditionalContext("PostToolUse", buildNudge(next.awaiting, max));
+    io.context("PostToolUse", buildNudge(next.awaiting, max));
     next.firedAt = now;
   }
 
   await writeState(QUEUE_STATE, next);
 }
 
-await runHook(async () => {
-  const payload = await readHookInput<Payload>({ tool_name: "TOOL_NAME" });
-  await reviewQueueBranch(payload, payload.tool_name ?? "");
-});
+export async function main(io: HookIO = processIO): Promise<void> {
+  const payload = await io.hookInput<Payload>({ tool_name: "TOOL_NAME" });
+  await reviewQueueBranch(io, payload, payload.tool_name ?? "");
+}
+
+if (import.meta.main) await runHook(main);

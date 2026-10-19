@@ -5,25 +5,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/delegation-detector.ts\"",
-						"timeout": 3
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/quota-steer.ts\"",
-						"timeout": 3
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/escalate-model.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" UserPromptSubmit",
 						"timeout": 3
 					}
 				]
@@ -47,9 +29,19 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/safety-net.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PreToolUse",
 						"timeout": 5,
 						"onFailure": "block"
+					}
+				]
+			},
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PreToolUse",
+						"timeout": 5
 					}
 				]
 			},
@@ -61,45 +53,15 @@
 						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
 					}
 				]
-			},
-			{
-				"matcher": "Edit",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/pre-edit-validate.ts\"",
-						"timeout": 5
-					}
-				]
-			},
-			{
-				"matcher": "Edit|Write",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/freeze-guard.ts\"",
-						"timeout": 5
-					}
-				]
-			},
-			{
-				"matcher": "Bash|Edit|Write",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/knowledge-hint.ts\"",
-						"timeout": 5
-					}
-				]
 			}
 		],
 		"PostToolUse": [
 			{
-				"matcher": "Write|Edit",
+				"matcher": "Write|Edit|Bash|Agent",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/post-edit.ts\""
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PostToolUse"
 					}
 				]
 			},
@@ -121,36 +83,6 @@
 						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/log-bash.ts\"",
 						"async": true,
 						"timeout": 10
-					}
-				]
-			},
-			{
-				"matcher": "Bash|Agent",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/tool-cadence.ts\"",
-						"timeout": 3
-					}
-				]
-			},
-			{
-				"matcher": "Write|Edit",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/promote-memory.ts\"",
-						"timeout": 3
-					}
-				]
-			},
-			{
-				"matcher": "Agent",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/escalate-acted.ts\"",
-						"timeout": 3
 					}
 				]
 			}

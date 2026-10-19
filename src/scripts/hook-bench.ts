@@ -94,9 +94,9 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
   const prompt =
     "Can you look at why the settings merge drops the permissions block when a project overrides it, and tell me which function is responsible before we change anything?";
   return {
-    "delegation-detector": [{ payload: { ...base, hook_event_name: "UserPromptSubmit", prompt } }],
-    "quota-steer": [{ payload: { ...base, hook_event_name: "UserPromptSubmit", prompt } }],
-    "escalate-model": [{ payload: { ...base, hook_event_name: "UserPromptSubmit", prompt } }],
+    "dispatch UserPromptSubmit": [
+      { payload: { ...base, hook_event_name: "UserPromptSubmit", prompt } },
+    ],
     "model-switch-guard": [
       {
         payload: {
@@ -107,19 +107,17 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
         },
       },
     ],
-    "safety-net": [pre("Bash", { command: "bun run typecheck" })],
-    "pre-edit-validate": [pre("Edit", edit)],
-    "freeze-guard": [pre("Edit", edit), pre("Write", write)],
-    "knowledge-hint": [
+    "dispatch PreToolUse": [
+      pre("Bash", { command: "bun run typecheck" }),
       pre("Edit", edit),
       pre("Write", write),
-      pre("Bash", { command: "bun run typecheck" }),
     ],
     "check-docs-before-install": [pre("Bash", { command: "bun add zod" })],
-    "post-edit": [post("Edit", edit, { cwdWork: true })],
-    "tool-cadence": [post("Bash", { command: "ls src" })],
-    "promote-memory": [post("Edit", edit)],
-    "escalate-acted": [post("Agent", { subagent_type: "explore", prompt: "map the repo" })],
+    "dispatch PostToolUse": [
+      post("Edit", edit, { cwdWork: true }),
+      post("Bash", { command: "ls src" }),
+      post("Agent", { subagent_type: "explore", prompt: "map the repo" }),
+    ],
     "post-failure": [
       {
         tool: "Bash",
@@ -329,7 +327,7 @@ async function main(): Promise<void> {
         skipped.push({ id: e.id, event: e.event, reason: "no payload defined in hook-bench.ts" });
         continue;
       }
-      const key = `${e.event}:${e.id}`;
+      const key = `${e.event}:${e.matcher}:${e.id}`;
       if (tested.has(key)) continue;
       tested.add(key);
       for (const v of variants) {

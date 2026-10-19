@@ -18,7 +18,7 @@
 // records a "fired" line to the same cross-session log escalate-model.ts
 // uses (see escalate-telemetry.ts), plus a per-session pending marker that
 // escalate-acted.ts consumes to tell whether the nudge was followed by a
-// subagent spawn. Recording happens strictly AFTER emitAdditionalContext and
+// subagent spawn. Recording happens strictly AFTER io.context and
 // never gates it — telemetry failure must never be the reason this advisory
 // fails to speak. PRIVACY: the fired line carries only the integer score,
 // never the matched phrase text or any prompt-derived string; the Jev
@@ -32,7 +32,7 @@ import {
   TELEMETRY_LOG,
   toJsonLine,
 } from "../lib/escalate-telemetry.ts";
-import { emitAdditionalContext, readHookInput, runHook, writeState } from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, runHook, writeState } from "../lib/hook-runtime.ts";
 import { jevNoul, typesafeKey } from "../lib/jev.ts";
 import { isoNow } from "../lib/platform.ts";
 import { isSafeSessionId } from "../lib/session-ledger.ts";
@@ -105,8 +105,8 @@ async function recordDelegationFired(
   await writeState(delegationPendingStateName(sessionId), { at, firedAt: at }).catch(() => {});
 }
 
-async function main(): Promise<void> {
-  const input = await readHookInput<{ prompt: string; session_id: string }>({
+export async function main(io: HookIO = processIO): Promise<void> {
+  const input = await io.hookInput<{ prompt: string; session_id: string }>({
     prompt: "PROMPT",
     session_id: "CLAUDE_SESSION_ID",
   });
@@ -134,7 +134,7 @@ async function main(): Promise<void> {
     `Breadth signals in this prompt (${jev !== null ? `Jev ${jev.toFixed(2)}` : `score ${score}`}): ${reasons.join("; ")}. ` +
     `Apply the delegation heuristic.`;
 
-  emitAdditionalContext("UserPromptSubmit", msg);
+  io.context("UserPromptSubmit", msg);
 
   const sessionId = isSafeSessionId(input.session_id) ? input.session_id : "unknown";
   await recordDelegationFired(sessionId, score, jev ?? undefined);

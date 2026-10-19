@@ -2858,6 +2858,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/poke-holes/SKILL.md",
             "src/bunfig.toml",
             "src/hooks/ask-gate.ts",
+            "src/hooks/dispatch.ts",
             "src/hooks/model-switch-guard.ts",
             "src/lib/claude-install-ownership.ts",
             "src/lib/claude-install-settings.ts",

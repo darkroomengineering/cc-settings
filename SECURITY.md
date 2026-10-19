@@ -93,6 +93,13 @@ A standalone scanner that classifies every hook command in
 
 Exit code is non-zero on any suspicious finding so CI can gate on this. Stale-only results exit 0.
 
+The synchronous `UserPromptSubmit`, `PreToolUse` and `PostToolUse` hooks run
+through one command per event, `bun "$HOME/.claude/src/hooks/dispatch.ts" <Event>`.
+The auditor verifies `dispatch.ts` like any other entry script. The handlers it
+imports (`safety-net.ts`, `freeze-guard.ts`, and the rest) are not hook commands,
+so they are covered the way `src/lib/*.ts` is: the SessionStart manifest check
+(layer 2) re-hashes every managed source file, including them.
+
 Source: `src/lib/audit-hooks.ts`, `src/scripts/audit-hooks.ts`.
 
 **Also scanned, in their own report section:** `env` values and `mcpServers`
@@ -344,9 +351,12 @@ permission matcher. That layer decides what is blocked.
 `src/hooks/safety-net.ts` is **advisory defense-in-depth**: it
 pattern-matches on a best-effort scan of the command (quote-aware, not a
 full shell parser) and blocks what it recognizes, but a parser gap or a hook timeout allows the command
-through. An unexpected internal error exits 1, which the `"onFailure":
-"block"` wiring turns into a block (malformed or missing input still
-allows; `tests/hook-fail-open.test.ts` encodes that). Consequences of that
+through. It runs inside `src/hooks/dispatch.ts`, which blocks with
+`[Safety Net] internal error, failing closed: <detail>` when safety-net
+throws, times out or fails to load; run alone, an unexpected internal error exits 1,
+which the `"onFailure": "block"` wiring turns into a block. The dispatcher's
+PreToolUse entry for Bash carries that wiring too. Malformed or missing input still
+allows; `tests/hook-fail-open.test.ts` encodes that. Consequences of that
 stance:
 
 - Parser gaps in safety-net are hardening opportunities, not security

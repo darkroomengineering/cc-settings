@@ -15,7 +15,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { parseFrontmatter } from "../lib/frontmatter.ts";
-import { emitAdditionalContext, readHookInput, runHook } from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, runHook } from "../lib/hook-runtime.ts";
 import { atomicWriteJson, readJsonOrNull } from "../lib/json-io.ts";
 import { claudePath } from "../lib/platform.ts";
 
@@ -62,8 +62,8 @@ async function writeSeenSet(path: string, seen: string[]): Promise<void> {
   await atomicWriteJson(path, seen.slice(-SEEN_SET_CAP));
 }
 
-async function main(): Promise<void> {
-  const payload = await readHookInput<{
+export async function main(io: HookIO = processIO): Promise<void> {
+  const payload = await io.hookInput<{
     tool_input?: { file_path?: string };
     session_id?: string;
   }>({ session_id: "CLAUDE_CODE_SESSION_ID" });
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     `Saved a \`${memType}\` learning locally (${nameLabel}). ` +
     `If another teammate's agent would benefit, promote it to the shared board: run /share-learning. Otherwise ignore.`;
 
-  emitAdditionalContext("PostToolUse", msg);
+  io.context("PostToolUse", msg);
 }
 
 // Guard behind import.meta.main (same pattern as src/schemas/emit.ts and

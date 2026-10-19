@@ -9,6 +9,9 @@
 //                           "onFailure": "block" wiring in config/40-hooks.json
 //                           only fires on exit codes other than 0 and 2)
 //
+// hooks/dispatch.ts calls main(io) in-process: io.block ends the run as a block, and
+// any other throw becomes a block with the same fail-closed reason.
+//
 // Empty or missing input is not an error: exit 0.
 //
 // Reads tool_input.command from the stdin JSON payload (see
@@ -33,7 +36,7 @@ import {
   shellWords,
   splitPipes,
 } from "../lib/hook-command.ts";
-import { blockDecision, readHookInput, readToolInput } from "../lib/hook-runtime.ts";
+import { type HookIO, processIO } from "../lib/hook-runtime.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 import { redactSecrets } from "../lib/redact.ts";
 
@@ -1516,9 +1519,9 @@ function failClosed(err: unknown): never {
   process.exit(1);
 }
 
-async function main(): Promise<void> {
+export async function main(io: HookIO = processIO): Promise<void> {
   try {
-    const { command } = await readToolInput<{ command: unknown }>();
+    const { command } = await io.toolInput<{ command: unknown }>();
     const COMMAND = typeof command === "string" ? command : "";
     if (!COMMAND) return;
     if (process.env.CC_SAFETY_TEST_CRASH) throw new Error("induced crash");
@@ -1535,17 +1538,19 @@ async function main(): Promise<void> {
       return;
     }
 
-    const { cwd } = await readHookInput<{ cwd: unknown }>();
+    const { cwd } = await io.hookInput<{ cwd: unknown }>();
     baseDir = typeof cwd === "string" && cwd ? cwd : null;
     splitCommands(COMMAND);
     resolvePendingOwnerChecks();
   } catch (err) {
     if (err instanceof BlockDecision) {
       await logBlocked(err.command, err.reason);
-      blockDecision(`[Safety Net] ${err.reason}`);
+      io.block(`[Safety Net] ${err.reason}`);
     }
-    failClosed(err);
+    throw err;
   }
 }
 
-await main();
+// A direct run turns any non-block error into the fail-closed exit; the dispatcher
+// turns the same throw into a block decision.
+if (import.meta.main) await main().catch(failClosed);

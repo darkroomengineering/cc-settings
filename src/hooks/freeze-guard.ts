@@ -21,27 +21,27 @@
 // it that way — same fallback pattern as delegation-detector.ts.
 
 import { getActiveFreeze, isWithinBoundary } from "../lib/freeze.ts";
-import { blockDecision, readHookInput, readToolInput, runHook } from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, runHook } from "../lib/hook-runtime.ts";
 
 type EditLikeInput = { file_path?: string };
 
-async function main(): Promise<void> {
-  const parsed = await readToolInput<EditLikeInput>();
+export async function main(io: HookIO = processIO): Promise<void> {
+  const parsed = await io.toolInput<EditLikeInput>();
 
   const filePath = parsed.file_path;
   if (!filePath) return;
 
-  const { session_id: sessionId } = await readHookInput<{ session_id: string }>({
+  const { session_id: sessionId } = await io.hookInput<{ session_id: string }>({
     session_id: "CLAUDE_CODE_SESSION_ID",
   });
 
   const { root } = await getActiveFreeze(sessionId);
   if (isWithinBoundary(filePath, root, process.cwd())) return;
 
-  blockDecision(
+  io.block(
     `[Freeze] ${filePath} is outside the freeze boundary (${root}). ` +
       "Only edits within the frozen directory are allowed. Lift it with: bun ~/.claude/src/scripts/freeze.ts off",
   );
 }
 
-await runHook(main);
+if (import.meta.main) await runHook(main);

@@ -466,6 +466,14 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // Anchored to the managed install path: these names are common enough that a
   // repo's own pre-commit-tsc.ts hook must survive an upgrade.
   /\.claude[/\\]src[/\\](?:hooks|scripts)[/\\](?:pre-commit-tsc|pre-commit-farolero|pre-pr-proof|pre-push-proof|session-title|cwd-changed)\.ts\b/,
+  // cc-settings runs the synchronous UserPromptSubmit, PreToolUse and PostToolUse
+  // handlers through hooks/dispatch.ts, one process per event. The scripts still
+  // exist (the dispatcher imports them, and tests, hook-bench and the Codex plugin run
+  // them directly), so pruneStaleManagedHooks cannot catch the old per-script entries;
+  // without these an upgrade would run each handler twice. Anchored on the install path
+  // so a script in some other directory is untouched; `post-edit-tsc.ts` and
+  // `dispatch.ts` do not match.
+  /[/\\]\.claude[/\\]src[/\\](?:hooks[/\\](?:delegation-detector|quota-steer|escalate-model|safety-net|pre-edit-validate|freeze-guard|knowledge-hint|tool-cadence|promote-memory|escalate-acted)|scripts[/\\]post-edit)\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {
