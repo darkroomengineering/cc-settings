@@ -222,7 +222,7 @@ describe("Codex installer lifecycle", () => {
         expect(existsSync(join(home, ".claude", "settings.json"))).toBe(false);
 
         const names = await managedAgentNames(codexHome);
-        expect(names).toHaveLength(10);
+        expect(names).toHaveLength(9);
         expect(names).toContain("implementer");
         expect(names).not.toContain("codex-verifier");
         for (const name of names) {
@@ -274,6 +274,38 @@ describe("Codex installer lifecycle", () => {
         expect(instructions).not.toContain("~/.codex/agents");
         expect(instructions.split(START)).toHaveLength(2);
         expect(instructions.split(END)).toHaveLength(2);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    { timeout: 120_000 },
+  );
+
+  test(
+    "a reinstall removes the scaffolder agent an earlier install recorded",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "cc-codex-retired-agent-"));
+      const codexHome = join(home, ".codex");
+      try {
+        expectSuccess(await runCodex(home));
+        const sentinelPath = join(codexHome, ".cc-settings-version");
+        const retiredPath = join(codexHome, "agents", "scaffolder.toml");
+        const retiredBytes = 'name = "scaffolder"\n';
+        await writeFile(retiredPath, retiredBytes);
+        const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+          managed_agents: string[];
+          managed_agent_hashes: Record<string, string>;
+        };
+        sentinel.managed_agents.push("scaffolder");
+        sentinel.managed_agent_hashes.scaffolder = new Bun.CryptoHasher("sha256")
+          .update(retiredBytes)
+          .digest("hex");
+        await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
+
+        expectSuccess(await runCodex(home));
+
+        expect(existsSync(retiredPath)).toBe(false);
+        expect(await managedAgentNames(codexHome)).not.toContain("scaffolder");
       } finally {
         await rm(home, { recursive: true, force: true });
       }
@@ -1677,6 +1709,23 @@ describe("Codex installer lifecycle", () => {
     );
   });
 
+  test("version 21 drops the checkpoint and explore skills and renames review to dr-review in the Codex runtime", () => {
+    const removed = [
+      "hooks/checkpoint.md",
+      "skills/checkpoint/SKILL.md",
+      "skills/explore/SKILL.md",
+      "src/scripts/checkpoint.ts",
+    ];
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBeGreaterThanOrEqual(21);
+    const v20 = runtimePathsForVersion(20, "test");
+    for (const path of [...removed, "skills/review/SKILL.md"]) expect(v20).toContain(path);
+    expect(runtimePathsForVersion(21, "test")).toEqual(
+      v20
+        .filter((path) => !removed.includes(path))
+        .map((path) => (path === "skills/review/SKILL.md" ? "skills/dr-review/SKILL.md" : path)),
+    );
+  });
+
   // Existing installs validate ownership against the manifest version their
   // sentinel recorded. Adding a file to a shipped version makes every such
   // install fail with "missing: <file>", so shipped versions are pinned by hash.
@@ -1719,6 +1768,10 @@ describe("Codex installer lifecycle", () => {
       "claude:20:light": "1f36c8faee1e842b",
       "claude:21:full": "c0ba185baf234a24",
       "claude:21:light": "1f36c8faee1e842b",
+      "claude:22:full": "9c24ded4696a8fc2",
+      "claude:22:light": "cd88b84025ab2b9f",
+      "claude:23:full": "f5b252f7eb07537e",
+      "claude:23:light": "960f33f951c29b06",
       "codex:1": "4dd6aeea8177953e",
       "codex:2": "b0d5af4920c948e9",
       "codex:3": "04b180972c0d0929",
@@ -1730,6 +1783,8 @@ describe("Codex installer lifecycle", () => {
       "codex:9": "e834d21c75122f2c",
       "codex:10": "be0861d86613ae12",
       "codex:18": "c747ec91d6dc2ebb",
+      "codex:19": "03e0c8cffe86b3c8",
+      "codex:20": "070baceb0548e294",
     };
     const actual: Record<string, string> = {};
     for (const key of Object.keys(shipped)) {
@@ -1813,6 +1868,29 @@ describe("Codex installer lifecycle", () => {
       });
     }
     expect(RUNTIME_SOURCE_FILES).not.toContain("src/hooks/dispatch.ts");
+  });
+
+  test("Claude version 25 drops scaffolder, checkpoint and explore and renames review to dr-review, in both profiles", async () => {
+    const removed = [
+      "agents/scaffolder.md",
+      "hooks/checkpoint.md",
+      "skills/checkpoint/SKILL.md",
+      "skills/explore/SKILL.md",
+      "src/scripts/checkpoint.ts",
+    ];
+    const { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, claudeManagedManifestPaths } =
+      await import("../src/lib/claude-managed-file-manifests.ts");
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBeGreaterThanOrEqual(25);
+    for (const profile of ["full", "light"] as const) {
+      const v24 = claudeManagedManifestPaths(24, profile, "test");
+      expect(claudeManagedManifestPaths(25, profile, "test")).toEqual(
+        v24
+          .filter((path) => !removed.includes(path))
+          .map((path) => (path === "skills/review/SKILL.md" ? "skills/dr-review/SKILL.md" : path)),
+      );
+    }
+    const v24Full = claudeManagedManifestPaths(24, "full", "test");
+    for (const path of [...removed, "skills/review/SKILL.md"]) expect(v24Full).toContain(path);
   });
 
   test("the static runtime manifest closes every transitive relative TypeScript import", async () => {

@@ -1,8 +1,7 @@
-// Shared mechanics for the timestamped-artifact CLIs (checkpoint.ts,
-// handoff.ts). Both stores keep a flat directory of timestamp-named files plus
-// a "latest" symlink, and both grew the same four mechanics independently:
-// timestamp-id generation, the unlink-then-symlink "latest" dance,
-// list-with-latest-marker, and resolve-by-id-or-latest.
+// Shared mechanics for the timestamped-artifact stores (handoff.ts, plus the
+// session-start and post-compact cleanup). A store keeps a flat directory of
+// timestamp-named files plus a "latest" symlink: timestamp-id generation, the
+// atomic "latest" pointer, list-with-latest-marker, and resolve-by-id-or-latest.
 //
 // On-disk formats, directory layouts, and CLI surfaces stay in the scripts —
 // this module is mechanics only. Helpers fail soft where the originals did
@@ -16,8 +15,7 @@ import { pad } from "./platform.ts";
 /**
  * Timestamp-derived artifact id: `<prefix>YYYYMMDD<sep>HHMMSS`.
  *
- *   checkpoint: timestampId("chk-", "-") → "chk-20260609-142233"
- *   handoff:    timestampId("", "_")     → "20260609_142233"
+ *   handoff: timestampId("", "_") → "20260609_142233"
  */
 export function timestampId(prefix: string, sep: string, d: Date = new Date()): string {
   const date = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
@@ -76,8 +74,7 @@ export async function readLatestTarget(dir: string, linkName: string): Promise<s
  * List artifacts in `dir` matching `pattern` (RegExp against the filename, or
  * a predicate), sort newest-first by mtime, and return the ABSOLUTE paths of
  * everything beyond the newest `keep` — the prune candidates. Does NOT
- * delete; callers unlink (and any sibling files, e.g. checkpoint.ts's
- * `.patch` companion) themselves. A per-entry stat failure (the file vanished
+ * delete; callers unlink (and any sibling files) themselves. A per-entry stat failure (the file vanished
  * between readdir and stat — a concurrent clean/save race) skips just that
  * one entry, never discards the whole already-enumerated listing. Missing or
  * unreadable dir ⇒ [].

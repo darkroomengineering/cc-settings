@@ -15,7 +15,7 @@ export const MANAGED_AGENT_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const SHA256 = /^[a-f0-9]{64}$/;
 export const SHARED_BACKUP_ID = /^\d{14}-\d{3}-\d+-\d+$/;
 export const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
-export const RETIRED_MANAGED_AGENT_NAMES = new Set<string>();
+export const RETIRED_MANAGED_AGENT_NAMES = new Set<string>(["scaffolder"]);
 export const MANAGED_AGENT_SOURCE_FILES = [
   "deslopper.md",
   "explore.md",
@@ -23,7 +23,6 @@ export const MANAGED_AGENT_SOURCE_FILES = [
   "maestro.md",
   "planner.md",
   "reviewer.md",
-  "scaffolder.md",
   "security-reviewer.md",
   "tester.md",
 ] as const;

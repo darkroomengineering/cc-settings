@@ -373,7 +373,7 @@ Suppress the built-in spinner tips, or (v2.1.247) add your own to the rotation.
     "excludeDefault": true,
     "label": "Darkroom tip",
     "tips": [
-      "Run /review before opening a PR",
+      "Run /dr-review before opening a PR",
       { "id": "cache-hint", "text": "Long break? The 1h prompt cache keeps the main conversation warm", "cooldownSessions": 5, "priority": 2 }
     ]
   }

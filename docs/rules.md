@@ -34,7 +34,7 @@ Claude Code automatically loads relevant rules based on:
 | `ui-fix.md` | Working with `.tsx`, `.jsx`, `.css`, `.scss`, `app/`, or `components/` — UI bug-fix workflow, screenshot-first |
 | `motion-physics.md` | Working with `.tsx`, `.jsx`, or `components/` — should-it-animate gate, easing and duration tokens, gesture/spring physics, animation vocabulary |
 | `swift-animation.md` | Working with `.swift` files — SwiftUI animation at the display's maximum frame rate (WWDC23 "Explore SwiftUI animation") |
-| `git.md` | Working with `.git/`, `.gitignore`, or `.github/` files; `/ship` and `/review` read it explicitly |
+| `git.md` | Working with `.git/`, `.gitignore`, or `.github/` files; `/ship` and `/dr-review` read it explicitly |
 
 ## Adding New Rules
 

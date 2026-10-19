@@ -27,7 +27,7 @@ so the standards load every turn.
 **TypeScript on Bun.** Runtime: `bun >=1.2.21`.
 Deps: `zod` and `typescript` (the native-ts codemap engine loads the compiler at runtime; YAML parsing uses `Bun.YAML`, prompts use `node:readline`). Dev: `@biomejs/biome`, `@types/bun`.
 
-**Skill library ratchets.** The managed library contains exactly 26 skills.
+**Skill library ratchets.** The managed library contains exactly 24 skills.
 `SKILL_COUNT_BASELINE` in `src/lib/lint-skills.ts` fails when the count moves
 either way. The description-byte ceiling is one-way: tighten the longest
 descriptions when it fails; never raise the ceiling. `bun run lint:skills`

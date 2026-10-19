@@ -127,7 +127,7 @@ read-only bridge (`claude-run.ts`, `claude-verifier`) to Opus 5.5.
 
 - **Opus/Fable:** planning, synthesis, gate decisions; never tight loop bodies.
 - **Session model:** agents that edit code (`implementer`, `tester`,
-  `deslopper`, `scaffolder`) use `model: inherit`, so your model choice applies.
+  `deslopper`) use `model: inherit`, so your model choice applies.
 - **Sonnet:** loop bodies and read-only fan-out (`explore`, `reviewer`, the
   subagent default; pin `/loop` invocations explicitly).
 - **Codex:** the `codex-verify` SessionStart hook injects the current routing

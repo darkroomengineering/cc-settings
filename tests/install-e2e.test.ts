@@ -170,12 +170,27 @@ const FILES_REMOVED_IN_V23 = [
   "src/scripts/session-title.ts",
 ];
 
+// Files manifest version 24 dropped (skills/review became skills/dr-review); every earlier version owns them.
+const FILES_REMOVED_IN_V24 = [
+  "agents/scaffolder.md",
+  "skills/checkpoint/SKILL.md",
+  "skills/explore/SKILL.md",
+  "skills/review/SKILL.md",
+  "src/scripts/checkpoint.ts",
+  "hooks/checkpoint.md",
+];
+
 async function seedRemovedFiles(
   claudeDir: string,
   managedFiles?: Record<string, string>,
 ): Promise<void> {
   const bytes = "historical bytes\n";
-  for (const path of [...SKILLS_REMOVED_IN_V18, ...FILES_REMOVED_IN_V19, ...FILES_REMOVED_IN_V23]) {
+  for (const path of [
+    ...SKILLS_REMOVED_IN_V18,
+    ...FILES_REMOVED_IN_V19,
+    ...FILES_REMOVED_IN_V23,
+    ...FILES_REMOVED_IN_V24,
+  ]) {
     await mkdir(dirname(join(claudeDir, path)), { recursive: true });
     await writeFile(join(claudeDir, path), bytes);
     if (managedFiles) {
@@ -610,6 +625,10 @@ exit $rc
       expect(existsSync(readmePath)).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "poke-holes", "SKILL.md"))).toBe(true);
+      for (const path of FILES_REMOVED_IN_V24)
+        expect(existsSync(join(claudeDir, path))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "review"))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "dr-review", "SKILL.md"))).toBe(true);
       const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
         managed_files: Record<string, string>;
         managed_files_manifest_version: number;
@@ -673,6 +692,8 @@ exit $rc
       expect(upgrade.exitCode, `${upgrade.stdout}\n${upgrade.stderr}`).toBe(0);
       expect(existsSync(retiredPath)).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "review"))).toBe(false);
+      expect(existsSync(join(claudeDir, "skills", "dr-review", "SKILL.md"))).toBe(true);
       expect(existsSync(join(claudeDir, "skills", "oracle"))).toBe(false);
       const upgraded = JSON.parse(await readFile(sentinelPath, "utf8")) as {
         managed_files: Record<string, string>;
@@ -2855,6 +2876,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/audit/references/net-capture.mjs",
             "skills/audit/references/performance-playbook.md",
             "skills/audit/references/test-audit.md",
+            "skills/dr-review/SKILL.md",
             "skills/poke-holes/SKILL.md",
             "src/bunfig.toml",
             "src/hooks/ask-gate.ts",

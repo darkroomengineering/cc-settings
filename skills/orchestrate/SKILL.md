@@ -85,7 +85,7 @@ Use full parallel team fan-out instead of sequential subagent delegation when:
 | Large codebase analysis | Yes | Independent context per agent prevents bleed |
 | Competing approaches | Yes | Explore alternatives in parallel before deciding |
 | Sequential dependent work | No | Use subagents in sequence; fan-out adds overhead |
-| Quick single investigation | No | Overhead not worth it; use `/explore` directly |
+| Quick single investigation | No | Overhead not worth it; spawn the `explore` agent directly |
 
 ### Prerequisites for fan-out
 
@@ -122,7 +122,7 @@ Report: team composition (when fan-out chosen), task assignments, coordination s
 
 ## Variant: Phased Long-Running Execution
 
-For tasks too large for a single context window. Implements checkpoint/restore, automatic verification, and graceful recovery.
+For tasks too large for a single context window. Implements git-commit checkpoints, automatic verification, and graceful recovery.
 
 ### When to Use
 
@@ -135,13 +135,14 @@ For tasks too large for a single context window. Implements checkpoint/restore, 
 
 #### Context-Threshold Checkpoints
 
-No hook saves checkpoints automatically — the agent must invoke
-`checkpoint.ts save` itself when it notices context usage crossing a
-threshold. See `hooks/checkpoint.md` for the recommended actions at 70% / 80% / 90%.
+No hook saves state automatically — the agent must commit and write a handoff
+itself when it notices context usage crossing a threshold. At 70% commit
+finished work and log a progress summary; at 80% compact or run `/handoff`; at
+90% stop, commit, and run `/handoff` (the usage table is in the `handoff` skill).
 
 #### Manual Checkpoints
 
-Save checkpoints at these milestones:
+A checkpoint is a git commit of verified work. Commit at these milestones:
 - After completing a logical phase
 - Before risky operations (schema changes, large refactors)
 - After passing verification
@@ -152,15 +153,13 @@ A completed phase is a **commit checkpoint, not a stopping point** — the job i
 
 Stamp the plan with the commit it was written against (`git rev-parse --short HEAD`) and re-stamp on every maintenance pass. The reconcile semantics: re-run the done-criteria of tasks marked complete (a "done" that no longer verifies gets reopened, not trusted), refresh file/line refs that drifted since the stamp, and retire tasks obsoleted by intervening changes with a one-line reason so they aren't re-litigated later.
 
-#### Checkpoint Contents
+#### Rolling Back
 
-See `hooks/checkpoint.md` for the full checkpoint JSON schema, storage location, and recommended checkpoint threshold actions.
-
-Save/restore state with `/checkpoint` — see that skill for the commands.
+To undo a bad phase, use Claude Code's built-in `/rewind` (conversation and file state), or `git reset --soft <checkpoint-commit>` to the last good commit. `/handoff` carries the plan, decisions, and remaining todos into a new session.
 
 ### Verification Stack
 
-Every checkpoint must pass Levels 1-3 before saving. Full verification (Levels 1-5) at task completion. See `hooks/verification-check.md` for the complete 5-level stack, per-agent requirements, and failure handling.
+Every checkpoint commit must pass Levels 1-3 first. Full verification (Levels 1-5) at task completion. See `hooks/verification-check.md` for the complete 5-level stack, per-agent requirements, and failure handling.
 
 ### Workflow
 
@@ -185,8 +184,8 @@ For each phase:
 1. **Start**: Log phase start
 2. **Implement**: Execute the phase work
 3. **Verify**: Run verification stack
-4. **Checkpoint**: Save state if milestone reached
-5. **Monitor**: Check context usage, checkpoint if threshold hit
+4. **Checkpoint**: Commit verified work if a milestone was reached
+5. **Monitor**: Check context usage, commit and hand off if a threshold is hit
 
 To drive this loop unattended, set a `/goal` whose condition matches the
 completion promise — e.g. `/goal all phases complete, tsc + lint + tests
@@ -202,8 +201,8 @@ End with the Completion Promise below.
 
 When resuming after interruption:
 
-1. Run `checkpoint.ts restore` to load latest state
-2. Check git status for uncommitted work
+1. Run `/handoff resume` to load the latest handoff, if one was saved
+2. Check git status and `git log` for the last checkpoint commit and uncommitted work
 3. Review remaining todos
 4. Run verification to confirm baseline
 5. Continue from next incomplete phase

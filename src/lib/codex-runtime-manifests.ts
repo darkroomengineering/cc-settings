@@ -269,7 +269,7 @@ const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
 // Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
 // bunfig.toml `preload` cannot run inside a hook.
 const ADDED_IN_V19 = ["src/bunfig.toml"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 20;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 21;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -286,6 +286,7 @@ const REJOINING_AFTER = new Map<string, readonly string[]>([
   ["src/lib/download-verify.ts", REMOVED_IN_V12],
   ["src/hooks/model-switch-guard.ts", ["src/hooks/pre-commit-farolero.ts"]],
   ["src/hooks/pre-edit-validate.ts", ["src/hooks/pre-pr-proof.ts", "src/hooks/pre-push-proof.ts"]],
+  ["src/scripts/check-docs-before-install.ts", ["src/scripts/checkpoint.ts"]],
   ["src/scripts/codex-skill-budget.ts", ["src/scripts/cwd-changed.ts"]],
   ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
   ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_IN_V17]],
@@ -342,9 +343,21 @@ const RUNTIME_SOURCE_FILES_V17: readonly string[] = RUNTIME_SOURCE_FILES_V16.fil
 );
 const RUNTIME_SOURCE_FILES_V18: readonly string[] = [...RUNTIME_SOURCE_FILES_V17, ...ADDED_IN_V18];
 const RUNTIME_SOURCE_FILES_V19: readonly string[] = [...RUNTIME_SOURCE_FILES_V18, ...ADDED_IN_V19];
-export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V19.filter(
+const RUNTIME_SOURCE_FILES_V20: readonly string[] = RUNTIME_SOURCE_FILES_V19.filter(
   (path) => !REMOVED_IN_V20.includes(path),
 );
+// Version 21: the checkpoint and explore skills left the library and `review` became
+// `dr-review` (see TOMBSTONE_SKILLS in managed-skills.ts). Versions 5-20 still own them.
+const REMOVED_IN_V21 = [
+  "hooks/checkpoint.md",
+  "skills/checkpoint/SKILL.md",
+  "skills/explore/SKILL.md",
+  "src/scripts/checkpoint.ts",
+];
+const RENAMED_IN_V21 = new Map([["skills/review/SKILL.md", "skills/dr-review/SKILL.md"]]);
+export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V20.filter(
+  (path) => !REMOVED_IN_V21.includes(path),
+).map((path) => RENAMED_IN_V21.get(path) ?? path);
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -381,6 +394,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [17, RUNTIME_SOURCE_FILES_V17],
   [18, RUNTIME_SOURCE_FILES_V18],
   [19, RUNTIME_SOURCE_FILES_V19],
+  [20, RUNTIME_SOURCE_FILES_V20],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

@@ -64,6 +64,7 @@ Refusing a thin prompt is correct behavior. Guessing produces regressions.
 - Debug and fix failures proactively, within the AGENTS.md 2-iteration limit.
 - Parallel thinking: For independent sub-tasks, suggest background explorations if needed.
 - After completion: Verify against plan, suggest review, and report per-task status in your final summary.
+- Boilerplate (pages, routes, components, hooks): read `package.json` for the stack (Next.js vs React Router), copy the structure, path alias, and conventions of the nearest existing file, and check the target does not already exist before creating it.
 - Advisor checkpoints: when the `advisor` tool is available, call it before committing to an approach, after a second failed attempt, and before reporting done. Follow its advice unless your own evidence (a failing step, the file contents) contradicts it; then report the conflict instead of picking silently.
 
 **Workflow**

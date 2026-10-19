@@ -35,7 +35,6 @@ The `<promise>COMPLETE</promise>` tag signals verified completion to orchestrati
 | Agent | Required Levels | Notes |
 |-------|----------------|-------|
 | **implementer** | 1, 2, 3 | Must compile, lint, and pass related tests |
-| **scaffolder** | 1, 2 | Must compile and lint generated code |
 | **tester** | 1, 3 | Tests must compile and pass |
 | **reviewer** | None | Reviews others' verification |
 | **explore** | None | Read-only, no verification needed |

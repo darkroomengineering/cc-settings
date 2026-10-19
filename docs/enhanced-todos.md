@@ -100,7 +100,7 @@ The scheduler respects context window limits:
 
 1. **Budget**: Each batch must fit within 70% of remaining context
 2. **Overflow**: If a batch exceeds budget, split into sub-batches
-3. **Checkpoint**: Save state between batches for recovery
+3. **Checkpoint**: Commit finished work and write a handoff between batches for recovery
 4. **Monitoring**: Track actual vs estimated token usage
 
 ```
@@ -108,30 +108,19 @@ remaining_budget = context_window * 0.70
 for batch in batches:
   batch_cost = sum(task.estimatedTokens for task in batch)
   if batch_cost > remaining_budget:
-    checkpoint()
+    commit_and_handoff()
     // New context window
     remaining_budget = context_window * 0.70
   execute(batch)
   remaining_budget -= actual_tokens_used
 ```
 
-## Checkpoint Integration
+## Handoff Integration
 
-Todo state is captured in every checkpoint:
+Todo state is captured in every handoff (its Active Todos section): which tasks are completed, remaining, blocked, and in progress.
 
-```json
-{
-  "todos": {
-    "completed": ["T-1", "T-2"],
-    "remaining": ["T-3", "T-4", "T-5"],
-    "blocked": ["T-5"],
-    "inProgress": "T-3"
-  }
-}
-```
-
-On restore:
-1. Load todo state from checkpoint
+On resume:
+1. Load todo state from the handoff
 2. Verify completed tasks are still valid (git state matches)
 3. Resume from first incomplete task
 4. Re-check blocked status based on current completions

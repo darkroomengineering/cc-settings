@@ -3,8 +3,7 @@
 //
 // Unit tests call gatherWhatsOn() directly against a fixture InstallPaths
 // (same pattern as tests/status.test.ts) — no console capture needed. CLI
-// tests spawn the script with HOME redirected to a fixture, matching
-// tests/checkpoint.test.ts's spawn helper.
+// tests spawn the script with HOME redirected to a fixture.
 
 import { describe, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -212,7 +211,7 @@ describe("gatherWhatsOn — inventory", () => {
     const claude = await makeTmpDir();
     const home = await makeTmpDir();
     try {
-      await mkdir(join(claude, "skills", "explore"), { recursive: true });
+      await mkdir(join(claude, "skills", "fix"), { recursive: true });
       await mkdir(join(claude, "skills", "plan"), { recursive: true });
       await mkdir(join(claude, "agents"), { recursive: true });
       await writeFile(join(claude, "agents", "implementer.md"), "# implementer");

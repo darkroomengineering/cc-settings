@@ -3,7 +3,7 @@
 //   runProcessFull — full {exit, stdout, stderr} for any binary. Callers that
 //                    need the exit code or stderr use runProcessFull("git", …).
 //   getProjectName — repo toplevel basename, falling back to cwd basename
-//                    outside a git repo. Shared by checkpoint.ts and handoff.ts.
+//                    outside a git repo. Used by handoff.ts.
 
 import { basename } from "node:path";
 

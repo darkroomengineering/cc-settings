@@ -94,12 +94,12 @@ describe("gatherStatus", () => {
     const src = await makeTmpDir();
     const claude = await makeTmpDir();
     try {
-      // Create a skills/explore directory in the source (simulates a shipped skill)
-      await mkdir(join(src, "skills", "explore"), { recursive: true });
-      await writeFile(join(src, "skills", "explore", "SKILL.md"), "# explore");
+      // Create a skills/fix directory in the source (simulates a shipped skill)
+      await mkdir(join(src, "skills", "fix"), { recursive: true });
+      await writeFile(join(src, "skills", "fix", "SKILL.md"), "# fix");
 
       const data = await gatherStatus(src, installPaths(claude, claude), "11.2.1");
-      expect(data.skills.missing).toContain("explore");
+      expect(data.skills.missing).toContain("fix");
       expect(data.skills.shippedCount).toBeGreaterThan(0);
       expect(data.skills.presentCount).toBeLessThan(data.skills.shippedCount);
     } finally {

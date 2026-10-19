@@ -72,7 +72,7 @@ This is the core reason to use the bridge. Claude and Codex meter differently:
 **Routing convention** (not config — there is no `/loop` model key; routing is per-invocation):
 
 - **Opus** — planning, synthesis, gates only. The single scarce pool does the thinking.
-- **Sonnet** — `/loop` bodies and read-only fan-out subagents. The default subagent model, with near-Opus quality on coding/agentic work. Agents that edit code (`implementer`, `tester`, `deslopper`, `scaffolder`) use `model: inherit` and follow the session model.
+- **Sonnet** — `/loop` bodies and read-only fan-out subagents. The default subagent model, with near-Opus quality on coding/agentic work. Agents that edit code (`implementer`, `tester`, `deslopper`) use `model: inherit` and follow the session model.
 - **Codex** — bulk execution and verification, batched into as few large calls as possible.
 
 Two roomy pools (Sonnet + Codex) carry volume. The one scarce pool (Opus) directs traffic.

@@ -120,7 +120,6 @@ export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/scripts/auto-update.ts",
   "src/scripts/check-cli-tools.ts",
   "src/scripts/check-docs-before-install.ts",
-  "src/scripts/checkpoint.ts",
   "src/scripts/claude-audit.ts",
   "src/scripts/claude-run.ts",
   "src/scripts/codex-hook.ts",
