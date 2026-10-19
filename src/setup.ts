@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.69.0"; // full installs ship the durable-agents profile.
+const VERSION = "15.69.1"; // /ship files new Linear issues into the repo's mapped project.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
