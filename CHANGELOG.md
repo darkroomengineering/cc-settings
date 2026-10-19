@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.69.2] — 2026-10-19
+
+Two older CHANGELOG entries (15.66.1 and 15.42.5) carried a leftover merge-conflict line, which showed on GitHub and tripped anything that parses the changelog. Both lines are gone. A new test scans every tracked text file for conflict markers and fails with the file and line, so a half-resolved merge cannot land again. Fixes #234.
+
+**Files changed:**
+- CHANGELOG.md, tests/no-conflict-markers.test.ts
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.69.1] — 2026-10-19
 
 `/ship` now files the Linear issue it creates into the repo's Linear project, not just its team. `~/.claude/linear-teams.json` takes an optional `project` per repo, and when a repo has no mapping yet, `/ship` asks for the project right after the team.
@@ -94,7 +102,6 @@ The safety hooks block again. Ten hooks read their input from environment variab
 - safety-net blocks `gh pr`, `gh issue`, `gh release`, `gh repo edit`, and `gh api` writes (including GraphQL mutations) to repos outside darkroomengineering and your own account, which was only a rule in the `triage` skill. The owner comes from `-R`, `GH_REPO`, a URL argument, the `repos/` path, or the repo's remotes; your login comes from `gh api user`; an unknown owner is blocked (#221).
 - safety-net blocks skipping git hooks on commit, push, and merge: `--no-verify` and its prefixes, `commit -n`, `HUSKY`/`LEFTHOOK` set to `0` or `false`, `SKIP*` prefixes, and setting `core.hooksPath` through `-c`, `--config-env`, `GIT_CONFIG_*`, or `git config`. `git push -n` stays allowed as a dry run (#221).
 - safety-net exits 1 on an internal error instead of allowing the command, so its `onFailure: "block"` setting takes effect (#221).
-||||||| parent of 553d9ef (feat(v15.66.1): sync with Claude Code v2.1.301 and Codex v0.163.0)
 
 ## [15.65.0] — 2026-10-15
 
@@ -689,7 +696,6 @@ The daily auto-update kept skipping on developer machines. Any untracked file, u
 - `tests/auto-update-script.test.ts` proves a modified, staged, untracked, or feature-branch checkout still installs and is left byte-for-byte untouched. The two tests that asserted the removed gates are deleted as an intentional contract change.
 
 Reaches an existing install on the next `bash setup.sh`.
-||||||| parent of 4f4fc9f (docs(v15.42.6): fold three SwiftUI animation rules from twostraws/swiftui-agent-skill)
 
 ## [15.42.4] — 2026-09-30
 
