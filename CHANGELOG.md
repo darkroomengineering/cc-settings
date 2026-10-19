@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.69.1] — 2026-10-19
+
+`/ship` now files the Linear issue it creates into the repo's Linear project, not just its team. `~/.claude/linear-teams.json` takes an optional `project` per repo, and when a repo has no mapping yet, `/ship` asks for the project right after the team.
+
+**Files changed:**
+- skills/ship/SKILL.md, evals/ship-linear-issue/prompt.md, evals/ship-linear-issue/graders/criteria.md
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
 ## [15.69.0] — 2026-10-19
 
 Agents building a bot, assistant, or autonomous job inside a product now have a standard to work from. The new `profiles/durable-agents.md` covers what has to survive a crash or restart: which tools may rerun, how webhook and cron triggers avoid duplicate runs, why approvals and waits live in storage, and why agent PRs never auto-merge on client repos. Pi Durable is the reference implementation, with its API notes pinned to 1.3.0 and kept apart from the runtime-independent rules. `/build` points to the profile in Claude Code. Full installs only; light installs and Codex get no profiles. The Claude managed-files manifest moves to version 21, and version 20 is now pinned by hash. The README profile list names durable agents in place of the orchestration profile that version 19 removed.
