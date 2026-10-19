@@ -30,6 +30,9 @@ async function spawnedArgv(
       USERPROFILE: home,
       ...extraEnv,
     };
+    // The bridge refuses to run inside a Codex session; strip its markers.
+    delete env.CODEX_THREAD_ID;
+    delete env.CODEX_SANDBOX;
     for (const key of ["CODEX_EXEC_MODEL", "CODEX_REVIEW_MODEL", "CODEX_ASK_MODEL"]) {
       if (!(key in extraEnv)) delete env[key];
     }
@@ -38,11 +41,12 @@ async function spawnedArgv(
       stdout: "pipe",
       stderr: "pipe",
     });
-    const [, stderr] = await Promise.all([
+    const [, stderr, code] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
       proc.exited,
     ]);
+    if (code !== 0) throw new Error(`codex-run exited ${code}: ${stderr}`);
     const argv = (await readFile(argvFile, "utf8")).split("\n").filter(Boolean);
     return { argv, stderr };
   } finally {
