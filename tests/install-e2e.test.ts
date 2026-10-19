@@ -170,8 +170,8 @@ const FILES_REMOVED_IN_V23 = [
   "src/scripts/session-title.ts",
 ];
 
-// Files manifest version 24 dropped (skills/review became skills/dr-review); every earlier version owns them.
-const FILES_REMOVED_IN_V24 = [
+// Files manifest version 25 dropped (skills/review became skills/dr-review); every earlier version owns them.
+const FILES_REMOVED_IN_V25 = [
   "agents/scaffolder.md",
   "skills/checkpoint/SKILL.md",
   "skills/explore/SKILL.md",
@@ -189,7 +189,7 @@ async function seedRemovedFiles(
     ...SKILLS_REMOVED_IN_V18,
     ...FILES_REMOVED_IN_V19,
     ...FILES_REMOVED_IN_V23,
-    ...FILES_REMOVED_IN_V24,
+    ...FILES_REMOVED_IN_V25,
   ]) {
     await mkdir(dirname(join(claudeDir, path)), { recursive: true });
     await writeFile(join(claudeDir, path), bytes);
@@ -625,7 +625,7 @@ exit $rc
       expect(existsSync(readmePath)).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "verify"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "poke-holes", "SKILL.md"))).toBe(true);
-      for (const path of FILES_REMOVED_IN_V24)
+      for (const path of FILES_REMOVED_IN_V25)
         expect(existsSync(join(claudeDir, path))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "review"))).toBe(false);
       expect(existsSync(join(claudeDir, "skills", "dr-review", "SKILL.md"))).toBe(true);

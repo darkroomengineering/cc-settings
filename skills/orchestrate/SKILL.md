@@ -155,7 +155,7 @@ Stamp the plan with the commit it was written against (`git rev-parse --short HE
 
 #### Rolling Back
 
-To undo a bad phase, use Claude Code's built-in `/rewind` (conversation and file state), or `git reset --soft <checkpoint-commit>` to the last good commit. `/handoff` carries the plan, decisions, and remaining todos into a new session.
+To undo a bad phase, use Claude Code's built-in `/rewind` (conversation and file state), or `git revert --no-edit <checkpoint-commit>..HEAD` to undo every commit after the last good one (a soft reset would leave the bad phase's changes staged). `/handoff` carries the plan, decisions, and remaining todos into a new session.
 
 ### Verification Stack
 
