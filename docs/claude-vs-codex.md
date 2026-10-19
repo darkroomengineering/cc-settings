@@ -20,11 +20,10 @@ travel across hosts. The host decides how tools, agents, hooks, and background w
 | Continue agent work | Resume or message the existing agent/task | Resume or message the existing agent/task through native agent controls |
 
 Natural language is the safest common interface. Explicit names matter when nearby skills have
-different effects, such as `review`, `proof-of-work`, `poke-holes`, `triage`, and `audit`.
+different effects, such as `dr-review`, `proof-of-work`, `poke-holes`, `triage`, and `audit`.
 
-Claude's native `/review` name can overlap with the cc-settings `review` skill. Say "run the
-cc-settings local pre-commit review" or choose the cc-settings skill from the visible skill picker.
-Do not rely on an undocumented precedence rule.
+Claude's native `/code-review` reviews a diff without the Darkroom checklist. Use `/dr-review` when
+you need that exact workflow.
 
 ## Installed capability matrix
 

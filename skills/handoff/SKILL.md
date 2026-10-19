@@ -28,7 +28,7 @@ unavailable until the host exposes the same plugin-data path to the session.
 
 ## Mode: Save
 
-Save current session state for later resumption. This is the **end-of-session boundary** skill — for mid-task rollback points before risky operations, use `/checkpoint`.
+Save current session state for later resumption. This is the **end-of-session boundary** skill — for mid-task rollback points before risky operations, commit or use Claude Code's built-in `/rewind`.
 
 ### Usage
 
@@ -159,7 +159,7 @@ Opus 5.5 | my-project | main*↑ | ▊░░░░░░░░░ 8% (84k/1.0M)
 
 | Usage | Action |
 |-------|--------|
-| 65–79% | Save a checkpoint and compact or prepare a handoff |
+| 65–79% | Commit finished work, then compact or prepare a handoff |
 | 80–89% | Stop expanding scope and run `/handoff` |
 | 90%+ | Run `/handoff` **now** |
 

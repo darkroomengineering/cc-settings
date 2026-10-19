@@ -55,8 +55,8 @@ again: its `version` must be the release whose files are on disk (the commit the
 5. Ask the host which workflow it selected. Treat the answer as current-turn context, not a durable
    invocation log.
 
-Claude's native `/review` name can overlap with the cc-settings local review skill. Ask for "the
-cc-settings local pre-commit review" or select it visibly from the skill picker.
+Claude's native `/code-review` reviews a diff without the Darkroom checklist. Use `/dr-review` for
+the cc-settings review.
 
 If Codex warns that skill descriptions were shortened, run `bun run codex:skill-budget` from a
 cc-settings checkout. It shows how much of the budget (2% of the model context window, 10,000

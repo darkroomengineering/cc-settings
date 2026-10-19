@@ -56,7 +56,7 @@ Keep it **out of the proof runner itself.** That gate is cheapest-first and runs
 
 ## The contract
 
-- A diff-producing agent (implementer, scaffolder, maestro, deslopper) **attaches a proof report before handing back**. "Done" without green proof is not done.
+- A diff-producing agent (implementer, maestro, deslopper) **attaches a proof report before handing back**. "Done" without green proof is not done.
 - The human/reviewer spends the lock on judgment — architecture, intent, edge cases — not on re-running what the gate already proved.
 - Pairs with the review-queue: backpressure (`the review-queue branch of tool-cadence.ts`) limits how many *unproven* diffs pile up; this gate makes each one cheaper to close.
 

@@ -1,5 +1,5 @@
 // handoff.ts CLI regressions:
-//   - H11: the handoff store is scoped per project (like checkpoint.ts), not
+//   - H11: the handoff store is scoped per project, not
 //     one global directory — a handoff saved in project A must never surface
 //     as "latest" when resuming in project B. A pre-existing legacy global
 //     store is still resumable (one-time read fallback) until a project-scoped
@@ -10,7 +10,7 @@
 //     `source: "manual"`.
 //
 // HOME is sandboxed to a tmp dir, and each test runs inside its own tmp git
-// repo — same pattern as tests/checkpoint.test.ts / tests/freeze.test.ts.
+// repo — same pattern as tests/freeze.test.ts.
 
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";

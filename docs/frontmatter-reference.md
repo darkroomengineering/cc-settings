@@ -90,7 +90,6 @@ color: purple
 | `reviewer` | sonnet | project | Read, Grep, Glob, Bash | yellow |
 | `planner` | claude-opus-5-5 | project | Read, Grep, Glob | blue |
 | `tester` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | cyan |
-| `scaffolder` | inherit | -- | Read, Write, Edit, Bash, Glob | magenta |
 | `deslopper` | inherit | -- | Read, Edit, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage | cyan |
 | `security-reviewer` | claude-opus-5-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash, Read | cyan |
@@ -102,7 +101,7 @@ color: purple
 
 **Location:** `~/.claude/skills/<skill-name>/SKILL.md`
 
-Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke directly or that the system activates automatically based on prompt patterns.
+Skills define slash commands (e.g., `/handoff`, `/dr-review`) that users invoke directly or that the system activates automatically based on prompt patterns.
 
 ### Fields
 
@@ -135,7 +134,7 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 There's no third `inherit` value — `context: inherit` is never written anywhere in the repo, and `src/schemas/skill.ts` defines the field as `z.enum(["fork", "main"])`.
 
-Skills using `fork` (14): `autoresearch`, `build`, `checkpoint`, `explore`, `fix`, `handoff`, `harvest`, `orchestrate`, `poke-holes`, `refactor`, `retro`, `review`, `ship`, `triage`. All 14 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
+Skills using `fork` (12): `autoresearch`, `build`, `dr-review`, `fix`, `handoff`, `harvest`, `orchestrate`, `poke-holes`, `refactor`, `retro`, `ship`, `triage`. All 12 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
 Skills declaring `context: main` explicitly (4): `audit`, `codex`, `freeze`, `zero-tech-debt`.
 
@@ -147,20 +146,17 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 
 | Skill | Delegates to Agent |
 |-------|--------------------|
-| `explore` | `explore` |
 | `orchestrate` | `maestro` |
-| `review` | `reviewer` |
+| `dr-review` | `reviewer` |
 
 ### Example: Skill with Fork and Agent Delegation
 
 ```yaml
 ---
-name: explore
-description: |
-  Codebase exploration and understanding. Use when the user asks:
-  - "how does X work?", "where is X?", "find X"
+name: dr-review
+description: Review the local diff against Darkroom's checklist, or address feedback on the active PR.
 context: fork
-agent: explore
+agent: reviewer
 ---
 ```
 
@@ -168,13 +164,13 @@ agent: explore
 
 ```yaml
 ---
-name: checkpoint
-description: |
-  Save session state snapshots. Use when:
-  - User says "checkpoint", "save state", "save progress"
+name: freeze
+description: Block Edit and Write outside one directory for the session.
+context: main
 allowed-tools:
   - Bash
-argument-hint: "[save|restore|show|list|clean] [name-or-id]"
+  - AskUserQuestion
+argument-hint: "[set|off|status] [dir]"
 ---
 ```
 

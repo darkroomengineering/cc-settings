@@ -9,7 +9,7 @@ paths:
 
 > Adapted from emilkowalski/skills (MIT) — `apple-design`, `animation-vocabulary`, `emil-design-eng`.
 >
-> Clip-path recipes, the debugging-feel workflow, and the naming table live in `~/.claude/docs/motion-reference.md` — read that when doing motion work. Per-diff enforcement of these values is `/review`.
+> Clip-path recipes, the debugging-feel workflow, and the naming table live in `~/.claude/docs/motion-reference.md` — read that when doing motion work. Per-diff enforcement of these values is `/dr-review`.
 
 ## Should this animate?
 

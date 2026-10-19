@@ -35,7 +35,7 @@ context: fork
 - Write in the user's voice: "Triggers when user says X", not "Does Y".
 - Be specific. "Helps with code" is too broad. "Triages GitHub issues through a label-based state machine" is not.
 - Include concrete trigger phrases — the words a user would actually type. Name the situation the skill handles, never the topic it touches: `fix` triggers on "broken" and "fix CI", not on "bug" or "error", because a topic word fires the skill on every conversation that mentions it. Current models (Claude 5, GPT-6 Astra) pick skills well from short precise descriptions and over-load from broad ones; see OpenAI's "Rethinking skills and prompts for GPT-6 Astra".
-- Name a neighbor only when the two collide on the same phrase ("Hook-level checks go to /review"). A skip clause for every adjacent skill is noise.
+- Name a neighbor only when the two collide on the same phrase ("Hook-level checks go to /dr-review"). A skip clause for every adjacent skill is noise.
 - Max ~1024 chars total. The description appears in every agent's system prompt; verbose descriptions burn context across the fleet.
 - No `<` or `>` characters (YAML angle-bracket issue).
 
@@ -153,7 +153,7 @@ A score difference smaller than run-to-run variance is not a result. `bun src/sc
 ## Common Pitfalls
 
 ### Over-broad description
-"Helps with testing" matches every test-related question — including those already covered by `/review`, `/poke-holes`, `/build`. Be narrower: "Triages GitHub issues through a label-based state machine."
+"Helps with testing" matches every test-related question — including those already covered by `/dr-review`, `/poke-holes`, `/build`. Be narrower: "Triages GitHub issues through a label-based state machine."
 
 ### Trigger overlap with existing skills
 Check the "All Skills" table in `MANUAL.md` before writing triggers. If your skill's triggers overlap significantly with an existing one, either narrow your triggers or propose merging.
@@ -219,4 +219,4 @@ See `skills/cc/SKILL.md` (sync mode) as a canonical example of: phase headings, 
 
 ### Skill with supporting reference file
 
-See `skills/context-doc/` — `SKILL.md` is the entry point; `DOMAIN-AWARENESS.md` is a shared consumer doc that sibling skills (`/explore`) reference.
+See `skills/context-doc/` — `SKILL.md` is the entry point; `DOMAIN-AWARENESS.md` is a shared consumer doc that sibling skills reference.

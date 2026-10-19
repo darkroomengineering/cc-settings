@@ -1,5 +1,5 @@
 ---
-name: review
+name: dr-review
 description: Review the local diff against Darkroom's checklist, or address feedback on the active PR. Triggers "review my changes", "check this diff", "address PR feedback". Native /code-review handles a diff or PR without the checklist.
 context: fork
 agent: reviewer

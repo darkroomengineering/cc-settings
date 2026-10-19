@@ -673,9 +673,9 @@ command/assertion, not "works correctly."
 - The 172-line deletion this task was framed around does not happen — see §3. What
   ships instead: a parallel three-way path that activates once a baseline exists, with
   the heuristic path retained as a permanent (not transitional) fallback.
-- Hand T-1/T-2 to `scaffolder` (boilerplate schema+IO file, pattern already exists in
+- Hand T-1/T-2 to `implementer` (boilerplate schema+IO file, pattern already exists in
   `version-delta.ts` to copy from) once this design is approved. Hand T-3–T-5 to
-  `implementer` as a single briefing — they're too interdependent (same file,
+  `implementer` as a single, separate briefing — they're too interdependent (same file,
   same test contract) to split across parallel agents. T-6 can ride along with T-3's
   PR as a one-line addition, not a separate handoff.
 

@@ -21,12 +21,11 @@ Routing principle: **explore on the cheaper tier, edit on the session's model, d
 | `implementer` | **inherit** | Edits code, so it follows the session model instead of a pin |
 | `security-reviewer` | **claude-opus-5-5** | Analysis feeding the session's decision |
 | `tester` | **inherit** | Writes and edits test files, so it follows the session model |
-| `scaffolder` | **inherit** | Writes new files, so it follows the session model |
 | `explore` | **claude-sonnet-5-5** | The highest-volume agent — routine investigation is Sonnet-fine; bump per-invocation to Opus for genuinely hard blast-radius/architecture work |
 | `deslopper` | **inherit** | Edits code; deletions are tool-grounded (tldr call graph) and guard-railed (no rm/commit/push, conservative auto-fix) |
 | `codex-verifier` | **claude-sonnet-5-5** | Independent cross-model check via the Codex CLI — the value is a different model family reviewing the diff, not raw reasoning depth on the Claude side |
 
-The fan-out tier is Claude Sonnet 5.5 (`claude-sonnet-5-5`, $2/$10 per MTok, half Opus 5.5). It roughly matches Opus 5.5 on agentic coding (Terminal-Bench 4.0 70.6% vs 66.4%, CursorBench 4.0 55.5% vs 57.8%) but trails it on code review (FrontierCode 1.1 46.2% vs 54.4%), which is why the split holds: `explore`, `reviewer`, and `codex-verifier` stay on Sonnet for read-only fan-out and consult work at a fraction of Opus cost, the code-editing agents (`implementer`, `tester`, `scaffolder`, `deslopper`) follow the session model, and the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier. The tier is pinned by full ID because Claude Code 2.1.284 still resolves the `sonnet` alias to Sonnet 5; return to the alias once it moves.
+The fan-out tier is Claude Sonnet 5.5 (`claude-sonnet-5-5`, $2/$10 per MTok, half Opus 5.5). It roughly matches Opus 5.5 on agentic coding (Terminal-Bench 4.0 70.6% vs 66.4%, CursorBench 4.0 55.5% vs 57.8%) but trails it on code review (FrontierCode 1.1 46.2% vs 54.4%), which is why the split holds: `explore`, `reviewer`, and `codex-verifier` stay on Sonnet for read-only fan-out and consult work at a fraction of Opus cost, the code-editing agents (`implementer`, `tester`, `deslopper`) follow the session model, and the judgment-bearing agents that gate a decision (`maestro`, `planner`, `security-reviewer`) stay on the top tier. The tier is pinned by full ID because Claude Code 2.1.284 still resolves the `sonnet` alias to Sonnet 5; return to the alias once it moves.
 
 ## Codex tiers
 

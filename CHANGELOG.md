@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.79.0] — 2026-10-19
+
+Four skills and agents that repeated Claude Code's own features are gone or renamed. The `scaffolder` agent is merged into `implementer`, which already did the same boilerplate work. `/checkpoint` and its script are removed; use the built-in `/rewind` or a git commit. The `/explore` skill is removed; the `explore` agent it routed to stays. `/review` is renamed `/dr-review`, so typing `/review` now opens Claude Code's built-in `/code-review`. The managed library goes from 26 skills to 24, and re-running setup removes the old files from existing installs. The `/orchestrate` rollback step now reverts the bad commits instead of a soft reset, which left the failed phase's changes staged. Closes #223.
+
+**Files changed:**
+- agents/scaffolder.md, skills/checkpoint/, skills/explore/, src/scripts/checkpoint.ts, hooks/checkpoint.md (removed)
+- skills/review/ → skills/dr-review/
+- src/lib/claude-managed-file-manifests.ts (version 25), src/lib/codex-runtime-manifests.ts, src/lib/lint-skills.ts
+- agents/implementer.md, skills/orchestrate/SKILL.md, docs and tests that named the removed items
+
 ## [15.78.0] — 2026-10-19
 
 Each prompt and tool call now starts one hook process instead of several. A Bash call runs 3 hook processes instead of 4, an Edit 3 instead of 6, an Agent call 1 instead of 2, and a prompt 1 instead of 3. A new dispatcher reads the hook input once and runs that event's handlers in order inside one process. The secrets and destructive-command check runs first and still blocks the call if it crashes or times out; the advisory handlers fail open and are skipped if they throw or overrun. Handlers still run on their own when called directly, so tests, `hooks:bench` and the Codex plugin are unchanged. Async hooks, SessionStart and the install-docs check keep their own entries. Re-run setup so existing installs replace the per-script entries with the dispatcher. Part of #223.

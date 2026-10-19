@@ -337,7 +337,7 @@ describe("standalone Codex workflow branches", () => {
     "skills/fix/SKILL.md",
     "skills/orchestrate/SKILL.md",
     "skills/refactor/SKILL.md",
-    "skills/review/SKILL.md",
+    "skills/dr-review/SKILL.md",
     "skills/ship/SKILL.md",
     "skills/poke-holes/SKILL.md",
   ])("%s uses the current native agent lifecycle", async (path) => {
@@ -371,7 +371,7 @@ describe("standalone Codex workflow branches", () => {
       "skills/fix/SKILL.md",
       "skills/orchestrate/SKILL.md",
       "skills/refactor/SKILL.md",
-      "skills/review/SKILL.md",
+      "skills/dr-review/SKILL.md",
       "skills/ship/SKILL.md",
       "skills/poke-holes/SKILL.md",
     ];
@@ -390,7 +390,7 @@ describe("standalone Codex workflow branches", () => {
       "skills/fix/SKILL.md",
       "skills/orchestrate/SKILL.md",
       "skills/refactor/SKILL.md",
-      "skills/review/SKILL.md",
+      "skills/dr-review/SKILL.md",
       "skills/ship/SKILL.md",
       "skills/poke-holes/SKILL.md",
     ];
@@ -415,7 +415,7 @@ describe("standalone Codex workflow branches", () => {
     "skills/fix/SKILL.md",
     "skills/proof-of-work/SKILL.md",
     "skills/refactor/SKILL.md",
-    "skills/review/SKILL.md",
+    "skills/dr-review/SKILL.md",
     "skills/ship/SKILL.md",
     "skills/poke-holes/SKILL.md",
   ])("%s explicitly avoids self-invoking the Claude-to-Codex bridge", async (path) => {

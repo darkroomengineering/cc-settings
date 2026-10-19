@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.78.0"; // One hook process per event for prompts and tool calls.
+const VERSION = "15.79.0"; // Drop skills and agents that repeat Claude Code built-ins.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

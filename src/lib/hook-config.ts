@@ -26,7 +26,7 @@ export function intEnv(name: string, fallback: number): number {
 }
 
 /** Same NaN-only-fallback rule as intEnv, for a raw CLI-arg string instead of
- *  an env var name (e.g. `checkpoint.ts clean 0` must delete everything, not
+ *  an env var name (e.g. `handoff.ts clean 0` must delete everything, not
  *  silently revive the default keep-count). */
 export function parseIntArg(raw: string | undefined, fallback: number): number {
   if (raw === undefined) return fallback;

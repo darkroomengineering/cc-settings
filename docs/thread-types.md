@@ -76,14 +76,14 @@ User → Define criteria
 
 ## L-Thread: Long-Duration
 
-Single agent executing autonomously with checkpoint/restore across context windows.
+Single agent executing autonomously with commit checkpoints and handoffs across context windows.
 
 ```
 User → Agent(planner, "phase the work")
      → Execute Phase 1 → Checkpoint
      → Execute Phase 2 → Checkpoint
      → [context exhausted, new session]
-     → Restore checkpoint
+     → Resume from handoff
      → Execute Phase 3 → Checkpoint
      → ...
      → Final verification → <promise>COMPLETE</promise>

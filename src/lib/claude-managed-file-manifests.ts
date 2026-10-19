@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 24;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 25;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -551,6 +551,7 @@ const REJOINING_AFTER = new Map<string, readonly string[]>([
   ["src/lib/download-verify.ts", REMOVED_IN_V14],
   ["src/hooks/model-switch-guard.ts", ["src/hooks/pre-commit-farolero.ts"]],
   ["src/hooks/pre-edit-validate.ts", ["src/hooks/pre-pr-proof.ts", "src/hooks/pre-push-proof.ts"]],
+  ["src/scripts/check-docs-before-install.ts", ["src/scripts/checkpoint.ts"]],
   ["src/scripts/codex-skill-budget.ts", ["src/scripts/cwd-changed.ts"]],
   ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
   ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_SOURCES_IN_V19]],
@@ -705,9 +706,28 @@ MANIFESTS.set(23, v23);
 // Version 24: the hook dispatcher that runs each event's synchronous handlers in one process.
 // Claude-only like ask-gate: the Codex plugin wires its handlers one per entry.
 const ADDED_IN_V24 = ["src/hooks/dispatch.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v24 = {
   full: [...v23.full, ...ADDED_IN_V24],
   light: [...v23.light, ...ADDED_IN_V24],
+};
+MANIFESTS.set(24, v24);
+// Version 25: the scaffolder agent merged into implementer, the checkpoint and explore skills
+// left the library, and `review` became `dr-review` (see TOMBSTONE_SKILLS in managed-skills.ts).
+const REMOVED_IN_V25 = [
+  "agents/scaffolder.md",
+  "hooks/checkpoint.md",
+  "skills/checkpoint/SKILL.md",
+  "skills/explore/SKILL.md",
+  "src/scripts/checkpoint.ts",
+];
+const RENAMED_IN_V25 = new Map([["skills/review/SKILL.md", "skills/dr-review/SKILL.md"]]);
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: v24.full
+    .filter(notAddedAfter(REMOVED_IN_V25))
+    .map((path) => RENAMED_IN_V25.get(path) ?? path),
+  light: v24.light
+    .filter(notAddedAfter(REMOVED_IN_V25))
+    .map((path) => RENAMED_IN_V25.get(path) ?? path),
 });
 
 const GENERATED_MANAGED_FILES = new Set([

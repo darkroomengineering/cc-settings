@@ -56,7 +56,7 @@ Debt mode is a mechanical grep — run it standalone or as a cheap first pass be
 
 ## When to use vs other review skills
 
-- `/review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security, plus motion when the diff touches it). Every change.
+- `/dr-review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security, plus motion when the diff touches it). Every change.
 - `/audit` (this skill) — periodic whole-repo audit; Full mode merges every mode that applies into one ranked report.
 - `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
 - `/poke-holes` — adversarial check of a single change/claim, not a repo sweep.

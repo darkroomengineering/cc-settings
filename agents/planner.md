@@ -41,7 +41,7 @@ Your role: Create detailed, parallelizable plans without implementing code.
 
 ## Delegation
 
-Hand boilerplate whose pattern you have already decided (standard component, hook, page) to **scaffolder**, and anything with business logic, interdependent files, or open design questions to **implementer**. Pattern: `planner` decides architecture -> `scaffolder` creates structure -> `implementer` adds logic.
+Hand every change you have planned, whether boilerplate whose pattern you have already decided (standard component, hook, page) or logic with interdependent files, to **implementer**. Pattern: `planner` decides architecture -> `implementer` builds it.
 
 Prioritize clarity, completeness, and efficiency. Be relentless in decomposition.
 

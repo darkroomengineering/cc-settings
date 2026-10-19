@@ -5,7 +5,7 @@ description: Building an agent, bot, assistant, or autonomous job inside a produ
 
 # Durable Agents Profile (Agents Inside Products)
 
-> Darkroom conventions for agents that ship inside a product: webhook bots, cron jobs, Slack assistants, in-app copilots. This profile does not cover the coding assistant's own sessions; `/orchestrate`, `/handoff`, and `/checkpoint` cover those.
+> Darkroom conventions for agents that ship inside a product: webhook bots, cron jobs, Slack assistants, in-app copilots. This profile does not cover the coding assistant's own sessions; `/orchestrate` and `/handoff` cover those.
 
 ## Posture
 
@@ -15,7 +15,7 @@ Durable behavior is the requirement; the runtime is chosen per project. Pi Durab
 - Classify every tool before writing it. Read-only or idempotent tools are replay-safe. Side-effecting tools (email, payment, PR, deploy, message post) are not, unless the tool carries its own idempotency key that the external system checks.
 - Approvals, timers, and waits live in durable state, never in process memory.
 - Autonomous triggers dedupe at intake: one external event id (for example a Sentry issue id) maps to at most one run and one PR, however often the event fires. Confirm the event belongs to a tracked project before starting a run.
-- Client and user-facing repos never auto-merge agent PRs. Agent output passes the normal `/review` and `/proof-of-work` gates.
+- Client and user-facing repos never auto-merge agent PRs. Agent output passes the normal `/dr-review` and `/proof-of-work` gates.
 - The model and provider come from config, never hardcoded in code or in this profile.
 
 ## Structure

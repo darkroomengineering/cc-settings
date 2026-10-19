@@ -32,8 +32,8 @@ Open Claude Code or Codex in a project and say the outcome:
 |---|---|
 | "fix the login redirect" | The `fix` workflow finds the cause, reproduces it, lands a narrow fix, and verifies it. |
 | "add a dashboard with stats" | The `build` workflow checks feasibility, plans, implements, tests, and reviews. |
-| "where does auth happen?" | The `explore` workflow maps the code read-only with file and line evidence. |
-| "review my changes" | The cc-settings `review` workflow reads the current diff and returns findings. |
+| "where does auth happen?" | The `explore` agent maps the code read-only with file and line evidence. |
+| "review my changes" | The cc-settings `dr-review` workflow reads the current diff and returns findings. |
 | "is this review-ready?" | `proof-of-work` runs the real type, test, lint, and relevant visual gates. |
 | "poke holes in this" | `poke-holes` asks independent agents to find, disprove, and judge issues. |
 | "first pass on this client repo" | `triage` returns ranked findings and stays read-only on external repositories. |
@@ -43,7 +43,7 @@ Open Claude Code or Codex in a project and say the outcome:
 
 Several of these workflows inspect code, but they answer different questions:
 
-- `review` asks whether this diff introduced a problem.
+- `dr-review` asks whether this diff introduced a problem.
 - `proof-of-work` asks whether machine-verifiable gates pass.
 - `poke-holes` asks whether independent agents can disprove a specific claim.
 - `triage` asks what is visibly risky in an unfamiliar repository.
@@ -54,8 +54,8 @@ notification. You can keep using the main conversation. Codex uses its native ag
 the interface may differ even when the outcome contract is the same. See the
 [host parity guide](./docs/claude-vs-codex.md).
 
-Claude's native `/review` name can overlap with the cc-settings skill. Ask for "the cc-settings
-local pre-commit review" or choose the cc-settings skill visibly when you need that exact workflow.
+Claude's native `/code-review` reviews a diff without the Darkroom checklist. Use `/dr-review` when
+you need that exact workflow.
 
 ## Build and change code
 
@@ -105,7 +105,7 @@ owns that action under the team rules.
 
 ### Explore the codebase
 
-Say "how does auth work?", "where is routing?", or "zoom out". `explore` stays read-only and
+Say "how does auth work?", "where is routing?", or "zoom out". The `explore` agent stays read-only and
 returns file locations, callers, and architecture with evidence.
 
 For call graphs, imports, or blast radius, Claude uses the installed TLDR MCP server. Standalone
@@ -120,7 +120,7 @@ real domain terms, then writes `CONTEXT.md` and architecture decision records.
 
 ### Review a diff
 
-Say "review my changes". The cc-settings `review` skill returns only behavior or risk findings that
+Say "review my changes". The cc-settings `dr-review` skill returns only behavior or risk findings that
 matter under the Darkroom review rules. Formatting and naming taste are not findings.
 
 ### Prove the work is green
@@ -171,13 +171,14 @@ more agents are not useful when the work cannot be reviewed coherently.
 
 ### Save a checkpoint or handoff
 
-Use `checkpoint` for a reversible mid-task snapshot. Use `handoff` to transfer decisions, files,
+Commit for a reversible mid-task snapshot (Claude Code's built-in `/rewind` also rolls back
+conversation and file edits). Use `handoff` to transfer decisions, files,
 failures, and next actions to another session. The canonical lifecycle is:
 
 | Context use | Action |
 |---|---|
 | Below ~120K tokens | Work normally |
-| ~120-150K | Save a checkpoint; compact or prepare a handoff |
+| ~120-150K | Commit finished work; compact or prepare a handoff |
 | ~150-200K | Stop expanding scope and run `handoff` |
 | 200K+ | Run `handoff` immediately — past 200K input every request bills at the long-context premium |
 
@@ -266,7 +267,7 @@ warnings, run `bun ~/.claude/src/scripts/audit-hooks.ts`. Follow
 
 ## Reference routes
 
-- [All 26 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
+- [All 24 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
 - [Installation flags, tiers, paths, side effects, rollback, and uninstall](./docs/install.md)
 - [Claude Code and Codex parity](./docs/claude-vs-codex.md)
 - [Models, effort, advisor, and quota policy](./docs/agent-models.md)

@@ -33,8 +33,8 @@ Open a repository and say:
 Explain where this project's configuration is loaded. Read only. Cite the files and lines.
 ```
 
-Natural language works in both products. To pin the workflow explicitly, use `/explore` in Claude
-Code or `$explore` in standalone Codex.
+Natural language works in both products. To pin the workflow explicitly, ask for the `explore` agent by name
+in Claude Code or standalone Codex.
 
 You should receive:
 
@@ -76,9 +76,8 @@ You normally describe the outcome. Explicit names are useful when two workflows 
 | Review installed hooks | Claude settings and hook docs | `/hooks` |
 | Inspect installed cc-settings user scope | `bun ~/.claude/src/scripts/whats-on.ts` | No exact equivalent |
 
-Claude's native `/review` name can overlap with the cc-settings `review` skill. Say "run the
-cc-settings local pre-commit review" or select the cc-settings skill from the skill picker when you
-need that exact workflow. The documentation does not assume an unverified command-precedence rule.
+Claude's native `/code-review` reviews a diff without the Darkroom checklist. Use `/dr-review`
+(`$dr-review` in standalone Codex) when you need that exact workflow.
 
 ## 5. Protect long sessions
 
@@ -89,12 +88,13 @@ before the window becomes crowded.
 | Context use | Action |
 |---|---|
 | Below ~120K tokens | Work normally |
-| ~120-150K | Save a checkpoint; compact or prepare a handoff |
+| ~120-150K | Commit finished work; compact or prepare a handoff |
 | ~150-200K | Stop expanding scope and run `/handoff` |
 | 200K+ | Run `/handoff` immediately |
 
-Use `checkpoint` for a reversible mid-task snapshot. Use `handoff` to transfer the whole session to
-a later session. In Codex, pin those skills with `$checkpoint` and `$handoff`.
+Commit for a reversible mid-task snapshot (Claude Code's built-in `/rewind` also rolls back
+conversation and file edits). Use `handoff` to transfer the whole session to a later session. In
+Codex, pin the skill with `$handoff`.
 
 ## 6. If the first task does not behave as expected
 

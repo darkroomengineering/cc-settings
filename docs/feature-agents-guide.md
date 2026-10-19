@@ -15,7 +15,6 @@ cc-settings ships with **role agents** -- general-purpose agents defined by what
 | `implementer` | Code writing and editing |
 | `reviewer` | Code review against standards |
 | `tester` | Test writing and execution |
-| `scaffolder` | Boilerplate generation |
 | `deslopper` | Dead code removal and cleanup |
 | `maestro` | Multi-agent orchestration |
 | `security-reviewer` | Security audit |
@@ -168,9 +167,8 @@ description: |
 
 1. `Agent(explore, "Check existing Sanity schemas and query patterns")`
 2. `Agent(planner, "Plan content type addition with schema, query, and component")`
-3. `Agent(scaffolder, "Create schema file following existing pattern")`
-4. `Agent(implementer, "Implement GROQ query and data fetching")`
-5. `Agent(tester, "Test content fetching with mock data")`
+3. `Agent(implementer, "Create schema file following existing pattern, then implement GROQ query and data fetching")`
+4. `Agent(tester, "Test content fetching with mock data")`
 ```
 
 ### Animation Agent
@@ -339,7 +337,7 @@ Cross-cutting issues that bite when dispatching role agents from feature agents 
 
 ### Base ref overwrites in-session edits
 
-As of May 2026 the write-agents (`implementer`, `scaffolder`, `tester`, `deslopper`) no longer default to `isolation: "worktree"` — they run in the live working tree and leave changes uncommitted for review (see each agent's frontmatter). This gotcha only bites when you explicitly opt an agent into `isolation: "worktree"`: that branches from `origin/main`, so uncommitted in-session edits do not exist on that base ref and are gone when the subagent writes back. This happened twice before the default was changed.
+As of May 2026 the write-agents (`implementer`, `tester`, `deslopper`) no longer default to `isolation: "worktree"` — they run in the live working tree and leave changes uncommitted for review (see each agent's frontmatter). This gotcha only bites when you explicitly opt an agent into `isolation: "worktree"`: that branches from `origin/main`, so uncommitted in-session edits do not exist on that base ref and are gone when the subagent writes back. This happened twice before the default was changed.
 
 Mitigation (when you do opt into `isolation: "worktree"`):
 - Commit (or stash) in-session changes before dispatching, for code edits that need to build on them.

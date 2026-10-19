@@ -38,7 +38,7 @@ its native agent and background surfaces. Skills marked **inline** stay in the c
 |---|---|
 | Read-only | Inspects state and returns evidence. It must not change repository or external state. |
 | Repository write | May edit only the requested repository scope. Reversible in-scope edits normally proceed. |
-| Local state write | Writes checkpoints, handoffs, install state, or a session guard outside project code. |
+| Local state write | Writes handoffs, install state, or a session guard outside project code. |
 | External write | Changes GitHub, a shared repository, a remote branch, or another visible system. The user must own the decision. |
 
 A skill surfaces missing prerequisites before beginning. It also stops for a material scope change,
@@ -63,14 +63,13 @@ not need repeated approval.
 
 | Skill and what to say | Value and output | Effects and approval | Run style and host notes |
 |---|---|---|---|
-| [`explore`](../skills/explore/SKILL.md): "where does auth happen?" | Maps files, callers, data flow, and architecture with file and line evidence. | Read-only. | Background. Claude uses an Explore agent; Codex uses a read-only native agent or direct inspection. |
 | [`context-doc`](../skills/context-doc/SKILL.md): "build our glossary" or "record an ADR" | Aligns domain language through an interview and writes `CONTEXT.md` plus decision records. | Repository write after the user confirms terminology and decisions. | Inline. Both hosts. |
 
 ## Review, proof, and diagnosis
 
 | Skill and what to say | Value and output | Effects and approval | Run style and host notes |
 |---|---|---|---|
-| [`review`](../skills/review/SKILL.md): "review my changes" | Reviews the current diff or inbound PR comments against Darkroom correctness, security, accessibility, and performance rules. | Diff review is read-only and returns evidence-backed findings. For inbound PR feedback, the calling session fixes valid threads, commits, pushes, replies, and resolves them without asking; needs-decision threads go to the user. | Background. Both hosts. In Claude, distinguish it from the native `/review` alias by asking for the cc-settings local review. |
+| [`dr-review`](../skills/dr-review/SKILL.md): "review my changes" | Reviews the current diff or inbound PR comments against Darkroom correctness, security, accessibility, and performance rules. | Diff review is read-only and returns evidence-backed findings. For inbound PR feedback, the calling session fixes valid threads, commits, pushes, replies, and resolves them without asking; needs-decision threads go to the user. | Background. Both hosts. Claude's native `/code-review` reviews a diff or PR without the Darkroom checklist. |
 | [`proof-of-work`](../skills/proof-of-work/SKILL.md): "prove this is review-ready" | Runs the repository's type, test, lint, and relevant visual gates. Returns actual command results. | Read-only apart from tool artifacts. A red gate stays red. | Inline. Both hosts use the installed proof runner. |
 | [`poke-holes`](../skills/poke-holes/SKILL.md): "poke holes in this claim" | Uses an issue finder, disprover, and judge to test a specific result adversarially. | Read-only. | Background. Both hosts use separate native agents; standalone Codex never calls the Codex bridge. |
 | [`triage`](../skills/triage/SKILL.md): "first pass on this client repo" | Returns up to 15 ranked, evidence-backed issues and separates safe fixes from client decisions. | Strictly read-only on external repositories. It does not checkout, pull, fetch, commit, push, or open a PR. | Background. Both hosts. Use `audit` for depth. |
@@ -81,7 +80,7 @@ The closest review tools answer different questions:
 
 | Question | Use |
 |---|---|
-| Did this diff violate a standard or introduce a bug? | `review` |
+| Did this diff violate a standard or introduce a bug? | `dr-review` |
 | Do the real machine gates pass? | `proof-of-work` |
 | Can independent agents disprove this claim? | `poke-holes` |
 | Does the rendered interface work visually and accessibly? | `qa` |
@@ -93,7 +92,6 @@ The closest review tools answer different questions:
 | Skill and what to say | Value and output | Effects and approval | Run style and host notes |
 |---|---|---|---|
 | [`orchestrate`](../skills/orchestrate/SKILL.md): "coordinate this multi-file task" | Builds a dependency graph, assigns bounded workers, tracks progress, integrates, and verifies. | Delegated repository writes follow the underlying task scope. Material plan changes return to the user. | Background coordinator. Host agent mechanics differ; writers always need non-overlapping ownership. |
-| [`checkpoint`](../skills/checkpoint/SKILL.md): "save a checkpoint before this migration" | Saves or restores a named mid-task rollback point. | Local state write; restore changes project state and must target an explicit checkpoint. | Background. Product-aware installed runner. |
 | [`handoff`](../skills/handoff/SKILL.md): "save this session" or "resume last session" | Saves decisions, files, failures, and next actions for a later session. | Local state write; may update a linked GitHub issue when authorized. | Background. Both products save git-derived state; Claude adds session-ledger behavior. |
 | [`freeze`](../skills/freeze/SKILL.md): "only allow edits under src/auth" | Enforces a temporary edit directory in Claude to prevent accidental scope drift. | Writes local guard state, not repository code. | Inline. Claude-only enforcement; unsupported in standalone Codex. |
 | [`harvest`](../skills/harvest/SKILL.md): "turn this successful workflow into a durable skill" | Measures whether behavior repeats, validates a contract, and promotes only supported evidence. | Repository or team-knowledge write after a PASS verdict and review. | Background. Both hosts; autoresearch follow-up is Claude-only. |
@@ -111,7 +109,7 @@ The closest review tools answer different questions:
 ## Nearby alternatives
 
 - Use `build` for an end-to-end feature. Use `component` or `hook` for one known UI unit.
-- Use `checkpoint` inside a session. Use `handoff` when another session must continue the work.
+- Commit (or use Claude Code's built-in `/rewind`) inside a session. Use `handoff` when another session must continue the work.
 - Use `refactor` for behavior-preserving work outside the current diff. Use `zero-tech-debt` to
   simplify the patch currently in front of you.
 

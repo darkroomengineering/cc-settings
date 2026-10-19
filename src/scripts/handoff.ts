@@ -139,9 +139,8 @@ async function cmdCreate(args: string[]): Promise<void> {
   let recentCommits: string[] = [];
   // rev-parse gates the rest (not-a-repo early exit) — must run first. The
   // three reads that only make sense once we know we're in a repo are
-  // independent of each other, so they run as one parallel wave (mirrors
-  // checkpoint.ts's performSave Promise.all shape) instead of three
-  // sequential awaits on this PreCompact hot path.
+  // independent of each other, so they run as one parallel wave instead of
+  // three sequential awaits on this PreCompact hot path.
   const gitDir = await runGit(["rev-parse", "--git-dir"]);
   if (gitDir) {
     const [branchOut, statusRes, logOut] = await Promise.all([
@@ -349,9 +348,8 @@ async function cmdList(): Promise<void> {
   console.log("------------------------------------");
 }
 
-// Mirrors checkpoint.ts's cmdClean shape, but prunes both the .json and .md
-// artifact per handoff (cleanupHandoffs in session-start.ts already does this
-// on every session start with keep=20 — this is the on-demand equivalent).
+// Prunes both the .json and .md artifact per handoff (cleanupHandoffs in
+// session-start.ts already does this on every session start with keep=20 — this is the on-demand equivalent).
 // Operates on the project-scoped dir only (the write-side store) — it does not
 // reach into the legacy global dir that resolveHandoffDir() falls back to for
 // reads.
