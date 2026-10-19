@@ -32,27 +32,6 @@ export const EXCLUDED_AGENT_SOURCE_FILES = new Set(["codex-verifier.md"]);
  *  They mirror Claude-only agents in the other direction (claude-verifier is
  *  the Codex-to-Claude twin of codex-verifier) and are never installed to Claude. */
 export const CODEX_ONLY_AGENT_SOURCE_FILES = ["claude-verifier.md"] as const;
-/** Claude agent tiers mapped to Codex models. Judgment tiers (opus, fable) run on
- *  GPT-6 Astra; sonnet runs on GPT-6.1 Sol, which continues through long tasks,
- *  and haiku on GPT-6 Luna. Unknown or unset tiers inherit the session model. */
-export const CODEX_MODEL_FOR_CLAUDE_TIER: Readonly<Record<string, string>> = {
-  opus: "gpt-6-astra",
-  "claude-opus-5": "gpt-6-astra",
-  "claude-opus-5-5": "gpt-6-astra",
-  fable: "gpt-6-astra",
-  "claude-fable-5-1": "gpt-6-astra",
-  sonnet: "gpt-6.1-sol",
-  "claude-sonnet-5": "gpt-6.1-sol",
-  "claude-sonnet-5-5": "gpt-6.1-sol",
-  haiku: "gpt-6-luna",
-  "claude-haiku-4-5-20251001": "gpt-6-luna",
-  "claude-haiku-5-5": "gpt-6-luna",
-};
-export function codexModelForClaudeModel(model: unknown): string | undefined {
-  if (typeof model !== "string") return undefined;
-  const base = model.replace(/\[.*\]$/, "").trim();
-  return CODEX_MODEL_FOR_CLAUDE_TIER[base];
-}
 export const CODEX_ADAPTER = `Native Codex adapter:
 - Treat Claude tool names in this shared source as capability names, not literal calls. Inspect and search with exec_command plus rg; edit with apply_patch.
 - Delegate with spawn_agent. Use followup_task to trigger another turn for an idle existing agent, send_message to deliver context to a running agent, wait_agent to wait, and interrupt_agent to stop its current turn when necessary.
@@ -178,7 +157,6 @@ export interface NativeAgent {
   name: string;
   description: string;
   developerInstructions: string;
-  model?: string;
   modelReasoningEffort?: "low" | "medium" | "high" | "xhigh";
   sandboxMode: "read-only" | "workspace-write";
 }

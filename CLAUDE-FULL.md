@@ -121,8 +121,8 @@ that same script up front, so the run is not interrupted one denial at a time.
 
 The `/codex` skill and `codex-verifier` agent bridge to the OpenAI Codex CLI;
 they no-op unless installed and authenticated (`docs/codex-bridge.md`). The
-bridge pins models per call: `exec` to GPT-6.1 Sol, `review` and `ask` to
-GPT-6 Astra; `--model` overrides. Standalone Codex has the reverse,
+bridge passes no model, so Codex runs its configured default; `--model`
+overrides. Standalone Codex has the reverse,
 read-only bridge (`claude-run.ts`, `claude-verifier`) to Opus 5.5.
 
 - **Opus/Fable:** planning, synthesis, gate decisions; never tight loop bodies.

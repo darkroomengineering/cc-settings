@@ -94,11 +94,11 @@ bun "$HOME/.claude/src/scripts/codex-run.ts" review --commit abc1234
 
 Codex's fourth preset ("custom instructions") is covered by `ask` above rather than a review flag.
 
-**Model routing** — every subcommand pins a Codex model: `exec` defaults to `gpt-6.1-sol` (continues through long execution), `review` and `ask` to `gpt-6-astra` (judgment). Override per call with `--model <id>` before the task text, or per session with `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL`, `CODEX_ASK_MODEL`.
+**Model routing**: no model is pinned. Every subcommand runs on Codex's own configured default, so a newer Codex CLI brings newer models. Pin one per call with `--model <id>` before the task text, or per session with `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL`, `CODEX_ASK_MODEL`.
 
 ```bash
-bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-6.1-sol --base main
-bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model gpt-6-astra "..."
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model <id> --base main
+bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model <id> "..."
 ```
 
 ### ask -- read-only second opinion

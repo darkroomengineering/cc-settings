@@ -4,6 +4,15 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.72.0] — 2026-10-19
+
+The Codex bridge and the native Codex agents stop pinning a model. Each `codex-run.ts` call runs on the model Codex itself is configured to use, and each native agent runs on the session's model, so a Codex CLI upgrade brings newer models with no cc-settings release. `--model` and the `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL` and `CODEX_ASK_MODEL` env vars still pin a model for one call or one session. Re-run setup to regenerate the native agent files without their `model` lines.
+
+**Files changed:**
+- src/lib/codex.ts, src/scripts/codex-run.ts, src/lib/codex-install-state.ts, src/lib/codex-native-agents.ts
+- docs/codex-bridge.md, docs/codex.md, docs/agent-models.md, docs/claude-vs-codex.md, skills/codex/SKILL.md, codex/AGENTS.append.md, CLAUDE-FULL.md
+- tests/codex.test.ts, tests/codex-install.test.ts, tests/codex-run-model.test.ts
+
 ## [15.71.0] — 2026-10-19
 
 TypeSafe stops sending from client repos by default. The install prompt now says what a TypeSafe key sends to api.typesafe.ai: prompts (delegation-detector), the task, edited file paths, command heads and answers (drift-fuse), and the conversation at compaction (fast-jev-compaction). Prompt scoring and drift scoring send nothing from a project until it sets `CC_TYPESAFE_PROJECT=1` in that project's `.claude/settings.json` `env`. fast-jev-compaction is upstream code that reads the key itself, so it is not covered by that switch yet; to keep a project off it, set `enabledPlugins` for `fast-jev-compaction@fast-jev-compaction` to `false` in that project's settings. drift-fuse is 0.1.1.

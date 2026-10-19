@@ -5,7 +5,6 @@ import { describe, expect, test } from "bun:test";
 import {
   buildExecPrompt,
   buildReviewPrompt,
-  CODEX_MODEL_DEFAULTS,
   type CodexVerdict,
   classifyCodexError,
   parseLeadingFlags,
@@ -777,51 +776,26 @@ describe("buildExecPrompt", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Model routing — Sol executes, Astra judges; flag > env > default
+// Model routing: Codex's own default unless pinned; flag > env
 // ---------------------------------------------------------------------------
 
 describe("resolveCodexModel", () => {
-  test("defaults route exec to Sol and review/ask to Astra", () => {
-    expect(CODEX_MODEL_DEFAULTS).toEqual({
-      exec: "gpt-6.1-sol",
-      review: "gpt-6-astra",
-      ask: "gpt-6-astra",
-    });
-    expect(resolveCodexModel("exec", undefined, {})).toEqual({
-      ok: true,
-      model: "gpt-6.1-sol",
-      pinned: false,
-    });
-    expect(resolveCodexModel("review", undefined, {})).toEqual({
-      ok: true,
-      model: "gpt-6-astra",
-      pinned: false,
-    });
-    expect(resolveCodexModel("ask", undefined, {})).toEqual({
-      ok: true,
-      model: "gpt-6-astra",
-      pinned: false,
-    });
+  test("no flag and no env resolves to no model, so codex uses its configured default", () => {
+    for (const subcommand of ["exec", "review", "ask"] as const) {
+      expect(resolveCodexModel(subcommand, undefined, {})).toEqual({ ok: true });
+    }
   });
 
-  test("env overrides the default per subcommand and a flag overrides env", () => {
+  test("env pins the model per subcommand and a flag overrides env", () => {
     const env = { CODEX_EXEC_MODEL: "gpt-6-astra", CODEX_REVIEW_MODEL: " gpt-5.6-sol " };
-    expect(resolveCodexModel("exec", undefined, env)).toEqual({
-      ok: true,
-      model: "gpt-6-astra",
-      pinned: true,
-    });
+    expect(resolveCodexModel("exec", undefined, env)).toEqual({ ok: true, model: "gpt-6-astra" });
     expect(resolveCodexModel("review", undefined, env)).toEqual({
       ok: true,
       model: "gpt-5.6-sol",
-      pinned: true,
     });
-    expect(resolveCodexModel("review", "o3", env)).toEqual({ ok: true, model: "o3", pinned: true });
-    expect(resolveCodexModel("ask", undefined, { CODEX_ASK_MODEL: "" })).toEqual({
-      ok: true,
-      model: "gpt-6-astra",
-      pinned: false,
-    });
+    expect(resolveCodexModel("review", "o3", env)).toEqual({ ok: true, model: "o3" });
+    expect(resolveCodexModel("ask", undefined, env)).toEqual({ ok: true });
+    expect(resolveCodexModel("ask", undefined, { CODEX_ASK_MODEL: "" })).toEqual({ ok: true });
   });
 
   test("rejects a model id that could read as a flag or shell text", () => {

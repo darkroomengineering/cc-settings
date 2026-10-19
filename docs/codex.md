@@ -176,12 +176,10 @@ never among the trimmed ones unless the rest of the install is far over.
 
 ## Delegating to other models
 
-Astra stays the session model and delegates by task shape. Each native role agent carries a
-`model` field the installer derives from the shared Claude tier: judgment roles (`planner`,
-`security-reviewer`, `maestro`) run on `gpt-6-astra`; execution roles (`implementer`, `tester`,
-`explore`, `scaffolder`, `deslopper`, `reviewer`) run on `gpt-6.1-sol`, Codex's workhorse coding
-model. Override a role by editing its `agents/*.toml`; the next
-reinstall restores the derived value.
+The session model delegates by task shape. Native role agents carry no `model` field, so each
+one runs on the session's model (Codex subagents inherit the parent's model unless the agent file
+sets one). To give a role its own model, add a `model` line to its `agents/*.toml`; the next
+reinstall restores the generated file.
 
 For an opinion from a different model family, spawn `claude-verifier` or run the bridge directly:
 

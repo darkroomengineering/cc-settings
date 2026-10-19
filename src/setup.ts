@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.71.0"; // TypeSafe is per-project opt-in; no plansDirectory; pinned MCP servers.
+const VERSION = "15.72.0"; // Codex bridge and native agents use Codex's default model.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
