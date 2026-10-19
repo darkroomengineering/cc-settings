@@ -111,15 +111,10 @@ export interface CodexRunOptions {
    *  mismatch). Does NOT bypass not-installed or unauthenticated — those can't
    *  succeed regardless. */
   force?: boolean;
-  /** Pins `codex exec` to a specific model via `-m/--model` (mirrors Codex's own
-   *  `review_model` config key — pinning review to a cheaper model than the
-   *  interactive session). Unset → codex uses its configured default model. */
+  /** Caller pin for `codex exec` via `--model` (flag or env). Unset → codex uses
+   *  its configured default model, so its failures describe the account. A pinned
+   *  model's entitlement or quota failure stays out of the shared verdict cache. */
   model?: string;
-  /** True when `model` came from a caller pin (`--model` flag or env) rather
-   *  than the routing defaults. Only a pinned model's entitlement or quota
-   *  failure stays out of the shared verdict cache; the routing defaults are the
-   *  account's normal models, so their failures describe the account. */
-  modelPinned?: boolean;
 }
 
 export interface CodexRunResult {
@@ -456,7 +451,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // can't clobber a fresher sticky L2 verdict a concurrent exec just wrote.
   if (cls.state === "unknown") {
     await commitReconciled({ state: "available", checkedAt: now, sticky: false });
-  } else if (opts.model && opts.modelPinned) {
+  } else if (opts.model) {
     // A pinned model (e.g. CODEX_REVIEW_MODEL) can 403/quota out on its own —
     // that's model-specific, not "the account has no Codex access" or "the
     // account is rate-limited" in general. Writing it to the shared sticky
@@ -496,16 +491,9 @@ export type ParseReviewArgsResult =
 // (`-s`) or one carrying shell metacharacters could still steer which git
 // command Codex ends up running in its own sandbox. Restrict to a strict git
 // ref charset: must start with an alphanumeric, then alphanumerics plus
-/** Model routing on the Codex side. Execution goes to GPT-6.1 Sol, which
- *  continues through long tasks; judgment (review, ask) goes to GPT-6 Astra.
- *  Flag > env > default. OpenAI's Astra guidance is the basis: Sol "takes a
- *  request and continues for long stretches" where Astra returns early. */
+/** Model routing on the Codex side: flag > env > Codex's own configured default.
+ *  No `--model` reaches `codex` unless the caller pins one. */
 export type CodexSubcommand = "exec" | "review" | "ask";
-export const CODEX_MODEL_DEFAULTS: Readonly<Record<CodexSubcommand, string>> = {
-  exec: "gpt-6.1-sol",
-  review: "gpt-6-astra",
-  ask: "gpt-6-astra",
-};
 export const CODEX_MODEL_ENV: Readonly<Record<CodexSubcommand, string>> = {
   exec: "CODEX_EXEC_MODEL",
   review: "CODEX_REVIEW_MODEL",
@@ -515,9 +503,7 @@ export const CODEX_MODEL_ENV: Readonly<Record<CodexSubcommand, string>> = {
 // a value can never be read as a flag or shell text.
 export const SAFE_MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-export type ResolveModelResult =
-  | { ok: true; model: string; pinned: boolean }
-  | { ok: false; error: string };
+export type ResolveModelResult = { ok: true; model?: string } | { ok: false; error: string };
 
 export function resolveCodexModel(
   subcommand: CodexSubcommand,
@@ -526,14 +512,14 @@ export function resolveCodexModel(
 ): ResolveModelResult {
   const envValue = env[CODEX_MODEL_ENV[subcommand]];
   const pin = flag ?? (envValue?.trim() ? envValue.trim() : undefined);
-  const candidate = pin ?? CODEX_MODEL_DEFAULTS[subcommand];
-  if (!SAFE_MODEL_RE.test(candidate)) {
+  if (pin === undefined) return { ok: true };
+  if (!SAFE_MODEL_RE.test(pin)) {
     return {
       ok: false,
-      error: `${subcommand}: model "${candidate}" is not a valid model id (letters, digits, '.', '_', '-' only; must not start with '-').`,
+      error: `${subcommand}: model "${pin}" is not a valid model id (letters, digits, '.', '_', '-' only; must not start with '-').`,
     };
   }
-  return { ok: true, model: candidate, pinned: pin !== undefined };
+  return { ok: true, model: pin };
 }
 
 /** Consume leading flags (`--force`, `--model <id>`, and an optional `--`
@@ -712,7 +698,7 @@ function reviewScopeCommand(scope: ReviewScope): string {
 /** Build the review prompt for a scope. The prompt states the scope, the review
  *  contract, and the report shape, and leaves the inspection method to the
  *  model. Current Codex models find the diff themselves; a numbered `git status`
- *  / `git diff` recipe only spent context and, with GPT-6 Astra, risked the model
+ *  / `git diff` recipe only spent context and risked the model
  *  treating the recipe as the whole job. */
 export function buildReviewPrompt(scope: ReviewScope): string {
   return [
@@ -730,7 +716,7 @@ export function buildReviewPrompt(scope: ReviewScope): string {
   ].join("\n");
 }
 
-/** Wrap an `exec` task with the completion contract. GPT-6 Astra stops early
+/** Wrap an `exec` task with the completion contract. A Codex model can stop early
  *  when completion is undefined: it reaches a first implementation and returns
  *  for review while work remains. The contract defines "done" up front (run,
  *  inspect, fix, verify) and grants the local verification workflow so the

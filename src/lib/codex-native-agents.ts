@@ -7,7 +7,6 @@ import {
   CODEX_ONLY_AGENT_SOURCE_FILES,
   type CodexInstallPaths,
   type CodexSentinel,
-  codexModelForClaudeModel,
   contentHash,
   EXCLUDED_AGENT_SOURCE_FILES,
   INSTRUCTIONS_END,
@@ -101,7 +100,6 @@ export function serializeNativeAgent(agent: NativeAgent, paths: CodexInstallPath
     `name = ${tomlString(agent.name)}`,
     `description = ${tomlString(agent.description)}`,
     `developer_instructions = ${tomlString(developerInstructions)}`,
-    ...(agent.model ? [`model = ${tomlString(agent.model)}`] : []),
     ...(agent.modelReasoningEffort
       ? [`model_reasoning_effort = ${tomlString(agent.modelReasoningEffort)}`]
       : []),
@@ -161,12 +159,10 @@ async function loadAgentSources(
         : effort === "max"
           ? "xhigh"
           : undefined;
-    const model = codexModelForClaudeModel(parsed.model);
     agents.push({
       name,
       description,
       developerInstructions: `${markdownBody(markdown)}\n\n${CODEX_ADAPTER}`,
-      ...(model ? { model } : {}),
       ...(modelReasoningEffort ? { modelReasoningEffort } : {}),
       sandboxMode:
         tools.includes("Write") || tools.includes("Edit") ? "workspace-write" : "read-only",

@@ -30,16 +30,9 @@ The fan-out tier is Claude Sonnet 5.5 (`claude-sonnet-5-5`, $2/$10 per MTok, hal
 
 ## Codex tiers
 
-The same table drives standalone Codex. The installer maps each agent's Claude tier to a Codex model when it writes `$CODEX_HOME/agents/*.toml`, so there is one routing table, not two:
+Standalone Codex needs no model table. The installer writes `$CODEX_HOME/agents/*.toml` without a `model` line, so every native agent inherits the session's model and a newer Codex model reaches them with a CLI upgrade. A user can still add a `model` line to a role's toml by hand.
 
-| Claude tier in frontmatter | Codex `model` | Why |
-|---|---|---|
-| `claude-opus-5-5`, `claude-opus-5`, `opus`, `fable` | `gpt-6-astra` | Judgment: OpenAI's most aligned model, returns early but judges well |
-| `claude-sonnet-5-5`, `claude-sonnet-5`, `sonnet` | `gpt-6.1-sol` | Execution: Codex's workhorse coding model |
-| `haiku` | `gpt-6-luna` | Fast, low-cost tasks |
-| `inherit`, unset | no `model` line, so the agent runs on the Codex session model | |
-
-The Claude-to-Codex bridge uses the same split per call: `exec` defaults to Sol, `review` and `ask` to Astra. The Codex-to-Claude bridge (`claude-run.ts`, `claude-verifier`) defaults to `claude-opus-5-5`. See [codex-bridge.md](./codex-bridge.md).
+The Claude-to-Codex bridge passes no model per call either; `--model` and the `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL`, `CODEX_ASK_MODEL` env vars pin one. The Codex-to-Claude bridge (`claude-run.ts`, `claude-verifier`) defaults to `claude-opus-5-5`. See [codex-bridge.md](./codex-bridge.md).
 
 Override per-invocation when a specific task warrants it: bump a cheap agent up — `Agent(explore, "...", model: "opus")` for a hard investigation — or drop a decision agent down for a trivial pass. The table is the default, not a ceiling.
 

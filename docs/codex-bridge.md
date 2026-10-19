@@ -114,28 +114,28 @@ The routing convention above is enforced automatically, not just documented:
 
 ### Model routing on the Codex side
 
-Every subcommand pins a Codex model explicitly instead of inheriting `config.toml`. Execution goes to GPT-6.1 Sol, which continues through long tasks; judgment goes to GPT-6 Astra, which returns early but judges well. Resolution order is flag, then env, then default:
+The bridge passes no model to `codex` by default, so each call runs on the model Codex itself is configured to use (`config.toml`, or the installed CLI's default). A newer model arrives with a Codex CLI upgrade and needs no change here. Pin a model only when a call needs one. Resolution order is flag, then env, then Codex's default:
 
-| Subcommand | Default | Env override | Flag |
-|---|---|---|---|
-| `exec` | `gpt-6.1-sol` | `CODEX_EXEC_MODEL` | `--model <id>` |
-| `review` | `gpt-6-astra` | `CODEX_REVIEW_MODEL` | `--model <id>` |
-| `ask` | `gpt-6-astra` | `CODEX_ASK_MODEL` | `--model <id>` |
+| Subcommand | Env override | Flag |
+|---|---|---|
+| `exec` | `CODEX_EXEC_MODEL` | `--model <id>` |
+| `review` | `CODEX_REVIEW_MODEL` | `--model <id>` |
+| `ask` | `CODEX_ASK_MODEL` | `--model <id>` |
 
 ```bash
-bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model gpt-6-astra "..."
-bun "$HOME/.claude/src/scripts/codex-run.ts" review --model gpt-6.1-sol --base main
+bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model <id> "..."
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model <id> --base main
 ```
 
 `/codex` is a Claude Code skill, not a shell command, so it cannot take an inline env-var prefix; export the variable before launching Claude Code, or pass `--model` in the skill arguments.
 
-The same split applies to the native Codex agents the installer writes: agents pinned to `opus` or `fable` in their Claude frontmatter get `model = "gpt-6-astra"`, agents on `sonnet` get `model = "gpt-6.1-sol"`, agents on `haiku` get `model = "gpt-6-luna"`, and agents on `inherit` get no `model` line, so they run on the Codex session model. See [agent-models.md](./agent-models.md#codex-tiers).
+The native Codex agents the installer writes carry no `model` line either, so they run on the session's model. See [agent-models.md](./agent-models.md#codex-tiers).
 
 ### What the script adds to a task
 
 `exec` wraps the task text in a completion contract before it reaches Codex. The contract defines done as "the stated outcome holds and the repository's local checks pass for the touched files", tells Codex to run those checks, inspect, and fix without pausing for approval, forbids stopping after a first implementation to ask for review, keeps the work inside the task's scope, and asks for an uncommitted diff plus a verification report. `review` states the diff under review and the review contract and leaves the inspection method to the model. `ask` sends the question verbatim.
 
-The contract exists because GPT-6 Astra, the judgment model, is thorough but stops early when completion is undefined, and treats numbered step lists and "ask first" language more literally than earlier models did. OpenAI's guidance is in [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra). The task text still has to name the end state and any decision Codex must bring back; see the `/codex` skill.
+The contract exists because current Codex models, GPT-6 Astra among them, are thorough but stop early when completion is undefined, and treat numbered step lists and "ask first" language more literally than earlier models did. OpenAI's guidance is in [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra). The task text still has to name the end state and any decision Codex must bring back; see the `/codex` skill.
 
 ### `codex-verifier` agent
 

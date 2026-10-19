@@ -9,9 +9,9 @@
 //   codex-run.ts review [--force] [--model <id>] [scope]    — independent review, default: uncommitted diff
 //   codex-run.ts ask [--force] [--model <id>] "<question>"  — read-only second opinion
 //
-// Model routing (flag > env > default): exec → gpt-6.1-sol (CODEX_EXEC_MODEL),
-//   review → gpt-6-astra (CODEX_REVIEW_MODEL), ask → gpt-6-astra (CODEX_ASK_MODEL).
-//   Sol continues through long execution; Astra holds the judgment calls.
+// Model (flag > env > Codex default): Codex's configured default model runs the call
+//   unless --model or the env var (CODEX_EXEC_MODEL, CODEX_REVIEW_MODEL,
+//   CODEX_ASK_MODEL) names one.
 //
 // review scope flags (mutually exclusive, default: uncommitted working-tree diff):
 //   --staged           review only the staged diff (`git diff --cached`)
@@ -45,9 +45,9 @@ function usage(): void {
       "",
       "  --force  Bypass a sticky rate-limited/no-access verdict and re-probe.",
       "           Useful when the quota error is a false positive (e.g. auth mismatch).",
-      "  --model  Pin the Codex model for this call. Defaults: exec gpt-6.1-sol,",
-      "           review and ask gpt-6-astra; env CODEX_EXEC_MODEL / CODEX_REVIEW_MODEL /",
-      "           CODEX_ASK_MODEL override the defaults.",
+      "  --model  Pin the Codex model for this call. Without it, Codex's configured default",
+      "           model runs; env CODEX_EXEC_MODEL / CODEX_REVIEW_MODEL / CODEX_ASK_MODEL",
+      "           pin one per subcommand.",
       "",
       "review scope (mutually exclusive, default: uncommitted working-tree diff):",
       "  --staged           review only the staged diff (git diff --cached)",
@@ -99,7 +99,6 @@ switch (subcommand) {
       sandbox: "workspace-write",
       force: flags.force,
       model: model.model,
-      modelPinned: model.pinned,
     });
     if (result.ok) {
       console.log(result.output);
@@ -143,7 +142,6 @@ switch (subcommand) {
       sandbox: "read-only",
       force: parsed.force,
       model: model.model,
-      modelPinned: model.pinned,
     });
     if (result.ok) {
       console.log(result.output);
@@ -178,7 +176,6 @@ switch (subcommand) {
       sandbox: "read-only",
       force: flags.force,
       model: model.model,
-      modelPinned: model.pinned,
     });
     if (result.ok) {
       console.log(result.output);

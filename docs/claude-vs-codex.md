@@ -33,7 +33,7 @@ Do not rely on an undocumented precedence rule.
 | Shared standards | `CLAUDE.md`, `AGENTS.md`, rules, and profiles | Managed block in native `AGENTS.md` plus command policy |
 | Shared skills | All 38 under `~/.claude/skills` | All 38 through `darkroom@cc-settings` |
 | Role agents | All roles, including the Claude-to-Codex `codex-verifier` | Native role agents except `codex-verifier`, plus the Codex-to-Claude `claude-verifier` |
-| Delegation tiers | Opus 5.5 session with a Fable 5.1 advisor; Opus 5.5 for judgment agents, Sonnet 5.5 for read-only fan-out, the session model for code-editing agents | Astra session; Astra for judgment agents, Sol for read-only fan-out, the session model for code-editing agents |
+| Delegation tiers | Opus 5.5 session with a Fable 5.1 advisor; Opus 5.5 for judgment agents, Sonnet 5.5 for read-only fan-out, the session model for code-editing agents | One session model; native agents inherit it |
 | Hooks | Full Claude hook set from composed settings | Compatible plugin subset; user reviews trust through `/hooks` |
 | MCP servers | Context7, TLDR, Figma, and Chrome DevTools | Fixed HTTPS Figma server only |
 | Runtime source | Self-contained managed source under `~/.claude/src` | Allowlisted source under `$CODEX_HOME/darkroom/source` |
@@ -55,7 +55,7 @@ skip most full-profile automation. See [installation](./install.md#full-and-ligh
 | Context7 lookup | Installed in the full profile | Available only when the user configured a reviewed server |
 | `freeze` | Enforces a directory edit boundary through Claude hooks | Unsupported as enforcement; file ownership is a convention only |
 | `autoresearch` | Runs the controlled Claude subprocess optimization loop | Unsupported until Codex has an equivalent measured harness |
-| `codex` bridge | Calls Codex as a second model family (Sol executes, Astra reviews) | Never invokes Codex recursively; `claude-verifier` or `claude-run.ts` calls Claude for a second family, read-only |
+| `codex` bridge | Calls Codex as a second model family (runs on Codex's configured default model) | Never invokes Codex recursively; `claude-verifier` or `claude-run.ts` calls Claude for a second family, read-only |
 | Agent teams and dynamic workflows | Available when Claude supports and enables them | Use native Codex agents and orchestration; mechanics differ |
 | Forked skills | Return through Claude task notifications | Use Codex-native background or agent surfaces when available |
 
