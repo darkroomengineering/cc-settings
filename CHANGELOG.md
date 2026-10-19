@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.71.0] — 2026-10-19
+
+TypeSafe stops sending from client repos by default. The install prompt now says what a TypeSafe key sends to api.typesafe.ai: prompts (delegation-detector), the task, edited file paths, command heads and answers (drift-fuse), and the conversation at compaction (fast-jev-compaction). Prompt scoring and drift scoring send nothing from a project until it sets `CC_TYPESAFE_PROJECT=1` in that project's `.claude/settings.json` `env`. fast-jev-compaction is upstream code that reads the key itself, so it is not covered by that switch yet; to keep a project off it, set `enabledPlugins` for `fast-jev-compaction@fast-jev-compaction` to `false` in that project's settings. drift-fuse is 0.1.1.
+
+Plan files stop landing in your repos: cc-settings no longer sets `plansDirectory: ./plans`, and setup removes a leftover `./plans` value. context7 and chrome-devtools are pinned to `@upstash/context7-mcp@4.4.4` and `chrome-devtools-mcp@1.11.0`, and context7 drops `alwaysLoad`, so its tools defer behind tool search. `.tldrignore` is gone; `docs/tldr-cheatsheet.md` explains how to delete what llm-tldr left in projects. Fixes #220.
+
+**Files changed:**
+- src/lib/jev.ts, src/lib/claude-install-settings.ts, src/lib/settings-merge.ts, src/hooks/delegation-detector.ts
+- plugins/drift-fuse/hooks/fuse.ts, plugins/drift-fuse/.claude-plugin/plugin.json
+- config/10-core.json, config/20-mcp.json, .claude-plugin/plugin.json, .tldrignore (removed)
+- docs/hooks-reference.md, docs/install.md, docs/settings-reference.md, docs/tldr-cheatsheet.md, hooks/README.md
+- tests/typesafe-optin.test.ts, tests/delegation-detector.test.ts, tests/drift-fuse.test.ts, tests/mcp.test.ts, tests/settings-merge.test.ts
+- src/setup.ts, package.json, plugin.json
+
 ## [15.70.0] — 2026-10-19
 
 The four agents that edit code (implementer, tester, deslopper, scaffolder) now run on the model that spawned them instead of being locked to Sonnet, so picking Opus or Fable for a session carries through to the work. Read-only agents such as explore and reviewer stay on Sonnet. In standalone Codex these four agents follow the Codex session model. The git rules file loads only on git-related files (`.git`, `.gitignore`, `.github`), not on every file read; `/ship`, `/review` and `/cc` read it directly before committing. The rules index moved from `rules/README.md` to `docs/rules.md`. It was never installed, so installs are unaffected. Covers part of #222 and #223.

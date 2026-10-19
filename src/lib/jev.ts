@@ -4,6 +4,8 @@
 //
 // PRIVACY: the prompt text leaves the machine when this is called. Callers
 // state that in their docs and only call with a key the user configured.
+// A key alone never sends anything: the project must also opt in (see
+// TYPESAFE_OPT_IN_VAR), so a client repo stays silent by default.
 
 import { join } from "node:path";
 import { readJsonOrNull } from "./json-io.ts";
@@ -12,9 +14,23 @@ import { CLAUDE_DIR } from "./platform.ts";
 export const JEV_ENDPOINT = process.env.TYPESAFE_ENDPOINT ?? "https://api.typesafe.ai/v1/systemone";
 export const JEV_MODEL = "jev-latest";
 
+/** The variable a project sets to `1` in its `.claude/settings.json` or
+ *  `.claude/settings.local.json` `env` block to allow TypeSafe calls from that
+ *  project. Claude Code applies project `env` to the hook process, so reading
+ *  `process.env` sees it. drift-fuse repeats the name and the check in its own
+ *  module because plugins take no runtime imports. */
+export const TYPESAFE_OPT_IN_VAR = "CC_TYPESAFE_PROJECT";
+
+/** True when the current project (or the user, globally) opted in. */
+export function typesafeProjectOptedIn(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env[TYPESAFE_OPT_IN_VAR] === "1";
+}
+
 /** TYPESAFE_API_KEY from the process env, else from the settings `env` block
- *  (the installer writes it there since 15.21.2). Undefined when unset. */
+ *  (the installer writes it there since 15.21.2). Undefined when unset, and
+ *  undefined when the project has not opted in, so no caller can send. */
 export async function typesafeKey(): Promise<string | undefined> {
+  if (!typesafeProjectOptedIn()) return undefined;
   const fromEnv = process.env.TYPESAFE_API_KEY;
   if (fromEnv) return fromEnv;
   const settings = await readJsonOrNull(join(CLAUDE_DIR, "settings.json")).catch(() => null);

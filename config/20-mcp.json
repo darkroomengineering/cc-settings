@@ -4,9 +4,8 @@
 			"command": "bunx",
 			"args": [
 				"-y",
-				"@upstash/context7-mcp"
+				"@upstash/context7-mcp@4.4.4"
 			],
-			"alwaysLoad": true,
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
 		"tldr": {
@@ -26,7 +25,7 @@
 			"command": "bunx",
 			"args": [
 				"-y",
-				"chrome-devtools-mcp@latest"
+				"chrome-devtools-mcp@1.11.0"
 			],
 			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
 		}

@@ -7,13 +7,15 @@
 // no person typed (a loop wakeup, a routine, a task notification) with a
 // context line naming the drift, or drops it when `onTrip` is "pause"; a
 // prompt a person types always passes and resets the contract. Fail-open:
-// without a TYPESAFE_API_KEY, or on any Jev failure, nothing is scored. See
+// without a TYPESAFE_API_KEY, in a project that has not set
+// CC_TYPESAFE_PROJECT=1, or on any Jev failure, nothing is scored. See
 // docs/hooks-reference.md "Function hooks (early access)".
 //
-// PRIVACY: the contract prompt, the turn's file paths and Bash command heads,
-// and the head of the answer leave the machine for each scored turn. By
-// default only turns started by a non-person prompt are scored (`scope:
-// "unattended"`); `scope: "all"` scores every main-loop turn.
+// PRIVACY: in a project that opted in, the contract prompt, the turn's file
+// paths and Bash command heads, and the head of the answer leave the machine
+// for each scored turn; in any other project nothing does. By default only
+// turns started by a non-person prompt are scored (`scope: "unattended"`);
+// `scope: "all"` scores every main-loop turn.
 //
 // Deliberately has NO runtime imports (`import type` erases), so the pure
 // functions here run under `bun test` without resolving 'claude-code'.
@@ -187,8 +189,19 @@ type Engine = {
   clock: { sleep: (ms: number) => Promise<void> };
 };
 
-/** The key from the process env, else from settings; undefined when unset. */
+/** True when this project (or the user, globally) set CC_TYPESAFE_PROJECT=1 in
+ *  the process env or in any settings source's `env` block; `$.settings.read()`
+ *  merges the project's `.claude/settings.json` and `settings.local.json`. */
+export async function projectOptedIn($: Pick<Engine, "env" | "settings">): Promise<boolean> {
+  if ((await $.env.get("CC_TYPESAFE_PROJECT")) === "1") return true;
+  const env = (await $.settings.read()).env;
+  return !!env && typeof env === "object" && (env as Record<string, unknown>).CC_TYPESAFE_PROJECT === "1";
+}
+
+/** The key from the process env, else from settings; undefined when unset and
+ *  undefined when the project has not opted in, so nothing is scored or sent. */
 export async function typesafeKey($: Pick<Engine, "env" | "settings">): Promise<string | undefined> {
+  if (!(await projectOptedIn($))) return undefined;
   const fromEnv = await $.env.get("TYPESAFE_API_KEY");
   if (fromEnv) return fromEnv;
   return settingsTypesafeKey(await $.settings.read());

@@ -263,7 +263,7 @@ Claude Code's separate `subagentStatusLine` setting gets an `agentType` field in
 
 ### `plansDirectory`
 
-Directory where Claude Code writes plan output files (from planner agent, PRD skill, etc.).
+Directory where Claude Code writes plan files. cc-settings does not set it, so plans stay in Claude Code's default location outside the repo and never appear as untracked files in a project. Set it in a project's own `.claude/settings.json` to keep plans in that repo:
 
 ```json
 {
@@ -275,6 +275,8 @@ Directory where Claude Code writes plan output files (from planner agent, PRD sk
 |-------|----------|
 | `"./plans"` | Relative to project root. Plans saved to `<project>/plans/` |
 | Any path string | Absolute or relative path for plan output |
+
+Setup removes a `plansDirectory` of `./plans` left in `~/.claude/settings.json` by an older cc-settings; any other value is left alone.
 
 ### `includeGitInstructions`
 
@@ -1256,14 +1258,13 @@ Library documentation lookup via the Context7 MCP protocol.
 {
   "context7": {
     "command": "bunx",
-    "args": ["-y", "@upstash/context7-mcp"],
-    "alwaysLoad": true,
+    "args": ["-y", "@upstash/context7-mcp@4.4.4"],
     "serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices."
   }
 }
 ```
 
-> **Note:** uses `bunx` rather than `npx` so monorepos that combine Bun's `catalog:` protocol with `overrides` in `package.json` don't break the server launch (`EOVERRIDE`). `alwaysLoad: true` (v2.1.121) opts the server out of `ENABLE_TOOL_SEARCH` deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip.
+> **Note:** uses `bunx` rather than `npx` so monorepos that combine Bun's `catalog:` protocol with `overrides` in `package.json` don't break the server launch (`EOVERRIDE`). The version is pinned, so a session start never runs a newer release than the one reviewed here; `chrome-devtools` is pinned the same way (`chrome-devtools-mcp@1.11.0`). Bump the pins by editing `config/20-mcp.json` by hand. The server has no `alwaysLoad`, so its tools stay deferred behind `ENABLE_TOOL_SEARCH` until needed.
 
 **Tools provided:** `mcp__context7__resolve-library-id`, `mcp__context7__query-docs`
 
@@ -1433,10 +1434,10 @@ teammates who hit it.
 
 Notes on the MCP servers shipped in `config/20-mcp.json`. They live here rather than as `_comment` / `_status` keys in the JSON, which keeps the composed `settings.json` schema-clean.
 
-- **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts (the dedicated `/docs` skill was retired May 2026). alwaysLoad=true (v2.1.121) opts out of tool-search deferral — docs lookup is hot-path and shouldn't pay the deferral round-trip. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)
+- **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts (the dedicated `/docs` skill was retired May 2026). Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. Pinned to an exact version in `config/20-mcp.json`. (status: core)
 - **tldr**: Codemap analysis behind a pluggable engine. Default `native-ts` — no prerequisite, no index. `CC_CODE_INTEL_ENGINE=llm-tldr` opts into the multi-language engine, which needs `pipx install llm-tldr` (v1.5+) and `tldr warm .`. The entry in `config/20-mcp.json` is the llm-tldr template; the installer rewrites it to the resolved engine. (status: core)
 - **figma**: Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use. (status: core)
-- **chrome-devtools**: Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. (status: core)
+- **chrome-devtools**: Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. Pinned to an exact version in `config/20-mcp.json`. (status: core)
 
 ### Linear: one server per workspace
 

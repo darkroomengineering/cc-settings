@@ -4,14 +4,15 @@
 // lives in CLAUDE.md and is already in context.
 // Fail-open: any error → silent success (never block the prompt).
 //
-// Two detectors. With a TypeSafe key, Jev scores the prompt against one
-// statement (JEV_INSTRUCTIONS) and its probability decides at JEV_THRESHOLD;
-// the prompt text leaves the machine for that call. Without a key, or when
-// the call fails or exceeds JEV_TIMEOUT_MS, the regex score below decides as
-// it did before 15.23.0. Measured on 1,102 real prompts (2026-09-18): the
-// regex fired 21 times with 10 correct; Jev at 0.7 fired 83 times with 53
-// correct, where "correct" means the turn went on to touch 3+ files or make
-// 12+ tool calls.
+// Two detectors. With a TypeSafe key and a project that opted in
+// (CC_TYPESAFE_PROJECT=1, see typesafeKey in lib/jev.ts), Jev scores the
+// prompt against one statement (JEV_INSTRUCTIONS) and its probability decides
+// at JEV_THRESHOLD; the prompt text leaves the machine for that call. Without
+// a key, without the opt-in, or when the call fails or exceeds JEV_TIMEOUT_MS,
+// the regex score below decides as it did before 15.23.0. Measured on 1,102
+// real prompts (2026-09-18): the regex fired 21 times with 10 correct; Jev at
+// 0.7 fired 83 times with 53 correct, where "correct" means the turn went on
+// to touch 3+ files or make 12+ tool calls.
 //
 // Fired-vs-acted telemetry: when the advisory speaks (score >= 2), it also
 // records a "fired" line to the same cross-session log escalate-model.ts

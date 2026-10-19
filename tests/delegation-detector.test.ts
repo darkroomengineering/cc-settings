@@ -28,6 +28,7 @@ async function runHook(
       USERPROFILE: HOME,
       TYPESAFE_API_KEY: undefined,
       TYPESAFE_ENDPOINT: undefined,
+      CC_TYPESAFE_PROJECT: undefined,
       ...env,
     },
   });
@@ -100,9 +101,11 @@ describe("delegation-detector — scoring paths", () => {
 // A local stand-in for api.typesafe.ai: the probability it answers is chosen
 // per request through the prompt text, so each test states its own case.
 
+let jevRequests = 0;
 const jevServer = Bun.serve({
   port: 0,
   async fetch(req) {
+    jevRequests += 1;
     const body = (await req.json()) as { state?: { user_prompt?: string } };
     const prompt = body.state?.user_prompt ?? "";
     if (prompt.includes("[hang]")) await Bun.sleep(3000);
@@ -114,7 +117,11 @@ const jevServer = Bun.serve({
 });
 afterAll(() => jevServer.stop(true));
 
-const JEV_ENV = { TYPESAFE_API_KEY: "test-key", TYPESAFE_ENDPOINT: jevServer.url.toString() };
+const JEV_ENV = {
+  TYPESAFE_API_KEY: "test-key",
+  TYPESAFE_ENDPOINT: jevServer.url.toString(),
+  CC_TYPESAFE_PROJECT: "1",
+};
 
 describe("delegation-detector — Jev path", () => {
   test("Jev at or above 0.7 fires even when the regex is silent", async () => {
@@ -157,7 +164,33 @@ describe("delegation-detector — Jev path", () => {
       HOME: home,
       USERPROFILE: home,
       TYPESAFE_ENDPOINT: jevServer.url.toString(),
+      CC_TYPESAFE_PROJECT: "1",
     });
     expect(additionalContext(r.stdout)).toContain("Jev 0.90");
+  });
+
+  test("a key without the project opt-in sends nothing and the regex decides", async () => {
+    const before = jevRequests;
+    const { CC_TYPESAFE_PROJECT: _optIn, ...keyOnly } = JEV_ENV;
+    const quiet = await runHook("Fix the build. [p=0.95]", keyOnly);
+    expect(quiet.exit).toBe(0);
+    expect(quiet.stdout).toBe("");
+    const regex = await runHook("Please do everything on the backlog today. [p=0.05]", keyOnly);
+    expect(additionalContext(regex.stdout)).toContain("score 2");
+    expect(additionalContext(regex.stdout)).not.toContain("Jev");
+    expect(jevRequests).toBe(before);
+  });
+
+  test("any value but 1 does not opt in", async () => {
+    const before = jevRequests;
+    const r = await runHook("Fix the build. [p=0.95]", { ...JEV_ENV, CC_TYPESAFE_PROJECT: "true" });
+    expect(r.stdout).toBe("");
+    expect(jevRequests).toBe(before);
+  });
+
+  test("the opt-in sends exactly one request", async () => {
+    const before = jevRequests;
+    await runHook("Fix the build. [p=0.2]", JEV_ENV);
+    expect(jevRequests).toBe(before + 1);
   });
 });

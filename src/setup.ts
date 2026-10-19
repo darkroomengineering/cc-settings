@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.70.0"; // Editing agents inherit the session model; git rules load only on git files.
+const VERSION = "15.71.0"; // TypeSafe is per-project opt-in; no plansDirectory; pinned MCP servers.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

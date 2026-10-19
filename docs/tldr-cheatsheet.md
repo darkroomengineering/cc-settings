@@ -67,6 +67,21 @@ Two caveats, both measured 2026-07-27 and neither fixable upstream
    cross-check those with `Grep`.
 2. Archived upstream, so treat its behaviour as frozen.
 
+## Cleanup after llm-tldr
+
+The default `native-ts` engine writes nothing into your projects. Installs that
+used `llm-tldr` did: its daemon built a `.tldr/` index directory in each repo,
+and `.tldr` lines were committed to some repos' `.gitignore` files. If you were
+on `llm-tldr`, in each project you worked in:
+
+1. Delete the index: `rm -rf .tldr`.
+2. Remove the `.tldr` / `.tldr/` lines from `.gitignore` if you do not use
+   `llm-tldr` there anymore. Commit that on its own so the change is easy to review.
+3. Delete a `.tldrignore` file if one was generated for you; it only configured
+   the `llm-tldr` indexer.
+4. Stop the daemon with `tldr daemon stop`, and `pipx uninstall llm-tldr` if
+   nothing else uses it.
+
 ## Opt-in CLI: `tldr-code` (pinned, `CC_PINNED_TOOLS=tldr-code`)
 
 `tldr-code` (`github.com/parcadei/tldr-code` v0.4.0) is a Rust rewrite of the
