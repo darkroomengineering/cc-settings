@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.78.0] — 2026-10-19
+
+Each prompt and tool call now starts one hook process instead of several. A Bash call runs 3 hook processes instead of 4, an Edit 3 instead of 6, an Agent call 1 instead of 2, and a prompt 1 instead of 3. A new dispatcher reads the hook input once and runs that event's handlers in order inside one process. The secrets and destructive-command check runs first and still blocks the call if it crashes or times out; the advisory handlers fail open and are skipped if they throw or overrun. Handlers still run on their own when called directly, so tests, `hooks:bench` and the Codex plugin are unchanged. Async hooks, SessionStart and the install-docs check keep their own entries. Re-run setup so existing installs replace the per-script entries with the dispatcher. Part of #223.
+
+**Files changed:**
+- src/hooks/dispatch.ts (new), config/40-hooks.json
+- src/lib/hook-runtime.ts, src/lib/settings-merge.ts, src/lib/claude-managed-file-manifests.ts
+- src/hooks/*.ts handlers and src/scripts/post-edit.ts export `main(io)`
+- src/scripts/hook-bench.ts, README.md, SECURITY.md, docs/hooks-reference.md, hooks/README.md
+- tests/dispatch.test.ts (new), tests/hook-fail-open.test.ts, tests/settings-merge.test.ts, tests/install-e2e.test.ts, tests/codex-install.test.ts
+
 ## [15.77.0] — 2026-10-19
 
 Fewer hooks run on every session: 29 hook commands on 16 events, down from 35 on 17. The four proof gates are gone: the typecheck before `git commit`, farolero, and the proof checks before `git push` and `gh pr create`. They ran one stack's `package.json` scripts, and each repo's own git hooks and CI now carry those checks (satus and novus already run them on every PR). The session-title hook and the CwdChanged hook are gone too; nothing read their output. The hook that blocks skipping a repo's git hooks stays. Bash logging, the swarm log, the ledger, the compaction handoff, failure tracking and desktop notifications stay, because a skill or another hook reads each of them. Re-run setup so existing installs drop the removed hooks. Part of #223.

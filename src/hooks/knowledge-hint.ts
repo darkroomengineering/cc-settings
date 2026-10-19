@@ -40,15 +40,15 @@ type Payload = {
 };
 
 /** Trimmed stdout of `git -C <cwd> <args>`, or "" on any failure. Sync
- *  because it runs inside a filter; bounded so a stale lock can't stall the
- *  tool call. */
+ *  because it runs inside a filter. Bounded tightly: the dispatcher cannot
+ *  interrupt a sync spawn, and an overrun on the Bash entry blocks the call. */
 function gitOut(cwd: string, args: string[]): string {
   try {
     const proc = Bun.spawnSync(["git", "-C", cwd, ...args], {
       stdout: "pipe",
       stderr: "ignore",
       stdin: "ignore",
-      timeout: 2_000,
+      timeout: 500,
     });
     return proc.exitCode === 0 ? proc.stdout.toString().trim() : "";
   } catch {

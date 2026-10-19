@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.77.0"; // Agent-side proof gates and two bookkeeping hooks removed.
+const VERSION = "15.78.0"; // One hook process per event for prompts and tool calls.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
