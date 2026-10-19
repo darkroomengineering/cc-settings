@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import type { McpStdioServer } from "../schemas/mcp.ts";
 import { Settings } from "../schemas/settings.ts";
 import { type EngineDescriptor, ensureEngineInstalled } from "./code-intel-engine.ts";
-import { debug, progressArrow, progressOk, warn } from "./colors.ts";
+import { debug, info, progressArrow, progressOk, warn } from "./colors.ts";
 import { composeSettings } from "./compose-settings.ts";
 import { writeFingerprint as writeHooksFingerprint } from "./hooks-fingerprint.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
@@ -353,6 +353,19 @@ export function redactKey(text: string, key: string | null | undefined): string 
 
 type KeySource = "flag" | "prompt" | "env" | "settings";
 
+/** What a TypeSafe key sends and to whom, shown before the key prompt and again
+ *  when a key is supplied by flag. Keep in step with docs/hooks-reference.md. */
+export const TYPESAFE_DISCLOSURE: readonly string[] = [
+  "TypeSafe sends session content to api.typesafe.ai, a third party. With a key:",
+  "  - delegation-detector sends the text of every prompt you type",
+  "  - drift-fuse sends the task prompt, edited file paths, Bash command heads and the start of the answer, each scored turn",
+  "  - fast-jev-compaction sends the conversation (messages, tool calls and results) when a session compacts",
+  "That can be client material. cc-settings' own senders (the first two) stay off in a project until it sets",
+  '  "env": { "CC_TYPESAFE_PROJECT": "1" } in that project\'s .claude/settings.json or settings.local.json.',
+  "fast-jev-compaction is upstream code that variable cannot gate: it sends in every project where it is enabled.",
+  '  Keep a client project off it with "enabledPlugins": { "fast-jev-compaction@fast-jev-compaction": false } in that project\'s .claude/settings.json.',
+];
+
 /** Find a TypeSafe key: the flag, the environment, the installed settings'
  *  env block, else an interactive prompt (TTY only). Returns null when none. */
 async function resolveTypesafeKey(
@@ -368,6 +381,7 @@ async function resolveTypesafeKey(
   if (typeof fromSettings === "string" && fromSettings)
     return { key: fromSettings, source: "settings" };
   if (dryRun || !isInteractive()) return null;
+  for (const line of TYPESAFE_DISCLOSURE) info(line);
   const typed = await promptSecret(
     "TypeSafe API key for verbatim Jev compaction (Enter to skip; keys at https://typesafe.ai): ",
   );
@@ -721,6 +735,8 @@ export async function installPlugins(
   // settings env block, so the session banner, hooks, and scripts can read
   // it too (the plugin store is opaque to everything but the plugin).
   const storeKey = resolved && (resolved.source === "flag" || resolved.source === "prompt");
+  // The prompt shows the disclosure itself; a flag skips the prompt.
+  if (resolved?.source === "flag" && !dryRun) for (const line of TYPESAFE_DISCLOSURE) info(line);
   if (storeKey && !dryRun) await persistTypesafeKeyToSettingsEnv(resolved.key);
   const commands = PLUGIN_INSTALL_COMMANDS;
   const shown = (args: readonly string[]) => redactKey(`claude ${args.join(" ")}`, resolved?.key);
@@ -839,7 +855,7 @@ export async function installPlugins(
   if (installed.length > 0) progressOk(`Plugins: ${installed.join(", ")}`);
   if (resolved) {
     progressOk(
-      `Compaction: verbatim (Jev), key from ${resolved.source}${storeKey ? "; TYPESAFE_API_KEY written to settings env" : ""}`,
+      `Compaction: verbatim (Jev), key from ${resolved.source}${storeKey ? "; TYPESAFE_API_KEY written to settings env" : ""}. Prompt and drift scoring send only in projects that set CC_TYPESAFE_PROJECT=1`,
     );
   } else {
     progressArrow(`Compaction stays native. Later: ${LATER_KEY_COMMAND}`);

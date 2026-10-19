@@ -1,6 +1,6 @@
 {
   "name": "drift-fuse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scores each unattended turn against the task the person asked for with TypeSafe's Jev model, and after consecutive off-task turns redirects or pauses the next machine-submitted prompt.",
   "license": "MIT",
   "author": {

@@ -24,6 +24,8 @@ import {
   asRecord,
   canonicalKey,
   isPlainObject,
+  isRetiredDefault,
+  RETIRED_SCALAR_DEFAULTS,
   subtractByKey,
   unionByKey,
   uniqueByKey,
@@ -75,6 +77,9 @@ export interface MergeAccounting {
    *  the new team default (three-way: our old default, not a user choice). */
   defaultsUpdated: number;
   scalarsAdopted: number;
+  /** Top-level keys dropped because cc-settings no longer ships them and the
+   *  live value is still the retired default. */
+  retiredDefaultsPruned: number;
   defaultsAdded: number;
   statusLineReset: boolean;
 }
@@ -777,6 +782,24 @@ export const userWinsScalarStrategy: Strategy = async (key, team, user, ctx) => 
   return { keep: true, value: await deepMergeUserWins(key, team, user, ctx) };
 };
 
+// Drop a retired key when the team no longer sets it and the live value is
+// still the value cc-settings shipped. With a baseline, the previous install
+// must have supplied that value too; a baseline lacking the key means the user
+// typed it themselves, so it stays.
+function retiredDefaultStrategy(): Strategy {
+  return async (key, team, user, ctx) => {
+    if (
+      team === undefined &&
+      user !== undefined &&
+      isRetiredDefault(key, user, ctx.opts.baselineSettings)
+    ) {
+      ctx.accounting.retiredDefaultsPruned++;
+      return { keep: false };
+    }
+    return userWinsScalarStrategy(key, team, user, ctx);
+  };
+}
+
 // extraKnownMarketplaces: the entries cc-settings ships (cc-settings,
 // fast-jev-compaction) are team-owned, like `hooks`: a rerun replaces whatever
 // is on disk under those names, so a planted repo or sha does not survive and
@@ -806,6 +829,9 @@ export const STRATEGIES: Record<string, Strategy> = {
   env: envStrategy,
   extraKnownMarketplaces: marketplacesStrategy,
   statusLine: statusLineStrategy,
+  ...Object.fromEntries(
+    Object.keys(RETIRED_SCALAR_DEFAULTS).map((key) => [key, retiredDefaultStrategy()]),
+  ),
   // mcpServers is destructured out by installSettings (src/setup.ts) before
   // this function is invoked — it is excluded from the per-key strategy loop.
 };
@@ -885,6 +911,7 @@ export async function mergeSettings(
       envPruned: 0,
       defaultsUpdated: 0,
       scalarsAdopted: 0,
+      retiredDefaultsPruned: 0,
       defaultsAdded: 0,
       statusLineReset: false,
     },
@@ -932,6 +959,9 @@ export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}
   }
   if (a.envPruned > 0) {
     info(`Pruned ${a.envPruned} env var(s) cc-settings no longer sets`);
+  }
+  if (a.retiredDefaultsPruned > 0) {
+    info(`Removed ${a.retiredDefaultsPruned} setting(s) cc-settings no longer sets`);
   }
   if (a.hooksSuperseded > 0) {
     info(`Dropped ${a.hooksSuperseded} stale variant(s) of team-managed hook groups`);

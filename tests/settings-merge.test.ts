@@ -38,6 +38,7 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
     envPruned: 0,
     defaultsUpdated: 0,
     scalarsAdopted: 0,
+    retiredDefaultsPruned: 0,
     defaultsAdded: 0,
     statusLineReset: false,
   };
@@ -1238,6 +1239,55 @@ describe("mergeSettings — native terminal selection defaults", () => {
       }
     },
   );
+});
+
+describe("mergeSettings — retired plansDirectory default", () => {
+  async function mergeWith(
+    user: Record<string, unknown>,
+    baselineSettings?: Record<string, unknown>,
+  ) {
+    const dir = await mkdtemp(join(tmpdir(), "cc-merge-plans-"));
+    try {
+      const team = await composeSettings(join(import.meta.dir, ".."));
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(userPath, JSON.stringify(user));
+      const accounting = await mergeSettings(userPath, team, outPath, { baselineSettings });
+      return { merged: await Bun.file(outPath).json(), accounting, team };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("config no longer ships plansDirectory", async () => {
+    const team = await composeSettings(join(import.meta.dir, ".."));
+    expect("plansDirectory" in team).toBe(false);
+  });
+
+  test("an install still holding the shipped ./plans loses it (no baseline)", async () => {
+    const { merged, accounting } = await mergeWith({ plansDirectory: "./plans" });
+    expect("plansDirectory" in merged).toBe(false);
+    expect(accounting?.retiredDefaultsPruned).toBe(1);
+  });
+
+  test("an install whose baseline shipped ./plans loses it", async () => {
+    const { merged } = await mergeWith(
+      { plansDirectory: "./plans" },
+      { plansDirectory: "./plans" },
+    );
+    expect("plansDirectory" in merged).toBe(false);
+  });
+
+  test("a different value is the user's and stays", async () => {
+    const { merged, accounting } = await mergeWith({ plansDirectory: "./docs/plans" });
+    expect(merged.plansDirectory).toBe("./docs/plans");
+    expect(accounting?.retiredDefaultsPruned).toBe(0);
+  });
+
+  test("./plans typed by hand after a baseline without the key stays", async () => {
+    const { merged } = await mergeWith({ plansDirectory: "./plans" }, { model: "x" });
+    expect(merged.plansDirectory).toBe("./plans");
+  });
 });
 
 describe("mergeSettings — nested defaults", () => {

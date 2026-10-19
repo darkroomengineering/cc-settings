@@ -13,7 +13,7 @@ For the canonical event count, configuration format, matchers, and debugging:
 |-------|---------|--------|-------|
 | `SessionStart` | New session begins | `session-start.ts` (auto-memory pointer, auto-warms TLDR) | No |
 | `UserPromptSubmit` | Before Claude sees prompt | `session-title.ts` (sets session title from prompt for `--resume`) | **Yes** |
-| `UserPromptSubmit` | Before Claude sees prompt | `delegation-detector.ts` (with a TypeSafe key, Jev scores the prompt against a delegation statement and fires at probability ≥ 0.7; without a key, or if the call fails or times out, a regex breadth score ≥ 2 decides; names the signals via `additionalContext`) | No |
+| `UserPromptSubmit` | Before Claude sees prompt | `delegation-detector.ts` (with a TypeSafe key and `CC_TYPESAFE_PROJECT=1` in the project, Jev scores the prompt against a delegation statement and fires at probability ≥ 0.7; without a key or the opt-in, or if the call fails or times out, a regex breadth score ≥ 2 decides; names the signals via `additionalContext`) | No |
 | `PreToolUse` | Before Bash commands (Bash matcher) | `safety-net.ts` (blocks destructive commands) | No |
 | `PreToolUse` | Before git commit (Bash matcher) | Pre-commit tsc check (TypeScript validation) | No |
 | `PreToolUse` | Before package install (Bash matcher) | `check-docs-before-install.ts` (doc-fetch reminder) | No |

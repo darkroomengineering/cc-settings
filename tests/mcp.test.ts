@@ -270,6 +270,37 @@ describe("mcp — claude.json installer", () => {
     }
   });
 
+  test("shipped config pins context7 and chrome-devtools, and an earlier unpinned install is replaced", async () => {
+    const shipped = (await Bun.file(
+      join(import.meta.dir, "..", "config", "20-mcp.json"),
+    ).json()) as {
+      mcpServers: Record<string, { args: string[]; alwaysLoad?: boolean }>;
+    };
+    const exact = /@\d+\.\d+\.\d+$/;
+    const context7 = shipped.mcpServers.context7;
+    const devtools = shipped.mcpServers["chrome-devtools"];
+    expect(context7?.args.at(-1)).toMatch(exact);
+    expect(devtools?.args.at(-1)).toMatch(exact);
+    expect(context7?.alwaysLoad).toBeUndefined();
+
+    const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-pin-"));
+    try {
+      const claudeJsonPath = join(sandbox, ".claude.json");
+      const earlier = {
+        context7: { command: "bunx", args: ["-y", "@upstash/context7-mcp"], alwaysLoad: true },
+        "chrome-devtools": { command: "bunx", args: ["-y", "chrome-devtools-mcp@latest"] },
+      };
+      await writeFile(claudeJsonPath, JSON.stringify({ mcpServers: earlier }));
+      await installMcpToClaudeJson(shipped.mcpServers as never, claudeJsonPath, earlier);
+      const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
+      expect(result.mcpServers.context7.args).toEqual(context7?.args as string[]);
+      expect(result.mcpServers.context7.alwaysLoad).toBeUndefined();
+      expect(result.mcpServers["chrome-devtools"].args).toEqual(devtools?.args as string[]);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
+
   test("a null/scalar entry among valid servers is dropped, not cast (no throw)", async () => {
     const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-badentry-"));
     try {

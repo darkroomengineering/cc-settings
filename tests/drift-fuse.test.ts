@@ -9,6 +9,7 @@ import {
   foldTurn,
   nextContract,
   parseOnTask,
+  projectOptedIn,
   redirectLine,
   register,
   resolveFuseConfig,
@@ -144,11 +145,18 @@ function fakeOn(): { on: Any; handlers: Map<string, Handler> } {
 
 /** A fake engine: Jev answers `onTask` (or fails when null); the clock never
  *  wakes, so the timeout branch stays out of the race. */
-function fakeEngine(onTask: number | null, key: string | undefined) {
+function fakeEngine(onTask: number | null, key: string | undefined, optIn = true) {
   const logs: { text: string; to?: string }[] = [];
   const bodies: string[] = [];
   const $ = {
-    env: { get: async (name: string) => (name === "TYPESAFE_API_KEY" ? key : undefined) },
+    env: {
+      get: async (name: string) =>
+        name === "TYPESAFE_API_KEY"
+          ? key
+          : name === "CC_TYPESAFE_PROJECT" && optIn
+            ? "1"
+            : undefined,
+    },
     settings: { read: async () => ({}) },
     http: {
       fetch: async (_url: string, init?: { body?: string }) => {
@@ -311,6 +319,36 @@ describe("register", () => {
       passthrough,
     );
     expect(bodies).toHaveLength(0);
+  });
+
+  test("a project that has not opted in sends nothing, key or not", async () => {
+    const { on, handlers } = fakeOn();
+    register(on, {});
+    const { $, logs, bodies } = fakeEngine(0.1, "k", false);
+    await handlers.get("prompt.submit")!($, TASK, passthrough);
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    await runTurn(handlers, $, SCHEDULED, [EDIT]);
+    expect(bodies).toHaveLength(0);
+    expect(logs.filter((l) => l.text.includes("tripped"))).toHaveLength(0);
+  });
+
+  test("the opt-in is read from the process env or any settings source's env block", async () => {
+    const settingsWith = (env: unknown) => ({ read: async () => ({ env }) });
+    const none = { get: async () => undefined };
+    expect(await projectOptedIn({ env: none, settings: settingsWith({}) })).toBe(false);
+    expect(
+      await projectOptedIn({ env: none, settings: settingsWith({ CC_TYPESAFE_PROJECT: "0" }) }),
+    ).toBe(false);
+    expect(await projectOptedIn({ env: none, settings: settingsWith(undefined) })).toBe(false);
+    expect(
+      await projectOptedIn({ env: none, settings: settingsWith({ CC_TYPESAFE_PROJECT: "1" }) }),
+    ).toBe(true);
+    expect(
+      await projectOptedIn({
+        env: { get: async (n: string) => (n === "CC_TYPESAFE_PROJECT" ? "1" : undefined) },
+        settings: settingsWith({}),
+      }),
+    ).toBe(true);
   });
 
   test("a person's prompt queued mid-turn discards that turn's score", async () => {

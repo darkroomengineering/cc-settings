@@ -1728,6 +1728,59 @@ mock.module("node:fs/promises", () => ({ ...original,
     }
   }, 180_000);
 
+  test.each([
+    ["light", "./plans", true, false],
+    ["uninstall", "./plans", true, false],
+    ["light", "./docs/plans", true, true],
+    ["uninstall", "./docs/plans", true, true],
+    ["light", "./plans", false, true],
+    ["uninstall", "./plans", false, true],
+  ] as const)(
+    "%s handles a leftover plansDirectory %s",
+    async (operation, value, baselineShippedIt, kept) => {
+      const home = await mkdtemp(join(tmpdir(), "cc-e2e-retired-plans-"));
+      const claudeDir = join(home, ".claude");
+      try {
+        expect((await runInstall(home)).exitCode).toBe(0);
+        const settingsPath = join(claudeDir, "settings.json");
+        const settings = JSON.parse(await readFile(settingsPath, "utf8")) as Record<
+          string,
+          unknown
+        >;
+        settings.plansDirectory = value;
+        await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+
+        if (baselineShippedIt) {
+          const baselinePath = join(claudeDir, ".cc-settings-baseline.json");
+          const baseline = JSON.parse(await readFile(baselinePath, "utf8")) as {
+            team_settings?: Record<string, unknown>;
+          };
+          expect(baseline.team_settings).toBeDefined();
+          if (baseline.team_settings) baseline.team_settings.plansDirectory = "./plans";
+          const baselineBytes = `${JSON.stringify(baseline, null, 2)}\n`;
+          await writeFile(baselinePath, baselineBytes);
+          const sentinelPath = join(claudeDir, ".cc-settings-version");
+          const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
+            managed_files: Record<string, string>;
+          };
+          sentinel.managed_files[".cc-settings-baseline.json"] = new Bun.CryptoHasher("sha256")
+            .update(baselineBytes)
+            .digest("hex");
+          await writeFile(sentinelPath, `${JSON.stringify(sentinel, null, 2)}\n`);
+        }
+
+        const result = await runInstall(home, [operation === "light" ? "--light" : "--uninstall"]);
+        expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0);
+        const after = JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>;
+        if (kept) expect(after.plansDirectory).toBe(value);
+        else expect("plansDirectory" in after).toBe(false);
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    180_000,
+  );
+
   test.each(["light", "uninstall"] as const)(
     "modified Claude ownership makes combined %s fail before either product mutates",
     async (operation) => {

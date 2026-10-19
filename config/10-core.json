@@ -62,7 +62,6 @@
 		"pr": "",
 		"sessionUrl": false
 	},
-	"plansDirectory": "./plans",
 	"spinnerVerbs": {
 		"mode": "replace",
 		"verbs": [

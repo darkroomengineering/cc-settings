@@ -456,4 +456,27 @@ describe("stripManagedSettings", () => {
     const result = stripManagedSettings(user, { env: {} }, previous);
     expect((result.env as Record<string, unknown>).CLAUDE_CODE_EFFORT_LEVEL).toBe("high");
   });
+
+  describe("retired plansDirectory default", () => {
+    const full = { model: "m" };
+    test("a leftover ./plans is dropped, with or without a baseline that shipped it", () => {
+      expect("plansDirectory" in stripManagedSettings({ plansDirectory: "./plans" }, full)).toBe(
+        false,
+      );
+      expect(
+        "plansDirectory" in
+          stripManagedSettings({ plansDirectory: "./plans" }, full, { plansDirectory: "./plans" }),
+      ).toBe(false);
+    });
+    test("another value is the user's and stays", () => {
+      const out = stripManagedSettings({ plansDirectory: "./docs/plans" }, full, {
+        plansDirectory: "./plans",
+      });
+      expect(out.plansDirectory).toBe("./docs/plans");
+    });
+    test("./plans typed by hand after a baseline without the key stays", () => {
+      const out = stripManagedSettings({ plansDirectory: "./plans" }, full, { model: "m" });
+      expect(out.plansDirectory).toBe("./plans");
+    });
+  });
 });

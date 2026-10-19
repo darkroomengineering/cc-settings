@@ -16,7 +16,13 @@
 import { isManagedHookCommand } from "./hook-command.ts";
 import { sharedDirOwnedFiles } from "./managed-paths.ts";
 import { MANAGED_SKILLS } from "./managed-skills.ts";
-import { asRecord, canonicalKey, subtractByKey } from "./merge-keyed.ts";
+import {
+  asRecord,
+  canonicalKey,
+  isRetiredDefault,
+  RETIRED_SCALAR_DEFAULTS,
+  subtractByKey,
+} from "./merge-keyed.ts";
 
 export type Profile = "full" | "light";
 
@@ -177,6 +183,8 @@ export function applyLightProfile(settings: Record<string, unknown>): Record<str
  *                  survive minus the managed commands). Drop a group only once
  *                  it has no hooks left. Drop empty events; drop `hooks` if empty.
  *   model        — delete if equal to full.model.
+ *   retired keys — a key cc-settings stopped shipping (RETIRED_SCALAR_DEFAULTS)
+ *                  is deleted while it still holds the shipped value.
  *   statusLine   — left untouched (will be overlaid from applyLightProfile anyway).
  *   unknown keys — left untouched.
  */
@@ -313,6 +321,12 @@ export function stripManagedSettings(
     if (key in out && canonicalKey(out[key]) === canonicalKey(full[key])) {
       delete out[key];
     }
+  }
+
+  // Keys cc-settings no longer ships are absent from `full`, so the loop above
+  // cannot see them; drop the ones still holding the retired default.
+  for (const key of Object.keys(RETIRED_SCALAR_DEFAULTS)) {
+    if (key in out && !(key in full) && isRetiredDefault(key, out[key], previous)) delete out[key];
   }
 
   return out;
