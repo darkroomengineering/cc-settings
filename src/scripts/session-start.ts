@@ -32,7 +32,7 @@ import {
   ReviewQueueStateSchema,
 } from "../lib/review-queue.ts";
 import { LEDGER_DIR, readDigest, toProjectRelative } from "../lib/session-ledger.ts";
-import { teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
+import { linearMapAwareness, teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
 import {
   computeDrift,
   readPackagedVersion,
@@ -332,6 +332,10 @@ if (startSource === "compact") {
 // Shared team-knowledge corpus awareness (read counterpart to /share-learning).
 // Silent unless $KNOWLEDGE_REPO_PATH points at a non-empty local clone.
 for (const l of await teamKnowledgeAwareness()) console.log(l);
+
+// Linear team and project for this repo, from the cached team-knowledge map.
+// Reads the cache only; silent without a cache or outside a mapped repo.
+for (const l of await linearMapAwareness()) console.log(l);
 
 // Compaction-plugin awareness — prints only the non-default state.
 // fast-jev-compaction + compaction-trigger are always enabled (see config/10-core.json's enabledPlugins), but
