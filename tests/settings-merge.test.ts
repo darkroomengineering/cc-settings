@@ -852,6 +852,19 @@ describe("pruneDeprecatedHooks", () => {
     }
   });
 
+  test("DEPRECATED_COMMAND_PATTERNS leaves a repo's own hook with a removed hook's name alone", () => {
+    for (const ok of [
+      "bun /repo/tools/pre-commit-tsc.ts",
+      'bun "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-proof.ts"',
+      "node scripts/session-title.ts",
+    ]) {
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok)),
+        ok,
+      ).toBe(false);
+    }
+  });
+
   test("DEPRECATED_COMMAND_PATTERNS matches parallelmax-nudge.ts (merged into tool-cadence.ts)", () => {
     const badCmd = `bun "$HOME/.claude/src/hooks/parallelmax-nudge.ts"`;
     expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
