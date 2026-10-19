@@ -382,7 +382,10 @@ describe("hooksStrategy", () => {
           matcher: "Bash",
           if: "Bash(git commit*)",
           hooks: [
-            { type: "command", command: `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"` },
+            {
+              type: "command",
+              command: `bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"`,
+            },
           ],
         },
       ],
@@ -393,7 +396,10 @@ describe("hooksStrategy", () => {
         {
           matcher: "Bash",
           hooks: [
-            { type: "command", command: `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"` },
+            {
+              type: "command",
+              command: `bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"`,
+            },
           ],
         },
       ],
@@ -599,8 +605,11 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
     await mkdir(join(dir, "src", "scripts"), { recursive: true });
     // Only the CURRENT names ship in this source tree — the renamed-away
     // hook referenced by the "stale" tests below is deliberately absent.
-    await writeFile(join(dir, "src", "hooks", "pre-commit-farolero.ts"), "// current hook\n");
-    await writeFile(join(dir, "src", "scripts", "pre-commit-tsc.ts"), "// still shipped\n");
+    await writeFile(join(dir, "src", "hooks", "pre-edit-validate.ts"), "// current hook\n");
+    await writeFile(
+      join(dir, "src", "scripts", "check-docs-before-install.ts"),
+      "// still shipped\n",
+    );
     return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
   }
 
@@ -626,7 +635,7 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
     const { dir, cleanup } = await makeSourceTree();
     try {
       const ctx = makeCtx({ sourceDir: dir });
-      const liveCmd = `bun "$HOME/.claude/src/hooks/pre-commit-farolero.ts"`;
+      const liveCmd = `bun "$HOME/.claude/src/hooks/pre-edit-validate.ts"`;
       const team = {};
       const user = { PreToolUse: [{ hooks: [{ type: "command", command: liveCmd }] }] };
       const result = await hooksStrategy("hooks", team, user, ctx);
@@ -640,20 +649,20 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
     }
   });
 
-  test("(b) real-world case: a stale renamed hook sharing a group with pre-commit-tsc is pruned, and the tsc-only leftover is dropped as superseded — no duplicate group survives", async () => {
+  test("(b) real-world case: a stale renamed hook sharing a group with check-docs-before-install is pruned, and the docs-only leftover is dropped as superseded — no duplicate group survives", async () => {
     const { dir, cleanup } = await makeSourceTree();
     try {
       const ctx = makeCtx({ sourceDir: dir });
-      const tscCmd = `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"`;
-      // Team's current group (this install): tsc + the current hook name.
+      const docsCmd = `bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"`;
+      // Team's current group (this install): docs check + the current hook name.
       const team = {
         PreToolUse: [
           {
             matcher: "Bash",
             if: "Bash(git commit*)",
             hooks: [
-              { type: "command", command: tscCmd },
-              { type: "command", command: `bun "$HOME/.claude/src/hooks/pre-commit-farolero.ts"` },
+              { type: "command", command: docsCmd },
+              { type: "command", command: `bun "$HOME/.claude/src/hooks/pre-edit-validate.ts"` },
             ],
           },
         ],
@@ -668,7 +677,7 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
             matcher: "Bash",
             if: "Bash(git commit*)",
             hooks: [
-              { type: "command", command: tscCmd },
+              { type: "command", command: docsCmd },
               { type: "command", command: `bun "$HOME/.claude/src/hooks/pre-commit-sondeo.ts"` },
             ],
           },
@@ -681,12 +690,12 @@ describe("hooksStrategy — stale managed-hook pruning (source-tree existence ch
         Record<string, unknown>
       >;
       // Exactly the team's one group survives — the stale group is pruned down
-      // to [tsc] alone, which duplicates what team already ships for this
+      // to [docs check] alone, which duplicates what team already ships for this
       // event, so it is dropped entirely (superseded) rather than kept as a
       // second, redundant `git commit*` group.
       expect(groups.length).toBe(1);
       expect(JSON.stringify(groups)).not.toContain("pre-commit-sondeo");
-      expect(JSON.stringify(groups)).toContain("pre-commit-farolero");
+      expect(JSON.stringify(groups)).toContain("pre-edit-validate");
       expect(ctx.accounting.hooksPruned).toBe(1);
       expect(ctx.accounting.hooksSuperseded).toBe(1);
     } finally {
@@ -824,6 +833,22 @@ describe("pruneDeprecatedHooks", () => {
       `bun "$HOME/.claude/src/scripts/handoff.ts" resume`,
     ]) {
       expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok))).toBe(false);
+    }
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches the removed proof-gate, session-title and cwd-changed hooks", () => {
+    for (const bad of [
+      `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"`,
+      `bun "$HOME/.claude/src/hooks/pre-commit-farolero.ts"`,
+      `bun "$HOME/.claude/src/hooks/pre-pr-proof.ts"`,
+      `bun "$HOME/.claude/src/hooks/pre-push-proof.ts"`,
+      `bun "$HOME/.claude/src/scripts/session-title.ts"`,
+      `bun "$HOME/.claude/src/scripts/cwd-changed.ts"`,
+    ]) {
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(bad)),
+        bad,
+      ).toBe(true);
     }
   });
 

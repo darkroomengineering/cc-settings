@@ -10,27 +10,6 @@
             "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/safety-net.ts\"",
             "timeout": 5,
             "statusMessage": "Checking command safety"
-          },
-          {
-            "type": "command",
-            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/scripts/pre-commit-tsc.ts\"",
-            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/scripts/pre-commit-tsc.ts\"",
-            "timeout": 120,
-            "statusMessage": "Checking TypeScript before commit"
-          },
-          {
-            "type": "command",
-            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/pre-pr-proof.ts\"",
-            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/pre-pr-proof.ts\"",
-            "timeout": 300,
-            "statusMessage": "Running proof before PR readiness"
-          },
-          {
-            "type": "command",
-            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/pre-push-proof.ts\"",
-            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/pre-push-proof.ts\"",
-            "timeout": 300,
-            "statusMessage": "Running proof before push"
           }
         ]
       }

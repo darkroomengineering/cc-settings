@@ -36,10 +36,6 @@ const USAGE = `Usage: hook-bench [--runs N] [--warmup N] [--json]
   --json       machine-readable report`;
 
 const SKIP: Record<string, string> = {
-  "pre-commit-tsc": "if-filtered to git commit; spawns tsc against the working tree",
-  "pre-commit-farolero": "if-filtered to git commit; spawns checks against the working tree",
-  "pre-pr-proof": "if-filtered to gh pr create/ready; runs bun run proof (minutes)",
-  "pre-push-proof": "if-filtered to git push; runs proof and would contact the remote",
   "verify-hooks": "needs the installed src manifest and hashes the install tree; once per session",
   "session-start":
     "starts the code-intel daemon, a gh knowledge refresh and an MCP prune; once per session",

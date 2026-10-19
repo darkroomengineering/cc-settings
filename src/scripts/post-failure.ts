@@ -4,7 +4,7 @@
 //
 // Fail-open: always exits 0. Reads TOOL_NAME / TOOL_ERROR from env, session_id
 // from stdin JSON (falls back to CLAUDE_SESSION_ID env — same stdin+env
-// pattern as session-title.ts). Problem signatures are keyed by session id
+// pattern as delegation-detector.ts). Problem signatures are keyed by session id
 // so concurrent sessions keep independent failure histories.
 
 import { appendFile, mkdir } from "node:fs/promises";

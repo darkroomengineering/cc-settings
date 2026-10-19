@@ -5,16 +5,6 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/session-title.ts\"",
-						"async": true,
-						"timeout": 3
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
 						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/delegation-detector.ts\"",
 						"timeout": 3
 					}
@@ -60,44 +50,6 @@
 						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/safety-net.ts\"",
 						"timeout": 5,
 						"onFailure": "block"
-					}
-				]
-			},
-			{
-				"matcher": "Bash",
-				"hooks": [
-					{
-						"type": "command",
-						"if": "Bash(git commit*)",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/pre-commit-tsc.ts\""
-					},
-					{
-						"type": "command",
-						"if": "Bash(git commit*)",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/pre-commit-farolero.ts\"",
-						"timeout": 35
-					}
-				]
-			},
-			{
-				"matcher": "Bash",
-				"hooks": [
-					{
-						"type": "command",
-						"if": "Bash(gh*pr create*) Bash(gh*pr ready*)",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/pre-pr-proof.ts\"",
-						"timeout": 300
-					}
-				]
-			},
-			{
-				"matcher": "Bash",
-				"hooks": [
-					{
-						"type": "command",
-						"if": "Bash(git push*)",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/pre-push-proof.ts\"",
-						"timeout": 300
 					}
 				]
 			},
@@ -240,18 +192,6 @@
 						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/codex-verify.ts\"",
 						"timeout": 3,
 						"async": true
-					}
-				]
-			}
-		],
-		"CwdChanged": [
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/cwd-changed.ts\"",
-						"async": true,
-						"timeout": 5
 					}
 				]
 			}

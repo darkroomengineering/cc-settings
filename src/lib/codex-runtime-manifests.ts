@@ -269,15 +269,30 @@ const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
 // Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
 // bunfig.toml `preload` cannot run inside a hook.
 const ADDED_IN_V19 = ["src/bunfig.toml"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 19;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 20;
+// Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
+// CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
+const REMOVED_IN_V20 = [
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/session-title.ts",
+];
 // Each removed file rejoins at its original position: shipped manifests are hashed in order.
+// Keyed by the surviving file that precedes it in the sorted source inventory.
+const REJOINING_AFTER = new Map<string, readonly string[]>([
+  ["src/lib/download-verify.ts", REMOVED_IN_V12],
+  ["src/hooks/model-switch-guard.ts", ["src/hooks/pre-commit-farolero.ts"]],
+  ["src/hooks/pre-edit-validate.ts", ["src/hooks/pre-pr-proof.ts", "src/hooks/pre-push-proof.ts"]],
+  ["src/scripts/codex-skill-budget.ts", ["src/scripts/cwd-changed.ts"]],
+  ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
+  ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_IN_V17]],
+]);
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) => !ADDED_IN_V15.includes(path) && !ADDED_IN_V18.includes(path),
-).flatMap((path) => {
-  if (path === "src/lib/download-verify.ts") return [path, ...REMOVED_IN_V12];
-  if (path === "src/scripts/session-title.ts") return [path, ...REMOVED_IN_V17];
-  return [path];
-});
+).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
   ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
   ...HISTORICAL_TYPESCRIPT_SOURCES,
@@ -326,10 +341,10 @@ const RUNTIME_SOURCE_FILES_V17: readonly string[] = RUNTIME_SOURCE_FILES_V16.fil
   (path) => !REMOVED_IN_V17.includes(path),
 );
 const RUNTIME_SOURCE_FILES_V18: readonly string[] = [...RUNTIME_SOURCE_FILES_V17, ...ADDED_IN_V18];
-export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V18,
-  ...ADDED_IN_V19,
-];
+const RUNTIME_SOURCE_FILES_V19: readonly string[] = [...RUNTIME_SOURCE_FILES_V18, ...ADDED_IN_V19];
+export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V19.filter(
+  (path) => !REMOVED_IN_V20.includes(path),
+);
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -365,6 +380,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [16, RUNTIME_SOURCE_FILES_V16],
   [17, RUNTIME_SOURCE_FILES_V17],
   [18, RUNTIME_SOURCE_FILES_V18],
+  [19, RUNTIME_SOURCE_FILES_V19],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

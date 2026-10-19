@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.77.0] — 2026-10-19
+
+Fewer hooks run on every session: 29 hook commands on 16 events, down from 35 on 17. The four proof gates are gone: the typecheck before `git commit`, farolero, and the proof checks before `git push` and `gh pr create`. They ran one stack's `package.json` scripts, and each repo's own git hooks and CI now carry those checks (satus and novus already run them on every PR). The session-title hook and the CwdChanged hook are gone too; nothing read their output. The hook that blocks skipping a repo's git hooks stays. Bash logging, the swarm log, the ledger, the compaction handoff, failure tracking and desktop notifications stay, because a skill or another hook reads each of them. Re-run setup so existing installs drop the removed hooks. Part of #223.
+
+**Files changed:**
+- config/40-hooks.json, hooks/hooks.json
+- src/hooks/pre-commit-farolero.ts, src/hooks/pre-pr-proof.ts, src/hooks/pre-push-proof.ts, src/scripts/pre-commit-tsc.ts, src/scripts/session-title.ts, src/scripts/cwd-changed.ts (deleted)
+- src/lib/settings-merge.ts, src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/install-source-inventory.ts, src/scripts/session-start.ts, src/scripts/hook-bench.ts
+- README.md, hooks/README.md, docs/hooks-reference.md, docs/system-overview.md, docs/the-flow.md
+
 ## [15.76.0] — 2026-10-19
 
 When a PR fixes a GitHub issue in a repo whose issues sync to Linear, `/ship` now finds the Linear copy the sync created and links that one, instead of filing a duplicate. It searches the mapped team by the GitHub issue's title and accepts a hit only when the Linear issue's attachment points at that GitHub issue. cc-settings now syncs its GitHub issues to the Open Source team.

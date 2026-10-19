@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runTsc } from "../src/lib/tsc.ts";
+import { runTsc, scrubProjectSubprocessEnv } from "../src/lib/tsc.ts";
 
 /** A throwaway project with one deliberately broken file. */
 function brokenProject(): string {
@@ -58,6 +58,36 @@ describe("runTsc", () => {
     }
   }, 130_000);
 
+  // The project's own compiler is project-controlled code: it must not see the
+  // hook payload (tool input, session ids, cc-settings paths) in its environment.
+  test("the project's compiler receives no hook payload variables", async () => {
+    const dir = brokenProject();
+    const observed = join(dir, "observed.json");
+    const payload = ["TOOL_INPUT", "SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CC_SETTINGS_SOURCE"];
+    const saved = Object.fromEntries(payload.map((n) => [n, process.env[n]]));
+    try {
+      mkdirSync(join(dir, "node_modules", "typescript", "bin"), { recursive: true });
+      writeFileSync(
+        join(dir, "node_modules", "typescript", "bin", "tsc"),
+        `await Bun.write(process.env.OBSERVED_PATH, JSON.stringify(process.env));\nprocess.exit(1);\n`,
+      );
+      for (const n of payload) process.env[n] = "secret";
+      process.env.OBSERVED_PATH = observed;
+      await runTsc({ cwd: dir, incremental: false });
+      const env = JSON.parse(readFileSync(observed, "utf8")) as Record<string, string>;
+      for (const n of payload) expect(env[n], n).toBeUndefined();
+      expect(env.OBSERVED_PATH).toBe(observed);
+      expect(typeof env.PATH).toBe("string");
+    } finally {
+      for (const n of payload) {
+        if (saved[n] === undefined) delete process.env[n];
+        else process.env[n] = saved[n];
+      }
+      delete process.env.OBSERVED_PATH;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 130_000);
+
   // The cache must never turn a broken project into a silent pass: run twice
   // against the same cwd and assert the warm run still reports the error.
   test("warm cache does not produce a false clean", async () => {
@@ -72,4 +102,39 @@ describe("runTsc", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 130_000);
+});
+
+describe("scrubProjectSubprocessEnv", () => {
+  test("drops the hook payload variables a project subprocess must not see", () => {
+    const names = [
+      "TOOL_INPUT",
+      "TOOL_INPUT_command",
+      "PROMPT",
+      "SESSION_ID",
+      "OTHER_SESSION_ID",
+      "TRANSCRIPT_PATH",
+      "CLAUDE_TRANSCRIPT_PATH",
+      "HOOK_INPUT",
+      "HOOK_EVENT_NAME",
+      "CLAUDE_HOOK_EVENT",
+      "PLUGIN_ROOT",
+      "PLUGIN_DATA",
+      "CC_SETTINGS_HOME",
+      "CC_SETTINGS_SOURCE",
+    ];
+    const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+    try {
+      for (const n of names) process.env[n] = "secret";
+      process.env.SAFE_PROOF_ENV = "ordinary-value";
+      const env = scrubProjectSubprocessEnv();
+      for (const n of names) expect(env[n], n).toBeUndefined();
+      expect(env.SAFE_PROOF_ENV).toBe("ordinary-value");
+    } finally {
+      for (const n of names) {
+        if (saved[n] === undefined) delete process.env[n];
+        else process.env[n] = saved[n];
+      }
+      delete process.env.SAFE_PROOF_ENV;
+    }
+  });
 });

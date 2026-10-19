@@ -1,8 +1,5 @@
-// Shared `bunx tsc --noEmit` runner for the TypeScript hooks.
-// post-edit-tsc.ts (filter output to the edited file) and pre-commit-tsc.ts
-// (block the commit on errors) both spawn the same process and combine
-// stdout+stderr; only the downstream policy differs, and that stays in each
-// script.
+// Shared `bunx tsc --noEmit` runner. post-edit-tsc.ts filters the combined
+// stdout+stderr to the edited file; the downstream policy stays in the caller.
 
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -18,7 +15,7 @@ export interface TscResult {
 export interface TscOptions {
   /** Working directory for the spawn; defaults to the current process cwd. */
   cwd?: string;
-  /** Pass `--pretty` (the pre-commit hook tails human-readable output). */
+  /** Pass `--pretty` for human-readable output. */
   pretty?: boolean;
   /**
    * Reuse a cached `.tsbuildinfo` across runs (default true). The post-edit
@@ -30,9 +27,8 @@ export interface TscOptions {
 }
 
 // A cold `bunx` fetch (offline registry) or a pathological tsconfig (huge
-// project, circular references) can hang indefinitely. Both callers
-// (pre-commit gate + post-edit diagnostic) await this synchronously, so an
-// unbounded spawn freezes every commit / edit. Generous because a large
+// project, circular references) can hang indefinitely. The caller awaits this
+// synchronously, so an unbounded spawn freezes every edit. Generous because a large
 // monorepo's tsc run can legitimately take a while.
 const TSC_TIMEOUT_MS = 120_000;
 

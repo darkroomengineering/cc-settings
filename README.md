@@ -229,9 +229,9 @@ on every machine. The same request behaves differently once it is installed:
 - **10 role agents.** Planner, explorer, implementer, tester, reviewer, security reviewer,
   scaffolder, deslopper, orchestrator, and a cross-model verifier. Big work is divided instead of
   held in one conversation, and each role runs on the model tier its job needs.
-- **36 hooks on 18 lifecycle events.** Small programs that run around tool calls, commits, pushes,
-  compaction, and session start or end. They block destructive commands, require proof before a
-  PR, remind about docs before an install, nudge when unreviewed agent output piles up, and inject
+- **29 hooks on 16 lifecycle events.** Small programs that run around tool calls, compaction, and
+  session start or end. They block destructive commands and git hook skips, remind about docs
+  before an install, nudge when unreviewed agent output piles up, and inject
   context the model would otherwise never see. Claude gets the full set; Codex gets the compatible
   plugin subset and asks you to review it once through `/hooks`.
 - **Model routing.** Effort pinned to medium, read-only subagents on Sonnet, planning, decisions and

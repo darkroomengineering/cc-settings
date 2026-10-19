@@ -160,12 +160,22 @@ const FILES_REMOVED_IN_V19 = [
   "src/scripts/stop-summary.ts",
 ];
 
+// Hook scripts manifest version 23 dropped; every earlier version owns them.
+const FILES_REMOVED_IN_V23 = [
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/session-title.ts",
+];
+
 async function seedRemovedFiles(
   claudeDir: string,
   managedFiles?: Record<string, string>,
 ): Promise<void> {
   const bytes = "historical bytes\n";
-  for (const path of [...SKILLS_REMOVED_IN_V18, ...FILES_REMOVED_IN_V19]) {
+  for (const path of [...SKILLS_REMOVED_IN_V18, ...FILES_REMOVED_IN_V19, ...FILES_REMOVED_IN_V23]) {
     await mkdir(dirname(join(claudeDir, path)), { recursive: true });
     await writeFile(join(claudeDir, path), bytes);
     if (managedFiles) {

@@ -1653,11 +1653,28 @@ describe("Codex installer lifecycle", () => {
   });
 
   test("version 19 adds only the hook bunfig to the Codex runtime", () => {
-    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBe(19);
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBeGreaterThanOrEqual(19);
     expect(runtimePathsForVersion(19, "test")).toEqual([
       ...runtimePathsForVersion(18, "test"),
       "src/bunfig.toml",
     ]);
+  });
+
+  test("version 20 removes only the proof-gate, session-title and cwd-changed hooks from the Codex runtime", () => {
+    const removed = [
+      "src/hooks/pre-commit-farolero.ts",
+      "src/hooks/pre-pr-proof.ts",
+      "src/hooks/pre-push-proof.ts",
+      "src/scripts/cwd-changed.ts",
+      "src/scripts/pre-commit-tsc.ts",
+      "src/scripts/session-title.ts",
+    ];
+    expect(CURRENT_RUNTIME_MANIFEST_VERSION).toBeGreaterThanOrEqual(20);
+    const v19 = runtimePathsForVersion(19, "test");
+    for (const path of removed) expect(v19).toContain(path);
+    expect(runtimePathsForVersion(20, "test")).toEqual(
+      v19.filter((path) => !removed.includes(path)),
+    );
   });
 
   // Existing installs validate ownership against the manifest version their
@@ -1744,7 +1761,7 @@ describe("Codex installer lifecycle", () => {
       claudeManagedManifestPaths,
       currentClaudeManagedSourceFiles,
     } = await import("../src/lib/claude-managed-file-manifests.ts");
-    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBe(22);
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBeGreaterThanOrEqual(22);
     for (const profile of ["full", "light"] as const) {
       expect(claudeManagedManifestPaths(22, profile, "test")).toEqual([
         ...claudeManagedManifestPaths(21, profile, "test"),
@@ -1754,6 +1771,27 @@ describe("Codex installer lifecycle", () => {
         source: "src/bunfig.toml",
         destination: "src/bunfig.toml",
       });
+    }
+  });
+
+  test("Claude version 23 removes only the proof-gate, session-title and cwd-changed hooks, from both profiles", async () => {
+    const removed = [
+      "src/hooks/pre-commit-farolero.ts",
+      "src/hooks/pre-pr-proof.ts",
+      "src/hooks/pre-push-proof.ts",
+      "src/scripts/cwd-changed.ts",
+      "src/scripts/pre-commit-tsc.ts",
+      "src/scripts/session-title.ts",
+    ];
+    const { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, claudeManagedManifestPaths } =
+      await import("../src/lib/claude-managed-file-manifests.ts");
+    expect(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION).toBeGreaterThanOrEqual(23);
+    for (const profile of ["full", "light"] as const) {
+      const v22 = claudeManagedManifestPaths(22, profile, "test");
+      for (const path of removed) expect(v22).toContain(path);
+      expect(claudeManagedManifestPaths(23, profile, "test")).toEqual(
+        v22.filter((path) => !removed.includes(path)),
+      );
     }
   });
 
@@ -4027,7 +4065,7 @@ exit 0
         const expected = handlersOf(template);
         const actual = handlersOf(written);
 
-        expect(actual.length).toBe(7);
+        expect(actual.length).toBe(4);
         expect(actual.map(([event]) => event)).toEqual(expected.map(([event]) => event));
         // The installer swaps only $PLUGIN_ROOT, so the template's forward-slash tail stays (mixed separators on Windows).
         const script = `${join(codexHome, "darkroom", "source")}/src/scripts/codex-hook.ts`;

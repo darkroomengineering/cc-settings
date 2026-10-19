@@ -461,6 +461,14 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // upgraders stop seeing "No such file or directory".
   /stop-summary\.ts\b/,
   /stop-failure\.ts\b/,
+  // cc-settings removed the proof-gate hooks (each repo runs its own checks in
+  // its own git hooks and CI), the session-title hook, and the cwd-changed hook.
+  /pre-commit-tsc\.ts\b/,
+  /pre-commit-farolero\.ts\b/,
+  /pre-pr-proof\.ts\b/,
+  /pre-push-proof\.ts\b/,
+  /session-title\.ts\b/,
+  /cwd-changed\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {
