@@ -245,7 +245,7 @@ gh pr create --base main --body-file "$BODY_FILE"
 
 `$MSG_FILE` holds `feat(v<new-version>): sync with Claude Code v<B> and Codex v<D>`,
 a one-paragraph summary, and Adopted / Deletions lists. Commit and PR mechanics
-follow `rules/git.md`.
+follow `~/.claude/rules/git.md`; read it first.
 
 Work on a branch: main rejects direct pushes and requires the org
 `ci-gate` workflow, which runs only on a PR. Merge the PR once it passes;

@@ -299,7 +299,7 @@ describe("gatherWhatsOn — always-on instructions", () => {
     const home = await makeTmpDir();
     try {
       await mkdir(join(claude, "rules"), { recursive: true });
-      // Always-on: no frontmatter at all (mirrors rules/README.md upstream).
+      // Always-on: no frontmatter at all.
       await writeFile(join(claude, "rules", "readme.md"), "# always loaded, no paths: key");
       // Path-conditioned: has a `paths:` frontmatter key.
       await writeFile(

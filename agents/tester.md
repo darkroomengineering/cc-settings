@@ -1,6 +1,6 @@
 ---
 name: tester
-model: claude-sonnet-5-5
+model: inherit
 description: |
   Writes and runs tests, and reports coverage gaps. Delegate for new test files, test runs, or verification after implementation.
   RETURNS: test results (pass/fail/skip), test files, failure analysis, coverage gaps.

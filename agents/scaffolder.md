@@ -1,6 +1,6 @@
 ---
 name: scaffolder
-model: claude-sonnet-5-5
+model: inherit
 description: |
   Boilerplate generator for standard pages, routes, actions, components, and hooks that follow existing project patterns. Use planner first when the pattern or location is undecided, and implementer for real logic.
   RETURNS: created files with structure, exports, and types.

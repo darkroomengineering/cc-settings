@@ -1,6 +1,6 @@
 ---
 name: deslopper
-model: claude-sonnet-5-5
+model: inherit
 description: |
   Code cleanup: auto-removes only dead code and slop comments, and reports duplication and consolidation opportunities for approval. Delegate after an implementer finishes and before a push, or to find dead or duplicated code. Supports team mode for large codebases.
   RETURNS: dead code removed, and consolidation recommendations awaiting approval.

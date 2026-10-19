@@ -24,7 +24,7 @@ does not need. State the real-world effect before the mechanism. Write it the
 way a colleague would: plain verbs, concrete specifics, varied sentence length,
 no decorative emojis, headers only when they add navigation. Slack: ask or news
 in the first line, one topic per message, owner and deadline for requests. PRs
-and issues follow `rules/git.md`.
+and issues follow `~/.claude/rules/git.md`; read it before writing one.
 
 ## Delegation
 
@@ -126,8 +126,10 @@ GPT-6 Astra; `--model` overrides. Standalone Codex has the reverse,
 read-only bridge (`claude-run.ts`, `claude-verifier`) to Opus 5.5.
 
 - **Opus/Fable:** planning, synthesis, gate decisions; never tight loop bodies.
-- **Sonnet:** loop bodies and most fan-out agents (already the subagent
-  default; pin `/loop` invocations explicitly).
+- **Session model:** agents that edit code (`implementer`, `tester`,
+  `deslopper`, `scaffolder`) use `model: inherit`, so your model choice applies.
+- **Sonnet:** loop bodies and read-only fan-out (`explore`, `reviewer`, the
+  subagent default; pin `/loop` invocations explicitly).
 - **Codex:** the `codex-verify` SessionStart hook injects the current routing
   and review policy when the bridge is up; if that notice is absent, the bridge
   is down, so proceed Claude-only. `quota-steer` injects routing changes as

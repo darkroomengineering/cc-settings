@@ -1,7 +1,8 @@
 ---
 paths:
   - ".git/**/*"
-  - "**/*"
+  - "**/.gitignore"
+  - ".github/**/*"
 ---
 
 # Git

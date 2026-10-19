@@ -542,9 +542,10 @@ exit $rc
     { timeout: 60_000 },
   );
 
-  test("keeps the rules README source-only", () => {
+  test("keeps the rules index out of the installed rules directory", () => {
     const managed = currentClaudeManagedSourceFiles("full").map(({ source }) => source);
     expect(managed).not.toContain("rules/README.md");
+    expect(existsSync(join(REPO, "rules", "README.md"))).toBe(false);
   });
 
   test("upgrades a version-3 install and removes its managed rules README", async () => {
@@ -553,7 +554,7 @@ exit $rc
     try {
       expect((await runInstall(home)).exitCode).toBe(0);
       const readmePath = join(claudeDir, "rules", "README.md");
-      const readmeBytes = await readFile(join(REPO, "rules", "README.md"), "utf8");
+      const readmeBytes = "# Rules\n\nhistorical rules README bytes\n";
       await writeFile(readmePath, readmeBytes);
       const sentinelPath = join(claudeDir, ".cc-settings-version");
       const sentinel = JSON.parse(await readFile(sentinelPath, "utf8")) as {
@@ -623,7 +624,7 @@ exit $rc
       const readme = "rules/README.md";
       await Promise.all([
         mkdir(dirname(retiredPath), { recursive: true }),
-        writeFile(join(claudeDir, readme), await readFile(join(REPO, readme))),
+        writeFile(join(claudeDir, readme), "# Rules\n\nhistorical rules README bytes\n"),
       ]);
       await writeFile(retiredPath, retiredBytes);
       // A real v2 install also owns files that later manifests dropped.

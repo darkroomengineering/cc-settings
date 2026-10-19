@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.70.0] — 2026-10-19
+
+The four agents that edit code (implementer, tester, deslopper, scaffolder) now run on the model that spawned them instead of being locked to Sonnet, so picking Opus or Fable for a session carries through to the work. Read-only agents such as explore and reviewer stay on Sonnet. In standalone Codex these four agents follow the Codex session model. The git rules file loads only on git-related files (`.git`, `.gitignore`, `.github`), not on every file read; `/ship`, `/review` and `/cc` read it directly before committing. The rules index moved from `rules/README.md` to `docs/rules.md`. It was never installed, so installs are unaffected. Covers part of #222 and #223.
+
+**Files changed:**
+- agents/implementer.md, agents/tester.md, agents/deslopper.md, agents/scaffolder.md
+- rules/git.md, rules/README.md → docs/rules.md, skills/ship/SKILL.md, skills/review/SKILL.md, skills/cc/SKILL.md
+- CLAUDE-FULL.md, README.md, docs/README.md, docs/agent-models.md, docs/claude-vs-codex.md, docs/codex-bridge.md, docs/frontmatter-reference.md
+- tests/agent-schema.test.ts, tests/codex-install.test.ts, tests/install-e2e.test.ts, tests/whats-on.test.ts
+
 ## [15.69.2] — 2026-10-19
 
 Two older CHANGELOG entries (15.66.1 and 15.42.5) carried a leftover merge-conflict line, which showed on GitHub and tripped anything that parses the changelog. Both lines are gone. A new test scans every tracked text file for conflict markers and fails with the file and line, so a half-resolved merge cannot land again. Fixes #234.

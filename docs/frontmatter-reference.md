@@ -15,7 +15,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Agent identifier, used in `Agent(name, "...")` invocations |
-| `model` | string | No | Model to use: `fable`, `opus`, `sonnet`, `haiku` |
+| `model` | string | No | Model to use: `fable`, `opus`, `sonnet`, `haiku`, a full model ID, or `inherit` (the session's model). Left out, the agent runs on the default subagent model |
 | `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions — see Memory Scopes below for the actual storage path |
 | `description` | string | Yes | Multi-line description shown in agent selection. Controls auto-invocation behavior (see below) |
 | `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, Agent, ...]` |
@@ -56,7 +56,7 @@ Agents with `memory` enabled: `explore`, `reviewer`, `planner`.
 ```yaml
 ---
 name: implementer
-model: sonnet
+model: inherit
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
 tools: [Read, Write, Edit, Bash, Grep, Glob]
@@ -85,13 +85,13 @@ color: purple
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
 | `explore` | sonnet | project | Read, Grep, Glob, Bash, WebFetch | purple |
-| `implementer` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob | green |
+| `implementer` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | green |
 | `maestro` | claude-opus-5-5 | -- | Read, Write, Edit, Bash, Grep, Glob, Agent, SendMessage | red |
 | `reviewer` | sonnet | project | Read, Grep, Glob, Bash | yellow |
 | `planner` | claude-opus-5-5 | project | Read, Grep, Glob | blue |
-| `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob | cyan |
-| `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob | magenta |
-| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage | cyan |
+| `tester` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | cyan |
+| `scaffolder` | inherit | -- | Read, Write, Edit, Bash, Glob | magenta |
+| `deslopper` | inherit | -- | Read, Edit, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage | cyan |
 | `security-reviewer` | claude-opus-5-5 | -- | Read, Grep, Glob, Bash | red |
 | `codex-verifier` | sonnet | -- | Bash, Read | cyan |
 | `claude-verifier` (Codex-only, `codex/agents/`) | sonnet | -- | Bash, Read | cyan |
@@ -265,4 +265,4 @@ paths:
 
 ### Configured Rules
 
-See `rules/README.md` for the current list of all available rules and their trigger paths.
+See `docs/rules.md` for the current list of all available rules and their trigger paths.

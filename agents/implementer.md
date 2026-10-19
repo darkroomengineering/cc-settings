@@ -1,6 +1,6 @@
 ---
 name: implementer
-model: claude-sonnet-5-5
+model: inherit
 description: |
   Executes code changes and tests. Delegate for implementation, builds, fixes,
   updates, or a planner roadmap. Prompts must inline the ask, exact paths/ranges,

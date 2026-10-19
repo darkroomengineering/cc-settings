@@ -86,6 +86,11 @@ describe("AgentFrontmatter schema", () => {
     expect(r.success).toBe(true);
   });
 
+  test("accepts model: inherit", () => {
+    const r = AgentFrontmatter.safeParse({ name: "x", description: "y", model: "inherit" });
+    expect(r.success).toBe(true);
+  });
+
   test("rejects non-kebab-case names", () => {
     const r = AgentFrontmatter.safeParse({ name: "MyAgent", description: "y" });
     expect(r.success).toBe(false);
