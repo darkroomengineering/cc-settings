@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.72.0"; // Codex bridge and native agents use Codex's default model.
+const VERSION = "15.73.0"; // Shared React, style and performance rules hold only stack-neutral lines.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
