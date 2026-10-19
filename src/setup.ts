@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.68.0"; // Copilot CLI gets the standards as a managed block in its personal instructions.
+const VERSION = "15.69.0"; // full installs ship the durable-agents profile.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
