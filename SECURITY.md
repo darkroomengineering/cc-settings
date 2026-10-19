@@ -121,7 +121,9 @@ Bun reads a `bunfig.toml` from the directory it starts in, and its `preload`
 entry runs code before the hook does; the shipped `bunfig.toml` is a
 comment-only file, so a project's own is never read. The file sits under
 `src/`, so the content manifest (layer 2) hashes it. `--config` is as powerful
-as `--preload`, so the auditor accepts it only with exactly that path.
+as `--preload`, so the auditor accepts it only with exactly that path, and
+trusts a command that passes it only when both the script and `bunfig.toml`
+match the manifest.
 
 Future hook additions to `config/40-hooks.json` must follow the same
 convention. If a third-party tool needs a hook, wrap it in a cc-settings

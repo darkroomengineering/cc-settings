@@ -64,6 +64,58 @@ describe("classifyHookCommand — shipped pattern vs install manifest", () => {
     expect(r.reasons.join(" ")).toMatch(/content matches install manifest/);
   });
 
+  describe("--config bunfig is verified like the script", () => {
+    const cmd =
+      'bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/safety-net.ts"';
+    test("trusted when script and bunfig both match", () => {
+      const r = classifyHookCommand(
+        cmd,
+        integrityOf({ "hooks/safety-net.ts": true, "bunfig.toml": true }),
+      );
+      expect(r.severity).toBe("trusted");
+    });
+    test("suspicious when the bunfig hash differs", () => {
+      const r = classifyHookCommand(
+        cmd,
+        integrityOf({ "hooks/safety-net.ts": true, "bunfig.toml": false }),
+      );
+      expect(r.severity).toBe("suspicious");
+      expect(r.reasons.join(" ")).toMatch(/bunfig\.toml: file hash differs/);
+    });
+    test("suspicious when the bunfig is on disk but not manifested", () => {
+      const r = classifyHookCommand(
+        cmd,
+        integrityOf({ "hooks/safety-net.ts": true }, ["hooks/safety-net.ts", "bunfig.toml"]),
+      );
+      expect(r.severity).toBe("suspicious");
+    });
+    test("compound commands verify each bunfig too", () => {
+      const r = classifyHookCommand(
+        `${cmd} && ${cmd.replace("hooks/safety-net.ts", "scripts/handoff.ts")}`,
+        integrityOf({
+          "hooks/safety-net.ts": true,
+          "scripts/handoff.ts": true,
+          "bunfig.toml": false,
+        }),
+      );
+      expect(r.severity).toBe("suspicious");
+    });
+    test("a patched bunfig on disk fails the real manifest check", async () => {
+      const claudeDir = await mkdtemp(join(tmpdir(), "audit-bunfig-"));
+      try {
+        await seedManifest(claudeDir, {
+          "hooks/safety-net.ts": "// hook\n",
+          "bunfig.toml": "# managed\n",
+        });
+        await writeFile(join(claudeDir, "src", "bunfig.toml"), 'preload = ["./evil.ts"]\n');
+        const r = classifyHookCommand(cmd, await loadSrcIntegrity(claudeDir));
+        expect(r.severity).toBe("suspicious");
+      } finally {
+        await rm(claudeDir, { recursive: true, force: true });
+      }
+    });
+  });
+
   // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${HOME} expansion is exactly the Bash form under test
   test("braced ${HOME} form with trailing arg is trusted under a matching manifest", () => {
     const r = classifyHookCommand(
