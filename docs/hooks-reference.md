@@ -380,11 +380,11 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 > delivery choice (does the model see the output?).
 >
 > Probed and verified: PreToolUse and PostToolUse only. On PostToolUseFailure
-> and CwdChanged the envelope is UNPROBED — we use it there because plain
-> stdout is provably dead on the sibling events, so the envelope is the only
-> mechanism with any evidence of delivery, but it may still be discarded if
-> the event's schema doesn't accept `additionalContext`. Do not cite those
-> two events as verified; probe before depending on delivery.
+> the envelope is UNPROBED — we use it there because plain stdout is provably
+> dead on the sibling events, so the envelope is the only mechanism with any
+> evidence of delivery, but it may still be discarded if the event's schema
+> doesn't accept `additionalContext`. Do not cite that event as verified; probe
+> before depending on delivery.
 
 ### Synchronous (default)
 
@@ -431,7 +431,6 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `session-title.ts` | Derives session title from first prompt; emits `hookSpecificOutput.sessionTitle` so `claude --resume <name>` works | Yes |
 | `delegation-detector.ts` | Flags prompts that look like multi-file work before the model plans. With `TYPESAFE_API_KEY` set (settings `env` block or shell) and the project opted in with `CC_TYPESAFE_PROJECT=1`, it sends the prompt to TypeSafe's Jev model with one statement ("this would touch 3+ files, need 12+ tool calls, or run several workstreams") and fires when the probability is ≥ 0.7; the prompt text leaves the machine for that call (2 s timeout, p50 ~320 ms measured, ~$0.00002 per prompt). Without a key, without the opt-in, or on any failure or timeout, the pre-15.23.0 regex score decides (breadth phrases, path-shaped tokens, list items; fires at ≥ 2). Either way it injects `additionalContext` naming the signal and deferring to the delegation rule in CLAUDE.md. Measured on 1,102 real prompts: regex 21 fires / 10 correct; Jev at 0.7 83 fires / 53 correct. | No |
 | `quota-steer.ts` | Reads the statusline's cached rate-limit percentages; injects quota-aware model-routing guidance (Codex bridge / Sonnet downshift) once usage crosses elevated/critical/exhausted thresholds; at exhausted (≥95%) it re-injects every prompt and directs a full funnel to Codex plus a user-facing notice. Fail-open | No |
 | `escalate-model.ts` | Suggests escalating to a Fable-model subagent when the same problem signature repeats `CC_ESCALATE_THRESHOLD`+ times. Quota-gated, fail-open | No |
@@ -451,10 +450,6 @@ Since v2.1.251 a `resume` SessionStart also receives the session's staleness and
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `safety-net.ts` | Blocks destructive shell commands (rm -rf /, force push, etc.), content reads of secret files (`~/.ssh`, `~/.aws`, `.env`, ...), git hook skips (`--no-verify`, `HUSKY=0`, `-c core.hooksPath`), and `gh` writes outside `darkroomengineering` and the user's own account. An unexpected internal error exits 1 and blocks | No |
-| `pre-commit-tsc.ts` | Runs `tsc --noEmit` before any `git commit` command. Blocks commit if TypeScript errors found | No |
-| `pre-commit-farolero.ts` | Runs `farolero ratchet --changed` before `git commit`, if the target repo has [farolero](https://github.com/darkroomengineering/farolero) as a dependency and installed (`node_modules/.bin/farolero`). Blocks the commit on a red gate (`--dry-run`/`--help` exempt). Skips silently if farolero isn't a dependency, isn't installed, or its own git hooks are already active for the repo (`core.hooksPath`/`.git/hooks/pre-commit` carrying the `farolero-managed` marker) — this hook complements, never replaces, farolero's own repo-level hooks and CI check; it just makes Claude Code a good citizen when a repo declared farolero but never ran `farolero install-hooks`. The whole point of farolero is enforcement that works *without* Claude Code in the loop — this hook only makes CC catch it earlier, one commit sooner than the hook farolero itself would have installed | No |
-| `pre-pr-proof.ts` | Runs the full proof battery (typecheck + test + lint) before `gh pr create`/`gh pr ready`. Blocks PR readiness if red (drafts exempt) | No |
-| `pre-push-proof.ts` | Runs the full proof battery (typecheck + test + lint) before `git push`. Blocks the push if red (`--dry-run`/`--help` exempt) — catches straight-to-main flows that never hit the PR gate | No |
 | `check-docs-before-install.ts` | Reminds to fetch docs before installing new packages | No |
 
 ### PreToolUse (Edit matcher)
@@ -593,12 +588,6 @@ string, not a `tool_output` wrapper.
 |--------|---------|-------|
 | `handoff.ts create` | Saves final handoff state at session end | Yes |
 
-### CwdChanged
-
-| Script | Purpose | Async |
-|--------|---------|-------|
-| `cwd-changed.ts` | Surfaces project context (CLAUDE.md size, recent commits, branch, untracked files) when the working directory changes mid-session | Yes |
-
 ---
 
 ## Adding New Hooks
@@ -669,7 +658,6 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 | `~/.claude/hooks.log` | General hook execution output |
 | `~/.claude/swarm.log` | Subagent start/stop and task created/completed events |
 | `~/.claude/sessions.log` | Session lifecycle events |
-| `~/.claude/session-titles/` | Per-session title flags (set once per session by `session-title.ts`) |
 | `~/.claude/logs/tool-failures.log` | Tool failure events (from `post-failure.ts`) |
 | `~/.claude/safety-net.log` | Blocked command audit log (from `safety-net.ts`) |
 | `~/.claude/logs/bash-*.log` | Daily Bash command logs (from `log-bash.ts`) |

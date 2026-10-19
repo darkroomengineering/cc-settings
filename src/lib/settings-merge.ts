@@ -461,6 +461,11 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // upgraders stop seeing "No such file or directory".
   /stop-summary\.ts\b/,
   /stop-failure\.ts\b/,
+  // cc-settings removed the proof-gate hooks (each repo runs its own checks in
+  // its own git hooks and CI), the session-title hook, and the cwd-changed hook.
+  // Anchored to the managed install path: these names are common enough that a
+  // repo's own pre-commit-tsc.ts hook must survive an upgrade.
+  /\.claude[/\\]src[/\\](?:hooks|scripts)[/\\](?:pre-commit-tsc|pre-commit-farolero|pre-pr-proof|pre-push-proof|session-title|cwd-changed)\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {

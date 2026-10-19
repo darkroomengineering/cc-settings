@@ -18,7 +18,7 @@
 // getActiveFreeze. The current session id arrives on stdin JSON (the field
 // Claude Code passes to hooks); CLAUDE_CODE_SESSION_ID is the env fallback
 // (mirrors the same value, set automatically) for builds that don't deliver
-// it that way — same fallback pattern as session-title.ts.
+// it that way — same fallback pattern as delegation-detector.ts.
 
 import { getActiveFreeze, isWithinBoundary } from "../lib/freeze.ts";
 import { blockDecision, readHookInput, readToolInput, runHook } from "../lib/hook-runtime.ts";

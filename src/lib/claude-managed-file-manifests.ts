@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 22;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 23;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -535,14 +535,29 @@ const ADDED_IN_V17 = [
 const REMOVED_SOURCES_IN_V19 = ["src/scripts/stop-failure.ts", "src/scripts/stop-summary.ts"];
 // Version 20: the Copilot CLI instructions sync.
 const ADDED_IN_V20 = ["src/lib/copilot-instructions.ts"];
+// Version 23: the proof-gate hooks (each repo runs its own checks in its own git hooks and
+// CI), plus the session-title and cwd-changed hooks. Versions 7-22 still own them.
+const REMOVED_SOURCES_IN_V23 = [
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/session-title.ts",
+];
 // Each removed file rejoins at its original position: shipped manifests are hashed in order.
+// Keyed by the surviving file that precedes it in the sorted source inventory.
+const REJOINING_AFTER = new Map<string, readonly string[]>([
+  ["src/lib/download-verify.ts", REMOVED_IN_V14],
+  ["src/hooks/model-switch-guard.ts", ["src/hooks/pre-commit-farolero.ts"]],
+  ["src/hooks/pre-edit-validate.ts", ["src/hooks/pre-pr-proof.ts", "src/hooks/pre-push-proof.ts"]],
+  ["src/scripts/codex-skill-budget.ts", ["src/scripts/cwd-changed.ts"]],
+  ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
+  ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_SOURCES_IN_V19]],
+]);
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
   (path) => !ADDED_IN_V17.includes(path) && !ADDED_IN_V20.includes(path),
-).flatMap((path) => {
-  if (path === "src/lib/download-verify.ts") return [path, ...REMOVED_IN_V14];
-  if (path === "src/scripts/session-title.ts") return [path, ...REMOVED_SOURCES_IN_V19];
-  return [path];
-});
+).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const historicalManifest = {
   full: [
     ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
@@ -677,9 +692,14 @@ MANIFESTS.set(21, v21);
 // bunfig.toml `preload` cannot run inside a hook. It lives under src/ so the install manifest
 // hashes it. Both profiles: the light statusLine is a bun command too.
 const ADDED_IN_V22 = ["src/bunfig.toml"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v22 = {
   full: [...v21.full, ...ADDED_IN_V22],
   light: [...v21.light, ...ADDED_IN_V22],
+};
+MANIFESTS.set(22, v22);
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: v22.full.filter(notAddedAfter(REMOVED_SOURCES_IN_V23)),
+  light: v22.light.filter(notAddedAfter(REMOVED_SOURCES_IN_V23)),
 });
 
 const GENERATED_MANAGED_FILES = new Set([

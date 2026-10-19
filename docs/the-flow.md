@@ -13,7 +13,7 @@ flowchart TB
     F -- "advisory fires" --> G["Scoped stronger-model pass:<br/>Agent(implementer, slice, model: fable)<br/>fresh-context subagent if already on Fable"]
     F -- no --> H
     G --> H[Ship]
-    H --> I["GATE hook: proof-of-work<br/>typecheck · tests · lint<br/>(blocks git push + gh pr create/ready)"]
+    H --> I["GATE repo: git hooks + CI<br/>typecheck · tests · lint<br/>(each repo's own checks)"]
     I --> J["POLICY: Codex cross-model<br/>review of the diff<br/>(per-turn convention)"]
     J --> K["GATE CI: ratchets, committed<br/>baselines that only descend"]
     K --> L([Commit / PR])
@@ -30,7 +30,7 @@ The three tiers, concretely:
 | Tier | Can be ignored? | Examples |
 |------|-----------------|----------|
 | **Advisory** — injected context | Yes, by design | delegation nudge on broad prompts · quota steering · "escalate to a stronger model" after 3 identical failures |
-| **Gate** — non-zero exit | No | permissions deny-list on destructive commands (the safety-net hook is advisory defense-in-depth on top, see [SECURITY.md](../SECURITY.md)) · `tsc` before commit · proof-of-work before PR · skill-count ratchet (fails in *both* directions, so every movement of the baseline lands in git with a reviewer) |
+| **Gate** — non-zero exit | No | permissions deny-list on destructive commands (the safety-net hook is advisory defense-in-depth on top, see [SECURITY.md](../SECURITY.md)) · each repo's own git hooks and CI (typecheck, tests, lint) · skill-count ratchet (fails in *both* directions, so every movement of the baseline lands in git with a reviewer) |
 | **Measurement** — the promotion path | n/a | every escalation advisory logs fired-vs-acted (`bun run escalate:stats`); `/retro` reports the act-rate weekly. An advisory earns gate status with evidence, never by default |
 
-Gates live in the harness today; [farolero](https://github.com/darkroomengineering/farolero) moves the ratchet pattern into client repos as a plain dev-dependency, so it binds agents we don't control — any harness, any model.
+Gates live in each repo's own git hooks and CI, so they bind agents we don't control — any harness, any model. [farolero](https://github.com/darkroomengineering/farolero) ships the ratchet pattern as a plain dev-dependency. The safety-net hook blocks agents from skipping those git hooks.

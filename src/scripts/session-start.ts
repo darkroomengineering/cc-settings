@@ -85,31 +85,6 @@ async function cleanupHandoffs(dir: string, keep = 20): Promise<void> {
   await Promise.all([...jsonDrop, ...mdDrop].map((f) => unlink(f).catch(() => {})));
 }
 
-// ~/.claude/session-titles/ gains one .flag file per titled session (written
-// by session-title.ts) and otherwise grows unboundedly. Prune flags older
-// than maxAgeDays — same mtime pattern as cleanupHandoffs, fail-soft.
-async function pruneSessionTitles(dir: string, maxAgeDays = 30): Promise<void> {
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch {
-    return;
-  }
-  const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
-  await Promise.all(
-    entries.map(async (name) => {
-      if (!name.endsWith(".flag")) return;
-      const full = join(dir, name);
-      try {
-        const st = await stat(full);
-        if (st.mtimeMs < cutoffMs) await unlink(full);
-      } catch {
-        // ignore
-      }
-    }),
-  );
-}
-
 async function startEngineDaemon(eng: EngineDescriptor): Promise<void> {
   // Daemon keeps indexes in memory: ~100ms queries instead of ~30s CLI spawns.
   // Auto-rebuilds embeddings once the dirty threshold (default 20 files) is hit;
@@ -293,7 +268,6 @@ const logRotations = [
   rotateLog(join(CLAUDE_DIR, "swarm.log")),
 ];
 const handoffCleanup = cleanupAllHandoffs(join(CLAUDE_DIR, "handoffs"), 20);
-const sessionTitlePrune = pruneSessionTitles(join(CLAUDE_DIR, "session-titles"), 30);
 // One ledger file per session accumulates forever otherwise. Same mtime-based
 // prune as handoffs, and deliberately more generous than the 20 handoffs kept:
 // a ledger is only useful while its session's handoff still exists.
@@ -316,7 +290,7 @@ await autoWarmEngine(engine);
 
 // --- Phase 4: wait for remaining background tasks ------------------------
 
-await Promise.all([...logRotations.slice(1), handoffCleanup, sessionTitlePrune, ledgerPrune]);
+await Promise.all([...logRotations.slice(1), handoffCleanup, ledgerPrune]);
 
 // --- Phase 5: display output ----------------------------------------------
 

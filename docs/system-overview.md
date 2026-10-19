@@ -28,7 +28,7 @@ flowchart TB
 | Role agents | Focused workers for planning, exploration, implementation, testing, review, and security | Larger work is divided without making one conversation hold every detail |
 | Tools | Filesystem, shell, browser, and product-native capabilities | The workflow can inspect evidence and make authorized changes |
 | MCP servers | External tool providers connected through the Model Context Protocol | Claude can fetch current docs, inspect Figma, map code, or drive browser checks |
-| Hooks | Small programs that run at lifecycle events | Dangerous commands and missing proof can be stopped before damage or publication |
+| Hooks | Small programs that run at lifecycle events | Dangerous commands and git hook skips can be stopped before damage |
 | Proof gates | Type checks, builds, tests, lint, and visual evidence | "Done" has machine-verifiable receipts |
 | Sentinel | Product-specific ownership and version record | Reinstall, rollback, and uninstall can preserve files cc-settings does not own |
 
@@ -55,7 +55,7 @@ The workflow may differ between Claude Code and Codex. The outcome contract shou
 A vanilla Claude Code or Codex install answers the same requests, but with no team memory and no
 gates: "fix this" edits the first plausible cause, "review this" may start editing, "ship it"
 pushes whatever is in the tree. cc-settings adds the standards, the workflows, the role split, the
-hooks that stop destructive commands, and the proof gates that run the repository's real checks.
+hooks that stop destructive commands, and the proof gates (`/proof-of-work`, plus each repository's own git hooks and CI) that run the repository's real checks.
 The request-by-request comparison is in the
 [README](../README.md#what-cc-settings-adds-on-top-of-a-vanilla-install).
 

@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.76.0"; // /ship links the Linear copy of a synced GitHub issue.
+const VERSION = "15.77.0"; // Agent-side proof gates and two bookkeeping hooks removed.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

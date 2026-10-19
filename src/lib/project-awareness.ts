@@ -1,5 +1,5 @@
-// Surface local project standards + git context at session start (and on cwd change).
-// Keep output tight — this runs on every SessionStart / CwdChanged and occupies Claude's context.
+// Surface local project standards + git context at session start.
+// Keep output tight — this runs on every SessionStart and occupies Claude's context.
 
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
