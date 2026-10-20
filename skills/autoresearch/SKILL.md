@@ -63,7 +63,7 @@ Work with the user to configure and review the baseline, then go autonomous.
    Its entries come from earlier runs on other skills: hypotheses for HYPOTHESIZE
    to try first when a cue matches, never facts that skip measurement.
 
-8. **Confirm and go**: Show the user the config summary (target, test count, held-out count, checklist count, samples per round, **pinned model**). Get confirmation. Only then run `git checkout -b autoresearch/<skill-name>` from current HEAD (or check out the existing branch and follow Resuming) and measure the baseline; the loop goes autonomous after the baseline review.
+8. **Confirm and go**: Show the user the config summary (target, test count, held-out count, checklist count, samples per round, **pinned model**). Get confirmation. Only then, for a new run, `git checkout -b autoresearch/<skill-name>` from current HEAD and measure the baseline; the loop goes autonomous after the baseline review. For a prior run, check out its branch and follow Resuming instead.
 
 ---
 
