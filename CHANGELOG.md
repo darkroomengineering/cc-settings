@@ -6,7 +6,7 @@ All notable changes to cc-settings are documented here.
 
 ## [15.80.1] — 2026-10-20
 
-`/autoresearch` no longer creates the `autoresearch/<skill>` branch before you confirm the config. Setup used to check out the branch in step 6 and ask for confirmation in step 8, so turning down the config still left a stray branch behind. The branch is now created only after you confirm. The same step also overwrote `results.tsv` before reading it to resume, which wiped a resumed run's history. It now writes the header only when the file doesn't exist yet.
+`/autoresearch` no longer creates the `autoresearch/<skill>` branch before you confirm the config. Setup used to check out the branch in step 6 and ask for confirmation in step 8, so turning down the config still left a stray branch behind. The branch is now created only after you confirm. The same step also overwrote `results.tsv` before reading it to resume, which wiped a resumed run's history. It now writes the header only when the file doesn't exist yet. A resumed run continues from its last recorded round, and measures a new baseline only if its `results.tsv` has no data rows.
 
 The `autoresearch-adds-held-out` eval was flaky because of the branch step, passing 1 of 3 on v15.79.2 and 2 of 3 on v15.80.0. It now passes 4 of 4 runs, none of which create a branch.
 
