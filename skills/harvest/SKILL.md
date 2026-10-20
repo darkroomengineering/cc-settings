@@ -84,9 +84,15 @@ behavior wasn't actually different from the default; go back to Phase 1.
 | A workflow bundle for one project type | **Profile** | Section in the matching `profiles/*.md` |
 | A universal standard every tool should follow | **AGENTS.md** | Targeted diff to the relevant section |
 | A single gotcha, decision, or convention | **Team learning** | Hand off to `/share-learning` |
+| A deterministic operation agents hand-roll and get wrong | **Script** | A `src/scripts/` or skill-local helper the procedure calls |
+| A recurring tool-call mistake, or an error signature that keeps returning | **Hook** | `PreToolUse` deny whose reason names the fix, or a `PostToolUse` `additionalContext` hint, wired per `docs/hooks-reference.md` "Adding New Hooks", then `bun run audit:hooks` and `setup.sh` (see `SECURITY.md`) |
 
 Bias toward the smallest artifact that carries the procedure — folding into an
-existing skill beats adding a new one (see the skill cap in CLAUDE-FULL.md). Author
+existing skill beats adding a new one (see the skill cap in CLAUDE-FULL.md). Weigh
+context cost too: a skill, script, or hook costs nothing until it fires, while an
+always-on rule or AGENTS.md line is paid on every turn of every session. Prefer the
+on-demand form, and when the artifact must be always-on, cut an equal amount of
+existing always-on text in the same diff. Author
 it in the target's own conventions, carrying the contract's fields into the file:
 procedure as steps, failure modes as a DON'T / red-flags section, quality bar as
 explicit checks.

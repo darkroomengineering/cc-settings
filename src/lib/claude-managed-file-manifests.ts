@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 25;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 26;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -721,13 +721,20 @@ const REMOVED_IN_V25 = [
   "src/scripts/checkpoint.ts",
 ];
 const RENAMED_IN_V25 = new Map([["skills/review/SKILL.md", "skills/dr-review/SKILL.md"]]);
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v25 = {
   full: v24.full
     .filter(notAddedAfter(REMOVED_IN_V25))
     .map((path) => RENAMED_IN_V25.get(path) ?? path),
   light: v24.light
     .filter(notAddedAfter(REMOVED_IN_V25))
     .map((path) => RENAMED_IN_V25.get(path) ?? path),
+};
+MANIFESTS.set(25, v25);
+// Version 26: the RESEARCH.md format reference autoresearch loads at setup. Full only.
+const ADDED_IN_V26 = ["skills/autoresearch/RESEARCH-FORMAT.md"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v25.full, ...ADDED_IN_V26],
+  light: v25.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

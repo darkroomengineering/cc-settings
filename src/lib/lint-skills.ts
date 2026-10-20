@@ -89,7 +89,7 @@ export const SKILL_DESCRIPTION_BYTE_BUDGET = 7424;
 export const SKILL_BODY_LINE_LIMIT = 500;
 export const SKILL_BODY_LINE_EXEMPTIONS: Readonly<Record<string, number>> = {
   audit: 696,
-  autoresearch: 504,
+  autoresearch: 484,
 };
 
 // Reference A: name kebab-case, no underscores/capitals/spaces. Shared with

@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.79.2"; // zsh word-splitting and screenshot self-check rules.
+const VERSION = "15.80.0"; // harness2 fold-ins for harvest and autoresearch.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

@@ -4,6 +4,22 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.80.0] — 2026-10-20
+
+Four ideas from Google Research's [harness2](https://github.com/google-research/harness2), a framework that edits an agent's prompts, skills, and hooks and measures the result. Its gains were measured on GLM-5 and Gemini 3.5 Flash, not Claude, so each change ships with an eval case instead of a claimed improvement.
+
+- `/harvest` can now land a **hook** or a **script**. A mistake that is an agent command rather than code (running the full test suite, the wrong package manager) has no type or lint check to catch it; a `PreToolUse` deny whose reason names the right command does. Phase 4 also weighs context cost: on-demand artifacts first, and an always-on addition cuts an equal amount of always-on text.
+- The harvest contract records a per-change verdict: helped, hurt, no observed effect, or confounded. A behavior that rests only on confounded changes is INCONCLUSIVE.
+- `/autoresearch` ANALYZE targets the checklist item where samples of the same input disagree before one that fails consistently per input, which is more often a bad input or checklist item. Each hypothesis names the sample that motivated it.
+- `/autoresearch` keeps a lessons file across runs at `~/.claude/tmp/autoresearch/LESSONS.md`: at most one entry per run, written only from a kept round whose held-out gain beat the noise floor, read at setup as hypotheses to try first.
+- The RESEARCH.md template and checklist guidelines moved out of `/autoresearch` into `skills/autoresearch/RESEARCH-FORMAT.md`, read at setup, which keeps the skill under its line ceiling (now 484, down from 504). Claude manifest v26 and Codex manifest v22 install the new file.
+
+**Files changed:**
+- skills/harvest/SKILL.md, skills/harvest/CONTRACT.md, skills/autoresearch/SKILL.md, skills/autoresearch/RESEARCH-FORMAT.md
+- src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/lint-skills.ts, tests/install-e2e.test.ts
+- evals/harvest-hook-for-tool-call/, evals/autoresearch-targets-split-samples/, evals/autoresearch-lesson-entry/
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.79.2] — 2026-10-20
 
 Two AGENTS.md rules, both from failures that kept repeating in real sessions. Shell Commands now warns that zsh does not split an unquoted `$VAR` into several arguments; that one quirk made a whole bisect run measure nothing and broke a commit's path list. Fail Loud now asks the agent to inspect every screenshot or capture it took before reporting done, after a render glitch shipped that was visible in the agent's own test captures. To stay under the 16 KB AGENTS.md ceiling, four nearby sentences are shorter (Post-Compaction Recovery, Clarify Before Full Work Mode, Plan Before Multi-File Changes, Functional DAG) with no rule removed.

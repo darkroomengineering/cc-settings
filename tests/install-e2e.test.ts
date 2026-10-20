@@ -2876,6 +2876,7 @@ describe("install E2E — uninstall ownership", () => {
             "skills/audit/references/net-capture.mjs",
             "skills/audit/references/performance-playbook.md",
             "skills/audit/references/test-audit.md",
+            "skills/autoresearch/RESEARCH-FORMAT.md",
             "skills/dr-review/SKILL.md",
             "skills/poke-holes/SKILL.md",
             "src/bunfig.toml",

@@ -21,6 +21,7 @@ number or a hopeful PASS.
   - Varied across witnesses: {what differed — is it noise or part of the signal?}
   - Evidence inspected: {transcripts / PRs / diffs / outputs you actually read}
   - Not proven: {what you are inferring rather than observing — the honest gaps}
+  - Change attribution: {per change the witnesses made: helped | hurt | no observed effect | confounded, citing the run and moment}
 - Procedure: {ordered steps, with concrete commands where they exist}
 - Known failure modes: {the specific bad default path this replaces}
 - Quality bar: {observable checks that the output is right — not "high quality"}
@@ -38,7 +39,7 @@ user runs to confirm compliance, and what the trap-prompt judge scores against.
 | Verdict | When | Consequence |
 |---|---|---|
 | **PASS** | Multi-witness, OR single-witness with every trap prompt passing; contract fully filled; quality bar observable | Eligible for promotion — including shared standards, after the approval gate |
-| **INCONCLUSIVE** | Evidence missing or unread, single-witness with no passing trap, or any required field is `null` | May land only as a personal-scope provisional draft — never a shared standard. State what would resolve it |
+| **INCONCLUSIVE** | Evidence missing or unread, single-witness with no passing trap, the behavior rests only on `confounded` changes, or any required field is `null` | May land only as a personal-scope provisional draft — never a shared standard. State what would resolve it |
 | **FAIL** | A trap prompt reproduces the bad path *with* the artifact loaded | Do not promote. Revise the artifact and re-run, or stop and report the miss |
 
 ## Promotion scope gate
@@ -58,6 +59,9 @@ trap.
 - **No evidence** → INCONCLUSIVE. Never synthesize a PASS from a plausible story.
 - **A trap fails** → FAIL. Fix the artifact and re-run, or stop.
 - **An unknown number** → `null`, never an aspirational guess ("~5 times", "usually").
+- **Several changes landed together** → mark each `confounded` unless one run
+  isolates it. A confounded row is a useful record; a guessed attribution
+  promotes the wrong change.
 - **Unknown territory** — a behavior you cannot reconstruct, a judgment you cannot
   verify from evidence on disk — → fall back to `/poke-holes`, human approval,
   or plain reasoning. The ratchet only tightens on what you can measure; it does not
