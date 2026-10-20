@@ -8,10 +8,11 @@ All notable changes to cc-settings are documented here.
 
 `/autoresearch` no longer creates the `autoresearch/<skill>` branch before you confirm the config. Setup used to check out the branch in step 6 and ask for confirmation in step 8, so turning down the config still left a stray branch behind. The branch is now created only after you confirm. The same step also overwrote `results.tsv` before reading it to resume, which wiped a resumed run's history. It now writes the header only when the file doesn't exist yet. A resumed run continues from its last recorded round, and measures a new baseline only if its `results.tsv` has no data rows.
 
-The `autoresearch-adds-held-out` eval was flaky because of the branch step, passing 1 of 3 on v15.79.2 and 2 of 3 on v15.80.0. Its LLM judge was also unreliable: Haiku, voting without reasoning, failed correct replies about half the time. The case now uses only deterministic graders. They check that no branch exists, that RESEARCH.md gained a held-out section that doesn't reword the test inputs, and that the reply asks for confirmation. The fixture is its own git repo, so the branch check reads that repo, not the suite's. The new skill passes 8 of 8 runs; v15.80.0 scores 0.75 in 6 of 6, below the 0.8 threshold, because every run creates the branch first.
+The `autoresearch-adds-held-out` eval was flaky because of the branch step, passing 1 of 3 on v15.79.2 and 2 of 3 on v15.80.0. Its LLM judge was also unreliable: Haiku, voting without reasoning, failed correct replies about half the time. The case now uses only deterministic graders. They check that no branch exists, that RESEARCH.md gained a held-out section that doesn't reword the test inputs, and that the reply asks for confirmation. The fixture is its own git repo, so the branch check reads that repo, not the suite's. The new skill passes 8 of 8 runs; v15.80.0 scores 0.75 in 6 of 6, below the 0.8 threshold, because every run creates the branch first. `autoresearch-confirm-before-loop` had the same Haiku judge and blocked a push on a correct reply, so it gets the same deterministic graders and passes 6 of 6.
 
 - skills/autoresearch/SKILL.md
 - evals/autoresearch-adds-held-out/
+- evals/autoresearch-confirm-before-loop/
 
 ## [15.80.0] — 2026-10-20
 
