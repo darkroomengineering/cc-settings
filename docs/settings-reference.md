@@ -81,12 +81,13 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES` | integer (string) | Cap how many times a timed-out non-streaming fallback request is re-sent (v2.1.285). Unset here |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | token count (string), `k`/`M` suffixes accepted | Sets the auto-compact window, the size `/context` reports as `Auto-compact window`. Takes the same values as `--autocompact` and warns when a value is out of range or ignored; `k`/`M` suffixes work since v2.1.304, before which `200k` silently set 100K. Unset here |
 | `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` | integer (string) | Minimum conversation size for idle compaction (default 200K tokens); see [`idleCompaction`](#idlecompaction) (v2.1.299). Unset here |
 | `CLAUDE_CODE_DISABLE_FILE_MENTIONS` | `"1"` or unset | `@` file mentions hand Claude the paths to read with its file tools instead of inlining the files' contents (v2.1.299). Unset here |
 | `CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT` | `"1"` or unset | Prompt on an `rm` built at run time inside a shell `-c` script Claude Code can't read; by default such scripts no longer prompt (v2.1.299). Unset here |
 | `CLAUDE_CODE_HIDE_CWD` | `"1"` or unset | Hide the working directory in the startup logo (v2.1.119) |
 | `DISABLE_UPDATES` | `"1"` or unset | Block all update paths including manual `claude update`. Stricter than `DISABLE_AUTOUPDATER` (v2.1.118) |
-| `CLAUDE_CODE_FORK_SUBAGENT` | `"1"` or unset | Enable forked subagents on external builds; works in non-interactive sessions as of v2.1.121 |
+| `CLAUDE_CODE_FORK_SUBAGENT` | `"0"` or unset | Fork subagents (`subagent_type: "fork"`) are on by default in the terminal, `claude -p`, the Agent SDK, the desktop app and VS Code (v2.1.302); `"0"` turns them off. `claude mcp serve` never offers them |
 | `AI_AGENT` | set automatically | Set by Claude Code for subprocesses so `gh` can attribute traffic correctly (v2.1.120) |
 | `CLAUDE_EFFORT` | set automatically | Available inside skills as `${CLAUDE_EFFORT}` for effort-aware behavior (v2.1.120) |
 | `OTEL_LOG_USER_PROMPTS` | `"1"` or unset | Adds `user_system_prompt` to LLM request spans (v2.1.121). Since v2.1.287 the `user_prompt` event also carries `prompt_text`, a copy of `prompt` for backends that nest dotted keys; mask or drop it wherever you mask `prompt` |
@@ -142,6 +143,7 @@ Environment variables injected into every Claude Code session.
 | `OTEL_METRICS_INCLUDE_REPOSITORY` | `"1"` or unset | Tag OpenTelemetry metrics and events with `vcs.*` repository attributes; commit events also get `vcs.ref.head.*` when `OTEL_LOG_TOOL_DETAILS` is set (v2.1.269) |
 | `CLAUDE_CODE_GATEWAY_HINT_HEADERS` | `"1"` or unset | Adds `x-claude-code-request-class`, `x-claude-code-agent-type`, `x-claude-code-prev-tool-durations` and `x-claude-code-compaction` request headers for LLM gateways to route or budget on (v2.1.273), plus `x-claude-code-prompt-id` to group the requests that serve one user prompt (v2.1.283) |
 | `CLAUDE_CODE_AUTO_MODE_SERVER` | `"0"` or unset | Auto mode runs its classifier server-side by default (v2.1.278; no classifier overhead billed, `/status` shows an `Auto mode server` row, warns on billed fallback); set `"0"` to run the local, billed classifier instead; since v2.1.281 this also applies on a direct Anthropic API connection, and `"1"` opts in |
+| `CLAUDE_CODE_AUTO_MODE_MODEL` | model ID string | The model the client-side auto mode classifier uses; it does not change the model for server-side auto mode (v2.1.302). Unset here |
 | `CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT` | `"1"` or unset | In auto mode and `--dangerously-skip-permissions`, the dangerous-`rm` prompt denies the command with a rewrite hint after 2 minutes unanswered so unattended sessions keep going; `"1"` makes it wait indefinitely (v2.1.281). cc-settings' `safety-net.ts` hook blocks those commands before the prompt appears |
 | `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` | characters (string) | Raises or lowers the 4,096-character cap on MCP tool descriptions and server instructions for every MCP server in the session (v2.1.280; default 4,096 since v2.1.296); cc-settings leaves it unset because a higher cap spends context on every session |
 | `CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK` | `"1"` or unset | Skips the organization fast-mode check at startup; since v2.1.271 an API rejection of fast mode then stands for the session and its reason is shown instead of re-sending fast requests every turn |
@@ -691,7 +693,7 @@ Prompt-cache lifetime per scope (v2.1.242): `"5m"` or `"1h"`. `promptCacheTtl` c
 
 ### `idleCompaction`
 
-Idle compaction (v2.1.299, on by default): a terminal conversation of 200K+ tokens left idle for about 54 minutes is compacted before its one-hour prompt cache expires, so the next message does not reprocess the whole context. `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` changes the 200K minimum; `false` turns it off. cc-settings leaves it on. It rarely fires alongside the compaction-trigger plugin, which requests a verbatim compaction near 150K; past 200K (a long Fable session) idle compaction writes a normal summary, not a verbatim one.
+Idle compaction (v2.1.299, on by default): a terminal conversation of 200K+ tokens left idle for about 54 minutes is compacted before its one-hour prompt cache expires, so the next message does not reprocess the whole context. `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` changes the 200K minimum; `false`, or the `Idle compaction` row in `/config` (v2.1.302), turns it off. cc-settings leaves it on. It rarely fires alongside the compaction-trigger plugin, which requests a verbatim compaction near 150K; past 200K (a long Fable session) idle compaction writes a normal summary, not a verbatim one.
 
 ```json
 { "idleCompaction": false }

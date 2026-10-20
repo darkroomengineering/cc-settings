@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.79.1] — 2026-10-20
+
+Sync with Claude Code v2.1.304. Codex v0.163.0 and the Codex app changelog have nothing new through 2026-10-20. One env var is now tracked, and three docs rows that had gone stale are corrected.
+
+**Adopted:**
+- `CLAUDE_CODE_AUTO_MODE_MODEL` (Claude Code 2.1.302) is in the env table and `knownEnvVars`. It picks the model for the client-side auto mode classifier. cc-settings does not set it.
+
+**Docs:**
+- `CLAUDE_CODE_FORK_SUBAGENT`: fork subagents are on by default on every surface, and `"0"` turns them off (2.1.302). The old row said `"1"` turned them on.
+- `idleCompaction` can also be turned off from its new row in `/config` (2.1.302).
+- `CLAUDE_CODE_AUTO_COMPACT_WINDOW` is in the env table and `knownEnvVars`, and the row notes the `k`/`M` suffixes it accepts (2.1.304).
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- docs/settings-reference.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.79.0] — 2026-10-19
 
 Four skills and agents that repeated Claude Code's own features are gone or renamed. The `scaffolder` agent is merged into `implementer`, which already did the same boilerplate work. `/checkpoint` and its script are removed; use the built-in `/rewind` or a git commit. The `/explore` skill is removed; the `explore` agent it routed to stays. `/review` is renamed `/dr-review`, so typing `/review` now opens Claude Code's built-in `/code-review`. The managed library goes from 26 skills to 24, and re-running setup removes the old files from existing installs. The `/orchestrate` rollback step now reverts the bad commits instead of a soft reset, which left the failed phase's changes staged. Closes #223.
