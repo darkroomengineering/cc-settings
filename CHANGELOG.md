@@ -4,17 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.80.2] — 2026-10-20
+
+Skill evals now judge with Sonnet 5.5 instead of Haiku 4.5, in both `bun src/scripts/eval-changed.ts` and `eval-ablate.ts`. Haiku, voting without reasoning, failed correct replies often enough to block pushes. Over 8 runs of one case the two judges cost about the same ($1.15 and $1.18), since the agent run makes up most of the cost.
+
+25 eval cases for skills that run in a forked context (`context: fork`) now tell the agent to pass the whole message as the skill's argument. A forked skill sees only its argument, so a bare call left the agent answering on its own and the case graded that answer, not the skill. `bun run lint:skills` now fails a forked skill's case whose prompt lacks the instruction.
+
+`/context-doc` opens with exactly one question and no side requests. It allowed up to four questions per round and said to open with one, and agents took the four. Its eval case went from 0 of 3 to 3 of 3.
+
+- src/scripts/eval-changed.ts
+- src/scripts/eval-ablate.ts
+- src/lib/lint-skills.ts
+- skills/context-doc/SKILL.md
+- evals/*/prompt.md
+- evals/context-doc-glossary-question/
+
 ## [15.80.1] — 2026-10-20
 
 `/autoresearch` no longer creates the `autoresearch/<skill>` branch before you confirm the config. Setup used to check out the branch in step 6 and ask for confirmation in step 8, so turning down the config still left a stray branch behind. The branch is now created only after you confirm. The same step also overwrote `results.tsv` before reading it to resume, which wiped a resumed run's history. It now writes the header only when the file doesn't exist yet. A resumed run continues from its last recorded round, and measures a new baseline only if its `results.tsv` has no data rows.
 
 The `autoresearch-adds-held-out` eval was flaky because of the branch step, passing 1 of 3 on v15.79.2 and 2 of 3 on v15.80.0. Its LLM judge was also unreliable: Haiku, voting without reasoning, failed correct replies about half the time. The case now uses only deterministic graders. They check that no branch exists, that RESEARCH.md gained a held-out section that doesn't reword the test inputs, and that the reply asks for confirmation. The fixture is its own git repo, so the branch check reads that repo, not the suite's. The new skill passes 8 of 8 runs; v15.80.0 scores 0.75 in 6 of 6, below the 0.8 threshold, because every run creates the branch first. `autoresearch-confirm-before-loop` had the same Haiku judge and blocked a push on a correct reply, so it gets the same deterministic graders and passes 6 of 6.
 
-`bun src/scripts/eval-changed.ts` and `eval-ablate.ts` now judge with Sonnet 5.5 instead of Haiku 4.5, since every other LLM-graded case had the same unreliable judge. On the old flaky case, both judges cost the same for 8 runs ($1.15 vs $1.18), because the agent run makes up most of the cost.
-
 - skills/autoresearch/SKILL.md
-- src/scripts/eval-changed.ts
-- src/scripts/eval-ablate.ts
 - evals/autoresearch-adds-held-out/
 - evals/autoresearch-confirm-before-loop/
 

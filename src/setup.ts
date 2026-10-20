@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.80.1"; // autoresearch creates its branch only after confirmation.
+const VERSION = "15.80.2"; // skill evals judge with Sonnet 5.5 and forked-skill cases pass their argument.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
