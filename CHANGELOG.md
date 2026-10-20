@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.80.1] — 2026-10-20
+
+`/autoresearch` no longer creates the `autoresearch/<skill>` branch before you confirm the config. Setup used to check out the branch in step 6 and ask for confirmation in step 8, so turning down the config still left a stray branch behind. The branch is now created only after you confirm. The same step also overwrote `results.tsv` before reading it to resume, which wiped a resumed run's history. It now writes the header only when the file doesn't exist yet.
+
+The `autoresearch-adds-held-out` eval was flaky because of the branch step, passing 1 of 3 on v15.79.2 and 2 of 3 on v15.80.0. It now passes 4 of 4 runs, none of which create a branch.
+
+- skills/autoresearch/SKILL.md
+
 ## [15.80.0] — 2026-10-20
 
 Four ideas from Google Research's [harness2](https://github.com/google-research/harness2), a framework that edits an agent's prompts, skills, and hooks and measures the result. Its gains were measured on GLM-5 and Gemini 3.5 Flash, not Claude, so each change ships with an eval case instead of a claimed improvement.

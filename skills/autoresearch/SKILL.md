@@ -50,12 +50,12 @@ Work with the user to configure and review the baseline, then go autonomous.
    mkdir -p ~/.claude/tmp/autoresearch/<skill-name>
    ```
 
-5. **Initialize results.tsv**:
+5. **Initialize results.tsv** only if absent; an existing one is a prior run's history:
    ```bash
-   echo -e "round\tcommit\tscore\theldout\tcorrectness\tsafety\tsamples\tstatus\tdescription" > ~/.claude/tmp/autoresearch/<skill-name>/results.tsv
+   f=~/.claude/tmp/autoresearch/<skill-name>/results.tsv; [ -f "$f" ] || echo -e "round\tcommit\tscore\theldout\tcorrectness\tsafety\tsamples\tstatus\tdescription" > "$f"
    ```
 
-6. **Create branch**: `git checkout -b autoresearch/<skill-name>` from current HEAD. If the branch already exists, check it out and resume (read existing results.tsv for history).
+6. **Check for a prior run**: if branch `autoresearch/<skill-name>` exists, say so in the step 8 summary; after confirmation you resume it (see Resuming) instead of starting fresh. Create no branch or commit yet.
 
 7. **Read the SKILL.md** as the baseline prompt. Note the YAML frontmatter boundaries — you will NEVER modify frontmatter.
 
@@ -63,7 +63,7 @@ Work with the user to configure and review the baseline, then go autonomous.
    Its entries come from earlier runs on other skills: hypotheses for HYPOTHESIZE
    to try first when a cue matches, never facts that skip measurement.
 
-8. **Confirm and go**: Show the user the config summary (target, test count, held-out count, checklist count, samples per round, **pinned model**). Get confirmation. Then measure the baseline; the loop goes autonomous after the baseline review.
+8. **Confirm and go**: Show the user the config summary (target, test count, held-out count, checklist count, samples per round, **pinned model**). Get confirmation. Only then run `git checkout -b autoresearch/<skill-name>` from current HEAD (or check out the existing branch and follow Resuming) and measure the baseline; the loop goes autonomous after the baseline review.
 
 ---
 
