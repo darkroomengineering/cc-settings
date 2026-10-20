@@ -413,6 +413,25 @@ export async function lintSkillsDir(
         });
       }
     }
+
+    // A forked skill sees only its argument. When the agent invokes it bare,
+    // the case grades the agent's own answer, not the skill.
+    const evalsDir = join(skillsDir, "..", "evals");
+    for (const [dir, tags] of evalCaseTags(evalsDir)) {
+      const prompt = join(evalsDir, dir, "prompt.md");
+      if (!existsSync(prompt) || readFileSync(prompt, "utf8").includes("as its argument")) continue;
+      for (const name of tags) {
+        const skillMd = join(skillsDir, name, "SKILL.md");
+        if (existsSync(skillMd) && /^context: fork$/m.test(readFileSync(skillMd, "utf8"))) {
+          findings.push({
+            skill: name,
+            severity: "error",
+            rule: "eval-fork-argument",
+            message: `evals/${dir}/prompt.md must tell the agent to pass the whole message to the forked skill "as its argument"`,
+          });
+        }
+      }
+    }
   }
 
   return { findings, skillCount: skillNames.length };

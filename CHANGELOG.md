@@ -4,6 +4,29 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.80.2] — 2026-10-20
+
+Skill evals now judge with Sonnet 5.5 instead of Haiku 4.5, in both `bun src/scripts/eval-changed.ts` and `eval-ablate.ts`. Haiku, voting without reasoning, failed correct replies often enough to block pushes. Over 8 runs of one case the two judges cost about the same ($1.15 and $1.18), since the agent run makes up most of the cost.
+
+25 eval cases for skills that run in a forked context (`context: fork`) now tell the agent to pass the whole message as the skill's argument. A forked skill sees only its argument, so a bare call left the agent answering on its own and the case graded that answer, not the skill. `bun run lint:skills` now fails a forked skill's case whose prompt lacks the instruction.
+
+`/context-doc` opens with exactly one question and no side requests. It allowed up to four questions per round and said to open with one, and agents took the four. Its eval case went from 0 of 3 to 3 of 4.
+
+`/poke-holes` always runs at least the two-agent panel, however small the target, and ends with its Verdict line. On a 5-line file it used to read the code itself and skip the panel. `/fix` restores its stash with literal commands that find the tagged `stash@{n}`, apply it, then drop it. `/harvest` sends a mistake made by a tool call to a hook instead of the lint and test ladder, and ends by naming the files it wrote and asking whether to commit them.
+
+Five eval cases changed how they grade. `dr-review-thread-fix-by-default` grades the plan, since its prompt says not to run commands. `share-learning-write-gate` accepts an offer to write a different note. The two `/harvest` cases accept checks written and tested in the working tree, with approval needed only to commit or edit shared standards. `poke-holes-adversarial-panel` adds a regex check for the Verdict line.
+
+- src/scripts/eval-changed.ts
+- src/scripts/eval-ablate.ts
+- src/lib/lint-skills.ts
+- skills/context-doc/SKILL.md
+- skills/poke-holes/SKILL.md
+- skills/fix/SKILL.md
+- skills/harvest/SKILL.md
+- evals/*/prompt.md
+- evals/*/graders/
+- evals/context-doc-glossary-question/
+
 ## [15.80.1] — 2026-10-20
 
 `/autoresearch` no longer creates the `autoresearch/<skill>` branch before you confirm the config. Setup used to check out the branch in step 6 and ask for confirmation in step 8, so turning down the config still left a stray branch behind. The branch is now created only after you confirm. The same step also overwrote `results.tsv` before reading it to resume, which wiped a resumed run's history. It now writes the header only when the file doesn't exist yet. A resumed run continues from its last recorded round, and measures a new baseline only if its `results.tsv` has no data rows.

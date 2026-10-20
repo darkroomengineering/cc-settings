@@ -101,7 +101,10 @@ explicit checks.
 
 When the harvested behavior is a mistake agents keep making (the user corrected
 the same class twice, or reverts and review comments show it), prose is the
-weakest artifact: nothing fails when an agent skips it. Assume the next agent
+weakest artifact: nothing fails when an agent skips it. If the mistake is a tool
+call an agent issues (a shell command, an edit target) rather than code, the
+ladder below cannot see it: use the Hook row above, not a lint, test, or
+conftest-style check. Assume the next agent
 sees only the files it opened and copies the nearest example. Fix the class at
 the highest level that works, and say in the contract why each higher level
 did not:
@@ -178,7 +181,9 @@ approval before:**
 - Committing anything
 
 Personal-scope drafts (a new unregistered skill file, a RESEARCH.md seed) may be
-written freely; the gate is on anything shared.
+written freely; the gate is on anything shared. End the reply by naming the files
+written and asking whether to commit or land them, even when nothing shared was
+touched.
 
 ## What this skill does NOT do
 
