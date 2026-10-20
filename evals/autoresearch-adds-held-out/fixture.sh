@@ -37,3 +37,9 @@ Search takes 10 seconds when the query has an apostrophe in it.
 - min_improvement: 0.05
 - max_rounds: 50
 SEED
+
+git init -q -b main
+git config user.email "eval@example.com"
+git config user.name "Eval Fixture"
+git add -A
+git commit -q -m "Initial commit"
