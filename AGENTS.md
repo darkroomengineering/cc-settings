@@ -139,7 +139,7 @@ Check breaking changes before every major dependency upgrade. If the build break
 
 ### Shell Commands
 
-Quote every glob and path argument. Use absolute paths instead of `cd` chains; a wrong relative `cd` fails the whole command. Put each destructive step (delete, force, reset, drop) in its own command so a failure or denial stops exactly one thing. zsh never word-splits an unquoted `$VAR`: pass lists as arrays (`"${a[@]}"`), and suspect this when a command succeeds but does nothing.
+Quote every glob and path argument. Use absolute paths instead of `cd` chains; a wrong relative `cd` fails the whole command. Put each destructive step (delete, force, reset, drop) in its own command so a failure or denial stops exactly one thing. zsh doesn't word-split an unquoted `$VAR`: pass lists as arrays (`"${a[@]}"`), and suspect this when a command succeeds but does nothing.
 
 ### Recommend, Don't Override
 
