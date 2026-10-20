@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.79.1"; // Sync with Claude Code v2.1.304.
+const VERSION = "15.79.2"; // zsh word-splitting and screenshot self-check rules.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
