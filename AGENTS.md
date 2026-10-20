@@ -100,7 +100,8 @@ Never say "done" without explicitly reporting:
 - skipped or `.only` tests, or relaxed assertions;
 - skipped/failed migration, batch, or script records;
 - features not exercised end-to-end, including UI without browser verification;
-- claims that depend on a tool or service you did not run.
+- claims that depend on a tool or service you did not run;
+- defects in captures you took; inspect each one first.
 
 Typechecks and tests prove code, not the feature. Surface uncertainty.
 
@@ -110,7 +111,7 @@ When existing patterns conflict, choose one, usually the newer or better-tested 
 
 ### Post-Compaction Recovery
 
-After compaction or a context reset, re-read the task plan and every actively modified file and run `git diff --stat` before resuming. Never rely on remembered file contents or task state after context loss.
+After compaction or a context reset, re-read the task plan and every actively modified file and run `git diff --stat` before resuming; remembered contents are stale.
 
 ### Neutral Exploration
 
@@ -122,15 +123,15 @@ Default to no comment. Add one only when an agent without it would make a wrong 
 
 ### Clarify Before Full Work Mode
 
-Any non-trivial solution (beyond a lookup or obvious one-file fix) opens with clarifying rounds on target repo or branch, design choices, what "done" means. Repeat until no decision that changes the work is left; later rounds ask only what answers opened. Per round: at most 4 questions, 2 to 4 concrete options, recommended first, through the host's question tool (`AskUserQuestion`; Codex `request_user_input`), never a prose list. Make routine calls (conventional default) yourself; state the assumption. Read before asking; ask only what the user alone knows. When work needs a user decision, mid-task too, ask through the tool that turn; a prose-only question does not count; no turn ends waiting on one.
+Any non-trivial solution (beyond a lookup or obvious one-file fix) opens with clarifying rounds on target repo or branch, design choices, what "done" means. Repeat until no decision that changes the work is left; later rounds ask only what answers opened. Per round: at most 4 questions, 2 to 4 concrete options, recommended first, through the host's question tool (`AskUserQuestion`; Codex `request_user_input`), never a prose list. Make routine calls (conventional default) yourself; state the assumption. Read before asking; ask only what the user alone knows. Ask any user decision, mid-task too, through the tool that turn; never end a turn on a prose question.
 
 ### Plan Before Multi-File Changes
 
-When a wrong approach would require a full rollback, state the plan (files touched and risks), then proceed without waiting for approval on reversible in-scope work. Numeric delegation thresholds live in each host's instructions, such as Claude Code's `CLAUDE-FULL.md`.
+When a wrong approach would require a full rollback, state the plan (files touched and risks), then proceed without waiting for approval on reversible in-scope work. Delegation thresholds live in each host's instructions (Claude Code: `CLAUDE-FULL.md`).
 
 ### Every Plan Opens With a Functional DAG
 
-Every markdown plan (plan files, PRDs, ADRs, issue breakdowns, orchestration briefs, stated multi-file plans) start with `## Functional DAG`: a fenced recipe table with inputs on the left, operations merging rightward, parallelism visible by columns, and one terminal verification node. See `docs/functional-dag.md` for authoring rules and the Mermaid escape hatch. Reviews, audits, retros, and handoffs are not plans.
+Every markdown plan (plan files, PRDs, ADRs, issue breakdowns, orchestration briefs, stated multi-file plans) start with `## Functional DAG`: a fenced recipe table with inputs on the left, operations merging rightward, parallelism visible by columns, and one terminal verification node. Rules and the Mermaid option: `docs/functional-dag.md`. Reviews, audits, retros, and handoffs are not plans.
 
 ### Dependency Upgrades
 
@@ -138,7 +139,7 @@ Check breaking changes before every major dependency upgrade. If the build break
 
 ### Shell Commands
 
-Quote every glob and path argument. Use absolute paths instead of `cd` chains; a wrong relative `cd` fails the whole command. Put each destructive step (delete, force, reset, drop) in its own command so a failure or a denial stops exactly one thing, and so the harness can judge it on its own.
+Quote every glob and path argument. Use absolute paths instead of `cd` chains; a wrong relative `cd` fails the whole command. Put each destructive step (delete, force, reset, drop) in its own command so a failure or denial stops exactly one thing. zsh never word-splits an unquoted `$VAR`: pass lists as arrays (`"${a[@]}"`), and suspect this when a command succeeds but does nothing.
 
 ### Recommend, Don't Override
 
