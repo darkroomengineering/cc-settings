@@ -114,12 +114,9 @@ did not:
    instead. Read the actual error output: a stock message ("do not use X")
    does not count, so set the rule's custom message or pick a check that has
    one. If the pattern is already common, fail only when a change adds more.
-4. **A hook**, when the mistake is an agent action rather than code: a command
-   or tool call no type or lint sees. A `PreToolUse` deny whose reason names
-   the right command stops it in the loop, where prose can be skipped.
-5. **A test** of the behavior (screen it against the
+4. **A test** of the behavior (screen it against the
    [test audit checklist](../audit/references/test-audit.md)).
-6. **A rule or AGENTS.md line**, only for judgment calls nothing can check.
+5. **A rule or AGENTS.md line**, only for judgment calls nothing can check.
 
 Prove each new check fails on a real past instance of the mistake, and run the
 same command locally and in CI. That proof is this route's trap in Phase 5.
