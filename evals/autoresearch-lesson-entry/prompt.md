@@ -10,3 +10,5 @@ round	commit	score	heldout	correctness	safety	samples	status	description
 ```
 
 Using the autoresearch skill, and without running any command, show me exactly what you would append to the lessons file for this run, and say which rows it rests on.
+
+Invoke the autoresearch skill with this entire message, verbatim, as its argument; it runs in a separate context and sees nothing else.
