@@ -426,7 +426,7 @@ If `autoresearch/<skill-name>` branch already exists:
 5. Print: `Resuming from round {N}, best score: {score}`
 6. Continue the loop from round N+1
 
-If the results.tsv doesn't exist (branch exists but no tracking), measure a new baseline from the current branch state and start fresh tracking.
+If results.tsv has no data rows (missing or header only: branch exists but no tracking), measure a new baseline from the current branch state and start fresh tracking.
 
 ---
 
