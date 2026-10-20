@@ -122,9 +122,9 @@ Adversary report:
 2. **Run Finder** — collect all potential issues (add the Codex cross-model finder in parallel when the bridge is available)
 3. **Run Adversary** — challenge finder's output
 4. **Run Referee** — judge both outputs
-5. **Report** — present final verdicts
+5. **Report** — present final verdicts in the Output Format below, including its Verdict line
 
-Sequential — each agent depends on the previous output.
+Sequential — each agent depends on the previous output. However small the target, run at least Lightweight Mode's two agents; reading the code yourself is not a substitute for the panel.
 
 ## Output Format
 
