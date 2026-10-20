@@ -28,7 +28,7 @@ Work with the user to configure and review the baseline, then go autonomous.
 
 1. **Parse target skill**: Get `<skill-name>` from `$ARGUMENTS`. Validate `skills/<skill-name>/SKILL.md` exists.
 
-2. **Load or create RESEARCH.md**: Check for `skills/<skill-name>/RESEARCH.md`. If it exists, read it — a skill born from `/harvest` arrives with a seeded RESEARCH.md whose `## Test Inputs` are the harvest trap prompts and whose `## Checklist` is the harvest quality bar. If not, generate one:
+2. **Load or create RESEARCH.md**: Check for `skills/<skill-name>/RESEARCH.md`; its shape and the checklist guidelines are in [RESEARCH-FORMAT.md](./RESEARCH-FORMAT.md). If it exists, read it — a skill born from `/harvest` arrives with a seeded RESEARCH.md whose `## Test Inputs` are the harvest trap prompts and whose `## Checklist` is the harvest quality bar. If not, generate one:
    - Read the target SKILL.md
    - Derive 3 test inputs from its description and use cases
    - Derive 2 held-out inputs the same way, covering different use cases from the test inputs
@@ -58,6 +58,10 @@ Work with the user to configure and review the baseline, then go autonomous.
 6. **Create branch**: `git checkout -b autoresearch/<skill-name>` from current HEAD. If the branch already exists, check it out and resume (read existing results.tsv for history).
 
 7. **Read the SKILL.md** as the baseline prompt. Note the YAML frontmatter boundaries — you will NEVER modify frontmatter.
+
+   Then read `~/.claude/tmp/autoresearch/LESSONS.md` if it exists (see Lessons).
+   Its entries come from earlier runs on other skills: hypotheses for HYPOTHESIZE
+   to try first when a cue matches, never facts that skip measurement.
 
 8. **Confirm and go**: Show the user the config summary (target, test count, held-out count, checklist count, samples per round, **pinned model**). Get confirmation. Then measure the baseline; the loop goes autonomous after the baseline review.
 
@@ -195,11 +199,18 @@ LOOP FOREVER (round = 1, 2, 3, ...):
      - Read the current SKILL.md body
      - Review the per-item pass rates from the most recent scoring
      - Identify the lowest-scoring checklist items (these are the targets)
+     - Among items with similar pass rates, target first the one where samples
+       of the SAME input split YES/NO: the skill leaves that step to chance,
+       and one explicit instruction usually settles it. An item that fails on
+       every sample of one input and passes on the others is more often an
+       ambiguous input or a checklist bug (Stall Review categories 1-2)
      - Review recent results.tsv entries for patterns (repeated failures on same items)
 
   2. HYPOTHESIZE
      - Propose ONE targeted change to improve the lowest-scoring item(s)
-     - Write a one-line description of the hypothesis
+     - Write a one-line description of the hypothesis that names the training
+       sample and criterion that motivated it; a mutation no sample motivated
+       is speculation
      - Mutation types (pick one per round):
        a. ADD instruction — missing guidance for a failing criterion
        b. CLARIFY — replace a vague "consider" with the exact condition and the
@@ -402,64 +413,6 @@ Lowest-scoring: #{item_number} "{item_text}" at {rate}%
 
 ---
 
-## RESEARCH.md Format
-
-Users create this file at `skills/<skill-name>/RESEARCH.md` to configure the optimization — or `/harvest` seeds it automatically when it lands a new skill (its Phase 6). A harvest seed already respects the **blind-run rule**: it carries only the raw trap prompts and the binary criteria, never the expected answers or scoring rationale. Keep it that way when you edit — leaking either turns the eval into teaching-to-the-test. Validate any change with `bun run lint:research skills/<skill-name>/RESEARCH.md`.
-
-```markdown
-# AutoResearch Config: <skill-name>
-
-## Test Inputs
-Prompts to test the skill against. Each ### heading is one test case.
-
-### Test 1: <label>
-<The full prompt/task that would be given to this skill>
-
-### Test 2: <label>
-<Another test prompt>
-
-### Test 3: <label>
-<Another test prompt>
-
-## Held-out Inputs
-Scored every round, never read by the loop. Cover use cases the test inputs do not.
-
-### Held-out 1: <label>
-<A prompt the loop will never see>
-
-### Held-out 2: <label>
-<Another>
-
-## Checklist
-Binary pass/fail criteria. Each item is scored YES (1) or NO (0).
-
-- [ ] <criterion 1>
-- [ ] <criterion 2>
-- [ ] <criterion 3>
-- [ ] <criterion 4>
-- [ ] <criterion 5>
-
-## Settings
-- samples: 3
-- min_improvement: 0.05
-- stall_rounds: 3
-- model: claude-sonnet-5-5
-```
-
-### Guidelines for good checklists
-
-3-7 items is the sweet spot. More than 7 and the skill starts gaming the checklist.
-
-Good criteria are:
-- **Observable**: Can be verified from the output alone (not "did it think carefully")
-- **Binary**: Unambiguous yes/no (not "is the code clean")
-- **Independent**: Each tests a different aspect (not 3 variants of "is it concise")
-- **Actionable**: A failing score points to a specific thing to fix in the prompt
-
-Bad criteria: "Is the output high quality" (vague), "Would a senior engineer approve" (subjective), "Is it fast" (not measurable from text output).
-
----
-
 ## Resuming
 
 If `autoresearch/<skill-name>` branch already exists:
@@ -474,6 +427,33 @@ If `autoresearch/<skill-name>` branch already exists:
 6. Continue the loop from round N+1
 
 If the results.tsv doesn't exist (branch exists but no tracking), measure a new baseline from the current branch state and start fresh tracking.
+
+---
+
+## Lessons
+
+When the user stops the run, before reporting, append at most one entry to
+`~/.claude/tmp/autoresearch/LESSONS.md`, the file every later run reads at setup:
+
+```markdown
+## <skill-name> · <YYYY-MM-DD> · <model>
+- cue: <the shape of skill or failure this applies to, not this skill's specifics>
+- lesson: <the mutation to try, stated so it can be applied and checked>
+- evidence: <the kept rounds it rests on, with training and held-out deltas>
+- confidence: <high | medium | low, and why>
+```
+
+Write it only from a `kept` round whose held-out gain exceeded the noise floor.
+`inconclusive`, `reverted`, and `overfit` rows are not evidence a mutation
+transfers, and a RESTRUCTURE that changed several things at once supports only
+the narrower claim the rounds isolate. If no round qualifies, append the
+heading with the single line `NO_ENTRY`. Aim between too generic ("be clearer")
+and too specific to fire again ("add the severity-label example"). Never copy a
+test input, held-out input, or failing output into an entry; the Held-out Rule
+applies here too.
+
+When a later run tries a lesson, log the round's description with the lesson's
+heading, so a lesson that keeps reverting can be found and deleted.
 
 ---
 

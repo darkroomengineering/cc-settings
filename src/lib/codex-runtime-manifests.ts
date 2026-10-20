@@ -269,7 +269,7 @@ const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
 // Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
 // bunfig.toml `preload` cannot run inside a hook.
 const ADDED_IN_V19 = ["src/bunfig.toml"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 21;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 22;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -355,9 +355,15 @@ const REMOVED_IN_V21 = [
   "src/scripts/checkpoint.ts",
 ];
 const RENAMED_IN_V21 = new Map([["skills/review/SKILL.md", "skills/dr-review/SKILL.md"]]);
-export const RUNTIME_SOURCE_FILES: readonly string[] = RUNTIME_SOURCE_FILES_V20.filter(
+const RUNTIME_SOURCE_FILES_V21: readonly string[] = RUNTIME_SOURCE_FILES_V20.filter(
   (path) => !REMOVED_IN_V21.includes(path),
 ).map((path) => RENAMED_IN_V21.get(path) ?? path);
+// Version 22: the RESEARCH.md format reference beside the autoresearch skill.
+const ADDED_IN_V22 = ["skills/autoresearch/RESEARCH-FORMAT.md"];
+export const RUNTIME_SOURCE_FILES: readonly string[] = [
+  ...RUNTIME_SOURCE_FILES_V21,
+  ...ADDED_IN_V22,
+];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
 );
@@ -395,6 +401,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [18, RUNTIME_SOURCE_FILES_V18],
   [19, RUNTIME_SOURCE_FILES_V19],
   [20, RUNTIME_SOURCE_FILES_V20],
+  [21, RUNTIME_SOURCE_FILES_V21],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 
