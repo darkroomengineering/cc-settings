@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.79.0"; // Drop skills and agents that repeat Claude Code built-ins.
+const VERSION = "15.79.1"; // Sync with Claude Code v2.1.304.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
