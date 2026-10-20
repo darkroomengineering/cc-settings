@@ -10,7 +10,11 @@ All notable changes to cc-settings are documented here.
 
 The `autoresearch-adds-held-out` eval was flaky because of the branch step, passing 1 of 3 on v15.79.2 and 2 of 3 on v15.80.0. Its LLM judge was also unreliable: Haiku, voting without reasoning, failed correct replies about half the time. The case now uses only deterministic graders. They check that no branch exists, that RESEARCH.md gained a held-out section that doesn't reword the test inputs, and that the reply asks for confirmation. The fixture is its own git repo, so the branch check reads that repo, not the suite's. The new skill passes 8 of 8 runs; v15.80.0 scores 0.75 in 6 of 6, below the 0.8 threshold, because every run creates the branch first. `autoresearch-confirm-before-loop` had the same Haiku judge and blocked a push on a correct reply, so it gets the same deterministic graders and passes 6 of 6.
 
+`bun src/scripts/eval-changed.ts` and `eval-ablate.ts` now judge with Sonnet 5.5 instead of Haiku 4.5, since every other LLM-graded case had the same unreliable judge. On the old flaky case, both judges cost the same for 8 runs ($1.15 vs $1.18), because the agent run makes up most of the cost.
+
 - skills/autoresearch/SKILL.md
+- src/scripts/eval-changed.ts
+- src/scripts/eval-ablate.ts
 - evals/autoresearch-adds-held-out/
 - evals/autoresearch-confirm-before-loop/
 

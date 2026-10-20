@@ -19,7 +19,9 @@ import { evalCaseTags } from "../lib/lint-skills.ts";
 
 const ROOT = join(import.meta.dir, "..", "..");
 const MODEL = "claude-sonnet-5-5";
-const JUDGE_MODEL = "claude-haiku-4-5-20251001";
+// Haiku, voting without reasoning, failed correct long replies; the judge is a
+// small share of a run next to the agent, so a cheaper judge saves little.
+const JUDGE_MODEL = "claude-sonnet-5-5";
 const THRESHOLD = "0.8";
 
 export const HELP = `Usage: bun src/scripts/eval-changed.ts [--base <ref>] [--max-cost-usd <n>] [--base-arm]
