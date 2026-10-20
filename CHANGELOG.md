@@ -10,13 +10,21 @@ Skill evals now judge with Sonnet 5.5 instead of Haiku 4.5, in both `bun src/scr
 
 25 eval cases for skills that run in a forked context (`context: fork`) now tell the agent to pass the whole message as the skill's argument. A forked skill sees only its argument, so a bare call left the agent answering on its own and the case graded that answer, not the skill. `bun run lint:skills` now fails a forked skill's case whose prompt lacks the instruction.
 
-`/context-doc` opens with exactly one question and no side requests. It allowed up to four questions per round and said to open with one, and agents took the four. Its eval case went from 0 of 3 to 3 of 3.
+`/context-doc` opens with exactly one question and no side requests. It allowed up to four questions per round and said to open with one, and agents took the four. Its eval case went from 0 of 3 to 3 of 4.
+
+`/poke-holes` always runs at least the two-agent panel, however small the target, and ends with its Verdict line. On a 5-line file it used to read the code itself and skip the panel. `/fix` restores its stash with literal commands that find the tagged `stash@{n}`, apply it, then drop it. `/harvest` sends a mistake made by a tool call to a hook instead of the lint and test ladder, and ends by naming the files it wrote and asking whether to commit them.
+
+Five eval cases changed how they grade. `dr-review-thread-fix-by-default` grades the plan, since its prompt says not to run commands. `share-learning-write-gate` accepts an offer to write a different note. The two `/harvest` cases accept checks written and tested in the working tree, with approval needed only to commit or edit shared standards. `poke-holes-adversarial-panel` adds a regex check for the Verdict line.
 
 - src/scripts/eval-changed.ts
 - src/scripts/eval-ablate.ts
 - src/lib/lint-skills.ts
 - skills/context-doc/SKILL.md
+- skills/poke-holes/SKILL.md
+- skills/fix/SKILL.md
+- skills/harvest/SKILL.md
 - evals/*/prompt.md
+- evals/*/graders/
 - evals/context-doc-glossary-question/
 
 ## [15.80.1] — 2026-10-20
