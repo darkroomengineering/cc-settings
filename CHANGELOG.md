@@ -9,13 +9,13 @@ All notable changes to cc-settings are documented here.
 Claude Code now asks you once a session has started 30 subagents, and again at 45, 60 and every 15 after. Claude Code removed its own 200-subagent lifetime cap in 2.1.224, so a fan-out stuck in a loop could keep spawning agents with nothing to stop it. The hook never blocks, because Workflows and ultracode legitimately start dozens of agents.
 
 **Added:**
-- `src/hooks/spawn-cap.ts`, run by the PreToolUse dispatcher on Agent and Task calls. It keeps a per-session count in `~/.claude/tmp/spawn-count-<hash>.json` and asks with a `[Spawn Cap]` reason at each threshold. A session's first spawn deletes count files older than 7 days. Any error lets the call through.
+- `src/hooks/spawn-cap.ts`, run by the PreToolUse dispatcher on Agent and Task calls. Each call appends a token line to `~/.claude/tmp/spawn-count-<hash>.log` and takes its line's position as its count, then asks with a `[Spawn Cap]` reason at each threshold. A session's first spawn deletes count files older than 7 days. Any error lets the call through.
 - A third PreToolUse dispatcher entry in `config/40-hooks.json` with matcher `Agent|Task`. Existing installs pick it up on the next `setup.sh` run; an interactive setup asks before adopting it.
 - The managed-file manifest moves to v28 so existing installs receive the new hook file.
 
 **Limits:**
 - Agents started by a Workflow script don't go through the Agent tool, so they aren't counted.
-- Agent calls sent in one message run the hook in parallel and can lose an increment, which delays the prompt or asks twice at one threshold. A threshold is never skipped.
+- A payload without a session id is not counted.
 
 Idea from karanb192/claude-code-hooks (`plugins/subagent-spawn-cap`).
 

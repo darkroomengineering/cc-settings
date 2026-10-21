@@ -496,7 +496,7 @@ Every handler still runs as its own script (`bun src/hooks/<name>.ts < payload.j
 
 | Script | Purpose | Async |
 |--------|---------|-------|
-| `spawn-cap.ts` | Counts the Agent tool calls of each session and asks for approval (`permissionDecision: "ask"`, reason prefixed `[Spawn Cap]`) at the 30th, then every 15th after it (45, 60, …). Never blocks, since Workflows and ultracode legitimately start dozens of agents. Agents started by a Workflow script do not go through the Agent tool, so they are not counted. The count lives in `~/.claude/tmp/spawn-count-<sha256 of session id>.json`; a session's first spawn deletes such files older than 7 days. Parallel Agent calls can lose an increment, which delays the prompt, and can ask twice at one threshold. A payload without a session id is not counted. Fail-open | No |
+| `spawn-cap.ts` | Counts the Agent tool calls of each session and asks for approval (`permissionDecision: "ask"`, reason prefixed `[Spawn Cap]`) at the 30th, then every 15th after it (45, 60, …). Never blocks, since Workflows and ultracode legitimately start dozens of agents. Agents started by a Workflow script do not go through the Agent tool, so they are not counted. Each call appends one token line to `~/.claude/tmp/spawn-count-<sha256 of session id>.log` and takes its token's position as its count, so Agent calls sent in parallel each get a distinct count; a session's first spawn deletes such files older than 7 days. A payload without a session id is not counted. Fail-open | No |
 
 ### PostToolUse (Write|Edit matcher)
 

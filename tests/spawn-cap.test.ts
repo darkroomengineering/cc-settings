@@ -3,7 +3,7 @@ import { chmodSync, utimesSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { shouldAsk } from "../src/hooks/spawn-cap.ts";
+import { shouldAsk, tokenPosition } from "../src/hooks/spawn-cap.ts";
 import { spawnCapture } from "./support/proc.ts";
 
 // Every stateful case runs in a child process: the state dir is fixed when
@@ -79,8 +79,15 @@ async function stateFiles(): Promise<string[]> {
   }
 }
 
-async function readCount(name: string): Promise<unknown> {
-  return (JSON.parse(await readFile(join(tmp, name), "utf8")) as { count: unknown }).count;
+const TOKEN_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+async function readCount(name: string): Promise<number> {
+  const log = await readFile(join(tmp, name), "utf8");
+  return log.split("\n").filter((line) => TOKEN_RE.test(line)).length;
+}
+
+function tokens(n: number): string {
+  return Array.from({ length: n }, () => `\n${crypto.randomUUID()}`).join("");
 }
 
 async function onlyStateFile(): Promise<string> {
@@ -138,9 +145,41 @@ describe("which calls count", () => {
   });
 });
 
+describe("tokenPosition", () => {
+  const a = "11111111-1111-4111-8111-111111111111";
+  const b = "22222222-2222-4222-8222-222222222222";
+
+  test("returns the 1-based position among token lines", () => {
+    expect(tokenPosition(`\n${a}\n${b}`, b)).toBe(2);
+  });
+
+  test("skips lines that are not tokens", () => {
+    expect(tokenPosition(`{"count":29}\n${a}\ngarbage\n\n${b}`, b)).toBe(2);
+  });
+
+  test("returns 0 when the token is absent", () => {
+    expect(tokenPosition(`\n${a}`, b)).toBe(0);
+  });
+});
+
+describe("concurrent spawns", () => {
+  test("30 spawns started at once each get a distinct count and ask exactly once", async () => {
+    const runs = await Promise.all(
+      times(30, agent("parallel")).map((raw) =>
+        spawnCapture(["bun", HOOK], { stdin: raw, env: childEnv() }),
+      ),
+    );
+    expect(runs.map((r) => r.exit)).toEqual(times(30, "0").map(Number));
+    const asked = runs.filter((r) => r.stdout.includes('"permissionDecision":"ask"'));
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.stdout).toContain("30 subagents");
+    expect(await readCount(await onlyStateFile())).toBe(30);
+  });
+});
+
 describe("corrupt state", () => {
   test.each([['{"count":"x"}'], ["[]"], ['{"count":-5}'], ["{not json"]])(
-    "%s restarts the count at 1",
+    "%s is ignored and the count restarts at 1",
     async (stored) => {
       await drive("main", [agent("s1")]);
       const file = await onlyStateFile();
@@ -173,7 +212,7 @@ describe("standalone process", () => {
   test("the 30th spawn prints the PreToolUse ask envelope and exits 0", async () => {
     await drive("main", [agent("standalone")]);
     const file = await onlyStateFile();
-    await writeFile(join(tmp, file), JSON.stringify({ count: 29 }));
+    await writeFile(join(tmp, file), tokens(29));
     const { stdout, exit } = await spawnCapture(["bun", HOOK], {
       stdin: agent("standalone"),
       env: childEnv(),
