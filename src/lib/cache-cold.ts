@@ -160,3 +160,33 @@ export function coldResendMessage(c: ColdResend): string {
     "If the earlier context is stale, /handoff then /clear starts the next task lighter."
   );
 }
+
+/** Resume and fork fields of the SessionStart payload (Claude Code 2.1.251+). */
+export interface ResumeCachePayload {
+  prompt_cache_likely_expired?: unknown;
+  context_tokens?: unknown;
+  seconds_since_last_response?: unknown;
+  estimated_cache_write_usd?: unknown;
+}
+
+/** The user-facing warning for a resume whose prompt cache expired with a large
+ *  context, from Claude Code's own staleness and cost fields; null otherwise. */
+export function resumeColdMessage(
+  p: ResumeCachePayload,
+  minTokens: number = COLD_RESEND_MIN_TOKENS,
+): string | null {
+  const {
+    prompt_cache_likely_expired: expired,
+    context_tokens: tokens,
+    seconds_since_last_response: idle,
+    estimated_cache_write_usd: usd,
+  } = p;
+  if (expired !== true || typeof tokens !== "number" || tokens < minTokens) return null;
+  const idleText = typeof idle === "number" ? ` after ${formatAge(idle * 1000)} idle` : "";
+  const usdText = typeof usd === "number" ? `, est. $${usd.toFixed(2)} by Claude Code` : "";
+  return (
+    `[Cache] Resumed${idleText}; the prompt cache has expired, so your first message re-sends ` +
+    `${formatTokens(tokens)} tokens of context uncached${usdText}. ` +
+    "If the earlier context is stale, /handoff then /clear starts the next task lighter."
+  );
+}

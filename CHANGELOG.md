@@ -4,6 +4,16 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.86.0] — 2026-10-21
+
+When you resume a session whose prompt cache has expired, you now see what the first message will cost before you send it, and the skill trigger check has real thresholds for three skills (OSS-48, OSS-49).
+
+**Hooks:**
+- `src/hooks/cache-cold.ts` also runs on SessionStart with matcher `resume|fork`. When Claude Code reports `prompt_cache_likely_expired` with 100K tokens or more of context, it shows you the idle gap, the size and Claude Code's own cost estimate as a `systemMessage`. A marker in `~/.claude/tmp` stops your first message from warning about the same gap again. `session-start.ts` no longer prints the model-only `[cache]` line. (OSS-48)
+
+**Evals:**
+- `evals/triggers/` has calibrated prompt sets for `fix`, `codex` and `refactor` (20 prompts, 3 runs each, about $4.25 per set). Measured recall: fix 93%, codex 97%, refactor 78% (after dropping one prompt that correctly loaded `/hook`); false triggers 0% for all three. Thresholds sit about one prompt below the measured rate. Refactor misses "move X out of Y" and "pull duplicated code into one function" phrasings, which a future description edit can target. (OSS-49)
+
 ## [15.85.0] — 2026-10-21
 
 Nine improvements from the October research backlog (OSS-34 to OSS-40, OSS-42, OSS-43). You now get a warning before a message re-sends an expired cache at full price, agents need your OK to change MCP or plugin config, and pushes block when a critical skill eval regresses.
