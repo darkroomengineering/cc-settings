@@ -136,6 +136,10 @@ export const Sandbox = z.looseObject({
   failIfUnavailable: z.boolean().optional(),
   enableWeakerNetworkIsolation: z.boolean().optional(), // macOS: weaker network isolation for MITM proxy verification
   allowAppleEvents: z.boolean().optional(), // 2.1.181 — macOS: allow sandboxed commands to send Apple Events
+  // 2.1.305 — Linux: let sandboxed commands create user namespaces (Chromium,
+  // rootless podman). Upstream warns this bypasses the sandbox's file
+  // protections, so cc-settings never sets it.
+  allowNestedUserNamespaces: z.boolean().optional(),
   network: z
     .looseObject({
       allowedDomains: z.array(z.string()).optional(),

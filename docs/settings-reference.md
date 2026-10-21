@@ -125,6 +125,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_RETRY_WATCHDOG` | `"1"` or unset | Keeps retrying transient API failures for long unattended sessions (v2.1.186). As of v2.1.199 also raises the default retry count for non-capacity transient errors to 300 and lifts the `15` cap on `CLAUDE_CODE_MAX_RETRIES` |
 | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` | integer (string) | Caps how long `CLAUDE_CODE_RETRY_WATCHDOG` waits out 429 and 529 errors (v2.1.295) |
 | `CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS` | integer (string) | Ends `CLAUDE_CODE_RETRY_WATCHDOG` retry mode when a usage-limit reset is further away than this, instead of waiting for it (v2.1.301) |
+| `CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS` | integer (string) | How often `CLAUDE_CODE_RETRY_WATCHDOG` rechecks a usage limit, so it notices one lifted before its reset (v2.1.305) |
 | `CLAUDE_ENABLE_STREAM_WATCHDOG` | `"0"` to disable, unset for default | Streaming idle watchdog — aborts and retries a response stream that produces no events for 5 minutes. **On by default for all providers** as of v2.1.196; set `=0` to disable. Distinct from `CLAUDE_CODE_RETRY_WATCHDOG` (which governs the retry cap, not stream idleness) |
 | `OTEL_LOG_ASSISTANT_RESPONSES` | `"1"` / `"0"` / unset | Adds the model's response text to the `claude_code.assistant_response` OTEL log event. **Redacted unless `=1`; when unset it inherits `OTEL_LOG_USER_PROMPTS`** — so deployments already logging prompt content start logging response content on upgrade. Set `=0` to keep prompts-only (v2.1.193) |
 | `OTEL_LOG_MANAGED_SETTINGS` | `"1"` or unset | Adds redacted settings and digests to the `claude_code.managed_settings_resolved` OTel event, which otherwise carries only the managed-settings sources and policy helper state (v2.1.274) |
@@ -306,6 +307,7 @@ Sandbox configuration for secure command execution. cc-settings ships with `fail
 |-------|------|-------------|
 | `failIfUnavailable` | boolean | Exit with error when sandbox is enabled but unavailable (default: false) |
 | `enableWeakerNetworkIsolation` | boolean | macOS: weaker network isolation for MITM proxy verification |
+| `allowNestedUserNamespaces` | boolean | Linux: let sandboxed commands create user namespaces, for Chromium or rootless podman. This lets them get around the sandbox's file protections; cc-settings leaves it unset (v2.1.305) |
 | `filesystem.allowRead` / `allowWrite` | list | Re-allow paths inside `denyRead`/`denyWrite` regions (v2.1.77, v2.1.78) |
 | `filesystem.disabled` | boolean | Skip filesystem isolation entirely while keeping network egress control (v2.1.216) |
 | `network.allowedDomains` | list | Allowlist of domains sandboxed commands may reach (v2.1.113) |
@@ -603,7 +605,7 @@ Channels are the team-distribution mechanism for plugins and managed configurati
 
 Managed MCP server policy lists (v2.1.112). Patterns are matched against MCP server URLs / identifiers. Use for enterprise allowlisting; supports scheme wildcards (e.g., `https://*.internal.example.com`).
 
-Since v2.1.259 these lists govern only servers **users add**: user, project, and local config, `--mcp-config`, agent frontmatter, plugins, and claude.ai connectors. Servers the organization itself delivers through `managedMcpServers` or `managed-mcp.json` bypass them.
+Since v2.1.259 these lists govern only servers **users add**: user, project, and local config, `--mcp-config`, agent frontmatter, plugins, and claude.ai connectors. Servers the organization itself delivers through `managedMcpServers` or `managed-mcp.json` bypass them. Since v2.1.305 `allowedMcpServers` also stops filtering `managed-mcp.json` stdio servers that use `${VAR}` only in `env`, while `deniedMcpServers` still blocks them, so list one there to keep it off.
 
 ```json
 {

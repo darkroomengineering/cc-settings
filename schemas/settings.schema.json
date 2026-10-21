@@ -1206,6 +1206,9 @@
         "allowAppleEvents": {
           "type": "boolean"
         },
+        "allowNestedUserNamespaces": {
+          "type": "boolean"
+        },
         "network": {
           "type": "object",
           "properties": {
