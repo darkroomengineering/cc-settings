@@ -293,6 +293,9 @@ export function checkTriggers(opts: CheckOptions): TriggerOutcome {
       `${graded.length} graded, ${errored} errored, cost $${spent.toFixed(2)}`,
   );
   if (cut) return skip(`cost ceiling $${opts.maxCost} hit before every run finished`, spent);
+  // Scoring only the runs that returned would overstate recall or hide false triggers.
+  if (errored > 0)
+    return skip(`${errored} run(s) errored; rerun before trusting the scores`, spent);
   if (recall === null || falseTrigger === null) return skip("no graded runs in one class", spent);
   const failures = [
     recall < set.min_recall ? `recall ${pct(recall)} < ${pct(set.min_recall)}` : null,

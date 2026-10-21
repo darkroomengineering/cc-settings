@@ -930,6 +930,15 @@ describe("assessWorkerResult", () => {
     });
   });
 
+  test("reported blockers make an otherwise ready result not ready", () => {
+    const a = assessWorkerResult(
+      workerResult({ blockers: ["needs the staging API key"] }),
+      tree(["src/a.ts"]),
+    );
+    expect(a.ready).toBe(false);
+    expect(a.reasons).toEqual(["1 blocker(s) reported"]);
+  });
+
   test("a completed claim with nothing in the tree and no commit is not ready", () => {
     const a = assessWorkerResult(workerResult(), tree([]));
     expect(a.ready).toBe(false);

@@ -873,6 +873,7 @@ export function assessWorkerResult(result: WorkerResult, tree: WorkerTreeState):
   if (!result.verify_result.passed) {
     reasons.push(result.verify_cmd ? `\`${result.verify_cmd}\` failed` : "verification failed");
   }
+  if (result.blockers.length > 0) reasons.push(`${result.blockers.length} blocker(s) reported`);
   const changed = new Set(tree.changed.map(normalizePath));
   const listed = result.files_changed.map(normalizePath).filter(Boolean);
   if (result.commit) {
