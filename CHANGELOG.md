@@ -10,10 +10,13 @@ Skill evals now judge with Fable 5.1, in both `bun src/scripts/eval-changed.ts` 
 
 The agent under test cannot read its own graders: `claude plugin eval` puts the `evals/` folder in the sandbox's `denyRead` list, and a probe case that tried to read its `graders/criteria.md` was refused. So no answer-key leak check was added.
 
+If `eval-ablate.ts --model` names Fable itself, Opus 5.5 judges instead, so the judge never matches the answer model.
+
 Idea from trailofbits/skills (`plugins/code-improver/evals`).
 
 **Files changed:**
-- src/scripts/eval-changed.ts, src/scripts/eval-ablate.ts
+- src/scripts/eval-changed.ts, src/scripts/eval-ablate.ts, tests/eval-scripts.test.ts
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
 
 ## [15.82.0] — 2026-10-21
 

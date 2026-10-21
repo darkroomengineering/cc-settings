@@ -3,7 +3,14 @@
 
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
-import { aaRows, caseNoise, pairOrder, spread, withinNoise } from "../src/scripts/eval-ablate.ts";
+import {
+  aaRows,
+  caseNoise,
+  judgeFor,
+  pairOrder,
+  spread,
+  withinNoise,
+} from "../src/scripts/eval-ablate.ts";
 import { classifyArms, flag, splitCost } from "../src/scripts/eval-changed.ts";
 
 const SRC = resolve(import.meta.dir, "..", "src", "scripts");
@@ -44,6 +51,11 @@ describe("eval-changed", () => {
 });
 
 describe("eval-ablate", () => {
+  test("judgeFor never returns the answer model", () => {
+    expect(judgeFor("claude-sonnet-5-5")).toBe("claude-fable-5-1");
+    expect(judgeFor("claude-fable-5-1")).toBe("claude-opus-5-5");
+  });
+
   test("--help lists --aa and --noise and exits 0", async () => {
     const r = await help("eval-ablate.ts");
     expect(r.exit).toBe(0);
