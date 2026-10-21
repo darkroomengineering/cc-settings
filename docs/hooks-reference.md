@@ -428,16 +428,17 @@ The dispatcher reads stdin once, runs the handlers whose own matcher matches `to
 | Event | Entry matcher | Entry timeout | Handlers, in order (each handler's own matcher) |
 |-------|---------------|---------------|--------------------------------------------------|
 | `UserPromptSubmit` | none | 3 s | `delegation-detector`, `quota-steer`, `escalate-model` |
-| `PreToolUse` | `Bash` and `Edit\|Write`, two entries with the same command so a Bash call and an Edit call each start one process | 5 s each; `onFailure: "block"` on the Bash entry only | `safety-net` (Bash), `pre-edit-validate` (Edit), `freeze-guard` (Edit\|Write), `knowledge-hint` (Bash\|Edit\|Write) |
+| `PreToolUse` | `Bash` and `Edit\|Write`, two entries with the same command so a Bash call and an Edit call each start one process | 5 s each; `onFailure: "block"` on the Bash entry only | `safety-net` (Bash), `freeze-guard` (Edit\|Write), `test-protect` (Bash\|Edit\|Write), `pre-edit-validate` (Edit), `knowledge-hint` (Bash\|Edit\|Write) |
 | `PostToolUse` | `Write\|Edit\|Bash\|Agent` | none (the default) | `post-edit` (Write\|Edit), `tool-cadence` (Bash\|Agent), `promote-memory` (Write\|Edit), `escalate-acted` (Agent) |
 
 - **Block.** The first handler that blocks wins. The response is exactly what that handler prints when it runs alone: `{"decision":"block","reason":…}` on stdout and exit 2. The reason carries the handler's prefix (`[Safety Net]`, `[Harness]`, `[Freeze]`), so it names the handler. Handlers after the blocker still run, except after `safety-net`: its block is answered at once so a slow advisory handler cannot delay it. The `additionalContext` of the other handlers is dropped when the call is blocked.
+- **Ask.** When no handler blocks and at least one calls `io.ask`, the response is one `hookSpecificOutput` envelope with `"permissionDecision":"ask"` and `permissionDecisionReason` set to the asking handlers' reasons joined with newlines; the other handlers' `additionalContext` rides in the same envelope. Exit 0. Claude Code then shows the user a permission prompt with that reason. A block still wins over an ask. `test-protect` is the one handler that asks. The envelope follows the PreToolUse decision control in the [hooks docs](https://code.claude.com/docs/en/hooks), which list `ask` among the `permissionDecision` values.
 - **Context.** Every handler's `additionalContext` is joined with newlines into one `hookSpecificOutput` envelope, exit 0. Tool events inject only through that envelope (see Sync vs Async Behavior).
 - **Failure.** `safety-net` is fail-closed: if it throws, times out or fails to load, the dispatcher blocks with `[Safety Net] internal error, failing closed: <detail>`, as a crashed safety-net process does when run alone. Any other handler that throws or times out is skipped, its error goes to stderr, and the rest still run. Unparseable stdin matches no tool, so nothing runs and the exit is 0.
 - **Time.** `safety-net` runs first and gets the whole entry timeout. Each other handler gets the timeout its own entry had (3 s or 5 s), capped by what is left of the entry timeout minus 400 ms, and a handler that overruns is abandoned. Handlers run one after another, so a slow handler shortens the time the later ones get: a 2 s Jev call in `delegation-detector` leaves about 0.6 s for the two handlers after it. `knowledge-hint` runs `git` synchronously (2 s cap per call), which no timeout can interrupt.
 - **Still separate entries.** `post-edit-tsc`, `log-bash` and `codex-verify` are `async: true`. `check-docs-before-install` is gated by an `if` filter, and the dispatcher cannot evaluate that filter, so it runs only on install commands as its own process. `verify-hooks` must run before dependency-backed code loads, and `session-start` is a plain-stdout script with top-level side effects, so both stay as SessionStart entries.
 
-Every handler still runs as its own script (`bun src/hooks/<name>.ts < payload.json`), which is how the tests, `bun run hooks:bench` and the Codex plugin invoke them. A handler exports `main(io: HookIO)` (`src/lib/hook-runtime.ts`) and calls `io.hookInput`, `io.toolInput`, `io.context` and `io.block` instead of printing and exiting; run alone it gets `processIO`, run by the dispatcher it gets a `captureIO` over the payload the dispatcher read.
+Every handler still runs as its own script (`bun src/hooks/<name>.ts < payload.json`), which is how the tests, `bun run hooks:bench` and the Codex plugin invoke them. A handler exports `main(io: HookIO)` (`src/lib/hook-runtime.ts`) and calls `io.hookInput`, `io.toolInput`, `io.context`, `io.ask` and `io.block` instead of printing and exiting; run alone it gets `processIO`, run by the dispatcher it gets a `captureIO` over the payload the dispatcher read.
 
 ### SessionStart
 
@@ -488,6 +489,7 @@ Every handler still runs as its own script (`bun src/hooks/<name>.ts < payload.j
 
 | Script | Purpose | Async |
 |--------|---------|-------|
+| `test-protect.ts` | Asks for approval (`permissionDecision: "ask"`, reason prefixed `[Test Guard]`) before a call disables or deletes a test: an Edit that adds a skip marker (`.skip(`, `.only(`, `.todo(`, `xit(`, `xdescribe(`, `xtest(`, `describe.skip`, `it.skip`, `test.skip`, `@Disabled`, `t.Skip(`, `@pytest.mark.skip`, `pytest.skip(`) to a test file, a Write that leaves an existing test file with more of them, `rm`/`unlink`/`git rm` of a test file or test directory, or `mv`/`git mv` of one to a name no runner picks up (`.bak`, `.disabled`, dropped `.test.`, out of a test directory). A test file is `*.test.*`, `*.spec.*`, `*_test.go`, `*_test.py`, `test_*.py`, or anything under `__tests__/`, `tests/`, `test/` or `e2e/`. Asks rather than blocks, since deleting the tests of removed code is legitimate. A Write that creates a new test file passes silently. Fail-open | No |
 | `knowledge-hint.ts` | Surfaces up to 3 team-knowledge notes whose slug/tags match the Bash command or edited file, once per note per session; reads the 6h index cache, never the network | No |
 
 ### PostToolUse (Write|Edit matcher)
@@ -665,7 +667,7 @@ Run a Claude Code session and trigger the relevant event. Check logs for output 
 - Always quote `$HOME` paths in the `command` string.
 - Use `async: true` for non-blocking operations (logging, metrics).
 - Set reasonable `timeout` values (default 600s is often too long for simple scripts).
-- For `PreToolUse` hooks: exit 0 means allow, exit 2 means block (output JSON with `{"decision":"block","reason":"..."}`). Include a clear message explaining why.
+- For `PreToolUse` hooks: exit 0 means allow, exit 2 means block (output JSON with `{"decision":"block","reason":"..."}`). To hand the decision to the user instead, exit 0 with `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"..."}}` (`io.ask` in a dispatched handler). Include a clear message explaining why.
 - Write to log files for debugging rather than relying on stdout for async hooks.
 
 ---

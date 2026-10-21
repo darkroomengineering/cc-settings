@@ -4,6 +4,26 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.82.0] — 2026-10-21
+
+Claude Code now asks you before an agent skips, deletes, or renames away a test. AGENTS.md has long made relaxing or skipping assertions to get a green suite a merge blocker; until now nothing enforced it.
+
+**Added:**
+- `src/hooks/test-protect.ts`, run by the PreToolUse dispatcher on Bash, Edit and Write. It asks for approval, with a `[Test Guard]` reason, when an Edit or Write adds a skip marker (`.skip(`, `.only(`, `xit(`, `@Disabled`, `t.Skip(`, `pytest.skip(` and others) to a test file, or a command deletes a test file or renames it to a name no test runner picks up (`.bak`, `.disabled`, out of the test folder). It asks instead of blocking because deleting the tests of removed code is legitimate. Writing a new test file passes silently, and any error lets the call through.
+- PreToolUse handlers can ask instead of block. `HookIO.ask(reason)` in `src/lib/hook-runtime.ts`, and the dispatcher answers with one `permissionDecision: "ask"` envelope that also carries any `additionalContext`. A block still wins over an ask.
+- The managed-file manifest moves to v27 so existing installs receive the new hook file.
+
+Idea from karanb192/claude-code-hooks (`plugins/protect-tests`).
+
+**Files changed:**
+- src/hooks/test-protect.ts
+- src/hooks/dispatch.ts
+- src/lib/hook-runtime.ts
+- src/lib/claude-managed-file-manifests.ts
+- tests/test-protect.test.ts, tests/dispatch.test.ts, tests/install-e2e.test.ts
+- docs/hooks-reference.md, hooks/README.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.81.0] — 2026-10-21
 
 Sync with Claude Code v2.1.306. Codex v0.163.0 and the Codex app changelog have nothing new through 2026-10-21. The settings schema accepts one new sandbox key, one env var is now tracked, and the MCP allowlist docs are updated.

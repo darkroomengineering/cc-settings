@@ -12,6 +12,9 @@
 //
 //   block      first handler to block wins; stdout `{"decision":"block","reason":…}`
 //              and exit 2, byte for byte what that handler prints when run alone
+//   ask        no block, some handler asked: one hookSpecificOutput envelope with
+//              permissionDecision "ask", the reasons joined by newlines, and the
+//              joined additionalContext when there is any; exit 0
 //   context    every handler's additionalContext joined by newlines, in one
 //              hookSpecificOutput envelope on stdout, exit 0
 //
@@ -75,6 +78,12 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
       load: () => import("./freeze-guard.ts"),
     },
     {
+      name: "test-protect",
+      matcher: "Bash|Edit|Write",
+      timeoutS: 5,
+      load: () => import("./test-protect.ts"),
+    },
+    {
       name: "pre-edit-validate",
       matcher: "Edit",
       timeoutS: 5,
@@ -123,6 +132,7 @@ const ENTRY_MARGIN_MS = 400;
 export interface DispatchResult {
   block?: { handler: string; reason: string };
   context: string[];
+  asks: string[];
   /** One stderr line per skipped or failed handler. */
   errors: string[];
 }
@@ -159,7 +169,7 @@ export async function runHandlers(
   const { tool_name: toolName = "" } = parseHookInput<{ tool_name: string }>(raw, {
     tool_name: "TOOL_NAME",
   });
-  const result: DispatchResult = { context: [], errors: [] };
+  const result: DispatchResult = { context: [], asks: [], errors: [] };
 
   for (const handler of handlers) {
     if (!matchesTool(handler.matcher ?? null, toolName)) continue;
@@ -175,11 +185,13 @@ export async function runHandlers(
       const { main } = await handler.load();
       await within(main(io), limitMs);
       result.context.push(...io.contexts);
+      result.asks.push(...io.asks);
     } catch (err) {
       // Keep guidance emitted before the failure (quota-steer and
       // escalate-model emit before writing state); drop anything emitted later.
       io.close();
       result.context.push(...io.contexts);
+      result.asks.push(...io.asks);
       if (err instanceof HookBlocked) {
         result.block ??= { handler: handler.name, reason: err.reason };
       } else if (handler.failClosed) {
@@ -201,6 +213,29 @@ function isDispatchEvent(value: string | undefined): value is DispatchEvent {
   return value !== undefined && Object.hasOwn(HANDLERS, value);
 }
 
+/** The single response for the event: stdout (empty for a silent allow) and exit code. */
+export function respond(
+  event: DispatchEvent,
+  result: DispatchResult,
+): { stdout: string; exit: 0 | 2 } {
+  if (result.block) {
+    return {
+      stdout: `${JSON.stringify({ decision: "block", reason: result.block.reason })}\n`,
+      exit: 2,
+    };
+  }
+  if (result.asks.length === 0 && result.context.length === 0) return { stdout: "", exit: 0 };
+  const hookSpecificOutput = {
+    hookEventName: event,
+    ...(result.asks.length > 0 && {
+      permissionDecision: "ask",
+      permissionDecisionReason: result.asks.join("\n"),
+    }),
+    ...(result.context.length > 0 && { additionalContext: result.context.join("\n") }),
+  };
+  return { stdout: `${JSON.stringify({ hookSpecificOutput })}\n`, exit: 0 };
+}
+
 async function main(): Promise<void> {
   const event = process.argv[2];
   if (!isDispatchEvent(event)) {
@@ -208,19 +243,10 @@ async function main(): Promise<void> {
   }
   const result = await runHandlers(await Bun.stdin.text(), HANDLERS[event]);
   for (const line of result.errors) writeSync(2, `${line}\n`);
-  if (result.block) {
-    writeSync(1, `${JSON.stringify({ decision: "block", reason: result.block.reason })}\n`);
-    process.exit(2);
-  }
-  if (result.context.length > 0) {
-    const hookSpecificOutput = {
-      hookEventName: event,
-      additionalContext: result.context.join("\n"),
-    };
-    writeSync(1, `${JSON.stringify({ hookSpecificOutput })}\n`);
-  }
+  const { stdout, exit } = respond(event, result);
+  if (stdout) writeSync(1, stdout);
   // Exit explicitly: a handler that timed out may still be running.
-  process.exit(0);
+  process.exit(exit);
 }
 
 if (import.meta.main) {

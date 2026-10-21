@@ -11,7 +11,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { entryTimeoutS, HANDLERS, type Handler, runHandlers } from "../src/hooks/dispatch.ts";
+import {
+  entryTimeoutS,
+  HANDLERS,
+  type Handler,
+  respond,
+  runHandlers,
+} from "../src/hooks/dispatch.ts";
 import { classifyHookCommand } from "../src/lib/audit-hooks.ts";
 import { matchesTool } from "../src/lib/hook-frequency.ts";
 import type { HookIO } from "../src/lib/hook-runtime.ts";
@@ -86,6 +92,84 @@ describe("runHandlers: combining", () => {
       fake("deny", (io) => io.block("[Freeze] outside")),
     ]);
     expect(result.block?.reason).toBe("[Freeze] outside");
+  });
+});
+
+describe("runHandlers and respond: ask", () => {
+  test("an ask alone becomes one PreToolUse ask decision, exit 0", async () => {
+    const result = await runHandlers(payload("Edit"), [
+      fake("guard", (io) => io.ask("[Test Guard] adds it.skip")),
+    ]);
+    expect(result.asks).toEqual(["[Test Guard] adds it.skip"]);
+    const { stdout, exit } = respond("PreToolUse", result);
+    expect(exit).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "ask",
+        permissionDecisionReason: "[Test Guard] adds it.skip",
+      },
+    });
+  });
+
+  test("an ask and additionalContext share one envelope", async () => {
+    const result = await runHandlers(payload("Edit"), [
+      fake("hint", (io) => io.context("PreToolUse", "hint")),
+      fake("guard", (io) => io.ask("[Test Guard] deletes tests/a.test.ts")),
+    ]);
+    const { stdout, exit } = respond("PreToolUse", result);
+    expect(exit).toBe(0);
+    expect(stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(stdout)).toEqual({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "ask",
+        permissionDecisionReason: "[Test Guard] deletes tests/a.test.ts",
+        additionalContext: "hint",
+      },
+    });
+  });
+
+  test("a block beats an ask, whichever handler runs first", async () => {
+    for (const handlers of [
+      [
+        fake("guard", (io) => io.ask("[Test Guard] x")),
+        fake("deny", (io) => io.block("[Freeze] no")),
+      ],
+      [
+        fake("deny", (io) => io.block("[Freeze] no")),
+        fake("guard", (io) => io.ask("[Test Guard] x")),
+      ],
+    ]) {
+      const { stdout, exit } = respond("PreToolUse", await runHandlers(payload("Edit"), handlers));
+      expect(exit).toBe(2);
+      expect(JSON.parse(stdout)).toEqual({ decision: "block", reason: "[Freeze] no" });
+    }
+  });
+
+  test("two asks join their reasons with a newline, in order", async () => {
+    const result = await runHandlers(payload("Bash"), [
+      fake("a", (io) => io.ask("first")),
+      fake("b", (io) => io.ask("second")),
+    ]);
+    const out = JSON.parse(respond("PreToolUse", result).stdout);
+    expect(out.hookSpecificOutput.permissionDecisionReason).toBe("first\nsecond");
+  });
+
+  test("an ask emitted after a handler timed out is dropped", async () => {
+    const result = await runHandlers(payload("Edit"), [
+      fake(
+        "slow",
+        async (io) => {
+          await Bun.sleep(150);
+          io.ask("late");
+        },
+        { timeoutS: 0.05 },
+      ),
+    ]);
+    await Bun.sleep(200);
+    expect(result.asks).toEqual([]);
+    expect(respond("PreToolUse", result)).toEqual({ stdout: "", exit: 0 });
   });
 });
 
@@ -407,6 +491,15 @@ describe("dispatch.ts as a process", () => {
     );
     expect(write.exit).toBe(0);
     expect(write.stdout).toBe("");
+  });
+
+  test("deleting a test file asks through test-protect", async () => {
+    const r = await run("PreToolUse", payload("Bash", { command: "rm tests/x.test.ts" }));
+    expect(r.exit).toBe(0);
+    const out = JSON.parse(r.stdout).hookSpecificOutput;
+    expect(out.hookEventName).toBe("PreToolUse");
+    expect(out.permissionDecision).toBe("ask");
+    expect(out.permissionDecisionReason).toStartWith("[Test Guard] deletes tests/x.test.ts");
   });
 
   test("an Edit of a missing file is blocked by pre-edit-validate", async () => {
