@@ -1,0 +1,27 @@
+{
+	"should": [
+		"Extract the date-formatting helpers from src/utils/index.ts into their own module and update every import.",
+		"Rename `getUserData` to `fetchUserProfile` across the whole codebase.",
+		"Restructure the components folder by feature instead of by type.",
+		"checkout.ts is 600 lines and hard to follow; split it into smaller modules without changing behavior.",
+		"Refactor the legacy API client to use async/await instead of callbacks, keeping the same behavior.",
+		"Move the Stripe logic out of the route handlers into a payments service.",
+		"Pull the duplicated validation code in the three signup forms into one shared function.",
+		"Refactor src/lib/cache.ts, it has grown three different ways to build a key.",
+		"Pay down the debt in the old reports module: the code works but nobody can read it."
+	],
+	"near_miss": [
+		"The build is failing on main with `Type 'string | undefined' is not assignable to type 'string'` in src/lib/config.ts. Fix it.",
+		"I just added a feature flag and a fallback path in this diff; delete the compat layer now that it's rolled out.",
+		"Add a dark mode toggle to the settings page.",
+		"Write unit tests for the price calculation in src/lib/cart.ts.",
+		"Explain how the auth middleware decides which routes are public.",
+		"Review my staged diff before I commit it.",
+		"Speed up the homepage; Lighthouse performance is 62 and I want it above 90.",
+		"There's a regression: the cart total doubles when you add the same item twice.",
+		"Create a Button component with primary and ghost variants.",
+		"Find dead code in src/ and tell me what's safe to delete."
+	],
+	"min_recall": 0.65,
+	"max_false_trigger": 0.1
+}

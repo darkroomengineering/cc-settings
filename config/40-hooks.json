@@ -136,6 +136,16 @@
 						"async": true
 					}
 				]
+			},
+			{
+				"matcher": "resume|fork",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/cache-cold.ts\"",
+						"timeout": 3
+					}
+				]
 			}
 		],
 		"SessionEnd": [

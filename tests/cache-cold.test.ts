@@ -7,7 +7,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { main } from "../src/hooks/cache-cold.ts";
-import { COLD_RESEND_MIN_TOKENS, coldResend, readLastUsage } from "../src/lib/cache-cold.ts";
+import {
+  COLD_RESEND_MIN_TOKENS,
+  coldResend,
+  readLastUsage,
+  resumeColdMessage,
+} from "../src/lib/cache-cold.ts";
 import { captureIO } from "../src/lib/hook-runtime.ts";
 import { spawnCapture } from "./support/proc.ts";
 
@@ -202,41 +207,87 @@ describe("readLastUsage", () => {
   });
 });
 
-describe("session-start.ts on resume", () => {
+describe("resume and fork (SessionStart)", () => {
   const SESSION_START = resolve(import.meta.dir, "..", "src", "scripts", "session-start.ts");
+  const COLD = {
+    prompt_cache_likely_expired: true,
+    seconds_since_last_response: 3 * 3600 + 600,
+    context_tokens: 412_000,
+    estimated_cache_write_usd: 3.3,
+  };
 
-  async function sessionStart(payload: Record<string, unknown>): Promise<string> {
-    const home = await mkdtemp(join(dir, "home-"));
-    const r = await spawnCapture(["bun", SESSION_START], {
-      env: { HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: home },
+  async function run(home: string, payload: Record<string, unknown>) {
+    const r = await spawnCapture(["bun", HOOK], {
+      env: { HOME: home, USERPROFILE: home },
       stdin: JSON.stringify(payload),
     });
     expect(r.exit).toBe(0);
     return r.stdout;
   }
 
-  test("an expired cache with a large context prints the idle gap, size and estimate", async () => {
-    const out = await sessionStart({
-      source: "resume",
-      prompt_cache_likely_expired: true,
-      seconds_since_last_response: 3 * 3600 + 600,
-      context_tokens: 412_000,
-      estimated_cache_write_usd: 3.3,
-    });
-    expect(out).toContain(
-      "[cache] Resumed after 3h10m idle; the prompt cache has expired, so the first message re-sends 412k tokens uncached, est. $3.30 by Claude Code.",
+  test("an expired large resume shows the user Claude Code's idle gap, size and estimate", () => {
+    expect(resumeColdMessage(COLD)).toBe(
+      "[Cache] Resumed after 3h10m idle; the prompt cache has expired, so your first message " +
+        "re-sends 412k tokens of context uncached, est. $3.30 by Claude Code. If the earlier " +
+        "context is stale, /handoff then /clear starts the next task lighter.",
     );
+  });
+
+  test("a warm, small or malformed resume gets no warning", () => {
+    expect(resumeColdMessage({ ...COLD, prompt_cache_likely_expired: false })).toBeNull();
+    expect(resumeColdMessage({ ...COLD, context_tokens: 5_000 })).toBeNull();
+    expect(resumeColdMessage({ ...COLD, context_tokens: "412000" })).toBeNull();
+    expect(resumeColdMessage({})).toBeNull();
+  });
+
+  test("missing idle and cost fields leave those parts out", () => {
+    const msg = resumeColdMessage({ prompt_cache_likely_expired: true, context_tokens: 200_000 });
+    expect(msg).toStartWith("[Cache] Resumed; the prompt cache has expired");
+    expect(msg).not.toContain("est.");
+  });
+
+  test("the resume warning silences the first prompt, then the transcript check resumes", async () => {
+    const home = await mkdtemp(join(dir, "home-"));
+    const session_id = "resumed-session";
+    const out = await run(home, {
+      hook_event_name: "SessionStart",
+      source: "resume",
+      session_id,
+      ...COLD,
+    });
+    expect(JSON.parse(out).systemMessage).toContain("412k tokens");
+
+    const cold = await transcript([
+      assistant({ agoMs: 2 * HOUR, tokens: 300_000, base: Date.now() }),
+    ]);
+    const prompt = {
+      hook_event_name: "UserPromptSubmit",
+      session_id,
+      prompt: "hi",
+      transcript_path: cold,
+    };
+    expect(await run(home, prompt)).toBe("");
+    expect(JSON.parse(await run(home, prompt)).systemMessage).toContain("300k tokens");
   }, 30_000);
 
-  test("a warm or small resume, and a startup, print no cache line", async () => {
-    for (const payload of [
-      { source: "resume", prompt_cache_likely_expired: false, context_tokens: 500_000 },
-      { source: "resume", prompt_cache_likely_expired: true, context_tokens: 5_000 },
-      { source: "startup", prompt_cache_likely_expired: true, context_tokens: 500_000 },
-    ]) {
-      expect(await sessionStart(payload)).not.toContain("[cache]");
+  test("startup, clear and compact never warn; fork does", async () => {
+    const home = await mkdtemp(join(dir, "home-"));
+    for (const source of ["startup", "clear", "compact"]) {
+      expect(await run(home, { hook_event_name: "SessionStart", source, ...COLD })).toBe("");
     }
-  }, 60_000);
+    const fork = await run(home, { hook_event_name: "SessionStart", source: "fork", ...COLD });
+    expect(JSON.parse(fork).systemMessage).toContain("[Cache] Resumed");
+  }, 30_000);
+
+  test("session-start.ts no longer prints a model-only cache line", async () => {
+    const home = await mkdtemp(join(dir, "home-"));
+    const r = await spawnCapture(["bun", SESSION_START], {
+      env: { HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: home },
+      stdin: JSON.stringify({ source: "resume", ...COLD }),
+    });
+    expect(r.exit).toBe(0);
+    expect(r.stdout).not.toContain("[cache]");
+  }, 30_000);
 });
 
 describe("cache-cold.ts as a process", () => {

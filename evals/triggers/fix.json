@@ -23,6 +23,6 @@
 		"Review my staged diff before I commit it.",
 		"Speed up the homepage; Lighthouse performance is 62 and I want it above 90."
 	],
-	"min_recall": 0.5,
-	"max_false_trigger": 0.2
+	"min_recall": 0.8,
+	"max_false_trigger": 0.1
 }
