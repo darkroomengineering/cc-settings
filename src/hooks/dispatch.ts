@@ -84,6 +84,12 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
       load: () => import("./test-protect.ts"),
     },
     {
+      name: "spawn-cap",
+      matcher: "Agent|Task",
+      timeoutS: 5,
+      load: () => import("./spawn-cap.ts"),
+    },
+    {
       name: "pre-edit-validate",
       matcher: "Edit",
       timeoutS: 5,

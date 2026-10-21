@@ -111,6 +111,7 @@ function buildCases(work: string, sample: string, transcript: string): Record<st
       pre("Bash", { command: "bun run typecheck" }),
       pre("Edit", edit),
       pre("Write", write),
+      pre("Agent", { subagent_type: "explore", prompt: "map the repo" }),
     ],
     "check-docs-before-install": [pre("Bash", { command: "bun add zod" })],
     "dispatch PostToolUse": [
@@ -260,6 +261,7 @@ const SCENARIOS: { label: string; event: string; tool: string | null }[] = [
   { label: "PreToolUse Edit", event: "PreToolUse", tool: "Edit" },
   { label: "PreToolUse Write", event: "PreToolUse", tool: "Write" },
   { label: "PreToolUse Bash", event: "PreToolUse", tool: "Bash" },
+  { label: "PreToolUse Agent", event: "PreToolUse", tool: "Agent" },
   { label: "PostToolUse Edit", event: "PostToolUse", tool: "Edit" },
   { label: "PostToolUse Bash", event: "PostToolUse", tool: "Bash" },
   { label: "PostToolUse Agent", event: "PostToolUse", tool: "Agent" },

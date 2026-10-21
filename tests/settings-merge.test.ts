@@ -1409,6 +1409,38 @@ describe("mergeSettings — retired plansDirectory default", () => {
   });
 });
 
+describe("mergeSettings — new PreToolUse dispatcher entry", () => {
+  test("an install with the Bash and Edit|Write entries gains the Agent|Task entry once", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-merge-agent-hook-"));
+    try {
+      const repo = join(import.meta.dir, "..");
+      const team = await composeSettings(repo);
+      const teamPre = (team.hooks as Record<string, { matcher?: string }[]>).PreToolUse ?? [];
+      const prior = teamPre.filter((g) => g.matcher !== "Agent|Task");
+      expect(prior.length).toBe(teamPre.length - 1);
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(
+        userPath,
+        JSON.stringify({ hooks: { ...(team.hooks as object), PreToolUse: prior } }),
+      );
+
+      const accounting = await mergeSettings(userPath, team, outPath, { sourceDir: repo });
+
+      const merged = await Bun.file(outPath).json();
+      const pre = merged.hooks.PreToolUse as { matcher?: string; hooks: { command: string }[] }[];
+      const agent = pre.filter((g) => g.matcher === "Agent|Task");
+      expect(agent.length).toBe(1);
+      expect(agent[0]?.hooks[0]?.command).toEndWith('dispatch.ts" PreToolUse');
+      expect(pre.length).toBe(teamPre.length);
+      expect(accounting?.hooksPruned).toBe(0);
+      expect(accounting?.hooksSuperseded).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("mergeSettings — nested defaults", () => {
   test("team attribution.sessionUrl lands into a user block that lacks it", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-merge-nested-"));

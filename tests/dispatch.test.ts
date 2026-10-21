@@ -383,7 +383,11 @@ describe("the handler table agrees with config/40-hooks.json", () => {
         .filter((g) => matchesTool(g.matcher ?? null, tool))
         .map((g) => g.hooks[0]?.onFailure);
       const expected =
-        tool === "Bash" ? ["block"] : tool === "Edit" || tool === "Write" ? [undefined] : [];
+        tool === "Bash"
+          ? ["block"]
+          : ["Edit", "Write", "Agent", "Task"].includes(tool)
+            ? [undefined]
+            : [];
       expect([tool, failures]).toEqual([tool, expected]);
     }
   });
@@ -401,6 +405,14 @@ describe("the handler table agrees with config/40-hooks.json", () => {
   test("freeze-guard runs before pre-edit-validate, so validation cannot spend its budget", () => {
     const names = HANDLERS.PreToolUse.map((h) => h.name);
     expect(names.indexOf("freeze-guard")).toBeLessThan(names.indexOf("pre-edit-validate"));
+  });
+
+  test("spawn-cap runs right after test-protect and only on Agent and Task calls", () => {
+    const names = HANDLERS.PreToolUse.map((h) => h.name);
+    expect(names.indexOf("spawn-cap")).toBe(names.indexOf("test-protect") + 1);
+    const spawnCap = HANDLERS.PreToolUse.find((h) => h.name === "spawn-cap");
+    expect(spawnCap?.matcher).toBe("Agent|Task");
+    expect(spawnCap?.failClosed).toBeUndefined();
   });
 
   test("the hook auditor trusts each dispatcher command once dispatch.ts is in the install manifest", async () => {

@@ -46,6 +46,16 @@
 				]
 			},
 			{
+				"matcher": "Agent|Task",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PreToolUse",
+						"timeout": 5
+					}
+				]
+			},
+			{
 				"hooks": [
 					{
 						"type": "command",
