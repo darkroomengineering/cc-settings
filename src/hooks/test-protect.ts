@@ -140,6 +140,24 @@ function deleteFindings(args: string[], cwd: string): string[] {
     .map((p) => `deletes ${p}`);
 }
 
+const FIND_NAME_OPTS = new Set(["-name", "-iname", "-path", "-ipath", "-wholename", "-regex"]);
+
+/** `find <starts> … -delete` (or `-exec rm`) where a start point holds tests
+ *  or a name filter targets test files. */
+function findFindings(args: string[], cwd: string): string[] {
+  const exprAt = args.findIndex((a) => a.startsWith("-") || a === "(" || a === "!");
+  const starts = exprAt < 0 ? args : args.slice(0, exprAt);
+  const expr = exprAt < 0 ? [] : args.slice(exprAt);
+  const execAt = expr.findIndex((a) => a === "-exec" || a === "-execdir");
+  const deletes =
+    expr.includes("-delete") || (execAt >= 0 && /^(?:rm|unlink)$/.test(expr[execAt + 1] ?? ""));
+  if (!deletes) return [];
+  const names = expr.filter((_, i) => i > 0 && FIND_NAME_OPTS.has(expr[i - 1] as string));
+  const targetsTests =
+    starts.some((p) => holdsTests(displayPath(p, cwd))) || names.some((n) => /test|spec/i.test(n));
+  return targetsTests ? [`deletes tests through find ${args.join(" ")}`] : [];
+}
+
 /** Splits `git [global opts] <sub> <args>` into the subcommand and its args. */
 function gitSubcommand(args: string[]): { sub: string; subArgs: string[] } | null {
   for (let i = 0; i < args.length; i++) {
@@ -157,6 +175,7 @@ export async function bashFindings(command: string, cwd: string): Promise<string
       const { word, args } = parseShellCommand(stage);
       if (word === "rm" || word === "unlink") found.push(...deleteFindings(args, cwd));
       else if (word === "mv") found.push(...(await moveFindings(args, cwd)));
+      else if (word === "find") found.push(...findFindings(args, cwd));
       else if (word === "git") {
         const git = gitSubcommand(args);
         if (git?.sub === "rm") found.push(...deleteFindings(git.subArgs, cwd));

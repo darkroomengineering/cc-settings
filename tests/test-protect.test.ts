@@ -83,6 +83,11 @@ describe("bashFindings asks", () => {
       "mv tests/a.test.ts tests/a.ts",
       "renames tests/a.test.ts to tests/a.ts, which no test runner picks up",
     ],
+    ["find tests -name '*.ts' -delete", "deletes tests through find tests -name *.ts -delete"],
+    [
+      "find . -name '*.test.ts' -exec rm {} +",
+      "deletes tests through find . -name *.test.ts -exec rm {} +",
+    ],
     [
       "mv src/a.spec.ts /tmp/",
       `renames src/a.spec.ts to ${join("/tmp/", "a.spec.ts")}, which no test runner picks up`,
@@ -100,6 +105,8 @@ describe("bashFindings silent", () => {
     "echo rm tests/x.test.ts",
     "git commit -m 'rm tests/x.test.ts'",
     "rm src/foo.ts",
+    "find src -name '*.log' -delete",
+    "find tests -name '*.test.ts'",
   ])("%s", async (command) => {
     expect(await bashFindings(command, CWD)).toEqual([]);
   });
