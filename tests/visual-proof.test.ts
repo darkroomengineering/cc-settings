@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bodyProof, flagValue, main } from "../src/hooks/visual-proof.ts";
+import { bodyProof, editTarget, flagValue, main } from "../src/hooks/visual-proof.ts";
 import { captureIO, HookBlocked } from "../src/lib/hook-runtime.ts";
 
 let root: string;
@@ -170,6 +170,11 @@ describe("visual-proof", () => {
     expect(reason?.startsWith("[Visual Proof]")).toBe(true);
   });
 
+  test("gh pr edit naming another PR is silent, since the local diff is not that PR's", async () => {
+    expect(await run(`gh pr edit 12 --body "New body."`, designRepo)).toBeNull();
+    expect(await run(`gh pr edit --body "New body." feat/other`, designRepo)).toBeNull();
+  });
+
   test("a missing --body-file is silent", async () => {
     expect(await run("gh pr create --title x --body-file missing.md", designRepo)).toBeNull();
   });
@@ -222,7 +227,27 @@ describe("flagValue", () => {
   });
 });
 
+describe("editTarget", () => {
+  test.each([
+    [["pr", "edit"], false],
+    [["pr", "edit", "--body-file", "b.md"], false],
+    [["pr", "edit", "-R", "o/r", "--title", "t", "--add-label", "x"], false],
+    [["pr", "edit", "12"], true],
+    [["pr", "edit", "--body", "x", "https://github.com/o/r/pull/3"], true],
+    [["pr", "edit", "--", "feat/x"], true],
+  ])("%j → %p", (args, expected) => {
+    expect(editTarget(args)).toBe(expected);
+  });
+});
+
 describe("bodyProof", () => {
+  test.each(["![]()", "![]( )", "![](<>)", '<img src="">', "<img>", "![x](shot.png)"])(
+    "an empty or relative image source is not proof: %s",
+    (body) => {
+      expect(bodyProof(body).ok).toBe(false);
+    },
+  );
+
   test("text that merely mentions an image is not proof", () => {
     expect(bodyProof("Fix the img alt text and the ![ parser").ok).toBe(false);
   });

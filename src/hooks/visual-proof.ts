@@ -32,6 +32,30 @@ const BODYLESS_FLAGS = new Set([
   "--editor",
   "-e",
 ]);
+// `gh pr edit` flags that take a value, so the value is not read as the PR argument.
+const EDIT_VALUE_FLAGS = new Set([
+  "--body",
+  "-b",
+  "--body-file",
+  "-F",
+  "--title",
+  "-t",
+  "--base",
+  "-B",
+  "--milestone",
+  "-m",
+  "--repo",
+  "-R",
+  "--add-label",
+  "--remove-label",
+  "--add-reviewer",
+  "--remove-reviewer",
+  "--add-assignee",
+  "--remove-assignee",
+  "--add-project",
+  "--remove-project",
+]);
+const IMAGE_URL_RE = /^(?:https?:)?\/\/[^/\s]+\.[^/\s]+\/\S+/i;
 const GIT_TIMEOUT_MS = 1000;
 const LISTED_FILES = 5;
 
@@ -85,10 +109,24 @@ export function prCommands(command: string, cwd: string): PrCommand[] {
       }
       if (word !== "gh" || dir === "") continue;
       const [group, sub] = ghPositionals(args);
-      if (group === "pr" && (sub === "create" || sub === "edit")) found.push({ args, cwd: dir });
+      if (group !== "pr") continue;
+      // An edit naming a PR can target any branch; the local diff says nothing about it.
+      if (sub === "create" || (sub === "edit" && !editTarget(args))) found.push({ args, cwd: dir });
     }
   }
   return found;
+}
+
+/** True when `gh pr edit` names a PR (number, URL or branch) instead of the current branch's. */
+export function editTarget(args: string[]): boolean {
+  let seen = 0;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i] as string;
+    if (a === "--") return i + 1 < args.length;
+    if (EDIT_VALUE_FLAGS.has(a)) i++;
+    else if (!a.startsWith("-") && ++seen > 2) return true;
+  }
+  return false;
 }
 
 function unresolved(text: string): boolean {
@@ -120,8 +158,9 @@ export function bodyProof(body: string): Proof {
     ...[...body.matchAll(MD_IMAGE_RE)].map((m) => m[1] ?? ""),
     ...[...body.matchAll(HTML_IMAGE_RE)].map((m) => (m[1] ?? "").match(SRC_ATTR_RE)?.[1] ?? ""),
   ];
-  const hosted = urls.filter((u) => !COMMITTED_IMAGE_HOST_RE.test(u));
-  return { ok: hosted.length > 0, committedOnly: urls.length > 0 && hosted.length === 0 };
+  const valid = urls.filter((u) => IMAGE_URL_RE.test(u));
+  const hosted = valid.filter((u) => !COMMITTED_IMAGE_HOST_RE.test(u));
+  return { ok: hosted.length > 0, committedOnly: valid.length > 0 && hosted.length === 0 };
 }
 
 function git(cwd: string, args: string[]): string | null {

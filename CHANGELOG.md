@@ -9,11 +9,11 @@ All notable changes to cc-settings are documented here.
 Agents can no longer open a PR that changes styles or markup without either a before/after image or a "Screenshots: before/after needed" line for the author. `rules/git.md` already asked for that line, because agents cannot attach images through `gh`; until now nothing checked it.
 
 **Added:**
-- `src/hooks/visual-proof.ts`, run by the PreToolUse dispatcher on Bash calls. It reads the body of `gh pr create`, or of `gh pr edit` when the body changes, and blocks with a `[Visual Proof]` reason when the branch changes `.css`, `.scss`, `.tsx`, `.jsx`, `.vue`, `.svelte`, `.astro` or `.html` files and the body has neither an image nor the screenshots line. Images on raw.githubusercontent.com don't count, because those links break until the branch merges. When the body can't be read (`--fill`, `--web`, an editor, stdin), the command goes through.
+- `src/hooks/visual-proof.ts`, run by the PreToolUse dispatcher on Bash calls. It reads the body of `gh pr create`, or of `gh pr edit` when the body changes, and blocks with a `[Visual Proof]` reason when the branch changes `.css`, `.scss`, `.tsx`, `.jsx`, `.vue`, `.svelte`, `.astro` or `.html` files and the body has neither an image with an absolute URL nor the screenshots line. Images on raw.githubusercontent.com don't count, because those links break until the branch merges. When the body can't be read (`--fill`, `--web`, an editor, stdin), the command goes through.
 - The managed-file manifest moves to v29 so existing installs receive the new hook file.
 
 **Limits:**
-- `--head` is ignored; the diff always ends at the local `HEAD`.
+- `gh pr edit` that names a PR by number, URL or branch is not checked, because the local diff says nothing about that PR. `--head` is ignored; the diff always ends at the local `HEAD`.
 - Bodies passed through `$(cat <<EOF ...)` or stdin are not checked. `rules/git.md` tells agents to use `--body-file <path>`, which is checked.
 - `.tsx` and `.jsx` count as design files even when a change only touches logic.
 
