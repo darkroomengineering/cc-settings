@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.83.0"; // spawn cap asks at 30 subagents.
+const VERSION = "15.84.0"; // design PRs need a screenshot or screenshots line.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

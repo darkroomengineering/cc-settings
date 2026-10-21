@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.84.0] — 2026-10-21
+
+Agents can no longer open a PR that changes styles or markup without either a before/after image or a "Screenshots: before/after needed" line for the author. `rules/git.md` already asked for that line, because agents cannot attach images through `gh`; until now nothing checked it.
+
+**Added:**
+- `src/hooks/visual-proof.ts`, run by the PreToolUse dispatcher on Bash calls. It reads the body of `gh pr create`, or of `gh pr edit` when the body changes, and blocks with a `[Visual Proof]` reason when the branch changes `.css`, `.scss`, `.tsx`, `.jsx`, `.vue`, `.svelte`, `.astro` or `.html` files and the body has neither an image nor the screenshots line. Images on raw.githubusercontent.com don't count, because those links break until the branch merges. When the body can't be read (`--fill`, `--web`, an editor, stdin), the command goes through.
+- The managed-file manifest moves to v29 so existing installs receive the new hook file.
+
+**Limits:**
+- `--head` is ignored; the diff always ends at the local `HEAD`.
+- Bodies passed through `$(cat <<EOF ...)` or stdin are not checked. `rules/git.md` tells agents to use `--body-file <path>`, which is checked.
+- `.tsx` and `.jsx` count as design files even when a change only touches logic.
+
+Idea from fcakyon/claude-codex-settings (`require_visual_proof.py`).
+
+**Files changed:**
+- src/hooks/visual-proof.ts, src/hooks/dispatch.ts, src/lib/claude-managed-file-manifests.ts
+- tests/visual-proof.test.ts, tests/dispatch.test.ts, tests/install-e2e.test.ts
+- docs/hooks-reference.md, hooks/README.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.83.0] — 2026-10-21
 
 Claude Code now asks you once a session has started 30 subagents, and again at 45, 60 and every 15 after. Claude Code removed its own 200-subagent lifetime cap in 2.1.224, so a fan-out stuck in a loop could keep spawning agents with nothing to stop it. The hook never blocks, because Workflows and ultracode legitimately start dozens of agents.
