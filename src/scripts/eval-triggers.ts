@@ -30,9 +30,9 @@ import { parseFrontmatter } from "../lib/frontmatter.ts";
 const ROOT = join(import.meta.dir, "..", "..");
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 export const DEFAULT_RUNS = 3;
-// Measured about $0.10 per run on claude-sonnet-5-5 (3 runs, 2026-10-21), so
-// 20 prompts x 3 runs is about $6 (est.).
-export const DEFAULT_MAX_COST = 7;
+// Measured $1.13 for 20 runs on claude-sonnet-5-5 with caching off
+// (2026-10-21), so 20 prompts x 3 runs is about $3.40 (est.).
+export const DEFAULT_MAX_COST = 5;
 const RUN_TIMEOUT_MS = 180_000;
 const NO_MCP = JSON.stringify({ mcpServers: {} });
 
@@ -221,6 +221,11 @@ export function checkTriggers(opts: CheckOptions): TriggerOutcome {
   const env = { ...process.env };
   // Claude Code refuses to start inside another session while this is set.
   delete env.CLAUDECODE;
+  // Claude Code sends the prompt before the skill listing and hook context, and
+  // caches only at the end of the system prompt and the message, so every new
+  // prompt rewrites ~23k tokens that are never read back. Uncached input costs
+  // about 20% less per prompt set ($1.13 vs $1.42 per 20 runs, 2026-10-21).
+  env.DISABLE_PROMPT_CACHING = "1";
   const graded: Graded[] = [];
   let spent = 0;
   let errored = 0;
