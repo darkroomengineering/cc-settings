@@ -46,7 +46,7 @@ Runs Codex in a `workspace-write` sandbox. Use this when a task is:
 
 **Quota routing**: Codex is metered by messages per ~5-hour window, not by tokens. Hand it one big complete task, not a sequence of small steps. A single `exec` call for a whole feature costs the same quota as one `exec` call for a single file.
 
-**Write the task as an outcome, not a recipe.** The script wraps every `exec` task in a completion contract (run the repo's local checks, fix what the change broke, do not stop after a first implementation, leave changes uncommitted, report what was verified). GPT-6 Astra stops early when done is undefined and over-follows step lists, so the task itself must say:
+**Write the task as an outcome, not a recipe.** The script wraps every `exec` task in a completion contract (run the repo's local checks, fix what the change broke, do not stop after a first implementation, leave changes uncommitted, report what was verified). Codex returns that report as JSON, and the script prints `ready: yes|no` after checking it against the working tree; read that line before reviewing the diff. Pass `--expected <minutes>` to have a silent worker killed and reported as stalled at 3x that. GPT-6 Astra stops early when done is undefined and over-follows step lists, so the task itself must say:
 
 - the end state that means done (which behavior holds, which files or surfaces are covered);
 - where to stop exploring, if the task is open-ended;

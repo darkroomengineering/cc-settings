@@ -4,6 +4,40 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.85.0] — 2026-10-21
+
+Nine improvements from the October research backlog (OSS-34 to OSS-40, OSS-42, OSS-43). You now get a warning before a message re-sends an expired cache at full price, agents need your OK to change MCP or plugin config, and pushes block when a critical skill eval regresses.
+
+**Hooks:**
+- `src/hooks/cache-cold.ts` (UserPromptSubmit): when the last reply is older than the cache TTL (1 hour, or 5 minutes for 5-minute cache writes) and the context is 100K tokens or more, it shows you the re-send size and cost, with a pointer to `/clear` and `/handoff`. It reads only the last 4 MiB of the transcript and never blocks. On resume, `session-start.ts` adds a `[cache]` line with the idle gap. `HookIO` gains `notice()`, which the dispatcher sends as a user-only `systemMessage`. (OSS-34)
+- Edits to `.mcp.json` and plugin manifests, `cp`/`mv`/`ln` onto them, and `claude mcp add`/`remove` or `claude plugin install` now ask first (`config/30-permissions.json`). `src/hooks/config-guard.ts` asks on what the globs can't match: redirects, `tee`, `sed -i`, `perl -i`. (OSS-42)
+
+**Codex:**
+- `codex-run.ts exec` makes Codex return a JSON result (status, branch, commit, files_changed, verify_cmd, verify_result, blockers) through `--output-schema` and prints `ready: yes|no` after checking the claim against the working tree. `--expected <minutes>` reports a silent worker as stalled at 3x that. Implementer reports end with the same JSON block. (OSS-35)
+- `bun run tokens` adds a Codex section from `$CODEX_HOME` rollouts, counted per response and split by model. It shows tokens only, since no OpenAI price is confirmed. (OSS-36)
+
+**Evals:**
+- `eval-changed.ts --base-arm` blocks when a case tagged `critical` passed every base run and failed a candidate run, or when the branch deletes or renames a case for a changed skill. `evals/quarantine.json` holds flaky cases with an owner and an expiry date; an expired entry blocks. `--runs N` repeats each case. (OSS-37)
+- `eval-changed.ts --triggers` runs `src/scripts/eval-triggers.ts` for skills whose description changed: prompts from `evals/triggers/<skill>.json`, Skill as the only tool, recall and false-trigger rate. Only `fix` has a prompt set, and its thresholds are not calibrated yet. (OSS-40)
+
+**Skills and agents:**
+- `/orchestrate` caps fix rounds at five per task (rounds 4-5 on a fresh Fable implementer), settles conflicts with one-line rulings, and gives the reviewer the diff against a recorded base. `agents/reviewer.md` treats the implementer's report as unverified claims. (OSS-38)
+- `/audit` runs `src/scripts/grade-findings.ts`, which downgrades a CONFIRMED finding with no file:line to PLAUSIBLE. (OSS-39)
+- `/build` has a fresh agent read the spec before GO and list the questions it would have to guess. (OSS-43)
+- `/review-batch` builds cards from the diff and the worker's JSON result, not its prose report. `/codex` documents the `ready` line.
+
+The managed-file manifest moves to v30 for the four new installed files.
+
+**Files changed:**
+- src/hooks/cache-cold.ts, src/hooks/config-guard.ts, src/hooks/dispatch.ts, src/lib/cache-cold.ts, src/lib/hook-runtime.ts, src/scripts/session-start.ts, config/30-permissions.json
+- src/lib/codex.ts, src/scripts/codex-run.ts, src/lib/token-usage.ts, src/scripts/token-report.ts
+- src/lib/eval-gate.ts, src/scripts/eval-changed.ts, src/scripts/eval-triggers.ts, evals/quarantine.json, evals/triggers/fix.json
+- src/scripts/grade-findings.ts, skills/orchestrate/SKILL.md, skills/audit/SKILL.md, skills/build/SKILL.md, skills/review-batch/SKILL.md, skills/codex/SKILL.md, agents/reviewer.md, agents/implementer.md
+- evals/audit-grounding-downgrade, evals/build-cold-reader-gate, evals/orchestrate-fix-round-cap, evals/orchestrate-ruling-not-stall, evals/review-batch-report-unverified
+- tests: cache-cold, config-guard, dispatch, settings-merge, codex, codex-run-worker, token-usage, token-report-codex, eval-scripts, grade-findings, install-e2e
+- docs/hooks-reference.md, docs/settings-reference.md, docs/codex-bridge.md, docs/skill-authoring.md, hooks/README.md, .claude/AGENTS.md
+- src/lib/claude-managed-file-manifests.ts, CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.84.0] — 2026-10-21
 
 Agents can no longer open a PR that changes styles or markup without either a before/after image or a "Screenshots: before/after needed" line for the author. `rules/git.md` already asked for that line, because agents cannot attach images through `gh`; until now nothing checked it.

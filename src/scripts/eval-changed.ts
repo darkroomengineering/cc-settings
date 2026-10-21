@@ -175,6 +175,7 @@ function runArm(
   } catch {
     // No report: the CLI failed before writing one. Handled by the exit code.
   }
+  rmSync(out, { force: true });
   return { exitCode: proc.exitCode, stderr: new TextDecoder().decode(proc.stderr), report };
 }
 

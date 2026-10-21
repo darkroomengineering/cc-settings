@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 29;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 30;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -753,9 +753,22 @@ const v28 = {
 MANIFESTS.set(28, v28);
 // Version 29: the dispatcher's visual-proof handler. Claude-only like dispatch.ts.
 const ADDED_IN_V29 = ["src/hooks/visual-proof.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v29 = {
   full: [...v28.full, ...ADDED_IN_V29],
   light: [...v28.light, ...ADDED_IN_V29],
+};
+MANIFESTS.set(29, v29);
+// Version 30: the dispatcher's cache-cold and config-guard handlers (Claude-only
+// like dispatch.ts) and the /audit finding grader.
+const ADDED_IN_V30 = [
+  "src/hooks/cache-cold.ts",
+  "src/hooks/config-guard.ts",
+  "src/lib/cache-cold.ts",
+  "src/scripts/grade-findings.ts",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v29.full, ...ADDED_IN_V30],
+  light: [...v29.light, ...ADDED_IN_V30],
 });
 
 const GENERATED_MANAGED_FILES = new Set([
