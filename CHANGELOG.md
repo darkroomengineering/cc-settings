@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.82.1] — 2026-10-21
+
+Skill evals now judge with Fable 5.1, in both `bun src/scripts/eval-changed.ts` and `eval-ablate.ts`. The cases run on Sonnet 5.5, and a judge from the same model tends to grade that model's answers favorably. On the `freeze-set-boundary` case, both judges gave the same verdicts (with the skill 3 of 3 pass, without it 3 of 3 fail). The judge cost rose from $0.009 to $0.065 and the whole run from $0.18 to $0.21.
+
+The agent under test cannot read its own graders: `claude plugin eval` puts the `evals/` folder in the sandbox's `denyRead` list, and a probe case that tried to read its `graders/criteria.md` was refused. So no answer-key leak check was added.
+
+If `eval-ablate.ts --model` names Fable itself, Opus 5.5 judges instead, so the judge never matches the answer model.
+
+Idea from trailofbits/skills (`plugins/code-improver/evals`).
+
+**Files changed:**
+- src/scripts/eval-changed.ts, src/scripts/eval-ablate.ts, tests/eval-scripts.test.ts
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.82.0] — 2026-10-21
 
 Claude Code now asks you before an agent skips, deletes, or renames away a test. AGENTS.md has long made relaxing or skipping assertions to get a green suite a merge blocker; until now nothing enforced it.

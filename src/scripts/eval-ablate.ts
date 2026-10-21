@@ -37,9 +37,13 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..", "..");
-// Haiku, voting without reasoning, failed correct long replies; the judge is a
-// small share of a run next to the agent, so a cheaper judge saves little.
-const JUDGE_MODEL = "claude-sonnet-5-5";
+const JUDGE_MODEL = "claude-fable-5-1";
+const FALLBACK_JUDGE_MODEL = "claude-opus-5-5";
+
+/** A judge that differs from the answer model, so it never grades answers from its own model. */
+export function judgeFor(model: string): string {
+  return model === JUDGE_MODEL ? FALLBACK_JUDGE_MODEL : JUDGE_MODEL;
+}
 const CHUNK_CHARS = 9000;
 
 export const HELP = `Usage: bun src/scripts/eval-ablate.ts [--tag <t>]... [--case <glob>] [--runs <n>]
@@ -241,6 +245,7 @@ function positive(name: string, fallback: string): string {
 }
 
 function evalCmd(plugin: string, out: string, ablation: string, runs: string, maxCost: string[]) {
+  const model = flag("--model", "claude-sonnet-5-5");
   return [
     "claude",
     "plugin",
@@ -262,9 +267,9 @@ function evalCmd(plugin: string, out: string, ablation: string, runs: string, ma
     "Bash",
     "--no-publish",
     "--model",
-    flag("--model", "claude-sonnet-5-5"),
+    model,
     "--judge-model",
-    JUDGE_MODEL,
+    judgeFor(model),
     "--threshold",
     "0",
     ...maxCost,
