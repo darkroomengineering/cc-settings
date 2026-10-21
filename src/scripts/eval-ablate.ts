@@ -37,9 +37,9 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..", "..");
-// Haiku, voting without reasoning, failed correct long replies; the judge is a
-// small share of a run next to the agent, so a cheaper judge saves little.
-const JUDGE_MODEL = "claude-sonnet-5-5";
+// The judge is a different, stronger model than the default --model, so it does
+// not grade answers from its own model.
+const JUDGE_MODEL = "claude-fable-5-1";
 const CHUNK_CHARS = 9000;
 
 export const HELP = `Usage: bun src/scripts/eval-ablate.ts [--tag <t>]... [--case <glob>] [--runs <n>]
