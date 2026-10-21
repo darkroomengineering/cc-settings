@@ -189,16 +189,25 @@ export async function runHook(main: () => Promise<void>): Promise<void> {
 }
 
 /** What a hook handler does to the outside world: read its payload, hand
- *  context to the model, and block. A handler takes a HookIO so one function
- *  serves both launch modes: its own process (processIO) and inside
- *  src/hooks/dispatch.ts (captureIO). */
+ *  context to the model, ask the user, and block. A handler takes a HookIO so
+ *  one function serves both launch modes: its own process (processIO) and
+ *  inside src/hooks/dispatch.ts (captureIO). */
 export interface HookIO {
   hookInput<T extends Record<string, unknown>>(
     envFallbacks?: Partial<Record<keyof T & string, string>>,
   ): Promise<Partial<T>>;
   toolInput<T>(): Promise<Partial<T>>;
   context(hookEventName: string, text: string): void;
+  /** Hand the PreToolUse permission decision to the user with this reason. */
+  ask(reason: string): void;
   block(reason: string): never;
+}
+
+function emitAsk(reason: string): void {
+  emitHookSpecificOutput("PreToolUse", {
+    permissionDecision: "ask",
+    permissionDecisionReason: reason,
+  });
 }
 
 /** This process's stdin and stdout: `block` prints the block decision and exits 2. */
@@ -206,6 +215,7 @@ export const processIO: HookIO = {
   hookInput: readHookInput,
   toolInput: readToolInput,
   context: emitAdditionalContext,
+  ask: emitAsk,
   block: blockDecision,
 };
 
@@ -220,6 +230,8 @@ export class HookBlocked extends Error {
 export interface CapturedIO extends HookIO {
   /** additionalContext strings in emission order. */
   readonly contexts: string[];
+  /** ask reasons in emission order. */
+  readonly asks: string[];
   /** Drop everything the handler emits from now on (it timed out). */
   close(): void;
 }
@@ -228,8 +240,10 @@ export interface CapturedIO extends HookIO {
 export function captureIO(raw: string): CapturedIO {
   let closed = false;
   const contexts: string[] = [];
+  const asks: string[] = [];
   return {
     contexts,
+    asks,
     close: () => {
       closed = true;
     },
@@ -237,6 +251,9 @@ export function captureIO(raw: string): CapturedIO {
     toolInput: async () => parseToolInput(raw),
     context: (_hookEventName, text) => {
       if (!closed) contexts.push(text);
+    },
+    ask: (reason) => {
+      if (!closed) asks.push(reason);
     },
     block: (reason) => {
       throw new HookBlocked(reason);

@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.81.0"; // sync with Claude Code v2.1.306.
+const VERSION = "15.82.0"; // test-protect hook and the PreToolUse ask path.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
