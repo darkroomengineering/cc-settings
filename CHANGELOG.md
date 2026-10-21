@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.81.0] — 2026-10-21
+
+Sync with Claude Code v2.1.306. Codex v0.163.0 and the Codex app changelog have nothing new through 2026-10-21. The settings schema accepts one new sandbox key, one env var is now tracked, and the MCP allowlist docs are updated.
+
+**Adopted:**
+- `sandbox.allowNestedUserNamespaces` (Claude Code 2.1.305) is in the settings schema and the sandbox table in `docs/settings-reference.md`. On Linux it lets sandboxed commands create user namespaces, which Chromium and rootless podman need. Upstream warns that this lets those commands get around the sandbox's file protections, so cc-settings never sets it.
+- `CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS` (2.1.305) is in the env table and `knownEnvVars`. It lets unattended retry mode notice a usage limit that lifted before its reset. cc-settings does not set it.
+
+**Docs:**
+- `allowedMcpServers` no longer filters `managed-mcp.json` stdio servers that use `${VAR}` only in `env` (2.1.305). To keep one of those servers off, list it in `deniedMcpServers`.
+
+**Files changed:**
+- src/schemas/settings.ts
+- schemas/settings.schema.json
+- docs/settings-reference.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.80.2] — 2026-10-20
 
 Skill evals now judge with Sonnet 5.5 instead of Haiku 4.5, in both `bun src/scripts/eval-changed.ts` and `eval-ablate.ts`. Haiku, voting without reasoning, failed correct replies often enough to block pushes. Over 8 runs of one case the two judges cost about the same ($1.15 and $1.18), since the agent run makes up most of the cost.
