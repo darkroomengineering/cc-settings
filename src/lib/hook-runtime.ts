@@ -200,6 +200,8 @@ export interface HookIO {
   context(hookEventName: string, text: string): void;
   /** Hand the PreToolUse permission decision to the user with this reason. */
   ask(reason: string): void;
+  /** Show the user a warning (top-level `systemMessage`); the model never sees it. */
+  notice(text: string): void;
   block(reason: string): never;
 }
 
@@ -216,6 +218,7 @@ export const processIO: HookIO = {
   toolInput: readToolInput,
   context: emitAdditionalContext,
   ask: emitAsk,
+  notice: (text) => console.log(JSON.stringify({ systemMessage: text })),
   block: blockDecision,
 };
 
@@ -232,6 +235,8 @@ export interface CapturedIO extends HookIO {
   readonly contexts: string[];
   /** ask reasons in emission order. */
   readonly asks: string[];
+  /** User notices in emission order. */
+  readonly notices: string[];
   /** Drop everything the handler emits from now on (it timed out). */
   close(): void;
 }
@@ -241,9 +246,11 @@ export function captureIO(raw: string): CapturedIO {
   let closed = false;
   const contexts: string[] = [];
   const asks: string[] = [];
+  const notices: string[] = [];
   return {
     contexts,
     asks,
+    notices,
     close: () => {
       closed = true;
     },
@@ -254,6 +261,9 @@ export function captureIO(raw: string): CapturedIO {
     },
     ask: (reason) => {
       if (!closed) asks.push(reason);
+    },
+    notice: (text) => {
+      if (!closed) notices.push(text);
     },
     block: (reason) => {
       throw new HookBlocked(reason);

@@ -173,6 +173,62 @@ describe("runHandlers and respond: ask", () => {
   });
 });
 
+describe("runHandlers and respond: user notice", () => {
+  const prompt = JSON.stringify({ prompt: "hi" });
+
+  test("a notice alone is a top-level systemMessage with no envelope, exit 0", async () => {
+    const result = await runHandlers(prompt, [fake("cache", (io) => io.notice("[Cache] cold"))]);
+    expect(result.notices).toEqual(["[Cache] cold"]);
+    const { stdout, exit } = respond("UserPromptSubmit", result);
+    expect(exit).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({ systemMessage: "[Cache] cold" });
+  });
+
+  test("notices join with a newline and share one JSON line with the context", async () => {
+    const result = await runHandlers(prompt, [
+      fake("a", (io) => io.notice("first")),
+      fake("hint", (io) => io.context("UserPromptSubmit", "hint")),
+      fake("b", (io) => io.notice("second")),
+    ]);
+    const { stdout, exit } = respond("UserPromptSubmit", result);
+    expect(exit).toBe(0);
+    expect(stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(stdout)).toEqual({
+      systemMessage: "first\nsecond",
+      hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: "hint" },
+    });
+  });
+
+  test("a block keeps its exact output; the notice is dropped", async () => {
+    const result = await runHandlers(payload("Edit"), [
+      fake("cache", (io) => io.notice("note")),
+      fake("deny", (io) => io.block("[Freeze] no")),
+    ]);
+    const { stdout, exit } = respond("PreToolUse", result);
+    expect(exit).toBe(2);
+    expect(JSON.parse(stdout)).toEqual({ decision: "block", reason: "[Freeze] no" });
+  });
+
+  test("a notice emitted before a handler throws is kept, one after a timeout is dropped", async () => {
+    const result = await runHandlers(prompt, [
+      fake("early", (io) => {
+        io.notice("kept");
+        throw new Error("boom");
+      }),
+      fake(
+        "slow",
+        async (io) => {
+          await Bun.sleep(150);
+          io.notice("late");
+        },
+        { timeoutS: 0.05 },
+      ),
+    ]);
+    await Bun.sleep(200);
+    expect(result.notices).toEqual(["kept"]);
+  });
+});
+
 describe("runHandlers: failures", () => {
   test("a throwing advisory handler suppresses neither the deny nor the others' context", async () => {
     const throwing = fake("boom", () => {

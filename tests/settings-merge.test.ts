@@ -239,6 +239,21 @@ describe("permissionsStrategy", () => {
     expect(ctx.accounting.permissionsPruned).toBe(0);
   });
 
+  test("ask rules the team adds reach an existing install that has an older ask list", async () => {
+    const ctx = makeCtx();
+    const team = (await composeSettings(join(import.meta.dir, ".."))).permissions as Record<
+      string,
+      unknown
+    >;
+    const teamAsk = team.ask as string[];
+    expect(teamAsk).toContain("Edit(**/.mcp.json)");
+    const user = { ask: ["Bash(git branch -D:*)", "Bash(git stash drop:*)", "Bash(my-tool:*)"] };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).ask).toEqual([...teamAsk, "Bash(my-tool:*)"]);
+  });
+
   test("overlapping allow with union semantics — no duplicates", async () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)", "Read(*)"] };

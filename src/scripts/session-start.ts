@@ -27,6 +27,7 @@ import { readJsonOrNull } from "../lib/json-io.ts";
 import { CLAUDE_DIR, hasCommand, hookBunArgv, localDatetime } from "../lib/platform.ts";
 import { projectAwareness } from "../lib/project-awareness.ts";
 import {
+  formatAge,
   onHeadObserved,
   type ReviewQueueState,
   ReviewQueueStateSchema,
@@ -173,9 +174,39 @@ async function autoWarmEngine(eng: EngineDescriptor): Promise<void> {
 // block in phase 5 and the restart-banner refresh at the end). Stdin for a hook
 // is a pipe the runtime has already written and closed, so this does not block;
 // reading it twice, on the other hand, would return "" the second time.
-const hookInput = await readHookInput<{ session_id?: string; source?: string }>();
+const hookInput = await readHookInput<{
+  session_id?: string;
+  source?: string;
+  // Sent on resume and fork (Claude Code 2.1.306 SessionStart schema).
+  seconds_since_last_response?: unknown;
+  context_tokens?: unknown;
+  prompt_cache_likely_expired?: unknown;
+  estimated_cache_write_usd?: unknown;
+}>();
 const sessionId = hookInput.session_id;
 const startSource = hookInput.source ?? "";
+
+// Same threshold as COLD_RESEND_MIN_TOKENS in lib/cache-cold.ts. Not imported:
+// this script ships in the Codex runtime, whose manifest must list every file
+// it imports, and cache-cold.ts is a Claude-only dispatcher dependency.
+const RESUME_CACHE_MIN_TOKENS = 100_000;
+
+/** One line for a resume whose prompt cache expired with a large context. */
+function resumeCacheLine(): string | null {
+  const { prompt_cache_likely_expired: expired, context_tokens: tokens } = hookInput;
+  if (expired !== true || typeof tokens !== "number" || tokens < RESUME_CACHE_MIN_TOKENS) {
+    return null;
+  }
+  const idle = hookInput.seconds_since_last_response;
+  const usd = hookInput.estimated_cache_write_usd;
+  const idleText = typeof idle === "number" ? ` after ${formatAge(idle * 1000)} idle` : "";
+  const usdText = typeof usd === "number" ? `, est. $${usd.toFixed(2)} by Claude Code` : "";
+  return (
+    `[cache] Resumed${idleText}; the prompt cache has expired, so the first message re-sends ` +
+    `${Math.round(tokens / 1000)}k tokens uncached${usdText}. If the earlier context is stale, ` +
+    "suggest /handoff then /clear to the user."
+  );
+}
 
 /** Recovery block for a session restarted by compaction.
  *
@@ -304,6 +335,14 @@ if (startSource === "compact") {
   } catch {
     // Recovery digest unavailable — continue with the normal banner.
   }
+}
+
+// A resume after the prompt cache expired re-sends the whole context on the
+// first message. Plain stdout reaches the model only; the user sees
+// cache-cold.ts's warning when they send that message.
+if (startSource === "resume" || startSource === "fork") {
+  const line = resumeCacheLine();
+  if (line) console.log(line);
 }
 
 // Shared team-knowledge corpus awareness (read counterpart to /share-learning).
