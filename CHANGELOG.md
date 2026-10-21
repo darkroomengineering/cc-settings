@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.83.0] — 2026-10-21
+
+Claude Code now asks you once a session has started 30 subagents, and again at 45, 60 and every 15 after. Claude Code removed its own 200-subagent lifetime cap in 2.1.224, so a fan-out stuck in a loop could keep spawning agents with nothing to stop it. The hook never blocks, because Workflows and ultracode legitimately start dozens of agents.
+
+**Added:**
+- `src/hooks/spawn-cap.ts`, run by the PreToolUse dispatcher on Agent and Task calls. Each call appends a token line to `~/.claude/tmp/spawn-count-<hash>.log` and takes its line's position as its count, then asks with a `[Spawn Cap]` reason at each threshold. A session's first spawn deletes count files older than 7 days. Any error lets the call through.
+- A third PreToolUse dispatcher entry in `config/40-hooks.json` with matcher `Agent|Task`. Existing installs pick it up on the next `setup.sh` run; an interactive setup asks before adopting it.
+- The managed-file manifest moves to v28 so existing installs receive the new hook file.
+
+**Limits:**
+- Agents started by a Workflow script don't go through the Agent tool, so they aren't counted.
+- A payload without a session id is not counted.
+
+Idea from karanb192/claude-code-hooks (`plugins/subagent-spawn-cap`).
+
+**Files changed:**
+- src/hooks/spawn-cap.ts, src/hooks/dispatch.ts, config/40-hooks.json
+- src/lib/claude-managed-file-manifests.ts, src/scripts/hook-bench.ts
+- tests/spawn-cap.test.ts, tests/dispatch.test.ts, tests/settings-merge.test.ts, tests/install-e2e.test.ts
+- docs/hooks-reference.md, hooks/README.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.82.1] — 2026-10-21
 
 Skill evals now judge with Fable 5.1, in both `bun src/scripts/eval-changed.ts` and `eval-ablate.ts`. The cases run on Sonnet 5.5, and a judge from the same model tends to grade that model's answers favorably. On the `freeze-set-boundary` case, both judges gave the same verdicts (with the skill 3 of 3 pass, without it 3 of 3 fail). The judge cost rose from $0.009 to $0.065 and the whole run from $0.18 to $0.21.

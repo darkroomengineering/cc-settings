@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.82.1"; // eval judge runs on Fable 5.1.
+const VERSION = "15.83.0"; // spawn cap asks at 30 subagents.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
