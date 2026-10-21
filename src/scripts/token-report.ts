@@ -5,15 +5,25 @@
 // subagent type, and reports the cold prefix each thread pays before any
 // work. Use it to measure a harness change before and after: run the same
 // window, compare cost per session and the shares, not raw token counts.
+// Work routed to Codex shows up in a Codex section from $CODEX_HOME rollouts
+// (default ~/.codex), filtered by the same flags; it counts tokens only.
 
+import type { Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { claudePath } from "../lib/platform.ts";
 import {
   BILLING_TYPES,
   type Breakdown,
+  buildCodexReport,
   buildReport,
+  type CodexReport,
+  type CodexSession,
+  type CodexTokens,
   cacheHitRate,
+  parseCodexMeta,
+  parseCodexSession,
   parseTranscript,
   projectSlug,
   type SessionUsage,
@@ -26,7 +36,10 @@ const USAGE = `Usage: token-report [--project <path> | --all] [--sessions N] [--
   --all             every project under ~/.claude/projects
   --sessions N      newest N sessions (default 30)
   --days N          only sessions modified in the last N days
-  --json            machine-readable report`;
+  --json            machine-readable report
+Codex rollouts under $CODEX_HOME (default ~/.codex) follow the same flags, matched
+on the cwd they started in; --sessions counts each rollout, subagent threads
+included. Codex reports tokens only (cost n/a).`;
 
 interface Args {
   project: string | null;
@@ -86,6 +99,53 @@ async function readSubagents(dir: string): Promise<Thread[]> {
   return threads;
 }
 
+async function walkJsonl(dir: string, out: { path: string; mtimeMs: number }[]): Promise<void> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const path = join(dir, e.name);
+    if (e.isDirectory()) await walkJsonl(path, out);
+    else if (e.isFile() && e.name.endsWith(".jsonl")) {
+      out.push({ path, mtimeMs: (await stat(path)).mtimeMs });
+    }
+  }
+}
+
+// session_meta sits on line 1 and embeds the base instructions (tens of KB);
+// rollouts run to hundreds of MB, so the project filter reads only the head.
+const META_PEEK_BYTES = 512 * 1024;
+
+async function firstLine(path: string): Promise<string> {
+  const head = await Bun.file(path).slice(0, META_PEEK_BYTES).text();
+  const end = head.indexOf("\n");
+  if (end >= 0) return head.slice(0, end);
+  return (await readFile(path, "utf8")).split("\n", 1)[0] ?? "";
+}
+
+/** Codex rollouts in the same window as the Claude sessions: modified within
+ *  --days, started in --project's directory unless --all, newest --sessions. */
+async function listCodexSessions(args: Args): Promise<CodexSession[] | null> {
+  const home = process.env.CODEX_HOME ? resolve(process.env.CODEX_HOME) : join(homedir(), ".codex");
+  const files: { path: string; mtimeMs: number }[] = [];
+  await walkJsonl(join(home, "sessions"), files);
+  await walkJsonl(join(home, "archived_sessions"), files);
+  if (files.length === 0) return null;
+  const cutoff = args.days ? Date.now() - args.days * 86_400_000 : 0;
+  const sessions: CodexSession[] = [];
+  for (const f of files.filter((c) => c.mtimeMs >= cutoff).sort((a, b) => b.mtimeMs - a.mtimeMs)) {
+    if (sessions.length >= args.sessions) break;
+    const meta = parseCodexMeta(await firstLine(f.path));
+    if (!meta || (args.project && (!meta.cwd || resolve(meta.cwd) !== args.project))) continue;
+    const session = parseCodexSession(await readFile(f.path, "utf8"));
+    if (session) sessions.push(session);
+  }
+  return sessions;
+}
+
 async function listSessions(projectDirs: string[], args: Args): Promise<SessionUsage[]> {
   const candidates: { dir: string; id: string; mtimeMs: number }[] = [];
   for (const dir of projectDirs) {
@@ -136,14 +196,19 @@ async function main(): Promise<void> {
   const projectDirs = args.project
     ? [join(root, projectSlug(args.project))]
     : (await readdir(root).catch(() => [])).map((d) => join(root, d));
-  const sessions = await listSessions(projectDirs, args);
+  const [sessions, codexSessions] = await Promise.all([
+    listSessions(projectDirs, args),
+    listCodexSessions(args),
+  ]);
   const r = buildReport(sessions);
+  const codex = codexSessions ? buildCodexReport(codexSessions) : null;
   if (args.json) {
-    console.log(JSON.stringify(r, null, 2));
+    console.log(JSON.stringify(codex ? { ...r, codex } : r, null, 2));
     return;
   }
   if (sessions.length === 0) {
     console.log("No transcripts found.");
+    if (codex) printCodex(codex);
     return;
   }
   const all = total(r.cost.main) + total(r.cost.subagent);
@@ -182,6 +247,31 @@ async function main(): Promise<void> {
   }
   if (r.unpricedModels.length > 0)
     console.log(`\nUnpriced (excluded from cost): ${r.unpricedModels.join(", ")}`);
+  if (codex) printCodex(codex);
+}
+
+const mTok = (n: number) => `${(n / 1e6).toFixed(2)}M`;
+
+function codexCells(t: CodexTokens): string {
+  return `input ${mTok(t.input)} (cached ${pct(t.cached, t.input)}) · output ${mTok(t.output)} (reasoning ${pct(t.reasoning, t.output)})`;
+}
+
+function printCodex(c: CodexReport): void {
+  const sessions = c.sessions.main + c.sessions.subagent;
+  console.log(
+    `\nCodex: ${sessions} sessions (${c.sessions.subagent} subagent), tokens only: cost n/a, no confirmed OpenAI price for these models`,
+  );
+  if (sessions === 0) return;
+  console.log(
+    `  main      ${String(c.requests.main).padStart(6)} req  ${codexCells(c.tokens.main)}`,
+  );
+  console.log(
+    `  subagent  ${String(c.requests.subagent).padStart(6)} req  ${codexCells(c.tokens.subagent)}`,
+  );
+  console.log(`  median peak context fill ${pct(c.peakContextShare, 1)}`);
+  console.log("  By model:");
+  const models = Object.entries(c.byModel).sort((a, b) => b[1].input - a[1].input);
+  for (const [model, t] of models) console.log(`    ${model.padEnd(20)} ${codexCells(t)}`);
 }
 
 await main();

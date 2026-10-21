@@ -115,6 +115,10 @@ export interface CodexRunOptions {
    *  its configured default model, so its failures describe the account. A pinned
    *  model's entitlement or quota failure stays out of the shared verdict cache. */
   model?: string;
+  /** Passed as `--output-schema`: Codex constrains its final message to this JSON Schema. */
+  outputSchemaPath?: string;
+  /** Passed as `--output-last-message`: Codex writes its final message to this file. */
+  outputLastMessagePath?: string;
 }
 
 export interface CodexRunResult {
@@ -124,6 +128,8 @@ export interface CodexRunResult {
   state: CodexState;
   /** On block/failure: human-readable guidance. On success: undefined. */
   detail?: string;
+  /** True when the run was killed at its timeout. */
+  timedOut?: boolean;
 }
 
 // ── L0 + L1: cheap, no model call ──────────────────────────────────────────────
@@ -380,8 +386,12 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   try {
     // Model pin goes before the `--` end-of-options marker, alongside --sandbox.
     const modelArgs = opts.model ? ["--model", opts.model] : [];
+    const outputArgs = [
+      ...(opts.outputSchemaPath ? ["--output-schema", opts.outputSchemaPath] : []),
+      ...(opts.outputLastMessagePath ? ["--output-last-message", opts.outputLastMessagePath] : []),
+    ];
     const proc = Bun.spawn(
-      ["codex", "exec", "--sandbox", sandbox, ...modelArgs, "--", opts.prompt],
+      ["codex", "exec", "--sandbox", sandbox, ...modelArgs, ...outputArgs, "--", opts.prompt],
       {
         cwd: opts.cwd,
         stdout: "pipe",
@@ -442,6 +452,7 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
       output: sanitizeOutput(stdout.trim()),
       state: "unknown",
       detail: `Codex timed out after ${minutes}m — split the task into smaller pieces or raise the timeout.`,
+      timedOut: true,
     };
   }
 
@@ -529,6 +540,8 @@ export function resolveCodexModel(
 export interface LeadingFlags {
   force: boolean;
   model?: string;
+  /** `--expected <minutes>`: how long the task should take. */
+  expectedMinutes?: number;
   rest: string[];
 }
 export type ParseLeadingFlagsResult = ({ ok: true } & LeadingFlags) | { ok: false; error: string };
@@ -536,11 +549,21 @@ export type ParseLeadingFlagsResult = ({ ok: true } & LeadingFlags) | { ok: fals
 export function parseLeadingFlags(args: string[]): ParseLeadingFlagsResult {
   let force = false;
   let model: string | undefined;
+  let expectedMinutes: number | undefined;
   let i = 0;
   for (; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--force") {
       force = true;
+      continue;
+    }
+    if (arg === "--expected") {
+      const value = args[i + 1];
+      if (!value || !/^\d+$/.test(value) || Number(value) === 0) {
+        return { ok: false, error: "--expected requires a whole number of minutes above 0." };
+      }
+      expectedMinutes = Number(value);
+      i++;
       continue;
     }
     if (arg === "--model") {
@@ -560,7 +583,13 @@ export function parseLeadingFlags(args: string[]): ParseLeadingFlagsResult {
     }
     break;
   }
-  return { ok: true, force, model, rest: args.slice(i) };
+  return {
+    ok: true,
+    force,
+    model,
+    ...(expectedMinutes !== undefined && { expectedMinutes }),
+    rest: args.slice(i),
+  };
 }
 
 // `. _ / -`. No leading `-`, no spaces, no `;`, `$`, backticks, quotes, etc.
@@ -736,5 +765,126 @@ export function buildExecPrompt(task: string): string {
     "- Stay inside the task's scope. Do not refactor, upgrade, or reformat beyond it.",
     "- Leave the changes uncommitted. Finish with the files changed, the checks you ran",
     "  with their result, and anything you could not verify.",
+    "- Your final message is the JSON object the output schema defines: status (completed,",
+    "  blocked, or scope_expansion), the current branch, commit (empty when the changes are",
+    "  uncommitted), files_changed, verify_cmd, verify_result with passed and the last lines",
+    "  of output, and blockers (each decision or access you need; empty when none).",
   ].join("\n");
+}
+
+// ── Worker result (the exec subcommand's structured final message) ──────────
+//
+// The one definition of the result an exec worker returns. Codex gets it as
+// `--output-schema`; Claude implementers end their report with the same object
+// (agents/implementer.md). OpenAI structured output requires every property to
+// be required and `additionalProperties: false`, which z.strictObject emits.
+
+export const WorkerResultSchema = z.strictObject({
+  status: z.enum(["completed", "blocked", "scope_expansion"]),
+  branch: z.string().describe("Current git branch; empty when HEAD is detached."),
+  commit: z.string().describe("SHA of the final commit; empty when the changes are uncommitted."),
+  files_changed: z.array(z.string()).describe("Paths relative to the repository root."),
+  verify_cmd: z.string().describe("The check command that was run; empty when none ran."),
+  verify_result: z.strictObject({
+    passed: z.boolean(),
+    output_tail: z.string().describe("The last lines of the check output."),
+  }),
+  blockers: z.array(z.string()),
+});
+
+export type WorkerResult = z.infer<typeof WorkerResultSchema>;
+
+/** The JSON Schema handed to `codex exec --output-schema`. */
+export function workerResultJsonSchema(): Record<string, unknown> {
+  const { $schema: _, ...schema } = z.toJSONSchema(WorkerResultSchema);
+  return schema;
+}
+
+/** A worker that returns nothing for 3x its expected time is treated as stalled. */
+export const STALL_FACTOR = 3;
+
+/** Timeout for an exec with an expected duration, clamped to the hard ceiling. */
+export function stallTimeoutMs(expectedMinutes: number): number {
+  return Math.min(expectedMinutes * STALL_FACTOR * 60_000, MAX_EXEC_TIMEOUT_MS);
+}
+
+/** The stall message when a run with an expected duration was killed at 3x that
+ *  duration without producing any output; null otherwise. Past the hard ceiling the
+ *  kill is an ordinary timeout, not the 3x rule. */
+export function stallDetail(
+  result: CodexRunResult,
+  expectedMinutes: number | undefined,
+  lastMessage: string,
+): string | null {
+  if (expectedMinutes === undefined || result.ok || !result.timedOut) return null;
+  const stallMinutes = expectedMinutes * STALL_FACTOR;
+  if (stallTimeoutMs(expectedMinutes) !== stallMinutes * 60_000) return null;
+  if (result.output.trim() || lastMessage.trim()) return null;
+  return `Codex stalled: no output after ${stallMinutes}m (${STALL_FACTOR}x the expected ${expectedMinutes}m). Check the tree before rerunning.`;
+}
+
+export type ParseWorkerResult = { ok: true; result: WorkerResult } | { ok: false; error: string };
+
+export function parseWorkerResult(text: string): ParseWorkerResult {
+  const trimmed = text.trim();
+  if (!trimmed) return { ok: false, error: "no final message" };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(trimmed);
+  } catch {
+    return { ok: false, error: "final message is not JSON" };
+  }
+  const parsed = WorkerResultSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue?.path.length ? issue.path.join(".") : "result";
+    return {
+      ok: false,
+      error: `final message does not match the schema (${where}: ${issue?.message})`,
+    };
+  }
+  return { ok: true, result: parsed.data };
+}
+
+export interface WorkerTreeState {
+  /** Paths git reports as changed or untracked, relative to the repository root. */
+  changed: string[];
+  /** Whether `commit` resolves to a commit; null when the result names none. */
+  commitExists: boolean | null;
+}
+
+export interface WorkerAssessment {
+  ready: boolean;
+  /** Why the result is not ready; empty when ready. */
+  reasons: string[];
+  /** Changed paths the result does not list. The tree may hold earlier uncommitted work,
+   *  so these are reported without blocking readiness. */
+  undeclared: string[];
+}
+
+const normalizePath = (p: string) => p.trim().replace(/^\.\//, "");
+
+/** Check a worker's claim against the tree. Ready means: status completed, the check
+ *  passed, and the claimed output exists, either as a commit that resolves with no
+ *  uncommitted changes left, or as uncommitted changes covering every listed file. */
+export function assessWorkerResult(result: WorkerResult, tree: WorkerTreeState): WorkerAssessment {
+  const reasons: string[] = [];
+  if (result.status !== "completed") reasons.push(`status is ${result.status}`);
+  if (!result.verify_result.passed) {
+    reasons.push(result.verify_cmd ? `\`${result.verify_cmd}\` failed` : "verification failed");
+  }
+  const changed = new Set(tree.changed.map(normalizePath));
+  const listed = result.files_changed.map(normalizePath).filter(Boolean);
+  if (result.commit) {
+    if (tree.commitExists === false) reasons.push(`commit ${result.commit} does not exist`);
+    if (changed.size > 0) reasons.push("uncommitted changes remain next to the reported commit");
+  } else if (changed.size === 0) {
+    reasons.push("no commit and no uncommitted changes");
+  } else {
+    const missing = listed.filter((p) => !changed.has(p));
+    if (missing.length > 0) reasons.push(`listed but unchanged: ${missing.join(", ")}`);
+  }
+  const listedSet = new Set(listed);
+  const undeclared = result.commit ? [] : [...changed].filter((p) => !listedSet.has(p));
+  return { ready: reasons.length === 0, reasons, undeclared };
 }

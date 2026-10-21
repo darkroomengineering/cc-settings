@@ -38,6 +38,8 @@ available; otherwise label the producer unknown.
    [reading diff — protocol below; under ~40 changed lines skip the abridging and show the diff whole]
    ```
 
+   Fill "Proof" from the worker's result when it has one: the closing `json` block of an implementer report, or the `worker result` section `codex-run.ts exec` prints. The change is not review-ready unless `status` is `completed`, `verify_result.passed` is true, and, for Codex, the section reads `ready: yes`; quote each `blockers` entry and each `not ready:` line on the card. A worker with no result block is unproven, not ready.
+
    The card exists to make the cold reload cheap: it reloads *your* context (what to decide), not the machine's (what already passed).
 
 3. **Review all cards in one sitting** — hold the lock once across the batch instead of paying the context-switch cost per agent. Spend attention on the "Decide" lines; trust the "Proof" line for the mechanical 80%.

@@ -117,6 +117,15 @@ files included) plus `git diff`, against the briefed scope. Remove only disposab
 artifacts your own checks created. Any remaining path outside the scope makes the status
 `scope_expansion`, with that path list in the report. List every changed path.
 
+Close the report with a fenced `json` block: the worker result that Codex exec workers
+return (`WorkerResultSchema` in `src/lib/codex.ts`), so the caller can check it
+mechanically. Every key is required; `commit` stays empty while changes are uncommitted.
+
+```json
+{"status": "completed", "branch": "", "commit": "", "files_changed": [],
+ "verify_cmd": "", "verify_result": {"passed": true, "output_tail": ""}, "blockers": []}
+```
+
 Build what the briefing asks for. Add a guard, fallback, validation layer, or option it
 does not ask for only when an existing contract requires it, when omitting it lets harm
 land before anyone catches it, or when adding it later would be expensive (stored data,
