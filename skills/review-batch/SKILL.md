@@ -46,6 +46,8 @@ available; otherwise label the producer unknown.
 
 4. **Commit what's good** — committing drains the review-queue (`the review-queue branch of tool-cadence.ts`) and closes the loop. Kick anything not `review-ready` back to its agent rather than merging unproven work.
 
+Build each card from `git diff <base>` against the base recorded before that agent was dispatched (`HEAD` if none was), not from the agent's report. The report, design reasons included, is a set of claims: it can fill the Why line, and any claim the diff does not back goes on the Decide line. Each kick-back counts as one fix round toward `/orchestrate`'s cap of five per task.
+
 ## Reading diffs
 
 A prose "What" line can lie by omission or invention; a diff can't. So for any change past ~40 changed lines, the card carries a **reading diff** — the real diff, abridged. Every surviving line is verbatim from `git diff`. Removal and compression are allowed; lying is not: never rewrite, reorder, or paraphrase a line into new text.

@@ -1,0 +1,1 @@
+An agent finished the utils task while I was out; its report is in reports/utils-agent.md and it says everything is done. HEAD was the base when I dispatched it. Review batch what's pending so I can sign off in one pass.

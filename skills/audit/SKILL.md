@@ -98,7 +98,7 @@ read-only reviewer under the lifecycle above. The one-line invariants: reconcile
 AFTER findings exist, and a documented decision **reclassifies severity, never
 deletes a finding**.
 
-**Output.** Write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
+**Output.** First grade the findings: write them as JSON lines to a scratch file, one per line with `id`, `status`, `location`, `issue`, `scenario` and `direction`, then run `bun "$HOME/.claude/src/scripts/grade-findings.ts" <file>`. It relabels any CONFIRMED finding with no `file:line` to PLAUSIBLE and gives the reason; the report uses its labels. To win CONFIRMED back, add the `file:line` and rerun; never relabel by hand. Performance's `measured` findings pass through unchanged. If the script is not installed, apply the same rule yourself. Then write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
 1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.
 2. Map (system map / doc map / process state machine — per mode below).
 3. Findings by hunt category, severity order. Each: stable ID (H1/M1/L1 by severity, or the mode prefix from Mode: Full), location, one-line issue, concrete scenario, status, recommended direction.

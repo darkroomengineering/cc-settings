@@ -43,6 +43,8 @@ Do not proceed past this gate without an explicit verdict.
 
 This skill runs as the maestro agent: select agents, run them in parallel, and coordinate per `agents/maestro.md`. For simple delegation (1-2 agents), call `Agent()` directly without this skill.
 
+**Rule, don't stall.** When a review finding conflicts with the plan, two briefs disagree, or a detail is ambiguous, decide it and record one line in the plan or status log: `Ruling: <what you decided> / <why> / <cost if wrong>`. Then keep going. Stop to ask only when the ruling would change the user's stated direction.
+
 ## Verify Subagent Claims Independently
 
 A subagent's "done" is a claim, not a result. Before building on it, committing,
@@ -66,6 +68,22 @@ or reporting success:
    missing a section, Claude uses SendMessage; standalone Codex uses
    `send_message` while it is running or `followup_task` once idle. A respawn
    rebuilds its context from nothing and re-does paid work.
+5. **Review the diff, not the report.** Record the base (`git rev-parse HEAD`)
+   before dispatching each implementer. When it reports done, run
+   `git add -N .` so new files show, write `git diff <base>` from the tree it
+   wrote to into a scratch file, and hand the `reviewer` that path, the base
+   SHA, and the brief. The implementer's report goes along only as claims to
+   check, never as a summary in place of the diff.
+6. **Five fix rounds per task, then stop.** A fix round is one fix dispatch
+   plus a re-review of the new diff. Rounds 1-3 resume the same implementer
+   (item 4) with the open findings verbatim. Rounds 4-5 spawn a fresh
+   implementer with `model: "fable"` (standalone Codex: the strongest model
+   the host offers), carrying the brief, the open findings, and what earlier
+   rounds tried; three failed resumes usually mean the implementer cannot see
+   its own mistake. If findings are still open after round 5, stop that task
+   and report it `blocked` with each round's attempt and the open findings;
+   other tasks continue. This cap covers review findings; crashed or timed-out
+   agents follow maestro's retry rule.
 
 Failure mode this section exists to prevent: chaining on an unverified "done"
 and discovering three phases later that the build never ran.
