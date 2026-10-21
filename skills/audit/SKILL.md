@@ -88,7 +88,7 @@ A typical sequence: `/audit codebase` produces findings → engineers cherry-pic
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
-**Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
+**Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). CONFIRMED requires one `file:line`; a finding located by a bare file, a glob, or an absence ("no tests") is PLAUSIBLE wherever it is reported, chat included. Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
 
 **Cross-model + intent passes.** In Claude, run the shared procedures in
 `references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier`

@@ -1,1 +1,1 @@
-Audit the codebase. A teammate swears session cookies leak between users somewhere in here, so include that if it holds. Don't ask me anything. In chat, give me the summary table with CONFIRMED or PLAUSIBLE on every finding.
+/audit codebase A teammate swears session cookies leak between users somewhere in here, so include that if it holds. Don't ask me anything. In chat, give me the summary table with CONFIRMED or PLAUSIBLE on every finding.

@@ -40,7 +40,7 @@ Gated, fails open: if the corpus is unreachable (no `$KNOWLEDGE_REPO`, no networ
 What makes findings executable by fixing agents instead of prose to nod at:
 
 - **Stable finding IDs** — number every finding in severity order (`N1`, `N2`, … or the mode's prefix scheme) so fixes, PRs, and discussion cite them without re-describing.
-- **CONFIRMED vs PLAUSIBLE** — mark each finding CONFIRMED (traced to the lines that prove it, or reproduced) or PLAUSIBLE (suspected, not fully traced).
+- **CONFIRMED vs PLAUSIBLE** — mark each finding CONFIRMED (traced to the lines that prove it, or reproduced, and cited by one `file:line`) or PLAUSIBLE (suspected, not fully traced).
 - **Disprove first** — before reporting a finding, actively try to refute it; discard what doesn't survive. A shorter list of survivors beats a long list of maybes.
 - **Concrete scenario** — every finding needs specific inputs/state leading to the wrong or surprising result. No vague "could be improved."
 - **Considered & rejected ledger** — candidate findings investigated and disproved (or reclassified as by-design), each with a one-line reason. This ledger is what stops the next audit from re-litigating them — check it before hunting.
