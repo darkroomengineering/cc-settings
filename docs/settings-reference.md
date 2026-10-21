@@ -967,7 +967,7 @@ As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:
 
 - **Runtime / build:** `bun`, `bunx`, `npm run`, `biome`
 - **Git (read + common write):** `git status|diff|log|show|branch|add|commit|checkout|stash|push|blame|rev-parse|remote`, `gh`
-- **Read-only / inspection:** `cat`, `head`, `tail`, `less`, `file`, `stat`, `which`, `type`, `echo`, `ls`, `pwd`, `tree`, `wc`
+- **Read-only / inspection:** `file`, `stat`, `which`, `type`, `echo`, `ls`, `pwd`, `tree`, `wc`
 - **Search / text:** `grep`, `rg`, `diff`, `sort`, `uniq`, `cut`, `jq`
 - **System info:** `du`, `df`, `printenv`, `date`, `uname`, `whoami`, `basename`, `dirname`, `realpath`
 - **File ops:** `mkdir`, `cp`, `mv`, and scoped `rm` (`rm -rf node_modules|.next|dist|.turbo`, `rm *.tmp`)
