@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 28;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 29;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -746,9 +746,16 @@ const v27 = {
 MANIFESTS.set(27, v27);
 // Version 28: the dispatcher's spawn-cap handler. Claude-only like dispatch.ts.
 const ADDED_IN_V28 = ["src/hooks/spawn-cap.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v28 = {
   full: [...v27.full, ...ADDED_IN_V28],
   light: [...v27.light, ...ADDED_IN_V28],
+};
+MANIFESTS.set(28, v28);
+// Version 29: the dispatcher's visual-proof handler. Claude-only like dispatch.ts.
+const ADDED_IN_V29 = ["src/hooks/visual-proof.ts"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v28.full, ...ADDED_IN_V29],
+  light: [...v28.light, ...ADDED_IN_V29],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

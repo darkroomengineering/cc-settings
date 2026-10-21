@@ -415,6 +415,15 @@ describe("the handler table agrees with config/40-hooks.json", () => {
     expect(spawnCap?.failClosed).toBeUndefined();
   });
 
+  test("visual-proof runs right after spawn-cap and only on Bash calls", () => {
+    const names = HANDLERS.PreToolUse.map((h) => h.name);
+    expect(names.indexOf("visual-proof")).toBe(names.indexOf("spawn-cap") + 1);
+    const visualProof = HANDLERS.PreToolUse.find((h) => h.name === "visual-proof");
+    expect(visualProof?.matcher).toBe("Bash");
+    expect(visualProof?.timeoutS).toBe(5);
+    expect(visualProof?.failClosed).toBeUndefined();
+  });
+
   test("the hook auditor trusts each dispatcher command once dispatch.ts is in the install manifest", async () => {
     const found = await dispatchGroups();
     const files = new Map([

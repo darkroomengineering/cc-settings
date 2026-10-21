@@ -90,6 +90,12 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
       load: () => import("./spawn-cap.ts"),
     },
     {
+      name: "visual-proof",
+      matcher: "Bash",
+      timeoutS: 5,
+      load: () => import("./visual-proof.ts"),
+    },
+    {
       name: "pre-edit-validate",
       matcher: "Edit",
       timeoutS: 5,
