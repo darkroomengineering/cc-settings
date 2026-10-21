@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.84.0"; // design PRs need a screenshot or screenshots line.
+const VERSION = "15.85.0"; // cold-cache warning, config guard, eval gate, Codex worker results.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

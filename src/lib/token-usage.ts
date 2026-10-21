@@ -1,5 +1,6 @@
 // Price-weighted token usage from Claude Code transcripts
-// (~/.claude/projects/<slug>/<session>.jsonl plus <session>/subagents/*.jsonl).
+// (~/.claude/projects/<slug>/<session>.jsonl plus <session>/subagents/*.jsonl),
+// and unpriced token counts from Codex CLI rollouts (see the Codex section).
 // Pure parsing and aggregation; src/scripts/token-report.ts does the I/O.
 //
 // Claude Code writes one transcript line per content block, and every line of
@@ -248,6 +249,185 @@ export function buildReport(sessions: SessionUsage[]): Report {
     if (agent) agent.coldPrefix = median(cold);
   }
   report.unpricedModels = [...unpriced].sort();
+  return report;
+}
+
+// ── Codex CLI sessions ───────────────────────────────────────────────────────
+//
+// Codex writes one rollout per thread under $CODEX_HOME/sessions/YYYY/MM/DD/ and
+// archived_sessions/. Line 1 is the thread's own session_meta (subagent rollouts
+// carry a second, parent meta later). Current CLIs log, per model response, a
+// `token_usage_record` with a unique response_id and that response's `usage`;
+// its turn_id resolves to the `turn_context` that names the model. Older
+// rollouts have only `event_msg` token_count events: `info.total_token_usage`
+// is cumulative and carries a forked or resumed parent's history, and an event
+// repeats when nothing new was billed, so those are counted by summing
+// `info.last_token_usage` over events whose total changed. OpenAI counts
+// cached_input_tokens inside input_tokens and reasoning_output_tokens inside
+// output_tokens.
+
+export interface CodexTokens {
+  /** All prompt tokens, cached included. */
+  input: number;
+  cached: number;
+  cacheWrite: number;
+  /** All output tokens, reasoning included. */
+  output: number;
+  reasoning: number;
+}
+
+export interface CodexRequest {
+  id: string;
+  model: string;
+  tokens: CodexTokens;
+}
+
+export interface CodexSession {
+  id: string;
+  cwd: string;
+  /** "subagent" for threads Codex spawned (subagents, guardian reviews), else "main". */
+  kind: "main" | "subagent";
+  requests: CodexRequest[];
+  /** Largest single-request prompt over the model's context window, 0 when unknown. */
+  peakContextShare: number;
+}
+
+export function codexZero(): CodexTokens {
+  return { input: 0, cached: 0, cacheWrite: 0, output: 0, reasoning: 0 };
+}
+
+function addCodex(a: CodexTokens, b: CodexTokens): CodexTokens {
+  return {
+    input: a.input + b.input,
+    cached: a.cached + b.cached,
+    cacheWrite: a.cacheWrite + b.cacheWrite,
+    output: a.output + b.output,
+    reasoning: a.reasoning + b.reasoning,
+  };
+}
+
+function codexTokens(u: Record<string, unknown> | undefined): CodexTokens {
+  return {
+    input: num(u?.input_tokens),
+    cached: num(u?.cached_input_tokens),
+    cacheWrite: num(u?.cache_write_input_tokens),
+    output: num(u?.output_tokens),
+    reasoning: num(u?.reasoning_output_tokens),
+  };
+}
+
+/** The thread id, cwd, and kind from a rollout's first line; undefined when the
+ *  line is not a session_meta. */
+export function parseCodexMeta(
+  firstLine: string,
+): Pick<CodexSession, "id" | "cwd" | "kind"> | undefined {
+  let entry: Record<string, unknown> | undefined;
+  try {
+    entry = obj(JSON.parse(firstLine));
+  } catch {
+    return undefined;
+  }
+  const meta = obj(entry?.payload);
+  if (entry?.type !== "session_meta" || !meta) return undefined;
+  const id = typeof meta.id === "string" ? meta.id : "";
+  if (!id) return undefined;
+  return {
+    id,
+    cwd: typeof meta.cwd === "string" ? meta.cwd : "",
+    kind: obj(meta.source) ? "subagent" : "main",
+  };
+}
+
+export function parseCodexSession(text: string): CodexSession | undefined {
+  const lines = text.split("\n");
+  const meta = parseCodexMeta(lines[0] ?? "");
+  if (!meta) return undefined;
+  const turnModel = new Map<string, string>();
+  const records: { id: string; turnId: string; tokens: CodexTokens }[] = [];
+  const counted: CodexRequest[] = [];
+  let model = "";
+  let window = 0;
+  let peak = 0;
+  let lastTotal = -1;
+  for (const line of lines) {
+    if (!line) continue;
+    let entry: Record<string, unknown> | undefined;
+    try {
+      entry = obj(JSON.parse(line));
+    } catch {
+      continue;
+    }
+    const payload = obj(entry?.payload);
+    if (!payload) continue;
+    if (entry?.type === "turn_context" && typeof payload.model === "string") {
+      model = payload.model;
+      if (typeof payload.turn_id === "string") turnModel.set(payload.turn_id, model);
+    } else if (entry?.type === "token_usage_record") {
+      const id = typeof payload.response_id === "string" ? payload.response_id : "";
+      if (id) {
+        records.push({
+          id,
+          turnId: String(payload.turn_id ?? ""),
+          tokens: codexTokens(obj(payload.usage)),
+        });
+      }
+    } else if (entry?.type === "event_msg" && payload.type === "token_count") {
+      const info = obj(payload.info);
+      if (!info) continue;
+      window = num(info.model_context_window) || window;
+      const last = codexTokens(obj(info.last_token_usage));
+      if (window > 0) peak = Math.max(peak, last.input / window);
+      const totalNow = num(obj(info.total_token_usage)?.total_tokens);
+      if (totalNow === lastTotal) continue;
+      lastTotal = totalNow;
+      counted.push({ id: `${meta.id}:${counted.length}`, model: model || "unknown", tokens: last });
+    }
+  }
+  const requests =
+    records.length > 0
+      ? records.map((r) => ({
+          id: r.id,
+          model: turnModel.get(r.turnId) ?? "unknown",
+          tokens: r.tokens,
+        }))
+      : counted;
+  return { ...meta, requests, peakContextShare: peak };
+}
+
+export interface CodexReport {
+  sessions: { main: number; subagent: number };
+  requests: { main: number; subagent: number };
+  tokens: { main: CodexTokens; subagent: CodexTokens };
+  byModel: Record<string, CodexTokens>;
+  /** Median of each session's peak prompt over its context window. */
+  peakContextShare: number;
+  /** No OpenAI price is confirmed for these models, so Codex reports tokens only. */
+  cost: null;
+}
+
+export function buildCodexReport(sessions: CodexSession[]): CodexReport {
+  const report: CodexReport = {
+    sessions: { main: 0, subagent: 0 },
+    requests: { main: 0, subagent: 0 },
+    tokens: { main: codexZero(), subagent: codexZero() },
+    byModel: {},
+    peakContextShare: 0,
+    cost: null,
+  };
+  const seen = new Set<string>();
+  const peaks: number[] = [];
+  for (const s of sessions) {
+    report.sessions[s.kind]++;
+    if (s.peakContextShare > 0) peaks.push(s.peakContextShare);
+    for (const r of s.requests) {
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      report.requests[s.kind]++;
+      report.tokens[s.kind] = addCodex(report.tokens[s.kind], r.tokens);
+      report.byModel[r.model] = addCodex(report.byModel[r.model] ?? codexZero(), r.tokens);
+    }
+  }
+  report.peakContextShare = median(peaks);
   return report;
 }
 

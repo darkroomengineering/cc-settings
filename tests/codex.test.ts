@@ -3,15 +3,21 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  assessWorkerResult,
   buildExecPrompt,
   buildReviewPrompt,
   type CodexVerdict,
   classifyCodexError,
   parseLeadingFlags,
   parseReviewArgs,
+  parseWorkerResult,
   reconcile,
   resolveCodexModel,
   sanitizeOutput,
+  stallDetail,
+  stallTimeoutMs,
+  type WorkerResult,
+  workerResultJsonSchema,
 } from "../src/lib/codex.ts";
 
 // ---------------------------------------------------------------------------
@@ -838,6 +844,160 @@ describe("parseLeadingFlags", () => {
     expect(parseLeadingFlags(["--model"]).ok).toBe(false);
     expect(parseLeadingFlags(["--model", "--force", "task"]).ok).toBe(false);
     expect(parseLeadingFlags(["--model", "a b", "task"]).ok).toBe(false);
+  });
+
+  test("--expected takes whole minutes above zero", () => {
+    const parsed = parseLeadingFlags(["--expected", "4", "task"]);
+    expect(parsed).toEqual({ ok: true, force: false, expectedMinutes: 4, rest: ["task"] });
+    expect(parseLeadingFlags(["--expected", "0", "task"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--expected", "1.5", "task"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--expected"]).ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Worker result: the exec subcommand's structured final message
+// ---------------------------------------------------------------------------
+
+const workerResult = (over: Partial<WorkerResult> = {}): WorkerResult => ({
+  status: "completed",
+  branch: "main",
+  commit: "",
+  files_changed: ["src/a.ts"],
+  verify_cmd: "bun test",
+  verify_result: { passed: true, output_tail: "3 pass" },
+  blockers: [],
+  ...over,
+});
+
+describe("workerResultJsonSchema", () => {
+  test("meets OpenAI structured-output rules: every key required, no extra keys", () => {
+    const schema = workerResultJsonSchema() as {
+      properties: Record<string, { additionalProperties?: boolean; required?: string[] }>;
+      required: string[];
+      additionalProperties: boolean;
+    };
+    expect(schema).not.toHaveProperty("$schema");
+    expect(schema.additionalProperties).toBe(false);
+    expect([...schema.required].sort()).toEqual(Object.keys(schema.properties).sort());
+    expect(schema.required).toEqual(
+      expect.arrayContaining([
+        "status",
+        "branch",
+        "commit",
+        "files_changed",
+        "verify_cmd",
+        "verify_result",
+        "blockers",
+      ]),
+    );
+    expect(schema.properties.verify_result?.additionalProperties).toBe(false);
+    expect(schema.properties.verify_result?.required?.sort()).toEqual(["output_tail", "passed"]);
+  });
+});
+
+describe("parseWorkerResult", () => {
+  test("accepts a schema-conforming message", () => {
+    const parsed = parseWorkerResult(JSON.stringify(workerResult()));
+    expect(parsed.ok).toBe(true);
+  });
+
+  test("reports empty, non-JSON, and off-schema messages without throwing", () => {
+    expect(parseWorkerResult("  ")).toEqual({ ok: false, error: "no final message" });
+    expect(parseWorkerResult("Done! Changed two files.")).toEqual({
+      ok: false,
+      error: "final message is not JSON",
+    });
+    const offSchema = parseWorkerResult(JSON.stringify({ ...workerResult(), status: "done" }));
+    expect(offSchema.ok).toBe(false);
+    if (!offSchema.ok) expect(offSchema.error).toContain("status");
+    const extra = parseWorkerResult(JSON.stringify({ ...workerResult(), notes: "x" }));
+    expect(extra.ok).toBe(false);
+  });
+});
+
+describe("assessWorkerResult", () => {
+  const tree = (changed: string[], commitExists: boolean | null = null) => ({
+    changed,
+    commitExists,
+  });
+
+  test("completed, passed, uncommitted changes covering the listed files: ready", () => {
+    expect(assessWorkerResult(workerResult(), tree(["src/a.ts"]))).toEqual({
+      ready: true,
+      reasons: [],
+      undeclared: [],
+    });
+  });
+
+  test("reported blockers make an otherwise ready result not ready", () => {
+    const a = assessWorkerResult(
+      workerResult({ blockers: ["needs the staging API key"] }),
+      tree(["src/a.ts"]),
+    );
+    expect(a.ready).toBe(false);
+    expect(a.reasons).toEqual(["1 blocker(s) reported"]);
+  });
+
+  test("a completed claim with nothing in the tree and no commit is not ready", () => {
+    const a = assessWorkerResult(workerResult(), tree([]));
+    expect(a.ready).toBe(false);
+    expect(a.reasons).toEqual(["no commit and no uncommitted changes"]);
+  });
+
+  test("a reported commit with uncommitted output left over is not ready", () => {
+    const a = assessWorkerResult(workerResult({ commit: "abc1234" }), tree(["src/b.ts"], true));
+    expect(a.ready).toBe(false);
+    expect(a.reasons).toContain("uncommitted changes remain next to the reported commit");
+  });
+
+  test("a reported commit that does not resolve is not ready; a clean resolved one is", () => {
+    const missing = assessWorkerResult(workerResult({ commit: "abc1234" }), tree([], false));
+    expect(missing.reasons).toEqual(["commit abc1234 does not exist"]);
+    expect(assessWorkerResult(workerResult({ commit: "abc1234" }), tree([], true)).ready).toBe(
+      true,
+    );
+  });
+
+  test("blocked status, failed check, and listed-but-unchanged files each block readiness", () => {
+    const a = assessWorkerResult(
+      workerResult({
+        status: "blocked",
+        files_changed: ["./src/a.ts", "src/gone.ts"],
+        verify_result: { passed: false, output_tail: "1 fail" },
+      }),
+      tree(["src/a.ts"]),
+    );
+    expect(a.reasons).toEqual([
+      "status is blocked",
+      "`bun test` failed",
+      "listed but unchanged: src/gone.ts",
+    ]);
+  });
+
+  test("changed paths the result does not list are reported but do not block", () => {
+    const a = assessWorkerResult(workerResult(), tree(["src/a.ts", "notes.md"]));
+    expect(a.ready).toBe(true);
+    expect(a.undeclared).toEqual(["notes.md"]);
+  });
+});
+
+describe("stallDetail", () => {
+  const timedOut = { ok: false, output: "", state: "unknown" as const, timedOut: true };
+
+  test("a run killed at 3x the expected time with no output is stalled", () => {
+    expect(stallTimeoutMs(2)).toBe(6 * 60_000);
+    expect(stallDetail(timedOut, 2, "")).toContain("Codex stalled: no output after 6m");
+  });
+
+  test("no expected time, partial output, or a capped timeout is not a stall", () => {
+    expect(stallDetail(timedOut, undefined, "")).toBeNull();
+    expect(stallDetail({ ...timedOut, output: "partial" }, 2, "")).toBeNull();
+    expect(stallDetail(timedOut, 2, "{}")).toBeNull();
+    expect(stallDetail({ ...timedOut, timedOut: false }, 2, "")).toBeNull();
+    // 3 x 10m exceeds the 15m exec ceiling, so the kill is an ordinary timeout.
+    expect(stallTimeoutMs(10)).toBe(15 * 60_000);
+    expect(stallDetail(timedOut, 10, "")).toBeNull();
   });
 });
 

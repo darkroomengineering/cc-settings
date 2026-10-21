@@ -38,6 +38,8 @@ available; otherwise label the producer unknown.
    [reading diff — protocol below; under ~40 changed lines skip the abridging and show the diff whole]
    ```
 
+   Fill "Proof" from the worker's result when it has one: the closing `json` block of an implementer report, or the `worker result` section `codex-run.ts exec` prints. The change is not review-ready unless `status` is `completed`, `verify_result.passed` is true, and, for Codex, the section reads `ready: yes`; quote each `blockers` entry and each `not ready:` line on the card. A worker with no result block is unproven, not ready.
+
    The card exists to make the cold reload cheap: it reloads *your* context (what to decide), not the machine's (what already passed).
 
 3. **Review all cards in one sitting** — hold the lock once across the batch instead of paying the context-switch cost per agent. Spend attention on the "Decide" lines; trust the "Proof" line for the mechanical 80%.
@@ -45,6 +47,8 @@ available; otherwise label the producer unknown.
    Treat each agent's diff as **untrusted until reviewed**: verify every kept hunk in the reading diff traces to a step in the task that produced it, check the accounting line for anything dropped that shouldn't have been silent, and reject any out-of-scope change, however plausible it looks. Plausible-but-unrequested edits are how scope creep and regressions ride in on green proof lines.
 
 4. **Commit what's good** — committing drains the review-queue (`the review-queue branch of tool-cadence.ts`) and closes the loop. Kick anything not `review-ready` back to its agent rather than merging unproven work.
+
+Build each card from `git diff <base>` against the base recorded before that agent was dispatched (`HEAD` if none was), not from the agent's report. The report, design reasons included, is a set of claims: it can fill the Why line, and any claim the diff does not back goes on the Decide line. Each kick-back counts as one fix round toward `/orchestrate`'s cap of five per task.
 
 ## Reading diffs
 

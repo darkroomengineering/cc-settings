@@ -70,7 +70,22 @@
 			"Bash(git branch -d -f:*)",
 			"Bash(git stash drop:*)",
 			"Edit(**/.claude/settings.json)",
-			"Edit(**/.claude/settings.local.json)"
+			"Edit(**/.claude/settings.local.json)",
+			"Edit(**/.mcp.json)",
+			"Edit(**/.claude-plugin/plugin.json)",
+			"Edit(**/.claude-plugin/marketplace.json)",
+			"Bash(cp * *.mcp.json*)",
+			"Bash(mv * *.mcp.json*)",
+			"Bash(ln * *.mcp.json*)",
+			"Bash(cp * *.claude-plugin*)",
+			"Bash(mv * *.claude-plugin*)",
+			"Bash(ln * *.claude-plugin*)",
+			"Bash(claude mcp add:*)",
+			"Bash(claude mcp add-json:*)",
+			"Bash(claude mcp add-from-claude-desktop:*)",
+			"Bash(claude mcp remove:*)",
+			"Bash(claude plugin install:*)",
+			"Bash(claude plugin marketplace add:*)"
 		],
 		"deny": [
 			"Bash(rm -rf /)",

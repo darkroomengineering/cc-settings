@@ -23,9 +23,18 @@ Before any implementation, complete this research phase:
 4. **Fetch docs** — use Context7 in Claude or when configured in Codex; otherwise use the standalone fallback above. Never code from memory.
 5. **Check versions** — run `bun info <package>` for the latest version.
 6. **Assess feasibility** — can this be done cleanly within existing architecture?
+7. **Cold-reader check.** Write what you will build as a short spec (behavior, scope, decisions made). You wrote it, so you cannot see the gaps your own context fills. Spawn a general-purpose subagent with `model: "sonnet"` (standalone Codex: a fresh read-only `spawn_agent` worker), not `explore`, whose initial prompt maps the repo and would fill the gaps itself. Paste only the spec text into the prompt below and give it no file paths. List its questions in the verdict. Answer each from the codebase and fold the answer into the spec; a question only the user can answer makes the verdict ASK.
+
+   ```
+   You are a senior engineer handed this spec to build. You cannot talk to its author and must not open any files.
+
+   <spec>
+
+   List only the questions you would need answered before building it: places where you would have to guess and a wrong guess would change what gets built. For each, give the question and what changes with the answer. Rank them by importance. Skip anything the spec leaves to the builder, anything you could reasonably decide yourself, and wording nits. If nothing important is left, say "nothing important left".
+   ```
 
 **GO/ASK/NO-GO Verdict**: After research, state one of:
-- **GO** — requirements are clear, approach is viable, proceed to implementation.
+- **GO** — requirements are clear, every cold-reader question is answered in the spec, approach is viable, proceed to implementation.
 - **ASK** — requirements have more than one plausible reading. Run clarifying rounds (AskUserQuestion in Claude, Plan mode `request_user_input` in Codex; up to 4 questions each, recommendation first) until no fork is left, then re-issue the verdict. If the user named no Linear issue, the first round also asks whether to create one now (recommended: yes); create it per the `ship` skill's "Linear issue" step and put its ID in the branch name. Never open a round only for this: `/ship` creates the issue anyway.
 - **NO-GO** — approach has blockers or scope is too large. Report findings and stop.
 

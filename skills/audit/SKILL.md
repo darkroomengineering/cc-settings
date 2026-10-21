@@ -88,7 +88,7 @@ A typical sequence: `/audit codebase` produces findings → engineers cherry-pic
 
 **Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
 
-**Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
+**Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). CONFIRMED requires one `file:line`; a finding located by a bare file, a glob, or an absence ("no tests") is PLAUSIBLE wherever it is reported, chat included. Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
 
 **Cross-model + intent passes.** In Claude, run the shared procedures in
 `references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier`
@@ -98,7 +98,7 @@ read-only reviewer under the lifecycle above. The one-line invariants: reconcile
 AFTER findings exist, and a documented decision **reclassifies severity, never
 deletes a finding**.
 
-**Output.** Write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
+**Output.** First grade the findings: write them as JSON lines to a scratch file, one per line with `id`, `status`, `location`, `issue`, `scenario` and `direction`, then run `bun "$HOME/.claude/src/scripts/grade-findings.ts" <file>`. It relabels any CONFIRMED finding with no `file:line` to PLAUSIBLE and gives the reason; the report uses its labels. To win CONFIRMED back, add the `file:line` and rerun; never relabel by hand. Performance's `measured` findings pass through unchanged. If the script is not installed, apply the same rule yourself. Then write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
 1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.
 2. Map (system map / doc map / process state machine — per mode below).
 3. Findings by hunt category, severity order. Each: stable ID (H1/M1/L1 by severity, or the mode prefix from Mode: Full), location, one-line issue, concrete scenario, status, recommended direction.

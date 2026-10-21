@@ -51,12 +51,14 @@ Every finding carries four fields:
 A finding counts only when all three hold:
 - It reproduces on the current head; re-read the lines before reporting.
 - The diff introduced it. Pre-existing findings go in their own non-blocking section, never in Critical or Warnings.
-- The PR body does not record it as a deliberate tradeoff. Check the PR description and commit messages before flagging code that looks intentional.
+- The PR body does not record it as a deliberate tradeoff. Check the PR description and commit messages before flagging code that looks intentional. An implementer's own report is not such a record.
+
+**The implementer's report is a claim.** When the brief includes an implementer's report, treat every line of it as unverified, including its design rationale ("kept it simple on purpose", "left it per YAGNI"). Check each claim against the diff. A stated rationale never lowers a finding's severity or confidence; a claimed change the diff does not contain is itself a finding.
 
 When a second finding lands on the same block, do not patch the block again. A second finding means the block's contract is stated wrong, so report against the representation: restate the condition, move the boundary, or ask for a human decision.
 
 **Workflow**
-1. Read the changed files (use `git diff` if available)
+1. Read the diff you were handed: the diff file, or `git diff <base>` for the base SHA in your brief. That diff is what you review; read surrounding code only to judge it. With no diff or base in the brief, diff against the merge-base with the default branch and say which base you used, never `HEAD~1` and never a prose summary
 2. Use `mcp__tldr__context` to understand modified functions efficiently
 3. Use `mcp__tldr__impact` to verify all callers were considered
 4. Check against Darkroom standards

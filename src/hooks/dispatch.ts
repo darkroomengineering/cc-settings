@@ -17,6 +17,8 @@
 //              joined additionalContext when there is any; exit 0
 //   context    every handler's additionalContext joined by newlines, in one
 //              hookSpecificOutput envelope on stdout, exit 0
+//   notice     no block: every handler's user notice joined by newlines as the
+//              top-level systemMessage, beside any envelope; exit 0
 //
 // Failure policy:
 //   - A handler marked failClosed (safety-net) that throws, times out or fails
@@ -57,6 +59,9 @@ export interface Handler {
 /** Handlers per event in the order the config ran them. */
 export const HANDLERS: Record<DispatchEvent, Handler[]> = {
   UserPromptSubmit: [
+    // First: a bounded transcript read, so a slow Jev call in
+    // delegation-detector cannot spend the entry budget and skip its warning.
+    { name: "cache-cold", timeoutS: 3, load: () => import("./cache-cold.ts") },
     { name: "delegation-detector", timeoutS: 3, load: () => import("./delegation-detector.ts") },
     { name: "quota-steer", timeoutS: 3, load: () => import("./quota-steer.ts") },
     { name: "escalate-model", timeoutS: 3, load: () => import("./escalate-model.ts") },
@@ -94,6 +99,12 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
       matcher: "Bash",
       timeoutS: 5,
       load: () => import("./visual-proof.ts"),
+    },
+    {
+      name: "config-guard",
+      matcher: "Bash",
+      timeoutS: 5,
+      load: () => import("./config-guard.ts"),
     },
     {
       name: "pre-edit-validate",
@@ -145,6 +156,8 @@ export interface DispatchResult {
   block?: { handler: string; reason: string };
   context: string[];
   asks: string[];
+  /** Shown to the user as systemMessage; the model never sees them. */
+  notices: string[];
   /** One stderr line per skipped or failed handler. */
   errors: string[];
 }
@@ -181,7 +194,7 @@ export async function runHandlers(
   const { tool_name: toolName = "" } = parseHookInput<{ tool_name: string }>(raw, {
     tool_name: "TOOL_NAME",
   });
-  const result: DispatchResult = { context: [], asks: [], errors: [] };
+  const result: DispatchResult = { context: [], asks: [], notices: [], errors: [] };
 
   for (const handler of handlers) {
     if (!matchesTool(handler.matcher ?? null, toolName)) continue;
@@ -198,12 +211,14 @@ export async function runHandlers(
       await within(main(io), limitMs);
       result.context.push(...io.contexts);
       result.asks.push(...io.asks);
+      result.notices.push(...io.notices);
     } catch (err) {
       // Keep guidance emitted before the failure (quota-steer and
       // escalate-model emit before writing state); drop anything emitted later.
       io.close();
       result.context.push(...io.contexts);
       result.asks.push(...io.asks);
+      result.notices.push(...io.notices);
       if (err instanceof HookBlocked) {
         result.block ??= { handler: handler.name, reason: err.reason };
       } else if (handler.failClosed) {
@@ -236,16 +251,20 @@ export function respond(
       exit: 2,
     };
   }
-  if (result.asks.length === 0 && result.context.length === 0) return { stdout: "", exit: 0 };
-  const hookSpecificOutput = {
-    hookEventName: event,
-    ...(result.asks.length > 0 && {
-      permissionDecision: "ask",
-      permissionDecisionReason: result.asks.join("\n"),
-    }),
-    ...(result.context.length > 0 && { additionalContext: result.context.join("\n") }),
-  };
-  return { stdout: `${JSON.stringify({ hookSpecificOutput })}\n`, exit: 0 };
+  const out: Record<string, unknown> = {};
+  if (result.notices.length > 0) out.systemMessage = result.notices.join("\n");
+  if (result.asks.length > 0 || result.context.length > 0) {
+    out.hookSpecificOutput = {
+      hookEventName: event,
+      ...(result.asks.length > 0 && {
+        permissionDecision: "ask",
+        permissionDecisionReason: result.asks.join("\n"),
+      }),
+      ...(result.context.length > 0 && { additionalContext: result.context.join("\n") }),
+    };
+  }
+  if (Object.keys(out).length === 0) return { stdout: "", exit: 0 };
+  return { stdout: `${JSON.stringify(out)}\n`, exit: 0 };
 }
 
 async function main(): Promise<void> {

@@ -1,0 +1,28 @@
+{
+	"should": [
+		"The build is failing on main since this morning with `Type 'string | undefined' is not assignable to type 'string'` in src/lib/config.ts. Can you fix it?",
+		"Our PR checks are red: the lint job fails on three files. Fix CI please.",
+		"Clicking Save on the settings page does nothing anymore and the console shows `TypeError: Cannot read properties of null (reading 'value')`. It worked last week.",
+		"I have a merge conflict in package.json and bun.lock after rebasing on main, help me resolve it.",
+		"tests/date.test.ts started failing after the timezone change: expected 2026-10-21 but got 2026-10-20. Fix it.",
+		"The signup form is broken on Safari, the submit button never enables.",
+		"After upgrading to Next 16 the dev server crashes on boot with `Error: Cannot find module 'next/dist/server/lib/start-server'`. Nothing works.",
+		"There's a regression: the cart total doubles when you add the same item twice. It was fine in v2.3.",
+		"Hydration mismatch error in the console on the homepage, fix it.",
+		"bun test hangs forever in CI on the websocket tests while they pass locally. Track it down and fix it."
+	],
+	"near_miss": [
+		"Extract the date-formatting helpers from src/utils/index.ts into their own module and update every import.",
+		"Rename `getUserData` to `fetchUserProfile` across the whole codebase.",
+		"Restructure the components folder by feature instead of by type.",
+		"checkout.ts is 600 lines and hard to follow; split it into smaller modules without changing behavior.",
+		"Pay down the tech debt in the legacy API client: drop the callback wrappers and use async/await throughout.",
+		"Add a dark mode toggle to the settings page.",
+		"Write unit tests for the price calculation in src/lib/cart.ts.",
+		"Explain how the auth middleware decides which routes are public.",
+		"Review my staged diff before I commit it.",
+		"Speed up the homepage; Lighthouse performance is 62 and I want it above 90."
+	],
+	"min_recall": 0.5,
+	"max_false_trigger": 0.2
+}
