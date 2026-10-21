@@ -2885,6 +2885,7 @@ describe("install E2E — uninstall ownership", () => {
             "src/hooks/model-switch-guard.ts",
             "src/hooks/spawn-cap.ts",
             "src/hooks/test-protect.ts",
+            "src/hooks/visual-proof.ts",
             "src/lib/claude-install-ownership.ts",
             "src/lib/claude-install-settings.ts",
             "src/lib/claude-managed-file-manifests.ts",
