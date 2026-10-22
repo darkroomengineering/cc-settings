@@ -3,6 +3,7 @@
 // (read its fragment source: every uniform that shapes the edge is an ingredient; a debug uniform is a gift).
 // usage: OUT=dir node cdp.js <this file> <scrollY mid-transition> [secondsPerSweep=2.5]
 const { prelude } = require('../scripts/browser/prelude.js'), { rec } = require('../scripts/browser/rec.js')
+const { goTo } = require('../scripts/browser/goto.js')
 const EFFECT = 'TransitionEffect', PROGRESS = 'uProgress', RANGE = [-0.35, 1.35]
 const CONFIGS = [ // cumulative: [name, uniforms to set (values or 'orig')]
   ['01_hard_wipe', { uEdge: 0, uNoise: 0, uDisplace: 0, uBlur: 0, uSeam: 0 }],
@@ -16,7 +17,7 @@ const CONFIGS = [ // cumulative: [name, uniforms to set (values or 'orig')]
 ]
 module.exports = async (page, y, secs = '2.5') => {
   await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 })
-  await page.evaluate((y) => scrollTo(0, +y), y); await new Promise((r) => setTimeout(r, 3000))
+  await goTo(page, y, { settle: 3000 })
   await page.evaluate(prelude)
   await page.evaluate((name) => {
     const e = __H.effs.find((e) => e.name === name); __H.ui(0)

@@ -9,7 +9,8 @@ const trap = (key, test, list) => Object.defineProperty(Object.prototype, key, {
 })
 trap('isScene', (o, v) => v === true, 'scenes')
 trap('isWebGLRenderer', (o, v) => v === true, 'renderers')
-trap('effects', (o, v) => Array.isArray(v) && 'fullscreenMaterial' in o, 'passes') // postprocessing EffectPass
+trap('effects', (o, v) => Array.isArray(v) && 'fullscreenMaterial' in o, 'passes') // pmndrs postprocessing EffectPass (R3F)
+trap('isPass', (o, v) => v === true, 'passes') // three/examples EffectComposer passes (ShaderPass, UnrealBloomPass, ...)
 const st = document.createElement('style'); st.id = '__cs'
 st.textContent = 'nextjs-portal{display:none!important}' // hide the Next.js dev badge
 document.addEventListener('DOMContentLoaded', () => document.head.append(st))

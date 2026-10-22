@@ -2,9 +2,10 @@
 // (re-renders a shrinking window around the target, so the close-up stays sharp instead of being a crop).
 // usage: OUT=dir node cdp.js hold.js <y> <seconds> ["<scene pred>" "<target pred: (o) => bool>" zoom=3.2] [clean=1]
 const { rec } = require('./rec.js'), { prelude } = require('./prelude.js')
+const { goTo } = require('./goto.js')
 module.exports = async (page, y, secs, scenePred = '', targetPred = '', zoom = '1', clean = '1') => {
   await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 })
-  await page.evaluate((y) => scrollTo(0, +y), y); await new Promise((r) => setTimeout(r, 3000))
+  await goTo(page, y, { settle: 3000 })
   await page.evaluate(prelude)
   if (clean === '1') await page.evaluate(() => __H.ui(0))
   if (targetPred) await page.evaluate(`(() => {

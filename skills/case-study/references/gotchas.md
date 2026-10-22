@@ -32,6 +32,8 @@
 - **Restore state, or better, reload, between captures.** A forgotten `text(0)` from one script blanked the next script's titles.
 
 ## Capture
+- **Never jump to a scroll position.** A direct `scrollTo` skips the scroll-driven animation of everything in between: titles from
+  earlier sections stay on screen and transitions stay half-played. All tasks use `goTo` (scroll in steps); do the same in custom scripts.
 - **Frame-perfect beats real time.** `rec.js` steps the frozen clock 1/60 s per screenshot (≈5 frames per wall-clock second at 1080p), so
   no frame drops, any resolution, and identical reruns. Real-time MediaRecorder isn't worth it.
 - **Scroll linearly** and let editors retime. The page loops past its last section on some sites, so end at the last section's bottom.

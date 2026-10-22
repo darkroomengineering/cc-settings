@@ -3,8 +3,27 @@
 Purpose: views the site never shows. A 360° turntable of each chapter's set, plus clay → wire → bake stills that show the raw model under the
 baked lighting. Optional extras: an isolated hero with alpha (ProRes 4444), a specimen sheet, a site-camera match.
 
+## Start with the generic runner
+`scripts/blender/turntable.py` covers most sets with no code:
+```
+CS_SITE=<project>/public CS_OUT=<WORK>/out/blender CS_BG=0b0f0a \
+  Blender -b --factory-startup -P <SKILL>/scripts/blender/turntable.py -- --glb models/a.glb [--glb …] --name hero --job probe
+```
+Then `--job stills` and `--job turntable`. Options: `--tex "<mesh substring>=<color.png>[:<alpha.png>]"` maps baked textures the site loads
+in code; `--look bake|material` (auto: bake when every mesh is mapped, else the glTF's own lit materials); `--el --lens --hero-az --hero-el
+--frames --samples --breathe`. Imported animations loop through the turntable. Tested on baked unlit sets, lit PBR assets, untextured meshes.
+Write a `sets.py` only for what a GLB alone can't give: GPU instances rebuilt from live matrices, shaders ported from the site, crops,
+specimen line-ups.
+
+## Formats Blender can't read directly
+- **KTX2 / Basis textures:** use the PNG/JPG source if the repo has one; otherwise decode, e.g. `ktx extract --transcode rgba8 in.ktx2 out.png`
+  (KTX-Software) or `basisu -unpack in.ktx2`.
+- **meshopt-compressed GLBs (`EXT_meshopt_compression`)** fail to import in older Blender: decompress with
+  `npx @gltf-transform/cli copy in.glb out.glb` (writes it back uncompressed) or Blender 4.x. Draco imports fine.
+
 ## Setup
 - Blender: `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P script.py -- args`. EEVEE works headless on Apple silicon.
+  The library runs on 3.x and 4.x/5.x (engine name and removed EEVEE settings are handled); verify on a new major version with `--job probe`.
 - Bundled library: `scripts/blender/common.py` (unlit site material, scene reset, camera helpers) and `chapters_lib.py` (stage materials
   clay/wire/bake with shared alpha clip, alpha-tested surface sampling for auto-framing, a seamless turntable camera whose distance breathes so the set
   fits at every angle, still + turntable output). Set `CS_SITE=<project>/public` and `CS_OUT=<output dir>`.
@@ -29,7 +48,8 @@ Blender work is long, independent and parallel to browser capture, so give it to
 You are producing offline renders for a design-agency case study of <PROJECT> (<one-line description>). Reuse the bundled library:
 <SKILL>/scripts/blender/common.py and chapters_lib.py (read them first); write one set-builder function per set in a sets.py. Write scripts to <WORK>/blender-scripts/ and outputs to <WORK>/out/blender/<set>/. Do NOT modify <PROJECT_ROOT>.
 Env: CS_SITE=<PROJECT_ROOT>/public CS_OUT=<WORK>/out/blender/
-Material rule: Emission strength 1 from the baked sRGB texture, alpha map hard-clipped at 0.25 (blend Clip), view transform Standard,
+Material rule (baked, unlit sites): Emission strength 1 from the baked sRGB texture, alpha map hard-clipped at 0.25, view transform Standard
+(lit sites: keep the glTF materials, as turntable.py --look material does),
 background <BG_HEX> plus transparent PNG variants. Everything 1920x1080 (16:9).
 Sets (for each: turntable_360.mp4, 8 s 24 fps seamless, H.264 crf 18, and stills 01_clay, 02_wire, 03_bake from one hero 3/4 camera, _dark.png + transparent .png):
   <set name>: <GLB paths + meshes + textures/alpha maps>, <notes: animation to loop, instances JSON to rebuild, fog colour for dark bakes>

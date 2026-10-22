@@ -15,7 +15,6 @@ from common import *
 CH_OUT = OUT + "chapters/"
 FFMPEG = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
 FFPROBE = shutil.which("ffprobe") or "/opt/homebrew/bin/ffprobe"
-BG_HEX = "0b0f0a"
 N_TT = 192            # 8 s @ 24 fps
 W, H = 1920, 1080
 SENSOR = 36.0
@@ -82,13 +81,13 @@ def _finish(mat, nt, shader_out, fac, shadow_clip):
         nt.links.new(tr.outputs[0], mix.inputs[1])
         nt.links.new(shader_out, mix.inputs[2])
         nt.links.new(mix.outputs[0], out.inputs["Surface"])
-        mat.blend_method = "CLIP"
+        setattr_safe(mat, "blend_method", "CLIP")
         mat.alpha_threshold = 0.5
-        mat.shadow_method = "CLIP" if shadow_clip else "NONE"
+        setattr_safe(mat, "shadow_method", "CLIP" if shadow_clip else "NONE")
     else:
         nt.links.new(shader_out, out.inputs["Surface"])
-        mat.blend_method = "OPAQUE"
-        mat.shadow_method = "OPAQUE" if shadow_clip else "NONE"
+        setattr_safe(mat, "blend_method", "OPAQUE")
+        setattr_safe(mat, "shadow_method", "OPAQUE" if shadow_clip else "NONE")
     mat.use_backface_culling = False
     return mat
 
@@ -192,12 +191,19 @@ def visible_points(ob, alpha=None, clip=0.25, n=40000, crop=None, seed=1):
     co = np.empty(len(me.vertices) * 3, np.float32); me.vertices.foreach_get("co", co); co = co.reshape(-1, 3)
     tv = np.empty(nt * 3, np.int32); me.loop_triangles.foreach_get("vertices", tv); tv = tv.reshape(-1, 3)
     tl = np.empty(nt * 3, np.int32); me.loop_triangles.foreach_get("loops", tl); tl = tl.reshape(-1, 3)
-    uv = np.empty(len(me.loops) * 2, np.float32); me.uv_layers.active.data.foreach_get("uv", uv); uv = uv.reshape(-1, 2)
+    uv = np.zeros(len(me.loops) * 2, np.float32)
+    if me.uv_layers.active:   # untextured meshes (common in lit PBR sets) have no UV map
+        me.uv_layers.active.data.foreach_get("uv", uv)
+    else:
+        alpha = None
+    uv = uv.reshape(-1, 2)
     M = np.array(eo.matrix_world, dtype=np.float64)
     eo.to_mesh_clear()
     wc = co @ M[:3, :3].T + M[:3, 3]
     A, B, C = wc[tv[:, 0]], wc[tv[:, 1]], wc[tv[:, 2]]
     area = 0.5 * np.linalg.norm(np.cross(B - A, C - A), axis=1)
+    if nt == 0 or area.sum() <= 0:
+        return np.zeros((0, 3))
     rng = np.random.default_rng(seed)
     idx = rng.choice(nt, size=n, p=area / area.sum())
     r1 = np.sqrt(rng.random(n))[:, None]; r2 = rng.random(n)[:, None]
@@ -320,22 +326,22 @@ def clay_lights(sc, T, size, cam_az, key_off=45, key_el=48, energy=3.0, ambient=
     sun.energy = energy
     sun.angle = math.radians(3)
     sun.color = (1.0, 0.96, 0.9)
-    sun.shadow_cascade_max_distance = (cam_dist + size) if cam_dist else size * 8   # tight range = finer cascade texels
-    sun.shadow_buffer_bias = 1.5
-    sun.shadow_cascade_count = 4
-    sun.shadow_cascade_fade = 0.1
-    sun.use_contact_shadow = size <= 10       # screen-space contact shadows band at the crop edge on big sets
-    sun.contact_shadow_distance = size * 0.01
+    # cascade / contact-shadow / GTAO knobs moved or vanished in EEVEE Next (4.2+): set what exists, skip the rest
+    for obj, attr, val in [
+        (sun, "shadow_cascade_max_distance", (cam_dist + size) if cam_dist else size * 8),   # tight range = finer cascade texels
+        (sun, "shadow_buffer_bias", 1.5), (sun, "shadow_cascade_count", 4), (sun, "shadow_cascade_fade", 0.1),
+        (sun, "use_contact_shadow", size <= 10),   # screen-space contact shadows band at the crop edge on big sets
+        (sun, "contact_shadow_distance", size * 0.01),
+    ]:
+        setattr_safe(obj, attr, val)
     so = bpy.data.objects.new("key", sun)
     sc.collection.objects.link(so)
     so.location = orbit_point(Vector(T), size, cam_az + key_off, key_el)
     look_at(so, Vector(T))
     e = sc.eevee
-    e.shadow_cascade_size = "4096"
-    e.use_soft_shadows = True
-    e.use_gtao = True
-    e.gtao_distance = min(size * 0.03, 0.4)
-    e.gtao_factor = 1.0
+    for attr, val in [("shadow_cascade_size", "4096"), ("use_soft_shadows", True), ("use_gtao", True),
+                      ("gtao_distance", min(size * 0.03, 0.4)), ("gtao_factor", 1.0), ("use_shadows", True)]:
+        setattr_safe(e, attr, val)
     bg_world(sc, (ambient, ambient * 1.07, ambient * 1.07), 1.0)
     return so
 
@@ -351,7 +357,7 @@ def composite_dark(src, dst, size=f"{W}x{H}", bg=None):
 
 
 def render_still(sc, path_png):
-    """Transparent PNG + same image composited over #0b0f0a as *_dark.png."""
+    """Transparent PNG + same image composited over BG_HEX (CS_BG) as *_dark.png."""
     sc.render.film_transparent = True
     sc.render.image_settings.color_mode = "RGBA"
     sc.render.filepath = path_png

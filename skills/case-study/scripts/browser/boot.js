@@ -11,8 +11,8 @@ module.exports = async (page, url, gate = '', settle = '9') => {
   await new Promise((r) => setTimeout(r, +settle * 1000))
   return page.evaluate(() => {
     window.__big = __cap.scenes.filter((s) => s.children.length > 2)
-    const effs = __cap.passes.flatMap((p) => p.effects || [])
-    window.__orig = { opac: new Map(effs.map((e) => [e, e.blendMode?.opacity?.value])) }
-    return { scenes: __cap.scenes.length, bigScenes: __big.map((s) => s.children.length), renderers: __cap.renderers.length, effects: [...new Set(effs.map((e) => e.name))], scrollHeight: document.documentElement.scrollHeight }
+    const effs = __cap.passes.flatMap((p) => (p.effects ? p.effects : p.isPass ? [p] : []))
+    window.__orig = { opac: new Map(effs.map((e) => [e, e.blendMode ? e.blendMode.opacity.value : e.enabled])) }
+    return { scenes: __cap.scenes.length, bigScenes: __big.map((s) => s.children.length), renderers: __cap.renderers.length, effects: [...new Set(effs.map((e) => e.name || e.constructor?.name))], webgl: __cap.renderers.length > 0, scrollHeight: document.documentElement.scrollHeight }
   })
 }

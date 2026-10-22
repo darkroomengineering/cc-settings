@@ -2,9 +2,25 @@
 import bpy, math, os
 from mathutils import Vector
 
-SITE = os.environ.get("CS_SITE", os.getcwd() + "/public").rstrip("/") + "/"   # the project's public/ dir (models/, textures/)
-MODELS = SITE + "models/"
+SITE = os.environ.get("CS_SITE", os.getcwd() + "/public").rstrip("/") + "/"   # base dir for relative asset paths (often the project's public/)
+MODELS = SITE + os.environ.get("CS_MODELS", "models").strip("/") + "/"         # where import_glb looks for bare file names
 OUT = os.environ.get("CS_OUT", "/tmp/case-study-blender").rstrip("/") + "/"   # renders land here
+BG_HEX = os.environ.get("CS_BG", "0b0f0a").lstrip("#")                         # dark ground for *_dark stills and turntables
+
+
+def setattr_safe(obj, attr, value):
+    """Set a property only if this Blender version has it (4.2+ removed bloom/ssr/gtao and changed blend/shadow modes)."""
+    try:
+        setattr(obj, attr, value)
+        return True
+    except (AttributeError, TypeError):
+        return False
+
+
+def eevee_engine():
+    """'BLENDER_EEVEE' (3.x, 5.x) or 'BLENDER_EEVEE_NEXT' (4.2-4.x), whichever this build has."""
+    items = bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items.keys()
+    return "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in items else "BLENDER_EEVEE"
 
 
 def reset():
@@ -13,8 +29,10 @@ def reset():
 
 
 def import_glb(name):
+    """Import a .glb/.gltf by absolute path, path relative to SITE, or bare name under MODELS. Returns {name: object} of new objects."""
+    path = name if os.path.isabs(name) else (SITE + name if os.path.exists(SITE + name) else MODELS + name)
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=MODELS + name)
+    bpy.ops.import_scene.gltf(filepath=path)
     return {o.name: o for o in bpy.data.objects if o not in before}
 
 
@@ -53,12 +71,12 @@ def unlit_material(name, color_path, alpha_path=None, clip=0.25, double_sided=Tr
         nt.links.new(tr.outputs[0], mix.inputs[1])
         nt.links.new(emi.outputs[0], mix.inputs[2])
         nt.links.new(mix.outputs[0], out.inputs["Surface"])
-        mat.blend_method = "CLIP"
+        setattr_safe(mat, "blend_method", "CLIP")
         mat.alpha_threshold = 0.5
     else:
         nt.links.new(emi.outputs[0], out.inputs["Surface"])
-        mat.blend_method = "OPAQUE"
-    mat.shadow_method = "NONE"
+        setattr_safe(mat, "blend_method", "OPAQUE")
+    setattr_safe(mat, "shadow_method", "NONE")
     mat.use_backface_culling = not double_sided
     return mat
 
@@ -78,10 +96,10 @@ def flat_material(name, rgb, alpha=1.0, emission=True):
         nt.links.new(tr.outputs[0], mix.inputs[1])
         nt.links.new(emi.outputs[0], mix.inputs[2])
         nt.links.new(mix.outputs[0], out.inputs["Surface"])
-        mat.blend_method = "BLEND"
+        setattr_safe(mat, "blend_method", "BLEND")
     else:
         nt.links.new(emi.outputs[0], out.inputs["Surface"])
-    mat.shadow_method = "NONE"
+    setattr_safe(mat, "shadow_method", "NONE")
     return mat
 
 
@@ -111,13 +129,12 @@ def color_management(scene, look="None"):
 
 
 def setup_eevee(scene, w, h, samples=64, transparent=True):
-    scene.render.engine = "BLENDER_EEVEE"
+    scene.render.engine = eevee_engine()
     e = scene.eevee
     e.taa_render_samples = samples
-    e.use_bloom = False
-    e.use_ssr = False
-    e.use_gtao = False
-    e.use_motion_blur = False
+    for attr in ("use_bloom", "use_ssr", "use_gtao", "use_motion_blur"):
+        setattr_safe(e, attr, False)
+    setattr_safe(scene.render, "use_motion_blur", False)
     scene.render.film_transparent = transparent
     scene.render.filter_size = 1.5
     scene.render.resolution_x = w

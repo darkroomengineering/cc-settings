@@ -1,16 +1,16 @@
 #!/bin/zsh
 # encode.sh <mode> <png_pattern> <out> [WxH]
-#   mode = dark   : composite RGBA PNGs over #0b0f0a -> H.264 mp4 (BT.709, tagged)
+#   mode = dark   : composite RGBA PNGs over $CS_BG (default 0b0f0a) -> H.264 mp4 (BT.709, tagged)
 #          opaque : opaque PNGs -> H.264 mp4 (BT.709, tagged)
 #          prores : RGBA PNGs -> ProRes 4444 + alpha .mov
 set -e
 F=${FFMPEG:-ffmpeg}
-mode=$1; pat=$2; out=$3; size=${4:-1920x1080}
+mode=$1; pat=$2; out=$3; size=${4:-1920x1080}; BG=${CS_BG:-0b0f0a}; BG=${BG#\#}
 TAGS=(-color_primaries bt709 -color_trc bt709 -colorspace bt709)
 X264=(-c:v libx264 -crf 16 -preset slow -tune film -movflags +faststart)
 case $mode in
   dark)
-    $F -y -loglevel error -f lavfi -i "color=c=0x0b0f0a:s=${size}:r=24,format=rgb24" -framerate 24 -start_number 0 -i "$pat" \
+    $F -y -loglevel error -f lavfi -i "color=c=0x${BG}:s=${size}:r=24,format=rgb24" -framerate 24 -start_number 0 -i "$pat" \
       -filter_complex "[0][1]overlay=format=rgb:shortest=1,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p" \
       $TAGS $X264 "$out" ;;
   opaque)
