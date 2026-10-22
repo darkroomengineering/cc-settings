@@ -4,6 +4,30 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.87.0] — 2026-10-22
+
+New `/case-study` skill turns a shipped site into raw material for a studio case study: frame-perfect 16:9 clips per chapter and transition, layer-by-layer scene decompositions, Blender turntables and clay/wire/bake renders, every sound and image asset as its own file, and a shareable board. It works on three.js and other WebGL sites as well as plain DOM, GSAP and Lottie sites, and skips the phases a project has no material for.
+
+**Added:**
+- `skills/case-study/` with its browser capture rig, media scripts, Blender runner, references and templates; registered in `ACTIVE_SKILLS`.
+- `evals/case-study-dom-site-plan/`: a DOM-only site must skip Blender and the 3D tools, deliver separate 16:9 masters next to the project, and leave the repo clean.
+- `docs/skills.md` row for the skill.
+
+**Changed:**
+- The managed library is now 25 skills: `SKILL_COUNT_BASELINE` in `src/lib/lint-skills.ts`, and the counts in `README.md`, `MANUAL.md` and `.claude/AGENTS.md`.
+- The skill's install steps use `bun add --cwd` and `bunx` instead of `npm i --prefix` and `npx`.
+
+**Files changed:**
+- skills/case-study/ (new)
+- evals/case-study-dom-site-plan/ (new)
+- src/lib/managed-skills.ts
+- src/lib/lint-skills.ts
+- docs/skills.md
+- README.md
+- MANUAL.md
+- .claude/AGENTS.md
+- package.json, .claude-plugin/plugin.json, plugin.json, src/setup.ts
+
 ## [15.86.1] — 2026-10-21
 
 The skill trigger check costs about 20% less per prompt set, because its runs no longer pay for cache writes they never read back (OSS-50).

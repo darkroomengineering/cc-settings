@@ -1,0 +1,14 @@
+{
+  "theatre_config": "FILL_ME/path/to/theatre-state.json",
+  "sounds_dir": "FILL_ME/path/to/sounds",
+  "object": "sounds",
+  "duration": 30,
+  "path": [[0, 0], [30, 12000]],
+  "vh": 1080,
+  "chapters": [
+    { "sheet": "FILL_ME sheet name for section 1", "top": 0, "h": 6000 },
+    { "sheet": "FILL_ME sheet name for section 2", "top": 6000, "h": 6000 }
+  ],
+  "oneshots": [{ "id": "FILL_ME sound file name without extension", "t": 5.0 }],
+  "target_rms_db": -21
+}

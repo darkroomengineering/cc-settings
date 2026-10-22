@@ -1,0 +1,5 @@
+# name|start_seconds|end_seconds, one line per section and per transition, cut from the full-scroll master by cut_film.sh.
+# Find the boundaries from map.js section offsets (seconds = y / scroll_speed) and a contact sheet of the master.
+01_section_FILL_ME|0|10
+02_transition_1_to_2|9|13
+03_section_FILL_ME|12|24

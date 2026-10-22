@@ -267,7 +267,7 @@ warnings, run `bun ~/.claude/src/scripts/audit-hooks.ts`. Follow
 
 ## Reference routes
 
-- [All 24 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
+- [All 25 skills, effects, approvals, output, prerequisites, and host behavior](./docs/skills.md)
 - [Installation flags, tiers, paths, side effects, rollback, and uninstall](./docs/install.md)
 - [Claude Code and Codex parity](./docs/claude-vs-codex.md)
 - [Models, effort, advisor, and quota policy](./docs/agent-models.md)

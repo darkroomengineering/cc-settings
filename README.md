@@ -223,7 +223,7 @@ on every machine. The same request behaves differently once it is installed:
   React, performance, accessibility, security, git, motion, style) load only for the files they
   cover, and six stack profiles (Next.js, React Router, React Native, Tauri, WebGL, durable agents)
   add the specifics of each stack.
-- **24 skills.** Named workflows selected from ordinary language or pinned with `/name` in Claude
+- **25 skills.** Named workflows selected from ordinary language or pinned with `/name` in Claude
   and `$name` in Codex: fix, build, review, ship, audit, poke-holes, handoff, and the
   rest. The [skill guide](./docs/skills.md) lists what each one changes and when it asks.
 - **9 role agents.** Planner, explorer, implementer, tester, reviewer, security reviewer,
