@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.86.0"; // resume cache warning to the user, calibrated trigger checks.
+const VERSION = "15.86.1"; // trigger checks run with prompt caching off.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

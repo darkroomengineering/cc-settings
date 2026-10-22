@@ -4,6 +4,22 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.86.1] — 2026-10-21
+
+The skill trigger check costs about 20% less per prompt set, because its runs no longer pay for cache writes they never read back (OSS-50).
+
+**Cause:** Claude Code puts the user prompt ahead of the skill listing and session context, and caches only at the end of the system prompt and the end of the message. Every new prompt therefore rewrote about 23k tokens at the cache-write price. SessionStart hook output was not the cause; it is about 4k of the 36k characters after the prompt.
+
+**Changed:**
+- `src/scripts/eval-triggers.ts` sets `DISABLE_PROMPT_CACHING=1` for its `claude -p` runs. A 20-prompt run of `fix` cost $1.13 against $1.42 during calibration, with the same results (recall 100%, false triggers 0%). The default cost cap drops from $7 to $5.
+- `.claude/AGENTS.md`: the trigger-check cost is now about $3.40 for 20 prompts at 3 runs (est.).
+
+**Files changed:**
+- `src/scripts/eval-triggers.ts`
+- `.claude/AGENTS.md`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [15.86.0] — 2026-10-21
 
 When you resume a session whose prompt cache has expired, you now see what the first message will cost before you send it, and the skill trigger check has real thresholds for three skills (OSS-48, OSS-49).
