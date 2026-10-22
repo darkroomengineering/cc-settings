@@ -1,19 +1,20 @@
 // Anatomy of a full-screen transition shader: freeze mid-transition, take over its progress uniform, and switch its ingredients on one
-// by one (each config sweeps progress across the screen). Adapt EFFECT, PROGRESS, the range and CONFIGS to the project's shader
-// (read its fragment source: every uniform that shapes the edge is an ingredient; a debug uniform is a gift).
+// by one; every stage sweeps progress across the screen. Fill EFFECT, PROGRESS, RANGE and INGREDIENTS from the project's shader
+// (read its fragment source: each uniform that adds something on top of a bare cut is an ingredient; a debug uniform is a gift).
+// Stages are generated: 00_bare (every ingredient at 0) -> +each ingredient in order -> debug view (if any) -> final.
 // usage: OUT=dir node cdp.js <this file> <scrollY mid-transition> [secondsPerSweep=2.5]
 const { prelude } = require('../scripts/browser/prelude.js'), { rec } = require('../scripts/browser/rec.js')
 const { goTo } = require('../scripts/browser/goto.js')
-const EFFECT = 'TransitionEffect', PROGRESS = 'uProgress', RANGE = [-0.35, 1.35]
+const EFFECT = 'FILL_ME'                // effect name as map.js lists it (pmndrs postprocessing Effect with a `uniforms` Map)
+const PROGRESS = 'uFILL_ME'             // the uniform the site drives from scroll
+const RANGE = [0, 1]                    // widen it (e.g. [-0.3, 1.3]) if the edge is skewed or offset and doesn't fully cross the screen
+const INGREDIENTS = ['uFILL_ME_A', 'uFILL_ME_B'] // in reveal order
+const DEBUG = null                      // e.g. 'uDebug' if the shader has a debug view
+const pad = (n) => String(n).padStart(2, '0')
 const CONFIGS = [ // cumulative: [name, uniforms to set (values or 'orig')]
-  ['01_hard_wipe', { uEdge: 0, uNoise: 0, uDisplace: 0, uBlur: 0, uSeam: 0 }],
-  ['02_edge', { uEdge: 'orig' }],
-  ['03_noise', { uNoise: 'orig' }],
-  ['04_displacement', { uDisplace: 'orig' }],
-  ['05_blur', { uBlur: 'orig' }],
-  ['06_seam', { uSeam: 'orig' }],
-  ['07_debug', { uDebug: 1 }],
-  ['08_final', { uDebug: 0 }],
+  ['00_bare', Object.fromEntries(INGREDIENTS.map((u) => [u, 0]))],
+  ...INGREDIENTS.map((u, i) => [`${pad(i + 1)}_plus_${u.replace(/^u/, '').toLowerCase()}`, { [u]: 'orig' }]),
+  ...(DEBUG ? [[`${pad(INGREDIENTS.length + 1)}_debug`, { [DEBUG]: 1 }], [`${pad(INGREDIENTS.length + 2)}_final`, { [DEBUG]: 0 }]] : []),
 ]
 module.exports = async (page, y, secs = '2.5') => {
   await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 })

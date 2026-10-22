@@ -24,8 +24,8 @@
   (a noise pass sat at 0.04, not 1). Restoring "on = 1" quietly ruins the "final" frame. Store the values on first touch.
 - **The type layer can be a cached render target.** Hiding the text meshes can do nothing when the titles are rendered once into a
   texture composited by a `TextureEffect`. Fade that effect instead. DOM headings with `opacity: 0` mean the WebGL copy is the visible one.
-- **Solo every mesh before writing a recipe.** In one chapter the scene graph was mostly a baked set of big trees, but the camera saw almost
-  only a few hundred GPU instances of six plants. A recipe written from the graph alone gave five black layers. Use `solo.js`.
+- **Solo every mesh before writing a recipe.** A scene graph can be dominated by objects the camera never frames, while what you
+  see is something small in the graph (a few instanced meshes, say). A recipe written from the graph alone gives black layers. Use `solo.js`.
 - **Hidden groups are often debug helpers** (camera-path lines, target markers). Only re-show groups that were visible originally (`O.vis`).
 - **Uniforms the site rewrites every scroll** (e.g. chapter blend textures) can be pinned with `Object.defineProperty(u, 'value', { get, set(){} })`.
   `delete u.value` afterwards restores them.
@@ -37,11 +37,11 @@
 - **Frame-perfect beats real time.** `rec.js` steps the frozen clock 1/60 s per screenshot (≈5 frames per wall-clock second at 1080p), so
   no frame drops, any resolution, and identical reruns. Real-time MediaRecorder isn't worth it.
 - **Scroll linearly** and let editors retime. The page loops past its last section on some sites, so end at the last section's bottom.
-- **Parallax hides subjects.** A hero bird sat behind a palm frond at one scroll position and was clear 100 px earlier. Sample a few y positions (screenshots +
+- **Parallax hides subjects.** A subject can be hidden behind foreground objects at one scroll position and clear 100 px earlier. Sample a few y positions (screenshots +
   project the target to screen space) before a long hold.
 - **For a push-in, use `camera.setViewOffset`, not FOV.** It re-renders a shrinking window around the target, which stays sharp and stays
   centred on the subject.
-- **Interactions** (click to scan, hover) need a real input at an exact frame. Use `rec`'s `hook` (puppeteer `page.mouse`) and log the frame, so
+- **Interactions** (click-triggered effects, hover) need a real input at an exact frame. Use `rec`'s `hook` (puppeteer `page.mouse`) and log the frame, so
   the matching sound lands on it.
 - **Look at every capture before using it.** Contact sheet (`media/sheet.sh`) then Read. Black layers, wrong framing and stray helpers are only
   visible this way.
@@ -57,5 +57,5 @@
 - **Bakes:** unlit Emission(strength 1) of the baked sRGB texture, alpha maps hard-clipped at 0.25, view transform Standard. That matches
   MeshBasicMaterial on the web.
 - **glTF imports use quaternion rotation.** Animate `rotation_quaternion` or switch the mode, or turntables won't spin.
-- **Near-black bakes meant for fog** (silhouette forests) vanish on a dark background. Also render over the site's fog colour (`_fogbg`).
+- **Near-black bakes meant for fog** (objects meant to read as silhouettes) vanish on a dark background. Also render over the site's fog colour (`_fogbg`).
 - **GPU instances exist only at runtime.** Export their matrices from the live page (`instances.js`) and convert three (x,y,z) → Blender (x,−z,y).

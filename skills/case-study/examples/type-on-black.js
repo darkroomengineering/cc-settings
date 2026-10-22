@@ -7,7 +7,9 @@
 // usage: OUT=dir node cdp.js <this file> <y0> <y1> [seconds=5] [hoverSeconds=4]
 const { prelude } = require('../scripts/browser/prelude.js'), { rec } = require('../scripts/browser/rec.js')
 const { goTo } = require('../scripts/browser/goto.js')
-const EFFECT = '' /* e.g. 'TransitionEffect' */, INPUTS = ['uTextureA', 'uTextureB'], LENS = /Chromatic|Vignette|Noise|Bloom/
+const EFFECT = '' // blend-shader strategy only: the effect's name from map.js; '' = hide-non-text-meshes strategy
+const INPUTS = ['uFILL_ME', 'uFILL_ME'] // blend-shader strategy only: the effect's sampler uniforms holding the scene render targets
+const LENS = /Bloom|Chromatic|Vignette|Noise|Grain|Film/
 module.exports = async (page, y0, y1, secs = '5', hoverSecs = '4') => {
   await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 })
   await goTo(page, y0)
