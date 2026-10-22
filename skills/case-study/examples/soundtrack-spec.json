@@ -1,0 +1,14 @@
+{
+  "theatre_config": "<project>/public/config/<Project>-<latest export>.json",
+  "sounds_dir": "<project>/public/sounds",
+  "object": "sounds",
+  "duration": 60,
+  "path": [[0, 0], [60, 24000]],
+  "vh": 1080,
+  "chapters": [
+    { "sheet": "chapter1", "top": 0, "h": 8000 },
+    { "sheet": "chapter2", "top": 8000, "h": 7000 }
+  ],
+  "oneshots": [{ "id": "Sfx_Character_Vocal1", "t": 12.0 }],
+  "target_rms_db": -21
+}

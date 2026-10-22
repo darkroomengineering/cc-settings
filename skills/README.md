@@ -57,6 +57,7 @@ These create files directly in main context:
 | `design-tokens` | design tokens, type scale, color palette, spacing system, theme setup |
 | `hook` | create hook, custom hook |
 | `dr-init` | new project, initialize, setup |
+| `case-study` | case study, showcase, making-of, breakdown, decompose a scene, record site footage, turntable, export sounds/assets |
 
 ### Research (Forked Context)
 These fork context for clean exploration:

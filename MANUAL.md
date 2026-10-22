@@ -98,7 +98,7 @@ You'll be asked to pick a starter — **satus** (Next.js, content sites) or **no
 | *"review my changes"* | `/review` — checks against TypeScript / React / a11y / performance rules |
 | *"audit my recent activity"* | `bun run claude-audit` — analyzes Bash command logs |
 
-**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 35 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
+**4. Don't memorize skills.** Just talk normally. The `Skill` tool auto-matches the right one. To see all 36 cc-settings skills, scroll to [All Skills](#all-skills) below. (Native Claude Code skills like `/loop`, `/schedule`, `/code-review`, `/review`, `/init`, `/security-review`, and any plugins like `sanity:*` or `vercel:*` load in addition — your session typically sees 60–80 skills total.)
 
 **5. When something is unclear**, ask Claude directly: *"what skill handles X?"* or *"what just changed in cc-settings?"*. The setup is self-describing.
 
@@ -308,6 +308,12 @@ Say: *"generate a type scale"*, *"create a color palette"*, or *"reduce/dedupe o
 
 Triggers `/design-tokens` — generates tokens as Tailwind config or CSS custom properties, or **consolidates** an over-grown Tailwind v4 token set (audit → live-set → rename-map → verify) for fewer tokens with identical render.
 
+### Case Study Media
+
+Say: *"make a case study of this project"*, *"take apart the landscape layer by layer"*, *"record the site and export all the sounds"*
+
+Triggers `/case-study` — turns a shipped site into case-study material: frame-perfect 16:9 clips per chapter and transition (headless Chrome with a frozen clock, hooked into the live three.js scenes), layer-by-layer decompositions of every scene, Blender turntables + clay/wire/bake renders, every sound and image asset exported separately, rebuilt mixes from Theatre keyframes, and a shareable exploration board. Project-specific recipes stay private in `<project>-case-study-assets/_toolkit/`.
+
 ### Smooth Scroll
 
 Both satus and novus starters ship Lenis pre-wired — no setup needed for Darkroom projects. For non-Darkroom projects, see the Lenis note in `/dr-init` or check `git log --all -- skills/lenis/` for the retired skill's implementation guide.
@@ -503,6 +509,7 @@ These are enforced automatically — no skill needed:
 | `hook` | create hook, custom hook |
 | `dr-init` | new darkroom project, satus, novus, scaffold from starter (`dr-` prefix = Darkroom-specific) |
 | `design-tokens` | type scale, color palette, spacing system, reduce/dedupe/consolidate tokens |
+| `case-study` | case study, showcase, making-of, breakdown, decompose the scene, record the site, turntable, export sounds/assets |
 | `qa` | visual QA, accessibility, contrast, touch target |
 | `lighthouse` | lighthouse, performance audit, page speed, web vitals |
 | `checkpoint` | snapshot, before risky op, restore checkpoint, rollback to |

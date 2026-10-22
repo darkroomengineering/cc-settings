@@ -31,6 +31,7 @@
 export const ACTIVE_SKILLS = [
   "autoresearch",
   "build",
+  "case-study",
   "cc",
   "checkpoint",
   "codex",

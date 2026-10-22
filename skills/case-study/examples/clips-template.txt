@@ -1,0 +1,4 @@
+01_ch1_<title>|0.5|12
+02_ch1_<second_scene>|12|19
+03_transition_ch1_to_ch2|17.5|22.5
+04_ch2_<title>|22|31
