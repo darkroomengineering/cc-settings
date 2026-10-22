@@ -1,5 +1,6 @@
-// Hooks-block fingerprint. Setup writes a SHA256 of the canonicalized hooks
-// section after install; the SessionStart verify-hook re-hashes on every
+// Hooks-block and plugin-key fingerprint. Setup writes a SHA256 of the
+// canonicalized hooks section, plus a second SHA256 of the plugin keys
+// (enabledPlugins, extraKnownMarketplaces, pluginConfigs), after install; the SessionStart verify-hook re-hashes on every
 // session and warns on mismatch. Defense against supply-chain malware that
 // injects hooks into ~/.claude/settings.json post-install (Shai-Hulud worm
 // pattern reported May 2026).
@@ -10,11 +11,12 @@
 // or re-run setup.sh to refresh the fingerprint.
 
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CryptoHasher } from "bun";
 import { z } from "zod";
-import { iterCommandHooks } from "./hook-command.ts";
+import { iterCommandHooks, MANAGED_BUNFIG_REL } from "./hook-command.ts";
+import { readValidatedState } from "./hook-runtime.ts";
 import { atomicWriteJson } from "./json-io.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 
@@ -35,6 +37,14 @@ const FingerprintRecordSchema = z.object({
   hash: z.string().min(1),
   installedAt: z.string().default("").transform(stripControl),
   hooksCount: z.number().int().nonnegative().default(0),
+  // Absent in records written before plugin keys were fingerprinted. Verify
+  // skips the plugin comparison for such a record rather than alarming; the
+  // next setup run writes it.
+  pluginsHash: z.string().min(1).optional(),
+  // Per-entry SHA256 of each plugin-key entry at the last setup run, so the
+  // mismatch warning lists only what changed since then. Absent in records
+  // written before this existed.
+  pluginEntries: z.record(z.string(), z.record(z.string(), z.string())).optional(),
 });
 
 export const FINGERPRINT_FILENAME = ".cc-settings-hooks-fingerprint";
@@ -62,27 +72,137 @@ export function hashHooks(settings: unknown): string {
   return hasher.digest("hex");
 }
 
+/** Top-level settings keys that decide which plugin code Claude Code loads. */
+export const PLUGIN_KEYS = ["enabledPlugins", "extraKnownMarketplaces", "pluginConfigs"] as const;
+
+export function hashPluginKeys(settings: unknown): string {
+  const source =
+    settings && typeof settings === "object" ? (settings as Record<string, unknown>) : {};
+  const picked: Record<string, unknown> = {};
+  for (const key of PLUGIN_KEYS) {
+    picked[key] = source[key] ?? {};
+  }
+  const hasher = new CryptoHasher("sha256");
+  hasher.update(canonicalize(picked));
+  return hasher.digest("hex");
+}
+
+/** First cc-settings version whose setup writes `pluginsHash`. A record without
+ *  it on an install at or past this version was stripped, not written by an
+ *  older setup. */
+export const PLUGIN_FINGERPRINT_SINCE = "15.45.3";
+
+function versionAtLeast(version: string, min: string): boolean {
+  const a = version.split(".").map(Number);
+  const b = min.split(".").map(Number);
+  if (a.length !== 3 || a.some((n) => !Number.isInteger(n))) return false;
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  }
+  return true;
+}
+
+async function readInstalledVersion(dir: string): Promise<string | null> {
+  try {
+    const parsed: unknown = JSON.parse(await readFile(join(dir, ".cc-settings-version"), "utf8"));
+    const v = (parsed as { version?: unknown } | null)?.version;
+    return typeof v === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+const MAX_DIFF_LINES = 10;
+
+const sha256 = (text: string): string => {
+  const hasher = new CryptoHasher("sha256");
+  hasher.update(text);
+  return hasher.digest("hex");
+};
+
+const asMap = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/** key -> entry name -> SHA256 of the entry's canonical JSON, for each plugin key. */
+export type PluginEntrySnapshot = Record<string, Record<string, string>>;
+
+export function snapshotPluginEntries(settings: unknown): PluginEntrySnapshot {
+  const source = asMap(settings);
+  const out: PluginEntrySnapshot = {};
+  for (const key of PLUGIN_KEYS) {
+    out[key] = Object.fromEntries(
+      Object.entries(asMap(source[key])).map(([name, value]) => [
+        name,
+        sha256(canonicalize(value)),
+      ]),
+    );
+  }
+  return out;
+}
+
+/** Plugin-key entries added, removed, or changed since the last setup run.
+ *  `snapshot` is the per-entry record setup stored; a record from before it
+ *  existed falls back to the team's contribution at install (`team_settings` in
+ *  the settings baseline), which lists every user-owned entry as added. Names
+ *  are attacker-controlled text, so control characters are stripped and each
+ *  line is length-capped. */
+export async function diffPluginEntries(
+  current: unknown,
+  dir: string,
+  snapshot?: PluginEntrySnapshot,
+): Promise<string[]> {
+  let was = snapshot;
+  if (!was) {
+    let team: unknown = {};
+    try {
+      const baseline: unknown = JSON.parse(
+        await readFile(join(dir, ".cc-settings-baseline.json"), "utf8"),
+      );
+      team = (baseline as { team_settings?: unknown } | null)?.team_settings ?? {};
+    } catch {
+      // No baseline: every entry reads as added.
+    }
+    was = snapshotPluginEntries(team);
+  }
+  const now = snapshotPluginEntries(current);
+  const lines: string[] = [];
+  for (const key of PLUGIN_KEYS) {
+    const before = was[key] ?? {};
+    const after = now[key] ?? {};
+    for (const name of new Set([...Object.keys(after), ...Object.keys(before)])) {
+      let how: string | null = null;
+      if (!(name in before)) how = "added";
+      else if (!(name in after)) how = "removed";
+      else if (after[name] !== before[name]) how = "changed";
+      if (how) lines.push(`${key}: ${stripControl(name).slice(0, 80)} (${how})`);
+    }
+  }
+  if (lines.length > MAX_DIFF_LINES) {
+    const more = lines.length - MAX_DIFF_LINES;
+    return [...lines.slice(0, MAX_DIFF_LINES), `... and ${more} more`];
+  }
+  return lines;
+}
+
 export interface FingerprintRecord {
   hash: string;
   installedAt: string;
   hooksCount: number;
+  pluginsHash?: string;
+  pluginEntries?: PluginEntrySnapshot;
 }
 
 export async function readFingerprint(claudeDir?: string): Promise<FingerprintRecord | null> {
-  const path = join(claudeDir ?? CLAUDE_DIR, FINGERPRINT_FILENAME);
-  if (!existsSync(path)) return null;
-  try {
-    const text = await readFile(path, "utf8");
-    const raw = JSON.parse(text);
-    // Validate through the zod schema. Mirrors status.ts:35 — field values are
-    // echoed into the session-start warning banner, so they must be validated
-    // strings, not trusted as-cast. On failure return null (treat as missing).
-    const result = FingerprintRecordSchema.safeParse(raw);
-    if (!result.success) return null;
-    return result.data;
-  } catch {
-    return null;
-  }
+  // Validated through the zod schema. Mirrors status.ts:35 — field values are
+  // echoed into the session-start warning banner, so they must be validated
+  // strings, not trusted as-cast. Missing/unreadable/malformed all degrade to
+  // null (treated as "no fingerprint yet") — see readValidatedState/readState.
+  return readValidatedState(
+    FINGERPRINT_FILENAME,
+    FingerprintRecordSchema,
+    null,
+    claudeDir ?? CLAUDE_DIR,
+  );
 }
 
 export async function writeFingerprint(
@@ -100,6 +220,8 @@ export async function writeFingerprint(
     hash: hashHooks(settings),
     installedAt: new Date().toISOString(),
     hooksCount,
+    pluginsHash: hashPluginKeys(settings),
+    pluginEntries: snapshotPluginEntries(settings),
   };
   await atomicWriteJson(path, record);
   return record;
@@ -111,6 +233,15 @@ export interface VerifyResult {
   expected: string | null;
   actual: string | null;
   installedAt: string | null;
+  /** Which fingerprinted parts differ from the install-time record. */
+  changed: Array<"hooks" | "plugins">;
+  /** False when the stored record predates plugin-key fingerprinting. */
+  pluginsCovered: boolean;
+  /** The record lacks `pluginsHash` although the install is recent enough to
+   *  have written it. */
+  pluginHashStripped: boolean;
+  /** Plugin-key entries differing from the team contribution (capped). */
+  pluginDiff: string[];
 }
 
 export async function verifyAgainstSettings(
@@ -120,11 +251,29 @@ export async function verifyAgainstSettings(
   const dir = claudeDir ?? CLAUDE_DIR;
   const sPath = settingsPath ?? join(dir, "settings.json");
   if (!existsSync(sPath)) {
-    return { status: "missing-settings", expected: null, actual: null, installedAt: null };
+    return {
+      status: "missing-settings",
+      expected: null,
+      actual: null,
+      installedAt: null,
+      changed: [],
+      pluginsCovered: false,
+      pluginHashStripped: false,
+      pluginDiff: [],
+    };
   }
   const record = await readFingerprint(dir);
   if (!record) {
-    return { status: "missing-fingerprint", expected: null, actual: null, installedAt: null };
+    return {
+      status: "missing-fingerprint",
+      expected: null,
+      actual: null,
+      installedAt: null,
+      changed: [],
+      pluginsCovered: false,
+      pluginHashStripped: false,
+      pluginDiff: [],
+    };
   }
   let parsed: unknown;
   try {
@@ -137,14 +286,34 @@ export async function verifyAgainstSettings(
       expected: record.hash,
       actual: null,
       installedAt: record.installedAt,
+      changed: ["hooks", "plugins"],
+      pluginsCovered: record.pluginsHash !== undefined,
+      pluginHashStripped: false,
+      pluginDiff: [],
     };
   }
   const actual = hashHooks(parsed);
+  const changed: Array<"hooks" | "plugins"> = [];
+  if (actual !== record.hash) changed.push("hooks");
+  let pluginHashStripped = false;
+  if (record.pluginsHash !== undefined) {
+    if (hashPluginKeys(parsed) !== record.pluginsHash) changed.push("plugins");
+  } else {
+    const installed = await readInstalledVersion(dir);
+    pluginHashStripped = installed !== null && versionAtLeast(installed, PLUGIN_FINGERPRINT_SINCE);
+    if (pluginHashStripped) changed.push("plugins");
+  }
   return {
-    status: actual === record.hash ? "match" : "mismatch",
+    status: changed.length === 0 ? "match" : "mismatch",
     expected: record.hash,
     actual,
     installedAt: record.installedAt,
+    changed,
+    pluginsCovered: record.pluginsHash !== undefined,
+    pluginHashStripped,
+    pluginDiff: changed.includes("plugins")
+      ? await diffPluginEntries(parsed, dir, record.pluginEntries)
+      : [],
   };
 }
 
@@ -158,8 +327,9 @@ export async function verifyAgainstSettings(
 //       "trusted" and downgraded the fingerprint alarm;
 //   (b) malware appends a payload to an already-registered shipped script —
 //       settings.json is untouched, so the hooks fingerprint never trips.
-// setup.ts writes a SHA256 manifest of every installed src/**/*.ts right after
-// installTsSources; verify-hooks.ts re-checks it at SessionStart and
+// setup.ts writes a SHA256 manifest of every installed runtime source and
+// production dependency right after installTsSources; verify-hooks.ts
+// re-checks it at SessionStart before importing dependency-backed modules, and
 // audit-hooks.ts gates "trusted" on it. Like the fingerprint, the manifest is
 // refreshed ONLY by setup.sh — never by the auditor or the verify hook — so
 // malware can't whitelist itself.
@@ -193,6 +363,8 @@ const SrcManifestRecordSchema = z.object({
 /** SHA256 hex of a file's content, or null when it can't be read. */
 export async function hashFileOrNull(path: string): Promise<string | null> {
   try {
+    const metadata = await lstat(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) return null;
     const data = await readFile(path);
     const hasher = new CryptoHasher("sha256");
     hasher.update(data);
@@ -202,36 +374,56 @@ export async function hashFileOrNull(path: string): Promise<string | null> {
   }
 }
 
-/** Recursively list .ts files under `dir` as sorted posix-style relative paths.
- *  Skips node_modules — it is symlinked back to the source repo at install
- *  time and is explicitly out of the manifest's threat coverage. */
-async function walkTsFiles(dir: string, prefix = ""): Promise<string[]> {
+/** List executable TypeScript plus every production dependency file.
+ * Dependency contents are all in scope because Bun may load package metadata,
+ * JavaScript, maps, or declarations while resolving an import. Symlinks are
+ * returned as candidates so hashing rejects them instead of following them. */
+async function walkIntegrityFiles(dir: string, prefix = ""): Promise<string[]> {
   const out: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name === "node_modules") continue;
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const dependencyFile = rel === "node_modules" || rel.startsWith("node_modules/");
+    if (entry.isSymbolicLink()) {
+      if (dependencyFile || entry.name.endsWith(".ts") || rel === MANAGED_BUNFIG_REL) out.push(rel);
+      continue;
+    }
     if (entry.isDirectory()) {
-      out.push(...(await walkTsFiles(join(dir, entry.name), rel)));
-    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      out.push(...(await walkIntegrityFiles(join(dir, entry.name), rel)));
+    } else if (
+      entry.isFile() &&
+      (dependencyFile || entry.name.endsWith(".ts") || rel === MANAGED_BUNFIG_REL)
+    ) {
       out.push(rel);
     }
   }
   return out.sort();
 }
 
-/** Hash every .ts file under `installedSrcDir` and persist the manifest next
- *  to the hooks fingerprint (atomic write, same convention). Called by
- *  setup.ts immediately after installTsSources. */
+/** Hash the explicitly installed runtime paths plus the complete production
+ * dependency tree. Recursive live discovery belongs to verification, where
+ * extra files are reported as unmanifested instead of being adopted. */
 export async function writeSrcManifest(
   installedSrcDir: string,
   claudeDir?: string,
+  managedRelativePaths?: readonly string[],
 ): Promise<SrcManifestRecord> {
   const dir = claudeDir ?? CLAUDE_DIR;
   const files: Record<string, string> = {};
-  for (const rel of await walkTsFiles(installedSrcDir)) {
+  const dependencyDir = join(installedSrcDir, "node_modules");
+  const dependencyPaths = existsSync(dependencyDir)
+    ? await walkIntegrityFiles(dependencyDir, "node_modules")
+    : [];
+  const selectedPaths = managedRelativePaths
+    ? [...managedRelativePaths, ...dependencyPaths]
+    : await walkIntegrityFiles(installedSrcDir);
+  for (const rel of [...new Set(selectedPaths)].sort()) {
+    if (rel.startsWith("/") || rel.split(/[/\\]/).includes("..")) {
+      throw new Error(`Invalid managed runtime manifest path: ${rel}`);
+    }
     const hash = await hashFileOrNull(join(installedSrcDir, rel));
-    if (hash) files[rel] = hash;
+    if (!hash) throw new Error(`Missing or unsafe managed runtime manifest file: ${rel}`);
+    files[rel] = hash;
   }
   const record: SrcManifestRecord = { files, installedAt: new Date().toISOString() };
   await atomicWriteJson(join(dir, SRC_MANIFEST_FILENAME), record);
@@ -239,26 +431,22 @@ export async function writeSrcManifest(
 }
 
 export async function readSrcManifest(claudeDir?: string): Promise<SrcManifestRecord | null> {
-  const path = join(claudeDir ?? CLAUDE_DIR, SRC_MANIFEST_FILENAME);
-  if (!existsSync(path)) return null;
-  try {
-    const raw = JSON.parse(await readFile(path, "utf8"));
-    // Route through SrcManifestRecordSchema: validates types, rejects path
-    // traversal (the .refine()), and strips control chars from installedAt.
-    // Mirrors readFingerprint's FingerprintRecordSchema.safeParse pattern.
-    const result = SrcManifestRecordSchema.safeParse(raw);
-    if (!result.success) return null;
-    return result.data;
-  } catch {
-    return null;
-  }
+  // Route through SrcManifestRecordSchema: validates types, rejects path
+  // traversal (the .refine()), and strips control chars from installedAt.
+  // Mirrors readFingerprint's FingerprintRecordSchema.safeParse pattern.
+  return readValidatedState(
+    SRC_MANIFEST_FILENAME,
+    SrcManifestRecordSchema,
+    null,
+    claudeDir ?? CLAUDE_DIR,
+  );
 }
 
 export interface SrcVerifyResult {
   status: "ok" | "missing" | "mismatch";
   /** Manifested files whose content changed — or disappeared — since install. */
   changed: string[];
-  /** .ts files on disk under ~/.claude/src that the install never wrote. */
+  /** Runtime files on disk under ~/.claude/src that the install never wrote. */
   unmanifested: string[];
 }
 
@@ -271,7 +459,7 @@ export async function verifySrcManifest(claudeDir?: string): Promise<SrcVerifyRe
   if (!manifest) return { status: "missing", changed: [], unmanifested: [] };
 
   const srcDir = join(dir, "src");
-  const onDisk = existsSync(srcDir) ? await walkTsFiles(srcDir) : [];
+  const onDisk = existsSync(srcDir) ? await walkIntegrityFiles(srcDir) : [];
 
   const changed: string[] = [];
   for (const [rel, expected] of Object.entries(manifest.files)) {

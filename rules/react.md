@@ -2,55 +2,15 @@
 paths:
   - "**/*.tsx"
   - "**/*.jsx"
-  - "components/**/*"
-  - "app/**/*"
 ---
 
 # React
 
-> No manual memoization, composition over props drilling, server-first data fetching where the framework supports it.
-
-The model picks the right server/client split by reading visible imports — `'use client'` directives + `next/*` imports → Next.js Server Components mental model; loader/action exports + `react-router` imports → React Router mental model.
+> No manual memoization, composition over props drilling.
 
 ---
 
 ## DO
-
-### Default to server-side data fetching where supported
-
-```tsx
-// Next.js — Server Component (default)
-async function Page() {
-  const data = await fetchData()
-  return <DataDisplay data={data} />
-}
-
-// React Router — loader (runs on server)
-export async function loader() {
-  return { data: await fetchData() }
-}
-export default function Page({ loaderData }: Route.ComponentProps) {
-  return <DataDisplay data={loaderData.data} />
-}
-```
-
-Both keep secrets on the server, eliminate client roundtrips, and make data part of the initial HTML.
-
-### Client-side state only when needed
-```tsx
-// Next.js — Client Component (explicit)
-'use client'
-function Counter() {
-  const [count, setCount] = useState(0)
-  return <button onClick={() => setCount((c) => c + 1)}>{count}</button>
-}
-
-// React Router — components are isomorphic; no directive needed
-function Counter() {
-  const [count, setCount] = useState(0)
-  return <button onClick={() => setCount((c) => c + 1)}>{count}</button>
-}
-```
 
 ### Composition over props drilling (any stack)
 ```tsx
@@ -75,133 +35,19 @@ function Animation() {
 }
 ```
 
-### Lazy state initialization (any stack)
-```tsx
-const [data, setData] = useState(() => computeExpensiveValue(props))
-```
-
 ---
 
 ## DON'T
 
-> See `rules/react-perf.md` "React Compiler Note" for the full useMemo/useCallback/React.memo rule.
+### A ref in a `useEffect` dependency array means the effect shouldn't exist
+A `RefObject` never changes, so listing it only quiets `exhaustive-deps`. Handlers on an element you render go in JSX props; an element needed as a value comes from a ref callback; an effect that must call the latest function keeps its real deps and calls it through `useEffectEvent`. Never `useCallback`.
 
-### Never mutate state
-```tsx
-// WRONG: state.items.push(newItem)
-// CORRECT
-setItems((prev) => [...prev, newItem])
-```
-
-### Never use index as key
-```tsx
-// WRONG: {items.map((item, i) => <Item key={i} />)}
-// CORRECT
-{items.map((item) => <Item key={item.id} {...item} />)}
-```
-
-### Avoid useEffect for derived state (any stack)
-```tsx
-// WRONG: useEffect(() => setFullName(...), [first, last])
-// CORRECT
-const fullName = `${first} ${last}`
-```
+### Destructure refs carried in an object before writing
+React Compiler recognizes refs by name. `refs.track.current = el` reads as mutating a prop, and the compiler silently skips the component. Name the fields with a `Ref` suffix and destructure first: `const { trackRef } = refs; trackRef.current = el`.
 
 ### Avoid client-side fetching for initial render data
-- Next.js: use Server Components or Route Handlers
-- React Router: use loaders (`loader` export)
-
-Client-side fetching is correct for *post-mount* state (autocomplete, polling, mutations). It's wrong for the data the user sees on first paint.
-
-### Don't cascade setState calls
-```tsx
-// WRONG: each setter schedules its own render; later state depends on earlier
-function handleSubmit() {
-  setLoading(true)
-  setError(null)
-  setStatus('submitting')
-  setLastAttempt(Date.now())
-}
-// CORRECT: consolidate to one setter or derive
-function handleSubmit() {
-  setForm((f) => ({ ...f, loading: true, error: null, status: 'submitting', lastAttempt: Date.now() }))
-}
-```
-
-Cascading setters fight React's batching, create stale-closure bugs in async paths, and obscure intent. One state object > four boolean toggles.
-
-### Conditional rendering with numbers
-```tsx
-// WRONG: renders "0" when count is 0
-{count && <Badge count={count} />}
-// CORRECT
-{count > 0 ? <Badge count={count} /> : null}
-```
-
-### Don't put `useState` / `useEffect` / refs in a Server Component
-```tsx
-// WRONG: Server Component (no 'use client') with client-only hooks
-async function Page() {
-  const [open, setOpen] = useState(false)  // build error
-  return <Modal open={open} />
-}
-// CORRECT: split — Server fetches, Client owns interaction
-async function Page() {
-  const data = await fetchData()
-  return <PageClient data={data} />
-}
-'use client'
-function PageClient({ data }: { data: Data }) {
-  const [open, setOpen] = useState(false)
-  return <Modal open={open} data={data} />
-}
-```
-
-Applies to Next.js App Router. React Router components are isomorphic — no directive boundary to police, but the loader-vs-effect split has the same shape.
-
-### Don't make a Client Component `async`
-```tsx
-// WRONG: 'use client' + async function = runtime error
-'use client'
-async function Profile({ id }: { id: string }) {
-  const user = await getUser(id)  // can't await in a Client Component
-  return <ProfileView user={user} />
-}
-// CORRECT: fetch in the parent Server Component, pass data down
-async function ProfilePage({ id }: { id: string }) {
-  const user = await getUser(id)
-  return <Profile user={user} />  // Client Component, sync, takes data as prop
-}
-```
-
-Only Server Components can be async. If you find yourself reaching for `await` inside a `'use client'` file, the data fetch belongs one boundary up.
-
----
-
-## Patterns
-
-### Parallel data fetching
-
-```tsx
-// Next.js — sibling Server Components fetch in parallel
-function Page() {
-  return (
-    <>
-      <UserSection />
-      <PostsSection />
-    </>
-  )
-}
-
-// React Router — parallel loaders via Promise.all or nested routes
-export async function loader() {
-  const [user, posts] = await Promise.all([getUser(), getPosts()])
-  return { user, posts }
-}
-```
+Client-side fetching is correct for post-mount state (autocomplete, polling, mutations). It's wrong for the data the user sees on first paint.
 
 ## Tools
-- **React Compiler** — automatic memoization
-- **React DevTools** — inspection
-- **Biome** — linting
+
 - **react-doctor** *(optional — only when it's in the project's deps)* — deterministic scan (oxlint + `eslint-plugin-react-hooks`) scoring security/perf/correctness/a11y/bundle/architecture 0–100. Use as a fast **pre-filter before** LLM review, never the authority. Run pinned with telemetry off: `npx react-doctor --diff --verbose --no-telemetry` (resolves the lockfile-pinned binary, never `@latest`). `bun run proof` auto-includes it as an advisory signal when present.

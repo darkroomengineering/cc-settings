@@ -7,7 +7,7 @@
     "name": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^[a-z0-9][a-z0-9-]*$"
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
     },
     "description": {
       "type": "string",
@@ -36,6 +36,12 @@
         "type": "string"
       }
     },
+    "allowedTools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "disallowedTools": {
       "type": "array",
       "items": {
@@ -51,6 +57,7 @@
       "type": "string",
       "enum": [
         "default",
+        "manual",
         "acceptEdits",
         "plan",
         "auto",
@@ -71,13 +78,16 @@
     "isolation": {
       "type": "string",
       "enum": [
-        "worktree"
+        "worktree",
+        "remote"
       ]
     },
     "memory": {
       "type": "string",
       "enum": [
-        "project"
+        "user",
+        "project",
+        "local"
       ]
     },
     "color": {
@@ -85,6 +95,31 @@
     },
     "initialPrompt": {
       "type": "string"
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "background": {
+      "type": "boolean"
+    },
+    "omitClaudeMd": {
+      "type": "boolean"
+    },
+    "experimental": {
+      "type": "object",
+      "properties": {
+        "cacheTtl": {
+          "type": "string",
+          "enum": [
+            "5m",
+            "1h"
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "hooks": {},
     "mcpServers": {

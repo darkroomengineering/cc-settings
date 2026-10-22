@@ -5,18 +5,20 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/session-title.ts\"",
-						"async": true,
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" UserPromptSubmit",
 						"timeout": 3
 					}
 				]
-			},
+			}
+		],
+		"PreModelSwitch": [
 			{
+				"matcher": ".*fable.*|.*mythos.*",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/delegation-detector.ts\"",
-						"timeout": 3
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/model-switch-guard.ts\"",
+						"timeout": 5
 					}
 				]
 			}
@@ -27,58 +29,49 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/safety-net.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PreToolUse",
+						"timeout": 5,
+						"onFailure": "block"
+					}
+				]
+			},
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PreToolUse",
 						"timeout": 5
 					}
 				]
 			},
 			{
-				"matcher": "Bash",
-				"if": "Bash(git commit*)",
+				"matcher": "Agent|Task",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/pre-commit-tsc.ts\""
-					}
-				]
-			},
-			{
-				"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*) Bash(bunx*)",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
-					}
-				]
-			},
-			{
-				"matcher": "Edit",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/pre-edit-validate.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PreToolUse",
 						"timeout": 5
 					}
 				]
 			},
 			{
-				"matcher": "Edit|Write|MultiEdit",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/freeze-guard.ts\"",
-						"timeout": 5
+						"if": "Bash(bun add*) Bash(bun install*) Bash(npm install*)",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/check-docs-before-install.ts\""
 					}
 				]
 			}
 		],
 		"PostToolUse": [
 			{
-				"matcher": "Write|Edit",
+				"matcher": "Write|Edit|Bash|Agent",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-edit.ts\""
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/dispatch.ts\" PostToolUse"
 					}
 				]
 			},
@@ -87,7 +80,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-edit-tsc.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/post-edit-tsc.ts\"",
 						"async": true
 					}
 				]
@@ -97,29 +90,9 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/log-bash.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/log-bash.ts\"",
 						"async": true,
 						"timeout": 10
-					}
-				]
-			},
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/tool-cadence.ts\"",
-						"timeout": 3,
-						"continueOnBlock": true
-					}
-				]
-			},
-			{
-				"matcher": "Write|Edit",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/promote-memory.ts\"",
-						"timeout": 3
 					}
 				]
 			}
@@ -129,17 +102,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-compact.ts\""
-					}
-				]
-			}
-		],
-		"StopFailure": [
-			{
-				"hooks": [
-					{
-						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/stop-failure.ts\""
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/post-compact.ts\""
 					}
 				]
 			}
@@ -149,7 +112,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/handoff.ts\" create"
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/handoff.ts\" create --from-hook"
 					}
 				]
 			}
@@ -159,30 +122,28 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/verify-hooks.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/verify-hooks.ts\"",
 						"timeout": 3
 					},
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/session-start.ts\""
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/session-start.ts\""
 					},
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/hooks/codex-verify.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/codex-verify.ts\"",
 						"timeout": 3,
 						"async": true
 					}
 				]
-			}
-		],
-		"CwdChanged": [
+			},
 			{
+				"matcher": "resume|fork",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/cwd-changed.ts\"",
-						"async": true,
-						"timeout": 5
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/cache-cold.ts\"",
+						"timeout": 3
 					}
 				]
 			}
@@ -192,7 +153,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/handoff.ts\" create",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/handoff.ts\" create --from-hook",
 						"async": true,
 						"timeout": 30
 					}
@@ -204,7 +165,8 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/stop-summary.ts\""
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/hooks/ask-gate.ts\"",
+						"timeout": 5
 					}
 				]
 			}
@@ -214,9 +176,21 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/post-failure.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/post-failure.ts\"",
 						"async": false,
 						"timeout": 10
+					}
+				]
+			}
+		],
+		"PostToolBatch": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/ledger-record.ts\"",
+						"async": true,
+						"timeout": 5
 					}
 				]
 			}
@@ -226,7 +200,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" start",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/swarm-log.ts\" start",
 						"async": true,
 						"timeout": 5
 					}
@@ -238,7 +212,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" stop",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/swarm-log.ts\" stop",
 						"async": true,
 						"timeout": 5
 					}
@@ -250,7 +224,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/notify.ts\"",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/notify.ts\"",
 						"async": true,
 						"timeout": 10
 					}
@@ -262,7 +236,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" task",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/swarm-log.ts\" task",
 						"async": true,
 						"timeout": 5
 					}
@@ -274,7 +248,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bun \"$HOME/.claude/src/scripts/swarm-log.ts\" complete",
+						"command": "bun --no-env-file --config=\"$HOME/.claude/src/bunfig.toml\" \"$HOME/.claude/src/scripts/swarm-log.ts\" complete",
 						"async": true,
 						"timeout": 5
 					}

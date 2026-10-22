@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: zero-tech-debt-remove-legacy
+tags: [zero-tech-debt]
+context:
+  scaffold_script: fixture.sh

@@ -1,0 +1,696 @@
+---
+name: audit
+argument-hint: "[full|codebase|docs|process|performance|tests|debt|threat-model|motion|seo]"
+description: Repo audits, one mode or all (codebase, docs, process, perf, tests, threat-model, motion, SEO, debt). Triggers "audit the codebase", "full audit", "perf audit", "audit the tests", "threat model", "motion audit", "seo audit", "debt ledger".
+context: main
+requires:
+  - mcp: context7
+---
+
+# Audit
+
+## Standalone Codex host branch
+
+Claude frontmatter, TLDR, agent teams, dynamic workflows, `codex-verifier`, and
+`codex-run.ts` do not apply in standalone Codex. Keep source inspection
+read-only. Map with `rg --files`, `rg -n`, direct import/caller searches, focused
+file reads, and the repo's own diagnostics; never claim TLDR ran. Use Context7
+only when the user configured that MCP. Otherwise inspect pinned manifests and
+lockfiles, consult official package documentation through native browsing when
+available, and label currency or API claims unverified when neither source is
+reachable. This package does not auto-run unpinned registry MCP packages.
+
+For fan-out, create each new reader with `spawn_agent`, continue a live reader
+with `send_message`, trigger another turn for an idle existing reader with
+`followup_task`, wait with `wait_agent`, and stop its current turn with
+`interrupt_agent` only when necessary. Only read-only reviewers
+may overlap. Writers share the working tree unless the live host explicitly
+offers isolation, so the main session writes the final report after readers
+finish; any implementer and test-writer phases must be serialized with
+non-overlapping ownership.
+
+One skill, ten modes. Eight audit modes (Codebase, Docs, Process, Performance, Tests, Threat-Model, Motion, SEO) read the surface **in full** (never sample), hunt with explicit categories, and ship a prioritized, executable report or plan set. **Full** runs every applicable mode and merges the reports (see Mode: Full). **Debt** is a mechanical grep that collects `SHORTCUT:` markers into a ledger and makes no judgement (see Mode: Debt).
+
+Codebase mode's structure lens should push to be **ambitious**: do not merely identify local cleanup opportunities, actively search for "code judo" moves. Every adversarial mode holds **no loyalty to the current design** — hunt defects, drift, dead ends, and abuse paths rather than confirm things work.
+
+## Mode Router
+
+A request for everything, or one that names two or more verticals ("audit performance, code quality, and security"), routes to Full mode. The bare phrase **"audit the codebase"** routes straight to Codebase mode, whose single pass carries both lenses.
+
+**Trigger phrases by mode:**
+
+| Mode | Phrases |
+|---|---|
+| Full | "full audit", "audit everything", "audit all of it", "complete audit", "every audit mode", or two or more verticals named in one request |
+| Codebase | "audit the codebase", "nuclear review", "thermonuclear review", "code judo", "deep code quality audit", "harsh maintainability review", "whole codebase review", "should this exist", "adversarial audit", "fable audit", "expectation gaps", "correctness audit" |
+| Docs | "audit the docs", "docs audit", "doc drift" |
+| Process | "process audit", "audit the workflows", "walk the journeys", "end-to-end audit" |
+| Performance | "perf audit", "performance audit", "why is the app slow", "bundle audit", "build is slow", "speed audit" |
+| Tests | "audit the tests", "test audit", "low-value tests", "prune the test suite", "junk tests" |
+| Threat-Model | "threat model", "STRIDE", "attack surface", "abuse paths" |
+| Motion | "motion audit", "audit the animations", "improve the animations" |
+| SEO | "seo audit", "aeo", "ai engine optimization", "answer engine", "discoverability audit", "rank better", "llms.txt" |
+| Debt | "debt ledger", "shortcut ledger", "what did we defer", "what corners did we cut" |
+
+Debt mode is a mechanical grep — run it standalone or as a cheap first pass before Codebase mode.
+
+## When to use vs other review skills
+
+- `/dr-review` — per-diff Darkroom checklist (TypeScript / React / a11y / perf / security, plus motion when the diff touches it). Every change.
+- `/audit` (this skill) — periodic whole-repo audit; Full mode merges every mode that applies into one ranked report.
+- `/zero-tech-debt` — rework a specific patch to its intended end-state. Not a review — it edits.
+- `/poke-holes` — adversarial check of a single change/claim, not a repo sweep.
+
+Each mode answers one question:
+
+| Mode | Asks | Fits when |
+|---|---|---|
+| Codebase | Should this code exist, and does it do what it promises? | Major version cuts, after velocity sprints, before a load-bearing migration |
+| Docs, Process | Do the docs tell the truth, and do the journeys walk end-to-end? | Before releases, after feature bursts |
+| Performance | Where is time actually going, measured? | Before a launch, after a dependency-heavy sprint, "the site feels slow" with no number |
+| Tests | Which tests guard nothing? | Slow or brittle suite, after a burst of agent-written tests |
+| Threat-Model | What can go wrong, and who would exploit it? | Before a security-sensitive launch or a new internet-facing surface |
+| Motion | Where does the animation work have the highest leverage? | After a UI-heavy sprint, before a client showcase |
+| SEO | Will this site be found, ranked, and cited? | Before a site launch, first pass on any client marketing/content site |
+| Debt | What did we defer on purpose? | Cheap first pass before Codebase |
+
+A typical sequence: `/audit codebase` produces findings → engineers cherry-pick the highest-leverage ones → the right executor by finding type: dead code and duplication go to the `deslopper` agent (auto-removes what's provably dead, stages consolidations for approval), structural rework to `/zero-tech-debt` or `/refactor`, client-runtime perf findings to `/fix`.
+
+> **Claude Code only (v2.1.154+)**: standalone Codex skips this tip and the
+> Workflow command below. In Claude, run `/effort ultracode` before invoking
+> this skill. Whole-repo audits are the canonical shape that benefits from dynamic workflows — phase state lives in the workflow script rather than Claude's context window, individual areas can be reviewed in parallel (up to 16 concurrent), and the run can resume from cached agent results within the session. Dynamic workflows default to a medium size guideline, aiming for fewer than 10 agents (Pro plans default to small) — it's advisory, not enforced, but a repo with more modules than that is worth raising `workflowSizeGuideline` for explicitly before the fan-out phase rather than silently exceeding the default.
+>
+> A ready-made example for codebase mode's structure lens ships at `references/nuclear-review.workflow.js` (installed to `~/.claude/skills/audit/references/`). It is **opt-in, not a dependency** — the mode works with no Workflow tool. Run it with `Workflow({ scriptPath: "~/.claude/skills/audit/references/nuclear-review.workflow.js" })`, or copy it into `.claude/workflows/`. It maps the repo, fans out one structural reviewer per module, audits dependencies, and synthesizes one report. Treat it as a **template** — adapt its module list, schemas, and phases to the repo at hand rather than running it verbatim.
+
+---
+
+## Shared Contract (Codebase, Docs, Process, Tests, Threat-Model, SEO, Performance, and Full modes)
+
+**Role.** No loyalty to the current design/structure/flows. Act simultaneously as a senior staff engineer, a skeptical first-time consumer, and an adversarial reviewer. Understand deeply enough to challenge, not merely validate.
+
+**Method.** Per area, state how it SHOULD behave, then read (or run) to confirm or refute; every expectation-vs-reality gap is a finding. Findings follow the finding contract in `references/audit-contract.md` §3 (stable IDs, CONFIRMED/PLAUSIBLE, disprove first, concrete scenario, considered & rejected). CONFIRMED requires one `file:line`; a finding located by a bare file, a glob, or an absence ("no tests") is PLAUSIBLE wherever it is reported, chat included. Performance mode tightens it: PLAUSIBLE does not exist there (see its evidence rule). Where something is sound, say so once and move on; spend effort where it isn't.
+
+**Cross-model + intent passes.** In Claude, run the shared procedures in
+`references/audit-contract.md` (§1 Codex cross-model pass via `codex-verifier`
+on the finding list, §2 team-knowledge reconciliation). Both are gated and fail
+open. Standalone Codex never uses the bridge; it may use a fresh native
+read-only reviewer under the lifecycle above. The one-line invariants: reconcile
+AFTER findings exist, and a documented decision **reclassifies severity, never
+deletes a finding**.
+
+**Output.** First grade the findings: write them as JSON lines to a scratch file, one per line with `id`, `status`, `location`, `issue`, `scenario` and `direction`, then run `bun "$HOME/.claude/src/scripts/grade-findings.ts" <file>`. It relabels any CONFIRMED finding with no `file:line` to PLAUSIBLE and gives the reason; the report uses its labels. To win CONFIRMED back, add the `file:line` and rerun; never relabel by hand. Performance's `measured` findings pass through unchanged. If the script is not installed, apply the same rule yourself. Then write the full report to `docs/audits/[mode]-audit-YYYY-MM-DD.md` (create the dir; leave uncommitted — the maintainer owns git). Structure top-heavy:
+1. Summary table: ID | severity | area | one-line issue | file:line | CONFIRMED/PLAUSIBLE.
+2. Map (system map / doc map / process state machine — per mode below).
+3. Findings by hunt category, severity order. Each: stable ID (H1/M1/L1 by severity, or the mode prefix from Mode: Full), location, one-line issue, concrete scenario, status, recommended direction.
+4. Design tensions: the 3-5 deepest structural issues ("the approach, not a line"), each with the alternative you'd weigh.
+5. Open questions: what the artifact alone can't resolve — maintainer answers required.
+6. Considered & rejected: the ledger from the finding contract. Check it before hunting.
+
+Chat reply = exec summary only: counts by severity + top 3-5 findings + report path.
+
+**Optional issue filing.** When the maintainer wants findings executable by agents, file each as a GitHub issue (one per finding, severity labels, CONFIRMED/PLAUSIBLE in the body, an epic for the design tensions, `question`-labeled issues for the open questions), then run parallel fix agents whose PRs cite the IDs.
+
+## Mode: Codebase
+
+One merged audit, two lenses on one whole-repo read: **structure** (should this code exist?) and **behavior** (does it do what it promises?). Rides the Shared Contract above.
+
+### Scope
+
+The **entire codebase**, not the current diff:
+
+- All source modules — application code, libraries, scripts, hooks, configs
+- The dependency manifest (`package.json` + lockfile) — every direct dependency
+- Folder structure, module boundaries, top-level architectural surfaces (routes, providers, exported APIs)
+- Entry points and real (not documented) execution paths; module contracts, explicit and implied
+- Data models, invariants, and where they're enforced vs assumed
+- External surfaces (APIs, CLIs, config, env vars, file formats, network calls) and the onboarding path a newcomer would actually follow
+
+Skip vendored code, generated files, and `node_modules`.
+
+### Workflow
+
+#### Phase 0 — Map the codebase
+
+Establish ground truth before judging anything.
+
+```bash
+# Top-level structure
+fd -t d -d 2 --hidden -E node_modules -E .git -E dist -E build
+
+# File-size distribution (largest first) — find the 1k-line crossings
+fd -t f -E node_modules -E .git -E dist -E build \
+  -e ts -e tsx -e js -e jsx -e py -e go -e rs \
+  -x wc -l {} \; | sort -rn | head -50
+
+# Direct dependency count
+jq '.dependencies + .devDependencies | length' package.json
+
+# Direct deps with versions
+jq '.dependencies + .devDependencies' package.json
+```
+
+In Claude, if the project uses `tldr`, prefer it for the call graph + dead-code pass. Standalone Codex skips these commands and uses the native searches in its host branch:
+
+```bash
+tldr arch .
+tldr dead . --entry-points "main,test_"
+```
+
+If `dead` returns `unsupported-by-native-engine` (the default engine does not implement it), say
+the dead-code pass did not run — do not record "no dead code" as a finding. An empty result from
+`dead` or `impact` is not evidence; confirm with `Grep` before acting on it.
+
+If the opt-in `tldr-code` CLI is installed (`~/.claude/code-intel/tldr-code/0.4.0/tldr` — see
+`docs/tldr-cheatsheet.md`), prefer it for the dead-code pass instead:
+
+```bash
+~/.claude/code-intel/tldr-code/0.4.0/tldr dead . --lang typescript
+```
+
+It **exits 0 even on errors** — never trust its exit code. Check that stdout parses as JSON and
+that `functions_analyzed > 0`; non-JSON stdout or `functions_analyzed: 0` means the scan did not
+run and must be reported as "scan unavailable", never as "no dead code". **`dead_functions` from
+`tldr-code` is ADVISORY ONLY — confirm every candidate with `Grep` before recording it as a
+finding.** Its MCP path (`tldr-mcp`, not used here) was measured reporting live symbols as dead
+code; the CLI was measured accurate, which is why it's used here instead.
+
+When the project depends on `deslop-cli` (check `package.json` — it's the same advisory probe
+`/proof-of-work` runs), add it as a second dead-code signal: `npx deslop`. Same rule as
+tldr-code: advisory only, Grep-confirm every candidate. Two scanners agreeing upgrades conviction;
+either one alone still needs confirmation.
+
+#### Phase 1 — Dependency audit (Context7 when configured)
+
+For each direct dependency in `package.json`, use the `context7` MCP server to
+verify when it is configured. Standalone Codex otherwise uses the native/manual
+fallback in its host branch and does not execute an unpinned registry MCP:
+
+1. **Currency** — is the installed version current, or stale? Note major-version gaps.
+2. **Usage quality** — is the codebase using the dependency in the way the maintainers currently recommend? Old APIs, deprecated patterns, missing newer affordances?
+3. **Necessity** — could it be replaced by a platform built-in, an existing canonical helper, or a smaller dependency?
+4. **Overlap** — does it duplicate the role of another dependency? (Two date libraries, two state managers, two HTTP clients.)
+5. **Footprint cost** — for any dependency contributing >50KB to the client bundle, is the usage scope worth the cost? Could it be code-split, lazy-loaded, or replaced?
+
+Use context7 in two steps per dependency:
+
+```
+mcp__context7__resolve-library-id { libraryName: "<package>", query: "<what we use it for>" }
+mcp__context7__query-docs { libraryId: "<resolved id>", query: "current recommended usage vs <pattern we use>" }
+```
+
+Cap context7 calls at 3 per dependency (per the server's own guidance). Batch the audit: pick the top 10–20 by either bundle weight or surface-area coverage rather than auditing every transitive dep.
+
+Output for each flagged dep: current version → recommended version, deprecated APIs in use, suggested fix.
+
+#### Phase 2 — The hunt, both lenses
+
+Walk the largest files first, then the modules with the most outbound dependencies, then the entry points. Apply both lists to every meaningful surface in one pass.
+
+**Structure lens — non-negotiable standards:**
+
+0. **Be ambitious about structural simplification.** Do not stop at "this could be a bit cleaner." Look for reframings that make whole branches, helpers, modes, conditionals, or layers disappear entirely. Assume there is often a "code judo" move available — a re-organization that uses the existing architecture more effectively and makes the surface dramatically simpler. Prefer the solution that feels inevitable in hindsight; if you see a path to delete complexity rather than rearrange it, push hard for that path.
+1. **Flag every file over 1k lines.** A strong code-quality smell by default; prefer extracting helpers, subcomponents, or modules. Waive only for a compelling structural reason with the file still clearly organized.
+2. **Do not tolerate spaghetti.** Ad-hoc conditionals, scattered special cases, one-off branches in otherwise cohesive flows — a design problem, not a stylistic nit. Push logic into a dedicated abstraction, helper, state machine, or module instead of tangling existing paths.
+3. **Bias toward cleaning the design, not preserving working code.** If behavior can stay the same while structure gets meaningfully cleaner, push for the cleaner version. Prefer simplifications that remove moving pieces over refactors that spread the same complexity around.
+4. **Prefer direct, boring code over hacky or magical code.** Flag thin abstractions, identity wrappers, pass-through helpers, and generic mechanisms that hide simple data-shape assumptions.
+5. **Push hard on type and boundary cleanliness.** Question unnecessary optionality, `unknown`, `any`, cast-heavy code, and silent fallbacks papering over unclear invariants; prefer explicit typed models and shared contracts.
+6. **Keep logic in the canonical layer and reuse existing helpers.** Call out feature logic leaking into shared paths, details leaking through APIs, and bespoke one-offs where a canonical utility exists.
+7. **Treat unnecessary sequential orchestration and non-atomic updates as design smells.** Serialized-for-no-reason work and updates that can leave state half-applied — flag both without over-indexing on micro-optimizations.
+8. **Dependencies must be current and well-used.** Flag deprecated majors, superseded usage patterns, role-duplicating deps, disproportionate footprints, and deps a platform primitive could replace.
+
+**Behavior lens — hunt categories:**
+
+1. **Correctness** — logic errors, races, off-by-one, unhandled edges, silently swallowed failures, wrong error propagation.
+2. **Alternative/unintended paths** — second call? concurrent calls? empty/null/huge input? partial failure mid-op? retries? the "holding it wrong" path?
+3. **Incoherences** — names that lie about behavior, two modules solving one problem differently, config honored here and ignored there, duplicated sources of truth that can drift, dead code, contradictory defaults.
+4. **Affordance mismatches** — "I expected to do X this way but can't, or it does something else." Where does the API shape promise a capability the code doesn't deliver? Where is the easy path also the dangerous one?
+5. **Missing functionality** — what a reasonable user expects (validation, idempotency, cleanup, observability, cancellation, timeouts) but is absent.
+6. **Boundary and safety** — leaky abstractions, invariants in the wrong layer, unvalidated input crossing a boundary; injection, path traversal, unbounded growth, resource leaks, missing authz, exposed secrets — only where real.
+7. **Documentation** — README/docstrings/comments that are wrong, stale, or contradict the code; undocumented public behavior/params/errors/side effects; examples that wouldn't run.
+8. **Developer experience** — can a newcomer build, run, test, and debug from the docs alone? Confusing errors, silent misconfig, setup footguns.
+
+#### Phase 2b — Claude-only cross-model structural pass (when the Codex bridge is available)
+
+Standalone Codex skips this phase. In Claude, run the shared cross-model
+procedure (`references/audit-contract.md` §1) with this mode's audit prompt:
+
+```bash
+bun "$HOME/.claude/src/scripts/codex-run.ts" ask "Audit this repository for structural problems: files over ~1000 lines, thin wrappers that don't earn their keep, logic leaked across boundaries, and duplicated abstractions. Walk the largest files and the modules with the most outbound dependencies first. Report the highest-leverage 'code judo' restructurings — ones that delete whole branches rather than rearrange them — ordered by conviction."
+```
+
+Fold Codex's findings into Phase 3 per the contract: convergence = high-conviction, divergence noted not dropped, gated and fails open.
+
+#### Phase 2c — team-knowledge reconciliation (when the corpus is reachable)
+
+Phases 2 and 2b judge structure intent-blind, so deliberate design reads as debt. Run the shared reconciliation procedure — `references/audit-contract.md` §2: generate findings blind FIRST, then cross-reference the corpus; a documented decision **reclassifies severity, never suppresses a finding**; gated, fails open.
+
+`SHORTCUT:` markers (AGENTS.md Laziness Ladder) get the same treatment as team-knowledge notes: a marked deferral is a documented decision, not ordinary debt — cite the marker instead of re-litigating it, and escalate only if its stated upgrade trigger has actually fired. Debt mode owns the full ledger; this mode just respects it.
+
+#### Phase 3 — Synthesis
+
+Produce the Shared Contract report, with two mode-specific additions: open with a one-line verdict — **CLEAN / NEEDS RESTRUCTURING / NEEDS MAJOR REWORK** — and lead the findings with a **Code-Judo Opportunities** section (dramatic simplifications: what to delete, not just polish). The map section includes an "expectation gaps" list: short "expected X, found Y" entries for affordance/docs/DX. Prioritize ruthlessly — a smaller number of high-conviction findings beats a long list; do not flood the report with nits when larger structural issues exist.
+
+Severity ordering within the report: structural regressions and missed code-judo moves first, then correctness/incoherence findings, then dependency staleness with material impact, then boundary/type-contract problems, then file-size and legibility concerns.
+
+#### Phase 4 — Documentation updates (after fixes land)
+
+When findings turn into code changes, the same pass updates the docs that describe them. A report-only run skips this phase but flags it for whoever applies the fixes.
+
+| Type of change | What to update |
+|---|---|
+| New skill / agent / hook / profile | `docs/skills.md` (skills) or the matching `docs/*-reference.md`, `CHANGELOG.md`, and every stated skill/agent count (`CLAUDE-FULL.md`, the baseline in `src/lib/lint-skills.ts`) |
+| Structural refactor (dedup, extract module, rename across files) | `CHANGELOG.md`: what moved and why |
+| Dependency upgrade or deprecated-API swap | `CHANGELOG.md`: the package, old vs new pattern, caller-visible behavior |
+| New canonical helper that supersedes inline duplicates | `CHANGELOG.md`, and `rules/*.md` if it is now the project-wide pattern |
+| Type/boundary cleanup at a JSON or external-input boundary | `CHANGELOG.md`, and `docs/security-reference.md` if validation changed |
+| API surface change (exported signature, public schema) | `CHANGELOG.md`, any `docs/*-reference.md` naming the symbol; `bun run schemas:emit` if the zod surface moved |
+
+- **Follow the repo's CHANGELOG format** (this repo dates entries per version), one short paragraph per entry naming the files changed and why.
+- **Counts must match reality.** Update every reference when a skill, agent, or rule is added or removed.
+- **Regenerate derived docs.** After changing a zod schema in `src/schemas/`, run `bun run schemas:emit` and keep the `schemas/*.schema.json` diff with the source change.
+- **Update `docs/skills.md` and the routing prose in `MANUAL.md`** when a skill's invocation phrasing changes or a skill is added.
+
+Verify the doc pass:
+
+```bash
+bun run lint:skills            # frontmatter sanity
+bun run schemas:check          # derived schemas in sync with sources
+```
+
+### Remedies and approval bar
+
+Preferred remedies are the structure-lens standards turned into actions: delete a layer of indirection rather than polish it, reframe state so conditionals disappear, split oversized files, replace condition chains with a typed model, move logic to the layer that owns the concept, reuse the canonical helper, and upgrade or replace dependencies. Do not accept "maybe rename this" feedback when the real issue is structural.
+
+**Review tone.** Direct, serious, demanding about quality. Not rude, but do not soften major issues into mild suggestions. If the codebase is messier than its features warrant, say so clearly. If a path to a dramatic simplification was missed, say that too.
+
+A codebase passes when every structure-lens standard holds (no file over 1000 lines without explicit justification, no code-judo move left on the table, dependencies within one major of current) and no CONFIRMED correctness, incoherence, or affordance finding is left unaddressed or unacknowledged. Otherwise the report gives explicit, actionable feedback and pushes for the cleaner shape.
+
+### Attribution
+
+Structure lens ported from [`cursor/plugins/cursor-team-kit/skills/thermo-nuclear-code-quality-review`](https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/thermo-nuclear-code-quality-review) (whole-codebase scope and the context7 dependency audit are cc-settings additions). Behavior lens adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`).
+
+## Mode: Docs
+
+Audit documentation as a first-class artifact: does it tell the truth about the code, lead with what matters, size documents so detail can breathe, and draw processes instead of narrating them?
+
+**Role additions:** a docs lead who owns information architecture; a newcomer with only the docs and a terminal; a returning maintainer hunting one fact; an autonomous agent using the docs as its only spec.
+
+**Scope.** Every reader-facing surface in full: README, docs/, ADRs, CONTRIBUTING/onboarding, public docstrings, CLI help, config comments, example scripts, every diagram (source + rendered). Build the current doc map: what exists, what it claims to cover, who it's for, how a reader finds it.
+
+**Hunt for:**
+1. **Drift/inaccuracy (primary)** — any claim the code no longer honors: renamed/removed commands, flags, env vars, paths, defaults; examples that don't run; output samples that don't match. And the inverse: real public behavior no document mentions.
+2. **Inverted-pyramid violations** — docs that bury the point. Each doc should open with "what this is / when you'd reach for it" plus the 20% answering 80% of questions; reference tables and rationale at the end.
+3. **Sizing/decomposition** — documents where concerns collide: recommend the split (sections, names, back-links). Also scattered fragments that should merge.
+4. **Architecture as drawn process** — flow/lifecycle/interaction explained in prose that a diagram would carry better. Prefer Mermaid: flowchart for control flow, sequence for cross-component calls, stateDiagram for lifecycles.
+5. **Usefulness/audience fit** — does each doc serve a real reader task? Are tutorial/how-to/reference/explanation modes mixed to nobody's benefit? Does it answer "why"?
+6. **Coverage** — public surfaces with no docs; missing troubleshooting/runbook; non-obvious decisions with no ADR.
+7. **Single source of truth** — the same fact in N places that will drift; pick the canonical home, link the rest.
+8. **Findability** — can a reader route to the right doc without knowing where it lives? Missing index, orphans, dead cross-links.
+
+**Method addition:** for every accuracy claim, check against reality — run the example, confirm the flag exists, diff the sample output. CONFIRMED means verified against code or a run.
+
+**Extra output sections:** doc map current-vs-proposed (proposed tree = purpose + audience per doc + the splits/merges, executable directly); drift-verification list (finding + exact check run + result); diagram backlog (draft actual Mermaid for the top 3-5, naming target doc + location); missing-docs backlog prioritized by unblocking value.
+
+## Mode: Process
+
+Audit end-to-end workflows — not lines of code, but whether the processes the product promises compose into complete, walkable journeys. Find holes, dead ends, missing transitions, and steps where a user or agent gets stranded.
+
+**Role.** Walk every documented journey twice: once as a first-time human following only the docs, once as an autonomous agent chaining commands via exit codes and JSON.
+
+**Scope.** Enumerate the product's documented journeys (onboarding/install, the core lifecycle(s), review/approve loops, publish/deploy, cleanup) and walk each **empirically in throwaway workspaces** under a gitignored scratch dir — never against real state. Fake heavyweight external tools with PATH shims where needed.
+
+**Hunt for:**
+1. **Dead ends** — states with no exit command, fixable only by hand-editing files.
+2. **Missing processes** — steps the docs promise that no command implements.
+3. **Re-run/second-call semantics** — every mutating command run twice, out of order, and against a half-completed prior run. Idempotency AND exit codes.
+4. **Partial failure** — kill mid-operation, unwritable targets, collisions with pre-existing artifacts.
+5. **Agent ergonomics** — can an agent distinguish "my operation failed" from "unrelated warning elsewhere"? JSON contract stability, help text vs actual flags, error parseability.
+6. **Docs/process drift** — walk the quickstart/process docs command-by-command against reality.
+7. **Concurrency** — two invocations against the same workspace.
+8. **Cross-process coherence** — enumerate every state a record/artifact can occupy across subsystems and check a command moves each state forward.
+
+**Map section:** the real per-record state machine — states, transitions, owning command; mark unreachable states and absorbing dead ends. If a prior audit was remediated, start by empirically verifying those fixes hold through full workflows (regressions and partial fixes are in scope; re-auditing code style is not).
+
+**Method addition:** every finding needs the exact command sequence to reproduce and the resulting state/output. CONFIRMED means reproduced, not traced.
+
+## Mode: Performance
+
+Whole-repo performance audit with one governing rule: **a finding does not exist until a number confirms it.** Rides the Shared Contract's report shape, with the evidence rule below overriding its CONFIRMED/PLAUSIBLE split — this mode has no PLAUSIBLE tier.
+
+**Role.** A performance engineer who does not believe anything until it's measured; a user on a mid-range phone on 4G; a CI bot billing by the build-minute.
+
+### Evidence rule (the mode's spine)
+
+- **Empirical only.** Source reading generates *hypotheses*, never findings. A hypothesis becomes a finding only when a measurement confirms it — a profile, a benchmark, a timed curl, analyzer output, a Lighthouse run.
+- **Every finding ships its number and the command that produced it**, so any reader can re-run it. The collected commands double as the regression harness for whoever applies fixes.
+- **Unmeasurable hypotheses** (the surface can't be exercised, the tool isn't available) go to an explicit **Unmeasured candidates** appendix: ungraded, uncounted, absent from the summary table. They are leads for a future audit, not findings.
+- **Nothing runnable at all** (can't build, can't serve, no bench entry points)? Stop. Report "not measurable" with the list of what would need to exist to measure — never degrade into a speculative report.
+- **No invented numbers, no estimated savings.** A fix's benefit is measured after it lands by re-running the logged command — never predicted in the report (AGENTS.md "no savings against a run that never happened").
+
+**Playbook and harnesses.** `references/performance-playbook.md` is the measured fix ladder for mobile and slow-connection load (images, unused client code, inline CSS, per-route CSS chunking, font subsetting with `unicode-range`, platform elements over client widgets, WebGL gated on the renderer string) with the artifacts to discard first and the traps met on the way. `references/net-capture.mjs` records a cold load under emulated Slow 3G / 3G with 4x CPU (requests, bytes by type, TTFB/FCP/LCP/load); `references/bundle-attribution.py` attributes a route's shipped JS to packages and app directories from source maps. Both are the Phase 1 commands for a web app; copy them into the repo's audit folder so the numbers stay reproducible there.
+
+**Measurement hygiene:** ≥3 runs per number, report median + spread; production builds only (`next dev` skips optimization paths and lies); label cold vs warm; same machine for any two numbers you compare; record the exact command next to every number. Alternate the sides (A, B, A, B) when comparing, and treat a gap smaller than the run-to-run spread as no measurable difference. Before reporting any number, answer three questions from a run, not from reading code:
+
+1. **What limits it?** Name the limiter (CPU on one core, I/O wait, network, the load generator itself) from a profiled run you do not report. A number with no named limiter is inconclusive.
+2. **Does it break a limit?** Check bytes per second against disk and network bandwidth, and the time saved against the time the changed piece took (removing 10% of a run can make it at most ~11% faster). A result past a limit measured a cache, a no-op, or a bug.
+3. **Did the work happen?** Confirm the timed region did the work and produced correct output: requests reached the server, rows were written, promises were awaited, errors were counted. Fast rejections and discarded lazy results produce numbers for work that never ran.
+
+### Phase 0 — What's runnable
+
+Detect the repo's shape and build the measurement plan before measuring anything:
+
+- **Web app** — can you `next build && next start` (or the framework's equivalent)? Which routes matter most (traffic order if analytics are known, else: home, top nav destinations, heaviest template)?
+- **Server/API** — can you start it locally and hit endpoints? Is there query logging to count round-trips?
+- **CLI/library** — what are the entry points worth timing? (Startup, the hot command, the public API's hot function.)
+- **The build itself** — always measurable: full build wall-time, test-suite wall-time, CI duration from recent run logs.
+
+The plan lists each surface, the measurement command, and the budget or leverage anchor it will be graded against. Surfaces the repo doesn't have (no client? no client-runtime section) are marked not-applicable, not skipped silently.
+
+### Phase 1 — Baseline measurements
+
+One pass per applicable surface; every number goes into the Measurement Log.
+
+1. **Client runtime** — run Lighthouse (3 mobile + 3 desktop runs, averaged) against the production build, per key route. Collect LCP, INP (or TBT as lab proxy), CLS, plus long-task totals from the traces.
+2. **Bundle & build** — the framework's build output for per-route first-load JS; a bundle analyzer pass for composition (which deps dominate); build wall-time via `hyperfine 'bun run build'` (or 3 timed runs, median, when hyperfine is absent).
+3. **Server & data** — timed requests (`curl -w '%{time_starttransfer} %{time_total}'`) against the local production serve, per key endpoint; query counts per request from logs to catch N+1s; request logs or Server-Timing headers to expose waterfalls.
+4. **Hot paths (code-level)** — CPU profile the heaviest flow (`node --cpu-prof` / bun's inspector / React Profiler for render counts), or micro-benchmark a suspect function with `hyperfine` or the test runner's bench support.
+
+### Phase 2 — Hypothesis sweep (static, generates no findings)
+
+Now read source for suspect patterns, each recorded as a hypothesis **with the measurement that would confirm it**: sequential `await`s on independent work → time the flow before/after in a scratch branch, or profile the waterfall; N+1-shaped data access → query count per request; heavyweight imports in client components → analyzer composition; missing `dynamic()` splits → per-route first-load JS; sync I/O or allocation in loops → micro-benchmark; unmemoized components in hot trees → React Profiler render counts. Cross-check against `rules/performance.md` for the patterns Darkroom already bans. When the project has `tldr`, use the call graph to target the sweep — high fan-in hubs from `tldr calls`/`tldr arch` are the hot-path candidates worth profiling first — instead of grepping blind.
+
+### Phase 3 — Confirm or discard
+
+Run the confirming measurement for every hypothesis:
+
+- **Confirmed with a number** → finding, graded below.
+- **Measured and fine** → Considered & Rejected, with the number (this is the valuable half — it stops the next audit re-measuring it).
+- **Couldn't be measured** → Unmeasured candidates appendix.
+
+### Severity — two anchors, both empirical
+
+**Budgets** (for surfaces with a named limit). Budget sources in priority order: a budget file already in the repo (`lighthouserc`, `budgets.json`, perf config) → the budgets table in `~/.claude/docs/performance-reference.md` (Darkroom installs; summary in `rules/performance.md`) → these defaults: LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (CWV "good"), first-load JS ≤ 150KB gzipped per route. State which source each grade used.
+
+**Leverage** (for measured costs with no named budget): measured cost per hit × how often the path is hit. A 300ms serial waterfall on every page load outranks a 2s cold start in a weekly script.
+
+- **HIGH** — a user-facing budget violated on a high-traffic path, or leverage in the same range (hundreds of ms × every-interaction frequency).
+- **MEDIUM** — budget violated on a secondary path; internal budgets (build, CI, test wall-time) materially regressed; moderate leverage.
+- **LOW** — within budget but measurably wasteful; low-frequency paths.
+
+### Output
+
+Shared Contract report at `docs/audits/performance-audit-YYYY-MM-DD.md`, with mode-specific mechanics: the summary-table status column reads **measured** (there is no PLAUSIBLE); every finding row carries its number, the command that produced it, and its anchor (budget source or leverage math); two extra sections — **Measurement Log** (every command run, median, spread, environment) and **Unmeasured candidates**. Findings hand off to `/fix` (client-runtime fixes) or `/refactor` (structural fixes); this mode never applies fixes itself.
+
+**Boundary:** animation frame-rate and jank findings belong to Motion mode's performance category, not here — note them and move on.
+
+## Mode: Threat-Model
+
+Repo-grounded STRIDE-style threat modeling: enumerate trust boundaries, assets, attacker capabilities, and abuse paths for a repo or path, then write a standing threat-model document. Adapted from openai/skills `security-threat-model` (Apache-2.0).
+
+**Role.** An AppSec reviewer who has actually read this codebase — every architectural claim is anchored to code you can cite, and every assumption is stated rather than silently guessed.
+
+**Scope.** The target repo or path. Extract components, data stores, and entry points; separate what actually runs in production from build/test tooling. Note the deployment model, internet exposure, and auth expectations where the repo makes them explicit — everything else is an assumption to confirm below.
+
+**Hunt for:**
+1. **Trust boundaries and assets** — every point where data crosses from lower to higher trust (network → app, user → privileged, tenant → shared store); catalog the risk-driving assets — credentials, tokens, PII, payment data.
+2. **Attacker capability calibration** — what a realistic attacker can and cannot do given the exposure and deployment model. State non-capabilities explicitly ("no physical access, no insider access") — an uncalibrated attacker inflates every finding downstream.
+3. **Abuse paths** — concrete paths tied to attacker goals: exfiltration, privilege escalation, integrity compromise, denial of service. Each path names the entry point, the boundary crossed, and the asset at risk — never a generic "could be exploited."
+4. **Severity** — qualitative likelihood × impact per abuse path, with the reasoning written out. No inflated severity: a theoretical path with no realistic attacker capability is Low, not High.
+5. **CI and supply-chain surface** — the repo's own delivery pipeline is an entry point: `.github/workflows/` triggers, action pinning, expression interpolation, token permissions, and publicly-reachable framework endpoints (Next.js Server Actions). Walk the checklists in `docs/security-reference.md` → "Framework Auth & Supply-Chain Checklists" (adapted from vercel-labs/deepsec, Apache-2.0).
+
+**Map section:** a trust-boundary diagram (Mermaid flowchart — same preference as Docs mode) plus the asset inventory.
+
+**Method addition:** before finalizing, pause and ask the user anything load-bearing the repo alone can't answer — deployment model, scale, auth scheme, internet exposure, data sensitivity, multi-tenancy. Those answers reshape severity, so resolve them before writing mitigations, not after.
+
+**Extra output:** mitigations mapped one-to-one to the components/boundaries they protect, never a generic hardening checklist; and a QA pass confirming every entry point, boundary, and assumption is accounted for before delivery. Uses the same `docs/audits/threat-model-audit-YYYY-MM-DD.md` output path and stable-ID contract as the other Shared Contract modes.
+
+## Mode: SEO
+
+Repo-grounded discoverability audit for search engines and answer engines (AEO — being findable and citable by LLM crawlers). Distilled from shipped Darkroom work: satus PRs #348/#405/#413 and darkroomengineering/website PRs #40/#65 converged independently on one architecture, and this mode encodes that destination shape as checks. Rides the Shared Contract above.
+
+**Role additions:** a search crawler that executes no JavaScript; an answer engine assembling a citation from a single fetch; a CMS editor who expects everything they publish to be reachable.
+
+**Scope.** The full discoverability surface: metadata generation (canonicals, OG, descriptions), sitemap/robots/llms.txt generation, structured-data builders, the route layer that must render every content type those surfaces enumerate — and, whenever a build or deploy is reachable, the rendered output itself. Prefer curling a `next build && next start` (or a preview deploy) over source reading alone; `next dev` skips static-generation paths that change metadata output.
+
+**Hunt for:** run every check in `references/seo-checks.md` (S1–S17, stable IDs — cite them in findings), grouped:
+
+1. **Canonical integrity** (S1–S3) — self-referential per route, never inherited from a layout; child canonicals that don't wholesale-drop shared alternates (Next replaces, never merges, a child's `alternates`); canonical and sitemap generated from one route-enumeration source.
+2. **Advertised vs rendered** (S4–S5) — every sitemap URL returns 200 (the sitemap never checks reachability itself; the highest-value mechanical check in the mode); demo/example/admin routes carry their own route-level noindex, independent of sitemap exclusion.
+3. **Per-content metadata** (S6–S9) — unique title/description/OG image per content item; `og:type`/`@type` matched to what the content is (editorial = Article, case study = CreativeWork); exactly one base-URL source with no inline env reads; empty CMS descriptions falling back to body-derived text, never the site-wide default.
+4. **Structured data** (S10–S13) — CollectionPage + ItemList on listing pages; JSON-LD via script tag with `<` escaped (microdata is valid per Google — in client-rendered trees it's a migration suggestion, not a defect); no null/undefined/empty-array values (absent beats present-but-broken); no fabricated entity facts — an invented date passes validation and is never caught.
+5. **AEO surfaces** (S14–S17) — `/llms.txt` generated from the same facts object and route enumeration as everything else; AI search/citation crawlers named explicitly in robots.txt (several only honor directives addressed by name; training-consent tokens are an owner decision, not a defect); a plain-HTML machine-view route for canvas/WebGL-heavy sites; parity between any hand-maintained page list and the sitemap.
+
+**Map section:** the discoverability data-flow — which module enumerates routes, which consumers read it (sitemap, llms.txt, canonicals, machine view), and every place two surfaces derive the same fact independently. Each independent derivation is a standing drift risk even while currently in agreement.
+
+**Method addition:** run the mechanical checks first — they are cheap, and their findings are CONFIRMED by a curl. Read source second, to locate fixes and to catch the architectural absences the curls can't see (no shared route module, no schema builder at all). A check that needs a running site when none is reachable downgrades to PLAUSIBLE from source reading — say so per finding.
+
+**Extra output:** a per-check verdict table (S1–S17: pass / finding ID / not-applicable) so the next audit starts from deltas; fix recommendations point at the destination shapes in `references/seo-checks.md` rather than restating them.
+
+---
+
+## Mode: Motion
+
+Survey a codebase's animation and motion code as a senior motion advisor, then
+produce a prioritized audit and self-contained implementation plans for other agents
+(or cheaper models) to execute. Adapted from emilkowalski/skills `improve-animations`
+(MIT). Read-only on source — like every mode in this skill, it plans, it does not
+apply fixes. Unlike the Shared Contract modes, its output is a vetted findings table
+followed by plan files, closer in spirit to `improve-animations`' own
+audit-then-plan workflow.
+
+**Role.** A senior design engineer with a brutal eye for craft, hunting the animation
+work with the highest leverage — the `ease-in` that makes every dropdown feel
+sluggish, the keyframes that make toasts jump, the keyboard action that should never
+have animated. The bar and the exact values (easing curves, duration budgets, spring
+configs) live in `rules/motion-physics.md` — pull values from there, never approximate. For Swift
+targets the frame-rate bar (built-in animatable modifiers, no per-frame `body`,
+ProMotion unlocked) is `rules/swift-animation.md`.
+
+**Phase 1 — Recon.** Stack, motion libraries (GSAP, Motion/Framer Motion, Lenis,
+plain CSS, WAAPI), where motion lives (tokens, Tailwind config, keyframes,
+`transition`/`animate` props, gesture handlers), existing easing/duration
+conventions, product personality (playful consumer app vs crisp dashboard), and a
+frequency map (which animated elements are hit 100+/day vs occasionally vs rarely —
+this drives severity). Useful sweeps: grep for `transition`, `animation`,
+`@keyframes`, `motion.`, `animate={`, `useSpring`, `ease-in`, `transition: all`,
+`scale(0)`, `prefers-reduced-motion`, `transform-origin`.
+
+**Phase 2 — Audit**, against eight categories: purpose & frequency; easing &
+duration; physicality & origin; interruptibility; performance; accessibility;
+cohesion & tokens; missed opportunities. For anything beyond a small repo, fan out
+one read-only subagent per category (or per app area for large monorepos) — each
+prompt must carry the recon facts, the category to audit, an instruction to return
+findings only (`file:line` + evidence, no fixes), and this mode's read-only rule
+verbatim.
+
+**Phase 3 — Vet, prioritize, confirm.** Re-read every finding's cited code yourself;
+reject anything by-design, mis-attributed, or exempt (e.g. `transform-origin: center`
+on a modal is correct). Present as one table ordered by leverage (impact ÷ effort):
+`# | Severity | Category | Location | Finding | Fix summary`. Severity: **HIGH** =
+feel-breaking (wrong easing on UI, animation on a keyboard/high-frequency action,
+dropped frames, `scale(0)`); **MEDIUM** = noticeably off (wrong origin,
+non-interruptible dynamic UI, missing reduced-motion); **LOW** = polish (stagger,
+token consolidation). List 2–4 missed opportunities (places that don't animate but
+should) separately. Then stop and wait for the user to pick which findings become
+plans; default to the top 3–5 by leverage if running non-interactively.
+
+**Phase 4 — Write plans.** One plan per selected finding, into `plans/` as
+`NNN-short-slug.md` (monotonic numbering, respect existing plans), stamped with
+`git rev-parse --short HEAD`. Each plan is fully self-contained — the executor has
+zero context from this conversation: exact file paths and current-code excerpts,
+exact target values (never approximated), ordered steps, hard scope boundaries, and
+a verification section including how to feel-check the result (slow motion /
+frame-by-frame / real device for gestures). Update `plans/README.md` with execution
+order, dependencies, and status.
+
+**Invocation variants:**
+
+| Invocation | Behavior |
+|---|---|
+| bare | Full workflow: recon → audit all 8 categories → vet → confirm → plans |
+| a category focus (e.g. "audit the animation performance") | Recon + that category only |
+| `plan <description>` | Skip the audit; recon just enough to specify, then write a single plan for the described improvement |
+
+## Mode: Tests
+
+Find tests that cost maintenance without guarding behavior, and prove each one
+before recommending its removal. Rides the Shared Contract above; finding IDs
+use the `X` prefix plus the pattern number (`X10-3` is the third finding for
+pattern T10).
+
+**Role additions:** a maintainer who has to update the test on every refactor;
+a reviewer asking "which regression would this catch?"
+
+**Scope.** Every test file and its test-support code (fixtures, mocks,
+helpers), plus the production code each test covers. Read the complete test
+and its production owner, callers, and overlapping tests before judging it.
+Read the repo's `AGENTS.md` first; a project rule can make a test a contract.
+
+**Hunt for:** the junk patterns T1–T15 in `references/test-audit.md`. Judge
+every candidate against that file's retention bar before it becomes a finding.
+
+**Method addition:** fill the evidence record from `references/test-audit.md`
+for each finding. A finding with every field filled is CONFIRMED; one with a
+gap stays PLAUSIBLE and is not recommended for deletion. Where cheap, confirm a
+T10, T11, or T14 finding by breaking the production code and showing the test
+still passes (revert immediately; this is the one edit the mode allows). Prefer
+a few confirmed findings over a long speculative list.
+
+**Map section:** test files grouped by the production module they cover, with
+counts, so duplicate coverage (T6, T7) is visible.
+
+**Extra output:** a "Considered & rejected" entry for every candidate the
+retention bar kept, naming the contract it guards. Recommended remedies are
+deletion, consolidation into a table-driven case, or moving the test to its
+owning boundary; the `tester` agent executes them. Report test LOC and
+production LOC each remedy removes separately.
+
+---
+
+## Mode: Full
+
+Run every vertical that applies to this repo in one pass and ship one merged report. Use it when
+the ask is "audit everything" or names two or more verticals ("performance, code quality, and
+security"). Full mode is a coordinator: each selected mode keeps its own section's rules
+(Performance's evidence rule, Threat-Model's attacker calibration, Motion's plan format), and all
+of them ride the Shared Contract.
+
+A named vertical maps to a mode: code quality, maintainability, dead code, or correctness →
+Codebase; security, vulnerabilities, or attack surface → Threat-Model; speed, bundle, or slowness →
+Performance; test quality → Tests; documentation → Docs; animation → Motion; search or
+discoverability → SEO. When the user names verticals, run exactly those. When they say "all" or
+"everything", select from the signals below.
+
+### Phase 0 — Map once, select modes, ask once
+
+1. **Build one shared map** that every reader receives: entry points, modules, stack and
+   framework, dependency manifest, CI, docs surface, and what is runnable (build, dev server,
+   test suite, benchmarks). Readers start from it instead of re-mapping the repo.
+2. **Select modes from evidence in the map:**
+
+   | Mode | Selected when |
+   |---|---|
+   | Codebase | Always |
+   | Threat-Model | Always; every repo has a delivery pipeline and dependencies |
+   | Debt | Always; it is a grep and runs in the coordinator |
+   | Performance | Something can be measured (a build, a server, a benchmark, a CLI to time). Otherwise skipped with the reason; never a speculative section |
+   | Tests | A test suite exists |
+   | Docs | Docs exist beyond a README |
+   | SEO | The repo is a public website (routes with metadata, sitemap, robots, marketing pages) |
+   | Motion | An animation library is a dependency (`gsap`, `motion`, `framer-motion`, `lenis`, `react-spring`) or CSS animation is substantial |
+   | Process | Only on request; walking journeys is the most expensive mode. List it as available |
+
+3. **Ask once, before fan-out,** in one AskUserQuestion round: confirm the mode list (recommended
+   set first), then Threat-Model's load-bearing questions (deployment model, internet exposure,
+   auth scheme, data sensitivity) and a Performance target (URL or budget) when the map cannot
+   answer them. This round replaces each mode's own pause; no reader asks again mid-run. When the
+   user already answered in the request or said not to ask, state the assumptions and proceed.
+
+### Phase 1 — Fan out
+
+Launch one read-only reader per selected mode in a single message so they run concurrently. In
+Claude use the Agent tool: `security-reviewer` for Threat-Model, a reader with Bash for Performance
+(it must measure), and `explore` or a general-purpose reader for the rest. In standalone Codex use
+`spawn_agent` per mode under the host branch above. Each reader receives:
+
+- the shared map and the user's Phase 0 answers;
+- the path and heading of its mode section in this file, which it reads and follows;
+- the instruction to return findings in the Shared Contract format with its mode prefix
+  (`C` Codebase, `P` Performance, `T` Threat-Model, `X` Tests, `D` Docs, `S` SEO, `M` Motion,
+  `R` Process), and to write no files.
+
+The coordinator writes the only report. On a large repo the Codebase reader may split by module;
+keep the whole run under the workflow size guideline (medium: fewer than 10 agents) unless the user
+raised it. In Claude, `/effort ultracode` or a dynamic workflow makes the run resumable.
+
+### Phase 2 — Merge and rank
+
+1. **Deduplicate across modes.** When two modes report the same location and root cause (an
+   unvalidated endpoint that is also the slow one), keep one finding that lists both IDs and both
+   lenses, at the higher severity.
+2. **Rank on one scale.** Severity first, CONFIRMED before PLAUSIBLE at equal severity, then
+   security and data-loss findings before the rest.
+3. **Run the cross-model and team-knowledge passes** (`references/audit-contract.md`) once, on the
+   merged list.
+
+### Output
+
+Write `docs/audits/full-audit-YYYY-MM-DD.md`:
+
+1. Coverage table: every mode as ran, skipped (with the reason), or available on request, with
+   finding counts per mode. A reader that failed or returned nothing is reported as failed, never
+   as clean.
+2. Merged summary table (ID | mode | severity | area | issue | file:line | status) in global
+   priority order.
+3. The first 10 to act on, each naming its executor: `deslopper`, `/zero-tech-debt`, `/refactor`,
+   `/fix`, or a security fix through `security-reviewer`.
+4. One section per mode in that mode's own structure (maps, findings, Motion's plans,
+   Threat-Model's diagram and mitigations, the Debt ledger).
+5. Design tensions, open questions, and considered-and-rejected, merged across modes.
+
+Chat reply: the coverage line, counts by severity, the top 5 findings, and the report path.
+
+---
+
+## Mode: Debt
+
+Collect every deliberate shortcut in the repo into one ledger, so a deferral can't
+quietly become permanent. Unlike the other substantive modes this one is mechanical: it
+greps for markers and reports what it finds. It makes no judgement about whether
+the shortcut was right.
+
+The `SHORTCUT:` convention is defined in `AGENTS.md` (Laziness Ladder). Every
+deliberate simplification carries a ceiling and an upgrade trigger:
+
+```ts
+// SHORTCUT: single global lock, not per-key.
+// ceiling: contention above ~50 rps
+// upgrade: shard by key hash when p99 write latency climbs
+```
+
+### Scan
+
+```bash
+bun run lint:shortcuts --json
+```
+
+Falls back to a raw grep when the script isn't available (external or client repos):
+
+```bash
+grep -rnE '(#|//|--|;) ?SHORTCUT:' . \
+  --exclude-dir={node_modules,.git,dist,build,.next,vendor,target}
+```
+
+Add comment prefixes for any other languages in the tree. The prefix requirement is
+deliberate: it keeps prose that merely mentions the convention (this file included)
+out of the ledger.
+
+### Output
+
+One row per marker, grouped by file, newest-first within a file:
+
+```
+<file>:<line>  <what was simplified>
+               ceiling: <the limit named>
+               upgrade: <the trigger to revisit>   |   [no-trigger]
+```
+
+Tag any marker with no `upgrade:` line `[no-trigger]` and list those first. Those
+are the ones that rot — nobody knows what would make them worth fixing, so nobody
+ever does. Add `git blame -L<line>,<line>` per row when the user asks for owners.
+
+End with: `<N> markers, <M> with no trigger.` Nothing found: `No SHORTCUT: debt. Clean ledger.`
+
+### Boundaries
+
+Reads and reports only — never edits, never implements a marker. A `SHORTCUT:` is
+not a TODO to clear on sight (see `AGENTS.md` → Comments); it
+comes out only when its trigger has actually fired, and then via `/zero-tech-debt`
+or `/refactor`, not here.
+
+**No invented savings.** Report the count of markers and what each defers. Never
+print a "you saved N lines by deferring these" figure — the built version was never
+written, so there is no baseline to subtract from. Counted markers are real; an
+extrapolated saving is not.
+
+To persist the ledger, ask first, then write it to `SHORTCUT-DEBT.md`.

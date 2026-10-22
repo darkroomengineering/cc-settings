@@ -1,17 +1,29 @@
 ---
 name: refactor
-description: Behavior-preserving restructuring of code that is NOT in your current diff — extract modules, rename across files, untangle abstractions, pay down tech debt. For tightening just-changed code use `/zero-tech-debt` instead. Triggers "refactor X", "reorganize this module", "restructure", "extract Y from Z", "pay down tech debt".
+description: Behavior-preserving restructuring of code outside the current diff, such as extracting modules, renaming across files, or paying down debt. Triggers "refactor X", "restructure", "extract Y from Z". Just-changed code goes to /zero-tech-debt.
 context: fork
 ---
 
 # Refactoring Workflow
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "refactor" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Create each new agent with `spawn_agent`, deliver
+context to a running agent with `send_message`, trigger another turn for an idle
+existing agent with `followup_task`, wait with `wait_agent`, and stop a current
+turn with `interrupt_agent` only when necessary. Never spawn `codex-verifier`
+and never run `codex-run.ts` from inside Codex.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Assign non-overlapping ownership and serialize planner handoff,
+implementer, and test-writer phases; only read-only reviewers may overlap.
+Codex implementers are not promised Claude worktree isolation.
 
 You are in **Maestro orchestration mode**. Delegate immediately.
 
 ## Workflow
 
+0. **Clarify** - A refactor's target shape is rarely fixed by the request. Before exploring, run clarifying rounds through the host's question tool until no fork is left: target shape, what must not change, and what "done" looks like; recommendation first on each
 1. **Explore** - Spawn `explore` agent to analyze current code
 2. **Plan** - Spawn `planner` agent to design refactoring approach
 3. **Implement** - Spawn `implementer` agent to refactor
@@ -29,8 +41,8 @@ Agent(explore, "Analyze the code to refactor: $ARGUMENTS. Identify patterns, iss
 Agent(planner, "Design refactoring approach based on analysis. Keep behavior unchanged.")
 ```
 
-**Then assemble the implementer prompt from the actual planner output.**
-Implementer runs in an isolated worktree with no access to prior agent
+**Claude: then assemble the implementer prompt from the actual planner output.**
+The Claude implementer runs in an isolated worktree with no access to prior agent
 results, so paste the real plan — not "according to plan":
 
 - The user's refactor target (`$ARGUMENTS`) verbatim
@@ -47,29 +59,11 @@ Agent(tester, "Verify refactored code behaves identically to original.")
 Agent(reviewer, "Review refactoring for quality and completeness.")
 ```
 
-Refactors are a top source of subtle regressions — behavior that "shouldn't change" quietly does. When the Codex bridge is available, run a cross-model review in parallel with the reviewer:
+**Standalone Codex branch:** follow the lifecycle and serialization rules at
+the top. Use a fresh read-only `reviewer` for the independent pass after the
+writer and tester finish.
 
-```
-Agent(codex-verifier, "Cross-model review of the refactor diff. Confirm behavior is preserved; report findings by severity.")
-```
-
-The bridge is gated and fails open: if Codex is unavailable, the reviewer agent alone is fine.
-
-## Refactoring Principles
-
-1. **Preserve behavior** - Tests should pass before AND after
-2. **Small steps** - Make incremental changes
-3. **Run tests often** - Verify after each change
-4. **Document decisions** - Explain WHY, not just WHAT
-
-## Common Refactoring Tasks
-
-- Extract component/hook
-- Simplify complex logic
-- Remove duplication
-- Improve naming
-- Split large files
-- Optimize performance
+Refactors are a top source of subtle regressions. The one cross-model Codex review per PR (run by `/ship`, or on request) covers the refactor diff; do not run a separate Codex pass here. The reviewer agent above is the in-workflow review.
 
 ## Output
 

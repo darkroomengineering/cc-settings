@@ -4,12 +4,13 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   FINGERPRINT_FILENAME,
   hashHooks,
+  hashPluginKeys,
   readFingerprint,
   readSrcManifest,
   SRC_MANIFEST_FILENAME,
@@ -44,6 +45,26 @@ const SETTINGS_B = {
     ],
   },
 };
+
+const REPO = resolve(import.meta.dir, "..");
+const VERIFY_HOOK = resolve(import.meta.dir, "../src/hooks/verify-hooks.ts");
+
+async function runVerifyHook(home: string): Promise<{ exitCode: number; stdout: string }> {
+  return runVerifyHookAt(VERIFY_HOOK, home);
+}
+
+async function runVerifyHookAt(
+  hookPath: string,
+  home: string,
+): Promise<{ exitCode: number; stdout: string }> {
+  const proc = Bun.spawn(["bun", hookPath], {
+    env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: "1" },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  return { exitCode, stdout };
+}
 
 describe("hashHooks", () => {
   test("identical inputs produce identical hashes", () => {
@@ -232,6 +253,130 @@ describe("verifyAgainstSettings — end-to-end", () => {
   });
 });
 
+// --- Regression: install-path hash must match verify-path hash (#75) -------
+//
+// The install path (setup.ts's fingerprintSettingsHooks) used to fingerprint
+// `Settings.safeParse(settings).data` when validation succeeded. Zod's plain
+// z.object schemas for hooks (src/schemas/hooks.ts) silently strip unknown
+// keys, while the verify path (verifyAgainstSettings, below) always hashes
+// the RAW on-disk JSON. A hook entry carrying a field the local schema
+// doesn't model — e.g. one added by a newer Claude Code release — would
+// validate successfully, get stripped from the fingerprinted hash, and then
+// permanently mismatch on every SessionStart verify since the raw file always
+// includes that field. The fix: writeFingerprint must always be called with
+// the raw settings object, never the schema-validated/stripped one.
+
+describe("regression: raw hooks block hashes identically on install and verify (#75)", () => {
+  const settingsWithUnknownHookField = {
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: "command",
+              command: 'bun "$HOME/.claude/src/scripts/session-start.ts"',
+              // Not modeled by CommandHook in src/schemas/hooks.ts — simulates
+              // a future Claude Code field the local schema hasn't caught up to.
+              futureField: "added-by-a-newer-claude-code-release",
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  test("install (writeFingerprint) and verify (verifyAgainstSettings) hash the same raw object → match", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      // Install path: writeFingerprint is always given the raw settings
+      // object now (fingerprintSettingsHooks no longer branches on
+      // Settings.safeParse success).
+      const record = await writeFingerprint(settingsWithUnknownHookField, dir);
+
+      // Verify path: settings.json on disk has the same raw (unstripped)
+      // shape, since the installer never persists the validated/stripped copy.
+      const settingsPath = join(dir, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(settingsWithUnknownHookField));
+      const result = await verifyAgainstSettings(settingsPath, dir);
+
+      expect(result.status).toBe("match");
+      expect(result.actual).toBe(record.hash);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("installSettings fingerprints the raw merged hooks, so verify matches despite an unmodeled hook field", async () => {
+    // Business rule: the sentinel written by the real installer must equal what
+    // verify-hooks re-derives from disk at SessionStart. Fingerprinting the
+    // zod-stripped copy would raise a permanent false "hooks tampered" alarm.
+    // CLAUDE_DIR binds to homedir() at import time, so run the installer in a
+    // subprocess with HOME pointed at a temp dir.
+    const home = await mkdtemp(join(tmpdir(), "cc-fp-install-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      await mkdir(claudeDir, { recursive: true });
+      const settingsPath = join(claudeDir, "settings.json");
+      // A user-owned hook (the merger drops user copies of managed commands).
+      const seeded = {
+        hooks: {
+          PostToolUse: [
+            {
+              hooks: [
+                {
+                  type: "command",
+                  command: "/usr/local/bin/my-own-hook.sh",
+                  futureField: "added-by-a-newer-claude-code-release",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      await writeFile(settingsPath, JSON.stringify(seeded));
+      const script = join(home, "run-install.ts");
+      await writeFile(
+        script,
+        `import { installSettings } from ${JSON.stringify(join(REPO, "src/lib/claude-install-settings.ts"))};
+import { getEngine } from ${JSON.stringify(join(REPO, "src/lib/code-intel-engine.ts"))};
+import { CLAUDE_DIR } from ${JSON.stringify(join(REPO, "src/lib/platform.ts"))};
+await installSettings(${JSON.stringify(REPO)}, "0.0.0-test", false, "full", getEngine("native-ts", CLAUDE_DIR));
+`,
+      );
+      const proc = Bun.spawn([process.execPath, script], {
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          NODE_ENV: "test",
+          CC_SKIP_DEPS: "1",
+          CC_SETTINGS_SKIP_PLUGIN_INSTALL: "1",
+          CC_SKIP_SCHEDULE: "1",
+          CC_SKIP_CODEX_CLI: "1",
+          NO_COLOR: "1",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      expect(exitCode, `${stdout}\n${stderr}`).toBe(0);
+
+      // The merge kept the unmodeled field on disk (the precondition of the bug).
+      const merged = await readFile(settingsPath, "utf8");
+      expect(merged).toContain("futureField");
+
+      const result = await verifyAgainstSettings(settingsPath, claudeDir);
+      expect(result.status).toBe("match");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+});
+
 // --- Installed-src content manifest -----------------------------------------
 
 /** Seed claudeDir/src with the given rel→content files. */
@@ -416,7 +561,7 @@ describe("src manifest — write + verify", () => {
     // The stripControl transform must remove all chars with codePoint <= 0x1f.
     const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
     try {
-      const poisoned = String.fromCharCode(27) + "[1mX";
+      const poisoned = `${String.fromCharCode(27)}[1mX`;
       await writeFile(
         join(dir, SRC_MANIFEST_FILENAME),
         JSON.stringify({
@@ -426,26 +571,413 @@ describe("src manifest — write + verify", () => {
       );
       const result = await readSrcManifest(dir);
       expect(result).not.toBeNull();
+      if (result === null) return;
       // No char in installedAt should have codePoint <= 0x1f (C0 controls incl. ESC)
-      const codePoints = Array.from(result!.installedAt).map((c) => c.charCodeAt(0));
+      const codePoints = Array.from(result.installedAt).map((c) => c.charCodeAt(0));
       expect(codePoints.every((n) => n > 0x1f)).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test("node_modules and non-.ts files are excluded from the manifest", async () => {
+  test("production dependencies are included while unrelated non-.ts files stay excluded", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-srcm-"));
     try {
       await seedSrc(dir, {
         "hooks/safety-net.ts": "// shipped\n",
-        "node_modules/zod/index.ts": "// dependency — out of manifest scope\n",
+        "node_modules/zod/index.js": "// installed production dependency\n",
       });
       await writeFile(join(dir, "src", "package.json"), "{}\n");
       const record = await writeSrcManifest(join(dir, "src"), dir);
-      expect(Object.keys(record.files)).toEqual(["hooks/safety-net.ts"]);
-      // …and they don't count as unmanifested at verify time either.
+      expect(Object.keys(record.files).sort()).toEqual([
+        "hooks/safety-net.ts",
+        "node_modules/zod/index.js",
+      ]);
       expect((await verifySrcManifest(dir)).status).toBe("ok");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("verify-hooks recovery command", () => {
+  test("missing manifest warns and does not load dependency-backed modules", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-manifest-missing-"));
+    const isolatedHook = join(home, "isolated", "src", "hooks", "verify-hooks.ts");
+    const importedMarker = join(home, "dependency-backed-import-loaded");
+    try {
+      await mkdir(dirname(isolatedHook), { recursive: true });
+      await writeFile(isolatedHook, await readFile(VERIFY_HOOK, "utf8"));
+      for (const moduleName of ["audit-hooks", "hooks-fingerprint"]) {
+        const modulePath = join(home, "isolated", "src", "lib", `${moduleName}.ts`);
+        await mkdir(dirname(modulePath), { recursive: true });
+        await writeFile(
+          modulePath,
+          `await Bun.write(${JSON.stringify(importedMarker)}, ${JSON.stringify(moduleName)});\n`,
+        );
+      }
+
+      const result = await runVerifyHookAt(isolatedHook, home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("installed runtime differs from install manifest");
+      expect(result.stdout).toContain("integrity manifest (missing)");
+      expect(existsSync(importedMarker)).toBe(false);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("dependency tampering is reported before dependency-backed modules load", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-dependency-tamper-"));
+    const claudeDir = join(home, ".claude");
+    const dependency = join(claudeDir, "src", "node_modules", "zod", "index.js");
+    try {
+      await mkdir(dirname(dependency), { recursive: true });
+      await writeFile(dependency, "export const safe = true;\n");
+      await writeSrcManifest(join(claudeDir, "src"), claudeDir, []);
+      await writeFile(dependency, "throw new Error('dependency payload executed');\n");
+
+      const result = await runVerifyHook(home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("installed runtime differs from install manifest");
+      expect(result.stdout).toContain("node_modules/zod/index.js");
+      const verifierSource = await readFile(VERIFY_HOOK, "utf8");
+      const staticImports = [
+        ...verifierSource.matchAll(/^import .* from ["']([^"']+)["'];$/gm),
+      ].map((match) => match[1]);
+      expect(staticImports.length).toBeGreaterThan(0);
+      expect(staticImports.every((specifier) => specifier?.startsWith("node:"))).toBe(true);
+      expect(verifierSource.indexOf("verifyRuntimeIntegrityBootstrap()")).toBeLessThan(
+        verifierSource.lastIndexOf('import("../lib/audit-hooks.ts")'),
+      );
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("hooks fingerprint warning points at the installed scanner", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-hook-command-"));
+    const claudeDir = join(home, ".claude");
+    try {
+      await mkdir(claudeDir, { recursive: true });
+      await writeSrcManifest(join(claudeDir, "src"), claudeDir, []);
+      await writeFile(join(claudeDir, "settings.json"), JSON.stringify(SETTINGS_B));
+      await writeFingerprint(SETTINGS_A, claudeDir);
+
+      const result = await runVerifyHook(home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("bun ~/.claude/src/scripts/audit-hooks.ts");
+      expect(result.stdout).not.toContain("bun run audit:hooks");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("source manifest warning points at the installed scanner", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-verify-src-command-"));
+    const claudeDir = join(home, ".claude");
+    const srcDir = join(claudeDir, "src");
+    const managedScript = join(srcDir, "hooks", "managed.ts");
+    try {
+      await mkdir(dirname(managedScript), { recursive: true });
+      await writeFile(join(claudeDir, "settings.json"), JSON.stringify(SETTINGS_A));
+      await writeFingerprint(SETTINGS_A, claudeDir);
+      await writeFile(managedScript, "// trusted\n");
+      await writeSrcManifest(srcDir, claudeDir, ["hooks/managed.ts"]);
+      await writeFile(managedScript, "// changed\n");
+
+      const result = await runVerifyHook(home);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("bun ~/.claude/src/scripts/audit-hooks.ts");
+      expect(result.stdout).not.toContain("bun run audit:hooks");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("plugin-key fingerprint", () => {
+  const BASE = {
+    ...SETTINGS_A,
+    enabledPlugins: { "compaction-trigger@cc-settings": true },
+    extraKnownMarketplaces: {
+      "cc-settings": {
+        source: { source: "github", repo: "darkroomengineering/cc-settings", sha: "a".repeat(40) },
+      },
+    },
+    pluginConfigs: { "fast-jev-compaction@fast-jev-compaction": { compactAtPercent: 100 } },
+  };
+
+  async function verifyAfter(
+    mutate: (s: typeof BASE) => unknown,
+  ): Promise<Awaited<ReturnType<typeof verifyAgainstSettings>>> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      const settingsPath = join(dir, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(BASE));
+      await writeFingerprint(BASE, dir);
+      await writeFile(settingsPath, JSON.stringify(mutate(structuredClone(BASE))));
+      return await verifyAgainstSettings(settingsPath, dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("unchanged hooks and plugin keys match", async () => {
+    const r = await verifyAfter((s) => s);
+    expect(r.status).toBe("match");
+    expect(r.changed).toEqual([]);
+    expect(r.pluginsCovered).toBe(true);
+  });
+
+  test("an added enabledPlugins entry is a mismatch naming plugins only", async () => {
+    const r = await verifyAfter((s) => ({
+      ...s,
+      enabledPlugins: { ...s.enabledPlugins, "evil@evil-market": true },
+    }));
+    expect(r.status).toBe("mismatch");
+    expect(r.changed).toEqual(["plugins"]);
+  });
+
+  test("a changed marketplace sha is a mismatch", async () => {
+    const r = await verifyAfter((s) => {
+      s.extraKnownMarketplaces["cc-settings"].source.sha = "b".repeat(40);
+      return s;
+    });
+    expect(r.status).toBe("mismatch");
+    expect(r.changed).toEqual(["plugins"]);
+  });
+
+  test("changed pluginConfigs is a mismatch", async () => {
+    const r = await verifyAfter((s) => ({
+      ...s,
+      pluginConfigs: { "fast-jev-compaction@fast-jev-compaction": { compactAtPercent: 1 } },
+    }));
+    expect(r.status).toBe("mismatch");
+    expect(r.changed).toEqual(["plugins"]);
+  });
+
+  test("a hooks change alone names hooks only", async () => {
+    const r = await verifyAfter((s) => ({ ...s, hooks: SETTINGS_B.hooks }));
+    expect(r.changed).toEqual(["hooks"]);
+  });
+
+  test("unrelated keys do not affect the plugin hash", () => {
+    expect(hashPluginKeys({ ...BASE, model: "x" })).toBe(hashPluginKeys(BASE));
+  });
+
+  test("a record written before plugin keys were fingerprinted does not false-alarm", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      const settingsPath = join(dir, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(BASE));
+      // Old format: hooks hash only, no pluginsHash.
+      await writeFile(
+        join(dir, FINGERPRINT_FILENAME),
+        JSON.stringify({
+          hash: hashHooks(BASE),
+          installedAt: "2026-09-01T00:00:00Z",
+          hooksCount: 1,
+        }),
+      );
+      const r = await verifyAgainstSettings(settingsPath, dir);
+      expect(r.status).toBe("match");
+      expect(r.pluginsCovered).toBe(false);
+      // Hooks are still checked against the old record.
+      await writeFile(settingsPath, JSON.stringify({ ...BASE, hooks: SETTINGS_B.hooks }));
+      expect((await verifyAgainstSettings(settingsPath, dir)).changed).toEqual(["hooks"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("SessionStart hook names the plugin keys and says to re-run setup", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-fp-home-"));
+    try {
+      const claude = join(home, ".claude");
+      await mkdir(claude, { recursive: true });
+      await writeSrcManifest(join(claude, "src"), claude, []);
+      await writeFile(join(claude, "settings.json"), JSON.stringify(BASE));
+      await writeFingerprint(BASE, claude);
+      await writeFile(
+        join(claude, "settings.json"),
+        JSON.stringify({ ...BASE, enabledPlugins: { ...BASE.enabledPlugins, "x@y": true } }),
+      );
+      const { stdout } = await runVerifyHook(home);
+      expect(stdout).toContain("plugin keys");
+      expect(stdout).toContain("re-run setup.sh");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("absent plugin keys hash the same as empty ones", () => {
+    expect(hashPluginKeys({ hooks: {} })).toBe(
+      hashPluginKeys({ enabledPlugins: {}, extraKnownMarketplaces: {}, pluginConfigs: {} }),
+    );
+  });
+
+  test("a record without pluginsHash on a 15.45.3+ install is a mismatch (stripped)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      const settingsPath = join(dir, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(BASE));
+      await writeFile(
+        join(dir, FINGERPRINT_FILENAME),
+        JSON.stringify({
+          hash: hashHooks(BASE),
+          installedAt: "2026-10-01T00:00:00Z",
+          hooksCount: 1,
+        }),
+      );
+      await writeFile(join(dir, ".cc-settings-version"), JSON.stringify({ version: "15.45.3" }));
+      const r = await verifyAgainstSettings(settingsPath, dir);
+      expect(r.status).toBe("mismatch");
+      expect(r.changed).toEqual(["plugins"]);
+      expect(r.pluginHashStripped).toBe(true);
+      // An install older than the plugin fingerprint is still the soft upgrade case.
+      await writeFile(join(dir, ".cc-settings-version"), JSON.stringify({ version: "15.45.1" }));
+      expect((await verifyAgainstSettings(settingsPath, dir)).status).toBe("match");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the mismatch lists added, changed and removed entries against the team baseline", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      const settingsPath = join(dir, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(BASE));
+      await writeFingerprint(BASE, dir);
+      await writeFile(
+        join(dir, ".cc-settings-baseline.json"),
+        JSON.stringify({ team_settings: BASE }),
+      );
+      const tampered = {
+        ...BASE,
+        enabledPlugins: { ...BASE.enabledPlugins, "evil@evil-market": true },
+        extraKnownMarketplaces: {
+          "cc-settings": {
+            source: {
+              ...BASE.extraKnownMarketplaces["cc-settings"].source,
+              repo: "evil/cc-settings",
+            },
+          },
+        },
+        pluginConfigs: {},
+      };
+      await writeFile(settingsPath, JSON.stringify(tampered));
+      const r = await verifyAgainstSettings(settingsPath, dir);
+      expect(r.pluginDiff).toEqual([
+        "enabledPlugins: evil@evil-market (added)",
+        "extraKnownMarketplaces: cc-settings (changed)",
+        "pluginConfigs: fast-jev-compaction@fast-jev-compaction (removed)",
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the diff is capped and strips control characters from names", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      const settingsPath = join(dir, "settings.json");
+      await writeFile(settingsPath, JSON.stringify(BASE));
+      await writeFingerprint(BASE, dir);
+      await writeFile(
+        join(dir, ".cc-settings-baseline.json"),
+        JSON.stringify({ team_settings: BASE }),
+      );
+      const many: Record<string, boolean> = {};
+      for (let i = 0; i < 25; i++) many[`p${i}@m`] = true;
+      many[`${String.fromCharCode(27)}[2Jhidden@m`] = true;
+      await writeFile(settingsPath, JSON.stringify({ ...BASE, enabledPlugins: many }));
+      const r = await verifyAgainstSettings(settingsPath, dir);
+      expect(r.pluginDiff.length).toBe(11);
+      expect(r.pluginDiff.join("\n")).not.toContain(String.fromCharCode(27));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a planted plugin is listed by the warning before a rerun accepts it", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-fp-home-"));
+    try {
+      const claude = join(home, ".claude");
+      await mkdir(claude, { recursive: true });
+      await writeSrcManifest(join(claude, "src"), claude, []);
+      await writeFingerprint(BASE, claude);
+      await writeFile(
+        join(claude, ".cc-settings-baseline.json"),
+        JSON.stringify({ team_settings: BASE }),
+      );
+      await writeFile(
+        join(claude, "settings.json"),
+        JSON.stringify({
+          ...BASE,
+          enabledPlugins: { ...BASE.enabledPlugins, "evil@evil-market": true },
+        }),
+      );
+      const { stdout } = await runVerifyHook(home);
+      expect(stdout).toContain("enabledPlugins: evil@evil-market (added)");
+      expect(stdout).toContain("check that each listed entry is one you added");
+      expect(stdout).toContain("re-run setup.sh");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("with more than 10 accepted user-owned entries, only the planted one is listed", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      const settingsPath = join(dir, "settings.json");
+      const accepted: Record<string, boolean> = { ...BASE.enabledPlugins };
+      for (let i = 0; i < 14; i++) accepted[`mine${i}@synced`] = true;
+      const trusted = { ...BASE, enabledPlugins: accepted };
+      await writeFile(settingsPath, JSON.stringify(trusted));
+      await writeFingerprint(trusted, dir);
+      // Baseline holds only the team's contribution, as setup writes it.
+      await writeFile(
+        join(dir, ".cc-settings-baseline.json"),
+        JSON.stringify({ team_settings: BASE }),
+      );
+      await writeFile(
+        settingsPath,
+        JSON.stringify({ ...trusted, enabledPlugins: { ...accepted, "evil@evil": true } }),
+      );
+      const r = await verifyAgainstSettings(settingsPath, dir);
+      expect(r.status).toBe("mismatch");
+      expect(r.pluginDiff).toEqual(["enabledPlugins: evil@evil (added)"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a record without a snapshot falls back to the team baseline", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-fp-"));
+    try {
+      const settingsPath = join(dir, "settings.json");
+      const current = { ...BASE, enabledPlugins: { ...BASE.enabledPlugins, "mine@synced": true } };
+      await writeFile(settingsPath, JSON.stringify(current));
+      await writeFile(
+        join(dir, FINGERPRINT_FILENAME),
+        JSON.stringify({
+          hash: hashHooks(BASE),
+          installedAt: "2026-10-01T00:00:00Z",
+          hooksCount: 1,
+          pluginsHash: "0".repeat(64),
+        }),
+      );
+      await writeFile(
+        join(dir, ".cc-settings-baseline.json"),
+        JSON.stringify({ team_settings: BASE }),
+      );
+      const r = await verifyAgainstSettings(settingsPath, dir);
+      expect(r.pluginDiff).toEqual(["enabledPlugins: mine@synced (added)"]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

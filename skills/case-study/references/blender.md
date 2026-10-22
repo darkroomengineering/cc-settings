@@ -19,7 +19,7 @@ specimen line-ups.
 - **KTX2 / Basis textures:** use the PNG/JPG source if the repo has one; otherwise decode, e.g. `ktx extract --transcode rgba8 in.ktx2 out.png`
   (KTX-Software) or `basisu -unpack in.ktx2`.
 - **meshopt-compressed GLBs (`EXT_meshopt_compression`)** fail to import in older Blender: decompress with
-  `npx @gltf-transform/cli copy in.glb out.glb` (writes it back uncompressed) or Blender 4.x. Draco imports fine.
+  `bunx @gltf-transform/cli copy in.glb out.glb` (writes it back uncompressed) or Blender 4.x. Draco imports fine.
 
 ## Setup
 - Blender: `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P script.py -- args`. EEVEE works headless on Apple silicon.

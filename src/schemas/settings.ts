@@ -16,11 +16,25 @@ export const SpinnerVerbs = z.object({
   verbs: z.array(z.string().min(1)).min(1),
 });
 
-// Suppress built-in spinner tips (2.1.122). Shape is partially documented;
-// only `excludeDefault` is referenced upstream. Loose so future fields
-// don't break user configs at install time.
+// Spinner tips (2.1.122; entries/tipsFile/label documented 2.1.247). A `tips`
+// entry is a plain string or an object keyed by a stable `id` so its cooldown
+// survives reordering. Loose so future fields don't break user configs at
+// install time.
+export const SpinnerTip = z.union([
+  z.string(),
+  z.looseObject({
+    id: z.string().max(64), // letters, digits, ., _, - per docs; kept permissive
+    text: z.string().max(500),
+    cooldownSessions: z.number().int().min(0).max(1000).optional(),
+    priority: z.number().int().min(-10).max(10).optional(),
+  }),
+]);
+
 export const SpinnerTipsOverride = z.looseObject({
   excludeDefault: z.boolean().optional(),
+  tips: z.array(SpinnerTip).optional(), // 2.1.247 — max 200 across tips + tipsFile, invalid entries dropped upstream
+  tipsFile: z.string().optional(), // 2.1.247 — absolute or ~/ path to a JSON tips file (≤256 KB); not deployable via server-managed settings
+  label: z.string().max(40).optional(), // 2.1.247 — prefix before user/managed tips; default "Tip"
 });
 
 export const StatusLine = z.object({
@@ -35,30 +49,144 @@ export const Attribution = z.object({
   sessionUrl: z.boolean().optional(), // added 2.1.183: false omits the claude.ai session link from commits/PRs
 });
 
-// doc-canonical values are auto|in-process|tmux; manual|disabled kept as a
-// superset to not reject older configs.
-export const TeammateMode = z.enum(["auto", "in-process", "tmux", "manual", "disabled"]);
+// doc-canonical values are auto|in-process|tmux|iterm2 (iterm2 added 2.1.186);
+// manual|disabled kept as a superset to not reject older configs.
+export const TeammateMode = z.enum(["auto", "in-process", "tmux", "iterm2", "manual", "disabled"]);
 
-// Sandbox config (introduced 2.1.98–2.1.108). Not yet in any user config in
-// this repo; fields verified via docs + changelog. Loose on the root
-// because the shape is still evolving.
+// Credential protection modes (sandbox.credentials). 2.1.187 introduced
+// `deny`; 2.1.199 added `mask` for env vars and 2.1.221 for files. `mask`
+// shows sandboxed commands a per-session sentinel while the sandbox proxy
+// swaps the real value back in on egress to `injectHosts` (each of which must
+// itself be covered by network.allowedDomains; with no injectHosts the value
+// is substituted on every allowed domain). Masking REQUIRES
+// network.tlsTerminate — without it the sentinel reaches the server unchanged
+// and auth fails closed. `mask` entries, tlsTerminate, and allowPlaintextInject
+// are honored only from user settings, managed settings, or --settings; they
+// are ignored in a repo's .claude/settings.json. When the same name is listed
+// `deny` in any scope, `deny` wins.
+const CredentialMode = z.enum(["deny", "mask"]);
+
+// `decode: "jwt"` masks a JWT-shaped secret with a *synthetic* JWT (alg HS256,
+// sub `fake_value_<uuid>`, exp 9999999999) instead of an opaque sentinel, so
+// tools that structurally parse the token still work. With `maskClaims`, only
+// those string claims inside the payload are replaced and the rest stays
+// readable. Both FAIL OPEN: if the value does not verify as a JWT, or none of
+// `maskClaims` is present as a string claim, the entry is skipped and the real
+// secret is left visible inside the sandbox (console warning only).
+const CredentialDecode = z.enum(["jwt"]);
+
+export const CredentialEnvVar = z.looseObject({
+  name: z.string(),
+  mode: CredentialMode,
+  injectHosts: z.array(z.string()).optional(),
+  decode: CredentialDecode.optional(), // 2.1.224
+  maskClaims: z.array(z.string()).optional(), // 2.1.224 — requires decode: "jwt"
+});
+
+// `extract` is a regex needing >=1 capture group; only group 1 of each match
+// is replaced, so structured files (.netrc, JSON, YAML) stay parseable.
+// Without it the entire file body becomes one sentinel. `onExtractNoMatch`
+// and `maskDuplicates` apply only when mode is "mask" AND extract is set.
+// Platform note: file masking is Linux/WSL behavior — on macOS a `mask` file
+// entry behaves as `deny` while filesystem isolation is on. Claude Code falls
+// back to `deny` for anything it cannot mask safely (directory, glob, >8 MiB,
+// or non-UTF-8).
+export const CredentialFile = z.looseObject({
+  path: z.string(),
+  mode: CredentialMode,
+  extract: z.string().optional(),
+  injectHosts: z.array(z.string()).optional(),
+  onExtractNoMatch: z.enum(["warn", "deny", "error"]).optional(), // default "warn"
+  maskDuplicates: z.boolean().optional(), // default false
+  // 2.1.224 — with decode: "jwt" and no `extract`, Claude Code applies a
+  // built-in JWT pattern, so every JWT in the file is masked.
+  decode: CredentialDecode.optional(),
+  maskClaims: z.array(z.string()).optional(), // requires decode: "jwt"
+});
+
+// 2.1.224 — declares which env-var trio forms an AWS credential pair, so the
+// sandbox proxy can re-sign SigV4 requests with the real secret on egress.
+// Claude Code adds the conventional AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/
+// AWS_SESSION_TOKEN trio implicitly unless a configured pair already claims one
+// of those names. A pair only registers when BOTH the key-id and secret vars
+// are whole-value `mode: "mask"` entries (no `extract`, no `decode`); masking
+// only the secret logs a warning and signs requests that fail upstream.
+export const AwsCredentialPair = z.looseObject({
+  accessKeyIdVar: z.string(),
+  secretAccessKeyVar: z.string(),
+  sessionTokenVar: z.string().optional(),
+});
+
+// 2.1.224 — what to do with the SigV4 request kinds the proxy cannot re-sign.
+// Ordinary header-signed requests are always re-signed and are not configurable
+// here. All three default to "deny"; "passthrough" forwards the request
+// unmodified, which still fails upstream because the signature covers the
+// masked placeholder — it exists to surface the upstream error instead of a
+// local denial.
+export const Sigv4Policy = z.looseObject({
+  streaming: z.enum(["deny", "passthrough"]).optional(),
+  presigned: z.enum(["deny", "passthrough"]).optional(),
+  sigv4a: z.enum(["deny", "passthrough"]).optional(),
+});
+
+// Sandbox config (introduced 2.1.98–2.1.108). Nested objects are loose: the
+// shape is still evolving upstream and a strict object silently strips keys
+// it does not model (this is how allowedDomains went missing until 2.1.223).
 export const Sandbox = z.looseObject({
   failIfUnavailable: z.boolean().optional(),
   enableWeakerNetworkIsolation: z.boolean().optional(), // macOS: weaker network isolation for MITM proxy verification
   allowAppleEvents: z.boolean().optional(), // 2.1.181 — macOS: allow sandboxed commands to send Apple Events
+  // 2.1.305 — Linux: let sandboxed commands create user namespaces (Chromium,
+  // rootless podman). Upstream warns this bypasses the sandbox's file
+  // protections, so cc-settings never sets it.
+  allowNestedUserNamespaces: z.boolean().optional(),
   network: z
-    .object({
+    .looseObject({
+      allowedDomains: z.array(z.string()).optional(),
       deniedDomains: z.array(z.string()).optional(),
+      // managed settings only — block non-allowed domains instead of prompting
+      allowManagedDomainsOnly: z.boolean().optional(),
+      // 2.1.219 — deny hosts not on the allowlist outright instead of
+      // prompting. Turns the allowlist from advisory into enforcing.
+      strictAllowlist: z.boolean().optional(),
+      // 2.1.199 — proxy terminates TLS itself so it can substitute masked
+      // credentials inside request headers and bodies. Required by any
+      // `mode: "mask"` entry. Empty object is the documented enabling form.
+      tlsTerminate: z.looseObject({}).optional(),
+      // Unix-socket egress from inside the sandbox. Load-bearing for
+      // cross-session messaging: a sandboxed Bash command can only post to a
+      // session's inbox socket (CLAUDE_CODE_MESSAGING_SOCKET) if that path is
+      // reachable. allowAllUnixSockets skips the Linux seccomp filter entirely.
+      allowUnixSockets: z.array(z.string()).optional(),
+      allowAllUnixSockets: z.boolean().optional(),
     })
     .optional(),
   filesystem: z
-    .object({
+    .looseObject({
       allowRead: z.array(z.string()).optional(),
       allowWrite: z.array(z.string()).optional(), // re-allow write paths inside denyWrite regions
+      disabled: z.boolean().optional(), // 2.1.216 — skip filesystem isolation while keeping network egress control
+    })
+    .optional(),
+  // 2.1.187 — declare credential files + env vars sandboxed commands must not
+  // touch. Complements the process-wide CLAUDE_CODE_SUBPROCESS_ENV_SCRUB.
+  credentials: z
+    .looseObject({
+      files: z.array(CredentialFile).optional(),
+      envVars: z.array(CredentialEnvVar).optional(),
+      // lets the proxy inject real credentials into unencrypted requests
+      allowPlaintextInject: z.boolean().optional(),
+      awsPairs: z.array(AwsCredentialPair).optional(), // 2.1.224
+      sigv4: Sigv4Policy.optional(), // 2.1.224
     })
     .optional(),
   bwrapPath: z.string().optional(), // 2.1.133 — Linux/WSL bubblewrap binary override
   socatPath: z.string().optional(), // 2.1.133 — Linux/WSL socat binary override
+  // 2.1.232 — ripgrep binary override inside the sandbox. Honored only from
+  // user, managed, or --settings scopes; a repo's .claude/settings.json can no
+  // longer override it (same hardening as credential `mask` entries). Managed
+  // overrides of any of the three sandbox binary paths now require approval.
+  ripgrep: z.string().optional(),
 });
 
 // Model-specific overrides map (2.1.105). Value shape undocumented-but-open;
@@ -99,13 +227,43 @@ export const Settings = z.looseObject({
 
   // Appearance + UX
   spinnerVerbs: SpinnerVerbs.optional(),
-  spinnerTipsOverride: SpinnerTipsOverride.optional(), // 2.1.122
+  spinnerTipsOverride: SpinnerTipsOverride.optional(), // 2.1.122; tips/tipsFile/label 2.1.247
+  keybindingFlavor: z.enum(["classic", "readline"]).optional(), // 2.1.238–2.1.260; inert since 2.1.261 (word-editing keys always match Bash now). Kept so older files still parse
   statusLine: StatusLine.optional(),
+  // 2.1.261 — how many characters of Bash output reach the model inline
+  // before the rest is saved to a file. Max 128K. (taskOutputMaxChars went
+  // with the TaskOutput tool in 2.1.277; background-task output is read
+  // from its file with Read.)
+  bashOutputMaxChars: z.number().int().positive().max(128_000).optional(),
   showThinkingSummaries: z.boolean().optional(),
+  maxProseWidth: z.number().int().positive().optional(), // 2.1.282 — cap prose width in wide terminals; tables and code blocks keep the full width
+  emojiCompletionEnabled: z.boolean().optional(), // 2.1.217 — emoji shortcode autocomplete in the prompt input (`:heart:` → ❤️)
 
   // Collaboration
   teammateMode: TeammateMode.optional(),
-  attribution: Attribution.optional(),
+  // 2.1.281 — `false` hides all commit and PR attribution. Older CLIs skip a
+  // settings file that holds the boolean, so shipped config keeps the object.
+  attribution: z.union([z.literal(false), Attribution]).optional(),
+  // 2.1.224 cross-session messaging (macOS/Linux; not on Bedrock/Vertex/
+  // Foundry). What this session does with messages arriving from your OTHER
+  // sessions: "accept" delivers, "hold" shows a notice and waits for approval,
+  // "refuse" drops silently. Unset is NOT "accept" — Claude Code decides per
+  // message from the two sessions' permission modes, holding anything sent by
+  // a bypassPermissions session to a session that also bypasses. Precedence is
+  // unusual: a "refuse" in project or local settings beats every other scope.
+  crossSessionInbound: z.enum(["accept", "hold", "refuse"]).optional(),
+  // 2.1.224 — require explicit approval before SendMessage reaches a session on
+  // another machine (Remote Control / claude.ai). `true` from any scope wins,
+  // so a checked-in project file can turn it on but never off. Same-machine
+  // messages never prompt.
+  isolatePeerMachines: z.boolean().optional(),
+  // 2.1.226 — auto-connect the session to Remote Control at startup so it is
+  // reachable from claude.ai/phone without running /remote-control by hand.
+  remoteControlAtStartup: z.boolean().optional(),
+  // 2.1.224 — how long an unanswered approval dialog (including a held inbound
+  // message) stays open before Claude Code drops it. Duration strings, not a
+  // number; upstream default is "5m". Same domain as askUserQuestionTimeout.
+  dialogExpiry: z.enum(["60s", "5m", "10m", "never"]).optional(),
 
   // Filesystem conventions
   plansDirectory: z.string().optional(),
@@ -121,22 +279,72 @@ export const Settings = z.looseObject({
   disableAutoMode: z.enum(["disable"]).optional(),
   disableBypassPermissionsMode: z.enum(["disable"]).optional(),
   skipDangerousModePermissionPrompt: z.boolean().optional(), // skip the confirmation before entering bypass-permissions mode; ignored in project settings (per docs)
+  maxEffortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // 2.1.267 — cap the effort level on every provider; users can still pick lower. Also accepted per model under modelSettings.
+  // 2.1.267 — per-model settings container (currently documented only for
+  // maxEffortLevel). Kept loose so unmodelled per-model keys are not stripped.
+  modelSettings: z.record(z.string(), z.looseObject({})).optional(),
+  bashEditDiffEnabled: z.boolean().optional(), // 2.1.269 — append a diff of the files a Bash command changed to the Bash tool result when Bash handles file edits
   effortLevel: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(), // persist /effort across sessions; settings.json counterpart of CLAUDE_CODE_EFFORT_LEVEL. The key's docs list 4 values, but the env var + real live configs also use "max" — superset to not reject observed values.
+  // 2.1.242 — prompt-cache lifetime per scope. promptCacheTtl covers the main
+  // conversation (and inline helpers); subagentPromptCacheTtl covers
+  // subagents, workflows, compaction, and other background requests.
+  // Precedence per docs: FORCE_PROMPT_CACHING_5M > CLAUDE_CODE_[SUBAGENT_]
+  // PROMPT_CACHE_TTL env > these keys > ENABLE_PROMPT_CACHING_1H.
+  promptCacheTtl: z.enum(["5m", "1h"]).optional(),
+  subagentPromptCacheTtl: z.enum(["5m", "1h"]).optional(),
+  // 2.1.242 — curate the /model picker: ordered labeled rows, optionally
+  // replacing the built-in lineup. User/managed/--settings only (ignored in
+  // project and local scopes); the highest source supplies the whole lineup.
+  modelPicker: z
+    .looseObject({
+      options: z
+        .array(
+          z.looseObject({
+            model: z.string(), // anything --model accepts: alias, Anthropic ID, or provider-format ID
+            label: z.string().optional(),
+            description: z.string().optional(),
+          }),
+        )
+        .optional(),
+      replaceBuiltInOptions: z.boolean().optional(),
+    })
+    .optional(),
+  // 2.1.243 (managed) — an organization's contracted per-model rates and
+  // discount multiplier for /cost, the status line, and telemetry cost
+  // figures. No public shape documented — kept fully loose.
+  modelPricing: z.looseObject({}).optional(),
+  // 2.1.219 — advisory ceiling on how many agents a dynamic workflow should
+  // spawn; upstream default is "medium" (aim for fewer than 15). Settings-file
+  // counterpart of /config's "Dynamic workflow size". Typed as a bare string
+  // rather than an enum: the changelog names the default but never enumerates
+  // the accepted values, and guessing a closed set here would reject a real
+  // one. Narrow it once upstream documents the domain.
+  workflowSizeGuideline: z.string().optional(),
   disableSkillShellExecution: z.boolean().optional(), // 2.1.98
   disableBundledSkills: z.boolean().optional(), // 2.1.169 — hide Anthropic's bundled skills, workflows, and built-in slash commands from the model; env counterpart CLAUDE_CODE_DISABLE_BUNDLED_SKILLS
   disableDeepLinkRegistration: z.boolean().optional(), // 2.1.103
   autoScrollEnabled: z.boolean().optional(), // 2.1.102
   autoMemoryDirectory: z.string().optional(), // 2.1.101
   cleanupPeriodDays: z.number().int().min(1).optional(), // transcript + orphaned-worktree retention; default 30, min 1 (0 rejected upstream)
+  desktopSessionCleanupPeriodDays: z.number().int().min(1).optional(), // 2.1.248 — caps the cleanup exemption for Claude Desktop/Cowork-written sessions
+  timeFormat: z.string().optional(), // 2.1.257 — "12h" | "24h" | "24h-utc" | strftime pattern for the turn-end clock and transcript timestamps
+  timeZone: z.string().optional(), // 2.1.257 — IANA zone for the same clocks
   channelsEnabled: z.boolean().optional(), // 2.1.128: also gates `--channels` for console (API key) auth in managed-settings orgs
   allowedChannelPlugins: z.array(z.string()).optional(), // 2.1.107 (team/enterprise)
   allowedMcpServers: z.array(z.string()).optional(), // 2.1.112
   deniedMcpServers: z.array(z.string()).optional(), // 2.1.112
+  // 2.1.259 — org-delivered MCP servers. Object keyed by server name in the
+  // .mcp.json `mcpServers` shape (`type`, not `transport`; Claude Desktop's
+  // array form is rejected). Honored only from managed settings, ignored from
+  // any other scope, and NOT subject to allowedMcpServers/deniedMcpServers,
+  // which govern user-added servers only.
+  managedMcpServers: McpServers.optional(),
   allowAllClaudeAiMcps: z.boolean().optional(), // 2.1.149 — load claude.ai cloud MCP connectors alongside managed-mcp.json
   enabledMcpjsonServers: z.array(z.string()).optional(), // allowlist for project .mcp.json server names
   disabledMcpjsonServers: z.array(z.string()).optional(), // blocklist for project .mcp.json server names
   modelOverrides: ModelOverrides.optional(), // 2.1.105
   feedbackSurveyRate: z.number().optional(), // 2.1.106 (enterprise)
+  feedbackDrafts: z.enum(["notify", "quiet", "off"]).optional(), // 2.1.247 — SendFeedback drafts: "notify" shows a card, "quiet" drafts silently, "off" removes the tool. User or managed scope; default "notify".
   sandbox: Sandbox.optional(), // 2.1.98–2.1.108 nested
   changelogUrl: z.string().optional(),
   prUrlTemplate: z.string().optional(), // 2.1.119 — substitutes {host}, {owner}, {repo}, {number}, {url}
@@ -145,6 +353,7 @@ export const Settings = z.looseObject({
   parentSettingsBehavior: z.enum(["first-wins", "merge"]).optional(), // 2.1.133 (admin-tier)
 
   // --- GENERAL ---
+  advisorModel: z.string().optional(), // 2.1.98 — stronger model the session consults mid-turn via the advisor server tool; `/advisor <model>` persists here. Alias or full ID; pairing (advisor ≥ executor capability) is validated at runtime, and Fable-as-advisor needs 2.1.170+. See docs/agent-models.md "Advisor".
   agent: z.string().optional(), // default agent name for subagent invocations
   alwaysThinkingEnabled: z.boolean().optional(), // always show extended thinking even on short turns
   autoMemoryEnabled: z.boolean().optional(), // enable/disable the auto-memory system
@@ -153,10 +362,23 @@ export const Settings = z.looseObject({
   claudeMdExcludes: z.array(z.string()).optional(), // glob patterns for CLAUDE.md files to exclude
   defaultShell: z.enum(["bash", "powershell"]).optional(), // shell used by the Bash tool
   enableAllProjectMcpServers: z.boolean().optional(), // auto-enable every server listed in .mcp.json
+  // 2.1.275 — skills and plugins enabled on the signed-in claude.ai account
+  // sync into terminal sessions; `false` opts a machine out of either.
+  syncClaudeAiSkills: z.boolean().optional(),
+  syncClaudeAiPlugins: z.boolean().optional(),
+  // Plugin enablement/config. enabledPlugins keys are "<plugin>@<marketplace>";
+  // pluginConfigs mirrors the same keys with each plugin's userConfig values
+  // under `options` (also settable via `claude plugin install <id> --config
+  // key=value`). Kept loose since a plugin's own option shape is unpinned.
+  enabledPlugins: z.record(z.string(), z.boolean()).optional(),
+  pluginConfigs: z
+    .record(z.string(), z.looseObject({ options: z.record(z.string(), z.unknown()).optional() }))
+    .optional(),
   fallbackModel: z.union([z.string(), z.array(z.string())]).optional(), // 2.1.166 — up to three fallback models tried in order when the primary is overloaded/unavailable; settings.json counterpart of --fallback-model (which now also applies to interactive sessions). string | string[] superset: the CLI flag takes one model, the setting allows up to three, and upstream docs don't yet pin the shape.
   fastModePerSessionOptIn: z.boolean().optional(), // per-session fast-mode opt-in flag
   fileSuggestion: z.looseObject({}).optional(), // file-suggestion UI configuration object
   footerLinksRegexes: z.array(z.unknown()).optional(), // 2.1.176 — regex-matched link badges in the footer row (user or managed settings); entry shape not yet pinned upstream
+  idleCompaction: z.boolean().optional(), // 2.1.299 — `false` turns off compacting a 200K+ conversation left idle ~54 min (before the 1h cache expires); default on
   includeCoAuthoredBy: z.boolean().optional(), // deprecated: use attribution instead
   language: z.string().optional(), // UI language / locale override (e.g. "en", "ja")
   maxSkillDescriptionChars: z.number().int().positive().optional(), // per-skill description character cap for the model
@@ -165,6 +387,7 @@ export const Settings = z.looseObject({
   respectGitignore: z.boolean().optional(), // honour .gitignore when listing files
   skillListingBudgetFraction: z.number().optional(), // fraction of context budget reserved for skill listings
   skipWebFetchPreflight: z.boolean().optional(), // skip the preflight check before web-fetch tool calls
+  spellcheck: z.union([z.boolean(), z.looseObject({})]).optional(), // 2.1.235 — underline misspelled words in the prompt input via installed aspell/hunspell/ispell; boolean | object superset: upstream hasn't pinned the value shape yet
   sshConfigs: z.array(z.unknown()).optional(), // SSH tunnel/proxy configuration entries
   useAutoModeDuringPlan: z.boolean().optional(), // run auto-mode during the plan phase
   voice: z.looseObject({}).optional(), // voice input/output configuration object
@@ -174,10 +397,15 @@ export const Settings = z.looseObject({
   // --- ENTERPRISE/MANAGED ---
   allowedHttpHookUrls: z.array(z.string()).optional(), // allowlist of HTTP endpoints hooks may call
   allowManagedHooksOnly: z.boolean().optional(), // block user-defined hooks; only managed hooks run
+  gatewayInternalNetworks: z.array(z.string()).optional(), // 2.1.268 (managed) — CIDR blocks of the organization's own public IPv4 space from which /login to a Claude apps gateway is allowed
   allowManagedMcpServersOnly: z.boolean().optional(), // block user-defined MCP servers
   allowManagedPermissionRulesOnly: z.boolean().optional(), // block user-defined permission rules
   availableModels: z.array(z.string()).optional(), // restrict the model picker to this list
-  blockedMarketplaces: z.array(z.string()).optional(), // marketplace IDs that users cannot install from
+  availableModelsMatch: z.string().optional(), // 2.1.283 — managed: "exact" makes an availableModels entry allow only the version it names, so new releases stay blocked until listed; only "exact" is documented, so kept a bare string
+  deniedModels: z.array(z.string()).optional(), // 2.1.283 — managed: block these models even when availableModels allows them
+  allowedProviders: z.array(z.string()).optional(), // 2.1.285 — managed: API providers this machine may use (Anthropic API, custom endpoint, Bedrock, Mantle, Vertex AI, Foundry, Claude Platform on AWS, Cloud gateway); value spellings are undocumented, so kept bare strings
+  allowClaudeInChromeWithManagedMcp: z.boolean().optional(), // 2.1.282 — managed: let `claude --chrome` run alongside an exclusive managed-mcp.json
+  blockedMarketplaces: z.array(z.string()).optional(), // marketplace IDs that users cannot install from; 2.1.223: an entry may be an owner wildcard "owner/*" matching every marketplace repo under that GitHub org
   claudeMd: z.string().optional(), // managed system-prompt override (replaces CLAUDE.md lookup)
   companyAnnouncements: z.array(z.string()).optional(), // banner messages shown at session start
   disableAgentView: z.boolean().optional(), // hide the agent-activity panel in the TUI
@@ -190,7 +418,15 @@ export const Settings = z.looseObject({
   policyHelper: z.looseObject({}).optional(), // policy-helper configuration object (enterprise)
   requiredMaximumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is above this
   requiredMinimumVersion: z.string().optional(), // 2.1.163 — managed: refuse to start if the version is below this; pairs with requiredMaximumVersion to define an allowed range
-  strictKnownMarketplaces: z.array(z.string()).optional(), // allowlist of marketplace IDs considered trusted
+  // Marketplace registration. extraKnownMarketplaces predates this sync window
+  // (it registers additional marketplaces without installing them); entry shape
+  // is a map of marketplace ID → source object, kept unpinned locally.
+  // 2.1.232 added friendlier aliases: additionalMarketplaces ≡
+  // extraKnownMarketplaces, allowedMarketplaces ≡ strictKnownMarketplaces.
+  extraKnownMarketplaces: z.record(z.string(), z.unknown()).optional(),
+  additionalMarketplaces: z.record(z.string(), z.unknown()).optional(), // 2.1.232 alias
+  allowedMarketplaces: z.array(z.string()).optional(), // 2.1.232 alias of strictKnownMarketplaces
+  strictKnownMarketplaces: z.array(z.string()).optional(), // allowlist of marketplace IDs considered trusted; 2.1.223: an entry may be an owner wildcard "owner/*" matching every marketplace repo under that GitHub org
   strictPluginOnlyCustomization: z
     .union([z.boolean(), z.array(z.enum(["skills", "agents", "hooks", "mcp"]))])
     .optional(), // restrict customization to plugin-provided items only; true = all categories
@@ -200,12 +436,15 @@ export const Settings = z.looseObject({
   apiKeyHelper: z.string().optional(), // shell command that emits an Anthropic API key
   awsAuthRefresh: z.string().optional(), // shell command called to refresh AWS credentials
   awsCredentialExport: z.string().optional(), // shell command that exports AWS credential env vars
-  forceLoginMethod: z.enum(["claudeai", "console"]).optional(), // lock the login flow to a specific provider
+  forceLoginGatewayUrl: z.string().optional(), // Claude apps gateway that /login opens on, with forceLoginMethod "gateway"
+  forceLoginMethod: z.enum(["claudeai", "console", "gateway"]).optional(), // lock the login flow to a specific provider
   forceLoginOrgUUID: z.union([z.string(), z.array(z.string())]).optional(), // restrict login to a specific org UUID (or list)
   gcpAuthRefresh: z.string().optional(), // shell command called to refresh GCP credentials
 
   // --- UX ---
   awaySummaryEnabled: z.boolean().optional(), // show a session recap on re-entry after background work
+  axScreenReader: z.boolean().optional(), // 2.1.208 — screen-reader mode: flat plain-text rendering without borders/animations; counterparts --ax-screen-reader flag and CLAUDE_AX_SCREEN_READER env var
+  respondToBashCommands: z.boolean().optional(), // 2.1.186 — `!` bash output auto-triggers a Claude response (default true); set false to restore prior behavior
   editorMode: z.enum(["normal", "vim"]).optional(), // input editor keybindings
   preferredNotifChannel: z
     .enum([
@@ -226,6 +465,7 @@ export const Settings = z.looseObject({
   terminalProgressBarEnabled: z.boolean().optional(), // show a progress bar for long-running operations
   tui: z.enum(["fullscreen", "default"]).optional(), // TUI rendering mode (fullscreen uses alternate screen)
   viewMode: z.enum(["default", "verbose", "focus"]).optional(), // controls how much detail the TUI shows
+  vimInsertModeRemaps: z.record(z.string(), z.string()).optional(), // 2.1.208 — vim mode: map two-key insert-mode sequences (e.g. "jj") to a target; per docs "<Esc>" is the only supported target today, kept permissive
 });
 
 export type Settings = z.infer<typeof Settings>;

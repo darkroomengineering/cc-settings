@@ -15,11 +15,11 @@ cc-settings ships with **role agents** -- general-purpose agents defined by what
 | `implementer` | Code writing and editing |
 | `reviewer` | Code review against standards |
 | `tester` | Test writing and execution |
-| `scaffolder` | Boilerplate generation |
 | `deslopper` | Dead code removal and cleanup |
-| `oracle` | Expert Q&A and guidance |
 | `maestro` | Multi-agent orchestration |
 | `security-reviewer` | Security audit |
+| `codex-verifier` | Cross-model verification via the Codex CLI |
+| `claude-verifier` | Codex-only twin: cross-model verification via headless Claude Code (`codex/agents/`) |
 
 **Feature agents** are project-specific agents defined by what they know. They encode domain knowledge and delegate execution to role agents.
 
@@ -61,12 +61,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Handles authentication features for this project.
-
-  DELEGATE when user asks:
-  - "Add login flow" / "Fix auth issue" / "Session handling"
-  - "OAuth setup" / "JWT token" / "Protected route"
-  - Any task involving authentication, authorization, or sessions
-
   RETURNS: Implementation via role agents, domain-aware guidance
 ---
 
@@ -147,10 +141,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Manages CMS content integration (Sanity).
-
-  DELEGATE when user asks:
-  - "Add content type" / "GROQ query" / "Schema change"
-  - "Fetch content" / "Preview" / "Webhook"
 ---
 
 # CMS Agent
@@ -177,9 +167,8 @@ description: |
 
 1. `Agent(explore, "Check existing Sanity schemas and query patterns")`
 2. `Agent(planner, "Plan content type addition with schema, query, and component")`
-3. `Agent(scaffolder, "Create schema file following existing pattern")`
-4. `Agent(implementer, "Implement GROQ query and data fetching")`
-5. `Agent(tester, "Test content fetching with mock data")`
+3. `Agent(implementer, "Create schema file following existing pattern, then implement GROQ query and data fetching")`
+4. `Agent(tester, "Test content fetching with mock data")`
 ```
 
 ### Animation Agent
@@ -193,10 +182,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Handles animations and transitions using GSAP, Lenis, and Tempus.
-
-  DELEGATE when user asks:
-  - "Add animation" / "Scroll effect" / "Page transition"
-  - "GSAP timeline" / "ScrollTrigger" / "Smooth scroll"
 ---
 
 # Animation Agent
@@ -229,10 +214,6 @@ model: opus
 allowedTools: [Agent, Read, Grep, Glob]
 description: |
   Manages external API integrations (Stripe, SendGrid, etc.).
-
-  DELEGATE when user asks:
-  - "Add Stripe payment" / "Send email" / "Third-party API"
-  - "Webhook handler" / "API client" / "Rate limiting"
 ---
 
 # API Integration Agent
@@ -356,11 +337,12 @@ Cross-cutting issues that bite when dispatching role agents from feature agents 
 
 ### Base ref overwrites in-session edits
 
-As of May 2026 the write-agents (`implementer`, `scaffolder`, `tester`, `deslopper`) no longer default to `isolation: "worktree"` — they run in the live working tree and leave changes uncommitted for review (see each agent's frontmatter). This gotcha only bites when you explicitly opt an agent into `isolation: "worktree"`: that branches from `origin/main`, so uncommitted in-session edits do not exist on that base ref and are gone when the subagent writes back. This happened twice before the default was changed.
+As of May 2026 the write-agents (`implementer`, `tester`, `deslopper`) no longer default to `isolation: "worktree"` — they run in the live working tree and leave changes uncommitted for review (see each agent's frontmatter). This gotcha only bites when you explicitly opt an agent into `isolation: "worktree"`: that branches from `origin/main`, so uncommitted in-session edits do not exist on that base ref and are gone when the subagent writes back. This happened twice before the default was changed.
 
 Mitigation (when you do opt into `isolation: "worktree"`):
 - Commit (or stash) in-session changes before dispatching, for code edits that need to build on them.
-- Or pass `isolation: "head"` / omit isolation entirely so the subagent runs against the live worktree.
+- Or omit `isolation` entirely so the subagent runs against the live worktree instead of a fresh one.
+- If you need worktrees to branch from local HEAD instead of `origin/<default-branch>` project-wide, set `worktree.baseRef: "head"` in `settings.json` (see docs/settings-reference.md) — that's a global setting, not an agent frontmatter value. There is no `isolation: "head"`; AgentIsolation only accepts `worktree` and `remote`.
 - When in doubt, tell the subagent explicitly: "base off the current worktree HEAD, not origin/main."
 
 ### Worktree isolation requires a git repo

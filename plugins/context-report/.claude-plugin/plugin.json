@@ -1,0 +1,10 @@
+{
+  "name": "context-report",
+  "version": "0.1.0",
+  "description": "Prints which instruction files the engine loaded (tier, path, @ imports, size) once per context load, and hints when a project CLAUDE.md keeps its AGENTS.md from being read.",
+  "license": "MIT",
+  "author": {
+    "name": "Darkroom Engineering",
+    "url": "https://darkroom.engineering"
+  }
+}

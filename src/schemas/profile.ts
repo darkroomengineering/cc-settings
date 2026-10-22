@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KEBAB_CASE_RE } from "../lib/frontmatter.ts";
 import { AgentEffort, AgentModel, AgentPermissionMode } from "./agent.ts";
 
 // Profile frontmatter lives at the top of each profiles/<name>.md file.
@@ -13,7 +14,7 @@ export const ProfileFrontmatter = z.looseObject({
   name: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9][a-z0-9-]*$/, "name must be kebab-case (a-z, 0-9, -)"),
+    .regex(KEBAB_CASE_RE, "name must be kebab-case (a-z, 0-9, single hyphens)"),
   description: z.string().min(1),
   // Advisory hints — see header note.
   model: AgentModel.optional(),

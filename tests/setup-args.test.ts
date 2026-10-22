@@ -3,6 +3,8 @@
 
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
+import { printHelp } from "../src/lib/install-cmds.ts";
+import { cmdDryRun } from "../src/lib/install-display.ts";
 import { parseArgs } from "../src/setup.ts";
 
 describe("parseArgs", () => {
@@ -13,10 +15,10 @@ describe("parseArgs", () => {
     expect(a.status).toBe(false);
     expect(a.help).toBe(false);
     expect(a.migrateOnly).toBe(false);
-    // Not end-anchored: when the suite runs inside a git worktree, sourceDir is
-    // `.../cc-settings/.claude/worktrees/agent-<hash>` — still inside the
-    // cc-settings project, but not ending in it. A substring check holds in both.
-    expect(a.sourceDir).toContain("cc-settings");
+    expect(a.uninstall).toBe(false);
+    expect(a.target).toBe("auto");
+    // The default is this checkout's root, regardless of its directory name.
+    expect(a.sourceDir).toBe(resolve(import.meta.dir, ".."));
   });
 
   test("--rollback (no value) sets rollback to true", () => {
@@ -43,6 +45,38 @@ describe("parseArgs", () => {
     expect(parseArgs(["--migrate-only"]).migrateOnly).toBe(true);
   });
 
+  test("--uninstall selects the removal lifecycle", () => {
+    expect(parseArgs(["--uninstall"]).uninstall).toBe(true);
+  });
+
+  test.each(["auto", "claude", "codex", "both"] as const)(
+    "--target=%s selects that installer surface",
+    (target) => {
+      expect(parseArgs([`--target=${target}`]).target).toBe(target);
+    },
+  );
+
+  test("an invalid --target value is recorded and leaves the target fail-closed at auto", () => {
+    const args = parseArgs(["--target=other"]);
+    expect(args.target).toBe("auto");
+    expect(args.errors).toEqual([
+      "--target=other is not valid (expected auto, claude, codex, or both)",
+    ]);
+  });
+
+  test("--dry-run with --uninstall or --rollback is refused, never run for real", () => {
+    expect(parseArgs(["--uninstall", "--dry-run"]).errors).toEqual([
+      "--dry-run cannot preview --uninstall",
+    ]);
+    expect(parseArgs(["--dry-run", "--rollback"]).errors).toEqual([
+      "--dry-run cannot preview --rollback",
+    ]);
+  });
+
+  test("unknown flags are reported instead of silently ignored", () => {
+    expect(parseArgs(["--wat"]).errors).toEqual(["Unknown argument: --wat"]);
+  });
+
   test("--source=<path> sets sourceDir", () => {
     const a = parseArgs(["--source=/tmp/cc"]);
     // parseArgs resolves the path; assert against the resolved form so this
@@ -53,6 +87,54 @@ describe("parseArgs", () => {
   test("--help / -h both set help", () => {
     expect(parseArgs(["--help"]).help).toBe(true);
     expect(parseArgs(["-h"]).help).toBe(true);
+  });
+
+  test("public help leads with setup.sh and lists every supported flag", () => {
+    const lines: string[] = [];
+    const original = console.log;
+    console.log = (...values: unknown[]) => lines.push(values.join(" "));
+    try {
+      printHelp("1.2.3");
+    } finally {
+      console.log = original;
+    }
+    const output = lines.join("\n");
+    expect(output).toContain("Usage: bash setup.sh [flags]");
+    expect(output).toContain("pwsh -File setup.ps1 [flags]");
+    expect(output).toContain("bun src/setup.ts [flags]  (advanced/direct invocation)");
+    expect(output).toContain("bash setup.sh --rollback");
+    expect(output).toContain("pwsh -File setup.ps1 --rollback");
+    for (const flag of [
+      "--target",
+      "--source",
+      "--rollback",
+      "--uninstall",
+      "--dry-run",
+      "--light",
+      "--fresh",
+      "--status",
+      "--auto-update",
+      "--interactive",
+      "--migrate-only",
+      "--help",
+      "-h",
+    ]) {
+      expect(output).toContain(flag);
+    }
+  });
+
+  test("Claude dry-run discloses the self-contained runtime", async () => {
+    const lines: string[] = [];
+    const original = console.log;
+    console.log = (...values: unknown[]) => lines.push(values.join(" "));
+    try {
+      await cmdDryRun(resolve(import.meta.dir, ".."), "full", "1.2.3");
+    } finally {
+      console.log = original;
+    }
+    const output = lines.join("\n");
+    expect(output).toContain("self-contained production dependencies");
+    expect(output).toContain("no source symlink");
   });
 
   test("flags compose — multiple at once", () => {
@@ -80,5 +162,67 @@ describe("parseArgs", () => {
     const a = parseArgs(["--light", "--source=/tmp/cc"]);
     expect(a.profile).toBe("light");
     expect(a.sourceDir).toBe(resolve("/tmp/cc"));
+  });
+
+  test("default autoUpdate is null", () => {
+    expect(parseArgs([]).autoUpdate).toBeNull();
+  });
+
+  test("--auto-update=on sets autoUpdate to 'on'", () => {
+    expect(parseArgs(["--auto-update=on"]).autoUpdate).toBe("on");
+  });
+
+  test("--auto-update=off sets autoUpdate to 'off'", () => {
+    expect(parseArgs(["--auto-update=off"]).autoUpdate).toBe("off");
+  });
+
+  test("--auto-update=<invalid> is recorded and leaves autoUpdate null", () => {
+    const args = parseArgs(["--auto-update=maybe"]);
+    expect(args.autoUpdate).toBeNull();
+    expect(args.errors).toEqual(['--auto-update=maybe is not valid (expected "on" or "off")']);
+  });
+
+  test("--auto-update composes with other flags", () => {
+    const a = parseArgs(["--auto-update=on", "--light", "--dry-run"]);
+    expect(a.autoUpdate).toBe("on");
+    expect(a.profile).toBe("light");
+    expect(a.dryRun).toBe(true);
+  });
+
+  test("default fresh is false", () => {
+    expect(parseArgs([]).fresh).toBe(false);
+  });
+
+  test("--fresh sets fresh to true", () => {
+    expect(parseArgs(["--fresh"]).fresh).toBe(true);
+  });
+
+  test("--fresh produces no entry in errors", () => {
+    expect(parseArgs(["--fresh"]).errors).toEqual([]);
+  });
+
+  test("--fresh composes with other flags", () => {
+    const a = parseArgs(["--fresh", "--dry-run", "--source=/tmp/cc"]);
+    expect(a.fresh).toBe(true);
+    expect(a.dryRun).toBe(true);
+    expect(a.sourceDir).toBe(resolve("/tmp/cc"));
+  });
+});
+
+describe("parseArgs — --typesafe-key", () => {
+  test("stores the key and reports no error", () => {
+    const args = parseArgs(["--typesafe-key=abc123"]);
+    expect(args.typesafeKey).toBe("abc123");
+    expect(args.errors).toEqual([]);
+  });
+
+  test("defaults to null", () => {
+    expect(parseArgs([]).typesafeKey).toBeNull();
+  });
+
+  test("an empty value is an error", () => {
+    const args = parseArgs(["--typesafe-key="]);
+    expect(args.typesafeKey).toBeNull();
+    expect(args.errors).toEqual(["--typesafe-key= needs a value"]);
   });
 });

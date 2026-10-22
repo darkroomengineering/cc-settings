@@ -1,6 +1,6 @@
 ---
 name: context-doc
-description: Build CONTEXT.md (domain glossary) + docs/adr/ via interview; keeps agent vocab aligned. Triggers "domain language", "glossary", "ADR", inconsistent terminology.
+description: Build CONTEXT.md (domain glossary) and docs/adr/ through an interview. Triggers "domain language", "glossary", "ADR", or inconsistent terminology across the codebase.
 ---
 
 # Context doc — domain language + ADRs
@@ -16,7 +16,7 @@ This skill produces both. Other skills read them via `DOMAIN-AWARENESS.md` (cons
 
 Interview the user relentlessly about every aspect of the plan, terminology, or area in question until you reach shared understanding. Walk down each branch of the design tree, resolving dependencies one at a time. For each question, propose a recommended answer.
 
-**One question at a time.** Wait for feedback before continuing.
+**Ask in rounds** (AGENTS.md "Clarify Before Full Work Mode"): at most 4 related questions per round through the host's question tool, recommended answer first. The first round is exactly one question, the one that most reduces ambiguity, with no side requests for examples or other repos; later rounds ask only what earlier answers opened.
 
 If a question can be answered by reading code, read the code instead. Don't ask the user what `git blame` will tell you.
 

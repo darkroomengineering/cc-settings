@@ -1,8 +1,10 @@
-// Shared `bunx tsc --noEmit` runner for the TypeScript hooks.
-// post-edit-tsc.ts (filter output to the edited file) and pre-commit-tsc.ts
-// (block the commit on errors) both spawn the same process and combine
-// stdout+stderr; only the downstream policy differs, and that stays in each
-// script.
+// Shared `bunx tsc --noEmit` runner. post-edit-tsc.ts filters the combined
+// stdout+stderr to the edited file; the downstream policy stays in the caller.
+
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import { sha256 } from "./platform.ts";
 
 export interface TscResult {
   /** stdout followed by stderr, untrimmed — callers filter or tail as needed. */
@@ -13,22 +15,63 @@ export interface TscResult {
 export interface TscOptions {
   /** Working directory for the spawn; defaults to the current process cwd. */
   cwd?: string;
-  /** Pass `--pretty` (the pre-commit hook tails human-readable output). */
+  /** Pass `--pretty` for human-readable output. */
   pretty?: boolean;
+  /**
+   * Reuse a cached `.tsbuildinfo` across runs (default true). The post-edit
+   * hook fires once per edit, so a cold full-project check every time is the
+   * dominant cost; incremental turns the repeat runs into a fraction of that.
+   * Set false to force a cold check.
+   */
+  incremental?: boolean;
 }
 
+// A cold `bunx` fetch (offline registry) or a pathological tsconfig (huge
+// project, circular references) can hang indefinitely. The caller awaits this
+// synchronously, so an unbounded spawn freezes every edit. Generous because a large
+// monorepo's tsc run can legitimately take a while.
+const TSC_TIMEOUT_MS = 120_000;
+
 /**
- * Run `bunx tsc --noEmit` (optionally `--pretty`) and return the combined
- * output plus exit code. Throws on spawn failure — callers keep their own
- * fail-open policy.
+ * TypeScript before 5.6 rejects `--incremental` alongside `--noEmit`, and a
+ * `.tsbuildinfo` torn by two concurrent hook runs makes tsc complain about the
+ * cache rather than the code. Both surface as an option/cache diagnostic
+ * rather than a `TS2xxx` type error, so they're safe to distinguish and
+ * retry cold. Deliberately narrow: it must be a tsc error line that names the
+ * cache machinery, never a user type error that happens to mention it.
  */
-export async function runTsc(options: TscOptions = {}): Promise<TscResult> {
-  const argv = ["bunx", "tsc", "--noEmit"];
+const CACHE_UNUSABLE = /error TS\d+:[^\n]*(incremental|tsBuildInfoFile|buildinfo)/i;
+
+/**
+ * Per-project incremental cache path, under ~/.claude/tmp so a client repo
+ * never gets a stray `.tsbuildinfo` showing up in `git status`. Keyed by cwd
+ * so two projects can't invalidate each other's cache.
+ */
+function buildInfoPath(cwd: string): string {
+  const settingsHome = process.env.CC_SETTINGS_HOME ?? join(homedir(), ".claude");
+  const dir = join(settingsHome, "tmp", "tsc-cache");
+  mkdirSync(dir, { recursive: true });
+  return join(dir, `${sha256(cwd).slice(0, 16)}.tsbuildinfo`);
+}
+
+async function spawnTsc(options: TscOptions, cachePath: string | null): Promise<TscResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const localCandidates = [
+    resolve(cwd, "node_modules/typescript/bin/tsc"),
+    resolve(import.meta.dir, "../node_modules/typescript/bin/tsc"),
+    resolve(import.meta.dir, "../../node_modules/typescript/bin/tsc"),
+  ];
+  const localTsc = localCandidates.find(existsSync);
+  const argv = localTsc ? [process.execPath, localTsc, "--noEmit"] : ["bunx", "tsc", "--noEmit"];
   if (options.pretty) argv.push("--pretty");
+  if (cachePath) argv.push("--incremental", "--tsBuildInfoFile", cachePath);
   const proc = Bun.spawn(argv, {
-    cwd: options.cwd,
+    cwd,
+    env: scrubProjectSubprocessEnv(),
     stdout: "pipe",
     stderr: "pipe",
+    timeout: TSC_TIMEOUT_MS,
+    killSignal: "SIGKILL",
   });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -36,4 +79,64 @@ export async function runTsc(options: TscOptions = {}): Promise<TscResult> {
     proc.exited,
   ]);
   return { combined: stdout + stderr, exitCode };
+}
+
+export function scrubProjectSubprocessEnv(): Record<string, string | undefined> {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (
+      key === "TOOL_INPUT" ||
+      key.startsWith("TOOL_INPUT_") ||
+      key === "PROMPT" ||
+      key === "SESSION_ID" ||
+      key.endsWith("_SESSION_ID") ||
+      key === "TRANSCRIPT_PATH" ||
+      key.endsWith("_TRANSCRIPT_PATH") ||
+      key === "HOOK_INPUT" ||
+      key.endsWith("_HOOK_INPUT") ||
+      key === "HOOK_EVENT_NAME" ||
+      key === "CLAUDE_HOOK_EVENT" ||
+      key === "PLUGIN_ROOT" ||
+      key === "PLUGIN_DATA" ||
+      key === "CC_SETTINGS_HOME" ||
+      key === "CC_SETTINGS_SOURCE"
+    ) {
+      delete env[key];
+    }
+  }
+  return env;
+}
+
+/**
+ * Run `bunx tsc --noEmit` (optionally `--pretty`) and return the combined
+ * output plus exit code. Throws on spawn failure — callers keep their own
+ * fail-open policy. Bounded by TSC_TIMEOUT_MS: on timeout Bun hard-kills the
+ * process (SIGKILL, so a child that ignores SIGTERM can't outrun the cap)
+ * and this resolves with whatever partial output was captured plus a
+ * non-zero exit — callers already treat that as "fail open, don't block".
+ *
+ * Incremental by default, with a cold retry whenever the cache turns out to
+ * be unusable — an unwritable HOME, a TypeScript too old for the flag combo,
+ * or a corrupt buildinfo must never turn into a phantom type error.
+ */
+export async function runTsc(options: TscOptions = {}): Promise<TscResult> {
+  if (options.incremental === false) return spawnTsc(options, null);
+
+  let cachePath: string | null = null;
+  try {
+    cachePath = buildInfoPath(options.cwd ?? process.cwd());
+  } catch {
+    return spawnTsc(options, null); // unwritable HOME — run cold
+  }
+
+  const result = await spawnTsc(options, cachePath);
+  if (result.exitCode !== 0 && CACHE_UNUSABLE.test(Bun.stripANSI(result.combined))) {
+    try {
+      rmSync(cachePath, { force: true });
+    } catch {
+      // best effort — the cold retry below is what actually matters
+    }
+    return spawnTsc(options, null);
+  }
+  return result;
 }

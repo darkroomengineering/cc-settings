@@ -1,0 +1,23 @@
+{
+  "date": "2026-08-26",
+  "window": "7d",
+  "metrics": {
+    "commits": 22,
+    "prs": 1,
+    "insertions": 22646,
+    "deletions": 4576,
+    "net_loc": 18070,
+    "test_loc": 9311,
+    "test_ratio": 34.2,
+    "active_days": 4,
+    "sessions": 9,
+    "deep_sessions": 2,
+    "avg_session_minutes": 22,
+    "loc_per_session_hour": 8350,
+    "feat_pct": 31.8,
+    "fix_pct": 40.9,
+    "peak_hour": 9,
+    "streak_days": 1
+  },
+  "summary": "Windows portability and a native Codex harness install landed in one dense week — heavy on fixes and tests, light on formal PRs, all crammed into four working days."
+}

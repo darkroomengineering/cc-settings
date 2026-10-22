@@ -1,0 +1,28 @@
+{
+	"should": [
+		"Use codex to rename every `fetchJson` call to `getJson` across src/.",
+		"Have codex review my staged diff before I push.",
+		"Cross-check this auth change with codex, I want a second model's opinion.",
+		"Ask codex why the websocket reconnect test is flaky. Don't let it change anything.",
+		"Send the bulk migration of our 40 API routes to the new zod schemas to Codex.",
+		"Get an independent Codex review of the branch against origin/main.",
+		"Can codex convert all the class components in src/legacy to function components?",
+		"Before I merge, run a Codex pass over the payment webhook diff.",
+		"I'd like GPT's take on this diff, run it through the codex bridge.",
+		"Let codex do the boring part: add explicit return types to every exported function in src/lib."
+	],
+	"near_miss": [
+		"Review my staged diff before I commit it.",
+		"Rename `fetchJson` to `getJson` across src/.",
+		"Add the OpenAI SDK to the project and stream a chat completion from the /api/chat route.",
+		"Double check this auth change, are you sure it's safe?",
+		"Explain how the auth middleware decides which routes are public.",
+		"Write unit tests for the price calculation in src/lib/cart.ts.",
+		"Our PR checks are red: the lint job fails on three files. Fix CI please.",
+		"Split checkout.ts into smaller modules without changing behavior.",
+		"Which model should I use for summarizing support tickets, GPT or Claude?",
+		"Ship it: push the branch and open a PR."
+	],
+	"min_recall": 0.85,
+	"max_false_trigger": 0.1
+}

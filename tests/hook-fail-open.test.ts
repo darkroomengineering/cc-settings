@@ -16,7 +16,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, posix, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
 
@@ -27,12 +27,26 @@ interface HookGroup {
   hooks: HookEntry[];
 }
 
-/** `bun "$HOME/.claude/<rel>.ts" [args…]` → { rel, args }, or null. */
+/** `bun [--no-env-file] [--config="$HOME/.claude/src/bunfig.toml"] "$HOME/.claude/<rel>.ts" [args…]` → { rel, args }, or null. */
 function parseWiredCommand(cmd: string): { rel: string; args: string[] } | null {
-  const m = cmd.match(/^bun\s+"\$HOME\/\.claude\/([^"\s]+\.ts)"(?:\s+(.*))?$/);
+  const m = cmd.match(
+    /^bun(?:\s+--no-env-file)?(?:\s+--config="\$HOME\/\.claude\/src\/bunfig\.toml")?\s+"\$HOME\/\.claude\/([^"\s]+\.ts)"(?:\s+(.*))?$/,
+  );
   if (!m?.[1]) return null;
   const args = (m[2] ?? "").split(/\s+/).filter((a) => a.length > 0);
   return { rel: m[1], args };
+}
+
+/**
+ * The handler scripts src/hooks/dispatch.ts runs in-process, relative to the
+ * repo root. Their wiring is the dispatcher's, but each one still runs as its
+ * own script, so the fail-open contract is checked on them directly too.
+ */
+async function collectDispatchedScripts(): Promise<string[]> {
+  const src = await readFile(resolve(ROOT, "src", "hooks", "dispatch.ts"), "utf8");
+  return [...src.matchAll(/import\("(\.[^"]+\.ts)"\)/g)].map((m) =>
+    posix.join("src/hooks", m[1] as string),
+  );
 }
 
 /**
@@ -42,7 +56,7 @@ function parseWiredCommand(cmd: string): { rel: string; args: string[] } | null 
 async function collectWiredScripts(): Promise<string[]> {
   const raw = await readFile(resolve(ROOT, "config", "40-hooks.json"), "utf8");
   const cfg = JSON.parse(raw) as { hooks?: Record<string, HookGroup[]> };
-  const scripts = new Set<string>();
+  const scripts = new Set<string>(await collectDispatchedScripts());
   const events = cfg.hooks ?? {};
   for (const groups of Object.values(events)) {
     for (const group of groups) {
@@ -74,6 +88,8 @@ async function collectWiredCommands(): Promise<Array<{ rel: string; args: string
       }
     }
   }
+
+  for (const rel of await collectDispatchedScripts()) seen.set(`${rel} `, { rel, args: [] });
 
   const coreRaw = await readFile(resolve(ROOT, "config", "10-core.json"), "utf8");
   const core = JSON.parse(coreRaw) as { statusLine?: { command?: string } };

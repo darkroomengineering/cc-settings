@@ -9,9 +9,18 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { KnowledgeFrontmatter } from "../schemas/knowledge.ts";
-import { lintFrontmatterCore } from "./lint-frontmatter.ts";
+import { NON_NOTE_FILES } from "./knowledge-index.ts";
+import {
+  formatLintFindings,
+  hasLintErrors,
+  type LintSeverity,
+  lintFrontmatterCore,
+} from "./lint-frontmatter.ts";
 
-export type KnowledgeSeverity = "error" | "warning";
+export type KnowledgeSeverity = LintSeverity;
+
+// Matches team-knowledge's own lint.
+const VERIFIED_STALE_DAYS = 180;
 
 export interface KnowledgeFinding {
   note: string;
@@ -24,9 +33,6 @@ export interface KnowledgeLintResult {
   findings: KnowledgeFinding[];
   noteCount: number;
 }
-
-// Files to skip at the root of the knowledge repo (repo meta, not notes).
-const SKIP_FILES = new Set(["README.md", "INDEX.md", "CONTRIBUTING.md"]);
 
 function bodyAfterFrontmatter(md: string): string {
   // Body starts after the closing --- of the frontmatter block.
@@ -87,6 +93,31 @@ async function lintOne(
       });
     }
 
+    // verified: a real past date; warn once the claims are due for a re-check.
+    if (fm.verified !== undefined) {
+      // Date.parse rolls 2026-02-30 over to March 2, so require a round trip.
+      const time = Date.parse(`${fm.verified}T00:00:00Z`);
+      if (Number.isNaN(time) || new Date(time).toISOString().slice(0, 10) !== fm.verified) {
+        domainFindings.push({
+          severity: "error",
+          rule: "verified-invalid",
+          message: `verified "${fm.verified}" is not a real date`,
+        });
+      } else if (time > Date.now()) {
+        domainFindings.push({
+          severity: "error",
+          rule: "verified-future",
+          message: `verified "${fm.verified}" is in the future`,
+        });
+      } else if (Date.now() - time > VERIFIED_STALE_DAYS * 86_400_000) {
+        domainFindings.push({
+          severity: "warning",
+          rule: "verified-stale",
+          message: `verified "${fm.verified}" is older than ${VERIFIED_STALE_DAYS} days; re-check the claims`,
+        });
+      }
+    }
+
     // Body must be non-empty (meaningful content after frontmatter).
     const body = bodyAfterFrontmatter(text).trim();
     if (!body) {
@@ -116,7 +147,7 @@ export async function lintKnowledgeDir(dir: string): Promise<KnowledgeLintResult
   const entries = await readdir(dir, { withFileTypes: true });
 
   const mdFiles = entries
-    .filter((e) => e.isFile() && e.name.endsWith(".md") && !SKIP_FILES.has(e.name))
+    .filter((e) => e.isFile() && e.name.endsWith(".md") && !NON_NOTE_FILES.has(e.name))
     .map((e) => e.name);
 
   // Build a set of all note stems for supersedes cross-reference checks.
@@ -130,22 +161,12 @@ export async function lintKnowledgeDir(dir: string): Promise<KnowledgeLintResult
 }
 
 export function formatKnowledgeFindings(result: KnowledgeLintResult): string {
-  const errors = result.findings.filter((f) => f.severity === "error");
-  const warnings = result.findings.filter((f) => f.severity === "warning");
-
-  const lines: string[] = [];
-  lines.push(`Linted ${result.noteCount} note(s).`);
-
-  for (const f of result.findings) {
-    const icon = f.severity === "error" ? "✖" : "⚠";
-    lines.push(`  ${icon} ${f.note} [${f.rule}] ${f.message}`);
-  }
-
-  lines.push("");
-  lines.push(`${errors.length} error(s), ${warnings.length} warning(s).`);
-  return lines.join("\n");
+  return formatLintFindings(result.findings, result.noteCount, {
+    noun: "note",
+    getItem: (f) => f.note,
+  });
 }
 
 export function hasKnowledgeErrors(result: KnowledgeLintResult): boolean {
-  return result.findings.some((f) => f.severity === "error");
+  return hasLintErrors(result.findings);
 }

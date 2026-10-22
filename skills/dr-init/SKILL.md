@@ -1,6 +1,6 @@
 ---
 name: dr-init
-description: Initialize new Darkroom project from a satus or novus starter (NOT the same as native /init which writes CLAUDE.md). Triggers "new darkroom project", "satus", "novus", "scaffold from starter".
+description: Initialize a new Darkroom project from the satus or novus starter. Triggers "new darkroom project", "satus", "novus", "scaffold from starter". Not the native /init, which writes CLAUDE.md.
 argument-hint: "[project-name]"
 ---
 
@@ -10,8 +10,8 @@ Create a new project using a Darkroom starter. Darkroom maintains two:
 
 | Starter | Stack | When to use |
 |---|---|---|
-| **satus** | Next.js 16 + App Router + RSC + React 19 | Content-driven sites, SEO-critical, Vercel-friendly, projects that benefit from Server Components / Server Actions |
-| **novus** | React Router 7 + Vite + React 19 | SPA-leaning apps, projects that prefer the loader/action data model, projects without need for RSC, projects deploying to non-Vercel infra |
+| **satus** | Next.js 16 + App Router + RSC + React 19 + React Compiler, TypeScript strict, Tailwind v4, Biome, Lenis, Hamo, Image/Link wrappers, CSS Modules with `s` alias, `@/` alias | Content-driven sites, SEO-critical, Vercel-friendly, projects that benefit from Server Components / Server Actions |
+| **novus** | React Router 7 + SSR via Vite + React 19 + React Compiler, TypeScript strict, Tailwind v4, Biome, t3-env + Valibot, CSS Modules with `s` alias, `~/` alias; optional WebGL (R3F), Anime.js, Theatre.js, Sanity CMS | SPA-leaning apps, projects that prefer the loader/action data model, projects without need for RSC, projects deploying to non-Vercel infra |
 
 ## Step 1 — Pick the starter
 
@@ -27,16 +27,8 @@ When the user is unsure, prefer **satus** for marketing/content sites and **novu
 
 ## Step 2 — Clone
 
-### satus (Next.js)
 ```bash
-bunx degit darkroomengineering/satus $ARGUMENTS
-cd $ARGUMENTS
-bun install
-```
-
-### novus (React Router)
-```bash
-bunx degit darkroomengineering/novus $ARGUMENTS
+bunx degit darkroomengineering/<satus|novus> $ARGUMENTS
 cd $ARGUMENTS
 bun install
 ```
@@ -48,32 +40,6 @@ Both starters:
 2. **Configure environment** — copy `.env.example` to `.env` (or `.env.local` for satus).
 3. **Start dev** — `bun dev`.
 4. **Open debug** — `Cmd/Ctrl + O` (satus) or `Cmd + .` / `Ctrl + O` (novus).
-
-## What each starter includes
-
-### satus
-- Next.js 16 + App Router
-- React 19 + React Compiler
-- TypeScript strict mode
-- Tailwind CSS v4
-- Biome
-- Lenis smooth scroll
-- Hamo performance hooks
-- Image / Link component wrappers
-- CSS Modules with `s` alias
-- `@/` path alias
-
-### novus
-- React Router 7 + SSR via Vite
-- React 19 + React Compiler
-- TypeScript strict mode
-- Tailwind CSS v4
-- Biome
-- Optional: WebGL (R3F), Anime.js, Theatre.js
-- Sanity CMS integration (optional)
-- t3-env + Valibot for typed env
-- CSS Modules with `s` alias
-- `~/` path alias
 
 ## Project structure
 
@@ -112,7 +78,3 @@ After initialization:
 - Confirm project created and which starter was used
 - List the next steps (env, dev server)
 - Offer to start the dev server
-
-## Lenis smooth scroll
-
-Both satus and novus starters ship Lenis wired up. For non-Darkroom projects needing Lenis setup, see commit history of the retired `lenis` skill (`git log --all -- skills/lenis/`).

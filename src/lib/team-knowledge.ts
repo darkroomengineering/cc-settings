@@ -16,11 +16,18 @@
 //   3. No output.
 
 import { readdir } from "node:fs/promises";
-import { type KnowledgeIndex, NON_NOTE_FILES, readKnowledgeIndex } from "./knowledge-index.ts";
+import { runGit } from "./git.ts";
+import {
+  type KnowledgeIndex,
+  type LinearMap,
+  NON_NOTE_FILES,
+  readKnowledgeIndex,
+  readLinearMap,
+} from "./knowledge-index.ts";
 
-// Re-export so external consumers (lint-knowledge, tests) can import from
-// team-knowledge.ts as before without knowing the source moved.
-export { NON_NOTE_FILES } from "./knowledge-index.ts";
+const LINEAR_ORG = "darkroomengineering";
+
+const KNOWLEDGE_REPO = process.env.KNOWLEDGE_REPO ?? "darkroomengineering/team-knowledge";
 
 /** Lines to print at session start advertising the shared corpus, or [] when
  *  there's nothing to surface (no clone configured, empty, or unreadable).
@@ -59,7 +66,8 @@ export async function teamKnowledgeAwareness(
       const label = count === 1 ? "note" : "notes";
       return [
         "",
-        `team-knowledge: ${count} shared ${label} — consult before architecture / convention / gotcha calls`,
+        `team-knowledge: ${count} shared ${label} — matching notes surface before Bash/Edit calls; ` +
+          `read one with: gh api repos/${KNOWLEDGE_REPO}/contents/<name>.md --jq .content | base64 -d`,
       ];
     }
   } catch {
@@ -67,4 +75,46 @@ export async function teamKnowledgeAwareness(
   }
 
   return [];
+}
+
+/** `owner/repo` of a GitHub remote URL (https, ssh, scp-like), or null. */
+export function githubSlugFrom(originUrl: string): string | null {
+  const match = /github\.com[/:]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(originUrl.trim());
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
+/** The session line for a repo and a Linear map. A mapped repo gets its team
+ *  and project; an unmapped repo in the org gets a request to add it; a repo
+ *  mapped to null, or outside the org, gets nothing. */
+export function linearLines(slug: string, map: LinearMap): string[] {
+  const key = slug.toLowerCase();
+  const found = Object.entries(map).find(([k]) => k.toLowerCase() === key);
+  if (found) {
+    const entry = found[1];
+    return entry
+      ? [`Linear: team ${entry.team}, project "${entry.projectName ?? entry.project}"`]
+      : [];
+  }
+  if (!key.startsWith(`${LINEAR_ORG}/`)) return [];
+  return [
+    `Linear: ${slug} has no entry in linear-map.json (${KNOWLEDGE_REPO}); ask the user to add its team and project by PR.`,
+  ];
+}
+
+/** SessionStart line tying the cwd repo to its Linear team and project, from
+ *  the cached map. Reads the cache before running git, and stays silent when
+ *  there is no cache, no GitHub origin, or anything fails. No network, no
+ *  token. `getOrigin` and `readMap` are test seams. Never throws. */
+export async function linearMapAwareness(
+  getOrigin: () => Promise<string> = () => runGit(["remote", "get-url", "origin"]),
+  readMap: () => Promise<LinearMap | null> = readLinearMap,
+): Promise<string[]> {
+  try {
+    const map = await readMap();
+    if (!map) return [];
+    const slug = githubSlugFrom(await getOrigin());
+    return slug ? linearLines(slug, map) : [];
+  } catch {
+    return [];
+  }
 }

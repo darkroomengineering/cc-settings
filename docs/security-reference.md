@@ -59,6 +59,11 @@ rg "console\.(log|info|debug).*key" --type ts -i
 # Find PII in responses
 rg "res\.(json|send).*email" --type ts
 rg "res\.(json|send).*phone" --type ts
+
+# Weak crypto
+rg "md5|sha1" --type ts -i
+rg "Math\.random" --type ts  # Not cryptographically secure
+rg "crypto\.createHash\(['\"]md5" --type ts
 ```
 
 ### 4. Broken Access Control (A01:2021)
@@ -113,13 +118,17 @@ rg "setTimeout.*string" --type ts
 rg "setInterval.*string" --type ts
 ```
 
-### 7. Identification Failures (A07:2021)
+### 7. Insecure Design (A04:2021)
 
 ```bash
-# Weak crypto
-rg "md5|sha1" --type ts -i
-rg "Math\.random" --type ts  # Not cryptographically secure
-rg "crypto\.createHash\(['\"]md5" --type ts
+# Missing rate limiting on sensitive endpoints (login, signup, password reset)
+rg "export (async )?function (POST|PUT)" --type ts -A5 app/api
+
+# Trust-boundary violations: client-supplied values used as authority
+rg "req\.(body|query)\.(role|isAdmin|userId|permissions)" --type ts
+
+# Business logic enforced only client-side (no matching server check)
+rg "disabled=\{.*role" --type tsx
 ```
 
 ### 8. Data Integrity Failures (A08:2021)
@@ -212,7 +221,79 @@ git ls-files -- '.env*' ':!.env.example' ':!.env*.example' | xargs -r rg -l "."
 
 ---
 
+## Framework Auth & Supply-Chain Checklists
+
+Adapted from vercel-labs/deepsec's matcher library (Apache-2.0) — each pattern below ships there as a tested regex matcher; here they serve as review checklists for the `security-reviewer` agent and `/audit` threat-model mode.
+
+### Next.js Server Actions
+
+Every exported function in a `'use server'` file is a publicly callable POST endpoint — the client-side call site is irrelevant to reachability. No export is exempt from the auth question.
+
+```bash
+# Every export from a 'use server' file — functions AND const-arrow exports,
+# wherever the file lives (not just actions*.ts)
+rg -l "'use server'|\"use server\"" --type ts \
+  | xargs rg -n "^export (async function|function|const)" -A 6
+```
+
+**Server Action Checklist:**
+- [ ] Every exported action performs its own auth check (or calls a helper that does) — `middleware.ts` (`proxy.ts` in Next.js 16) is a pre-route layer and cannot replace handler-local authorization
+- [ ] Auth present is not auth correct: an action that calls `getSession()`/`requireAuth()` still needs the call's logic reviewed (right resource, right tenant, result actually checked)
+- [ ] Resource-level authorization, not just session presence: the action verifies the user owns what it mutates
+- [ ] Input validated with a schema before use (actions receive attacker-controlled FormData/JSON)
+- [ ] `searchParams` and dynamic route segments (`[id]`, `[...slug]`) treated as untrusted — including inside middleware
+- [ ] No `unstable_cache`/`revalidateTag` keyed on user-supplied values (cross-tenant cache leak)
+- [ ] No `JSON.stringify()` output embedded via `dangerouslySetInnerHTML` or inline `<script>` — XSS unless `</` is escaped
+
+### GitHub Actions Workflows
+
+```bash
+rg "pull_request_target|workflow_run" .github/workflows/
+rg "uses:.*@(main|master|develop|v\d+)\b" .github/workflows/
+rg '\$\{\{\s*github\.(event|head_ref)' .github/workflows/
+rg "permissions:\s*write-all|id-token:\s*write" .github/workflows/
+rg "curl.*\|\s*(sh|bash)" .github/workflows/
+```
+
+**Workflow Checklist:**
+- [ ] No `pull_request_target` trigger checking out PR code (runs on base branch with secrets — attacker code + secrets in one job)
+- [ ] `workflow_run` triggers reviewed — they execute on other workflows' completion with elevated context
+- [ ] Third-party actions pinned to full commit SHAs, not `@main`/`@master`/`@v3` tags
+- [ ] No `${{ github.event.* }}` or `${{ github.head_ref }}` interpolated into `run:` blocks (shell injection via PR title/branch name/commit message) — pass via `env:` instead
+- [ ] No `permissions: write-all`; `id-token: write` only where OIDC is actually used
+- [ ] No `curl … | sh` in workflow steps
+
+### Dockerfile & Infrastructure-as-Code
+
+For repos that ship containers or Terraform (rarer at Darkroom, cheap to check when present):
+
+- [ ] `FROM` images pinned by `@sha256` digest, not a mutable tag
+- [ ] No `RUN curl|wget … | sh` (or piped `tar`) without checksum verification
+- [ ] Final image stage sets a non-root `USER`
+- [ ] Terraform: no wildcard `Action`/`Resource`/`Principal` in IAM/KMS/S3 policies
+- [ ] Terraform: no `0.0.0.0/0` (or `::/0`) ingress on non-HTTP(S) ports; EKS public endpoints paired with `endpoint_public_access_cidrs`
+- [ ] Terraform: remote module sources pinned to a commit SHA
+- [ ] Terraform: no plaintext values in `kubernetes_secret` data blocks; storage resources (S3/RDS/EBS) have encryption-at-rest configured (encryption may live in a sibling module file — confirm before flagging)
+
 ## Darkroom-Specific Security Checks
+
+### cc-settings boundaries
+
+The safety-net hook checks every operand in a recognized recursive forced removal;
+a permitted build directory must not hide another dangerous target. Literal paths
+are normalized before directory containment checks, so `..` cannot escape an
+allowed prefix. Its tokenizer remains a heuristic, not a complete shell parser;
+the hook is an advisory, fail-open layer, not a filesystem enforcement boundary.
+
+It also blocks process kills chosen by search rather than by PID: `pkill`,
+`killall`, `fuser -k`, `kill -1`, and `kill` fed by `pgrep`/`ps`/`pidof` or by
+`lsof` without `-sTCP:LISTEN`. Those searches match bystanders: a plain
+`lsof -ti :<port>` lists the browser that has the page open, so killing its
+output takes the browser down. `kill <pid>` and listener-only lsof stay allowed.
+
+Hook audits resolve source integrity from the installation being audited, including
+when only a custom settings path is supplied. MCP installation validates existing
+server definitions without stripping unknown user fields before writing them back.
 
 ### Shopify Commerce Security
 
@@ -419,23 +500,39 @@ export async function GET(request: Request) {
 }
 
 // SECURE
-import path from 'path'
+import { readFile, realpath } from 'node:fs/promises'
+import path from 'node:path'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const file = searchParams.get('file')
 
-  const uploadsDir = path.resolve('./uploads')
-  const filePath = path.resolve(uploadsDir, file || '')
-
-  if (!filePath.startsWith(uploadsDir)) {
-    return new Response('Forbidden', { status: 403 })
+  if (!file || file.includes('\0')) {
+    return new Response('Invalid file', { status: 400 })
   }
 
-  const content = await fs.readFile(filePath)
-  return new Response(content)
+  // A missing uploads root is a configuration error, not a missing user file.
+  const uploadsDir = await realpath(path.resolve('./uploads'))
+  try {
+    const filePath = await realpath(path.resolve(uploadsDir, file))
+    const relative = path.relative(uploadsDir, filePath)
+    if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      return new Response('Forbidden', { status: 403 })
+    }
+    return new Response(await readFile(filePath))
+  } catch (error) {
+    if (error instanceof Error && 'code' in error &&
+        ['ENOENT', 'ENOTDIR', 'EISDIR'].includes(String(error.code))) {
+      return new Response('Not found', { status: 404 })
+    }
+    throw error
+  }
 }
 ```
+
+This example resolves symlinks before comparing directory boundaries. It assumes
+an untrusted actor cannot replace filesystem entries between validation and the
+read; a path check alone does not prevent that race.
 
 ### Pattern 5: Insecure Direct Object Reference (IDOR)
 
@@ -508,3 +605,22 @@ export async function GET(
 - [ ] Write tokens server-side only
 - [ ] GROQ queries parameterized
 - [ ] Preview mode access controlled
+
+---
+
+## Wiring a Security Scanner into PR CI
+
+The pattern for running any AI or static security scanner (this repo's `security-reviewer`, deepsec, semgrep-with-LLM-triage, …) as a GitHub Actions PR check. Adapted from vercel-labs/deepsec `docs/reviewing-changes.md` (Apache-2.0), which ships it with an explicit threat model worth keeping intact.
+
+**Split analyze and comment into two jobs.** Don't grant `pull-requests: write` to a job that runs PR code: a PR can add arbitrary code to its own `package.json` postinstall scripts or to a project config file that the CLI loads — both run before any of your own steps. So:
+
+- **`analyze` job** — `permissions: contents: read` only. Checks out and runs the PR code plus the scanner (with whatever API credentials the scanner needs). Cannot write to the repository. Uploads the findings report as an artifact when there are findings.
+- **`comment` job** — `needs: analyze`, `permissions: contents: read` + `pull-requests: write`. Never checks out or executes PR code; downloads only the sanitized artifact and posts it via the GitHub API.
+
+**Gate on net-new findings only.** Exit-code contract: 0 = no findings this run, 1 = at least one finding. Re-running on a file with pre-existing findings must not fail the build unless something new surfaced — otherwise every PR touching a file with known debt goes red and the check gets ignored or disabled. If the scanner has no built-in baseline, diff its output against a committed baseline file — read from the base ref (`git show origin/<base>:path/to/baseline.json`), never from the PR checkout, or a malicious PR edits the baseline to reclassify its own findings as pre-existing.
+
+**Gate who triggers the secret-bearing job.** Scanner credentials still flow through PR code: even with the job split, `analyze` has the secret in env while running PR-controlled `pnpm install`. The gate that keeps this from being a vulnerability is a same-repo check on the analyze job — `if: github.event.pull_request.head.repo.full_name == github.repository` — so fork PRs never reach the secret-bearing step. (deepsec's own doc labels this both "UX cleanup" and an "`author_association` gate" in different sections; the same-repo check is what its shipped workflow actually implements.) For defense-in-depth on top, require a maintainer-applied label before analyze runs: `if: contains(github.event.pull_request.labels.*.name, 'review-ok')`.
+
+**Hardening details:**
+- Pin third-party actions to full commit SHAs in production workflows — a compromised tag otherwise reaches your secrets (same rule as the Workflow Checklist above).
+- `fetch-depth: 0` on checkout, and diff with the three-dot form (`git diff origin/<base>...HEAD`) or an explicit `git merge-base` — a two-dot `git diff origin/<base>` also pulls in unrelated base-branch changes that landed after the PR forked.

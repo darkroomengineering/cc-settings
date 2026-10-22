@@ -5,11 +5,48 @@
 // module (downstream code imports `os` from here) so future Windows fixes
 // stay local.
 
-import { readFileSync } from "node:fs";
+import { type Dirent, readFileSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export type OS = "macos" | "linux" | "wsl" | "windows" | "unknown";
+
+export function sha256(data: string | Uint8Array): string {
+  return new Bun.CryptoHasher("sha256").update(data).digest("hex");
+}
+
+/**
+ * Recursive directory walk shared by the lint scripts: prune `opts.skipDirs`
+ * directories, keep files that pass `opts.keep(name)`. An unreadable
+ * directory is skipped rather than thrown — callers treat that as "nothing
+ * here", not a lint failure.
+ */
+export async function walkFiles(
+  dir: string,
+  opts: { skipDirs?: Set<string>; keep: (name: string) => boolean },
+): Promise<string[]> {
+  const out: string[] = [];
+  async function walk(d: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(d, { withFileTypes: true, encoding: "utf8" });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(d, entry.name);
+      if (entry.isDirectory()) {
+        if (opts.skipDirs?.has(entry.name)) continue;
+        await walk(full);
+      } else if (entry.isFile() && opts.keep(entry.name)) {
+        out.push(full);
+      }
+    }
+  }
+  await walk(dir);
+  return out;
+}
 
 function detectOS(): OS {
   switch (process.platform) {
@@ -39,6 +76,20 @@ export function isWindows(): boolean {
   return os === "windows";
 }
 
+// Raw Node platform/arch triple (e.g. "darwin"/"arm64") — distinct from the
+// `OS` enum above (which normalizes "darwin" → "macos" etc). Callers that need
+// the literal Node strings (checksum-key lookups, download-URL templating)
+// import these instead of reaching for process.platform/process.arch
+// directly, preserving the "no process.platform outside this module" invariant.
+export const platform: NodeJS.Platform = process.platform;
+export const arch: string = process.arch;
+
+/** Platform discriminator for checksum lookup ("darwin-arm64", …) — matches the
+ *  keys pinned-binary descriptors store their per-platform checksums under. */
+export function platformKey(): string {
+  return `${platform}-${arch}`;
+}
+
 // Zero-pad a number to two characters. Shared across timestamp / date / time
 // formatters that need stable filename-safe output.
 export function pad(n: number): string {
@@ -55,20 +106,64 @@ export function ymd(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// Returns true if `cmd` is resolvable on PATH. Uses Bun.which which already
-// handles Windows `PATHEXT` + `.cmd`/`.exe` suffixes.
-export function hasCommand(cmd: string): boolean {
-  return Bun.which(cmd) !== null;
+// Resolves `cmd` to an absolute path via the LIVE `process.env.PATH`, or null.
+// The explicit PATH option matters: without it Bun.which consults the PATH
+// captured at process boot, so runtime mutations (tests installing shims under
+// a temp dir) are invisible. Bun.which already handles Windows `PATHEXT` +
+// `.cmd`/`.exe` suffixes.
+export function whichCommand(cmd: string): string | null {
+  return Bun.which(cmd, { PATH: process.env.PATH ?? "" });
 }
 
-// Canonical ~/.claude directory. All code should use this rather than
-// joining homedir() + ".claude" inline — makes root overridable in tests
-// and keeps the derivation in one place.
+// Returns true if `cmd` is resolvable on PATH.
+export function hasCommand(cmd: string): boolean {
+  return whichCommand(cmd) !== null;
+}
+
+// Canonical ~/.claude directory. Install and inspection code must always use
+// this path so a hook-scoped environment override cannot redirect setup.
 export const CLAUDE_DIR = join(homedir(), ".claude");
 
-// Join one or more path segments under CLAUDE_DIR.
+/** argv prefix for a bun child started from a hook: no project .env, and the shipped
+ *  comment-only bunfig so a project bunfig.toml `preload` cannot run in the child. */
+export function hookBunArgv(): string[] {
+  return ["bun", "--no-env-file", `--config=${join(CLAUDE_DIR, "src", "bunfig.toml")}`];
+}
+
+// Hooks shared with Codex need a private state root under PLUGIN_DATA rather
+// than writing Claude-specific logs and handoffs into ~/.claude.
+const RUNTIME_DIR = process.env.CC_SETTINGS_HOME
+  ? resolve(process.env.CC_SETTINGS_HOME)
+  : CLAUDE_DIR;
+
+// Join one or more runtime-state path segments under the active product root.
 export function claudePath(...segments: string[]): string {
-  return join(CLAUDE_DIR, ...segments);
+  return join(RUNTIME_DIR, ...segments);
+}
+
+/** The install-adjacent paths a status/inspection pass reads. Bundled on
+ *  purpose: `gatherStatus` used to take a bare `claudeDir` and then read
+ *  ~/.claude.json and the launchd plist from the real $HOME regardless, so a
+ *  caller passing a fixture directory got a mix of fixture and host state and
+ *  its tests could only assert shape (nuclear-review-2026-07-29 F3). Passing one
+ *  value makes partial overriding impossible. */
+export interface InstallPaths {
+  /** ~/.claude — the install target. */
+  claudeDir: string;
+  /** ~/.claude.json — a SIBLING of claudeDir, not a child of it, which is why
+   *  it cannot be derived from claudeDir alone. */
+  claudeJsonPath: string;
+  /** $HOME — where the auto-update launchd plist lives. */
+  homeDir: string;
+}
+
+/** Build an InstallPaths. Defaults to the real host locations; tests and
+ *  dry-runs pass a fixture claudeDir and home. */
+export function installPaths(
+  claudeDir: string = CLAUDE_DIR,
+  home: string = homedir(),
+): InstallPaths {
+  return { claudeDir, claudeJsonPath: join(home, ".claude.json"), homeDir: home };
 }
 
 // ISO-8601 timestamp without milliseconds: "2026-06-19T12:34:56Z".
@@ -80,7 +175,7 @@ export function isoNow(): string {
 
 // YYYY-MM-DD HH:MM:SS in local time — bash parity: `date '+%Y-%m-%d %H:%M:%S'`.
 // Replaces the three private formatters (formatTimestamp/formatDate/hms) that
-// produced identical output across stop-failure.ts, session-start.ts, log-bash.ts.
+// produced identical output across session-start.ts, log-bash.ts.
 export function localDatetime(d: Date = new Date()): string {
   return `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }

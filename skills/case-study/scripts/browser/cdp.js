@@ -1,5 +1,5 @@
 // usage: node cdp.js <task.js> [args...]   task.js exports async (page, ...args) => any (printed as JSON)
-// Connects to chrome.sh's instance (CDP_URL, default http://127.0.0.1:9333). Needs puppeteer-core: `npm i --prefix <this dir> puppeteer-core`.
+// Connects to chrome.sh's instance (CDP_URL, default http://127.0.0.1:9333). Needs puppeteer-core: `bun add --cwd <this dir> puppeteer-core`.
 const path = require('node:path')
 const puppeteer = require(require.resolve('puppeteer-core', { paths: [__dirname, process.cwd()] }))
 ;(async () => {

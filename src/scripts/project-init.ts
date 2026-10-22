@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { info, success, warn } from "../lib/colors.ts";
 import { claudePath, isoNow } from "../lib/platform.ts";
 
@@ -38,7 +38,12 @@ function isManaged(file: string): boolean {
   if (!existsSync(file)) return false;
   try {
     const header = readFileSync(file, "utf8").split(/\r?\n/)[0] ?? "";
-    return header.includes("cc-settings");
+    return (
+      header === "<!-- cc-settings — DO NOT EDIT — managed by cc-settings -->" ||
+      /^<!-- cc-settings v(?:\d+\.\d+\.\d+(?:-[\w.-]+)?|unknown) \| [^|\r\n]+ \| DO NOT EDIT — managed by cc-settings -->$/.test(
+        header,
+      )
+    );
   } catch {
     return false;
   }
@@ -51,49 +56,27 @@ function stampAgents(): string {
   return `<!-- cc-settings v${version} | ${ts} | DO NOT EDIT — managed by cc-settings -->\n${body}`;
 }
 
-async function createCopilot(dir: string): Promise<void> {
-  const file = join(dir, ".github", "copilot-instructions.md");
-  if (existsSync(file) && !isManaged(file)) {
-    info("Skipping .github/copilot-instructions.md (custom file exists)");
-    return;
-  }
-  await mkdir(join(dir, ".github"), { recursive: true });
-  const body = `<!-- cc-settings — DO NOT EDIT — managed by cc-settings -->
+const CURSOR_WINDSURF_BODY = `<!-- cc-settings — DO NOT EDIT — managed by cc-settings -->
+Read and follow AGENTS.md in the repository root for all coding standards and guardrails.
+AGENTS.md is the single source of truth for this project.
+`;
+
+const COPILOT_BODY = `<!-- cc-settings — DO NOT EDIT — managed by cc-settings -->
 <!-- GitHub Copilot: read AGENTS.md in the repository root for full coding standards -->
 
 Follow the coding standards and guardrails defined in \`AGENTS.md\` at the repository root.
 That file is the single source of truth for all AI-assisted development on this project.
 `;
-  await writeFile(file, body);
-  success(".github/copilot-instructions.md");
-}
 
-async function createCursor(dir: string): Promise<void> {
-  const file = join(dir, ".cursorrules");
+async function createPointerFile(dir: string, relPath: string, body: string): Promise<void> {
+  const file = join(dir, relPath);
   if (existsSync(file) && !isManaged(file)) {
-    info("Skipping .cursorrules (custom file exists)");
+    info(`Skipping ${relPath} (custom file exists)`);
     return;
   }
-  const body = `<!-- cc-settings — DO NOT EDIT — managed by cc-settings -->
-Read and follow AGENTS.md in the repository root for all coding standards and guardrails.
-AGENTS.md is the single source of truth for this project.
-`;
+  await mkdir(dirname(file), { recursive: true });
   await writeFile(file, body);
-  success(".cursorrules");
-}
-
-async function createWindsurf(dir: string): Promise<void> {
-  const file = join(dir, ".windsurfrules");
-  if (existsSync(file) && !isManaged(file)) {
-    info("Skipping .windsurfrules (custom file exists)");
-    return;
-  }
-  const body = `<!-- cc-settings — DO NOT EDIT — managed by cc-settings -->
-Read and follow AGENTS.md in the repository root for all coding standards and guardrails.
-AGENTS.md is the single source of truth for this project.
-`;
-  await writeFile(file, body);
-  success(".windsurfrules");
+  success(relPath);
 }
 
 function cmdCheck(dir: string): void {
@@ -105,10 +88,19 @@ function cmdCheck(dir: string): void {
   info(`Project: ${basename(dir)}`);
   console.log("");
 
+  // Managed/unmanaged is decided by isManaged() (same test used everywhere
+  // else in this file) — NOT by whether projectAgentsVersion() found a
+  // digits-only version. A dev checkout without ~/.claude/.cc-settings-version
+  // stamps "cc-settings vunknown" (installedVersion() falls back to the
+  // literal "unknown"), which projectAgentsVersion()'s digits-only regex
+  // can't parse — that must read as "managed, version unknown", not "not
+  // managed by cc-settings".
   if (!existsSync(agents)) {
     warn("AGENTS.md not found — run: project-init.ts");
-  } else if (!projVer) {
+  } else if (!isManaged(agents)) {
     info("AGENTS.md exists (not managed by cc-settings)");
+  } else if (!projVer) {
+    info(`AGENTS.md is managed by cc-settings (version unknown — installed: v${installed})`);
   } else if (projVer === installed) {
     success(`AGENTS.md is up to date (v${installed})`);
   } else {
@@ -141,9 +133,9 @@ async function cmdUpdate(dir: string): Promise<number> {
     await writeFile(agents, stampAgents());
     success(`AGENTS.md (v${installedVersion()})`);
   }
-  await createCopilot(dir);
-  await createCursor(dir);
-  await createWindsurf(dir);
+  await createPointerFile(dir, ".github/copilot-instructions.md", COPILOT_BODY);
+  await createPointerFile(dir, ".cursorrules", CURSOR_WINDSURF_BODY);
+  await createPointerFile(dir, ".windsurfrules", CURSOR_WINDSURF_BODY);
   return 0;
 }
 
@@ -162,9 +154,9 @@ async function cmdInit(dir: string): Promise<number> {
     await writeFile(agents, stampAgents());
     success(`AGENTS.md (v${installedVersion()})`);
   }
-  await createCopilot(dir);
-  await createCursor(dir);
-  await createWindsurf(dir);
+  await createPointerFile(dir, ".github/copilot-instructions.md", COPILOT_BODY);
+  await createPointerFile(dir, ".cursorrules", CURSOR_WINDSURF_BODY);
+  await createPointerFile(dir, ".windsurfrules", CURSOR_WINDSURF_BODY);
   console.log("");
   success("Cross-tool AI config ready. Commit these files to share with your team.");
   console.log("");

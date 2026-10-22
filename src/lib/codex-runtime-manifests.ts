@@ -1,0 +1,419 @@
+import {
+  AUDIT_PERFORMANCE_RESOURCES,
+  CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+} from "./install-source-inventory.ts";
+
+export const REQUIRED_SOURCE_ARTIFACTS = [
+  "AGENTS.md",
+  "codex/AGENTS.append.md",
+  "codex/rules/darkroom.rules",
+  ".claude-plugin/marketplace.json",
+  "plugin.json",
+  ".mcp.json",
+  "mcp.json",
+  "hooks/hooks.json",
+  "agents",
+  "skills",
+  "src",
+  "package.json",
+  "bun.lock",
+  "tsconfig.json",
+] as const;
+
+// The managed plugin is a release artifact, not a checkout mirror. Keep this
+// list explicit so ignored or user-created descendants can never enter the
+// installed runtime merely because they live below skills/ or src/.
+const RUNTIME_SOURCE_FILES_V4 = [
+  ".claude-plugin/marketplace.json",
+  ".codex-plugin/plugin.json",
+  ".mcp.json",
+  "bun.lock",
+  "hooks/README.md",
+  "hooks/checkpoint.md",
+  "hooks/hooks.json",
+  "hooks/verification-check.md",
+  "package.json",
+  "skills/README.md",
+  "skills/adhd/SKILL.md",
+  "skills/audit/SKILL.md",
+  "skills/audit/references/audit-contract.md",
+  "skills/audit/references/nuclear-review.workflow.js",
+  "skills/audit/references/seo-checks.md",
+  "skills/autoresearch/SKILL.md",
+  "skills/build/SKILL.md",
+  "skills/cc/SKILL.md",
+  "skills/checkpoint/SKILL.md",
+  "skills/codex/SKILL.md",
+  "skills/codex/agents/openai.yaml",
+  "skills/component/SKILL.md",
+  "skills/consolidate/SKILL.md",
+  "skills/context-doc/ADR-FORMAT.md",
+  "skills/context-doc/CONTEXT-FORMAT.md",
+  "skills/context-doc/DOMAIN-AWARENESS.md",
+  "skills/context-doc/SKILL.md",
+  "skills/design-tokens/SKILL.md",
+  "skills/dr-init/SKILL.md",
+  "skills/explore/SKILL.md",
+  "skills/fix/SKILL.md",
+  "skills/freeze/SKILL.md",
+  "skills/handoff/SKILL.md",
+  "skills/harvest/CONTRACT.md",
+  "skills/harvest/SKILL.md",
+  "skills/hook/SKILL.md",
+  "skills/lighthouse/SKILL.md",
+  "skills/lighthouse/agents/openai.yaml",
+  "skills/oracle/SKILL.md",
+  "skills/orchestrate/SKILL.md",
+  "skills/plan-ceo-review/SKILL.md",
+  "skills/plan-feature/SKILL.md",
+  "skills/project/SKILL.md",
+  "skills/proof-of-work/SKILL.md",
+  "skills/qa/SKILL.md",
+  "skills/qa/agents/openai.yaml",
+  "skills/refactor/SKILL.md",
+  "skills/retro/SKILL.md",
+  "skills/review-batch/SKILL.md",
+  "skills/review/SKILL.md",
+  "skills/share-learning/SKILL.md",
+  "skills/ship/SKILL.md",
+  "skills/strategist/SKILL.md",
+  "skills/test/SKILL.md",
+  "skills/tldr/SKILL.md",
+  "skills/triage/SKILL.md",
+  "skills/verify/SKILL.md",
+  "skills/zero-tech-debt/SKILL.md",
+  "src/codemap/callgraph.ts",
+  "src/codemap/change-impact.ts",
+  "src/codemap/cli.ts",
+  "src/codemap/imports.ts",
+  "src/codemap/index.ts",
+  "src/codemap/mcp-server.ts",
+  "src/codemap/program.ts",
+  "src/codemap/structure.ts",
+  "src/codemap/tools.ts",
+  "src/codemap/types.ts",
+  "src/hooks/codex-verify.ts",
+  "src/hooks/delegation-detector.ts",
+  "src/hooks/escalate-acted.ts",
+  "src/hooks/escalate-model.ts",
+  "src/hooks/freeze-guard.ts",
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-edit-validate.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/hooks/promote-memory.ts",
+  "src/hooks/quota-steer.ts",
+  "src/hooks/safety-net.ts",
+  "src/hooks/statusline.ts",
+  "src/hooks/tool-cadence.ts",
+  "src/hooks/verify-hooks.ts",
+  "src/lib/artifact-store.ts",
+  "src/lib/audit-hooks.ts",
+  "src/lib/cli-preflight.ts",
+  "src/lib/claude-managed-file-manifests.ts",
+  "src/lib/claude-managed-files.ts",
+  "src/lib/code-intel-engine.ts",
+  "src/lib/codex-install.ts",
+  "src/lib/codex.ts",
+  "src/lib/colors.ts",
+  "src/lib/compose-settings.ts",
+  "src/lib/download-verify.ts",
+  "src/lib/engine-pin.ts",
+  "src/lib/escalate-telemetry.ts",
+  "src/lib/escalate.ts",
+  "src/lib/freeze.ts",
+  "src/lib/frontmatter-validate.ts",
+  "src/lib/frontmatter.ts",
+  "src/lib/git.ts",
+  "src/lib/hook-command.ts",
+  "src/lib/hook-config.ts",
+  "src/lib/hook-runtime.ts",
+  "src/lib/hooks-fingerprint.ts",
+  "src/lib/install-cmds.ts",
+  "src/lib/install-display.ts",
+  "src/lib/install-fs.ts",
+  "src/lib/install-lock.ts",
+  "src/lib/json-io.ts",
+  "src/lib/knowledge-index.ts",
+  "src/lib/light-profile.ts",
+  "src/lib/lint-agents.ts",
+  "src/lib/lint-frontmatter.ts",
+  "src/lib/lint-knowledge.ts",
+  "src/lib/lint-links.ts",
+  "src/lib/lint-profiles.ts",
+  "src/lib/lint-research.ts",
+  "src/lib/lint-shortcuts.ts",
+  "src/lib/lint-skills.ts",
+  "src/lib/managed-paths.ts",
+  "src/lib/managed-skills.ts",
+  "src/lib/mcp.ts",
+  "src/lib/merge-keyed.ts",
+  "src/lib/packages.ts",
+  "src/lib/permissions-check.ts",
+  "src/lib/permissions-doc.ts",
+  "src/lib/pinned-tools.ts",
+  "src/lib/platform.ts",
+  "src/lib/problem-signature.ts",
+  "src/lib/project-awareness.ts",
+  "src/lib/prompts.ts",
+  "src/lib/proof-of-work.ts",
+  "src/lib/quota.ts",
+  "src/lib/redact.ts",
+  "src/lib/review-queue.ts",
+  "src/lib/schedule.ts",
+  "src/lib/session-ledger.ts",
+  "src/lib/session-model.ts",
+  "src/lib/settings-baseline.ts",
+  "src/lib/settings-merge.ts",
+  "src/lib/skill-prereqs.ts",
+  "src/lib/status-types.ts",
+  "src/lib/status.ts",
+  "src/lib/team-knowledge.ts",
+  "src/lib/tsc.ts",
+  "src/lib/version-delta.ts",
+  "src/schemas/agent.ts",
+  "src/schemas/claude-json.ts",
+  "src/schemas/emit.ts",
+  "src/schemas/hooks.ts",
+  "src/schemas/knowledge.ts",
+  "src/schemas/mcp.ts",
+  "src/schemas/permissions.ts",
+  "src/schemas/profile.ts",
+  "src/schemas/settings.ts",
+  "src/schemas/skill.ts",
+  "src/scripts/audit-hooks.ts",
+  "src/scripts/auto-update.ts",
+  "src/scripts/check-cli-tools.ts",
+  "src/scripts/check-docs-before-install.ts",
+  "src/scripts/checkpoint.ts",
+  "src/scripts/claude-audit.ts",
+  "src/scripts/codex-hook.ts",
+  "src/scripts/codex-run.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/escalate-stats.ts",
+  "src/scripts/freeze.ts",
+  "src/scripts/gen-permissions-doc.ts",
+  "src/scripts/handoff.ts",
+  "src/scripts/ledger-record.ts",
+  "src/scripts/lint-agents.ts",
+  "src/scripts/lint-knowledge.ts",
+  "src/scripts/lint-links.ts",
+  "src/scripts/lint-profiles.ts",
+  "src/scripts/lint-research.ts",
+  "src/scripts/lint-shortcuts.ts",
+  "src/scripts/lint-skills.ts",
+  "src/scripts/log-bash.ts",
+  "src/scripts/migrate-legacy-codex-skills.ts",
+  "src/scripts/new-note.ts",
+  "src/scripts/new-skill.ts",
+  "src/scripts/notify.ts",
+  "src/scripts/permissions-check.ts",
+  "src/scripts/post-compact.ts",
+  "src/scripts/post-edit-tsc.ts",
+  "src/scripts/post-edit.ts",
+  "src/scripts/post-failure.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/project-init.ts",
+  "src/scripts/proof.ts",
+  "src/scripts/prune-mcp-auth-cache.ts",
+  "src/scripts/refresh-knowledge-index.ts",
+  "src/scripts/review-batch.ts",
+  "src/scripts/session-start.ts",
+  "src/scripts/session-title.ts",
+  "src/scripts/stop-failure.ts",
+  "src/scripts/stop-summary.ts",
+  "src/scripts/swarm-log.ts",
+  "src/scripts/whats-on.ts",
+  "src/setup.ts",
+  "src/upstream/scan.ts",
+  "tsconfig.json",
+] as const;
+
+// Version 1 predates the shared Claude managed-file ownership helper. Keep the
+// exact historical path set so an update can validate and back up that older
+// runtime without deriving its ownership from today's checkout.
+const RUNTIME_SOURCE_FILES_V1 = RUNTIME_SOURCE_FILES_V4.filter(
+  (path) =>
+    path !== "src/lib/claude-managed-files.ts" &&
+    path !== "src/lib/claude-managed-file-manifests.ts",
+);
+const RUNTIME_SOURCE_FILES_V2 = RUNTIME_SOURCE_FILES_V4.filter(
+  (path) => path !== "src/lib/claude-managed-file-manifests.ts",
+);
+const RUNTIME_SOURCE_FILES_V3 = RUNTIME_SOURCE_FILES_V4.filter(
+  (path) => path !== "src/scripts/migrate-legacy-codex-skills.ts",
+);
+// Files that entered the runtime after a version was frozen. A frozen version
+// must keep reporting exactly the paths its installs own, so each later addition
+// is subtracted from the earlier lists rather than the earlier lists being edited.
+const ADDED_IN_V6 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
+const ADDED_IN_V7 = ["src/lib/codex-skill-budget.ts", "src/scripts/codex-skill-budget.ts"];
+const ADDED_IN_V8 = ["src/hooks/knowledge-hint.ts", "src/lib/knowledge-hint.ts"];
+const ADDED_IN_V9 = ["src/lib/jev.ts"];
+const ADDED_IN_V10 = ["src/lib/token-usage.ts", "src/scripts/token-report.ts"];
+const ADDED_IN_V11 = ["skills/audit/references/test-audit.md"];
+// Version 12: the pinned-engine installer was removed from the runtime.
+// Versions 5-11 still own it, so it rejoins their source list beside download-verify.ts.
+const REMOVED_IN_V12 = ["src/lib/engine-pin.ts"];
+// Version 15: the `bun run hooks:report` and `hooks:bench` measurement scripts.
+const ADDED_IN_V15 = [
+  "src/lib/hook-frequency.ts",
+  "src/scripts/hook-bench.ts",
+  "src/scripts/hook-report.ts",
+];
+// Version 17: two Stop hooks whose plain stdout never reached the model. Versions 5-16 still
+// own them, so they rejoin the historical source list.
+const REMOVED_IN_V17 = ["src/scripts/stop-failure.ts", "src/scripts/stop-summary.ts"];
+// Version 18: the Copilot CLI instructions sync that setup.ts imports.
+const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
+// Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
+// bunfig.toml `preload` cannot run inside a hook.
+const ADDED_IN_V19 = ["src/bunfig.toml"];
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 22;
+// Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
+// CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
+const REMOVED_IN_V20 = [
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/session-title.ts",
+];
+// Each removed file rejoins at its original position: shipped manifests are hashed in order.
+// Keyed by the surviving file that precedes it in the sorted source inventory.
+const REJOINING_AFTER = new Map<string, readonly string[]>([
+  ["src/lib/download-verify.ts", REMOVED_IN_V12],
+  ["src/hooks/model-switch-guard.ts", ["src/hooks/pre-commit-farolero.ts"]],
+  ["src/hooks/pre-edit-validate.ts", ["src/hooks/pre-pr-proof.ts", "src/hooks/pre-push-proof.ts"]],
+  ["src/scripts/check-docs-before-install.ts", ["src/scripts/checkpoint.ts"]],
+  ["src/scripts/codex-skill-budget.ts", ["src/scripts/cwd-changed.ts"]],
+  ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
+  ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_IN_V17]],
+]);
+const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
+  (path) => !ADDED_IN_V15.includes(path) && !ADDED_IN_V18.includes(path),
+).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
+const RUNTIME_SOURCE_FILES_V10: readonly string[] = [
+  ...RUNTIME_SOURCE_FILES_V4.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
+  ...HISTORICAL_TYPESCRIPT_SOURCES,
+  ...AUDIT_PERFORMANCE_RESOURCES,
+];
+const RUNTIME_SOURCE_FILES_V11: readonly string[] = [...RUNTIME_SOURCE_FILES_V10, ...ADDED_IN_V11];
+const RUNTIME_SOURCE_FILES_V12: readonly string[] = RUNTIME_SOURCE_FILES_V11.filter(
+  (path) => !REMOVED_IN_V12.includes(path),
+);
+// Version 13: `verify` became `poke-holes`. Claude Code 2.1.286 tells Claude to
+// run any skill named `verify` before every commit, and ours is a multi-agent panel.
+const RENAMED_IN_V13 = new Map([["skills/verify/SKILL.md", "skills/poke-holes/SKILL.md"]]);
+const RUNTIME_SOURCE_FILES_V13: readonly string[] = RUNTIME_SOURCE_FILES_V12.map(
+  (path) => RENAMED_IN_V13.get(path) ?? path,
+);
+// Version 14: Codex loads the plugin from a root `plugin.json` and `mcp.json`
+// (Agent Plugins format) instead of `.codex-plugin/plugin.json`.
+const REPLACED_IN_V14 = ".codex-plugin/plugin.json";
+const ADDED_IN_V14 = ["plugin.json", "mcp.json"];
+const RUNTIME_SOURCE_FILES_V14: readonly string[] = [
+  ...RUNTIME_SOURCE_FILES_V13.filter((path) => path !== REPLACED_IN_V14),
+  ...ADDED_IN_V14,
+];
+const RUNTIME_SOURCE_FILES_V15: readonly string[] = [...RUNTIME_SOURCE_FILES_V14, ...ADDED_IN_V15];
+// Version 16: twelve skills left the library (see TOMBSTONE_SKILLS in managed-skills.ts).
+const REMOVED_IN_V16 = [
+  "skills/adhd/SKILL.md",
+  "skills/consolidate/SKILL.md",
+  "skills/design-tokens/SKILL.md",
+  "skills/lighthouse/SKILL.md",
+  "skills/lighthouse/agents/openai.yaml",
+  "skills/oracle/SKILL.md",
+  "skills/plan-ceo-review/SKILL.md",
+  "skills/plan-feature/SKILL.md",
+  "skills/project/SKILL.md",
+  "skills/qa/SKILL.md",
+  "skills/qa/agents/openai.yaml",
+  "skills/strategist/SKILL.md",
+  "skills/test/SKILL.md",
+  "skills/tldr/SKILL.md",
+];
+const RUNTIME_SOURCE_FILES_V16: readonly string[] = RUNTIME_SOURCE_FILES_V15.filter(
+  (path) => !REMOVED_IN_V16.includes(path),
+);
+const RUNTIME_SOURCE_FILES_V17: readonly string[] = RUNTIME_SOURCE_FILES_V16.filter(
+  (path) => !REMOVED_IN_V17.includes(path),
+);
+const RUNTIME_SOURCE_FILES_V18: readonly string[] = [...RUNTIME_SOURCE_FILES_V17, ...ADDED_IN_V18];
+const RUNTIME_SOURCE_FILES_V19: readonly string[] = [...RUNTIME_SOURCE_FILES_V18, ...ADDED_IN_V19];
+const RUNTIME_SOURCE_FILES_V20: readonly string[] = RUNTIME_SOURCE_FILES_V19.filter(
+  (path) => !REMOVED_IN_V20.includes(path),
+);
+// Version 21: the checkpoint and explore skills left the library and `review` became
+// `dr-review` (see TOMBSTONE_SKILLS in managed-skills.ts). Versions 5-20 still own them.
+const REMOVED_IN_V21 = [
+  "hooks/checkpoint.md",
+  "skills/checkpoint/SKILL.md",
+  "skills/explore/SKILL.md",
+  "src/scripts/checkpoint.ts",
+];
+const RENAMED_IN_V21 = new Map([["skills/review/SKILL.md", "skills/dr-review/SKILL.md"]]);
+const RUNTIME_SOURCE_FILES_V21: readonly string[] = RUNTIME_SOURCE_FILES_V20.filter(
+  (path) => !REMOVED_IN_V21.includes(path),
+).map((path) => RENAMED_IN_V21.get(path) ?? path);
+// Version 22: the RESEARCH.md format reference beside the autoresearch skill.
+const ADDED_IN_V22 = ["skills/autoresearch/RESEARCH-FORMAT.md"];
+export const RUNTIME_SOURCE_FILES: readonly string[] = [
+  ...RUNTIME_SOURCE_FILES_V21,
+  ...ADDED_IN_V22,
+];
+const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
+  (path) => !ADDED_IN_V10.includes(path),
+);
+const RUNTIME_SOURCE_FILES_V8 = RUNTIME_SOURCE_FILES_V9.filter(
+  (path) => !ADDED_IN_V9.includes(path),
+);
+const RUNTIME_SOURCE_FILES_V7 = RUNTIME_SOURCE_FILES_V8.filter(
+  (path) => !ADDED_IN_V8.includes(path),
+);
+const RUNTIME_SOURCE_FILES_V6 = RUNTIME_SOURCE_FILES_V7.filter(
+  (path) => !ADDED_IN_V7.includes(path),
+);
+const RUNTIME_SOURCE_FILES_V5 = RUNTIME_SOURCE_FILES_V6.filter(
+  (path) => !ADDED_IN_V6.includes(path),
+);
+
+const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
+  [1, RUNTIME_SOURCE_FILES_V1],
+  [2, RUNTIME_SOURCE_FILES_V2],
+  [3, RUNTIME_SOURCE_FILES_V3],
+  [4, RUNTIME_SOURCE_FILES_V4],
+  [5, RUNTIME_SOURCE_FILES_V5],
+  [6, RUNTIME_SOURCE_FILES_V6],
+  [7, RUNTIME_SOURCE_FILES_V7],
+  [8, RUNTIME_SOURCE_FILES_V8],
+  [9, RUNTIME_SOURCE_FILES_V9],
+  [10, RUNTIME_SOURCE_FILES_V10],
+  [11, RUNTIME_SOURCE_FILES_V11],
+  [12, RUNTIME_SOURCE_FILES_V12],
+  [13, RUNTIME_SOURCE_FILES_V13],
+  [14, RUNTIME_SOURCE_FILES_V14],
+  [15, RUNTIME_SOURCE_FILES_V15],
+  [16, RUNTIME_SOURCE_FILES_V16],
+  [17, RUNTIME_SOURCE_FILES_V17],
+  [18, RUNTIME_SOURCE_FILES_V18],
+  [19, RUNTIME_SOURCE_FILES_V19],
+  [20, RUNTIME_SOURCE_FILES_V20],
+  [21, RUNTIME_SOURCE_FILES_V21],
+  [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
+]);
+
+export function runtimePathsForVersion(value: unknown, source: string): readonly string[] {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new Error(
+      `Missing Codex runtime manifest version in ${source}. Reinstall cc-settings once to establish versioned ownership.`,
+    );
+  }
+  const paths = SUPPORTED_RUNTIME_MANIFESTS.get(value);
+  if (!paths) {
+    throw new Error(`Unsupported Codex runtime manifest version ${value} in ${source}`);
+  }
+  return paths;
+}

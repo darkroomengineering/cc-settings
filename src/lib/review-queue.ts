@@ -1,15 +1,13 @@
-// Review-queue backpressure — the consumer-side counterpart to the parallelmax counter.
+// Review-queue backpressure.
 //
-// The producer-side hooks (delegation-detector, tool-cadence parallelmax branch) push toward
-// spawning MORE agents. This models the constraint the "Orchestration Tax"
+// The delegation-detector hook encourages agent spawning. This models the constraint the "Orchestration Tax"
 // essay names: human review throughput. We count agent spawns since the last
 // commit and nudge when that exceeds your review rate (CC_MAX_UNREVIEWED).
 //
 // Drain model: a `git commit` resets the counter — committing means you
 // reviewed + integrated the work. It's a heuristic (commits and agents aren't
 // 1:1), but a clear, interpretable signal: "agents spawned since you last
-// closed a loop". Unlike parallelmax's consecutive-call counter, the count is
-// NOT reset on nudge — a queue's depth is real and keeps growing until drained.
+// closed a loop". The count is not reset on nudge; it keeps growing until drained.
 //
 // v2 adds the "tax meter": the age of the oldest unreviewed work (surfaced in
 // the statusline) and a cognitive-surrender proxy — committing a deep queue
@@ -17,19 +15,29 @@
 //
 // Pure logic only (no I/O) so it's unit-testable; tool-cadence.ts wraps it.
 
-export interface ReviewQueueState {
+import { z } from "zod";
+import { intEnv } from "./hook-config.ts";
+
+// Shape-validated the same way version-delta.ts / quota.ts schema-adjacent
+// state validate on read: review-queue.json is hand-editable and every
+// consumer (statusline.ts, tool-cadence.ts, session-start.ts, review-batch.ts)
+// must degrade to "absent"/default on corruption instead of feeding
+// NaN/garbage downstream — repo policy stated at version-delta.ts:250-256.
+export const ReviewQueueStateSchema = z.object({
   /** Agent tool calls since the last commit. */
-  awaiting: number;
+  awaiting: z.number(),
   /** Epoch ms of the FIRST spawn since the last commit (oldest unreviewed work). */
-  firstSpawnAt?: number;
+  firstSpawnAt: z.number().optional(),
   /** Epoch ms of the last nudge — debounce so we don't nag on every spawn. */
-  firedAt?: number;
+  firedAt: z.number().optional(),
   /** Git HEAD SHA recorded at the last drain/observation. When HEAD advances
    *  past this — a commit Claude didn't run (another terminal), a fast-forward
    *  pull, or a pulled-down PR merge — the queue drains even without a local
    *  `git commit` event. */
-  lastHead?: string;
-}
+  lastHead: z.string().optional(),
+});
+
+export type ReviewQueueState = z.infer<typeof ReviewQueueStateSchema>;
 
 export const DEBOUNCE_MS = 60_000;
 const DEFAULT_MAX = 5;
@@ -48,11 +56,12 @@ export function minReviewSeconds(): number {
   return positiveIntEnv("CC_MIN_REVIEW_SECONDS", DEFAULT_MIN_REVIEW_S);
 }
 
+/** intEnv + a positivity clamp: unlike intEnv (which allows 0/negative), these
+ *  two thresholds must be positive to mean anything, so 0/negative also falls
+ *  back to `fallback`. */
 function positiveIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined) return fallback;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+  const n = intEnv(name, fallback);
+  return n > 0 ? n : fallback;
 }
 
 /** Agent types that cannot leave a working-tree diff, so spawning one adds
@@ -60,13 +69,7 @@ function positiveIntEnv(name: string, fallback: number): number {
  *  write/edit capability are listed. `reviewer` and `planner` CAN write (review
  *  notes, plan docs, ADRs) that you might commit, so they intentionally still
  *  count — under-counting real review debt is the failure we most want to avoid. */
-export const READ_ONLY_AGENTS = new Set([
-  "explore",
-  "Explore",
-  "oracle",
-  "Plan",
-  "security-reviewer",
-]);
+export const READ_ONLY_AGENTS = new Set(["explore", "Explore", "Plan", "security-reviewer"]);
 
 /** Does spawning this agent type produce work that lands in your diff? Unknown
  *  or omitted types default to the general-purpose agent (which can edit), so
@@ -157,22 +160,14 @@ export function isCognitiveSurrender(
 }
 
 export function buildNudge(count: number, max: number): string {
-  return (
-    `You've spawned ${count} agents since your last commit (review queue ≥ ${max}). ` +
-    `Your review throughput is the bottleneck, not agent count — adding more agents just ` +
-    `deepens the queue in front of the one serial resource (you). Close the loop on what's ` +
-    `already done (review + commit) before fanning out further. Threshold: CC_MAX_UNREVIEWED. ` +
-    `(The Orchestration Tax.)`
-  );
+  return `Review queue: ${count} agent results unreviewed since the last commit (limit ${max}, CC_MAX_UNREVIEWED).`;
 }
 
 export function buildSurrenderNudge(count: number, dwellSeconds: number): string {
   return (
-    `You just committed ${count} agents' work ~${dwellSeconds}s after the first spawn — ` +
-    `faster than a real review of that much output plausibly takes. If you genuinely read ` +
-    `it, ignore this; if you rubber-stamped because forming an opinion cost attention you ` +
-    `didn't have, that's the cognitive-surrender failure mode — the tax getting paid as ` +
-    `silently-lowered standards. Threshold: CC_MIN_REVIEW_SECONDS. (The Orchestration Tax.)`
+    `You committed ${count} agents' work ~${dwellSeconds}s after the first spawn, faster than ` +
+    `reading that much output takes. If you did not read it all, review it before moving on ` +
+    `(cognitive-surrender check; threshold CC_MIN_REVIEW_SECONDS).`
   );
 }
 

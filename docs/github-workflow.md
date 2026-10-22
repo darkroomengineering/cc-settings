@@ -77,7 +77,7 @@ fix/42-login-redirect-loop
 chore/88-upgrade-dependencies
 ```
 
-The `project` skill extracts the first number and looks up that issue.
+`/handoff` extracts the first number and posts progress to that issue.
 
 ### 3. Create issues with task structure
 
@@ -133,10 +133,8 @@ Use Projects for the big picture. Use Issues for the actual plan. Don't conflate
 
 | Skill | GitHub Integration |
 |-------|-------------------|
-| `/project` | Reads linked issue on session start, updates on end |
 | `/handoff` | Posts progress comment on linked issue; also loads previous state on resume |
 | `/share-learning` | Stores team knowledge in the team-knowledge repo |
-| `/build`, `/fix` | Can reference issue tasks for scope |
 
 ---
 

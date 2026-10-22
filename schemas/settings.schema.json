@@ -49,9 +49,61 @@
       "properties": {
         "excludeDefault": {
           "type": "boolean"
+        },
+        "tips": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "cooldownSessions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "priority": {
+                    "type": "integer",
+                    "minimum": -10,
+                    "maximum": 10
+                  }
+                },
+                "required": [
+                  "id",
+                  "text"
+                ],
+                "additionalProperties": {}
+              }
+            ]
+          }
+        },
+        "tipsFile": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40
         }
       },
       "additionalProperties": {}
+    },
+    "keybindingFlavor": {
+      "type": "string",
+      "enum": [
+        "classic",
+        "readline"
+      ]
     },
     "statusLine": {
       "type": "object",
@@ -76,7 +128,20 @@
       ],
       "additionalProperties": false
     },
+    "bashOutputMaxChars": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 128000
+    },
     "showThinkingSummaries": {
+      "type": "boolean"
+    },
+    "maxProseWidth": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "emojiCompletionEnabled": {
       "type": "boolean"
     },
     "teammateMode": {
@@ -85,24 +150,56 @@
         "auto",
         "in-process",
         "tmux",
+        "iterm2",
         "manual",
         "disabled"
       ]
     },
     "attribution": {
-      "type": "object",
-      "properties": {
-        "commit": {
-          "type": "string"
+      "anyOf": [
+        {
+          "type": "boolean",
+          "const": false
         },
-        "pr": {
-          "type": "string"
-        },
-        "sessionUrl": {
-          "type": "boolean"
+        {
+          "type": "object",
+          "properties": {
+            "commit": {
+              "type": "string"
+            },
+            "pr": {
+              "type": "string"
+            },
+            "sessionUrl": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
+    },
+    "crossSessionInbound": {
+      "type": "string",
+      "enum": [
+        "accept",
+        "hold",
+        "refuse"
+      ]
+    },
+    "isolatePeerMachines": {
+      "type": "boolean"
+    },
+    "remoteControlAtStartup": {
+      "type": "boolean"
+    },
+    "dialogExpiry": {
+      "type": "string",
+      "enum": [
+        "60s",
+        "5m",
+        "10m",
+        "never"
+      ]
     },
     "plansDirectory": {
       "type": "string"
@@ -141,6 +238,7 @@
           "type": "string",
           "enum": [
             "default",
+            "manual",
             "acceptEdits",
             "plan",
             "auto",
@@ -165,6 +263,9 @@
             }
           },
           "additionalProperties": {}
+        },
+        "blockReadsOutsideWorkingDirectories": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -195,12 +296,15 @@
           "TeammateIdle",
           "ConfigChange",
           "CwdChanged",
+          "DirectoryAdded",
           "FileChanged",
           "InstructionsLoaded",
           "WorktreeCreate",
           "WorktreeRemove",
           "PreCompact",
           "PostCompact",
+          "PreModelSwitch",
+          "PostModelSwitch",
           "Elicitation",
           "ElicitationResult"
         ]
@@ -257,6 +361,10 @@
                       },
                       "continueOnBlock": {
                         "type": "boolean"
+                      },
+                      "onFailure": {
+                        "type": "string",
+                        "const": "block"
                       }
                     },
                     "required": [
@@ -310,6 +418,10 @@
                       },
                       "continueOnBlock": {
                         "type": "boolean"
+                      },
+                      "onFailure": {
+                        "type": "string",
+                        "const": "block"
                       }
                     },
                     "required": [
@@ -351,6 +463,10 @@
                       },
                       "continueOnBlock": {
                         "type": "boolean"
+                      },
+                      "onFailure": {
+                        "type": "string",
+                        "const": "block"
                       }
                     },
                     "required": [
@@ -392,6 +508,10 @@
                       },
                       "continueOnBlock": {
                         "type": "boolean"
+                      },
+                      "onFailure": {
+                        "type": "string",
+                        "const": "block"
                       }
                     },
                     "required": [
@@ -441,6 +561,10 @@
                       },
                       "continueOnBlock": {
                         "type": "boolean"
+                      },
+                      "onFailure": {
+                        "type": "string",
+                        "const": "block"
                       }
                     },
                     "required": [
@@ -489,6 +613,14 @@
                 }
               },
               "alwaysLoad": {
+                "type": "boolean"
+              },
+              "request_timeout_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bareElicitationCapability": {
                 "type": "boolean"
               },
               "_comment": {
@@ -546,6 +678,14 @@
                 }
               },
               "alwaysLoad": {
+                "type": "boolean"
+              },
+              "request_timeout_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bareElicitationCapability": {
                 "type": "boolean"
               },
               "_comment": {
@@ -611,6 +751,14 @@
               "alwaysLoad": {
                 "type": "boolean"
               },
+              "request_timeout_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bareElicitationCapability": {
+                "type": "boolean"
+              },
               "_comment": {
                 "type": "string"
               },
@@ -665,6 +813,30 @@
     "skipDangerousModePermissionPrompt": {
       "type": "boolean"
     },
+    "maxEffortLevel": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "modelSettings": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": {}
+      }
+    },
+    "bashEditDiffEnabled": {
+      "type": "boolean"
+    },
     "effortLevel": {
       "type": "string",
       "enum": [
@@ -674,6 +846,58 @@
         "xhigh",
         "max"
       ]
+    },
+    "promptCacheTtl": {
+      "type": "string",
+      "enum": [
+        "5m",
+        "1h"
+      ]
+    },
+    "subagentPromptCacheTtl": {
+      "type": "string",
+      "enum": [
+        "5m",
+        "1h"
+      ]
+    },
+    "modelPicker": {
+      "type": "object",
+      "properties": {
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "model"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "replaceBuiltInOptions": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "modelPricing": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "workflowSizeGuideline": {
+      "type": "string"
     },
     "disableSkillShellExecution": {
       "type": "boolean"
@@ -695,6 +919,17 @@
       "minimum": 1,
       "maximum": 9007199254740991
     },
+    "desktopSessionCleanupPeriodDays": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "timeFormat": {
+      "type": "string"
+    },
+    "timeZone": {
+      "type": "string"
+    },
     "channelsEnabled": {
       "type": "boolean"
     },
@@ -714,6 +949,216 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "managedMcpServers": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "http"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "headers": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "alwaysLoad": {
+                "type": "boolean"
+              },
+              "request_timeout_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bareElicitationCapability": {
+                "type": "boolean"
+              },
+              "_comment": {
+                "type": "string"
+              },
+              "_description": {
+                "type": "string"
+              },
+              "_usage": {
+                "type": "string"
+              },
+              "_contextCost": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "_status": {
+                "type": "string",
+                "enum": [
+                  "core",
+                  "optional"
+                ]
+              },
+              "serverInstructions": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "sse"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "headers": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "alwaysLoad": {
+                "type": "boolean"
+              },
+              "request_timeout_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bareElicitationCapability": {
+                "type": "boolean"
+              },
+              "_comment": {
+                "type": "string"
+              },
+              "_description": {
+                "type": "string"
+              },
+              "_usage": {
+                "type": "string"
+              },
+              "_contextCost": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "_status": {
+                "type": "string",
+                "enum": [
+                  "core",
+                  "optional"
+                ]
+              },
+              "serverInstructions": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "stdio"
+              },
+              "command": {
+                "type": "string",
+                "minLength": 1
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "env": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "alwaysLoad": {
+                "type": "boolean"
+              },
+              "request_timeout_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "bareElicitationCapability": {
+                "type": "boolean"
+              },
+              "_comment": {
+                "type": "string"
+              },
+              "_description": {
+                "type": "string"
+              },
+              "_usage": {
+                "type": "string"
+              },
+              "_contextCost": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "_status": {
+                "type": "string",
+                "enum": [
+                  "core",
+                  "optional"
+                ]
+              },
+              "serverInstructions": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "additionalProperties": false
+          }
+        ]
       }
     },
     "allowAllClaudeAiMcps": {
@@ -741,6 +1186,14 @@
     "feedbackSurveyRate": {
       "type": "number"
     },
+    "feedbackDrafts": {
+      "type": "string",
+      "enum": [
+        "notify",
+        "quiet",
+        "off"
+      ]
+    },
     "sandbox": {
       "type": "object",
       "properties": {
@@ -753,17 +1206,46 @@
         "allowAppleEvents": {
           "type": "boolean"
         },
+        "allowNestedUserNamespaces": {
+          "type": "boolean"
+        },
         "network": {
           "type": "object",
           "properties": {
+            "allowedDomains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "deniedDomains": {
               "type": "array",
               "items": {
                 "type": "string"
               }
+            },
+            "allowManagedDomainsOnly": {
+              "type": "boolean"
+            },
+            "strictAllowlist": {
+              "type": "boolean"
+            },
+            "tlsTerminate": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": {}
+            },
+            "allowUnixSockets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowAllUnixSockets": {
+              "type": "boolean"
             }
           },
-          "additionalProperties": false
+          "additionalProperties": {}
         },
         "filesystem": {
           "type": "object",
@@ -779,14 +1261,174 @@
               "items": {
                 "type": "string"
               }
+            },
+            "disabled": {
+              "type": "boolean"
             }
           },
-          "additionalProperties": false
+          "additionalProperties": {}
+        },
+        "credentials": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "deny",
+                      "mask"
+                    ]
+                  },
+                  "extract": {
+                    "type": "string"
+                  },
+                  "injectHosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "onExtractNoMatch": {
+                    "type": "string",
+                    "enum": [
+                      "warn",
+                      "deny",
+                      "error"
+                    ]
+                  },
+                  "maskDuplicates": {
+                    "type": "boolean"
+                  },
+                  "decode": {
+                    "type": "string",
+                    "enum": [
+                      "jwt"
+                    ]
+                  },
+                  "maskClaims": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "path",
+                  "mode"
+                ],
+                "additionalProperties": {}
+              }
+            },
+            "envVars": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "deny",
+                      "mask"
+                    ]
+                  },
+                  "injectHosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "decode": {
+                    "type": "string",
+                    "enum": [
+                      "jwt"
+                    ]
+                  },
+                  "maskClaims": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "mode"
+                ],
+                "additionalProperties": {}
+              }
+            },
+            "allowPlaintextInject": {
+              "type": "boolean"
+            },
+            "awsPairs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "accessKeyIdVar": {
+                    "type": "string"
+                  },
+                  "secretAccessKeyVar": {
+                    "type": "string"
+                  },
+                  "sessionTokenVar": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "accessKeyIdVar",
+                  "secretAccessKeyVar"
+                ],
+                "additionalProperties": {}
+              }
+            },
+            "sigv4": {
+              "type": "object",
+              "properties": {
+                "streaming": {
+                  "type": "string",
+                  "enum": [
+                    "deny",
+                    "passthrough"
+                  ]
+                },
+                "presigned": {
+                  "type": "string",
+                  "enum": [
+                    "deny",
+                    "passthrough"
+                  ]
+                },
+                "sigv4a": {
+                  "type": "string",
+                  "enum": [
+                    "deny",
+                    "passthrough"
+                  ]
+                }
+              },
+              "additionalProperties": {}
+            }
+          },
+          "additionalProperties": {}
         },
         "bwrapPath": {
           "type": "string"
         },
         "socatPath": {
+          "type": "string"
+        },
+        "ripgrep": {
           "type": "string"
         }
       },
@@ -838,6 +1480,9 @@
         "merge"
       ]
     },
+    "advisorModel": {
+      "type": "string"
+    },
     "agent": {
       "type": "string"
     },
@@ -875,6 +1520,40 @@
     "enableAllProjectMcpServers": {
       "type": "boolean"
     },
+    "syncClaudeAiSkills": {
+      "type": "boolean"
+    },
+    "syncClaudeAiPlugins": {
+      "type": "boolean"
+    },
+    "enabledPlugins": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "pluginConfigs": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "additionalProperties": {}
+      }
+    },
     "fallbackModel": {
       "anyOf": [
         {
@@ -899,6 +1578,9 @@
     "footerLinksRegexes": {
       "type": "array",
       "items": {}
+    },
+    "idleCompaction": {
+      "type": "boolean"
     },
     "includeCoAuthoredBy": {
       "type": "boolean"
@@ -925,6 +1607,18 @@
     },
     "skipWebFetchPreflight": {
       "type": "boolean"
+    },
+    "spellcheck": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        }
+      ]
     },
     "sshConfigs": {
       "type": "array",
@@ -953,6 +1647,12 @@
     "allowManagedHooksOnly": {
       "type": "boolean"
     },
+    "gatewayInternalNetworks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "allowManagedMcpServersOnly": {
       "type": "boolean"
     },
@@ -964,6 +1664,24 @@
       "items": {
         "type": "string"
       }
+    },
+    "availableModelsMatch": {
+      "type": "string"
+    },
+    "deniedModels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowedProviders": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowClaudeInChromeWithManagedMcp": {
+      "type": "boolean"
     },
     "blockedMarketplaces": {
       "type": "array",
@@ -1015,6 +1733,26 @@
     "requiredMinimumVersion": {
       "type": "string"
     },
+    "extraKnownMarketplaces": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "additionalMarketplaces": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "allowedMarketplaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "strictKnownMarketplaces": {
       "type": "array",
       "items": {
@@ -1052,11 +1790,15 @@
     "awsCredentialExport": {
       "type": "string"
     },
+    "forceLoginGatewayUrl": {
+      "type": "string"
+    },
     "forceLoginMethod": {
       "type": "string",
       "enum": [
         "claudeai",
-        "console"
+        "console",
+        "gateway"
       ]
     },
     "forceLoginOrgUUID": {
@@ -1076,6 +1818,12 @@
       "type": "string"
     },
     "awaySummaryEnabled": {
+      "type": "boolean"
+    },
+    "axScreenReader": {
+      "type": "boolean"
+    },
+    "respondToBashCommands": {
       "type": "boolean"
     },
     "editorMode": {
@@ -1129,6 +1877,15 @@
         "verbose",
         "focus"
       ]
+    },
+    "vimInsertModeRemaps": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
     }
   },
   "additionalProperties": {}

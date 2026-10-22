@@ -8,16 +8,18 @@
 // without capturing or parsing console output.
 
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { z } from "zod";
 import { Settings } from "../schemas/settings.ts";
 import { runGit } from "./git.ts";
+import { readState } from "./hook-runtime.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { LIGHT_SKILLS } from "./light-profile.ts";
 import { MANAGED_SKILLS } from "./managed-skills.ts";
-import { CLAUDE_JSON_PATH } from "./mcp.ts";
+import { type InstallPaths, os } from "./platform.ts";
+import { autoUpdateStatus } from "./schedule.ts";
 import type {
+  AutoUpdateData,
   EnvVarEntry,
   GitDriftData,
   HooksData,
@@ -27,25 +29,12 @@ import type {
   StatusData,
   VersionSentinelData,
 } from "./status-types.ts";
+import { compareVersion, readSentinel } from "./version-delta.ts";
 
-// Zod schema for the version sentinel file (~/.claude/.cc-settings-version).
-// Loose so future fields added by newer installers don't break reads. Kept
-// here (module level) rather than inside gatherStatus so it is defined once
-// regardless of how often gatherStatus is called.
-export const VersionSentinel = z.looseObject({
-  version: z.string().optional(),
-  installed_at: z.string().optional(),
-  profile: z.enum(["full", "light"]).optional(),
-});
+const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 // The env vars that CLAUDE-FULL.md promises are always set after install.
-export const EXPECTED_ENV_VARS = [
-  "CLAUDE_CODE_EFFORT_LEVEL",
-  "ENABLE_PROMPT_CACHING_1H",
-  "ENABLE_TOOL_SEARCH",
-  "CLAUDE_CODE_NO_FLICKER",
-  "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
-];
+export const EXPECTED_ENV_VARS = ["ENABLE_TOOL_SEARCH", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"];
 
 async function gatherGitDrift(sourceDir: string, claudeDir: string): Promise<GitDriftData> {
   const sha = await runGit(["rev-parse", "--short", "HEAD"], { cwd: sourceDir });
@@ -66,42 +55,31 @@ async function gatherGitDrift(sourceDir: string, claudeDir: string): Promise<Git
  * Gather all status data from the filesystem. No console output.
  *
  * @param sourceDir  Path to the cc-settings source repo checkout.
- * @param claudeDir  Path to the ~/.claude directory (install target).
+ * @param paths  Every install-adjacent path this reads (see InstallPaths). One
+ *               bundle rather than a bare claudeDir, because this function also
+ *               needs ~/.claude.json and $HOME — which it used to take from the
+ *               real host even when handed a fixture directory (F3).
  * @param packagedVersion  The VERSION constant from setup.ts — passed in so
  *                         this function doesn't need to import it.
  */
 export async function gatherStatus(
   sourceDir: string,
-  claudeDir: string,
+  paths: InstallPaths,
   packagedVersion: string,
 ): Promise<StatusData> {
+  const { claudeDir } = paths;
   // --- Sentinel ---
-  const sentinelPath = join(claudeDir, ".cc-settings-version");
-  let sentinelVersion: string | null = null;
-  let sentinelInstalledAt: string | null = null;
-  let sentinelProfile: "full" | "light" | undefined;
-  if (existsSync(sentinelPath)) {
-    try {
-      const parsed = JSON.parse(await readFile(sentinelPath, "utf8"));
-      const result = VersionSentinel.safeParse(parsed);
-      if (result.success) {
-        sentinelVersion = result.data.version ?? null;
-        sentinelInstalledAt = result.data.installed_at ?? null;
-        sentinelProfile = result.data.profile;
-      }
-      // On validation failure, sentinelVersion / sentinelInstalledAt stay null
-      // (treated as absent). The sentinel file has only 3 known fields and
-      // is written by writeVersionSentinel() in setup.ts, so a schema failure
-      // means the file is corrupt or tampered — falling back to null is safe.
-    } catch {
-      // JSON.parse threw — malformed file, treat as absent
-    }
-  }
+  // Parsed once through the shared SentinelSchema (version-delta.ts) — the
+  // single modeling of ~/.claude/.cc-settings-version. A missing sentinel, a
+  // malformed file, or a single field of the wrong type all degrade to
+  // "absent" for the affected field(s); see readSentinel's doc comment.
+  const parsedSentinel = await readSentinel(claudeDir);
   const sentinel: VersionSentinelData = {
-    version: sentinelVersion,
-    installedAt: sentinelInstalledAt,
-    profile: sentinelProfile,
+    version: parsedSentinel.version ?? null,
+    installedAt: parsedSentinel.installed_at ?? null,
+    profile: parsedSentinel.profile,
   };
+  const sentinelAutoUpdate = parsedSentinel.auto_update;
 
   // --- Git drift ---
   let git: GitDriftData | null = null;
@@ -166,7 +144,7 @@ export async function gatherStatus(
   };
 
   // MCP servers from ~/.claude.json
-  const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
+  const claudeJson = (await readJsonOrNull(paths.claudeJsonPath)) as {
     mcpServers?: Record<string, unknown>;
   } | null;
   const mcp: McpData = { servers: Object.keys(claudeJson?.mcpServers ?? {}) };
@@ -175,13 +153,37 @@ export async function gatherStatus(
   const warnings: { message: string }[] = [];
   if (missing.length > 0) warnings.push({ message: `${missing.length} skill(s) missing` });
   if (sentinel.version && sentinel.version !== packagedVersion) {
-    warnings.push({
-      message: `installed v${sentinel.version} ≠ packaged v${packagedVersion} (re-run to update)`,
-    });
+    if (STRICT_VERSION.test(sentinel.version) && STRICT_VERSION.test(packagedVersion)) {
+      const comparison = compareVersion(packagedVersion, sentinel.version);
+      warnings.push({
+        message:
+          comparison > 0
+            ? `installed v${sentinel.version} ≠ packaged v${packagedVersion} (re-run to update)`
+            : comparison < 0
+              ? `installed v${sentinel.version} is newer than packaged v${packagedVersion}; this source checkout is older, so update or replace it before reinstalling`
+              : `installed version ${sentinel.version} does not match packaged version ${packagedVersion}; verify the source checkout and installed metadata before reinstalling`,
+      });
+    } else {
+      warnings.push({
+        message: `installed version ${sentinel.version} does not match packaged version ${packagedVersion}; verify the source checkout and installed metadata before reinstalling`,
+      });
+    }
   }
   const missingEnvKeys = envVars.filter((e) => e.value === undefined);
   if (missingEnvKeys.length > 0) {
     warnings.push({ message: `${missingEnvKeys.length} env var(s) unset` });
+  }
+
+  // --- Auto-update (macOS only; side-effect-free — no launchctl call) ---
+  let autoUpdate: AutoUpdateData | undefined;
+  if (os === "macos") {
+    const { plistPresent } = await autoUpdateStatus(paths.homeDir);
+    const lastRun = await readState<{ at: string; status: string } | null>(
+      "auto-update-last-run.json",
+      null,
+      join(claudeDir, "tmp"),
+    );
+    autoUpdate = { enrolled: sentinelAutoUpdate, plistPresent, lastRun };
   }
 
   return {
@@ -193,6 +195,7 @@ export async function gatherStatus(
     envVars,
     permissions,
     mcp,
+    autoUpdate,
     warnings,
   };
 }

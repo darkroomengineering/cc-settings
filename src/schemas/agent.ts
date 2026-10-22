@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KEBAB_CASE_RE } from "../lib/frontmatter.ts";
 import { PermissionMode } from "./permissions.ts";
 
 // Agent frontmatter lives at the top of each agents/<name>.md file.
@@ -21,17 +22,24 @@ export const AgentModel = z.union([
 // under the agent-flavored name so existing importers keep working.
 export const AgentPermissionMode = PermissionMode;
 
-export const AgentIsolation = z.enum(["worktree"]);
-export const AgentMemory = z.enum(["project"]);
+// Mirrors knownAgentIsolation / knownAgentMemory in
+// upstream/claude-code-manifest.json — keep in sync so the upstream scanner
+// catches drift (see src/upstream/scan.ts). Widened 2026-07-06 (issue
+// #82/#104): "remote" isolation and "user"/"local" memory scopes are real,
+// documented values (see docs/frontmatter-reference.md) that were previously
+// rejected by these enums.
+export const AgentIsolation = z.enum(["worktree", "remote"]);
+export const AgentMemory = z.enum(["user", "project", "local"]);
 
 export const AgentFrontmatter = z.looseObject({
   name: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9][a-z0-9-]*$/, "name must be kebab-case (a-z, 0-9, -)"),
+    .regex(KEBAB_CASE_RE, "name must be kebab-case (a-z, 0-9, single hyphens)"),
   description: z.string().min(1),
   model: AgentModel.optional(),
   tools: z.array(z.string()).optional(),
+  allowedTools: z.array(z.string()).optional(), // alias for `tools` (docs/frontmatter-reference.md)
   disallowedTools: z.array(z.string()).optional(),
   maxTurns: z.number().int().positive().optional(),
   permissionMode: AgentPermissionMode.optional(),
@@ -40,6 +48,14 @@ export const AgentFrontmatter = z.looseObject({
   memory: AgentMemory.optional(),
   color: z.string().optional(),
   initialPrompt: z.string().optional(),
+  skills: z.array(z.string()).optional(), // skills to preload into the subagent context
+  background: z.boolean().optional(), // always run this subagent as a background task
+  omitClaudeMd: z.boolean().optional(), // 2.1.271 — run without user/project/local CLAUDE.md; managed policy files still load
+  experimental: z
+    .object({
+      cacheTtl: z.enum(["5m", "1h"]).optional(), // 2.1.248 — per-agent prompt cache TTL, used when no subagentPromptCacheTtl setting is configured
+    })
+    .optional(),
   // Future-leaning — accepted but not validated deeply.
   hooks: z.unknown().optional(),
   mcpServers: z.record(z.string(), z.unknown()).optional(),
@@ -52,3 +68,5 @@ export const AgentFrontmatter = z.looseObject({
 export type AgentFrontmatter = z.infer<typeof AgentFrontmatter>;
 export type AgentEffort = z.infer<typeof AgentEffort>;
 export type AgentPermissionMode = z.infer<typeof AgentPermissionMode>;
+export type AgentIsolation = z.infer<typeof AgentIsolation>;
+export type AgentMemory = z.infer<typeof AgentMemory>;

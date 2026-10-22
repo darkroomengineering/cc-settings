@@ -107,7 +107,7 @@ describe("review-queue lib", () => {
     const msg = buildNudge(7, 5);
     expect(msg).toContain("7");
     expect(msg).toContain("5");
-    expect(msg).toContain("Orchestration Tax");
+    expect(msg).toContain("CC_MAX_UNREVIEWED");
   });
 
   test("isGitCommit: matches real commits, ignores lookalikes", () => {
@@ -138,7 +138,7 @@ describe("review-queue lib", () => {
 
   test("isReviewableAgent: read-only agents don't count, writers/unknown do", () => {
     expect(isReviewableAgent("explore")).toBe(false);
-    expect(isReviewableAgent("oracle")).toBe(false);
+    expect(isReviewableAgent("Plan")).toBe(false);
     expect(isReviewableAgent("security-reviewer")).toBe(false);
     expect(isReviewableAgent("implementer")).toBe(true);
     expect(isReviewableAgent("tester")).toBe(true);
@@ -253,9 +253,9 @@ describe("tool-cadence hook — review-queue branch (e2e)", () => {
       const r1 = await runHook({ tool_name: "Agent", tool_input: {} }, home);
       const r2 = await runHook({ tool_name: "Agent", tool_input: {} }, home);
       const r3 = await runHook({ tool_name: "Agent", tool_input: {} }, home);
-      expect(r1.stdout).not.toContain("Orchestration Tax");
-      expect(r2.stdout).not.toContain("Orchestration Tax");
-      expect(r3.stdout).toContain("Orchestration Tax"); // CC_MAX_UNREVIEWED=3
+      expect(r1.stdout).not.toContain("Review queue:");
+      expect(r2.stdout).not.toContain("Review queue:");
+      expect(r3.stdout).toContain("Review queue:"); // CC_MAX_UNREVIEWED=3
       expect((await readQueue(home))?.awaiting).toBe(3);
     } finally {
       await rm(home, { recursive: true, force: true });
@@ -326,7 +326,7 @@ describe("tool-cadence hook — review-queue branch (e2e)", () => {
     const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
     try {
       await runHook({ tool_name: "Agent", tool_input: { subagent_type: "explore" } }, home);
-      await runHook({ tool_name: "Agent", tool_input: { subagent_type: "oracle" } }, home);
+      await runHook({ tool_name: "Agent", tool_input: { subagent_type: "Plan" } }, home);
       // No state written at all → still null (nothing awaiting).
       expect(await readQueue(home)).toBeNull();
       // A writer agent does count.
@@ -400,6 +400,35 @@ describe("tool-cadence hook — review-queue branch (e2e)", () => {
       expect((await readQueue(home))?.awaiting).toBe(1);
     } finally {
       await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a HEAD-moving command after HEAD advanced drains the queue", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cc-rq-"));
+    const repo = await mkdtemp(join(tmpdir(), "cc-rq-repo-"));
+    const git = (...args: string[]) => {
+      const r = Bun.spawnSync(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
+        { cwd: repo },
+      );
+      if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+    };
+    const pull = { tool_name: "Bash", tool_input: { command: "git pull --ff-only" }, cwd: repo };
+    try {
+      git("init", "-q");
+      git("commit", "-q", "--allow-empty", "-m", "one");
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook({ tool_name: "Agent", tool_input: {} }, home);
+      await runHook({ ...pull, tool_response: {} }, home);
+      expect((await readQueue(home))?.awaiting).toBe(2);
+      // HEAD moves without a Claude commit (a pulled-down merge, say); the next
+      // HEAD-moving command sees the change and drains.
+      git("commit", "-q", "--allow-empty", "-m", "two");
+      await runHook({ ...pull, tool_response: {} }, home);
+      expect((await readQueue(home))?.awaiting).toBe(0);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(repo, { recursive: true, force: true });
     }
   });
 });

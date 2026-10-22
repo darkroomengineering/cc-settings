@@ -5,7 +5,7 @@ requires:
   - command: ffmpeg
     install: "brew install ffmpeg (encoding, contact sheets, sound export)"
   - command: node
-    install: "Node 18+ (puppeteer-core capture rig; run npm i --prefix scripts/browser puppeteer-core once)"
+    install: "Node 18+ (puppeteer-core capture rig; run bun add --cwd scripts/browser puppeteer-core once)"
 ---
 
 # Case study from a project
@@ -62,7 +62,7 @@ capture. Before starting, read `references/gotchas.md`: each item there cost hou
   text system and the sound triggers (`grep -rnE "new Audio|Howl|\.play\(|AudioContext|\.(mp3|wav|ogg)" --include=*.{js,jsx,ts,tsx,svelte,vue} .`).
 - **Production URL:** find it (grep for the domain, or ask). Then decide where to capture from: run the local dev server and production
   side by side in the rig and compare. Prefer whichever renders correctly and matches what shipped. Usually that's production.
-- **Tools:** `ffmpeg`, Blender.app, Chrome, and puppeteer-core installed once with `npm i --prefix <SKILL>/scripts/browser puppeteer-core`.
+- **Tools:** `ffmpeg`, Blender.app, Chrome, and puppeteer-core installed once with `bun add --cwd <SKILL>/scripts/browser puppeteer-core`.
 
 ### 2. Browser rig
 ```
@@ -120,7 +120,7 @@ brief in `references/blender.md`, and review its overview sheet when it reports.
 
 ### 7. Image assets
 - `node media/export_svgs.js <svg_dir> <out>/NN_image_assets/svg <dir with sharp>` (the project's `node_modules` usually has it; otherwise
-  `npm i --prefix <WORK> sharp` and pass `<WORK>`): each SVG as svg + 2048 px
+  `bun add --cwd <WORK> sharp` and pass `<WORK>`): each SVG as svg + 2048 px
   transparent PNG + PNG on dark, grouped into glyphs / logos / frames / ui. Then add a 16:9 sheet of the glyphs.
 - Copy the full-resolution textures (skip `_SD` copies), MSDF atlases, favicons and patterns.
 

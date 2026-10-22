@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 // cc-settings installer.
 //
 // Invoked by the bootstrap at repo root:
@@ -9,68 +10,117 @@
 //
 // Flags:
 //   --source=<dir>     Explicit source directory (defaults to ../ from this file).
+//   --target=auto|claude|codex|both
+//                      Select install surfaces (default: auto).
 //   --rollback[=TS]    Restore newest backup (or a timestamp match) from ~/.claude/backups.
+//   --uninstall        Remove cc-settings-managed files from the selected target.
 //   --dry-run          Print planned actions without touching disk.
-//   --light            Install raw Claude Code + statusLine + share-learning skill only.
-//                      No CLAUDE.md, AGENTS.md, agents, rules, profiles, docs,
-//                      MCP servers, effort override, or permission rules.
+//   --light            Claude: statusLine + share-learning only. Codex: managed
+//                      AGENTS.md + runtime source only; no plugin, native agents,
+//                      or command rule.
+//   --fresh            Reinstall as if from scratch: removes settings.json,
+//                      prior-install state, and the repo's local approvals,
+//                      then installs the full baseline. Login, history, and
+//                      memory untouched. Recover with --rollback.
+//   --typesafe-key=<key>
+//                      TypeSafe API key for verbatim Jev compaction, stored in
+//                      the plugin's secure storage. Interactive installs prompt
+//                      for it when none is set; Enter skips.
 //   --help, -h         Usage.
 
 import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, rm } from "node:fs/promises";
-import { homedir } from "node:os";
+import { readFile, rename, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { checkCliTools, printPreflightReport } from "./lib/cli-preflight.ts";
-import { debug, error, info, palette, showBanner, success, warn } from "./lib/colors.ts";
+import {
+  addGeneratedManagedFiles,
+  assertClaudeLifecycleOwnershipUnchanged,
+  type ClaudeMutationPhase,
+  type ClaudeSharedExplicitDrift,
+  type ClaudeSharedExplicitSnapshot,
+  captureClaudeSharedExplicitDrift,
+  captureClaudeSharedExplicitDriftAfterFailure,
+  captureClaudeSharedExplicitState,
+  claudeManagedPath,
+  ensurePersonalInstructionsFile,
+  prepareClaudeInstallOwnership,
+  regularFileHash,
+  validateClaudeManagedFiles,
+  writeVersionSentinel,
+} from "./lib/claude-install-ownership.ts";
+import {
+  installPlugins,
+  installSettings,
+  refreshSettingsFingerprint,
+  restrictKeyedSettings,
+} from "./lib/claude-install-settings.ts";
+import { CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION } from "./lib/claude-managed-files.ts";
+import { resolveEngine } from "./lib/code-intel-engine.ts";
+import {
+  codexCliAvailable,
+  codexInstallPaths,
+  dryRunCodex,
+  gatherCodexStatus,
+  installCodex,
+  isCodexCliSkippedForTests,
+  readCodexInstalledVersion,
+  validateProductRootDisjointness,
+} from "./lib/codex-install.ts";
+import { error, info, palette, progressArrow, showBanner, success, warn } from "./lib/colors.ts";
 import { composeSettings } from "./lib/compose-settings.ts";
+import { reportCopilotSync } from "./lib/copilot-instructions.ts";
 import { formatFrontmatterIssues, validateFrontmatters } from "./lib/frontmatter-validate.ts";
+import { FINGERPRINT_FILENAME } from "./lib/hooks-fingerprint.ts";
 import {
-  writeFingerprint as writeHooksFingerprint,
-  writeSrcManifest,
-} from "./lib/hooks-fingerprint.ts";
-import { cmdRollback, printHelp } from "./lib/install-cmds.ts";
+  ClaudePrewriteOwnershipChangedError,
+  type PreparedClaudeRollback,
+  prepareClaudeCompensation,
+  printHelp,
+} from "./lib/install-cmds.ts";
 import { cmdDryRun, printStatus, showSummary } from "./lib/install-display.ts";
-import { atomicWriteJson, JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
+import { createBackup, createDirectories, preflightInstallSource } from "./lib/install-fs.ts";
 import {
-  applyLightProfile,
-  LIGHT_SKILLS,
-  PROFILE_MANIFEST,
-  type Profile,
-  stripManagedSettings,
-} from "./lib/light-profile.ts";
-import { MANAGED_SKILLS } from "./lib/managed-skills.ts";
+  applyAutoUpdate,
+  assertAutoUpdateRequestDoesNotClaimIndependentState,
+  createSharedBackupId,
+  resolveEnrolledRepoPath,
+  restoreCodexAfterClaudePrewriteChange,
+  restoreCombinedAfterClaudeFailure,
+  runFullInstall,
+  runSelectedRollback,
+  runSelectedUninstall,
+  underInstallLock,
+} from "./lib/install-lifecycle.ts";
+import { type InstallArgs, type InstallTarget, includesTarget } from "./lib/install-types.ts";
+import { JsonParseError, readJsonOrNull } from "./lib/json-io.ts";
+import { retireSkills, scanRetiredSkills } from "./lib/managed-skills.ts";
+import { CLAUDE_JSON_PATH, type McpServers, removeManagedMcpServers } from "./lib/mcp.ts";
+import { CLAUDE_DIR, getTimestamp, installPaths, isWindows } from "./lib/platform.ts";
+import { isInteractive, promptYn } from "./lib/prompts.ts";
+import { type AutoUpdateStateSnapshot, snapshotAutoUpdateState } from "./lib/schedule.ts";
 import {
-  installMcpToClaudeJson,
-  type McpServers,
-  mergeSettingsWithMcpPreservation,
-  removeManagedMcpServers,
-} from "./lib/mcp.ts";
-import { ensurePythonPackage, ensureSystemPackage, getInstallHint } from "./lib/packages.ts";
-import { CLAUDE_DIR, getTimestamp, hasCommand, isWindows } from "./lib/platform.ts";
-import { printMergeAccounting } from "./lib/settings-merge.ts";
+  BASELINE_FILENAME,
+  readSettingsBaseline,
+  type SettingsBaseline,
+} from "./lib/settings-baseline.ts";
 import { formatPrereqWarnings, reportMissingPrereqs } from "./lib/skill-prereqs.ts";
 import { gatherStatus } from "./lib/status.ts";
-import { buildVersionDelta, readInstalledVersion } from "./lib/version-delta.ts";
-import { Settings } from "./schemas/settings.ts";
+import {
+  buildVersionDelta,
+  compareVersion,
+  readDestructiveSentinel,
+  readSentinel,
+  readSentinelInfo,
+} from "./lib/version-delta.ts";
 
-const VERSION = "11.28.1"; // follow-up fixes to the Bun built-in swap (#68: Bun.YAML duplicate-key detection, promptYn Ctrl+C via AbortController) + install-summary count fix (skills/ counted SKILL.md subdirs not top-level README → 35 not 1; docs/ counts recursively → 22) with regression tests
+export type { InstallTarget } from "./lib/install-types.ts";
 
-// --- Arg parsing ---------------------------------------------------------
+const VERSION = "15.87.0"; // case-study skill.
+const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
-type Args = {
-  rollback: string | true | null;
-  dryRun: boolean;
-  status: boolean;
-  help: boolean;
-  sourceDir: string;
-  interactive: boolean;
-  migrateOnly: boolean;
-  profile: Profile;
-};
-
-export function parseArgs(argv: string[]): Args {
-  const args: Args = {
+export function parseArgs(argv: string[]): InstallArgs {
+  const args: InstallArgs = {
     rollback: null,
+    uninstall: false,
     dryRun: false,
     status: false,
     help: false,
@@ -79,10 +129,16 @@ export function parseArgs(argv: string[]): Args {
     interactive: process.env.CC_INTERACTIVE === "1",
     migrateOnly: false,
     profile: "full",
+    autoUpdate: null,
+    target: "auto",
+    fresh: false,
+    typesafeKey: null,
+    errors: [],
   };
   for (const a of argv) {
     if (a === "--rollback") args.rollback = true;
     else if (a.startsWith("--rollback=")) args.rollback = a.slice("--rollback=".length);
+    else if (a === "--uninstall") args.uninstall = true;
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--status") args.status = true;
     else if (a === "--interactive") args.interactive = true;
@@ -90,498 +146,164 @@ export function parseArgs(argv: string[]): Args {
     else if (a === "--help" || a === "-h") args.help = true;
     else if (a.startsWith("--source=")) args.sourceDir = resolve(a.slice("--source=".length));
     else if (a === "--light") args.profile = "light";
+    else if (a === "--fresh") args.fresh = true;
+    else if (a.startsWith("--typesafe-key=")) {
+      const value = a.slice("--typesafe-key=".length).trim();
+      if (value) args.typesafeKey = value;
+      else args.errors.push("--typesafe-key= needs a value");
+    } else if (a.startsWith("--target=")) {
+      const value = a.slice("--target=".length);
+      if (value === "auto" || value === "claude" || value === "codex" || value === "both") {
+        args.target = value;
+      } else {
+        args.errors.push(`--target=${value} is not valid (expected auto, claude, codex, or both)`);
+      }
+    } else if (a.startsWith("--auto-update=")) {
+      const value = a.slice("--auto-update=".length);
+      if (value === "on" || value === "off") args.autoUpdate = value;
+      else args.errors.push(`--auto-update=${value} is not valid (expected "on" or "off")`);
+    } else args.errors.push(`Unknown argument: ${a}`);
+  }
+  // --uninstall and --rollback dispatch before the dry-run path, so a preview
+  // would run for real. Refuse the combination instead of mutating disk.
+  if (args.dryRun && args.uninstall) args.errors.push("--dry-run cannot preview --uninstall");
+  if (args.dryRun && args.rollback !== null) {
+    args.errors.push("--dry-run cannot preview --rollback");
   }
   return args;
-}
-
-// --- Install plan --------------------------------------------------------
-
-/**
- * Describes one planned install action — either a file/dir copy or a prune.
- * Produced once by buildInstallPlan; consumed by installConfigFiles (action),
- * cmdDryRun (display), and showSummary (display).
- */
-export interface InstallStep {
-  /** Path relative to both sourceDir (for "copy") and CLAUDE_DIR (for "prune"). */
-  rel: string;
-  /** "copy" = copy from source → target; "prune" = remove from target. */
-  action: "copy" | "prune";
-  /** Whether the source (for "copy") or target (for "prune") exists on disk. */
-  exists: boolean;
-  /** Human-readable annotation shown in dry-run / summary tables. */
-  label?: string;
-}
-
-/**
- * Produce the complete planned footprint for an install: every file/dir that
- * will be copied or pruned, derived from PROFILE_MANIFEST and LIGHT_SKILLS.
- * The display sites (showSummary, cmdDryRun) and the light-profile install path
- * (installConfigFiles) consume this list instead of re-walking the manifest;
- * the full-profile install reads PROFILE_MANIFEST directly (the plan is derived
- * from the same manifest).
- *
- * Does NOT touch disk — pure computation from the manifest + existsSync checks.
- */
-export function buildInstallPlan(sourceDir: string, profile: "full" | "light"): InstallStep[] {
-  const steps: InstallStep[] = [];
-
-  if (profile === "light") {
-    // Copy the LIGHT_SKILLS subset of skills/.
-    for (const skill of LIGHT_SKILLS) {
-      const rel = `skills/${skill}`;
-      steps.push({
-        rel,
-        action: "copy",
-        exists: existsSync(join(sourceDir, rel)),
-        label: `→ ~/.claude/${rel}/`,
-      });
-    }
-
-    // Prune skills from a prior full install that are not in the light set.
-    // Scoped to MANAGED_SKILLS so user-authored skills are never touched.
-    const lightSkillSet = new Set(LIGHT_SKILLS);
-    for (const skill of MANAGED_SKILLS) {
-      if (!lightSkillSet.has(skill)) {
-        steps.push({
-          rel: `skills/${skill}`,
-          action: "prune",
-          exists: existsSync(join(CLAUDE_DIR, `skills/${skill}`)),
-        });
-      }
-    }
-
-    // Prune full-only rootFiles and dirs (CLAUDE.md, AGENTS.md, agents/, …).
-    const { full, light } = PROFILE_MANIFEST;
-    const lightFiles = new Set(light.rootFiles.map(([, dest]) => dest));
-    const lightDirs = new Set([...light.dirs, ...light.retainedDirs]);
-    for (const [, dest] of full.rootFiles) {
-      if (!lightFiles.has(dest)) {
-        steps.push({
-          rel: dest,
-          action: "prune",
-          exists: existsSync(join(CLAUDE_DIR, dest)),
-        });
-      }
-    }
-    for (const d of full.dirs) {
-      if (!lightDirs.has(d)) {
-        steps.push({
-          rel: d,
-          action: "prune",
-          exists: existsSync(join(CLAUDE_DIR, d)),
-        });
-      }
-    }
-  } else {
-    // Full profile: every rootFile + dir from the manifest.
-    const ROOT_FILE_LABELS: Record<string, string> = {
-      "CLAUDE.md": "(Claude-Code config)",
-      "AGENTS.md": "(portable standards)",
-    };
-    const manifest = PROFILE_MANIFEST.full;
-    for (const [src, dest] of manifest.rootFiles) {
-      const label = ROOT_FILE_LABELS[dest] ? `${dest} ${ROOT_FILE_LABELS[dest]}` : dest;
-      steps.push({
-        rel: src,
-        action: "copy",
-        exists: existsSync(join(sourceDir, src)),
-        label,
-      });
-    }
-    for (const d of manifest.dirs) {
-      steps.push({
-        rel: d,
-        action: "copy",
-        exists: existsSync(join(sourceDir, d)),
-        label: `${d}/`,
-      });
-    }
-  }
-
-  return steps;
-}
-
-// --- Install phases ------------------------------------------------------
-
-async function createBackup(): Promise<void> {
-  const backupDir = join(CLAUDE_DIR, "backups");
-  await mkdir(backupDir, { recursive: true });
-
-  const home = homedir();
-  // Home-relative paths so the archive can include ~/.claude.json — it holds the
-  // MCP server config that installMcpToClaudeJson rewrites and lives alongside
-  // ~/.claude, not inside it. Without it, --rollback could not restore a user's
-  // MCP setup. cmdRollback detects this layout (".claude/"-prefixed entries) and
-  // extracts from $HOME; older ~/.claude-relative archives still restore correctly.
-  const candidates = [
-    ".claude/settings.json",
-    ".claude/CLAUDE.md",
-    ".claude/AGENTS.md",
-    ".claude.json",
-  ];
-  const existing = candidates.filter((f) => existsSync(join(home, f)));
-  if (existing.length === 0) return;
-
-  const stamp = getTimestamp();
-  const archive = join(backupDir, `backup-${stamp}.tar.gz`);
-  const proc = Bun.spawn(["tar", "-czf", archive, ...existing], {
-    cwd: home,
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  const [stderrText, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
-  if (code !== 0) {
-    // A silent backup failure would let the install proceed into cleanOldConfig
-    // (which rm -rf's managed dirs) with no restore point — the advertised
-    // --rollback safety net would be quietly disabled. Abort instead.
-    error(`Backup failed (tar exited ${code}): ${stderrText.trim()}`);
-    error("Aborting so --rollback stays possible. Fix the tar error above and re-run.");
-    throw new Error(`backup failed — tar exited ${code}`);
-  }
-
-  // Keep last 5.
-  const kept = (await readdir(backupDir)).filter((e) => /^backup-.*\.tar\.gz$/.test(e)).sort();
-  if (kept.length > 5) {
-    await Promise.all(
-      kept
-        .slice(0, kept.length - 5)
-        .map((old) => rm(join(backupDir, old), { force: true }).catch(() => {})),
-    );
-  }
-}
-
-async function createDirectories(): Promise<void> {
-  const dirs = [
-    "agents",
-    "skills",
-    "profiles",
-    "rules",
-    "handoffs",
-    "learnings",
-    "hooks",
-    "memory",
-    "memory/agents",
-    "docs",
-    "tldr-cache",
-    "backups",
-    "tmp",
-    "logs",
-    "src",
-    "src/scripts",
-    "src/hooks",
-    "src/lib",
-    "src/schemas",
-  ];
-  await Promise.all(dirs.map((d) => mkdir(join(CLAUDE_DIR, d), { recursive: true })));
-}
-
-async function cleanOldConfig(): Promise<void> {
-  const removeGlob = async (dir: string, pattern: RegExp) => {
-    const full = join(CLAUDE_DIR, dir);
-    if (!existsSync(full)) return;
-    const entries = await readdir(full).catch(() => []);
-    await Promise.all(
-      entries.filter((e) => pattern.test(e)).map((e) => rm(join(full, e), { force: true })),
-    );
-  };
-
-  const junkFiles = [
-    "skill-rules.cache",
-    "skill-activation.out",
-    "skill-index.compiled",
-    "skill-index.checksum",
-    "CLAUDE.md",
-    "AGENTS.md",
-  ];
-
-  // Every removal below targets a disjoint path, so they run concurrently:
-  // legacy bash artifacts, fresh wipes of managed content (re-installed after),
-  // managed skill directories, and stale caches + legacy top-level docs.
-  await Promise.all([
-    rm(join(CLAUDE_DIR, "scripts"), { recursive: true, force: true }).catch(() => {}),
-    rm(join(CLAUDE_DIR, "lib"), { recursive: true, force: true }).catch(() => {}),
-    rm(join(CLAUDE_DIR, "hooks-config.json"), { force: true }).catch(() => {}),
-    rm(join(CLAUDE_DIR, "hooks-config.local.json"), { force: true }).catch(() => {}),
-    removeGlob("agents", /\.md$/),
-    removeGlob("skills", /\.(json|md)$/),
-    removeGlob("profiles", /\.md$/),
-    removeGlob("rules", /\.md$/),
-    // contexts/ retired (folded into profiles/); prune the legacy installed dir.
-    rm(join(CLAUDE_DIR, "contexts"), { recursive: true, force: true }).catch(() => {}),
-    removeGlob("hooks", /\.md$/),
-    removeGlob("docs", /\.md$/),
-    ...MANAGED_SKILLS.map((s) =>
-      rm(join(CLAUDE_DIR, "skills", s), { recursive: true, force: true }),
-    ),
-    ...junkFiles.map((junk) => rm(join(CLAUDE_DIR, junk), { force: true }).catch(() => {})),
-  ]);
-}
-
-async function copyIfPresent(src: string, dst: string): Promise<boolean> {
-  if (!existsSync(src)) return false;
-  await cp(src, dst, { recursive: false, force: true });
-  return true;
-}
-
-/**
- * Copy entries from srcDir to dstDir, filtering by the keep predicate.
- * Skips entries where keep(name) returns false.
- */
-async function copyDirContentsFiltered(
-  srcDir: string,
-  dstDir: string,
-  keep: (name: string) => boolean,
-): Promise<void> {
-  if (!existsSync(srcDir)) return;
-  await mkdir(dstDir, { recursive: true });
-  const entries = await readdir(srcDir, { withFileTypes: true });
-  // Each entry copies to a distinct destination path — run them concurrently.
-  await Promise.all(
-    entries
-      .filter((e) => keep(e.name))
-      .map((e) => cp(join(srcDir, e.name), join(dstDir, e.name), { recursive: true, force: true })),
-  );
-}
-
-/** Copy all entries from srcDir to dstDir (no filtering). */
-async function copyDirContents(srcDir: string, dstDir: string): Promise<void> {
-  return copyDirContentsFiltered(srcDir, dstDir, () => true);
-}
-
-/**
- * Execute the copy/prune steps from buildInstallPlan. cleanOldConfig must
- * already have run so MANAGED_SKILLS dirs are wiped before copy.
- *
- * For the light profile, all plan steps (copy + prune) are executed directly
- * from buildInstallPlan — making buildInstallPlan the honest single source of
- * truth for what the light path touches (§1.3).
- */
-async function installConfigFiles(source: string, profile: Profile): Promise<void> {
-  if (profile === "light") {
-    const plan = buildInstallPlan(source, profile);
-    // Execute copy steps: LIGHT_SKILLS subset via filtered copy.
-    const lightSkillSet = new Set(LIGHT_SKILLS);
-    await copyDirContentsFiltered(join(source, "skills"), join(CLAUDE_DIR, "skills"), (name) =>
-      lightSkillSet.has(name),
-    );
-    // Execute all prune steps from the plan (skill dirs + full-only rootFiles/dirs).
-    const pruneSteps = plan.filter((s) => s.action === "prune");
-    await Promise.all(
-      pruneSteps.map((s) =>
-        rm(join(CLAUDE_DIR, s.rel), { recursive: true, force: true }).catch(() => {}),
-      ),
-    );
-  } else {
-    // Full profile: every rootFile + dir from the manifest. Destinations are
-    // disjoint, so all copies run in parallel.
-    const manifest = PROFILE_MANIFEST.full;
-    await Promise.all([
-      ...manifest.rootFiles.map(([src, dest]) =>
-        copyIfPresent(join(source, src), join(CLAUDE_DIR, dest)),
-      ),
-      ...manifest.dirs.map((d) => copyDirContents(join(source, d), join(CLAUDE_DIR, d))),
-    ]);
-  }
-}
-
-async function installTsSources(source: string): Promise<void> {
-  const srcTs = join(source, "src");
-  if (!existsSync(srcTs)) return;
-  const dstTs = join(CLAUDE_DIR, "src");
-  // Clean previous TS install so stale ports don't linger.
-  await rm(dstTs, { recursive: true, force: true });
-  await mkdir(dstTs, { recursive: true });
-  await copyDirContents(srcTs, dstTs);
-
-  // Dep resolution: copy lockfile + config, link node_modules back to source.
-  await Promise.all([
-    copyIfPresent(join(source, "package.json"), join(dstTs, "package.json")),
-    copyIfPresent(join(source, "tsconfig.json"), join(dstTs, "tsconfig.json")),
-    copyIfPresent(join(source, "bun.lock"), join(dstTs, "bun.lock")),
-  ]);
-
-  const srcNm = join(source, "node_modules");
-  const dstNm = join(dstTs, "node_modules");
-  if (existsSync(srcNm) && !existsSync(dstNm)) {
-    try {
-      await Bun.spawn(["ln", "-s", srcNm, dstNm], { stdout: "ignore", stderr: "ignore" }).exited;
-    } catch {
-      await cp(srcNm, dstNm, { recursive: true, force: true }).catch(() => {});
-    }
-  }
-}
-
-// --- Settings + MCP install ---------------------------------------------
-
-async function installSettings(
-  source: string,
-  interactive: boolean,
-  profile: Profile,
-): Promise<void> {
-  const userSettingsPath = join(CLAUDE_DIR, "settings.json");
-  // Compose team settings from config/ fragments (always the full baseline).
-  // composeSettings schema-validates the composed object and throws on a bad
-  // fragment, so everything below can trust the in-memory object.
-  const fullComposed = await composeSettings(source);
-
-  if (profile === "light") {
-    // Light = raw Claude Code. Build the target settings:
-    //   - Start from the light baseline ($schema + statusLine only).
-    //   - If an existing settings.json is present, strip cc-settings' managed
-    //     footprint from it first (so a prior full install doesn't survive the
-    //     switch), then overlay $schema + statusLine.
-    const lightBaseline = applyLightProfile(fullComposed);
-    const existingRaw = await readJsonOrNull(userSettingsPath);
-    let result: Record<string, unknown>;
-    if (existingRaw === null || typeof existingRaw !== "object") {
-      // Fresh install — write the light baseline directly.
-      result = lightBaseline;
-    } else {
-      // Existing settings.json: strip cc-settings footprint, then overlay the
-      // light baseline. applyLightProfile emits ONLY $schema + statusLine, and
-      // only when present in the composed settings, so a plain spread is exact.
-      const cleaned = stripManagedSettings(existingRaw as Record<string, unknown>, fullComposed);
-      result = { ...cleaned, ...lightBaseline };
-    }
-    await atomicWriteJson(userSettingsPath, result);
-
-    // Light has no team MCP servers. Remove any cc-settings-managed servers
-    // that may have been written to ~/.claude.json by a prior full install.
-    await removeManagedMcpServers(fullComposed);
-
-    // Fingerprint the (empty/light) hooks block for the integrity check —
-    // straight from the in-memory object, no disk re-read.
-    await fingerprintSettingsHooks(result);
-    return;
-  }
-
-  // Full profile path: merge the in-memory composed settings into the user's
-  // settings.json, then install the team MCP block into ~/.claude.json. The
-  // MCP block was validated exactly once — by composeSettings, whose Settings
-  // schema types mcpServers with the McpServers schema.
-  const teamMcp = (fullComposed.mcpServers ?? {}) as McpServers;
-  const accounting = await mergeSettingsWithMcpPreservation(
-    userSettingsPath,
-    fullComposed,
-    userSettingsPath,
-    { interactive },
-  );
-  if (accounting) printMergeAccounting(accounting, { interactive });
-  await installMcpToClaudeJson(teamMcp);
-
-  // Record a SHA256 of the merged hooks block so verify-hooks.ts (the
-  // SessionStart integrity check) can detect post-install tampering — the
-  // Shai-Hulud worm attack pattern (May 2026). Re-running setup.sh refreshes
-  // the fingerprint, which is the intended workflow when users intentionally
-  // add custom hooks. See SECURITY.md. Read back the merged file the merger
-  // just wrote; best-effort, so a read failure only skips the fingerprint.
-  const mergedReadBack = await readJsonOrNull(userSettingsPath).catch(() => null);
-  if (mergedReadBack !== null) await fingerprintSettingsHooks(mergedReadBack);
-}
-
-/**
- * Hash + persist the hooks block of a settings object for the SessionStart
- * integrity check. Validates against Settings first, with a forward-compat
- * fallback: if a new Claude Code version added a key the schema doesn't know
- * yet, the raw object is fingerprinted so the check isn't silently skipped.
- * Schema issues are debug-logged. The write is best-effort — a failed write
- * means verify-hooks.ts prints a "missing fingerprint" nudge on the next
- * session; it never blocks.
- */
-async function fingerprintSettingsHooks(settings: unknown): Promise<void> {
-  try {
-    const validated = Settings.safeParse(settings);
-    if (!validated.success) {
-      const issues = validated.error.issues
-        .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join("; ");
-      debug(`settings.json failed schema validation after merge (fingerprinting raw): ${issues}`);
-    }
-    await writeHooksFingerprint(validated.success ? validated.data : settings, CLAUDE_DIR);
-  } catch {
-    // Best-effort — see JSDoc above.
-  }
-}
-
-// --- Dependencies --------------------------------------------------------
-
-async function installDependencies(profile: Profile): Promise<void> {
-  // CC_SKIP_DEPS=1 — used by E2E tests to avoid touching system-wide install
-  // locations (npm global, pipx, etc.) when running setup.sh against a tmp
-  // HOME. Setting HOME to tmpdir doesn't isolate `npm i -g` writes.
-  if (process.env.CC_SKIP_DEPS === "1") return;
-
-  // Light is raw Claude Code + statusLine (pure Bun) + share-learning skill.
-  // No hooks require jq, pipx, or llm-tldr — skip all system deps.
-  if (profile === "light") return;
-
-  if (!hasCommand("jq")) {
-    const ok = await ensureSystemPackage("jq");
-    if (!ok) warn(`Install jq manually: ${getInstallHint("jq")}`);
-  }
-
-  if (!hasCommand("pipx")) await ensureSystemPackage("pipx").catch(() => false);
-  if (!hasCommand("tldr") && !hasCommand("tldr-mcp")) {
-    await ensurePythonPackage("llm-tldr", "tldr").catch(() => false);
-  }
-}
-
-async function writeVersionSentinel(sourceDir: string, profile: Profile): Promise<void> {
-  const payload = {
-    version: VERSION,
-    installed_at: new Date().toISOString(),
-    installer: "src/setup.ts",
-    // Where this install came from — lets the SessionStart drift check locate
-    // the repo and compare the installed version against the packaged one.
-    repo_path: sourceDir,
-    profile,
-  };
-  await atomicWriteJson(join(CLAUDE_DIR, ".cc-settings-version"), payload);
 }
 
 // --- Status --------------------------------------------------------------
 
 async function cmdStatus(sourceDir: string): Promise<number> {
-  const data = await gatherStatus(sourceDir, CLAUDE_DIR, VERSION);
+  const data = await gatherStatus(sourceDir, installPaths(), VERSION);
   printStatus(data);
   return 0; // status is informational; never fail
 }
 
-// --- Main ----------------------------------------------------------------
-
 /**
- * Run the full install path: deps → backup → dirs → clean → light-incompatible
- * removal → file copy → TS source copy → src manifest.
+ * Auto-detect used to silently pick `both` whenever a `codex` binary was on
+ * PATH — surprise-installing cc-settings for Codex when the user only wanted
+ * Claude, and hard-failing when the binary was a proxy shim (cmux drops one
+ * under $TMPDIR/cmux-cli-shims that exits 0 while printing "codex not found
+ * in PATH"). The Codex install is now opt-in on the `auto` path:
+ * ask, with the probe result as the default. Non-interactive callers (CI,
+ * piped input) fall through to the default silently — never Codex without
+ * explicit consent.
  *
- * PHASE ORDER IS CORRECTNESS-CRITICAL:
- *   clean before copy; fingerprint after settings write; manifest write for
- *   tamper defense. Do not reorder.
+ * Explicit `--target=claude|codex|both` bypasses the prompt entirely.
  */
-async function runFullInstall(args: Args): Promise<void> {
-  info("Installing dependencies...");
-  await installDependencies(args.profile);
-  printPreflightReport(checkCliTools());
+async function resolveInstallTarget(
+  target: InstallTarget,
+): Promise<Exclude<InstallTarget, "auto">> {
+  if (target !== "auto") return target;
+  const codexLooksInstalled = codexCliAvailable();
+  const wantsCodex = await promptYn(
+    codexLooksInstalled
+      ? "Codex detected. Install cc-settings for Codex too?"
+      : "Also install cc-settings for the Codex CLI? (only if you use Codex)",
+    codexLooksInstalled,
+  );
+  return wantsCodex ? "both" : "claude";
+}
 
-  info("Creating backup...");
-  await createBackup();
+interface ClaudeInstalledVersionForGuard {
+  version: string;
+  usesHistoricalOwnership: boolean;
+}
 
-  info("Installing configuration...");
-  await createDirectories();
-  await cleanOldConfig();
-  // Disjoint destination trees (config dirs vs ~/.claude/src), so install both
-  // in parallel. Both must follow the clean above. For light, installConfigFiles
-  // owns the full footprint: it copies the LIGHT_SKILLS subset and prunes every
-  // full-only target (CLAUDE.md, AGENTS.md, agents/, rules/, profiles/, docs/).
-  await Promise.all([
-    installConfigFiles(args.sourceDir, args.profile),
-    installTsSources(args.sourceDir),
-  ]);
-  // Content manifest of the just-installed ~/.claude/src tree — the
-  // supply-chain layer that catches dropped/patched script content
-  // (verify-hooks.ts re-checks it at SessionStart; audit-hooks.ts gates
-  // "trusted" on it). Refreshed ONLY here, never by the auditor. Best-effort:
-  // a failed write just downgrades audit classifications to "unknown".
-  await writeSrcManifest(join(CLAUDE_DIR, "src"), CLAUDE_DIR).catch(() => {});
+async function readClaudeInstalledVersionForGuard(): Promise<ClaudeInstalledVersionForGuard | null> {
+  const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
+  let text: string;
+  try {
+    text = await readFile(sentinelPath, "utf8");
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw new Error(`Cannot read Claude Code install metadata: ${sentinelPath}`, { cause });
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (cause) {
+    throw new Error(`Claude Code install metadata is not valid JSON: ${sentinelPath}`, { cause });
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Claude Code install metadata has no valid version: ${sentinelPath}`);
+  }
+  const sentinel = value as Record<string, unknown>;
+  const version = sentinel.version;
+  if (version === undefined && sentinel.managed_files_state === "managed-absent") return null;
+  if (typeof version !== "string") {
+    throw new Error(`Claude Code install metadata has no valid version: ${sentinelPath}`);
+  }
+  return {
+    version,
+    usesHistoricalOwnership:
+      sentinel.managed_files === undefined && sentinel.managed_files_state === undefined,
+  };
+}
+
+async function normalInstallVersionGuard(target: Exclude<InstallTarget, "auto">): Promise<boolean> {
+  if (!STRICT_VERSION.test(VERSION)) {
+    error(`Packaged cc-settings version is invalid: ${VERSION}. Update or replace this checkout.`);
+    return false;
+  }
+
+  const installedVersions: Array<{
+    product: string;
+    version: string | null;
+    usesHistoricalOwnership: boolean;
+  }> = [];
+  if (includesTarget(target, "claude")) {
+    const installed = await readClaudeInstalledVersionForGuard();
+    installedVersions.push({
+      product: "Claude Code",
+      version: installed?.version ?? null,
+      usesHistoricalOwnership: installed?.usesHistoricalOwnership ?? false,
+    });
+  }
+  if (includesTarget(target, "codex")) {
+    installedVersions.push({
+      product: "Codex",
+      version: await readCodexInstalledVersion(),
+      usesHistoricalOwnership: false,
+    });
+  }
+
+  for (const installed of installedVersions) {
+    if (installed.version === null) continue;
+    if (!STRICT_VERSION.test(installed.version)) {
+      if (installed.usesHistoricalOwnership) continue;
+      error(
+        `${installed.product} has invalid installed version metadata (${installed.version}). Repair or remove its cc-settings sentinel before reinstalling.`,
+      );
+      return false;
+    }
+    if (compareVersion(installed.version, VERSION) > 0) {
+      error(
+        `${installed.product} has cc-settings v${installed.version}, which is newer than this source checkout (v${VERSION}). Update or replace the checkout before reinstalling, or use explicit --rollback for an intentional downgrade.`,
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
+async function printCodexStatus(sourceDir: string): Promise<void> {
+  const data = await gatherCodexStatus({ sourceDir });
+  console.log("Codex:");
+  console.log(`  version: ${data.installedVersion ?? "not installed"}`);
+  console.log(`  packaged version: ${data.packagedVersion ?? "unknown"}`);
+  if (data.versionWarning) console.log(`  warning: ${data.versionWarning}`);
+  console.log(`  profile: ${data.installedProfile ?? "unknown"}`);
+  console.log(`  managed instructions: ${data.instructionBlockPresent ? "present" : "missing"}`);
+  console.log(
+    `  plugin: ${data.pluginInstalled === null ? "unknown" : data.pluginInstalled ? "installed" : "missing"}`,
+  );
+  console.log(`  native agents: ${data.nativeAgentCount}`);
+  console.log(`  command rule: ${data.rulePresent ? "present" : "missing"}`);
+  console.log(`  managed source: ${data.sourcePresent ? "present" : "missing"}`);
 }
 
 async function main(): Promise<number> {
@@ -590,26 +312,171 @@ async function main(): Promise<number> {
     printHelp(VERSION);
     return 0;
   }
+  if (args.errors.length > 0) {
+    for (const message of args.errors) error(message);
+    return 1;
+  }
+  let target = await resolveInstallTarget(args.target);
+  if (includesTarget(target, "codex")) {
+    await validateProductRootDisjointness(CLAUDE_DIR);
+  }
   if (args.status) {
-    return await cmdStatus(args.sourceDir);
+    if (includesTarget(target, "claude")) {
+      if (target === "both") console.log("Claude:");
+      await cmdStatus(args.sourceDir);
+    }
+    if (includesTarget(target, "codex")) {
+      if (target === "both") console.log("");
+      await printCodexStatus(args.sourceDir);
+    }
+    return 0;
   }
   if (args.rollback !== null) {
-    return await cmdRollback(args.rollback);
+    // Rollback now deletes + restores the managed footprint, so it takes the
+    // same lock as an install to avoid racing a concurrent setup run.
+    const backup = args.rollback;
+    const code = await underInstallLock(target, () =>
+      runSelectedRollback(target, backup, args.sourceDir),
+    );
+    if (code === 0 && includesTarget(target, "claude")) await reportCopilotSync();
+    return code;
   }
+  if (args.uninstall) {
+    if (includesTarget(target, "claude")) {
+      const destructiveSentinel = await readDestructiveSentinel(CLAUDE_DIR);
+      await validateClaudeManagedFiles(
+        destructiveSentinel === null ? null : (destructiveSentinel.managed_files ?? {}),
+        args.sourceDir,
+        destructiveSentinel?.profile ?? "full",
+        destructiveSentinel?.managed_files_manifest_version,
+      );
+    }
+    const code = await underInstallLock(target, () => runSelectedUninstall(target, args.sourceDir));
+    if (code === 0 && includesTarget(target, "claude")) await reportCopilotSync();
+    return code;
+  }
+
+  if (args.migrateOnly && target === "codex") {
+    error("--migrate-only is Claude-only; use --target=claude or omit --migrate-only");
+    return 1;
+  }
+  if (args.migrateOnly && target === "both") {
+    info("--migrate-only is Claude-only; skipping Codex");
+    target = "claude";
+  }
+
+  if (!(await normalInstallVersionGuard(target))) return 1;
+
+  // Validate Claude's packaged source before checking product-specific tools.
+  // A broken combined package should report its own defect even when Codex is
+  // not installed, and it must still fail before locks or product mutation.
+  if (includesTarget(target, "claude")) {
+    if (!args.migrateOnly) preflightInstallSource(args.sourceDir, args.profile);
+    await composeSettings(args.sourceDir);
+  }
+
   if (args.dryRun) {
-    await cmdDryRun(args.sourceDir, args.profile, VERSION);
+    if (includesTarget(target, "claude")) await cmdDryRun(args.sourceDir, args.profile, VERSION);
+    if (includesTarget(target, "codex")) {
+      const actions = await dryRunCodex({ sourceDir: args.sourceDir, profile: args.profile });
+      if (target === "both") console.log("");
+      console.log("Codex dry run:");
+      for (const action of actions) console.log(`  - ${action}`);
+    }
     return 0;
+  }
+
+  if (
+    args.profile === "full" &&
+    includesTarget(target, "codex") &&
+    !isCodexCliSkippedForTests() &&
+    !codexCliAvailable()
+  ) {
+    error("Codex CLI is required for a full Codex install");
+    return 1;
   }
 
   if (isWindows()) {
     warn("Windows is supported via setup.ps1 bootstrap; direct invocation is experimental.");
   }
 
-  showBanner(VERSION);
+  const product =
+    target === "claude" ? "Claude Code" : target === "codex" ? "Codex" : "Claude Code + Codex";
+  showBanner(VERSION, product);
 
-  // Capture the previously-installed version BEFORE we overwrite the sentinel
-  // — used to print the version-delta summary at the end of the install.
-  const prevInstalledVersion = await readInstalledVersion(CLAUDE_DIR);
+  // Validate the complete Codex source before either target mutates disk. The
+  // lifecycle repeats this preflight immediately before its own backup so a
+  // source changed concurrently still fails closed.
+  if (includesTarget(target, "codex")) {
+    await dryRunCodex({ sourceDir: args.sourceDir, profile: args.profile });
+  }
+  if (includesTarget(target, "claude")) {
+    if (target === "both") {
+      await Promise.all([
+        readJsonOrNull(join(CLAUDE_DIR, "settings.json")),
+        readJsonOrNull(CLAUDE_JSON_PATH),
+      ]);
+    }
+  }
+
+  if (!includesTarget(target, "claude")) {
+    const installCode = await underInstallLock(target, async () => {
+      if (!(await normalInstallVersionGuard(target))) return 1;
+      await installCodex({
+        sourceDir: args.sourceDir,
+        version: VERSION,
+        profile: args.profile,
+      });
+      return 0;
+    });
+    if (installCode !== 0) return installCode;
+    await printCodexStatus(args.sourceDir);
+    console.log("");
+    console.log(`Installed to: ${palette.cyan}${codexInstallPaths().codexHome}${palette.reset}`);
+    console.log("");
+    info("Rollback if needed: bun src/setup.ts --target=codex --rollback");
+    success("Restart Codex to apply changes.");
+    console.log("");
+    return 0;
+  }
+
+  // Single sentinel read for the whole run (N10) — version (for the
+  // version-delta summary), autoUpdate (prior enrollment decision), and the
+  // engine id all come from the same on-disk read instead of three
+  // sequential ones. Captured BEFORE we overwrite the sentinel later.
+  // `let`, not `const`: --fresh nulls these after physically deleting
+  // .cc-settings-version below, so the rest of the run takes the exact same
+  // branches it already takes on a genuine first install (see the --fresh
+  // cleanup block inside underInstallLock).
+  let priorDestructiveSentinel = await readDestructiveSentinel(CLAUDE_DIR);
+  if (priorDestructiveSentinel?.managed_files) {
+    await validateClaudeManagedFiles(
+      priorDestructiveSentinel.managed_files,
+      args.sourceDir,
+      priorDestructiveSentinel.profile ?? "full",
+      priorDestructiveSentinel.managed_files_manifest_version,
+    );
+  }
+  const preparedClaudeInstallOwnership = await prepareClaudeInstallOwnership(
+    args.sourceDir,
+    args.migrateOnly ? (priorDestructiveSentinel?.profile ?? args.profile) : args.profile,
+    priorDestructiveSentinel,
+    args.migrateOnly ? { validateTargetCollisions: false, claimManagedAbsentGenerated: false } : {},
+  );
+  const sentinel = await readSentinelInfo(CLAUDE_DIR);
+  const sentinelState = await readSentinel(CLAUDE_DIR);
+  const enrolledRepoPath = await resolveEnrolledRepoPath(args.sourceDir);
+  let prevInstalledVersion = sentinel.version;
+  let priorAutoUpdate = sentinel.autoUpdate;
+  // Prior install's exact echo of what it wrote to ~/.claude.json's
+  // engine-managed servers — captured BEFORE writeVersionSentinel overwrites
+  // the sentinel below (see FIX B: mcp.ts isStaleCcOutput's priorWritten arg).
+  let priorMcpWritten = sentinel.mcpWritten;
+
+  // Resolve the code-intel engine once (env > explicit prior sentinel >
+  // default) and thread it through dependency install, settings, and the
+  // sentinel write. See resolveEngine's precedence doc in code-intel-engine.ts.
+  const { engine, explicit: engineExplicit } = await resolveEngine(CLAUDE_DIR, sentinel);
 
   // Frontmatter validation — catches typos in agents/*.md and skills/*/SKILL.md
   // before we ship them to ~/.claude/. Non-fatal; warn and continue so a single
@@ -618,29 +485,269 @@ async function main(): Promise<number> {
   const fmWarning = formatFrontmatterIssues(fmIssues);
   if (fmWarning) warn(fmWarning);
 
-  // Dispatch to migrate-only or full install path.
-  if (args.migrateOnly) {
-    info("Migrate-only: backup + merger + sentinel; skipping file copy");
-    await createBackup();
-    await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
-  } else {
-    await runFullInstall(args);
-  }
+  // Serialize the destructive install region (dispatch → sentinel write)
+  // against a concurrent run — a manual setup.sh racing the scheduled
+  // auto-updater's setup invocation would otherwise interleave rm/cp over
+  // ~/.claude. The read-only display below the lock release is race-safe.
+  // Shipped MCP servers whose definition the user's own copy shadowed. Assigned
+  // inside the lock, read by the summary after it releases.
+  let mcpOverridden: string[] = [];
+  // cc-settings' definition of each managed server this run — stamped into the
+  // sentinel so a later install can recognize it as our own prior output.
+  let mcpWritten: McpServers | null = null;
+  let managedFiles = sentinelState.managed_files ?? null;
+  const installCode = await underInstallLock(target, async () => {
+    if (!(await normalInstallVersionGuard(target))) return 1;
+    let claudeCompensation: PreparedClaudeRollback | null = null;
+    let codexCompensation: string | null = null;
+    let autoUpdateSnapshot: AutoUpdateStateSnapshot | null = null;
+    let claudeSharedDrift: ClaudeSharedExplicitDrift = {};
+    let schedulerSharedBaseline: ClaudeSharedExplicitSnapshot | null = null;
+    let compensationAttempted = false;
+    let claudePhase: ClaudeMutationPhase = "unstarted";
+    const backupId = target === "both" ? createSharedBackupId() : undefined;
+    const compensate = async (cause: unknown): Promise<void> => {
+      compensationAttempted = true;
+      if (cause instanceof ClaudePrewriteOwnershipChangedError) {
+        await restoreCodexAfterClaudePrewriteChange(codexCompensation, cause, "install");
+        return;
+      }
+      if (claudePhase === "scheduler" && schedulerSharedBaseline) {
+        claudeSharedDrift = {
+          ...claudeSharedDrift,
+          ...(await captureClaudeSharedExplicitDriftAfterFailure(schedulerSharedBaseline)),
+        };
+      }
+      await restoreCombinedAfterClaudeFailure(
+        claudeCompensation,
+        codexCompensation,
+        autoUpdateSnapshot,
+        cause,
+        claudePhase,
+        claudeSharedDrift,
+      );
+    };
+    try {
+      autoUpdateSnapshot = await snapshotAutoUpdateState();
+      assertAutoUpdateRequestDoesNotClaimIndependentState(args, autoUpdateSnapshot);
+      claudeCompensation = await prepareClaudeCompensation(
+        await createBackup({
+          temporary: true,
+          backupId,
+          managedFiles: preparedClaudeInstallOwnership.files,
+        }),
+        preparedClaudeInstallOwnership.targetPaths,
+      );
+      const claudeSharedBaseline = await captureClaudeSharedExplicitState();
+      if (includesTarget(target, "codex")) {
+        codexCompensation = await installCodex({
+          sourceDir: args.sourceDir,
+          version: VERSION,
+          profile: args.profile,
+          backupId,
+        });
+      }
+      claudeSharedDrift = await captureClaudeSharedExplicitDrift(claudeSharedBaseline);
 
-  try {
-    await installSettings(args.sourceDir, args.interactive, args.profile);
-  } catch (err) {
-    // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
-    if (err instanceof JsonParseError) {
-      error(String((err as Error).message));
-      error("Aborting. Fix the corrupt JSON or rollback: bun src/setup.ts --rollback");
-      return 1;
+      claudePhase = "files";
+      // Read the previous install's settings baseline BEFORE any file work —
+      // runFullInstall deletes the managed footprint (baseline included)
+      // ahead of installSettings, which threads this into the merge to prune
+      // env keys cc-settings retired between versions.
+      let priorSettingsBaseline: SettingsBaseline | null = null;
+      const claudeCode = await (async (): Promise<number> => {
+        // Dispatch to migrate-only or full install path.
+        if (args.migrateOnly) {
+          priorSettingsBaseline = await readSettingsBaseline(CLAUDE_DIR);
+          info("Migrate-only: backup + merger + sentinel; skipping file copy");
+          await assertClaudeLifecycleOwnershipUnchanged(preparedClaudeInstallOwnership.snapshot);
+          await createBackup({ managedFiles: preparedClaudeInstallOwnership.files });
+          await assertClaudeLifecycleOwnershipUnchanged(preparedClaudeInstallOwnership.snapshot);
+          await createDirectories(); // idempotent — ensures ~/.claude/ shape exists for merger
+        } else {
+          priorSettingsBaseline = await readSettingsBaseline(CLAUDE_DIR);
+          managedFiles = await runFullInstall(
+            args,
+            engine,
+            preparedClaudeInstallOwnership.files,
+            preparedClaudeInstallOwnership.nodeModulesTarget,
+            preparedClaudeInstallOwnership.snapshot,
+            true,
+            backupId,
+          );
+        }
+
+        // --fresh: reinstall as if from scratch. Placed AFTER the migrate-only
+        // or full-install backup above (both are non-temporary — the kind
+        // --rollback restores from — and both run before any of these files
+        // are rewritten), so settings.json and .cc-settings-version are
+        // already captured there and recoverable via --rollback before this
+        // block deletes them. Placed BEFORE installSettings so mergeSettings
+        // sees no existing settings.json and writes the team baseline
+        // verbatim instead of merging over it. Scope is config only: never
+        // touches ~/.claude.json wholesale, login/auth state, conversation
+        // history, or memory — only the files cc-settings itself writes.
+        if (args.fresh && !args.dryRun) {
+          const userSettingsPath = join(CLAUDE_DIR, "settings.json");
+          if (existsSync(userSettingsPath)) {
+            await rm(userSettingsPath, { force: true });
+            progressArrow("Fresh: removed settings.json (recoverable via --rollback)");
+          }
+          const sentinelPath = join(CLAUDE_DIR, ".cc-settings-version");
+          if (existsSync(sentinelPath)) {
+            await rm(sentinelPath, { force: true });
+            progressArrow("Fresh: removed the prior-install sentinel (.cc-settings-version)");
+          }
+          const baselinePath = join(CLAUDE_DIR, BASELINE_FILENAME);
+          if (existsSync(baselinePath)) {
+            await rm(baselinePath, { force: true });
+            progressArrow(`Fresh: removed the prior settings baseline (${BASELINE_FILENAME})`);
+          }
+          const fingerprintPath = join(CLAUDE_DIR, FINGERPRINT_FILENAME);
+          if (existsSync(fingerprintPath)) {
+            await rm(fingerprintPath, { force: true });
+            progressArrow(`Fresh: removed the prior hooks fingerprint (${FINGERPRINT_FILENAME})`);
+          }
+
+          // Drop any cc-settings-managed MCP servers a prior install wrote to
+          // ~/.claude.json — the normal install path only overwrites entries
+          // it still ships, so a server we no longer ship would otherwise
+          // linger. Must run BEFORE priorMcpWritten is nulled below: it needs
+          // the real prior value to recognize what to remove.
+          await removeManagedMcpServers(
+            await composeSettings(args.sourceDir),
+            CLAUDE_JSON_PATH,
+            priorMcpWritten,
+          );
+
+          // Move aside the repo's accreted local permission approvals.
+          const localPath = join(args.sourceDir, ".claude", "settings.local.json");
+          if (existsSync(localPath)) {
+            const movedTo = `${localPath}.bak-${getTimestamp(new Date())}`;
+            await rename(localPath, movedTo);
+            progressArrow(`Fresh: moved aside ${localPath} → ${movedTo}`);
+          }
+
+          // Everything above physically deleted the ONE file all four of
+          // these were read from (.cc-settings-version) — null them so the
+          // rest of this run takes the same branches it already takes on a
+          // genuine first install, instead of consulting now-deleted prior
+          // state. managedFiles is deliberately left alone: by this point it
+          // holds the freshly-copied content-hash map runFullInstall just
+          // produced (or, on the migrate-only path, the untouched pre-existing
+          // map), not stale prior-install state — nulling it here would drop
+          // real data the sentinel write below still needs.
+          priorDestructiveSentinel = null;
+          priorMcpWritten = null;
+          priorAutoUpdate = null;
+          prevInstalledVersion = null;
+          priorSettingsBaseline = null;
+        }
+
+        try {
+          ({ overridden: mcpOverridden, mcpWritten } = await installSettings(
+            args.sourceDir,
+            VERSION,
+            args.interactive,
+            args.profile,
+            engine,
+            priorMcpWritten,
+            priorSettingsBaseline,
+          ));
+        } catch (err) {
+          // JsonParseError is the one we want to surface loudly — see lib/json-io.ts.
+          if (err instanceof JsonParseError) {
+            error(String((err as Error).message));
+            error("Aborting. Fix the corrupt JSON or rollback: bun src/setup.ts --rollback");
+            return 1;
+          }
+          throw err;
+        }
+
+        // After settings.json is written (it declares enabledPlugins/
+        // pluginConfigs already): register the two marketplaces and install
+        // the two compaction plugins via the claude CLI so settings.json's
+        // declaration and the plugin store agree. Fail-open — see
+        // installPlugins' own doc comment.
+        await installPlugins(args.profile, args.dryRun, { typesafeKey: args.typesafeKey });
+        // The plugin step rewrites the plugin keys the fingerprint covers, so
+        // fingerprint after it.
+        if (!args.dryRun) await refreshSettingsFingerprint();
+        if (!args.dryRun) await restrictKeyedSettings();
+        if (!args.dryRun && args.profile === "full") await ensurePersonalInstructionsFile();
+
+        schedulerSharedBaseline = await captureClaudeSharedExplicitState();
+        claudePhase = "scheduler";
+        const autoUpdateEnrolled = await applyAutoUpdate(
+          args,
+          priorAutoUpdate,
+          autoUpdateSnapshot,
+          enrolledRepoPath,
+        );
+        claudeSharedDrift = {
+          ...claudeSharedDrift,
+          ...(await captureClaudeSharedExplicitDrift(schedulerSharedBaseline)),
+        };
+        schedulerSharedBaseline = null;
+        if (args.profile === "light" && priorDestructiveSentinel?.profile === "full") {
+          const baselinePath = claudeManagedPath(".cc-settings-baseline.json");
+          const baselineHash =
+            priorDestructiveSentinel.managed_files?.[".cc-settings-baseline.json"];
+          if (baselineHash && (await regularFileHash(baselinePath)) === baselineHash) {
+            await rm(baselinePath, { force: true });
+          }
+        }
+        if (!args.migrateOnly || managedFiles) {
+          const refreshedGenerated = await addGeneratedManagedFiles(managedFiles, args.profile);
+          managedFiles = args.migrateOnly
+            ? Object.fromEntries(
+                Object.entries(refreshedGenerated).filter(([path]) => path in (managedFiles ?? {})),
+              )
+            : refreshedGenerated;
+        }
+        await writeVersionSentinel(
+          enrolledRepoPath,
+          VERSION,
+          args.profile,
+          engine,
+          autoUpdateEnrolled,
+          engineExplicit,
+          mcpWritten,
+          managedFiles,
+          args.migrateOnly
+            ? (priorDestructiveSentinel?.managed_files_manifest_version ?? null)
+            : CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+          args.migrateOnly ? (priorDestructiveSentinel?.version ?? null) : VERSION,
+          args.migrateOnly &&
+            !managedFiles &&
+            (!priorDestructiveSentinel ||
+              priorDestructiveSentinel.managed_files_state === "managed-absent")
+            ? "managed-absent"
+            : undefined,
+        );
+        return 0;
+      })();
+      if (claudeCode !== 0) {
+        await compensate(new Error(`Claude install exited ${claudeCode}`));
+      }
+      return claudeCode;
+    } catch (cause) {
+      if (!compensationAttempted && (claudeCompensation || codexCompensation)) {
+        await compensate(cause);
+      }
+      throw cause;
+    } finally {
+      await claudeCompensation?.cleanup();
     }
-    throw err;
-  }
+  });
+  if (installCode !== 0) return installCode;
 
-  await writeVersionSentinel(args.sourceDir, args.profile);
-  if (!args.migrateOnly) await showSummary(args.profile);
+  if (!args.migrateOnly) await showSummary(args.profile, args.sourceDir, mcpOverridden);
+  if (includesTarget(target, "claude")) await reportCopilotSync();
+  if (includesTarget(target, "codex")) {
+    console.log("");
+    await printCodexStatus(args.sourceDir);
+  }
 
   // Version delta: surface what just landed (prev → current + per-version
   // titles from CHANGELOG.md). Uses prevInstalledVersion captured BEFORE
@@ -658,18 +765,48 @@ async function main(): Promise<number> {
   // a CLI / MCP that's missing from the user's environment. Non-fatal — the
   // skill simply fails at runtime if the user invokes it without the prereq.
   const skillsDir = join(CLAUDE_DIR, "skills");
-  const prereqReports = await reportMissingPrereqs(skillsDir, CLAUDE_DIR).catch(() => []);
+  const prereqReports = await reportMissingPrereqs(skillsDir).catch(() => []);
   const prereqWarnings = formatPrereqWarnings(prereqReports);
   if (prereqWarnings) {
     console.log("");
     warn(prereqWarnings);
   }
 
+  if (includesTarget(target, "claude") && !args.migrateOnly) {
+    const retired = await scanRetiredSkills(skillsDir).catch(() => []);
+    if (retired.length > 0) {
+      console.log("");
+      const list = retired.join(", ");
+      if (!isInteractive()) {
+        warn(
+          `Retired cc-settings skills still installed: ${list}. Re-run setup in a terminal to remove them.`,
+        );
+      } else if (
+        await promptYn(`cc-settings no longer ships these skills: ${list}. Remove them?`, false)
+      ) {
+        const moved = await retireSkills(
+          skillsDir,
+          retired,
+          join(CLAUDE_DIR, "backups"),
+          getTimestamp(),
+        );
+        success(`Removed ${retired.length} retired skill(s); copies kept in ${moved}`);
+      }
+    }
+  }
+
   console.log("");
   console.log(`Installed to: ${palette.cyan}${CLAUDE_DIR}${palette.reset}`);
+  if (includesTarget(target, "codex")) {
+    console.log(
+      `Codex installed to: ${palette.cyan}${codexInstallPaths().codexHome}${palette.reset}`,
+    );
+  }
   console.log("");
-  info("Rollback if needed: bun src/setup.ts --rollback");
-  success("Restart Claude Code to apply changes.");
+  info(`Rollback if needed: bun src/setup.ts --target=${target} --rollback`);
+  success(
+    `Restart ${target === "both" ? "Claude Code and Codex" : "Claude Code"} to apply changes.`,
+  );
   console.log("");
   return 0;
 }
@@ -679,7 +816,24 @@ if (import.meta.main) {
   main()
     .then((code) => process.exit(code))
     .catch((err) => {
-      error(`Setup failed: ${err?.stack ?? err}`);
+      const detail =
+        err instanceof Error
+          ? [err.message, err.stack]
+              .filter((value, index, all) => value && all.indexOf(value) === index)
+              .join("\n")
+          : String(err);
+      error(`Setup failed: ${detail}`);
+      // AggregateError.errors carries the real causes — without unwrapping,
+      // the outer wrapper message swallows them and leaves the operator with
+      // no way to see what actually failed (e.g. restoreCombinedAfterClaudeFailure
+      // wraps the underlying Claude install error plus any restore failures).
+      if (err instanceof AggregateError && Array.isArray(err.errors)) {
+        for (const [i, cause] of err.errors.entries()) {
+          const causeDetail =
+            cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
+          error(`  cause[${i}]: ${causeDetail}`);
+        }
+      }
       process.exit(1);
     });
 }

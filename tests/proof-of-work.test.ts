@@ -1,16 +1,20 @@
-// Proof-of-work gate tests — pure detection/formatting only. The subprocess
-// runner (runGate/runGates) is NOT exercised here: it would run `bun run test`,
-// which re-enters this suite (recursion). Those paths are covered by running
-// `bun run proof` manually.
+// Proof-of-work gate tests — pure detection/formatting, plus runGate exercised
+// against disposable fixture projects (never this repo's own `bun run test`,
+// which would recurse into this suite).
 
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   allGreen,
   detectDeslop,
   detectGates,
   detectReactDoctor,
   formatReport,
+  runGate,
   sumDeslopFindings,
+  tailOutput,
 } from "../src/lib/proof-of-work.ts";
 
 describe("proof-of-work lib", () => {
@@ -93,5 +97,55 @@ describe("proof-of-work lib", () => {
     ];
     expect(allGreen(results)).toBe(true);
     expect(formatReport(results)).toContain("ℹ deslop — 12 findings (advisory)");
+  });
+
+  test("tailOutput: keeps only the last N non-empty lines, trimmed", () => {
+    const text = Array.from({ length: 20 }, (_, i) => `line ${i}  `).join("\n");
+    const tail = tailOutput(text, 3);
+    expect(tail).toBe("line 17\nline 18\nline 19");
+  });
+
+  test("tailOutput: drops blank lines and handles short input unchanged", () => {
+    expect(tailOutput("a\n\n\nb\n", 5)).toBe("a\nb");
+    expect(tailOutput("", 5)).toBe("");
+  });
+});
+
+// M20 regression: a failing gate must carry a `detail` tail of its actual
+// stdout/stderr output, not a bare pass/fail — otherwise a red proof-of-work
+// verdict gives zero clue what broke without a separate manual re-run.
+describe("runGate (subprocess)", () => {
+  async function makeFixture(scriptBody: string): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-proof-gate-"));
+    await writeFile(join(dir, "fail.js"), scriptBody);
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "fixture", scripts: { typecheck: "bun fail.js" } }),
+    );
+    return dir;
+  }
+
+  test("failing gate captures a tail of its stderr as detail", async () => {
+    const dir = await makeFixture(
+      `console.log("noise");\nconsole.error("boom: something broke");\nprocess.exit(1);\n`,
+    );
+    try {
+      const result = await runGate("typecheck", dir);
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("boom: something broke");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("passing gate has no detail", async () => {
+    const dir = await makeFixture(`process.exit(0);\n`);
+    try {
+      const result = await runGate("typecheck", dir);
+      expect(result.status).toBe("pass");
+      expect(result.detail).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -95,6 +95,7 @@ async function main() {
   const content = `---
 name: ${name}
 kind: ${kind}
+summary: ""
 tags: []
 added-by: ${addedBy}
 ---
@@ -117,7 +118,7 @@ TODO: describe how to put this knowledge into practice.
   console.log(`Created ${outPath}`);
   console.log("");
   console.log("Next steps:");
-  console.log(`  1. Edit ${outPath} — fill in What / Why / How to apply`);
+  console.log(`  1. Edit ${outPath} — write the one-line summary, then What / Why / How to apply`);
   console.log("  2. bun run lint:knowledge <dir>  — validate (0 errors required)");
   console.log("  3. git add, commit, and push");
 }

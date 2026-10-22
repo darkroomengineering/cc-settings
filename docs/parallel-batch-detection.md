@@ -2,6 +2,11 @@
 
 Detects which tasks can run in parallel by analyzing dependency graphs. Used by maestro and PRD generation.
 
+The human-readable form of the same graph is the Functional DAG every plan opens with
+(`docs/functional-dag.md`) — its columns *are* the topological levels this algorithm
+computes. Draw the DAG, read the batches off its columns, and let this algorithm handle the
+cases too large to eyeball.
+
 ## Core Algorithm: Kahn's Topological Level Detection
 
 Tasks form a DAG (Directed Acyclic Graph) where edges represent dependencies. Tasks at the same topological level have no dependencies on each other and can run in parallel.

@@ -3,10 +3,21 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  assessWorkerResult,
+  buildExecPrompt,
+  buildReviewPrompt,
   type CodexVerdict,
   classifyCodexError,
+  parseLeadingFlags,
+  parseReviewArgs,
+  parseWorkerResult,
   reconcile,
+  resolveCodexModel,
   sanitizeOutput,
+  stallDetail,
+  stallTimeoutMs,
+  type WorkerResult,
+  workerResultJsonSchema,
 } from "../src/lib/codex.ts";
 
 // ---------------------------------------------------------------------------
@@ -123,16 +134,6 @@ describe("classifyCodexError — unknown fallback", () => {
 // ---------------------------------------------------------------------------
 
 describe("classifyCodexError — detail sanitization", () => {
-  test("ANSI escape sequence is stripped from detail", () => {
-    // The ANSI regex is built from charCode(27) to avoid biome's lint rule —
-    // construct the sequence the same way here.
-    const ESC = String.fromCharCode(27);
-    const stderr = `${ESC}[31msome codex error${ESC}[0m`;
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).not.toContain(ESC);
-    expect(detail).toContain("some codex error");
-  });
-
   test("sk-XXXX token (16+ chars) is redacted to sk-[redacted]", () => {
     // A leaked API key in subprocess output must never reach the verdict file
     // or the statusline.
@@ -143,28 +144,6 @@ describe("classifyCodexError — detail sanitization", () => {
     const { detail } = classifyCodexError(1, stderr);
     expect(detail).not.toContain(token);
     expect(detail).toContain("sk-[redacted]");
-  });
-
-  test("sk- token shorter than 16 chars is NOT redacted", () => {
-    // The regex requires 16+ chars after 'sk-' — short tokens must not be
-    // mangled, so the redaction is specific rather than over-broad.
-    const stderr = `error: sk-short (small) context`;
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).toContain("sk-short");
-  });
-
-  test("'Bearer <token>' is redacted to 'Bearer [redacted]'", () => {
-    const stderr = "unauthorized: Authorization header Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig";
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).not.toContain("eyJhbGciOiJSUzI1NiJ9");
-    expect(detail).toContain("Bearer [redacted]");
-  });
-
-  test("'Authorization: <value>' is redacted to 'Authorization: [redacted]'", () => {
-    const stderr = "Authorization: token_secret_value_here";
-    const { detail } = classifyCodexError(1, stderr);
-    expect(detail).not.toContain("token_secret_value_here");
-    expect(detail).toContain("Authorization: [redacted]");
   });
 
   test("detail is capped at 200 characters", () => {
@@ -352,6 +331,12 @@ describe("sanitizeOutput — multi-line credential redaction", () => {
     expect(result).toContain("line3");
   });
 
+  test("sk- token shorter than 16 chars is NOT redacted", () => {
+    // The regex requires 16+ chars after 'sk-' — short tokens must not be
+    // mangled, so the redaction is specific rather than over-broad.
+    expect(sanitizeOutput("error: sk-short (small) context")).toContain("sk-short");
+  });
+
   test("does NOT cap length (operates on full text)", () => {
     const long = "x".repeat(500);
     const result = sanitizeOutput(long);
@@ -431,5 +416,604 @@ describe("reconcile — live 'available' + cached available", () => {
     const ts = Date.parse(result.checkedAt);
     expect(ts).toBeGreaterThanOrEqual(before);
     expect(ts).toBeLessThanOrEqual(after);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reconcile — inconclusive 'unknown' live state (L1 CLI drift / keychain error)
+// ---------------------------------------------------------------------------
+
+describe("reconcile — live 'unknown' (inconclusive L1) lets L2 probe", () => {
+  test("live unknown + no fresh sticky → unknown (gate proceeds to a real probe)", () => {
+    // An ambiguous login-status failure must NOT block L2 the way unauthenticated
+    // does — it falls through to 'unknown' so the real exec can classify it.
+    const cached: CodexVerdict = {
+      state: "available",
+      checkedAt: new Date(0).toISOString(),
+      sticky: false,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("unknown");
+    expect(result.sticky).toBe(false);
+  });
+
+  test("live unknown + fresh sticky rate-limited → cached kept (quota invisible to L1)", () => {
+    const cached: CodexVerdict = {
+      state: "rate-limited",
+      checkedAt: new Date().toISOString(),
+      sticky: true,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("rate-limited");
+    expect(result.sticky).toBe(true);
+    expect(result).toBe(cached);
+  });
+
+  test("live unknown + fresh sticky no-access → cached kept (entitlement invisible to L1)", () => {
+    const cached: CodexVerdict = {
+      state: "no-access",
+      checkedAt: new Date().toISOString(),
+      sticky: true,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("no-access");
+    expect(result).toBe(cached);
+  });
+
+  test("live unknown + stale sticky no-access → unknown (expired sticky no longer wins)", () => {
+    const cached: CodexVerdict = {
+      state: "no-access",
+      checkedAt: new Date(0).toISOString(),
+      sticky: true,
+    };
+    const result = reconcile("unknown", cached);
+    expect(result.state).toBe("unknown");
+    expect(result.sticky).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeOutput — broadened terminal-control stripping (CSI / OSC / C0)
+// A buggy or hostile Codex must not smuggle cursor moves, screen clears,
+// hyperlinks, or title-set payloads into cached details or echoed output.
+// ---------------------------------------------------------------------------
+
+describe("sanitizeOutput — terminal-control stripping beyond SGR colors", () => {
+  const ESC = String.fromCharCode(27);
+  const BEL = String.fromCharCode(7);
+
+  test("strips OSC 8 hyperlink sequences (BEL-terminated), keeps visible text", () => {
+    const input = `${ESC}]8;;https://evil.example/x${BEL}click me${ESC}]8;;${BEL}`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).not.toContain("https://evil.example");
+    expect(result).toContain("click me");
+  });
+
+  test("strips OSC window-title sequences (ST-terminated)", () => {
+    const input = `${ESC}]0;malicious title${ESC}\\visible`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).not.toContain("malicious title");
+    expect(result).toContain("visible");
+  });
+
+  test("strips non-SGR CSI sequences (screen clear + cursor move)", () => {
+    const input = `before${ESC}[2J${ESC}[1;1Hafter`;
+    const result = sanitizeOutput(input);
+    expect(result).not.toContain(ESC);
+    expect(result).toBe("beforeafter");
+  });
+
+  test("strips a bare BEL control byte", () => {
+    expect(sanitizeOutput(`ding${BEL}dong`)).toBe("dingdong");
+  });
+
+  test("preserves tab, newline, and carriage-return", () => {
+    const input = "a\tb\nc\rd";
+    expect(sanitizeOutput(input)).toBe(input);
+  });
+
+  test("strips a solitary ESC left by an incomplete sequence", () => {
+    const result = sanitizeOutput(`oops${ESC}tail`);
+    expect(result).not.toContain(ESC);
+    expect(result).toContain("oops");
+    expect(result).toContain("tail");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseReviewArgs — CLI arg parsing for `codex-run.ts review`
+// ---------------------------------------------------------------------------
+
+describe("parseReviewArgs — default (no flags)", () => {
+  test("no args → uncommitted scope, force false", () => {
+    const result = parseReviewArgs([]);
+    expect(result).toEqual({ ok: true, scope: { kind: "uncommitted" }, force: false });
+  });
+
+  test("--force alone → uncommitted scope, force true", () => {
+    const result = parseReviewArgs(["--force"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "uncommitted" }, force: true });
+  });
+});
+
+describe("parseReviewArgs — individual scope flags", () => {
+  test("--staged → staged scope", () => {
+    const result = parseReviewArgs(["--staged"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "staged" }, force: false });
+  });
+
+  test("--base <branch> → base scope with branch", () => {
+    const result = parseReviewArgs(["--base", "main"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "base", branch: "main" }, force: false });
+  });
+
+  test("--commit <sha> → commit scope with sha", () => {
+    const result = parseReviewArgs(["--commit", "abc1234"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "commit", sha: "abc1234" }, force: false });
+  });
+
+  test("--force combined with a scope flag → force true, scope set", () => {
+    const result = parseReviewArgs(["--force", "--staged"]);
+    expect(result).toEqual({ ok: true, scope: { kind: "staged" }, force: true });
+  });
+
+  test("scope flag before --force → same result regardless of order", () => {
+    const result = parseReviewArgs(["--base", "develop", "--force"]);
+    expect(result).toEqual({
+      ok: true,
+      scope: { kind: "base", branch: "develop" },
+      force: true,
+    });
+  });
+
+  test("--base without a following value → parse error", () => {
+    const result = parseReviewArgs(["--base"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base requires a branch argument");
+  });
+
+  test("--commit without a following value → parse error", () => {
+    const result = parseReviewArgs(["--commit"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--commit requires a commit SHA argument");
+  });
+});
+
+describe("parseReviewArgs — a flag-shaped token is never swallowed as a value", () => {
+  test("--base --staged → --base treated as missing value, not '--staged' as the branch", () => {
+    const result = parseReviewArgs(["--base", "--staged"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base requires a branch argument");
+  });
+
+  test("--commit --force → --commit treated as missing value, not '--force' as the sha", () => {
+    const result = parseReviewArgs(["--commit", "--force"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--commit requires a commit SHA argument");
+  });
+
+  test("--base --commit → --base treated as missing value, not '--commit' as the branch", () => {
+    const result = parseReviewArgs(["--base", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base requires a branch argument");
+  });
+});
+
+describe("parseReviewArgs — duplicate scope flags are rejected, not silently overwritten", () => {
+  test("--base main --base dev → parse error, does not silently take the last value", () => {
+    const result = parseReviewArgs(["--base", "main", "--base", "dev"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--base passed more than once");
+  });
+
+  test("--staged --staged → parse error", () => {
+    const result = parseReviewArgs(["--staged", "--staged"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--staged passed more than once");
+  });
+
+  test("--commit abc --commit def → parse error", () => {
+    const result = parseReviewArgs(["--commit", "abc", "--commit", "def"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("--commit passed more than once");
+  });
+});
+
+describe("parseReviewArgs — --base/--commit values must be a safe git ref", () => {
+  // Values are interpolated verbatim into the review instruction text Codex
+  // reads and acts on. An option-like or shell-metacharacter value must be
+  // rejected rather than silently steered into the git command Codex runs.
+  test("--base '-s' → parse error (option-like value)", () => {
+    const result = parseReviewArgs(["--base", "-s"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test("--base 'main; rm x' → parse error (shell metacharacters)", () => {
+    const result = parseReviewArgs(["--base", "main; rm x"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test("--commit '$(x)' → parse error (command substitution)", () => {
+    const result = parseReviewArgs(["--commit", "$(x)"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test("--commit backtick-wrapped value → parse error", () => {
+    const result = parseReviewArgs(["--commit", "`whoami`"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("not a valid git ref");
+  });
+
+  test.each([["main"], ["feat/foo"], ["v1.2.3"], ["origin/main"], ["a".repeat(40)]])(
+    "%s is accepted as a --base value",
+    (ref) => {
+      const result = parseReviewArgs(["--base", ref]);
+      expect(result).toEqual({ ok: true, scope: { kind: "base", branch: ref }, force: false });
+    },
+  );
+
+  test.each([["main"], ["feat/foo"], ["v1.2.3"], ["origin/main"], ["a".repeat(40)]])(
+    "%s is accepted as a --commit value",
+    (ref) => {
+      const result = parseReviewArgs(["--commit", ref]);
+      expect(result).toEqual({ ok: true, scope: { kind: "commit", sha: ref }, force: false });
+    },
+  );
+});
+
+describe("parseReviewArgs — mutual exclusion", () => {
+  test("--staged + --base → parse error, does not pick either scope", () => {
+    const result = parseReviewArgs(["--staged", "--base", "main"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+
+  test("--staged + --commit → parse error", () => {
+    const result = parseReviewArgs(["--staged", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+
+  test("--base + --commit → parse error", () => {
+    const result = parseReviewArgs(["--base", "main", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+
+  test("all three scope flags combined → parse error", () => {
+    const result = parseReviewArgs(["--staged", "--base", "main", "--commit", "abc123"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("mutually exclusive");
+  });
+});
+
+describe("parseReviewArgs — unrecognized arguments", () => {
+  test("an unknown flag → parse error", () => {
+    const result = parseReviewArgs(["--bogus"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("unrecognized argument");
+  });
+
+  test("a stray positional token → parse error", () => {
+    const result = parseReviewArgs(["something"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("unrecognized argument");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildReviewPrompt — diff-scope-to-instruction-text construction
+// ---------------------------------------------------------------------------
+
+describe("buildReviewPrompt — shape", () => {
+  test("uncommitted scope names both diffs and the review contract without a git recipe", () => {
+    const prompt = buildReviewPrompt({ kind: "uncommitted" });
+    expect(prompt).toStartWith(
+      "You are performing an independent code review of the current uncommitted diff in this repository.",
+    );
+    expect(prompt).toContain("`git diff` plus `git diff --cached`");
+    expect(prompt).toContain("Report only behavior or risk");
+    expect(prompt).toContain("Group findings by severity: HIGH, MEDIUM, LOW.");
+    expect(prompt).toContain("If the diff is clean, say so explicitly.");
+    // No numbered step recipe: the model decides how to inspect the repo.
+    expect(prompt).not.toMatch(/^\d+\. /m);
+    expect(prompt).not.toContain("git status");
+  });
+});
+
+describe("buildReviewPrompt — scope-specific instructions", () => {
+  test("staged scope names `git diff --cached` and excludes unstaged changes", () => {
+    const prompt = buildReviewPrompt({ kind: "staged" });
+    expect(prompt).toContain("git diff --cached");
+    expect(prompt).toContain("ignore unstaged changes");
+    expect(prompt).toContain("the currently staged diff in this repository");
+  });
+
+  test("base scope names a three-dot diff against the branch", () => {
+    const prompt = buildReviewPrompt({ kind: "base", branch: "main" });
+    expect(prompt).toContain("git diff main...HEAD");
+    expect(prompt).toContain("merge base with `main`");
+  });
+
+  test("commit scope names `git show <sha>`", () => {
+    const prompt = buildReviewPrompt({ kind: "commit", sha: "abc1234" });
+    expect(prompt).toContain("git show abc1234");
+    expect(prompt).toContain("commit `abc1234`");
+  });
+
+  test("all scopes end with the same closing guidance sentence", () => {
+    const scopes = [
+      { kind: "uncommitted" as const },
+      { kind: "staged" as const },
+      { kind: "base" as const, branch: "main" },
+      { kind: "commit" as const, sha: "abc" },
+    ];
+    for (const scope of scopes) {
+      expect(buildReviewPrompt(scope)).toContain(
+        "Be concise and precise. Focus on real problems, not style preferences.",
+      );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildExecPrompt — completion contract around a delegated task
+// ---------------------------------------------------------------------------
+
+describe("buildExecPrompt", () => {
+  test("keeps the task verbatim and adds the completion contract", () => {
+    const prompt = buildExecPrompt("  rename every usage of foo to bar  ");
+    expect(prompt).toStartWith("Task:\nrename every usage of foo to bar\n\nCompletion contract:");
+    expect(prompt).toContain("Run those checks yourself");
+    expect(prompt).toContain("Do not stop after a first implementation to ask for review.");
+    expect(prompt).toContain("Leave the changes uncommitted.");
+  });
+
+  test("scopes the work and asks for a verification report", () => {
+    const prompt = buildExecPrompt("add a test");
+    expect(prompt).toContain("Stay inside the task's scope.");
+    expect(prompt).toContain("the checks you ran");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Model routing: Codex's own default unless pinned; flag > env
+// ---------------------------------------------------------------------------
+
+describe("resolveCodexModel", () => {
+  test("no flag and no env resolves to no model, so codex uses its configured default", () => {
+    for (const subcommand of ["exec", "review", "ask"] as const) {
+      expect(resolveCodexModel(subcommand, undefined, {})).toEqual({ ok: true });
+    }
+  });
+
+  test("env pins the model per subcommand and a flag overrides env", () => {
+    const env = { CODEX_EXEC_MODEL: "gpt-6-astra", CODEX_REVIEW_MODEL: " gpt-5.6-sol " };
+    expect(resolveCodexModel("exec", undefined, env)).toEqual({ ok: true, model: "gpt-6-astra" });
+    expect(resolveCodexModel("review", undefined, env)).toEqual({
+      ok: true,
+      model: "gpt-5.6-sol",
+    });
+    expect(resolveCodexModel("review", "o3", env)).toEqual({ ok: true, model: "o3" });
+    expect(resolveCodexModel("ask", undefined, env)).toEqual({ ok: true });
+    expect(resolveCodexModel("ask", undefined, { CODEX_ASK_MODEL: "" })).toEqual({ ok: true });
+  });
+
+  test("rejects a model id that could read as a flag or shell text", () => {
+    expect(resolveCodexModel("exec", "--sandbox", {}).ok).toBe(false);
+    expect(resolveCodexModel("exec", undefined, { CODEX_EXEC_MODEL: "x; rm -rf /" }).ok).toBe(
+      false,
+    );
+  });
+});
+
+describe("parseLeadingFlags", () => {
+  test("consumes --force and --model before the first positional only", () => {
+    const parsed = parseLeadingFlags([
+      "--model",
+      "gpt-6-astra",
+      "--force",
+      "rename",
+      "--model",
+      "x",
+    ]);
+    expect(parsed).toEqual({
+      ok: true,
+      force: true,
+      model: "gpt-6-astra",
+      rest: ["rename", "--model", "x"],
+    });
+  });
+
+  test("`--` ends flag parsing so a prompt can start with a dash", () => {
+    const parsed = parseLeadingFlags(["--", "--force", "what does it do"]);
+    expect(parsed).toEqual({
+      ok: true,
+      force: false,
+      model: undefined,
+      rest: ["--force", "what does it do"],
+    });
+  });
+
+  test("rejects a missing or unsafe --model value", () => {
+    expect(parseLeadingFlags(["--model"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--model", "--force", "task"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--model", "a b", "task"]).ok).toBe(false);
+  });
+
+  test("--expected takes whole minutes above zero", () => {
+    const parsed = parseLeadingFlags(["--expected", "4", "task"]);
+    expect(parsed).toEqual({ ok: true, force: false, expectedMinutes: 4, rest: ["task"] });
+    expect(parseLeadingFlags(["--expected", "0", "task"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--expected", "1.5", "task"]).ok).toBe(false);
+    expect(parseLeadingFlags(["--expected"]).ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Worker result: the exec subcommand's structured final message
+// ---------------------------------------------------------------------------
+
+const workerResult = (over: Partial<WorkerResult> = {}): WorkerResult => ({
+  status: "completed",
+  branch: "main",
+  commit: "",
+  files_changed: ["src/a.ts"],
+  verify_cmd: "bun test",
+  verify_result: { passed: true, output_tail: "3 pass" },
+  blockers: [],
+  ...over,
+});
+
+describe("workerResultJsonSchema", () => {
+  test("meets OpenAI structured-output rules: every key required, no extra keys", () => {
+    const schema = workerResultJsonSchema() as {
+      properties: Record<string, { additionalProperties?: boolean; required?: string[] }>;
+      required: string[];
+      additionalProperties: boolean;
+    };
+    expect(schema).not.toHaveProperty("$schema");
+    expect(schema.additionalProperties).toBe(false);
+    expect([...schema.required].sort()).toEqual(Object.keys(schema.properties).sort());
+    expect(schema.required).toEqual(
+      expect.arrayContaining([
+        "status",
+        "branch",
+        "commit",
+        "files_changed",
+        "verify_cmd",
+        "verify_result",
+        "blockers",
+      ]),
+    );
+    expect(schema.properties.verify_result?.additionalProperties).toBe(false);
+    expect(schema.properties.verify_result?.required?.sort()).toEqual(["output_tail", "passed"]);
+  });
+});
+
+describe("parseWorkerResult", () => {
+  test("accepts a schema-conforming message", () => {
+    const parsed = parseWorkerResult(JSON.stringify(workerResult()));
+    expect(parsed.ok).toBe(true);
+  });
+
+  test("reports empty, non-JSON, and off-schema messages without throwing", () => {
+    expect(parseWorkerResult("  ")).toEqual({ ok: false, error: "no final message" });
+    expect(parseWorkerResult("Done! Changed two files.")).toEqual({
+      ok: false,
+      error: "final message is not JSON",
+    });
+    const offSchema = parseWorkerResult(JSON.stringify({ ...workerResult(), status: "done" }));
+    expect(offSchema.ok).toBe(false);
+    if (!offSchema.ok) expect(offSchema.error).toContain("status");
+    const extra = parseWorkerResult(JSON.stringify({ ...workerResult(), notes: "x" }));
+    expect(extra.ok).toBe(false);
+  });
+});
+
+describe("assessWorkerResult", () => {
+  const tree = (changed: string[], commitExists: boolean | null = null) => ({
+    changed,
+    commitExists,
+  });
+
+  test("completed, passed, uncommitted changes covering the listed files: ready", () => {
+    expect(assessWorkerResult(workerResult(), tree(["src/a.ts"]))).toEqual({
+      ready: true,
+      reasons: [],
+      undeclared: [],
+    });
+  });
+
+  test("reported blockers make an otherwise ready result not ready", () => {
+    const a = assessWorkerResult(
+      workerResult({ blockers: ["needs the staging API key"] }),
+      tree(["src/a.ts"]),
+    );
+    expect(a.ready).toBe(false);
+    expect(a.reasons).toEqual(["1 blocker(s) reported"]);
+  });
+
+  test("a completed claim with nothing in the tree and no commit is not ready", () => {
+    const a = assessWorkerResult(workerResult(), tree([]));
+    expect(a.ready).toBe(false);
+    expect(a.reasons).toEqual(["no commit and no uncommitted changes"]);
+  });
+
+  test("a reported commit with uncommitted output left over is not ready", () => {
+    const a = assessWorkerResult(workerResult({ commit: "abc1234" }), tree(["src/b.ts"], true));
+    expect(a.ready).toBe(false);
+    expect(a.reasons).toContain("uncommitted changes remain next to the reported commit");
+  });
+
+  test("a reported commit that does not resolve is not ready; a clean resolved one is", () => {
+    const missing = assessWorkerResult(workerResult({ commit: "abc1234" }), tree([], false));
+    expect(missing.reasons).toEqual(["commit abc1234 does not exist"]);
+    expect(assessWorkerResult(workerResult({ commit: "abc1234" }), tree([], true)).ready).toBe(
+      true,
+    );
+  });
+
+  test("blocked status, failed check, and listed-but-unchanged files each block readiness", () => {
+    const a = assessWorkerResult(
+      workerResult({
+        status: "blocked",
+        files_changed: ["./src/a.ts", "src/gone.ts"],
+        verify_result: { passed: false, output_tail: "1 fail" },
+      }),
+      tree(["src/a.ts"]),
+    );
+    expect(a.reasons).toEqual([
+      "status is blocked",
+      "`bun test` failed",
+      "listed but unchanged: src/gone.ts",
+    ]);
+  });
+
+  test("changed paths the result does not list are reported but do not block", () => {
+    const a = assessWorkerResult(workerResult(), tree(["src/a.ts", "notes.md"]));
+    expect(a.ready).toBe(true);
+    expect(a.undeclared).toEqual(["notes.md"]);
+  });
+});
+
+describe("stallDetail", () => {
+  const timedOut = { ok: false, output: "", state: "unknown" as const, timedOut: true };
+
+  test("a run killed at 3x the expected time with no output is stalled", () => {
+    expect(stallTimeoutMs(2)).toBe(6 * 60_000);
+    expect(stallDetail(timedOut, 2, "")).toContain("Codex stalled: no output after 6m");
+  });
+
+  test("no expected time, partial output, or a capped timeout is not a stall", () => {
+    expect(stallDetail(timedOut, undefined, "")).toBeNull();
+    expect(stallDetail({ ...timedOut, output: "partial" }, 2, "")).toBeNull();
+    expect(stallDetail(timedOut, 2, "{}")).toBeNull();
+    expect(stallDetail({ ...timedOut, timedOut: false }, 2, "")).toBeNull();
+    // 3 x 10m exceeds the 15m exec ceiling, so the kill is an ordinary timeout.
+    expect(stallTimeoutMs(10)).toBe(15 * 60_000);
+    expect(stallDetail(timedOut, 10, "")).toBeNull();
+  });
+});
+
+describe("parseReviewArgs — --model", () => {
+  test("accepts --model alongside a scope flag", () => {
+    expect(parseReviewArgs(["--model", "gpt-5.6-sol", "--base", "main"])).toEqual({
+      ok: true,
+      scope: { kind: "base", branch: "main" },
+      force: false,
+      model: "gpt-5.6-sol",
+    });
+  });
+
+  test("omits model when not passed and rejects duplicates or missing values", () => {
+    expect(parseReviewArgs([])).toEqual({ ok: true, scope: { kind: "uncommitted" }, force: false });
+    expect(parseReviewArgs(["--model", "a", "--model", "b"]).ok).toBe(false);
+    expect(parseReviewArgs(["--model"]).ok).toBe(false);
   });
 });

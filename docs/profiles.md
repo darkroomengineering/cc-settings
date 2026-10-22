@@ -1,15 +1,22 @@
 # Profiles
 
-Activate for specialized workflows. Profiles live in `~/.claude/profiles/` (installed by `bun src/setup.ts`) and apply via `@profile-name` references in CLAUDE.md or per-project setup.
+Profiles document the stack-specific instructions that cc-settings installs under
+`~/.claude/profiles/`. They are source material for the shared instructions and skills. There is no
+supported `settings.json` key or interactive command that activates one as a runtime mode.
+
+Profiles are never loaded automatically. Read the one that matches the project when you need the
+studio's conventions for that stack. Use `/orchestrate` in Claude or `$orchestrate` in Codex when you
+explicitly want the maestro workflow. Do not copy profile frontmatter into settings; those fields are
+documentation only.
 
 | Profile | Use Case |
 |---------|----------|
-| `maestro` | Full orchestration mode — agent delegation for everything |
 | `nextjs` | Next.js web apps |
 | `react-native` | Expo mobile apps |
 | `tauri` | Tauri desktop apps (Rust + Web) |
 | `webgl` | 3D web (R3F, Three.js, GSAP) |
 | `react-router` | React Router 7+ / Novus projects |
+| `durable-agents` | Agents, bots, and autonomous jobs inside a product that must survive crashes and restarts |
 
 ---
 
@@ -23,10 +30,10 @@ Each profile file may carry a YAML frontmatter block at the top documenting its 
 |-------|------|----------|-------------|
 | `name` | string | Yes | Profile identifier (kebab-case, must match the filename stem) |
 | `description` | string | Yes | Short description of the profile's purpose |
-| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
+| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `claude-opus-5-5`) |
 | `skills` | list | No | Advisory: skill names expected to be active in this context |
 | `tools` | list | No | Advisory: tool subset relevant to this workflow |
-| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
+| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
 | `effort` | string | No | Advisory: default effort level (`low`, `medium`, `high`, `xhigh`, `max`) |
 
 ### Example
@@ -35,8 +42,8 @@ Each profile file may carry a YAML frontmatter block at the top documenting its 
 ---
 name: nextjs
 description: Next.js web apps
-model: opus
-skills: [build, component, hook, lighthouse]
+model: claude-opus-5-5
+skills: [build, component, hook]
 ---
 ```
 

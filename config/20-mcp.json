@@ -4,9 +4,8 @@
 			"command": "bunx",
 			"args": [
 				"-y",
-				"@upstash/context7-mcp"
+				"@upstash/context7-mcp@4.4.4"
 			],
-			"alwaysLoad": true,
 			"serverInstructions": "Library and framework documentation lookup, API references, usage examples, and best practices. Use for questions about external libraries, SDKs, HTTP APIs, or how to use specific functions, components, or configuration options."
 		},
 		"tldr": {
@@ -15,7 +14,7 @@
 				"--project",
 				"."
 			],
-			"serverInstructions": "Semantic codebase analysis and repository-level search over the current project. 17 languages auto-detected. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files across the codebase. Do not hardcode the language parameter — auto-detection is preferred."
+			"serverInstructions": "Codebase analysis and repository-level search over the current project. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files. IMPORTANT: the `language` parameter does NOT auto-detect — it defaults to `python`, and on any other language the tools return an empty result with status ok rather than an error. Always pass `language` explicitly (typescript, javascript, go, rust, …, or `all`). The `impact` and `semantic` tools expose no `language` parameter, so an empty result from them is not evidence that nothing matched — cross-check with Grep before acting on it."
 		},
 		"figma": {
 			"type": "http",
@@ -26,7 +25,7 @@
 			"command": "bunx",
 			"args": [
 				"-y",
-				"chrome-devtools-mcp@latest"
+				"chrome-devtools-mcp@1.11.0"
 			],
 			"serverInstructions": "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals."
 		}

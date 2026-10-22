@@ -14,6 +14,7 @@
 import { z } from "zod";
 import { readState, writeState } from "./hook-runtime.ts";
 import { hasCommand } from "./platform.ts";
+import { redactSecrets } from "./redact.ts";
 
 const VERDICT_FILE = "codex-verdict.json";
 
@@ -31,9 +32,25 @@ const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000; // hard cap so a hung call can't run
 // is still fresh. 60s is safe: the badge poll and exec preflight share this cache.
 const AVAILABLE_TTL_MS = 60_000;
 
-// ESC[…m built from charCode(27) rather than a literal control char, so the
-// regex doesn't trip biome's noControlCharactersInRegex rule.
-const ANSI_RE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+// Terminal-control stripping. All patterns are built from charCode() rather than
+// literal control chars so the regexes don't trip biome's noControlCharactersInRegex
+// rule. We strip the full ANSI/control surface — not just SGR colors — so a buggy or
+// hostile Codex can't smuggle a cursor-move, screen-clear, hyperlink, or title-set
+// payload into a cached verdict detail, the statusline, or echoed CLI output.
+const ESC = String.fromCharCode(27); // \x1b
+const BEL = String.fromCharCode(7); // \x07
+// CSI: ESC [ <params 0x30-0x3F> <intermediates 0x20-0x2F> <final 0x40-0x7E>.
+// Superset of the old SGR-only `ESC[…m` — also covers cursor moves, erases, etc.
+const CSI_RE = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, "g");
+// OSC: ESC ] … terminated by BEL or ST (ESC \). Covers hyperlinks (ESC]8;;…) and
+// window-title sets (ESC]0;…). Non-greedy so adjacent sequences don't merge.
+const OSC_RE = new RegExp(`${ESC}\\][\\s\\S]*?(?:${BEL}|${ESC}\\\\)`, "g");
+// Remaining C0 controls (except tab/newline/CR) + DEL + any solitary ESC left by an
+// incomplete sequence. Run AFTER CSI/OSC so full sequences are removed as units.
+const CONTROL_RE = new RegExp(
+  `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}${String.fromCharCode(12)}${String.fromCharCode(14)}-${String.fromCharCode(31)}${String.fromCharCode(127)}]`,
+  "g",
+);
 
 /**
  * Codex usability, worst-to-usable. The cheap L0/L1 check only distinguishes the
@@ -68,7 +85,9 @@ const CodexVerdictSchema = z.object({
 
 export type CodexVerdict = z.infer<typeof CodexVerdictSchema>;
 
-export type LiveAvailability = "available" | "not-installed" | "unauthenticated";
+// "unknown" = an inconclusive L1 result (CLI drift, keychain hiccup, unrecognized
+// failure) that should NOT block L2 — the real exec probe gets to classify it.
+export type LiveAvailability = "available" | "not-installed" | "unauthenticated" | "unknown";
 export type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
 // Runtime allowlist — TypeScript already constrains CodexSandbox, but this guards
@@ -92,6 +111,14 @@ export interface CodexRunOptions {
    *  mismatch). Does NOT bypass not-installed or unauthenticated — those can't
    *  succeed regardless. */
   force?: boolean;
+  /** Caller pin for `codex exec` via `--model` (flag or env). Unset → codex uses
+   *  its configured default model, so its failures describe the account. A pinned
+   *  model's entitlement or quota failure stays out of the shared verdict cache. */
+  model?: string;
+  /** Passed as `--output-schema`: Codex constrains its final message to this JSON Schema. */
+  outputSchemaPath?: string;
+  /** Passed as `--output-last-message`: Codex writes its final message to this file. */
+  outputLastMessagePath?: string;
 }
 
 export interface CodexRunResult {
@@ -101,6 +128,8 @@ export interface CodexRunResult {
   state: CodexState;
   /** On block/failure: human-readable guidance. On success: undefined. */
   detail?: string;
+  /** True when the run was killed at its timeout. */
+  timedOut?: boolean;
 }
 
 // ── L0 + L1: cheap, no model call ──────────────────────────────────────────────
@@ -108,18 +137,45 @@ export interface CodexRunResult {
 /** PATH presence + `codex login status` exit code. `login status` only reads
  *  cached credentials (no network model call), so this is free to run often.
  *  Spawned directly (not via runProcessFull) so the call can be bounded — a hung
- *  CLI must not stall the preflight gate. Timeout/spawn error → fail open as
- *  unauthenticated (continue Claude-only), never throw into the hot path. */
+ *  CLI must not stall the preflight gate. A timeout kill → "unknown" (distinct
+ *  from "unauthenticated" — a hung status check is not a positive logged-out
+ *  signal). A synchronous spawn error → fail open as unauthenticated (continue
+ *  Claude-only), never throw into the hot path. */
 export async function checkCodexAvailability(): Promise<LiveAvailability> {
   if (!hasCommand("codex")) return "not-installed";
   try {
     const proc = Bun.spawn(["codex", "login", "status"], {
       stdout: "ignore",
-      stderr: "ignore",
+      stderr: "pipe",
       timeout: LOGIN_STATUS_TIMEOUT_MS,
     });
+    const stderr = await new Response(proc.stderr).text();
     const exit = await proc.exited; // on timeout Bun kills the process → non-zero
-    return exit === 0 ? "available" : "unauthenticated";
+    if (exit === 0) return "available";
+    // A timeout kill is surfaced via proc.signalCode (Bun sets it when it kills
+    // the process for exceeding `timeout`). That is NOT a "not logged in"
+    // signal — classify it as "unknown" (inconclusive, let L2 decide) rather
+    // than "unauthenticated", which would wrongly tell the user to `codex login`
+    // when the real problem was a hung/slow status check.
+    if (proc.signalCode !== null) return "unknown";
+    // Non-zero: a positive "not logged in" signal blocks L2 (re-login fixes it).
+    // But CLI version drift, an unrecognized subcommand, or a keychain error must
+    // NOT be misread as "unauthenticated" — that would block L2 forever. Classify
+    // those as "unknown" so the real exec probe can decide.
+    const s = stderr.toLowerCase();
+    if (
+      /not logged in|logged out|run .*codex login|no credentials|please (?:log|sign)[ -]?in|not authenticated|unauthenticated/.test(
+        s,
+      )
+    ) {
+      return "unauthenticated";
+    }
+    if (
+      /error|unrecognized|unknown (?:sub)?command|unexpected|usage:|invalid|panic|not found/.test(s)
+    ) {
+      return "unknown";
+    }
+    return "unauthenticated";
   } catch {
     return "unauthenticated";
   }
@@ -159,9 +215,34 @@ function isStickyVerdictFresh(v: CodexVerdict): boolean {
  *  login-status cannot see entitlement (no-access) or quota (rate-limited). */
 export function reconcile(live: LiveAvailability, cached: CodexVerdict): CodexVerdict {
   const now = new Date().toISOString();
-  if (live !== "available") return { state: live, checkedAt: now, sticky: false };
+  // Definitive negatives (binary gone / logged out) always win — they override any
+  // stale sticky, because the cache can't express "the user just removed access".
+  if (live === "not-installed" || live === "unauthenticated") {
+    return { state: live, checkedAt: now, sticky: false };
+  }
+  // "available" or inconclusive "unknown": a still-fresh sticky L2 negative wins,
+  // since the cheap check can't observe entitlement (no-access) or quota (rate-limited).
   if (isStickyVerdictFresh(cached)) return cached;
-  return { state: "available", checkedAt: now, sticky: false };
+  if (live === "available") return { state: "available", checkedAt: now, sticky: false };
+  // Inconclusive L1 with no fresh sticky → let the real exec probe classify it.
+  return { state: "unknown", checkedAt: now, sticky: false };
+}
+
+/** Persist a reconciled verdict, guarding the cross-process read-check-write race:
+ *  a non-sticky "available"/"unknown" verdict is computed from a *cheap* or
+ *  *inconclusive* signal that can't see entitlement or quota, so it must not clobber
+ *  a newer fresh sticky L2 negative (rate-limited / no-access) that a concurrent
+ *  `runCodexExec` may have written after we read the cache. Definitive negatives and
+ *  real L2 verdicts always win. Re-reads immediately before writing to shrink the
+ *  TOCTOU window (there is no cross-process file lock). Returns the verdict that
+ *  ended up authoritative so callers reflect a concurrent L2 result. */
+async function commitReconciled(v: CodexVerdict): Promise<CodexVerdict> {
+  if (!v.sticky && (v.state === "available" || v.state === "unknown")) {
+    const current = await readCodexVerdict();
+    if (isStickyVerdictFresh(current)) return current;
+  }
+  await writeCodexVerdict(v);
+  return v;
 }
 
 /** Run the cheap check, reconcile with the cache, persist, and return the verdict.
@@ -176,9 +257,7 @@ export async function refreshCodexVerdict(): Promise<CodexVerdict> {
     return cached;
   }
   const live = await checkCodexAvailability();
-  const v = reconcile(live, cached);
-  await writeCodexVerdict(v);
-  return v;
+  return commitReconciled(reconcile(live, cached));
 }
 
 // ── L2: classify a real call's failure ─────────────────────────────────────────
@@ -187,14 +266,13 @@ export async function refreshCodexVerdict(): Promise<CodexVerdict> {
  * Strip ANSI escape codes and redact credentials from any string. Operates on
  * the full text (no line capping, no length limit). Used by both `firstLine`
  * (for cached detail snippets) and `sanitizeOutput` (for full output surfaces).
+ *
+ * Secret redaction is delegated to the canonical redactSecrets (src/lib/
+ * redact.ts) rather than a local pattern set, so this surface always carries
+ * the same coverage as safety-net.ts and log-bash.ts.
  */
 export function sanitizeOutput(s: string): string {
-  return s
-    .replace(ANSI_RE, "")
-    .replace(/sk-[A-Za-z0-9_-]{16,}/g, "sk-[redacted]")
-    .replace(/Bearer[\s:]+\S+/gi, "Bearer [redacted]")
-    .replace(/(Authorization:\s*)\S+/gi, "$1[redacted]")
-    .replace(/\b([A-Z0-9_]*(?:API_?KEY|TOKEN|SECRET))=\S+/gi, "$1=[redacted]");
+  return redactSecrets(s.replace(OSC_RE, "").replace(CSI_RE, "").replace(CONTROL_RE, ""));
 }
 
 /** First non-empty line of a subprocess stderr, sanitized before it's cached to
@@ -301,17 +379,59 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // `--` ends Codex's option parsing: a prompt beginning with `-` can't be
   // re-read by its arg parser as a flag (e.g. a sandbox override). Security: H1.
   const startedAt = Date.now();
-  const proc = Bun.spawn(["codex", "exec", "--sandbox", sandbox, "--", opts.prompt], {
-    cwd: opts.cwd,
-    stdout: "pipe",
-    stderr: "pipe",
-    timeout,
-  });
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-  const exit = await proc.exited;
+  let stdout: string;
+  let stderr: string;
+  let exit: number;
+  let signalCode: string | null;
+  try {
+    // Model pin goes before the `--` end-of-options marker, alongside --sandbox.
+    const modelArgs = opts.model ? ["--model", opts.model] : [];
+    const outputArgs = [
+      ...(opts.outputSchemaPath ? ["--output-schema", opts.outputSchemaPath] : []),
+      ...(opts.outputLastMessagePath ? ["--output-last-message", opts.outputLastMessagePath] : []),
+    ];
+    const proc = Bun.spawn(
+      ["codex", "exec", "--sandbox", sandbox, ...modelArgs, ...outputArgs, "--", opts.prompt],
+      {
+        cwd: opts.cwd,
+        stdout: "pipe",
+        stderr: "pipe",
+        timeout,
+        // Hard kill on the timeout: a child that ignores SIGTERM (Bun's default) could
+        // otherwise outrun the ceiling. SIGKILL guarantees the bound is real.
+        killSignal: "SIGKILL",
+      },
+    );
+    [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    exit = await proc.exited;
+    signalCode = proc.signalCode; // set when the process was killed by a signal
+  } catch (err) {
+    // Bun.spawn throws synchronously on ENOENT (codex vanished from PATH inside the
+    // AVAILABLE_TTL_MS window that skips the L0 check), on an invalid `cwd`, and on
+    // permission errors. Fail open with a classified verdict instead of letting the
+    // exception crash the /codex script.
+    const msg = err instanceof Error ? err.message : String(err);
+    const code = (err as { code?: string } | null)?.code;
+    const now2 = new Date().toISOString();
+    if (code === "ENOENT" || /\benoent\b|not found|no such file/i.test(msg)) {
+      await writeCodexVerdict({ state: "not-installed", checkedAt: now2, sticky: false });
+      return blocked(
+        "not-installed",
+        "Codex CLI could not be launched (not on PATH). Reinstall it and run `codex login`. Continuing Claude-only.",
+      );
+    }
+    // Any other launch failure is a one-off: don't sticky-disable the bridge.
+    await commitReconciled({ state: "available", checkedAt: now2, sticky: false });
+    return {
+      ok: false,
+      output: "",
+      state: "unknown",
+      detail: `Codex failed to launch: ${firstLine(msg)}`,
+    };
+  }
   const elapsed = Date.now() - startedAt;
   const now = new Date().toISOString();
 
@@ -320,10 +440,11 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
     return { ok: true, output: sanitizeOutput(stdout.trim()), state: "available" };
   }
 
-  // Detect timeout: non-zero exit after elapsed ≥ effective timeout. The partial
-  // stdout (already captured before the process was killed) is surfaced so the
-  // caller has context. Timeouts are not sticky-cached — the bridge stays open.
-  if (exit !== 0 && elapsed >= timeout) {
+  // Detect timeout: the process was killed by a signal (our SIGKILL hard cap), or —
+  // as a fallback if the runtime didn't surface a signal — a non-zero exit at/after
+  // the effective limit. The partial stdout (captured before the kill) is surfaced
+  // so the caller has context. Timeouts are not sticky-cached — the bridge stays open.
+  if (signalCode !== null || (exit !== 0 && elapsed >= timeout)) {
     await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
     const minutes = Math.round(timeout / 60_000);
     return {
@@ -331,16 +452,440 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
       output: sanitizeOutput(stdout.trim()),
       state: "unknown",
       detail: `Codex timed out after ${minutes}m — split the task into smaller pieces or raise the timeout.`,
+      timedOut: true,
     };
   }
 
   const cls = classifyCodexError(exit, stderr);
   // An unclassified one-off failure must not sticky-disable the bridge: leave the
-  // cache reading "available" but report the failure to the caller.
+  // cache reading "available" but report the failure to the caller. Guarded so it
+  // can't clobber a fresher sticky L2 verdict a concurrent exec just wrote.
   if (cls.state === "unknown") {
-    await writeCodexVerdict({ state: "available", checkedAt: now, sticky: false });
+    await commitReconciled({ state: "available", checkedAt: now, sticky: false });
+  } else if (opts.model) {
+    // A pinned model (e.g. CODEX_REVIEW_MODEL) can 403/quota out on its own —
+    // that's model-specific, not "the account has no Codex access" or "the
+    // account is rate-limited" in general. Writing it to the shared sticky
+    // cache would wrongly block unpinned exec/ask calls for 5-24h. Surface the
+    // failure to this caller only; leave the shared verdict cache untouched.
   } else {
     await writeCodexVerdict({ state: cls.state, checkedAt: now, sticky: true, detail: cls.detail });
   }
   return { ok: false, output: sanitizeOutput(stdout.trim()), state: cls.state, detail: cls.detail };
+}
+
+// ── Review scope (the /codex review subcommand) ─────────────────────────────
+//
+// Codex's own `/review` has four presets: base-branch, uncommitted, a specific
+// commit, and custom instructions. We adopt the first three as flags — the
+// fourth ("custom instructions") is already covered by `codex-run.ts ask`.
+//
+// The review subcommand does not build a diff itself and pipe it to Codex —
+// it tells Codex (running in a read-only sandbox with shell access) which git
+// command(s) to run to see the diff, and Codex inspects the tree on its own.
+// So "scope" here means picking which git command(s) go into that instruction
+// text, not constructing a diff on the TypeScript side.
+
+export type ReviewScope =
+  | { kind: "uncommitted" }
+  | { kind: "staged" }
+  | { kind: "base"; branch: string }
+  | { kind: "commit"; sha: string };
+
+export type ParseReviewArgsResult =
+  | { ok: true; scope: ReviewScope; force: boolean; model?: string }
+  | { ok: false; error: string };
+
+// `--base`/`--commit` values are interpolated verbatim into the review
+// instruction text that Codex reads and acts on (see reviewScopeStepTexts
+// below). The TS side never runs git itself, but an option-like value
+// (`-s`) or one carrying shell metacharacters could still steer which git
+// command Codex ends up running in its own sandbox. Restrict to a strict git
+// ref charset: must start with an alphanumeric, then alphanumerics plus
+/** Model routing on the Codex side: flag > env > Codex's own configured default.
+ *  No `--model` reaches `codex` unless the caller pins one. */
+export type CodexSubcommand = "exec" | "review" | "ask";
+export const CODEX_MODEL_ENV: Readonly<Record<CodexSubcommand, string>> = {
+  exec: "CODEX_EXEC_MODEL",
+  review: "CODEX_REVIEW_MODEL",
+  ask: "CODEX_ASK_MODEL",
+};
+// Model ids are passed to `codex exec --model`; keep them to the id alphabet so
+// a value can never be read as a flag or shell text.
+export const SAFE_MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export type ResolveModelResult = { ok: true; model?: string } | { ok: false; error: string };
+
+export function resolveCodexModel(
+  subcommand: CodexSubcommand,
+  flag: string | undefined,
+  env: Record<string, string | undefined> = process.env,
+): ResolveModelResult {
+  const envValue = env[CODEX_MODEL_ENV[subcommand]];
+  const pin = flag ?? (envValue?.trim() ? envValue.trim() : undefined);
+  if (pin === undefined) return { ok: true };
+  if (!SAFE_MODEL_RE.test(pin)) {
+    return {
+      ok: false,
+      error: `${subcommand}: model "${pin}" is not a valid model id (letters, digits, '.', '_', '-' only; must not start with '-').`,
+    };
+  }
+  return { ok: true, model: pin };
+}
+
+/** Consume leading flags (`--force`, `--model <id>`, and an optional `--`
+ *  end-of-flags marker) from the front of `exec`/`ask` argv. Only tokens before
+ *  the first positional are flags, so a literal `--force` inside the prompt text
+ *  is preserved verbatim. */
+export interface LeadingFlags {
+  force: boolean;
+  model?: string;
+  /** `--expected <minutes>`: how long the task should take. */
+  expectedMinutes?: number;
+  rest: string[];
+}
+export type ParseLeadingFlagsResult = ({ ok: true } & LeadingFlags) | { ok: false; error: string };
+
+export function parseLeadingFlags(args: string[]): ParseLeadingFlagsResult {
+  let force = false;
+  let model: string | undefined;
+  let expectedMinutes: number | undefined;
+  let i = 0;
+  for (; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+    if (arg === "--expected") {
+      const value = args[i + 1];
+      if (!value || !/^\d+$/.test(value) || Number(value) === 0) {
+        return { ok: false, error: "--expected requires a whole number of minutes above 0." };
+      }
+      expectedMinutes = Number(value);
+      i++;
+      continue;
+    }
+    if (arg === "--model") {
+      const value = args[i + 1];
+      if (!value || value.startsWith("--"))
+        return { ok: false, error: "--model requires a model id." };
+      if (!SAFE_MODEL_RE.test(value)) {
+        return { ok: false, error: `--model value "${value}" is not a valid model id.` };
+      }
+      model = value;
+      i++;
+      continue;
+    }
+    if (arg === "--") {
+      i++;
+      break;
+    }
+    break;
+  }
+  return {
+    ok: true,
+    force,
+    model,
+    ...(expectedMinutes !== undefined && { expectedMinutes }),
+    rest: args.slice(i),
+  };
+}
+
+// `. _ / -`. No leading `-`, no spaces, no `;`, `$`, backticks, quotes, etc.
+const SAFE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
+/** Parse `review` subcommand args. Unlike `exec`/`ask`, `review` takes no
+ *  trailing prompt — every token is a flag. `--staged`, `--base <branch>`,
+ *  and `--commit <sha>` are mutually exclusive; combining them (or any
+ *  unrecognized token) is a parse error, not a fallback to default scope, so
+ *  a typo'd flag can't silently review the wrong thing. Pure — does not touch
+ *  git or spawn codex, so it's safe to unit test and safe to call before the
+ *  preflight gate. */
+export function parseReviewArgs(args: string[]): ParseReviewArgsResult {
+  let force = false;
+  let staged = false;
+  let base: string | undefined;
+  let commit: string | undefined;
+  let model: string | undefined;
+  const unknown: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+    if (arg === "--model") {
+      if (model !== undefined)
+        return { ok: false, error: "review: --model passed more than once." };
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { ok: false, error: "review: --model requires a model id." };
+      }
+      if (!SAFE_MODEL_RE.test(value)) {
+        return { ok: false, error: `review: --model value "${value}" is not a valid model id.` };
+      }
+      i++;
+      model = value;
+      continue;
+    }
+    if (arg === "--staged") {
+      if (staged) return { ok: false, error: "review: --staged passed more than once." };
+      staged = true;
+      continue;
+    }
+    if (arg === "--base") {
+      if (base !== undefined) return { ok: false, error: "review: --base passed more than once." };
+      // A value starting with "--" is almost certainly the next flag, not a
+      // branch name — treat it as a missing value rather than swallowing it.
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { ok: false, error: "review: --base requires a branch argument." };
+      }
+      if (!SAFE_REF_RE.test(value)) {
+        return {
+          ok: false,
+          error: `review: --base value "${value}" is not a valid git ref (letters, digits, '.', '_', '/', '-' only; must not start with '-').`,
+        };
+      }
+      i++;
+      base = value;
+      continue;
+    }
+    if (arg === "--commit") {
+      if (commit !== undefined)
+        return { ok: false, error: "review: --commit passed more than once." };
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { ok: false, error: "review: --commit requires a commit SHA argument." };
+      }
+      if (!SAFE_REF_RE.test(value)) {
+        return {
+          ok: false,
+          error: `review: --commit value "${value}" is not a valid git ref (letters, digits, '.', '_', '/', '-' only; must not start with '-').`,
+        };
+      }
+      i++;
+      commit = value;
+      continue;
+    }
+    unknown.push(arg ?? "");
+  }
+
+  const scopeCount = [staged, base !== undefined, commit !== undefined].filter(Boolean).length;
+  if (scopeCount > 1) {
+    return {
+      ok: false,
+      error: "review: --staged, --base, and --commit are mutually exclusive — pass at most one.",
+    };
+  }
+  if (unknown.length > 0) {
+    return { ok: false, error: `review: unrecognized argument(s): ${unknown.join(" ")}` };
+  }
+
+  const scope: ReviewScope = staged
+    ? { kind: "staged" }
+    : base !== undefined
+      ? { kind: "base", branch: base }
+      : commit !== undefined
+        ? { kind: "commit", sha: commit }
+        : { kind: "uncommitted" };
+
+  return { ok: true, scope, force, ...(model ? { model } : {}) };
+}
+
+/** One-line description of the scope, used in the prompt's opening sentence. */
+function reviewScopeDescription(scope: ReviewScope): string {
+  switch (scope.kind) {
+    case "uncommitted":
+      return "the current uncommitted diff in this repository";
+    case "staged":
+      return "the currently staged diff in this repository";
+    case "base":
+      return `the diff between HEAD and its merge base with \`${scope.branch}\``;
+    case "commit":
+      return `commit \`${scope.sha}\``;
+  }
+}
+
+/** The git command that defines the diff for this scope. It is the scope
+ *  definition, not a step recipe: Codex decides how to inspect the repository. */
+function reviewScopeCommand(scope: ReviewScope): string {
+  switch (scope.kind) {
+    case "uncommitted":
+      return "`git diff` plus `git diff --cached`";
+    case "staged":
+      return "`git diff --cached` only; ignore unstaged changes";
+    case "base":
+      return `\`git diff ${scope.branch}...HEAD\` (three-dot: everything since the merge base, not a two-branch diff)`;
+    case "commit":
+      return `\`git show ${scope.sha}\``;
+  }
+}
+
+/** Build the review prompt for a scope. The prompt states the scope, the review
+ *  contract, and the report shape, and leaves the inspection method to the
+ *  model. Current Codex models find the diff themselves; a numbered `git status`
+ *  / `git diff` recipe only spent context and risked the model
+ *  treating the recipe as the whole job. */
+export function buildReviewPrompt(scope: ReviewScope): string {
+  return [
+    `You are performing an independent code review of ${reviewScopeDescription(scope)}.`,
+    `The diff under review is ${reviewScopeCommand(scope)}. Read surrounding code when a finding depends on it.`,
+    "",
+    "Report only behavior or risk: correctness bugs, security issues (injection, secrets, unsafe operations),",
+    "and quality problems that change outcomes (logic errors, missing error handling, type unsafety).",
+    "Skip formatting, naming taste, and anything a linter catches.",
+    "",
+    "Group findings by severity: HIGH, MEDIUM, LOW. For each finding give file + line range,",
+    "what goes wrong, and the suggested fix. If the diff is clean, say so explicitly.",
+    "",
+    "Be concise and precise. Focus on real problems, not style preferences.",
+  ].join("\n");
+}
+
+/** Wrap an `exec` task with the completion contract. A Codex model can stop early
+ *  when completion is undefined: it reaches a first implementation and returns
+ *  for review while work remains. The contract defines "done" up front (run,
+ *  inspect, fix, verify) and grants the local verification workflow so the
+ *  model does not pause for approval at each step inside the sandbox. */
+export function buildExecPrompt(task: string): string {
+  return [
+    "Task:",
+    task.trim(),
+    "",
+    "Completion contract:",
+    "- Done means the task's stated outcome holds and the repository's own local checks",
+    "  (typecheck, tests, lint, build; whatever the repo defines) pass for the files you touched.",
+    "- Run those checks yourself, inspect the result, and fix failures your change caused.",
+    "  Do not pause for approval between steps; the sandbox bounds what you can affect.",
+    "- Do not stop after a first implementation to ask for review. Continue until done",
+    "  or until a decision only the requester can make blocks you; then state that decision.",
+    "- Stay inside the task's scope. Do not refactor, upgrade, or reformat beyond it.",
+    "- Leave the changes uncommitted. Finish with the files changed, the checks you ran",
+    "  with their result, and anything you could not verify.",
+    "- Your final message is the JSON object the output schema defines: status (completed,",
+    "  blocked, or scope_expansion), the current branch, commit (empty when the changes are",
+    "  uncommitted), files_changed, verify_cmd, verify_result with passed and the last lines",
+    "  of output, and blockers (each decision or access you need; empty when none).",
+  ].join("\n");
+}
+
+// ── Worker result (the exec subcommand's structured final message) ──────────
+//
+// The one definition of the result an exec worker returns. Codex gets it as
+// `--output-schema`; Claude implementers end their report with the same object
+// (agents/implementer.md). OpenAI structured output requires every property to
+// be required and `additionalProperties: false`, which z.strictObject emits.
+
+export const WorkerResultSchema = z.strictObject({
+  status: z.enum(["completed", "blocked", "scope_expansion"]),
+  branch: z.string().describe("Current git branch; empty when HEAD is detached."),
+  commit: z.string().describe("SHA of the final commit; empty when the changes are uncommitted."),
+  files_changed: z.array(z.string()).describe("Paths relative to the repository root."),
+  verify_cmd: z.string().describe("The check command that was run; empty when none ran."),
+  verify_result: z.strictObject({
+    passed: z.boolean(),
+    output_tail: z.string().describe("The last lines of the check output."),
+  }),
+  blockers: z.array(z.string()),
+});
+
+export type WorkerResult = z.infer<typeof WorkerResultSchema>;
+
+/** The JSON Schema handed to `codex exec --output-schema`. */
+export function workerResultJsonSchema(): Record<string, unknown> {
+  const { $schema: _, ...schema } = z.toJSONSchema(WorkerResultSchema);
+  return schema;
+}
+
+/** A worker that returns nothing for 3x its expected time is treated as stalled. */
+export const STALL_FACTOR = 3;
+
+/** Timeout for an exec with an expected duration, clamped to the hard ceiling. */
+export function stallTimeoutMs(expectedMinutes: number): number {
+  return Math.min(expectedMinutes * STALL_FACTOR * 60_000, MAX_EXEC_TIMEOUT_MS);
+}
+
+/** The stall message when a run with an expected duration was killed at 3x that
+ *  duration without producing any output; null otherwise. Past the hard ceiling the
+ *  kill is an ordinary timeout, not the 3x rule. */
+export function stallDetail(
+  result: CodexRunResult,
+  expectedMinutes: number | undefined,
+  lastMessage: string,
+): string | null {
+  if (expectedMinutes === undefined || result.ok || !result.timedOut) return null;
+  const stallMinutes = expectedMinutes * STALL_FACTOR;
+  if (stallTimeoutMs(expectedMinutes) !== stallMinutes * 60_000) return null;
+  if (result.output.trim() || lastMessage.trim()) return null;
+  return `Codex stalled: no output after ${stallMinutes}m (${STALL_FACTOR}x the expected ${expectedMinutes}m). Check the tree before rerunning.`;
+}
+
+export type ParseWorkerResult = { ok: true; result: WorkerResult } | { ok: false; error: string };
+
+export function parseWorkerResult(text: string): ParseWorkerResult {
+  const trimmed = text.trim();
+  if (!trimmed) return { ok: false, error: "no final message" };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(trimmed);
+  } catch {
+    return { ok: false, error: "final message is not JSON" };
+  }
+  const parsed = WorkerResultSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue?.path.length ? issue.path.join(".") : "result";
+    return {
+      ok: false,
+      error: `final message does not match the schema (${where}: ${issue?.message})`,
+    };
+  }
+  return { ok: true, result: parsed.data };
+}
+
+export interface WorkerTreeState {
+  /** Paths git reports as changed or untracked, relative to the repository root. */
+  changed: string[];
+  /** Whether `commit` resolves to a commit; null when the result names none. */
+  commitExists: boolean | null;
+}
+
+export interface WorkerAssessment {
+  ready: boolean;
+  /** Why the result is not ready; empty when ready. */
+  reasons: string[];
+  /** Changed paths the result does not list. The tree may hold earlier uncommitted work,
+   *  so these are reported without blocking readiness. */
+  undeclared: string[];
+}
+
+const normalizePath = (p: string) => p.trim().replace(/^\.\//, "");
+
+/** Check a worker's claim against the tree. Ready means: status completed, the check
+ *  passed, and the claimed output exists, either as a commit that resolves with no
+ *  uncommitted changes left, or as uncommitted changes covering every listed file. */
+export function assessWorkerResult(result: WorkerResult, tree: WorkerTreeState): WorkerAssessment {
+  const reasons: string[] = [];
+  if (result.status !== "completed") reasons.push(`status is ${result.status}`);
+  if (!result.verify_result.passed) {
+    reasons.push(result.verify_cmd ? `\`${result.verify_cmd}\` failed` : "verification failed");
+  }
+  if (result.blockers.length > 0) reasons.push(`${result.blockers.length} blocker(s) reported`);
+  const changed = new Set(tree.changed.map(normalizePath));
+  const listed = result.files_changed.map(normalizePath).filter(Boolean);
+  if (result.commit) {
+    if (tree.commitExists === false) reasons.push(`commit ${result.commit} does not exist`);
+    if (changed.size > 0) reasons.push("uncommitted changes remain next to the reported commit");
+  } else if (changed.size === 0) {
+    reasons.push("no commit and no uncommitted changes");
+  } else {
+    const missing = listed.filter((p) => !changed.has(p));
+    if (missing.length > 0) reasons.push(`listed but unchanged: ${missing.join(", ")}`);
+  }
+  const listedSet = new Set(listed);
+  const undeclared = result.commit ? [] : [...changed].filter((p) => !listedSet.has(p));
+  return { ready: reasons.length === 0, reasons, undeclared };
 }

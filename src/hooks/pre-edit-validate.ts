@@ -1,5 +1,11 @@
 #!/usr/bin/env bun
-// Pre-Edit Validation Hook — PreToolUse guard for Edit/Write calls.
+// Pre-Edit Validation Hook — PreToolUse guard for Edit calls.
+//
+// Write is intentionally excluded (config/40-hooks.json wires this hook to
+// matcher "Edit" only): Write's tool_input carries no old_string, so checks
+// 2-4 below never apply to it anyway, and check 1 (target file must exist)
+// would incorrectly block legitimate new-file creation via Write, which has
+// no existing file to check against.
 //
 // Decision protocol (shared with safety-net.ts / freeze-guard.ts via
 // lib/hook-runtime.ts blockDecision):
@@ -7,7 +13,7 @@
 //   exit 2 + JSON stdout → BLOCK {"decision":"block","reason":"[Harness] ..."}
 //
 // Fail-open: any unexpected error → exit 0 (allow the edit), and unparseable
-// TOOL_INPUT never blocks (readToolInputEnv returns {}).
+// input never blocks (readToolInput returns {}).
 //
 // Checks:
 //   1. Target file exists.                           (block)
@@ -17,19 +23,17 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import { blockDecision, readToolInputEnv } from "../lib/hook-runtime.ts";
+import { type HookIO, processIO, runHook } from "../lib/hook-runtime.ts";
 
 type EditInput = {
   file_path?: string;
   old_string?: string;
 };
 
-async function main(): Promise<void> {
-  // Claude Code passes the Edit tool input as a JSON blob in TOOL_INPUT; both
-  // file_path and old_string are read from it. (The per-field TOOL_INPUT_*
-  // scalars carry the same data — one source avoids the file_path/old_string
-  // asymmetry.)
-  const parsed = readToolInputEnv<EditInput>();
+export async function main(io: HookIO = processIO): Promise<void> {
+  // Claude Code passes the Edit tool input as `tool_input` in the stdin JSON;
+  // both file_path and old_string are read from it.
+  const parsed = await io.toolInput<EditInput>();
 
   const resolvedPath = parsed.file_path ?? "";
   if (!resolvedPath) return;
@@ -42,9 +46,7 @@ async function main(): Promise<void> {
     isFile = false;
   }
   if (!isFile) {
-    blockDecision(
-      `[Harness] File does not exist: ${resolvedPath}. Use Write tool to create new files.`,
-    );
+    io.block(`[Harness] File does not exist: ${resolvedPath}. Use Write tool to create new files.`);
   }
 
   const oldString = parsed.old_string;
@@ -70,20 +72,13 @@ async function main(): Promise<void> {
           "Re-read the file with Read tool, then retry."
         : `[Harness] old_string not found in ${base}. ` +
           "File may have changed since last read. Re-read before editing.";
-    blockDecision(`${diagnosis} For complex edits, use Write tool for full file replacement.`);
+    io.block(`${diagnosis} For complex edits, use Write tool for full file replacement.`);
   }
 
-  // Check 3: large old_string.
-  const lineCount = (oldString.match(/\n/g)?.length ?? 0) + 1;
-  if (lineCount > 15) {
-    console.log(`[Harness] Large edit target (${lineCount} lines) in ${base}.`);
-    console.log(
-      "[Harness] Large string-replace edits are error-prone. Consider Write tool for full file replacement.",
-    );
-    return;
-  }
-
-  // Check 4: ambiguous old_string.
+  // Check 3: ambiguous old_string. Advisory only: plain console.log stdout on
+  // a PreToolUse hook never reaches the model (see docs/hooks-reference.md
+  // "Sync vs Async Behavior"), so it goes through the
+  // hookSpecificOutput.additionalContext envelope instead.
   let occurrences = 0;
   let searchFrom = 0;
   while (true) {
@@ -93,16 +88,14 @@ async function main(): Promise<void> {
     searchFrom = found + oldString.length;
   }
   if (occurrences > 1) {
-    console.log(`[Harness] old_string appears ${occurrences} times in ${base}.`);
-    console.log(
-      "[Harness] Add more surrounding context to make old_string unique, or use replace_all.",
+    io.context(
+      "PreToolUse",
+      `[Harness] old_string appears ${occurrences} times in ${base}. ` +
+        "Add more surrounding context to make old_string unique, or use replace_all.",
     );
   }
 }
 
-try {
-  await main();
-} catch {
-  // Fail-open: an unexpected throw must never block the edit. Intentional
-  // blocks exit(2) inside blockDecision and never reach this catch.
-}
+// Fail-open: an unexpected throw must never block the edit. Intentional
+// blocks exit(2) inside blockDecision and never reach this catch.
+if (import.meta.main) await runHook(main);

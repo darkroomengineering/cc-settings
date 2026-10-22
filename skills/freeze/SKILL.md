@@ -1,13 +1,24 @@
 ---
 name: freeze
-description: Lock file edits to one directory for the session — Edit/Write/MultiEdit outside it are blocked, not just warned. Use when debugging to stop accidental edits to unrelated code, or to fence a parallel agent to one module. Triggers "freeze edits", "lock editing scope", "restrict edits to", "only edit this folder", "unfreeze", "lift the freeze".
+argument-hint: "[set|off|status] [dir]"
+description: Block Edit and Write outside one directory for the session to contain debugging or parallel agents. Triggers "freeze edits", "restrict edits to", "only edit this folder", "unfreeze".
 context: main
 allowed-tools: [Bash, AskUserQuestion]
 ---
 
 # Freeze: Lock Edits to a Directory
 
-Restrict `Edit`, `Write`, and `MultiEdit` to a single directory. Any edit targeting a file outside the boundary is **blocked** by the `freeze-guard` PreToolUse hook. State persists for the session in `~/.claude/tmp/freeze.json`.
+## Standalone Codex: unsupported
+
+Stop here in standalone Codex. The plugin does not install a freeze guard for
+`apply_patch`, so this skill cannot enforce an edit boundary. Do not write
+freeze state or claim a directory is locked. Tell the user the operation is
+unsupported and use explicit file ownership as a convention only if they want
+to continue without enforcement.
+
+The remaining workflow is Claude-only.
+
+Restrict `Edit` and `Write` to a single directory. Any edit targeting a file outside the boundary is **blocked** by the `freeze-guard` PreToolUse hook. State persists per session in `~/.claude/tmp/freeze-<sha256(sessionId)>.json`; setting, checking, or clearing one session's boundary leaves other sessions untouched. Legacy `freeze.json` state without a session tag is still honored when no session record exists. Legacy state tagged to another session is ignored without deleting it.
 
 Note: notebook edits (`NotebookEdit`) and shell writes (`Bash`) are not gated — the boundary covers the file-editing tools only.
 

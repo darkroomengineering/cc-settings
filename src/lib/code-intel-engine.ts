@@ -1,0 +1,229 @@
+// Code-intelligence engine indirection — the single source of truth for which
+// engine backs the `tldr` MCP server.
+//
+// cc-settings historically hard-wired one engine (llm-tldr, an abandoned pipx
+// Python tool) into ~6 surfaces. This module makes the engine swappable behind
+// a stable contract: the MCP server key stays "tldr" and the 18 mcp__tldr__*
+// tool names never change — only the process behind them does. Selection is a
+// single GLOBAL choice (the tldr server in ~/.claude.json is global), resolved
+// once per install / per hook run as:
+//
+//   process.env.CC_CODE_INTEL_ENGINE  >  install sentinel `engine`  >  default
+//
+// Precedence: env override > EXPLICIT install-sentinel choice > DEFAULT_ENGINE_ID.
+// "Explicit" matters: a sentinel's `engine` field is only honoured when it was
+// stamped by a run that itself resolved explicitly (env override, or a
+// previously-explicit sentinel) — see resolveEngine below. This is what lets
+// DEFAULT_ENGINE_ID actually change behavior on existing installs instead of
+// being permanently pinned by whatever was the default at first-install time.
+// Per-project native-vs-external routing behind the same server name is
+// deferred to a future MCP proxy — not built here.
+
+import { join } from "node:path";
+import { z } from "zod";
+import { ensurePythonPackage } from "./packages.ts";
+import { CLAUDE_DIR, hasCommand } from "./platform.ts";
+import { readSentinelInfo, type SentinelInfo } from "./version-delta.ts";
+
+// How an engine is provisioned. Discriminated on `method`:
+//   python   — a pip/pipx package exposing a CLI (the llm-tldr shape)
+//   none     — nothing to install; runs from the cc-settings src tree (native-ts)
+const InstallSchema = z.discriminatedUnion("method", [
+  z.object({
+    method: z.literal("python"),
+    pkg: z.string(),
+    checkCmd: z.string(),
+  }),
+  z.object({ method: z.literal("none") }),
+]);
+
+export const EngineDescriptorSchema = z.object({
+  id: z.string().min(1),
+  // The contract: the MCP server key is always "tldr" regardless of engine.
+  mcpServerName: z.literal("tldr"),
+  install: InstallSchema,
+  // What ~/.claude.json's tldr server runs. finalize() fills install-location
+  // paths (native-ts args) at resolve time.
+  mcp: z.object({
+    command: z.string(),
+    args: z.array(z.string()),
+  }),
+  // The CLI the lifecycle hooks (session-start daemon/warm, post-edit notify)
+  // drive. supportsDaemon=false ⇒ those hooks skip the engine entirely.
+  cli: z.object({
+    command: z.string(),
+    supportsDaemon: z.boolean(),
+    // Maps logical verbs ("daemon", "warm") to the engine's actual subcommand,
+    // so hooks never hardcode an engine's CLI surface.
+    verbMap: z.record(z.string(), z.string()),
+  }),
+  languages: z.enum(["ts-js", "multi"]),
+  serverInstructions: z.string(),
+});
+
+export type EngineDescriptor = z.infer<typeof EngineDescriptorSchema>;
+
+// Default flipped to native-ts in v12.9.0. Upstream llm-tldr was archived
+// 2026-07-13, and its `language` parameter defaults to `python` — on a TS repo
+// its tools return `{"status":"ok"}` with an EMPTY result instead of an error,
+// so a wrong answer is indistinguishable from a true negative (measured: impact
+// on a symbol with 5 callers returned []). native-ts answers those queries
+// correctly and refuses the ones it can't do with `unsupported-by-native-engine`.
+// A loud refusal beats a silent wrong answer.
+//
+// Trade-off: native-ts is TypeScript/JavaScript only. On a Rust/Python/Go repo
+// select llm-tldr explicitly (CC_CODE_INTEL_ENGINE=llm-tldr) AND pass `language`
+// on every call — it is archived upstream, so that is a deliberate, eyes-open
+// choice, not a default anyone should fall into.
+export const DEFAULT_ENGINE_ID = "native-ts";
+
+// llm-tldr's serverInstructions are copied VERBATIM from config/20-mcp.json's
+// tldr block — this string is the regression guard (a test asserts the default
+// engine reproduces the static fragment exactly). Do not edit without updating
+// both in lockstep.
+export const ENGINES: Record<string, EngineDescriptor> = {
+  "llm-tldr": {
+    id: "llm-tldr",
+    mcpServerName: "tldr",
+    install: { method: "python", pkg: "llm-tldr", checkCmd: "tldr" },
+    mcp: { command: "tldr-mcp", args: ["--project", "."] },
+    cli: { command: "tldr", supportsDaemon: true, verbMap: { daemon: "daemon", warm: "warm" } },
+    languages: "multi",
+    serverInstructions:
+      "Codebase analysis and repository-level search over the current project. Use when you need to find where something is implemented, understand large or unfamiliar code, trace call graphs, or answer questions that require scanning many files. IMPORTANT: the `language` parameter does NOT auto-detect — it defaults to `python`, and on any other language the tools return an empty result with status ok rather than an error. Always pass `language` explicitly (typescript, javascript, go, rust, …, or `all`). The `impact` and `semantic` tools expose no `language` parameter, so an empty result from them is not evidence that nothing matched — cross-check with Grep before acting on it.",
+  },
+
+  "native-ts": {
+    id: "native-ts",
+    mcpServerName: "tldr",
+    install: { method: "none" },
+    // command is "bun"; args are filled by finalize() with the installed
+    // codemap MCP server path (it lives in the cc-settings src tree).
+    mcp: { command: "bun", args: [] },
+    cli: { command: "", supportsDaemon: false, verbMap: {} },
+    languages: "ts-js",
+    serverInstructions:
+      "Native TypeScript codemap analysis over the current project (TypeScript/JavaScript only). Use to find where something is implemented, list a file's structure, trace cross-file call graphs and imports, find a symbol's callers, and map git-change impact. Built on the TypeScript compiler. It does NOT implement semantic/embedding search, dataflow, slicing, control-flow, dead-code, diagnostics, or free-text search — those return an explicit `unsupported-by-native-engine` error rather than an empty result, and that error means the analysis DID NOT RUN. Never report it as a clean/empty finding: fall back to Grep, or re-run with CC_CODE_INTEL_ENGINE=llm-tldr and an explicit `language`.",
+  },
+};
+
+export const KNOWN_ENGINE_IDS = Object.keys(ENGINES);
+
+/** Path to the native codemap MCP server inside an install's src tree. */
+export function nativeMcpServerPath(claudeDir: string): string {
+  return join(claudeDir, "src", "codemap", "mcp-server.ts");
+}
+
+/**
+ * Clone a descriptor and fill install-location paths that are only known once
+ * an install root (claudeDir) is fixed:
+ *   native-ts  → mcp.args = [native codemap server path]
+ * Other engines are returned as-is (deep clone). Pure — never touches disk.
+ */
+export function finalize(engine: EngineDescriptor, claudeDir: string): EngineDescriptor {
+  const e = structuredClone(engine);
+  if (e.id === "native-ts") {
+    e.mcp.args = [nativeMcpServerPath(claudeDir)];
+  }
+  return e;
+}
+
+/** Get a finalized descriptor by id. An unknown id falls back to the default
+ *  engine (never throws) — selection is always resolvable. */
+export function getEngine(id: string, claudeDir: string = CLAUDE_DIR): EngineDescriptor {
+  const base = ENGINES[id] ?? ENGINES[DEFAULT_ENGINE_ID];
+  // base is always defined: DEFAULT_ENGINE_ID is a registry key.
+  return finalize(base as EngineDescriptor, claudeDir);
+}
+
+export interface ResolvedEngine {
+  engine: EngineDescriptor;
+  /** True when this resolution came from an explicit choice (env override, or
+   *  a sentinel stamped by a previously-explicit run) rather than falling
+   *  through to DEFAULT_ENGINE_ID. Callers that re-stamp the sentinel (setup.ts
+   *  writeVersionSentinel) use this to decide whether `engine_explicit` gets
+   *  written — see the module-level precedence comment above. */
+  explicit: boolean;
+}
+
+/**
+ * Resolve the active engine: env override > EXPLICIT install sentinel >
+ * default. An unknown id at any tier resolves to the default via getEngine.
+ * Never throws.
+ *
+ * A sentinel's `engine` is only honoured when `engineExplicit === true` — a
+ * sentinel written before that field existed (or written by a run that itself
+ * fell through to the default) defaults `engineExplicit` to false, so it is
+ * treated as "this was just the default at the time", not a user choice, and
+ * a changed DEFAULT_ENGINE_ID reaches it on the next resolution. This is what
+ * makes the default un-sticky (see module header).
+ *
+ * `sentinel`, when provided, is used instead of re-reading
+ * `.cc-settings-version` from disk — for callers (src/setup.ts main()) that
+ * already read the sentinel once for other purposes (N10: avoid reading the
+ * same file three times per install). Every other caller omits it and gets
+ * the original internal-read behavior.
+ */
+export async function resolveEngine(
+  claudeDir: string = CLAUDE_DIR,
+  sentinel?: SentinelInfo,
+): Promise<ResolvedEngine> {
+  const envId = process.env.CC_CODE_INTEL_ENGINE;
+  if (envId) {
+    // An unknown/mistyped id must NOT be recorded as an explicit choice —
+    // getEngine falls back to the default, and marking that explicit would
+    // permanently pin a typo into the sentinel.
+    if (!ENGINES[envId]) {
+      return { engine: getEngine(DEFAULT_ENGINE_ID, claudeDir), explicit: false };
+    }
+    return { engine: getEngine(envId, claudeDir), explicit: true };
+  }
+  const info = sentinel ?? (await readSentinelInfo(claudeDir).catch(() => null));
+  if (info?.engine && isExplicitSentinelChoice(info)) {
+    return { engine: getEngine(info.engine, claudeDir), explicit: true };
+  }
+  return { engine: getEngine(DEFAULT_ENGINE_ID, claudeDir), explicit: false };
+}
+
+/** The engine that was DEFAULT_ENGINE_ID before the v12.9.0 flip. Sentinels
+ *  written before that release carry no `engine_explicit` field, so this is the
+ *  only signal available to tell a real opt-in from a stamped default. */
+const LEGACY_DEFAULT_ENGINE_ID = "llm-tldr";
+
+/**
+ * Did this sentinel's `engine` reflect a deliberate choice?
+ *
+ * Post-v12.9.0 sentinels answer directly via `engine_explicit`. Legacy sentinels
+ * predate the field, so we infer, asymmetrically and deliberately:
+ *
+ *   engine === "llm-tldr"  → AMBIGUOUS, treated as implicit. It was the default
+ *     at stamp time, so the overwhelming majority of these are stamped defaults
+ *     rather than opt-ins — and treating them as explicit would pin every
+ *     existing install to the archived engine forever, which is the entire bug
+ *     being fixed. A genuine llm-tldr user re-opts in once with
+ *     CC_CODE_INTEL_ENGINE=llm-tldr, which records engine_explicit for good.
+ *   any other engine       → UNAMBIGUOUS opt-in. Nothing but an explicit env
+ *     override could have put a non-default id in a legacy sentinel, so it is
+ *     preserved. This is what protects anyone already running native-ts.
+ */
+function isExplicitSentinelChoice(info: SentinelInfo): boolean {
+  // Present-and-true / present-and-false are both definitive answers. Only an
+  // ABSENT field (null) means "written before v12.10.0", which is the sole case
+  // where we fall back to inferring intent from the engine id.
+  if (info.engineExplicit !== null) return info.engineExplicit;
+  return info.engine !== null && info.engine !== LEGACY_DEFAULT_ENGINE_ID;
+}
+
+/**
+ * Provision whatever the resolved engine needs:
+ *   python   → install the package only if neither its CLI nor the MCP command
+ *              is already on PATH (skip redundant work)
+ *   none     → nothing to do (native-ts runs from the src tree)
+ */
+export async function ensureEngineInstalled(engine: EngineDescriptor): Promise<void> {
+  const { install } = engine;
+  if (install.method !== "python") return;
+  if (!hasCommand(install.checkCmd) && !hasCommand(engine.mcp.command)) {
+    await ensurePythonPackage(install.pkg, install.checkCmd);
+  }
+}

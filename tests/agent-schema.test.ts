@@ -5,16 +5,16 @@
 //   - real repo's agents/ all parse cleanly today
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { formatFrontmatterIssues, validateFrontmatters } from "../src/lib/frontmatter-validate.ts";
 import { AgentFrontmatter } from "../src/schemas/agent.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-agent-"));
+  return makeSandbox("cc-agent");
 }
 
 describe("AgentFrontmatter schema", () => {
@@ -52,12 +52,42 @@ describe("AgentFrontmatter schema", () => {
     expect(r.success).toBe(false);
   });
 
+  // Widened 2026-07-06 (issue #82/#104) — "remote" isolation and "user"/"local"
+  // memory scopes are real, documented values that used to be rejected.
+  test("accepts all known isolation values", () => {
+    for (const isolation of ["worktree", "remote"]) {
+      const r = AgentFrontmatter.safeParse({ name: "x", description: "y", isolation });
+      expect(r.success).toBe(true);
+    }
+  });
+
+  test("accepts all known memory scopes", () => {
+    for (const memory of ["user", "project", "local"]) {
+      const r = AgentFrontmatter.safeParse({ name: "x", description: "y", memory });
+      expect(r.success).toBe(true);
+    }
+  });
+
+  test("rejects isolation typos", () => {
+    const r = AgentFrontmatter.safeParse({
+      name: "x",
+      description: "y",
+      isolation: "bogus-value",
+    });
+    expect(r.success).toBe(false);
+  });
+
   test("accepts pinned model variants like opus[1m]", () => {
     const r = AgentFrontmatter.safeParse({
       name: "x",
       description: "y",
       model: "opus[1m]",
     });
+    expect(r.success).toBe(true);
+  });
+
+  test("accepts model: inherit", () => {
+    const r = AgentFrontmatter.safeParse({ name: "x", description: "y", model: "inherit" });
     expect(r.success).toBe(true);
   });
 
@@ -141,6 +171,35 @@ describe("validateFrontmatters — synthetic failures", () => {
       expect(issues).toHaveLength(1);
       expect(issues[0]?.kind).toBe("skill");
       expect(issues[0]?.errors.some((e) => e.includes("kebab"))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("duplicate top-level key in an agent is caught (strict routing, issue #88)", async () => {
+    const dir = await sandbox();
+    try {
+      await mkdir(join(dir, "agents"));
+      // Two `model:` keys — a bad-merge scenario. The loose parser used to
+      // silently take the last value; validateFrontmatters now routes
+      // through parseFrontmatterStrict and must flag this.
+      await writeFile(
+        join(dir, "agents", "broken.md"),
+        [
+          "---",
+          "name: broken",
+          "description: oops",
+          "model: opus",
+          "model: sonnet",
+          "---",
+          "",
+          "body",
+        ].join("\n"),
+      );
+      const issues = await validateFrontmatters(dir);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.kind).toBe("agent");
+      expect(issues[0]?.errors.some((e) => e.includes("model"))).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

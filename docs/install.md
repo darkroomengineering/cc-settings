@@ -1,0 +1,290 @@
+# Installation reference
+
+> **Audience:** new users, administrators, and maintainers
+> **Purpose:** document requirements, choices, flags, side effects, ownership, rollback, and uninstall
+> **Status:** canonical installer reference
+
+One installer configures Claude Code, Codex, or both. Preview from a checkout when you want to see
+every planned action before the installer changes product state.
+
+```mermaid
+flowchart LR
+    A[Choose host] --> B{Claude, Codex, or both?}
+    B --> C{Full or light?}
+    C --> D[Preview with dry-run]
+    D --> E[Install managed files]
+    E --> F[Restart host]
+    F --> G{Codex plugin installed?}
+    G -- yes --> H[Review hooks]
+    G -- no --> I[Run health check]
+    H --> I
+    I --> J[Run read-only first task]
+```
+
+## Requirements
+
+Install and authenticate at least one supported product first:
+
+- [Claude Code setup](https://docs.anthropic.com/en/docs/claude-code/getting-started)
+- [Codex CLI](https://developers.openai.com/codex/cli/)
+
+cc-settings also needs Git and Bun 1.2.21 or newer. The shell and PowerShell bootstraps install Bun
+when it is missing. That may create `~/.bun`; cc-settings uninstall does not remove Bun. The
+`npx darkroom-settings` form additionally needs Node 18+ (for `npx` itself); it runs the same
+bootstrap, so every other requirement is identical.
+
+The full Claude profile uses `jq` in several skill shell snippets. The installer can use the
+available system package manager to install it. That operation may prompt for administrator access,
+and uninstall does not remove the system package. Runtime hooks themselves are TypeScript and do
+not shell out to `jq`.
+
+Full Codex installation and lifecycle operations that change plugin enrollment require the `codex`
+executable. A fresh `--target=codex --light` install does not. The full Codex profile includes the
+fixed HTTPS Figma MCP server, which may ask you to authenticate.
+
+MCP means Model Context Protocol, the interface used to connect external tool providers. A
+lifecycle hook is a small program that runs around a product event such as a tool call, push, or
+session end. A sentinel is the installer-owned version and ownership record used for safe updates
+and undo.
+
+## One-line install
+
+**Any platform (Node 18+):**
+
+```bash
+npx darkroom-settings
+```
+
+Every installer flag is forwarded (`npx darkroom-settings --target=claude --light`); `bunx darkroom-settings`
+works the same way. The npm package (`npm-installer/` in this repository) is a downloader only: it
+fetches the official bootstrap over HTTPS and runs it, and the bootstrap installs from its pinned
+GitHub origin exactly as the curl form below does. npm never distributes the configuration itself.
+
+**macOS or Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash
+```
+
+Every `setup.sh` flag works remotely. Put flags after `-s --` in the piped form, or after the
+process-substitution form — both reach the installer unchanged:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh | bash -s -- --target=claude --light
+bash <(curl -fsSL https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.sh) --dry-run
+```
+
+A lone downloaded `setup.sh` behaves the same way: run `bash setup.sh [flags]` from anywhere and
+it clones the official repository first. Running it with `sh` instead of `bash` re-executes under
+bash automatically.
+
+**Windows PowerShell:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
+```
+
+The `iex` form runs the default `auto` target. To pass flags remotely, invoke the downloaded
+script as a script block — its arguments reach `setup.ps1` unchanged:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1))) --target=claude --light"
+```
+
+On macOS and Linux, the remote bootstrap maintains a durable source checkout at:
+
+```text
+${XDG_DATA_HOME:-$HOME/.local/share}/cc-settings/source
+```
+
+An existing path is accepted only when it is a real, clean Git checkout with the exact official
+HTTPS origin and no commits beyond official `main`. Updates clone official `main` into an isolated
+staging directory, prove the existing checkout can fast-forward to that exact commit, then replace
+the managed checkout atomically. They do not execute hooks, filters, file monitors, proxies, or
+other Git configuration from the existing checkout. The durable checkout makes auto-update and
+later maintenance independent of temporary directories.
+
+Clone manually when you want a source checkout that you own:
+
+```bash
+git clone https://github.com/darkroomengineering/cc-settings.git
+cd cc-settings
+bash setup.sh --target=both --dry-run
+bash setup.sh --target=both
+```
+
+On Windows, use `.\setup.ps1` in place of `bash setup.sh`.
+
+## Select a target
+
+Use `--target=auto|claude|codex|both` with installation and every lifecycle command. Unknown flags
+and invalid values fail closed before either product changes.
+
+| Target | Behavior |
+|---|---|
+| `auto` | Default. Installs both when `codex` is on `PATH`; installs Claude Code only otherwise. |
+| `claude` | Manages only `~/.claude` and the cc-settings-owned Claude entries in `~/.claude.json`. |
+| `codex` | Manages only `$CODEX_HOME`, or `~/.codex` when `CODEX_HOME` is unset. |
+| `both` | Manages Claude Code and Codex in one compensated operation. |
+
+## Full and light profiles
+
+Full is the default. `--light` means the smallest useful native layer for each product, so the two
+light profiles are intentionally different.
+
+| Surface | Claude light | Claude full | Codex light | Codex full |
+|---|---|---|---|---|
+| Shared skills | `share-learning` only | All 38 | None through plugin | All 38 through plugin |
+| Instructions | Claude defaults | Darkroom instructions, rules, and profiles | Managed Darkroom `AGENTS.md` block | Same managed block |
+| Role agents | None | All Claude roles | None | Native roles except `codex-verifier`, plus `claude-verifier` |
+| Hooks | Statusline only | Full Claude hook set | None through plugin | Compatible user hooks |
+| MCP servers | None | Context7, TLDR, Figma, Chrome DevTools | None | Fixed HTTPS Figma only |
+| Runtime and sentinel | Yes | Yes | Yes | Yes |
+
+Re-run with or without `--light` to switch tiers. The installer removes only entries recorded as
+cc-settings-owned.
+
+## Public flags
+
+Run `bash setup.sh --help` or `.\setup.ps1 --help` for the wrapper you use.
+
+| Flag | Effect |
+|---|---|
+| `--target=auto|claude|codex|both` | Select the product boundary. |
+| `--source=<dir>` | Use an explicit cc-settings source checkout. The wrappers normally set this. |
+| `--dry-run` | Print the planned operation without changing product state. |
+| `--light` | Install or switch to the light profile. Omit for full. |
+| `--fresh` | Reinstall as if from scratch: removes settings.json, prior-install state, and the repo's local approvals, then installs the full baseline. Login, history, and memory untouched. Recover with --rollback. |
+| `--status` | Report installed versus packaged health for the selected target. |
+| `--rollback[=TIMESTAMP]` | Restore the newest eligible backup or the named backup. |
+| `--uninstall` | Remove managed state for the selected target and keep backups. |
+| `--auto-update=on|off` | Enable or disable the macOS daily update job. |
+| `--interactive` | Prompt on supported Claude settings conflicts instead of using non-interactive merge defaults. `CC_INTERACTIVE=1` is equivalent. |
+| `--migrate-only` | Run only the Claude settings migration and sentinel path. Codex rejects it; `both` skips Codex. |
+| `--help`, `-h` | Show public wrapper usage and every supported flag. |
+
+## Side effects and ownership
+
+The installer owns only the rows marked managed. Paths installed by another product manager remain
+outside cc-settings ownership.
+
+| Path or system surface | Action and possible prompt | Ownership | Rollback and uninstall |
+|---|---|---|---|
+| Claude Code or Codex executable | Required before the selected full install; authentication belongs to that product. | Not owned | Never removed. |
+| `${XDG_DATA_HOME:-$HOME/.local/share}/cc-settings/source` | Remote installs (`npx darkroom-settings`, the shell one-liner, or a lone downloaded `setup.sh`) create or atomically replace the durable checkout with a fresh, config-isolated copy of official `main`. It refuses a symlink, wrong origin, dirty tree, local commits, or unsafe collision. | Managed remote-install source | Product rollback does not rewind the Git checkout. Uninstall leaves it for maintenance and recovery. |
+| A manual cc-settings clone | Read and executed as the source. | User owned | Never removed or changed by uninstall. |
+| `~/.bun` | Bootstrap may install Bun when missing. | Not owned | Never removed. |
+| System `jq` package | Full Claude install may invoke brew, apt, dnf, yum, pacman, zypper, apk, choco, scoop, winget, or MacPorts. Administrator prompt depends on the manager. | Not owned | Never removed. |
+| `~/.claude/CLAUDE.md`, `AGENTS.md`, `settings.json`, `skills/`, `agents/`, `profiles/`, `rules/`, `src/` | Full or light Claude footprint. A first install refuses an unowned same-path collision, except `CLAUDE.md` and `AGENTS.md`: when either holds bytes cc-settings did not write, setup saves them to `~/.claude/backups/<name>.user-edit-<timestamp>` and installs its own copy. | Managed files recorded by hash in the Claude sentinel | Rollback restores the backup snapshot. Uninstall removes owned files only. |
+| `~/.claude/personal.md` | Full install creates it once, only when nothing exists at that path. The installed `CLAUDE.md` imports it last, so your own global instructions load in every Claude Code session and subagent. Codex does not read it. | User owned; never recorded in the sentinel | Never replaced, backed up, rolled back, or removed. |
+| `~/.claude/src/node_modules` | Installer runs `bun install --production --frozen-lockfile --ignore-scripts` inside the managed runtime. It is a real directory, not a link to the checkout. Legacy owned source links are replaced during update. | Managed runtime dependencies | Regenerated by install; removed by uninstall. The source checkout can disappear without breaking installed scripts. |
+| `~/.claude.json` | Full Claude install composes the four managed MCP server entries while preserving unrelated user servers. | Only recognized cc-settings entries | Rollback restores captured state; uninstall removes recognized managed entries. |
+| `~/.claude/backups` | Created before destructive Claude changes. | Managed backup store | Rollback reads it. Uninstall leaves backups. |
+| Claude plugin store (`fast-jev-compaction@fast-jev-compaction`, `compaction-trigger@cc-settings`) | Sets `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` in `settings.json` env, registers the `fast-jev-compaction` and `cc-settings` marketplaces, and installs both plugins via the `claude` CLI when it's on PATH. A TypeSafe key unlocks verbatim Jev compaction: an interactive install prompts for it once (input hidden; Enter skips), `--typesafe-key=<key>` supplies it non-interactively, and either way it is stored through the plugin's sensitive `apiKey` option and written as `TYPESAFE_API_KEY` into the settings `env` block (mode 600), so the session banner, hooks, and scripts can read it; the plugin store is opaque to everything but the plugin. Before the prompt, and after `--typesafe-key`, the installer lists what a key sends to api.typesafe.ai and that prompt scoring and drift scoring stay off in a project until it sets `CC_TYPESAFE_PROJECT=1` in its settings `env` (see [TypeSafe: what is sent](./hooks-reference.md#typesafe-what-is-sent-and-the-per-project-opt-in)); `fast-jev-compaction` itself is not gated by that variable. A key already present as `TYPESAFE_API_KEY` in the shell or the settings `env` block is used as is. Add one later with `printf '{"apiKey":"<key>"}' | claude plugin configure fast-jev-compaction@fast-jev-compaction --values-stdin`, which keeps the key out of process arguments (Claude Code 2.1.285+). Without a key, both plugins fall back to native behavior. Fail-open: a failed `claude plugin ...` call only warns. Skipped for the light profile, when `claude` is absent, or when `CC_SETTINGS_SKIP_PLUGIN_INSTALL=1`. See [Function hooks](./hooks-reference.md#function-hooks-early-access). | Not owned (product-managed plugin store) | Never removed automatically — uninstall prints `claude plugin remove fast-jev-compaction@fast-jev-compaction && claude plugin remove compaction-trigger@cc-settings`. |
+| `~/Library/LaunchAgents/com.darkroom.cc-settings-autoupdate.plist` and Claude update logs | On macOS, an interactive first install can ask whether to enable a daily 10:00 local update. Explicit `--auto-update` overrides the remembered choice. | Managed scheduler state | Rollback restores the scheduler state captured in that backup. Check or override enrollment afterward. Uninstall and `--auto-update=off` remove the managed job. |
+| `$COPILOT_HOME/copilot-instructions.md` or `~/.copilot/copilot-instructions.md` | Claude install, rollback, and uninstall sync a marked block copied from the installed `~/.claude/AGENTS.md`, and preserve surrounding text. Skipped when the Copilot CLI config directory does not exist. | Managed block | Re-synced after rollback; removed (with the file, when it held nothing else) once `~/.claude/AGENTS.md` is gone. |
+| `$CODEX_HOME/AGENTS.md` or `~/.codex/AGENTS.md` | Writes only the marked Darkroom block and preserves surrounding text. | Managed block | Rollback restores the snapshot; uninstall removes only the block. |
+| `$CODEX_HOME/agents/*.toml` and `rules/darkroom.rules` | Full profile writes native roles and command policy. A first install refuses unowned same-name files. | Files listed in the Codex sentinel | Tier switch, rollback, and uninstall remove only recorded files. |
+| `$CODEX_HOME/darkroom/source` | Copies an allowlisted runtime package and installs production dependencies. | Managed | Restored or removed with Codex lifecycle operations. |
+| `$CODEX_HOME/plugins` enrollment and fixed Figma MCP | Full profile calls the Codex plugin CLI and asks Codex to manage plugin trust. | Managed enrollment, product-owned cache | Rollback restores captured enrollment; uninstall removes cc-settings enrollment. |
+| `$CODEX_HOME/backups/cc-settings` | Stores Codex snapshots. | Managed backup store | Rollback reads it. Uninstall leaves backups. |
+| `~/.agents/skills` and `$CODEX_HOME/config.toml` (or `~/.codex/config.toml`) | Full Codex install and dry-run read direct child names to warn about legacy entries that duplicate plugin skills. The migration reads Desktop's import-sync setting because enabled sync recreates moved directories. It never edits the Codex config. | Not owned | Run `bun run migrate:codex-skills` to preview. If Desktop import sync is enabled, disable it, restart Codex, and preview again; `--apply` otherwise refuses without moving files or creating a backup. A permitted apply writes a timestamped backup and preserves non-overlaps. |
+
+Reinstalls preserve unrelated Claude permissions, custom hooks, local overrides, and MCP servers,
+including unknown fields in existing MCP server definitions.
+They preserve unrelated Codex agents, rules, and text outside the marked `AGENTS.md` block. The
+Claude settings merge compares values with the previous install's recorded **team contribution**
+(`team_settings`), never the merged restoration snapshot (`settings`). A differing personal value
+survives; a value still equal to the prior team default follows a changed default, and retired env
+keys are removed only when their value still matches the prior team's value. Explicit legacy
+migrations still apply. Legacy snapshots without `team_settings` cannot prove ownership and retain
+user-wins behavior. A personal value equal to a recorded team default is indistinguishable from an
+unchanged default. The install output reports updates and retirement as "Updated N stale
+default(s)" and "Pruned N env var(s)". See [settings merge behavior](./settings-reference.md#re-install-merge-behavior)
+for field-specific policies.
+
+Project initialization uses a separate ownership check. `project-init` replaces existing
+instruction files only when their first line matches a supported generated cc-settings ownership
+stamp. A heading or personal instruction that merely mentions `cc-settings` does not authorize
+overwrite; custom files are preserved.
+
+Managed source inventories are explicit and versioned: Claude manifest 7 and Codex runtime
+manifest 5 share the current source list in `src/lib/install-source-inventory.ts`. They include
+the audit performance playbook, network capture script, and bundle attribution script.
+Historical manifests retain their original ownership lists for rollback and uninstall.
+The installer separates settings and ownership (`claude-install-settings.ts`,
+`claude-install-ownership.ts`), lifecycle coordination (`install-lifecycle.ts`), display
+(`install-display.ts`), and rollback validation (`claude-rollback-validation.ts`) under `src/lib/`.
+Codex runtime, backup, native-agent, and manifest handling live in their corresponding
+`src/lib/codex-*.ts` modules.
+
+Installer lock acquisition and release serialize ownership transitions through the exclusive
+`install.lock.guard` sidecar. A stranded guard fails closed instead of being reclaimed
+automatically: retry first, and remove it manually only after verifying that no installer is
+running. Cleanup attempts every acquired lock release and reports aggregated failures.
+
+If Codex reports shortened skill descriptions, follow the
+[duplicate legacy skill migration](./codex.md#if-codex-says-skill-descriptions-were-shortened).
+
+## Auto-update
+
+Auto-update is an opt-in macOS scheduler. An interactive first install asks once whether to check
+official `main` from isolated staging and rerun setup each day at 10:00 local time. Non-interactive
+installs do not create a new decision unless `--auto-update=on|off` is explicit.
+
+The job validates the exact enrolled checkout path and official origin, clones official `main` into
+isolated staging, and runs setup from staging when official `main` carries a newer version than the
+installed one. Local edits, untracked files, feature branches, and local commits in the enrolled
+checkout never block the update, and the job leaves that checkout, including ignored files,
+branches, tags, reflogs, and local Git configuration, untouched. It never executes mutable Git configuration from the enrolled checkout.
+The job records the result in Claude logs. It does not roll back product files after a later setup
+failure.
+
+Because auto-update leaves the enrolled checkout untouched, status from that checkout can later say
+the packaged source is older than the installed version. Update or replace the checkout before a
+manual reinstall. Use `--rollback` when you explicitly intend to downgrade; a normal install refuses
+to replace a newer installed version with older packaged source.
+
+Rollback restores the scheduler state saved with the selected backup. If the backup was enrolled,
+the job can become enrolled again. Check status and override it when needed:
+
+```bash
+bash setup.sh --target=claude --status
+bash setup.sh --target=claude --auto-update=off
+```
+
+Read the [auto-update threat model](../SECURITY.md#the-auto-update-launchd-job--a-persistence-surface-outside-the-four-layers)
+before enabling it on a security-sensitive machine.
+
+## Lifecycle commands
+
+Use the smallest product target that contains the problem:
+
+```bash
+bash setup.sh --target=both --dry-run
+bash setup.sh --target=both --status
+bash setup.sh --target=claude --rollback
+bash setup.sh --target=codex --rollback=20260819120000
+bash setup.sh --target=both --uninstall
+```
+
+Claude and Codex keep separate backup stores. A successful `both` operation gives the paired
+backups one shared ID. Bare combined rollback selects the newest common pair and ignores a newer
+one-sided backup left by a failed operation. An explicit combined timestamp must identify exactly
+one common pair.
+
+Rollback restores files and scheduler or plugin state captured in the backup. Uninstall removes
+managed product state and leaves backup stores, Bun, `jq`, the selected products, and manual source
+checkouts in place.
+
+## Finish the installation
+
+1. Restart every selected product.
+2. In Codex full installs, open `/hooks` and review the hooks.
+3. Run product-specific status from the checkout.
+4. Claude users can inspect user-scope behavior with
+   `bun ~/.claude/src/scripts/whats-on.ts`.
+5. Follow [your first session](./first-session.md) and run a read-only exploration task.
+
+See [troubleshooting](./troubleshooting.md) for hook warnings, missing prerequisites, rollback, and
+host-specific inspection.

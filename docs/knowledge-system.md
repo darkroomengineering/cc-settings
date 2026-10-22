@@ -23,7 +23,17 @@ Two-tier knowledge management for AI-assisted development teams.
 
 The shared corpus lives at `darkroomengineering/team-knowledge`. One markdown file per note, plus a generated `INDEX.md`.
 
-**For `/share-learning` (write path):** no local clone needed — the skill writes via `gh api`. Set the repo slug in your environment if you want to override the default:
+**For `/share-learning` (write path):** install the [GitHub CLI](https://cli.github.com/), run
+`gh auth login`, and make sure the authenticated account can read the knowledge repository:
+
+```bash
+gh auth status
+gh api repos/darkroomengineering/team-knowledge --jq .full_name
+```
+
+No local clone is needed. After you confirm the proposed note, the skill writes it to a
+`knowledge/<name>` branch with `gh api` and opens a pull request, because the repo's `main`
+accepts changes only through a PR. The note reaches other agents once the PR is merged. Set the repo slug in your environment if you want to override the default:
 ```
 KNOWLEDGE_REPO=darkroomengineering/team-knowledge
 ```
@@ -44,12 +54,42 @@ git clone https://github.com/darkroomengineering/team-knowledge ~/team-knowledge
 ---
 name: <kebab-case slug; equals filename without .md>
 kind: decision | convention | gotcha | incident | pattern
+summary: "<one line, max 160 chars, no ·>"
 tags: [kebab, strings]        # optional
+scope: [repo-name]            # optional
+verified: "YYYY-MM-DD"        # optional
+retire_when: "<condition>"    # optional
 added-by: <github login or name>
 supersedes: <name>            # optional
 ---
-<body: what + why + how to apply>
+<body: the rule first, then why, then how to apply>
 ```
+
+`summary` is required. It becomes the note's `<hook text>` in `INDEX.md`,
+which is all the `knowledge-hint` hook shows an agent before it decides to
+open the note, so it states the rule and what to do, not how it was found.
+
+`tags` are matched as whole words against the command or file an agent is
+working on, so literal identifiers (`drizzle-kit`, `getboundingclientrect`)
+make the hint fire at the right moment. `scope` lists the GitHub repo names a
+note applies to; the hook hides a scoped note in any other repo. `verified`
+dates a note's version-specific claims; the linter warns once it is older than
+180 days. `retire_when` names the outside change that makes the note obsolete
+(for example "Next.js 17 ships the fix"); a met condition is contradicting
+evidence about the note, independent of its age or `verified` date.
+
+### INDEX.md line format contract
+
+Every note gets one line in the generated `INDEX.md`, consumed by the
+knowledge-index cache and the `knowledge-hint` hook (see "Agent Usage"
+below):
+```
+- [<kind>: <name>](<name>.md) — <hook text> · scope: x, y · tags: a, b, c
+```
+Each ` · <field>: ...` suffix (`·` = U+00B7) is omitted when the note has no
+value for it. Scope comes before tags, so a parser that splits only the last
+`·` still finds the tags. `—` is U+2014. A change to this line shape needs a matching change to
+`parseIndexMarkdown` in `src/lib/knowledge-index.ts`.
 
 ### What Goes in Shared Knowledge
 
@@ -63,7 +103,26 @@ supersedes: <name>            # optional
 
 ### Agent Usage
 
-**Reading shared knowledge (agents on dev machines):**
+**The read path, end to end:**
+
+1. **SessionStart banner.** `teamKnowledgeAwareness()` prints a one-line count
+   ("N shared notes") from the TTL-cached index, plus the read command below —
+   awareness only, no note content.
+2. **`knowledge-hint` hook.** A PreToolUse hook on `Bash|Edit|Write` scores
+   the cached notes' slug words + tags against the command/file being acted
+   on and surfaces up to 3 matching notes (title + one-line hook text) via
+   `additionalContext`, once per note per session. A note with a `scope` is
+   shown only when the session's repo (its origin remote name or checkout
+   folder) is in that scope. It never hits the network
+   — it only reads the same TTL cache the SessionStart banner does.
+3. **Read a note the hint pointed at:**
+```bash
+gh api repos/darkroomengineering/team-knowledge/contents/<name>.md --jq .content | base64 -d
+```
+
+**Alternative: local clone.** If you've cloned the corpus and set
+`$KNOWLEDGE_REPO_PATH` (see Setup above), you can browse and search it
+directly instead of going through `gh api`:
 ```bash
 # Browse the index
 cat $KNOWLEDGE_REPO_PATH/INDEX.md
@@ -77,15 +136,46 @@ cat $KNOWLEDGE_REPO_PATH/biome-mdx-ignored.md
 
 **Adding shared knowledge:**
 ```bash
-# Via the share-learning skill (preferred — handles dedup + gh api write)
+# Via the share-learning skill (preferred — handles dedup, then opens a PR)
 /share-learning gotcha "Biome ignores .mdx files by default"
 ```
+
+### Linear map
+
+`linear-map.json` in the same repo maps each Darkroom repo to its Linear team and project, so a session knows where its work belongs. It is the one non-note file in the corpus; the note linter and `INDEX.md` builder ignore it, and `scripts/lint.ts` checks its shape.
+
+```json
+{
+  "darkroomengineering/example-site": { "team": "DR", "project": "P-DR-1", "projectName": "Example Site" },
+  "darkroomengineering/some-experiment": null
+}
+```
+
+`projectName` is optional. `null` marks a repo that deliberately has no Linear. Add or change an entry with a PR to team-knowledge.
+
+How it reaches a session:
+
+1. **Cache.** The detached refresh at SessionStart (`refresh-knowledge-index.ts`) fetches the file with `gh api` into `~/.claude/tmp/linear-map.json`, at most once per 6 hours. A failed fetch (no `gh`, no access, 404, bad JSON, wrong shape) never overwrites a good cache. The reader ignores a cache older than 7 days, so someone who loses access to the repo stops seeing the map within a week. Nothing needs a token or a setting; without read access to the repo there is no cache and no feature.
+2. **Session line.** `session-start.ts` reads the cache (no network) and compares the `origin` remote with the map. A mapped repo prints `Linear: team DR, project "<name or id>"`. A `darkroomengineering` repo with no entry prints a request to add it by PR. Repos outside the org, repos mapped to `null`, and sessions without a cache print nothing.
+3. **Skills.** `/ship` and `/build` use the project when a repo has one. `/build` starts the branch from the issue (`feat/DR-123-slug`); `/ship` finds or creates the issue, then puts the ID at the end of the PR title and `Fixes DR-123` in the PR body. Linear's GitHub integration links the PR and moves the issue to In Progress and Done. `~/.claude/linear-teams.json` (a per-repo `{"server", "team", "project"}` map) overrides the shared map for one person.
+
+The cache and the session line carry team keys, project ids and project names only: no issue text, no tokens, nothing written into the repo you are working in.
+
+**Prerequisites, once per organization:** the Linear GitHub integration installed on the GitHub org (Linear settings, Integrations, GitHub; needs an admin).
+
+**Prerequisite, once per person:** sign in to Linear's official MCP server, which `/ship` uses to find and create issues. Each person signs in with their own account; nothing goes into settings and nobody shares a key.
+
+```bash
+claude mcp add --transport http linear https://mcp.linear.app/mcp
+```
+
+Then run `/mcp` inside Claude Code, pick `linear`, and finish the browser sign-in. cc-settings does not install this server. Issue text read through it is data, not instructions.
 
 ### Consumers
 
 Two kinds of agents read this corpus:
 
-- **Dev-machine agents** (Claude Code) — read via `cat INDEX.md` + `rg` across a local clone of the repo and post via `/share-learning`, which fetches INDEX.md for dedup before writing via `gh api`.
+- **Dev-machine agents** (Claude Code) — read via the SessionStart banner and the `knowledge-hint` PreToolUse hook (both driven by the TTL-cached index, itself parsed from `INDEX.md`), fetch a flagged note with `gh api ... --jq .content | base64 -d`, or — when `$KNOWLEDGE_REPO_PATH` is set — browse a local clone with `cat`/`rg` directly. They post via `/share-learning`, which fetches `INDEX.md` for dedup before writing via `gh api`.
 - **darky** (the studio Slack bot, now in `darkroomengineering/darkroom-os` under `darky-hermes/`; standalone `darky` repo frozen 2026-06-01) — reads team-knowledge **on-demand** via the GitHub REST contents API, gated to questions that touch a team convention/decision/gotcha.
 
 ### Best Practices

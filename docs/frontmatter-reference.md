@@ -15,35 +15,39 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Agent identifier, used in `Agent(name, "...")` invocations |
-| `model` | string | No | Model to use: `fable`, `opus`, `sonnet`, `haiku` |
-| `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions |
+| `model` | string | No | Model to use: `fable`, `opus`, `sonnet`, `haiku`, a full model ID, or `inherit` (the session's model). Left out, the agent runs on the default subagent model |
+| `memory` | string | No | Persistence scope: `user`, `project`, or `local`. Agents with memory retain learnings across sessions — see Memory Scopes below for the actual storage path |
 | `description` | string | Yes | Multi-line description shown in agent selection. Controls auto-invocation behavior (see below) |
-| `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, LS, Agent, ...]` |
+| `tools` / `allowedTools` | list | No | Tools the agent can access. Both field names are accepted. Format: `[Read, Write, Edit, Bash, Grep, Glob, Agent, ...]` |
 | `color` | string | No | Display color in the UI: `purple`, `green`, `red`, `yellow`, `blue`, `cyan`, `magenta`, `gold` |
-| `skills` | list | No | Skills to preload into the subagent context at startup |
+| `skills` | list | No | Skills to preload into the subagent context at startup. Claude Code preloads at most 32, each once (v2.1.295); a subagent with the Skill tool can still invoke the rest |
 | `mcpServers` | object | No | MCP servers scoped to this agent (inline definitions or references) |
 | `hooks` | object | No | Lifecycle hooks scoped to this specific subagent |
 | `maxTurns` | number | No | Maximum agentic turns before the subagent stops |
 | `disallowedTools` | list | No | Tools to deny (removed from inherited tool list) |
 | `background` | boolean | No | When `true`, always run this subagent as a background task |
-| `isolation` | string | No | Set to `worktree` to run in a temporary git worktree for isolated repo access |
-| `effort` | string | No | Effort level for this agent: `low`, `medium`, `high` |
+| `omitClaudeMd` | boolean | No | When `true`, the subagent runs without user, project, and local CLAUDE.md files; managed policy files still load (v2.1.271). No cc-settings agent sets it, because AGENTS.md standards reach subagents through the CLAUDE.md hierarchy |
+| `isolation` | string | No | `worktree` runs the agent in a temporary git worktree for isolated repo access; `remote` runs it in a remote/sandboxed environment |
+| `effort` | string | No | Effort level for this agent: `low`, `medium`, `high`, `xhigh`, `max`. Honored on Fable 5 and Opus 4.7/4.8 since v2.1.267; earlier versions ignored it on models with a pinned default effort. The Agent tool's `effort` parameter overrides it for a single spawn (v2.1.292) |
+| `permissionMode` | string | No | Permission mode for this agent's subagent session (used by `explore`, `reviewer`, `security-reviewer`) |
+| `initialPrompt` | string | No | Text prepended to the agent's first turn, before the delegated task (used by `explore`) |
+| `experimental.cacheTtl` | string | No | Per-agent prompt cache TTL, `5m` or `1h`, used when no `subagentPromptCacheTtl` setting is configured (v2.1.248). cc-settings sets `subagentPromptCacheTtl: "5m"` globally, so this only matters for an agent run under a config that drops that setting |
+| `autoCompactWindow` | — | No | Lets a subagent auto-compact earlier than the main conversation's window; also accepted in `--agents` definitions (v2.1.296). Upstream does not document the value format yet, so the install-time check accepts it without validating it. No cc-settings agent sets it |
 
 ### Auto-Invocation via `description`
 
 The `description` field serves double duty. Beyond appearing in agent selection, certain keywords in the description trigger automatic delegation:
 
 - Including `PROACTIVELY` or `Use this agent` causes Claude Code to auto-invoke the agent when it detects matching context in user prompts.
-- Including `DELEGATE when user asks:` followed by example phrases helps the orchestrator route requests to the correct agent.
+- Keep it to one or two sentences: what the agent does and when to delegate. Descriptions load into every session, and the routing table in `CLAUDE.md` already maps work to agents.
 - Including `RETURNS:` documents what the agent produces, helping the orchestrator set expectations.
 
 ### Memory Scopes
 
-| Scope | Persists Across | Storage |
-|-------|-----------------|---------|
-| `user` | All projects for this user | `~/.claude/memory/user/` |
-| `project` | Sessions in this project | `~/.claude/memory/project/` |
-| `local` | Current machine only | `~/.claude/memory/local/` |
+`memory: user` stores the agent's notes in `~/.claude/agent-memory/<agent-name>/MEMORY.md`;
+`memory: project` stores them in `<project-root>/.claude/agent-memory/<agent-name>/`. Claude Code
+manages reading and writing; the first 200 lines auto-load on the agent's next invocation. An agent
+without `memory:` frontmatter never loads such a file.
 
 Agents with `memory` enabled: `explore`, `reviewer`, `planner`.
 
@@ -52,10 +56,10 @@ Agents with `memory` enabled: `explore`, `reviewer`, `planner`.
 ```yaml
 ---
 name: implementer
-model: sonnet
+model: inherit
 description: |
   Code execution agent. Writes, edits, and tests code based on approved plans.
-tools: [Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite]
+tools: [Read, Write, Edit, Bash, Grep, Glob]
 color: green
 ---
 ```
@@ -69,10 +73,9 @@ model: sonnet
 memory: project
 description: |
   Fast codebase exploration, navigation, and documentation fetching.
-  DELEGATE when user asks:
-  - "How does X work?" / "Where is X?"
+
   RETURNS: File locations, architecture maps, code summaries
-tools: [Read, Grep, Glob, LS, Bash, WebFetch]
+tools: [Read, Grep, Glob, Bash, WebFetch]
 color: purple
 ---
 ```
@@ -81,15 +84,16 @@ color: purple
 
 | Agent | Model | Memory | Tools | Color |
 |-------|-------|--------|-------|-------|
-| `explore` | sonnet | project | Read, Grep, Glob, LS, Bash, WebFetch | purple |
-| `implementer` | sonnet | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite | green |
-| `maestro` | opus | -- | Read, Write, Edit, MultiEdit, Bash, Grep, Glob, LS, TodoWrite, Agent | red |
-| `reviewer` | opus | project | Read, Grep, Glob, LS, Bash | yellow |
-| `planner` | opus | project | Read, Grep, Glob, LS | blue |
-| `tester` | sonnet | -- | Read, Write, Edit, Bash, Grep, Glob, LS | cyan |
-| `scaffolder` | sonnet | -- | Read, Write, Edit, Bash, Glob, LS | magenta |
-| `deslopper` | sonnet | -- | Read, Edit, Grep, Glob, LS, Bash, Agent, AskUserQuestion, TeamCreate, SendMessage, TaskCreate, TaskUpdate, TaskList, TaskGet | cyan |
-| `security-reviewer` | opus | -- | Read, Grep, Glob, Bash | red |
+| `explore` | sonnet | project | Read, Grep, Glob, Bash, WebFetch | purple |
+| `implementer` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | green |
+| `maestro` | claude-opus-5-5 | -- | Read, Write, Edit, Bash, Grep, Glob, Agent, SendMessage | red |
+| `reviewer` | sonnet | project | Read, Grep, Glob, Bash | yellow |
+| `planner` | claude-opus-5-5 | project | Read, Grep, Glob | blue |
+| `tester` | inherit | -- | Read, Write, Edit, Bash, Grep, Glob | cyan |
+| `deslopper` | inherit | -- | Read, Edit, Grep, Glob, Bash, Agent, AskUserQuestion, SendMessage | cyan |
+| `security-reviewer` | claude-opus-5-5 | -- | Read, Grep, Glob, Bash | red |
+| `codex-verifier` | sonnet | -- | Bash, Read | cyan |
+| `claude-verifier` (Codex-only, `codex/agents/`) | sonnet | -- | Bash, Read | cyan |
 
 ---
 
@@ -97,7 +101,7 @@ color: purple
 
 **Location:** `~/.claude/skills/<skill-name>/SKILL.md`
 
-Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke directly or that the system activates automatically based on prompt patterns.
+Skills define slash commands (e.g., `/handoff`, `/dr-review`) that users invoke directly or that the system activates automatically based on prompt patterns.
 
 ### Fields
 
@@ -105,8 +109,8 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 |-------|------|---------|-------------|
 | `name` | string | (required) | Skill identifier, used as the slash command name (e.g., `docs` for `/docs`) |
 | `description` | string | (required) | Purpose description. Also used for auto-invocation pattern matching |
-| `context` | string | `inherit` | Context behavior: `fork` (isolated context) or `inherit` (shared with parent) |
-| `agent` | string | -- | Route execution to a specific agent (e.g., `explore`, `oracle`, `maestro`) |
+| `context` | string | omitted = inline | Context behavior: `fork` (isolated, backgrounded context) or `main` (runs inline in the main session — omitting the field resolves the same way) |
+| `agent` | string | -- | Route execution to a specific agent (e.g., `explore`, `reviewer`, `maestro`) |
 | `allowed-tools` | list | -- | Tools available when the skill is active. Overrides default tool set |
 | `disable-model-invocation` | boolean | `false` | When `true`, prevents the model from auto-invoking this skill |
 | `user-invocable` | boolean | `true` | When `false`, hides from `/` command menu |
@@ -125,14 +129,16 @@ Skills define slash commands (e.g., `/docs`, `/explore`) that users invoke direc
 
 | Mode | Behavior | Use When |
 |------|----------|----------|
-| `fork` | Creates an isolated sub-context. Output is summarized and returned to parent. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
-| `inherit` | Shares context with the parent conversation. | Skills that need to modify the current session state |
+| `fork` | Creates an isolated sub-context and runs in the background by default (v2.1.218). Output is summarized and returned to the parent as a task notification, not streamed inline. Does not bloat main context. | Exploration, docs fetching, analysis tasks |
+| `main` (or omitted — same behavior) | Shares context with the parent conversation, runs inline. | Skills that need to modify the current session state, or that are single-turn and lightweight |
 
-Skills using `fork` (21): `autoresearch`, `build`, `checkpoint`, `consolidate`, `design-tokens`, `explore`, `fix`, `handoff`, `lighthouse`, `oracle`, `orchestrate`, `plan-ceo-review`, `plan-feature`, `qa`, `refactor`, `retro`, `review`, `ship`, `test`, `tldr`, `verify`.
+There's no third `inherit` value — `context: inherit` is never written anywhere in the repo, and `src/schemas/skill.ts` defines the field as `z.enum(["fork", "main"])`.
 
-Skills using `main` (3): `freeze`, `nuclear-review`, `zero-tech-debt`.
+Skills using `fork` (12): `autoresearch`, `build`, `dr-review`, `fix`, `handoff`, `harvest`, `orchestrate`, `poke-holes`, `refactor`, `retro`, `ship`, `triage`. All 12 run in the background by default as of v2.1.218 — invoking one hands the result back as a task notification instead of holding up the conversation.
 
-Skills using `inherit` (default, 10): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `project`, `proof-of-work`, `review-batch`, `share-learning`, `strategist`.
+Skills declaring `context: main` explicitly (4): `audit`, `codex`, `freeze`, `zero-tech-debt`.
+
+Skills that omit `context` (8, same behavior as `main`): `cc`, `component`, `context-doc`, `dr-init`, `hook`, `proof-of-work`, `review-batch`, `share-learning`.
 
 ### Agent Delegation
 
@@ -140,23 +146,17 @@ When `agent` is specified, the skill routes execution to that agent instead of r
 
 | Skill | Delegates to Agent |
 |-------|--------------------|
-| `explore` | `explore` |
-| `oracle` | `explore` |
 | `orchestrate` | `maestro` |
-| `plan-feature` | `planner` |
-| `review` | `reviewer` |
-| `test` | `tester` |
+| `dr-review` | `reviewer` |
 
 ### Example: Skill with Fork and Agent Delegation
 
 ```yaml
 ---
-name: explore
-description: |
-  Codebase exploration and understanding. Use when the user asks:
-  - "how does X work?", "where is X?", "find X"
+name: dr-review
+description: Review the local diff against Darkroom's checklist, or address feedback on the active PR.
 context: fork
-agent: explore
+agent: reviewer
 ---
 ```
 
@@ -164,13 +164,13 @@ agent: explore
 
 ```yaml
 ---
-name: checkpoint
-description: |
-  Save session state snapshots. Use when:
-  - User says "checkpoint", "save state", "save progress"
+name: freeze
+description: Block Edit and Write outside one directory for the session.
+context: main
 allowed-tools:
   - Bash
-argument-hint: "[save|restore|list] [name]"
+  - AskUserQuestion
+argument-hint: "[set|off|status] [dir]"
 ---
 ```
 
@@ -188,44 +188,12 @@ argument-hint: "<skill-name>"
 ---
 ```
 
-### All Skills in cc-settings
+### Installed skills
 
-| Skill | Context | Agent | Allowed Tools | Argument Hint |
-|-------|---------|-------|---------------|---------------|
-| `autoresearch` | fork | -- | -- | `<skill-name>` |
-| `build` | fork | -- | -- | -- |
-| `cc` | -- | -- | -- | -- |
-| `checkpoint` | fork | -- | Bash | -- |
-| `component` | -- | -- | -- | -- |
-| `consolidate` | fork | -- | -- | -- |
-| `context-doc` | -- | -- | -- | -- |
-| `design-tokens` | fork | -- | -- | -- |
-| `dr-init` | -- | -- | -- | `[project-name]` |
-| `explore` | fork | explore | -- | -- |
-| `fix` | fork | -- | -- | -- |
-| `freeze` | main | -- | Bash, AskUserQuestion | -- |
-| `handoff` | fork | -- | -- | -- |
-| `hook` | -- | -- | -- | -- |
-| `lighthouse` | fork | -- | Bash, Read, Write, Edit, MultiEdit, Grep, Glob, LS | `<url>` |
-| `nuclear-review` | main | -- | -- | -- |
-| `oracle` | fork | explore | -- | -- |
-| `orchestrate` | fork | maestro | -- | -- |
-| `plan-ceo-review` | fork | -- | Read, Grep, Glob, Bash, AskUserQuestion | -- |
-| `plan-feature` | fork | planner | -- | -- |
-| `project` | -- | -- | -- | -- |
-| `proof-of-work` | -- | -- | -- | -- |
-| `qa` | fork | -- | Bash | -- |
-| `refactor` | fork | -- | -- | -- |
-| `retro` | fork | -- | Bash, Read, Write, Glob | -- |
-| `review` | fork | reviewer | -- | -- |
-| `review-batch` | -- | -- | -- | -- |
-| `share-learning` | -- | -- | -- | -- |
-| `ship` | fork | -- | -- | -- |
-| `strategist` | -- | -- | Read, Grep, Glob, Bash | -- |
-| `test` | fork | tester | -- | -- |
-| `tldr` | fork | -- | -- | -- |
-| `verify` | fork | -- | -- | -- |
-| `zero-tech-debt` | main | -- | -- | -- |
+The executable frontmatter in each `skills/*/SKILL.md` file is the authority for context, tools,
+arguments, and prerequisites. Use the [human skill guide](./skills.md) for value, effects, output,
+host support, and nearby alternatives. The guide links every active executable source instead of
+copying another frontmatter inventory here.
 
 ---
 
@@ -233,7 +201,10 @@ argument-hint: "<skill-name>"
 
 **Location:** `~/.claude/profiles/*.md`
 
-Profile files inject specialized instructions for a particular workflow context. They are activated via `@profile-name` references in CLAUDE.md or per-project setup.
+Profile files hold stack-specific conventions (Next.js, React Router, React Native, Tauri, WebGL). They
+are never loaded automatically and are not activated through a settings key or `@profile-name` command.
+Read the one that matches the project; an explicit `/orchestrate` in Claude or `$orchestrate` in Codex
+requests the broad coordinator.
 
 All frontmatter fields in profiles are **advisory** — validated at install time for well-formedness and readable as documented intent. They are not enforced at runtime: cc-settings does not switch the active model, gate skills, or restrict tools based on a profile.
 
@@ -243,36 +214,22 @@ All frontmatter fields in profiles are **advisory** — validated at install tim
 |-------|------|----------|-------------|
 | `name` | string | Yes | Profile identifier (kebab-case, must match the filename stem) |
 | `description` | string | Yes | Short description of the profile's purpose |
-| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `opus[1m]`) |
+| `model` | string | No | Advisory: intended model alias (`fable`, `opus`, `sonnet`, `haiku`, or a pinned variant like `claude-opus-5-5`) |
 | `skills` | list | No | Advisory: skill names expected to be active in this context |
 | `tools` | list | No | Advisory: tool subset relevant to this workflow |
-| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
+| `permissionMode` | string | No | Advisory: intended permission mode (`default`, `manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`) |
 | `effort` | string | No | Advisory: default effort level (`low`, `medium`, `high`, `xhigh`, `max`) |
 
-### Example: Profile with Advisory Fields
+### Example
 
 ```yaml
 ---
-name: maestro
-description: |
-  Full orchestration mode for power users. Coordinates agents instead of executing directly.
-  Activate when you want maximum delegation and parallel agent workflows.
-model: opus
-skills: [orchestrate]
-effort: xhigh
+name: nextjs
+description: Next.js web apps
 ---
 ```
 
-### Profiles in cc-settings
-
-| Profile | Model (advisory) | Skills (advisory) | Effort (advisory) |
-|---------|-----------------|-------------------|-------------------|
-| `maestro` | opus | orchestrate | xhigh |
-| `nextjs` | opus | build, component, hook, lighthouse | — |
-| `react-native` | opus | build, component | — |
-| `tauri` | opus | build | — |
-| `webgl` | opus | component, qa | — |
-| `react-router` | opus | build, component, hook | — |
+The shipped profiles carry only `name` and `description`.
 
 ---
 
@@ -304,4 +261,4 @@ paths:
 
 ### Configured Rules
 
-See `rules/README.md` for the current list of all available rules and their trigger paths.
+See `docs/rules.md` for the current list of all available rules and their trigger paths.

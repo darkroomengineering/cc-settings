@@ -26,15 +26,30 @@ the base product. Anything that can write `settings.json` can persist.
 
 Four layers, all installed by `setup.sh`:
 
-### 1. Hooks-block fingerprint (`SessionStart` integrity check)
+### 1. Settings fingerprint (`SessionStart` integrity check)
 
-At install time, `setup.sh` writes a SHA256 of the canonicalized `hooks`
-section of your merged `~/.claude/settings.json` to
-`~/.claude/.cc-settings-hooks-fingerprint`.
+At install time, `setup.sh` writes to `~/.claude/.cc-settings-hooks-fingerprint`
+a SHA256 of the canonicalized `hooks` section of your merged
+`~/.claude/settings.json`, a SHA256 of the plugin keys (`enabledPlugins`,
+`extraKnownMarketplaces`, `pluginConfigs`), and a per-entry hash of each plugin
+key. A dropped-in plugin plus an `enabledPlugins` line gives the same
+persistence as an injected hook, so both are covered.
 
-On every `SessionStart`, the `verify-hooks.ts` hook re-hashes the current
-`hooks` block and compares. **Mismatch surfaces a loud terminal warning**
-with remediation steps. Match is silent.
+On every `SessionStart`, the `verify-hooks.ts` hook re-hashes both parts and
+compares. **Mismatch surfaces a loud terminal warning** that names which part
+changed. For plugin keys it also lists up to ten entries added, removed, or
+changed since the last setup run. Check that each listed entry is one you
+added, then re-run setup. Match is silent. A record from an install older than
+15.45.3 holds only the hooks hash; the plugin comparison starts once setup
+rewrites it. The same record missing the plugin hash on a 15.45.3 or later
+install is reported as a mismatch.
+
+A setup run, including the unattended nightly auto-update
+(`src/scripts/auto-update.ts`), accepts the plugin keys on disk, whether or not
+a session has shown the warning. The marketplace entries cc-settings ships
+(`cc-settings`, `fast-jev-compaction`) are team-owned: a rerun replaces
+whatever is on disk under those names. Plugin entries and marketplaces you add
+yourself are yours and survive.
 
 Source: `src/lib/hooks-fingerprint.ts`, `src/hooks/verify-hooks.ts`.
 
@@ -50,11 +65,12 @@ they point at. Two bypasses motivated this layer:
   shipped script. `settings.json` is untouched, so the fingerprint never
   trips at all.
 
-At install time, right after the TS sources are copied, `setup.sh` writes a
-SHA256 manifest of every `~/.claude/src/**/*.ts` file to
+At install time, after the runtime sources and production dependencies are
+installed, `setup.sh` writes a SHA256 manifest of every managed runtime source
+file plus every regular file under `~/.claude/src/node_modules` to
 `~/.claude/.cc-settings-src-manifest`. On every `SessionStart`,
-`verify-hooks.ts` re-hashes the installed tree and **warns loudly on any
-modified, removed, or unexpected new file**. The auditor (layer 3) also
+`verify-hooks.ts` re-hashes those installed runtime paths and **warns loudly on
+any modified, removed, or unexpected new dependency file**. The auditor (layer 3) also
 gates its "trusted" classification on this manifest.
 
 Like the fingerprint, the manifest is refreshed only by `setup.sh` — never
@@ -63,7 +79,7 @@ by the auditor or the verify hook — so malware can't whitelist itself.
 Source: `src/lib/hooks-fingerprint.ts` (manifest write/verify),
 `src/hooks/verify-hooks.ts`, `src/setup.ts`.
 
-### 3. Command auditor (`bun run audit:hooks`)
+### 3. Command auditor (`bun ~/.claude/src/scripts/audit-hooks.ts`)
 
 A standalone scanner that classifies every hook command in
 `~/.claude/settings.json` into:
@@ -77,7 +93,24 @@ A standalone scanner that classifies every hook command in
 
 Exit code is non-zero on any suspicious finding so CI can gate on this. Stale-only results exit 0.
 
+The synchronous `UserPromptSubmit`, `PreToolUse` and `PostToolUse` hooks run
+through one command per event, `bun "$HOME/.claude/src/hooks/dispatch.ts" <Event>`.
+The auditor verifies `dispatch.ts` like any other entry script. The handlers it
+imports (`safety-net.ts`, `freeze-guard.ts`, and the rest) are not hook commands,
+so they are covered the way `src/lib/*.ts` is: the SessionStart manifest check
+(layer 2) re-hashes every managed source file, including them.
+
 Source: `src/lib/audit-hooks.ts`, `src/scripts/audit-hooks.ts`.
+
+**Also scanned, in their own report section:** `env` values and `mcpServers`
+command/args are matched against the same malware-signature bank
+(`curl | sh`, base64 decode + exec, `node -e`, etc.) and printed under a
+separate `ENV/MCP SUSPICIOUS` heading when something matches. This is
+**pattern-match classification only** — there is no shipped-pattern/manifest
+concept for env vars or MCP server definitions, so nothing here is ever
+"trusted", and a clean scan is not an integrity guarantee the way a "trusted"
+hook finding is. See the scope note below for exactly what this does and
+doesn't buy you.
 
 ### 4. The allowlist convention
 
@@ -89,10 +122,132 @@ the content hash. Injected hooks from compromised packages either don't
 match this shape (inline Node/Python, decoded base64, `/tmp/` payloads) or
 match it and fail content verification. Either way they surface.
 
+Each of those commands also passes `--no-env-file` (a project `.env` cannot
+set variables inside the hook) and `--config="$HOME/.claude/src/bunfig.toml"`.
+Bun reads a `bunfig.toml` from the directory it starts in, and its `preload`
+entry runs code before the hook does; the shipped `bunfig.toml` is a
+comment-only file, so a project's own is never read. The file sits under
+`src/`, so the content manifest (layer 2) hashes it. `--config` is as powerful
+as `--preload`, so the auditor accepts it only with exactly that path, and
+trusts a command that passes it only when both the script and `bunfig.toml`
+match the manifest.
+
 Future hook additions to `config/40-hooks.json` must follow the same
 convention. If a third-party tool needs a hook, wrap it in a cc-settings
 script under `src/scripts/` rather than referencing the third-party binary
 directly.
+
+## The auto-update launchd job — a persistence surface outside the four layers
+
+`setup.sh` can register a macOS `launchd` job (`com.darkroom.cc-settings-autoupdate`,
+opt-in, `src/lib/schedule.ts`) that runs daily at 10:00 local time: pull the
+cc-settings repo and re-run the installer. This is deliberately called out
+because it's a *legitimate* persistence mechanism with the same shape as the
+Shai-Hulud pattern this document defends against — worth being explicit about
+what does and doesn't cover it.
+
+- **The plist itself is unmonitored.** Nothing re-hashes
+  `~/Library/LaunchAgents/com.darkroom.cc-settings-autoupdate.plist` the way
+  layer 1 hashes the `hooks` block. If that file is tampered with directly,
+  none of the four layers above will notice.
+- **`auto-update.ts`'s own bytes ARE covered; the sentinel that drives it is
+  NOT.** The plist's `ProgramArguments` point at
+  `~/.claude/src/scripts/auto-update.ts` — a file inside the installed `src`
+  tree, so layer 2's content manifest verifies it on every `SessionStart`
+  exactly like any other shipped script. A patched `auto-update.ts` trips the
+  same "modified file" warning a patched hook would. But the job's *inputs* —
+  `repo_path` and `auto_update` in `~/.claude/.cc-settings-version` — are
+  plain JSON with no signature and no manifest coverage, same as the rest of
+  that sentinel. A compromised package that can write to `~/.claude` can
+  rewrite either field; the dangerous surface is what gets *pulled*, not
+  `auto-update.ts`'s own bytes. Tampering there is mitigated, not eliminated,
+  by three independent controls:
+  - An **origin allowlist** (`isAllowedPullSource()`, pinned to the real
+    `github.com/darkroomengineering/cc-settings` repo — a manifest-covered
+    constant in `src/lib/schedule.ts`, so forging it requires ALSO beating
+    layer 2). A forged `repo_path` pointing at an attacker clone is rejected
+    before any pull or `setup.sh` spawn.
+  - A **fresh, isolated clone** of official `main`. System, global, and
+    checkout-local Git config never controls the network or worktree commands;
+    hooks, fsmonitor, credential helpers, proxies, and TLS weakening are
+    disabled or reset explicitly. Installation reads only from this clone,
+    which is deleted afterward, so the enrolled checkout's worktree, index,
+    and branch never gate or feed the install, and `computeDrift()` runs
+    setup only when official `main` is newer than the installed version.
+  - A **second, independent path check**: `registerAutoUpdate()` embeds the
+    enrolling repo's real path in the plist itself (`CC_EXPECTED_REPO`) —
+    the nightly job cross-checks the sentinel's `repo_path` against it and
+    refuses to run if they diverge, so an attacker has to compromise both
+    the sentinel AND the plist to redirect the pull.
+
+  The updater does not trust `.git/config`, `.git/hooks`, or other executable
+  Git behavior in the existing checkout. It reads only the literal origin needed
+  for validation, runs every remaining Git operation
+  against the fresh isolated clone with hooks disabled, and executes
+  `setup.sh` from that clone. The sentinel keeps the enrolled checkout path,
+  and the updater never deletes its ignored files, branches, tags, reflogs, or
+  local config.
+- **Enrollment can't be silently created from a forged sentinel alone.**
+  `decideAutoUpdate()` in `src/lib/schedule.ts` is the single source of
+  truth for the enrollment decision, but it no longer trusts
+  `auto_update:true` in the sentinel on its own — a sentinel claiming
+  enrollment is corroborated against whether the launchd job actually
+  exists (`autoUpdateJobLoaded()`, a real `launchctl print` check). A
+  `true` sentinel with no matching job (forged, or hand-edited) is treated
+  as undecided: a non-interactive run (CI, or the nightly job re-running
+  `setup.sh` with `stdin:"ignore"`) **leaves enrollment untouched** —
+  `{kind:"keep", enrolled:undefined}` — and an interactive run re-prompts
+  rather than silently trusting the claim. The only ways enrollment ever
+  becomes `true` are an interactive "yes" to the prompt, an explicit
+  `--auto-update=on` flag, or a sentinel that's corroborated by a real,
+  already-loaded job. `tests/schedule.test.ts` locks this contract with an
+  exhaustive table test over every flag/sentinel/TTY/job-presence
+  combination.
+- **Verify it's what you expect:**
+  ```bash
+  launchctl print gui/$(id -u)/com.darkroom.cc-settings-autoupdate
+  cat ~/Library/LaunchAgents/com.darkroom.cc-settings-autoupdate.plist
+  ```
+- **Remove it:**
+  ```bash
+  bash setup.sh --target=claude --auto-update=off
+  ```
+- **Rollback restores captured scheduler state.** A Claude backup records the
+  launchd plist, loaded state, and enrollment decision. Restoring that backup
+  restores the recorded scheduler state too. Check `--status` after rollback
+  and run `bash setup.sh --target=claude --auto-update=off` if the restored job
+  should remain disabled.
+
+<a id="hook-warning-runbook"></a>
+
+## The npm installer stub — a distribution surface outside the four layers
+
+`npx darkroom-settings` installs cc-settings through a published npm package
+(`npm-installer/` in this repository). Like the auto-update job above, it is a
+legitimate mechanism whose shape overlaps with the attack class this document
+defends against — npm packages are exactly what Shai-Hulud compromised — so
+the design keeps npm out of the trust chain:
+
+- **The package is a downloader only.** Its single ~90-line bin fetches the
+  official `setup.sh` (or `setup.ps1`) over HTTPS from
+  `raw.githubusercontent.com/darkroomengineering/cc-settings/main` and runs it
+  as a lone script. The bootstrap then performs its normal origin-pinned clone
+  of official `main` and installs from that clone. The configuration — hooks,
+  skills, scripts, settings — never transits npm.
+- **What a compromised npm token could change:** the downloader itself. A
+  malicious republish could fetch from a different host or run something else
+  entirely. That is the same power any `curl | bash` instruction in a README
+  has; the mitigation is the same too — the package requires a one-time
+  password to publish, and the stub is versioned separately so it republishes
+  rarely (a diff on the npm side is itself a signal).
+- **What it could NOT do silently:** alter what an *intact* stub installs.
+  The stub carries no configuration to patch, and the bootstrap it downloads
+  re-verifies its clone against the official origin before executing anything
+  from it.
+
+When auditing an install that came through `npx`, audit the same four layers
+as any other install — the npm path changes how the bootstrap arrives, not
+what gets installed or fingerprinted.
 
 ## What to do if `verify-hooks` warns at session start
 
@@ -100,9 +255,15 @@ directly.
 ⚠  cc-settings: hooks-block fingerprint mismatch — SUSPICIOUS HOOKS DETECTED
 ```
 
-**Step 1 — Audit.** Run `bun run audit:hooks` from anywhere. It will print
-every hook in `~/.claude/settings.json` grouped by severity, with the
-reasons each suspicious entry was flagged.
+**Step 1 — Audit.** Run the installed scanner from anywhere:
+
+```bash
+bun ~/.claude/src/scripts/audit-hooks.ts
+```
+
+It prints every hook in `~/.claude/settings.json` grouped by severity, with
+the reasons each suspicious entry was flagged. It does not need a repository
+checkout.
 
 **Step 2 — Triage.**
 
@@ -122,13 +283,15 @@ $EDITOR ~/.claude/settings.json
 # 3. Manually delete every entry the auditor flagged as suspicious.
 #    Keep the legitimate cc-settings entries (bun "$HOME/.claude/src/...").
 
-# 4. Re-run setup.sh from your cc-settings clone to refresh the fingerprint
-#    against the now-clean hooks block.
-cd ~/.claude/cc-settings && bash setup.sh
+# 4. Investigate the project where the warning appeared before changing directories.
+#    Recent packages with install scripts are the place to start:
+find "$PWD/node_modules" -mindepth 2 -maxdepth 2 -name package.json -print0 2>/dev/null \
+  | xargs -0 grep -l '"postinstall"' | tail -20
 
-# 5. Investigate which package introduced the malicious hook.
-#    Recent installs are the place to start:
-grep -l "postinstall" node_modules/*/package.json | xargs -I{} dirname {} | xargs -I{} basename {} | sort -u | tail -20
+# 5. Use a fresh checkout to reinstall and refresh the fingerprint against
+#    the now-clean hooks block. Choose another empty directory if this exists.
+git clone https://github.com/darkroomengineering/cc-settings.git ./cc-settings-recovery
+bash ./cc-settings-recovery/setup.sh --target=claude
 
 # 6. Rotate any credentials that were on disk while the hook had a chance
 #    to run: ~/.aws/credentials, ~/.npmrc auth tokens, ~/.config/gh/hosts.yml,
@@ -137,12 +300,16 @@ grep -l "postinstall" node_modules/*/package.json | xargs -I{} dirname {} | xarg
 
 **Step 4 — False positive (legitimate custom hook).**
 
-If the unknown/suspicious entry is something you added intentionally:
+If an **unknown** entry is something you added intentionally, verify the executable and arguments.
+If an entry is classified **suspicious**, rewrite shell chaining, download-and-execute patterns, or
+opaque wrappers as a direct command first. Re-run the auditor and continue only when no suspicious
+entries remain:
 
 ```bash
-# Re-run setup.sh — the merger preserves your custom hooks AND refreshes
-# the fingerprint. After this, the warning clears on the next session.
-cd ~/.claude/cc-settings && bash setup.sh
+# Use a verified checkout. The merger preserves your custom hooks and refreshes
+# the fingerprint. The warning clears on the next session.
+git clone https://github.com/darkroomengineering/cc-settings.git ./cc-settings-recovery
+bash ./cc-settings-recovery/setup.sh --target=claude
 ```
 
 The fingerprint and the src manifest are deliberately refreshed only by
@@ -154,7 +321,7 @@ either, malware could call it to whitelist itself.
 If you maintain personal hooks alongside cc-settings:
 
 1. Add the entry to `~/.claude/settings.json`.
-2. Run `bun run audit:hooks` — confirm only your new entry shows up as
+2. Run `bun ~/.claude/src/scripts/audit-hooks.ts` — confirm only your new entry shows up as
    "unknown" (not "suspicious"). Suspicious means your pattern overlaps
    with a known-bad signature; rewrite it.
 3. Run `setup.sh` to fingerprint the new state.
@@ -175,6 +342,143 @@ evaluator coexist cleanly: the fingerprint hashes only the persisted
 `hooks` block in `settings.json`, not the in-memory session-scoped hook
 that `/goal` installs for its lifetime.
 
+## Enforcement boundary: the permissions deny-list, not safety-net
+
+The enforcement boundary for dangerous Bash commands is the permission
+deny-list (`config/30-permissions.json`) evaluated by Claude Code's own
+permission matcher. That layer decides what is blocked.
+
+`src/hooks/safety-net.ts` is **advisory defense-in-depth**: it
+pattern-matches on a best-effort scan of the command (quote-aware, not a
+full shell parser) and blocks what it recognizes, but a parser gap or a hook timeout allows the command
+through. It runs inside `src/hooks/dispatch.ts`, which blocks with
+`[Safety Net] internal error, failing closed: <detail>` when safety-net
+throws, times out or fails to load; run alone, an unexpected internal error exits 1,
+which the `"onFailure": "block"` wiring turns into a block. The dispatcher's
+PreToolUse entry for Bash carries that wiring too. Malformed or missing input still
+allows; `tests/hook-fail-open.test.ts` encodes that. Consequences of that
+stance:
+
+- Parser gaps in safety-net are hardening opportunities, not security
+  holes; the deny-list and the human-in-the-loop permission prompt remain
+  the boundary.
+- Anything that MUST never run belongs in `config/30-permissions.json`,
+  not (only) in safety-net.
+
+**Keeping the deny-list honest against the allow-list's wholesale
+subcommands:** `config/30-permissions.json` wholesale-allows several git
+subcommands (`git branch:*`, `git checkout:*`, `git push:*`, …) because
+requiring per-flag confirmation on every `git status`/`git log`/routine
+`git push` would make the deny-list unusable. That tradeoff only holds if
+the deny-list has an explicit override for every destructive *form* of a
+wholesale-allowed subcommand — otherwise the dangerous form is silently
+auto-approved by the broad allow, with only advisory safety-net.ts between
+it and the user, contradicting the "deny-list is the boundary" claim above.
+Concretely: `git push -uf`/`-fu` (bundled short flags that still carry
+`-f`, distinct from the literal `--force`/`-f` token forms already denied)
+has its own deny entry alongside the existing `--force`/`-f` forms,
+mirroring what `safety-net.ts`'s `analyzeGitAfterVerb` treats as must-block.
+`git branch -D`/`-d -f` and `git stash drop` are reflog-recoverable, so they
+sit in the `ask` list: the broad `git branch`/`git stash` allow does not
+auto-approve them, and the user confirms each one.
+When adding a new wholesale-allowed git (or other) subcommand, enumerate its
+destructive forms against safety-net.ts's checks and close the gap in the
+deny-list rather than narrowing the allow — narrowing breaks the common
+case (an interactive human confirming a legitimate `git push --force` to
+their own fork), closing the gap doesn't.
+
+**Edit is wildcard-allowed (`Edit(*)`).** As of Claude Code v2.1.210,
+`Edit(path)` deny/allow rules also govern the `Write` and `NotebookEdit`
+tools for that path — a separate `Write(path)` rule isn't just redundant,
+it triggers a startup warning. So the single deny entries
+`Edit(~/.claude/settings.json)` / `Edit(~/.claude.json)` already close the
+mutation surface for all three tools; no parallel `Write(...)` entries are
+needed or valid. (Claude Code's since-removed `MultiEdit` tool carried its
+own deny rules while it existed; the merger prunes those from older
+installs — see `DEPRECATED_PERMISSION_PATTERNS` in
+`src/lib/settings-merge.ts`.)
+
+## Safety-net evasions that stay open by design
+
+An agent that is trying to get around safety-net can. These forms are
+deliberate evasions, not mistakes an agent makes by accident, and catching
+them would need a full shell interpreter rather than the best-effort scan
+safety-net uses. The permission prompt and the deny-list remain the boundary.
+
+- gh aliases, and the destination of `gh issue transfer`.
+- `git rebase`, `git am` and `git pull` with `--no-verify`.
+- `declare -x HUSKY=0`, `caffeinate gh ...`, `time -p gh ...`, and a variable
+  as the command word (`g=gh; $g ...`).
+- `GIT_DIR=... gh ...` and `git -c alias.c='commit --no-verify' c`.
+- Commands inside `$(( ))` arithmetic.
+- Interpreter one-liners that read secrets (`python3 -c`, `node -e`,
+  `bun -e`), `grep -r` over a directory that holds a secret file, and paths
+  built at runtime, including globs in the command word (`dotenv? get K`).
+- Brace expansion, `xargs` stdin, and a variable passed as an argument
+  (`cat {.en,}v`, `echo .env | xargs cat`, `f=.env; cat "$f"`).
+
+Related limits sit in the permission rules rather than safety-net:
+
+- The Read tool is denied `.env`, `.env.local`, `.env.*.local`,
+  `.env.development`, `.env.production`, `.env.staging`, `.env.test`,
+  `.env.keys` and `.envrc`. A deny cannot be overridden by an allow, so a broad
+  `.env.*` deny would also block `.env.example`, and any other `.env.<suffix>`
+  name stays readable.
+- `dotenvx run -- env` prints every decrypted value, because the child process
+  holds them, and safety-net does not block it.
+- Safety-net checks dotenvx and `.env` readers with a flat word scan, not by
+  following wrappers. It turns the command string into one list of words and
+  ignores command position. Quoted strings are split again, ANSI-C and
+  `$"..."` quoting and backslash-newline are decoded, every `\_` becomes a
+  space, and operators, parentheses, backticks, `=` and `,` break words.
+  After any word naming dotenvx (the bin, a path to it, or the package with a
+  version, `#ref` or `github:` spelling), a `get`, `decrypt`, `dec` or
+  `keypair` word blocks, up to the `--` that follows `run`. The word right
+  after that `--` is checked too, because `-l run -- get` has `run` as a flag
+  value. A later dotenvx word starts its own scan. A word naming a secret
+  `.env` file blocks when any word is a known reader (`cat`, `grep`, `sed`,
+  `paste`, `dd`, the `g`-prefixed GNU names, `source`, ...), except the
+  target of an output redirect. Wrappers and flag spellings are covered
+  because none of them is parsed. Out of scope: variable or command
+  substitution (`${IFS}`, `$(printf ...)`), brace expansion, globs, and
+  `xargs` stdin. The cost is false positives, which are safe because the user
+  can run the command with `!`: `dotenvx set get value`,
+  `dotenvx encrypt -k get`, `grep .env README.md`, `sed -i ... .env`, and a
+  commit message that contains `dotenvx get`.
+
+## Project settings `env` reaches hooks
+
+The `env` block of a project's `.claude/settings.json` and
+`.claude/settings.local.json` is set in the environment of every hook process.
+A hook that logs its environment shows the values (checked on Claude Code
+2.1.303). Safety-net cannot tell those variables from the user's shell, so a
+project file could set `CC_SAFETY_GH_LOGIN` or `GH_REPO` to switch off the
+outside-org `gh` rule, or `BUN_OPTIONS` to put `--preload` back on the hook's
+bun, which bypasses the shipped `--config`. What is guarded:
+
+- The Edit, Write and NotebookEdit tools ask before touching
+  `.claude/settings.json` or `.claude/settings.local.json` (an `ask` rule on
+  `Edit(**/.claude/settings.json)` and `Edit(**/.claude/settings.local.json)`).
+- `cp` and `mv` commands that name `.claude/settings.json` or
+  `.claude/settings.local.json` by a literal path are denied.
+
+Known limits of that deny:
+
+- Only literal-path forms match. A directory destination
+  (`cp x/settings.local.json .claude/`), path tricks
+  (`.claude/./settings.local.json`, globs such as `.claude/settings.l*.json`) and
+  other tools are not matched.
+- Some harmless commands are denied too. A `cp` or `mv` with one of those paths
+  after its first argument matches, for example `cp -p .claude/settings.json
+  /tmp/b.json` or copying a settings file to a `.bak` inside `.claude/`.
+
+What is not guarded: arbitrary code that writes the file, such as
+`bun -e 'Bun.write(...)'` or a script run with `bun`. `Bash(bun:*)` already
+allows arbitrary code, so the permission rules cannot close this; they stop
+the plain tool and copy routes. Shell redirects (`echo ... >
+.claude/settings.local.json`), `tee` and `sed -i` fall to the ordinary Bash
+permission prompt.
+
 ## What cc-settings deliberately does not do
 
 - **Auto-quarantine on suspicious match.** The session-start hook only
@@ -190,22 +494,71 @@ that `/goal` installs for its lifetime.
 - **Sandbox hook execution.** Hooks run with the user's full privileges
   by Claude Code's design. cc-settings doesn't subvert that.
 
-What the content manifest does **not** cover:
+What the fingerprint and content manifest do **not** cover:
+
+- **The plugin cache and plugin store.** `~/.claude/plugins/cache/` (the plugin
+  code itself) and the store records `installed_plugins.json` and
+  `known_marketplaces.json` are not hashed. The fingerprint covers the
+  declarations in `settings.json`, not what Claude Code fetched for them.
+  Plugin code comes from the marketplace's latest commit, so nothing here
+  verifies it.
 
 - **The `bun` binary itself** (or `git`, or anything else on PATH). A
   compromised runtime executes whatever it likes regardless of what the
   manifest says about the scripts it runs.
-- **`node_modules`.** The installed src tree symlinks `node_modules` back
-  to the source repo; dependency content is the territory of `snyk` /
-  `socket.dev` / lockfile auditing, not this manifest.
-- **Non-`.ts` files** under `~/.claude/src` (e.g. `package.json`,
-  `tsconfig.json`, `bun.lock`).
+- **Files outside the explicitly installed runtime set.** The manifest covers
+  every managed source/config file required at runtime plus every regular file
+  under the real production `node_modules` directory. It does not adopt
+  arbitrary unrelated files elsewhere under `~/.claude`.
 - **Coordinated tampering of the manifest + fingerprint + settings
   together.** Anything that can rewrite all three sentinels can forge a
   consistent state. The defense holds because the sentinels are refreshed
   only by `setup.sh` (the auditor never self-refreshes them) and because
   worms automate against defaults — but a targeted attacker with full
   user-privilege write access is outside this threat model.
+
+## Scope: the fingerprint covers `hooks` and the plugin keys only
+
+Layers 1 and 2 above (the settings fingerprint and the src content
+manifest) are precisely scoped: `hashHooks()` hashes `settings.hooks`,
+`hashPluginKeys()` hashes the three plugin keys, and the content manifest verifies script *files*, not other
+`settings.json` keys. Concretely, **`mcpServers`, `permissions`, `env`, and
+every other top-level key of `settings.json` are entirely outside what those
+two layers verify** — a change to any of them, however large, never trips
+the fingerprint mismatch warning, even though `mcpServers` entries run
+arbitrary local commands with full startup (a persistence primitive at
+least as strong as a hook).
+
+Why this boundary, deliberately, rather than widening the hash: `mcpServers`,
+`permissions`, and `env` are all things a user is *expected* to hand-edit
+routinely (adding a personal MCP server, tightening a permission rule,
+setting a project env var) — unlike the `hooks` block, which cc-settings
+owns end-to-end and where any drift from the installed state is inherently
+suspect. Folding those keys into the fingerprint would mean every legitimate
+edit trips the same "tampering" warning as an actual injected payload,
+training users to click through it — the opposite of what a security signal
+is for.
+
+What actually covers `mcpServers`/`env`: layer 3's auditor (above) runs a
+**best-effort pattern-match scan** (`auditEnvAndMcp` in
+`src/lib/audit-hooks.ts`) over `env` values and `mcpServers` command/args
+against the same malware-signature bank used for hooks, reported in its own
+`ENV/MCP SUSPICIOUS` section. This is classification only — it catches an
+*obvious* injected payload (a `curl | sh`, a base64-decode-and-exec, an
+inline `node -e`), the same way the hook auditor's `suspicious` tier does.
+It does **not** give `mcpServers`/`env` the same guarantee `hooks` gets from
+the fingerprint + manifest pair: there's no "this exact value hasn't changed
+since install" check, no content-hash verification of anything an
+`mcpServers.command` points at, and no `trusted` tier — silence means "no
+known signature matched," not "unchanged" or "verified."
+
+**Manual-review guidance:** if you see an `mcpServers` entry or `env` value
+you don't recognize — whether or not the auditor flagged it — treat it the
+same as an unrecognized hook: check whether you or a tool you installed
+added it, and if not, treat it as a compromise signal and follow the
+remediation steps above. `permissions` (the allow/deny lists themselves) has
+no scanner at all yet; review changes to it the same way you'd review any
+other settings.json diff.
 
 ## Reporting
 

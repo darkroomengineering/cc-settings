@@ -2,8 +2,7 @@
 // missing-prereq report formatting.
 
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   checkSkillRequirements,
@@ -17,6 +16,7 @@ import {
   type SkillFrontmatter as SkillFrontmatterType,
   SkillRequirement,
 } from "../src/schemas/skill.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 // Test helper — mint a SkillFrontmatter with whatever fields the test cares
 // about, without re-declaring `name`/`description` every time.
@@ -25,7 +25,7 @@ function fm(extra: Record<string, unknown>): SkillFrontmatterType {
 }
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-prereq-"));
+  return makeSandbox("cc-prereq");
 }
 
 async function writeSkill(
@@ -84,6 +84,14 @@ describe("SkillRequirement schema", () => {
     const r = SkillRequirement.safeParse({ command: "" });
     expect(r.success).toBe(false);
   });
+
+  test("rejects entry with both `command` and `mcp` (issue #83)", () => {
+    // Repro: before the cross-shape guard, this parsed successfully as
+    // command-only, silently dropping `mcp` — the skill's MCP prerequisite
+    // was never checked.
+    const r = SkillRequirement.safeParse({ command: "foo", mcp: "context7" });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe("SkillFrontmatter accepts requires:", () => {
@@ -109,38 +117,55 @@ describe("SkillFrontmatter accepts requires:", () => {
 });
 
 describe("readConfiguredMcpServers", () => {
-  test("merges servers from settings.json + ~/.claude.json", async () => {
+  test("reads servers from ~/.claude.json", async () => {
     const dir = await sandbox();
     try {
-      await writeFile(
-        join(dir, "settings.json"),
-        JSON.stringify({ mcpServers: { teamServer: { command: "x" } } }),
-      );
-      // No ~/.claude.json in the sandbox — exercises the missing-file branch.
-      const servers = await readConfiguredMcpServers(dir);
+      const claudeJson = join(dir, ".claude.json");
+      await writeFile(claudeJson, JSON.stringify({ mcpServers: { teamServer: { command: "x" } } }));
+      const servers = await readConfiguredMcpServers(claudeJson);
       expect(servers.has("teamServer")).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test("returns empty set when neither file exists", async () => {
+  // A block in settings.json is inert — Claude Code never loads it — so counting
+  // it as "configured" would silence a prereq warning for a server that cannot
+  // actually load (nuclear-review F6).
+  test("does NOT count an inert settings.json block as configured", async () => {
     const dir = await sandbox();
     try {
-      const servers = await readConfiguredMcpServers(dir);
-      // We can't fully isolate ~/.claude.json since it lives outside the
-      // sandbox, but the function shouldn't throw and should return a Set.
-      expect(servers).toBeInstanceOf(Set);
+      await writeFile(
+        join(dir, "settings.json"),
+        JSON.stringify({ mcpServers: { teamServer: { command: "x" } } }),
+      );
+      const servers = await readConfiguredMcpServers(join(dir, ".claude.json"));
+      expect(servers.has("teamServer")).toBe(false);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
 
-  test("malformed JSON in settings.json doesn't throw", async () => {
+  // Now fully hermetic: the parameter is the exact file path, so the host's
+  // real ~/.claude.json cannot leak in. The previous version of this test
+  // conceded it could not isolate that file.
+  test("returns an EMPTY set when the file does not exist", async () => {
     const dir = await sandbox();
     try {
-      await writeFile(join(dir, "settings.json"), "{not json");
-      await expect(readConfiguredMcpServers(dir)).resolves.toBeInstanceOf(Set);
+      const servers = await readConfiguredMcpServers(join(dir, "absent.json"));
+      expect([...servers]).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("malformed JSON doesn't throw and yields an empty set", async () => {
+    const dir = await sandbox();
+    try {
+      const bad = join(dir, ".claude.json");
+      await writeFile(bad, "{not json");
+      const servers = await readConfiguredMcpServers(bad);
+      expect([...servers]).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -167,6 +192,33 @@ describe("checkSkillRequirements", () => {
     expect(missing).toHaveLength(1);
     expect(missing[0]?.kind).toBe("mcp");
     expect(missing[0]?.name).toBe("missing-mcp-server");
+  });
+
+  test("a list of MCP names is satisfied by any one of them", () => {
+    const req = { mcp: ["chrome-devtools", "aside-devtools"] };
+    expect(checkSkillRequirements(fm({ requires: [req] }), new Set(["aside-devtools"]))).toEqual(
+      [],
+    );
+    expect(checkSkillRequirements(fm({ requires: [req] }), new Set(["chrome-devtools"]))).toEqual(
+      [],
+    );
+    const missing = checkSkillRequirements(fm({ requires: [req] }), new Set(["context7"]));
+    expect(missing).toHaveLength(1);
+    expect(missing[0]?.name).toBe("chrome-devtools or aside-devtools");
+  });
+
+  test("an optional prerequisite is never reported, for mcp or command", () => {
+    expect(
+      checkSkillRequirements(
+        fm({
+          requires: [
+            { mcp: ["chrome-devtools", "aside-devtools"], optional: true },
+            { command: "definitely-not-on-path-xyz123", optional: true },
+          ],
+        }),
+        new Set(),
+      ),
+    ).toEqual([]);
   });
 
   test("returns empty when MCP IS configured", () => {

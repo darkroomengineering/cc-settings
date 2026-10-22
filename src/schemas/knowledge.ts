@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KEBAB_CASE_RE } from "../lib/frontmatter.ts";
 
 // Knowledge note frontmatter lives at the top of each <name>.md file in the
 // team-knowledge repo. The content between the `---` delimiters is YAML,
@@ -10,18 +11,40 @@ import { z } from "zod";
 //   gotcha    — a non-obvious trap or foot-gun to watch out for
 //   incident  — a post-mortem or incident record
 //   pattern   — a reusable solution pattern
+export const SUMMARY_MAX = 160;
+
 export const KnowledgeKind = z.enum(["decision", "convention", "gotcha", "incident", "pattern"]);
 
 export const KnowledgeFrontmatter = z.looseObject({
   name: z
     .string()
     .min(1)
-    .regex(
-      /^[a-z0-9]+(-[a-z0-9]+)*$/,
-      "name must be kebab-case (a-z, 0-9, segments joined by single hyphens)",
-    ),
+    .regex(KEBAB_CASE_RE, "name must be kebab-case (a-z, 0-9, segments joined by single hyphens)"),
   kind: KnowledgeKind,
+  // The note's line in the corpus INDEX.md: the only text the knowledge-hint
+  // hook shows before an agent decides to open the note, so it states the
+  // rule. `·` is banned because INDEX.md uses ` · tags:` as its separator.
+  summary: z
+    .string()
+    .min(1)
+    .max(SUMMARY_MAX)
+    .regex(/^[^·\r\n]*$/, "summary must be one line without '·' (the INDEX.md tag separator)"),
   tags: z.array(z.string()).optional(),
+  // Repo names the note applies to. The knowledge-hint hook hides a scoped
+  // note in every other repo, so a misspelled name hides it everywhere.
+  scope: z
+    .array(z.string().regex(KEBAB_CASE_RE, "scope entries must be repo names (kebab-case)"))
+    .min(1)
+    .optional(),
+  // Date the note's version-specific claims were last confirmed. The YAML
+  // parser keeps an unquoted date as a string, so one regex covers both forms.
+  verified: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "verified must be a YYYY-MM-DD date")
+    .optional(),
+  // Names the outside change that makes the note obsolete (for example "Next.js
+  // 17 ships the fix"). A met condition is contradicting evidence, whatever the age.
+  retire_when: z.string().min(1).optional(),
   "added-by": z.string().min(1),
   supersedes: z.string().optional(),
 

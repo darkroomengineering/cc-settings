@@ -15,7 +15,7 @@ Placing dynamic content (timestamps, user-specific data) early in context invali
 ## TTL
 
 - Default: 5 minutes.
-- `ENABLE_PROMPT_CACHING_1H=1` → 1 hour. Available on API key, Bedrock, Vertex, Foundry. Set in `settings.json`.
+- `promptCacheTtl` / `subagentPromptCacheTtl` settings keys → `"5m"` or `"1h"` per scope. cc-settings sets `1h` for the main conversation and `5m` for subagents.
 - `FORCE_PROMPT_CACHING_5M=1` → override back to 5 minutes.
 - `DISABLE_PROMPT_CACHING=1` → disable entirely (warns at startup).
 
@@ -29,7 +29,11 @@ When a background agent sleeps:
 
 Default for idle ticks with no specific signal: **1200-1800s** (20-30 min).
 
+## Compaction
+
+A compaction rewrites the transcript prefix, so it costs one cache miss — this holds for the `fast-jev-compaction`/`compaction-trigger` plugins ([Function hooks](./hooks-reference.md#function-hooks-early-access)) exactly as it does for Claude Code's native compaction.
+
 ## See Also
 
 - [Anthropic prompt caching docs](https://docs.anthropic.com/en/docs/prompt-caching)
-- `settings.json` → `env.ENABLE_PROMPT_CACHING_1H`
+- `settings.json` → `promptCacheTtl`, `subagentPromptCacheTtl` ([settings reference](./settings-reference.md))

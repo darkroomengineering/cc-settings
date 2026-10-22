@@ -1,9 +1,22 @@
 #!/usr/bin/env bun
-// Upstream-sync scanner (dry-run detector). Compares the current manifest against
-//   (a) npm's @anthropic-ai/claude-code latest version
-//   (b) the zod schema's enumerated keys (our local source of truth)
-// and prints the delta. Run it (`bun run upstream:scan`) to find out whether
-// Claude Code has shipped a new release.
+// Upstream-sync scanner (dry-run detector). Two different kinds of check,
+// only one of which touches anything external:
+//   (a) LIVE — fetches npm's @anthropic-ai/claude-code latest version and
+//       diffs it against the manifest's recorded claudeCodeVersion, then does
+//       the same for @openai/codex against upstream/codex-manifest.json.
+//       These two registry lookups are the ONLY network/external calls the
+//       scanner makes, plus one RSS read: the Codex app and IDE extension
+//       changelog has no npm package, so its feed entries dated after
+//       appChangelogLastScan count as drift. `--codex-app-entries` prints
+//       those entries verbatim for /cc sync to triage.
+//   (b) LOCAL-ONLY — diffs upstream/claude-code-manifest.json against the
+//       zod schemas' enumerated values (src/schemas/*.ts). Both files are
+//       hand-maintained by cc-settings authors (updated via `/cc sync` after
+//       a human reads the Claude Code changelog), so this only catches
+//       disagreement BETWEEN those two local files — it is not checked
+//       against any live Anthropic source of truth. A field Anthropic has
+//       shipped but nobody has yet transcribed into either file is invisible
+//       to this scanner regardless of how long it's been out.
 //
 // The scanner never writes. The actual sync — changelog triage
 // (ADOPT/DEDUPE/SKIP), schema + doc edits, and the manifest + CHANGELOG bumps —
@@ -11,15 +24,33 @@
 // GH Action that auto-bumped the manifest version, but it could only ever change
 // a version number — it never read the changelog — so it was retired in favor of
 // the manual skill.)
+//
+// Every manifest list that has a local schema source of truth is diffed below
+// as the local-only check (b). Two lists (knownEnvVars, knownBuiltinTools)
+// have no local schema to diff against — see the "reference-only" log line
+// and the manifest's `notes` for why — and are updated by hand via `/cc sync`
+// instead.
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { HookEvent } from "../schemas/hooks.ts";
+import { AgentIsolation, AgentMemory } from "../schemas/agent.ts";
+import {
+  AgentHook,
+  CommandHook,
+  HookEvent,
+  HttpHook,
+  McpToolHook,
+  PromptHook,
+} from "../schemas/hooks.ts";
+import { McpHttpServer, McpSseServer, McpStdioServer } from "../schemas/mcp.ts";
+import { PermissionMode } from "../schemas/permissions.ts";
 import { Settings } from "../schemas/settings.ts";
 
 const ROOT = resolve(import.meta.dir, "..", "..");
 const MANIFEST = resolve(ROOT, "upstream", "claude-code-manifest.json");
+const CODEX_MANIFEST = resolve(ROOT, "upstream", "codex-manifest.json");
+const CODEX_APP_FEED = "https://learn.chatgpt.com/codex/changelog/rss.xml";
 
 const Manifest = z.looseObject({
   lastScan: z.string(),
@@ -29,13 +60,34 @@ const Manifest = z.looseObject({
   knownHookTypes: z.array(z.string()),
   knownEnvVars: z.array(z.string()),
   knownBuiltinTools: z.array(z.string()),
+  knownPermissionModes: z.array(z.string()),
+  knownMcpTransports: z.array(z.string()),
+  knownAgentIsolation: z.array(z.string()),
+  knownAgentMemory: z.array(z.string()),
 });
 
 type Manifest = z.infer<typeof Manifest>;
 
+// Codex has no local schema source of truth (config.toml, agents/*.toml and
+// .rules files are written by the installer, not validated by zod), so the
+// Codex manifest carries only a version to diff plus reference lists.
+const CodexManifest = z.looseObject({
+  lastScan: z.string(),
+  codexVersion: z.string(),
+  appChangelogLastScan: z.iso.date(),
+  knownConfigSurfaces: z.array(z.string()),
+});
+
+type CodexManifest = z.infer<typeof CodexManifest>;
+
 async function loadManifest(): Promise<Manifest> {
   const raw = JSON.parse(await readFile(MANIFEST, "utf8"));
   return Manifest.parse(raw);
+}
+
+async function loadCodexManifest(): Promise<CodexManifest> {
+  const raw = JSON.parse(await readFile(CODEX_MANIFEST, "utf8"));
+  return CodexManifest.parse(raw);
 }
 
 // Enumerate the top-level keys from the Settings schema. zod 4 exposes the
@@ -48,10 +100,94 @@ function hookEventsFromSchema(): string[] {
   return [...HookEvent.options].sort();
 }
 
-async function fetchLatestClaudeCodeVersion(): Promise<string | null> {
+// Hook is a discriminated union on `type`; each member is a plain ZodObject
+// with a required `type: z.literal(...)` field. `.value` is zod 4's public
+// (if `@legacy`-flagged) single-value accessor on ZodLiteral.
+function hookTypesFromSchema(): string[] {
+  return [
+    CommandHook.shape.type.value,
+    HttpHook.shape.type.value,
+    PromptHook.shape.type.value,
+    AgentHook.shape.type.value,
+    McpToolHook.shape.type.value,
+  ].sort();
+}
+
+function permissionModesFromSchema(): string[] {
+  return [...PermissionMode.options].sort();
+}
+
+// McpStdioServer's `type` is optional (bare stdio entries omit it), so its
+// shape is `ZodOptional<ZodLiteral<"stdio">>` — unwrap before reading `.value`.
+// McpHttpServer/McpSseServer's `type` is required.
+function mcpTransportsFromSchema(): string[] {
+  return [
+    McpStdioServer.shape.type.unwrap().value,
+    McpHttpServer.shape.type.value,
+    McpSseServer.shape.type.value,
+  ].sort();
+}
+
+function agentIsolationFromSchema(): string[] {
+  return [...AgentIsolation.options].sort();
+}
+
+function agentMemoryFromSchema(): string[] {
+  return [...AgentMemory.options].sort();
+}
+
+interface CodexAppEntry {
+  date: string; // YYYY-MM-DD
+  id: string; // guid fragment, e.g. codex-2026-10-07-mobile
+  title: string;
+  body: string;
+}
+
+function decodeXml(text: string): string {
+  return text
+    .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function parseCodexAppFeed(xml: string): CodexAppEntry[] {
+  return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].flatMap(([, item = ""]) => {
+    const tag = (name: string) =>
+      item.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1] ?? "";
+    const published = new Date(tag("pubDate"));
+    if (Number.isNaN(published.getTime())) return [];
+    return [
+      {
+        date: published.toISOString().slice(0, 10),
+        id: tag("guid").split("#").pop() ?? "",
+        title: decodeXml(tag("title")),
+        body: decodeXml(tag("content:encoded")),
+      },
+    ];
+  });
+}
+
+// Entries after the last triage date, minus the ChatGPT iOS releases
+// (guid ends in -mobile), which touch no surface a Codex install writes.
+async function fetchCodexAppEntries(since: string): Promise<CodexAppEntry[] | null> {
+  try {
+    const res = await fetch(CODEX_APP_FEED, { headers: { accept: "application/rss+xml" } });
+    if (!res.ok) return null;
+    return parseCodexAppFeed(await res.text())
+      .filter((e) => e.date > since && !e.id.endsWith("-mobile"))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchLatestNpmVersion(pkg: string): Promise<string | null> {
   // Try `bun pm view` first (works offline in CI cache, no fetch dep).
   try {
-    const proc = Bun.spawn(["bun", "pm", "view", "@anthropic-ai/claude-code", "version"], {
+    const proc = Bun.spawn(["bun", "pm", "view", pkg, "version"], {
       stdout: "pipe",
       stderr: "ignore",
     });
@@ -61,7 +197,7 @@ async function fetchLatestClaudeCodeVersion(): Promise<string | null> {
     // fall through to fetch
   }
   try {
-    const res = await fetch("https://registry.npmjs.org/@anthropic-ai/claude-code/latest", {
+    const res = await fetch(`https://registry.npmjs.org/${pkg}/latest`, {
       headers: { accept: "application/json" },
     });
     if (!res.ok) return null;
@@ -84,23 +220,77 @@ function diffSets(label: string, manifest: string[], live: string[]): string[] {
 }
 
 async function main() {
+  if (process.argv.includes("--codex-app-entries")) {
+    const { appChangelogLastScan } = await loadCodexManifest();
+    const entries = await fetchCodexAppEntries(appChangelogLastScan);
+    if (entries === null) throw new Error(`could not read ${CODEX_APP_FEED}`);
+    if (entries.length === 0) console.log(`no Codex app entries after ${appChangelogLastScan}.`);
+    for (const e of entries) console.log(`=== ${e.date} ${e.id}\n${e.body.trim()}\n`);
+    return;
+  }
   const manifest = await loadManifest();
   const liveSettingsKeys = settingsKeysFromSchema();
   const liveHookEvents = hookEventsFromSchema();
-  const liveVersion = await fetchLatestClaudeCodeVersion();
+  const liveHookTypes = hookTypesFromSchema();
+  const livePermissionModes = permissionModesFromSchema();
+  const liveMcpTransports = mcpTransportsFromSchema();
+  const liveAgentIsolation = agentIsolationFromSchema();
+  const liveAgentMemory = agentMemoryFromSchema();
+  const codexManifest = await loadCodexManifest();
+  const [liveVersion, liveCodexVersion, codexAppEntries] = await Promise.all([
+    fetchLatestNpmVersion("@anthropic-ai/claude-code"),
+    fetchLatestNpmVersion("@openai/codex"),
+    fetchCodexAppEntries(codexManifest.appChangelogLastScan),
+  ]);
 
   console.log("cc-settings upstream scan");
-  console.log(`  manifest version: ${manifest.claudeCodeVersion} (scanned ${manifest.lastScan})`);
-  console.log(`  live version:     ${liveVersion ?? "<unknown — network offline>"}`);
+  console.log("  claude-code");
+  console.log(`    manifest version: ${manifest.claudeCodeVersion} (scanned ${manifest.lastScan})`);
+  console.log(`    live version:     ${liveVersion ?? "<unknown — network offline>"}`);
+  console.log("  codex");
+  console.log(
+    `    manifest version: ${codexManifest.codexVersion} (scanned ${codexManifest.lastScan})`,
+  );
+  console.log(`    live version:     ${liveCodexVersion ?? "<unknown — network offline>"}`);
+  console.log(
+    `    app/IDE changelog: triaged through ${codexManifest.appChangelogLastScan}, ${codexAppEntries === null ? "<unknown — feed unreachable>" : `${codexAppEntries.length} newer entries`}`,
+  );
+  console.log(
+    "  reference-only (not diffed — no local schema source of truth; see manifest notes): knownEnvVars, knownBuiltinTools, codex knownConfigSurfaces",
+  );
 
   const findings: string[] = [];
   const versionDrift =
     liveVersion !== null && liveVersion !== manifest.claudeCodeVersion ? liveVersion : null;
   if (versionDrift) {
-    findings.push(`  version drift: manifest=${manifest.claudeCodeVersion} → live=${versionDrift}`);
+    findings.push(
+      `  claude-code version drift: manifest=${manifest.claudeCodeVersion} → live=${versionDrift}`,
+    );
+  }
+  const codexDrift =
+    liveCodexVersion !== null && liveCodexVersion !== codexManifest.codexVersion
+      ? liveCodexVersion
+      : null;
+  if (codexDrift) {
+    findings.push(
+      `  codex version drift: manifest=${codexManifest.codexVersion} → live=${codexDrift}`,
+    );
+  }
+  if (codexAppEntries?.length) {
+    findings.push(
+      `  codex app changelog: ${codexAppEntries.length} entries after ${codexManifest.appChangelogLastScan} (read them with \`bun src/upstream/scan.ts --codex-app-entries\`)`,
+      ...codexAppEntries.map((e) => `    ${e.date} ${e.title}`),
+    );
   }
   findings.push(...diffSets("settings keys", manifest.knownSettingsKeys, liveSettingsKeys));
   findings.push(...diffSets("hook events", manifest.knownHookEvents, liveHookEvents));
+  findings.push(...diffSets("hook types", manifest.knownHookTypes, liveHookTypes));
+  findings.push(
+    ...diffSets("permission modes", manifest.knownPermissionModes, livePermissionModes),
+  );
+  findings.push(...diffSets("mcp transports", manifest.knownMcpTransports, liveMcpTransports));
+  findings.push(...diffSets("agent isolation", manifest.knownAgentIsolation, liveAgentIsolation));
+  findings.push(...diffSets("agent memory", manifest.knownAgentMemory, liveAgentMemory));
 
   if (findings.length === 0) {
     console.log("\nno drift detected.");
@@ -109,7 +299,7 @@ async function main() {
 
   console.log("\ndrift detected:");
   for (const line of findings) console.log(line);
-  console.log("\nrun `/cc sync` to triage the changelog and land the bump.");
+  console.log("\nrun `/cc sync` to triage the changelogs and land the bumps.");
 }
 
 main().catch((err) => {

@@ -1,11 +1,6 @@
 ---
 name: retro
-description: |
-  Weekly engineering retrospective with persistent metrics. Use when:
-  - User says "retro", "retrospective", "weekly review"
-  - User asks "how was my week?", "engineering metrics", "velocity"
-  - User wants to analyze commit patterns, work sessions, or code quality trends
-  - User says "what did I ship?", "show me my stats"
+description: Weekly engineering retrospective with persistent metrics covering commit patterns, sessions, quality trends. Triggers "retro", "weekly review", "how was my week", "what did I ship", "show me my stats".
 context: fork
 allowed-tools:
   - Bash
@@ -16,9 +11,20 @@ allowed-tools:
 
 # Engineering Retrospective
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "retro" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Product-aware helper
 
-Analyze commit history to produce velocity metrics, work patterns, and improvement suggestions with persistent history for trend tracking.
+```bash
+# Claude Code
+ESCALATE_STATS_RUNNER="$HOME/.claude/src/scripts/escalate-stats.ts"
+CC_STATE_ROOT="$HOME/.claude"
+
+# Standalone Codex would resolve the helper as:
+# ESCALATE_STATS_RUNNER="${CODEX_HOME:-$HOME/.codex}/darkroom/source/src/scripts/escalate-stats.ts"
+```
+
+Codex must skip this Claude escalation telemetry entirely because the plugin
+does not expose a reliable manual state path. Do not infer or report an
+act-rate in Codex.
 
 **This skill is self-contained.** Do not read CLAUDE.md or agent definitions.
 
@@ -59,6 +65,15 @@ git log origin/main --since="WINDOW_START" --format="%s" | grep -oE '#[0-9]+' | 
 ```
 
 Replace `WINDOW_START` with the appropriate `--since` value for the requested window.
+
+In Claude only, also run the escalate-advisory telemetry if present:
+
+```bash
+CC_SETTINGS_HOME="$CC_STATE_ROOT" bun "$ESCALATE_STATS_RUNNER" --days 7
+```
+
+If this prints stats (not "no telemetry yet"), include the act-rate in the
+report — see Step 13. Standalone Codex omits the telemetry and act-rate section.
 
 ---
 
@@ -268,6 +283,7 @@ Structure:
 9. **3 Things to Improve** — concrete, specific, actionable
 10. **3 Habits for Next Week** — small behavioral changes
 11. **Week-over-Week Trends** (if applicable, from Step 9)
+12. **Escalate Advisory Act-Rate** (if the escalate-stats helper printed stats in Step 1 — otherwise omit this section)
 
 ---
 
@@ -299,6 +315,4 @@ When `/retro compare` is used:
 - Always use `origin/main` — local-only commits are not shipped
 - Use local timezone for display (detect from system)
 - Handle zero-commit windows gracefully ("No commits in this window")
-- Round LOC/hour to nearest 50
 - Treat merge commits as PR boundaries
-- This skill is self-contained — do not read CLAUDE.md or other docs

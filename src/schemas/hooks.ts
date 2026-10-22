@@ -29,6 +29,7 @@ export const HookEvent = z.enum([
   // Config + file
   "ConfigChange",
   "CwdChanged",
+  "DirectoryAdded", // 2.1.219 — fires after /add-dir or the SDK's register_repo_root adds a working dir mid-session
   "FileChanged",
   "InstructionsLoaded",
   // Worktree
@@ -37,6 +38,11 @@ export const HookEvent = z.enum([
   // Context
   "PreCompact",
   "PostCompact",
+  // Model — 2.1.251. Matcher filters on the canonical `to_model`. PreModelSwitch
+  // can allow/deny/ask (30s default timeout; a timeout blocks the switch);
+  // PostModelSwitch is async, display-only.
+  "PreModelSwitch",
+  "PostModelSwitch",
   // MCP
   "Elicitation",
   "ElicitationResult",
@@ -46,7 +52,7 @@ export type HookEvent = z.infer<typeof HookEvent>;
 // --- Hook entry (discriminated union on `type`) --------------------------
 
 const HookCommon = {
-  if: z.string().optional(), // permission-rule syntax; PreToolUse/PostToolUse/PermissionRequest
+  if: z.string().optional(), // permission-rule syntax; the documented location (tool events only). config/40-hooks.json uses this.
   timeout: z.number().int().positive().optional(),
   async: z.boolean().optional(),
   statusMessage: z.string().optional(),
@@ -54,6 +60,9 @@ const HookCommon = {
   // v2.1.139 — PostToolUse only. When the hook returns a block signal, the
   // turn continues anyway (the block surfaces in context but doesn't abort).
   continueOnBlock: z.boolean().optional(),
+  // v2.1.295 — command and http hooks. "block" turns a hook that cannot start,
+  // times out, or exits with an unexpected code into a block instead of a pass.
+  onFailure: z.literal("block").optional(),
 };
 
 // v2.1.139 — `args` opts a command hook into exec form: CC spawns the binary
@@ -109,7 +118,7 @@ export type Hook = z.infer<typeof Hook>;
 
 export const HookGroup = z.object({
   matcher: z.string().optional(),
-  if: z.string().optional(), // rule syntax at the group level (current settings.json uses this)
+  if: z.string().optional(), // legacy group-level placement: Claude Code never evaluated it and `claude plugin` rewrites strip it (15.21.2); kept so old installs still parse
   hooks: z.array(Hook).min(1),
 });
 export type HookGroup = z.infer<typeof HookGroup>;

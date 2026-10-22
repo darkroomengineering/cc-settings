@@ -1,6 +1,6 @@
 ---
 name: hook
-description: Create reusable React hook (useX pattern). Triggers "create hook", "new hook", "custom hook", "useAuth"/"useScroll"-style names, extracting logic from a component.
+description: Create a reusable React hook (useX). Triggers "create hook", "new hook", "custom hook", a useX-style name, or extracting logic out of a component.
 argument-hint: "[hookName]"
 ---
 
@@ -8,13 +8,32 @@ argument-hint: "[hookName]"
 
 Create a custom React hook following Darkroom conventions. The hook itself is stack-agnostic — what differs between satus and novus is the path alias.
 
-## Step 1 — Detect stack
+## Step 1 — Check existing abstractions
+
+Apply the Laziness Ladder before scaffolding, even when the request proposes a
+hook name. Search project hooks, utilities, and callers by behavior and related
+terms; read matching implementations to check their contract and import path.
+Prefer a matching project hook, including wrappers around `hamo`, over direct
+dependency calls or a new wrapper. If one fits, use it and stop here.
+
+For example, in Satus, search for `useDeviceDetection`, `isDesktop`, and media-query
+usage before adding `useIsDesktop` or repeating a breakpoint string. When the local
+contract matches the requirement, use `const { isDesktop } = useDeviceDetection()`
+with the verified local import. Check breakpoint semantics and server/initial
+render behavior; do not assume every media query means the same thing.
+
+If no project abstraction fits, check runtime/platform APIs and installed
+dependencies. For common hook behavior, check installed `hamo` hooks using the
+documentation procedure below. Before creating a hook, name the implementations
+checked and the behavior they lack; then continue only for that gap.
+
+## Step 2 — Detect stack
 
 Read `package.json`:
-- `dependencies.next` → satus / Next.js (path alias `@/`, no `lib/hooks/` requires `'use client'` boundary)
+- `dependencies.next` → satus / Next.js (path alias `@/`, hooks require a `'use client'` boundary)
 - `dependencies["react-router"]` → novus / React Router (path alias `~/`, components isomorphic)
 
-## Step 2 — Choose location
+## Step 3 — Choose location
 
 | Stack | Hook path |
 |---|---|
@@ -23,12 +42,13 @@ Read `package.json`:
 
 Confirm by checking the existing `lib/hooks/` or `hooks/` directory structure if either pattern is unclear from package.json alone.
 
-## Step 3 — Emit template
+## Step 4 — Emit template
 
-### satus / Next.js
 ```tsx
-// lib/hooks/<name>.ts
-'use client'
+// lib/hooks/<name>.ts (novus: hooks/<name>.ts)
+'use client' // satus only, hooks live in the client boundary; novus is isomorphic, omit it
+// Client Components can prerender on the server. Read browser APIs in effects
+// or event handlers, with the same initial state on the server and browser.
 
 import { useState, useEffect } from 'react'
 
@@ -48,71 +68,25 @@ export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
 }
 ```
 
-### novus / React Router
-```tsx
-// hooks/<name>.ts
-// No 'use client' — RR components are isomorphic; the hook runs wherever
-// it's called from. If the hook touches browser APIs, guard with
-// `typeof window !== 'undefined'` or call from inside `useEffect`.
-
-import { useState, useEffect } from 'react'
-
-interface Use<Name>Options {
-  // Hook configuration options
-}
-
-interface Use<Name>Return {
-  // Return type definition
-}
-
-export function use<Name>(options?: Use<Name>Options): Use<Name>Return {
-  // Implementation
-  return {
-    // Return values
-  }
-}
-```
-
-## Conventions (both stacks)
+## Conventions
 
 1. **Type everything** — options interface, return interface.
 2. **Named export** — `export function useX`, not default.
 3. **Prefix with `use`** — React hook naming convention.
 4. **No memoization** — React Compiler handles it automatically.
-
-## Stack-specific
-
-| | satus | novus |
-|---|---|---|
-| Directive | `'use client'` (hooks live in client boundary) | None (isomorphic) |
-| Browser API guard | Only runs after hydration anyway | Guard with `typeof window` or use `useEffect` |
-| Path alias | `@/` | `~/` |
+5. **Hydration-safe state** — both stacks can render on the server. Use a
+   deterministic initial value for the server render and first browser render;
+   `'use client'` does not disable prerendering. A `typeof window` branch in a
+   lazy state initializer can still produce different markup and a hydration
+   mismatch. Read `localStorage` in an effect, and finish that read before
+   enabling an effect that persists state, so initial defaults cannot overwrite
+   stored values.
 
 ## Before you start
 
 If this hook uses an external library, **fetch docs first**:
-1. Use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) for the current API.
+1. Use Context7 MCP (`mcp__context7__resolve-library-id` → `get-library-docs`) in Claude or when the user configured it in standalone Codex. Otherwise use official docs through native browsing or inspect the pinned local package. cc-settings does not auto-run unpinned registry MCP packages in Codex.
 2. Run `bun info <package>` to check the latest version.
-
-## Consider Using Hamo
-
-For common use cases, prefer `hamo` hooks (fetch `hamo` docs via Context7 first):
-
-```tsx
-import { useWindowSize, useRect, useIntersectionObserver } from 'hamo'
-```
-
-Only create custom hooks when `hamo` doesn't cover the use case.
-
-## Example
-
-```
-User: "create a useLocalStorage hook" (in satus repo)
-→ Creates lib/hooks/use-local-storage.ts with 'use client' directive
-
-User: "create a useLocalStorage hook" (in novus repo)
-→ Creates hooks/use-local-storage.ts, no directive, browser-API-guarded
-```
 
 ## Arguments
 

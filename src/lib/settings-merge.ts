@@ -4,19 +4,32 @@
 // The orchestrator `mergeSettings` and its 5 strategies are now individually
 // exported so they can be unit-tested in isolation.
 //
-// MCP-preservation semantics live in src/lib/mcp.ts as `resolveMcpServers`.
-// The thin wrapper `mergeSettingsWithMcpPreservation` (which computes
-// resolveMcpServers then calls mergeSettings) lives there too — keeping this
-// file free of MCP knowledge.
+// `mcpServers` never reaches mergeSettings: installSettings (src/setup.ts)
+// destructures it out of the composed settings before calling this function.
+// MCP itself is owned by src/lib/mcp.ts, which writes ~/.claude.json directly
+// (installMcpToClaudeJson) and prunes any legacy settings.json copy
+// (pruneSettingsMcpServers) — it never touches settings.json's merge path.
+// Keeps this file free of MCP knowledge.
 //
 // For the full merge algorithm and invariant documentation see the
 // JSDoc on `mergeSettings` below.
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { Settings } from "../schemas/settings.ts";
 import { debug, info, success } from "./colors.ts";
-import { isManagedHookCommand } from "./hook-command.ts";
+import { isManagedHookCommand, MANAGED_BUN_PREFIX, parseHookCommand } from "./hook-command.ts";
 import { atomicWriteJson, readJsonOrNull } from "./json-io.ts";
-import { asRecord, canonicalKey, subtractByKey, unionByKey, uniqueByKey } from "./merge-keyed.ts";
+import {
+  asRecord,
+  canonicalKey,
+  isPlainObject,
+  isRetiredDefault,
+  RETIRED_SCALAR_DEFAULTS,
+  subtractByKey,
+  unionByKey,
+  uniqueByKey,
+} from "./merge-keyed.ts";
 import { promptYn } from "./prompts.ts";
 
 type StringArray = string[] | undefined;
@@ -30,19 +43,43 @@ type UnknownRecord = Record<string, unknown>;
  */
 export interface MergeOptions {
   interactive?: boolean;
+  /** Absolute path to the source tree being installed (cc-settings' own repo
+   *  root — the same `source`/`args.sourceDir` setup.ts threads everywhere
+   *  else). Used by hooksStrategy to prune stale managed-hook references (see
+   *  `isStaleManagedHookCommand`/`pruneStaleManagedHooks` below) — undefined
+   *  in contexts with no source tree to check against (e.g. a strategy called
+   *  directly in a unit test), which fails open and skips that prune. */
+  sourceDir?: string;
+  /** The PREVIOUS install's team contribution (`team_settings` in
+   *  ~/.claude/.cc-settings-baseline.json), never the merged snapshot. Enables
+   *  three-way decisions: a live value that still equals what that install
+   *  team supplied matches cc-settings' own old default, so a retired
+   *  env key is pruned and a changed default is updated instead of the
+   *  user-wins rule freezing it forever. A value the user changed since
+   *  always wins, exactly as before. Undefined (pre-baseline install, or a
+   *  unit test) fails open: registry-only prune, plain user-wins. */
+  baselineSettings?: Record<string, unknown>;
 }
 
 export interface MergeAccounting {
   permissionsAdded: number;
   permissionsDeclined: number;
   permissionsAdoptedScalars: number;
+  permissionsPruned: number;
   hooksAdded: number;
   hooksDeclined: number;
   hooksPruned: number;
   hooksSuperseded: number;
   envUserWins: number;
   envAdoptedScalars: number;
+  envPruned: number;
+  /** Values still equal to the previous install's baseline that were moved to
+   *  the new team default (three-way: our old default, not a user choice). */
+  defaultsUpdated: number;
   scalarsAdopted: number;
+  /** Top-level keys dropped because cc-settings no longer ships them and the
+   *  live value is still the retired default. */
+  retiredDefaultsPruned: number;
   defaultsAdded: number;
   statusLineReset: boolean;
 }
@@ -80,19 +117,160 @@ function stringArrayField(rec: UnknownRecord, key: string): StringArray {
   return Array.isArray(v) ? v : undefined;
 }
 
+// Permission rules naming tools Claude Code has removed. The union merge
+// otherwise preserves these forever as "user extras" once the team config
+// drops them, and Claude Code warns `Permission rule "..." matches no known
+// tool` at every session start — the permissions counterpart of
+// DEPRECATED_COMMAND_PATTERNS for hooks. Same removal policy as that list:
+// droppable ~6 minor releases after the tool retired.
+export const DEPRECATED_PERMISSION_PATTERNS: RegExp[] = [
+  // Claude Code removed the MultiEdit tool (batch edits folded into Edit).
+  // Rules naming it were removed from config/ in v12.2.6; prune the
+  // stragglers that the union merge kept alive on existing installs.
+  /^MultiEdit\(/,
+  // Claude Code 2.1.210 deprecated Write(path)/NotebookEdit(path)/Glob(path)
+  // rules (Edit/Read rules now govern those tools; the old forms warn at
+  // startup). Only the exact rules cc-settings shipped are pruned — v12.4.0
+  // replaced them with Edit(...) equivalents in config/30-permissions.json.
+  // User-authored Write/Glob/NotebookEdit rules are left alone: pruning a
+  // custom deny rule without rewriting it would silently drop protection.
+  /^Write\(\*\)$/,
+  /^Glob\(\*\)$/,
+  /^NotebookEdit\(\*\)$/,
+  /^Write\(~\/\.ssh\/\*\)$/,
+  /^Write\(~\/\.aws\/\*\)$/,
+  /^Write\(~\/\.gnupg\/\*\)$/,
+  /^Write\(~\/\.bashrc\)$/,
+  /^Write\(~\/\.zshrc\)$/,
+  /^Write\(~\/\.bash_profile\)$/,
+  /^Write\(~\/\.claude\/settings\.json\)$/,
+  /^Write\(~\/\.claude\.json\)$/,
+];
+
+// Deny rules cc-settings shipped for workflow cleanup and has since allowed, so
+// agents run these commands instead of handing them back to the user. Without
+// this list the union merge keeps them on existing installs as user extras.
+// Exact strings, pruned from `deny` only: the same rule in a user's `ask` or
+// `allow` is their choice, and a user's own variant is left alone.
+export const RETIRED_PERMISSION_RULES = new Set<string>([
+  "Bash(git push --force-with-lease:*)",
+  "Bash(git reset --hard:*)",
+  "Bash(git clean -f:*)",
+  "Bash(gh api -X DELETE:*)",
+  "Bash(gh api * -X DELETE*)",
+  "Bash(gh api --method DELETE:*)",
+  "Bash(gh api * --method DELETE*)",
+  "Bash(gh release delete:*)",
+  // Older configs shipped these mixing a `*` wildcard with the trailing `:*`
+  // prefix form. Claude Code reads that `*` literally, so the rules never
+  // matched and warn at startup. config/ carries the working `*` forms.
+  "Bash(rm -rf $HOME/*:*)",
+  "Bash(rm -fr /*:*)",
+  "Bash(rm -fr ~/*:*)",
+  "Bash(cp ~/.ssh/*:*)",
+  "Bash(cp ~/.aws/*:*)",
+  "Bash(cp ~/.gnupg/*:*)",
+  "Bash(mv ~/.ssh/*:*)",
+  "Bash(mv ~/.aws/*:*)",
+  "Bash(mv ~/.gnupg/*:*)",
+  "Bash(cp ~/.config/gh/*:*)",
+  "Bash(mv ~/.config/gh/*:*)",
+  "Bash(curl * --data:*)",
+  "Bash(curl * -d :*)",
+  "Bash(curl * -F :*)",
+  "Bash(curl * --upload-file:*)",
+  "Bash(curl * -T :*)",
+  "Bash(curl * --json:*)",
+  "Bash(curl * --data-raw:*)",
+  "Bash(curl * --data-binary:*)",
+  "Bash(curl * --data-urlencode:*)",
+  "Bash(curl * -X POST:*)",
+  "Bash(curl * -X PUT:*)",
+  "Bash(curl * -X DELETE:*)",
+  "Bash(curl * -X PATCH:*)",
+  "Bash(curl * -o :*)",
+  "Bash(curl * -O:*)",
+  "Bash(curl * -H :*)",
+  "Bash(curl * --header :*)",
+  "Bash(curl * --cookie :*)",
+  "Bash(find * -delete:*)",
+  "Bash(find * -exec:*)",
+  "Bash(awk * system\\(:*)",
+  "Bash(awk * system \\(:*)",
+  "Bash(gh api * -X DELETE:*)",
+  "Bash(gh api * --method DELETE:*)",
+  "Bash(cp * ~/.claude/settings.json:*)",
+  "Bash(mv * ~/.claude/settings.json:*)",
+  "Bash(cp * ~/.claude.json:*)",
+  "Bash(mv * ~/.claude.json:*)",
+  "Bash(cp * ~/.zshrc:*)",
+  "Bash(mv * ~/.zshrc:*)",
+  "Bash(cp * ~/.bashrc:*)",
+  "Bash(mv * ~/.bashrc:*)",
+  "Bash(cp * ~/.bash_profile:*)",
+  "Bash(mv * ~/.bash_profile:*)",
+]);
+
+export function permissionRuleIsDeprecated(rule: string): boolean {
+  return DEPRECATED_PERMISSION_PATTERNS.some((re) => re.test(rule));
+}
+
+// env keys cc-settings used to ship and has since dropped. envStrategy is a
+// union with the user winning every conflict, so without this a retired key
+// survives on every existing install forever — new installs get upstream's
+// behavior while older ones stay frozen on a value we no longer set. The env
+// counterpart of DEPRECATED_PERMISSION_PATTERNS, same removal policy.
+//
+// Only exact keys cc-settings itself shipped belong here. A user who set the
+// same variable by hand loses their value, which is the same tradeoff the two
+// registries above already make — worth it for a key we chose for them, wrong
+// for anything we never wrote.
+export const DEPRECATED_ENV_KEYS = new Set<string>([
+  // Pinned to "2" in v12.6.0 to LOOSEN Claude Code's then-default of 1, so
+  // maestro/deslopper could still fan out when invoked as subagents. Upstream
+  // 2.1.219 raised its own default to 3, which turned the identical pin into a
+  // restriction — capping nesting below stock. Dropped in v13.2.1; installs
+  // now inherit whatever upstream defaults to.
+  "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH",
+  // Shipped v2.1.108-era to force the 1-hour prompt cache on every request.
+  // Replaced in v15.2.0 by the typed promptCacheTtl ("1h") +
+  // subagentPromptCacheTtl ("5m") settings keys, which sit above this var in
+  // upstream precedence AND stop paying the 1h cache-write rate on subagent
+  // fan-outs. Registry entry covers pre-baseline installs; baseline-recorded
+  // installs are pruned by the three-way check in envStrategy either way.
+  "ENABLE_PROMPT_CACHING_1H",
+]);
+
 // Union two string arrays, preserving team order. Team-only entries can be
 // declined in interactive mode (they're the ones team added since last install).
+// Rules naming removed tools (DEPRECATED_PERMISSION_PATTERNS) are pruned from
+// BOTH inputs — filtering only user extras would let a deprecated rule survive
+// via the team side, or via presence in both arrays. `pruneDeprecated=false`
+// exempts arrays that hold non-rule strings (additionalDirectories is paths,
+// and a path starting with `MultiEdit(` must not be reinterpreted as a rule).
 export async function unionPermissionArray(
   team: StringArray,
   user: StringArray,
   opts: MergeOptions,
   label: string,
   alwaysAccept = false,
-): Promise<{ merged: string[] | undefined; added: number; declined: number }> {
-  const teamArr = team ?? [];
-  const userArr = user ?? [];
+  pruneDeprecated = true,
+  retired: ReadonlySet<string> = new Set(),
+): Promise<{ merged: string[] | undefined; added: number; declined: number; pruned: number }> {
+  const rawTeam = team ?? [];
+  const rawUser = user ?? [];
+  if (rawTeam.length === 0 && rawUser.length === 0)
+    return { merged: undefined, added: 0, declined: 0, pruned: 0 };
+
+  const stale = (r: string) => retired.has(r) || (pruneDeprecated && permissionRuleIsDeprecated(r));
+  const teamArr = rawTeam.filter((r) => !stale(r));
+  const userArr = rawUser.filter((r) => !stale(r));
+  const pruned = rawTeam.length - teamArr.length + (rawUser.length - userArr.length);
+  // Post-filter emptiness must return [] rather than undefined: the strategy's
+  // `{ ...t, ...u }` spread would otherwise carry the raw (deprecated) array
+  // through to the merged output untouched.
   if (teamArr.length === 0 && userArr.length === 0)
-    return { merged: undefined, added: 0, declined: 0 };
+    return { merged: [], added: 0, declined: 0, pruned };
 
   const id = (r: string) => r;
   const teamOnly = subtractByKey(teamArr, userArr, id);
@@ -113,10 +291,31 @@ export async function unionPermissionArray(
 
   // Preserve team order, append user extras.
   const merged = unionByKey(teamKept, userExtras, id);
-  return { merged, added: userExtras.length, declined };
+  return { merged, added: userExtras.length, declined, pruned };
 }
 
 // Prompt for a scalar conflict: user has X, team has Y, values differ.
+/** Navigate a dotted path ("attribution.sessionUrl") into the previous team's
+ *  contribution. Returns undefined when there is no provenance or the path is
+ *  absent — callers treat that as "no three-way evidence" and fall back to
+ *  plain user-wins. */
+export function baselineValueAt(opts: MergeOptions, path: string): unknown {
+  let cursor: unknown = opts.baselineSettings;
+  for (const segment of path.split(".")) {
+    if (cursor === null || typeof cursor !== "object" || Array.isArray(cursor)) return undefined;
+    cursor = (cursor as UnknownRecord)[segment];
+  }
+  return cursor;
+}
+
+/** True when the user's live value is byte-for-byte what the previous install
+ *  team supplied at this path — cc-settings' own old default, safe to update to
+ *  the new team value without overriding a user choice. */
+export function userMatchesBaseline(opts: MergeOptions, path: string, userVal: unknown): boolean {
+  const baseline = baselineValueAt(opts, path);
+  return baseline !== undefined && Bun.deepEquals(userVal, baseline, true);
+}
+
 export async function resolveScalarConflict(
   key: string,
   teamVal: unknown,
@@ -153,6 +352,8 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
     opts,
     "deny rule",
     true, // deny always accepts team additions — guardrail
+    true,
+    RETIRED_PERMISSION_RULES,
   );
   const ask = await unionPermissionArray(
     stringArrayField(t, "ask"),
@@ -165,6 +366,8 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
     stringArrayField(u, "additionalDirectories"),
     opts,
     "additionalDirectory",
+    false,
+    false, // paths, not rules — never prune
   );
 
   const merged: UnknownRecord = { ...t, ...u };
@@ -176,6 +379,11 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   // Scalar conflicts within permissions (defaultMode, autoMode).
   for (const k of ["defaultMode", "autoMode"]) {
     if (k in t && k in u && JSON.stringify(t[k]) !== JSON.stringify(u[k])) {
+      if (userMatchesBaseline(opts, `permissions.${k}`, u[k])) {
+        merged[k] = t[k];
+        ctx.accounting.defaultsUpdated++;
+        continue;
+      }
       const { value, adopted } = await resolveScalarConflict(`permissions.${k}`, t[k], u[k], opts);
       merged[k] = value;
       if (adopted) ctx.accounting.permissionsAdoptedScalars++;
@@ -185,6 +393,7 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
   ctx.accounting.permissionsAdded += allow.added + deny.added + ask.added + dirs.added;
   ctx.accounting.permissionsDeclined +=
     allow.declined + deny.declined + ask.declined + dirs.declined;
+  ctx.accounting.permissionsPruned += allow.pruned + deny.pruned + ask.pruned;
 
   return { keep: true, value: merged };
 };
@@ -219,7 +428,7 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // cc-settings v11.5.1 removed the parallelmax-judge Stop hook: it spawned a
   // nested `claude -p` session whose prompt + SessionStart banner leaked into
   // the user's terminal. Prune any lingering reference so upgraders stop firing
-  // it. As a shared `Stop` group with stop-summary.ts, this is a partial prune.
+  // it. In a shared `Stop` group this is a partial prune.
   /parallelmax-judge\.ts\b/,
   // cc-settings v11.6.1 removed the WorktreeCreate/WorktreeRemove hooks added in
   // v11.6.0. In this harness WorktreeCreate is a *provisioning* hook expected to
@@ -238,6 +447,33 @@ export const DEPRECATED_COMMAND_PATTERNS: RegExp[] = [
   // config). Prune so upgraders stop seeing "No such file or directory".
   /track-tldr\.ts\b/,
   /tldr-stats\.ts\b/,
+  // cc-settings v13.0.0 gave the PreCompact/SessionEnd handoff hooks a
+  // --from-hook flag, which is what carries session_id + trigger through to
+  // PostCompact. The command string changed, so the union merge would
+  // otherwise keep the OLD flagless invocation alongside the new one and fire
+  // both — and the flagless one writes a handoff with no session provenance,
+  // which PostCompact then cannot match. Matches only the exact bare form:
+  // anchored at the end, so `create --from-hook` is untouched, and a user's
+  // own `create --summary "..."` hook is left alone.
+  /handoff\.ts["']?\s+create\s*$/,
+  // cc-settings removed the Stop/StopFailure hooks stop-summary.ts and
+  // stop-failure.ts: their plain stdout never reaches the model. Prune so
+  // upgraders stop seeing "No such file or directory".
+  /stop-summary\.ts\b/,
+  /stop-failure\.ts\b/,
+  // cc-settings removed the proof-gate hooks (each repo runs its own checks in
+  // its own git hooks and CI), the session-title hook, and the cwd-changed hook.
+  // Anchored to the managed install path: these names are common enough that a
+  // repo's own pre-commit-tsc.ts hook must survive an upgrade.
+  /\.claude[/\\]src[/\\](?:hooks|scripts)[/\\](?:pre-commit-tsc|pre-commit-farolero|pre-pr-proof|pre-push-proof|session-title|cwd-changed)\.ts\b/,
+  // cc-settings runs the synchronous UserPromptSubmit, PreToolUse and PostToolUse
+  // handlers through hooks/dispatch.ts, one process per event. The scripts still
+  // exist (the dispatcher imports them, and tests, hook-bench and the Codex plugin run
+  // them directly), so pruneStaleManagedHooks cannot catch the old per-script entries;
+  // without these an upgrade would run each handler twice. Anchored on the install path
+  // so a script in some other directory is untouched; `post-edit-tsc.ts` and
+  // `dispatch.ts` do not match.
+  /[/\\]\.claude[/\\]src[/\\](?:hooks[/\\](?:delegation-detector|quota-steer|escalate-model|safety-net|pre-edit-validate|freeze-guard|knowledge-hint|tool-cadence|promote-memory|escalate-acted)|scripts[/\\]post-edit)\.ts\b/,
 ];
 
 export function commandIsDeprecated(value: unknown): boolean {
@@ -279,6 +515,53 @@ export function pruneDeprecatedHooks(group: unknown): unknown | null {
   return { ...g, hooks: kept };
 }
 
+// True if `command` is a cc-settings-managed hook invocation (a `bun
+// "$HOME/.claude/src/{scripts,hooks}/<name>.ts"` shape — see hook-command.ts)
+// whose target file is absent from `sourceDir` — the source tree currently
+// being installed, e.g. cc-settings' own repo root (`args.sourceDir` in
+// setup.ts). `sourceDir` undefined (a strategy exercised directly, with no
+// source tree to check against) fails open: never treat anything as stale.
+//
+// Generalizes DEPRECATED_COMMAND_PATTERNS: instead of hand-maintaining a
+// regex per renamed/removed script, ask the filesystem whether cc-settings
+// still ships the file. This is what the sonor → sondeo → farolero rename
+// churn needed — each rename left the PREVIOUS hook's settings.json entry an
+// "unrecognized" user extra (the merge doesn't know the old and new commands
+// are "the same hook, renamed"), which then survived every subsequent
+// install forever, each pointing at a `.ts` file that no longer exists
+// ("Module not found" on every `git commit`). See CHANGELOG 13.4.3.
+export function isStaleManagedHookCommand(command: string, sourceDir: string | undefined): boolean {
+  if (!sourceDir) return false;
+  const parsed = parseHookCommand(command);
+  if (!parsed.managed || !parsed.relPath) return false;
+  return !existsSync(join(sourceDir, "src", parsed.relPath));
+}
+
+// Same shape as pruneDeprecatedHooks, but the removal test is "does the
+// referenced managed script still exist in the source tree" rather than a
+// hand-maintained regex list. Complements pruneDeprecatedHooks (both run over
+// the same user-extra group in hooksStrategy) rather than replacing it — a
+// command that never matched the managed-hook shape at all (a raw shell
+// command, or a script that lives elsewhere on disk, e.g. `~/bin/*`) is
+// untouched by either and is a genuine customization, never pruned.
+export function pruneStaleManagedHooks(
+  group: unknown,
+  sourceDir: string | undefined,
+): unknown | null {
+  if (!sourceDir) return group;
+  if (!group || typeof group !== "object") return group;
+  const g = group as { hooks?: unknown[] };
+  if (!Array.isArray(g.hooks)) return group;
+  const kept = g.hooks.filter((h) => {
+    if (!h || typeof h !== "object") return true;
+    const command = (h as { command?: unknown }).command;
+    return typeof command !== "string" || !isStaleManagedHookCommand(command, sourceDir);
+  });
+  if (kept.length === 0) return null;
+  if (kept.length === g.hooks.length) return group;
+  return { ...g, hooks: kept };
+}
+
 // hooks: per-event union of hook groups. Team-only groups can be declined in
 // interactive mode; user-only groups survive UNLESS their command references
 // a script in DEPRECATED_COMMAND_PATTERNS (see v10.3.2). Mixed groups keep
@@ -305,18 +588,24 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
     const teamOnly = subtractByKey(teamGroups, userGroups, keyOf);
     const rawUserExtras = subtractByKey(userGroups, teamGroups, keyOf);
 
-    // Drop user extras whose commands point at scripts cc-settings has removed.
+    // Drop user extras whose commands point at scripts cc-settings has removed
+    // — either a hand-listed DEPRECATED_COMMAND_PATTERNS match, or (more
+    // generally) a managed-hook command whose target file the source tree no
+    // longer ships at all (renamed or deleted; see pruneStaleManagedHooks).
     const userExtras: unknown[] = [];
     for (const g of rawUserExtras) {
-      const cleaned = pruneDeprecatedHooks(g);
+      const afterDeprecated = pruneDeprecatedHooks(g);
+      const cleaned =
+        afterDeprecated === null ? null : pruneStaleManagedHooks(afterDeprecated, opts.sourceDir);
+      const pruned = cleaned !== g;
       if (cleaned === null) {
         ctx.accounting.hooksPruned++;
         continue;
       }
-      if (cleaned !== g) {
-        ctx.accounting.hooksPruned++; // partial prune
+      if (pruned) {
+        ctx.accounting.hooksPruned++; // partial prune (either mechanism, or both)
         // A partial prune can collapse a user group into one the team already
-        // provides (e.g. [stop-summary, removed-hook] → [stop-summary]). Drop it
+        // provides (e.g. [ask-gate, removed-hook] → [ask-gate]). Drop it
         // rather than emit a duplicate of the team-provided group.
         if (teamJson.has(keyOf(cleaned))) continue;
       }
@@ -325,8 +614,13 @@ export const hooksStrategy: Strategy = async (_key, team, user, ctx) => {
       // "user extra" forever. A user extra whose hooks are all cc-settings-
       // managed scripts the team already wires for this event is that stale
       // old shape, not a customization — the team definition supersedes it.
+      // Managed commands ship as `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/…"`;
+      // the flagless and `--no-env-file`-only forms older installs wrote are the
+      // same hook, so they are superseded too.
       const cmds = commandsOf(cleaned);
-      if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamCommands.has(c))) {
+      const teamHas = (c: string): boolean =>
+        teamCommands.has(c) || teamCommands.has(withManagedPrefix(c));
+      if (cmds.length > 0 && cmds.every((c) => isManagedCommand(c) && teamHas(c))) {
         ctx.accounting.hooksSuperseded++;
         continue;
       }
@@ -360,8 +654,44 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   const u = asRecord(user);
   const merged: UnknownRecord = { ...t, ...u };
 
+  // Drop keys cc-settings retired. Guarded on `!(k in t)` so a key that is
+  // BOTH listed here and still shipped stays — the team config always wins
+  // that argument, and it makes re-adding a retired key a one-line config
+  // change rather than a two-file one.
+  for (const k of DEPRECATED_ENV_KEYS) {
+    if (k in merged && !(k in t)) {
+      delete merged[k];
+      ctx.accounting.envPruned++;
+    }
+  }
+
+  // Three-way prune (the registry's data-driven successor): the previous
+  // team's contribution supplied this key, the incoming config no longer
+  // sets it, and the live value still equals that team default — so
+  // removing the key removes only what cc-settings itself put there. A value
+  // the user changed since is a user edit and stays, which is exactly the
+  // discrimination the hand-maintained registry above cannot make.
+  const baselineEnvRaw = baselineValueAt(ctx.opts, "env");
+  const baselineEnv = isPlainObject(baselineEnvRaw) ? baselineEnvRaw : undefined;
+  if (baselineEnv) {
+    for (const k of Object.keys(baselineEnv)) {
+      if (k in merged && !(k in t) && merged[k] === baselineEnv[k]) {
+        delete merged[k];
+        ctx.accounting.envPruned++;
+      }
+    }
+  }
+
   for (const k of Object.keys(u)) {
     if (k in t && u[k] !== t[k]) {
+      // Three-way: the user's value is still the previous team's default,
+      // so the difference is cc-settings changing its own default — adopt the
+      // new one instead of freezing the old default as a "user" value.
+      if (baselineEnv && k in baselineEnv && u[k] === baselineEnv[k]) {
+        merged[k] = t[k];
+        ctx.accounting.defaultsUpdated++;
+        continue;
+      }
       ctx.accounting.envUserWins++;
       const { value, adopted } = await resolveScalarConflict(`env.${k}`, t[k], u[k], ctx.opts);
       merged[k] = value;
@@ -373,6 +703,11 @@ export const envStrategy: Strategy = async (_key, team, user, ctx) => {
   }
   return { keep: true, value: merged };
 };
+
+/** The current shipped form of an older managed bun command. */
+function withManagedPrefix(command: string): string {
+  return command.replace(/^bun[ \t]+(?:--no-env-file[ \t]+)?/, () => MANAGED_BUN_PREFIX);
+}
 
 // statusLine: object — user's value normally wins. Exception: if user's
 // command points at a removed cc-settings script (see DEPRECATED_COMMAND_PATTERNS),
@@ -386,14 +721,36 @@ export const statusLineStrategy: Strategy = async (_key, team, user, ctx) => {
     if (team === undefined) return { keep: false };
     return { keep: true, value: team };
   }
+  // An older shipped command shape (flagless or --no-env-file only) is the same
+  // statusline, so it takes the current command whatever the baseline says.
+  const teamCommand = (team as { command?: unknown } | undefined)?.command;
+  if (
+    u &&
+    typeof u.command === "string" &&
+    typeof teamCommand === "string" &&
+    isManagedCommand(u.command) &&
+    u.command !== teamCommand &&
+    withManagedPrefix(u.command) === teamCommand
+  ) {
+    ctx.accounting.defaultsUpdated++;
+    return { keep: true, value: { ...u, command: teamCommand } };
+  }
+  // Three-way: the user's block still exactly matches the previous team's
+  // contribution, so it follows the team block, including
+  // new sub-keys user-wins-whole would otherwise silently drop.
+  if (
+    team !== undefined &&
+    user !== undefined &&
+    userMatchesBaseline(ctx.opts, "statusLine", user) &&
+    !Bun.deepEquals(user, team, true)
+  ) {
+    ctx.accounting.defaultsUpdated++;
+    return { keep: true, value: team };
+  }
   // Default object overlay: user wins when declared.
   if (user !== undefined) return { keep: true, value: user };
   return { keep: true, value: team };
 };
-
-function isPlainObject(v: unknown): v is UnknownRecord {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
-}
 
 // Recursive deep-merge for the default strategy, user winning on every conflict.
 //
@@ -433,6 +790,15 @@ async function deepMergeUserWins(
   if (!tIsScalar || !uIsScalar) return user;
   if (team === user) return user;
 
+  // Three-way first: the user's value still matches the previous team's
+  // contribution at this path, so cc-settings is changing its own
+  // default (e.g. attribution.sessionUrl false → true) — take the new one
+  // silently rather than prompting or freezing the stale default.
+  if (userMatchesBaseline(ctx.opts, key, user)) {
+    ctx.accounting.defaultsUpdated++;
+    return team;
+  }
+
   // Scalar conflict: prompt or silent user-wins. The path (e.g. "model",
   // "spinnerVerbs.mode") names the field in the interactive prompt.
   const { value, adopted } = await resolveScalarConflict(key, team, user, ctx.opts);
@@ -449,14 +815,57 @@ export const userWinsScalarStrategy: Strategy = async (key, team, user, ctx) => 
   return { keep: true, value: await deepMergeUserWins(key, team, user, ctx) };
 };
 
+// Drop a retired key when the team no longer sets it and the live value is
+// still the value cc-settings shipped. With a baseline, the previous install
+// must have supplied that value too; a baseline lacking the key means the user
+// typed it themselves, so it stays.
+function retiredDefaultStrategy(): Strategy {
+  return async (key, team, user, ctx) => {
+    if (
+      team === undefined &&
+      user !== undefined &&
+      isRetiredDefault(key, user, ctx.opts.baselineSettings)
+    ) {
+      ctx.accounting.retiredDefaultsPruned++;
+      return { keep: false };
+    }
+    return userWinsScalarStrategy(key, team, user, ctx);
+  };
+}
+
+// extraKnownMarketplaces: the entries cc-settings ships (cc-settings,
+// fast-jev-compaction) are team-owned, like `hooks`: a rerun replaces whatever
+// is on disk under those names, so a planted repo or sha does not survive and
+// an unpinned install drops a stale sha. Marketplaces under any other name are
+// the user's and stay.
+export const marketplacesStrategy: Strategy = async (_key, team, user, ctx) => {
+  if (team === undefined && user === undefined) return { keep: false };
+  if (!isPlainObject(team) || !isPlainObject(user)) {
+    return { keep: true, value: user === undefined ? team : user };
+  }
+  const out: UnknownRecord = { ...user };
+  for (const [name, entry] of Object.entries(team)) {
+    if (!(name in user)) ctx.accounting.defaultsAdded++;
+    else if (canonicalKey(user[name]) !== canonicalKey(entry)) {
+      ctx.accounting.defaultsUpdated++;
+    }
+    out[name] = entry;
+  }
+  return { keep: true, value: out };
+};
+
 // --- Strategy registry ---------------------------------------------------
 
 export const STRATEGIES: Record<string, Strategy> = {
   permissions: permissionsStrategy,
   hooks: hooksStrategy,
   env: envStrategy,
+  extraKnownMarketplaces: marketplacesStrategy,
   statusLine: statusLineStrategy,
-  // mcpServers is handled by the caller (resolveMcpServers in mcp.ts) before
+  ...Object.fromEntries(
+    Object.keys(RETIRED_SCALAR_DEFAULTS).map((key) => [key, retiredDefaultStrategy()]),
+  ),
+  // mcpServers is destructured out by installSettings (src/setup.ts) before
   // this function is invoked — it is excluded from the per-key strategy loop.
 };
 
@@ -466,11 +875,10 @@ export const STRATEGIES: Record<string, Strategy> = {
  * Pure settings merge: reads existingPath, merges with teamSettings using the
  * per-key strategy table, writes the result to outputPath.
  *
- * `resolvedMcpServers` is the already-computed mcpServers value (team base +
- * any preserved user-only extras). The caller is responsible for running
- * `resolveMcpServers` (from src/lib/mcp.ts) before calling this function and
- * passing the result here. When undefined, mcpServers is merged via the
- * userWinsScalarStrategy fallback like any other unknown key.
+ * `mcpServers` is not special-cased at all: cc-settings never writes it to
+ * settings.json (Claude Code reads user-scope MCP servers from ~/.claude.json —
+ * see src/lib/mcp.ts). A block a user put there themselves is preserved by the
+ * userWinsScalar fallback like any other unknown key.
  *
  * Non-interactive policy (default):
  *   - User-declared keys win for top-level scalars (model, theme, …).
@@ -482,10 +890,11 @@ export const STRATEGIES: Record<string, Strategy> = {
  *     additions are preserved.
  *   - `hooks` is per-event union of groups, with deprecation prune for
  *     user-only groups pointing at removed cc-settings scripts.
+ *   - `extraKnownMarketplaces` entries cc-settings ships are team-wins; other
+ *     entries are the user's.
  *   - `env` shallow-merges with user values winning.
  *   - `statusLine` user wins, except when the user's command targets a
  *     removed cc-settings script (then reset to team).
- *   - `mcpServers` is injected from resolvedMcpServers (caller responsibility).
  *
  * Interactive policy (`opts.interactive`):
  *   - Scalar conflicts prompt "keep your value / take team's".
@@ -497,18 +906,12 @@ export async function mergeSettings(
   teamSettings: Record<string, unknown>,
   outputPath: string,
   opts: MergeOptions = {},
-  resolvedMcpServers?: Record<string, unknown>,
 ): Promise<MergeAccounting | null> {
   const userRaw = (await readJsonOrNull(existingPath)) as UnknownRecord | null;
 
-  // No existing file → write team as-is (atomic), injecting resolvedMcpServers
-  // if provided (callers may have already resolved servers even for a fresh install).
+  // No existing file → write team as-is (atomic).
   if (!userRaw) {
-    const out =
-      resolvedMcpServers !== undefined
-        ? { ...teamSettings, mcpServers: resolvedMcpServers }
-        : teamSettings;
-    await atomicWriteJson(outputPath, out);
+    await atomicWriteJson(outputPath, teamSettings);
     return null;
   }
 
@@ -531,13 +934,17 @@ export async function mergeSettings(
       permissionsAdded: 0,
       permissionsDeclined: 0,
       permissionsAdoptedScalars: 0,
+      permissionsPruned: 0,
       hooksAdded: 0,
       hooksDeclined: 0,
       hooksPruned: 0,
       hooksSuperseded: 0,
       envUserWins: 0,
       envAdoptedScalars: 0,
+      envPruned: 0,
+      defaultsUpdated: 0,
       scalarsAdopted: 0,
+      retiredDefaultsPruned: 0,
       defaultsAdded: 0,
       statusLineReset: false,
     },
@@ -547,13 +954,6 @@ export async function mergeSettings(
   // unknown keys fall through to user-wins-scalar.
   const merged: UnknownRecord = {};
   const allKeys = new Set([...Object.keys(teamSettings), ...Object.keys(userRaw)]);
-
-  // mcpServers: injected from the pre-resolved value when provided; otherwise
-  // falls through to the userWinsScalarStrategy like any unknown key.
-  if (resolvedMcpServers !== undefined) {
-    merged.mcpServers = resolvedMcpServers;
-    allKeys.delete("mcpServers");
-  }
 
   for (const key of allKeys) {
     const strategy = STRATEGIES[key] ?? userWinsScalarStrategy;
@@ -568,8 +968,8 @@ export async function mergeSettings(
 }
 
 /** Print the merge accounting summary. Called by installSettings after
- *  mergeSettingsWithMcpPreservation returns. Separated from mergeSettings
- *  so the orchestrator stays side-effect free (§3.4). */
+ *  mergeSettings returns. Separated from mergeSettings so the orchestrator
+ *  stays side-effect free (§3.4). */
 export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}): void {
   const bits: string[] = [];
   if (a.permissionsAdded > 0) bits.push(`${a.permissionsAdded} permission rule(s)`);
@@ -583,6 +983,18 @@ export function printMergeAccounting(a: MergeAccounting, opts: MergeOptions = {}
 
   if (a.hooksPruned > 0) {
     info(`Pruned ${a.hooksPruned} stale hook reference(s) pointing at removed cc-settings scripts`);
+  }
+  if (a.permissionsPruned > 0) {
+    info(`Pruned ${a.permissionsPruned} stale permission rule(s)`);
+  }
+  if (a.defaultsUpdated > 0) {
+    info(`Updated ${a.defaultsUpdated} stale default(s) to the new team value`);
+  }
+  if (a.envPruned > 0) {
+    info(`Pruned ${a.envPruned} env var(s) cc-settings no longer sets`);
+  }
+  if (a.retiredDefaultsPruned > 0) {
+    info(`Removed ${a.retiredDefaultsPruned} setting(s) cc-settings no longer sets`);
   }
   if (a.hooksSuperseded > 0) {
     info(`Dropped ${a.hooksSuperseded} stale variant(s) of team-managed hook groups`);

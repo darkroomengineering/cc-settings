@@ -13,10 +13,25 @@
 const DEFAULT_WARN_LINES = 400;
 const DEFAULT_CRITICAL_LINES = 600;
 
-function intEnv(name: string, fallback: number): number {
+/** Parse an integer env var, falling back to `fallback` only on genuine NaN
+ *  (unset or unparseable) — never on a falsy-but-valid 0. `|| fallback` would
+ *  misread a legitimate 0 (e.g. CC_CLAUDE_MD_WARN_LINES=0) as unset, silently
+ *  reviving the default. Shared by every intEnv-shaped call site in the hooks
+ *  cluster (see parseIntArg below for the CLI-arg counterpart). */
+export function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined) return fallback;
-  return Number.parseInt(raw, 10) || fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+/** Same NaN-only-fallback rule as intEnv, for a raw CLI-arg string instead of
+ *  an env var name (e.g. `handoff.ts clean 0` must delete everything, not
+ *  silently revive the default keep-count). */
+export function parseIntArg(raw: string | undefined, fallback: number): number {
+  if (raw === undefined) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 /** Typed read of the claude_md_monitor thresholds used by session-start.

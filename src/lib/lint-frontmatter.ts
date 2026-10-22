@@ -68,3 +68,37 @@ export async function lintFrontmatterCore(
   findings.push(...(await onParsed(parsed)));
   return findings;
 }
+
+/**
+ * Generic lint-report formatter shared by every lint-*.ts module. Filters
+ * errors/warnings, prints a "Linted N <noun>(s)." header, one line per
+ * finding ("  {icon} {item} [{rule}] {message}"), then a summary line
+ * ("N error(s), N warning(s)."). Callers supply the noun (e.g. "agent",
+ * "skill") and how to extract the display item (e.g. `f.agent`, `f.skill`)
+ * from a domain-specific finding.
+ */
+export function formatLintFindings<F extends BaseFinding>(
+  findings: F[],
+  lintedCount: number,
+  opts: { noun: string; getItem: (f: F) => string },
+): string {
+  const errors = findings.filter((f) => f.severity === "error");
+  const warnings = findings.filter((f) => f.severity === "warning");
+
+  const lines: string[] = [];
+  lines.push(`Linted ${lintedCount} ${opts.noun}(s).`);
+
+  for (const f of findings) {
+    const icon = f.severity === "error" ? "✖" : "⚠";
+    lines.push(`  ${icon} ${opts.getItem(f)} [${f.rule}] ${f.message}`);
+  }
+
+  lines.push("");
+  lines.push(`${errors.length} error(s), ${warnings.length} warning(s).`);
+  return lines.join("\n");
+}
+
+/** For consumers that just want to gate CI on errors only. */
+export function hasLintErrors(findings: { severity: LintSeverity }[]): boolean {
+  return findings.some((f) => f.severity === "error");
+}

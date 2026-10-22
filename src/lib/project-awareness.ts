@@ -1,7 +1,6 @@
-// Surface local project standards + git context at session start (and on cwd change).
-// Keep output tight — this runs on every SessionStart / CwdChanged and occupies Claude's context.
+// Surface local project standards + git context at session start.
+// Keep output tight — this runs on every SessionStart and occupies Claude's context.
 
-import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { runGit } from "./git.ts";
@@ -44,9 +43,10 @@ export async function projectAwareness(cwd: string): Promise<string[]> {
     localClaudeSubdirs(root),
   ]);
 
+  // Instruction files are the context-report plugin's job: it reads the list
+  // the engine actually loaded (prompt.context), @ imports and the native
+  // AGENTS.md read included, so nothing here guesses from the filesystem.
   const standards: string[] = [];
-  standards.push(`AGENTS.md ${existsSync(join(root, "AGENTS.md")) ? "✓" : "✗"}`);
-  standards.push(`CLAUDE.md ${existsSync(join(root, "CLAUDE.md")) ? "✓" : "✗"}`);
   if (rulesCount > 0) standards.push(`rules/ (${rulesCount})`);
   if (localSubdirs.length > 0) standards.push(`.claude/{${localSubdirs.join(",")}}`);
 
@@ -55,7 +55,7 @@ export async function projectAwareness(cwd: string): Promise<string[]> {
   lines.push("PROJECT CONTEXT");
   lines.push("------------------------------------");
   if (branch) lines.push(`Branch: ${branch}`);
-  lines.push(`Standards: ${standards.join(" · ")}`);
+  if (standards.length > 0) lines.push(`Standards: ${standards.join(" · ")}`);
   if (log) {
     lines.push("Recent commits:");
     for (const l of log.split("\n")) lines.push(`  ${l}`);

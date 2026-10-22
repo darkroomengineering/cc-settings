@@ -2,17 +2,24 @@
 
 Pair Claude Code (Opus) with the OpenAI Codex CLI. Opus plans and synthesizes; Codex executes bulk work and provides independent cross-model verification — a second opinion from a different model family that Claude self-review can't replicate.
 
+This doc covers the runtime pairing. To install the Darkroom standards and skills into Codex itself, see [codex.md](./codex.md).
+
 ---
 
 ## Architecture
 
 ```
-src/lib/codex.ts              Core bridge logic (detection, execution, caching)
+src/lib/codex.ts              Core bridge logic (detection, execution, caching, model routing)
   └─ src/scripts/codex-run.ts CLI entry point — subcommands: exec / review / ask
                                Invoked as: bun "$HOME/.claude/src/scripts/codex-run.ts" <subcommand> "..."
                                Also exposed as the /codex skill
-  └─ src/hooks/codex-verify.ts SessionStart hook — probes availability, feeds statusline badge
+  └─ src/hooks/codex-verify.ts SessionStart hook — probes availability, feeds statusline badge,
+                               injects the batched routing policy when the bridge is available
   └─ agents/codex-verifier.md  Agent that fans out a parallel cross-model verification pass
+
+src/lib/claude-bridge.ts        The reverse direction: standalone Codex calling headless Claude
+  └─ src/scripts/claude-run.ts  CLI entry point — subcommands: review / ask (no exec)
+  └─ codex/agents/claude-verifier.md  Codex-only agent that relays a Claude review
 ```
 
 ---
@@ -65,10 +72,23 @@ This is the core reason to use the bridge. Claude and Codex meter differently:
 **Routing convention** (not config — there is no `/loop` model key; routing is per-invocation):
 
 - **Opus** — planning, synthesis, gates only. The single scarce pool does the thinking.
-- **Sonnet** — `/loop` bodies, heavy fan-out subagents. Already the default subagent model.
+- **Sonnet** — `/loop` bodies and read-only fan-out subagents. The default subagent model, with near-Opus quality on coding/agentic work. Agents that edit code (`implementer`, `tester`, `deslopper`) use `model: inherit` and follow the session model.
 - **Codex** — bulk execution and verification, batched into as few large calls as possible.
 
 Two roomy pools (Sonnet + Codex) carry volume. The one scarce pool (Opus) directs traffic.
+
+---
+
+## Automated quota steering
+
+The routing convention above is enforced automatically, not just documented:
+
+- **Two hooks, one cache.** `src/hooks/codex-verify.ts` (a `SessionStart` hook) injects a batched routing policy whenever the bridge is available: bulk/mechanical work routes to `codex exec` by default, and cross-model review runs once per PR, `/ship`, or direct push to the default branch (or on a risky commit) rather than on every diff-producing turn, which keeps the verifier-agent cost per change instead of per turn. The statusline writes `~/.claude/tmp/rate-limits.json` on every refresh, tagged with `updated_at`; `src/hooks/quota-steer.ts` (a `UserPromptSubmit` hook) reads that cache and ignores it once it's older than 10 minutes.
+- **Bands.** `quota-steer.ts` computes normal / elevated / critical / exhausted from the cache — 60%/85%/95% for the five-hour window, 65%/85%/95% for the weekly window — reads the cached Codex verdict, and injects `additionalContext` escalating urgency toward Codex when it's available.
+- **Critical** (≥85%) re-reminds every 30 minutes rather than every turn.
+- **Exhausted** (≥95% of either window — the hard limit is imminent) re-injects on every prompt: bridge up → route ALL executable work to `codex exec`, keep Claude turns orchestration-only, tell the user work is being funneled to Codex until the window resets; bridge down → tell the user to pause until reset or drop to `/model claude-sonnet-5-5`.
+- **Statusline** mirrors this with a red `→codex` badge on the ⚡ chip.
+- **Advisory, fails open.** Hooks cannot switch the session model or rewrite tool calls, so the directive is text the model complies with — true 100% exhaustion still ends the session (Codex funneling only works while Claude can still orchestrate). Like all hooks here, both fail open: a missing or stale cache, or an unavailable bridge, is silently skipped rather than blocking the prompt.
 
 ---
 
@@ -80,12 +100,42 @@ Two roomy pools (Sonnet + Codex) carry volume. The one scarce pool (Opus) direct
 # Execute a task via Codex
 /codex exec "refactor all API handlers to use the new response format"
 
-# Cross-model review of the current diff
+# Cross-model review of the current diff (default: uncommitted working-tree diff)
 /codex review
+
+# Review scope presets (mutually exclusive) — mirrors Codex's own /review presets
+/codex review --staged           # only the staged diff (git diff --cached)
+/codex review --base main        # diff against a base branch (merge-base...HEAD)
+/codex review --commit abc1234   # a single commit
 
 # Ask Codex a question without executing
 /codex ask "what are the edge cases in this auth flow?"
 ```
+
+### Model routing on the Codex side
+
+The bridge passes no model to `codex` by default, so each call runs on the model Codex itself is configured to use (`config.toml`, or the installed CLI's default). A newer model arrives with a Codex CLI upgrade and needs no change here. Pin a model only when a call needs one. Resolution order is flag, then env, then Codex's default:
+
+| Subcommand | Env override | Flag |
+|---|---|---|
+| `exec` | `CODEX_EXEC_MODEL` | `--model <id>` |
+| `review` | `CODEX_REVIEW_MODEL` | `--model <id>` |
+| `ask` | `CODEX_ASK_MODEL` | `--model <id>` |
+
+```bash
+bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model <id> "..."
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model <id> --base main
+```
+
+`/codex` is a Claude Code skill, not a shell command, so it cannot take an inline env-var prefix; export the variable before launching Claude Code, or pass `--model` in the skill arguments.
+
+The native Codex agents the installer writes carry no `model` line either, so they run on the session's model. See [agent-models.md](./agent-models.md#codex-tiers).
+
+### What the script adds to a task
+
+`exec` wraps the task text in a completion contract before it reaches Codex. The contract defines done as "the stated outcome holds and the repository's local checks pass for the touched files", tells Codex to run those checks, inspect, and fix without pausing for approval, forbids stopping after a first implementation to ask for review, keeps the work inside the task's scope, and asks for an uncommitted diff plus a verification report. Codex returns that report as JSON (status, branch, commit, files_changed, verify_cmd, verify_result, blockers), enforced with `--output-schema`, and `exec` prints `ready: yes|no` after checking the claim against the working tree: ready means completed, verification passed, and the listed files are the ones actually changed. `--expected <minutes>` sets the timeout to 3x that and reports a silent kill as stalled; the 15-minute ceiling still applies, so it takes effect up to `--expected 5`. `review` states the diff under review and the review contract and leaves the inspection method to the model. `ask` sends the question verbatim.
+
+The contract exists because current Codex models, GPT-6 Astra among them, are thorough but stop early when completion is undefined, and treat numbered step lists and "ask first" language more literally than earlier models did. OpenAI's guidance is in [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra). The task text still has to name the end state and any decision Codex must bring back; see the `/codex` skill.
 
 ### `codex-verifier` agent
 
@@ -101,6 +151,25 @@ Opus delegates to the `codex-verifier` agent, which runs `codex review` and retu
 
 ---
 
+## The reverse bridge: Codex calling Claude
+
+Standalone Codex (GPT-6 Astra) can get an independent opinion from a Claude model, Opus 5.5 by default, through `src/scripts/claude-run.ts`. It is review and ask only; there is no `exec`, so Claude never edits from a Codex session.
+
+```bash
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" review [--staged | --base <branch> | --commit <sha>] [--model <id>]
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" ask "question" [--model <id>]
+```
+
+The script runs `claude -p` with `--permission-mode dontAsk`, a tool set of Read, Grep, Glob, and Bash, and an allowlist of `git diff`, `git show`, `git status`, and `git log`; anything else is denied silently. The prompt goes over stdin, so it can never be read as a flag. Model resolution is `--model`, then `CLAUDE_BRIDGE_MODEL`, then `claude-opus-5-5`.
+
+The installer writes a Codex-only `claude-verifier` native agent (source: `codex/agents/claude-verifier.md`) that wraps the review subcommand, mirroring `codex-verifier` on the Claude side.
+
+Three constraints, all enforced by the script:
+
+- **No chaining.** It refuses when `CLAUDECODE` is set (inside a Claude session), and `codex-run.ts` refuses when `CODEX_THREAD_ID` or `CODEX_SANDBOX` is set (inside a Codex session). Neither bridge can call the other.
+- **Network.** Codex sandboxes, including read-only, set `CODEX_SANDBOX_NETWORK_DISABLED=1`, and `claude -p` needs the API. The script reports this and stops. Either rerun the command with escalated permissions when Codex prompts, or set `[sandbox_workspace_write] network_access = true` in `config.toml`; cc-settings never edits that file.
+- **Quota.** The call spends your Claude Max pool from a Codex session. Opus 5.5 draws from the same weekly pool as Fable, at a lower rate.
+
 ## Setup Caveat
 
 The `codex-verify.ts` hook runs on `SessionStart`. Adding it changes the fingerprinted hooks block in `~/.claude/settings.json`. After installing the bridge, re-run the installer to refresh the fingerprint:
@@ -115,7 +184,7 @@ Without this step, `verify-hooks.ts` will warn about a fingerprint mismatch at t
 
 ## Related: native config import (the other direction)
 
-This bridge is *runtime* interop — Claude calls Codex per-task. Codex also offers *config* interop in the opposite direction: **Settings → General → Import other agent setup** ([docs](https://developers.openai.com/codex/import)) ingests an existing agent's `AGENTS.md`, `settings.json`, MCP servers, hooks, slash commands, and subagents, converting them to Codex-native equivalents.
+This bridge is *runtime* interop — Claude calls Codex per-task. Codex also offers *config* interop in the opposite direction: **Settings → General → Import other agent setup** ([docs](https://learn.chatgpt.com/docs/import)) ingests an existing agent's `AGENTS.md`, `settings.json`, MCP servers, hooks, slash commands, and subagents, converting them to Codex-native equivalents.
 
 Because cc-settings already treats `AGENTS.md` as the portable source of truth (installed to `~/.claude/AGENTS.md`), a teammate working standalone in Codex can import it and inherit the Darkroom standards without this bridge at all. The two are complementary:
 

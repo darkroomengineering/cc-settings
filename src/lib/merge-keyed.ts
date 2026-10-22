@@ -76,3 +76,35 @@ function sortKeysDeep(v: unknown): unknown {
 export function asRecord(v: unknown): Record<string, unknown> {
   return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
 }
+
+/** True for a non-null, non-array object — the only JSON shape that carries
+ *  named fields. Shared boundary guard for hook state IO and settings merge. */
+export function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+// Top-level keys cc-settings used to ship and no longer does, with the exact
+// value it shipped. Both the merge (settings-merge.ts) and the light/uninstall
+// strip (light-profile.ts) prune from this one list. `plansDirectory` was
+// "./plans" until it was removed: it wrote plan files into every repo, client
+// repos included.
+export const RETIRED_SCALAR_DEFAULTS: Readonly<Record<string, unknown>> = {
+  plansDirectory: "./plans",
+};
+
+/**
+ * True when `value` is the retired default cc-settings shipped under `key`. With
+ * a baseline (the previous install's team settings), that baseline must have
+ * supplied the same value: a baseline lacking the key means the user typed it
+ * themselves, so it stays. Without a baseline, an exact match is pruned.
+ */
+export function isRetiredDefault(
+  key: string,
+  value: unknown,
+  baseline: Record<string, unknown> | undefined,
+): boolean {
+  if (!(key in RETIRED_SCALAR_DEFAULTS)) return false;
+  const retired = RETIRED_SCALAR_DEFAULTS[key];
+  if (!Bun.deepEquals(value, retired, true)) return false;
+  return baseline === undefined || Bun.deepEquals(baseline[key], retired, true);
+}

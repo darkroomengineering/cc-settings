@@ -1,0 +1,5 @@
+interface:
+  display_name: "Codex Bridge"
+  short_description: "Delegate to or review with the Codex CLI bridge"
+policy:
+  allow_implicit_invocation: false

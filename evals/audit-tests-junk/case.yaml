@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: audit-tests-junk
+tags: [audit]
+context:
+  scaffold_script: fixture.sh
+execution:
+  max_turns: 14
+  allowed_tools: [Read, Glob, Grep, Skill]

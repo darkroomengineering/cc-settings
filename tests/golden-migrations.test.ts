@@ -6,7 +6,7 @@
 //     user-settings.json   — what the user has on disk
 //     expected.json        — what the merged output must look like
 //
-// The runner loads all three, runs mergeSettingsWithMcpPreservation,
+// The runner loads all three, runs mergeSettings,
 // deep-equals against expected.json. Failures show a diff so it's clear
 // which key drifted.
 //
@@ -21,7 +21,7 @@ import { readdirSync, statSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { mergeSettingsWithMcpPreservation } from "../src/lib/mcp.ts";
+import { mergeSettings } from "../src/lib/settings-merge.ts";
 
 const FIXTURES = resolve(import.meta.dir, "fixtures", "migrations");
 
@@ -57,7 +57,7 @@ describe("golden migration fixtures", () => {
       await writeFile(userPath, await readFile(userInputPath, "utf8"));
       const team = (await readJson(teamPath)) as Record<string, unknown>;
 
-      await mergeSettingsWithMcpPreservation(userPath, team, outPath);
+      await mergeSettings(userPath, team, outPath);
 
       const got = await readJson(outPath);
       const want = await readJson(expectedPath);

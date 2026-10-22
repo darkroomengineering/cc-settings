@@ -6,14 +6,20 @@
 //   error   — blocks (CI fails, lint:skills exits non-zero)
 //   warning — surfaced but non-blocking
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SkillFrontmatter } from "../schemas/skill.ts";
-import { lintFrontmatterCore } from "./lint-frontmatter.ts";
+import { extractFrontmatterBlock, KEBAB_CASE_RE } from "./frontmatter.ts";
+import {
+  formatLintFindings,
+  hasLintErrors,
+  type LintSeverity,
+  lintFrontmatterCore,
+} from "./lint-frontmatter.ts";
 import { ACTIVE_SKILLS } from "./managed-skills.ts";
 
-export type SkillSeverity = "error" | "warning";
+export type SkillSeverity = LintSeverity;
 
 export interface LintFinding {
   skill: string;
@@ -27,13 +33,69 @@ export interface LintResult {
   skillCount: number;
 }
 
-// Soft cap from Anthropic's guide (Chapter 5, Large Context Issues). Past this
-// point, the Skill tool selector has to read too many descriptions per turn.
-// Adding a skill past the cap should require removing one — see CLAUDE-FULL.md.
-export const SKILL_SOFT_CAP = 40;
+// Ratchet baseline, not a target. Anthropic's guide (Chapter 5, Large Context
+// Issues) puts 20–50 skills as the band where the Skill tool selector starts
+// struggling to read every description per turn. The number below is the count
+// we are currently allowed to have, and it may only descend.
+//
+// History: merged `nuclear-review` + `adversarial-audit` -> `audit` (Aug 2026),
+// baseline lowered 39 -> 38 accordingly — the two goal-specs (maintainability
+// vs correctness) survive as modes of one skill instead of two lexically
+// ambiguous entry points ("audit the codebase" used to route to either).
+//
+//   count > baseline -> error. Consolidate or remove one. Raising this is a
+//                       deliberate, reviewable commit, never a side effect.
+//   count < baseline -> error. Lower it here and commit, so the ratchet holds
+//                       the new floor instead of leaving slack to drift back.
+//
+// Both directions are errors on purpose: that is what keeps every movement of
+// the number in git history. The previous version of this rule fired a warning
+// at >40 and CI never failed on it, so the only thing standing between us and a
+// 45-skill library was prose in CLAUDE-FULL.md. Advisory output is ignorable; a
+// non-zero exit is not.
+//
+// What this does NOT do: stop someone raising the baseline in the same commit
+// that adds the skill. The linter only compares against whatever the constant
+// currently says. "Descend-only" is enforced by the diff being visible in review,
+// not by this file — which is the intended trade, since a legitimate raise has to
+// stay possible. Verifying a baseline against its merge-base is a CI-side job.
+export const SKILL_COUNT_BASELINE = 25;
 
-// Reference A: name kebab-case, no underscores/capitals/spaces.
-const KEBAB_CASE = /^[a-z][a-z0-9-]*$/;
+// The count ratchet above is a proxy — the real per-turn cost is the byte size
+// of the name+description index the Skill selector reads every turn, not the
+// number of skills contributing to it. Codex caps its selector at 2% of the
+// model context window (10,000 tokens on gpt-6-astra); `skills.max_context_tokens`
+// can only lower that cap, never raise it (verified on codex-cli 0.154.0).
+// The repository ceiling below (tightened from 10 KiB in Aug 2026 as part of
+// the context-cost diet) keeps the darkroom plugin at roughly a fifth of that
+// budget so other plugins have room. The darkroom plugin alone renders every
+// description in full; shortening warnings come from the sum of all enabled
+// plugins (Aug 2026: duplicate legacy user-scope skills; Sep 2026: Claude
+// Cowork plugin imports). `bun run codex:skill-budget` measures the live total.
+//
+// Unlike SKILL_COUNT_BASELINE this is a ceiling, not a two-way ratchet: the
+// total fluctuates with normal description edits (tightening one description
+// while lengthening another nets zero), so only exceeding the budget is an
+// error. The fix for a violation is tightening the longest descriptions, not
+// raising this constant.
+export const SKILL_DESCRIPTION_BYTE_BUDGET = 7424;
+
+// Claude Code re-attaches only the first 5,000 tokens of an invoked skill after
+// compaction, and Anthropic's skill docs ask for SKILL.md bodies under 500 lines
+// (https://code.claude.com/docs/en/skills). Three skills run over the limit and
+// are held to their recorded line count (`wc -l`): they may shrink, never grow.
+// When one shrinks, lower its number; once it is at or under the limit, delete
+// its entry.
+export const SKILL_BODY_LINE_LIMIT = 500;
+export const SKILL_BODY_LINE_EXEMPTIONS: Readonly<Record<string, number>> = {
+  audit: 696,
+  autoresearch: 484,
+};
+
+// Reference A: name kebab-case, no underscores/capitals/spaces. Shared with
+// the schema `name` field regexes (agent/skill/profile/knowledge) — see
+// KEBAB_CASE_RE in frontmatter.ts for why this used to disagree with them.
+const KEBAB_CASE = KEBAB_CASE_RE;
 
 // Reserved per the guide — Claude.ai rejects uploads named these.
 const RESERVED_PREFIXES = ["claude", "anthropic"];
@@ -44,8 +106,16 @@ const RESERVED_PREFIXES = ["claude", "anthropic"];
 // every valid phrasing but flags the obvious misses ("Helps with projects").
 const TRIGGER_PATTERN = /(triggers?|use (when|for)|used for|when (user|you)|after\b)/i;
 
-async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> {
+interface LintOneResult {
+  findings: LintFinding[];
+  // Byte length of the frontmatter `description` field, or 0 when the
+  // frontmatter doesn't parse (schema errors already cover that case).
+  descriptionBytes: number;
+}
+
+async function lintOne(skillsDir: string, name: string): Promise<LintOneResult> {
   const findings: LintFinding[] = [];
+  let descriptionBytes = 0;
   const dir = join(skillsDir, name);
   const skillPath = join(dir, "SKILL.md");
 
@@ -80,15 +150,40 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
 
   if (!existsSync(skillPath)) {
     push("error", "skill-md-missing", "SKILL.md not found (exact case required)");
-    return findings;
+    return { findings, descriptionBytes };
   }
 
   const text = await readFile(skillPath, "utf8");
 
+  // Same count as `wc -l`: newline characters, not split segments.
+  const lines = (text.match(/\n/g) ?? []).length;
+  const exempt = SKILL_BODY_LINE_EXEMPTIONS[name];
+  if (exempt === undefined && lines > SKILL_BODY_LINE_LIMIT) {
+    push(
+      "error",
+      "body-too-long",
+      `SKILL.md is ${lines} lines (limit ${SKILL_BODY_LINE_LIMIT}) — move reference detail into sibling files`,
+    );
+  } else if (exempt !== undefined && lines > exempt) {
+    push(
+      "error",
+      "body-too-long",
+      `SKILL.md is ${lines} lines, exemption ${exempt} — trim it instead of raising SKILL_BODY_LINE_EXEMPTIONS (src/lib/lint-skills.ts)`,
+    );
+  } else if (exempt !== undefined && lines < exempt) {
+    push(
+      "error",
+      "body-line-ratchet",
+      lines > SKILL_BODY_LINE_LIMIT
+        ? `SKILL.md is ${lines} lines, exemption ${exempt} — ratchet down: set the ${name} entry of SKILL_BODY_LINE_EXEMPTIONS to ${lines} in src/lib/lint-skills.ts and commit it`
+        : `SKILL.md is ${lines} lines, within the ${SKILL_BODY_LINE_LIMIT} limit — remove the ${name} entry from SKILL_BODY_LINE_EXEMPTIONS in src/lib/lint-skills.ts`,
+    );
+  }
+
   // Raw-text scan: catches angle brackets in any field, including passthrough
   // ones like argument-hint where the schema doesn't validate the value.
   // Must run before frontmatter parsing so we scan the raw block.
-  const block = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  const block = extractFrontmatterBlock(text) ?? "";
   if (/[<>]/.test(block)) {
     push(
       "error",
@@ -124,6 +219,7 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
     }
 
     const desc = fm.description;
+    descriptionBytes = Buffer.byteLength(desc, "utf8");
 
     // Guide: under 1024 chars. Hard limit (Claude.ai upload rejects past this).
     if (desc.length > 1024) {
@@ -153,6 +249,32 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
       });
     }
 
+    // The Skill selector reads every description each turn, and a human skims the
+    // same list in MANUAL.md. A `description: |` block scalar renders as a bullet
+    // list in one entry and a sentence in the next 37, which makes the index
+    // unskimmable and buries the trigger phrases mid-list. Three skills drifted
+    // into this before it was caught.
+    if (desc.includes("\n")) {
+      domainFindings.push({
+        severity: "error",
+        rule: "description-multiline",
+        message:
+          'description spans multiple lines — write it as one line (`description: What it does. Triggers "a", "b".`), not a `|` block',
+      });
+    }
+
+    // House convention: the trigger phrases follow the literal word `Triggers`.
+    // TRIGGER_PATTERN above accepts several phrasings so a non-conforming skill
+    // still passes the floor; this steers new ones to the shape the other 37 use.
+    if (TRIGGER_PATTERN.test(desc) && !/\bTriggers\b/.test(desc)) {
+      domainFindings.push({
+        severity: "warning",
+        rule: "description-nonstandard-trigger",
+        message:
+          'description states triggers in a non-house form — use `Triggers "phrase", "phrase"` so the whole index reads the same way',
+      });
+    }
+
     return domainFindings;
   });
 
@@ -160,15 +282,35 @@ async function lintOne(skillsDir: string, name: string): Promise<LintFinding[]> 
     findings.push({ skill: name, severity: f.severity, rule: f.rule, message: f.message });
   }
 
-  return findings;
+  return { findings, descriptionBytes };
 }
 
 export async function lintSkillsDir(
   skillsDir: string,
-  opts: { checkManaged?: boolean } = {},
+  opts: {
+    checkManaged?: boolean;
+    // Test-only override for SKILL_DESCRIPTION_BYTE_BUDGET — the constant itself
+    // stays fixed for real runs. checkManaged also gates the count ratchet and
+    // ACTIVE_SKILLS parity, so a fixture dir can't cleanly exercise the byte
+    // budget in isolation without this.
+    descriptionByteBudget?: number;
+  } = {},
 ): Promise<LintResult> {
   if (!existsSync(skillsDir)) {
-    return { findings: [], skillCount: 0 };
+    // A missing custom dir is a no-op, but the canonical skills/ going missing is
+    // a failure worth shouting about: without this branch, deleting the entire
+    // library lints clean, because every check below iterates zero entries.
+    const findings: LintFinding[] = opts.checkManaged
+      ? [
+          {
+            skill: "(repo)",
+            severity: "error",
+            rule: "skills-dir-missing",
+            message: `${skillsDir} does not exist — the managed skill library is gone`,
+          },
+        ]
+      : [];
+    return { findings, skillCount: 0 };
   }
 
   const findings: LintFinding[] = [];
@@ -180,16 +322,47 @@ export async function lintSkillsDir(
     skillNames.push(entry.name);
   }
 
+  const descriptionBytesBySkill: Array<{ name: string; bytes: number }> = [];
+  let totalDescriptionBytes = 0;
+
   for (const name of skillNames) {
-    findings.push(...(await lintOne(skillsDir, name)));
+    const { findings: skillFindings, descriptionBytes } = await lintOne(skillsDir, name);
+    findings.push(...skillFindings);
+    descriptionBytesBySkill.push({ name, bytes: descriptionBytes });
+    totalDescriptionBytes += descriptionBytes;
   }
 
-  if (skillNames.length > SKILL_SOFT_CAP) {
+  // Same opt-in as the count ratchet: index-byte totals are only meaningful
+  // against the canonical skills/ dir, not a small test fixture.
+  if (opts.checkManaged) {
+    const budget = opts.descriptionByteBudget ?? SKILL_DESCRIPTION_BYTE_BUDGET;
+    if (totalDescriptionBytes > budget) {
+      const topOffenders = [...descriptionBytesBySkill]
+        .sort((a, b) => b.bytes - a.bytes)
+        .slice(0, 3)
+        .map((s) => `${s.name} (${s.bytes}B)`)
+        .join(", ");
+      findings.push({
+        skill: "(repo)",
+        severity: "error",
+        rule: "description-byte-budget",
+        message: `skill descriptions total ${totalDescriptionBytes} bytes, budget ${budget} — tighten the longest descriptions instead of raising SKILL_DESCRIPTION_BYTE_BUDGET (src/lib/lint-skills.ts). Largest: ${topOffenders}`,
+      });
+    }
+  }
+
+  // Repo-level invariant, so it rides the same opt-in as the ACTIVE_SKILLS parity
+  // check below: a baseline of 40 is meaningless against a 2-skill test fixture.
+  if (opts.checkManaged && skillNames.length !== SKILL_COUNT_BASELINE) {
+    const count = skillNames.length;
     findings.push({
       skill: "(repo)",
-      severity: "warning",
-      rule: "skill-count-cap",
-      message: `${skillNames.length} skills — past ${SKILL_SOFT_CAP}-skill soft cap. Adding a new skill should require removing one.`,
+      severity: "error",
+      rule: "skill-count-ratchet",
+      message:
+        count > SKILL_COUNT_BASELINE
+          ? `${count} skills, baseline ${SKILL_COUNT_BASELINE} — consolidate or remove one instead of raising SKILL_COUNT_BASELINE (src/lib/lint-skills.ts)`
+          : `${count} skills, baseline ${SKILL_COUNT_BASELINE} — ratchet down: set SKILL_COUNT_BASELINE to ${count} in src/lib/lint-skills.ts and commit it`,
     });
   }
 
@@ -225,27 +398,93 @@ export async function lintSkillsDir(
     }
   }
 
+  // Every managed skill needs at least one `claude plugin eval` case tagged
+  // with its name: the pre-push gate (src/scripts/eval-changed.ts) can only
+  // check a skill edit that has a case to run.
+  if (opts.checkManaged) {
+    const covered = new Set(evalCaseTags(join(skillsDir, "..", "evals")).flatMap(([, t]) => t));
+    for (const name of skillNames) {
+      if (!covered.has(name)) {
+        findings.push({
+          skill: name,
+          severity: "error",
+          rule: "eval-case-missing",
+          message: "no eval case under evals/ tagged with this skill — add one",
+        });
+      }
+    }
+
+    // A forked skill sees only its argument. When the agent invokes it bare,
+    // the case grades the agent's own answer, not the skill.
+    const evalsDir = join(skillsDir, "..", "evals");
+    for (const [dir, tags] of evalCaseTags(evalsDir)) {
+      const prompt = join(evalsDir, dir, "prompt.md");
+      if (!existsSync(prompt) || readFileSync(prompt, "utf8").includes("as its argument")) continue;
+      for (const name of tags) {
+        const skillMd = join(skillsDir, name, "SKILL.md");
+        if (existsSync(skillMd) && /^context: fork$/m.test(readFileSync(skillMd, "utf8"))) {
+          findings.push({
+            skill: name,
+            severity: "error",
+            rule: "eval-fork-argument",
+            message: `evals/${dir}/prompt.md must tell the agent to pass the whole message to the forked skill "as its argument"`,
+          });
+        }
+      }
+    }
+  }
+
   return { findings, skillCount: skillNames.length };
 }
 
+/** Tags from an eval case's prompt.md frontmatter, or [] when it has none. */
+export function caseTags(promptMd: string): string[] {
+  const match = /^---\n([\s\S]*?)\n---/.exec(promptMd);
+  if (!match) return [];
+  const front = Bun.YAML.parse(match[1] ?? "") as { tags?: unknown } | null;
+  return Array.isArray(front?.tags)
+    ? front.tags.filter((t): t is string => typeof t === "string")
+    : [];
+}
+
+/** Tags from an eval case's case.yaml, or [] when it has none. */
+function caseYamlTags(caseYaml: string): string[] {
+  const doc = Bun.YAML.parse(caseYaml) as { tags?: unknown } | null;
+  return Array.isArray(doc?.tags) ? doc.tags.filter((t): t is string => typeof t === "string") : [];
+}
+
+/**
+ * [case directory name, tags] for every case under an evals/ directory. A case
+ * is a directory with prompt.md or case.yaml; tags come from either file.
+ */
+export function evalCaseTags(evalsDir: string): Array<[string, string[]]> {
+  if (!existsSync(evalsDir)) return [];
+  const read = (dir: string, file: string) => {
+    const path = join(evalsDir, dir, file);
+    return existsSync(path) ? readFileSync(path, "utf8") : null;
+  };
+  return readdirSync(evalsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .flatMap((d): Array<[string, string[]]> => {
+      const prompt = read(d.name, "prompt.md");
+      const yaml = read(d.name, "case.yaml");
+      if (prompt === null && yaml === null) return [];
+      const tags = new Set([
+        ...(prompt ? caseTags(prompt) : []),
+        ...(yaml ? caseYamlTags(yaml) : []),
+      ]);
+      return [[d.name, [...tags]]];
+    });
+}
+
 export function formatFindings(result: LintResult): string {
-  const errors = result.findings.filter((f) => f.severity === "error");
-  const warnings = result.findings.filter((f) => f.severity === "warning");
-
-  const lines: string[] = [];
-  lines.push(`Linted ${result.skillCount} skill(s).`);
-
-  for (const f of result.findings) {
-    const icon = f.severity === "error" ? "✖" : "⚠";
-    lines.push(`  ${icon} ${f.skill} [${f.rule}] ${f.message}`);
-  }
-
-  lines.push("");
-  lines.push(`${errors.length} error(s), ${warnings.length} warning(s).`);
-  return lines.join("\n");
+  return formatLintFindings(result.findings, result.skillCount, {
+    noun: "skill",
+    getItem: (f) => f.skill,
+  });
 }
 
 // For consumers that just want to gate CI on errors only.
 export function hasErrors(result: LintResult): boolean {
-  return result.findings.some((f) => f.severity === "error");
+  return hasLintErrors(result.findings);
 }

@@ -4,8 +4,16 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { formatFindings, hasErrors, lintSkillsDir } from "../src/lib/lint-skills.ts";
+import { join, resolve } from "node:path";
+import {
+  formatFindings,
+  hasErrors,
+  lintSkillsDir,
+  SKILL_BODY_LINE_EXEMPTIONS,
+  SKILL_BODY_LINE_LIMIT,
+} from "../src/lib/lint-skills.ts";
+
+const ROOT = resolve(import.meta.dir, "..");
 
 async function sandbox(): Promise<string> {
   return mkdtemp(join(tmpdir(), "cc-lint-skills-"));
@@ -271,6 +279,99 @@ describe("lintSkillsDir — missing pieces", () => {
   });
 });
 
+describe("lintSkillsDir — description byte budget", () => {
+  test("flags total description bytes over the budget", async () => {
+    const dir = await sandbox();
+    try {
+      // The check only runs under checkManaged, which also gates the count
+      // ratchet and ACTIVE_SKILLS parity — those will fire too against this
+      // fixture, but this test only cares about the byte-budget finding.
+      await writeSkill(dir, "alpha", goodFrontmatter("alpha"));
+      const result = await lintSkillsDir(dir, { checkManaged: true, descriptionByteBudget: 10 });
+      const finding = result.findings.find((f) => f.rule === "description-byte-budget");
+      expect(finding).toBeDefined();
+      expect(finding?.message).toContain("budget 10");
+      expect(finding?.message).toContain("alpha");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("does not flag total description bytes under the budget", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(dir, "alpha", goodFrontmatter("alpha"));
+      const result = await lintSkillsDir(dir, {
+        checkManaged: true,
+        descriptionByteBudget: 1_000_000,
+      });
+      expect(result.findings.some((f) => f.rule === "description-byte-budget")).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("real repo skills/ dir stays under SKILL_DESCRIPTION_BYTE_BUDGET", async () => {
+    const result = await lintSkillsDir(resolve(ROOT, "skills"), { checkManaged: true });
+    expect(result.findings.some((f) => f.rule === "description-byte-budget")).toBe(false);
+  });
+});
+
+describe("lintSkillsDir — body length ratchet", () => {
+  // goodFrontmatter ends with "# Body\n" (6 lines + the newline after it); pad to an exact `wc -l` count.
+  const withLines = (name: string, total: number) => {
+    const base = goodFrontmatter(name);
+    const have = (base.match(/\n/g) ?? []).length;
+    return base + "filler\n".repeat(total - have);
+  };
+  const bodyFindings = async (name: string, total: number) => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(dir, name, withLines(name, total));
+      const result = await lintSkillsDir(dir);
+      return result.findings.filter((f) => f.rule.startsWith("body-"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  test("a skill at the limit passes", async () => {
+    expect(await bodyFindings("alpha", SKILL_BODY_LINE_LIMIT)).toEqual([]);
+  });
+
+  test("a skill over the limit errors", async () => {
+    const findings = await bodyFindings("alpha", SKILL_BODY_LINE_LIMIT + 1);
+    expect(findings.map((f) => f.rule)).toEqual(["body-too-long"]);
+    expect(findings[0]?.severity).toBe("error");
+  });
+
+  test("an exempt skill passes at its recorded count", async () => {
+    expect(await bodyFindings("audit", SKILL_BODY_LINE_EXEMPTIONS.audit as number)).toEqual([]);
+  });
+
+  test("an exempt skill over its recorded count errors", async () => {
+    const findings = await bodyFindings("audit", (SKILL_BODY_LINE_EXEMPTIONS.audit as number) + 1);
+    expect(findings.map((f) => f.rule)).toEqual(["body-too-long"]);
+  });
+
+  test("an exempt skill below its recorded count is told to lower the number", async () => {
+    const findings = await bodyFindings("audit", (SKILL_BODY_LINE_EXEMPTIONS.audit as number) - 1);
+    expect(findings.map((f) => f.rule)).toEqual(["body-line-ratchet"]);
+    expect(findings[0]?.message).toContain("ratchet down");
+  });
+
+  test("an exempt skill at or under the limit is told to drop its entry", async () => {
+    const findings = await bodyFindings("audit", SKILL_BODY_LINE_LIMIT);
+    expect(findings.map((f) => f.rule)).toEqual(["body-line-ratchet"]);
+    expect(findings[0]?.message).toContain("remove the audit entry");
+  });
+
+  test("every exemption equals the line count of its skill on disk", async () => {
+    const result = await lintSkillsDir(resolve(ROOT, "skills"), { checkManaged: true });
+    expect(result.findings.filter((f) => f.rule.startsWith("body-"))).toEqual([]);
+  });
+});
+
 describe("formatFindings", () => {
   test("emits header and rule lines", async () => {
     const dir = await sandbox();
@@ -280,6 +381,67 @@ describe("formatFindings", () => {
       const out = formatFindings(result);
       expect(out).toContain("Linted 1 skill");
       expect(out).toContain("[folder-kebab-case]");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("lintSkillsDir — description shape", () => {
+  test("a `|` block-scalar description is an error", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(
+        dir,
+        "blocky",
+        `---
+name: blocky
+description: |
+  Does a thing worth describing at length. Use when:
+  - User says "blocky"
+  - User asks for a block
+---
+
+# Body
+`,
+      );
+      const result = await lintSkillsDir(dir);
+      expect(result.findings.map((f) => f.rule)).toContain("description-multiline");
+      expect(hasErrors(result)).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("non-house trigger phrasing warns but does not fail", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(
+        dir,
+        "usefor",
+        `---
+name: usefor
+description: A reasonably long description that explains what it does. Use for "test", "example".
+---
+
+# Body
+`,
+      );
+      const result = await lintSkillsDir(dir);
+      expect(result.findings.map((f) => f.rule)).toContain("description-nonstandard-trigger");
+      expect(hasErrors(result)).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the house form passes both checks", async () => {
+    const dir = await sandbox();
+    try {
+      await writeSkill(dir, "housed", goodFrontmatter("housed"));
+      const rules = (await lintSkillsDir(dir)).findings.map((f) => f.rule);
+      expect(rules).not.toContain("description-multiline");
+      expect(rules).not.toContain("description-nonstandard-trigger");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

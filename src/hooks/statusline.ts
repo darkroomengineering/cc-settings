@@ -10,13 +10,75 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { z } from "zod";
 import { readCodexVerdict } from "../lib/codex.ts";
-import { palette } from "../lib/colors.ts";
-import { runGit as runGitLib } from "../lib/git.ts";
-import { readHookInput, readState } from "../lib/hook-runtime.ts";
-import { ageMs, formatAge, maxUnreviewed, type ReviewQueueState } from "../lib/review-queue.ts";
+import { RAW_SEQUENCES } from "../lib/colors.ts";
+
+// NOT lib/colors.ts's `palette`: that one gates every code on
+// `process.stdout.isTTY`, and Claude Code captures the statusline via a pipe
+// (isTTY false) — so the gated palette renders the whole statusline gray.
+// Claude Code DOES interpret ANSI in statusline output, so gate only on
+// NO_COLOR here. The VALUES stay single-sourced in colors.ts (RAW_SEQUENCES).
+const NO = process.env.NO_COLOR === "1";
+const c = (code: string): string => (NO ? "" : code);
+const palette = {
+  red: c(RAW_SEQUENCES.red),
+  green: c(RAW_SEQUENCES.green),
+  yellow: c(RAW_SEQUENCES.yellow),
+  cyan: c(RAW_SEQUENCES.cyan),
+  dim: c(RAW_SEQUENCES.dim),
+  reset: c(RAW_SEQUENCES.reset),
+} as const;
+
+import { runGit as runGitLib, runProcessFull } from "../lib/git.ts";
+import { readHookInput, readValidatedState, writeState } from "../lib/hook-runtime.ts";
+import { claudePath } from "../lib/platform.ts";
+import {
+  computeBand,
+  formatTimeToReset,
+  mergeSessionRateLimits,
+  type RateLimitsCache,
+  readRateLimitsCache,
+  resolveRateLimits,
+  type SessionRateLimits,
+  writeRateLimitsCache,
+} from "../lib/quota.ts";
+import {
+  ageMs,
+  formatAge,
+  maxUnreviewed,
+  type ReviewQueueState,
+  ReviewQueueStateSchema,
+} from "../lib/review-queue.ts";
+import {
+  refreshSessionModelMap,
+  SESSION_MODEL_STATE,
+  SessionModelMapSchema,
+} from "../lib/session-model.ts";
+import {
+  readInstalledVersion,
+  refreshSessionInstallMap,
+  SESSION_INSTALL_STATE,
+  SessionInstallMapSchema,
+} from "../lib/version-delta.ts";
+
+// ReviewQueueStateSchema now lives in lib/review-queue.ts, next to the
+// interface it validates (N2) — imported above. Shape-validated the same way
+// quota.ts's RateLimitsCacheSchema is — a malformed review-queue.json/
+// version-drift.json (partial write, future schema change, tampering) must
+// degrade to "absent" instead of feeding NaN/garbage into the visible statusline.
+const VersionDriftSchema = z.object({
+  stale: z.boolean().optional(),
+  installed: z.string().nullable().optional(),
+});
+
+// session_id → version map (SessionInstallMapSchema, imported): the PRIMARY
+// writer is session-start.ts, which refreshes the entry on every launch and
+// resume; the write in this file is a first-render FALLBACK for sessions that
+// never got a SessionStart refresh.
 
 type Payload = {
+  session_id?: string;
   model?: { display_name?: string };
   workspace?: { current_dir?: string };
   context_window?: {
@@ -35,16 +97,59 @@ type Payload = {
       used_percentage?: number;
       resets_at?: number | string;
     };
+    // 2.1.251, gateway-only — used_percentage can exceed 100; 2.1.284 adds the
+    // dollar amounts and period. Type-only: no visual segment reads this yet.
+    spend_limit?: {
+      used_percentage?: number;
+      resets_at?: number | string;
+      used_usd?: number;
+      limit_usd?: number;
+      period?: string;
+    };
   };
   // 2.1.119 — effort level + thinking flag are now in statusline stdin.
   effort?: { level?: string };
   thinking?: { enabled?: boolean };
+  // 2.1.251 — prompt-cache diagnostics. Absent until the main conversation's
+  // first API response; subagent requests are not counted.
+  prompt_cache?: {
+    warm?: boolean;
+    caching_observed?: boolean;
+    ttl?: "5m" | "1h" | string;
+    expires_at?: number | null;
+    requests?: number;
+    misses?: number;
+    expected_rebuilds?: number;
+    hit_ratio?: number | null;
+    cache_write_tokens?: number;
+    miss_recache_tokens?: number;
+    last_miss_at?: number | null;
+    // 2.1.260 — client-side diagnosis of the most recent miss. `causes` is a
+    // closed set: system_prompt_changed, tools_changed, model_changed,
+    // messages_rewritten, ttl_expired_5m, ttl_expired_1h, likely_server_side,
+    // unknown. Null when nothing was diagnosed.
+    last_miss_cause?: {
+      causes?: string[];
+      tools_added?: number;
+      tools_removed?: number;
+      system_char_delta?: number;
+    } | null;
+    // 2.1.260 — misses per diagnosed cause this session (same cause names).
+    miss_causes?: Record<string, number>;
+    recache_tokens_if_cold?: number | null;
+  };
 };
 
 function formatTokens(n: number): string {
   if (n > 500_000) return `${(n / 1_000_000).toFixed(1)}M`;
   return `${Math.round(n / 1000)}k`;
 }
+
+// Programa renders the same 5h/7d quota numbers in its own sidebar, so the ⚡
+// chip below is suppressed there — same fact twice, and the statusline is the
+// more crowded of the two surfaces. Every other terminal has no second quota
+// surface, so the chip is the only signal and it renders.
+const IN_PROGRAMA = Boolean(process.env.PROGRAMA_SURFACE_ID);
 
 // Statusline git reads are hot-path and read-only: --no-optional-locks avoids
 // contending with a concurrent git process holding the index lock. The spawn
@@ -60,16 +165,15 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   // returns "" outside a repo (runGit swallows errors), which short-circuits
   // below. All four lookups are independent — one parallel wave instead of
   // three sequential rounds.
+  //
+  // The two `diff --quiet` dirty checks go through runProcessFull (same
+  // GIT_TIMEOUT_MS + SIGKILL bound as every other git spawn in the codebase)
+  // instead of a raw Bun.spawn — a hung diff filter/textconv or a
+  // network-mounted working tree must not block the whole statusline forever.
   const [branch, dirtyUnstaged, dirtyStaged, counts] = await Promise.all([
     runGit(["branch", "--show-current"], cwd),
-    Bun.spawn(["git", "-C", cwd, "--no-optional-locks", "diff", "--quiet"], {
-      stdout: "ignore",
-      stderr: "ignore",
-    }).exited,
-    Bun.spawn(["git", "-C", cwd, "--no-optional-locks", "diff", "--cached", "--quiet"], {
-      stdout: "ignore",
-      stderr: "ignore",
-    }).exited,
+    runProcessFull("git", ["-C", cwd, "--no-optional-locks", "diff", "--quiet"]),
+    runProcessFull("git", ["-C", cwd, "--no-optional-locks", "diff", "--cached", "--quiet"]),
     // Ahead/behind in ONE spawn: `--left-right --count @{upstream}...HEAD`
     // prints "<behind>\t<ahead>" (left = upstream-only commits, right =
     // HEAD-only). No upstream → git errors → "" (same fallback as the old
@@ -79,7 +183,7 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   if (!branch) return null;
 
   const dirty =
-    dirtyUnstaged !== 0 || dirtyStaged !== 0 ? `${palette.yellow}✱${palette.reset}` : "";
+    dirtyUnstaged.exit !== 0 || dirtyStaged.exit !== 0 ? `${palette.yellow}✱${palette.reset}` : "";
 
   let upstream = "";
   if (counts) {
@@ -91,30 +195,11 @@ async function buildGitStatus(cwd: string): Promise<string | null> {
   return `${palette.cyan}${branch}${palette.reset}${dirty}${upstream}`;
 }
 
-function formatTimeToReset(value: number | string): string | null {
-  // Claude Code emits Unix epoch *seconds* (integer). Anything ≥ 1e9 is
-  // clearly seconds, not milliseconds, and not a meaningful ISO date.
-  let resetMs: number;
-  if (typeof value === "number") {
-    resetMs = value > 1e12 ? value : value * 1000;
-  } else {
-    const asNum = Number(value);
-    if (Number.isFinite(asNum) && asNum > 1e9) {
-      resetMs = asNum > 1e12 ? asNum : asNum * 1000;
-    } else {
-      resetMs = Date.parse(value);
-    }
-  }
-  if (Number.isNaN(resetMs)) return null;
-  const deltaMs = resetMs - Date.now();
-  if (deltaMs <= 0) return null;
-  const totalMin = Math.round(deltaMs / 60_000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h > 0 ? `${h}h${m.toString().padStart(2, "0")}m` : `${m}m`;
-}
-
 const dimSep = `${palette.dim} | ${palette.reset}`;
+
+function cacheResetValue(value: number | string | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
+}
 
 // Degraded-path capture: filled as soon as the payload parses, so the catch
 // block at the bottom can still print the model/cwd segment.
@@ -127,6 +212,7 @@ async function main(): Promise<void> {
   model = input.model?.display_name ?? "";
   const currentDir = input.workspace?.current_dir ?? "";
   dirName = currentDir ? basename(currentDir) : "";
+  const sessionId = input.session_id;
 
   const used = input.context_window?.used_percentage;
   const tokensAvailable = input.context_window?.context_window_size ?? 0;
@@ -134,8 +220,51 @@ async function main(): Promise<void> {
 
   const gitStatus = currentDir ? await buildGitStatus(currentDir) : null;
 
-  const rateUsed = input.rate_limits?.five_hour?.used_percentage;
-  const rateResetsAt = input.rate_limits?.five_hour?.resets_at;
+  // Per-session write: this hot path renders from EVERY concurrent workspace,
+  // and each one only ever sees its OWN rate_limits reading in the payload.
+  // A flat single-object overwrite here is a last-writer-wins clobber across
+  // N workspaces — the bug this per-session map fixes. Each session's own
+  // reading is stored under its session_id in `sessions`; the top-level
+  // five_hour/seven_day/updated_at are then DERIVED (max-of-fresh via
+  // resolveRateLimits) rather than "whoever wrote last", for Programa's
+  // ClaudeQuotaSnapshotParser (programa repo, Sources/ClaudeQuotaMonitor.swift)
+  // which only reads those three top-level keys and ignores `sessions`.
+  // Gated on sessionId, same as the SESSION_MODEL_STATE/SESSION_INSTALL_STATE
+  // writes below — a payload without one can't be keyed per-session.
+  if (input.rate_limits && sessionId) {
+    try {
+      const sessionEntry: SessionRateLimits = {
+        five_hour: input.rate_limits.five_hour
+          ? {
+              used_percentage: input.rate_limits.five_hour.used_percentage,
+              resets_at: cacheResetValue(input.rate_limits.five_hour.resets_at),
+            }
+          : undefined,
+        // Parsed and cached here only to feed quota-steer.ts's routing
+        // guidance — no visual segment in this file consumes it.
+        seven_day: input.rate_limits.seven_day
+          ? {
+              used_percentage: input.rate_limits.seven_day.used_percentage,
+              resets_at: cacheResetValue(input.rate_limits.seven_day.resets_at),
+            }
+          : undefined,
+        updated_at: Date.now(),
+      };
+      const existing = await readRateLimitsCache();
+      const sessions = mergeSessionRateLimits(existing?.sessions ?? {}, sessionId, sessionEntry);
+      const now = Date.now();
+      const derived = resolveRateLimits(sessions, now) ?? { updated_at: now };
+      const cache: RateLimitsCache = {
+        five_hour: derived.five_hour,
+        seven_day: derived.seven_day,
+        updated_at: derived.updated_at,
+        sessions,
+      };
+      await writeRateLimitsCache(cache);
+    } catch {
+      // Statusline rendering must stay fail-open; quota steering can miss a sample.
+    }
+  }
 
   const effortLevel = input.effort?.level;
   const thinkingEnabled = input.thinking?.enabled === true;
@@ -162,18 +291,80 @@ async function main(): Promise<void> {
     parts.push(`${bar} ${usedInt}% (${formatTokens(tokensUsed)}/${formatTokens(tokensAvailable)})`);
   }
 
-  if (rateUsed !== undefined) {
-    const rInt = Math.round(rateUsed);
-    const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
-    const ttr = rateResetsAt ? formatTimeToReset(rateResetsAt) : null;
-    const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
-    parts.push(`${color}⚡${rInt}%${palette.reset}${suffix}`);
+  // Rate-limit headroom — rendered everywhere EXCEPT Programa (see IN_PROGRAMA).
+  //
+  // IMPORTANT: the gate drops only the *display*. This ⚡ chip renders straight
+  // from `input.rate_limits` — THIS session's own live payload from Claude
+  // Code, never the shared cache — so it can't be clobbered by another
+  // workspace. The read of `input.rate_limits` and the per-session
+  // `writeRateLimitsCache` call above stay unconditional regardless of
+  // IN_PROGRAMA — that cache file is what Programa's sidebar and
+  // quota-steer.ts both read, and statusline is what keeps it fresh between
+  // sessions (session-start.ts only refreshes it on launch and resume).
+  // Gating the write would leave the sidebar showing stale numbers from
+  // whenever the last session started.
+  // Codex bridge availability — read here (rather than at its original spot
+  // near the bottom) so the ⚡ chip below can append a "→codex" routing badge
+  // when quota is exhausted and Codex is available to absorb the work.
+  const codexVerdict = await readCodexVerdict();
+
+  if (!IN_PROGRAMA) {
+    const rateUsed = input.rate_limits?.five_hour?.used_percentage;
+    if (rateUsed !== undefined) {
+      const rInt = Math.round(rateUsed);
+      const color = rInt >= 80 ? palette.red : rInt >= 50 ? palette.yellow : palette.green;
+      const ttr = formatTimeToReset(input.rate_limits?.five_hour?.resets_at);
+      const band = computeBand(
+        input.rate_limits?.five_hour?.used_percentage,
+        input.rate_limits?.seven_day?.used_percentage,
+      );
+      const routing =
+        band === "exhausted" && codexVerdict.state === "available"
+          ? ` ${palette.red}→codex${palette.reset}`
+          : "";
+      const suffix = ttr ? `${palette.dim} ↻${ttr}${palette.reset}` : "";
+      parts.push(`${color}⚡${rInt}%${palette.reset}${routing}${suffix}`);
+    }
+  }
+
+  // Prompt-cache hit ratio (2.1.251) — cheapest cache diagnostic we can give
+  // users, since the default model prices cache reads far below base. Shown
+  // on every terminal, including Programa: it's cache stats, not quota, so
+  // the IN_PROGRAMA suppression above (which is quota-specific) doesn't apply.
+  // Suppressed until 3 requests have landed — too early to be meaningful.
+  const cache = input.prompt_cache;
+  if (
+    cache &&
+    cache.caching_observed === true &&
+    cache.hit_ratio !== null &&
+    cache.hit_ratio !== undefined &&
+    (cache.requests ?? 0) >= 3
+  ) {
+    const pct = Math.round(cache.hit_ratio * 100);
+    const color =
+      cache.hit_ratio >= 0.8
+        ? palette.green
+        : cache.hit_ratio >= 0.5
+          ? palette.yellow
+          : palette.red;
+    // When the prefix is cold, name the diagnosed cause (2.1.260) so the user
+    // can tell a TTL expiry from a tools/system-prompt change they triggered.
+    const cause = cache.warm === false ? cache.last_miss_cause?.causes?.[0] : undefined;
+    const coldSuffix =
+      cache.warm === false ? `${palette.dim} cold${cause ? ` ${cause}` : ""}${palette.reset}` : "";
+    parts.push(`${color}♻${pct}%${palette.reset}${coldSuffix}`);
   }
 
   // Review-queue backpressure: agents spawned since the last commit, awaiting
   // your review (written by tool-cadence.ts). Suppressed at 0 — yellow
   // under the threshold, red at/over CC_MAX_UNREVIEWED.
-  const reviewQueue = await readState<ReviewQueueState>("review-queue.json", { awaiting: 0 });
+  const reviewQueue: ReviewQueueState = await readValidatedState(
+    "review-queue.json",
+    ReviewQueueStateSchema,
+    {
+      awaiting: 0,
+    },
+  );
   if (reviewQueue.awaiting > 0) {
     const color = reviewQueue.awaiting >= maxUnreviewed() ? palette.red : palette.yellow;
     const age = ageMs(reviewQueue, Date.now());
@@ -184,18 +375,68 @@ async function main(): Promise<void> {
   // cc-settings install staleness — surfaced only when the cached SessionStart
   // drift check found the repo's packaged version ahead of what's installed.
   // Suppressed otherwise (like the review queue), so it costs nothing when current.
-  const drift = await readState<{ stale?: boolean; installed?: string | null }>(
-    "version-drift.json",
-    { stale: false },
-  );
-  if (drift.stale && drift.installed) {
+  // The cache is only rewritten at SessionStart, so an install mid-session would
+  // leave it flagging the old version; drop it once the sentinel has moved on.
+  const installedNow = await readInstalledVersion(claudePath());
+  const drift = await readValidatedState("version-drift.json", VersionDriftSchema, {
+    stale: false,
+  });
+  if (drift.stale && drift.installed && (!installedNow || installedNow === drift.installed)) {
     parts.push(`${palette.yellow}⬆ cc v${drift.installed}${palette.dim} stale${palette.reset}`);
   }
 
-  // Codex bridge availability badge — reads the cached verdict written by
-  // codex-verify.ts at SessionStart (no spawn here, hot-path safe).
-  // "not-installed" and "unknown" → silent (no clutter for teammates without Codex).
-  const codexVerdict = await readCodexVerdict();
+  // Restart-pending: the installer wrote a newer version sentinel AFTER this
+  // session started. Settings/hooks/MCP/CLAUDE.md are snapshotted at launch,
+  // so the running session is still on the old config — surface it here
+  // (`claude -c` resumes the conversation on the new install). Inverse of the
+  // ⬆ stale check above, which flags an install BEHIND the repo.
+  // sessionId was hoisted near the top of main() — reused here.
+  if (sessionId && installedNow) {
+    const sessionVersions = await readValidatedState(
+      SESSION_INSTALL_STATE,
+      SessionInstallMapSchema,
+      {},
+    );
+    const seen = sessionVersions[sessionId];
+    if (!seen) {
+      // Fallback recorder only — session-start.ts refreshes this entry on
+      // every launch AND resume (same session_id survives a resume), which is
+      // what lets the banner clear after a restart.
+      // A failed state write (unwritable/full tmp) must cost this segment only,
+      // never the whole render — without the catch it would bubble to main()'s
+      // outer catch and degrade the statusline to model/cwd on every render.
+      await writeState(
+        SESSION_INSTALL_STATE,
+        refreshSessionInstallMap(sessionVersions, sessionId, installedNow, Date.now()),
+      ).catch(() => {});
+    } else if (seen.v !== installedNow) {
+      parts.push(
+        `${palette.green}⟳ v${installedNow} installed — restart Claude to apply${palette.reset}`,
+      );
+    }
+  }
+
+  // Session model map — lets escalate-model.ts (UserPromptSubmit) know whether
+  // the session is already on Fable 5 before recommending it as the
+  // escalation target. Write-on-change only: a no-op read + comparison on
+  // every render, a write only when this session's entry is missing or the
+  // model actually changed (a mid-session model switch), never on every
+  // render of an unchanged model.
+  if (sessionId && model) {
+    const sessionModels = await readValidatedState(SESSION_MODEL_STATE, SessionModelMapSchema, {});
+    const seenModel = sessionModels[sessionId];
+    if (!seenModel || seenModel.m !== model) {
+      // Same rationale as the SESSION_INSTALL_STATE catch above.
+      await writeState(
+        SESSION_MODEL_STATE,
+        refreshSessionModelMap(sessionModels, sessionId, model, Date.now()),
+      ).catch(() => {});
+    }
+  }
+
+  // Codex bridge availability badge — codexVerdict was read earlier (before
+  // the ⚡ chip block) so this segment reuses it. "not-installed" and
+  // "unknown" → silent (no clutter for teammates without Codex).
   if (codexVerdict.state === "available") {
     parts.push(`${palette.green}codex ✓${palette.reset}`);
   } else if (codexVerdict.state === "unauthenticated" || codexVerdict.state === "no-access") {
@@ -211,8 +452,11 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch {
-  // Degraded statusline — never blank, never a non-zero exit.
+  // Degraded statusline — never blank, never a non-zero exit. If the error
+  // struck before model/dirName were populated (e.g. Bun.stdin.text() itself
+  // threw), fall back to a static label instead of an empty line.
   const parts = [model, dirName].filter((p) => p.length > 0);
-  process.stdout.write(`${parts.join(dimSep)}\n`);
+  const line = parts.length > 0 ? parts.join(dimSep) : "claude";
+  process.stdout.write(`${line}\n`);
   process.exit(0);
 }

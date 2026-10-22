@@ -4,6 +4,3834 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.87.0] — 2026-10-22
+
+New `/case-study` skill turns a shipped site into raw material for a studio case study: frame-perfect 16:9 clips per chapter and transition, layer-by-layer scene decompositions, Blender turntables and clay/wire/bake renders, every sound and image asset as its own file, and a shareable board. It works on three.js and other WebGL sites as well as plain DOM, GSAP and Lottie sites, and skips the phases a project has no material for.
+
+**Added:**
+- `skills/case-study/` with its browser capture rig, media scripts, Blender runner, references and templates; registered in `ACTIVE_SKILLS`.
+- `evals/case-study-dom-site-plan/`: a DOM-only site must skip Blender and the 3D tools, deliver separate 16:9 masters next to the project, and leave the repo clean.
+- `docs/skills.md` row for the skill.
+
+**Changed:**
+- The managed library is now 25 skills: `SKILL_COUNT_BASELINE` in `src/lib/lint-skills.ts`, and the counts in `README.md`, `MANUAL.md` and `.claude/AGENTS.md`.
+- The skill's install steps use `bun add --cwd` and `bunx` instead of `npm i --prefix` and `npx`.
+
+**Files changed:**
+- skills/case-study/ (new)
+- evals/case-study-dom-site-plan/ (new)
+- src/lib/managed-skills.ts
+- src/lib/lint-skills.ts
+- docs/skills.md
+- README.md
+- MANUAL.md
+- .claude/AGENTS.md
+- package.json, .claude-plugin/plugin.json, plugin.json, src/setup.ts
+
+## [15.86.1] — 2026-10-21
+
+The skill trigger check costs about 20% less per prompt set, because its runs no longer pay for cache writes they never read back (OSS-50).
+
+**Cause:** Claude Code puts the user prompt ahead of the skill listing and session context, and caches only at the end of the system prompt and the end of the message. Every new prompt therefore rewrote about 23k tokens at the cache-write price. SessionStart hook output was not the cause; it is about 4k of the 36k characters after the prompt.
+
+**Changed:**
+- `src/scripts/eval-triggers.ts` sets `DISABLE_PROMPT_CACHING=1` for its `claude -p` runs. A 20-prompt run of `fix` cost $1.13 against $1.42 during calibration, with the same results (recall 100%, false triggers 0%). The default cost cap drops from $7 to $5.
+- `.claude/AGENTS.md`: the trigger-check cost is now about $3.40 for 20 prompts at 3 runs (est.).
+
+**Files changed:**
+- `src/scripts/eval-triggers.ts`
+- `.claude/AGENTS.md`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
+- `CHANGELOG.md`
+
+## [15.86.0] — 2026-10-21
+
+When you resume a session whose prompt cache has expired, you now see what the first message will cost before you send it, and the skill trigger check has real thresholds for three skills (OSS-48, OSS-49).
+
+**Hooks:**
+- `src/hooks/cache-cold.ts` also runs on SessionStart with matcher `resume|fork`. When Claude Code reports `prompt_cache_likely_expired` with 100K tokens or more of context, it shows you the idle gap, the size and Claude Code's own cost estimate as a `systemMessage`. A marker in `~/.claude/tmp` stops your first message from warning about the same gap again. `session-start.ts` no longer prints the model-only `[cache]` line. (OSS-48)
+
+**Evals:**
+- `evals/triggers/` has calibrated prompt sets for `fix`, `codex` and `refactor` (20 prompts, 3 runs each, about $4.25 per set). Measured recall: fix 93%, codex 97%, refactor 78% (after dropping one prompt that correctly loaded `/hook`); false triggers 0% for all three. Thresholds sit about one prompt below the measured rate. Refactor misses "move X out of Y" and "pull duplicated code into one function" phrasings, which a future description edit can target. (OSS-49)
+
+## [15.85.0] — 2026-10-21
+
+Nine improvements from the October research backlog (OSS-34 to OSS-40, OSS-42, OSS-43). You now get a warning before a message re-sends an expired cache at full price, agents need your OK to change MCP or plugin config, and pushes block when a critical skill eval regresses.
+
+**Hooks:**
+- `src/hooks/cache-cold.ts` (UserPromptSubmit): when the last reply is older than the cache TTL (1 hour, or 5 minutes for 5-minute cache writes) and the context is 100K tokens or more, it shows you the re-send size and cost, with a pointer to `/clear` and `/handoff`. It reads only the last 4 MiB of the transcript and never blocks. On resume, `session-start.ts` adds a `[cache]` line with the idle gap. `HookIO` gains `notice()`, which the dispatcher sends as a user-only `systemMessage`. (OSS-34)
+- Edits to `.mcp.json` and plugin manifests, `cp`/`mv`/`ln` onto them, and `claude mcp add`/`remove` or `claude plugin install` now ask first (`config/30-permissions.json`). `src/hooks/config-guard.ts` asks on what the globs can't match: redirects, `tee`, `sed -i`, `perl -i`. (OSS-42)
+
+**Codex:**
+- `codex-run.ts exec` makes Codex return a JSON result (status, branch, commit, files_changed, verify_cmd, verify_result, blockers) through `--output-schema` and prints `ready: yes|no` after checking the claim against the working tree. `--expected <minutes>` reports a silent worker as stalled at 3x that. Implementer reports end with the same JSON block. (OSS-35)
+- `bun run tokens` adds a Codex section from `$CODEX_HOME` rollouts, counted per response and split by model. It shows tokens only, since no OpenAI price is confirmed. (OSS-36)
+
+**Evals:**
+- `eval-changed.ts --base-arm` blocks when a case tagged `critical` passed every base run and failed a candidate run, or when the branch deletes or renames a case for a changed skill. `evals/quarantine.json` holds flaky cases with an owner and an expiry date; an expired entry blocks. `--runs N` repeats each case. (OSS-37)
+- `eval-changed.ts --triggers` runs `src/scripts/eval-triggers.ts` for skills whose description changed: prompts from `evals/triggers/<skill>.json`, Skill as the only tool, recall and false-trigger rate. Only `fix` has a prompt set, and its thresholds are not calibrated yet. (OSS-40)
+
+**Skills and agents:**
+- `/orchestrate` caps fix rounds at five per task (rounds 4-5 on a fresh Fable implementer), settles conflicts with one-line rulings, and gives the reviewer the diff against a recorded base. `agents/reviewer.md` treats the implementer's report as unverified claims. (OSS-38)
+- `/audit` runs `src/scripts/grade-findings.ts`, which downgrades a CONFIRMED finding with no file:line to PLAUSIBLE. (OSS-39)
+- `/build` has a fresh agent read the spec before GO and list the questions it would have to guess. (OSS-43)
+- `/review-batch` builds cards from the diff and the worker's JSON result, not its prose report. `/codex` documents the `ready` line.
+
+The managed-file manifest moves to v30 for the four new installed files.
+
+**Files changed:**
+- src/hooks/cache-cold.ts, src/hooks/config-guard.ts, src/hooks/dispatch.ts, src/lib/cache-cold.ts, src/lib/hook-runtime.ts, src/scripts/session-start.ts, config/30-permissions.json
+- src/lib/codex.ts, src/scripts/codex-run.ts, src/lib/token-usage.ts, src/scripts/token-report.ts
+- src/lib/eval-gate.ts, src/scripts/eval-changed.ts, src/scripts/eval-triggers.ts, evals/quarantine.json, evals/triggers/fix.json
+- src/scripts/grade-findings.ts, skills/orchestrate/SKILL.md, skills/audit/SKILL.md, skills/build/SKILL.md, skills/review-batch/SKILL.md, skills/codex/SKILL.md, agents/reviewer.md, agents/implementer.md
+- evals/audit-grounding-downgrade, evals/build-cold-reader-gate, evals/orchestrate-fix-round-cap, evals/orchestrate-ruling-not-stall, evals/review-batch-report-unverified
+- tests: cache-cold, config-guard, dispatch, settings-merge, codex, codex-run-worker, token-usage, token-report-codex, eval-scripts, grade-findings, install-e2e
+- docs/hooks-reference.md, docs/settings-reference.md, docs/codex-bridge.md, docs/skill-authoring.md, hooks/README.md, .claude/AGENTS.md
+- src/lib/claude-managed-file-manifests.ts, CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.84.0] — 2026-10-21
+
+Agents can no longer open a PR that changes styles or markup without either a before/after image or a "Screenshots: before/after needed" line for the author. `rules/git.md` already asked for that line, because agents cannot attach images through `gh`; until now nothing checked it.
+
+**Added:**
+- `src/hooks/visual-proof.ts`, run by the PreToolUse dispatcher on Bash calls. It reads the body of `gh pr create`, or of `gh pr edit` when the body changes, and blocks with a `[Visual Proof]` reason when the branch changes `.css`, `.scss`, `.tsx`, `.jsx`, `.vue`, `.svelte`, `.astro` or `.html` files and the body has neither an image with an absolute URL nor the screenshots line. Images on raw.githubusercontent.com don't count, because those links break until the branch merges. When the body can't be read (`--fill`, `--web`, an editor, stdin), the command goes through.
+- The managed-file manifest moves to v29 so existing installs receive the new hook file.
+
+**Limits:**
+- `gh pr edit` that names a PR by number, URL or branch is not checked, because the local diff says nothing about that PR. `--head` is ignored; the diff always ends at the local `HEAD`.
+- Bodies passed through `$(cat <<EOF ...)` or stdin are not checked. `rules/git.md` tells agents to use `--body-file <path>`, which is checked.
+- `.tsx` and `.jsx` count as design files even when a change only touches logic.
+
+Idea from fcakyon/claude-codex-settings (`require_visual_proof.py`).
+
+**Files changed:**
+- src/hooks/visual-proof.ts, src/hooks/dispatch.ts, src/lib/claude-managed-file-manifests.ts
+- tests/visual-proof.test.ts, tests/dispatch.test.ts, tests/install-e2e.test.ts
+- docs/hooks-reference.md, hooks/README.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.83.0] — 2026-10-21
+
+Claude Code now asks you once a session has started 30 subagents, and again at 45, 60 and every 15 after. Claude Code removed its own 200-subagent lifetime cap in 2.1.224, so a fan-out stuck in a loop could keep spawning agents with nothing to stop it. The hook never blocks, because Workflows and ultracode legitimately start dozens of agents.
+
+**Added:**
+- `src/hooks/spawn-cap.ts`, run by the PreToolUse dispatcher on Agent and Task calls. Each call appends a token line to `~/.claude/tmp/spawn-count-<hash>.log` and takes its line's position as its count, then asks with a `[Spawn Cap]` reason at each threshold. A session's first spawn deletes count files older than 7 days. Any error lets the call through.
+- A third PreToolUse dispatcher entry in `config/40-hooks.json` with matcher `Agent|Task`. Existing installs pick it up on the next `setup.sh` run; an interactive setup asks before adopting it.
+- The managed-file manifest moves to v28 so existing installs receive the new hook file.
+
+**Limits:**
+- Agents started by a Workflow script don't go through the Agent tool, so they aren't counted.
+- A payload without a session id is not counted.
+
+Idea from karanb192/claude-code-hooks (`plugins/subagent-spawn-cap`).
+
+**Files changed:**
+- src/hooks/spawn-cap.ts, src/hooks/dispatch.ts, config/40-hooks.json
+- src/lib/claude-managed-file-manifests.ts, src/scripts/hook-bench.ts
+- tests/spawn-cap.test.ts, tests/dispatch.test.ts, tests/settings-merge.test.ts, tests/install-e2e.test.ts
+- docs/hooks-reference.md, hooks/README.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.82.1] — 2026-10-21
+
+Skill evals now judge with Fable 5.1, in both `bun src/scripts/eval-changed.ts` and `eval-ablate.ts`. The cases run on Sonnet 5.5, and a judge from the same model tends to grade that model's answers favorably. On the `freeze-set-boundary` case, both judges gave the same verdicts (with the skill 3 of 3 pass, without it 3 of 3 fail). The judge cost rose from $0.009 to $0.065 and the whole run from $0.18 to $0.21.
+
+The agent under test cannot read its own graders: `claude plugin eval` puts the `evals/` folder in the sandbox's `denyRead` list, and a probe case that tried to read its `graders/criteria.md` was refused. So no answer-key leak check was added.
+
+If `eval-ablate.ts --model` names Fable itself, Opus 5.5 judges instead, so the judge never matches the answer model.
+
+Idea from trailofbits/skills (`plugins/code-improver/evals`).
+
+**Files changed:**
+- src/scripts/eval-changed.ts, src/scripts/eval-ablate.ts, tests/eval-scripts.test.ts
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.82.0] — 2026-10-21
+
+Claude Code now asks you before an agent skips, deletes, or renames away a test. AGENTS.md has long made relaxing or skipping assertions to get a green suite a merge blocker; until now nothing enforced it.
+
+**Added:**
+- `src/hooks/test-protect.ts`, run by the PreToolUse dispatcher on Bash, Edit and Write. It asks for approval, with a `[Test Guard]` reason, when an Edit or Write adds a skip marker (`.skip(`, `.only(`, `xit(`, `@Disabled`, `t.Skip(`, `pytest.skip(` and others) to a test file, or a command deletes a test file (`rm`, `git rm`, `find` with `-delete`) or moves it where no test runner picks it up (`.bak`, `.disabled`, out of the test folder or the project). It does not catch an edit that deletes assertions without adding a skip marker. It asks instead of blocking because deleting the tests of removed code is legitimate. Writing a new test file passes silently, and any error lets the call through.
+- PreToolUse handlers can ask instead of block. `HookIO.ask(reason)` in `src/lib/hook-runtime.ts`, and the dispatcher answers with one `permissionDecision: "ask"` envelope that also carries any `additionalContext`. A block still wins over an ask.
+- The managed-file manifest moves to v27 so existing installs receive the new hook file.
+
+Idea from karanb192/claude-code-hooks (`plugins/protect-tests`).
+
+**Files changed:**
+- src/hooks/test-protect.ts
+- src/hooks/dispatch.ts
+- src/lib/hook-runtime.ts
+- src/lib/claude-managed-file-manifests.ts
+- tests/test-protect.test.ts, tests/dispatch.test.ts, tests/install-e2e.test.ts
+- docs/hooks-reference.md, hooks/README.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.81.0] — 2026-10-21
+
+Sync with Claude Code v2.1.306. Codex v0.163.0 and the Codex app changelog have nothing new through 2026-10-21. The settings schema accepts one new sandbox key, one env var is now tracked, and the MCP allowlist docs are updated.
+
+**Adopted:**
+- `sandbox.allowNestedUserNamespaces` (Claude Code 2.1.305) is in the settings schema and the sandbox table in `docs/settings-reference.md`. On Linux it lets sandboxed commands create user namespaces, which Chromium and rootless podman need. Upstream warns that this lets those commands get around the sandbox's file protections, so cc-settings never sets it.
+- `CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS` (2.1.305) is in the env table and `knownEnvVars`. It lets unattended retry mode notice a usage limit that lifted before its reset. cc-settings does not set it.
+
+**Docs:**
+- `allowedMcpServers` no longer filters `managed-mcp.json` stdio servers that use `${VAR}` only in `env` (2.1.305). To keep one of those servers off, list it in `deniedMcpServers`.
+
+**Files changed:**
+- src/schemas/settings.ts
+- schemas/settings.schema.json
+- docs/settings-reference.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.80.2] — 2026-10-20
+
+Skill evals now judge with Sonnet 5.5 instead of Haiku 4.5, in both `bun src/scripts/eval-changed.ts` and `eval-ablate.ts`. Haiku, voting without reasoning, failed correct replies often enough to block pushes. Over 8 runs of one case the two judges cost about the same ($1.15 and $1.18), since the agent run makes up most of the cost.
+
+25 eval cases for skills that run in a forked context (`context: fork`) now tell the agent to pass the whole message as the skill's argument. A forked skill sees only its argument, so a bare call left the agent answering on its own and the case graded that answer, not the skill. `bun run lint:skills` now fails a forked skill's case whose prompt lacks the instruction.
+
+`/context-doc` opens with exactly one question and no side requests. It allowed up to four questions per round and said to open with one, and agents took the four. Its eval case went from 0 of 3 to 3 of 4.
+
+`/poke-holes` always runs at least the two-agent panel, however small the target, and ends with its Verdict line. On a 5-line file it used to read the code itself and skip the panel. `/fix` restores its stash with literal commands that find the tagged `stash@{n}`, apply it, then drop it. `/harvest` sends a mistake made by a tool call to a hook instead of the lint and test ladder, and ends by naming the files it wrote and asking whether to commit them.
+
+Five eval cases changed how they grade. `dr-review-thread-fix-by-default` grades the plan, since its prompt says not to run commands. `share-learning-write-gate` accepts an offer to write a different note. The two `/harvest` cases accept checks written and tested in the working tree, with approval needed only to commit or edit shared standards. `poke-holes-adversarial-panel` adds a regex check for the Verdict line.
+
+- src/scripts/eval-changed.ts
+- src/scripts/eval-ablate.ts
+- src/lib/lint-skills.ts
+- skills/context-doc/SKILL.md
+- skills/poke-holes/SKILL.md
+- skills/fix/SKILL.md
+- skills/harvest/SKILL.md
+- evals/*/prompt.md
+- evals/*/graders/
+- evals/context-doc-glossary-question/
+
+## [15.80.1] — 2026-10-20
+
+`/autoresearch` no longer creates the `autoresearch/<skill>` branch before you confirm the config. Setup used to check out the branch in step 6 and ask for confirmation in step 8, so turning down the config still left a stray branch behind. The branch is now created only after you confirm. The same step also overwrote `results.tsv` before reading it to resume, which wiped a resumed run's history. It now writes the header only when the file doesn't exist yet. A resumed run continues from its last recorded round, and measures a new baseline only if its `results.tsv` has no data rows.
+
+The `autoresearch-adds-held-out` eval was flaky because of the branch step, passing 1 of 3 on v15.79.2 and 2 of 3 on v15.80.0. Its LLM judge was also unreliable: Haiku, voting without reasoning, failed correct replies about half the time. The case now uses only deterministic graders. They check that no branch exists, that RESEARCH.md gained a held-out section that doesn't reword the test inputs, and that the reply asks for confirmation. The fixture is its own git repo, so the branch check reads that repo, not the suite's. The new skill passes 8 of 8 runs; v15.80.0 scores 0.75 in 6 of 6, below the 0.8 threshold, because every run creates the branch first. `autoresearch-confirm-before-loop` had the same Haiku judge and blocked a push on a correct reply, so it gets the same deterministic graders and passes 6 of 6.
+
+- skills/autoresearch/SKILL.md
+- evals/autoresearch-adds-held-out/
+- evals/autoresearch-confirm-before-loop/
+
+## [15.80.0] — 2026-10-20
+
+Four ideas from Google Research's [harness2](https://github.com/google-research/harness2), a framework that edits an agent's prompts, skills, and hooks and measures the result. Its gains were measured on GLM-5 and Gemini 3.5 Flash, not Claude, so each change ships with an eval case instead of a claimed improvement.
+
+- `/harvest` can now land a **hook** or a **script**. A mistake that is an agent command rather than code (running the full test suite, the wrong package manager) has no type or lint check to catch it; a `PreToolUse` deny whose reason names the right command does. Phase 4 also weighs context cost: on-demand artifacts first, and an always-on addition cuts an equal amount of always-on text.
+- The harvest contract records a per-change verdict: helped, hurt, no observed effect, or confounded. A behavior that rests only on confounded changes is INCONCLUSIVE.
+- `/autoresearch` ANALYZE targets the checklist item where samples of the same input disagree before one that fails consistently per input, which is more often a bad input or checklist item. Each hypothesis names the sample that motivated it.
+- `/autoresearch` keeps a lessons file across runs at `~/.claude/tmp/autoresearch/LESSONS.md`: at most one entry per run, written only from a kept round whose held-out gain beat the noise floor, read at setup as hypotheses to try first.
+- The RESEARCH.md template and checklist guidelines moved out of `/autoresearch` into `skills/autoresearch/RESEARCH-FORMAT.md`, read at setup, which keeps the skill under its line ceiling (now 484, down from 504). Claude manifest v26 and Codex manifest v22 install the new file.
+
+**Files changed:**
+- skills/harvest/SKILL.md, skills/harvest/CONTRACT.md, skills/autoresearch/SKILL.md, skills/autoresearch/RESEARCH-FORMAT.md
+- src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/lint-skills.ts, tests/install-e2e.test.ts
+- evals/harvest-hook-for-tool-call/, evals/autoresearch-targets-split-samples/, evals/autoresearch-lesson-entry/
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.79.2] — 2026-10-20
+
+Two AGENTS.md rules, both from failures that kept repeating in real sessions. Shell Commands now warns that zsh does not split an unquoted `$VAR` into several arguments; that one quirk made a whole bisect run measure nothing and broke a commit's path list. Fail Loud now asks the agent to inspect every screenshot or capture it took before reporting done, after a render glitch shipped that was visible in the agent's own test captures. To stay under the 16 KB AGENTS.md ceiling, four nearby sentences are shorter (Post-Compaction Recovery, Clarify Before Full Work Mode, Plan Before Multi-File Changes, Functional DAG) with no rule removed.
+
+**Files changed:**
+- AGENTS.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.79.1] — 2026-10-20
+
+Sync with Claude Code v2.1.304. Codex v0.163.0 and the Codex app changelog have nothing new through 2026-10-20. One env var is now tracked, and three docs rows that had gone stale are corrected.
+
+**Adopted:**
+- `CLAUDE_CODE_AUTO_MODE_MODEL` (Claude Code 2.1.302) is in the env table and `knownEnvVars`. It picks the model for the client-side auto mode classifier. cc-settings does not set it.
+
+**Docs:**
+- `CLAUDE_CODE_FORK_SUBAGENT`: fork subagents are on by default on every surface, and `"0"` turns them off (2.1.302). The old row said `"1"` turned them on.
+- `idleCompaction` can also be turned off from its new row in `/config` (2.1.302).
+- `CLAUDE_CODE_AUTO_COMPACT_WINDOW` is in the env table and `knownEnvVars`, and the row notes the `k`/`M` suffixes it accepts (2.1.304).
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- docs/settings-reference.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.79.0] — 2026-10-19
+
+Four skills and agents that repeated Claude Code's own features are gone or renamed. The `scaffolder` agent is merged into `implementer`, which already did the same boilerplate work. `/checkpoint` and its script are removed; use the built-in `/rewind` or a git commit. The `/explore` skill is removed; the `explore` agent it routed to stays. `/review` is renamed `/dr-review`, so typing `/review` now opens Claude Code's built-in `/code-review`. The managed library goes from 26 skills to 24, and re-running setup removes the old files from existing installs. The `/orchestrate` rollback step now reverts the bad commits instead of a soft reset, which left the failed phase's changes staged. Closes #223.
+
+**Files changed:**
+- agents/scaffolder.md, skills/checkpoint/, skills/explore/, src/scripts/checkpoint.ts, hooks/checkpoint.md (removed)
+- skills/review/ → skills/dr-review/
+- src/lib/claude-managed-file-manifests.ts (version 25), src/lib/codex-runtime-manifests.ts, src/lib/lint-skills.ts
+- agents/implementer.md, skills/orchestrate/SKILL.md, docs and tests that named the removed items
+
+## [15.78.0] — 2026-10-19
+
+Each prompt and tool call now starts one hook process instead of several. A Bash call runs 3 hook processes instead of 4, an Edit 3 instead of 6, an Agent call 1 instead of 2, and a prompt 1 instead of 3. A new dispatcher reads the hook input once and runs that event's handlers in order inside one process. The secrets and destructive-command check runs first and still blocks the call if it crashes or times out; the advisory handlers fail open and are skipped if they throw or overrun. Handlers still run on their own when called directly, so tests, `hooks:bench` and the Codex plugin are unchanged. Async hooks, SessionStart and the install-docs check keep their own entries. Re-run setup so existing installs replace the per-script entries with the dispatcher. Part of #223.
+
+**Files changed:**
+- src/hooks/dispatch.ts (new), config/40-hooks.json
+- src/lib/hook-runtime.ts, src/lib/settings-merge.ts, src/lib/claude-managed-file-manifests.ts
+- src/hooks/*.ts handlers and src/scripts/post-edit.ts export `main(io)`
+- src/scripts/hook-bench.ts, README.md, SECURITY.md, docs/hooks-reference.md, hooks/README.md
+- tests/dispatch.test.ts (new), tests/hook-fail-open.test.ts, tests/settings-merge.test.ts, tests/install-e2e.test.ts, tests/codex-install.test.ts
+
+## [15.77.0] — 2026-10-19
+
+Fewer hooks run on every session: 29 hook commands on 16 events, down from 35 on 17. The four proof gates are gone: the typecheck before `git commit`, farolero, and the proof checks before `git push` and `gh pr create`. They ran one stack's `package.json` scripts, and each repo's own git hooks and CI now carry those checks (satus and novus already run them on every PR). The session-title hook and the CwdChanged hook are gone too; nothing read their output. The hook that blocks skipping a repo's git hooks stays. Bash logging, the swarm log, the ledger, the compaction handoff, failure tracking and desktop notifications stay, because a skill or another hook reads each of them. Re-run setup so existing installs drop the removed hooks. Part of #223.
+
+**Files changed:**
+- config/40-hooks.json, hooks/hooks.json
+- src/hooks/pre-commit-farolero.ts, src/hooks/pre-pr-proof.ts, src/hooks/pre-push-proof.ts, src/scripts/pre-commit-tsc.ts, src/scripts/session-title.ts, src/scripts/cwd-changed.ts (deleted)
+- src/lib/settings-merge.ts, src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/install-source-inventory.ts, src/scripts/session-start.ts, src/scripts/hook-bench.ts
+- README.md, hooks/README.md, docs/hooks-reference.md, docs/system-overview.md, docs/the-flow.md
+
+## [15.76.0] — 2026-10-19
+
+When a PR fixes a GitHub issue in a repo whose issues sync to Linear, `/ship` now finds the Linear copy the sync created and links that one, instead of filing a duplicate. It searches the mapped team by the GitHub issue's title and accepts a hit only when the Linear issue's attachment points at that GitHub issue. cc-settings now syncs its GitHub issues to the Open Source team.
+
+**Files changed:**
+- skills/ship/SKILL.md
+- evals/ship-linear-synced-issue
+
+## [15.75.0] — 2026-10-19
+
+Claude can no longer read your secrets without asking. The safety-net hook blocks any Bash command that names `dotenvx` followed by `get`, `decrypt` or `keypair` before a `--`, and any command that names a secret `.env` file next to a file reader (`cat`, `grep`, `sed`, `paste`, `dd` and the rest), however many wrappers, flags or quoting tricks come first. Read denies cover `.env` files, editing `.claude/settings.json` or `settings.local.json` asks first, and `cp`/`mv` onto those files is denied. A few harmless commands now block too, such as `grep .env README.md` or `dotenvx set get value`; run them yourself with `!`. SECURITY.md lists what stays out of reach: variable and command substitution, globs, brace expansion, `bun -e` scripts, and `dotenvx run -- <a program that prints its environment>`.
+
+Every hook command now runs with `--config="$HOME/.claude/src/bunfig.toml"`, a comment-only file, so a project's `bunfig.toml` `preload` cannot run code inside a hook. The hook audit trusts such a command only when both the script and that file match the install manifest. Re-run setup to rewrite the hook commands. Fixes #227.
+
+**Files changed:**
+- src/hooks/safety-net.ts, src/lib/hook-command.ts, src/lib/audit-hooks.ts, src/lib/hooks-fingerprint.ts, src/lib/settings-merge.ts, src/lib/platform.ts
+- src/bunfig.toml, src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/codex-plugin.ts, src/scripts/codex-hook.ts, src/scripts/session-start.ts
+- config/10-core.json, config/30-permissions.json, config/40-hooks.json
+- SECURITY.md, docs/settings-reference.md
+- tests/safety-net.test.ts, tests/audit-hooks.test.ts, tests/session-start-preload.test.ts, tests/settings-merge.test.ts, tests/install-e2e.test.ts, tests/codex-hook.test.ts, tests/codex-install.test.ts, tests/hook-fail-open.test.ts
+
+## [15.74.0] — 2026-10-19
+
+Every session in a Darkroom repo now knows the repo's Linear team and project without anyone setting it up. The map lives in team-knowledge as `linear-map.json`, so one PR there updates it for the whole team. SessionStart caches it with `gh api` at most every 6 hours and prints `Linear: team DR, project "<name>"` for a mapped repo, or asks you to add an unmapped `darkroomengineering` repo by PR. `/ship` reads the shared map after your own `~/.claude/linear-teams.json` and puts the issue ID at the end of the PR title; `/build` starts the branch from the issue. Fixes #228.
+
+**Files changed:**
+- src/lib/knowledge-index.ts, src/lib/team-knowledge.ts, src/scripts/refresh-knowledge-index.ts, src/scripts/session-start.ts
+- skills/ship/SKILL.md, skills/build/SKILL.md, docs/knowledge-system.md
+- evals/ship-linear-issue, evals/ship-linear-shared-map, evals/build-linear-branch
+- tests/linear-map.test.ts
+
+## [15.73.0] — 2026-10-19
+
+The shared React, style and performance rules now hold only advice that fits any React or CSS project. Next.js App Router, React Router, Tailwind and satus/novus specifics moved into the starters' own `.claude/rules/` files (satus#554, novus#36), so a Solid, Remix or plain-CSS project that touches a `.tsx` file no longer gets Server Component and `cn()` instructions. The React and performance rules also stop matching `app/**` and `components/**`. The three files go from 321 to 190 lines. Closes #222.
+
+**Files changed:**
+- rules/react.md, rules/style.md, rules/performance.md, profiles/nextjs.md
+
+## [15.72.0] — 2026-10-19
+
+The Codex bridge and the native Codex agents stop pinning a model. Each `codex-run.ts` call runs on the model Codex itself is configured to use, and each native agent runs on the session's model, so a Codex CLI upgrade brings newer models with no cc-settings release. `--model` and the `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL` and `CODEX_ASK_MODEL` env vars still pin a model for one call or one session. Re-run setup to regenerate the native agent files without their `model` lines.
+
+**Files changed:**
+- src/lib/codex.ts, src/scripts/codex-run.ts, src/lib/codex-install-state.ts, src/lib/codex-native-agents.ts
+- docs/codex-bridge.md, docs/codex.md, docs/agent-models.md, docs/claude-vs-codex.md, skills/codex/SKILL.md, codex/AGENTS.append.md, CLAUDE-FULL.md
+- tests/codex.test.ts, tests/codex-install.test.ts, tests/codex-run-model.test.ts
+
+## [15.71.0] — 2026-10-19
+
+TypeSafe stops sending from client repos by default. The install prompt now says what a TypeSafe key sends to api.typesafe.ai: prompts (delegation-detector), the task, edited file paths, command heads and answers (drift-fuse), and the conversation at compaction (fast-jev-compaction). Prompt scoring and drift scoring send nothing from a project until it sets `CC_TYPESAFE_PROJECT=1` in that project's `.claude/settings.json` `env`. fast-jev-compaction is upstream code that reads the key itself, so it is not covered by that switch yet; to keep a project off it, set `enabledPlugins` for `fast-jev-compaction@fast-jev-compaction` to `false` in that project's settings. drift-fuse is 0.1.1.
+
+Plan files stop landing in your repos: cc-settings no longer sets `plansDirectory: ./plans`, and setup removes a leftover `./plans` value. context7 and chrome-devtools are pinned to `@upstash/context7-mcp@4.4.4` and `chrome-devtools-mcp@1.11.0`, and context7 drops `alwaysLoad`, so its tools defer behind tool search. `.tldrignore` is gone; `docs/tldr-cheatsheet.md` explains how to delete what llm-tldr left in projects. Fixes #220.
+
+**Files changed:**
+- src/lib/jev.ts, src/lib/claude-install-settings.ts, src/lib/settings-merge.ts, src/hooks/delegation-detector.ts
+- plugins/drift-fuse/hooks/fuse.ts, plugins/drift-fuse/.claude-plugin/plugin.json
+- config/10-core.json, config/20-mcp.json, .claude-plugin/plugin.json, .tldrignore (removed)
+- docs/hooks-reference.md, docs/install.md, docs/settings-reference.md, docs/tldr-cheatsheet.md, hooks/README.md
+- tests/typesafe-optin.test.ts, tests/delegation-detector.test.ts, tests/drift-fuse.test.ts, tests/mcp.test.ts, tests/settings-merge.test.ts
+- src/setup.ts, package.json, plugin.json
+
+## [15.70.0] — 2026-10-19
+
+The four agents that edit code (implementer, tester, deslopper, scaffolder) now run on the model that spawned them instead of being locked to Sonnet, so picking Opus or Fable for a session carries through to the work. Read-only agents such as explore and reviewer stay on Sonnet. In standalone Codex these four agents follow the Codex session model. The git rules file loads only on git-related files (`.git`, `.gitignore`, `.github`), not on every file read; `/ship`, `/review` and `/cc` read it directly before committing. The rules index moved from `rules/README.md` to `docs/rules.md`. It was never installed, so installs are unaffected. Covers part of #222 and #223.
+
+**Files changed:**
+- agents/implementer.md, agents/tester.md, agents/deslopper.md, agents/scaffolder.md
+- rules/git.md, rules/README.md → docs/rules.md, skills/ship/SKILL.md, skills/review/SKILL.md, skills/cc/SKILL.md
+- CLAUDE-FULL.md, README.md, docs/README.md, docs/agent-models.md, docs/claude-vs-codex.md, docs/codex-bridge.md, docs/frontmatter-reference.md
+- tests/agent-schema.test.ts, tests/codex-install.test.ts, tests/install-e2e.test.ts, tests/whats-on.test.ts
+
+## [15.69.2] — 2026-10-19
+
+Two older CHANGELOG entries (15.66.1 and 15.42.5) carried a leftover merge-conflict line, which showed on GitHub and tripped anything that parses the changelog. Both lines are gone. A new test scans every tracked text file for conflict markers and fails with the file and line, so a half-resolved merge cannot land again. Fixes #234.
+
+**Files changed:**
+- CHANGELOG.md, tests/no-conflict-markers.test.ts
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.69.1] — 2026-10-19
+
+`/ship` now files the Linear issue it creates into the repo's Linear project, not just its team. `~/.claude/linear-teams.json` takes an optional `project` per repo, and when a repo has no mapping yet, `/ship` asks for the project right after the team.
+
+**Files changed:**
+- skills/ship/SKILL.md, evals/ship-linear-issue/prompt.md, evals/ship-linear-issue/graders/criteria.md
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.69.0] — 2026-10-19
+
+Agents building a bot, assistant, or autonomous job inside a product now have a standard to work from. The new `profiles/durable-agents.md` covers what has to survive a crash or restart: which tools may rerun, how webhook and cron triggers avoid duplicate runs, why approvals and waits live in storage, and why agent PRs never auto-merge on client repos. Pi Durable is the reference implementation, with its API notes pinned to 1.3.0 and kept apart from the runtime-independent rules. `/build` points to the profile in Claude Code. Full installs only; light installs and Codex get no profiles. The Claude managed-files manifest moves to version 21, and version 20 is now pinned by hash. The README profile list names durable agents in place of the orchestration profile that version 19 removed.
+
+**Files changed:**
+- profiles/durable-agents.md, docs/profiles.md, skills/build/SKILL.md, README.md
+- src/lib/claude-managed-file-manifests.ts, tests/codex-install.test.ts, tests/install-e2e.test.ts
+- src/setup.ts, package.json, plugin.json
+
+## [15.68.0] — 2026-10-19
+
+GitHub Copilot CLI now follows the Darkroom standards in every repo, not only in repos set up with `project-init.ts`. When `~/.copilot` exists (or `COPILOT_HOME` is set), setup writes `AGENTS.md` into Copilot's personal instructions file, `copilot-instructions.md`, between `cc-settings:copilot` markers, plus a short note that Claude Code-only references don't apply there. Anything the user wrote in that file outside the markers stays as it is. Rollback and uninstall re-sync the block from the restored `~/.claude/AGENTS.md`, or remove it when that file is gone. A machine without Copilot CLI gets no `~/.copilot` directory. A malformed marker pair is reported and the file is left untouched; it never fails the install.
+
+The new module ships under Claude managed-file manifest v20 and Codex runtime manifest v18. The Codex instruction-block helpers now take their markers as a parameter, so both hosts share them.
+
+**Files changed:**
+- src/lib/copilot-instructions.ts, tests/copilot-instructions.test.ts
+- src/lib/codex-native-agents.ts, src/setup.ts
+- src/lib/install-source-inventory.ts, src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts
+- tests/codex-install.test.ts, tests/install-e2e.test.ts
+
+## [15.67.1] — 2026-10-16
+
+The full Windows test suite on main is green again. Three real Windows bugs were behind its six failures:
+
+- The safety net let `cd ~ && cat .ssh/id_rsa` and `tar czf keys.tgz -C ~ .ssh` through under Git Bash on Windows. It resolved both to backslash paths, which its home-directory secret patterns never matched. Resolved paths under home are now rewritten as `~/...` first, and `tar -C` members are joined as shell paths.
+- The safety net treated any `~` in a `cd` target as unresolvable, so a Windows short path like `C:/Users/RUNNER~1/...` lost track of the directory and blocked a `gh` write in an org checkout. Only a leading `~` is special now, as in bash.
+- The Codex hook adapter refused its own checkout when reached through a short path: `realpathSync` keeps `RUNNER~1` while `import.meta.dir` uses the long name. It compares with `realpathSync.native` now.
+
+One installer test expected all-backslash separators where the installer writes the template's forward-slash tail after the managed source path. The path is valid either way, so the test now spells it the way the installer writes it.
+
+**Files changed:**
+- src/hooks/safety-net.ts, tests/safety-net.test.ts
+- src/scripts/codex-hook.ts, tests/codex-hook.test.ts
+- tests/codex-install.test.ts
+
+## [15.67.0] — 2026-10-16
+
+Every PR opened through `/ship` now has a Linear issue, even when the work started before anyone filed one. If the branch, title, body, or commits name no real issue, `/ship` creates one in the repo's team, assigned to you, and adds `Fixes <ID>` to the PR body so Linear links the PR and closes the issue on merge. It asks once per repo which team to use and remembers the answer in `~/.claude/linear-teams.json`; answering "No Linear" turns it off for that repo. Without a connected Linear MCP server the step is skipped and reported, never blocking. `/build` and `/fix` offer to create the issue up front when they are already asking clarifying questions, so the branch can carry the ID from the first push.
+
+**Files changed:**
+- skills/ship/SKILL.md, skills/build/SKILL.md, skills/fix/SKILL.md
+- evals/ship-linear-issue/
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.66.2] — 2026-10-16
+
+Claude Code stops printing about 45 "mixes * with the trailing :* prefix syntax" warnings at startup on installs that date back to older cc-settings versions. Those versions shipped deny rules such as `Bash(curl * --data:*)` and `Bash(cp ~/.ssh/*:*)`. Claude Code reads the `*` in them literally, so the rules never matched and the guards they were meant to provide did nothing. `config/` already ships the working forms, but the union merge kept the old strings as user extras on every upgrade. They join `RETIRED_PERMISSION_RULES`, so setup removes them from `deny`. A user's own rule with the same shape is left alone.
+
+**Files changed:**
+- src/lib/settings-merge.ts, tests/settings-merge.test.ts
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.66.1] — 2026-10-16
+
+Sync with Claude Code v2.1.301, Codex v0.163.0, and the Codex app changelog through 2026-10-16. Nothing to adopt beyond one tracked env var.
+
+**Adopted:**
+- `CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS` (Claude Code 2.1.301) in the env table and `knownEnvVars`: it ends unattended retry mode when a usage-limit reset is far away, which matters for overnight runs. cc-settings does not set it.
+
+**Docs:**
+- `docs/hooks-reference.md` notes that hook `updatedInput` is validated like Claude's own input (2.1.300).
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- docs/settings-reference.md
+- docs/hooks-reference.md
+- CHANGELOG.md, package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.66.0] — 2026-10-16
+
+The safety hooks block again. Ten hooks read their input from environment variables that Claude Code never sets, so safety-net, the proof gates, and the edit guards saw an empty command and allowed everything. They now read the JSON Claude Code sends on stdin, and safety-net closes four gaps in its rules (#219, #221).
+
+**Fixed:**
+- safety-net, freeze-guard, pre-edit-validate, pre-pr-proof, pre-push-proof, pre-commit-farolero, pre-commit-tsc, check-docs-before-install, post-edit, and post-edit-tsc read `tool_input` from stdin through `readToolInput` in `src/lib/hook-runtime.ts`. The `TOOL_INPUT*` env vars stay as a fallback for the Codex shim. Tests and `hooks:bench` feed stdin the way Claude Code does, and `docs/hooks-reference.md` describes the real contract (#219).
+- Every hook and the statusline run as `bun --no-env-file`, so a project's `.env` can no longer change hook settings such as the allowed gh account or the state directory. Re-run `setup.sh` to pick this up.
+- safety-net reads commands with a quote-aware parser, so flags after a quoted message or heredoc are checked, a commit message that mentions a flag is not mistaken for it, and commands inside `( )`, loops, `if` blocks, `$( )`, `xargs`, and after `export` or `cd` are analyzed.
+- safety-net blocks commands that print or copy secret files (`~/.ssh`, `~/.aws`, `~/.netrc`, `~/.gnupg`, `~/.git-credentials`, `~/.npmrc`, `~/.docker/config.json`, `~/.kube/config`, `gh/hosts.yml`, `.env` and `.envrc` files other than the example templates) with any reader, plus `gh auth token`. Using the files (`ssh -i`, `ssh-add`, `chmod`, `ls`, `sed -i`) stays allowed (#221).
+- safety-net blocks `gh pr`, `gh issue`, `gh release`, `gh repo edit`, and `gh api` writes (including GraphQL mutations) to repos outside darkroomengineering and your own account, which was only a rule in the `triage` skill. The owner comes from `-R`, `GH_REPO`, a URL argument, the `repos/` path, or the repo's remotes; your login comes from `gh api user`; an unknown owner is blocked (#221).
+- safety-net blocks skipping git hooks on commit, push, and merge: `--no-verify` and its prefixes, `commit -n`, `HUSKY`/`LEFTHOOK` set to `0` or `false`, `SKIP*` prefixes, and setting `core.hooksPath` through `-c`, `--config-env`, `GIT_CONFIG_*`, or `git config`. `git push -n` stays allowed as a dry run (#221).
+- safety-net exits 1 on an internal error instead of allowing the command, so its `onFailure: "block"` setting takes effect (#221).
+
+## [15.65.0] — 2026-10-15
+
+Skill bodies lose about 20 KB of text that restated AGENTS.md, CLAUDE-FULL.md, rules, or other skills, and the skills now agree with the one-Codex-review-per-PR policy.
+
+**Fixed:**
+- `proof-of-work`, `review`, and `refactor` each ran their own Codex review, so a refactor followed by `/ship` triggered three or four. They now defer to the single per-PR review that `/ship` runs.
+- `review-batch` and `retro` called `bun run` scripts that exist only in this repo; they now call the installed scripts.
+- `cc` committed with `git add -A` and opened PRs with `--fill`, against `rules/git.md`.
+- `context-doc` asked one question at a time, against the AGENTS.md rule of rounds of up to four.
+- `audit` Tests mode used the `T` finding prefix, which Full mode assigns to Threat-Model; it now uses `X`.
+- Stale references: a `MANUAL.md` "All Skills" table that does not exist (now `docs/skills.md`), wrong CLAUDE-FULL heading names, a nonexistent `[Unreleased]` CHANGELOG convention, and `cc` listing one version site instead of four.
+
+**Removed:**
+- `max_rounds` from `autoresearch` and the research linter: the loop never read it.
+- `handoff`'s per-model degradation table, tied to retired models.
+- Echo intros, "Remember" footers, generic examples, duplicate templates, and dated history notes across the library.
+
+## [15.64.0] — 2026-10-15
+
+A consolidation pass over the prompt surface: duplicate rules, contradictions, dead hooks, and instructions that could not run are gone. Every session loads about 6 KB less (CLAUDE-FULL.md 13.1 → 9.1 KB, output style 4.1 → 2.0 KB); a `.tsx` session loads about 12 KB less from rules.
+
+**Fixed:**
+- Agents with a `tools:` allowlist receive no MCP tools, so every "use tldr" instruction in agent bodies was dead. Agents now list the `mcp__tldr__*` tools they are told to use. `LS`, which no longer exists, is gone from every list.
+- `pre-edit-validate` no longer suggests Write for edits over 15 lines; that contradicted the Editing rule.
+- `reviewer` (read-only) is no longer told to implement the elegant version; `deslopper` no longer reports gap-fills its own rules forbid.
+- Stale references: skill links to deleted rules, a missing implementer heading, deslopper paths that do not exist, a plan file cited from `schedule.ts`.
+
+**Removed:**
+- The `stop-summary` and `stop-failure` hooks. Their plain stdout never reached the model; `DEPRECATED_COMMAND_PATTERNS` prunes them from existing installs. Rerun `setup.sh` to refresh the hooks fingerprint.
+- `rules/react-perf.md` (merged into `performance.md`) and `rules/ui-skills.md` (split into `style.md` and `motion-physics.md`), plus textbook content in `typescript.md`, `security.md`, `react.md`, and `accessibility.md`.
+- `profiles/maestro.md`; the five stack profiles are cut to studio-specific content (62 → 16 KB).
+- Dated audit reports under `docs/audits/` and `docs/consolidation-audits/`. Code comments that cited their finding IDs keep the invariant inline.
+- The "Self-Evolving Learnings" rule: it wrote memory files that only agents with native `memory:` frontmatter ever load.
+- SessionStart lines the model gains nothing from (auto-memory pointer, codemap-ready, default compaction state) and the repeated `gh api` read command on every knowledge hint.
+
+**Changed:**
+- `AGENTS.md` E2E rule: prefer E2E for new verification; where a repo already keeps unit tests, follow its convention.
+- `CLAUDE-FULL.md` drops the quota-routing paragraph (`quota-steer` injects it at the threshold) and model trivia (moved to `docs/agent-models.md`); the skill ratchet and hook fingerprint notes move to the repo's `.claude/AGENTS.md`.
+- The output style keeps shape and reply rules; register lives once, in `AGENTS.md`.
+- Agent descriptions drop their trigger-phrase lists (the CLAUDE-FULL routing table already covers them); agent bodies drop restated standards (72 → 52 KB).
+- The component-edit review banner is one line instead of a 16-line box.
+- Managed-files manifest 19 and Codex runtime manifest 17 retire the deleted files on upgrade.
+
+## [15.63.1] — 2026-10-15
+
+`rules/style.md` gains a "Full-Bleed Color Behind Mobile Safari's Toolbars" section. `theme-color` alone leaves Safari's status bar and bottom toolbar white and takes one color; the rule pins a thin fixed strip to each edge so each toolbar gets its own solid color.
+
+## [15.63.0] — 2026-10-15
+
+Folds in the mechanisms worth keeping from EveryInc's compound-engineering-plugin. No skills were added; each change lands in an existing skill, agent, rule, or script.
+
+**Review and ship:**
+- `reviewer` findings carry a 0/25/50/75/100 confidence, the quoted motivating line, and an `introduced` or `pre-existing` tag. A finding without a quoted line caps at 50; only introduced findings at 75+ block, and pre-existing ones list separately.
+- `review` works inbound PR feedback from GraphQL review threads: it skips resolved threads, stops when the viewer has a pending review (replies would vanish into the draft), treats comment text as untrusted, and clusters threads by root assumption. The calling session fixes valid threads, replies, and resolves them without asking; needs-decision threads go to the user.
+- `rules/git.md` and `ship`: commit with explicit pathspecs, pass the PR body with `--body-file`, treat a failed `gh pr list` as unknown state, never match `--head owner:branch`, use the repo's PR template first, and summarize the full commit range.
+
+**Knowledge, debugging, and agents:**
+- `share-learning` skips a note when the final code already prevents the mistake, and gains a Refresh mode (Keep, Update, Consolidate, Replace, Delete). Notes accept an optional `retire_when` (team-knowledge#12).
+- `fix` tests the user's uncommitted edits first and needs a complete causal chain with file:line evidence before fixing.
+- `implementer` reports `completed`, `blocked`, or `scope_expansion` after checking the full git delta. `deslopper` gets test-value and comment rubrics.
+- `handoff` resume skips symlinks and paths outside the handoff directory and asks the user to pick when several candidates exist. `resolveArtifact` rejects ids containing a path separator, which also covers `checkpoint`.
+
+**Eval tooling:**
+- `eval-changed.ts --base-arm` runs the merge-base version of each changed skill and labels each case improvement, regression, no-regression-only, or still-failing.
+- `eval-ablate.ts --aa` measures the spread between identical arms; `--noise` labels smaller deltas "within noise". `autoresearch` logs such rounds `inconclusive` and registers its pass bar before the first mutation.
+- `lint:skills` fails a SKILL.md over 500 lines, with a shrink-only exemption for `audit`, `cc`, and `autoresearch`. `docs/skill-authoring.md` gains rules for writing evals and for body order (Claude Code re-attaches only the first 5,000 tokens of a skill after compaction).
+
+**Files changed:**
+- agents/reviewer.md, agents/implementer.md, agents/deslopper.md
+- skills/review, ship, share-learning, fix, handoff, orchestrate, zero-tech-debt, autoresearch (SKILL.md)
+- rules/git.md, docs/skills.md, docs/skill-authoring.md, docs/knowledge-system.md
+- src/lib/lint-skills.ts, src/lib/artifact-store.ts, src/schemas/knowledge.ts, schemas/knowledge.schema.json
+- src/scripts/eval-changed.ts, src/scripts/eval-ablate.ts, src/scripts/handoff.ts
+- tests/lint-skills.test.ts, tests/eval-scripts.test.ts, tests/handoff.test.ts, tests/lint-knowledge.test.ts, tests/skill-contracts.test.ts
+- evals/: 7 new cases across review, ship, share-learning, fix, autoresearch. The ship commit and PR rules and the handoff stop-and-ask rule are pinned by `tests/skill-contracts.test.ts` instead: both skills run forked, so an eval case sees only the fork's report.
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.62.1] — 2026-10-14
+
+PR descriptions carry screenshots only when the change is visible. `rules/git.md` and the `/ship` PR template tell agents to link the Figma frame or Linear ticket a visual change implements and to leave a "Screenshots: before/after needed" line for the author, because `gh` cannot attach images. Refactor, logic, API, and tooling PRs get no screenshots. Adopts the team-knowledge convention `pr-screenshots-only-for-visual-changes`.
+
+`lint:links` reads heading anchors with inline code kept, as GitHub does: ``### `idleCompaction` `` slugs to `idlecompaction`. It blanked inline code first, so any link to a backticked heading failed CI.
+
+**Files changed:**
+- rules/git.md, skills/ship/SKILL.md
+- src/lib/lint-links.ts, tests/lint-links.test.ts
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.62.0] — 2026-10-14
+
+Sync with Claude Code v2.1.299 (2.1.297 and 2.1.298 were never published). Codex 0.162.1 and the Codex app changelog had no new entries.
+
+**Adopted:**
+- `idleCompaction` settings key (2.1.299): `src/schemas/settings.ts`, `docs/settings-reference.md`. The settings schema is strict, so setting the key to turn idle compaction off failed the parse. Idle compaction stays on: it compacts a 200K+ conversation left idle about 54 minutes before the one-hour cache expires, and only overlaps the compaction-trigger plugin past 200K, where it writes a summary instead of a verbatim compaction (`CLAUDE-FULL.md`).
+- Env vars tracked (2.1.299): `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`, `CLAUDE_CODE_DISABLE_FILE_MENTIONS`, `CLAUDE_CODE_STRICT_INLINE_SHELL_RM_PROMPT`. None are set.
+- Docs: `UserPromptSubmit` hooks run before a skill or custom command expands (`docs/hooks-reference.md`); MCP allow rules and agent `tools:` lists match the whole normalized server name (`docs/settings-reference.md`; cc-settings ships no `mcp__` rules); `claude plugin eval` cases accept `disallowed_tools` (`.claude/AGENTS.md`).
+
+**Deletions / Native-now-redundant:** none.
+
+**Files changed:**
+- src/schemas/settings.ts, schemas/
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md, docs/hooks-reference.md, CLAUDE-FULL.md, .claude/AGENTS.md
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.61.0] — 2026-10-13
+
+Setup now offers to remove skills cc-settings stopped shipping that older installs left behind. Full installs delete only files the install sentinel recorded, so a skill installed before the sentinel existed survived every reinstall: `~/.claude/skills/effort`, removed from the repo in April, still loaded and still called `high` the default effort. Setup lists the leftovers, asks once (y/N), and moves accepted directories to `~/.claude/backups/retired-skills-<timestamp>`. Non-interactive runs only warn.
+
+A skill qualifies only when its `SKILL.md` is a byte-exact copy of a version cc-settings shipped, checked against the git blob id of every historical copy of each retired name. A user's own skill that reuses a name such as `docs` or `context`, or a shipped copy the user edited, is never offered. `effort` and `pinchtab` join `TOMBSTONE_SKILLS`; they were the two retired names missing from it.
+
+**Files changed:**
+- src/lib/managed-skills.ts, src/setup.ts
+- tests/legacy-codex-skills.test.ts, tests/fixtures/retired-skills/effort-SKILL.md
+- package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.60.0] — 2026-10-12
+
+Agents write code comments only when the context helps the next agent that reads the code. The AGENTS.md "TODO Comments Are Instructions" guardrail becomes "Comments": no comment by default, one only for an invariant, a non-obvious why, an outside fact, or a warning against a safe-looking edit, and never one that restates the code, narrates the change, addresses the reviewer, or echoes types in JSDoc. `deslopper` auto-removes comments that fail the rule in any language, keeps directives, license headers, and `TODO`/`SHORTCUT:` markers, and lists borderline comments as recommendations.
+
+To fit the 16 KB AGENTS.md budget, the Code Review Rules P1 list now points at the Performance, Accessibility, and React standards instead of restating them, and External Libraries points at the Laziness Ladder. External reviewers that read AGENTS.md (Codex, Copilot) see the same checks in one bullet.
+
+**Files changed:**
+- AGENTS.md, agents/deslopper.md, skills/audit/SKILL.md
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.59.0] — 2026-10-12
+
+The default session model is Claude Opus 5.5 (`claude-opus-5-5`); the advisor stays on Claude Fable 5.1 (`claude-fable-5-1`), the latest Fable. Fable was the session default since v15.4.0, which spent the weekly pool at about 2x the Opus rate on every turn. Opus 5.5 runs the session at 40% of Fable's per-token price and keeps Fable in the loop where it pays: the advisor reviews the full transcript at decision points, and `/model fable` or a scoped `model: "fable"` subagent remains the step-up for a stuck slice.
+
+Installs that never changed `model` move to Opus 5.5 on the next `setup.sh` through the three-way merge; a user-set model is kept. `advisorModel` keeps the full ID instead of the `fable` alias because the alias resolves to Fable 5 on gateway sessions, which an Opus session pairs with but a Fable 5.1 session silently drops.
+
+**Files changed:**
+- config/10-core.json
+- docs/agent-models.md, docs/settings-reference.md, CLAUDE-FULL.md
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
+## [15.58.1] — 2026-10-12
+
+`setup.sh --uninstall --dry-run` and `--rollback --dry-run` no longer run for real. Both flags dispatched before the dry-run check, so the "preview" uninstalled or restored for real. The installer now refuses either combination with an error and exits without touching disk.
+
+**Files changed:**
+- src/setup.ts, tests/setup-args.test.ts
+- package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.58.0] — 2026-10-12
+
+Sync with Claude Code 2.1.296 and Codex 0.162.1. `bun run tokens` now prices Sonnet 5.5 cache reads at the new rate, so subagent cost is no longer overstated.
+
+**Adopted:**
+- Sonnet 5.5 cache reads cost $0.10 per million tokens (2.1.296). `src/lib/token-usage.ts` charged $0.20, which doubled the cache-read cost of every Sonnet 5.5 subagent in the main-vs-subagent split.
+- `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS` and `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` (2.1.296) are tracked in the manifest and `docs/settings-reference.md`. Neither is set: workflow agents already run on Sonnet 5.5 through `CLAUDE_CODE_SUBAGENT_MODEL`.
+- `autoCompactWindow` agent frontmatter (2.1.296) is documented in `docs/frontmatter-reference.md`. The schema accepts it without type checks until upstream documents its value format.
+
+**Docs only:**
+- The default cap on MCP tool descriptions and server instructions is 4,096 characters (2.1.296).
+- `claude --debug` logs each hook's command, outcome and duration (2.1.296); `docs/hooks-reference.md` points to it next to `hooks:bench`.
+
+**Deletions / Native-now-redundant:** none. The new `--debug` warning for unrecognized agent frontmatter fields runs only at runtime; the install-time zod check still catches bad values.
+
+Codex 0.162.1 is two bug fixes with nothing to adopt.
+
+**Codex app tracking:** `/cc sync` now covers members who run cc-settings in the Codex desktop app or IDE extension. Those apps publish release notes only on learn.chatgpt.com/docs/changelog, and they read the same `AGENTS.md`, skills, plugins, hooks and `config.toml` as the CLI, so app-only changes could reach Codex users without anyone triaging them. `bun run upstream:scan` now reads that page's RSS feed and reports every entry dated after `appChangelogLastScan` in `upstream/codex-manifest.json` as drift, skipping ChatGPT iOS releases. `bun src/upstream/scan.ts --codex-app-entries` prints those entries verbatim for the sync to triage. A new eval case, `evals/cc-sync-codex-app-changelog`, checks that a sync triages app entries even when neither CLI version moved.
+
+**Files changed:**
+- src/lib/token-usage.ts
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/hooks-reference.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- src/setup.ts
+- package.json
+- plugin.json
+- .claude-plugin/plugin.json
+- skills/cc/SKILL.md
+- src/upstream/scan.ts
+- docs/codex.md
+- evals/cc-sync-codex-app-changelog/
+- CHANGELOG.md
+
+## [15.57.2] — 2026-10-09
+
+The statusline no longer shows a stale "cc vX stale" badge after you install a newer cc-settings mid-session. The badge came from a cache that is only rewritten at SessionStart, so it kept flagging the old version. The statusline now compares the cached version with the installed sentinel and hides the badge once they differ.
+
+**Files changed:**
+- src/hooks/statusline.ts
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.57.1] — 2026-10-09
+
+`/cc update` accepts a cc-settings checkout cloned over SSH. The origin check compared the remote only against the GitHub HTTPS URL, so a `git@github.com:` or `ssh://git@github.com/` remote was rejected and the update stopped with "no real cc-settings git checkout was found". Both SSH forms now normalize to the HTTPS URL before the comparison; any other host or user is still rejected.
+
+**Files changed:**
+- skills/cc/SKILL.md
+- tests/plugin-manifest.test.ts
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+
+## [15.57.0] — 2026-10-09
+
+Sync with Claude Code 2.1.295 and Codex 0.162.0.
+
+**Adopted:**
+- Hook `onFailure: "block"` (Claude Code 2.1.295): `src/schemas/hooks.ts`, `docs/hooks-reference.md`, `config/40-hooks.json`. The Bash safety net now blocks the command when its hook cannot start or times out, instead of letting it through.
+- `forceLoginMethod: "gateway"` and `forceLoginGatewayUrl` (2.1.295): `src/schemas/settings.ts`. Settings files that use them parse.
+- `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` (2.1.295): `docs/settings-reference.md`. Caps how long unattended retry mode waits out 429 and 529 errors.
+- Claude Haiku 5.5 is the `haiku` alias (2.1.293): `docs/settings-reference.md`, `src/lib/token-usage.ts`, so `bun run tokens` prices Haiku 5.5 turns, including its higher rate above a 100K prompt.
+
+**Docs only:**
+- `docs/codex-bridge.md` no longer calls GPT-6 Astra the Codex CLI default; GPT-6.1 Sol is (Codex 0.161.0).
+- `subagentStatusLine` payloads carry `agentType` (2.1.293); subagents preload at most 32 skills from `skills:` (2.1.295).
+
+**Files changed:**
+- src/schemas/hooks.ts
+- src/schemas/settings.ts
+- config/40-hooks.json
+- src/lib/token-usage.ts
+- src/lib/codex-install-state.ts
+- tests/token-usage.test.ts
+- schemas/settings.schema.json
+- docs/hooks-reference.md
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/codex-bridge.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+
+## [15.56.1] — 2026-10-08
+
+`rules/accessibility.md` drops the fluid type rule that asked for `rem + vw` text. Darkroom layouts scale in `vw` to the design frame, so text that grows with browser zoom outgrows its fixed containers and breaks the layout. Type now scales with the layout through the project's type utilities.
+
+## [15.56.0] — 2026-10-08
+
+cc-settings no longer sets `CLAUDE_CODE_EFFORT_LEVEL`. While that variable is set, Claude Code ignores `/effort`, `--effort` and saved per-model levels, so every dev was stuck on `medium` no matter what they chose locally.
+
+**Changed:**
+- `config/10-core.json` drops the `CLAUDE_CODE_EFFORT_LEVEL: "medium"` env entry. Each model now starts from Claude Code's own default (`medium` on Opus 5.5 and Sonnet 5.5, `high` on Fable 5.1), and `/effort` choices persist per model.
+- Existing installs lose the key on the next setup, `--light` and `--uninstall` included, but only where it still reads `medium`. A value a dev set by hand stays. `stripManagedSettings` now also strips env values the previous install's baseline shipped, so the light and uninstall paths match the full merge's three-way prune.
+- The install status check stops expecting the variable.
+- `CLAUDE-FULL.md` and `docs/settings-reference.md` describe the unpinned default and warn against exporting the variable.
+
+## [15.55.0] — 2026-10-08
+
+Rules adopt patterns from good-css.com and settle three contradictions.
+
+- Viewport units: `svh` for documents and heroes, `dvh` only for app shells, never `h-screen`/`100vh`. `AGENTS.md`, `rules/style.md`, and `rules/ui-fix.md` agree.
+- Reduced motion: `rules/accessibility.md` prescribes the opt-in `no-preference` pattern instead of the global `0.01ms` rule, matching `rules/ui-skills.md`.
+- Hover gating: `rules/ui-skills.md` notes that Tailwind v4's `hover:` variant is already gated.
+- `rules/style.md`, `rules/accessibility.md`, and `rules/ui-skills.md` add modern CSS bullets: logical properties, `overflow: clip`, intrinsic grids, `@starting-style`, anchor positioning, hit areas, focus rings, fluid type, and press feedback.
+
+## [15.54.0] — 2026-10-07
+
+Twelve skills leave the library: `oracle`, `strategist`, `plan-ceo-review`, `plan-feature`, `adhd`, `project`, `consolidate`, `test`, `tldr`, `lighthouse`, `design-tokens`, and `qa`. The library goes from 38 to 26 skills.
+
+**Why:** a 5-run `eval-ablate` comparison scored vanilla Claude Code level with these skills on every one of their eval cases, so they cost description budget and context without a measured gain.
+
+**Removed:**
+- The 12 `skills/<name>/` directories and their 13 `evals/` cases.
+- Existing Claude and Codex installs delete the skill directories on the next setup, because all 12 names join `TOMBSTONE_SKILLS`.
+- The Claude managed-file manifest moves to v18 and the Codex runtime manifest to v16, so installs made at older versions still validate against the files they own.
+- `SKILL_COUNT_BASELINE` drops 38 to 26. `README.md`, `MANUAL.md`, `CLAUDE-FULL.md`, and `docs/skills.md` carry the new count and no longer describe the removed skills.
+- Pointers to them in `agents/`, `rules/`, `profiles/`, `docs/`, `skills/audit`, and `skills/harvest` now name a surviving skill or are gone. The `tldr` MCP server and code-map engine are unchanged.
+- `oracle` leaves `READ_ONLY_AGENTS` in `src/lib/review-queue.ts`; it was a skill, never an agent.
+
+**Files changed:**
+- `skills/`, `evals/`, `src/lib/managed-skills.ts`, `src/lib/claude-managed-file-manifests.ts`, `src/lib/codex-runtime-manifests.ts`, `src/lib/lint-skills.ts`, `src/lib/review-queue.ts`
+- `tests/codex-install.test.ts`, `tests/plugin-manifest.test.ts`, `tests/review-queue.test.ts`
+- `README.md`, `MANUAL.md`, `CLAUDE-FULL.md`, `docs/`, `agents/`, `rules/`, `profiles/`
+- `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
+
+## [15.53.3] — 2026-10-07
+
+`ship` now finds every required check before it watches a PR, and sessions route PR watching through it instead of writing their own loops.
+
+**Fixed:**
+- `skills/ship/SKILL.md` Step 9 reads the base branch's ruleset first. `gh pr checks --required` misses workflows an org ruleset requires, such as `ci-gate`, so earlier watchers waited forever or exited without merging. Required workflows are confirmed by their run on the head commit.
+- Step 9 runs one blocking `gh pr checks --watch`, re-runs it once when checks have not registered yet, and counts green only when every required check concluded `success`.
+- Land mode merges with `--match-head-commit`, and does not wait on `--auto` in repos that disallow auto-merge.
+- `CLAUDE-FULL.md` (Autonomy) routes "merge when green" and "babysit CI" to `ship`, and `skills/fix` points its CI variant at Step 9. A history audit found about 120 hand-written watchers across Claude Code and Codex sessions, costing roughly $110 to $135 in polling turns.
+
+**Files changed:**
+- `skills/ship/SKILL.md`
+- `skills/fix/SKILL.md`
+- `CLAUDE-FULL.md`
+- `evals/ship-required-workflow/`
+- `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
+
+## [15.53.2] — 2026-10-07
+
+Sync with Claude Code v2.1.292. Codex stays at v0.160.1.
+
+**Adopted:**
+- Agent tool `effort` parameter (2.1.292): `CLAUDE-FULL.md` and `docs/frontmatter-reference.md` say one spawn can run at a different effort without editing the agent file, so a hard slice gets more thinking without raising the default.
+- `CLAUDE_CODE_OVERLOADED_RETRY_BASE_DELAY_MS` (2.1.292): tracked in the manifest and documented in `docs/settings-reference.md`; cc-settings does not set it.
+
+**Docs only:**
+- `docs/settings-reference.md`: the MCP 2026-07-28 negotiation is the default for local (stdio) servers too.
+- `docs/hooks-reference.md`: `<system-reminder>` tags in hook output are escaped before they reach the model.
+
+**Files changed:**
+- `CLAUDE-FULL.md`
+- `docs/frontmatter-reference.md`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `upstream/claude-code-manifest.json`
+- `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
+
+## [15.53.1] — 2026-10-07
+
+The vanilla comparison runner now keeps its results after a run, so a long comparison is not lost when the temp directory is cleaned up. Skills that call helper scripts under `~/.claude/src` now work inside the eval sandbox.
+
+**Fixed:**
+- `src/scripts/eval-ablate.ts`: copies the eval results and `report.json` to `~/.claude/tmp/eval-ablate-<timestamp>-<suffix>/` before the temp plugin directory is deleted, and prints that path.
+- `src/scripts/eval-ablate.ts`: rejects a repeated `--case` instead of silently keeping only the last one.
+- `src/scripts/eval-ablate.ts`: the with-arm SessionStart hook copies `src/` and `node_modules/zod` into the eval home so skills that call `~/.claude/src/scripts` can run.
+- `src/scripts/eval-ablate.ts`: labels cases whose skill calls `~/.claude/src` scripts, because the eval sandbox blocks writes to `~/.claude`.
+
+## [15.53.0] — 2026-10-06
+
+The vanilla comparison runner now finishes a full run instead of stopping at a $10 default. On a subscription the cost it reports is the API-equivalent figure, not a bill.
+
+**Changed:**
+- `src/scripts/eval-ablate.ts`: no default `--max-cost-usd`. Pass the flag to bound a run. The pre-push gate keeps its $5 ceiling because it runs unattended.
+
+## [15.52.0] — 2026-10-06
+
+The planner agent no longer stops after 25 turns, so a large planning job finishes instead of being cut off. A new runner compares the full cc-settings setup against vanilla Claude Code on the eval cases.
+
+**Changed:**
+- `agents/planner.md`: removed `maxTurns: 25`. Effort stays `xhigh`.
+
+**Added:**
+- `src/scripts/eval-ablate.ts`: runs the eval cases with skills, agents and the standards loaded against vanilla Claude Code and lists the cases where vanilla scores as well (`--tag`, `--case`, `--runs`, `--max-cost-usd`). Not covered: settings.json hooks and permissions.
+
+**Files changed:**
+- `agents/planner.md`, `src/scripts/eval-ablate.ts`, `.claude/AGENTS.md`
+
+## [15.51.0] — 2026-10-06
+
+Synced with Claude Code 2.1.291 and Codex 0.160.1. The new WebSearch refill setting is documented, so a long interactive research session no longer looks capped at 200 searches.
+
+**Adopted:**
+- `CLAUDE_CODE_WEB_SEARCH_REFILLS_PER_HOUR` (Claude Code 2.1.290) tracked in the manifest and `docs/settings-reference.md`. Interactive sessions now refill their WebSearch budget at 100 calls per hour instead of stopping at 200. cc-settings does not set it.
+
+**Docs:**
+- `docs/hooks-reference.md`: `TeammateIdle` no longer fires from a teammate's own subagents or forks (2.1.290).
+
+**Skipped:** the mods and plugin API additions (`tool.check` `agentId` and `ceiling`, `turn.step` `serverToolUses`, `ThemeKey`/`Color`, `plugin validate` `gatingHooks`) wait until `plugins/types/claude-code.d.ts` is regenerated with `/plugin-types`, which only runs interactively. Also skipped: Managed Agents onboarding, `claude attach`/`logs` by name, Chrome no longer enabled from project settings, `pyright` no longer read-only, the `DISABLE_ATTACHMENTS` and `DISABLE_NONESSENTIAL_TRAFFIC` changes (cc-settings sets neither), and fix-only bullets. Codex 0.160.1 is a Windows remote MCP backport with nothing to adopt. No dedupe.
+
+**Files changed:**
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `src/setup.ts`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`
+- `CHANGELOG.md`
+
+## [15.50.0] — 2026-10-06
+
+Four checks from Cursor's [pstack](https://github.com/cursor/plugins/tree/main/pstack) are folded into skills we already ship. The skill count is unchanged. Test reviews now catch tests that would pass even if the code did nothing, perf numbers have to name what limits them, `/poke-holes` proves the one fact a change is safe because of, and `/harvest` turns a repeated correction into a check that fails rather than another prose rule.
+
+**Adopted:**
+- `skills/audit/references/test-audit.md`: a quick screen ("would it pass if every import returned `undefined`?"), with T1 extended to weak assertions, T3 to single-constant pins, and T12 to fixture-only assertions. The `tester` agent inherits these through its authoring gate.
+- `skills/audit/SKILL.md` perf measurement hygiene: alternating A/B runs, a gap inside the spread counts as no difference, and three questions before reporting a number (what limits it, does it break a physical limit, did the work happen).
+- `skills/poke-holes/SKILL.md`: a "Find the one safety fact" step with a 5-level evidence ladder (asserted, cited, walked, ran, reproduced), plus a Safety Fact line in the report.
+- `skills/harvest/SKILL.md`: a "Repeated corrections" route that ranks architecture, then types, then a lint whose error names the fix (a stock message does not count), then a test, with prose last. Each check must be shown failing on a real past mistake.
+
+**Skipped:** pstack's mode skill and playbooks, the principle skills, and its review, swarm, and writing skills. They duplicate AGENTS.md guardrails, `/poke-holes`, `/orchestrate`, and the Voice rules. Its model-routing and Grok bot skills are Cursor-specific.
+
+**Files changed:**
+- `skills/audit/references/test-audit.md`, `skills/audit/SKILL.md`, `skills/poke-holes/SKILL.md`, `skills/harvest/SKILL.md`
+- `evals/harvest-repeated-correction/` (new case, with a fixture repo holding two past corrections and a third offender)
+- `CHANGELOG.md`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts` (version)
+
+## [15.49.0] — 2026-10-05
+
+`security-reviewer` now catches authorization checks that run but do not protect anything. A check with a missing `await`, a boolean result nobody reads, or a check on one id followed by an action on another passed review before, because the check was visibly there.
+
+**Adopted:**
+- `agents/security-reviewer.md` auth-bypass checklist gains "Disconnected checks". For TypeScript apps with many authorized call sites it recommends [`gdp-ts`](https://github.com/rauchg/gdp-ts), which makes a sensitive function demand a typed proof about the exact id it acts on. The gdp-ts library and skill stay per project: the skill only applies to codebases that already use it.
+
+**Files changed:**
+- `agents/security-reviewer.md`
+- `CHANGELOG.md`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts` (version)
+
+## [15.48.2] — 2026-10-05
+
+The Linear setup docs now cover devs who already connected Linear through the claude.ai web or desktop app. That connector also shows up in Claude Code with a single login, so it brings back workspace switching unless it is disabled there.
+
+**Docs:**
+- `docs/settings-reference.md` "Linear: one server per workspace": disable `claude.ai Linear` in `/mcp` (it keeps working in claude.ai chats), change its workspace only from claude.ai, and prefer `/mcp` over `ENABLE_CLAUDEAI_MCP_SERVERS=false`, which hides every connector.
+
+**Files changed:**
+- `docs/settings-reference.md`
+- `CHANGELOG.md`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts` (version)
+
+## [15.48.1] — 2026-10-05
+
+`/share-learning` works again. The team-knowledge repo now accepts changes only through a pull request, so the skill's direct write to `main` failed every time with "Changes must be made through a pull request". It now writes the note to a `knowledge/<name>` branch and opens a PR, and the note reaches other agents once that PR merges.
+
+**Fixed:**
+- `skills/share-learning/SKILL.md` creates a branch, writes or updates the note on it, opens the PR, and reports the PR URL. It also points at the repo's `lint` check, which enforces the 160-character `summary` limit.
+- `docs/knowledge-system.md` and `.claude/AGENTS.md` describe the PR-based write path.
+
+**Files changed:**
+- `skills/share-learning/SKILL.md`
+- `docs/knowledge-system.md`
+- `.claude/AGENTS.md`
+- `CHANGELOG.md`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts` (version)
+
+## [15.48.0] — 2026-10-05
+
+Synced with Claude Code 2.1.289. Codex stays at 0.160.0. Teams behind a gateway that rejects structured outputs now have a documented switch, and the background command time limit is described correctly for interactive sessions.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_STRUCTURED_OUTPUTS` (Claude Code 2.1.288) tracked in the manifest and `docs/settings-reference.md`. On Mantle or a gateway that refuses structured outputs, session titles, memory recall and prompt hooks fail without it. cc-settings does not set it.
+
+**Docs:**
+- `docs/settings-reference.md`: the background command time limit applies only in unattended sessions (`-p`, Agent SDK, CI, cloud) since 2.1.288. Terminal, desktop app and VS Code sessions have no limit.
+- `docs/hooks-reference.md`: `InstructionsLoaded` from a subagent's file access carries `agent_id`, `agent_type` and `effort` (2.1.288).
+
+**Skipped:** mods and plugin API additions (tracked in `docs/plans/mods-migration.md`), LSP `requestTimeout`, the `claude purge` rename, `--max-findings`, per-model `/autocompact`, and fix-only bullets. No dedupe: the new native `rm` and deny-rule fixes overlap `safety-net.ts`, which blocks where they prompt.
+
+**Files changed:**
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `src/setup.ts`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`
+- `CHANGELOG.md`
+
+## [15.47.1] — 2026-10-05
+
+Devs in more than one Linear workspace no longer have to reconnect Claude Code every time they switch projects. `docs/settings-reference.md` now documents the team convention: each dev adds one Linear MCP server per workspace, named `linear-<workspace>`, at user scope. Claude Code keys MCP tokens by server name, so a single shared `linear` entry overwrote its login on every workspace switch. cc-settings still ships no Linear server.
+
+**Files changed:** `docs/settings-reference.md`, version sites.
+
+## [15.47.0] — 2026-10-04
+
+The safety net stops an agent from killing your browser while it stops a dev server. Stopping a test server with `lsof -ti :3100 | xargs kill` took down every Chromium window: without `-sTCP:LISTEN`, lsof also lists the browser that has the page open.
+
+**Added:**
+- Safety-net rule that blocks kills chosen by search: `pkill`, `killall`, `fuser -k`, `kill -1`, and `kill` fed by `pgrep`, `ps`, `pidof`, or `lsof` without `-sTCP:LISTEN`, in a pipe (`| xargs kill`) or a substitution (`kill $(…)`). It also catches them inside `bash -c`.
+- `kill <pid>`, `kill $VAR`, `kill $(cat pidfile)` and `lsof -ti tcp:<port> -sTCP:LISTEN | xargs kill` stay allowed. The block message points to those.
+- Known gap: a search and a kill in separate commands (`for p in $(lsof …); do kill $p; done`) is not linked up.
+
+**Files changed:**
+- src/hooks/safety-net.ts, tests/safety-net.test.ts
+- docs/security-reference.md
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.46.0] — 2026-10-02
+
+Synced with Claude Code 2.1.287 and Codex 0.160.0. An MCP server that stops connecting after the Claude Code update can now be fixed in cc-settings config without the parser dropping the fix.
+
+**Adopted:**
+- `bareElicitationCapability` (Claude Code 2.1.287) in `src/schemas/mcp.ts`. 2.1.287 added URL prompts, such as sign-in, for MCP servers on the 2025-11-25 protocol. A server that no longer connects needs this flag, and the schema now keeps it.
+- `CLAUDE_AX_PREPARK_MS` (2.1.287) tracked in the manifest and `docs/settings-reference.md`.
+
+**Docs:**
+- `docs/settings-reference.md`: `alwaysLoad: false` now defers every tool of a server, the OTel `user_prompt` event carries `prompt_text` that must be masked like `prompt`, and Opus 4.7+ and Fable default to a 1M window on Bedrock, Vertex, Foundry and the Claude apps gateway.
+
+**Skipped:** Claude Mods (tracked in `docs/plans/mods-migration.md`) and the You should know built-in mod. Codex 0.160.0 touches no surface the installer writes.
+
+**Files changed:**
+- src/schemas/mcp.ts, schemas/settings.schema.json, schemas/claude-json.schema.json
+- docs/settings-reference.md
+- upstream/claude-code-manifest.json
+- upstream/codex-manifest.json
+- src/setup.ts, package.json, plugin.json, .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.45.5] — 2026-10-02
+
+The nightly auto-update finishes its install. On macOS it used to stop partway through every update, and the next `setup.sh` then failed with "Claude managed destination collision".
+
+**Fixed:**
+- `registerAutoUpdate` in `src/lib/schedule.ts` writes the plist and skips the `launchctl bootout` and `bootstrap` when setup runs inside the auto-update launchd job (`XPC_SERVICE_NAME` equals the job label). A bootout from inside the job kills the caller and its children, so the install died after copying files and before writing the sentinel. launchd picks up a changed plist at the next login or the next `setup.sh` run from a terminal.
+- `restoreAutoUpdateState` skips the same reload inside the job, so recovery from a failed nightly install is not killed either.
+
+**Changed:**
+- `docs/troubleshooting.md` names this as the usual cause of the collision error.
+
+## [15.45.4] — 2026-10-02
+
+You can now measure what the hooks cost. `bun run hooks:report` shows how often each hook fires per session, and `bun run hooks:bench` times each synchronous hook on a sample payload without touching your real `~/.claude`. Nothing about how hooks run changes.
+
+**Added:**
+- `src/scripts/hook-report.ts` and `src/lib/hook-frequency.ts` count tool calls, prompts, turns and compactions in local transcripts, map them onto the matchers in `config/40-hooks.json`, and list the Stop hook durations Claude Code records. `--bench <file>` multiplies firings by measured latency.
+- `src/scripts/hook-bench.ts` replays each synchronous hook under a throwaway `HOME` and reports p50 and p95 per hook and per event.
+- Managed-files manifest version 17 and Codex runtime manifest version 15 install the three files. Run from an install, which has no `config/`, both scripts read the hooks in `~/.claude/settings.json`.
+- With `--bench`, each tool's calls are priced with that tool's own latency row; a tool with no row is listed as unbenchmarked instead of borrowing another tool's timing.
+
+## [15.45.3] — 2026-10-01
+
+A plugin dropped into `~/.claude/settings.json` now trips the same session-start warning a rogue hook does, and the warning names the entries.
+
+**Fixed:**
+- The settings fingerprint covers `enabledPlugins`, `extraKnownMarketplaces` and `pluginConfigs` as well as `hooks`. The session-start warning says which part changed and lists up to ten plugin entries added, removed or changed since the last setup run. A record from before 15.45.3 is checked for hooks only, with a one-line nudge, until setup rewrites it. On a 15.45.3 or later install, a record without the plugin hash is a mismatch.
+- The `cc-settings` and `fast-jev-compaction` marketplace entries belong to cc-settings: a setup run replaces a changed repo or `sha` under those names. Marketplaces and plugins you add stay. A setup run, including the unattended nightly auto-update, accepts the plugin keys on disk, whether or not a session has shown the warning.
+- The fingerprint does not cover the plugin cache, the plugin store records, or the plugin code itself, which Claude Code fetches from the marketplace's latest commit.
+- Setup re-fingerprints after its own `claude plugin install` step, which rewrites the plugin keys.
+
+## [15.45.2] — 2026-10-01
+
+Reinstalling after `CODEX_HOME` moves no longer leaves duplicate cc-settings hooks in `hooks.json`, and setup stops warning about the `[hooks]` table that Codex keeps for its own trust records.
+
+**Fixed:**
+- `src/lib/codex-plugin.ts` treats a hook group as cc-settings' own when its runner ends in `darkroom/source/src/scripts/codex-hook.ts`, whatever absolute path comes before it. Groups written under an old home are replaced on install and removed on uninstall.
+- The `[hooks]` warning in `config.toml` fires only for hook definitions, not for `[hooks.state]` trust records.
+- The "changed since cc-settings read it" error no longer claims a guarantee the check cannot give; the remaining unlocked window is marked as a known shortcut.
+- A restore over an unmergeable `hooks.json` has a test showing it throws before any write.
+
+**Changed:**
+- The sentinel no longer records `managed_hook_entries_hash`, which nothing read. Existing sentinels that carry it still load, and the next install drops it.
+- `docs/codex.md` says hooks.json is rewritten as 2-space JSON and that rollback restores only cc-settings' groups.
+
+## [15.45.1] — 2026-10-01
+
+Setup no longer fails when another tool, such as Programa, already has hooks in `~/.codex/hooks.json`. cc-settings adds its hooks after the existing ones and removes only its own.
+
+**Fixed:**
+- `src/lib/codex-plugin.ts` merges the Codex hooks into `$CODEX_HOME/hooks.json` by group instead of owning the whole file. Install, uninstall, rollback and failed-install recovery touch only groups whose handlers run the managed `codex-hook.ts`. A file it cannot merge into (symlink, invalid JSON, unexpected shape, a group mixing cc-settings and other handlers) still stops the install before any write.
+- A handler counts as ours only when every command field it has starts with `bun --no-env-file "<managed runner>"`, so wrappers and lookalike paths survive. Light-profile install, uninstall and rollback no longer read `hooks.json`, and rollback checks it before any write. The temp file for a rewrite gets a unique name and is opened with `wx`.
+- The sentinel field is now `managed_hook_entries_hash`. A `managed_hooks_hash` from 15.44.0 is ignored, and the first install after the update cleans up that older whole-file copy by group.
+
+## [15.45.0] — 2026-10-01
+
+Claude now asks clarifying questions through the question tool until every decision that changes the work is settled, and a turn can no longer end with the question stuck in prose. Before, progress could freeze on a decision nobody was asked about.
+
+**Changed:**
+- `AGENTS.md` "Clarify Before Full Work Mode": any non-trivial solution opens with repeated rounds of up to 4 questions until no fork is left, and a mid-task decision is asked through the tool that turn. The "task size alone is not a reason to ask" line is gone.
+- `output-styles/darkroom.md`, `skills/build`, `skills/fix`, `skills/refactor`, `docs/system-overview.md`: say rounds, not one round.
+- Managed-file manifest version 16 ships the new hook.
+
+**Added:**
+- `src/hooks/ask-gate.ts`, wired as a `Stop` hook: blocks a turn that ends in a prose question with no `AskUserQuestion` call and tells Claude to ask through the tool. Fails open on any error.
+- `rules/style.md` "Modern CSS": native `popover`, `:has()`, bounded `@scope`, `text-box: trim-both cap alphabetic`, and `sibling-index()` / `sibling-count()` with a static fallback. From the zeroheight post "New HTML and CSS features you should be using in your design system".
+
+## [15.44.0] — 2026-10-01
+
+Codex now loads the darkroom plugin from the repo's root `plugin.json` and `mcp.json`, the same way it loads any other plugin. Codex ignores hooks in plugins of that format, so `/cc update` now writes the seven Codex hooks to `$CODEX_HOME/hooks.json` as your own hooks. After the update, open `/hooks` in Codex and trust them once more: they run from the new source path under `$CODEX_HOME/darkroom/source`.
+
+**Changed:**
+- `plugin.json` and `mcp.json` at the repo root replace `.codex-plugin/plugin.json`. The Claude plugin keeps `.claude-plugin/` and `.mcp.json`; a test keeps both MCP files on the same servers and URLs.
+- `src/lib/codex-plugin.ts` generates `$CODEX_HOME/hooks.json` from `hooks/hooks.json` with absolute paths to the managed source. The sentinel records `managed_hooks_hash`, and uninstall, rollback and a failed install remove or restore the file by that hash.
+- A full Codex install stops before writing anything when `$CODEX_HOME/hooks.json` exists and is not the one cc-settings wrote. Move those hooks into the `[hooks]` table of `config.toml` or delete the file, then rerun. It also warns when `config.toml` has a `[hooks]` table, because Codex warns about hooks defined in both places.
+- `src/scripts/codex-hook.ts` always runs hooks from its own checkout and refuses a `PLUGIN_ROOT` that points anywhere else. It keeps its data in `$CODEX_HOME/plugins/data/darkroom-cc-settings`, the directory the plugin hooks already used for handoffs and logs.
+- A cloned repo can no longer redirect the Codex hooks to its own code. Bun loads a `.env` from the folder it runs in, and Codex runs hooks in your project, so a `.env` with `PLUGIN_ROOT=.` could have run that repo's scripts outside the sandbox. The generated commands and the hook runner now pass `--no-env-file`.
+- The installer writes `hooks.json` only if nothing appeared there since its ownership check, failure recovery never overwrites a file or symlink at that path, and hook generation refuses an unquoted `$PLUGIN_ROOT` or a source path with quote characters.
+- The Codex runtime manifest moves to version 14, so earlier versions still describe what they installed.
+
+## [15.43.1] — 2026-10-01
+
+PRs finish CI in about 7 minutes instead of 23. Jobs that repeated other jobs or gave the same answer on every OS are gone, and the slow full Windows suite runs after the merge instead of on every PR.
+
+**Changed:**
+- `.github/workflows/ci.yml`: `typecheck` runs on Ubuntu only, since `tsc` output does not depend on the OS.
+- `.github/workflows/ci.yml`: `test` runs on Ubuntu and macOS for PRs and adds Windows only on pushes to main.
+- `.github/workflows/ci.yml`: `install-e2e` runs on Windows for PRs only. On Ubuntu and macOS it repeated files `test` already runs, and on main the full Windows suite covers it.
+- `.claude/AGENTS.md`: the landing note says which Windows checks run on a PR.
+
+## [15.43.0] — 2026-10-01
+
+The adversarial verification skill is now `/poke-holes` instead of `/verify`. Claude Code 2.1.286 tells Claude to run any skill named `verify` right before each code commit, and ours starts a panel of three or four agents, so every commit would have paid for one. Say "poke holes in this", "double check this", or "are you sure?" to reach it as before. Also syncs with Claude Code 2.1.286 and Codex 0.159.3.
+
+**Adopted:**
+- Claude Code 2.1.286 pre-commit `verify` guidance: `skills/verify/` is renamed `skills/poke-holes/`, and its eval is renamed `evals/poke-holes-adversarial-panel/`. `verify` joins `TOMBSTONE_SKILLS` in `src/lib/managed-skills.ts`, so setup removes the old folder from `~/.claude/skills/`. The Claude managed-file manifest moves to version 15 and the Codex runtime manifest to version 13, so earlier versions still describe what they installed. The skill no longer lists "verify" as a trigger word.
+- References in `README.md`, `MANUAL.md`, `docs/skills.md`, `docs/frontmatter-reference.md`, `docs/claude-vs-codex.md`, `docs/skill-authoring.md`, and the `adhd`, `audit`, `harvest`, `qa`, and `review` skills now name `poke-holes`.
+
+**Docs-only:**
+- `docs/settings-reference.md`: the `CLAUDE_CODE_MAX_RETRIES` row notes that from 2.1.286 one retry limit covers a whole model call, at most 14 requests with the defaults.
+
+**Skipped:** `--bare` scoping, the worktree-subagent double CLAUDE.md load fix, task tools in foreground subagents, permission-prompt and list UI changes, secret-redaction, MCP, auth, Remote Control, cloud, VS Code and Claude Tag fixes, and npm plugin source refusal. Codex 0.159.3 adds account security reminders only.
+
+## [15.42.6] — 2026-10-01
+
+The Swift animation rule covers three cases it left open, taken from Paul Hudson's MIT-licensed SwiftUI agent skill (`twostraws/swiftui-agent-skill`). The rest of that skill is a full SwiftUI review checklist; install it as its own plugin rather than copying it here.
+
+**Changed:**
+- `rules/swift-animation.md`: on iOS 26 and macOS 26 or later, use the `@Animatable` macro (with `@AnimatableIgnored` for values that cannot interpolate) instead of a hand-written `animatableData`.
+- `rules/swift-animation.md`: chain one animation after another through the `completion:` closure of `withAnimation`, not a delayed second call.
+- `rules/swift-animation.md`: flag the deprecated `.animation(_:)` that has neither a `value:` nor a body closure.
+
+## [15.42.5] — 2026-10-01
+
+The daily auto-update kept skipping on developer machines. Any untracked file, uncommitted edit, feature branch, or local commit in the cc-settings checkout stopped the run, so a maintainer with one stray folder sat three releases behind without a notification. The job already installs from a fresh isolated clone of official `main`, so the checkout's state never reached the install; it only blocked it.
+
+**Fixed:**
+- `src/scripts/auto-update.ts` drops the dirty-tree, staged-index, and history-ancestry gates on the enrolled checkout, along with the `skipped-dirty` and `blocked-history` statuses. The decision to run setup is now only whether official `main` carries a newer version than the installed one (`computeDrift`), so an install from a local branch at or above main's version is never downgraded.
+- The origin allowlist, the `CC_EXPECTED_REPO` path pin, the `.git/config` safety check, and the isolated, config-free clone are unchanged. `SECURITY.md` and `docs/install.md` describe the result.
+- `tests/auto-update-script.test.ts` proves a modified, staged, untracked, or feature-branch checkout still installs and is left byte-for-byte untouched. The two tests that asserted the removed gates are deleted as an intentional contract change.
+
+Reaches an existing install on the next `bash setup.sh`.
+
+## [15.42.4] — 2026-09-30
+
+The `knowledge-hint` hook no longer shows notes from one project while you work in another. Team-knowledge notes can now carry a `scope` (the repo names they apply to) and a `verified` date. The `/share-learning` skill now writes tags that match what an agent actually types and opens each note with its rule.
+
+**Changed:**
+- `src/lib/knowledge-index.ts`: `parseIndexMarkdown` reads an optional ` · scope: a, b` suffix, placed before the tags. `scope` is optional in the cache schema, so existing caches still validate.
+- `src/lib/knowledge-hint.ts`: `rankNotes` drops a scoped note unless the current repo is in its scope. It resolves the repo only when a scoped note would otherwise be shown. `repoNamesFrom` derives the names from the origin remote and the checkout folder.
+- `src/hooks/knowledge-hint.ts`: finds the repo from the payload's `cwd` with a 2 s bounded git call. Outside a git repo, scoped notes stay hidden.
+- `src/schemas/knowledge.ts`, `src/lib/lint-knowledge.ts`: `scope` must list repo names. `verified` must be a real `YYYY-MM-DD` date and not in the future, and it warns after 180 days. `schemas/knowledge.schema.json` is regenerated.
+- `skills/share-learning/SKILL.md`: guidance for identifier tags, `scope`, and `verified`. The body opens with the rule.
+- `docs/knowledge-system.md`: documents the new fields and the index line format.
+- Tests for the scope parser, the ranker, `repoNamesFrom`, a hook run inside and outside a repo, and the new lint rules.
+
+## [15.42.3] — 2026-09-30
+
+The status report no longer flags `ENABLE_PROMPT_CACHING_1H` as unset. v15.2.0 retired that variable in favor of the `promptCacheTtl` settings keys and v15.3.0 removes it from existing installs, so every status run since then showed one false "unset" warning.
+
+**Changed:**
+- `src/lib/status.ts`: `EXPECTED_ENV_VARS` drops `ENABLE_PROMPT_CACHING_1H`.
+- `docs/troubleshooting.md`: what "Claude managed destination collision: src/node_modules" means (an install killed after copying files and before writing the sentinel) and how to recover.
+- `docs/cache-strategy.md`: the TTL section names the `promptCacheTtl` and `subagentPromptCacheTtl` settings keys cc-settings sets, not the retired env var.
+
+## [15.42.2] — 2026-09-30
+
+The review-queue hook now has a test for the case where HEAD moves without a Claude commit, such as a pulled-down merge. Before, only the pure function was tested, so a broken hook wiring would have passed CI. Follows up the tests audit from 2026-09-28, which is now committed with the other audits.
+
+**Changed:**
+- `tests/review-queue.test.ts`: runs the hook against a temp git repo, commits between two `git pull` calls, and checks the queue drains to 0.
+- `docs/audits/tests-audit-2026-09-28.md`: added.
+
+## [15.42.1] — 2026-09-30
+
+Notes posted with `/share-learning` now include the one-line `summary` that team-knowledge requires. Without it, every new note failed the team-knowledge lint and showed up in `INDEX.md` as a cut-off first body line, which is all the `knowledge-hint` hook shows an agent before it decides to open the note. Closes #170.
+
+**Changed:**
+- `skills/share-learning/SKILL.md`: the note template and frontmatter list include `summary` (one line, at most 160 characters, no `·`, `"` or `\`, states the rule rather than the story). The body opens with the rule. The template assigns the note with a quoted heredoc, so quotes, backticks, and `$` in the note stay literal.
+- `src/schemas/knowledge.ts`: `summary` is required, with the same limits team-knowledge's lint enforces; `schemas/knowledge.schema.json` is regenerated.
+- `src/scripts/new-note.ts`: scaffolds an empty `summary`, which fails lint until it is filled in.
+- `docs/knowledge-system.md`: the frontmatter contract documents `summary`.
+- `tests/lint-knowledge.test.ts`: cases for a missing, empty, too-long, and `·`-containing summary; the existing fixtures carry a summary so each case checks only its own rule.
+
+## [15.42.0] — 2026-09-30
+
+Adds the scroll, WebGL, and React Compiler rules from the harbor website findings (#168). Agents on harbor kept shipping these mistakes and a person had to catch them in review. Each rule is one line; the linked team-knowledge note holds the evidence.
+
+**Added:**
+- `rules/react-perf.md` "Frame loops": write `transform`/`opacity` on the moving node instead of a custom property that feeds layout; gate infinite animations and per-frame writes on visibility; a "can't be avoided" comment on a layout read is a claim to test, not a waiver; no `toDataURL()` images in styles.
+- `profiles/webgl.md`: Lenis runs at Tempus order -1 and scroll readers run after it; WebGL objects follow a DOM box; no hamo measurement hooks inside `WebGLTunnel` children; values that must cancel share scroll, rounding, and event. The Tempus and vanilla Lenis examples now use the current `order` API (lower runs first). The old example said higher runs first.
+- `rules/react.md`: a ref in a `useEffect` dependency array means the effect should not exist; destructure refs carried in an object to `*Ref` names; breakpoint visibility through `desktop-only` / `mobile-only`, not `useMediaQuery`.
+- `rules/style.md`: Satus routes compose in `page.tsx` as server components; strip `<filter>` from Figma SVG exports.
+- `agents/reviewer.md`: three questions on scroll-driven writes, DOM boxes for WebGL, and Tempus order.
+
+## [15.41.1] — 2026-09-30
+
+`.claude/AGENTS.md` now names `ci-gate` as the only check a cc-settings PR needs before merging. The org ruleset "Default branch gate" requires it on every repo's default branch; `darky/review` is not required by any ruleset and can stay pending without blocking the merge.
+
+**Changed:**
+- `.claude/AGENTS.md`: the Landing line.
+- `skills/cc/SKILL.md`: the sync-mode landing note.
+- `upstream/codex-manifest.json`: synced to Codex 0.159.2. Nothing to adopt; 0.159.1 makes GPT-6.1 Sol the catalog default, which the bridge already pins, and 0.159.2 is a Windows-only fix.
+
+## [15.41.0] — 2026-09-29
+
+Your own global instructions now have a home that survives updates: `~/.claude/personal.md`. The installed `~/.claude/CLAUDE.md` imports it last, so it loads in every Claude Code session and subagent. Setup creates it once and never replaces, backs up, rolls back, or removes it. Edits to `~/.claude/CLAUDE.md` itself are still saved to `backups/` and replaced on the next install; the warning and the auto-update log now point at `personal.md`. Codex does not read the file.
+
+**Added:**
+- `CLAUDE-FULL.md`: a closing "Personal instructions" section with `@personal.md`.
+- `src/lib/claude-install-ownership.ts`: `ensurePersonalInstructionsFile` writes a short stub with an exclusive create, only on a full install, and the file is never recorded in `managed_files`.
+- `tests/install-e2e.test.ts`: fresh install creates the stub; an edit survives reinstall with no backup; rollback and uninstall leave it.
+
+**Docs:**
+- `docs/install.md`: a row for `personal.md`; the `CLAUDE.md` row describes the backup instead of the collision stop it had before 15.39.3; adding a TypeSafe key later uses `claude plugin configure --values-stdin`.
+- `README.md`: "What it leaves alone" names `personal.md`.
+
+**Files changed:**
+- CLAUDE-FULL.md
+- README.md
+- docs/install.md
+- src/lib/claude-install-ownership.ts
+- src/scripts/auto-update.ts
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- tests/install-e2e.test.ts
+
+## [15.40.1] — 2026-09-29
+
+The Windows test job passes again, and the docs say that main takes changes only through a PR.
+
+**Fixed:**
+- `tests/claude-bridge.test.ts`: the fake `claude` gets a `.cmd` entry point through `prependTestPath`, so Windows finds it on PATH, and its log paths go through `gitBashPath`.
+- `tests/delegation-detector.test.ts`: sets `USERPROFILE` next to `HOME`, because `homedir()` reads `USERPROFILE` on Windows and the settings-env test never saw its fixture.
+- `tests/plugin-key-stdin.test.ts`: runs on Windows too, with the same helpers, instead of skipping there.
+
+**Docs:**
+- `.claude/AGENTS.md`: main is protected; changes land through a PR that passes `ci-gate` and `darky/review`, merged by hand.
+- `skills/cc/SKILL.md`: the sync mode no longer claims it never opens a PR.
+
+**Files changed:**
+- .claude/AGENTS.md
+- skills/cc/SKILL.md
+- tests/claude-bridge.test.ts
+- tests/delegation-detector.test.ts
+- tests/plugin-key-stdin.test.ts
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+
+## [15.40.0] — 2026-09-29
+
+Sync with Claude Code 2.1.285 and Codex 0.159.0. The TypeSafe key no longer appears in process arguments during setup.
+
+**Adopted:**
+
+- **The key reaches the fast-jev plugin on stdin** (Claude Code 2.1.285, `src/lib/claude-install-settings.ts`). Setup stores it with `claude plugin configure fast-jev-compaction@fast-jev-compaction --values-stdin` instead of `claude plugin install … --config apiKey=<key>`. Other accounts on a machine can read process arguments through `ps`, so the old form briefly exposed the key. On a Claude Code older than 2.1.285 the configure call fails and setup falls back to the argument form with a warning.
+- **`allowedProviders` managed setting** (2.1.285, `src/schemas/settings.ts`). Limits which API providers a machine may use. Added to the strict schema so a managed-settings file that sets it still parses.
+- **`CLAUDE_CODE_DISABLE_WEB_FETCH` and `CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES`** (2.1.285). Tracked and documented; cc-settings sets neither.
+- **Status line spend fields** (2.1.284, `src/hooks/statusline.ts`). `rate_limits.spend_limit` gains `used_usd`, `limit_usd`, and `period` in the payload type. No segment displays them yet.
+
+**Docs:**
+
+- Ultracode is its own `/effort` toggle that stays on at any effort level and does not force `xhigh` (2.1.284). `CLAUDE-FULL.md` and `docs/settings-reference.md` say so.
+- Sessions with no configured permission mode start in auto mode (2.1.284, 2.1.285). cc-settings sets no `defaultMode`, so installs get auto mode.
+- Background Bash commands stop at their timeout, 30 minutes by default and 2 hours at most (2.1.285).
+- `/cc sync` opens a PR instead of pushing to main, which now requires the `ci-gate` workflow and the `darky/review` check.
+
+**Codex:** nothing to adopt beyond GPT-6.1 Sol, already pinned in 15.39.5. `tui.prompt_suggestions` and the bundled `plugin-creator` skill were removed upstream; cc-settings used neither.
+
+**Files changed:**
+
+- `src/lib/claude-install-settings.ts`
+- `tests/plugin-key-stdin.test.ts`
+- `src/schemas/settings.ts`
+- `src/hooks/statusline.ts`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `docs/settings-reference.md`
+- `CLAUDE-FULL.md`
+- `skills/cc/SKILL.md`
+
+## [15.39.5] — 2026-09-29
+
+Codex execution work now runs on GPT-6.1 Sol, which Codex CLI 0.159.0 lists as its latest workhorse model and calls GPT-6 Sol "previous generation".
+
+- The bridge's `exec` default is `gpt-6.1-sol`. `review` and `ask` stay on `gpt-6-astra`. `--model` and `CODEX_EXEC_MODEL` still override it.
+- Native Codex agents mapped from the Sonnet tier (implementer, explore, reviewer, and the other execution roles) are written with `gpt-6.1-sol`. Haiku-tier agents stay on `gpt-6-luna`.
+- Existing installs pick up the new agent model on the next `setup.sh` run or auto-update.
+
+## [15.39.4] — 2026-09-29
+
+Contributors without a working Codex CLI can commit again. The "Codex command policy" and "Codex CLI package acceptance" tests in `tests/plugin-manifest.test.ts` ran whenever something named `codex` was on PATH, including proxy shims such as cmux's, which answer with exit 127. Those tests sit in the pre-commit invariants hook, so the failure blocked every commit.
+
+- Both blocks now skip unless `codex --version` runs and prints a real Codex banner (`codexCliAvailable`).
+
+## [15.39.3] — 2026-09-29
+
+`setup.sh` no longer stops when `~/.claude/CLAUDE.md` or `~/.claude/AGENTS.md` differs from what cc-settings installed. It saves the current file to `~/.claude/backups/<name>.user-edit-<timestamp>`, prints that path, and installs the new version. Before, a hand edit, a deleted file, or an install from a clone with uncommitted changes to `CLAUDE-FULL.md` failed with "destination collision" or "missing or modified", and the only way out was restoring bytes by hand.
+
+- Only these two instruction files get this treatment. Hooks, scripts, agents, and generated ownership files still fail closed when modified.
+- `--migrate-only`, uninstall, and rollback keep the strict check.
+- The daily auto-update checks for new backups after setup and names the replaced file in its desktop notification, since setup's own warning only reaches the log.
+- A first install over a personal `~/.claude/CLAUDE.md` or `AGENTS.md` now backs it up and installs, where it used to stop with "destination collision".
+
+## [15.39.2] — 2026-09-29
+
+`~/.claude/settings.json` is readable only by its owner once it holds a TypeSafe key, as `docs/install.md` already promised. Since 15.21.3 the installer wrote the key into a file every account on the Mac could read (mode 644), because each settings write went through a fresh temp file created with default permissions and renamed over the target.
+
+- `atomicWriteString` keeps the target's existing permission bits on a rewrite, and takes an explicit `mode` for callers that need one. A new file still gets the default.
+- Writing the key sets the file to 600. A reinstall on a machine whose key is already in the settings `env` block tightens the file too, so existing installs are fixed by the next `setup.sh` run or auto-update.
+- Setup tightens `settings.json` to 600 after the `claude plugin` step, whenever the file holds the key and whatever source the key came from, so a key exported in the shell or injected by a Claude Code session is covered too.
+- The other copies of the key are owner-only as well: `.cc-settings-baseline.json` (which stores the merged settings), the `backup-*.tar.gz` archives, and the `backups/` directory. Setup also tightens a `backups/` directory and archives left at 755 and 644 by earlier installs.
+- Exposure was limited to Macs with more than one account: a single-user machine has no other account to read the file. Keys do not need rotating unless the machine is shared.
+
+## [15.39.1] — 2026-09-29
+
+The Tech Stack in `AGENTS.md` now says what it always meant: its entries are defaults, not mandates. A project's config and lockfile win, and new work that departs from a default says why in the PR. Taken from Martin Fowler's [Sensible Default](https://martinfowler.com/bliki/SensibleDefault.html): "do these practices, or do better, and be prepared to explain why."
+
+- The Bun-only rule names its real exceptions. `npx react-doctor` and `npx deslop` join `npx expo`, since `/proof-of-work` and the permission allowlist already run them through `npx` to resolve the lockfile-pinned binary.
+- `/ship` per-commit validation runs `bunx tsc --noEmit && bunx biome check .` instead of `npx tsc`.
+- `/audit` calls the deslop probe as `npx deslop`, matching `/proof-of-work` and the allowlist, instead of `npx deslop-cli`.
+- To stay inside the `AGENTS.md` byte ceiling, the `SHORTCUT:` paragraph drops its two tooling pointers (`bun run lint:shortcuts` and `/audit debt`). CI still enforces the linter, and the `/audit` description still lists the debt ledger.
+
+## [15.39.0] — 2026-09-29
+
+`/audit` can now run every vertical at once. Say "full audit", "audit everything", or name two or more areas ("performance, code quality, and security") and it runs every applicable mode in parallel and ships one merged, ranked report. Before this, the router picked one mode per run, and security was easy to miss because Codebase mode does not hunt for it.
+
+- **Full mode.** The coordinator maps the repo once, then selects modes from evidence. Codebase, Threat-Model, and Debt always run. Performance runs when something can be measured, Tests when a suite exists, Docs when docs exist beyond a README, SEO for public websites, and Motion when an animation library is installed. Process runs only on request. It asks one question round up front (the mode list plus the threat-model and performance questions) so no reader stops mid-run.
+- **One reader per mode, launched together.** Threat-Model runs on `security-reviewer`. Readers return findings and write nothing; the coordinator deduplicates across modes, ranks on one scale, and runs the cross-model and team-knowledge passes once.
+- **One report.** `docs/audits/full-audit-YYYY-MM-DD.md` opens with a coverage table (ran, skipped with the reason, or available), then the merged summary, the first 10 to act on with their executor, and one section per mode.
+- The `/audit` description gains the "full audit" trigger and stays inside the description byte budget. MANUAL now lists Full and Tests among the audit modes.
+- New eval case: `evals/audit-full-coverage`.
+
+## [15.38.1] — 2026-09-29
+
+The README now teaches day-to-day use, not only installation. New team members get a short path: install, run one read-only task, then learn the daily loop.
+
+- **The daily loop.** One table covering understand, plan, fix, build, check, prove, ship, and pause, with what to say, the skill to pin, and what comes back.
+- **Set up the projects you work in.** `/dr-init` for new projects, a project `AGENTS.md` for project instructions, `/cc migrate` for repositories that still have a `CLAUDE.md`, and `/project` for issue-driven work.
+- **Habits that change results.** Seven habits: outcome-first prompts, one task per session, handoff and checkpoint, effort, second opinions, the statusline, and inspecting before guessing.
+- **Make it better for everyone.** `/share-learning`, `/harvest`, `/retro`, and the short contributor checklist.
+- **Keep it current.** Update, auto-update, status, and rollback in one place.
+
+## [15.38.0] — 2026-09-29
+
+`/autoresearch` now tells you whether a prompt change generalizes, instead of only whether it scores better on the inputs it was tuned against. Adapted from Anthropic's eval hill-climbing guidance:
+
+- **Held-out inputs.** `RESEARCH.md` gains a `## Held-out Inputs` section. The loop scores it every round but never reads its outputs. A round is kept only when the held-out score also rises; a change that improves only the training inputs reverts with status `overfit`. `/autoresearch` derives 2 held-out inputs at setup when a seed has none, which is always the case for a `/harvest` seed.
+- **Measured noise floor.** The baseline now runs twice on the unchanged skill. If the two runs differ by `min_improvement` or more, the loop doubles `samples` once, then raises `min_improvement` to the measured noise, so a round cannot be kept on judge randomness. A baseline at 0.95 or higher stops setup and asks for harder inputs, because the eval has no room to show an improvement.
+- **Judge check and baseline review.** The baseline re-scores each training output and lists checklist items whose verdict flips on identical output, plus inputs that score 0 on every sample. Before round 1 the user sees one scored output with these lists and confirms the judge matches their own reading.
+- **Stall review.** After `stall_rounds` (default 3) rounds without a kept change, the loop sorts the remaining failures into ambiguous inputs, checklist bugs, harness errors and real skill failures. It fixes the first three in `RESEARCH.md`, re-measures the baseline, and aims later mutations only at real failures.
+
+The final report leads with the held-out score against the baseline, and calls a gain no larger than the noise floor "no measurable change". `lint:research` warns on a missing held-out section, errors on an empty one, and checks `stall_rounds` is numeric. New eval case: `evals/autoresearch-adds-held-out`.
+
+`evals/harvest-workflow` now passes a run where `/harvest` finds no evidence of the described session, writes nothing, and labels its draft as unverified. That is correct behavior in the eval's empty sandbox, and the grader had been failing it on every pre-push run.
+
+## [15.37.4] — 2026-09-29
+
+Nothing changes for users. codebase-memory-mcp is parked, and the disabled placeholder engine that stood in for it is gone, along with the pinned-binary download path only it used. No install ever used either.
+
+**Removed:**
+- The `codebase-memory` engine descriptor, the `download` install method, `src/lib/engine-pin.ts`, and the session-start engine-pin check in `verify-hooks`. `download-verify.ts` stays; `pinned-tools.ts` uses it for `tldr-code`.
+- Managed-file manifest versions move to 14 (Claude) and 12 (Codex runtime) because `engine-pin.ts` is no longer shipped. Older versions still list it, so ownership and rollback of earlier installs are unchanged.
+
+**Evaluation notes for codebase-memory-mcp v0.11.0 (2026-09-29), so the next evaluation starts from data:**
+- It cannot back the `tldr` server. Its 17 tool names differ from the 18 `mcp__tldr__*` names the contract fixes.
+- Release assets are archives. The binary is about 303 MB with bundled embeddings.
+- On cc-settings it indexed 7,432 nodes in 13.6 s. It found 3 of 4 real callers of `resolveEngine` (it missed a call made through a module object) and 2 of 2 for `downloadAndVerify`.
+- MCP `initialize` took 10-24 s with a cold shared daemon (about 80% of one core) and about 4 s with a warm one. The idle daemon uses about 15 MB. Tool schemas total 17 KB.
+- The daemon serves a web UI on localhost:9749 by default.
+- Its own `install` command writes hooks and instructions into every agent config, so cc-settings must never run it.
+- Parked for the startup costs above.
+
+## [15.37.3] — 2026-09-29
+
+The `tldr` code-intelligence tools work again. Every `mcp__tldr__*` call was returning "Could not build a TypeScript program" on every install.
+
+**Fixed:**
+- The native-ts engine loads the TypeScript compiler at runtime, but `typescript` was only a devDependency, and the installer runs `bun install --production`, which skips those. `typescript` is now a regular dependency. The installer removes its `tsc`/`tsserver` bin links after installing, since the runtime integrity check rejects symlinks and nothing runs those CLIs.
+- A new test fails when any shipped `src/` file imports a package that isn't in `dependencies`, so the same gap can't come back with a different package.
+
+## [15.37.2] — 2026-09-29
+
+`./setup.sh` works again on installs made before 15.37.0. It failed with "missing: skills/audit/references/test-audit.md".
+
+**Fixed:**
+- 15.37.0 added the `/audit tests` checklist to install manifests that had already shipped, so the installer treated the file as owned but missing on every existing install. The file now lives in a new manifest version (Claude v13, Codex runtime v11), and the shipped versions are back to exactly what 15.36.1 installed.
+- A test pins a hash of every shipped manifest version, so adding a file to one fails in CI instead of on a user's machine.
+
+## [15.37.1] — 2026-09-28
+
+The first `/audit tests` run on cc-settings: two coverage gaps closed and 14 low-value tests removed.
+
+**Added:**
+- A test that runs `installSettings` against a temp HOME with a user hook carrying a field the schema does not model, and checks that verify-hooks still reports a match. It fails if the installer fingerprints the zod-stripped settings instead of the raw ones.
+- A test that runs `runClaudePrint` against a fake `claude` binary and checks the prompt arrives on stdin and never on argv.
+
+**Removed:**
+- `tests/setup.test.ts` (tested only zod) and `tests/context-continuity-gaps.test.ts` (duplicated `session-continuity.test.ts`; its two unique assertions moved there).
+- Duplicate or vacuous cases in `scripts-smoke`, `light-profile`, `plugin-manifest`, `codex`, `version-delta`, `install-e2e`, `permissions-check`, `team-knowledge`, `plugin-key-redaction`, and `profile-schema`, each folded into the test that owns the behavior where it asserted anything unique.
+- The `export` on `LATER_KEY_COMMAND`, which only a removed test used.
+
+**Changed:**
+- `/audit tests` requires the covering test's assertion to be quoted in the evidence record, not just its line number. Two of the first run's findings cited covering tests that did not assert the same thing.
+
+## [15.37.0] — 2026-09-28
+
+`/audit tests` finds tests that cost maintenance without guarding behavior, and the `tester` agent checks every new test against the same list before writing it.
+
+**Added:**
+- `/audit tests`, a ninth audit mode. It hunts 15 junk-test patterns (T1–T15: assertion-free probes, self-computed expectations, mocks that return the asserted answer, source greps, copied inventories, test-only exports, and more), keeps anything that guards a real contract, and requires a filled evidence record before it recommends deleting a test. Adapted from openclaw's `test-audit` skill.
+- `skills/audit/references/test-audit.md` holds the patterns, the retention bar, the evidence record, and a four-question authoring gate.
+- Eval case `audit-tests-junk`.
+
+**Changed:**
+- The `tester` agent runs the four-question authoring gate and the T1–T15 check before adding or changing a test.
+
+## [15.36.1] — 2026-09-28
+
+Agents stop writing `! bash` handoff scripts for the cleanup commands 15.36.0 allowed.
+
+**Changed:**
+- `CLAUDE.md` Autonomy tells agents to run `git reset --hard`, `git clean -f`, `git worktree remove --force`, `git push --force-with-lease` to a feature branch, `gh api` DELETE, and `gh release delete` themselves. "Always ask" now covers a plain `--force` push or any force-push to `main` or `master`, and the handoff example list names only commands that stay denied.
+- The Codex instructions say the same for Codex, and that `git push` and `gh api` ask for approval there instead of going to a handoff script.
+- `docs/settings-reference.md` no longer lists the allowed cleanup commands as denied.
+
+## [15.36.0] — 2026-09-28
+
+Subagents now run on Claude Sonnet 5.5, and agents run routine git and GitHub cleanup themselves instead of handing it back as a `! bash` script.
+
+**Changed:**
+- The execution tier is `claude-sonnet-5-5`: `CLAUDE_CODE_SUBAGENT_MODEL` and the `implementer`, `tester`, `scaffolder`, `explore`, `deslopper`, `reviewer`, and `codex-verifier` agents. It costs the same as Sonnet 5 and is faster with fewer tokens per task. The full ID is pinned because Claude Code 2.1.284 still resolves `sonnet` to Sonnet 5. `planner`, `maestro`, and `security-reviewer` stay on Opus 5.5, which is stronger at review-shaped judgment.
+- The quota steer and the Fable model-switch guard point to `/model claude-sonnet-5-5` for routine turns, and the skill evals and `/autoresearch` default to it. `bun run tokens` prices it, and the Codex installer maps it to `gpt-6-sol`.
+- `git push --force-with-lease`, `git reset --hard`, `git clean -f`, `git worktree remove --force`, `gh api` DELETE calls, and `gh release delete` are allowed for Claude. Codex allows the reset, clean, worktree, and release commands; force-with-lease and `gh api` still prompt, because its prefix rules cannot see a push destination or an API endpoint. Plain `--force` stays denied.
+- The safety-net hook blocks force-with-lease toward `main` or `master`, whether named (`main`, `HEAD:refs/heads/main`) or implied by pushing from that branch, and blocks `gh api` DELETE on a repository root endpoint, which would delete the repo.
+- The installer prunes the retired deny rules from `deny` on existing installs. The same rule in a user's `ask` or `allow` list, or a user's own variant, is kept.
+
+## [15.35.0] — 2026-09-26
+
+The advisor is on by default: every session and subagent can consult Fable 5.1 at decision points, and the agents that do long work are told when to ask.
+
+**Added:**
+- `"advisorModel": "claude-fable-5-1"` in `config/10-core.json`. Fable 5.1 is the only advisor every model we run accepts: the Fable 5.1 default, the Opus 5.5 agents, and the Sonnet 5 subagents. The full ID is pinned because a Fable 5.1 session silently drops a Fable 5 advisor, and the `fable` alias follows Claude Code's default.
+- `implementer`, `tester`, and `maestro` consult the advisor, when it is available, before committing to an approach, after a second failed attempt, and before reporting done. Claude Code has no setting to force advisor calls, so the prompts ask for them.
+
+**Changed:**
+- `docs/agent-models.md` "Advisor" matches the current docs: an Opus 5.5 pairing row, `/advisor` working in `-p` and the Agent SDK since v2.1.260, what happens to an advisor the main model can't pair with, the flag-fetch requirement, and how to turn it off when quota is tight.
+
+**Files changed:**
+- `config/10-core.json`
+- `agents/implementer.md`, `agents/tester.md`, `agents/maestro.md`
+- `docs/agent-models.md`, `docs/settings-reference.md`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`
+
+## [15.34.0] — 2026-09-26
+
+Sync with Claude Code v2.1.283 and Codex v0.157.1, plus a fix for permission deny rules that never matched.
+
+**Adopted:**
+- `maxProseWidth` (Claude Code 2.1.282) in `src/schemas/settings.ts` and `docs/settings-reference.md`. It caps prose width in wide terminals. cc-settings leaves it unset.
+- `attribution: false` (2.1.281) in the settings schema. `config/10-core.json` keeps the object form, because older CLI versions skip a settings file that holds the boolean.
+- Managed settings `availableModelsMatch` and `deniedModels` (2.1.283) and `allowClaudeInChromeWithManagedMcp` (2.1.282) in the settings schema, so managed files that use them still pass the strict parse.
+- `CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT` (2.1.281) in the manifest and the env table.
+
+**Fixed:**
+- 45 permission deny rules in `config/30-permissions.json` never fired. Claude Code reads a rule that mixes an inner `*` with a trailing `:*` as a literal prefix, so `curl` uploads, `curl -o` downloads, `cp`/`mv` of secret directories and shell rc files, `find -exec`, and `rm -rf $HOME/*` passed the deny list. They now end in a bare `*`. `docs/settings-reference.md` and the `permissions-check.ts` comments match.
+- Five places still said Codex execution runs on GPT-5.6 Sol after 15.29.0 moved it to GPT-6 Sol. Codex 0.156.1 now ships GPT-6 Sol and Luna.
+
+**Docs:**
+- The native AGENTS.md read now also works on Bedrock, Vertex, Foundry, LLM gateways, and with telemetry off (2.1.281). `docs/settings-reference.md` and `/cc migrate` no longer list those as blockers.
+- `CLAUDE_CODE_AUTO_MODE_SERVER` now also applies on a direct API connection (2.1.281). `CLAUDE_CODE_GATEWAY_HINT_HEADERS` now also sends `x-claude-code-prompt-id` (2.1.283).
+- `MANUAL.md` mentions `/doctor prompt-audit` (2.1.283).
+
+**Files changed:**
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `config/30-permissions.json`
+- `src/lib/permissions-check.ts`
+- `src/lib/codex.ts`
+- `src/lib/codex-install-state.ts`
+- `docs/settings-reference.md`
+- `docs/codex-bridge.md`
+- `codex/AGENTS.append.md`
+- `CLAUDE-FULL.md`
+- `MANUAL.md`
+- `skills/cc/SKILL.md`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`
+
+## [15.33.0] — 2026-09-24
+
+Every skill now has an eval case, a push runs the evals for the skills it changes, and a repeat install spends about 5 seconds on plugins instead of 17.
+
+**Added:**
+- `evals/`: 41 `claude plugin eval` cases covering all 38 skills, each tagged with the skill it exercises.
+- `bun src/scripts/eval-changed.ts` and a repo-local pre-push hook: before `git push`, run the cases for skills changed since upstream (one run each, capped at $5), and block on a failing case or a changed skill with no case. A missing CLI, auth failure, or cost ceiling warns instead of blocking.
+- `lint:skills` fails when a skill has no eval case.
+- Installer progress lines for each plugin step, the time taken by any step over 2 seconds, and a line before each dependency install.
+
+**Changed:**
+- The installer checks installed plugins and registered marketplaces first and skips the ones already current. If that check fails, it runs every step as before.
+- `/codex` does the delegated task itself when the bridge is unavailable, instead of asking which fallback to use.
+- `/autoresearch`'s standalone Codex section now tells Claude Code to continue. The old "Stop here in standalone Codex" opener sometimes made Claude stop, or treat the skill as injected text.
+
+**Fixed:**
+- Plugin updates never reached existing installs: `claude plugin install` reports success on an installed plugin without upgrading it. The installer now runs `claude plugin update` for an installed plugin that is behind.
+
+## [15.32.0] — 2026-09-24
+
+Agents now default to E2E tests and stop writing unit tests for code that already exists.
+
+**Added:**
+- AGENTS.md "E2E-First Testing": prefer E2E tests as the only tests, end each with a verifiable, repeatable artifact, never write unit tests after the code, and write down the failure modes before the code when a system must be tested in isolation.
+
+**Changed:**
+- `tester` agent defaults to E2E tests that save an artifact, and drops unit-test-first guidance and line-coverage targets.
+- `plan-ceo-review` test review checks for E2E coverage and artifacts instead of a unit-heavy test pyramid.
+- `plan-feature` defaults its testing requirement to E2E tests with artifacts instead of unit and integration tests.
+- AGENTS.md drops four lines that repeated other sections, to stay under its 16 KiB always-loaded budget.
+
+**Removed:**
+- Four low-signal test blocks: the `platform` checks in `lib-helpers.test.ts`, two schema restatements in `setup.test.ts`, and a passthrough check in `status.test.ts`. An audit of all 92 test files found the rest guard real hook, permission, redaction, and regression behavior.
+
+**Fixed:**
+- README and docs index links pointed at a `CLAUDE.md` that no longer exists; they point at `CLAUDE-FULL.md`.
+
+## [15.31.0] — 2026-09-23
+
+Cut the fixed context every session starts with, and add a way to measure token spend.
+
+**Changed:**
+- `ENABLE_TOOL_SEARCH` is `auto:2` (was `auto:10`). The threshold is a share of the context window, so on 1M-window models 10% (100K) never triggered and every MCP and deferrable built-in tool schema loaded on every request. A fresh session measures 34.8K tokens in `/context` instead of 85.8K. MCP tools, context7 included when its server entry lacks `alwaysLoad`, now cost one tool search on first use.
+- This repo's `.claude/settings.json` excludes its root `AGENTS.md`, which loaded a second time next to the installed copy the user `CLAUDE.md` imports (5.9K tokens per request in cc-settings sessions).
+
+**Added:**
+- `bun run tokens` (`src/scripts/token-report.ts`, `src/lib/token-usage.ts`): API-equivalent cost from Claude Code transcripts, deduped per request, split by billing type (input, 5m and 1h cache writes, cache reads, output), main session vs subagents, subagent type, and model, with each thread's cold prefix. Managed-files manifest version 12 and Codex runtime manifest version 10 install both files, so existing installs on either host upgrade cleanly.
+
+**Measured, no change:**
+- Main-conversation cache TTL stays `1h`. Replaying 30 days of transcripts (18K requests) under a 5-minute TTL costs 57% more: 844 gaps of 5 to 60 minutes would each re-write a ~200K prefix.
+- Delegation guidance stays. Subagents were 16% of 30-day spend. The named agents start from 11-20K-token prefixes and cost $0.10-3.27 per spawn; the 170K-prefix outliers are built-in `general-purpose` spawns and forks, which the MCP deferral above also shrinks.
+
+**Files changed:**
+- config/10-core.json
+- .claude/settings.json
+- .claude/AGENTS.md
+- docs/settings-reference.md
+- src/scripts/token-report.ts
+- src/lib/token-usage.ts
+- src/lib/install-source-inventory.ts
+- src/lib/claude-managed-file-manifests.ts
+- src/lib/codex-runtime-manifests.ts
+- tests/token-usage.test.ts
+- tests/install-e2e.test.ts
+- tests/codex-install.test.ts
+- package.json
+
+## [15.30.1] — 2026-09-23
+
+Run the one cross-model Codex review on direct pushes too, so repos that push straight to main without a PR (like this one) still get a Codex pass.
+
+**Changed:**
+- `codex-verify` hook policy: in a repo with no PR, run the single review before each push with `review --base origin/<branch>`, so it covers the unpushed commits rather than only uncommitted changes. Still one review per change, not per turn.
+- `CLAUDE-FULL.md`, `skills/codex/SKILL.md`, `docs/codex-bridge.md`, `README.md`: state the same trigger.
+
+**Files changed:**
+- src/hooks/codex-verify.ts
+- CLAUDE-FULL.md
+- skills/codex/SKILL.md
+- docs/codex-bridge.md
+- README.md
+
+## [15.30.0] — 2026-09-22
+
+Add a "No Loose Ends" guardrail to the portable standards, so Claude Code and Codex finish the follow-ups their own changes create instead of listing them.
+
+**Added:**
+- `AGENTS.md` "No Loose Ends": after a delete, rename, or move, find and fix every reference in the same pass, including sibling checkouts the files point to. A follow-up that takes minutes gets done, not suggested. Only decisions, missing access, or changes outside the task's repositories go back to the user.
+
+**Removed:**
+- The Tech Stack copy of "check the latest version before installing", which repeated External Libraries step 2. This keeps `AGENTS.md` under its 16 KiB ceiling.
+
+**Files changed:**
+- AGENTS.md
+
+## [15.29.2] — 2026-09-22
+
+Docs-only: decision records for two evaluations that ended in no-go.
+
+**Added:**
+- `docs/audits/gortex-2026-09-21.md`: Gortex v0.64.4 misses a renamed cross-file TypeScript caller that native-ts finds, so native-ts stays the code-intel default.
+- `docs/audits/skill-routing-2026-09-21.md`: Laya MLX and two Jev formulations fail the recall, false-suggestion, and latency gates for suggesting skills, so both hosts keep their own skill selection.
+
+**Files changed:**
+- docs/audits/gortex-2026-09-21.md
+- docs/audits/skill-routing-2026-09-21.md
+
+## [15.29.1] — 2026-09-22
+
+Docs-only: `docs/codex.md` catches up with the current models and explains why adaptive effort stays off.
+
+**Changed:**
+- Execution roles are documented as running on `gpt-6-sol`, and the Claude bridge as defaulting to Opus 5.5.
+- New "Adaptive reasoning effort" section: cc-settings does not enable Jev-driven effort changes for Astra or Fable, because neither host has a verified integration that preserves the prompt cache.
+
+**Files changed:**
+- docs/codex.md
+
+## [15.29.0] — 2026-09-22
+
+Move Codex execution work to the GPT-6 generation now that Codex CLI 0.156.0 lists `gpt-6-sol` and `gpt-6-luna`.
+
+**Changed:**
+- `codex-run.ts exec` defaults to `gpt-6-sol` instead of `gpt-5.6-sol`, which Codex now labels an older model. `review` and `ask` stay on `gpt-6-astra`. `CODEX_EXEC_MODEL` and `--model` still override.
+- Native Codex agents on the `sonnet` tier (`implementer`, `tester`, `explore`, `scaffolder`, `deslopper`, `reviewer`, `claude-verifier`) get `model = "gpt-6-sol"`. The `haiku` tier maps to `gpt-6-luna`; no shipped agent uses it today.
+
+**Files changed:**
+- `src/lib/codex.ts`
+- `src/lib/codex-install-state.ts`
+- `src/scripts/codex-run.ts`
+- `skills/codex/SKILL.md`
+- `docs/agent-models.md`
+- `docs/codex-bridge.md`
+- `tests/codex.test.ts`
+- `tests/codex-install.test.ts`
+- `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `src/setup.ts`
+
+## [15.28.0] — 2026-09-22
+
+Tune the instruction files for Opus 5.5 and Fable 5.1, following Anthropic's prompt-audit guidance for those models.
+
+**Changed:**
+- The clarifying round now fires only when a request's readings would lead to materially different work, not whenever a task crosses the delegation bar. Size alone no longer triggers questions; the agent makes routine calls and states its assumption. Updated in `AGENTS.md`, `CLAUDE-FULL.md`, `output-styles/darkroom.md`, `codex/AGENTS.append.md`, the `delegation-detector` hook message, and the `refactor` skill.
+- `AGENTS.md` drops the blanket "These rules are non-negotiable." line and the all-caps NEVER/MUST/Mandatory markers. Current models over-apply pressure language; each rule already states its reason.
+- Redundant instructions removed, measured against v15.27.0: Claude's always-loaded files drop from 33,572 to 31,859 bytes, Codex's portable file from 16,313 to 16,066. `CLAUDE-FULL.md` loses its copies of the register rules and "Numbers" (subagents already get both through the `AGENTS.md` import); the two register lines only it had (mannered prose, when structure helps) move into `AGENTS.md`, so Codex gets them too. `AGENTS.md` loses "Philosophy", "Getting Started", "Autonomous Execution" (current models read and search without asking; destructive-action confirmation stays under Safety), and a third copy of the React Compiler rule.
+- `.claude/AGENTS.md` states the runtime and dependencies in present tense and points to the "Skill library ratchets" section instead of a soft cap that no longer exists.
+
+**Files changed:**
+- AGENTS.md
+- CLAUDE-FULL.md
+- output-styles/darkroom.md
+- codex/AGENTS.append.md
+- src/hooks/delegation-detector.ts
+- skills/refactor/SKILL.md
+- .claude/AGENTS.md
+- package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, src/setup.ts, CHANGELOG.md
+
+## [15.27.0] — 2026-09-22
+
+Sync with Claude Code v2.1.280 and Codex 0.156.0. The judgment agents and the Codex-to-Claude bridge now run on Claude Opus 5.5.
+
+**Adopted:**
+
+- **Claude Opus 5.5 for judgment work** (Claude Code 2.1.280). `maestro`, `planner` and `security-reviewer`, the six profiles, and the `claude-run.ts` / `claude-verifier` default move from `claude-opus-5` to `claude-opus-5-5`. Opus 5.5 is the new default Opus and costs less per token ($4/$20 per Mtok against $5/$25, cache reads $0.20 against $0.50). Without the repin those agents would have stayed on the older, pricier model while `/model opus` moved on. The Codex tier map adds `claude-opus-5-5` → `gpt-6-astra` and keeps `claude-opus-5` for anyone still pinning it.
+- **`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH` documented** (2.1.280). It changes the 2,048-character cap on MCP tool descriptions and server instructions. cc-settings leaves it unset, because a higher cap spends context on every session.
+
+**Docs:** `docs/agent-models.md` cost comparison now reads Fable at 2.5x Opus 5.5 on base tokens. The cache-read argument for escalating to Fable is weaker: Fable's $0.25 re-reads now cost about the same as Opus 5.5's $0.20, not less.
+
+**Unchanged pending evidence:** the long-context-premium line in `CLAUDE-FULL.md` and `MANUAL.md` (current API docs confirm no premium only for Opus 4.7 and 4.8), the advisor pairing table, and the handoff degradation thresholds (no Opus 5.5 data yet).
+
+**Skipped:** 2.1.279's server-side auto-mode classifier default (documented in 15.26.1); dialog keys, fullscreen mouse, `/permissions` and `/config` UI; per-model effort changes (`CLAUDE_CODE_EFFORT_LEVEL` still sets the default); the `PermissionRequest` agent-hook refusal and the `~/.claude/skills` manifest trash fix (nothing here wires either). Codex 0.156.0 is UI-only for cc-settings: `/tui`, voice, `/usage`, themes, `/daemon`, command-center worktree sessions, and the `personality` deprecation touch no installed surface.
+
+**Files changed:**
+agents/maestro.md
+agents/planner.md
+agents/security-reviewer.md
+profiles/maestro.md
+profiles/nextjs.md
+profiles/react-native.md
+profiles/react-router.md
+profiles/tauri.md
+profiles/webgl.md
+src/lib/claude-bridge.ts
+src/lib/codex-install-state.ts
+src/scripts/claude-run.ts
+tests/claude-bridge.test.ts
+CLAUDE-FULL.md
+codex/AGENTS.append.md
+codex/agents/claude-verifier.md
+docs/agent-models.md
+docs/claude-vs-codex.md
+docs/codex-bridge.md
+docs/frontmatter-reference.md
+docs/profiles.md
+docs/settings-reference.md
+upstream/claude-code-manifest.json
+upstream/codex-manifest.json
+package.json
+.claude-plugin/plugin.json
+.codex-plugin/plugin.json
+src/setup.ts
+
+## [15.26.1] — 2026-09-21
+
+Sync with Claude Code v2.1.278. Docs only; Codex stays at 0.155.1.
+
+- **`CLAUDE_CODE_AUTO_MODE_SERVER` now documents the 2.1.278 default.** Auto mode runs its permission classifier server-side by default for Claude API, Enterprise, Bedrock, Vertex, Foundry and gateway sessions, with no classifier overhead billed and a warning when it falls back to the billed local classifier; `"0"` opts out on the non-first-party platforms. The row in `docs/settings-reference.md` had described the pre-2.1.278 opt-in.
+- Skipped: the `Auto mode server` row in `/status` (native UI, nothing in cc-settings mirrors it).
+- Files changed: `docs/settings-reference.md`, `upstream/claude-code-manifest.json`, four version sites.
+
+## [15.26.0] — 2026-09-19
+
+- **`drift-fuse` plugin** (`plugins/drift-fuse/`, `drift-fuse@cc-settings`, enabled by `config/10-core.json` and installed by `setup.sh`). Watches an unattended run for drift from the task the person asked for. `prompt.submit` keeps the person's prompts (`composer` or `bridge` origin) as the task contract: one long enough to name a task replaces it, a short one or a slash command is appended (`then: fix billing`), pasted tool output changes nothing; the contract is snapshotted per turn, and a turn whose contract a person replaced mid-turn is not scored (both from the Codex review); `tool.call` records the main loop's edits, writes and Bash command heads; `turn.complete` sends the contract, those actions and the head of the answer to TypeSafe's Jev model with one `noul` question (did this turn serve the task) through `$.http.fetch`, 2.5 s timeout via `$.clock.sleep`. A turn under `driftBelow` (0.35) is a strike; `tripAfter` (2) consecutive strikes trip the fuse. A tripped fuse redirects the next prompt no person typed (a loop wakeup, a routine, a task notification, an SDK turn) by attaching one context line that names the task and the last turn's actions, or drops it when `onTrip` is `pause`; a person's prompt always passes and resets the contract and the fuse. By default only turns started by a non-person prompt are scored (`scope: "unattended"`); `scope: "all"` scores every main-loop turn. Without a `TYPESAFE_API_KEY`, or on any Jev failure, nothing is scored. The contract prompt, file paths, command heads and answer head leave the machine for each scored turn. Pure decision functions (`foldTurn`, `describeToolCall`, `scoringState`, `redirectLine`) and the hook wiring are covered by `tests/drift-fuse.test.ts` under `bun test`; `claude plugin validate` passes.
+- **The auto-update agent no longer posts a desktop notification when it skips because cc-settings has uncommitted or staged changes.** That skip is the developer's own work in progress, and the launch agent runs daily, so the toast repeated every morning; an `osascript` notification also has no click target, so clicking it opened Finder. The skip is still logged and recorded in the last-run state; blocked checkouts, clone failures and setup failures still notify. Reaches an existing install on the next `bash setup.sh`. Separately, every full `bun test` run posted one real "origin is not the expected repo" toast: the blocked-origin case in `tests/auto-update-script.test.ts` sets `NODE_ENV=production` to prove the test-only git override is ignored outside tests, which also unmuted the notifier; the test now sets `CI=true` as well, the notifier's other mute.
+- Files changed: `plugins/drift-fuse/**`, `.claude-plugin/marketplace.json`, `config/10-core.json`, `src/lib/claude-install-settings.ts`, `src/lib/install-lifecycle.ts`, `src/lib/install-display.ts`, `src/scripts/auto-update.ts`, `package.json` (`typecheck:plugins`), `tsconfig.json`, `tests/drift-fuse.test.ts`, `tests/plugin-manifest.test.ts`, `tests/auto-update-script.test.ts`, `docs/hooks-reference.md`, four version sites.
+
+## [15.25.0] — 2026-09-18
+
+First cc-settings plugin built on the pattern of Claude Code's own built-in mods (`anthropics/claude-code/mods`), and a quieter compaction transcript.
+
+- **`context-report` plugin** (`plugins/context-report/`, `context-report@cc-settings`, enabled by `config/10-core.json` and installed by `setup.sh`). Hooks `prompt.context` and reports the `instructionFiles` the engine actually put behind the `claudeMd` block, once per context load: `Instructions loaded (6 files, 79.5 KB): user ~/.claude/CLAUDE.md +@AGENTS.md · project ./AGENTS.md ./.claude/AGENTS.md · memory 1`. It reads the chain's result, not its input, because the built-in `agents-md` mod is seated beneath it and adds a project's `AGENTS.md` inside `next()`; the first live run reported 3 files for that reason and 6 after the fix. Two hints ride on the same facts: a project-tier `CLAUDE.md` or `CLAUDE.local.md` that keeps the project's `AGENTS.md` from loading (names `/cc migrate`, rename or merge by whether an `AGENTS.md` exists on disk via `$.fs.stat`), and a user `CLAUDE.md` without the `@AGENTS.md` import. Headless sessions log to the debug sink. The classic SessionStart banner's `Standards:` line and the 15.24.0 migration hint in `src/lib/project-awareness.ts` are gone; they guessed from the filesystem and could not see imports or the native read. The live check also surfaced a stray `~/AGENTS.md` (a 27 KB Codex-only file from an earlier install) loading as a project file in every session under home.
+- **`compaction-trigger` 0.3.0** hooks `ui.log` and rewrites fast-jev-compaction's per-item `decisions:` dump to the debug log (`next({ ...e, to: "debug" })`); the `kept N/M messages` summary still shows. Upstream has no option for this and is outside darkroomengineering, so the override lives here. The Jev plugin itself stays external and pinned: it is actively maintained, and folding its 1,270 lines in would mean owning the transcript-rewriting code.
+- **Shared plugin types.** `plugins/types/claude-code.d.ts` (regenerated from 2.1.277; `claude -p '/plugin-types <dir>'` works headless) replaces the per-plugin copy; both tsconfigs include it, `bun run typecheck:plugins` checks both plugins. `bunfig.toml` pins `bun test` to `tests/` so each plugin's `tests/` folder can hold `claude-code/testing` kit tests for `claude plugin test`, which the 2.1.277 public build does not ship yet; `bun test` covers the pure `report()` and `isDecisionDump()`.
+
+**Files changed:**
+- `plugins/context-report/{.claude-plugin/plugin.json,hooks/hooks.json,hooks/register.ts,tests/register.test.ts,tsconfig.json}`
+- `plugins/types/claude-code.d.ts` (moved from `plugins/compaction-trigger/types/`), `plugins/compaction-trigger/{hooks/trigger.ts,tsconfig.json,.claude-plugin/plugin.json}`
+- `.claude-plugin/marketplace.json`, `config/10-core.json`, `src/lib/{claude-install-settings,install-display,install-lifecycle,project-awareness}.ts`
+- `bunfig.toml`, `tsconfig.json`, `package.json`
+- `tests/{context-report,compaction-trigger,plugin-manifest}.test.ts`
+- `docs/hooks-reference.md`, `src/setup.ts`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `CHANGELOG.md`
+
+## [15.24.0] — 2026-09-18
+
+Sync with Claude Code v2.1.277 and Codex v0.155.1, and move the standards file onto the path Claude Code now reads.
+
+**AGENTS.md is now the file, not a pointer.** Claude Code 2.1.277 reads a project's `AGENTS.md` as project instructions whenever the project has no `CLAUDE.md` (built-in `agents-md` mod; `/config` → Project instructions; `pluginConfigs["agents-md@builtin"].options.instructionFiles`). It has no user-level fallback, so `~/.claude/CLAUDE.md` stays, but it now `@`-imports `AGENTS.md` instead of asking the model to read it, which the upstream docs single out as the pattern to replace: the ~4K-token standards file loads every turn, in subagents too, where before it loaded only when the model chose to open it. The repo's own `CLAUDE.md` moved to `.claude/AGENTS.md` (root `AGENTS.md` is an installed artifact), `.claude/` is un-ignored so that file, `.claude/settings.json`, and the pre-commit hook are tracked, the SessionStart banner prints a hint when a project still has a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`, and `/cc migrate` renames or merges it after showing the plan. `whats-on` now checks the installed `CLAUDE.md` for the import and reports the truth either way.
+
+**Adopted:**
+- `syncClaudeAiSkills` / `syncClaudeAiPlugins` (2.1.275) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`: `false` keeps a machine off the claude.ai account sync. Not set; per-user.
+- `CLAUDE_CODE_MCP_STARTUP_WAIT_MS` and `OTEL_LOG_MANAGED_SETTINGS` (2.1.274) tracked in the manifest and env table, with the `MCP_SDK_GENERATION` / `MCP_PROTOCOL_NEGOTIATION` opt-outs now that the v2 MCP client is the default on every install (2.1.274). The startup-wait knob matters for `claude -p` scripts whose first turn must not block on a slow server.
+- `enabledPlugins` and `pluginConfigs` added to the manifest's `knownSettingsKeys`; the schema has declared them since 15.x and the scanner flagged the gap.
+- `docs/settings-reference.md` gains the Project instructions section (modes, what does and does not count as a `CLAUDE.md`, nested `AGENTS.md` on `Read`, `claudeMdExcludes` applying, where support is absent), the `/update-config` `Edit(path)` note (2.1.275), and the `sandbox.excludedCommands` every-part rule (2.1.277). `docs/hooks-reference.md` notes `/plugin install --marketplace` (2.1.275). `CLAUDE-FULL.md` says subagent results arrive under a marked, indented header (2.1.277). `docs/codex.md` notes Codex 0.155.1 leaves reasoning summaries off by default.
+
+**Deletions / Native-now-redundant:**
+- `taskOutputMaxChars` (schema, manifest, docs) and the `TaskOutput` tool (manifest `knownBuiltinTools`): 2.1.277 removed the tool, Claude reads a background task's output file with Read, and `TASK_MAX_OUTPUT_LENGTH` is inert. `bashOutputMaxChars` stays.
+
+**Skipped:** Claude apps gateway items, `"type": "sdk"` MCP entries (never in our schema), `/code-review` inline prompts, VSCode, web, Claude Tag, Code Review, Windows, Bedrock/Vertex/Foundry; on the Codex side `/voice`, Touch ID for MCP, the agents overview, daemon update schedules, Bedrock credentials, memory v2, and Guardian internals touch no installer surface.
+
+**Follow-up, not started:** `anthropics/claude-code/mods/` publishes the four built-in plugins as function-hook modules (`register(on, options)` on engine events such as `prompt.context` and `session.start`, tested with `claude plugin test`). cc-settings' SessionStart scripts and the statusline could become one such mod and read the instruction files the engine actually loaded instead of inferring them.
+
+**Files changed:**
+- `.claude/AGENTS.md` (was `CLAUDE.md`), `.claude/settings.json`, `.claude/hooks/pre-commit-invariants.ts`, `.gitignore`
+- `CLAUDE-FULL.md`, `MANUAL.md`, `docs/settings-reference.md`, `docs/hooks-reference.md`, `docs/codex.md`, `docs/whats-on.md`
+- `skills/cc/SKILL.md`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `src/lib/project-awareness.ts`, `src/scripts/whats-on.ts`, `tests/whats-on.test.ts`
+- `upstream/claude-code-manifest.json`, `upstream/codex-manifest.json`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `CHANGELOG.md`
+
+## [15.23.0] — 2026-09-18
+
+- **The delegation detector asks Jev instead of matching regexes, when a TypeSafe key is set.** `src/hooks/delegation-detector.ts` sends the incoming prompt to TypeSafe's Jev model with one statement (would this touch 3+ files, need 12+ tool calls, or run several workstreams) and fires the advisory at probability ≥ 0.7. Measured on 1,102 real prompts from this machine's transcripts, judged against what the turn actually did (3+ files or 12+ tool calls): the regex fired 21 times with 10 correct; Jev at 0.7 fired 83 times with 53 correct. Latency p50 321 ms, p95 419 ms, under the hook's 3 s timeout; the whole replay cost $0.018. The prompt text leaves the machine for this call, which makes this the only cc-settings hook that sends prompt text anywhere; without a key, or on any failure or 2 s timeout, the regex score decides exactly as before. Recall stays low at every threshold because most big turns start from prompts that read small, so this is a better detector, not a complete one.
+- `src/lib/jev.ts` is a small shared client (`typesafeKey()`, `jevNoul()`): key from the process env or the settings `env` block, one `noul` question, null on any failure. `TYPESAFE_ENDPOINT` overrides the API URL for tests.
+- The delegation "fired" telemetry line gains an optional `jev` probability next to the integer `score`; still no prompt text.
+- Managed-file manifests bump (Claude 10 → 11, Codex runtime 8 → 9) so `src/lib/jev.ts` reaches existing installs on the next `setup.sh`; earlier versions keep reporting exactly the files they own.
+- Files changed: `src/hooks/delegation-detector.ts`, `src/lib/jev.ts`, `src/lib/escalate-telemetry.ts`, `src/lib/install-source-inventory.ts`, `src/lib/claude-managed-file-manifests.ts`, `src/lib/codex-runtime-manifests.ts`, `tests/install-e2e.test.ts`, `tests/delegation-detector.test.ts`, `docs/hooks-reference.md`, four version sites.
+
+## [15.22.2] — 2026-09-18
+
+- **`/qa` and `/lighthouse` work with `chrome-devtools` or `aside-devtools`, and no longer warn when neither is registered.** Both names run the same package, so the skills list both tool prefixes in `allowed-tools` and tell the model to use whichever is present. Without either, `/qa` reviews the code and asks for a screenshot; `/lighthouse` runs the CLI loop without screenshots. The installer's "missing MCP: chrome-devtools" warning for these two skills is gone.
+- **Skill prerequisites can be any-of and optional.** `requires: - mcp:` takes a list of names, satisfied by any one registered server, and `optional: true` marks a prerequisite the installer never warns about (`src/schemas/skill.ts`, `src/lib/skill-prereqs.ts`). Documented in `docs/skill-authoring.md`.
+- Files changed: `src/schemas/skill.ts`, `schemas/skill.schema.json`, `src/lib/skill-prereqs.ts`, `tests/skill-prereqs.test.ts`, `skills/qa/SKILL.md`, `skills/lighthouse/SKILL.md`, `docs/skill-authoring.md`, four version sites.
+
+## [15.22.1] — 2026-09-18
+
+- **A DevTools MCP server you already run under another name no longer gets a second copy from cc-settings.** The Aside browser registers `aside-devtools`, which runs `chrome-devtools-mcp`, the package cc-settings ships as `chrome-devtools`. Both loaded meant every DevTools tool schema twice per turn, and deleting ours by hand lasted one install because the merge re-added any team entry `~/.claude.json` lacked. The installer now compares the npm package behind `bunx`/`npx` entries and skips a team server whose package a differently named user entry already runs (`duplicateTeamServers` in `src/lib/mcp.ts`). A user entry that only shares the name is still handled by the existing shadowing rule. `/qa` and `/lighthouse` note that the `mcp__<name>__` prefix follows the registered server name.
+- Files changed: `src/lib/mcp.ts`, `tests/mcp.test.ts`, `skills/qa/SKILL.md`, `skills/lighthouse/SKILL.md`, four version sites.
+
+## [15.22.0] — 2026-09-18
+
+- `ENABLE_TOOL_SEARCH` drops from `auto:50` to `auto:10`, so MCP tool schemas defer instead of riding along on every turn. On a 1M-window model the 50% threshold never triggered. Measured in one Fable session: the fixed context floor was ~121K tokens (cache-read prefix on the first turn after compaction) and the first turn after every compaction already sat at 146K to 148K, so the 150K compaction trigger left 46K to 80K of real conversation per window and compaction ran five times in 48 minutes. The floor after this change is not yet measured; check the first-turn `cache_creation_input_tokens` on a fresh session.
+- The `compaction-trigger` plugin (0.2.0) copies `TYPESAFE_API_KEY` from the settings `env` block into the process env before each compaction request. The verbatim plugin reads the env first, so a session started before a key rotation kept sending the old key: three of that session's five compactions fell back to the built-in summary on a 401 and took 67 to 70 seconds each instead of 1.2 to 1.4 seconds. Whether `$.env.set` in one plugin is visible to another plugin's `$.env.get` in the same session is not yet verified live; the fallback path is unchanged if it is not.
+- The compaction threshold itself stays at 150K. Widening it was considered and rejected: on Opus and Sonnet it would cross the 200K long-context line, and both compaction paths rewrite everything after the fixed prefix, so fewer, later compactions cost more per turn without saving cache writes.
+
+**Files changed:** config/10-core.json, plugins/compaction-trigger/hooks/trigger.ts, plugins/compaction-trigger/.claude-plugin/plugin.json, tests/compaction-trigger.test.ts, src/scripts/session-start.ts, docs/settings-reference.md, docs/hooks-reference.md, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
+## [15.21.3] — 2026-09-18
+
+- A TypeSafe key supplied to the installer (`--typesafe-key=<key>` or the prompt) is now also written as `TYPESAFE_API_KEY` into the settings `env` block. Since 15.21.0 it went only into the plugin's sensitive `apiKey` option, which nothing but the compaction plugin can read, so the session banner kept reporting native compaction and no hook or script could use Jev. Later installs keep the value (the env merge is user-wins). Re-run `setup.sh --typesafe-key=<key>` to write it on an existing install.
+
+**Files changed:** src/lib/claude-install-settings.ts, src/lib/install-display.ts, tests/typesafe-key-persist.test.ts, docs/install.md, docs/hooks-reference.md, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
+## [15.21.2] — 2026-09-18
+
+- Hook `if` filters now live on each hook action instead of the matcher group. Claude Code only evaluates `if` on the action object, so the group-level filters on the pre-commit, pre-PR, pre-push, and package-install hooks were never applied (the scripts self-gate, so behavior was unchanged, but each spawned on every Bash call). Worse, `claude plugin marketplace add` and `claude plugin install` rewrite settings.json without the unknown group key, which the installer runs after fingerprinting the hooks block, so every session since 15.21.0 started with a hooks-fingerprint mismatch warning. Reproduced on Claude Code 2.1.276 with an isolated `CLAUDE_CONFIG_DIR`. Re-run `setup.sh` to clear the warning.
+
+**Files changed:** config/40-hooks.json, src/schemas/hooks.ts, src/scripts/pre-commit-tsc.ts, docs/hooks-reference.md, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
+## [15.21.1] — 2026-09-18
+
+- The TypeSafe key prompt now hides input. The 15.21.0 prompt let readline run the terminal in its own raw mode, where readline echoes keystrokes itself and `stty -echo` has no effect, so the key appeared on screen. The prompt now reads a plain line with echo off; Ctrl+C still skips.
+- The installer runs `claude plugin marketplace update cc-settings` before installing, so a plugin added in the same release is visible; `marketplace add` alone does not refresh an existing registration, which is why 15.21.0 could not install `compaction-trigger` on upgrade.
+
+**Files changed:** src/lib/prompts.ts, src/lib/claude-install-settings.ts, src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json, CHANGELOG.md
+
+## [15.21.0] — 2026-09-18
+
+Long sessions can now compact without losing their text. cc-settings adopts [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), a Claude Code function-hooks plugin that, at compaction time, asks TypeSafe's Jev model which tool calls and results are still needed and removes only those, keeping every user and assistant message verbatim. Native compaction is a summary; this keeps file paths, error text, and decisions intact.
+
+- **Function hooks enabled.** `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` in the composed env (early access, Claude Code 2.1.274+). `docs/hooks-reference.md` gains a "Function hooks (early access)" section with a plain-language explainer of Jev and the compaction, its cost (input $0.042 per million tokens, output free), and its limits.
+- **Upstream pinned, trigger replaced.** Settings declare the `fast-jev-compaction` marketplace pinned to commit `e3f262a` and enable the plugin with its own percentage trigger disabled (`compactAtPercent: 100`). A new cc-settings plugin, `plugins/compaction-trigger`, requests compaction from `turn.complete` when `context.tokens` passes 150,000 (configurable, with a 3-turn backoff), so compaction tracks the 200K working ceiling instead of 60% of a 1M window, which on a 200K model would have summarized every 30K tokens.
+- **Installer.** The full profile registers both marketplaces and installs both plugins through the `claude` CLI, fail-open, skipped for the light profile, under `CC_SETTINGS_SKIP_PLUGIN_INSTALL=1`, or whenever HOME resolves inside the OS temp directory, which is how every test sandbox looks, so no test can reach the real plugin store or the network. An interactive install prompts once for a TypeSafe key with input hidden; `--typesafe-key=<key>` supplies it non-interactively. The key is stored through the plugin's sensitive `apiKey` option in Claude Code's secure storage, never in a managed file, and is redacted from every printed line. Without a key the install says so and compaction stays native.
+- **Settings schema** declares `enabledPlugins` and `pluginConfigs`; the SessionStart banner reports whether verbatim compaction is active; the uninstall summary names the plugins and the removal command.
+
+- **Key prompt.** Input is hidden through `stty -echo` around a standard readline question, and Ctrl+C or Enter skips the key instead of aborting the install (the first raw-mode version hung under Bun and a Ctrl+C there left a half-copied install that both reinstall and rollback refused; restoring the drifted files from the run's backup tarball clears that state). The plugin summary line names only the plugins that actually installed. The `compaction-trigger` install needs this release on GitHub main first, because the `cc-settings` marketplace is fetched from there; on the machine that publishes a release, run `claude plugin marketplace update cc-settings && claude plugin install compaction-trigger@cc-settings` after the push.
+
+**Files changed:**
+- plugins/compaction-trigger/ (new: manifest, hooks/trigger.ts, types, tsconfig), tests/compaction-trigger.test.ts, tests/plugin-key-redaction.test.ts (new)
+- .claude-plugin/marketplace.json, config/10-core.json, src/schemas/settings.ts, schemas/settings.schema.json
+- src/setup.ts, src/lib/install-types.ts, src/lib/claude-install-settings.ts, src/lib/install-display.ts, src/lib/install-lifecycle.ts, src/lib/prompts.ts, src/scripts/session-start.ts, setup.sh, setup.ps1
+- tests/install-e2e.test.ts, tests/settings-merge.test.ts, tests/plugin-manifest.test.ts, tests/setup-args.test.ts
+- README.md, docs/hooks-reference.md, docs/install.md, docs/settings-reference.md, docs/cache-strategy.md, CLAUDE-FULL.md
+- package.json, tsconfig.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.20.0] — 2026-09-17
+
+Two follow-ups from the usage-insights report, plus the repair they immediately paid for.
+
+- **`git branch -D` and `git stash drop` ask instead of deny.** Both are reflog-recoverable for about 90 days, and they were the two most frequent mid-session interruptions. `config/30-permissions.json` moves them (and `git branch -d -f`) from `deny` to a new `ask` list, and `safety-net.ts` no longer hard-blocks them; `git stash clear`, force-push, the DELETE API rules, and the `rm -rf` set stay denied. SECURITY.md and the settings reference say why.
+- **Repo-local pre-commit invariants.** `.claude/settings.json` in this repository wires `.claude/hooks/pre-commit-invariants.ts`, a PreToolUse hook that runs the fast invariant tests (prompt byte ceilings, skill/agent/profile lints, manifests, schemas, docs sync, version drift) before every `git commit` and blocks on failure. It is not installed anywhere; it guards this repo's own main branch, which takes direct pushes. The full suite still runs before a PR.
+- **Prompt budgets restored.** The first dry run of that hook found that 15.18.0 and 15.19.0 had pushed `AGENTS.md` and the output style past their byte ceilings. Both are trimmed back under budget: the AGENTS.md knowledge sections are merged into one, examples that the docs already carry are gone, and the four newest guardrails are tightened without losing a rule.
+
+**Files changed:**
+- .claude/settings.json, .claude/hooks/pre-commit-invariants.ts (new)
+- config/30-permissions.json, src/hooks/safety-net.ts, tests/safety-net.test.ts
+- AGENTS.md, output-styles/darkroom.md, SECURITY.md, docs/settings-reference.md, CLAUDE.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.19.0] — 2026-09-17
+
+Six guidance changes from the 2026-09-17 usage-insights report, which found that most interruptions were permission denials, and that two failed sessions were OS-level blockers no iteration rule caught.
+
+- **Denied-command handoff** (`CLAUDE-FULL.md` Autonomy, Codex adapter): a denied command is never retried, split, or rephrased. It goes into `~/.claude/tmp/handoff-<session>.sh`, the user gets one `! bash <path>` line, and work continues on what does not depend on it. Long runs enumerate their privileged commands into that script up front.
+- **Stop-loss on environment blockers** (`AGENTS.md`, `/fix`): an OS, device, vendor, or network blocker gets about 20 minutes or 30 tool calls, then a written diagnosis (ruled out with evidence, likely cause, ranked next options) instead of another attempt.
+- **Shell commands** (`AGENTS.md`): quote globs and paths, absolute paths over `cd` chains, one destructive step per command so a denial or failure stops exactly one thing.
+- **Swarm git ownership** (`/orchestrate`, `maestro`): the lead owns every git operation; subagents never commit, stash, or switch branches.
+- **`/ship` checks for an existing PR** on the branch before `gh pr create`.
+- The clarifying round names which repository, host, machine, or branch a request targets when more than one is in play.
+
+**Files changed:**
+- AGENTS.md, CLAUDE-FULL.md, codex/AGENTS.append.md, agents/maestro.md
+- skills/fix/SKILL.md, skills/orchestrate/SKILL.md, skills/ship/SKILL.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.18.0] — 2026-09-17
+
+Non-trivial work now opens with one interactive round of clarifying questions. The guidance used to say "ask only for a decision the user owns", so the interactive question tool was reached for by three skills and rarely otherwise; answering a few concrete questions up front has proven the cheapest way to avoid a wrong build.
+
+- New guardrail in `AGENTS.md`, "Clarify Before Full Work Mode": when a task crosses the delegation bar (3+ files, 12+ tool calls, security-sensitive code) or its readings diverge, ask up to 4 questions through the host's interactive tool, each with 2 to 4 options and the recommendation first, then start. One round; read before asking; ask only what the user alone knows.
+- The Darkroom output style and `CLAUDE-FULL.md` carry the same rule for Claude Code (`AskUserQuestion`). The Codex adapter explains that `request_user_input` exists only in Plan mode, so a non-trivial task switches to Plan mode (`/plan`) for the round and back to Pair or Execute mode for the work.
+- `/build` gains an ASK verdict between GO and NO-GO; `/fix` and `/refactor` open with a clarify step.
+- The UserPromptSubmit breadth hook now adds the reminder to its nudge when a prompt crosses the threshold.
+
+**Files changed:**
+- AGENTS.md, CLAUDE-FULL.md, output-styles/darkroom.md, codex/AGENTS.append.md
+- skills/build/SKILL.md, skills/fix/SKILL.md, skills/refactor/SKILL.md
+- src/hooks/delegation-detector.ts, docs/system-overview.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.17.1] — 2026-09-17
+
+Docs only. The README's "What cc-settings adds" section now compares a vanilla Claude Code or Codex install with a cc-settings install request by request ("fix this bug", "ship it", a force-push, a `drizzle-kit push`), then lists the pieces with their counts: standards, 38 skills, 10 role agents, 36 hooks on 18 events, model routing, 4 MCP servers, team knowledge, ownership and rollback. `docs/system-overview.md` gains a short "Compared with a vanilla install" section that points at it.
+
+**Files changed:**
+- README.md, docs/system-overview.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.17.0] — 2026-09-17
+
+team-knowledge was write-only in practice: `/share-learning` posted notes, but an agent only ever saw a note count at session start and never a title. This release adds a read path and folds the generic notes into the rules and profiles that load anyway.
+
+- The index cache (`~/.claude/tmp/knowledge-index.json`, 6h TTL) now stores kind, hook line, and tags per note, parsed from the corpus INDEX.md. The corpus's index builder emits tags on every line (`- [kind: name](name.md) — hook · tags: a, b`); that format is the contract, documented in `docs/knowledge-system.md`.
+- New PreToolUse hook `knowledge-hint.ts` (matcher `Bash|Edit|Write`) surfaces up to 3 notes whose tags or slug words match the command or edited file, once per note per session, via the `additionalContext` envelope. Scoring: a curated tag scores 3, a slug-only word 2, a generic word 1, threshold 3; state lives in `~/.claude/tmp/knowledge-hints.json`, pruned to 30 sessions. Cache-only, never the network, fail-open.
+- The SessionStart banner now gives the `gh api` read command. `/fix`, `/lighthouse`, `/build`, and `/ship` gain a one-line, fail-open "check the index" step at the point a gotcha would bite.
+- Folded into cc-settings: frame-loop rules (no layout reads in per-frame callbacks, quantized custom-property writes) in `rules/react-perf.md`; "History Belongs in Git, Not in Code" in `AGENTS.md`; `cacheComponents` guidance in `profiles/nextjs.md`; GPU resource ownership and the software-renderer mount gate in `profiles/webgl.md`; the post-dev-server `AGENTS.md` diff check in `rules/git.md`.
+- Corpus cleanup on `darkroomengineering/team-knowledge`: four obsolete cc-settings and board-era notes removed, two rewritten to current behaviour, seven folded notes point at their cc-settings copy. This repo's CLAUDE.md now requires rewriting or deleting a note in the same push that closes the bug it documents.
+- Claude managed-files manifest v10 and Codex runtime manifest v8 carry the two new source files; earlier versions stay frozen.
+
+**Files changed:**
+- src/hooks/knowledge-hint.ts, src/lib/knowledge-hint.ts, tests/knowledge-hint.test.ts (new)
+- src/lib/knowledge-index.ts, src/lib/team-knowledge.ts, tests/knowledge-index.test.ts, tests/team-knowledge.test.ts
+- config/40-hooks.json
+- src/lib/claude-managed-file-manifests.ts, src/lib/codex-runtime-manifests.ts, src/lib/install-source-inventory.ts
+- rules/react-perf.md, rules/git.md, profiles/nextjs.md, profiles/webgl.md, AGENTS.md
+- skills/fix/SKILL.md, skills/lighthouse/SKILL.md, skills/build/SKILL.md, skills/ship/SKILL.md
+- docs/knowledge-system.md, docs/hooks-reference.md, docs/settings-reference.md, CLAUDE.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.16.0] — 2026-09-16
+
+`/cc sync` now tracks the Codex CLI as a second upstream, since Codex is a first-class install target.
+
+- New `upstream/codex-manifest.json` records the latest stable `@openai/codex` version the repo was triaged against (baseline 0.154.0), the Codex surfaces the installer writes or reads (`agents/*.toml` fields, `rules/darkroom.rules`, the plugin manifest and hooks, the `config.toml` keys `codex:skill-budget` and `migrate:codex-skills` read), and per-window notes. The surfaces list is reference-only: there is no zod schema for Codex config, so the scanner cannot diff it.
+- `bun run upstream:scan` fetches both npm packages and reports drift per upstream. CI keeps running it.
+- `/cc sync` gains a Codex track: release notes come from `gh release view rust-v<X> -R openai/codex` per stable tag (alpha and Python SDK tags are ignored), a Codex cross-reference table points at the installer files, and Phase 6 bumps both manifests. When only one upstream drifts, the skill runs the remaining phases for that one.
+- `tests/plugin-manifest.test.ts` checks both manifests parse with semver versions and that the skill documents both.
+
+**Files changed:**
+- upstream/codex-manifest.json (new)
+- src/upstream/scan.ts
+- skills/cc/SKILL.md
+- tests/plugin-manifest.test.ts
+- docs/codex.md, CLAUDE.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.15.0] — 2026-09-16
+
+Sync with Claude Code v2.1.273 (from v2.1.270; 2.1.272 was bug fixes only).
+
+**Adopted:**
+- `omitClaudeMd` agent frontmatter (v2.1.271) — optional boolean in `src/schemas/agent.ts`, documented in `docs/frontmatter-reference.md` and the subagent-context note in `CLAUDE-FULL.md`. A subagent with it runs without user, project, and local CLAUDE.md while managed policy files still load. No cc-settings agent sets it, because AGENTS.md standards reach subagents through the CLAUDE.md hierarchy; the doc says to restate critical rules in such an agent's prompt.
+- Three env vars tracked in the manifest and `docs/settings-reference.md`: `CLAUDE_CODE_GATEWAY_HINT_HEADERS` (v2.1.273, opt-in gateway hint request headers), `CLAUDE_CODE_AUTO_MODE_SERVER` (v2.1.273, server-side auto-mode classifier on Bedrock, Vertex and Foundry now that local is the default), and `CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK` (pre-existing; v2.1.271 makes an API fast-mode rejection stand for the session).
+- `modelPricing.multiplier` may exceed 1, up to 10, for marked-up internal chargeback (v2.1.271). Schema already loose; docs updated.
+
+**Docs-only:**
+- Dynamic workflow medium guideline is under 10 agents, down from 15, and Pro plans default to small (v2.1.271): `skills/orchestrate/SKILL.md`, `skills/audit/SKILL.md`, `workflowSizeGuideline` row.
+- Auto mode: inline `!` shell commands in skills follow default-mode permission rules, subagent hand-back is classifier-reviewed, and Monitor watches always carry a deadline with the `persistent` option removed (v2.1.271).
+- `SendMessage` to a session that holds the message for approval now leaves a delivery notice (v2.1.271).
+- `permissions.blockReadsOutsideWorkingDirectories` also keeps a repo-chosen memory directory out of the prompt (v2.1.273).
+- `OTEL_LOG_TOOL_DETAILS` adds real agent, skill, plugin and MCP server names to cost metrics (v2.1.273).
+
+**Deletions / Native-now-redundant:** none. The Bash permission-checker fixes and the 2.1.268 revert do not overlap `permissions-check.ts`.
+
+**Fix:** `AGENTS.md` had been over its 16 KiB always-loaded ceiling since v15.14.1 added the Swift animation bullet, failing `tests/plugin-manifest.test.ts`. Tightened that bullet and six other paragraphs without dropping a rule; the file is now 3 bytes under.
+
+**Files changed:**
+- src/schemas/agent.ts
+- upstream/claude-code-manifest.json
+- docs/frontmatter-reference.md
+- docs/settings-reference.md
+- CLAUDE-FULL.md
+- skills/orchestrate/SKILL.md
+- skills/audit/SKILL.md
+- AGENTS.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.14.2] — 2026-09-16
+
+- `codex:skill-budget` estimated listing overhead at 48 characters per skill; a live Codex run
+  showed 12 descriptions still trimmed while the report said "under budget". Back-solved from
+  Codex's own `budget_limit` line, the overhead is about 57 characters per entry, so the
+  estimator now uses 64 and an under-budget verdict means Codex renders every description whole.
+
+## [15.14.1] — 2026-09-16
+
+- The Swift animation frame-rate bar now reaches Codex and every other AGENTS.md consumer: a
+  short Performance bullet in `AGENTS.md` carries the rule's decisions and points at
+  `rules/swift-animation.md` for the full text. Codex has no path-scoped rules, so this is the
+  portable form.
+
+## [15.14.0] — 2026-09-16
+
+- Codex "skill descriptions were shortened" now has a measuring tool and correct guidance.
+  `bun run codex:skill-budget` reads `config.toml`, walks every enabled plugin and user skill
+  directory, and reports description characters per source against the budget, the longest
+  descriptions (trimmed first), and which single plugin would cover the overshoot if disabled.
+  It exits 1 when over and never edits `config.toml`. The docs previously told users to raise
+  `[skills] max_context_tokens`; verified on codex-cli 0.154.0 that the key only lowers the 2%
+  cap (10,000 tokens on `gpt-6-astra`), so `docs/codex.md`, `docs/troubleshooting.md`, and the
+  `lint-skills` ceiling comment now say so. Claude manifest version 9, Codex runtime manifest
+  version 7.
+- New `rules/swift-animation.md`, loaded for `.swift` files: SwiftUI animations at the display's
+  maximum frame rate, distilled from WWDC23 session 10156 "Explore SwiftUI animation" (built-in
+  animatable modifiers over custom `Animatable`, springs that merge and keep velocity, scoped
+  `.animation` modifiers against accidental animations) plus the ProMotion unlock keys from
+  Apple's docs and an Instruments verification bar. `/audit motion` points Swift targets at it.
+  Full profile only; light installs carry no rules.
+- Default Claude Code to the classic renderer so terminal-native double-click selection and
+  scrollback remain available. Stop forcing fullscreen with `CLAUDE_CODE_NO_FLICKER`; updates
+  remove the old managed value when it still matches the installation baseline, while preserving
+  explicit user renderer preferences. Correct the mouse-capture documentation.
+
+## [15.13.0] — 2026-09-13
+
+- Align delegation between hosts so a cc-settings user gets the same behavior in Claude Code
+  and standalone Codex. Claude Code's delegation threshold drops from 20 to 12 tool calls,
+  matching Codex (3+ files, 12+ tool calls, or security-sensitive code). The Codex adapter
+  (`codex/AGENTS.append.md`) now carries the same routing table, the same MUST rows (tests,
+  security, deslop, 3+ independent workstreams in parallel), the override-with-a-reason rule,
+  the delegate-together-and-keep-working rule, resume-instead-of-respawn, and the implementer
+  briefing contract, expressed in Codex's native `spawn_agent` / `send_message` /
+  `followup_task` terms. Writers still share one working tree on Codex, so that difference
+  stays documented rather than papered over.
+
+## [15.12.0] — 2026-09-13
+
+Synced with Claude Code v2.1.270 (from v2.1.266). 2.1.270 is a single permission regression fix; the substantive entries are in 2.1.267 through 2.1.269. Three settings keys adopted, six env vars tracked, no dedupe.
+
+**Adopted:**
+- `maxEffortLevel` (2.1.267) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`: caps effort on every provider, top-level or per model under the new `modelSettings` container, which is modelled as a loose record so per-model keys survive parse. Matters because teams that pin `CLAUDE_CODE_EFFORT_LEVEL` now have a hard ceiling instead of a default.
+- `bashEditDiffEnabled` (2.1.269), same three files: the Bash tool result carries a diff of the files the command changed. Documented, not enabled in `config/10-core.json`.
+- `gatewayInternalNetworks` (2.1.268, managed), same three files: the org's own public IPv4 CIDRs allowed for gateway `/login`. Added for schema parity with the other managed keys.
+- Six env vars in the manifest and the env table: `OTEL_METRICS_INCLUDE_REPOSITORY`, `CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS`, `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS`, `CLAUDE_CODE_BG_TASKS_REPORT_RUNNING`, `CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS` (2.1.269), `CLAUDE_CODE_WEBFETCH_DEADLINE_MS` (2.1.268). `skills/orchestrate/SKILL.md` now says the 16-agent workflow concurrency cap is raisable.
+- Docs: `/output-style [name]` noted in `CLAUDE-FULL.md` (2.1.269); `effort:` frontmatter now honored on Fable 5 and Opus 4.7/4.8 in `docs/frontmatter-reference.md` (2.1.267); `rules/git.md` notes the native attribution reminder now yields to the no-attribution rule (2.1.269).
+
+**Deletions / Native-now-redundant:** none. `claude plugin eval` scores plugin eval suites and does not overlap `/autoresearch`.
+
+**Files changed:**
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- skills/orchestrate/SKILL.md
+- CLAUDE-FULL.md
+- rules/git.md
+- src/setup.ts
+- package.json
+- .claude-plugin/plugin.json
+- .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.11.0] — 2026-09-12
+
+- Route Codex calls by task shape: `codex exec` defaults to GPT-5.6 Sol, `codex review` and
+  `codex ask` to GPT-6 Astra, with `--model` and `CODEX_EXEC_MODEL` / `CODEX_REVIEW_MODEL` /
+  `CODEX_ASK_MODEL` overrides. The bridge refuses to run from inside a Codex session.
+- Give every native Codex agent a `model` derived from its Claude tier: judgment roles on Astra,
+  execution roles on Sol. One routing table now drives both products.
+- Add the Codex-to-Claude reverse bridge: `claude-run.ts review` and `ask` call headless Claude
+  Code (Opus 5 by default) read-only, refuse inside a Claude session, and report when the Codex
+  sandbox has no network. A Codex-only `claude-verifier` agent wraps it. Both product manifests
+  move to a new version to own the new files.
+
+## [15.10.0] — 2026-09-12
+
+- Narrow all 38 skill descriptions to the situations each skill handles, dropping topic-word
+  triggers and most skip clauses, per OpenAI's GPT-6 Astra guidance on over-broad activation.
+  Total description bytes drop from 8674 to 7408; the lint ceiling tightens to 7424.
+- Soften the portable AGENTS.md stopping rules: after two failed attempts, continue with the best
+  alternative unless the choice changes the user's direction; local checks are granted up front
+  instead of nagged; stating a plan is no longer read as waiting for approval.
+
+## [15.9.0] — 2026-09-12
+
+- Adapt the Codex bridge to GPT-6 Astra, following OpenAI's guidance on skills and prompts for
+  it. `codex exec` now wraps every task in a completion contract (run the repo's local checks,
+  fix what the change broke, do not stop after a first implementation, leave the diff
+  uncommitted, report what was verified). `codex review` states the diff and the review contract
+  instead of scripting `git status` and `git diff` steps.
+- Add persistence and boundary guidance to the standalone Codex adapter and to every native
+  role agent: define done before starting, run local checks without asking at each step, and
+  treat "ask first" language as covering destructive or irreversible actions only.
+- Document how to write tasks and `AGENTS.md` instructions for GPT-6 Astra in the Codex docs
+  and the `/codex` skill.
+
+## [15.8.1] — 2026-09-11
+
+- Preserve personal settings across reinstalls by recording team contributions separately from
+  merged snapshots. Serialize installer lock transitions and refresh isolated Git indexes so
+  auto-update recognizes clean checkouts.
+- Capture binary checkpoint changes and validate restore material before resetting files.
+  Isolate freeze boundaries by session, normalize removal targets, redact quoted and escaped
+  credential assignments, and require generated ownership stamps before replacing project instructions.
+- Resolve renamed imports and generic method references in codemap caller queries; discover
+  `.mjs` and `.cjs` sources without a tsconfig and include them in change impact.
+- Split installer responsibilities into bounded modules, share the explicit current runtime
+  inventory, and ship the audit performance resources in both product installations while
+  preserving historical ownership manifests.
+- Correct test-runner selection, optional build gates, SSR-safe hook guidance, animation cleanup,
+  JSON-LD escaping, and path-containment examples. Align runtime and installer documentation with
+  the corrected behavior.
+
+## [15.8.0] — 2026-09-09
+
+Synced with Claude Code v2.1.266 (from v2.1.260). 2.1.262 and 2.1.264 have no changelog entry and 2.1.263 lists only "Bug fixes and reliability improvements"; the substantive entries are in 2.1.261 and 2.1.265. Two settings keys adopted, one key marked inert, one native command folded into the consolidate skill. This release also carries the unreleased cleanup below.
+
+**Adopted:**
+- `bashOutputMaxChars` and `taskOutputMaxChars` (upstream 2.1.261) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`. Positive integers up to 128000 that raise how much Bash and background-task output reaches the model inline before the rest spills to a file. Not set in `config/10-core.json`; it is a per-user knob.
+- `keybindingFlavor` is inert since upstream 2.1.261 (the prompt's word-editing keys always match Bash now). The schema keeps the key so files written for v2.1.238–v2.1.260 still parse; the docs say so.
+
+**Native-now-redundant:**
+- `/skill-doctor` (upstream 2.1.261) measures which loaded skills went unused and their context cost. The `consolidate` skill's "remove unused skills" step now points at it instead of guessing; `MANUAL.md` mentions it next to `/status` and `/hooks`. Nothing deleted.
+
+**Skipped:** `--append-subagent-system-prompt-file`, `--plugin-dir` folder-of-plugins, the 1 GB tool-result cap (no config surface); `CLAUDE_CODE_USE_GATEWAY` regression and fix (env vars are reference-only, never set here); prompt-cache fixes for resumed subagents, teammates, and forked skills, the `/context` local estimate, the `rm -rf` prompt hardening, the auto-mode diagram-URL rule (behavior only); gateway, Bedrock, Vertex, Remote Control, Windows, VSCode, plugin-marketplace, and MCP SSE-fallback entries.
+
+**Files changed:**
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `skills/consolidate/SKILL.md`
+- `MANUAL.md`
+- `src/setup.ts`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`
+- `CHANGELOG.md`
+
+**Cleanup (previously unreleased):**
+
+Removed unused parallelmax and per-tool failure counters, unread skill markers, unused Node package-manager detection, and the always-success provenance stub. Tool cadence now runs only for Bash and Agent calls; review-queue and signature tracking remain. Removed conflicting editing/review instructions, false React batching advice, obsolete `defer` guidance, and overstated npm-installer guarantees.
+
+Fixed three audit findings: the safety-net checks every removal operand, MCP reinstalls retain unknown user fields, and custom-path hook audits verify the selected installation's source manifest. Existing cleanup for retired state and checksum verification remain intact.
+
+## [15.7.0] — 2026-09-04
+
+Synced with Claude Code v2.1.260 (from v2.1.257). 2.1.258 was two fixes; 2.1.259 and 2.1.260 carried one managed settings key and one statusline payload extension for us. No dedupe this round.
+
+**Adopted:**
+- `managedMcpServers` (upstream 2.1.259) in `src/schemas/settings.ts`, the manifest, and `docs/settings-reference.md`. Org-delivered HTTP/SSE MCP servers as an object keyed by server name in the `.mcp.json` `mcpServers` shape; modelled with the shared `McpServers` record. The binary honors it only from managed settings and exempts it from `allowedMcpServers` / `deniedMcpServers`, which now govern user-added servers only.
+- `prompt_cache.last_miss_cause` and `prompt_cache.miss_causes` (upstream 2.1.260) in `src/hooks/statusline.ts`. When the ♻ chip reads `cold`, it now appends the diagnosed cause, e.g. `♻42% cold ttl_expired_1h`, so a TTL expiry is distinguishable from a tools or system-prompt change the user triggered.
+
+**Docs:**
+- `docs/settings-reference.md`: `allowedMcpServers` scope narrowed to user-added servers (2.1.259); statusline note describes the cause suffix.
+- `CLAUDE-FULL.md`: `/effort` on Fable 5.1 no longer invalidates the prompt cache mid-session (2.1.260).
+
+**Skipped:** `--permission-prompts none`, `claude plugin validate --json`, `/diff`, `/reload-plugins` in headless, `/advisor` text form (no config surface); the `model: fable` `[1m]` fix; earlier 1M auto-compact and the removed one-hour subagent background limit (behavior only); GitLab (`pr.kind`, `glab mr`); gateway, Bedrock, VSCode, Remote Control, and remaining fixes.
+
+**Files changed:**
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `src/hooks/statusline.ts`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `CLAUDE-FULL.md`
+- `CHANGELOG.md`, `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `src/setup.ts`
+
+## [15.6.2] — 2026-09-04
+
+`profiles/react-native.md` gains a "Release & TestFlight" section. The profile previously ended at `eas submit --platform ios`, which reaches only internal tester groups and says nothing about versioning; that gap produced a closed-version rejection and non-monotonic build numbers across five Expo apps on 2026-09-04.
+
+- Freeze the marketing version during a beta and bump only the build number; only the first build per version string is reviewed, and a version that shipped to the App Store is closed for beta along with everything below it.
+- `eas.json` uses `"appVersionSource": "remote"` with `autoIncrement: true` so build numbers stay monotonic.
+- An EAS Workflow `testflight` job on `app_store_connect.build_upload` distributes every upload to the "Public Beta" external group with `submit_beta_review: true`; `eas submit --groups` cannot.
+- Pre-implementation checklist gains a matching item. Shared copy lives in team-knowledge as `testflight-beta-versioning-and-eas-distribution`.
+
+## [15.6.1] — 2026-09-02
+
+Prompt audit against Claude Fable 5.1: removed instructions written for models that needed more pushing, and the hook text that repeated them every few tool calls.
+
+- `output-styles/darkroom.md` no longer suppresses closing summaries or caps lists at five; it asks for a summary when a message has several outcomes and for lists that stay scannable. `rules/git.md` drops the five-bullet PR cap for the same reason.
+- `CLAUDE-FULL.md` replaces the banned-phrase list in the Voice section with a positive description of the register; the no-em-dash house rule stays. Version-number parentheticals removed there and in `skills/orchestrate/SKILL.md`.
+- `tool-cadence.ts` no longer injects the "Delegation check" reminder or the follow-up "Delegation violation" soft block; the streak counter still runs. The review-queue nudge is now one line with the count and the limit. `post-failure.ts` no longer injects "Tool X has failed N times"; `escalate-model.ts` already covers repeated failures by signature.
+- `agents/planner.md` drops the "ALWAYS start by analyzing" booster; `agents/deslopper.md` drops the filled-in example report (the template stays); `skills/autoresearch/SKILL.md` replaces the STRENGTHEN mutation (which manufactured MUST/ALWAYS wording) with CLARIFY; `skills/tldr/SKILL.md` scopes the `language` rule to the opt-in llm-tldr engine, since the default engine detects the language itself.
+
+## [15.5.0] — 2026-09-01
+
+Synced with Claude Code v2.1.257 (from v2.1.247), moved the default session model to Claude Fable 5.1, and adapted the prompt surface to it. Of the ten upstream releases, 2.1.248, 2.1.251, 2.1.252, and 2.1.257 carried substance; the rest were "bug fixes and reliability improvements". No dedupe this round — nothing upstream subsumed a script we maintain.
+
+**Adopted:**
+- `PreModelSwitch` / `PostModelSwitch` hook events (upstream 2.1.251) in `src/schemas/hooks.ts` and the manifest, plus a new `src/hooks/model-switch-guard.ts` wired on `PreModelSwitch` with matcher `.*fable.*|.*mythos.*`: when the cached usage is ≥95% it answers `ask` with the pool numbers; at the critical band it answers `allow` with an annotation; otherwise it is silent. It never denies — the user owns the switch — and it does exactly one cached read because a timed-out PreModelSwitch hook blocks the switch (timeout pinned to 5s). Companion to the Fable 5.1 default below.
+- Statusline `prompt_cache` payload (upstream 2.1.251): `src/hooks/statusline.ts` renders a ♻NN% cache-hit-ratio chip after the ⚡ quota chip (green ≥80%, yellow ≥50%, red below; `cold` when the prefix expired; hidden until three requests). `rate_limits.spend_limit` typed for gateway users, no visual yet.
+- New settings keys accepted by the strict schema: `timeFormat`, `timeZone`, `permissions.blockReadsOutsideWorkingDirectories` (2.1.257), `desktopSessionCleanupPeriodDays` (2.1.248); agent frontmatter `experimental.cacheTtl` (2.1.248); env vars `CLAUDE_CODE_RESTRICTED`, `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, `SELF_HOSTED_RUNNER_CLIENT_LABEL` in the manifest and `docs/settings-reference.md`.
+- Managed-file manifest version 5 → 6 so the new hook reaches existing installs; `emitHookSpecificOutput` helper in `src/lib/hook-runtime.ts` for hooks whose output carries a decision.
+- Docs follow the 2.1.251 semantics change for `CLAUDE_CODE_SUBAGENT_MODEL` (now the default for every subagent, overridden by agent `model:` and per-spawn — built-in `Explore`/`Plan`/`general-purpose` now run on Sonnet), per-model `/effort` persistence, the `fable` alias moving to Fable 5.1, `defaultMode: "bypassPermissions"` being ignored in project settings, and project `env` no longer setting `CLAUDE_CONFIG_DIR`/`TMPDIR`.
+
+**Deletions / Native-now-redundant:** none.
+
+**Files changed:**
+- src/schemas/hooks.ts, src/schemas/settings.ts, src/schemas/permissions.ts, src/schemas/agent.ts, schemas/*.schema.json
+- upstream/claude-code-manifest.json
+- src/hooks/model-switch-guard.ts (new), src/lib/hook-runtime.ts, config/40-hooks.json
+- src/hooks/statusline.ts
+- src/lib/claude-managed-file-manifests.ts
+- tests/model-switch-guard.test.ts (new), tests/statusline-cache.test.ts (new), tests/install-e2e.test.ts
+- docs/hooks-reference.md, docs/settings-reference.md, docs/frontmatter-reference.md, docs/agent-models.md, CLAUDE-FULL.md
+- src/setup.ts, package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+
+Prompt surface adapted to Claude Fable 5.1 per Anthropic's [prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1). A scan of `CLAUDE-FULL.md`, the output style, rules, agents, and skills found none of the literal anti-patterns the guide flags (anti-formatting bans, "hold findings" lines, thinking suppression); the changes below are rules whose rationale shifted with the model.
+
+**Adopted:**
+- Editing rule now minimizes edit tokens: surgical `Edit` for any targeted change, `Write` only for new files or when most of a file changes, and one re-read-and-retry before falling back to `Write`. The old ">15 lines → Write" rule amplified 5.1's tendency to rewrite whole files.
+- Register gains "no mannered prose" (5.1 prose runs denser) and a positive-framed formatting rule (5.1 under-formats, so bans would suppress needed structure) in both `CLAUDE-FULL.md` and `output-styles/darkroom.md`.
+- Effort/context guidance is model-aware: on Fable 5.1, `medium` ≈ Fable 5 at lower cost, `low` answers from memory so raise it for lookups, and the 200K ceiling is about usage limits and attention rather than premium billing (1M at standard rates, cache reads 0.025x).
+- Delegation: keep working while background agents run; the fast-moving-names verification rule generalizes the hardware/platform search rule to AI models and dev tools.
+- `AGENTS.md` scopes committed tests to what the task asks for, sized like neighbors; scratch checks stay scratch.
+
+**Files changed:**
+- CLAUDE-FULL.md
+- output-styles/darkroom.md
+- AGENTS.md
+- docs/agent-models.md
+
+Default session model is now **Claude Fable 5.1** (`claude-fable-5-1`), replacing `claude-opus-5`. The whole team is on Max, where Fable has been included since 2026-07-20 (same weekly pool at ~2x the Opus 5 rate, capped at 50% of the weekly limit, extra-usage credits past that), so the default now buys 5.1's long-horizon agentic gains and the pool-burn trade-off is the team's stated preference. Judgment agents (`maestro`, `planner`, `security-reviewer`) stay pinned to `claude-opus-5`; `/model opus` remains the per-session step-down. Installs that never changed `model` move with the default through the v15.4.0 three-way merge; user-set models are untouched.
+
+**Files changed:**
+- config/10-core.json
+- docs/agent-models.md
+- docs/settings-reference.md
+
+## [15.4.0] — 2026-08-27
+
+Changed config defaults now reach existing installs: a value still equal to what the previous install wrote is treated as cc-settings' own old default and moved to the new team value, instead of user-wins freezing it forever. User-changed values keep winning everywhere.
+
+**Adopted:**
+- Three-way defaults update in the settings merge, driven by the recorded baseline (`baselineSettings` replaces v15.3.0's env-only `baselineEnv`): nested scalar conflicts in the default deep-merge strategy, `env` value conflicts, `permissions` scalar fields, and an uncustomized `statusLine` block (which now also picks up new sub-keys user-wins-whole silently dropped). Reported as "Updated N stale default(s) to the new team value".
+- The block-level nested-ADD gap itself was already fixed in v12-era `bf9bfdd` (deep-merge lands team-only sub-keys); this closes the remaining CHANGED-default and dedicated-strategy cases.
+
+**Files changed:**
+- src/lib/settings-merge.ts
+- src/setup.ts
+- tests/settings-merge.test.ts
+- package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.3.0] — 2026-08-27
+
+Env keys cc-settings retires between versions are now removed from existing installs automatically, instead of surviving until someone remembers the registry.
+
+**Adopted:**
+- Three-way env prune in the settings merge: the previous install's recorded baseline (`~/.claude/.cc-settings-baseline.json`, written since v13.1.0) is read before the managed footprint is cleaned and threaded into `mergeSettings` as `baselineEnv`. A key the old install wrote, the new config no longer sets, and the user never changed is pruned; a user-changed value survives as a user edit. First production caller of `readSettingsBaseline` — the first shipped slice of the three-way merge design, deliberately scoped to `env` only.
+- `ENABLE_PROMPT_CACHING_1H` added to `DEPRECATED_ENV_KEYS` as the fallback for pre-v13.1.0 installs with no baseline (the v15.2.0 retirement that exposed this gap).
+
+**Deletions / Native-now-redundant:**
+- None. `DEPRECATED_ENV_KEYS` stays as the pre-baseline fallback path.
+
+**Files changed:**
+- src/setup.ts
+- src/lib/settings-merge.ts
+- src/lib/settings-baseline.ts
+- tests/settings-merge.test.ts
+- tests/install-e2e.test.ts
+- package.json, .claude-plugin/plugin.json, .codex-plugin/plugin.json
+- CHANGELOG.md
+
+## [15.2.0] — 2026-08-27
+
+Claude Code v2.1.238 → v2.1.247 sync: six new settings keys typed, and the blanket 1-hour prompt-cache env var replaced by per-scope cache-TTL keys.
+
+**Adopted:**
+- `promptCacheTtl: "1h"` + `subagentPromptCacheTtl: "5m"` in `config/10-core.json` (upstream v2.1.242) — the main conversation keeps the 1-hour cache across breaks while subagents, workflows, and compaction drop back to 5 minutes, skipping the higher 1h cache-write rate on every fan-out.
+- `feedbackDrafts` enum in the settings schema (v2.1.247) — SendFeedback draft control: notify / quiet / off.
+- `spinnerTipsOverride` extended with `tips` entries (`{id, text, cooldownSessions, priority}` or plain strings), `tipsFile`, and `label` (v2.1.247).
+- `modelPicker` (v2.1.242) — curated `/model` lineup with `options` rows and `replaceBuiltInOptions`.
+- `keybindingFlavor` enum (v2.1.238) — `"readline"` Ctrl+W behavior.
+- `modelPricing` loose object (v2.1.243, managed) — contracted per-model rates for `/cost` and telemetry.
+- Manifest: five prompt-cache/feedback env vars added to `knownEnvVars` (reference-only).
+
+**Deletions / Native-now-redundant:**
+- `ENABLE_PROMPT_CACHING_1H` env removed from `config/10-core.json` — superseded by the typed `promptCacheTtl` / `subagentPromptCacheTtl` keys above (upstream v2.1.242); the settings keys sit above the env var in upstream precedence, so the var carried no remaining value.
+- `docs/settings-reference.md` `effortLevel` prose said cc-settings pins `high`; the config pins `medium` — corrected.
+
+**Files changed:**
+- src/schemas/settings.ts
+- schemas/settings.schema.json
+- config/10-core.json
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
+## [15.1.0] — 2026-08-27
+
+- New `--fresh` install flag: reinstalls as if cc-settings were being added to
+  a clean Claude Code setup for the first time. Removes
+  `~/.claude/settings.json`, the prior-install sentinel
+  (`.cc-settings-version`), the settings baseline
+  (`.cc-settings-baseline.json`), and the hooks fingerprint
+  (`.cc-settings-hooks-fingerprint`), drops any cc-settings-managed MCP
+  servers the current install no longer ships, and moves aside the source
+  repo's `.claude/settings.local.json` (accreted permission approvals) to a
+  timestamped `.bak-<ts>` file — then installs the full baseline fresh. Scope
+  is config only: login/auth state, conversation history, projects memory,
+  and non-cc-settings plugins are never touched. Recoverable via `--rollback`.
+
+## [15.0.0] — 2026-08-26
+
+Context-cost diet: users were draining ~80% of their usage allowance in a couple
+of hours. This release lowers the standing defaults that multiplied token spend
+and shrinks the always-injected surfaces; depth stays available per session.
+
+**Default behavior (breaking for anyone relying on the old defaults):**
+
+- `CLAUDE_CODE_EFFORT_LEVEL` default `high` → `medium`. Thinking tokens are
+  output-priced and every inheriting subagent spends them; raise per session
+  with `/effort high|xhigh`. `planner` and `security-reviewer` now pin `xhigh`
+  in frontmatter.
+- `CC_PARALLELMAX_THRESHOLD` default 12 → 20 (config and the `tool-cadence`
+  code default) — each delegation re-pays a full system prompt.
+- Codex cross-model review batched: one review per PR / `/ship` / risky commit
+  instead of every diff-producing turn. The `codex-verify` hook now injects
+  `[codex:batched]`; `codex exec` bulk routing is unchanged.
+- Context guidance: treat 200K tokens as the working ceiling even on 1M-window
+  models — input past 200K bills at the long-context premium. Compact or
+  `/handoff` by ~150K. MANUAL.md and first-session tables are now token-based.
+- The installer preserves existing scalar env values, so these new defaults do
+  **not** reach existing installs on upgrade — apply them by hand
+  (`/config`, or edit `~/.claude/settings.json`) or reinstall fresh.
+
+**Prompt footprint:**
+
+- `CLAUDE-FULL.md` 12,315 → 9,286 bytes with the same policy content.
+- Skill selector descriptions 9,913 → 8,673 bytes; `SKILL_DESCRIPTION_BYTE_BUDGET`
+  tightened 10,240 → 8,704 (one-way ceiling).
+- Rules diet: `rules/` 54.0 KB → 37.6 KB. Reference material moved to
+  `docs/performance-reference.md` and `docs/motion-reference.md` (read on
+  demand); every enforcement rule and numeric value stays in the rules. A
+  single `.tsx` touch now injects ~38 KB of rules instead of ~52 KB, per
+  session and per subagent.
+
+**Installer:**
+
+- Claude managed-file manifest advanced to v5 to ship the two new reference
+  docs; historical manifest versions exclude them so ownership and upgrade
+  pruning stay accurate.
+
+## [14.0.0] — 2026-08-24
+
+This major release changes the installed instruction surface and Claude managed-file ownership.
+
+**Prompt footprint:**
+
+- Compressed the always-on `AGENTS.md` surface from 26,445 to 15,938 bytes,
+  `CLAUDE-FULL.md` from 26,429 to 12,315 bytes, and the Darkroom output style from 5,698 to
+  3,375 bytes while preserving their guardrails.
+- Compressed skill selector descriptions from 12,230 to 9,937 bytes and agent selector
+  descriptions from 6,398 to 4,858 bytes. New byte ceilings prevent those surfaces from drifting
+  upward unnoticed.
+
+**Installer:**
+
+- Advanced the Claude managed-file manifest to v4. New installs no longer copy
+  `rules/README.md`, removing 1,475 installed bytes, and v3 installs upgrade without leaving the
+  previously managed file behind.
+
+**Portability:**
+
+- Made Bun subprocess and test helpers portable to Windows, and isolated FIFO coverage to POSIX
+  platforms where named pipes are available.
+
+**Docs:**
+
+- **Full documentation drift audit** — read every reader-facing doc in the repo in full
+  (MANUAL.md, README.md, AGENTS.md, CLAUDE.md, CLAUDE-FULL.md, SECURITY.md, all of `rules/`,
+  `agents/`, and `docs/`) and cross-checked every factual claim against the actual code, via
+  six parallel read-only audits. 46 findings reported (2 were the same cross-file issue caught
+  twice); applied across 22 files this pass. Highlights: `triage` was missing from MANUAL.md's
+  "All Skills" table despite being a real, managed skill; `docs/frontmatter-reference.md` had
+  drifted hardest — stale agent tool lists (phantom `TodoWrite`, missing `SendMessage`), a
+  fabricated `context: inherit` value that's never actually valid, and every skill's
+  argument-hint/allowed-tools cells out of sync with their `SKILL.md` frontmatter; two docs
+  (`docs/settings-reference.md`, `docs/agent-models.md`) and the upstream manifest still
+  described a `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` pin removed in v13.2.1;
+  `docs/settings-merge-three-way-design.md` read as an open proposal when part of it shipped
+  (v13.1.0) and the rest was explicitly declined — now marked historical; `docs/security-reference.md`
+  had a duplicated OWASP category number (two sections both claimed A07:2021, A04:2021 Insecure
+  Design was missing); `agents/maestro.md`'s delegation matrix was missing `deslopper`,
+  `security-reviewer`, and `codex-verifier` despite MANUAL.md claiming it delegates to "all of the
+  above"; `agents/planner.md` pointed readers to an ADR template that existed nowhere in the repo —
+  it now contains one. Also rewrote MANUAL.md's eight-mode `/audit` section from one 900-word
+  paragraph into a scannable per-mode list, and split two other dense paragraphs
+  (SECURITY.md's auto-update controls, docs/codex-bridge.md's quota-steering mechanics) into
+  bulleted lists — same facts, readable without prior context. Full file list in the diff; two
+  batches of the sweep declined to report and had to be re-prompted (docs-audit-rules,
+  docs-audit-batch-a) — noted here in case the pattern recurs.
+
+## [13.16.0] — 2026-08-20
+
+Sync with Claude Code v2.1.235–v2.1.237 (from v2.1.234). Three upstream releases, mostly bug
+fixes; two config-surface additions and two documented behaviors.
+
+**Adopted:**
+
+- **`spellcheck` settings key** (upstream 2.1.235) — underlines misspelled words in the prompt
+  input via installed `aspell`/`hunspell`/`ispell`. Added to `src/schemas/settings.ts` as a
+  `boolean | object` superset (upstream hasn't pinned the value shape) and documented in
+  `docs/settings-reference.md`. Not enabled in `config/` — keeps the strict schema from rejecting
+  a live settings.json that sets it.
+- **`ANTHROPIC_DEFAULT_MODEL` env var** (upstream 2.1.236) — the model new sessions start on; a
+  `/model` pick still overrides it and persists, unlike `ANTHROPIC_MODEL`. Tracked in the manifest
+  and the docs env table. cc-settings keeps pinning the default via the `model` settings key.
+
+**Docs:**
+
+- **`notify_when_idle` on cross-session `SendMessage`** (upstream 2.1.236) — one-shot idle notice
+  from a same-machine session, replacing `ListAgents` polling. Documented in
+  `docs/settings-reference.md` → Cross-session messaging.
+- **Built-in "Concise" output style** (upstream 2.1.237) — noted in `MANUAL.md`; Darkroom stays
+  the shipped default because Concise targets brevity only, without the register rules.
+
+**Files changed:**
+
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- MANUAL.md
+- src/setup.ts
+- CHANGELOG.md
+
+## [13.15.0] — 2026-08-20
+
+**cc-settings now installs a native Codex harness from the same installer and source tree as Claude
+Code.** Native setup replaces `/import` as the recommended path. `/import` remains available for
+migrating an existing hand-tuned Claude Code profile.
+
+**Added:**
+
+- **Target selection across the full lifecycle.** `--target=auto|claude|codex|both` now applies to
+  install, dry run, status, rollback, and uninstall. `auto` selects both products when `codex` is on
+  `PATH`, and Claude Code only otherwise. Unknown flags and invalid values fail closed.
+- **A native Codex install package.** Full installs manage a marked `AGENTS.md` block, Codex role
+  TOMLs, `rules/darkroom.rules`, allowlisted runtime source, a version sentinel, Codex-specific
+  backups, and the `darkroom@cc-settings` plugin. The plugin supplies the 38 shared skills, the fixed
+  HTTPS Figma MCP, compatible lifecycle hooks, and Codex UI metadata. User-created and ignored
+  checkout files are not copied into the managed runtime.
+- **Ownership-aware Codex lifecycle operations.** Reinstalls preserve unrelated agents, rules, and
+  instruction text. First installs refuse same-name collisions. Light switches, rollback, and
+  uninstall remove only sentinel-owned native agent files, while uninstall keeps backups.
+
+**Changed:**
+
+- **Codex setup documentation now leads with the native installer.** It documents one-time hook
+  trust review through `/hooks`, MCP authentication, the Codex-specific light profile, independent
+  product backups, IDE plugin limits, and Claude-only workflow boundaries.
+- **Codex MCP defaults now avoid mutable registry commands.** Context7 and Chrome DevTools are not
+  auto-run from unpinned packages. Users may configure reviewed and pinned versions. Shared Codex
+  workflows fall back from the unbundled `tldr` server to `rg` and native search.
+- **The bootstrap flag reference now covers Codex targets and uninstall.** The remote one-liners
+  still run the default target; passing flags requires running the bootstrap from a checkout.
+
+
+**`/audit` reshuffled: Maintainability and Codebase modes merged into one, new empirical-only Performance mode.** The two modes fanned the same whole-repo readers over the same files and shipped near-identical reports, so they now run as one Codebase mode with two hunt lists — a structure lens (should this code exist? — the Cursor thermo-nuclear rubric + context7 dependency audit) and a behavior lens (does it do what it promises? — the fable-audit adversarial categories). The mode router's maintainability-vs-correctness clarifying question is gone; bare "audit the codebase" routes straight in. The new **Performance mode** covers client runtime, bundle/build, server/data, and code-level hot paths with a hard evidence rule: a finding does not exist until a measurement confirms it — static reading only generates hypotheses, each confirmed or discarded by a profile/benchmark/timed run, unmeasurable leads quarantined in an ungraded appendix, and a "not measurable" repo gets a stop, not a speculative report. Severity anchors on budgets (CWV good thresholds, per-route first-load JS) where a limit is named and on leverage (measured cost × path frequency) otherwise. Client-runtime numbers delegate to the same Lighthouse protocol `/lighthouse` uses; `/lighthouse` keeps the single-page fix-until-targets loop and dropped the ambiguous "performance audit" trigger. Mode count stays eight; skill count unchanged. Updated: `skills/audit/SKILL.md`, `skills/audit/references/audit-contract.md`, `skills/audit/references/nuclear-review.workflow.js` (header), `skills/lighthouse/SKILL.md` (description), `MANUAL.md`.
+
+**Also in this release:** audit's codebase mode reconciles `SHORTCUT:` markers like documented decisions and adds `deslop-cli` as a second advisory dead-code signal; the performance mode's hypothesis sweep targets high fan-in hubs from the tldr call graph; findings hand off by type (dead code/duplication → `deslopper`, structure → `/zero-tech-debt`/`/refactor`, client runtime → `/lighthouse`); `oracle` and `strategist` cross-reference each other to resolve their trigger adjacency; the Codex native install's collision error now names its remediation.
+
+## [13.14.0] — 2026-08-18
+
+**The audit skill gains an SEO mode — discoverability for search engines and answer engines.** Distilled from shipped Darkroom work: satus PRs #348/#405/#413 and darkroomengineering/website PRs #40/#65 independently converged on one discoverability architecture, and the mode encodes that destination shape as 17 mechanical checks so any client project can be audited against it.
+
+**Added:**
+
+- **`skills/audit/references/seo-checks.md`** — the check reference (S1–S17, stable IDs), five groups: canonical integrity (self-referential per route; Next.js replaces, never merges, a child's `alternates`), advertised-vs-rendered (every sitemap URL must 200 — the sitemap never checks reachability itself), per-content metadata, structured data (JSON-LD hygiene, no fabricated facts), and AEO surfaces (`/llms.txt` generated from shared sources, AI crawlers named in robots.txt, machine-view routes for canvas-heavy sites). Each check carries the curl/grep detection command and the fix's destination shape.
+- **`Mode: SEO` in `skills/audit/SKILL.md`** — rides the Shared Contract (CONFIRMED/PLAUSIBLE, stable IDs, `docs/audits/seo-audit-YYYY-MM-DD.md`), runs mechanical checks before source reading, and adds a per-check verdict table so successive audits diff against the last run. Router triggers: "seo audit", "aeo", "ai engine optimization", "answer engine", "rank better".
+
+**Changed:**
+
+- The audit skill description was compressed to fit the new mode under the 1024-char per-skill cap and the 12 KiB index budget — trigger phrases dropped where the remaining description text already carries the routing keyword ("harsh maintainability review", "docs audit", "audit the workflows", "abuse paths", "discoverability audit", "llms.txt").
+
+## [13.13.0] — 2026-08-18
+
+**Sync with Claude Code v2.1.234** (from 2.1.228; 2.1.230 was never published — the upstream changelog jumps 2.1.229 → 2.1.231). The headline is upstream removing the todo/task tools from Opus 4.8+ models; cc-settings follows the removal instead of opting back in.
+
+**Adopted:**
+
+- **Todo/task tools stripped from agent frontmatter** (upstream 2.1.233 removed `TodoWrite` and `TaskCreate/Get/Update/List` on Opus 4.8+, Sonnet 5, Fable 5, Mythos 5). `implementer` loses `TodoWrite`; `deslopper` loses the `Task*` quartet; `maestro` loses both, and its teams-orchestration and batch-detection prose no longer leans on a shared task list. The alternative — `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` in `config/10-core.json` — was considered and rejected at the sync gate: follow the upstream direction rather than pin old behavior. Why this matters: with the session on Opus 5 and subagents on Sonnet 5, all three agents were declaring tools that no longer exist.
+- **`sandbox.ripgrep`** (2.1.232) in `src/schemas/settings.ts` — third sandbox binary override next to `bwrapPath`/`socatPath`; honored only from user/managed/`--settings` scopes, and managed overrides of any of the three now require approval.
+- **Marketplace keys** (2.1.232) in `src/schemas/settings.ts` — `additionalMarketplaces` and `allowedMarketplaces`, the new friendlier aliases for `extraKnownMarketplaces`/`strictKnownMarketplaces`, plus `extraKnownMarketplaces` itself, which predates this window but was never modelled.
+- **Seven env vars** in the manifest and `docs/settings-reference.md`: `CLAUDE_CODE_TOOL_MEMORY_LIMIT`, `CLAUDE_CODE_WEBFETCH_CACHE_TTL_MS`, `CLAUDE_CODE_ENABLE_TODO_TOOLS` (2.1.233); `CLAUDE_CODE_PROJECT_DIR_NAME`, `CLAUDE_CODE_GOAL_CHECKIN_MINUTES` (2.1.234); `CLAUDE_CODE_WORKFLOW_PREFIX_STAGGER_MS`, `CLAUDE_CODE_ATTRIBUTION_HEADER` (2.1.229).
+- **Docs:** `CLAUDE-FULL.md` cross-session messaging paragraph gains the 2.1.232 upgrades (bare-name `SendMessage` delivery, `@`-mention of sessions, unique live-session names).
+
+**Deletions / Native-now-redundant:** none. Checked and cleared: the removed "Default teammate model" `/config` row (zero references here), the native GitLab MR statusline badge (custom `statusline.ts` unaffected), and the new `/config` rows for dialog expiry and cross-session inbound (keys modelled since the 2.1.224 sync).
+
+**Skipped:** all GitLab integration, gateway/enterprise surfaces, plugin marketplace `command` sources (no plugin-source schema here — same call as the 2.1.224 sync), the `selection:clear` keybinding, and the usage-limit auto-continue toggle (its settings key is unnamed upstream; the loose root tolerates it).
+
+**Files changed:**
+- agents/implementer.md
+- agents/deslopper.md
+- agents/maestro.md
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- CLAUDE-FULL.md
+- CHANGELOG.md
+- package.json
+- src/setup.ts
+- .claude-plugin/plugin.json
+- .codex-plugin/plugin.json
+
+## [13.12.0] — 2026-08-13
+
+**Codex gets a distribution surface — one source tree, two harnesses.** cc-settings already pairs with Codex at runtime through the bridge (`docs/codex-bridge.md`); this adds the *setup* half, so a Codex user can consume the same standards and skills without a fork or a second installer.
+
+**Added:**
+
+- **`.codex-plugin/plugin.json`** — a Codex-native plugin manifest that points at the shared `./skills/` directory rather than copying it. Both marketplaces now advertise the same `darkroom` plugin from the same checkout, so the skill library cannot drift between them.
+- **`docs/codex.md`** — the setup doc. Recommends Codex's native `/import` of an installed Claude Code harness as the complete path (it translates instructions, settings, skills, hooks, MCP servers, and subagents), and documents the plugin manifest as a skills-only preview for packaging validation and incremental porting. Records the distribution decision: keep Codex support in this repo; do not create a `codex-settings` repository unless Codex needs independently versioned behavior.
+- **Version-sync coverage for the new manifest** in `tests/plugin-manifest.test.ts` — the version-bearing file count goes from three to four, and a new identity-alignment test pins `name`, `author`, `repository`, and `license` equal across both plugin manifests. Without it the two manifests could describe different plugins under one marketplace entry.
+
+**Changed:**
+
+- **`README.md`** — the one-line description now says "AI coding configuration" instead of "Claude Code configuration", since the Claude harness is no longer the only consumer. Adds a Codex setup pointer and a `docs/codex.md` row to the docs table.
+
+**Boundary worth knowing:** the plugin path exposes `SKILL.md` files only. `CLAUDE-FULL.md`, Claude settings, hooks, and role-agent definitions still need the import's translation, and several orchestrated skills refer to Claude role-agent conventions. Do not call the skill library Codex-native until representative multi-agent, review, and shipping flows pass there.
+
+**Files changed:**
+- .codex-plugin/plugin.json (new)
+- docs/codex.md (new)
+- docs/codex-bridge.md
+- README.md
+- CHANGELOG.md
+- package.json
+- src/setup.ts
+- .claude-plugin/plugin.json
+- tests/plugin-manifest.test.ts
+
+## [13.11.0] — 2026-08-12
+
+**Security-review techniques folded in from [vercel-labs/deepsec](https://github.com/vercel-labs/deepsec) (Apache-2.0); no new skill, 38-skill ratchet holds.** deepsec is a standalone paid AI vulnerability scanner — its product code isn't portable, but its investigation prompt and matcher library carry concrete review heuristics cc-settings lacked.
+
+**Adopted:**
+
+- **`agents/security-reviewer.md` gains an Auth-Review Discipline section** — three rules from deepsec's investigation prompt: only middleware that wraps the handler directly counts as an auth check (edge/proxy/CDN/WAF and Next.js `middleware.ts` are explicitly insufficient); a four-surface auth-bypass checklist (URL manipulation, auth-flow tampering, resource-level authorization gaps, and negated permission checks like `!(await auth.can(...))` with inverted logic); and a static-analysis-only constraint (never reproduce or exploit, review source only).
+- **`docs/security-reference.md` gains Framework Auth & Supply-Chain Checklists** — from deepsec's tested matcher library: every export from a `'use server'` file is a publicly callable POST endpoint regardless of client call sites (and auth *present* is not auth *correct* — the call's logic still gets reviewed), untrusted `searchParams`/dynamic segments, cross-tenant `unstable_cache` keys; a GitHub Actions checklist (`pull_request_target` with PR checkout, unpinned action refs, `${{ github.event.* }}` interpolated into `run:` blocks, `permissions: write-all`, `curl | sh`); and a compact Dockerfile/Terraform checklist (digest-pinned `FROM`, non-root `USER`, IAM wildcards, `0.0.0.0/0` ingress, SHA-pinned modules).
+- **`docs/security-reference.md` gains "Wiring a Security Scanner into PR CI"** — the two-job pattern with its threat model kept intact: the analyze job runs PR code with read-only permissions (a PR controls its own postinstall scripts and CLI-loaded config, which run before your steps), the comment job holds `pull-requests: write` and never executes PR code; net-new-findings-only gating (baseline read from the base ref, never the PR checkout) so pre-existing debt doesn't turn every touching PR red; a same-repo gate on the secret-bearing job (deepsec's doc calls it an `author_association` gate in one section and UX cleanup in another — the same-repo check is what its shipped workflow implements, and it's what keeps scanner credentials from being reachable by fork PR code), optional label-gating for defense-in-depth; SHA-pinned actions and three-dot merge-base diffs.
+- **`/audit` threat-model mode gains a fifth hunt category** — the repo's own delivery pipeline as an entry point, walking the new checklists.
+
+**Explicitly not taken:** deepsec's runbook SKILL.md (drives their paid CLI), the scanner itself (different tier — at most a companion tool), and the generate-validate-explosion-check contract for LLM-authored regex (genuinely novel, but cc-settings has no LLM-generated-pattern feature to guard yet — parked as a reference design in this entry).
+
+**Files changed:**
+- agents/security-reviewer.md
+- docs/security-reference.md
+- skills/audit/SKILL.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- package.json
+- CHANGELOG.md
+
+## [13.10.1] — 2026-08-12
+
+**Sync with Claude Code 2.1.228, plus a schema repair from 2.1.226.** The 2.1.227 and 2.1.228 changelogs are entirely bug fixes and UI polish — no new settings keys, hook events, env vars, tools, or agent-frontmatter fields, so nothing to adopt and nothing to dedupe.
+
+**Adopted:** nothing from 2.1.227–2.1.228 itself. One repair from the previous release: `remoteControlAtStartup` (v2.1.226) was enabled in `config/10-core.json` without a matching key in the settings schema, failing the composed-fragments known-key test — now in `src/schemas/settings.ts`, the manifest's `knownSettingsKeys`, the regenerated `schemas/settings.schema.json`, and the settings-reference table.
+
+**Deletions / Native-now-redundant:** nothing. Two candidates were checked and cleared: the 2.1.228 Write-tool change (newer models may overwrite unread files) doesn't touch `CLAUDE-FULL.md`'s Edit Strategy, which is about Edit-tool exact-match failures; the cross-session messaging fixes don't change the semantics `docs/settings-reference.md` documents. The memory-folder cleanup fix and the marketplace settings-merge fix benefit installs silently.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- src/setup.ts
+- src/schemas/settings.ts
+- schemas/settings.schema.json
+- docs/settings-reference.md
+- .claude-plugin/plugin.json
+- package.json
+- CHANGELOG.md
+
+## [13.10.0] — 2026-08-11
+
+**Two external skill repos folded in; the 38-skill ratchet held.** A research pass over [openai/skills](https://github.com/openai/skills) (32 curated skills) and [emilkowalski/skills](https://github.com/emilkowalski/skills) (10 skills) found six things worth taking. None became a new skill — everything grafted into existing skills and rules, which is exactly the consolidation pressure the ratchet exists to apply.
+
+**From openai/skills (each skill individually licensed; both sources verified Apache-2.0):**
+
+- **`plan-feature` gains a Goal Quality Bar** — a gate *before* the discovery interview, adapted from `define-goal`. The old Phase 1 asked three soft questions (problem/who/success) with no rejection discipline, so "make progress on X" sailed through to a PRD. The gate demands what's true when done, the evidence, the threshold, the scope bound, and the stop condition; rejects pure activity goals until sharpened; and carries a domain-keyed validator table (bug → failing-then-passing repro, perf → metric+threshold+method+runs, research → the decision it unblocks). When a clean one-liner falls out, the interview is skipped entirely — the gate is also an off-ramp.
+- **`/audit` gains a Threat-Model mode** — the one clean capability gap in the security surface: `security-reviewer` is diff-scoped and nothing produced a standing threat-model document. Repo-grounded STRIDE-style workflow: trust boundaries and assets, attacker capabilities *with explicit non-capabilities* (an uncalibrated attacker inflates every finding downstream), abuse paths tied to attacker goals, likelihood×impact with the reasoning written out, mitigations mapped one-to-one to components. Pauses to ask about deployment/exposure/sensitivity before finalizing, because those answers reshape severity.
+- **`/review`'s PR-comments variant follows through** — it summarized reviewer feedback but stopped there. It now runs a triage → approval gate → fix → push → thread-reply loop. Cross-model review caught two real bugs in the first draft: `gh pr comment` posts issue-level comments that never attach to a review thread (replies now go through the REST replies endpoint, and resolution is explicitly left to the reviewer), and "re-run the digest until Blocking hits zero" was unachievable since comments don't disappear when fixed — the digest now tracks addressed-vs-open with commit SHAs.
+
+**From emilkowalski/skills (MIT) — the animation-taste layer cc-settings never had.** The repo had no easing curves, no duration budgets, and no framework for whether something should animate at all; for a studio whose work is motion-heavy that was the largest documented gap this release closes:
+
+- **`/qa` gains a Motion Opportunities pass** (from `find-animation-opportunities`) — finds places that *should* animate and rejects everywhere that shouldn't. Every candidate survives a four-question gate: frequency (100+/day → never animate, no exceptions), a named purpose ("it looks cool" is not on the list), the duration budget, and function (decorative motion hurts data the user is reading). Output is capped at 5–7 suggestions pulling values from the project's own tokens, and **must** include 2–5 rejected candidates tagged with the question that killed them — the rejection list is what separates the pass from a wishlist. The qa fork's tool list gained `Read`/`Grep`/`Glob`; cross-model review caught that the pass instructed greps the fork couldn't execute.
+- **`/review` gains an animation checklist** (from `review-animations`) — ten standards enforced per-diff when motion code is touched (justified motion, frequency-appropriateness, `ease-in` as a hard block, sub-300ms with modals/drawers sanctioned to 500ms, trigger-anchored `transform-origin`, interruptibility, GPU-only properties, reduced-motion, asymmetric enter/exit, cohesion), plus flag-on-sight escalation triggers and a remedial order that starts with "delete the animation".
+- **`/audit` gains a Motion mode** (from `improve-animations`) — whole-repo animation audit producing self-contained implementation plans, slotting into the same mode-router skeleton as the other six. Seven modes total.
+- **`rules/ui-skills.md` Animation Constraints rewritten** — the three old bullets become easing tokens (`--ease-out`, `--ease-in-out`, `--ease-drawer` with cubic-bezier values), a duration budget by element type, the should-it-animate frequency table, and a never-ship list. One deliberate policy change: **"only animate when explicitly requested by design" is gone** — the gate replaces it, and `/qa` now proposes motion rather than waiting for design to ask. Also new: a curated library-picks table (cmdk, NumberFlow, dnd kit, Virtuoso, the clsx/cva split).
+- **`rules/motion-physics.md` is new** (rules are uncapped) — interruptibility as the first law of gesture-driven motion, 1:1 direct manipulation with pointer capture *and* `touch-action`/`pointercancel` handling, Apple-style spring defaults (`duration`+`bounce`, bounce only when the gesture carried momentum), velocity handoff at release, momentum projection, rubber-banding, asymmetric timing, clip-path recipes, a debugging-feel method, and a vocabulary table for briefing agents precisely.
+
+**Adjudicated cross-model review, both rounds.** Codex returned 4 findings on the openai batch and 8 on the motion batch; all 12 verified against the files before acting, all 12 confirmed and fixed pre-land — including three internal contradictions (reduced-motion "gentler not zero" vs an old example that zeroed durations; the 300ms rule vs the 500ms modal allowance stated without a carve-out; clip-path counted as both "third" and "fourth" sanctioned property).
+
+**Explicitly not taken:** Stagehand (the repo has zero Playwright to replace, and its LLM-picks-the-selector layer duplicates what Claude already does through chrome-devtools MCP — at added cost and nondeterminism); openai's deploy/Notion/Linear/Codex-specific skills; `ask-sonner`; `emil-design-eng` (90% internal duplicate). Emil's `prototype` (N divergent UI variants behind a live picker) is genuinely novel but skill-shaped — taking it means retiring one of the 38, a REPLACE decision deliberately left open.
+
+## [13.9.0] — 2026-08-10
+
+**Agent teams are now enabled, and deliberately not the default.** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` ships in `config/10-core.json`. Until now it was set nowhere, while three separate files described team workflows — so no team had ever formed from our config.
+
+Enabling the flag makes teams *available*, not automatic. Claude still forms one only when asked, or when it proposes one and you approve.
+
+**The rule that keeps them from becoming the default** (`CLAUDE-FULL.md` → "Agent teams — enabled, deliberately not the default"): parallelism is *not* the criterion, because subagent fan-out is already parallel and already gives each worker its own context window. The one thing teams do that subagents cannot is let workers talk to each other — shared task list, direct messaging — where a subagent only reports back. So the test is:
+
+> Does worker A need to see, challenge, or build on what worker B found *while both are still working*?
+
+Yes → team (competing hypotheses that should disprove each other, a review whose lenses need to argue). No → parallel `Agent` calls, which are cheaper and land results in one place instead of N transcripts. Tokens are a real input but not the deciding one; trading them for wall-clock is often right. Spend them when the debate is the point.
+
+**Four feasibility gates that come before cost**, all from upstream's documented limitations: teammate permission prompts surface in the **lead**, so a team is not an unattended mechanism; `/resume` and `/rewind` do not restore in-process teammates; teammates cannot spawn teammates, so `maestro` running as a teammate cannot fan out; and two teammates editing one file overwrite each other — split by file ownership at spawn, since teammates are separate sessions and cannot take the `worktree` isolation flag a subagent can.
+
+**Files changed:**
+
+- `config/10-core.json` — the flag. New template env keys reach existing installs through `settings-merge.ts`'s `{ ...team, ...user }`, so a `setup.sh` re-run picks it up.
+- `CLAUDE-FULL.md` — the selection rule, plus a routing-table row for "workers must argue with each other, not just report back".
+- `skills/orchestrate/SKILL.md` — corrects the prerequisites text written earlier the same day, which said cc-settings does not enable teams.
+- `docs/settings-reference.md` — env-table row for the flag.
+
+## [13.8.0] — 2026-08-10
+
+**Sync with Claude Code v2.1.226.** Both features in this window ship real config that the changelog doesn't mention, so the shapes here were read out of the 2.1.226 binary and cross-checked against the cross-session-messaging docs page rather than inferred from release notes.
+
+**Adopted — cross-session messaging (upstream 2.1.224):**
+
+- `crossSessionInbound` (`"accept" | "hold" | "refuse"`) in `src/schemas/settings.ts` — what a session does with messages arriving from your other sessions. The trap worth knowing: **unset is not `accept`**. With no value in scope Claude Code decides per message by comparing both sessions' permission modes, and holds anything a `bypassPermissions` session sends. A `"refuse"` in *project or local* settings outranks every other scope, inverting the usual precedence.
+- `isolatePeerMachines` (boolean) — approval gate before a message leaves the machine. `true` from any scope wins, so a checked-in project file can turn it on but never off.
+- `dialogExpiry` (`"60s" | "5m" | "10m" | "never"`, default `"5m"`) — how long a held-message approval dialog waits. Typed from the binary's own enum; the docs describe it in prose as "five minutes", which reads as a duration in milliseconds and is not.
+- `sandbox.network.allowUnixSockets` / `allowAllUnixSockets` — predate this window but were never modelled. They decide whether a *sandboxed* Bash command can reach a session's inbox socket, which makes them load-bearing for this feature.
+- Manifest: `CLAUDE_CODE_MESSAGING_SOCKET` added to `knownEnvVars`, `ListAgents` to `knownBuiltinTools`.
+- `CLAUDE-FULL.md` "Resume, don't respawn" said `SendMessage` resumes agents you spawned; it now also reaches your other sessions, and the rule said nothing about that.
+
+**Adopted — sandbox credential masking (upstream 2.1.224):**
+
+- `decode: "jwt"` and `maskClaims` on both `credentials.files` and `credentials.envVars` entries. A JWT-shaped secret is replaced with a *synthetic* JWT rather than an opaque sentinel, so tools that parse the token structurally keep working; `maskClaims` narrows that to named claims. **Both fail open** — a value that doesn't verify as a JWT is left readable inside the sandbox with only a console warning, which is worth knowing before trusting either as protection.
+- `credentials.awsPairs` and `credentials.sigv4` (`streaming`/`presigned`/`sigv4a`, each `"deny"` by default). SigV4 signs requests with the secret itself, so a masked AWS secret produces a signature the service rejects; declaring the pair lets the proxy re-sign on egress.
+- These four were already in the **2.1.223** binary — 2.1.224 added validation and diagnostics, not the surface. So this closed a pre-existing gap the changelog happened to surface, not fresh drift. Nothing had been silently stripped, because the nested sandbox objects went loose in the previous sync.
+
+**Corrected:**
+
+- `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` was documented as "default 200". Upstream removed that cap in 2.1.224; the variable is still recognized, so the row now says to set it explicitly if you want a ceiling.
+
+**Skipped, with reasons:** `claude self-hosted-runner` and its ~30 `CLAUDE_RUNNER_*` env vars (Team/Enterprise, injected *by* the runner rather than user-set); the `archive` plugin source (lives in `known_marketplaces.json` — cc-settings models marketplace IDs only, so there's no plugin-source schema to extend); the gateway spend-limit message; the `claude agents` workspace-trust prompt. 2.1.226 was bug-fixes-only.
+
+**Known gap, not fixed here:** the binary's settings enumeration carries ~70 top-level keys `knownSettingsKeys` doesn't have (`theme`, `verbose`, `autoCompactEnabled`, `askUserQuestionTimeout`, `daemonColdStart`, the `totalTokensReminder*` and `ssh*` families, …). Nearly all long predate this window, so folding them into a version-sync diff would have buried the actual drift. Recorded in the manifest notes; it needs its own reconciliation pass.
+
+**Files changed:**
+
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `CLAUDE-FULL.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
+## [13.7.0] — 2026-08-07
+
+**`/autoresearch` was scoring a contaminated environment.** It sampled skill variants by spawning `Agent(implementer, …)` — an in-process subagent, which inherits `~/.claude/CLAUDE.md`, the installed hooks, and the whole skill list. Every measurement was therefore *our config plus the skill*, never the skill. When the skill under test overlapped anything already in CLAUDE.md (delegation, register, the Laziness Ladder), the loop optimized toward a baseline that already contained the behavior it was trying to add, and a genuine improvement scored as worthless.
+
+Samples now run as an isolated subprocess with settings disabled and the model pinned:
+
+```bash
+claude -p --setting-sources "" --strict-mcp-config \
+  --model "$AUTORESEARCH_MODEL" --append-system-prompt "$BODY" "<test input>"
+```
+
+`--setting-sources ""` loads none of `user`/`project`/`local`. The model pin matters for the same reason: isolation also drops the operator's saved model and effort settings, so an unpinned run silently measures whatever the CLI currently defaults to — the score then drifts between machines and across releases. The pinned model is now part of the recorded result, configurable via `model:` in RESEARCH.md (default `claude-sonnet-5`).
+
+Two more holes closed in the same loop. **Guardrails**: the checklist measured whether a skill did its job but never noticed a mutation buying a higher score by cutting something that mattered — a terser variant that drops a confirmation step scores *better* on a concision-shaped checklist. The judge now also scores correctness and safety 1–5 plus a blocker flag, and a KEEP requires no blocker, both guardrails within 0.1 of their baseline, *and* the usual checklist improvement. A round that trips a guardrail logs as `vetoed`, not `reverted` — it found a real exploit in the metric and should never be re-proposed. **Control arm**: mutation scores are relative and say only that variant B beat variant A, never that the skill beats no skill. Publishing any "this skill helps" claim now requires an extra condition carrying a plain one-line instruction of the same intent; skill-vs-instruction is the honest delta, skill-vs-empty conflates the skill with the generic ask.
+
+Rubric shape adapted from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd)'s eval harness (MIT); the control-arm design from [juliusbrussee/caveman](https://github.com/JuliusBrussee/caveman)'s, whose earlier version made exactly the skill-vs-nothing mistake and published inflated numbers because of it.
+
+**`SHORTCUT:` markers give the Laziness Ladder a receipt.** The ladder told you to cut corners and nothing tracked the ones you cut deliberately. A deliberate simplification with a known ceiling now carries a comment naming both the ceiling and what should trigger revisiting it:
+
+```ts
+// SHORTCUT: single global lock, not per-key.
+// ceiling: contention above ~50 rps
+// upgrade: shard by key hash when p99 write latency climbs
+```
+
+The trigger is the load-bearing half — a marker naming a ceiling but no trigger is how a deferral quietly becomes permanent, since nobody knows what would make it worth fixing. `bun run lint:shortcuts` errors on a missing `upgrade:` line and warns on a missing `ceiling:`; it is wired into CI. `/audit` gains a fifth mode, **debt**, which collects every marker into one ledger with no-trigger entries listed first. Convention and ledger adapted from [dietrichgebert/ponytail](https://github.com/DietrichGebert/ponytail).
+
+Two details that are easy to get wrong. The marker must be the first thing on its line: the linter's own source contains the marker text inside regex literals, and an unanchored pattern reports the linter as its own debt (there is a regression test for exactly this). And `SHORTCUT:` is explicitly carved out of AGENTS.md's "TODO Comments Are Instructions" rule — implementing one on sight is the over-build the ladder exists to prevent, so it comes out only once its trigger has fired.
+
+**No savings against a run that never happened.** New rule in both `AGENTS.md` and `CLAUDE-FULL.md` — duplicated deliberately, since Claude Code never loads AGENTS.md and a rule living only there reaches no session or subagent. Report a delta only between two things that were both measured. "Saved ~400 lines", "cut token use 60%", "3× faster" are unknowable when the unoptimized version was never written: there is no baseline to subtract from, so the number is invented however plausible it looks. Count what exists (lines deleted in this diff, a benchmark run twice) and label any genuine extrapolation `est.`. This bites hardest on figures that flatter the work, which are the easiest to fabricate and the least likely to be checked.
+
+**Three files carried a version; nothing checked two of them.** `src/setup.ts` is the documented source of truth, and a test already pinned `.claude-plugin/plugin.json` to it — added after that file sat at 8.1.0 for two major versions. `package.json` had no such test and had drifted to 13.4.3 across three releases; the CHANGELOG's top heading had none either. Both are now covered by the same `installerVersion()` helper in `tests/plugin-manifest.test.ts`, verified by deliberately desyncing `package.json` and watching it fail rather than by observing it pass.
+
+**Skill descriptions now read as one index.** Four skills had drifted off the house convention — `retro`, `strategist`, and `plan-ceo-review` used `description: |` block scalars rendering as bullet lists, and `tldr` used "Use for". The Skill selector reads every description each turn and a human skims the same list in MANUAL.md; one entry as a bullet list and the next 37 as sentences makes the index unskimmable and buries the trigger phrases. All four rewritten to `<what it does>. Triggers "a", "b".`, and `lint:skills` gained two rules so they can't drift back: a multi-line description is an error, and trigger language that isn't the literal `Triggers` is a warning.
+
+The first casualty of the new honesty rule was our own copy. `/tldr` claimed "~95% fewer tokens than reading raw files" in three places with no benchmark behind it anywhere in the repo. Replaced with a description of what the tool actually returns plus a note on how to measure it yourself — a savings number we never ran is exactly what the rule forbids, and shipping the rule while keeping the number would have been the wrong lesson.
+
+**The docs advertised a command catalog; the product is a description matcher.** MANUAL.md opened by saying *"You don't need to memorize this — just describe what you want"*, and the README then listed 38 skills by name, so a new user reasonably concluded there were 38 commands to learn. The catalog framing won because it was louder, and that was the whole learning curve.
+
+Three fixes, no behavior change. MANUAL's install-tier tables moved from the first 60 lines down to `## Install Tiers (Light vs Full)` near the end — anyone reading the manual has already installed. The Quickstart now leads with "there is nothing to memorize" and a 13-row *you say → what runs* table. The README gained an **After installing** section that shows four sentences you can type instead of a feature list, and its skills bullet describes how skills fire rather than naming them.
+
+The table's middle rows do the load-bearing work: nine skills look at code and tell you something, and each description explains its own boundary well enough for the model to route correctly, but you only learn the boundaries by reading all nine. One line now separates them by the question being asked — `/review` reads your diff, `/proof-of-work` proves it green, `/verify` breaks a claim, `/qa` looks at pixels, `/triage` handles code you didn't write, `/audit` sweeps the repo.
+
+Also repaired two broken anchors, one created by the section move and one that predated it (`#whats-on` never matched its heading). A one-off sweep confirms 0 broken intra-repo anchors across 125 markdown files.
+
+**`bun run lint:links` stops link rot.** Section renames are silent: moving MANUAL's "Light vs Full" heading broke a link in `docs/install.md` with no error anywhere, and a `#whats-on` link had never matched its heading at all. Both were found by hand. The linter now validates every intra-repo markdown link — relative file targets must exist, `#anchors` must slug to a real heading — reimplementing GitHub's slug rules including the `-1` suffix on duplicate headings. External URLs are never fetched. Wired into CI alongside the other linters; 41 links across 128 files, currently clean.
+
+Its own first run reported two false positives, both the same bug: it stripped fenced code blocks but not inline code spans, so prose *quoting* a link as an example was validated as a real one. One of the two was a CHANGELOG entry describing a past `[^)]*` URL-matching bug — the matcher reproduced the very bug the text documented. Both shapes are now regression tests, and the linter was verified by deliberately breaking a real anchor and watching CI-equivalent output fail, not by observing a green run on an already-clean tree.
+
+The prompting ideas from all three upstream repos were already absorbed — i-have-adhd's output shaping into `output-styles/darkroom.md`, ponytail's ladder into `AGENTS.md`, caveman rejected for overcorrecting the register. What this release takes is the part that was skipped: their measurement discipline.
+
+## [13.6.2] — 2026-08-06
+
+**Everyone was silently on context7's lower tier.** cc-settings ships context7 as the keyless stdio transport (`bunx -y @upstash/context7-mcp`), and context7 documents a free API key as what "unlocks higher rate limits and use your private repositories". Nothing anywhere said so, so every install sat on the worse tier by default.
+
+This surfaced backwards. A maintainer's machine had a hand-configured hosted entry with a key, which the installer correctly preserved and reported as *"your copy is in use — cc-settings' version not applied"*. That message names a divergence but not its direction, so the better setup read as drift to clean up — and briefly got cleaned up.
+
+The install summary now prints one line when our keyless entry is the one actually running:
+
+```
+context7 is running keyless (lower rate limits).
+Higher limits + private repos: bunx ctx7 setup --claude --mcp
+Free key: context7.com/dashboard
+```
+
+It points at `ctx7 setup`, which context7 maintains and which does its own OAuth, key generation, and config write. cc-settings never reads, writes, stores, or prints a key. Two reasons it hints rather than running anything: the repo has no precedent for an interactive or OAuth third-party handoff — every child-process spawn in `packages.ts`, `pinned-tools.ts`, `schedule.ts`, and `git.ts` passes `stdin: "ignore"` precisely so setup can never block — and the auth contract is context7's to own (their README documents `Authorization: Bearer` while a working local config used a `CONTEXT7_API_KEY` header; guessing between them is not our job). The precedent copied is `cli-preflight.ts`: detect, print the command, never run it, never block.
+
+Detection reuses a signal that already existed — `installMcpToClaudeJson` returns the shipped server names a user definition shadowed, which `showSummary` already renders. No new file reads, no `~/.claude.json` parsing, no sentinel state, and no suppression flag: the hint disappears by itself once you replace the entry, the same way a `cli-preflight` warning disappears once you install `rg`. New pure `shouldHintContext7()` in `src/lib/install-display.ts`, unit-tested across five cases; the load-bearing one is that a user running their own entry is never nudged.
+
+The condition is deliberately "our shipped entry is live", not "no API key present" — cross-model review flagged the gap, and the narrower behavior is the intended one. A hand-written keyless entry also silences the hint, because inspecting an entry for auth markers would mean picking between `Authorization: Bearer` and a `CONTEXT7_API_KEY` header, and that contract belongs to context7. The reminder targets the default nobody chose.
+
+## [13.6.1] — 2026-08-06
+
+Cross-model review of 13.6.0 (OpenAI Codex against the pushed commit) returned five findings. All five verified real; all five fixed. Two are worth reading.
+
+**`--rollback` could delete a personal output style — the third instance of one bug.** 13.6.0 narrowed two destructive paths around the shared `output-styles/` directory and missed a third: `managedRestoreAllowset` builds its allowlist from `MANAGED_TOP_LEVEL_PATHS[].rel`, so rollback treated the directory as a wholly-owned unit and deleted-then-restored it, losing any style written since the last backup. The deeper problem was that "which files do we own in here" existed as **three** separate expressions — a regex in `install-fs.ts`, a lookup map in `light-profile.ts`, and nothing at all in `install-cmds.ts`. A `ownedFiles` field on `ManagedTopLevelEntry` is now the single source, the cleanup glob is *derived* from that same array so the two cannot drift, and rollback restores shared dirs file-by-file. `tests/output-style-preserve.test.ts` now pins all three paths (install, full→light downgrade, rollback), each verified red first.
+
+The extraction also broke an import cycle it would otherwise have created: `install-fs.ts` already imported `light-profile.ts`, so having `light-profile.ts` import back for the shared fact made the two mutually dependent, resolvable only by hoisting. The data has no dependencies of its own, so it now lives in `src/lib/managed-paths.ts` and both import downward.
+
+**The register rules were mirrored into a file Claude Code never loads.** 13.6.0 stated that an output style doesn't reach subagents (true) and therefore mirrored the register rules into `AGENTS.md` (useless). Per [the subagent docs](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup), a non-fork subagent inherits *every level of the CLAUDE.md hierarchy* including `~/.claude/CLAUDE.md`, and `AGENTS.md` is auto-loaded at no scope whatsoever — it is only read when something instructs the model to read it. The register block now lives in `CLAUDE.md`, carrying a comment explaining why it must not be deduplicated back into the style. `AGENTS.md` keeps a copy, correctly labeled as the portable one for Codex, Cursor, and humans. Built-in `Explore` and `Plan` skip CLAUDE.md as well, which is why the `implementer` briefing contract already requires restating critical rules in the delegation prompt.
+
+**`whats-on` accuracy, three fixes.** It claimed `AGENTS.md` was "always injected, every turn" (it is not). It called all of `rules/` path-conditioned, when a rule file *without* `paths:` frontmatter loads every turn — `rules/README.md` is one, and it had been silently costing context. It resolved an output style by filename, so the shipped `darkroom.md` only matched `outputStyle: "Darkroom"` on case-insensitive filesystems and would have false-warned on Linux; resolution now parses each style's frontmatter `name`. The report also no longer claims to describe "this session" from user-scope data alone — it says so plainly and names the scopes that can override it, flagging a project-level `.claude/settings.json` when one is present.
+
+**`bun run whats-on` needed the repo checkout.** Most people install cc-settings and never keep the clone. `docs/whats-on.md` now leads with `bun ~/.claude/src/scripts/whats-on.ts`, which works from an install alone.
+
+## [13.6.0] — 2026-08-06
+
+**The `Darkroom` output style, default on.** Response-style rules move out of `CLAUDE-FULL.md` and into `output-styles/darkroom.md`, installed to `~/.claude/output-styles/` and selected by `"outputStyle": "Darkroom"`. The placement was the bug, not the rules: a `CLAUDE.md` instruction is delivered as a user message *after* the system prompt, so it competes with the system prompt and decays over a few turns. An output style **is** part of the system prompt, and Claude Code re-issues adherence reminders for it mid-conversation. Same rules, a delivery mechanism that doesn't wear off. Prompted by a 2026-08-06 #agentic-development thread where two engineers independently reported Opus 5's prose as "barely readable" and a hand-written `communication_style.md` "works for 1 to 2 turns before reverting back to gibberish."
+
+The style carries two independent rule sets:
+
+- **Register** (new) — subject first, no stacked modifiers in front of the noun, no coined terms for things that already have names, identifiers only when pointing at code, jargon defined inline on first use, effect before mechanism. It targets *comprehension*, never word count, and says so explicitly: length is not the target and clipping sentences is forbidden. This is deliberate. Every brevity-targeting fix the team tried first — `/caveman`, `/talk-normal`, `/tldr`, [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) — overcorrected into a register that was shorter and no clearer, which is the failure [aihero.dev/skills-wait-what](https://www.aihero.dev/skills-wait-what) names: instructing on output characteristics produces "a caveman register that is shorter and no clearer."
+- **Shape** — the former "Action-First Output (always on)" rules, moved unchanged (adapted from ayghri/i-have-adhd, MIT).
+
+Two limits are documented rather than papered over. An output style applies to the **main conversation only** — a subagent runs its own system prompt (a `/fork` is the exception, it inherits the parent's). What a subagent *does* inherit is the CLAUDE.md hierarchy, so the register rules are duplicated into `CLAUDE.md` as the copy delegated work actually reads, with a comment saying not to dedupe it. `AGENTS.md` carries a third copy for Codex, Cursor, and humans; Claude Code never auto-loads it. And an output style loads **once per session**: changing it takes effect after `/clear` or a new session. `CLAUDE-FULL.md` keeps a pointer explaining both, plus the one genuinely cc-settings-specific escalation that isn't voice (the three-strikes `model: "fable"` subagent pivot). To opt out: `/config` → Output style → Default, or set your own `outputStyle` — user scope beats the shipped value.
+
+**`bun run whats-on` — the adoption blocker was legibility, not features.** From the same thread: *"i don't know what cc settings ships either, that's why i'm not using it"* — said by an engineer who has never installed it, while an engineer who has, asked the same question, answered *"yes, afaik aha"*. `bun src/setup.ts --status` already existed but answers a different question: install health, presence counts, version drift. Counts do not tell anyone what the thing is doing to their session. The new report is effect-oriented — output style in effect, which instruction files are genuinely always-on versus path-conditioned, model and effort, every wired hook with its own leading comment as the description, then skill/agent/MCP/permission inventory — and every section carries its off-switch. Hook descriptions are read from each script's own file comment, never invented; a script with no comment prints its basename alone. `--json` emits the same data. It is read-only and cannot crash on a settings file it doesn't fully model.
+
+**A data-loss bug caught before it shipped — on both destructive paths.** `~/.claude/output-styles/` is not a directory cc-settings owns. It is a directory it *shares* with the user, because Claude Code's own `/config` picker tells people to hand-write styles at exactly that path. Every other managed dir (`agents`, `rules`, `profiles`, `docs`) is cc-settings content end to end, and both destructive paths are written for that assumption:
+
+1. `cleanOldConfig` — the first cut registered `output-styles` in `MANAGED_TOP_LEVEL_PATHS` with the usual broad `\.md$` glob, and `removeGlob` deletes *every* matching file in the directory. Now scoped to `/^darkroom\.md$/`.
+2. `lightProfilePruneTargets` — a full→light downgrade `rm -rf`s each full-only dir, and `output-styles` had just become one. New `SHARED_DIR_OWNED_FILES` map prunes only the shipped file, leaving the directory and its other contents alone.
+
+Either one would have deleted a personal output style — the exact artifact the people who prompted this release are hand-writing right now. `tests/output-style-preserve.test.ts` pins both end-to-end (install → hand-write a foreign style → re-install / downgrade → assert the foreign style survives with its content intact, and ours is refreshed or removed as the profile requires). Both tests were verified **red** against the unscoped versions before landing; a regression test that never failed proves nothing.
+
+**Sandbox credential masking — a schema gap that rejected valid configs.** `sandbox.credentials` modeled `mode` as `z.enum(["deny"])`, so any settings file using `"mode": "mask"` failed `Settings.safeParse` outright. `mask` shipped upstream for env vars in 2.1.199 and for files in 2.1.221; both were missed. Now modeled in full: `CredentialMode` (`deny` | `mask`), plus `extract`, `injectHosts`, `onExtractNoMatch`, `maskDuplicates` on files and `injectHosts` on env vars. Chasing it surfaced a worse one — the nested `network`, `filesystem`, and `credentials` objects were strict `z.object`s, which in zod *strip* unknown keys rather than erroring, and `network.allowedDomains` (the most-used sandbox key of all) had never been modeled and was being silently dropped on every parse. All three are now `z.looseObject`, and `allowedDomains`, `allowManagedDomainsOnly`, `tlsTerminate`, and `allowPlaintextInject` are modeled explicitly. Verified by round-tripping the documented `~/.config/gh/hosts.yml` mask example and asserting nothing is stripped.
+
+**Claude Code 2.1.220 → 2.1.223 sync.**
+
+- **Adopted:** the credential-masking surface above; three env vars tracked in the manifest (`CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT`, new in 2.1.223; `CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, never tracked; `CLAUDE_CODE_DISABLE_1M_CONTEXT`, whose semantics changed — it now holds *every* Claude model with a native 1M window to 200K via auto-compaction rather than a fixed list, which matters here because the shipped default model is 1M-native Opus 5). `blockedMarketplaces` / `strictKnownMarketplaces` accept `"owner/*"` org wildcards as of 2.1.223 (no schema change needed — documented in the comments and settings reference).
+- **Docs corrected:** native `/review` is now an alias of `/code-review` (2.1.223), so `skills/review/SKILL.md`'s "distinct from native /review which inspects open PRs" was false and is fixed, along with three stale `MANUAL.md` passages. `/code-review` with no effort level now reuses the last level typed.
+- **Verified, not adopted:** 2.1.223 fixed a Bash permission bypass via tab/invisible-Unicode padding and 2.1.221 fixed zsh executing hidden commands in `[[ ]]` conditionals. Both were checked against our `permissions:check` dry-runner: it never spawns a shell (the only `exec` in the file is `RegExp.exec`) and has no display-vs-execute split, and it does no Unicode normalization — a padded command simply fails to match an allow rule and falls through to `ask`. It fails closed; no change needed.
+- **Skipped:** ultraplan's removal (2.1.222) — zero references in cc-settings, confirmed by grep. ~55 other entries with no cc-settings surface.
+
+**Known gap, unchanged:** `sandbox.filesystem.denyRead` / `denyWrite` are referenced in comments and docs but still not modeled as explicit fields. Now that `filesystem` is loose they round-trip correctly instead of being stripped, so this is a documentation-completeness gap rather than a correctness one.
+
+## [13.5.0] — 2026-08-04
+
+**Reading diffs** — `/review-batch` and `/review` now present agent diffs as *reading diffs*: the real `git diff` abridged by remove/fold/elide operations against verbatim lines, never a prose-only summary (prose can lie by omission; a diff can't). Re-entry cards carry one for any change past ~40 changed lines; `/review` walks one past ~200. Two rules exist specifically because the diff author is an untrusted agent: moves get symmetric treatment with `(unchanged)` earned by actually comparing both sides, and every reading diff closes with a dropped-content accounting line that never silences dependency changes — new packages, changed import targets, and lockfile version/integrity bumps all get named, and a lockfile change with no matching manifest change is a finding, not noise. Protocol adapted from [boldsoftware/meat](https://github.com/boldsoftware/meat) (Apache-2.0).
+
+**Known-vendor hook trust** — the hook auditor's `KNOWN_VENDOR_HOOK_PATTERNS`: third-party integrations whose settings.json hook commands are fully specified inline can classify as trusted via an exact-anchored template match — the template match *is* the content verification, since there's no file on disk to drift. First entry: the six hooks Programa.app installs, which previously flagged unknown on every audit run (alarm fatigue on the one report that must stay readable). The only variable part is an explicit alternation of the six verified event names — no open token classes — and malware signatures still run first and always win. Hardened per security review + Codex cross-review: newline-anchor regression tests, and a CI-enforced shape contract over the bank (flagless, `^...$`-anchored, no bare wildcard dots) so a future "just another regex line" vendor entry can't silently regress the property. A vendor shipping a new hook event reappears as unknown until the alternation is deliberately extended — that re-review is the point.
+
+**README rewritten as a capability summary** — one question answered: what cc-settings adds on top of vanilla Claude Code. Install mechanics moved to `docs/install.md`; the advisory → gate → measurement loop (13.3.0's "The flow" README section) moved to `docs/the-flow.md`. Cross-model review of the restructure caught four long-standing factual errors, now fixed: rule count is 10 (the index was being counted), hook wiring is 17 event types / 34 command bindings, the MCP fragment lands in `~/.claude.json` (not composed into settings.json), and the destructive-command gate is the permissions deny-list with safety-net as fail-open defense-in-depth — the old text inverted that (SECURITY.md is the authority).
+
+## [13.4.3] — 2026-08-03
+
+Follow-up bug from the sonor → sondeo → farolero rename churn: each rename left the *previous* hook file's settings.json entry behind as an "unrecognized" user extra, since the merger has no way to know the old and new commands are the same hook renamed — so it pointed at a `.ts` file cc-settings no longer ships, and every `git commit` spewed `Module not found` PreToolUse errors. The installer now prunes any existing hook entry whose command references a `~/.claude/src/{scripts,hooks}/*.ts` file that the source tree being installed doesn't ship — genuinely custom hooks (raw shell commands, scripts anywhere else on disk) are untouched. Fixes the noise for anyone who installed 13.4.0–13.4.2; no other behavior change.
+
+## [13.4.2] — 2026-08-03
+
+npm's similarity filter also rejected sondeo. The final name, validated against the live registry via a published name-reservation stub, is [farolero](https://github.com/darkroomengineering/farolero) (Spanish: the lamplighter). The 13.4.1 glue below is renamed to match — no behavior change.
+
+- `pre-commit-sondeo.ts` → `pre-commit-farolero.ts` (hook file, functions, dependency check, marker string, spawned binary).
+- `/triage`'s sondeo sweep step is now the farolero sweep, same behavior.
+
+## [13.4.1] — 2026-08-03 (renamed to farolero in 13.4.2)
+
+The sibling project renamed itself from sonor to [sondeo](https://github.com/darkroomengineering/sondeo) after npm rejected "sonor" as too similar to existing packages (sonner, hono, color, sinon). The 13.4.0 glue below is renamed to match — no behavior change.
+
+- `pre-commit-sonor.ts` → `pre-commit-sondeo.ts` (hook file, functions, dependency check, marker string, spawned binary).
+- `/triage`'s sonor sweep step is now the sondeo sweep, same behavior.
+
+## [13.4.0] — 2026-08-03 (renamed to sondeo in 13.4.1)
+
+The cc-settings side of the [sonor](https://github.com/darkroomengineering/sonor) glue (sonor issue #5, item 4) — the part that has to live here since sonor itself must work with zero Claude Code assumptions.
+
+- New `pre-commit-sonor.ts` PreToolUse hook: on `git commit*`, if the target repo has sonor as a dependency and installed, runs `sonor ratchet --changed` and blocks on a red gate. Skips silently when sonor isn't a dependency, isn't installed, or its own git hooks are already active for the repo (the `sonor-managed` marker on `core.hooksPath`/`.git/hooks/pre-commit`) — this hook is a fallback for repos that declared sonor but never ran `sonor install-hooks`, not a replacement for sonor's own commit-time and CI enforcement. Fail-open on every operational failure (missing binary, spawn error, timeout, sonor's own exit-2 code); only a genuine ratchet exit 1 blocks.
+- `/triage` gains a sonor sweep step: when the repo under triage has sonor installed, `sonor report --json` folds into the ranked findings (`byRule` counts, `byArea` hotspots, the `baseline` object as a ready-to-commit adoption path). Repos without sonor get a one-line adoption note instead — the read-only guardrail on external repos still applies, nothing gets installed on a client's behalf.
+
+## [13.3.0] — 2026-08-03
+
+The advisory → gate → measure loop, extracted from a Slack-thread insight (ratchet tests beat prose guardrails because "advisory output is ignorable; a non-zero exit is not") and applied across the harness. The README's new "The flow" section is the map.
+
+**Ratchets (gates):**
+
+- The 40-skill soft cap is now `SKILL_COUNT_BASELINE` — an error in *both* directions, so adding a skill without consolidating fails, and removing one fails until the baseline is lowered and committed. Every movement of the number lands in git with a reviewer. Lowered 39 → 38 in this release by the `/audit` merge below.
+- `noExplicitAny` flipped warn → error (zero violations existed; the door is just closed now).
+- `git push` is gated on the full proof battery (typecheck + tests + lint) via the new `pre-push-proof` hook — repos that push straight to main never hit the PR-time gate, so tsc-at-commit was their only local gate. Matcher hardened against `git -C`/`command`/env-prefix bypasses, token-exact `--dry-run`/`-n`/`--help` exemptions, quote-aware segment splitting.
+
+**Escalation advisory (advisory):**
+
+- When the same tool+error signature fails 3× in a session, the next prompt suggests a scoped `Agent(implementer, <slice>, model: "fable")` pass instead of another retry — model-aware (Fable sessions get a fresh-context suggestion instead), quota-gated (silent at elevated/critical so it never contradicts quota-steer), once per signature, 10-min debounce. Error samples are redacted-then-bounded before storage (truncate-first leaked credential prefixes past `redactSecrets`' minimum-length patterns — caught by security review, fixed on all three sinks), session ids validated before filename use, injected samples labeled as data.
+
+**Telemetry (measurement):**
+
+- Fired-vs-acted telemetry for both the escalation advisory and the delegation nudge: `bun run escalate:stats [--days N]`, per-advisory act-rates, structurally ≤ 100% (reader-side dedupe absorbs the marker race and write-ordering skew). `/retro` reports the act-rate weekly. `claude-audit` gains a gate-firings section reading `safety-net.log` (reasons only, never commands). The act-rate is the evidence gate for any future promotion of an advisory to a gate.
+
+**Hook delivery (probe-verified fix):**
+
+- A headless marker probe against 2.1.220 proved plain stdout from hooks on tool events never reaches the model, and `async: true` does not prevent envelope injection — the docs had both backwards. Six silently-dead advisories converted to the `additionalContext` envelope: post-edit-tsc (now bounded to 20 diagnostic lines), cwd-changed, check-docs-before-install, post-edit's review banner, post-failure's repeated-failure hint, pre-edit-validate's warnings. `docs/hooks-reference.md` now carries the probe matrix with honest scope (PreToolUse/PostToolUse verified; PostToolUseFailure/CwdChanged unprobed).
+
+**Skills:**
+
+- `/nuclear-review` + `/adversarial-audit` merged into `/audit` (four modes: maintainability / codebase / docs / process). The bare phrase "audit the codebase" was lexically ambiguous between them; the merged skill owns it and asks one disambiguating question when the phrasing doesn't pin a mode. Both retired names tombstoned so existing installs prune them.
+
+Sibling repo: [sonor](https://github.com/darkroomengineering/sonor) created — the ratchet pattern as a standalone dev-dependency for client repos (any harness, any model), with the two-mode design (report to triage, ratchet to hold) in its README and first five issues.
+
+## [13.2.2] — 2026-07-31
+
+The install summary counted every skill directory under `~/.claude/skills/`, so a machine with plugin or third-party skills alongside cc-settings' own printed `skills/ (41)` under the heading "Installed" when cc-settings had installed 39. It now counts only the skills it ships.
+
+Tombstones are excluded from the other direction: `MANAGED_SKILLS` includes retired names the installer *deletes*, and counting a directory it just removed would be worse than counting one it never wrote. The count is against `ACTIVE_SKILLS`.
+
+## [13.2.1] — 2026-07-31
+
+Dropped the `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` pin. It was set to `2` in v12.6.0 to loosen Claude Code's default of 1, so `maestro` and `deslopper` could still fan out when invoked as subagents. Upstream 2.1.219 raised its own default to 3, which turned the identical pin into a restriction. Installs now inherit whatever upstream defaults to.
+
+Removing it from `config/` alone would only have fixed new installs. `env` merges as a union with the user winning every conflict, so a key cc-settings stops shipping survives on every existing machine forever — new installs would get depth 3 while everyone who installed since 22 July stayed frozen at 2, with nothing to explain the difference.
+
+So env now has the same retirement mechanism permissions and hook commands already had: `DEPRECATED_ENV_KEYS`. A key listed there is dropped from an existing `settings.json` unless the team config still ships it, which means re-adding a retired key later is a one-line config change rather than an edit in two places. The install prints what it pruned.
+
+The tradeoff matches the two existing registries: someone who set the same variable by hand loses their value. That is acceptable for a key we chose for them and wrong for anything we never wrote, so only exact keys cc-settings itself shipped belong in the list.
+
+## [13.2.0] — 2026-07-31
+
+Sync with Claude Code 2.1.220 (from 2.1.217).
+
+**Adopted:**
+
+- `sandbox.network.strictAllowlist` (2.1.219) — denies hosts that aren't on the allowlist outright instead of prompting, turning the allowlist from advisory into enforcing. `src/schemas/settings.ts`, `docs/settings-reference.md`.
+- `DirectoryAdded` hook event (2.1.219) — fires after `/add-dir` or the SDK's `register_repo_root` adds a working directory mid-session. Thirtieth event. `src/schemas/hooks.ts`, and the manifest's `knownHookEvents`, which the scanner does diff, so this was a real gap rather than a documentation one.
+- `workflowSizeGuideline` (2.1.219) — advisory ceiling on how many agents a dynamic workflow spawns, defaulting to `"medium"` (under 15). Typed as a bare string, not an enum: the changelog names the default but never lists the accepted values, and a closed set would reject a real one. `src/schemas/settings.ts`, `docs/settings-reference.md`.
+
+Both settings keys already parsed before this, since the top-level schema is loose and `sandbox.network` is a plain object that strips unknowns. What was missing is the emitted JSON Schema that drives IDE autocomplete for `settings.json`.
+
+**Documented, no code change:**
+
+- Skills with `context: fork` now run in the background by default (2.1.218). That covers 23 of the 39 skills here, so most of the library changed execution model in a patch release: the result arrives as a task notification rather than streaming inline. `docs/frontmatter-reference.md`, `docs/skill-authoring.md`, `skills/README.md`.
+- Subagent nesting depth default went from 1 to 3 (2.1.219). `docs/agent-models.md`, `docs/settings-reference.md`.
+- Dynamic workflows default to a medium size guideline (2.1.219). `skills/orchestrate`, `skills/nuclear-review`.
+- `/code-review` runs as a background subagent, and `/ultrareview` argument handling is fixed (2.1.218). `MANUAL.md`.
+
+**Worth a decision:** `config/10-core.json` pins `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to `2`. That used to loosen upstream's default of 1; upstream now defaults to 3, so the same pin is a restriction. Documented as-is rather than changed, since whether `maestro` and `deslopper` should get the extra depth is a behavior call.
+
+Opus 5 becoming the default Opus model was a no-op here — `config/10-core.json` already pinned `claude-opus-5`. The rest of the three releases was TUI, vim, screen-reader, Windows-path, Bedrock, and gateway fixes with no cc-settings surface.
+
+Separately, `docs/frontmatter-reference.md`'s skill table was missing `triage` and `adhd`, so its category counts summed to 38 rather than 39. Corrected while fixing the fork count.
+
+## [13.1.2] — 2026-07-31
+
+The remaining four fixture git helpers now throw instead of discarding exit codes. A failed `git commit` in `handoff`, `checkpoint`, `context-continuity-gaps`, or `session-continuity` used to leave a repo with no history and let the test pass anyway — which is how yesterday's signing incident stayed invisible in three of the six suites that had it.
+
+Errors carry the command, the repo path, and the captured stderr, matching the helper `auto-update-script.test.ts` has always had. That meant switching `stderr: "ignore"` to `"pipe"`; an error reading only "git failed" would leave the next person debugging a red suite with no cause, which was the actual problem.
+
+No test broke. With v13.1.1's isolation in place the fixture commits all succeed, so nothing was still passing on a broken fixture. All 26 call sites across the four files were checked for a git command that legitimately expects to fail — there are none, so no opt-out was needed.
+
+## [13.1.1] — 2026-07-31
+
+Test fixtures no longer inherit your global git config. Six suites create throwaway repos in the temp dir and commit into them, and those commits picked up whatever `~/.gitconfig` said — so on a machine that signs commits through 1Password, a screen lock mid-run was enough to fail four tests for reasons unrelated to the code. CI never saw it, because CI has no signing configured. Every fixture git call and every subprocess spawned under test now runs with `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` pointed at `/dev/null`.
+
+Signing was just the instance that surfaced. The same leak applied to `core.hooksPath`, `commit.template`, aliases, and `init.templateDir`.
+
+Three of the six suites had been passing on quietly broken fixtures. Their `git()` helpers discard exit codes, so a failed commit left a repo with no history and the tests passed anyway — they never asserted on it. The count of assertions actually executed across these files goes from 259 to 272 with the fix in place, under a config that breaks signing.
+
+`scripts-smoke.test.ts` had already worked this out and disabled `commit.gpgsign` and `core.hooksPath` by hand; it now uses the same mechanism as everything else. Its `core.autocrlf false` stays — that guards a real Windows-runner CRLF bug, and nulling the global config does not cover a per-repo setting.
+
+## [13.1.0] — 2026-07-31
+
+Each install now records what it wrote to `settings.json`, in `~/.claude/.cc-settings-baseline.json`. Nothing reads it yet — that is the point.
+
+`settings-merge.ts` has no record of what cc-settings installed last time, so it reconstructs that from hand-maintained regex registries: twelve patterns that answer "is this rule in the user's file a leftover of ours, or something they typed?" Recording the real answer costs one write per install and means the data will already have history behind it if the merge is ever taught to use it.
+
+The full three-way merge was designed and declined — see `docs/settings-merge-three-way-design.md`. The design's own conclusion is why: the registries cannot actually be deleted. The baseline is written by the new code, so the first run on every existing machine has none and must reproduce today's behavior exactly, which requires today's logic to still be there. Restored backups, rollbacks, and hand-deleted baselines land a current machine back in that same case permanently. So the change would have added a parallel merge path to the file that protects hand-edited user settings, kept all twelve patterns anyway, and bought a marginal reduction in future one-line regex additions — of which there have been four in two and a half months.
+
+The baseline lives in its own file rather than the version sentinel: it is ~15KB, and the sentinel is parsed by a hook on every session start.
+
+## [13.0.6] — 2026-07-31
+
+Cleanup from the audit's smaller notes.
+
+`project-init.ts` wrote three AI-tool pointer files through three functions that were byte-identical apart from the filename. One `createPointerFile(dir, relPath, body)` now covers all three — using `dirname()` for the mkdir, so it is a no-op for the flat `.cursorrules`/`.windsurfrules` and still creates `.github/` for Copilot. The bytes written are unchanged, verified by hashing all three outputs before and after.
+
+`getProjectName()` existed twice, in `checkpoint.ts` and `handoff.ts`, with a comment in the latter admitting the mirror. It lives in `git.ts` now beside the other small git wrappers. Deleting the local copy left two orphaned imports in `checkpoint.ts`, so this nets out roughly even on line count rather than the win it looked like.
+
+`quota-steer.ts` reads stdin and throws the result away, which reads as dead code and is not — the payload carries the whole prompt, and a long one exceeds the pipe buffer, so exiting without draining would leave the dispatcher blocked on its write. Now says so, because the next person to see it would have deleted it.
+
+`MultiEdit` is gone from the manifest's `knownBuiltinTools`; Claude Code removed that tool and `settings-merge.ts` already prunes its permission rules as dead syntax. Nothing reads the list programmatically, and no hook matcher references it.
+
+## [13.0.5] — 2026-07-31
+
+The session ledger stopped reading itself on every tool batch. `trimLedger` runs after each append to enforce the 4000-line cap, and it was reading the whole file each time just to count lines — so every batch in a session paid a full read of a file that grows all session long. It now checks the size first: a file too small to possibly hold 4000 lines is ruled out by `stat` alone, and the read never happens.
+
+That also shrinks a race it does not fully close. Two hook processes append to one session's ledger — PostToolBatch and PostToolUseFailure — and the trim is a read-modify-write, so an append landing between the read and the write is lost to the overwrite. The window now opens only on the rare batch that actually trims instead of on every batch. The residual loss is a few lines of a deliberately bounded, lossy digest; a lock would make every append pay a file lease to protect data whose whole contract is that it can be lossy.
+
+`trimLedger` was also the one export in that module with no direct test. It has eight now, covering the cap, that the newest lines are the ones kept, JSONL validity, idempotence, a missing file, and that the new size gate never skips a trim that was genuinely due — the failure mode that would otherwise be invisible until a disk filled.
+
+## [13.0.4] — 2026-07-31
+
+Seven state-file readers each restated the same contract: read JSON, validate it against a zod schema, and degrade to a safe default if either step fails. `readValidatedState` in `hook-runtime.ts` now holds that contract once, and every one of the seven call sites got shorter.
+
+The two that mattered most were in `hooks-fingerprint.ts`, which reads the hook fingerprint the supply-chain check compares against. Both had hand-rolled the whole thing — an `existsSync` pre-check, a try/catch, a `JSON.parse`, and a `safeParse` — and both collapsed to a single call. A future change to how a corrupt state file is handled, like logging it instead of silently falling back, is now one edit rather than seven.
+
+Behavior is unchanged and was verified rather than assumed: `coerceState` cannot alter a read whose fallback is `null`, so routing these through `readState` is provably a no-op. Across a missing file, an empty file, malformed JSON, a JSON `null`, an array, a string, wrong field types, an empty object, and a path-traversal attempt, both readers still return `null` exactly as before — and a valid fingerprint still round-trips.
+
+## [13.0.3] — 2026-07-31
+
+The version sentinel stopped recording `installer`. It was a constant string (`"src/setup.ts"`) that the installer wrote on every run and no reader has ever consumed — surfaced by the v13.0.1 sentinel consolidation, which had to model it purely because the writer emitted it.
+
+Sentinels already on disk keep the field and still read correctly: the schema is `z.looseObject`, so an unrecognized key passes through untouched. Nothing needs migrating.
+
+## [13.0.2] — 2026-07-31
+
+Two Windows path bugs shipped in v13.0.0 and turned CI red for a day. Both are the same mistake: `node:path` returns `\` on Windows, but the thing being compared against always uses `/`.
+
+Handoffs on Windows listed `src\a.ts` in Files Modified while `git status` listed `src/a.ts`, so the two never deduped and the same file appeared twice. `toProjectRelative` now normalizes separators — its whole purpose is producing strings a reader can match against git output, and git emits forward slashes everywhere.
+
+The post-edit typecheck hook reported nothing at all on Windows. `tsc` prints `src/lib/foo.ts` while `relative()` returned `src\lib\foo.ts`, so neither that nor the absolute path matched any diagnostic line — every edit paid for a full typecheck and printed silence. Exactly the failure the absolute-path fix already addressed once, one separator later. The forward-slash form is now matched too.
+
+Both existing tests already asserted the right thing; they were failing on `windows-latest` and passing everywhere else.
+
+## [13.0.1] — 2026-07-31
+
+Nuclear review of the whole codebase (`docs/audits/nuclear-review-2026-07-31.md`, 9 findings). Seven landed; two were withdrawn after being built and found not to pay off — the audit records why so they aren't re-filed.
+
+Six hook and script entry points stopped hand-rolling the fail-open wrapper and now call the shared `runHook()` (`freeze-guard`, `pre-edit-validate`, `pre-pr-proof`, `session-title`, `cwd-changed`, `stop-summary`). Thirteen adopters now, none hand-rolled. `cwd-changed` and `stop-summary` needed their inline bodies extracted into a `main()` first. Every explanatory comment survived, including the one recording that intentional blocks exit(2) inside `blockDecision` and never reach the catch.
+
+The hook auditor no longer walks settings.json its own way. `audit-hooks.ts` had a hand-rolled traversal of the hooks block sitting beside `iterCommandHooks`, the function whose header says it exists to replace exactly those walks — a divergence risk in the one control that detects hook tampering. It now consumes the shared iterator, which gained `groupIndex`/`hookIndex` and a `parseHooksBlock` helper so the auditor's schema-failure finding comes from the same parse the traversal uses instead of a second one. Two real differences between the walks were reconciled rather than glossed: the auditor's command trim-and-skip-empty moved to the consumer, and `hadHooksKey` reproduces the old guard so a settings object with no `hooks` key is never validated as though it were one.
+
+Types that were maintained by hand next to the zod schema describing the same shape now come from `z.infer` — `ReviewQueueState`, `RateLimitsCache`, `QuotaSteerState`, and `mcp.ts`'s locally re-derived `McpServer`/`McpServers` (now re-exported from `src/schemas/mcp.ts`). Nothing enforced that the interface and the schema stayed in sync, so a field added to one and not the other type-checked everywhere and dropped at runtime. `quota.ts` also lost a duplicate second copy of two schemas.
+
+The install sentinel `~/.claude/.cc-settings-version` was modeled three ways — a zod schema in `status.ts`, manual field extraction in `version-delta.ts`, and an anonymous literal in `setup.ts`'s writer — with the two readers covering different subsets of what the writer emits while one of them claimed to be the source of truth. One schema, one reader, one writer, owned by `version-delta.ts`. Parsing is per-field `.catch(undefined)` rather than the old all-or-nothing, so one bad field no longer discards a whole sentinel; it stays loose so a file written by an older install still reads.
+
+`CC_PARALLELMAX_THRESHOLD=0` was being silently ignored. `tool-cadence.ts` parsed it with `Number(env) || 12`, which treats a valid `0` as unset — so anyone setting it to zero to make the delegation nudge fire on every call got the default 12 instead, with no error. It now uses `intEnv()`, the shared parser that already exists in the same hooks cluster precisely to avoid this, and whose doc comment warns against the pattern it replaced.
+
+`settings-merge.ts` documented its most correctness-sensitive invariant — how `mcpServers` avoids double-handling — by pointing at `resolveMcpServers` and `mergeSettingsWithMcpPreservation` in `mcp.ts`. Both were deleted in v12.16.0 when MCP moved to `~/.claude.json`; the comments were not. Three sites now describe the real mechanism: `installSettings` destructures `mcpServers` out before `mergeSettings` ever sees it.
+
+`team-knowledge.ts` re-exported `NON_NOTE_FILES` so consumers "can import from team-knowledge.ts as before." Nothing does — `lint-knowledge.ts` imports it straight from `knowledge-index.ts`. Dead re-export removed.
+
+## [13.0.0] — 2026-07-30
+
+An automatic handoff used to lose most of what the session did. Two holes, both structural. `git status` only reports what is dirty *right now*, so a file edited early and committed an hour later left no trace — the longer the session, the more of its work vanished from the record. And the compaction summary Claude Code generates, the one structured account of intent and decisions that exists, was discarded: `post-compact.ts` never read its stdin at all, so every hook-created handoff kept a placeholder comment where its summary belonged.
+
+Both are now closed, and the fix is deliberately split by provenance: **`compact_summary` owns intent, decisions, and rationale; a new session ledger owns paths and errors.** They are stored in separate fields and never merged, so nothing inferred is ever presented as observed.
+
+**The session ledger** (`src/lib/session-ledger.ts`) is a bounded JSONL at `~/.claude/tmp/session-ledger/<session_id>.jsonl`, written from a `PostToolBatch` hook. That event, not `PostToolUse`, is the right seam: it fires once per batch of parallel calls, so a turn that reads six files appends six entries from one process instead of racing six appenders on one file. It records paths, tool names, and bounded/redacted error strings — nothing else. The payload hands it `tool_response` containing the full body of every file read; that field is never touched. Caps are 50 reads, 50 changes, 20 failures, 200 chars per error, 4000 lines per file (trimmed to 2000), 30 session files. Every failure mode — missing session id, unwritable directory, corrupt line — degrades to less data, never to an error.
+
+It also refuses to guess. A `Bash` call records *nothing*, because the batch payload carries no exit code that can be trusted for it. Unknown stays unknown.
+
+**Key Files is now the union** of `git status` and the ledger's observed changes, with dedicated `Files Modified` / `Files Read` / `Tool Failures` sections beside it. `PreCompact` and `SessionEnd` invoke `handoff.ts create --from-hook`, which reads the hook payload from stdin for `session_id` and `trigger` — stdin is read only under that flag, so a manual `handoff.ts create` at a terminal still cannot hang. `post-compact.ts` then finds the handoff matching that session id and backfills its Session Summary in both the JSON and the Markdown twin.
+
+### Breaking
+
+- **`post-compact.ts` no longer prints recovery instructions.** It printed a numbered list addressed to the model; that text went to a `userDisplayMessage` and could only ever be seen by the user. Anything depending on that stdout should read the handoff instead, or move to `SessionStart(source:"compact")`.
+- **The PreCompact and SessionEnd hook commands changed** to `handoff.ts create --from-hook`. The old flagless form is now in `DEPRECATED_COMMAND_PATTERNS`, so re-running the installer prunes it rather than leaving both wired. A hand-written `handoff.ts create` hook of your own will be pruned on the next install; `create --summary "…"` and `create --from-hook` are untouched.
+- **`PostToolBatch` is now a registered hook event.** Sessions write one ledger file per session under `~/.claude/tmp/session-ledger/`, pruned to the newest 30 at session start.
+
+### PostCompact stdout never reached the model
+
+Worth stating plainly, because the previous implementation assumed otherwise and the published hooks page documents neither half of this. Verified against the 2.1.220 binary, the runtime builds the payload as `{...common, hook_event_name:"PostCompact", trigger, compact_summary}` and folds each hook's stdout into a `userDisplayMessage`. The old script printed a numbered "recovery steps" list addressed to the model; that text could only ever have been seen by the user. `compact_summary` is genuinely delivered, and is what the hook now consumes.
+
+Recovery injection moved to `SessionStart` with `source:"compact"`, whose stdout does reach the model. It emits a hard-capped 15 lines: a compaction notice, the handoff path, up to 8 changed files, the last exact tool failure, and an instruction to re-read before trusting anything remembered. It pointedly does **not** repeat the compaction summary, which is already in the new context. `session-start.ts` now reads its stdin once at the top and reuses it, rather than reading late for `session_id` alone.
+
+Two other doc claims corrected while confirming the contracts: the batch payload's array is `tool_calls`, not `tool_uses`, and `PostToolUseFailure` carries a top-level `error` string rather than a `tool_output` wrapper.
+
+Tests are organized by Factory's four compression probes — recall, artifact, continuation, decision — plus the robustness cases that matter here: two compaction cycles in one session, parallel batches, corrupt and partial lines, missing session ids, secret redaction, cap enforcement, old handoffs without the new fields, and an assertion that no raw tool response or file content is ever persisted. All deterministic; no LLM judge, no network, no model call.
+
+## [12.16.4] — 2026-07-30
+
+The install summary prints a one-line excerpt of each changelog entry it brings in, and it printed the markdown source. v12.16.3 was the first entry to open with a link, so the terminal got the raw bracket-and-URL source where the words should have been — noise plus an unclickable URL, in the one place the text has to be skimmable.
+
+`stripInlineMarkdown()` flattens the excerpt: links and images collapse to their text, bold unwraps, inline code loses its backticks. It stops there on purpose. No `*`/`_` emphasis pass — changelog prose is full of `*.md` globs and `mcp_written`-style identifiers, and an emphasis stripper mangles those far more often than it un-italicises anything. A test pins that boundary so the next person to "finish" the stripper has to argue with it first.
+
+A cross-model review caught the one case the first cut got wrong: the URL matcher was a flat `[^)]*`, which stops at the first `)`. A link like `[function](.../Function_(mathematics))` came out as `function)` — the inner paren ended the match and the outer one stayed behind. The matcher now allows one level of nesting. Its alternation is unambiguous — the two branches can't match the same first character — so it can't backtrack.
+
+## [12.16.3] — 2026-07-30
+
+Two delegation rules, both prompted by OpenAI's [ARC-AGI-3 writeup](https://openai.com/index/how-two-settings-tripled-our-arc-agi-3-scores/): the official harness dropped the model's private reasoning items after every game action, so it re-derived its understanding of the puzzle each turn. Carrying reasoning forward instead took the same model from 13.3% → 38.3% on the public set and cut output from ~2.9M to ~0.5M tokens per game. The harness was the bottleneck, not the model.
+
+**Resume, don't respawn** (`CLAUDE-FULL.md`, Delegation rule 5). `SendMessage` resumes an agent from its transcript; a fresh `Agent` call starts cold and pays to re-derive everything the first one reasoned through. We already had this rule, but only in `skills/orchestrate/SKILL.md` and only for the narrow case of an agent that returned an incomplete section. It's now a general default in the always-loaded file, with the cold-read exception named explicitly — adversarial verification and second opinions *want* a fresh context.
+
+**Briefings carry what was ruled out** (`agents/implementer.md` item 8, mirrored in the `CLAUDE-FULL.md` briefing paragraph). The 7-item contract carried facts — paths, the change, the verification command — and no reasoning. Facts survive a thin briefing; the thinking behind them doesn't, so the agent re-derives it and often re-walks a dead end the caller already walked. Added as advisory, deliberately not part of the blocking Briefing Gate, so it can't widen what the agent refuses.
+
+The headline 3× does not transfer. Their loop is hundreds of short actions inside one task with reasoning discarded between each; Claude Code retains thinking within a session, so the leak surface here is only subagent spawns and compaction. The compaction half of their finding needed no change — manual `/compact` at 65%, `AGENTS.md` Post-Compaction Recovery, and `/handoff` already cover it.
+
+## [12.16.2] — 2026-07-30
+
+The post-edit TypeScript hook has never reported a single error. It matched `TOOL_INPUT_file_path` — which Claude Code passes as an **absolute** path — against `tsc --noEmit` output, which prints diagnostics **relative to cwd**. Every `.ts`/`.tsx` edit paid for a full-project typecheck and printed nothing.
+
+Reproduced before fixing, on a deliberately broken file:
+
+```
+absolute path (what the hook receives) → (no output)
+relative path                          → src/lib/probe.ts(1,14): error TS2322: ...
+```
+
+The existing smoke tests covered only the two no-op paths (non-TS file, empty path), so nothing ever asserted the hook emits anything for a genuinely broken file. That test now exists — it writes a real type error and asserts the diagnostic comes back.
+
+**Typechecks are now incremental.** Once the hook produces output, the cost of producing it starts to matter. `runTsc()` reuses a `.tsbuildinfo` across runs, cached at `~/.claude/tmp/tsc-cache/<cwd-hash>.tsbuildinfo` — under `$HOME` rather than in the project, so a client repo never gets a stray build artifact showing up in `git status`. Measured through the hook on this repo: **2.06s cold → 0.72s warm.**
+
+The cache is never allowed to fake a clean typecheck. Three ways it can be unusable all fall back to a cold run:
+
+| Failure | Cause |
+|---|---|
+| unwritable `$HOME` | cache path can't be created |
+| TypeScript < 5.6 | rejects `--incremental` alongside `--noEmit` |
+| torn `.tsbuildinfo` | concurrent hook runs share one cache path |
+
+The retry matcher is deliberately narrow — a tsc error line naming the cache machinery, never a user type error that happens to mention it — so a bad cache degrades to "slow" and never to "silently green".
+
+A cross-model review caught the matcher's own version of the original bug before it shipped: `--pretty` colourises even when piped, splitting the header as `error<ESC>[0m<ESC>[90m TS2322`, so a pattern expecting `error TS####` could never fire on the pre-commit path. Escapes are stripped before matching now, and a test asserts both halves — that raw pretty output does *not* match, and that stripped output does.
+
+Both `runTsc()` callers inherit this, so the pre-commit gate got faster too and shares the same cache.
+
+## [12.16.1] — 2026-07-29
+
+Closes F7 from `docs/audits/nuclear-review-2026-07-29.md` — the last open finding — **without a code change**, which is the honest outcome once it was measured.
+
+F7 suspected `lightProfilePruneTargets()` of duplicating work `cleanOldConfig` already does. It named its own prerequisites: a full read of `wipeTasks` against `MANAGED_SKILLS`/`PROFILE_MANIFEST`, plus a light-install-over-full test. Both are now satisfied — and the second **already existed** (`tests/install-e2e.test.ts` "full → light switch"), which the filing missed.
+
+The redundancy is real and partial. The boundary was established by deleting each category in turn and re-running that E2E, rather than by reading:
+
+| Prune category | Deleted → E2E | Verdict |
+|---|---|---|
+| non-light skill dirs | passes | redundant — clean rm -rf's every `MANAGED_SKILLS` dir; light restores only `LIGHT_SKILLS` |
+| `CLAUDE.md` / `AGENTS.md` | passes | redundant — both are `wipe: "recursive"` entries |
+| full-only dirs (`agents`, `profiles`, `rules`, `docs`) | **fails** | load-bearing — clean only glob-wipes `*.md` *inside* them |
+
+The E2E was separately confirmed to have teeth (emptying the load-bearing category fails it on `rules`), so those passes mean something.
+
+**Kept as-is, deliberately.** Two of three categories are no-ops, but they are the price of a self-contained contract: the function answers "the complete full-minus-light footprint", a question with a checkable answer. Narrowing it to the load-bearing third would trade that for an implicit dependency on `cleanOldConfig`'s internals — light correctness would rest silently on its `MANAGED_SKILLS` loop continuing to wipe *all* managed skills rather than only those about to be re-copied. Incident H7 was exactly that class of cross-list coupling. Measured cost of keeping them: ~40 force-removes of absent paths, in parallel.
+
+Two real changes fell out of the investigation. The overlap table is now a comment on `lightProfilePruneTargets` so the next audit doesn't re-derive it and nobody removes the belt-and-braces without seeing why it exists. And the E2E gained a missing `docs` assertion: `docs` sits in the load-bearing category but was never asserted gone, so a regression there would have shipped silently. That assertion was verified to fail when `docs` is dropped from the prune.
+
+All 7 findings from the 2026-07-29 audit are now closed.
+
+## [12.16.0] — 2026-07-29
+
+**MCP servers now install to `~/.claude.json` only.** Fixes F6 from `docs/audits/nuclear-review-2026-07-29.md`, which was filed PLAUSIBLE because its remedy depended on a fact nobody had established. Establishing that fact was most of the work.
+
+**The measurement.** Claude Code does not read `mcpServers` from `settings.json` at user scope. Three controlled conditions against the real binary in a throwaway `HOME`:
+
+| Condition | Result |
+|---|---|
+| Server in `settings.json` only (`~/.claude.json` present) | **does not appear** in `claude mcp list` |
+| Server in `~/.claude.json` only | appears |
+| Server in `settings.json`, `~/.claude.json` present without the key | **"No MCP servers configured"** — not even a fallback |
+
+Corroborated independently by the official docs' configuration-locations table, which lists MCP storage as `~/.claude.json` / `.mcp.json` and never `settings.json`. So the copy cc-settings wrote there was not a redundant-but-working second source — it was dead configuration.
+
+The clinching detail, found while scoping: `setup.ts` deliberately fed the same resolved `teamMcp` into both writers so they "never disagree about which engine backs the `tldr` server (H9)". An entire past defect class existed only to keep the inert copy in sync with the real one.
+
+**What was deleted — 214 lines of `mcp.ts`.** `mergeSettingsWithMcpPreservation` (the thin wrapper), `resolveMcpServers`, `findUserOnlyServers`, `promptPreserveUserServers`, `divergingFields`, and the `CC_WIPE_CUSTOM_MCP=1` override. `mergeSettings` loses its fifth `resolvedMcpServers` parameter and the settings merger no longer has an MCP-shaped hole in its strategy table.
+
+Removing an interactive data-protection prompt demands proof it protected nothing, so: `installMcpToClaudeJson` merges `{ ...teamMcp, ...effectiveCurrentMcp }`, spreading existing entries last, so user-only servers in `~/.claude.json` survive **by construction**. The prompt only ever guarded the file Claude Code never read. No protection was lost — that is now invariant #3 in the module header rather than an implicit property.
+
+**One-time migration.** `pruneSettingsMcpServers` removes the block prior installs left in `settings.json`, scoped to entries cc-settings itself wrote — matched against what we ship now *or* what the `mcp_written` sentinel records a previous install wrote (so a prior engine's `tldr` shape is recognized too). Anything the user added by hand stays, even though it is equally inert there; the `mcpServers` key is dropped entirely when the prune empties it. Idempotent.
+
+Verified end-to-end against a fake `HOME` seeded with the real pre-v12.16.0 state (the exact composed block plus a hand-added server): **4 inert entries removed**, the hand-added server and an unrelated `model: "opus"` preserved, and all four servers still resolving through `claude mcp list` from `~/.claude.json`. A fresh install leaves no `mcpServers` key in `settings.json` at all.
+
+**Docs corrected where they taught the wrong model.** The configuration-locations table implied `settings.json` = team MCP and `~/.claude.json` = personal; the section heading "Team-Shared MCP Servers (in `settings.json`)" said it outright. Both now state that every user-scope server lives in `~/.claude.json`, that team servers are *authored* in `config/20-mcp.json` and *installed* there, and that a hand-placed `settings.json` block has no effect. The `mcpServers` row in the key table keeps its entry — the schema must still accept the key because the composed fragment carries it — with the no-effect caveat attached.
+
+**Codex's cross-model review of this diff caught a security regression the change itself introduced, plus four smaller defects.** All five are fixed here; the first is the reason cross-model review on a diff like this is not optional.
+
+- **`bun run audit:hooks` had stopped seeing MCP servers entirely.** The supply-chain auditor scans `mcpServers` command/args against the same malware-signature bank it uses for hooks (H12), but it reads only `~/.claude/settings.json`. Moving the definitions to `~/.claude.json` moved them *out of the auditor's view* — a malicious MCP command would have passed the audit clean while still executing at every session start. `auditSettingsFile` now scans both files, with the MCP-bearing one being the important half. Its new `claudeJsonPath` parameter is explicit rather than derived from a host constant, so an auditor handed a fixture directory cannot silently scan the real file — the F3 lesson applied preemptively. Two regression tests: a `curl … | sh` MCP command is flagged, and an absent or corrupt `~/.claude.json` degrades to "nothing to scan" instead of failing the hooks audit.
+- **A malformed legacy entry could abort the installer.** The prune passed raw entries to `isStaleCcOutput`, whose `isStdioServer` does `"command" in entry` — which throws on a string or number. A single junk entry in a parseable `settings.json` would have taken down the whole install. Non-object entries are now skipped and kept. Verified end-to-end with a `"legacy-garbage": "not-an-object"` entry in the seed.
+- **Retired managed servers could never be pruned.** Ownership was only checked when the name still existed in the current `teamMcp`, so a server cc-settings stopped shipping kept its inert block forever — and the evidence vanished on the next sentinel write. The prune now also matches directly against `mcp_written` when there is no current team entry.
+- **The changelog claimed a parameter removal that had not happened.** `mergeSettings` still carried its fifth `resolvedMcpServers` argument and two live injection branches that wrote `mcpServers` into `settings.json` — directly contradicting the single-destination contract this release announces. Now actually removed.
+- **`skill-prereqs` counted inert entries as configured**, which could silence a "prerequisite missing" warning for a server Claude Code cannot load. It now reads `~/.claude.json` only, and its parameter was renamed from `claudeDir` to `claudeJsonPath` because the old one read settings.json from the fixture *and* `~/.claude.json` from the real host — the same mixed-source defect as F3, found while fixing F6.
+
+**A second Codex pass caught that two of those five fixes had not actually landed, and found a worse version of the security gap.** Worth recording plainly, because the failure mode was mine:
+
+- **Two "fixes" were never applied.** The malformed-entry guard and the retired-server prune were written as scripted string replacements that silently failed to match — `lint:fix` had reformatted the target line first. I then reported them as fixed. The e2e test that appeared to confirm the crash fix used the key `legacy-garbage`, which short-circuits in `isStaleCcOutput` before the throwing line; only an **engine-managed** name (`tldr`) reaches it. Both are now applied via verified edits, with a regression test that uses `tldr` specifically and an e2e run seeded with `"tldr": "not-an-object"` (install completes, junk entry preserved, the other three pruned).
+- **The auditor gap was worse than first fixed.** Scanning `~/.claude.json` was added *after* two early returns — absent `settings.json` and malformed `settings.json` — so in either of those ordinary states `audit:hooks` still reported clean with a malicious MCP server armed. The scan now runs first, independently, and its findings survive both early returns. Verified against the real CLI in a seeded `HOME`: a planted `curl … | sh` MCP server is reported as `[mcpServers] evil (in ~/.claude.json)` with exit 1.
+- **`claudeJsonPath` still defaulted to the host file** even when a fixture `claudeDir` was supplied — F3's mixed-source defect, reintroduced by my own fix for it. It now derives from `dirname(claudeDir)`, which matches production exactly (`~/.claude` → `~/.claude.json`).
+- **Findings carried no source attribution**, so a `~/.claude.json` finding was printed alongside remediation telling the reader to back up `settings.json`. `EnvMcpFinding` gained a `source` field; the report prints it and the remediation names the right file per finding.
+- **Two `skill-prereqs` tests still passed a directory** to a function that now takes an exact file path, so their missing-file and malformed-JSON branches tested nothing. Rewritten — and now genuinely hermetic, where the old version carried a comment conceding it could not isolate `~/.claude.json`.
+
+**A third pass found the reporting layer still swallowing the finding.** `formatAuditReport` short-circuited on `!result.exists` with "nothing to audit", so with no `settings.json` the CLI exited 1 while naming neither the malicious server nor any remediation — collected, then discarded at the last step. The env/MCP section is now a shared renderer used by both paths, and the short-circuit requires the other file to be clean too. Verified with the real CLI against a `HOME` with no `settings.json` at all: the `evil` server is named, attributed to `~/.claude.json`, exit 1. Same pass also fixed a CLI audit of a custom `--path` reading the *host's* `~/.claude.json` (now resolved relative to the audited install), and two user-facing docs still describing MCP as merged into `settings.json`.
+
+**A fourth pass tightened what the migration is allowed to delete.** The prune treated "matches what we ship" as proof of ownership, so an entry a user had copied from ours and annotated with their own `_comment` was silently removed — annotations are functionally irrelevant, so `functionalKey` called it ours. That contradicted the function's own stated promise to leave hand-added content alone. Ownership is now two-tier: **recorded** (matches `mcp_written` — fact, annotation-blind) prunes freely; **inferred** (shape only, for a pre-v12.12.0 sentinel with no record) additionally requires the annotations to match. Verified end-to-end: a user-annotated `figma` entry survives while the other three are pruned. Same pass made `EnvMcpFinding.source` the resolved path rather than a hard-coded label (so a staging-install audit names staging files), gave the absent-`settings.json` branch the summary and remediation footer it was skipping, and pinned `claudeJsonPath` inside the sandbox in twelve pre-existing tests that my sibling-path derivation had made host- and concurrency-dependent.
+
+Test suite: 1032 → 1017. ~24 tests went away with the code they covered; 17 were added (prune behavior including the malformed-engine-entry and retired-server paths, the auditor's `~/.claude.json` coverage across absent/malformed/corrupt settings, the inert-block prereq contract, and the module's "unparseable JSON aborts loudly" invariant — whose only coverage had lived inside the deleted settings.json suites, a gap surfaced by an unused-import warning after the deletion).
+
+## [12.15.2] — 2026-07-29
+
+Fixes F3 and F4 from `docs/audits/nuclear-review-2026-07-29.md`. One of them turned out to be substantially mis-measured; the correction is the more useful half of this entry.
+
+**F3 — `gatherStatus` honored its `claudeDir` for some reads and silently ignored it for others.** It took a `claudeDir` parameter, used it for the sentinel, git drift, skills, and `settings.json`, then read `~/.claude.json` from the module-level `CLAUDE_JSON_PATH`, the launchd plist from the real `$HOME`, and `auto-update-last-run.json` from the real `~/.claude/tmp`. A caller passing a fixture directory got a mix of fixture and host state.
+
+The tests conceded this in a comment rather than covering it — *"this can only assert shape, not tmp-fixture-scoped values"* — and one test named `"MCP server in claudeJson → appears in mcp.servers"` asserted only that the field was an array, never placing a server or checking for one.
+
+`gatherStatus(sourceDir, claudeDir, version)` now takes `gatherStatus(sourceDir, paths: InstallPaths, version)`. `InstallPaths` (new, in `platform.ts`) bundles `claudeDir`, `claudeJsonPath`, and `homeDir` so partial overriding is impossible — the previous shape's whole failure mode was supplying one path and getting host defaults for the rest. `~/.claude.json` is a *sibling* of `~/.claude`, not a child, which is why it can't be derived from `claudeDir` alone and why the bundle needs `homeDir` too. `readState` gained an optional `tmpDir` (defaulting to the real one, which is what all ~20 hook callers want), matching the `homeDir = homedir()` injection style already used by `autoUpdateStatus` and `pinnedToolPath`.
+
+Four tests now assert fixture-scoped **values** where they previously asserted shape: plist absent ⇒ `plistPresent: false`, `lastRun` read from the fixture's `tmp/`, MCP servers read from the fixture's `.claude.json`, and an absent `.claude.json` ⇒ empty list rather than the host's servers. All four were confirmed to **fail** against the previous implementation — this machine has a real plist, a real `auto-update-last-run.json`, and a populated `~/.claude.json`, so each assertion is genuinely falsifiable rather than vacuously true.
+
+**F4 — the finding as filed was wrong, and the correction matters more than the fix.** It reported `docs/settings-reference.md` as documenting "35 of 108 schema keys." That counted `###` prose headings and missed the `## Complete settings.json key reference` table in the same file: a 106-row inventory with type, class, and description columns. Measured properly — **108 schema root keys, 106 rows, zero phantom rows** — the gap was two keys (`advisorModel`, `respondToBashCommands`), not seventy-three.
+
+Both models reported the inflated number (Codex said 37 of 108) because both counted headings. Two models agreeing is not two models having measured the right thing, and that is the durable lesson here.
+
+What survived is smaller and different in kind: a hand-maintained table with nothing to catch divergence from the schema. Two keys had already drifted and nothing would have reported a third. So: the two rows added, the "~104 documented keys" claim replaced with what is now enforced, the 108 rows sorted by codepoint so a new key has exactly one slot (6 rows moved, no content changed), and `tests/docs-settings-keys.test.ts` asserting parity in **both** directions plus no-duplicates and sortedness. Verified to fail on an omitted row and on an invented one.
+
+Full generation from the zod schema — the audit's original fix and Codex's recommendation — was **rejected**: it would trade hand-written Class and Description columns ("which tier is this", "what breaks if you set it") for zod type names. The table stays hand-written; the test makes "complete" true by construction rather than by assertion.
+
+Suite: 1026 → 1032 tests, 0 fail. Typecheck, biome, skill lint clean.
+
+## [12.15.1] — 2026-07-29
+
+Fixes F1 and F2 from `docs/audits/nuclear-review-2026-07-29.md`. No behavior change on any success path; one behavior change on a failure path, noted below.
+
+**F1 — the checksum boundary existed twice; now it exists once.** `ensurePinnedEngine` (`engine-pin.ts`) and `ensurePinnedTool` (`pinned-tools.ts`) had each implemented the same state machine: platform-key lookup → temp path → `fetch` → HTTP/network fail-soft → write → hash → **mismatch: remove and throw**. New `src/lib/download-verify.ts` owns it; the two callers now differ only in what they do with the verified bytes — `rename` + pin record for a bare binary, `tar -xf` + lift one file out for an archive. `engine-pin.ts` drops 82 lines to gain 0 new concepts.
+
+The concrete drift this closes: the SLSA/sigstore provenance gate was stubbed on the **engine** path only. A real implementation would have shipped verified engines and left the tool path — a ~55MB third-party Rust binary pulled from a GitHub release — unverified, with nothing failing or warning to say so. The gate now lives in the shared primitive and covers both, so it graduates once for both.
+
+`platformKey()` moved from `engine-pin.ts` to `platform.ts`, beside `platform`/`arch` whose own comment already scoped them to "checksum-key lookups, download-URL templating". This was forced rather than cosmetic: the primitive needs a platform string for its error message, and importing it from `engine-pin.ts` — which imports the primitive back — would have been a runtime import cycle. Re-exporting from the old location was rejected as exactly the thin wrapper this audit flags; the three importers were repointed instead.
+
+**F2 — `PinnedToolDescriptor` was generic in shape and single-purpose in fact.** `ensurePinnedTool` hardcoded `tldr-cli-${triple}/` as the archive's inner directory while the descriptor advertised five configurable fields and no way to express it. A second tool with any other layout would download, checksum, and untar successfully, then fail soft with "expected binary missing from archive" — pointing at upstream packaging for what was really a missing field.
+
+`archiveBinPath` is now a descriptor field taking the same literal `<TRIPLE>` token as `urlTemplate` (`"tldr-cli-<TRIPLE>/tldr"`), both expanded through one `expandTriple` helper so they cannot diverge. **Failure-path change:** when the descriptor disagrees with the archive, the warning now names the field — `"<path> missing from archive — tool not installed (check the descriptor's archiveBinPath)"` — instead of implying a broken asset. Three tests added: the descriptor's own shape, a `bin/tldr` layout installing correctly (proving the generality is real, not decorative), and a wrong `archiveBinPath` failing soft with nothing installed.
+
+**What was deliberately NOT changed.** The audit noted that tool installs anchor their reuse check to an on-disk `.sha256` sidecar while engine installs anchor to an in-source constant, so engines self-heal from binary tampering and tools cannot. Closing that requires pinning the *extracted binary's* sha256 per platform, which requires downloading all four release archives to obtain those digests — checksums cannot be invented, and pinning only the current platform would make the tool uninstallable elsewhere. The asymmetry is instead stated plainly in the module header, which previously claimed to "mirror engine-pin.ts's security discipline" without qualification. It remains outside the documented threat model (`SECURITY.md`: "a targeted attacker with full user-privilege write access") and gated behind opt-in `CC_PINNED_TOOLS`.
+
+**Two hardenings from Codex's cross-model review of this diff**, both cases where the new code didn't honor a contract it had just written down:
+
+- `download-verify.ts` claimed "every failure path either wrote nothing or removes what it wrote," but only cleaned up on the two explicit rejections. A partial `writeFile` or an unexpected throw from hashing would have left an unverified temp file on disk. The temp lifecycle is now a `try`/`finally` with ownership transferring to the caller only on the success return, which also removes the two hand-written `rm` calls.
+- `pinned-tools.ts` now requires the extracted path to resolve *beneath* the staging dir and to be a **regular file**. Codex framed this as traversal/symlink exposure; the sharper reason is internal inconsistency — `tldrCodePath()` already refuses to hand back a symlinked binary on the read path, because a symlink redirects execution somewhere unpinned, so an install path that happily renames a symlink into place made that guard decorative. Descriptors are in-source rather than user or remote input, so this is defense in depth, not a reachable hole.
+
+  Containment is checked with `realpath`, not `startsWith` on a joined path. A lexical test passes `bin/tldr` when the archive contains `bin -> /outside`, because `lstat` only spares the *final* component from symlink resolution; `realpath` collapses every component, so an intermediate link lands outside the root and is rejected. Codex caught this on the second pass, after the first-pass fix used the lexical form.
+
+- A second `rm`-on-failure gap, symmetric to the first: `ensurePinnedEngine` took ownership of the verified temp file and would have leaked one per attempt if `rename`/`chmod` threw. `pinned-tools.ts` already had the equivalent guard around its extract step.
+
+Failure modes are now individually covered: escaped path, non-regular file, and layout mismatch each fail soft with their own message. The escape test plants a real file outside the staging root and asserts it is neither moved nor consumed — an earlier version of it passed for the wrong reason, resolving to a nonexistent path and exercising the "missing from archive" branch instead of the containment branch.
+
+Suite: 1021 → 1026 tests, 0 fail. Typecheck, biome, and skill lint clean.
+
+## [12.15.0] — 2026-07-29
+
+Every plan now opens with a **Functional DAG** — the recipe-table form from *Cooking for Engineers*: inputs down the left, operations merging rightward, exactly one terminal node.
+
+The problem it fixes: a bulleted plan hides the two things a plan exists to answer — what must finish before a step can start, and what can run at the same time. Both were being reconstructed by hand as a "Dependencies:" line per task and a separately-maintained batch list, which drift from each other the moment the plan changes.
+
+**New — `docs/functional-dag.md`.** The spec: required brace form with a worked example (connector columns verified aligned), authoring rules, five validity checks, and the derivation of parallel batches from the diagram's columns.
+
+The validity checks are the substance — each failure is a plan bug, not a drawing bug:
+
+- an input row no consumer touches = orphan work, or a missing step
+- two terminal nodes = two plans, split them
+- a line re-entering a node to its left = not a plan, split the node into before/after
+- an operation whose label isn't verifiable = a step that can't be estimated
+- no join with 2+ inputs = nothing is parallelizable, and the plan should say so rather than imply batches that don't exist
+
+**Columns are topological levels**, so `## Execution Plan` batches are *read off* the DAG rather than maintained beside it. `docs/parallel-batch-detection.md` (Kahn's level detection, used by maestro) is now cross-linked as the machine form of the same graph, for plans too large to eyeball.
+
+**Escape hatch, deliberately narrow.** The brace form requires contiguous vertical spans, so it cannot draw a node feeding two operations far apart in the ordering — that case, and graphs past ~12 inputs, use `flowchart LR` with identical semantics. Reach for it because the graph needs it, not because the ASCII was fiddly. A boxed-grid variant (image-faithful, denser) is offered for ≤ 6 inputs.
+
+Wired into: `AGENTS.md` ("Every Plan Opens With a Functional DAG" — so Codex/Cursor inherit it too), `agents/planner.md` (RETURNS, core behavior, workflow step 5), `skills/plan-feature` (Phase 5 + the final PRD template), `skills/build` (Phase 2), `skills/orchestrate` (Phase 1 — fan-out piles are the DAG's columns), and `skills/plan-ceo-review`, where a plan arriving *without* a DAG is itself a finding: draw it, then report what the missing joins were hiding.
+
+Scoped to plans. Reviews, audits, retros, and handoffs are unaffected — a handoff may quote the DAG it was working through, but doesn't invent one.
+
+Three ambiguities Codex caught in cross-model review of the first draft, all fixed before landing:
+
+- **`prereq` rows were self-contradictory** — described as gating everything while joining nothing. As written, topological batch detection would treat them as ordinary roots and could schedule `bun install` alongside the work that needs it. They're now specified as a sequential pre-phase (`Batch 0`) explicitly excluded from batch detection, with no edges drawn.
+- **The worked example contradicted its own reading rule** — `token table` and `login form` were called same-column siblings but their labels started at different offsets (26 vs 22). Labels are realigned, and the rule is now precise: an operation's level is the column its *label* sits in, and a line crossing a column without a bracket is routing, not participation.
+- **Duplicate dependency truth in `plan-feature`** — per-task `Dependencies`/`Blocks` metadata feeds the batch algorithm and can't simply be deleted, so Phases 4 and 5 now state that it must match the DAG's joins and that the DAG is authoritative on conflict.
+
+A second Codex pass on the fixed diff found two more, also fixed:
+
+- **"The DAG wins on conflict" was unenforceable** — operations carried prose labels while the machine algorithm keys on task IDs, leaving no deterministic mapping between the two. Operations now take an ID prefix (`T-2 token table`) whenever the plan has task metadata. Inputs stay as paths; IDs belong to operations, because operations are the tasks.
+- **`plan-feature`'s own execution-plan example violated the new terminal-node rule** — it ended on two parallel unverified tasks (E2E + docs). It now ends on `T-9: typecheck + full test run`, and the skill states that the last batch is always the single verification gate, never a fan-out.
+
+One finding was rejected: that `install-fs.ts` preflight should require `docs/functional-dag.md` explicitly. Preflight deliberately checks `docs/` as a directory plus *representative* files (`src/setup.ts`), and enumerates no individual docs — `architecture-reference.md`, `enhanced-todos.md`, and `thread-types.md` are equally load-bearing and equally unlisted. Special-casing one doc of ~24 would be inconsistent, not safer.
+
+Diagram alignment is machine-verified, not eyeballed: connector columns in the brace example land at 22/40/57/72 with matching `┐├┘` per column, and the boxed-grid variant is a uniform 59 columns wide.
+
+## [12.14.0] — 2026-07-28
+
+An opt-in pinned CLI for `tldr-code` (`github.com/parcadei/tldr-code` v0.4.0, a Rust rewrite of the archived `llm-tldr`, shared by its maintainer after we dropped `llm-tldr` for going stale). Evaluated both halves of it separately, because they disagree.
+
+**The CLI is accurate.** `tldr dead . --lang typescript` against this repo returns `dead_functions: []`, `functions_analyzed: 648` — correct, with or without `--lang`.
+
+**The bundled MCP server (`tldr-mcp`) is not — it was rejected.** Pointed at the same repo, it reports live, actively-called symbols (`getCalls`, `getContext` in `src/codemap/callgraph.ts`) as hard `dead_functions`, with `line: 0`. It also returns `status: ok` and `total_functions: 0` on a wrong `language` value — the exact silent-wrong-answer shape v12.9.0 moved the default engine away from. `tldr-mcp` is therefore never installed and never registered as a code-intel engine: `src/lib/code-intel-engine.ts`'s `ENGINES` registry and `DEFAULT_ENGINE_ID` are untouched, `native-ts` stays the MCP engine.
+
+**New — `src/lib/pinned-tools.ts`.** A second pinned-binary installer, separate from `engine-pin.ts`/`code-intel-engine.ts`, for standalone CLI tools that are never MCP engines. Same security posture as the engine pin (checksum is the boundary; a mismatch deletes the download and throws, a missing checksum or network failure fails soft) with two differences the engine pin doesn't need to handle: the release asset is a `.tar.xz` archive, checksum-verified before extraction, and only the `tldr` binary is lifted out of it — `tldr-mcp` and `tldr-daemon` are deliberately left in the deleted staging dir, never written to disk. Asset naming uses Rust target triples, which don't match `platformKey()`, so the descriptor carries its own explicit `platformKey → {triple, sha256}` map for all four supported platforms.
+
+**Opt-in, not automatic.** Nothing downloads on a plain `setup.sh` run. `CC_PINNED_TOOLS=tldr-code bash setup.sh` installs it to `~/.claude/code-intel/tldr-code/0.4.0/tldr`; a failed install warns and does not abort the rest of setup.
+
+Two more measured caveats now documented everywhere the CLI is referenced (`agents/deslopper.md`, `skills/nuclear-review/SKILL.md`, `agents/security-reviewer.md`, `docs/tldr-cheatsheet.md`):
+
+- **It exits 0 even on errors** — `Error: Path not found` and `unrecognized subcommand` both exit 0. Never trust the exit code; the caller has to check that stdout parses as JSON and that `functions_analyzed > 0`. A non-JSON stdout or `functions_analyzed: 0` means the scan did not run, and must be reported as "scan unavailable" — never as "no dead code".
+- **`semantic` is not compiled into the prebuilt binary** (`unrecognized subcommand 'semantic'`). Only `search` (BM25, lexical, not embedding-based) exists. Every doc/agent reference to `tldr semantic` is replaced with `tldr search`.
+- **`vuln` misclassifies vulnerability types.** It found a real taint flow but labelled an `execSync` command injection `sql_injection`/CWE-89. `taint_flow` location is trustworthy; `vuln_type`, `cwe_id`, and `remediation` are not.
+
+`dead_functions` from the CLI is advisory only in `deslopper` and `nuclear-review` regardless of the accuracy measurement above — both agents auto-remove code on the strength of a dead-code pass, so every candidate is still confirmed with `Grep` before removal.
+
+## [12.13.0] — 2026-07-27
+
+The statusline's `⚡` quota chip is back everywhere except Programa.
+
+Hiding it was right for one terminal and wrong for every other. Programa's sidebar shows the same 5h numbers persistently, so a chip on every prompt was the same fact twice in the more crowded of the two surfaces — but the suppression was unconditional, so iTerm, Terminal.app and ssh sessions got no quota signal at all. The chip now renders unless `PROGRAMA_SURFACE_ID` is set.
+
+`formatTimeToReset` came back with a fix rather than as-is. The old implementation was a bare `Date.parse(iso)`, and `resets_at` is Unix epoch **seconds** on current Claude Code builds — `Date.parse("1785190200")` is `NaN`, so restoring it verbatim would have shipped a chip whose `↻2h15m` suffix was permanently missing. It now reads a number-or-numeric-string as epoch seconds and keeps `Date.parse` for the ISO strings older builds emitted.
+
+The cache write stays ungated. `writeRateLimitsCache` runs inside Programa too — that file is what the sidebar and `quota-steer.ts` both read, and statusline is what keeps it fresh between sessions, since `session-start.ts` only refreshes it on launch and resume. Gating the write alongside the display would have left the sidebar showing whatever the last session start happened to capture.
+
+New `tests/statusline-quota.test.ts` (10 tests) spawns the hook with a sandboxed `HOME`, so fixture numbers never reach the real `~/.claude/tmp/rate-limits.json`. It covers the gate both ways, the empty-variable edge, four `resets_at` shapes, and asserts the cache write happens in **both** branches — that last one is the regression that would silently stale Programa's sidebar.
+
+## [12.12.0] — 2026-07-27
+
+Closes the limit v12.11.0 documented: `mcp_written` now records cc-settings' definition of **every** managed MCP server, not just the engine-managed `tldr`.
+
+The sentinel's job is to let a later install recognize yesterday's output as its own. It only ever did that for `tldr`, so for every other managed server the only recognizable shapes were the ones the *current* code generates. That made a server's definition effectively immutable in practice: change `figma`'s URL, and the entry the previous install wrote matches nothing, reads as a user hand-edit, is preserved — and the new URL never lands on that machine again. The failure is silent, and it compounds, since each subsequent change orphans another shape.
+
+`installSettings` now returns the team MCP block it installed and `writeVersionSentinel` stamps it whole. Three properties this preserves, each with a test:
+
+- an entry equal to what we shipped **last** time is replaced by what we ship **now**
+- without the record (a pre-12.12.0 sentinel) the same entry is still preserved — the old behaviour, pinned so the improvement is legible
+- an entry matching **neither** the old nor the new shipped definition is a genuine hand-edit and still wins
+
+What gets recorded is deliberately **our** definition, not what ended up on disk. Where a user's copy shadowed ours, disk holds theirs — echoing that would make the next install recognize their customization as our stale output and clobber it. Remembering what we shipped is the safe direction: an entry equal to it is unambiguously ours to replace.
+
+Light installs still record nothing, for the reason they always did — they remove the managed servers, so claiming authorship of entries this run did not write would let a later install misread a user's own entry as our output.
+
+**`settings.json` gets the same test.** Cross-model review caught that the above fixes `~/.claude.json` only. `settings.json` carries its own copy of the MCP block and had no stale-output detection *at all* — so a definition cc-settings wrote on an older version read as a user customization there and was preserved indefinitely, even while `~/.claude.json` was being updated correctly. That is not hypothetical: it is exactly how a pre-v12.8.1 `tldr` entry survived every reinstall on a real machine, printing "Preserving your customization" each time, until it was deleted by hand. `resolveMcpServers` now runs `isStaleCcOutput` before deciding a shared server diverged, and the prior record is threaded through `mergeSettingsWithMcpPreservation`. A genuine customization still wins in both destinations.
+
+1004 tests pass (up from 997).
+
+## [12.11.0] — 2026-07-27
+
+Ownership of an MCP server was decided by comparing definitions byte-for-byte. That comparison counted documentation-only keys, so cosmetic residue could permanently transfer ownership of a server away from cc-settings — silently, and with no way to see it had happened.
+
+**1. Annotation keys no longer decide ownership.** `_status`, `_comment`, `_description` and friends are ignored by Claude Code, and the settings composer stopped emitting them — but installs predating that strip wrote them inline into `~/.claude.json`, where they persist. An entry carrying one compared unequal to the team entry, so `isStaleCcOutput` classified it a hand-edit, the merge preserved it, and **every subsequent update to that server silently stopped landing**. Comparison now runs on functional fields only (`functionalKey`), so such an entry is recognized and refreshed. A genuine customization — different `command`, `args`, `url`, `headers` — still differs and is still preserved.
+
+Observed on a real install: `figma` and `chrome-devtools` differed from the team entry in `_comment` and `_status` and nothing else. Both were pinned. After the fix both refresh and the residue is dropped, while a `context7` pointed at the hosted HTTP endpoint with a user API key stays untouched.
+
+The stripped set is a closed list (`_comment`, `_description`, `_usage`, `_contextCost`, `_status`) rather than a `_`-prefix test — an unknown `_`-prefixed field could be a Claude Code extension we don't model yet, so it still counts as a divergence and is still preserved. `serverInstructions` is functional and is never stripped.
+
+**Known limit, unchanged by this release.** Recovery only reaches entries that are *functionally* identical to ours. If a non-engine server's shipped definition later changes (say `figma`'s URL) and a machine holds the old value, that entry still differs on a real field, is still read as a user customization, and the new value will not land there. `mcp_written` closes this for engine-managed servers by recording what was actually written; extending it to every managed server is the general fix and is not done here.
+
+**2. The summary distinguishes shipping a server from running our definition of it.** It previously grouped servers by reading `_status` back off `~/.claude.json` — a key nothing we write carries, so the grouping was driven entirely by pre-strip residue. `figma` and `chrome-devtools` happened to still have it and were labelled correctly by accident; `tldr` and `context7` did not and were reported to the user as "user-added". Classification now derives from `config/20-mcp.json`'s server names, the only authority on ours-vs-theirs. The dead `optional` bucket is gone (nothing ever set it) and `core` is relabelled `cc-settings`.
+
+Servers whose local copy shadows ours are now marked `(your copy is in use — cc-settings' version not applied)`. That distinction is what makes defect 1 visible instead of silent.
+
+**3. The divergence notice names what diverged.** `Preserving your customization of N shared MCP server(s)` listed names only. It now lists the differing fields per server, and when the *only* difference is `serverInstructions` while `command`/`args` match, it says outright that this is usually a stale entry from an older cc-settings and points at the fix — that shape is almost never a deliberate customization.
+
+**Documentation caught up with the v12.9.0 engine flip.** Seven files still presented `llm-tldr` as the default and advertised `semantic`/`dead`/`diagnostics` as available capabilities; a stock install was being told to `pipx install llm-tldr` for a server that needs nothing. `docs/tldr-cheatsheet.md` is rewritten around `native-ts`, with the CLI/daemon/index material demoted to the opt-in section, and `skills/tldr/SKILL.md`'s quick-reference marks the seven tools that return `unsupported-by-native-engine`.
+
+Three corrections in that pass came from cross-model review, each verified against source:
+
+- **Exporting `CC_CODE_INTEL_ENGINE` is not sufficient to switch engines.** The `tldr` entry in `~/.claude.json` is written at install time, so a shell-only export leaves the hooks on one engine and the MCP server on the other. Every selection instruction now says to re-run `setup.sh` with the variable set.
+- `mcp-configs/recommended.json` claimed the installer rewrites its `command`/`args`. Nothing in `src/` reads that file — it is reference-only, and it shows the llm-tldr shape. Now labelled as such.
+- `extract` returns `{ file, symbols }` — names, kinds, lines, signatures — not source bodies, so it is not a substitute for `Read`.
+
+The "17 languages" claim is dropped throughout; no source in this repo supports the number and upstream contradicts it.
+
+Also: the rule-file dedup sweep finished (`performance.md`, `react-perf.md`, `style.md`, `ui-skills.md`). The two perf files turned out to barely overlap, so that is the end of the sweep rather than the middle of it.
+
+994 tests pass (up from 976).
+
+## [12.10.1] — 2026-07-27
+
+Caught while verifying v12.10.0 on a real install: the migration rule fired on installs it shouldn't have. A v12.10.0 install that resolved the default *implicitly* omitted `engine_explicit` entirely, so the next install couldn't distinguish "we stamped this implicitly" from "this sentinel predates the field" — and the legacy inference then marked it explicit, re-pinning the very default it was supposed to leave free.
+
+`engineExplicit` is now three-state (`true` / `false` / `null` for absent) and `engine_explicit` is always written. Absence now means exactly one thing — stamped before v12.10.0 — which is the only case where intent is inferred from the engine id.
+
+Verified on a real install from a legacy sentinel: two consecutive installs both land `engine: native-ts, engine_explicit: false`, and the `tldr` MCP entry stays on the native engine. Idempotent, and still free to follow a future default change.
+
+## [12.10.0] — 2026-07-27
+
+v12.9.0 changed the default engine to `native-ts`. It reached nobody. This release makes it actually apply, and fixes the same class of bug in two more places.
+
+Three defects, all instances of *an empty or stale result being indistinguishable from a correct one*:
+
+**1. The install sentinel pinned the engine forever.** `resolveEngine` honoured `~/.claude/.cc-settings-version`'s `engine` field identically whether it came from a deliberate `CC_CODE_INTEL_ENGINE` opt-in or was merely stamped as the default at first-install time — and every install re-stamped whatever it had just read. Once any value landed, `DEFAULT_ENGINE_ID` became unreachable. `SentinelInfo` gains `engineExplicit` (from a new `engine_explicit` field, defaulting `false`), and `resolveEngine` now returns `{ engine, explicit }`, honouring the sentinel only on an explicit choice.
+
+Legacy sentinels are migrated asymmetrically, and deliberately: one holding `llm-tldr` is ambiguous (it was the default then) and is treated as implicit, so the flip reaches it; one holding *any other* engine could only have come from an explicit opt-in, so it is preserved. That asymmetry is what stops an existing `native-ts` user from being silently downgraded.
+
+**2. The stale-detector was blind to its own history.** `isStaleCcOutput` decided "cc-settings' prior output" vs "genuine user hand-edit" by rebuilding candidates from the *live* `ENGINES` registry — so the moment a descriptor's `serverInstructions` text was edited, the previous install's output stopped matching and was misclassified as a hand-edit, then won the merge. This is why v12.8.1's fix never landed on any existing machine either. The sentinel now records `mcp_written` — an exact echo of what was written — and `isStaleCcOutput` accepts it as an additional match branch. A real hand-edit still differs from that snapshot and is still preserved; `mcp_written` is recorded on full installs only, since a light install removes the managed server.
+
+**3. Our own engine returned empty on a missing argument.** Calling native-ts's `impact` with a misnamed argument returned `{"symbol":"","references":[]}` — identical in shape to "this symbol has no callers." Five tools whose required symbol/target had no fallback (`extract`, `imports`, `importers`, `context`, `impact`) now return a structured `missing-required-argument` error naming the accepted keys. An unknown or mistyped `CC_CODE_INTEL_ENGINE` likewise no longer records itself as an explicit choice, which would have pinned a typo's fallback permanently.
+
+Verified end-to-end across all four resolution paths:
+
+| sentinel state | resolves to |
+|---|---|
+| legacy implicit `llm-tldr` | `native-ts`, implicit — flip applies |
+| legacy opt-in `native-ts` | `native-ts`, **explicit** — opt-in preserved |
+| explicit `llm-tldr` | `llm-tldr`, explicit — honoured |
+| typo in env var | `native-ts`, implicit — not pinned |
+
+976 tests pass (up from 964). Note for anyone whose install predates this: the sentinel migration runs on your next install, but the previously-written `~/.claude.json` entry is only replaced once `mcp_written` exists to recognise it — so a machine carrying stale output from before v12.10.0 may need the `tldr` entry removed by hand once.
+
+## [12.9.0] — 2026-07-27
+
+**The default code-intel engine is now `native-ts`.** v12.8.1 fixed the *instructions* around llm-tldr's python-defaulting `language` parameter; this changes the default so the trap isn't there to step into.
+
+The measured argument, same three queries, ground truth verified against grep:
+
+| query | llm-tldr (as shipped) | native-ts |
+|---|---|---|
+| `impact resolveEngine` (5 callers) | `{"status":"ok","callers":[]}` | exact |
+| `importers hook-runtime` (23) | `[]` | 23 |
+| "delegation tool-call threshold" | ranked 3 unrelated symbols | n/a — refuses |
+
+native-ts implements `structure`, `tree`, `extract`, `arch`, `imports`, `importers`, `calls`, `context`, `impact`, `change_impact`. It returns `unsupported-by-native-engine` for `semantic`, `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, and `search`.
+
+That refusal is the point. A tool that says "I did not run" is strictly better than one that says `{"status":"ok"}` and means nothing — the second gets a live symbol deleted.
+
+**Changed:**
+- `src/lib/code-intel-engine.ts` — `DEFAULT_ENGINE_ID = "native-ts"`; native-ts `serverInstructions` now state that `unsupported-by-native-engine` means the analysis did not run and must not be reported as a clean result.
+- `agents/deslopper.md`, `docs/deslopper-team-mode.md`, `skills/nuclear-review/SKILL.md` — the dead-code passes now fail loudly. An `unsupported` response is reported as "scan unavailable", never as "no dead code found", and a zero-caller `impact` must be confirmed with `Grep` before anything is deleted.
+- `skills/tldr/SKILL.md` — rewritten around the new default, with llm-tldr documented as the opt-in for non-TS/JS repos.
+
+**Trade-off, stated plainly:** native-ts is TypeScript/JavaScript only. On a Rust, Python, or Go repo, select llm-tldr explicitly (`CC_CODE_INTEL_ENGINE=llm-tldr`) *and* pass `language` on every call. It is archived upstream, so that is now a deliberate choice rather than a default anyone falls into. No capability was actually lost in the flip: the tools native-ts refuses were the ones returning empty results on TS anyway.
+
+## [12.8.1] — 2026-07-27
+
+A head-to-head evaluation of code-intel engines (prompted by upstream `llm-tldr` being archived on 2026-07-13) turned up a live defect in our own configuration: **the `tldr` MCP tools were returning confident empty answers on every TypeScript repo.**
+
+The `language` parameter does not auto-detect. It defaults to `python`. On a TS codebase the tools return `{"status": "ok", ...}` with an empty result rather than an error, so a wrong answer is indistinguishable from a true negative:
+
+- `mcp__tldr__impact` on `resolveEngine` (5 real callers) → `{"status":"ok","callers":[]}`
+- `mcp__tldr__structure` on `src/lib/` (30+ TS files) → `{"language":"python","files":[]}`
+- `mcp__tldr__importers` on `hook-runtime` (23 real importers) → `[]`
+- `mcp__tldr__dead` → `total_functions: 0, dead_percentage: 0.0`
+
+Worse, our config actively caused this. `skills/tldr/SKILL.md` said "**Do NOT hardcode `language` param** — auto-detection handles 17 languages" and the MCP `serverInstructions` said "auto-detection is preferred." Agents followed that instruction into a silent wrong answer, on the tool they were told to run *before refactoring*.
+
+**Fixed — `skills/tldr/SKILL.md`, `config/20-mcp.json`, `src/lib/code-intel-engine.ts`:**
+- Every "auto-detected" claim replaced with an explicit instruction to pass `language`.
+- `serverInstructions` now states the `python` default and warns that an empty result is not evidence of no match.
+- CRITICAL RULES reordered — the language rule is now first, because it invalidates the rest when broken. The old rules 2 and 3 ("ALWAYS use `tldr impact`", "ALWAYS use `tldr semantic`") named the two tools that expose no `language` parameter at all and are therefore unusable on non-Python code; both now carry a cross-check-with-Grep instruction instead.
+
+No engine switch. `native-ts` answered the same queries correctly and `impact` is one of the tools it implements, but it returns `unsupported-by-native-engine` for `semantic`, `dead`, `diagnostics`, `slice`, `cfg`, `dfg`, and `search` — that trade is a separate decision, not a defect fix.
+
+## [12.8.0] — 2026-07-27
+
+Realigned the config against Anthropic's ["new rules of context engineering for Claude 5 generation models"](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models). Anthropic removed over 80% of Claude Code's own system prompt for Opus 5 and Fable 5 with no measured performance loss; the same audit here found four outright contradictions between always-loaded files, a routing policy that existed as both static prose and a live hook injection, and 160 lines of `deslopper` team-mode workflow loading on every invocation to serve a mode that only fires at 100+ files.
+
+Conflicting instructions are the expensive failure — they force the model to arbitrate between two rules instead of following one.
+
+**Fixed — contradictions between always-loaded files:**
+- Delegation threshold read "10+ tool calls" in `CLAUDE-FULL.md` while `tool-cadence` enforced 12. The doc now cites `CC_PARALLELMAX_THRESHOLD` as the single source.
+- `AGENTS.md` prescribed a two-section PR template "only"; `rules/git.md` prescribes three, led by "What this does". `AGENTS.md` defers.
+- `AGENTS.md` "5+ files → get approval" contradicted the Autonomy Contract. Now: state the plan, don't ask permission for reversible in-scope work.
+- `skills/lighthouse` and `skills/plan-feature` disagreed on Core Web Vitals in both directions (2.5s vs 3s LCP, 200ms vs 100ms INP). `plan-feature` corrected to Google's thresholds.
+
+**Fixed — instructions stated at more than one level:**
+- Codex routing policy lived in `CLAUDE-FULL.md` prose *and* in the `codex-verify` SessionStart injection. The prose was the stale copy, loading even when the bridge was down. The hook is now the single source; the doc keeps a pointer.
+- `delegation-detector` re-taught a rule already in the always-loaded context. It now reports the breadth signal and stops.
+- One fallback paragraph was copy-pasted across `fix`, `refactor`, `verify`, `ship`, and `nuclear-review/references`; `ship` also stated the AI-attribution rule twice in one file.
+
+**Changed — progressive disclosure:**
+- `agents/deslopper.md` 504 → 347. Team Mode coordinator workflow, scanner prompts, and merge protocol moved to the new `docs/deslopper-team-mode.md`, read only when the Mode Selection table calls for a fan-out.
+- `agents/maestro.md` 335 → 175. Removed the orchestration ASCII flowchart, the CORRECT/INCORRECT spawning example, and three pseudocode patterns, all of which restated the Core Principles and Thread Orchestration table directly above them.
+- `AGENTS.md` lost the Next.js project-structure tree, which was wrong for every non-Next repo including this one. Tech Stack is now scoped as the web-client default rather than a universal assumption.
+
+**Kept deliberately:**
+- `AGENTS.md` retains its Coding Standards despite overlapping `rules/` and `profiles/` — Codex, Cursor, and Copilot read only `AGENTS.md`, so deduplicating there would drop the standards for those tools.
+- WCAG thresholds are restated in `skills/qa` and `skills/design-tokens` because both fork without `Read` and cannot follow a pointer. `rules/accessibility.md` is the canonical copy and now carries the full set (AAA, non-text 3:1, touch-target spacing) it was missing.
+- The Action-First Output rules stay. The guidance targets rules a model would get right by judgment; output shaping is a stated preference, which is not inferable.
+
+Cross-model review over three rounds caught six issues, four of them introduced by the deduplication itself — most sharply, a spawn-failure fallback moved into the agent definition that failed to spawn.
+
+## [12.7.3] — 2026-07-24
+
+Running `bun test` fired real macOS notifications — "auto-update blocked — repo path does not match the enrolled path" and friends. Nothing was wrong: the suite spawns the auto-update script and deliberately drives its blocked-path and skipped-dirty branches to prove those guards hold, and each one reached the real notifier. Anyone running the tests got alarming desktop alerts about failures that only happened inside a temp-dir fixture.
+
+**Fixed — `src/scripts/notify.ts`:**
+- New `notificationsSuppressed()` guard at the top of `sendNotification`, muting under `NODE_ENV=test` or `CI=true`. `bun test` sets `NODE_ENV` and the harnesses spawn children with the parent env, so the flag reaches spawned scripts without any test-file changes.
+- `CI === "true"` exactly, matching `src/lib/schedule.ts` — a truthiness check would read `CI="false"` as CI. Caught by cross-model review.
+- `tests/scripts-smoke.test.ts` pins both flags, including the `CI="false"` case.
+
+## [12.7.2] — 2026-07-24
+
+The nightly auto-update had been reporting success while doing nothing. It only re-ran the installer when `git pull` brought down new commits, so once the repo sat ahead of `~/.claude` — a local commit, or a manual pull never followed by `setup.sh` — there was nothing to pull, and the job logged "already up to date" and stopped. The installed version drifted further behind every day while the log insisted everything was current. On the maintainer's machine that meant five consecutive clean-looking runs against a stale install.
+
+**Fixed — `src/scripts/auto-update.ts`:**
+- The `before === after` early return now also requires `!stale`, where stale comes from `computeDrift(installedVersion, readPackagedVersion(repoPath))`. Both helpers already backed the statusline drift nudge; the job simply wasn't consulting them. Any drift between the repo and the install now heals on the next run.
+- The setup-triggering log line distinguishes its two causes — `pulled <before> -> <after>` versus `no new commits, but installed vX is behind packaged vY`.
+
+Note: the job still skips entirely on a dirty cc-settings tree. That is deliberate (never clobber WIP), but on a repo you actively develop in it means a scheduled run during uncommitted work does nothing.
+
+## [12.7.1] — 2026-07-24
+
+Action-first's closing rule was being satisfied the wrong way. "End with ONE concrete next action" got read as *name* an action, so turns ended on "Want me to implement the fix and file it as an issue?" — for work already inside the scope the user granted, where the answer is always yes. The round-trip bought nothing but a turn.
+
+**Changed — `CLAUDE-FULL.md` "Action-First Output":**
+- "End with ONE concrete next action" → **"Do the next action, don't offer it."** If the next step is in scope and reversible, take it and report; naming an action is not the same as ending with one. Close with what you did, what it means, what's still open.
+- New rule: **only end on a question when the decision is genuinely the user's** — irreversible, outward-facing, or two paths leading to materially different work — and then as a real choice with a recommendation, not as permission to continue.
+- "Suppress tangents" no longer routes second findings into a question. A second finding gets one line stating it and your call; if it's in scope and cheap, do it.
+- Pre-send check gains: if the last line is a question, ask whether you could have just done it — if yes, delete the question, do the thing, report.
+
+**Changed — `CLAUDE-FULL.md` Autonomy Contract:**
+- New pre-approved entry: **fixing a defect you surfaced while doing work the user asked for.** Finding and reporting it is half the job; "want me to fix it?" is the other half billed back to the user.
+- The pre-approved list is now explicitly a **floor, not a whitelist** — absence from it doesn't imply "ask." The test is reversibility and scope; only the "Always ask" list is a hard stop.
+
+**Fixed:**
+- `.claude-plugin/plugin.json`: stale `opus-4.8` keyword → `opus-5` (missed in the v12.7.0 model-routing sweep; keywords aren't schema-checked, so no linter caught it).
+- `biome.json`: `$schema` synced `2.5.0` → `2.5.4`, silencing a config-version info block printed on every `bun run lint`.
+- `.tldr/cache/call_graph.json` untracked — a build artifact committed before `.tldr/` was gitignored (gitignore doesn't untrack).
+
+**Files changed:**
+- `CLAUDE-FULL.md`
+- `.claude-plugin/plugin.json`
+- `biome.json`
+- `src/setup.ts`
+
+## [12.7.0] — 2026-07-24
+
+Model routing moved from the `opus[1m]` interim to **Claude Opus 5** (`claude-opus-5`), released 2026-07-24. Opus 5 lands near Fable 5's frontier quality at half the price ($5/$25 vs $10/$50 per MTok) and runs the full 1M context natively on Max — the `[1m]` pin required for Opus 4.8 is now a no-op, so it's dropped everywhere. Requires Claude Code **v2.1.219+**.
+
+**Changed:**
+- `config/10-core.json`: composed default `model` moved `opus[1m]` → `claude-opus-5`.
+- `agents/maestro.md`, `agents/planner.md`: pin moved `opus[1m]` → `claude-opus-5`.
+- `agents/security-reviewer.md`: pin moved `opus` → `claude-opus-5`.
+- `docs/agent-models.md`, `docs/frontmatter-reference.md`, `docs/profiles.md`, `MANUAL.md`, `CLAUDE-FULL.md`: narrative reframed from "interim top tier while Fable 5 is suspended" to "Opus 5 is the committed top tier"; Fable 5 documented as generally available but 2× the price, so rarely worth it over Opus 5 for this work.
+
+**Unchanged on purpose:** the Sonnet-5 workhorse split (`implementer`, `explore`, `tester`, `scaffolder`, `deslopper`, `reviewer`, `codex-verifier` stay `sonnet`; `CLAUDE_CODE_SUBAGENT_MODEL` stays `sonnet`); `fable` remains a valid model alias/advisor tier.
+
+**Files changed:**
+- `config/10-core.json`
+- `agents/maestro.md`
+- `agents/planner.md`
+- `agents/security-reviewer.md`
+- `docs/agent-models.md`
+- `docs/frontmatter-reference.md`
+- `docs/profiles.md`
+- `MANUAL.md`
+- `CLAUDE-FULL.md`
+- `src/setup.ts`
+- `.claude-plugin/plugin.json`
+- `CHANGELOG.md`
+
+## [12.6.0] — 2026-07-22
+
+Upstream sync with Claude Code v2.1.216–v2.1.217. One behavioral change ships to installs: v2.1.217 stops subagents from spawning nested subagents by default, which would have silently broken `maestro` and `deslopper` orchestration — cc-settings now sets `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` to keep their fan-out working.
+
+**Adopted:**
+- `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=2` shipped in `config/10-core.json` (v2.1.217). Subagents no longer spawn nested subagents by default upstream; `maestro` and `deslopper` are subagents that fan out via the Agent tool, so without a depth override their orchestration dies silently. Documented in the env table and `docs/agent-models.md`.
+- `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` tracked in the manifest + env table (v2.1.217). Default cap of 20 concurrently-running subagents; excess spawns queue. Relevant context for wide fan-out patterns, default left as-is.
+- `emojiCompletionEnabled` added to `src/schemas/settings.ts` + manifest + settings table (v2.1.217). Emoji shortcode autocomplete in the prompt input; boolean toggle.
+- `sandbox.filesystem.disabled` added to the Sandbox schema + sandbox docs table (v2.1.216). Skips filesystem isolation while keeping network egress control.
+- `FORCE_HYPERLINK` tracked in the manifest + env table (v2.1.217). Footer PR badges are now forced hyperlinks over ssh/tmux; `0` opts out.
+
+**Deletions / Native-now-redundant:** none — both releases were otherwise bug fixes and upstream UX with no cc-settings surface (MCP output memory leak, quadratic message-normalization slowdown, worktree git-redirection hardening, `/ultrareview` and `/code-review ultra` error-message improvements, bundled dataviz skill update).
+
+**Files changed:**
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
+- `config/10-core.json`
+- `upstream/claude-code-manifest.json`
+- `docs/settings-reference.md`
+- `docs/agent-models.md`
+- `src/setup.ts`
+- `CHANGELOG.md`
+
+## [12.5.1] — 2026-07-20
+
+Action-first shaping extended from responses-to-the-user to ghostwritten outbound text. The Voice section in `CLAUDE-FULL.md` now covers Slack messages (first line carries the ask or the news, one topic per message, named owner + deadline when something is needed, link out for detail); `rules/git.md` gains an action-first block under "Signal, not spam" (description as TL;DR, numbered review order for large diffs, bounded test-plan items, 5-item cap) and a new "Issue descriptions" subsection (observed effect first, numbered one-action repro steps, one issue per problem); the `/project` issue template points at it. Substance lives in `rules/git.md` for PR/issue bodies and in the Voice section for Slack, with cross-references instead of duplication — both files are always-loaded, so restating either in the other would double the context cost.
+
+## [12.5.0] — 2026-07-20
+
+Three-part release from a single audit-driven session: the nuclear-review whole-codebase remediation, the `adhd` divergent-ideation skill, and the always-on action-first output style.
+
+Action-first output style — the 10 response-shaping rules from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT), integrated as an always-on `CLAUDE-FULL.md` section rather than a 40th skill: lead with the next action, number multi-step work, restate state each turn, concrete time estimates, visible wins, matter-of-fact errors, 5-item list cap, no preamble/recap/closers — plus the upstream override cases (explain-mode, destructive-action confirmation, debug-spiral circuit breaker, ambiguity) and pre-send check. Renamed from the upstream "i-have-adhd" to avoid trigger-space collision with the unrelated `adhd` ideation skill; condensed ~120 lines to ~40 for per-session context cost. Surfaced in MANUAL.md's Guardrails list. A follow-up dedup sweep removed the per-skill style prose the global section supersedes — seven passages across `plan-ceo-review`, `strategist`, `explore`, `nuclear-review` now reference the global rules instead of restating them (scan covered all 39 skills; borderline hits like template-field "concise"/"brief" modifiers were deliberately left — they're field sizing, not style duplication).
+
+New skill: `adhd` — parallel divergent ideation, ported from [UditAkhourii/adhd](https://github.com/UditAkhourii/adhd) (MIT), following the nuclear-review/freeze port pattern (adapt the SKILL.md, no npm dependency). Five isolated generator agents under distinct cognitive frames diverge in parallel; a critic pass scores (novelty/viability/fit), clusters, flags traps, and deepens the top 3. cc-settings adaptations: a sibling-routing section (`/adhd` generates the option space, `/oracle` compare weighs known options, `/plan-ceo-review` challenges the premise), quota-doctrine model notes (generators ride the Sonnet subagent pool; synthesis stays on the session model), and the upstream CLI section replaced with attribution. Skill count 38 → 39 (`ACTIVE_SKILLS`, MANUAL table + prose, CLAUDE.md / CLAUDE-FULL.md ledgers, README).
+
+Nuclear-review remediation — all 17 findings from the 2026-07-20 whole-codebase maintainability audit (`docs/audits/nuclear-review-2026-07-20.md`), landed as one behavior-preserving consolidation pass. 936 tests pass; typecheck, Biome, `lint:skills`, and `schemas:check` all green.
+
+**Deleted / restructured:**
+- `buildInstallPlan` + `InstallStep` removed from `src/setup.ts` (N1) — the JSDoc claimed three consumers; the call graph had one, and only its light-profile prune branch did real work. That computation now lives in `src/lib/light-profile.ts` as `lightProfilePruneTargets()`.
+- The fs-mutation install phases (backup / clean / copy, ~260 lines) extracted from `src/setup.ts` into the new `src/lib/install-fs.ts` (N9), following the existing `install-cmds.ts` / `install-display.ts` pattern; `setup.ts` drops to ~600 lines of orchestration.
+- `createBackup` and `cleanOldConfig` now derive from one shared `MANAGED_TOP_LEVEL_PATHS` list (N4) — closing the H7-class drift vector where the backup and wipe sets were maintained by hand in two places.
+- `frontmatter-validate.ts` now reuses `lintAgentsDir`/`lintSkillsDir`/`lintProfilesDir` for discovery instead of its own `WALK_SPECS` walker (N5, ~60 lines deleted; install-time behavior unchanged).
+- `src/codemap/tools.ts` is the new single registry behind both the MCP server's `tools/list`/`tools/call` and the CLI verb dispatch (N8) — previously two hand-maintained definitions of the same surface. Codemap also gains its missing tests: `getArch`/`getTree`/`getCalls`/`getChangeImpact` coverage plus a JSON-RPC protocol test (`tests/codemap-mcp.test.ts`).
+
+**Consolidated (behavior-identical):**
+- `ReviewQueueStateSchema` hoisted from `statusline.ts` into `src/lib/review-queue.ts`; all readers/writers (`tool-cadence.ts`, `session-start.ts`, `review-batch.ts`) now zod-validate instead of casting (N2), matching the repo's stated state-file policy.
+- `pruneArtifacts()` added to `artifact-store.ts`; the three hand-rolled mtime-prune loops in `checkpoint.ts`, `handoff.ts`, `session-start.ts` now call it (N6).
+- `intEnv` exported (plus new `parseIntArg`) from `hook-config.ts`; six NaN-guard parse copies replaced (N11).
+- `emitAdditionalContext()` added to `hook-runtime.ts`; four hooks' identical inline emits replaced (N13).
+- `handoff.ts`'s PreCompact git reads parallelized via `Promise.all`, mirroring `checkpoint.ts` (N14).
+- One shared `SHELL_SEGMENT_SEP_RE` in `hook-command.ts` replaces the twin separator regexes in `audit-hooks.ts` / `safety-net.ts` (N15).
+- Generic `formatLintFindings()`/`hasLintErrors()` in `lint-frontmatter.ts` replace five copy-pasted formatter pairs; the five per-module severity unions are now aliases of `LintSeverity` (N7).
+- `lint-knowledge.ts` imports `NON_NOTE_FILES` from `knowledge-index.ts` instead of redeclaring it (N12); `inProjectSourceFiles` deduped into `codemap/program.ts` (N16).
+
+**Dependencies:**
+- `@biomejs/biome` 2.5.0 → 2.5.4 (N17).
+- `typescript` stays at 6.0.3: the audit's N3 recommendation (upgrade to 7.x) is **blocked** — TS 7's Go-native package drops the v6 JS compiler API that `src/codemap/` consumes (`ts.isArrowFunction`, `ts.SourceFile`, …). The audit report has been corrected; revisit if codemap adopts the TS 7 API or pins the API package separately.
+
+## [12.4.1] — 2026-07-20
+
+Upstream sync with Claude Code v2.1.215 (from v2.1.211; 2.1.213 was never released). Reference-surface only — four new env vars and one new built-in tool tracked; no behavior change to shipped config.
+
+**Adopted:**
+- `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` env var (2.1.212, session-wide WebSearch cap, default 200) in manifest + docs env table.
+- `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` env var (2.1.212, per-session subagent-spawn cap, default 200, `/clear` resets) in manifest + docs env table — worth knowing about given cc-settings' fan-out-heavy delegation defaults.
+- `CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS` env var (2.1.212, MCP calls over the threshold auto-background, default 2 min, `0` disables) in manifest + docs env table.
+- `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` env var (2.1.214, OTel content-attribute truncation limit, default 60 KB) in manifest + docs env table.
+- `EndConversation` tool (2.1.214) in manifest `knownBuiltinTools`.
+
+**Skipped:** the rest of 2.1.212–2.1.215 has no cc-settings contract surface. Notably: the single-segment `dir/**` rule-scoping fix (2.1.214) doesn't affect shipped config — no single-segment globs in `config/30-permissions.json`, and all hook `if:` conditions are `Bash(...)` forms; `subagentStatusLine` effort payload (2.1.214) — cc-settings doesn't wire a subagent statusline; SessionStart `"fork"` source (2.1.214) — `session-start.ts` doesn't branch on source; `/verify` + `/code-review` no longer auto-run natively (2.1.215) — reduces collision risk with the cc-settings `/verify` skill.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [12.4.0] — 2026-07-16
+
+Upstream sync with Claude Code v2.1.211 (from v2.1.205). Headline: migrated the shipped permission rules off the newly deprecated `Write(path)`/`Glob(path)`/`NotebookEdit(path)` forms before they start warning at every session start.
+
+**Adopted:**
+- Migrated `config/30-permissions.json` off `Write(path)`/`NotebookEdit(path)`/`Glob(path)` permission rules, which trigger a startup warning as of 2.1.210 (`Edit(path)`/`Read(path)` rules now govern those tools). Allow list: dropped `Write(*)`, `Glob(*)`, `NotebookEdit(*)` — already covered by `Edit(*)` and `Read(*)`. Deny list: converted the eight `Write(~/...)` rules to `Edit(~/...)` equivalents (deduped against the two pre-existing `Edit` denies). This also closes audit finding M22 (Write-only deny rules were bypassable via the wildcard-allowed Edit tool).
+- Added the migrated rules to `DEPRECATED_PERMISSION_PATTERNS` in `src/lib/settings-merge.ts` so existing installs prune the stale forms on next sync instead of keeping them alive as "user extras". Exact-match patterns only — user-authored `Write(...)` rules are left untouched.
+- `axScreenReader` setting (2.1.208, screen-reader plain-text rendering) in `src/schemas/settings.ts`, manifest, and docs; env counterpart `CLAUDE_AX_SCREEN_READER` in manifest + docs env table.
+- `vimInsertModeRemaps` setting (2.1.208, two-key insert-mode sequences → `<Esc>` in vim mode) in `src/schemas/settings.ts`, manifest, and docs.
+- `CLAUDE_CODE_PROCESS_WRAPPER` env var (2.1.208, corporate launcher wrapper for self-spawns) in manifest + docs env table.
+- `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` env var (2.1.211, include subagent text/thinking in `stream-json` output; pairs with `--forward-subagent-text`) in manifest + docs env table.
+- `request_timeout_ms` per-server field in `src/schemas/mcp.ts` (`mcpCommon`) — 2.1.206 fixed it being ignored for `--mcp-config`/`.mcp.json` servers.
+
+**Skipped:** the rest of 2.1.206–2.1.211 is bug fixes and TUI polish with no cc-settings contract surface (auto-mode availability on Bedrock/Vertex/Foundry was already covered by the existing `disableAutoMode` key; plugin `${user_config.*}` shell-form rejection — cc-settings hooks already use exec form).
+
+**Files changed:**
+- config/30-permissions.json
+- src/lib/settings-merge.ts
+- src/schemas/settings.ts
+- src/schemas/mcp.ts, schemas/settings.schema.json, schemas/claude-json.schema.json
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
+## [12.3.1] — 2026-07-14
+
+Restart-pending banner now actually clears when you restart a resumed session.
+
+**Fixed:**
+- The `⟳ v<X> installed — restart Claude to apply` statusline banner keyed its "what version did this session start on" record to the session id, written only on the session's first-ever render. Claude Code keeps the same session id across a resume, so a resumed conversation stayed pinned to the version it saw days ago and the banner never cleared — no matter how many restarts. `session-start.ts` (which fires on every launch AND resume) now refreshes that record to the currently installed version, making the banner process-scoped as intended: restart + resume clears it; an update landing mid-session still shows it.
+- Shared `refreshSessionInstallMap()` helper in `src/lib/version-delta.ts` replaces the statusline's inline map-prune logic (statusline keeps a first-render fallback write).
+- The statusline rendered entirely gray under Claude Code: `lib/colors.ts` gates every ANSI code on `process.stdout.isTTY`, and Claude Code captures the statusline through a pipe, so the whole palette resolved to empty strings (only emoji glyphs showed color). The statusline now uses its own ungated palette (same brand values, `NO_COLOR` still honored) — branch name, dirty marker, rate-limit %, review queue, drift badge, and restart banner all render in color.
+
+**Files changed:**
+- src/lib/version-delta.ts
+- src/scripts/session-start.ts
+- src/hooks/statusline.ts
+- tests/version-drift.test.ts
+
+## [12.3.0] — 2026-07-10
+
+Built-in daily auto-update: cc-settings can now keep itself current without anyone running `/cc` by hand.
+
+**Adopted:**
+- `setup.sh` can register a macOS `launchd` job (`src/lib/schedule.ts`) that runs daily at 10:00 local time: pulls the cc-settings repo, re-runs the installer non-interactively, and sends a desktop notification on success/failure. Skips itself (and notifies) on an uncommitted checkout; no auto-rollback on failure — human-in-the-loop, matching the rest of the security posture.
+- Opt-in, ask-once-remember-forever enrollment (`decideAutoUpdate()`): a non-interactive run (CI, or the nightly job re-running `setup.sh` itself) can never silently enroll or unenroll anyone — the decision only ever changes from a real TTY prompt or an explicit `--auto-update=on|off` flag. Locked in by an exhaustive table test over every flag/sentinel/TTY combination (`tests/schedule.test.ts`).
+- Statusline `⟳ v<X> installed — restart Claude to apply` banner for sessions started before an update landed.
+- `--status` now reports auto-update enrollment, whether the launchd plist is present, and the last nightly run's outcome.
+- New SECURITY.md section documenting the launchd job as a persistence surface outside the four existing defense layers — the plist itself is unmonitored, but what it executes (`auto-update.ts`) is covered by the content manifest.
+
+**Files changed:**
+- src/lib/schedule.ts
+- src/scripts/auto-update.ts
+- src/lib/prompts.ts
+- src/scripts/notify.ts
+- src/lib/version-delta.ts
+- src/setup.ts
+- src/lib/status.ts
+- src/lib/status-types.ts
+- src/lib/install-display.ts
+- src/lib/install-cmds.ts
+- src/hooks/statusline.ts
+- tests/schedule.test.ts
+- tests/auto-update-script.test.ts
+- tests/install-e2e.test.ts
+- tests/setup-args.test.ts
+- tests/version-drift.test.ts
+- tests/status.test.ts
+- SECURITY.md
+- MANUAL.md
+
+## [12.2.6] — 2026-07-09
+
+MultiEdit retirement: Claude Code removed the MultiEdit tool, and the permission rules still naming it warned `matches no known tool — check for typos` at every session start.
+
+**Adopted:**
+- Removed all `MultiEdit(...)` permission rules from `config/30-permissions.json` (1 allow, 2 deny) and dropped `MultiEdit` from the `config/40-hooks.json` freeze-guard matcher, `agents/{implementer,maestro}.md` tools lists, and `skills/lighthouse` allowed-tools.
+- New `DEPRECATED_PERMISSION_PATTERNS` prune in the settings merger — the permissions counterpart of the hooks `DEPRECATED_COMMAND_PATTERNS` (PR #51). Without it, the union merge preserves removed rules forever as "user extras" on every existing install; with it, the next sync deletes them and reports `Pruned N stale permission rule(s) naming removed tools`.
+- Cross-model review round (Codex, gpt-5.6-sol) hardened the prune: deprecated rules are now filtered from BOTH inputs (a rule present in team+user, or team-only via the `alwaysAccept` deny path, previously survived), `additionalDirectories` is exempted (paths, not rules — a directory literally named `MultiEdit(...)` must not be deleted), and a post-prune-empty array now merges to `[]` instead of leaking the raw deprecated array through the strategy's object spread. Also swept the remaining stale MultiEdit mentions out of the freeze skill/hook comments, tool-cadence's file-edit map, frontmatter/hooks/settings references, and SECURITY.md.
+- Zero-warning hygiene pass: fixed the `log-bash.test.ts` timezone flake (`bun test` pins the runner to UTC while the spawned logger inherited the host zone, so date-stamped filenames disagreed for a few hours a day near UTC midnight — the test now pins the child to UTC and derives filenames from the same `ymd()` the logger uses), cleared all standing Biome warnings (dead `CryptoHasher` import in engine-pin, `$schema` literal keys in light-profile, template/non-null-assertion style in fingerprint tests, misplaced suppression in audit-hooks tests), and ran `biome migrate` for the deprecated `rules.recommended` config field.
+
+**Files changed:**
+- config/30-permissions.json
+- config/40-hooks.json
+- agents/implementer.md
+- agents/maestro.md
+- skills/lighthouse/SKILL.md
+- skills/freeze/SKILL.md
+- src/lib/settings-merge.ts
+- src/lib/freeze.ts
+- src/hooks/freeze-guard.ts
+- src/hooks/tool-cadence.ts
+- src/scripts/freeze.ts
+- tests/settings-merge.test.ts
+- tests/log-bash.test.ts
+- tests/audit-hooks.test.ts
+- tests/hooks-fingerprint.test.ts
+- src/lib/engine-pin.ts
+- src/lib/light-profile.ts
+- biome.json
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/hooks-reference.md
+- SECURITY.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [12.2.5] — 2026-07-09
+
+Laws pass: named the mental models behind three existing rules, from the team's curated laws list (clementroche/laws). No behavior changes — the rules existed; now they say why.
+
+**Adopted:**
+- AGENTS.md Laziness Ladder names its rationale: the ladder is a Jevons Paradox countermeasure — cheap code generation grows code volume and maintenance debt unless deletion is the default.
+- CLAUDE-FULL.md briefing contract names the failure mode: thin subagent prompts are the curse of knowledge in action (you assume shared context; the subagent has none).
+- skills/nuclear-review/references/audit-contract.md §3 names why disprove-first and the rejected ledger exist: Brandolini's law (refutation costs 10x production, so the burden of proof sits on the finder) and survivorship bias (survivor-only reports hide what was cleared).
+
+Considered and skipped: Moore's, Wirth's (subsumed by Jevons here), Dunning–Kruger (CONFIRMED/PLAUSIBLE already is the countermeasure), Halo, Prisoner's Dilemma, Streisand, Paris Syndrome — no enforcement mapping; decoration is context spend.
+
+**Files changed:**
+- AGENTS.md
+- CLAUDE-FULL.md
+- skills/nuclear-review/references/audit-contract.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [12.2.4] — 2026-07-09
+
+Ponytail-alignment pass: one missing ladder rung, one trigger collision, one prose-duplication landmine.
+
+**Adopted:**
+- AGENTS.md Laziness Ladder gains rung 2 — "Does this codebase already do it? — reuse it; extend before you re-create" — the one rung of the ponytail decision ladder the standard was missing, and the one the consolidation findings below violate.
+- `strategist` no longer claims "should we even build this?" — that trigger phrase was listed verbatim in both `strategist` and `plan-ceo-review`, leaving the skill selector unable to disambiguate. It now belongs to `plan-ceo-review` alone.
+- `plan-ceo-review` cross-references its siblings instead of silently re-deriving them: Step 0 points open-ended product conversations to `/strategist`; Section 2 names itself as `/oracle` risks mode applied per-plan.
+- `review` now escalates: auth/payments/crypto/input-validation/breaking-API diffs get an explicit pointer to `/verify` (previously the escalation existed only if the user knew to ask).
+- Shared audit plumbing extracted to `skills/nuclear-review/references/audit-contract.md`: the Codex cross-model pass, team-knowledge reconciliation (reclassify-never-suppress invariant), and the finding contract (stable IDs, CONFIRMED/PLAUSIBLE, disprove-first, considered-&-rejected ledger). `nuclear-review` Phases 2b/2c and `adversarial-audit`'s shared-contract section now reference it instead of restating ~40 lines each — future contract edits land in one file.
+
+**Deletions / Native-now-redundant:** none upstream; ~55 lines of duplicated contract prose deleted across the two audit skills.
+
+**Files changed:**
+- AGENTS.md
+- skills/strategist/SKILL.md
+- skills/plan-ceo-review/SKILL.md
+- skills/review/SKILL.md
+- skills/nuclear-review/SKILL.md
+- skills/nuclear-review/references/audit-contract.md
+- skills/adversarial-audit/SKILL.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [12.2.3] — 2026-07-09
+
+Upstream sync with Claude Code v2.1.205 (fixes-only release) plus workflow features from the July 2026 session-archive audit.
+
+**Adopted:**
+- Manifest bump to v2.1.205. The release is 23 bullets of bug fixes and native-only behaviors (transcript-tamper block, `/doctor` full checkup, background-agent status fixes) — no schema, config, or docs surface in cc-settings tracks any of them. Why this matters: an accurate manifest keeps `bun run upstream:scan` quiet so real drift stands out.
+- **Autonomy Contract** in `CLAUDE-FULL.md`: low-stakes agent actions (dep bumps that pass checks, post-merge branch cleanup, CI fixes on approved PRs, doc-only commits) are pre-approved — act and report, don't ask. Hard always-ask line for anything outside the darkroomengineering org. Why this matters: a session-archive audit found ~150 pure-approval turns that changed no outcomes.
+- **Voice** section in `CLAUDE-FULL.md`: the ghostwriting voice rule (plain, no em dashes, effect over mechanism) stated once instead of re-specified per session.
+- **Ship land mode** (`skills/ship/SKILL.md`): existing PR → fix CI → merge → clean branches local+remote → report. The back half ship never had.
+- **New `triage` skill**: first-pass sweep of client/unfamiliar repos with a hard read-only guardrail on external-org repos (never commit/push/PR).
+
+**Deletions / Native-now-redundant:** none. Checked v2.1.205's "auto mode asks before `rm -rf` on unresolved variables" against `src/hooks/safety-net.ts` — complementary, not overlapping: safety-net hard-blocks literal root/home/cwd targets in all modes; upstream prompts on unresolved vars in auto mode only.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- CLAUDE-FULL.md
+- skills/ship/SKILL.md
+- skills/triage/SKILL.md
+- src/lib/managed-skills.ts
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [12.2.2] — 2026-07-08
+
+Upstream sync with Claude Code v2.1.204 (from v2.1.202). Both upstream versions are bug-fixes-only — background-agent/daemon reliability, TUI polish, and a headless SessionStart hook-streaming fix — so no schema or config changes; this release is manifest/docs tracking only.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_MOUSE` env var added to the manifest `knownEnvVars` and the `docs/settings-reference.md` env table. The v2.1.203 fix for attached background sessions ignoring it revealed this full mouse-capture opt-out (companion to `CLAUDE_CODE_DISABLE_MOUSE_CLICKS`, v2.1.195) was never tracked. Why this matters: the env table is the reference users grep when a TUI toggle misbehaves — an untracked opt-out is invisible.
+- Manifest housekeeping: `advisorModel` added to `knownSettingsKeys`. PR #126 added it to `src/schemas/settings.ts` but never updated the manifest, so `bun run upstream:scan` flagged a false-positive settings-key drift on every run. Why this matters: a scanner that always warns trains people to ignore it.
+
+**Deletions / Native-now-redundant:** none. Checked the v2.1.203 permission-mode footer badge against `src/hooks/statusline.ts` — the statusline doesn't render permission mode, so no overlap.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [12.2.1] — 2026-07-07
+
+Correction: the Fable 5 promo did **not** end July 7 — Anthropic [extended it](https://support.claude.com/en/articles/15424964-claude-fable-5-promotional-access) to **2026-07-12 11:59 PM PT** (up to 50% of the weekly limit on `fable`, shared pool, no extra cost). v12.1.0 reverted the committed default to `opus[1m]` on the July-7 assumption; that revert **stays** — the committed default is deliberately `opus[1m]` so fresh installs never silently spend usage credits, and the merger's user-wins behavior means the repo default never reaches existing installs anyway. The free window is reached the real way: **`/model fable` per session** through July 12. Only the guidance was wrong: `docs/agent-models.md` header and `MANUAL.md` default-model note corrected from "promo ended / credit-gated as of July 7" to "free per-session through July 12, then credit-gated." No config or agent-pin change.
+
+## [12.2.0] — 2026-07-07
+
+Three-part batch: shadcn/improve folds, first real `/harvest` run, and the v2.1.202 upstream sync.
+
+**Harvested from production transcripts** (first live run of the `/harvest` skill, v12.1.0 — evidence: two programa sessions from 2026-07-06, both independently exhibiting the top procedure):
+
+- **Verify subagent claims independently** (`orchestrate`) — a subagent's "done" is a claim: re-run its briefed verification against the real artifact; check its capability envelope (a no-Bash implementer zeroed files instead of deleting them and still reported done); fix-solo vs re-delegate rule for breaks found during verification; SendMessage-resume cut-off agents instead of respawning.
+- **When CI goes red** (`ship` Step 9) — reproduce the exact failing guard locally against the real built artifact before re-pushing; canonical bump scripts over hand-edited version fields; never trust a watcher pipeline's exit code — read `.conclusion` explicitly.
+- **Blame before blaming** (`fix` Diagnose step) — commits named in a bug report are hypotheses; blame the affected file's history first (the transcript's "regression" predated all three accused commits).
+
+**Sync with Claude Code v2.1.202:** docs-only. `MANUAL.md` `/review` note updated (v2.1.202 reverted native `/review <pr>` to fast single-pass; multi-agent review only via `/code-review <level> <pr#>`); manifest bumped. The new "Dynamic workflow size" `/config` setting is config-state, not a `settings.json` key — nothing for the strict schema to adopt; all other 2.1.202 entries are behavioral fixes with no cc-settings surface.
+
+Folds from reviewing `shadcn/improve` (audit-to-plans skill; same intelligence-plans/cheap-execution philosophy as our quota routing). No new skill adopted — its audit surface is already owned by `/adversarial-audit` + `/nuclear-review` + `/review`, its executor isolation by `isolation: worktree`, its false-positive vetting by disprove-before-reporting. Four mechanics folded instead:
+
+- **Plan stamps + reconcile** (`project`, `orchestrate`) — plans/issues record the commit SHA they were written against; a reconcile pass re-runs done-criteria of completed tasks (a "done" that no longer verifies gets reopened), refreshes drifted file/line refs, and retires obsoleted tasks with a reason. Kills silent plan drift.
+- **Expected-output done criteria + escape hatches** (`agents/implementer.md` REQUIRED BRIEFING items 4/6, CLAUDE-FULL briefing contract) — verification commands must state what success looks like (machine-checkable, never "works correctly"); briefings state the conditions to STOP and report back instead of improvising.
+- **Untrusted-diff rule** (`review-batch`) — verbatim posture adopted: verify every hunk traces to a step in the task that produced it; reject out-of-scope changes however plausible they look.
+- **Considered & rejected ledger** (`adversarial-audit` output §6, `nuclear-review` output format) — disproved candidate findings get recorded with a one-line reason so future audits check the ledger instead of re-litigating.
+
+## [12.1.0] — 2026-07-07
+
+New skill: `harvest` (36 → 37 skills, cap 40) — captures an unusually good workflow (from a stronger or temporary model, a one-off session, or a teammate's transcript) into a durable, reviewed artifact instead of losing it when the session or model access ends. Six phases: identify what's harvestable (repeatable procedure, not raw intelligence — "the model was smarter" is explicitly not harvestable), gather evidence via interview or transcript analysis, extract four components (procedure / failure modes / quality bar / self-tests), route to the smallest artifact that carries it (skill, rule, profile section, AGENTS.md diff, or `/share-learning` note), write it per the target's own conventions, then validate with 2–3 blind trap prompts (autoresearch's blind-run rule; the traps seed a later `/autoresearch` eval set). Hard approval gate before touching shared standards (AGENTS.md, rules/, profiles/), posting team knowledge, or committing. Explicit non-goals: no model-API sampling, no "operating manual" prose output.
+
+Fable promo window closed on schedule: `config/10-core.json` session default reverted `fable` → `opus[1m]` (the revert pre-announced in 11.30.5). `docs/agent-models.md` header and the MANUAL.md default-model note updated to past tense; agent pins were already on the `opus[1m]` steady state and are unchanged.
+
+## [12.0.0] — 2026-07-06
+
+Major cut capping the July 2026 wave: the adversarial audit fully remediated (28 findings across H/M/L severity + 6 open questions + the design-tensions epic, all closed — 12 PRs and 7 direct commits, see 11.31.x history and issues #74–#108), the `adversarial-audit` skill added (11.32.0), and this release's skill-library upgrades from reviewing `dzhng/skills`:
+
+**Folds (six mechanisms, no new skills — library stays at 36/40):**
+- `qa` — Fresh-Eyes Gate: an *unprimed* subagent (images + 2x–4x crops only, no thread history or expected answer) is now mandatory before declaring a visual bug fixed; judge "less wrong", not baseline-match. (from screenshot-critique / compare-screenshots)
+- `test` — two new Red Flags: batches of tests written against imagined behavior before any run red, and internals-assertions instead of observable behavior at the outermost entry point. (from write-tests)
+- `autoresearch` — Blind-run rule (sample agent never sees the checklist, judge never sees the transcript — leaking either teaches to the test) + "state the bar, not a parts list" checklist authoring. (from eval-skills)
+- `plan-feature` — discovery interview reframed as a four-quadrant unknowns walk; new Phase 3 "Close" that rewrites a shipped PRD from build-plan into durable rationale, recording divergences from plan. (from explore-unknowns / close-spec)
+- `orchestrate` — Maintenance Checkpoints: a phase is a commit checkpoint, not a stopping point; periodic passes prune plan bloat and refresh handoffs before drift accumulates. (from implement-spec)
+- `docs/skill-authoring.md` — two new pitfalls: mirroring the code instead of stating principles (the DT5 lesson), and orphan sibling skills without "Pairs with" cross-links. (from write-docs / write-skills)
+
+**Also:** argument-hints added to all eight multi-mode skills (2850437). Not adopted from dzhng/skills: standalone spec skills (overlap `/build`+`/plan-feature`+`/orchestrate`), `claude`/`preview-shots`/`implement-spec-with-codex` (covered natively); `graphics/renderer` flagged for a future `profiles/webgl` pass. Entire release cross-reviewed by Codex (see commit body).
+
+## [11.32.0] — 2026-07-06
+
+New skill: `adversarial-audit` (35 → 36 skills, cap 40) — whole-repo honesty audits in three modes, adapted from the fable audit goal-spec trio (gist `diegomarino/04970a2b8d9cc419de3ba05b9a03db5a`). **Codebase** mode is the spec that produced the July 2026 cc-settings audit (issues #74–#108: 28 findings, all confirmed and fixed); **docs** mode audits documentation as a product (drift vs code, inverted pyramid, sizing, diagram backlog); **process** mode walks documented journeys empirically in throwaway workspaces and maps the real state machine (generalized from the gist's project-specific spec). All modes share the report contract that made the July remediation executable: stable finding IDs, CONFIRMED/PLAUSIBLE status, concrete failure scenarios, disprove-before-reporting, design tensions vs line findings, optional GitHub-issue filing. Includes the gated fail-open Codex cross-model pass and team-knowledge reconciliation (reclassify, never delete), mirroring nuclear-review Phases 2b/2c. The gist's launcher file was not adopted — the skill system already does its job (distribute the spec, have the agent Read it).
+
+Folded into `nuclear-review`: the same three report mechanics (stable IDs, CONFIRMED/PLAUSIBLE, disprove-first) in its Output Format, and a cross-reference to the new sibling in "When to use vs other review skills" — nuclear-review asks "should this code exist?", adversarial-audit asks "does it do what it promises?".
+
+## [11.31.0] — 2026-07-06
+
+Sync with Claude Code v2.1.201 (spans v2.1.198–201). One schema adoption: the new `"manual"` permission mode (v2.1.200). Also documents the background-agent notification types on the `Notification` hook and the v2.1.199 retry env-var semantics.
+
+**Adopted:**
+- `"manual"` permission mode (v2.1.200) — upstream renamed the "default" permission mode to "Manual" across the CLI, `--help`, VS Code, and JetBrains; `--permission-mode manual` and `"defaultMode": "manual"` are accepted alongside `default`. Added `"manual"` to the strict `PermissionMode` enum in `src/schemas/permissions.ts` (which `agents/*.md` frontmatter and profiles inherit), `knownPermissionModes` in the manifest, and the mode lists in `docs/frontmatter-reference.md` and `docs/profiles.md`. Without this, a settings.json or agent using the new alias would fail strict parse.
+- Background agent notifications (v2.1.198) — sessions in `claude agents` that need input or finish now fire the `Notification` hook with types `agent_needs_input` / `agent_completed`. Added a "Matcher Values for Notification" section to `docs/hooks-reference.md`. cc-settings' async `notify.ts` Notification hook runs with no matcher, so it already picks these up — desktop notifications for background agents work out of the box; no wiring change needed.
+- Retry env-var semantics (v2.1.199) — `CLAUDE_CODE_RETRY_WATCHDOG` now raises the default retry count for non-capacity transient errors to 300 and lifts the `15` cap on `CLAUDE_CODE_MAX_RETRIES`. Updated both rows in `docs/settings-reference.md`; both vars were already tracked in the manifest, so no manifest key changes.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- Claude in Chrome GA, the `/dataviz` native skill, and the Gateway `anthropicAws` upstream provider (v2.1.198) touch product surfaces cc-settings doesn't configure — no settings key, schema, or doc table tracks gateway providers or native skill rosters.
+- The built-in Explore agent inheriting the session model (capped at opus) and subagents inheriting extended-thinking config are native behavior improvements; cc-settings' agent frontmatter and delegation docs make no contrary claims, so nothing to update.
+- Removal of the `/agents` wizard doesn't affect cc-settings docs — they reference the `agents/*.md` directory workflow, which is exactly what upstream now recommends.
+- Background agents auto-committing and opening draft PRs from worktrees, plus the remaining v2.1.198 entries, are bug fixes and UX/runtime tweaks (retry/backoff on transient network errors, task-panel stuck states, agent-teams failure reporting, `/diff` refresh, fullscreen rendering, `.claude/rules/` symlink resolution, plan-mode read-only auto-allow, highlight.js 11) — none touch cc-settings surface. The symlink rules fix benefits `rules/` users natively.
+- v2.1.199 is otherwise entirely bug fixes and UX polish (stacked slash-skill loading, SSL fail-fast guidance, partial-stream preservation, subagent error propagation, background-agent daemon stability on Linux/macOS/SSH, hook stderr surfaced on exit 2, config-reset backup, plan-mode browser-tool prompting, automatic 429 backoff for subscribers) — none touch cc-settings schemas, config, hooks, or agent frontmatter.
+- v2.1.200's `AskUserQuestion` dialogs no longer auto-continuing is a behavior default toggled via `/config`; the changelog names no settings key, so nothing to track yet. The `disabledMcpServers`/`enabledMcpServers` crash fix and the remaining v2.1.200 entries are background-agent daemon/roster fixes, screen-reader and tmux rendering improvements, and install-script messaging — no cc-settings surface.
+- v2.1.201's single entry (Sonnet 5 sessions dropping the mid-conversation system role for harness reminders) is native runtime behavior — nothing to adopt or document.
+
+**Files changed:**
+- src/schemas/permissions.ts
+- upstream/claude-code-manifest.json
+- docs/hooks-reference.md
+- docs/settings-reference.md
+- docs/frontmatter-reference.md
+- docs/profiles.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [11.30.5] — 2026-07-05
+
+### Temporary default-model swap — Fable 5 promo window (#72)
+
+Fable 5 redeployed 2026-07-01 as a promo-then-credit-gated tier. `config/10-core.json`'s session default (`"model"`) switched `opus[1m]` → `fable` for the promo window (commit `795fa1b`), so fresh installs and re-installs during this window ride Fable at no extra cost. This is a **temporary** swap, not a reversal of the 11.24.0 suspension decision: Fable is scheduled to revert back to `opus[1m]` on **2026-07-07** once the promo window ends and credit-gating kicks in.
+
+- **`config/10-core.json`**: `"model"` `opus[1m]` → `fable` (temporary, reverts 2026-07-07).
+- **Docs intentionally unchanged**: README.md, MANUAL.md, and `docs/*.md` continue to state `opus[1m]` as the standing/decision-tier default — the promo swap is a short-lived config value, not a documented default change. Teammates who want Fable for the promo window without waiting on the merger can run `/model fable` per session.
+
+**Files changed:**
+- config/10-core.json
+- CHANGELOG.md
+
+## [11.30.4] — 2026-07-01
+
+Sync with Claude Code v2.1.197 (spans v2.1.196–197). Tracks one new environment variable in the manifest and docs; no schema, hook, or wiring changes.
+
+**Adopted:**
+- `CLAUDE_ENABLE_STREAM_WATCHDOG` (v2.1.196) — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. The streaming idle watchdog is now **on by default for all providers**: it aborts and retries a response stream that produces no events for 5 minutes. Set `=0` to disable. Distinct from the already-tracked `CLAUDE_CODE_RETRY_WATCHDOG` (retry cap, not stream idleness); relevant to cc-settings' unattended-session and `/loop` guidance. Manifest-tracked only (env vars affecting CC itself are not part of the settings.json zod schema).
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- Claude Sonnet 5 becoming the default model in Claude Code with a native 1M context and promotional $2/$10-per-Mtok pricing through Aug 31 (v2.1.197) is **already reflected** — commit `4c1acff` landed the Sonnet 5 launch across the model docs. The promo pricing is transient (expires 2026-08-31) and deliberately not encoded. cc-settings pins its own default (`opus[1m]`), so the upstream default change has no effect on this install.
+- `/code-review` merging five cleanup finders into one (~25% token cut, v2.1.196) touches native command internals; cc-settings documents no finder count, so nothing to update.
+- The MCP `list`/`get` hardening (no longer spawns `.mcp.json` servers a repo self-approved via committed `.claude/settings.json`; untrusted workspaces show `⏸ Pending approval`, v2.1.196) is a native security fix that complements — but requires no change to — cc-settings' supply-chain hook defense.
+- Remaining v2.1.196 entries are bug fixes and UX/runtime tweaks (background-session/agent resilience, `/deep-research` verifier-status labeling, MCP OAuth scope negotiation, `/context` on Bedrock, PowerShell git exit-1 parity, voice dictation, rewind-menu regression, agents-view navigation, per-frame render) — none touch cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [11.30.3] — 2026-06-29
+
+Sync with Claude Code v2.1.195 (v2.1.194 shipped with no changelog entries). Tracks one new environment variable in the manifest and docs; no schema, hook, or wiring changes.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_MOUSE_CLICKS` (v2.1.195) — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. Disables mouse click/drag/hover in the fullscreen renderer while keeping wheel scroll — a sibling of the already-tracked `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN`, useful where mouse capture interferes with native terminal text selection. Manifest-tracked only (env vars affecting CC itself are not part of the settings.json zod schema).
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- The hyphenated hook-matcher exact-match fix (v2.1.195 — matchers like `code-reviewer` / `mcp__brave-search` previously substring-matched, now exact-match) is **verified-safe** for cc-settings: every hook matcher in `config/40-hooks.json` is a non-hyphenated builtin tool name (`Bash`, `Edit`, `Write|Edit`, `Edit|Write|MultiEdit`), and no hyphenated MCP/agent matchers exist in `config/` or `agents/`. Zero impact.
+- Remaining entries are voice-dictation fixes (macOS silence on input-device change, spaceless-language auto-submit, Linux SoX detection), plugin-loader fixes (project-settings consent, `/plugin` name mismatch), and background-task/daemon/Remote-session UX and bug fixes — none touch cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [11.30.2] — 2026-06-26
+
+Sync with Claude Code v2.1.193 (v2.1.192 was skipped upstream). Tracks two new environment variables in the manifest and docs; no schema, hook, or wiring changes.
+
+**Adopted:**
+- `OTEL_LOG_ASSISTANT_RESPONSES` (v2.1.193) — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. Controls whether the new `claude_code.assistant_response` OTEL log event carries the model's response text. **Privacy gotcha worth surfacing:** when the var is unset it inherits `OTEL_LOG_USER_PROMPTS`, so OTEL deployments already logging prompt content begin logging response content on upgrade — set `=0` to keep prompts-only.
+- `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP` (v2.1.193) — added to manifest `knownEnvVars` and the docs env table. Opt-out for the new automatic memory-pressure reaping of idle background shell commands.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- `autoMode.classifyAllShell` (v2.1.193) needs no change — the settings schema already accepts it via `autoMode: z.looseObject({})` (shape intentionally opaque) and the manifest already tracks the top-level `autoMode` key.
+- Remaining entries are native client UX (auto-mode denial reasons, bash-mode path autocomplete, MCP-auth startup notice, `/add-dir` wording, plugin auto-rename) and bug fixes (`/model` stale-state after `/login`, backgrounding cancel/carry-over, pinned-agent re-prompt, phantom resumed subagent, agent-panel siblings, MCP `headersHelper` 401/403 reconnect) with no cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
+## [11.30.1] — 2026-06-25
+
+Sync with Claude Code v2.1.191. Pure upstream bug-fix and performance release — no new settings keys, hook events, MCP fields, env vars, or agent frontmatter. Manifest bump only; no cc-settings code touched.
+
+**Adopted:**
+- None this cycle.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Triage notes:**
+- The comma-separated hook-matcher fix (`"Bash,PowerShell"` silently never firing) does not apply — cc-settings uses regex alternation (`Edit|Write|MultiEdit`) throughout `config/40-hooks.json`, which was never affected.
+- Remaining entries are native TUI/CLI/MCP fixes (`/rewind`, scroll/CPU/memory perf, background-agent stop permanence, MCP retry/backoff & OAuth, `forceRemoteSettingsRefresh` via MDM) with no cc-settings surface.
+
+**Files changed:**
+- upstream/claude-code-manifest.json
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [11.30.0] — 2026-06-24
+
+Sync with Claude Code v2.1.190 (from v2.1.186). Only v2.1.187 carried substantive changelog entries; v2.1.188/189 had none and v2.1.190 was reliability fixes. Two security-adjacent features adopted, no deduplications this cycle.
+
+**Adopted:**
+- **`sandbox.credentials` setting (Claude Code v2.1.187)** — extended the `Sandbox` schema in `src/schemas/settings.ts` with a `credentials` block: `files: [{ path, mode: "deny" }]` denies sandboxed reads of credential files (same enforcement as `filesystem.denyRead`), and `envVars: [{ name, mode: "deny" }]` unsets secret env vars before each sandboxed command. `"deny"` is the only supported mode today. Documented in `docs/settings-reference.md`. Why it matters: complements our existing process-wide `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` with a sandbox-scoped, declarative credential deny list (e.g. `~/.aws/credentials`, `GITHUB_TOKEN`).
+- **`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` env var (Claude Code v2.1.187)** — added to `upstream/claude-code-manifest.json` `knownEnvVars` and the env table in `docs/settings-reference.md`. Why it matters: remote MCP tool calls that go idle now abort with an error instead of hanging ~5 minutes; this env var tunes the threshold.
+
+**Deletions / Native-now-redundant:**
+- None this cycle.
+
+**Files changed:**
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- src/setup.ts
+- CHANGELOG.md
+
+## [11.29.1] — 2026-06-23
+
+Harden the Codex bridge (`src/lib/codex.ts`, `src/scripts/codex-run.ts`) after a cross-model review pass — Codex reviewed the bridge, Opus triaged the findings, and Codex independently re-reviewed the resulting diff (clean). Six hardening fixes, no behavior change to the happy path. Existing 47-test suite grew to 57.
+
+**Fixed:**
+
+- **Graceful exec spawn-failure** — `runCodexExec` wraps `Bun.spawn` in try/catch. `Bun.spawn` throws synchronously on ENOENT (codex vanished from PATH inside the 60s `AVAILABLE_TTL_MS` window that skips the L0 check), on an invalid `cwd`, and on permission errors. Previously these crashed the `/codex` script with an unhandled exception; now they fail open with a classified verdict (ENOENT ⇒ `not-installed`, else `unknown`).
+- **Verdict-cache race guard** — new `commitReconciled` re-reads immediately before writing and refuses to let a cheap/inconclusive non-sticky `available`/`unknown` verdict clobber a newer fresh sticky L2 negative (`rate-limited`/`no-access`) a concurrent exec may have written. Routed `refreshCodexVerdict` and the unknown-failure write through it. Closes the cross-process read-check-write TOCTOU (there is no file lock).
+- **Broadened terminal-control sanitization** — `sanitizeOutput` stripped only SGR color codes (`ESC[…m`); now strips all CSI, OSC (hyperlinks `ESC]8`, title `ESC]0`, BEL/ST-terminated), and residual C0 control bytes (preserving tab/newline/CR). Defense-in-depth for cached details, the statusline, and echoed output.
+- **Inconclusive-L1 fallback** — `checkCodexAvailability` no longer maps *every* non-zero `codex login status` to `unauthenticated` (which blocked L2 forever on CLI drift / keychain errors). A positive "not logged in" signal still blocks; an unrecognized CLI error becomes the new `unknown` live state so the real exec can probe; empty output (incl. timeout) stays conservative.
+- **Real hard cap** — the exec `Bun.spawn` now sets `killSignal: "SIGKILL"` so a child ignoring SIGTERM (Bun's default) can't outrun the timeout ceiling; timeout detection now keys off `proc.signalCode` with the elapsed-time heuristic as a fallback.
+- **Safer flag parsing** — `parseForce` only consumes a *leading* `--force` (and an optional `--`), so a literal `--force` inside a prompt is preserved verbatim.
+
+**Files changed:**
+
+- src/lib/codex.ts
+- src/scripts/codex-run.ts
+- tests/codex.test.ts
+- src/setup.ts
+- .claude-plugin/plugin.json
+- CHANGELOG.md
+
+## [11.29.0] — 2026-06-23
+
+Sync with Claude Code **2.1.186** — a bug-fix-heavy release with three additions that touch the cc-settings contract. Adopted all three; the ~20 upstream bug fixes and UI-only changes have no cc-settings surface.
+
+**Adopted:**
+
+- **`respondToBashCommands` setting** (2.1.186) — `src/schemas/settings.ts`, `upstream/claude-code-manifest.json` (`knownSettingsKeys`), `docs/settings-reference.md`. New top-level boolean. `!`-prefixed bash output now auto-triggers a Claude response by default; set `false` to restore the silent-insert behavior. The strict settings schema would have rejected the key, so tracking it is required.
+- **`teammateMode: "iterm2"`** (2.1.186) — `src/schemas/settings.ts` (`TeammateMode` enum), `docs/settings-reference.md`. Adds the iTerm2 split backend for Agent Teams (warns when the `it2` CLI is missing). `teammateMode` was already a known settings key; only the enum value was missing.
+- **`CLAUDE_CODE_MAX_RETRIES` + `CLAUDE_CODE_RETRY_WATCHDOG` env vars** (2.1.186) — `upstream/claude-code-manifest.json` (`knownEnvVars`), `docs/settings-reference.md`. `MAX_RETRIES` is now capped at 15; the watchdog keeps retrying past the cap for unattended sessions. Manifest + docs only — no config wiring.
+
+**Docs-only:**
+
+- `MANUAL.md` — noted that native `/review <pr>` now runs the same engine as `/code-review medium` (2.1.186).
+
+**Skipped:** ~20 upstream `Fixed …` bug fixes (no cc-settings code involved); skill-frontmatter kebab/snake/camelCase aliasing (upstream got more lenient — our kebab-only skills already pass); `claude mcp login/logout` CLI auth; `/workflows` status filter, `/plugin` Skills section, perm-prompt alignment (UI-only); background-subagent perm-prompt surfacing and agent-denial enforcement (behavioral, no schema). `awsAuthRefresh` was already tracked.
+
+**Files changed:**
+
+- src/schemas/settings.ts
+- upstream/claude-code-manifest.json
+- docs/settings-reference.md
+- MANUAL.md
+- src/setup.ts
+- CHANGELOG.md
+
 ## [11.28.1] — 2026-06-22
 
 ### Fix — follow-up to the Bun built-in swap (#68)
@@ -124,7 +3952,7 @@ Caught the schema up to upstream `2.1.181 → 2.1.183` (2.1.182 was never publis
 
 **Files changed:**
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `config/10-core.json`
 - `docs/settings-reference.md`
 - `upstream/claude-code-manifest.json`
@@ -337,7 +4165,7 @@ Upstream sync to Claude Code 2.1.169. One surface-area release — 2.1.169 adds 
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -358,7 +4186,7 @@ Upstream sync to Claude Code 2.1.168. Two of the three releases (2.1.167, 2.1.16
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -379,7 +4207,7 @@ Upstream sync to Claude Code 2.1.165. Two of the three releases (2.1.164, 2.1.16
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `schemas/settings.schema.json` (regenerated via `bun run schemas:emit`)
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
@@ -744,7 +4572,7 @@ Reconcile the `Settings` zod schema with the full documented Claude Code setting
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `upstream/claude-code-manifest.json`
 - `schemas/settings.schema.json`
 - `tests/schemas.test.ts`
@@ -823,7 +4651,7 @@ Gap-fill bundle adopting verified Claude Code capabilities (v2.1.117–v2.1.147)
 - `docs/hooks-reference.md`
 - `docs/settings-reference.md`
 - `src/schemas/hooks.ts`
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `src/scripts/swarm-log.ts`
 - `src/scripts/worktree-create.ts` (new)
 - `src/scripts/worktree-remove.ts` (new)
@@ -865,7 +4693,7 @@ _None this cycle._ The remaining v2.1.149 bullets are upstream bug fixes (PowerS
 
 ### Files changed
 
-- `src/schemas/settings.ts`
+- `src/schemas/settings.ts`, `schemas/settings.schema.json`
 - `upstream/claude-code-manifest.json`
 - `docs/settings-reference.md`
 - `src/setup.ts`

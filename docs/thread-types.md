@@ -74,18 +74,16 @@ User → Define criteria
 
 **Verification:** Not code-level; validates scoring methodology and completeness.
 
-See: `skills/oracle/SKILL.md` (Compare mode) for full specification.
-
 ## L-Thread: Long-Duration
 
-Single agent executing autonomously with checkpoint/restore across context windows.
+Single agent executing autonomously with commit checkpoints and handoffs across context windows.
 
 ```
 User → Agent(planner, "phase the work")
      → Execute Phase 1 → Checkpoint
      → Execute Phase 2 → Checkpoint
      → [context exhausted, new session]
-     → Restore checkpoint
+     → Resume from handoff
      → Execute Phase 3 → Checkpoint
      → ...
      → Final verification → <promise>COMPLETE</promise>
@@ -138,7 +136,7 @@ Used for large migrations with independent components.
 
 ### F + C (Fusion then Chain)
 ```
-[oracle A + oracle B + oracle C] → decision → planner → implementer
+[planner A + planner B + planner C] → decision → planner → implementer
 ^-- fusion comparison --^          ^-- chain to implementation --^
 ```
 Decide approach, then implement.

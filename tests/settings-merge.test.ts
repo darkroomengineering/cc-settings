@@ -3,17 +3,22 @@
 // and asserts on the result — no file I/O needed.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mergeSettingsWithMcpPreservation } from "../src/lib/mcp.ts";
+import { composeSettings } from "../src/lib/compose-settings.ts";
 import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 import {
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
   hooksStrategy,
+  isStaleManagedHookCommand,
+  mergeSettings,
+  permissionRuleIsDeprecated,
   permissionsStrategy,
   pruneDeprecatedHooks,
+  pruneStaleManagedHooks,
+  RETIRED_PERMISSION_RULES,
   statusLineStrategy,
   userWinsScalarStrategy,
 } from "../src/lib/settings-merge.ts";
@@ -23,13 +28,17 @@ function makeCtx(opts: MergeOptions = {}): StrategyContext {
     permissionsAdded: 0,
     permissionsDeclined: 0,
     permissionsAdoptedScalars: 0,
+    permissionsPruned: 0,
     hooksAdded: 0,
     hooksDeclined: 0,
     hooksPruned: 0,
     hooksSuperseded: 0,
     envUserWins: 0,
     envAdoptedScalars: 0,
+    envPruned: 0,
+    defaultsUpdated: 0,
     scalarsAdopted: 0,
+    retiredDefaultsPruned: 0,
     defaultsAdded: 0,
     statusLineReset: false,
   };
@@ -61,24 +70,188 @@ describe("permissionsStrategy", () => {
   test("user-only allow rules are preserved", async () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)"] };
-    const user = { allow: ["Bash(*)", "Write(*)", "Edit(*)"] };
+    const user = { allow: ["Bash(*)", "Grep(*)", "Edit(*)"] };
     const result = await permissionsStrategy("permissions", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
     const allow = merged.allow as string[];
     expect(allow).toContain("Bash(*)");
-    expect(allow).toContain("Write(*)");
+    expect(allow).toContain("Grep(*)");
     expect(allow).toContain("Edit(*)");
-    expect(ctx.accounting.permissionsAdded).toBe(2); // Write and Edit are user-only
+    expect(ctx.accounting.permissionsAdded).toBe(2); // Grep and Edit are user-only
   });
 
-  test("null permissions on both sides → keep:false", async () => {
+  test("null permissions on both sides → keep:true (null coerces to empty object, not absent)", async () => {
     const ctx = makeCtx();
     // null coerces to {} — no arrays, no fields
     const result = await permissionsStrategy("permissions", null, null, ctx);
     // null is treated as present (not undefined), so keep:true with empty-ish object
     expect(result.keep).toBe(true);
+  });
+
+  test("user-only rules naming removed tools are pruned (MultiEdit)", async () => {
+    const ctx = makeCtx();
+    const team = { allow: ["Edit(*)"], deny: ["Edit(~/.claude/settings.json)"] };
+    // Simulates an install that synced before v12.2.6 removed the MultiEdit rules.
+    const user = {
+      allow: ["Edit(*)", "MultiEdit(*)"],
+      deny: [
+        "Edit(~/.claude/settings.json)",
+        "MultiEdit(~/.claude/settings.json)",
+        "MultiEdit(~/.claude.json)",
+      ],
+    };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.allow).toEqual(["Edit(*)"]);
+    expect(merged.deny).toEqual(["Edit(~/.claude/settings.json)"]);
+    expect(ctx.accounting.permissionsPruned).toBe(3);
+    expect(ctx.accounting.permissionsAdded).toBe(0); // pruned extras don't count as added
+  });
+
+  test("deprecated rules present on BOTH sides (or team-only) are pruned too", async () => {
+    const ctx = makeCtx();
+    // Both-sides: an older team fragment that still ships the rule must not
+    // resurrect it. Team-only deny exercises the alwaysAccept path.
+    const team = { allow: ["Edit(*)", "MultiEdit(*)"], deny: ["MultiEdit(~/.claude.json)"] };
+    const user = { allow: ["Edit(*)", "MultiEdit(*)"] };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.allow).toEqual(["Edit(*)"]);
+    expect(merged.deny).toEqual([]);
+  });
+
+  test("user array containing ONLY deprecated rules merges to [], not the raw array", async () => {
+    const ctx = makeCtx();
+    // Regression guard: the { ...t, ...u } spread must not carry the raw
+    // deprecated array through when the post-prune union is empty.
+    const user = { allow: ["MultiEdit(*)"] };
+    const result = await permissionsStrategy("permissions", {}, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.allow).toEqual([]);
+    expect(ctx.accounting.permissionsPruned).toBe(1);
+  });
+
+  test("additionalDirectories are paths, never pruned as rules", async () => {
+    const ctx = makeCtx();
+    const user = { additionalDirectories: ["MultiEdit(weird-dir)", "/srv/app"] };
+    const result = await permissionsStrategy("permissions", {}, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.additionalDirectories).toEqual(["MultiEdit(weird-dir)", "/srv/app"]);
+    expect(ctx.accounting.permissionsPruned).toBe(0);
+  });
+
+  test("permissionRuleIsDeprecated matches only real MultiEdit rules", () => {
+    const cases: Array<[string, boolean]> = [
+      ["MultiEdit(*)", true],
+      ["MultiEdit(~/.claude/settings.json)", true],
+      ["MultiEditor(*)", false],
+      ["multiedit(*)", false],
+      ["Edit(*)", false],
+      ["Bash(MultiEdit(*))", false],
+    ];
+    for (const [rule, expected] of cases) {
+      expect(permissionRuleIsDeprecated(rule)).toBe(expected);
+    }
+  });
+
+  test("permissionRuleIsDeprecated prunes only the exact shipped Write/Glob/NotebookEdit rules (v12.4.0)", () => {
+    const cases: Array<[string, boolean]> = [
+      // exact rules cc-settings shipped pre-12.4.0 → pruned
+      ["Write(*)", true],
+      ["Glob(*)", true],
+      ["NotebookEdit(*)", true],
+      ["Write(~/.ssh/*)", true],
+      ["Write(~/.claude/settings.json)", true],
+      ["Write(~/.claude.json)", true],
+      // user-authored rules for the same tools → left alone (pruning a custom
+      // deny without rewriting it to Edit(...) would silently drop protection)
+      ["Write(~/secrets/*)", false],
+      ["Glob(/etc/*)", false],
+      ["NotebookEdit(~/notebooks/*)", false],
+      // replacements → never pruned
+      ["Edit(~/.ssh/*)", false],
+      ["Read(*)", false],
+    ];
+    for (const [rule, expected] of cases) {
+      expect(permissionRuleIsDeprecated(rule)).toBe(expected);
+    }
+  });
+
+  test("retired workflow deny rules are pruned; a user's own variant survives", async () => {
+    const ctx = makeCtx();
+    const team = { deny: ["Bash(sudo:*)"] };
+    const user = {
+      deny: [
+        "Bash(sudo:*)",
+        "Bash(git reset --hard:*)",
+        "Bash(gh api * -X DELETE*)",
+        "Bash(git push --force-with-lease:*)",
+        "Bash(git reset --hard origin/main)",
+      ],
+    };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.deny).toEqual(["Bash(sudo:*)", "Bash(git reset --hard origin/main)"]);
+    expect(ctx.accounting.permissionsPruned).toBe(3);
+  });
+
+  test("stale wildcard deny rules from older installs are pruned against the shipped config", async () => {
+    const ctx = makeCtx();
+    const team = (await composeSettings(join(import.meta.dir, ".."))).permissions as Record<
+      string,
+      unknown
+    >;
+    const teamDeny = team.deny as string[];
+    expect(teamDeny.filter((r) => RETIRED_PERMISSION_RULES.has(r))).toEqual([]);
+    const user = { deny: [...teamDeny, ...RETIRED_PERMISSION_RULES, "Bash(curl * --my-flag:*)"] };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const deny = (result.value as Record<string, unknown>).deny as string[];
+    expect(deny).toEqual([...teamDeny, "Bash(curl * --my-flag:*)"]);
+    expect(deny).toContain("Bash(rm -rf $HOME/*)");
+  });
+
+  test("a retired deny rule in the user's ask list is kept", async () => {
+    const ctx = makeCtx();
+    const result = await permissionsStrategy(
+      "permissions",
+      { deny: ["Bash(sudo:*)"] },
+      { ask: ["Bash(git reset --hard:*)"] },
+      ctx,
+    );
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.ask).toEqual(["Bash(git reset --hard:*)"]);
+    expect(ctx.accounting.permissionsPruned).toBe(0);
+  });
+
+  test("ask rules the team adds reach an existing install that has an older ask list", async () => {
+    const ctx = makeCtx();
+    const team = (await composeSettings(join(import.meta.dir, ".."))).permissions as Record<
+      string,
+      unknown
+    >;
+    const teamAsk = team.ask as string[];
+    expect(teamAsk).toContain("Edit(**/.mcp.json)");
+    const user = { ask: ["Bash(git branch -D:*)", "Bash(git stash drop:*)", "Bash(my-tool:*)"] };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).ask).toEqual([...teamAsk, "Bash(my-tool:*)"]);
   });
 
   test("overlapping allow with union semantics — no duplicates", async () => {
@@ -224,7 +397,10 @@ describe("hooksStrategy", () => {
           matcher: "Bash",
           if: "Bash(git commit*)",
           hooks: [
-            { type: "command", command: `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"` },
+            {
+              type: "command",
+              command: `bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"`,
+            },
           ],
         },
       ],
@@ -235,7 +411,10 @@ describe("hooksStrategy", () => {
         {
           matcher: "Bash",
           hooks: [
-            { type: "command", command: `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"` },
+            {
+              type: "command",
+              command: `bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"`,
+            },
           ],
         },
       ],
@@ -250,6 +429,44 @@ describe("hooksStrategy", () => {
     expect(groups[0]?.if).toBe("Bash(git commit*)");
     expect(ctx.accounting.hooksSuperseded).toBe(1);
     expect(ctx.accounting.hooksAdded).toBe(0);
+  });
+
+  test("older managed command shapes are superseded by the --config form", async () => {
+    const hook = (command: string) => ({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command, timeout: 5 }] }],
+    });
+    const team = hook(
+      `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/model-switch-guard.ts"`,
+    );
+    for (const older of [
+      `bun "$HOME/.claude/src/hooks/model-switch-guard.ts"`,
+      `bun --no-env-file "$HOME/.claude/src/hooks/model-switch-guard.ts"`,
+    ]) {
+      const ctx = makeCtx();
+      const result = await hooksStrategy("hooks", team, hook(older), ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const groups = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(groups).toEqual(team.PreToolUse);
+      expect(ctx.accounting.hooksSuperseded).toBe(1);
+    }
+  });
+
+  test("a user's own managed-shaped hook is not superseded by a different team hook", async () => {
+    const ctx = makeCtx();
+    const hook = (command: string) => ({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command, timeout: 5 }] }],
+    });
+    const team = hook(
+      `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src/hooks/safety-net.ts"`,
+    );
+    const user = hook(`bun --no-env-file "$HOME/.claude/src/hooks/mine.ts"`);
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const groups = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+    expect(groups).toHaveLength(2);
+    expect(ctx.accounting.hooksSuperseded).toBe(0);
   });
 
   test("user group wiring their own (non-managed) script is never superseded", async () => {
@@ -297,25 +514,25 @@ describe("hooksStrategy", () => {
 
   test("removed managed hook in a shared group is pruned without duplicating the surviving team hook", async () => {
     const ctx = makeCtx();
-    const stopSummary = {
+    const askGate = {
       type: "command",
-      command: `bun "$HOME/.claude/src/scripts/stop-summary.ts"`,
+      command: `bun "$HOME/.claude/src/hooks/ask-gate.ts"`,
     };
     const judge = {
       type: "command",
       command: `bun "$HOME/.claude/src/hooks/parallelmax-judge.ts"`,
       timeout: 10,
     };
-    // Team now ships only stop-summary on Stop; the user still carries the old
-    // pre-v11.5.1 group that bundled stop-summary + the removed judge.
-    const team = { Stop: [{ hooks: [stopSummary] }] };
-    const user = { Stop: [{ hooks: [stopSummary, judge] }] };
+    // Team now ships only ask-gate on Stop; the user still carries the old
+    // pre-v11.5.1 group that bundled ask-gate + the removed judge.
+    const team = { Stop: [{ hooks: [askGate] }] };
+    const user = { Stop: [{ hooks: [askGate, judge] }] };
     const result = await hooksStrategy("hooks", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
     const stop = merged.Stop as Array<{ hooks: unknown[] }>;
-    // Exactly one group with one hook (stop-summary): judge gone, no duplicate.
+    // Exactly one group with one hook (ask-gate): judge gone, no duplicate.
     expect(stop.length).toBe(1);
     expect(stop[0]?.hooks.length).toBe(1);
     expect(JSON.stringify(stop)).not.toContain("parallelmax-judge");
@@ -389,6 +606,206 @@ describe("hooksStrategy", () => {
 });
 
 // ---------------------------------------------------------------------------
+// hooksStrategy + pruneStaleManagedHooks/isStaleManagedHookCommand —
+// source-tree existence check (the sonor → sondeo → farolero rename bug:
+// each rename left the PREVIOUS name's hook entry in settings.json as an
+// "unrecognized" user extra, pointing at a .ts file the source tree no
+// longer ships — "Module not found" on every git commit until pruned).
+// ---------------------------------------------------------------------------
+
+describe("hooksStrategy — stale managed-hook pruning (source-tree existence check)", () => {
+  async function makeSourceTree(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-settings-merge-source-"));
+    await mkdir(join(dir, "src", "hooks"), { recursive: true });
+    await mkdir(join(dir, "src", "scripts"), { recursive: true });
+    // Only the CURRENT names ship in this source tree — the renamed-away
+    // hook referenced by the "stale" tests below is deliberately absent.
+    await writeFile(join(dir, "src", "hooks", "model-switch-guard.ts"), "// current hook\n");
+    await writeFile(
+      join(dir, "src", "scripts", "check-docs-before-install.ts"),
+      "// still shipped\n",
+    );
+    return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
+  }
+
+  test("(a) a managed-hook command whose target file is absent from source is pruned", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const staleCmd = `bun "$HOME/.claude/src/hooks/pre-commit-sondeo.ts"`;
+      const team = {};
+      const user = { PreToolUse: [{ hooks: [{ type: "command", command: staleCmd }] }] };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(0);
+      expect(ctx.accounting.hooksPruned).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(a) a managed-hook command whose target file DOES exist in source is preserved", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const liveCmd = `bun "$HOME/.claude/src/hooks/model-switch-guard.ts"`;
+      const team = {};
+      const user = { PreToolUse: [{ hooks: [{ type: "command", command: liveCmd }] }] };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(1);
+      expect(ctx.accounting.hooksPruned).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(b) real-world case: a stale renamed hook sharing a group with check-docs-before-install is pruned, and the docs-only leftover is dropped as superseded — no duplicate group survives", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const docsCmd = `bun "$HOME/.claude/src/scripts/check-docs-before-install.ts"`;
+      // Team's current group (this install): docs check + the current hook name.
+      const team = {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            if: "Bash(git commit*)",
+            hooks: [
+              { type: "command", command: docsCmd },
+              { type: "command", command: `bun "$HOME/.claude/src/hooks/model-switch-guard.ts"` },
+            ],
+          },
+        ],
+      };
+      // User's installed settings still carry the OLD group from before the
+      // last rename: same matcher/if, but the second hook is the stale name —
+      // a different canonicalKey from team's group, so it survives the union
+      // as a "user extra" unless pruned.
+      const user = {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            if: "Bash(git commit*)",
+            hooks: [
+              { type: "command", command: docsCmd },
+              { type: "command", command: `bun "$HOME/.claude/src/hooks/pre-commit-sondeo.ts"` },
+            ],
+          },
+        ],
+      };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const groups = (result.value as Record<string, unknown>).PreToolUse as Array<
+        Record<string, unknown>
+      >;
+      // Exactly the team's one group survives — the stale group is pruned down
+      // to [docs check] alone, which duplicates what team already ships for this
+      // event, so it is dropped entirely (superseded) rather than kept as a
+      // second, redundant `git commit*` group.
+      expect(groups.length).toBe(1);
+      expect(JSON.stringify(groups)).not.toContain("pre-commit-sondeo");
+      expect(JSON.stringify(groups)).toContain("model-switch-guard");
+      expect(ctx.accounting.hooksPruned).toBe(1);
+      expect(ctx.accounting.hooksSuperseded).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(c) a custom hook NOT under ~/.claude/src (raw shell command) is preserved regardless of sourceDir", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const team = {};
+      const user = {
+        PreToolUse: [{ hooks: [{ type: "command", command: "echo custom-guard" }] }],
+      };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(1);
+      expect(ctx.accounting.hooksPruned).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("(c) a custom hook script elsewhere on disk (~/bin) is preserved regardless of sourceDir", async () => {
+    const { dir, cleanup } = await makeSourceTree();
+    try {
+      const ctx = makeCtx({ sourceDir: dir });
+      const team = {};
+      const user = {
+        PreToolUse: [
+          { hooks: [{ type: "command", command: `bun "$HOME/bin/my-custom-audit.ts"` }] },
+        ],
+      };
+      const result = await hooksStrategy("hooks", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+      expect(preToolUse.length).toBe(1);
+      expect(ctx.accounting.hooksPruned).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  test("no sourceDir supplied: a managed-hook command pointing at a nonexistent file is NOT pruned (fails open)", async () => {
+    const ctx = makeCtx(); // no sourceDir
+    const staleCmd = `bun "$HOME/.claude/src/hooks/pre-commit-sondeo.ts"`;
+    const team = {};
+    const user = { PreToolUse: [{ hooks: [{ type: "command", command: staleCmd }] }] };
+    const result = await hooksStrategy("hooks", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const preToolUse = (result.value as Record<string, unknown>).PreToolUse as unknown[];
+    expect(preToolUse.length).toBe(1);
+    expect(ctx.accounting.hooksPruned).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isStaleManagedHookCommand / pruneStaleManagedHooks helpers
+// ---------------------------------------------------------------------------
+
+describe("isStaleManagedHookCommand", () => {
+  test("undefined sourceDir → never stale (fails open)", () => {
+    expect(isStaleManagedHookCommand(`bun "$HOME/.claude/src/hooks/anything.ts"`, undefined)).toBe(
+      false,
+    );
+  });
+
+  test("non-managed command → never stale, regardless of sourceDir", () => {
+    expect(isStaleManagedHookCommand("echo hi", "/nonexistent/source")).toBe(false);
+    expect(isStaleManagedHookCommand(`bun "$HOME/bin/custom.ts"`, "/nonexistent/source")).toBe(
+      false,
+    );
+  });
+});
+
+describe("pruneStaleManagedHooks", () => {
+  test("undefined sourceDir → group returned unchanged (same reference)", () => {
+    const group = {
+      hooks: [{ type: "command", command: `bun "$HOME/.claude/src/hooks/anything.ts"` }],
+    };
+    expect(pruneStaleManagedHooks(group, undefined)).toBe(group);
+  });
+
+  test("non-object group → returned unchanged", () => {
+    expect(pruneStaleManagedHooks(null, "/tmp/whatever")).toBeNull();
+    expect(pruneStaleManagedHooks(42, "/tmp/whatever")).toBe(42);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // pruneDeprecatedHooks helper
 // ---------------------------------------------------------------------------
 
@@ -412,6 +829,97 @@ describe("pruneDeprecatedHooks", () => {
   test("DEPRECATED_COMMAND_PATTERNS matches the removed parallelmax-judge hook", () => {
     const badCmd = `bun "$HOME/.claude/src/hooks/parallelmax-judge.ts"`;
     expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  // v13.0.0: `handoff.ts create` gained --from-hook. Without a deprecation
+  // entry the union merge keeps BOTH invocations on an upgrade and fires them
+  // both — and the flagless one writes a handoff with no session provenance,
+  // which PostCompact cannot then match. Observed on a real install before
+  // this pattern existed.
+  test("DEPRECATED_COMMAND_PATTERNS matches the pre-13.0.0 flagless handoff hook", () => {
+    const badCmd = `bun "$HOME/.claude/src/scripts/handoff.ts" create`;
+    expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(badCmd))).toBe(true);
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS leaves the --from-hook and manual handoff forms alone", () => {
+    for (const ok of [
+      `bun "$HOME/.claude/src/scripts/handoff.ts" create --from-hook`,
+      `bun "$HOME/.claude/src/scripts/handoff.ts" create --summary "did stuff"`,
+      `bun "$HOME/.claude/src/scripts/handoff.ts" resume`,
+    ]) {
+      expect(DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok))).toBe(false);
+    }
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches the removed proof-gate, session-title and cwd-changed hooks", () => {
+    for (const bad of [
+      `bun "$HOME/.claude/src/scripts/pre-commit-tsc.ts"`,
+      `bun "$HOME/.claude/src/hooks/pre-commit-farolero.ts"`,
+      `bun "$HOME/.claude/src/hooks/pre-pr-proof.ts"`,
+      `bun "$HOME/.claude/src/hooks/pre-push-proof.ts"`,
+      `bun "$HOME/.claude/src/scripts/session-title.ts"`,
+      `bun "$HOME/.claude/src/scripts/cwd-changed.ts"`,
+    ]) {
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(bad)),
+        bad,
+      ).toBe(true);
+    }
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS leaves a repo's own hook with a removed hook's name alone", () => {
+    for (const ok of [
+      "bun /repo/tools/pre-commit-tsc.ts",
+      'bun "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-proof.ts"',
+      "node scripts/session-title.ts",
+    ]) {
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok)),
+        ok,
+      ).toBe(false);
+    }
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS matches the per-script entries the dispatcher replaced", () => {
+    const prefix = `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src`;
+    for (const rel of [
+      "hooks/delegation-detector",
+      "hooks/quota-steer",
+      "hooks/escalate-model",
+      "hooks/safety-net",
+      "hooks/pre-edit-validate",
+      "hooks/freeze-guard",
+      "hooks/knowledge-hint",
+      "hooks/tool-cadence",
+      "hooks/promote-memory",
+      "hooks/escalate-acted",
+      "scripts/post-edit",
+    ]) {
+      const bad = `${prefix}/${rel}.ts"`;
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(bad)),
+        bad,
+      ).toBe(true);
+    }
+  });
+
+  test("DEPRECATED_COMMAND_PATTERNS leaves the dispatcher and the entries that stay separate alone", () => {
+    const prefix = `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" "$HOME/.claude/src`;
+    for (const ok of [
+      `${prefix}/hooks/dispatch.ts" UserPromptSubmit`,
+      `${prefix}/hooks/dispatch.ts" PreToolUse`,
+      `${prefix}/hooks/dispatch.ts" PostToolUse`,
+      `${prefix}/scripts/post-edit-tsc.ts"`,
+      `${prefix}/scripts/check-docs-before-install.ts"`,
+      `${prefix}/scripts/log-bash.ts"`,
+      `${prefix}/hooks/model-switch-guard.ts"`,
+      `bun "/opt/mine/hooks/safety-net.ts"`,
+    ]) {
+      expect(
+        DEPRECATED_COMMAND_PATTERNS.some((re) => re.test(ok)),
+        ok,
+      ).toBe(false);
+    }
   });
 
   test("DEPRECATED_COMMAND_PATTERNS matches parallelmax-nudge.ts (merged into tool-cadence.ts)", () => {
@@ -468,6 +976,22 @@ describe("statusLineStrategy", () => {
     expect(ctx.accounting.statusLineReset).toBe(true);
   });
 
+  test("older shipped statusline shapes take the --config form, keeping other user fields", async () => {
+    const script = `"$HOME/.claude/src/hooks/statusline.ts"`;
+    const team = {
+      command: `bun --no-env-file --config="$HOME/.claude/src/bunfig.toml" ${script}`,
+      refreshInterval: 30,
+    };
+    for (const older of [`bun ${script}`, `bun --no-env-file ${script}`]) {
+      const ctx = makeCtx();
+      const user = { command: older, refreshInterval: 5 };
+      const result = await statusLineStrategy("statusLine", team, user, ctx);
+      expect(result.keep).toBe(true);
+      if (!result.keep) return;
+      expect(result.value).toEqual({ command: team.command, refreshInterval: 5 });
+    }
+  });
+
   test("user command deprecated and no team value → keep:false", async () => {
     const ctx = makeCtx();
     const user = { command: `/Users/alice/.claude/scripts/status-line.sh` };
@@ -512,6 +1036,149 @@ describe("envStrategy", () => {
     expect(merged.MY_CUSTOM).toBe("hello");
     expect(merged.SHARED).toBe("1");
     expect(ctx.accounting.envUserWins).toBe(0); // no conflict — user key is unique
+  });
+
+  test("retired env key is pruned from an existing install (DEPRECATED_ENV_KEYS)", async () => {
+    const ctx = makeCtx();
+    // Simulates an install that synced while v12.6.0 still pinned the depth.
+    const team = { CLAUDE_CODE_SUBAGENT_MODEL: "sonnet" };
+    const user = {
+      CLAUDE_CODE_SUBAGENT_MODEL: "sonnet",
+      CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "2",
+    };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect("CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH" in merged).toBe(false);
+    expect(merged.CLAUDE_CODE_SUBAGENT_MODEL).toBe("sonnet"); // untouched
+    expect(ctx.accounting.envPruned).toBe(1);
+  });
+
+  test("a retired key the team config still ships is NOT pruned", async () => {
+    const ctx = makeCtx();
+    // Re-adding a retired key to config/ must be enough to revive it, without
+    // also editing DEPRECATED_ENV_KEYS — otherwise the two lists silently fight.
+    const team = { CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "4" };
+    const user = { CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "2" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    // Present, and the normal user-wins conflict rule still applies to it.
+    expect(merged.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe("2");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("prune leaves an untouched install alone (no false positives)", async () => {
+    const ctx = makeCtx();
+    const team = { CLAUDE_CODE_SUBAGENT_MODEL: "sonnet" };
+    const user = { MY_CUSTOM: "hello" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  // --- three-way baseline prune (opts.baselineEnv) -------------------------
+  // The data-driven successor to DEPRECATED_ENV_KEYS: a key the previous
+  // install's baseline wrote, the new team config dropped, and the user never
+  // changed is pruned; a user-changed value survives as a user edit.
+
+  test("baseline key dropped by team, value unchanged → pruned", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { env: { ENABLE_PROMPT_CACHING_1H_FAKE: "1", KEPT: "x" } },
+    });
+    const team = { KEPT: "x" };
+    const user = { ENABLE_PROMPT_CACHING_1H_FAKE: "1", KEPT: "x" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect("ENABLE_PROMPT_CACHING_1H_FAKE" in merged).toBe(false);
+    expect(merged.KEPT).toBe("x");
+    expect(ctx.accounting.envPruned).toBe(1);
+  });
+
+  test("baseline key dropped by team, user CHANGED the value → kept as a user edit", async () => {
+    const ctx = makeCtx({ baselineSettings: { env: { RETIRED: "1" } } });
+    const team = {};
+    const user = { RETIRED: "0" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).RETIRED).toBe("0");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("baseline key the team config still ships is NOT pruned", async () => {
+    const ctx = makeCtx({ baselineSettings: { env: { SHIPPED: "1" } } });
+    const team = { SHIPPED: "1" };
+    const user = { SHIPPED: "1" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).SHIPPED).toBe("1");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("user-only key absent from the baseline is untouched", async () => {
+    const ctx = makeCtx({ baselineSettings: { env: { RETIRED: "1" } } });
+    const team = {};
+    const user = { MY_CUSTOM: "hello" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).MY_CUSTOM).toBe("hello");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("no baselineEnv → registry-only behavior (pre-baseline installs fail open)", async () => {
+    const ctx = makeCtx();
+    const team = {};
+    const user = { RETIRED: "1" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).RETIRED).toBe("1");
+    expect(ctx.accounting.envPruned).toBe(0);
+  });
+
+  test("env conflict where the user value is still the old shipped default → team adopted", async () => {
+    // We changed our own default (e.g. effort medium → high). The user never
+    // touched it, so the value moves; user-wins must not freeze OUR default.
+    const ctx = makeCtx({ baselineSettings: { env: { LEVEL: "medium" } } });
+    const team = { LEVEL: "high" };
+    const user = { LEVEL: "medium" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).LEVEL).toBe("high");
+    expect(ctx.accounting.defaultsUpdated).toBe(1);
+    expect(ctx.accounting.envUserWins).toBe(0);
+  });
+
+  test("env conflict where the user changed the value since the baseline → user still wins", async () => {
+    const ctx = makeCtx({ baselineSettings: { env: { LEVEL: "medium" } } });
+    const team = { LEVEL: "high" };
+    const user = { LEVEL: "max" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).LEVEL).toBe("max");
+    expect(ctx.accounting.envUserWins).toBe(1);
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+
+  test("registry and baseline both matching one key count a single prune", async () => {
+    const ctx = makeCtx({ baselineSettings: { env: { ENABLE_PROMPT_CACHING_1H: "1" } } });
+    const team = {};
+    const user = { ENABLE_PROMPT_CACHING_1H: "1" };
+    const result = await envStrategy("env", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect("ENABLE_PROMPT_CACHING_1H" in (result.value as Record<string, unknown>)).toBe(false);
+    expect(ctx.accounting.envPruned).toBe(1);
   });
 });
 
@@ -586,6 +1253,67 @@ describe("userWinsScalarStrategy", () => {
     expect(ctx.accounting.defaultsAdded).toBe(0);
   });
 
+  // enabledPlugins/extraKnownMarketplaces have no dedicated strategy, so they
+  // fall to this default: a user's own plugin/marketplace entries survive and
+  // cc-settings' own (fast-jev-compaction, compaction-trigger) land alongside
+  // them, exactly like the attribution.sessionUrl case above.
+  test("team-added plugin entries land into a user's existing enabledPlugins block", async () => {
+    const ctx = makeCtx();
+    const team = {
+      "fast-jev-compaction@fast-jev-compaction": true,
+      "compaction-trigger@cc-settings": true,
+    };
+    const user = { "my-own-plugin@my-marketplace": true };
+    const result = await userWinsScalarStrategy("enabledPlugins", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({
+      "my-own-plugin@my-marketplace": true,
+      "fast-jev-compaction@fast-jev-compaction": true,
+      "compaction-trigger@cc-settings": true,
+    });
+    expect(ctx.accounting.defaultsAdded).toBe(2);
+  });
+
+  test("team-added marketplace entries land into a user's existing extraKnownMarketplaces block", async () => {
+    const ctx = makeCtx();
+    const team = {
+      "fast-jev-compaction": {
+        source: { source: "github", repo: "tamaratran/fast-jev-compaction" },
+      },
+      "cc-settings": { source: { source: "github", repo: "darkroomengineering/cc-settings" } },
+    };
+    const user = {
+      "my-marketplace": { source: { source: "github", repo: "me/my-marketplace" } },
+    };
+    const result = await userWinsScalarStrategy("extraKnownMarketplaces", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({ ...user, ...team });
+    expect(ctx.accounting.defaultsAdded).toBe(2);
+  });
+
+  test("a changed marketplace sha replaces the old one when the user's value is the prior team default", async () => {
+    const oldEntry = {
+      source: { source: "github", repo: "darkroomengineering/cc-settings", sha: "a".repeat(40) },
+    };
+    const newEntry = {
+      source: { source: "github", repo: "darkroomengineering/cc-settings", sha: "b".repeat(40) },
+    };
+    const ctx = makeCtx({
+      baselineSettings: { extraKnownMarketplaces: { "cc-settings": oldEntry } },
+    });
+    const result = await userWinsScalarStrategy(
+      "extraKnownMarketplaces",
+      { "cc-settings": newEntry },
+      { "cc-settings": oldEntry },
+      ctx,
+    );
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual({ "cc-settings": newEntry });
+  });
+
   test("nested objects recurse (defaults land at depth > 1)", async () => {
     const ctx = makeCtx();
     const team = { enabled: true, network: { allowAppleEvents: false, proxy: "team" } };
@@ -622,7 +1350,113 @@ describe("userWinsScalarStrategy", () => {
 
 // Integration: the merger end-to-end must land a team-only nested default into a
 // user's existing block (regression lock for attribution.sessionUrl, v11.27.0).
-describe("mergeSettingsWithMcpPreservation — nested defaults", () => {
+describe("mergeSettings — native terminal selection defaults", () => {
+  test.each([undefined, "fullscreen"])(
+    "retires managed fullscreen forcing and preserves explicit tui=%s",
+    async (tui) => {
+      const dir = await mkdtemp(join(tmpdir(), "cc-merge-renderer-"));
+      try {
+        const team = await composeSettings(join(import.meta.dir, ".."));
+        const baselineSettings = { env: { CLAUDE_CODE_NO_FLICKER: "1" } };
+        const userPath = join(dir, "user.json");
+        const outPath = join(dir, "out.json");
+        await writeFile(userPath, JSON.stringify({ ...baselineSettings, tui }));
+
+        const accounting = await mergeSettings(userPath, team, outPath, { baselineSettings });
+
+        const merged = await Bun.file(outPath).json();
+        expect(merged.env.CLAUDE_CODE_NO_FLICKER).toBeUndefined();
+        expect(merged.tui).toBe(tui ?? "default");
+        expect(accounting?.envPruned).toBe(1);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
+describe("mergeSettings — retired plansDirectory default", () => {
+  async function mergeWith(
+    user: Record<string, unknown>,
+    baselineSettings?: Record<string, unknown>,
+  ) {
+    const dir = await mkdtemp(join(tmpdir(), "cc-merge-plans-"));
+    try {
+      const team = await composeSettings(join(import.meta.dir, ".."));
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(userPath, JSON.stringify(user));
+      const accounting = await mergeSettings(userPath, team, outPath, { baselineSettings });
+      return { merged: await Bun.file(outPath).json(), accounting, team };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("config no longer ships plansDirectory", async () => {
+    const team = await composeSettings(join(import.meta.dir, ".."));
+    expect("plansDirectory" in team).toBe(false);
+  });
+
+  test("an install still holding the shipped ./plans loses it (no baseline)", async () => {
+    const { merged, accounting } = await mergeWith({ plansDirectory: "./plans" });
+    expect("plansDirectory" in merged).toBe(false);
+    expect(accounting?.retiredDefaultsPruned).toBe(1);
+  });
+
+  test("an install whose baseline shipped ./plans loses it", async () => {
+    const { merged } = await mergeWith(
+      { plansDirectory: "./plans" },
+      { plansDirectory: "./plans" },
+    );
+    expect("plansDirectory" in merged).toBe(false);
+  });
+
+  test("a different value is the user's and stays", async () => {
+    const { merged, accounting } = await mergeWith({ plansDirectory: "./docs/plans" });
+    expect(merged.plansDirectory).toBe("./docs/plans");
+    expect(accounting?.retiredDefaultsPruned).toBe(0);
+  });
+
+  test("./plans typed by hand after a baseline without the key stays", async () => {
+    const { merged } = await mergeWith({ plansDirectory: "./plans" }, { model: "x" });
+    expect(merged.plansDirectory).toBe("./plans");
+  });
+});
+
+describe("mergeSettings — new PreToolUse dispatcher entry", () => {
+  test("an install with the Bash and Edit|Write entries gains the Agent|Task entry once", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-merge-agent-hook-"));
+    try {
+      const repo = join(import.meta.dir, "..");
+      const team = await composeSettings(repo);
+      const teamPre = (team.hooks as Record<string, { matcher?: string }[]>).PreToolUse ?? [];
+      const prior = teamPre.filter((g) => g.matcher !== "Agent|Task");
+      expect(prior.length).toBe(teamPre.length - 1);
+      const userPath = join(dir, "user.json");
+      const outPath = join(dir, "out.json");
+      await writeFile(
+        userPath,
+        JSON.stringify({ hooks: { ...(team.hooks as object), PreToolUse: prior } }),
+      );
+
+      const accounting = await mergeSettings(userPath, team, outPath, { sourceDir: repo });
+
+      const merged = await Bun.file(outPath).json();
+      const pre = merged.hooks.PreToolUse as { matcher?: string; hooks: { command: string }[] }[];
+      const agent = pre.filter((g) => g.matcher === "Agent|Task");
+      expect(agent.length).toBe(1);
+      expect(agent[0]?.hooks[0]?.command).toEndWith('dispatch.ts" PreToolUse');
+      expect(pre.length).toBe(teamPre.length);
+      expect(accounting?.hooksPruned).toBe(0);
+      expect(accounting?.hooksSuperseded).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("mergeSettings — nested defaults", () => {
   test("team attribution.sessionUrl lands into a user block that lacks it", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-merge-nested-"));
     try {
@@ -632,7 +1466,7 @@ describe("mergeSettingsWithMcpPreservation — nested defaults", () => {
       const outPath = join(dir, "out.json");
       await writeFile(userPath, JSON.stringify(user));
 
-      await mergeSettingsWithMcpPreservation(userPath, team, outPath);
+      await mergeSettings(userPath, team, outPath);
 
       const merged = JSON.parse(await Bun.file(outPath).text());
       expect(merged.attribution).toEqual({ commit: "", pr: "", sessionUrl: false });
@@ -643,7 +1477,7 @@ describe("mergeSettingsWithMcpPreservation — nested defaults", () => {
 });
 
 // ---------------------------------------------------------------------------
-// mergeSettingsWithMcpPreservation — safeParse validation of userRaw/teamRaw
+// mergeSettings — safeParse validation of userRaw/teamRaw
 // ---------------------------------------------------------------------------
 //
 // These tests verify the forward-compat safety: when userRaw or teamRaw
@@ -658,7 +1492,7 @@ async function cleanup(dir: string): Promise<void> {
   await rm(dir, { recursive: true, force: true });
 }
 
-describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
+describe("mergeSettings — safeParse validation", () => {
   test("valid user + team settings → merges without error", async () => {
     const dir = await makeTmpDir();
     try {
@@ -668,9 +1502,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const outPath = join(dir, "out.json");
       await writeFile(userPath, JSON.stringify(user));
 
-      await expect(
-        mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeDefined();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeDefined();
 
       const merged = JSON.parse(await Bun.file(outPath).text());
       // user model wins
@@ -683,22 +1515,20 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
     }
   });
 
-  test("userRaw with unknown key (schema validation failure) → merger proceeds, output written", async () => {
+  test("userRaw with a key unknown to the Settings schema → merger proceeds and preserves the key", async () => {
     // Simulates a newer Claude Code version adding a settings key not yet in
     // the Settings schema. The safeParse validation logs debug + proceeds.
     const dir = await makeTmpDir();
     try {
       const team = { model: "claude-opus-4-5" };
-      // unknownFutureKey is not in the Settings schema (it uses .strict())
+      // unknownFutureKey is not in the Settings schema (a loose object, so it parses fine)
       const user = { model: "claude-sonnet-4-5", unknownFutureKey: "value-from-new-cc" };
       const userPath = join(dir, "user.json");
       const outPath = join(dir, "out.json");
       await writeFile(userPath, JSON.stringify(user));
 
       // Must not throw — forward-compat safety
-      await expect(
-        mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeDefined();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeDefined();
 
       // The unknown key should be preserved in the output (user wins via
       // userWinsScalarStrategy fallback)
@@ -718,9 +1548,7 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const outPath = join(dir, "out.json");
       await writeFile(userPath, JSON.stringify(user));
 
-      await expect(
-        mergeSettingsWithMcpPreservation(userPath, team, outPath),
-      ).resolves.toBeDefined();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeDefined();
 
       // teamNewFeature should be present (user has no value → team wins)
       const merged = JSON.parse(await Bun.file(outPath).text());
@@ -737,12 +1565,154 @@ describe("mergeSettingsWithMcpPreservation — safeParse validation", () => {
       const userPath = join(dir, "user.json"); // does not exist
       const outPath = join(dir, "out.json");
 
-      await expect(mergeSettingsWithMcpPreservation(userPath, team, outPath)).resolves.toBeNull();
+      await expect(mergeSettings(userPath, team, outPath)).resolves.toBeNull();
 
       const out = JSON.parse(await Bun.file(outPath).text());
       expect(out.model).toBe("claude-opus-4-5");
     } finally {
       await cleanup(dir);
     }
+  });
+});
+
+describe("three-way defaults update (baselineSettings)", () => {
+  test("nested scalar still on the old default follows the changed team default", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { attribution: { commit: "c", pr: "p", sessionUrl: false } },
+    });
+    const team = { commit: "c", pr: "p", sessionUrl: true };
+    const user = { commit: "c", pr: "p", sessionUrl: false };
+    const result = await userWinsScalarStrategy("attribution", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).sessionUrl).toBe(true);
+    expect(ctx.accounting.defaultsUpdated).toBe(1);
+  });
+
+  test("nested scalar the user changed since the baseline stays the user's", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { attribution: { sessionUrl: false } },
+    });
+    const team = { sessionUrl: true };
+    const user = { sessionUrl: "never" };
+    const result = await userWinsScalarStrategy("attribution", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).sessionUrl).toBe("never");
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+
+  test("no baseline at the path → plain user-wins (fail open)", async () => {
+    const ctx = makeCtx({ baselineSettings: {} });
+    const result = await userWinsScalarStrategy("attribution", { x: 1 }, { x: 2 }, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).x).toBe(2);
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+
+  test("statusLine still exactly the shipped block follows the team, including new sub-keys", async () => {
+    const shipped = { type: "command", command: "bun x.ts" };
+    const ctx = makeCtx({ baselineSettings: { statusLine: shipped } });
+    const team = { type: "command", command: "bun x.ts", refreshInterval: 300 };
+    const result = await statusLineStrategy("statusLine", team, { ...shipped }, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect((result.value as Record<string, unknown>).refreshInterval).toBe(300);
+    expect(ctx.accounting.defaultsUpdated).toBe(1);
+  });
+
+  test("a customized statusLine is preserved unchanged", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { statusLine: { type: "command", command: "bun x.ts" } },
+    });
+    const custom = { type: "command", command: "my-own-statusline" };
+    const result = await statusLineStrategy(
+      "statusLine",
+      { type: "command", command: "bun x.ts", refreshInterval: 300 },
+      custom,
+      ctx,
+    );
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    expect(result.value).toEqual(custom);
+    expect(ctx.accounting.defaultsUpdated).toBe(0);
+  });
+});
+
+interface MergedPlugins {
+  enabledPlugins: Record<string, boolean>;
+  extraKnownMarketplaces: Record<string, { source: { repo: string; sha?: string } }>;
+}
+
+describe("team-owned marketplace entries across a rerun", () => {
+  const entry = (repo: string, sha?: string) => ({
+    source: { source: "github", repo, ...(sha ? { sha } : {}) },
+  });
+  const OWN = "darkroomengineering/cc-settings";
+  const X = "a".repeat(40);
+  const Y = "b".repeat(40);
+  const Z = "e".repeat(40);
+
+  async function rerun(user: object, team: object, baseline: object) {
+    const dir = await mkdtemp(join(tmpdir(), "mp-"));
+    try {
+      const path = join(dir, "settings.json");
+      await writeFile(path, JSON.stringify(user));
+      await mergeSettings(path, team as Record<string, unknown>, path, {
+        interactive: false,
+        baselineSettings: baseline as Record<string, unknown>,
+      });
+      return JSON.parse(await readFile(path, "utf8")) as MergedPlugins;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("a planted sha is replaced by the team value", async () => {
+    const out = await rerun(
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Z) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Y) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, X) } },
+    );
+    expect(out.extraKnownMarketplaces["cc-settings"]?.source.sha).toBe(Y);
+  });
+
+  test("a planted repo is replaced by the team value", async () => {
+    const out = await rerun(
+      { extraKnownMarketplaces: { "cc-settings": entry("evil/cc-settings", Z) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Y) } },
+      {},
+    );
+    expect(out.extraKnownMarketplaces["cc-settings"]?.source).toEqual(entry(OWN, Y).source);
+  });
+
+  test("a team entry without a sha drops a stale sha", async () => {
+    const out = await rerun(
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, X) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, X) } },
+    );
+    expect(out.extraKnownMarketplaces["cc-settings"]?.source.sha).toBeUndefined();
+  });
+
+  test("a marketplace the user added survives", async () => {
+    const mine = entry("me/market");
+    const out = await rerun(
+      { extraKnownMarketplaces: { mine, "cc-settings": entry(OWN, Z) } },
+      { extraKnownMarketplaces: { "cc-settings": entry(OWN, Y) } },
+      {},
+    );
+    expect(out.extraKnownMarketplaces.mine).toEqual(mine);
+  });
+
+  test("a planted enabledPlugins entry survives the rerun as user-owned", async () => {
+    const out = await rerun(
+      { enabledPlugins: { "evil@evil": true } },
+      { enabledPlugins: { "compaction-trigger@cc-settings": true } },
+      {},
+    );
+    expect(out.enabledPlugins["evil@evil"]).toBe(true);
+    expect(out.enabledPlugins["compaction-trigger@cc-settings"]).toBe(true);
   });
 });

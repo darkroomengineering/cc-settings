@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { computeDrift, readPackagedVersion, readSentinelInfo } from "../src/lib/version-delta.ts";
+import {
+  computeDrift,
+  readPackagedVersion,
+  readSentinelInfo,
+  refreshSessionInstallMap,
+  SESSION_MAP_CAP,
+} from "../src/lib/version-delta.ts";
 
 async function tmp(): Promise<string> {
   return mkdtemp(join(tmpdir(), "ccver-"));
@@ -36,7 +42,16 @@ describe("readSentinelInfo", () => {
   test("missing sentinel ⇒ nulls", async () => {
     const dir = await tmp();
     try {
-      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: null,
+        repoPath: null,
+        profile: null,
+        engine: null,
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: null,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -48,7 +63,66 @@ describe("readSentinelInfo", () => {
         join(dir, ".cc-settings-version"),
         JSON.stringify({ version: "11.12.0", repo_path: "/x/y", installer: "src/setup.ts" }),
       );
-      expect(await readSentinelInfo(dir)).toEqual({ version: "11.12.0", repoPath: "/x/y" });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "11.12.0",
+        repoPath: "/x/y",
+        profile: null,
+        engine: null,
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: null,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("reads engine when present", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({ version: "11.30.3", repo_path: "/x/y", engine: "native-ts" }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "11.30.3",
+        repoPath: "/x/y",
+        profile: null,
+        engine: "native-ts",
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: null,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("reads profile, engine ownership, and managed file hashes when present", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({
+          version: "12.9.0",
+          repo_path: "/x/y",
+          profile: "full",
+          engine: "native-ts",
+          engine_explicit: true,
+          mcp_written: { tldr: { command: "bun", args: ["a.ts"], serverInstructions: "x" } },
+          managed_files: { "agents/reviewer.md": "a".repeat(64) },
+        }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "12.9.0",
+        repoPath: "/x/y",
+        profile: "full",
+        engine: "native-ts",
+        engineExplicit: true,
+        mcpWritten: { tldr: { command: "bun", args: ["a.ts"], serverInstructions: "x" } },
+        managedFiles: { "agents/reviewer.md": "a".repeat(64) },
+        autoUpdate: null,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -57,7 +131,16 @@ describe("readSentinelInfo", () => {
     const dir = await tmp();
     try {
       await writeFile(join(dir, ".cc-settings-version"), JSON.stringify({ version: "11.0.0" }));
-      expect(await readSentinelInfo(dir)).toEqual({ version: "11.0.0", repoPath: null });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "11.0.0",
+        repoPath: null,
+        profile: null,
+        engine: null,
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: null,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -66,7 +149,65 @@ describe("readSentinelInfo", () => {
     const dir = await tmp();
     try {
       await writeFile(join(dir, ".cc-settings-version"), "{not json");
-      expect(await readSentinelInfo(dir)).toEqual({ version: null, repoPath: null });
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: null,
+        repoPath: null,
+        profile: null,
+        engine: null,
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: null,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("reads auto_update boolean when present", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({ version: "12.3.0", repo_path: "/x/y", auto_update: true }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "12.3.0",
+        repoPath: "/x/y",
+        profile: null,
+        engine: null,
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: true,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("invalid profile and managed_files shapes degrade independently", async () => {
+    const dir = await tmp();
+    try {
+      await writeFile(
+        join(dir, ".cc-settings-version"),
+        JSON.stringify({
+          version: "12.9.0",
+          repo_path: "/x/y",
+          profile: "custom",
+          managed_files: { "agents/reviewer.md": 42 },
+          auto_update: false,
+        }),
+      );
+      expect(await readSentinelInfo(dir)).toEqual({
+        version: "12.9.0",
+        repoPath: "/x/y",
+        profile: null,
+        engine: null,
+        engineExplicit: null,
+        mcpWritten: null,
+        managedFiles: null,
+        autoUpdate: false,
+      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -80,25 +221,50 @@ describe("readPackagedVersion", () => {
   test("deleted clone ⇒ null", async () => {
     expect(await readPackagedVersion("/no/such/repo/anywhere")).toBeNull();
   });
-  test("parses const VERSION from src/setup.ts", async () => {
+  test("parses version from .claude-plugin/plugin.json", async () => {
     const dir = await tmp();
     try {
-      await mkdir(join(dir, "src"), { recursive: true });
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
       await writeFile(
-        join(dir, "src", "setup.ts"),
-        'const VERSION = "12.0.3"; // sync with Claude Code\n',
+        join(dir, ".claude-plugin", "plugin.json"),
+        JSON.stringify({ name: "cc-settings", version: "12.0.3" }),
       );
       expect(await readPackagedVersion(dir)).toBe("12.0.3");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   });
-  test("returns null when constant absent", async () => {
+  test("returns null when version field absent", async () => {
     const dir = await tmp();
     try {
-      await mkdir(join(dir, "src"), { recursive: true });
-      await writeFile(join(dir, "src", "setup.ts"), "export const x = 1;\n");
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
+      await writeFile(join(dir, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "x" }));
       expect(await readPackagedVersion(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("returns null when manifest is malformed JSON", async () => {
+    const dir = await tmp();
+    try {
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
+      await writeFile(join(dir, ".claude-plugin", "plugin.json"), "{not json");
+      expect(await readPackagedVersion(dir)).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  test("returns null when version is not well-formed X.Y.Z", async () => {
+    const dir = await tmp();
+    try {
+      await mkdir(join(dir, ".claude-plugin"), { recursive: true });
+      for (const bad of ["1.2", "1.2.3-beta", "latest", "v1.2.3", ""]) {
+        await writeFile(
+          join(dir, ".claude-plugin", "plugin.json"),
+          JSON.stringify({ name: "cc-settings", version: bad }),
+        );
+        expect(await readPackagedVersion(dir)).toBeNull();
+      }
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -110,8 +276,11 @@ describe("end-to-end", () => {
     const claudeDir = await tmp();
     const repoDir = await tmp();
     try {
-      await mkdir(join(repoDir, "src"), { recursive: true });
-      await writeFile(join(repoDir, "src", "setup.ts"), 'const VERSION = "11.13.0";\n');
+      await mkdir(join(repoDir, ".claude-plugin"), { recursive: true });
+      await writeFile(
+        join(repoDir, ".claude-plugin", "plugin.json"),
+        JSON.stringify({ name: "cc-settings", version: "11.13.0" }),
+      );
       await writeFile(
         join(claudeDir, ".cc-settings-version"),
         JSON.stringify({ version: "11.12.0", repo_path: repoDir }),
@@ -127,5 +296,37 @@ describe("end-to-end", () => {
       await rm(claudeDir, { recursive: true, force: true });
       await rm(repoDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("refreshSessionInstallMap", () => {
+  test("records a new session at the given version", () => {
+    const out = refreshSessionInstallMap({}, "s1", "12.3.1", 1000);
+    expect(out).toEqual({ s1: { v: "12.3.1", t: 1000 } });
+  });
+
+  test("REFRESHES an existing entry — the resumed-session fix", () => {
+    // A resumed session keeps its session_id; the entry recorded days ago at
+    // an older version must be overwritten with the current install so the
+    // restart-pending banner clears after a restart.
+    const stale = { s1: { v: "12.2.6", t: 1 } };
+    const out = refreshSessionInstallMap(stale, "s1", "12.3.1", 2000);
+    expect(out).toEqual({ s1: { v: "12.3.1", t: 2000 } });
+  });
+
+  test("prunes to SESSION_MAP_CAP most recent entries, keeping the refreshed one", () => {
+    const map: Record<string, { v: string; t: number }> = {};
+    for (let i = 0; i < SESSION_MAP_CAP + 5; i++) map[`s${i}`] = { v: "12.3.0", t: i };
+    const out = refreshSessionInstallMap(map, "fresh", "12.3.1", 10_000);
+    expect(Object.keys(out).length).toBe(SESSION_MAP_CAP);
+    expect(out.fresh).toEqual({ v: "12.3.1", t: 10_000 });
+    // Oldest entries were dropped.
+    expect(out.s0).toBeUndefined();
+  });
+
+  test("does not mutate the input map", () => {
+    const input = { s1: { v: "12.2.6", t: 1 } };
+    refreshSessionInstallMap(input, "s1", "12.3.1", 2000);
+    expect(input.s1.v).toBe("12.2.6");
   });
 });

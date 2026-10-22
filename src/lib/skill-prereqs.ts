@@ -5,16 +5,16 @@
 //
 // Two requirement kinds (mutually exclusive per entry):
 //   command — a CLI that must be on PATH (checked with Bun.which via hasCommand)
-//   mcp     — an MCP server that must be registered in ~/.claude.json or in the
-//             team mcpServers config
+//   mcp     — an MCP server that must be registered in ~/.claude.json; a list
+//             of names is satisfied by any one of them
+// An entry with `optional: true` is skipped: the skill runs without it.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { type SkillFrontmatter, SkillFrontmatter as SkillSchema } from "../schemas/skill.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
-import { CLAUDE_DIR, hasCommand } from "./platform.ts";
+import { hasCommand, installPaths } from "./platform.ts";
 
 export interface MissingPrereq {
   kind: "command" | "mcp";
@@ -49,13 +49,19 @@ export async function readAllSkillFrontmatters(
 }
 
 /**
- * Read the union of MCP servers configured for this user — both the team-shipped
- * config (settings.json) and the user-personal store (~/.claude.json). Returns
- * a Set of server names.
+ * Read the MCP servers configured for this user, from ~/.claude.json — the only
+ * file Claude Code loads user-scope servers from. settings.json is deliberately
+ * NOT consulted: a block there is inert (see src/lib/mcp.ts's header), so
+ * counting it would suppress a "prerequisite missing" warning for a server that
+ * cannot actually load. Returns a Set of server names.
  */
-export async function readConfiguredMcpServers(claudeDir?: string): Promise<Set<string>> {
-  const dir = claudeDir ?? CLAUDE_DIR;
-  const sources = [join(dir, "settings.json"), join(homedir(), ".claude.json")];
+export async function readConfiguredMcpServers(
+  // Names the file it actually reads. Previously took a `claudeDir` and read
+  // settings.json from it PLUS ~/.claude.json from the real host — so a caller
+  // passing a fixture got host state mixed in (same defect as nuclear-review F3).
+  claudeJsonPath: string = installPaths().claudeJsonPath,
+): Promise<Set<string>> {
+  const sources = [claudeJsonPath];
   const names = new Set<string>();
   for (const path of sources) {
     if (!existsSync(path)) continue;
@@ -82,13 +88,17 @@ export function checkSkillRequirements(
   if (!requires) return [];
   const missing: MissingPrereq[] = [];
   for (const req of requires) {
+    // An optional prerequisite is documentation for the skill's fallback path,
+    // never an install warning.
+    if (req.optional) continue;
     if ("command" in req) {
       if (!hasCommand(req.command)) {
         missing.push({ kind: "command", name: req.command, install: req.install });
       }
     } else if ("mcp" in req) {
-      if (!configuredMcps.has(req.mcp)) {
-        missing.push({ kind: "mcp", name: req.mcp, install: req.install });
+      const names = Array.isArray(req.mcp) ? req.mcp : [req.mcp];
+      if (!names.some((name) => configuredMcps.has(name))) {
+        missing.push({ kind: "mcp", name: names.join(" or "), install: req.install });
       }
     }
   }
@@ -102,11 +112,11 @@ export function checkSkillRequirements(
  */
 export async function reportMissingPrereqs(
   skillsDir: string,
-  claudeDir?: string,
+  claudeJsonPath?: string,
 ): Promise<SkillPrereqReport[]> {
   const [skills, mcps] = await Promise.all([
     readAllSkillFrontmatters(skillsDir),
-    readConfiguredMcpServers(claudeDir),
+    readConfiguredMcpServers(claudeJsonPath),
   ]);
   const reports: SkillPrereqReport[] = [];
   for (const { name, frontmatter } of skills) {

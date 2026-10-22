@@ -2,17 +2,17 @@
 // and that the happy-path passes cleanly.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   formatKnowledgeFindings,
   hasKnowledgeErrors,
   lintKnowledgeDir,
 } from "../src/lib/lint-knowledge.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-lint-knowledge-"));
+  return makeSandbox("cc-lint-knowledge");
 }
 
 async function writeNote(root: string, filename: string, body: string): Promise<void> {
@@ -23,6 +23,7 @@ const goodNote = (name: string) =>
   `---
 name: ${name}
 kind: convention
+summary: "A one-line statement of the convention."
 added-by: test-user
 ---
 
@@ -97,6 +98,7 @@ describe("lintKnowledgeDir — missing/invalid kind", () => {
         "bad-note.md",
         `---
 name: bad-note
+summary: "Fixture summary."
 added-by: test-user
 ---
 
@@ -119,6 +121,7 @@ Some body content here.
         "bad-kind.md",
         `---
 name: bad-kind
+summary: "Fixture summary."
 kind: unknown-type
 added-by: test-user
 ---
@@ -158,6 +161,7 @@ describe("lintKnowledgeDir — non-kebab name", () => {
         "BadName.md",
         `---
 name: BadName
+summary: "Fixture summary."
 kind: pattern
 added-by: test-user
 ---
@@ -182,6 +186,7 @@ Body content.
         "bad_name.md",
         `---
 name: bad_name
+summary: "Fixture summary."
 kind: gotcha
 added-by: test-user
 ---
@@ -206,6 +211,7 @@ describe("lintKnowledgeDir — empty body", () => {
         "empty-body.md",
         `---
 name: empty-body
+summary: "Fixture summary."
 kind: decision
 added-by: test-user
 ---
@@ -227,6 +233,7 @@ added-by: test-user
         "ws-body.md",
         `---
 name: ws-body
+summary: "Fixture summary."
 kind: incident
 added-by: test-user
 ---
@@ -253,6 +260,7 @@ describe("lintKnowledgeDir — angle brackets in body are allowed", () => {
         `---
 name: angle-note
 kind: convention
+summary: "Angle brackets are fine in note bodies."
 added-by: test-user
 ---
 
@@ -278,6 +286,7 @@ describe("lintKnowledgeDir — supersedes warning", () => {
         `---
 name: new-note
 kind: convention
+summary: "Replaces an older convention."
 added-by: test-user
 supersedes: old-note
 ---
@@ -306,6 +315,7 @@ Body content here explaining the change.
         `---
 name: new-convention
 kind: convention
+summary: "Replaces the old convention."
 added-by: test-user
 supersedes: old-convention
 ---
@@ -344,6 +354,7 @@ describe("lintKnowledgeDir — missing added-by", () => {
         "no-author.md",
         `---
 name: no-author
+summary: "Fixture summary."
 kind: decision
 ---
 
@@ -356,6 +367,147 @@ Body content here.
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("lintKnowledgeDir — summary", () => {
+  const withSummary = (name: string, summaryLine: string) =>
+    `---
+name: ${name}
+kind: gotcha
+${summaryLine}
+added-by: test-user
+---
+
+Body content here.
+`;
+
+  const lint = async (summaryLine: string) => {
+    const dir = await sandbox();
+    try {
+      await writeNote(dir, "s-note.md", withSummary("s-note", summaryLine));
+      return await lintKnowledgeDir(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  test("missing summary → schema error", async () => {
+    const result = await lint("");
+    expect(hasKnowledgeErrors(result)).toBe(true);
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("empty summary → schema error", async () => {
+    const result = await lint('summary: ""');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("summary over 160 chars → schema error", async () => {
+    const result = await lint(`summary: "${"x".repeat(161)}"`);
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("summary with the INDEX.md tag separator → schema error", async () => {
+    const result = await lint('summary: "Do this · not that"');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("summary")),
+    ).toBe(true);
+  });
+
+  test("summary of exactly 160 chars passes", async () => {
+    const result = await lint(`summary: "${"x".repeat(160)}"`);
+    expect(result.findings).toEqual([]);
+  });
+});
+
+describe("lintKnowledgeDir — scope and verified", () => {
+  const lint = async (extraLine: string) => {
+    const dir = await sandbox();
+    try {
+      await writeNote(
+        dir,
+        "f-note.md",
+        `---\nname: f-note\nkind: gotcha\nsummary: "A rule."\n${extraLine}\nadded-by: test-user\n---\n\nBody content here.\n`,
+      );
+      return await lintKnowledgeDir(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+  const daysAgo = (days: number) =>
+    new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
+  test("valid scope and recent verified date pass", async () => {
+    const result = await lint(`scope: [programa, satus]\nverified: "${daysAgo(10)}"`);
+    expect(result.findings).toEqual([]);
+  });
+
+  test("unquoted verified date passes", async () => {
+    const result = await lint(`verified: ${daysAgo(10)}`);
+    expect(result.findings).toEqual([]);
+  });
+
+  test("scope entry that is not a repo name → schema error", async () => {
+    const result = await lint("scope: [Programa]");
+    expect(result.findings.some((f) => f.rule === "schema" && f.message.startsWith("scope"))).toBe(
+      true,
+    );
+  });
+
+  test("empty scope list → schema error", async () => {
+    const result = await lint("scope: []");
+    expect(result.findings.some((f) => f.rule === "schema" && f.message.startsWith("scope"))).toBe(
+      true,
+    );
+  });
+
+  test("verified not in YYYY-MM-DD form → schema error", async () => {
+    const result = await lint('verified: "Sept 2026"');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("verified")),
+    ).toBe(true);
+  });
+
+  test("verified with an impossible month → error", async () => {
+    const result = await lint('verified: "2026-13-01"');
+    expect(result.findings.some((f) => f.rule === "verified-invalid")).toBe(true);
+  });
+
+  test("verified on a day the month does not have → error", async () => {
+    const result = await lint('verified: "2026-02-30"');
+    expect(result.findings.some((f) => f.rule === "verified-invalid")).toBe(true);
+  });
+
+  test("verified in the future → error", async () => {
+    const result = await lint(`verified: "${daysAgo(-30)}"`);
+    expect(result.findings.some((f) => f.rule === "verified-future")).toBe(true);
+  });
+
+  test("retire_when condition passes", async () => {
+    const result = await lint('retire_when: "Next.js 17 ships the fix"');
+    expect(result.findings).toEqual([]);
+  });
+
+  test("empty retire_when → schema error", async () => {
+    const result = await lint('retire_when: ""');
+    expect(
+      result.findings.some((f) => f.rule === "schema" && f.message.startsWith("retire_when")),
+    ).toBe(true);
+  });
+
+  test("verified older than 180 days → warning only", async () => {
+    const result = await lint(`verified: "${daysAgo(200)}"`);
+    expect(result.findings.map((f) => [f.rule, f.severity])).toEqual([
+      ["verified-stale", "warning"],
+    ]);
+    expect(hasKnowledgeErrors(result)).toBe(false);
   });
 });
 

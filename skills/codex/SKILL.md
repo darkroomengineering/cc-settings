@@ -1,10 +1,24 @@
 ---
 name: codex
-description: Claude x Codex bridge — delegate mechanical or bulk implementation to the OpenAI Codex CLI, get an independent cross-model review of the current uncommitted diff, or ask Codex a read-only second-opinion question. Triggers "use codex", "have codex do", "have codex review", "have codex check", "codex exec", "second opinion from codex", "cross-check with codex", "delegate to codex", "ask codex". Use when you want a different model family to verify your own diff, parallelize bulk work, or get a fast read-only opinion without spending Claude turns.
+argument-hint: "[exec|review|ask] [task]"
+description: Claude-to-Codex bridge to delegate bulk mechanical work, get an independent cross-model diff review, or ask a read-only question. Triggers only when the user names Codex, as in "use codex", "have codex review", "cross-check with codex", "ask codex".
 context: main
 ---
 
 # Codex Bridge
+
+## Standalone Codex
+
+If the active host is already standalone Codex, stop before any bridge command.
+Never recursively invoke `codex-run.ts` or launch the Codex CLI from inside
+Codex; the script refuses when it detects a Codex session. Do the requested task
+locally with native tools. When the user asks for an independent review, spawn
+`claude-verifier` (a Claude model through the read-only `claude-run.ts` bridge)
+or a fresh native `reviewer`; do not spawn `codex-verifier`.
+
+Everything below is the Claude-only bridge workflow.
+
+## Claude-only bridge
 
 Invoke the OpenAI Codex CLI from inside a Claude session. Three subcommands map to three distinct use cases.
 
@@ -32,6 +46,14 @@ Runs Codex in a `workspace-write` sandbox. Use this when a task is:
 
 **Quota routing**: Codex is metered by messages per ~5-hour window, not by tokens. Hand it one big complete task, not a sequence of small steps. A single `exec` call for a whole feature costs the same quota as one `exec` call for a single file.
 
+**Write the task as an outcome, not a recipe.** The script wraps every `exec` task in a completion contract (run the repo's local checks, fix what the change broke, do not stop after a first implementation, leave changes uncommitted, report what was verified). Codex returns that report as JSON, and the script prints `ready: yes|no` after checking it against the working tree; read that line before reviewing the diff. Pass `--expected <minutes>` to have a silent worker killed and reported as stalled at 3x that. GPT-6 Astra stops early when done is undefined and over-follows step lists, so the task itself must say:
+
+- the end state that means done (which behavior holds, which files or surfaces are covered);
+- where to stop exploring, if the task is open-ended;
+- any decision Codex must bring back instead of making (leave everything else to its judgment).
+
+Do not add "ask before X" language for reversible in-scope work; the sandbox already bounds the blast radius, and Astra reads such language as a reason to stop.
+
 After `exec` returns, ALWAYS review Codex's diff before trusting it:
 
 ```bash
@@ -50,9 +72,34 @@ bun run proof
 bun "$HOME/.claude/src/scripts/codex-run.ts" review
 ```
 
-Runs in a `read-only` sandbox. Codex reads the repo itself (`git diff`, `git status`) and reports findings by severity (HIGH / MEDIUM / LOW), covering correctness bugs, security issues, and obvious quality problems.
+Runs in a `read-only` sandbox. The prompt names the diff under review and the review contract (behavior and risk only, findings by HIGH / MEDIUM / LOW with file, line range, and fix). Codex decides how to inspect the repository.
 
 Use this after you have finished a diff and want a second opinion from a different model family. Codex and Claude have different blind spots — cross-model review catches what Opus self-review misses. This is the primary reason to prefer `review` over asking Claude to review its own output.
+
+**Scope presets** — mirrors Codex's own `/review` presets (base-branch / uncommitted / commit / custom). Default with no flags is the uncommitted working-tree diff. Flags are mutually exclusive:
+
+```bash
+# Default: review the current uncommitted diff (git diff + git diff --cached)
+bun "$HOME/.claude/src/scripts/codex-run.ts" review
+
+# Only the staged diff
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --staged
+
+# Diff against a base branch (merge-base...HEAD)
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --base main
+
+# A single commit
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --commit abc1234
+```
+
+Codex's fourth preset ("custom instructions") is covered by `ask` above rather than a review flag.
+
+**Model routing**: no model is pinned. Every subcommand runs on Codex's own configured default, so a newer Codex CLI brings newer models. Pin one per call with `--model <id>` before the task text, or per session with `CODEX_EXEC_MODEL`, `CODEX_REVIEW_MODEL`, `CODEX_ASK_MODEL`.
+
+```bash
+bun "$HOME/.claude/src/scripts/codex-run.ts" review --model <id> --base main
+bun "$HOME/.claude/src/scripts/codex-run.ts" exec --model <id> "..."
+```
 
 ### ask -- read-only second opinion
 
@@ -66,10 +113,9 @@ Runs in a `read-only` sandbox. Use for quick factual questions, architecture opi
 
 ## Quota and cost guidance
 
-- Codex is on a Pro-class plan metered by messages per ~5-hour window (not by tokens). Prefer FEW LARGE calls over many small ones.
-- Batch work: give `exec` a whole feature or module, not one function at a time.
-- `review` and `ask` are read-only and cheap — use them freely as a cross-check.
-- If the script reports the bridge is unavailable (not installed, not logged in, or rate-limited), continue Claude-only. Do not block the session.
+- `review` and `ask` are read-only and cheap — use them freely as a cross-check; `exec` follows the quota routing above.
+- If the bridge is unavailable (the script is missing, Codex is not installed or not logged in, or it is rate-limited), do the delegated task yourself, Claude-only, without asking which fallback to use. Say once that Codex was unavailable. Do not block the session.
+- Routing policy comes from the `quota-steer` and `codex-verify` hooks (see "Claude and Codex routing" in `~/.claude/CLAUDE.md`); when either injects a reminder, prefer `exec`/`review` here over spawning Claude subagents.
 
 ---
 
@@ -82,5 +128,3 @@ The script handles all availability states gracefully. On failure it prints guid
 - `no-access` -- plan entitlement issue; try `codex logout && codex login`
 - `rate-limited` -- usage window exhausted; retry after the ~5-hour reset
 - `unknown` -- one-off error; safe to retry
-
-When any of these fire, Claude continues without Codex. The bridge is an enhancement, not a dependency.

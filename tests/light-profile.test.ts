@@ -1,32 +1,20 @@
 // Parity guard + transform unit tests for the light profile.
 //
 // Purpose:
-//   1. PARITY GUARD — share-learning skill must exist on disk.
+//   1. PARITY GUARD — LIGHT_SKILLS stays a subset of MANAGED_SKILLS.
 //   2. TRANSFORM UNITS — applyLightProfile() keeps only $schema + statusLine.
 //   3. STRIP UNITS — stripManagedSettings() removes cc-settings footprint and
 //      preserves genuinely user-authored content.
 
 import { describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { applyLightProfile, LIGHT_SKILLS, stripManagedSettings } from "../src/lib/light-profile.ts";
 import { MANAGED_SKILLS } from "../src/lib/managed-skills.ts";
 
-const REPO = resolve(import.meta.dir, "..");
-
 // ---------------------------------------------------------------------------
-// 1. PARITY GUARD — disk existence checks
+// 1. PARITY GUARD — light skills are managed skills
 // ---------------------------------------------------------------------------
 
 describe("light-profile parity guard", () => {
-  test("LIGHT_SKILLS = ['share-learning'] only", () => {
-    expect(LIGHT_SKILLS).toEqual(["share-learning"]);
-  });
-
-  test("share-learning folder exists in skills/", () => {
-    expect(existsSync(join(REPO, "skills", "share-learning"))).toBe(true);
-  });
-
   test("every LIGHT_SKILLS entry is in MANAGED_SKILLS", () => {
     const managed = new Set(MANAGED_SKILLS);
     for (const skill of LIGHT_SKILLS) {
@@ -88,31 +76,6 @@ describe("applyLightProfile transform", () => {
     const input = buildFakeSettings();
     const result = applyLightProfile(input);
     expect(result.statusLine).toEqual((input as Record<string, unknown>).statusLine);
-  });
-
-  test("env is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("env" in result).toBe(false);
-  });
-
-  test("mcpServers is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("mcpServers" in result).toBe(false);
-  });
-
-  test("hooks is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("hooks" in result).toBe(false);
-  });
-
-  test("permissions is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("permissions" in result).toBe(false);
-  });
-
-  test("model is dropped", () => {
-    const result = applyLightProfile(buildFakeSettings());
-    expect("model" in result).toBe(false);
   });
 
   test("works when $schema absent", () => {
@@ -418,6 +381,52 @@ describe("stripManagedSettings", () => {
     expect("hooks" in result).toBe(false);
   });
 
+  test("mixed hook group (user hook + cc-settings hook in the SAME group) drops only the managed command", () => {
+    // M10 scenario: user manually added their own hook into the same matcher
+    // group as a cc-settings script. Neither whole-group identity (differs
+    // from the full baseline) nor an all-managed check (one hook isn't
+    // managed) should let the cc-settings hook survive — it must be filtered
+    // out at the individual-command level while the user's hook stays.
+    const user: Record<string, unknown> = {
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            hooks: [
+              { type: "command", command: 'bun "$HOME/.claude/src/hooks/safety-net.ts"' },
+              { type: "command", command: "my-custom-hook --arg" },
+            ],
+          },
+        ],
+      },
+    };
+    const result = stripManagedSettings(user, buildFull());
+    const hooks = result.hooks as Record<string, Array<{ hooks?: Array<{ command?: string }> }>>;
+    const commands = (hooks.PreToolUse ?? []).flatMap((g) =>
+      (g.hooks ?? []).map((h) => h.command ?? ""),
+    );
+    expect(commands.some((c) => c.includes("safety-net.ts"))).toBe(false);
+    expect(commands.some((c) => c.includes("my-custom-hook"))).toBe(true);
+  });
+
+  test("hook group identity ignores Claude-Code field-order rewrites (canonicalKey)", () => {
+    // Same content as the full baseline's PreToolUse group but with hook-object
+    // keys reordered (as Claude Code is documented to rewrite) — must still be
+    // recognized as cc-settings-managed and dropped, not kept as a "user" group.
+    const user: Record<string, unknown> = {
+      hooks: {
+        PreToolUse: [
+          {
+            hooks: [{ command: 'bun "$HOME/.claude/src/hooks/safety-net.ts"', type: "command" }],
+            matcher: "Bash",
+          },
+        ],
+      },
+    };
+    const result = stripManagedSettings(user, buildFull());
+    expect("hooks" in result).toBe(false);
+  });
+
   test("user env key with different value from full is preserved", () => {
     const user: Record<string, unknown> = {
       env: { CLAUDE_CODE_EFFORT_LEVEL: "max" }, // user overrode to max
@@ -429,5 +438,45 @@ describe("stripManagedSettings", () => {
     const env = result.env as Record<string, unknown>;
     // Value differs from full → preserve
     expect(env.CLAUDE_CODE_EFFORT_LEVEL).toBe("max");
+  });
+
+  test("env key the previous install shipped but full dropped is stripped", () => {
+    const user: Record<string, unknown> = {
+      env: { CLAUDE_CODE_EFFORT_LEVEL: "medium", MY_VAR: "1" },
+    };
+    const full: Record<string, unknown> = { env: {} };
+    const previous: Record<string, unknown> = { env: { CLAUDE_CODE_EFFORT_LEVEL: "medium" } };
+    const result = stripManagedSettings(user, full, previous);
+    expect(result.env).toEqual({ MY_VAR: "1" });
+  });
+
+  test("env key the user changed since the previous install is preserved", () => {
+    const user: Record<string, unknown> = { env: { CLAUDE_CODE_EFFORT_LEVEL: "high" } };
+    const previous: Record<string, unknown> = { env: { CLAUDE_CODE_EFFORT_LEVEL: "medium" } };
+    const result = stripManagedSettings(user, { env: {} }, previous);
+    expect((result.env as Record<string, unknown>).CLAUDE_CODE_EFFORT_LEVEL).toBe("high");
+  });
+
+  describe("retired plansDirectory default", () => {
+    const full = { model: "m" };
+    test("a leftover ./plans is dropped, with or without a baseline that shipped it", () => {
+      expect("plansDirectory" in stripManagedSettings({ plansDirectory: "./plans" }, full)).toBe(
+        false,
+      );
+      expect(
+        "plansDirectory" in
+          stripManagedSettings({ plansDirectory: "./plans" }, full, { plansDirectory: "./plans" }),
+      ).toBe(false);
+    });
+    test("another value is the user's and stays", () => {
+      const out = stripManagedSettings({ plansDirectory: "./docs/plans" }, full, {
+        plansDirectory: "./plans",
+      });
+      expect(out.plansDirectory).toBe("./docs/plans");
+    });
+    test("./plans typed by hand after a baseline without the key stays", () => {
+      const out = stripManagedSettings({ plansDirectory: "./plans" }, full, { model: "m" });
+      expect(out.plansDirectory).toBe("./plans");
+    });
   });
 });

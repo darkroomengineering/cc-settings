@@ -1,14 +1,21 @@
 // Install display helpers — extracted from src/setup.ts (§1.1).
 //
 // Pure output rendering: countEntries, showSummary, cmdDryRun, printStatus.
-// No coupling to install execution; import them from setup.ts's install phases.
+// No coupling to install execution; import them from setup.ts's install
+// phases. Exception: PLUGIN_INSTALL_COMMANDS/UPSTREAM_PINNED_SHA from
+// claude-install-settings.ts are inert data (a command list and a SHA
+// string, never a function that touches disk or the network) — cmdDryRun
+// prints them so its --dry-run report can't drift from what installPlugins
+// actually runs, without a second hand-maintained copy of the command list.
 
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { PLUGIN_INSTALL_COMMANDS, UPSTREAM_PINNED_SHA } from "./claude-install-settings.ts";
 import { boxEnd, boxLine, boxStart, palette, success, warn } from "./colors.ts";
 import { readJsonOrNull } from "./json-io.ts";
 import { LIGHT_SKILLS, PROFILE_MANIFEST } from "./light-profile.ts";
+import { ACTIVE_SKILLS } from "./managed-skills.ts";
 import { CLAUDE_JSON_PATH } from "./mcp.ts";
 import { CLAUDE_DIR } from "./platform.ts";
 import type { StatusData } from "./status-types.ts";
@@ -28,17 +35,27 @@ export async function countEntries(full: string, pattern: RegExp): Promise<numbe
 }
 
 /**
- * Count installed skills. Unlike the other manifest dirs (flat `*.md` files),
- * skills are subdirectories each holding a `SKILL.md`, so a `/\.md$/` match on
- * the top level only ever finds `README.md` and reports 1. Count subdirs that
- * actually contain a `SKILL.md` instead.
+ * Count skills cc-settings installed. Unlike the other manifest dirs (flat
+ * `*.md` files), skills are subdirectories each holding a `SKILL.md`, so a
+ * `/\.md$/` match on the top level only ever finds `README.md` and reports 1.
+ *
+ * Restricted to ACTIVE_SKILLS because ~/.claude/skills/ is shared: plugin and
+ * third-party skills live there too and are deliberately left alone by the
+ * installer. Counting every subdir made the summary claim credit for those —
+ * a box reading "skills/ (41)" under the heading "Installed" when cc-settings
+ * had installed 39. Tombstones are excluded for the same reason from the other
+ * direction: MANAGED_SKILLS includes retired names the installer DELETES, and
+ * counting a directory it just removed would be worse than counting one it
+ * never wrote.
  */
 export async function countSkillDirs(full: string): Promise<number> {
   if (!existsSync(full)) return 0;
   try {
+    const active = new Set<string>(ACTIVE_SKILLS);
     const entries = await readdir(full, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory() && existsSync(join(full, e.name, "SKILL.md")))
-      .length;
+    return entries.filter(
+      (e) => e.isDirectory() && active.has(e.name) && existsSync(join(full, e.name, "SKILL.md")),
+    ).length;
   } catch {
     return 0;
   }
@@ -59,7 +76,11 @@ export async function countEntriesRecursive(full: string, pattern: RegExp): Prom
   }
 }
 
-export async function showSummary(profile: "full" | "light"): Promise<void> {
+export async function showSummary(
+  profile: "full" | "light",
+  sourceDir?: string,
+  mcpOverridden: readonly string[] = [],
+): Promise<void> {
   const profileLabel = profile === "light" ? " [light]" : "";
   console.log("");
   boxStart(`Installed${profileLabel}`);
@@ -112,36 +133,111 @@ export async function showSummary(profile: "full" | "light"): Promise<void> {
   }
 
   const claudeJson = (await readJsonOrNull(CLAUDE_JSON_PATH)) as {
-    mcpServers?: Record<string, { _status?: unknown }>;
+    mcpServers?: Record<string, unknown>;
   } | null;
-  const servers = Object.entries(claudeJson?.mcpServers ?? {});
-  if (servers.length > 0) {
+  const installed = Object.keys(claudeJson?.mcpServers ?? {});
+  if (installed.length > 0) {
     console.log("");
     console.log(`${palette.bold}MCP servers in ~/.claude.json:${palette.reset}`);
-    // Group by `_status` annotation. Servers without a status are listed as
-    // "user-added" — they came from the user's machine, not the team config.
-    const core: string[] = [];
-    const optional: string[] = [];
-    const userAdded: string[] = [];
-    for (const [name, server] of servers) {
-      const status = (server as { _status?: unknown })._status;
-      if (status === "core") core.push(name);
-      else if (status === "optional") optional.push(name);
-      else userAdded.push(name);
-    }
-    if (core.length > 0) {
-      console.log(`  ${palette.dim}core:${palette.reset}`);
-      for (const s of core) console.log(`    - ${s}`);
-    }
-    if (optional.length > 0) {
-      console.log(`  ${palette.dim}optional (manually added):${palette.reset}`);
-      for (const s of optional) console.log(`    - ${s}`);
+    // Classified against what cc-settings actually ships (config/20-mcp.json),
+    // NOT against a `_status` key on the installed entry. The composer strips
+    // `_status`/`_comment` to keep settings.json schema-clean, so no server we
+    // write carries one — reading it back only ever found residue from a
+    // pre-strip install, which left every currently-shipped server (tldr,
+    // context7) mislabelled as "user-added".
+    const shipped = profile === "light" ? new Set<string>() : await readShippedMcpNames(sourceDir);
+    const { managed, userAdded } = classifyMcpServers(installed, shipped);
+    const overridden = new Set(mcpOverridden);
+    if (managed.length > 0) {
+      console.log(`  ${palette.dim}cc-settings:${palette.reset}`);
+      // Shipping a server and running our definition of it are different facts.
+      // Marking the gap is what makes a stale local copy visible instead of
+      // silently outliving install after install.
+      for (const s of managed) {
+        console.log(
+          overridden.has(s)
+            ? `    - ${s} ${palette.dim}(your copy is in use — cc-settings' version not applied)${palette.reset}`
+            : `    - ${s}`,
+        );
+      }
     }
     if (userAdded.length > 0) {
       console.log(`  ${palette.dim}user-added:${palette.reset}`);
       for (const s of userAdded) console.log(`    - ${s}`);
     }
+    if (shouldHintContext7(managed, overridden)) {
+      console.log("");
+      console.log(
+        `  ${palette.dim}context7 is running keyless (lower rate limits).${palette.reset}`,
+      );
+      console.log(
+        `  ${palette.dim}Higher limits + private repos:${palette.reset} bunx ctx7 setup --claude --mcp`,
+      );
+      console.log(`  ${palette.dim}Free key: context7.com/dashboard${palette.reset}`);
+    }
   }
+}
+
+/**
+ * Names of the MCP servers cc-settings ships, read from the source fragment the
+ * installer composes into settings.json. This is the only authority on "ours vs
+ * theirs" — the installed entries carry no marker of their own.
+ *
+ * Returns an empty set when `sourceDir` is unknown or the fragment is missing,
+ * which degrades to listing everything as user-added rather than guessing.
+ */
+export async function readShippedMcpNames(sourceDir?: string): Promise<Set<string>> {
+  if (!sourceDir) return new Set();
+  const fragment = (await readJsonOrNull(join(sourceDir, "config", "20-mcp.json"))) as {
+    mcpServers?: Record<string, unknown>;
+  } | null;
+  return new Set(Object.keys(fragment?.mcpServers ?? {}));
+}
+
+/**
+ * Whether to nudge the user toward a context7 API key.
+ *
+ * cc-settings ships context7 as the keyless stdio transport, which context7
+ * documents as the lower tier ("higher rate limits and private repositories"
+ * come with a free key). Nothing else tells anyone the better tier exists, so
+ * without this every install silently sits on the worse one.
+ *
+ * True only when OUR entry is the one actually running: context7 is a managed
+ * server AND the user hasn't shadowed it with their own definition. On the
+ * light profile `managed` is empty, so it stays silent with no special case.
+ *
+ * Deliberately narrower than "has no API key". Any user-supplied context7 entry
+ * silences this, including a hand-written keyless one — we do not inspect the
+ * entry for auth markers, because the auth shape is context7's to define (their
+ * README documents `Authorization: Bearer`; a real config in the wild used a
+ * `CONTEXT7_API_KEY` header) and sniffing for it would make us the third party
+ * guessing at a contract we don't own. The target is the default nobody chose,
+ * not every keyless setup: someone who wrote their own entry has already
+ * thought about context7 and doesn't need the nudge.
+ *
+ * Pure so it can be unit-tested without a TTY or a filesystem — same discipline
+ * as `decideAutoUpdate`. cc-settings never reads, writes, or prints a key; the
+ * hint points at `ctx7 setup`, which owns the OAuth and the auth contract.
+ */
+export function shouldHintContext7(
+  managed: readonly string[],
+  overridden: ReadonlySet<string>,
+): boolean {
+  return managed.includes("context7") && !overridden.has("context7");
+}
+
+/** Split installed server names into cc-settings-managed and user-added. */
+export function classifyMcpServers(
+  installed: readonly string[],
+  shipped: ReadonlySet<string>,
+): { managed: string[]; userAdded: string[] } {
+  const managed: string[] = [];
+  const userAdded: string[] = [];
+  for (const name of installed) {
+    if (shipped.has(name)) managed.push(name);
+    else userAdded.push(name);
+  }
+  return { managed, userAdded };
 }
 
 export async function cmdDryRun(
@@ -159,7 +255,10 @@ export async function cmdDryRun(
     console.log("Would install (light = raw Claude Code + statusLine + share-learning):");
     const items: Array<[string, string]> = [
       ...LIGHT_SKILLS.map((s): [string, string] => [`skills/${s}/`, `→ ~/.claude/skills/${s}/`]),
-      ["src/", "→ ~/.claude/src/ (all TS)"],
+      [
+        "src/",
+        "→ ~/.claude/src/ (all TS + self-contained production dependencies; no source symlink)",
+      ],
       ["config/", "→ ~/.claude/settings.json ($schema + statusLine only)"],
     ];
     for (const [rel, effect] of items) {
@@ -179,14 +278,35 @@ export async function cmdDryRun(
         src,
         `→ ~/.claude/${dest}`,
       ]),
-      ["config/", "→ ~/.claude/settings.json (composed + MCP-merged)"],
-      ["src/", "→ ~/.claude/src/ (all TS)"],
+      ["config/", "→ ~/.claude/settings.json (composed); MCP block → ~/.claude.json"],
+      [
+        "src/",
+        "→ ~/.claude/src/ (all TS + self-contained production dependencies; no source symlink)",
+      ],
       ...PROFILE_MANIFEST.full.dirs.map((d): [string, string] => [`${d}/`, `→ ~/.claude/${d}/`]),
     ];
     for (const [rel, effect] of items) {
       const mark = existsSync(join(source, rel)) ? "✓" : " ";
       console.log(`  ${mark} ${rel.padEnd(22)} ${effect}`);
     }
+
+    // Plugins (installPlugins in claude-install-settings.ts) — same command
+    // list, so this can't drift from what a real install actually runs.
+    // Skipped only for the light profile, so print it here alongside the
+    // full-profile file table.
+    console.log("");
+    console.log(
+      `Would run (skipped if claude is not on PATH, or CC_SETTINGS_SKIP_PLUGIN_INSTALL=1):`,
+    );
+    for (const args of PLUGIN_INSTALL_COMMANDS) {
+      console.log(`  claude ${args.join(" ")}`);
+    }
+    console.log(
+      "  with --typesafe-key=<key> (or the interactive prompt): --config apiKey=<redacted>, and TYPESAFE_API_KEY written to settings.json env",
+    );
+    console.log(
+      `  Plugins: fast-jev-compaction (declared sha ${UPSTREAM_PINNED_SHA.slice(0, 7)}), compaction-trigger, context-report, drift-fuse`,
+    );
   }
 
   console.log("");
@@ -259,6 +379,16 @@ export function printStatus(data: StatusData): void {
   console.log(
     `  configured: ${servers.length}${servers.length > 0 ? `  (${servers.join(", ")})` : ""}`,
   );
+
+  if (data.autoUpdate) {
+    const { enrolled, plistPresent, lastRun } = data.autoUpdate;
+    console.log("");
+    console.log("Auto-update (macOS):");
+    const enrolledLabel = enrolled === true ? "yes" : enrolled === false ? "no" : "not yet decided";
+    console.log(`  enrolled: ${enrolledLabel}`);
+    console.log(`  plist present: ${plistPresent ? "yes" : "no"}`);
+    console.log(`  last run: ${lastRun ? `${lastRun.at} (${lastRun.status})` : "never run"}`);
+  }
 
   console.log("");
 

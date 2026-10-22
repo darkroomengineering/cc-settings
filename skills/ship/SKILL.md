@@ -1,16 +1,30 @@
 ---
 name: ship
-description: Verify and publish changes — push, open PR, watch CI until green. Triggers "ship it", "create PR", "open PR", "ready to merge", "/pr", "/ship", "push and PR", "watch the PR", "babysit CI", "loop until green".
+description: Push, open a PR, and watch CI; land mode merges and cleans branches. Triggers "ship it", "create PR", "babysit CI", "land it", "fix CI and merge".
 context: fork
 ---
 
 # Ship Pipeline
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "ship" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip Claude's `!command` interpolation below. Run `git branch
+--show-current`, `git status --porcelain`, and `git log --oneline -5`
+explicitly. Create a new reviewer with `spawn_agent`, continue it while live
+with `send_message`, trigger another turn once it is idle with `followup_task`,
+wait with `wait_agent`, and stop its current turn with `interrupt_agent` only
+when necessary. Never spawn `codex-verifier` and never run `codex-run.ts` from inside Codex.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Assign non-overlapping ownership and serialize any implementer and
+test-writer fixes; only read-only reviewers may overlap. Codex implementers are
+not promised Claude worktree isolation. Codex also skips TLDR and uses
+`git diff --name-only`, direct import searches, and test-name searches to choose
+affected tests.
 
 You are in **Maestro orchestration mode**. Execute the shipping checklist in order.
 
-## Current State
+## Claude current state
 - Branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 - Working tree: !`git status --porcelain 2>/dev/null | head -20`
 - Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
@@ -23,7 +37,11 @@ ssh-add -l
 ```
 If no identities loaded: **Unlock 1Password and retry — git signing will fail otherwise.** Agent drops mid-flow are a recurring cause of failed pushes; catch it now, not after the commit.
 
-Do not commit until Steps 1–4 (typecheck/build/test/lint) are green. Skipping ahead is where amend churn comes from — `--amend` to fix a lint error you would have caught in 30 seconds invalidates signatures and CI runs.
+Read and validate `package.json` before choosing commands. Invalid JSON or invalid
+script declarations block the pipeline. Do not commit until all applicable gates
+in Steps 1–4 (typecheck/build/test/lint) are green; record an absent build script
+as N/A with its reason. Skipping ahead is where amend churn comes from — `--amend`
+to fix a lint error you would have caught in 30 seconds invalidates signatures and CI runs.
 
 ### Step 1: Type Check
 ```bash
@@ -32,14 +50,24 @@ bunx tsc --noEmit
 If errors: fix them. Do not proceed until clean.
 
 ### Step 2: Build
+
+Inspect the validated manifest: if `scripts.build` is a nonempty string, run:
+
 ```bash
 bun run build
 ```
-If errors: fix them. Do not proceed until clean.
+If the configured build fails, fix it; do not proceed until clean. If `build` is
+absent, record **N/A — no build script** and continue with the applicable
+typecheck, test, and lint gates. An empty, whitespace-only, or non-string build
+declaration is invalid and blocks the pipeline. Do not add a dummy build script
+or silently replace a failing build with typecheck. A proof runner that only
+detects typecheck/test/lint does not replace this configured-build gate.
 
 ### Step 3: Test (if tests exist)
 
-**3a. Affected tests first (when `tldr` is available).** Run only the tests touched by your changes, before the full suite. Fast feedback if you broke something obvious:
+**3a. Affected tests first.** In Claude, use TLDR when available. Standalone
+Codex uses the native searches in its host branch. Run only the tests touched
+by your changes before the full suite.
 
 ```bash
 tldr change-impact --project . 2>/dev/null
@@ -49,11 +77,21 @@ If TLDR returns a list, run those tests first (`bun test <file>` or `vitest run 
 
 **3b. Full suite.**
 
+Select one configured runner before executing it. Never treat a second runner as a fallback after a
+real test failure:
+
 ```bash
-bun test || vitest run
+if bun -e 'const p = await Bun.file("package.json").json(); process.exit(typeof p.scripts?.test === "string" ? 0 : 1)'; then
+  bun run test
+elif bun -e 'const p = await Bun.file("package.json").json(); process.exit(p.devDependencies?.vitest || p.dependencies?.vitest ? 0 : 1)'; then
+  ./node_modules/.bin/vitest run
+else
+  bun test
+fi
 ```
 
-If test runner is not configured, skip this step. If tests fail: fix them. Do not proceed until green.
+If no tests or runner are configured, record the evidence and skip this step. If the selected
+runner fails, stop and fix that failure. Do not run a narrower suite to turn a real failure green.
 
 ### Step 4: Lint
 ```bash
@@ -77,7 +115,10 @@ Spawn `reviewer` agent:
 Agent(reviewer, "Review all staged changes for quality, TypeScript strictness, a11y, and performance issues.")
 ```
 
-When the Codex bridge is available, run a cross-model review **in parallel** — a different model family catches what Claude self-review misses, and this is right before a commit lands, the cheapest place to catch a Critical:
+**Standalone Codex branch:** follow the native lifecycle above and use a fresh
+read-only `reviewer`. Skip the Claude bridge branch below.
+
+When the Codex bridge is available, run the one cross-model review for this PR **in parallel** — a different model family catches what Claude self-review misses, and this is right before a commit lands, the cheapest place to catch a Critical. Skip it if a Codex review already covered this diff:
 
 ```
 Agent(codex-verifier, "Cross-model review of the staged diff. Report findings by severity.")
@@ -85,7 +126,11 @@ Agent(codex-verifier, "Cross-model review of the staged diff. Report findings by
 
 If Claude and Codex disagree on a Critical/HIGH finding, surface it to the user as a gate **before** Step 7 — don't auto-commit through a cross-model disagreement. The bridge is gated and fails open: if Codex is unavailable, proceed with the Claude review alone.
 
+If the `codex-verifier` spawn fails, or it reports that Bash was stripped (forked skill contexts), run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly instead — never skip the cross-model pass.
+
 ### Step 7: Commit (Bisectable)
+
+Read `~/.claude/rules/git.md` if present; Steps 7 and 8 follow its "Commit and PR mechanics".
 
 Analyze the diff to decide commit strategy:
 
@@ -96,8 +141,9 @@ git diff --cached --stat | tail -1
 **Small diff** (<50 lines changed across <4 files): Single commit.
 ```bash
 git add <relevant files>
-git commit -m "<type>: <description>"
+git commit -F <msgfile> -- <relevant files>
 ```
+Every commit, split ones included, names its paths in both calls and takes its message from a file; see `rules/git.md` "Commit and PR mechanics".
 
 **Larger diff**: Split into ordered commits by dependency layer. Each commit must be independently valid — no broken imports, no forward references.
 
@@ -111,80 +157,115 @@ git commit -m "<type>: <description>"
 
 **Per-commit validation:** Each commit must independently pass:
 ```bash
-npx tsc --noEmit && biome check .
+bunx tsc --noEmit && bunx biome check .
 ```
 If a commit would break either check in isolation, merge it with the next commit in the sequence.
 
-**Commit messages:** Each gets a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`). Keep them descriptive of what that specific commit contains.
-
-**No AI attribution on any commit.**
+**Commit messages:** Each gets a conventional prefix (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`).
 
 ### Step 8: Push and PR
+
+No git remote (`git remote` prints nothing) means a local-only run: skip every push and PR step and report the commits.
+
 ```bash
 git push origin HEAD
+gh pr list --head "$(git branch --show-current)" --state open --json number,url,headRefName,headRepositoryOwner
 ```
+
+Read the PR list by the rules in `rules/git.md` "Commit and PR mechanics": branch name only, a non-zero exit means PR state is unknown (stop, do not create), and a non-empty list means the push updated that PR. In that case skip `gh pr create`, rewrite the body only if it does not match the full range, run "Linear issue" below, and go to Step 9. Never open a second PR for the same branch.
 
 If `gh` is not available, provide the push command and instruct the user to create the PR manually.
 
-**Author the PR body — do NOT use `--fill`.** `--fill` dumps the commit messages
-into the description, which reads as technical and over-engineered. Lead with a
-plain-English "What this does" (see `rules/git.md` "Signal, not spam"):
+#### Linear issue
+
+Every PR carries a Linear issue. Work often starts before anyone files one, so this step creates it when it is missing, without asking, and reports the link:
+
+1. **Find an existing ID** (`ABC-123`) in the branch name, the PR title and body, and `git log <base>..HEAD`. Confirm each candidate with the Linear MCP `get_issue`: `UTF-8` and `SHA-256` have the same shape and are not issues.
+2. **Resolve the repo's team** for `gh repo view --json nameWithOwner --jq .nameWithOwner`, matching `owner/repo` ignoring case. Look in two files, the first hit wins:
+   - `~/.claude/linear-teams.json`, a per-person override. Each value is `{"server": "<Linear MCP server name>", "team": "<team key>", "project": "<project ID>"}`, or `null`. `project` is optional.
+   - `~/.claude/tmp/linear-map.json`, the shared map that SessionStart caches from team-knowledge: `{"map": {"owner/repo": {"team": "<team key>", "project": "<project ID>", "projectName": "<optional>"}}, "checkedAt": "..."}`. It names no MCP server, so use the connected Linear server whose `list_teams` has that team.
+
+   A `null` value means the repo has no Linear, which ends this step. Missing from both files means ask once with AskUserQuestion (the teams from each connected Linear server's `list_teams`, plus "No Linear for this repo"), then the project (that team's `list_projects`, plus "No project"), then write the answers into `linear-teams.json`. For a `darkroomengineering` repo, also tell the user to add it to `linear-map.json` in team-knowledge by PR. Where the question tool is unavailable, skip the step and report that the repo needs a mapping.
+3. **Synced GitHub issue.** When the PR closes a GitHub issue (`Fixes #N`, `Closes #N` in the body or commits), Linear's GitHub issue sync may already hold a copy. Search that team with `list_issues` (`team`, `query` set to the GitHub issue's title) and confirm a hit with `get_issue`, asking for `attachments` in `fields` when that server's schema has a `fields` parameter: it counts only when an attachment URL is that GitHub issue's URL. Use the confirmed ID as an existing ID and create nothing; keep `Fixes #N` in the body.
+4. **No confirmed ID:** create the issue with `save_issue` in that team and, when the mapping names one, that project, assigned to the user. Write its title and description from the same plain-English summary as the PR body, effect first, per `rules/git.md` "Issue descriptions".
+5. **Link it.** Put the ID at the end of the PR title (`<type>: <title> (DR-123)`) and `Fixes <ID>` on its own line in the PR body, for an issue this step created or found, or one named only in commits; Linear's GitHub integration links the PR, moves the issue through the team's workflow, and closes it on merge. An ID already in the branch name, title, or body is linked; leave it as the author wrote it. The branch is already pushed, so never rename it to add the ID. For an existing PR, add the title suffix with `gh pr edit --title` and the body line with `gh pr edit --body-file`.
+
+No Linear MCP server connected, or a call fails: skip the step, say so in the output, leave the ID out of the title, and continue. A missing issue never blocks a ship.
+
+**Author the PR body, never `--fill`** (it pastes commit messages into the description). Write it from the full `git log <base>..HEAD` range and the diff, using the repo's own PR template or the structure in `rules/git.md` "PRs", then pass it with `--body-file`:
 
 ```bash
-gh pr create --title "<type>: <concise, plain-English title>" --body "$(cat <<'EOF'
-## What this does
-<2–3 plain sentences: what changed and why it matters — the real-world effect,
-not the mechanism. A teammate who didn't write it should get it on one read.>
-
-## Summary
-- <technical bullet — the how>
-
-## Test Plan
-- [ ] <how it was verified>
+BODY_FILE=$(mktemp "${TMPDIR:-/tmp}/pr-body.XXXXXX") && cat > "$BODY_FILE" <<'EOF'
+<body per rules/git.md>
 EOF
-)"
+gh pr create --title "<type>: <concise, plain-English title> (<Linear ID>)" --body-file "$BODY_FILE"
 ```
-
-Write "What this does" from the *diff and its purpose*, not by pasting commit
-subjects. If you can't explain it plainly, the change is unclear — say so, don't
-reach for bigger words.
 
 ### Step 9: Watch CI Until Green (post-push)
 
-After `gh pr create`, watch the PR-attached checks until all pass. Use `gh pr checks` as the source of truth — it covers all PR checks, not just GitHub Actions runs (which `gh run list` would miss).
+After `gh pr create`, watch the PR-attached checks until all pass. This step is the watcher: never hand-roll an `until`/`while` poll, a `sleep N && gh ...` loop, a heredoc merge script, or one model turn per poll. Each of those re-reads the whole context to learn "still pending", and the improvised ones have merged before checks finished, waited forever on a check that never appears, and outlived their PR.
 
-```bash
-gh pr checks --json name,bucket,state,workflow,link
-gh pr checks --watch --fail-fast
-```
+1. **Find the required set first.** `gh pr checks --required` misses checks that an org ruleset requires as a workflow (Darkroom's `ci-gate` is one: it never appears in the PR rollup). Read the base branch's rules:
+
+   ```bash
+   gh api "repos/{owner}/{repo}/rules/branches/BASE" \
+     --jq '.[] | select(.type=="workflows" or .type=="required_status_checks") | .parameters'
+   ```
+
+   A `workflows` rule names its file (`ci-gate.yml`); verify it by run, not by `gh pr checks`, matching the run's `path` to the rule's path (display names can collide, and a commit can have both push and PR runs):
+
+   ```bash
+   gh api "repos/{owner}/{repo}/actions/runs?head_sha=HEAD_SHA" \
+     --jq '.workflow_runs[] | select(.path==".github/workflows/ci-gate.yml") | "\(.id) \(.event) \(.status) \(.conclusion)"'
+   ```
+
+   Take the newest matching run for the PR's event. A `required_status_checks` rule names contexts that do appear in `gh pr checks`. An empty result from both means nothing is required, so every reported check is the gate.
+
+2. **Watch once, blocking:**
+
+   ```bash
+   gh pr checks --watch --fail-fast --interval 30
+   ```
+
+   Run it in the background when other work can proceed; the harness notifies you when it exits. If it exits within seconds saying no checks are reported, the checks have not registered yet: re-run it once after 30 seconds rather than treating it as green or red.
+
+3. **Read the verdict, then the required workflows.** Green means every required check and run concluded `success`. "No failures" while something is still pending or missing is not green. Re-read `gh pr checks --json name,bucket,state,workflow,link`, then confirm each required workflow run from step 1 with the `actions/runs` query. If that run is still in progress after the PR checks finish, wait on it by ID with one blocking `gh run watch RUN_ID --exit-status --interval 30`, then read its `conclusion`. That run is part of this step's watch, not a new loop.
 
 If a check fails:
 
-1. Identify the failing job and fetch logs (`gh run view RUN_ID --log-failed` for GHA; follow the `link` for external services).
-2. Apply the smallest fix. Use the `fix` skill's "Variant: Failing PR CI" if the failure is non-trivial.
-3. Push, then re-read `gh pr checks` — the check set can change between runs.
-4. Repeat until green.
+1. Identify the failing job and fetch logs (`gh run view RUN_ID --log-failed` for GHA; follow the `link` for external services). On a red or missing check, also fetch the team-knowledge index and read any note whose title matches the workflow/CI symptom before assuming a runner problem; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable).
+2. **Reproduce the exact failing guard locally against the real built artifact** before pushing a fix — run the same test script / check command CI ran, against the binary or output CI would see. A fix verified only by reasoning is a push-and-pray loop.
+3. Apply the smallest fix. Use the `fix` skill's "Variant: Failing PR CI" if the failure is non-trivial. For version/metadata guards, use the repo's canonical script (`bump-version.sh`-style) — never hand-edit versioned fields; hand-bumps desync the sibling fields the script maintains.
+4. Push, then re-read `gh pr checks` — the check set can change between runs.
+5. Repeat until green.
 
 Guardrails:
 
 - Scope each fix to a single failure cause.
 - If failures are flaky, retry once and report flake evidence rather than chasing a phantom fix.
 - If the failure is unrelated to the PR and already fixed on main, merge main into the branch instead of bloating the PR.
+- Never take a watcher pipeline's exit code as the verdict — in `gh run watch ID; gh run view ID ...` the shell reports the *last* command's exit, not the run's outcome. Read the conclusion explicitly: `gh run view ID --json conclusion --jq .conclusion` (or `gh pr checks`).
 
-## Rules
-- NEVER skip the type check or build step
-- NEVER create a PR with failing tests
-- Conventional commit messages only (`feat:`, `fix:`, `refactor:`, etc.)
-- No AI attribution in commits or PR descriptions
-- If build fails, fix and re-run -- do not skip
-- Each bisectable commit must pass `tsc --noEmit` AND `biome check` independently
-- If total diff is small, single commit is fine -- don't over-split
+### Land Mode (existing PR → merged → clean)
+
+Invoked as `/ship land` or when the ask is "review/fix CI then merge then clean up" on a PR that already exists. Skip Steps 0–8; run:
+
+1. Capture the head you're validating: `gh pr view --json headRefOid,reviewDecision,mergeable`. Everything below is checked against THIS `headRefOid`.
+2. Run Step 9 (required set, one blocking watch, verdict). If red, run its CI-fix loop until green. A CI fix that pushes a new commit moves the head: re-capture `headRefOid` and re-check against it.
+3. Confirm review state from step 1: if `reviewDecision` is CHANGES_REQUESTED or `mergeable` is CONFLICTING, stop and report — do not merge through either.
+4. **Re-validate immediately before merging** — `gh pr view --json headRefOid,reviewDecision,mergeable`. All three can drift while the CI loop ran (a new push moves `headRefOid`; a late review flips `reviewDecision` to CHANGES_REQUESTED; a base-branch change flips `mergeable`) — the head moving is not the only race. If `headRefOid` differs from the SHA you validated, STOP and re-run checks against the new head; if `reviewDecision`/`mergeable` regressed, STOP and report. Don't merge stale-green. (A post-*merge* SHA check can't catch a moved head: a squash commit does not contain the PR head as an ancestor, so the guard has to run *before* merge. See the `gh-merge-race` learning.)
+5. Merge with the repo's preferred strategy (`gh pr merge --squash --delete-branch --match-head-commit SHA` unless repo convention says otherwise; `--match-head-commit` makes GitHub refuse the merge if the head moved after your check). If the repo disallows auto-merge, never wait on `--auto`; merge directly once Step 9 is green. Branch protection / a merge queue, if enabled, is the atomic final gate.
+6. Cleanup: `git checkout main && git pull`, delete the local branch, prune remotes (`git remote prune origin`). Leave only main unless other branches have open PRs.
+7. Report: PR link, merge commit, branches deleted.
+
+Per `CLAUDE-FULL.md` "Autonomy": steps 5–7 are pre-approved once CI is green, the head is confirmed unchanged, and review is clean — report, don't ask. External-org repos: land mode is forbidden entirely.
 
 ## Output
 Return:
-- **Build status**: Pass/Fail
+- **Build status**: Pass/Fail/N/A (N/A requires the reason: no build script)
 - **Test status**: Pass/Fail (with count)
 - **Lint status**: Pass/Fail
 - **Review status**: Approved/Needs Changes
 - **Commits created**: Count and summary of each
 - **PR link**: URL if created
+- **Linear issue**: ID and link, marked created or existing; or skipped, with the reason

@@ -19,11 +19,33 @@
         "pattern"
       ]
     },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[^\\u00B7\\r\\n]*$"
+    },
     "tags": {
       "type": "array",
       "items": {
         "type": "string"
       }
+    },
+    "scope": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      }
+    },
+    "verified": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "retire_when": {
+      "type": "string",
+      "minLength": 1
     },
     "added-by": {
       "type": "string",
@@ -36,6 +58,7 @@
   "required": [
     "name",
     "kind",
+    "summary",
     "added-by"
   ],
   "additionalProperties": {}

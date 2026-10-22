@@ -1,12 +1,31 @@
 ---
 name: fix
-description: Debug and fix bugs/errors/failures, including merge conflicts and failing PR CI checks. Triggers "fix", "broken", "not working", "bug", "error", "failing", "merge conflict", "fix CI", "checks failing", console errors, build/test failures, regression.
+description: Debug and fix a reported defect, such as a failing build or tests, runtime or console errors, regressions, merge conflicts, red PR checks. Triggers "fix", "broken", "not working", "merge conflict", "fix CI".
 context: fork
 ---
 
 # Bug Fix Workflow
 
-Before starting work, create a marker: `mkdir -p ~/.claude/tmp && echo "fix" > ~/.claude/tmp/heavy-skill-active && date -u +"%Y-%m-%dT%H:%M:%SZ" >> ~/.claude/tmp/heavy-skill-active`
+## Standalone Codex
+
+Skip Claude's `!command` interpolation below. Run `git
+branch --show-current`, `git log --oneline -5`, and `git status --porcelain`
+explicitly. Create each new agent with `spawn_agent`, continue a live agent with
+`send_message`, trigger another turn for an idle existing agent with
+`followup_task`, wait with `wait_agent`, and stop a current turn with
+`interrupt_agent` only when necessary. Never spawn `codex-verifier` and never
+run `codex-run.ts` from inside Codex.
+
+Writers share the working tree unless the live host explicitly offers
+isolation. Give every writer non-overlapping ownership and serialize the
+test-writer, implementer, and verification writer phases. Only read-only
+reviewers may overlap. Wait until the explorer finishes before starting a test
+writer; wait until that writer finishes before implementation. Codex
+implementers are not promised Claude worktree isolation.
+
+Use Context7 only when the user configured it. Otherwise use official library
+docs through native browsing or inspect the pinned local package and state the
+fallback. This package does not auto-run unpinned registry MCP packages.
 
 You are in **Maestro orchestration mode**. Delegate immediately to specialized agents.
 
@@ -17,18 +36,20 @@ You are in **Maestro orchestration mode**. Delegate immediately to specialized a
 
 ## Workflow
 
+0. **Clarify** - If the report admits more than one reading (which surface, which environment, what "fixed" looks like), run clarifying rounds through the host's question tool until no fork is left, before exploring; a report that names the file, the symptom, and the expected behaviour skips this. When a round runs and the user named no Linear issue, add one question: create one now (recommended: yes)? Create it per the `ship` skill's "Linear issue" step and put its ID in the branch name. Never open a round only for this: `/ship` creates the issue anyway
 1. **Explore** - Spawn `explore` agent to understand the affected codebase area
 2. **Reproduce** - Spawn `tester` agent to create a failing test if possible
-3. **Diagnose** - Analyze findings to identify root cause
+3. **Diagnose** - Analyze findings to identify root cause. Commits named in the bug report are hypotheses, not conclusions — blame the actually-affected file's history before fixing; regressions often ride in earlier on the same branch as the change that got blamed. Before blaming, fetch the team-knowledge index and read any note whose title matches the error's nouns; the fetch command is in docs/knowledge-system.md (fail-open — skip if `gh` is unavailable)
+   - A prediction must name something not yet looked at (another code path, an observable the first hypothesis did not touch). One that restates the symptom or only re-reads the suspect line is rejected.
+   - The user's own uncommitted edits are hypothesis 1. Test them: `git stash push -u -m <unique-tag>`, rerun the reproducer, then restore only the entry this run created: find its `stash@{n}` by the tag in `git stash list`, `git stash apply --index stash@{n}` so staged state comes back too, and `git stash drop stash@{n}` only after the apply succeeds. Never pop other entries. If the push reports nothing to save, restore nothing.
+   - No fix until the causal chain from trigger to symptom is complete, with file:line evidence at each link. "Somehow X leads to Y" is a gap.
 4. **Implement** - Spawn `implementer` agent to fix the issue
 5. **Verify** - Spawn `tester` agent to confirm the fix
 6. **Learn** - If this was a non-obvious fix, the auto-memory system in `~/.claude/CLAUDE.md` captures it; for team-wide gotchas use `/share-learning` to post to the team-knowledge repo
 
 ## Scope Rules
 
-Follow CLAUDE.md Guardrails (scope constraint, 2-iteration limit). Only modify files directly related to the bug.
-
-**Build after every fix**: Run the build after each individual fix attempt. Never stack multiple untested fixes -- verify green before moving on. If the build breaks, fix *that* before continuing.
+Follow the AGENTS.md guardrails (Bug Fix Scope, 2-Iteration Limit, Name the Cause, Verify After Every Fix). Only modify files directly related to the bug.
 
 **Autonomous fix-verify loop**: once the reproducer exists, set
 `/goal the reproducer test passes and the full suite is green, or stop after 5 attempts`
@@ -45,8 +66,8 @@ Agent(explore, "Investigate the bug: $ARGUMENTS. Find relevant files, trace the 
 Agent(tester, "Create a failing test that reproduces: $ARGUMENTS")
 ```
 
-**Then assemble the implementer prompt from the actual outputs.** Implementer
-runs in an isolated worktree with no access to prior agent results, so paste
+**Claude: then assemble the implementer prompt from the actual outputs.** The
+Claude implementer runs in an isolated worktree with no access to prior agent results, so paste
 real content — not placeholders, not references:
 
 - The user's original ask (`$ARGUMENTS`) verbatim
@@ -62,16 +83,21 @@ Agent(implementer, "<the assembled briefing above — all five items inline>")
 Agent(reviewer, "Quick review of the fix for quality and edge cases")
 ```
 
-For security-sensitive fixes (auth, crypto, permissions, input validation), add a
-cross-model review in parallel with the reviewer — a non-Claude family is the
+**Standalone Codex branch:** follow the lifecycle and serialization rules at
+the top. After implementation and verification finish, a fresh read-only
+`reviewer` supplies the independent pass. Skip the Claude bridge branch below.
+
+Any fix that produced a diff gets a cross-model review in parallel with the
+reviewer, when the Codex bridge is available — a non-Claude family is the
 cheapest insurance against a logic error you just wrote:
 
 ```
 Agent(codex-verifier, "Cross-model review of the fix diff. Focus on correctness and security. Report findings by severity.")
 ```
 
-The bridge is gated and fails open: if Codex is unavailable, the reviewer agent
-alone is fine.
+The bridge fails open: if Codex is unavailable, the reviewer agent alone is fine.
+
+If the `codex-verifier` spawn fails, or it reports that Bash was stripped (forked skill contexts), run `bun "$HOME/.claude/src/scripts/codex-run.ts" review` directly instead — never skip the cross-model pass.
 
 Skip the implementer step if `explore` reports the bug is non-reproducible or
 already fixed in current HEAD.
@@ -87,10 +113,7 @@ Return a concise summary:
 
 ## Remember
 
-- If the fix involves a library API, **fetch docs first** via Context7 MCP — APIs change between versions
-- Always store non-obvious bug fixes as learnings
-- Check if similar bugs were fixed before (recall learnings)
-- Run tests after fixing
+- On an OS, device, vendor, or network blocker, apply the AGENTS.md stop-loss: about 20 minutes or 30 tool calls, then a written diagnosis (ruled out with evidence, likely cause, ranked next options) instead of another attempt
 
 ---
 
@@ -118,7 +141,7 @@ If the failure is on a pushed branch with an open PR (not a local bug), use `gh 
    - GitHub Actions: `gh run view RUN_ID --log-failed`.
    - External services: follow the check `link` to the provider.
 4. Extract the first actionable error. Apply the smallest safe fix.
-5. Push and re-check. The check set can change between runs — re-read `gh pr checks` after every push.
+5. Push and re-check. The check set can change between runs — re-read `gh pr checks` after every push. To wait for the result, use the `ship` skill's Step 9 watch; do not write a polling loop.
 
 Guardrails:
 

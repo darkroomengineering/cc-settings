@@ -1,0 +1,823 @@
+import {
+  AUDIT_PERFORMANCE_RESOURCES,
+  CURRENT_RUNTIME_TYPESCRIPT_SOURCES,
+} from "./install-source-inventory.ts";
+import type { Profile } from "./light-profile.ts";
+
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 30;
+
+const FULL_V2 = [
+  ".cc-settings-baseline.json",
+  ".cc-settings-hooks-fingerprint",
+  ".cc-settings-src-manifest",
+  "AGENTS.md",
+  "CLAUDE.md",
+  "agents/codex-verifier.md",
+  "agents/deslopper.md",
+  "agents/explore.md",
+  "agents/implementer.md",
+  "agents/maestro.md",
+  "agents/planner.md",
+  "agents/reviewer.md",
+  "agents/scaffolder.md",
+  "agents/security-reviewer.md",
+  "agents/tester.md",
+  "docs/accessibility.md",
+  "docs/agent-models.md",
+  "docs/architecture-reference.md",
+  "docs/audits/codebase-audit-2026-07-08.md",
+  "docs/audits/nuclear-review-2026-07-20.md",
+  "docs/audits/nuclear-review-2026-07-29.md",
+  "docs/audits/nuclear-review-2026-07-31.md",
+  "docs/cache-strategy.md",
+  "docs/codex-bridge.md",
+  "docs/codex.md",
+  "docs/claude-vs-codex.md",
+  "docs/consolidation-audits/2026-05.md",
+  "docs/deslopper-team-mode.md",
+  "docs/enhanced-todos.md",
+  "docs/feature-agents-guide.md",
+  "docs/frontmatter-reference.md",
+  "docs/first-session.md",
+  "docs/functional-dag.md",
+  "docs/github-workflow.md",
+  "docs/hooks-reference.md",
+  "docs/install.md",
+  "docs/knowledge-system.md",
+  "docs/motion-reference.md",
+  "docs/parallel-batch-detection.md",
+  "docs/performance-reference.md",
+  "docs/plans/knowledge-repo-migration.md",
+  "docs/profiles.md",
+  "docs/README.md",
+  "docs/security-reference.md",
+  "docs/seo-reference.md",
+  "docs/settings-merge-three-way-design.md",
+  "docs/settings-reference.md",
+  "docs/skill-authoring.md",
+  "docs/skills.md",
+  "docs/system-overview.md",
+  "docs/the-flow.md",
+  "docs/thread-types.md",
+  "docs/tldr-cheatsheet.md",
+  "docs/troubleshooting.md",
+  "docs/upstream-bugs/mcp-needs-auth-cache-no-ttl.md",
+  "docs/whats-on.md",
+  "hooks/README.md",
+  "hooks/checkpoint.md",
+  "hooks/hooks.json",
+  "hooks/verification-check.md",
+  "output-styles/darkroom.md",
+  "profiles/maestro.md",
+  "profiles/nextjs.md",
+  "profiles/react-native.md",
+  "profiles/react-router.md",
+  "profiles/tauri.md",
+  "profiles/webgl.md",
+  "rules/README.md",
+  "rules/accessibility.md",
+  "rules/git.md",
+  "rules/motion-physics.md",
+  "rules/performance.md",
+  "rules/react-perf.md",
+  "rules/react.md",
+  "rules/security.md",
+  "rules/style.md",
+  "rules/typescript.md",
+  "rules/ui-fix.md",
+  "rules/ui-skills.md",
+  "skills/README.md",
+  "skills/adhd/SKILL.md",
+  "skills/audit/SKILL.md",
+  "skills/audit/references/audit-contract.md",
+  "skills/audit/references/nuclear-review.workflow.js",
+  "skills/audit/references/seo-checks.md",
+  "skills/autoresearch/SKILL.md",
+  "skills/build/SKILL.md",
+  "skills/cc/SKILL.md",
+  "skills/checkpoint/SKILL.md",
+  "skills/codex/SKILL.md",
+  "skills/codex/agents/openai.yaml",
+  "skills/component/SKILL.md",
+  "skills/consolidate/SKILL.md",
+  "skills/context-doc/ADR-FORMAT.md",
+  "skills/context-doc/CONTEXT-FORMAT.md",
+  "skills/context-doc/DOMAIN-AWARENESS.md",
+  "skills/context-doc/SKILL.md",
+  "skills/design-tokens/SKILL.md",
+  "skills/dr-init/SKILL.md",
+  "skills/explore/SKILL.md",
+  "skills/fix/SKILL.md",
+  "skills/freeze/SKILL.md",
+  "skills/handoff/SKILL.md",
+  "skills/harvest/CONTRACT.md",
+  "skills/harvest/SKILL.md",
+  "skills/hook/SKILL.md",
+  "skills/lighthouse/SKILL.md",
+  "skills/lighthouse/agents/openai.yaml",
+  "skills/oracle/SKILL.md",
+  "skills/orchestrate/SKILL.md",
+  "skills/plan-ceo-review/SKILL.md",
+  "skills/plan-feature/SKILL.md",
+  "skills/project/SKILL.md",
+  "skills/proof-of-work/SKILL.md",
+  "skills/qa/SKILL.md",
+  "skills/qa/agents/openai.yaml",
+  "skills/refactor/SKILL.md",
+  "skills/retro/SKILL.md",
+  "skills/review-batch/SKILL.md",
+  "skills/review/SKILL.md",
+  "skills/share-learning/SKILL.md",
+  "skills/ship/SKILL.md",
+  "skills/strategist/SKILL.md",
+  "skills/test/SKILL.md",
+  "skills/tldr/SKILL.md",
+  "skills/triage/SKILL.md",
+  "skills/verify/SKILL.md",
+  "skills/zero-tech-debt/SKILL.md",
+  "src/bun.lock",
+  "src/codemap/callgraph.ts",
+  "src/codemap/change-impact.ts",
+  "src/codemap/cli.ts",
+  "src/codemap/imports.ts",
+  "src/codemap/index.ts",
+  "src/codemap/mcp-server.ts",
+  "src/codemap/program.ts",
+  "src/codemap/structure.ts",
+  "src/codemap/tools.ts",
+  "src/codemap/types.ts",
+  "src/hooks/codex-verify.ts",
+  "src/hooks/delegation-detector.ts",
+  "src/hooks/escalate-acted.ts",
+  "src/hooks/escalate-model.ts",
+  "src/hooks/freeze-guard.ts",
+  "src/hooks/model-switch-guard.ts",
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-edit-validate.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/hooks/promote-memory.ts",
+  "src/hooks/quota-steer.ts",
+  "src/hooks/safety-net.ts",
+  "src/hooks/statusline.ts",
+  "src/hooks/tool-cadence.ts",
+  "src/hooks/verify-hooks.ts",
+  "src/lib/artifact-store.ts",
+  "src/lib/audit-hooks.ts",
+  "src/lib/claude-managed-file-manifests.ts",
+  "src/lib/claude-managed-files.ts",
+  "src/lib/cli-preflight.ts",
+  "src/lib/code-intel-engine.ts",
+  "src/lib/codex-install.ts",
+  "src/lib/codex.ts",
+  "src/lib/colors.ts",
+  "src/lib/compose-settings.ts",
+  "src/lib/download-verify.ts",
+  "src/lib/engine-pin.ts",
+  "src/lib/escalate-telemetry.ts",
+  "src/lib/escalate.ts",
+  "src/lib/freeze.ts",
+  "src/lib/frontmatter-validate.ts",
+  "src/lib/frontmatter.ts",
+  "src/lib/git.ts",
+  "src/lib/hook-command.ts",
+  "src/lib/hook-config.ts",
+  "src/lib/hook-runtime.ts",
+  "src/lib/hooks-fingerprint.ts",
+  "src/lib/install-cmds.ts",
+  "src/lib/install-display.ts",
+  "src/lib/install-fs.ts",
+  "src/lib/install-lock.ts",
+  "src/lib/json-io.ts",
+  "src/lib/knowledge-index.ts",
+  "src/lib/light-profile.ts",
+  "src/lib/lint-agents.ts",
+  "src/lib/lint-frontmatter.ts",
+  "src/lib/lint-knowledge.ts",
+  "src/lib/lint-links.ts",
+  "src/lib/lint-profiles.ts",
+  "src/lib/lint-research.ts",
+  "src/lib/lint-shortcuts.ts",
+  "src/lib/lint-skills.ts",
+  "src/lib/managed-paths.ts",
+  "src/lib/managed-skills.ts",
+  "src/lib/mcp.ts",
+  "src/lib/merge-keyed.ts",
+  "src/lib/packages.ts",
+  "src/lib/permissions-check.ts",
+  "src/lib/permissions-doc.ts",
+  "src/lib/pinned-tools.ts",
+  "src/lib/platform.ts",
+  "src/lib/problem-signature.ts",
+  "src/lib/project-awareness.ts",
+  "src/lib/prompts.ts",
+  "src/lib/proof-of-work.ts",
+  "src/lib/quota.ts",
+  "src/lib/redact.ts",
+  "src/lib/review-queue.ts",
+  "src/lib/schedule.ts",
+  "src/lib/session-ledger.ts",
+  "src/lib/session-model.ts",
+  "src/lib/settings-baseline.ts",
+  "src/lib/settings-merge.ts",
+  "src/lib/skill-prereqs.ts",
+  "src/lib/status-types.ts",
+  "src/lib/status.ts",
+  "src/lib/team-knowledge.ts",
+  "src/lib/tsc.ts",
+  "src/lib/version-delta.ts",
+  "src/package.json",
+  "src/schemas/agent.ts",
+  "src/schemas/claude-json.ts",
+  "src/schemas/emit.ts",
+  "src/schemas/hooks.ts",
+  "src/schemas/knowledge.ts",
+  "src/schemas/mcp.ts",
+  "src/schemas/permissions.ts",
+  "src/schemas/profile.ts",
+  "src/schemas/settings.ts",
+  "src/schemas/skill.ts",
+  "src/scripts/audit-hooks.ts",
+  "src/scripts/auto-update.ts",
+  "src/scripts/check-cli-tools.ts",
+  "src/scripts/check-docs-before-install.ts",
+  "src/scripts/checkpoint.ts",
+  "src/scripts/claude-audit.ts",
+  "src/scripts/codex-hook.ts",
+  "src/scripts/codex-run.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/escalate-stats.ts",
+  "src/scripts/freeze.ts",
+  "src/scripts/gen-permissions-doc.ts",
+  "src/scripts/handoff.ts",
+  "src/scripts/ledger-record.ts",
+  "src/scripts/lint-agents.ts",
+  "src/scripts/lint-knowledge.ts",
+  "src/scripts/lint-links.ts",
+  "src/scripts/lint-profiles.ts",
+  "src/scripts/lint-research.ts",
+  "src/scripts/lint-shortcuts.ts",
+  "src/scripts/lint-skills.ts",
+  "src/scripts/log-bash.ts",
+  "src/scripts/migrate-legacy-codex-skills.ts",
+  "src/scripts/new-note.ts",
+  "src/scripts/new-skill.ts",
+  "src/scripts/notify.ts",
+  "src/scripts/permissions-check.ts",
+  "src/scripts/post-compact.ts",
+  "src/scripts/post-edit-tsc.ts",
+  "src/scripts/post-edit.ts",
+  "src/scripts/post-failure.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/project-init.ts",
+  "src/scripts/proof.ts",
+  "src/scripts/prune-mcp-auth-cache.ts",
+  "src/scripts/refresh-knowledge-index.ts",
+  "src/scripts/review-batch.ts",
+  "src/scripts/session-start.ts",
+  "src/scripts/session-title.ts",
+  "src/scripts/stop-failure.ts",
+  "src/scripts/stop-summary.ts",
+  "src/scripts/swarm-log.ts",
+  "src/scripts/whats-on.ts",
+  "src/setup.ts",
+  "src/tsconfig.json",
+  "src/upstream/scan.ts",
+] as const;
+
+const LIGHT_V2 = [
+  ".cc-settings-hooks-fingerprint",
+  ".cc-settings-src-manifest",
+  "skills/share-learning/SKILL.md",
+  "src/bun.lock",
+  "src/codemap/callgraph.ts",
+  "src/codemap/change-impact.ts",
+  "src/codemap/cli.ts",
+  "src/codemap/imports.ts",
+  "src/codemap/index.ts",
+  "src/codemap/mcp-server.ts",
+  "src/codemap/program.ts",
+  "src/codemap/structure.ts",
+  "src/codemap/tools.ts",
+  "src/codemap/types.ts",
+  "src/hooks/codex-verify.ts",
+  "src/hooks/delegation-detector.ts",
+  "src/hooks/escalate-acted.ts",
+  "src/hooks/escalate-model.ts",
+  "src/hooks/freeze-guard.ts",
+  "src/hooks/model-switch-guard.ts",
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-edit-validate.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/hooks/promote-memory.ts",
+  "src/hooks/quota-steer.ts",
+  "src/hooks/safety-net.ts",
+  "src/hooks/statusline.ts",
+  "src/hooks/tool-cadence.ts",
+  "src/hooks/verify-hooks.ts",
+  "src/lib/artifact-store.ts",
+  "src/lib/audit-hooks.ts",
+  "src/lib/claude-managed-file-manifests.ts",
+  "src/lib/claude-managed-files.ts",
+  "src/lib/cli-preflight.ts",
+  "src/lib/code-intel-engine.ts",
+  "src/lib/codex-install.ts",
+  "src/lib/codex.ts",
+  "src/lib/colors.ts",
+  "src/lib/compose-settings.ts",
+  "src/lib/download-verify.ts",
+  "src/lib/engine-pin.ts",
+  "src/lib/escalate-telemetry.ts",
+  "src/lib/escalate.ts",
+  "src/lib/freeze.ts",
+  "src/lib/frontmatter-validate.ts",
+  "src/lib/frontmatter.ts",
+  "src/lib/git.ts",
+  "src/lib/hook-command.ts",
+  "src/lib/hook-config.ts",
+  "src/lib/hook-runtime.ts",
+  "src/lib/hooks-fingerprint.ts",
+  "src/lib/install-cmds.ts",
+  "src/lib/install-display.ts",
+  "src/lib/install-fs.ts",
+  "src/lib/install-lock.ts",
+  "src/lib/json-io.ts",
+  "src/lib/knowledge-index.ts",
+  "src/lib/light-profile.ts",
+  "src/lib/lint-agents.ts",
+  "src/lib/lint-frontmatter.ts",
+  "src/lib/lint-knowledge.ts",
+  "src/lib/lint-links.ts",
+  "src/lib/lint-profiles.ts",
+  "src/lib/lint-research.ts",
+  "src/lib/lint-shortcuts.ts",
+  "src/lib/lint-skills.ts",
+  "src/lib/managed-paths.ts",
+  "src/lib/managed-skills.ts",
+  "src/lib/mcp.ts",
+  "src/lib/merge-keyed.ts",
+  "src/lib/packages.ts",
+  "src/lib/permissions-check.ts",
+  "src/lib/permissions-doc.ts",
+  "src/lib/pinned-tools.ts",
+  "src/lib/platform.ts",
+  "src/lib/problem-signature.ts",
+  "src/lib/project-awareness.ts",
+  "src/lib/prompts.ts",
+  "src/lib/proof-of-work.ts",
+  "src/lib/quota.ts",
+  "src/lib/redact.ts",
+  "src/lib/review-queue.ts",
+  "src/lib/schedule.ts",
+  "src/lib/session-ledger.ts",
+  "src/lib/session-model.ts",
+  "src/lib/settings-baseline.ts",
+  "src/lib/settings-merge.ts",
+  "src/lib/skill-prereqs.ts",
+  "src/lib/status-types.ts",
+  "src/lib/status.ts",
+  "src/lib/team-knowledge.ts",
+  "src/lib/tsc.ts",
+  "src/lib/version-delta.ts",
+  "src/package.json",
+  "src/schemas/agent.ts",
+  "src/schemas/claude-json.ts",
+  "src/schemas/emit.ts",
+  "src/schemas/hooks.ts",
+  "src/schemas/knowledge.ts",
+  "src/schemas/mcp.ts",
+  "src/schemas/permissions.ts",
+  "src/schemas/profile.ts",
+  "src/schemas/settings.ts",
+  "src/schemas/skill.ts",
+  "src/scripts/audit-hooks.ts",
+  "src/scripts/auto-update.ts",
+  "src/scripts/check-cli-tools.ts",
+  "src/scripts/check-docs-before-install.ts",
+  "src/scripts/checkpoint.ts",
+  "src/scripts/claude-audit.ts",
+  "src/scripts/codex-hook.ts",
+  "src/scripts/codex-run.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/escalate-stats.ts",
+  "src/scripts/freeze.ts",
+  "src/scripts/gen-permissions-doc.ts",
+  "src/scripts/handoff.ts",
+  "src/scripts/ledger-record.ts",
+  "src/scripts/lint-agents.ts",
+  "src/scripts/lint-knowledge.ts",
+  "src/scripts/lint-links.ts",
+  "src/scripts/lint-profiles.ts",
+  "src/scripts/lint-research.ts",
+  "src/scripts/lint-shortcuts.ts",
+  "src/scripts/lint-skills.ts",
+  "src/scripts/log-bash.ts",
+  "src/scripts/migrate-legacy-codex-skills.ts",
+  "src/scripts/new-note.ts",
+  "src/scripts/new-skill.ts",
+  "src/scripts/notify.ts",
+  "src/scripts/permissions-check.ts",
+  "src/scripts/post-compact.ts",
+  "src/scripts/post-edit-tsc.ts",
+  "src/scripts/post-edit.ts",
+  "src/scripts/post-failure.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/project-init.ts",
+  "src/scripts/proof.ts",
+  "src/scripts/prune-mcp-auth-cache.ts",
+  "src/scripts/refresh-knowledge-index.ts",
+  "src/scripts/review-batch.ts",
+  "src/scripts/session-start.ts",
+  "src/scripts/session-title.ts",
+  "src/scripts/stop-failure.ts",
+  "src/scripts/stop-summary.ts",
+  "src/scripts/swarm-log.ts",
+  "src/scripts/whats-on.ts",
+  "src/setup.ts",
+  "src/tsconfig.json",
+  "src/upstream/scan.ts",
+] as const;
+
+// Files added after a version shipped must be excluded from every older
+// version so historical manifests keep describing exactly what that installer
+// copied (ownership/prune logic depends on it).
+const ADDED_IN_V5 = ["docs/motion-reference.md", "docs/performance-reference.md"];
+const ADDED_IN_V6 = ["src/hooks/model-switch-guard.ts"];
+
+const VERSION_2_EXCLUSIONS = new Set([
+  "docs/README.md",
+  "docs/claude-vs-codex.md",
+  "docs/first-session.md",
+  "docs/skills.md",
+  "docs/system-overview.md",
+  "docs/troubleshooting.md",
+  "src/scripts/migrate-legacy-codex-skills.ts",
+  ...ADDED_IN_V5,
+  ...ADDED_IN_V6,
+]);
+
+const VERSION_1_EXCLUSIONS = new Set([
+  ...VERSION_2_EXCLUSIONS,
+  "src/lib/claude-managed-files.ts",
+  "src/lib/claude-managed-file-manifests.ts",
+]);
+
+const VERSION_3_EXCLUSIONS = new Set([
+  "docs/plans/knowledge-repo-migration.md",
+  ...ADDED_IN_V5,
+  ...ADDED_IN_V6,
+]);
+
+const VERSION_4_EXCLUSIONS = new Set([...VERSION_3_EXCLUSIONS, "rules/README.md"]);
+
+const VERSION_5_EXCLUSIONS = new Set(
+  [...VERSION_4_EXCLUSIONS].filter((path) => !ADDED_IN_V5.includes(path)),
+);
+
+const VERSION_6_EXCLUSIONS = new Set(
+  [...VERSION_5_EXCLUSIONS].filter((path) => !ADDED_IN_V6.includes(path)),
+);
+
+const EXCLUSIONS_BY_VERSION = new Map<number, Set<string>>([
+  [1, VERSION_1_EXCLUSIONS],
+  [2, VERSION_2_EXCLUSIONS],
+  [3, VERSION_3_EXCLUSIONS],
+  [4, VERSION_4_EXCLUSIONS],
+  [5, VERSION_5_EXCLUSIONS],
+  [6, VERSION_6_EXCLUSIONS],
+]);
+
+const MANIFESTS = new Map<number, Record<Profile, readonly string[]>>(
+  [...EXCLUSIONS_BY_VERSION].map(([version, exclusions]) => [
+    version,
+    {
+      full: FULL_V2.filter((path) => !exclusions.has(path)),
+      light: LIGHT_V2.filter((path) => !exclusions.has(path)),
+    },
+  ]),
+);
+
+// Preserve versions 1–6 verbatim; version 7 froze the inventory as it stood
+// before the Codex-to-Claude bridge; only the current release follows the shared
+// source inventory.
+const ADDED_IN_V8 = ["src/lib/claude-bridge.ts", "src/scripts/claude-run.ts"];
+// Version 9: the Codex skill-budget report and the Swift animation rule
+// (full profile only; light installs carry no rules).
+const ADDED_IN_V9_RULES = ["rules/swift-animation.md"];
+const ADDED_IN_V9 = [
+  "src/lib/codex-skill-budget.ts",
+  "src/scripts/codex-skill-budget.ts",
+  ...ADDED_IN_V9_RULES,
+];
+// Version 10: the team-knowledge hint hook and its ranking lib.
+const ADDED_IN_V10 = ["src/hooks/knowledge-hint.ts", "src/lib/knowledge-hint.ts"];
+// Version 11: the Jev client the delegation detector calls.
+const ADDED_IN_V11 = ["src/lib/jev.ts"];
+// Version 12: the `bun run tokens` transcript cost report.
+const ADDED_IN_V12 = ["src/lib/token-usage.ts", "src/scripts/token-report.ts"];
+const priorManifest = {
+  full: claudeManagedManifestPaths(6, "full", "current installer"),
+  light: claudeManagedManifestPaths(6, "light", "current installer"),
+};
+// Version 14: the pinned-engine installer was removed from the runtime.
+// Versions 7-13 still own it, so it rejoins their source list beside download-verify.ts.
+const REMOVED_IN_V14 = ["src/lib/engine-pin.ts"];
+// Version 17: the `bun run hooks:report` and `hooks:bench` measurement scripts. They live in
+// the shared source inventory, so every earlier version subtracts them.
+const ADDED_IN_V17 = [
+  "src/lib/hook-frequency.ts",
+  "src/scripts/hook-bench.ts",
+  "src/scripts/hook-report.ts",
+];
+// Version 19: two Stop hooks whose plain stdout never reached the model. Versions 7-18 still
+// own them, so they rejoin the historical source list.
+const REMOVED_SOURCES_IN_V19 = ["src/scripts/stop-failure.ts", "src/scripts/stop-summary.ts"];
+// Version 20: the Copilot CLI instructions sync.
+const ADDED_IN_V20 = ["src/lib/copilot-instructions.ts"];
+// Version 23: the proof-gate hooks (each repo runs its own checks in its own git hooks and
+// CI), plus the session-title and cwd-changed hooks. Versions 7-22 still own them.
+const REMOVED_SOURCES_IN_V23 = [
+  "src/hooks/pre-commit-farolero.ts",
+  "src/hooks/pre-pr-proof.ts",
+  "src/hooks/pre-push-proof.ts",
+  "src/scripts/cwd-changed.ts",
+  "src/scripts/pre-commit-tsc.ts",
+  "src/scripts/session-title.ts",
+];
+// Each removed file rejoins at its original position: shipped manifests are hashed in order.
+// Keyed by the surviving file that precedes it in the sorted source inventory.
+const REJOINING_AFTER = new Map<string, readonly string[]>([
+  ["src/lib/download-verify.ts", REMOVED_IN_V14],
+  ["src/hooks/model-switch-guard.ts", ["src/hooks/pre-commit-farolero.ts"]],
+  ["src/hooks/pre-edit-validate.ts", ["src/hooks/pre-pr-proof.ts", "src/hooks/pre-push-proof.ts"]],
+  ["src/scripts/check-docs-before-install.ts", ["src/scripts/checkpoint.ts"]],
+  ["src/scripts/codex-skill-budget.ts", ["src/scripts/cwd-changed.ts"]],
+  ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
+  ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_SOURCES_IN_V19]],
+]);
+const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
+  (path) => !ADDED_IN_V17.includes(path) && !ADDED_IN_V20.includes(path),
+).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
+const historicalManifest = {
+  full: [
+    ...priorManifest.full.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
+    ...HISTORICAL_TYPESCRIPT_SOURCES,
+    ...AUDIT_PERFORMANCE_RESOURCES,
+    ...ADDED_IN_V9_RULES,
+  ],
+  light: [
+    ...priorManifest.light.filter((path) => !path.startsWith("src/") || !path.endsWith(".ts")),
+    ...HISTORICAL_TYPESCRIPT_SOURCES,
+  ],
+};
+const notAddedAfter = (...added: readonly string[][]) => {
+  const excluded = new Set(added.flat());
+  return (path: string) => !excluded.has(path);
+};
+MANIFESTS.set(7, {
+  full: historicalManifest.full.filter(
+    notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
+  ),
+  light: historicalManifest.light.filter(
+    notAddedAfter(ADDED_IN_V8, ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
+  ),
+});
+MANIFESTS.set(8, {
+  full: historicalManifest.full.filter(
+    notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
+  ),
+  light: historicalManifest.light.filter(
+    notAddedAfter(ADDED_IN_V9, ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12),
+  ),
+});
+MANIFESTS.set(9, {
+  full: historicalManifest.full.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
+  light: historicalManifest.light.filter(notAddedAfter(ADDED_IN_V10, ADDED_IN_V11, ADDED_IN_V12)),
+});
+MANIFESTS.set(10, {
+  full: historicalManifest.full.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
+  light: historicalManifest.light.filter(notAddedAfter(ADDED_IN_V11, ADDED_IN_V12)),
+});
+MANIFESTS.set(11, {
+  full: historicalManifest.full.filter(notAddedAfter(ADDED_IN_V12)),
+  light: historicalManifest.light.filter(notAddedAfter(ADDED_IN_V12)),
+});
+MANIFESTS.set(12, historicalManifest);
+// Version 13: the `/audit tests` checklist (full profile only; light installs
+// carry no audit skill).
+const ADDED_IN_V13 = ["skills/audit/references/test-audit.md"];
+MANIFESTS.set(13, {
+  full: [...historicalManifest.full, ...ADDED_IN_V13],
+  light: historicalManifest.light,
+});
+const v14 = {
+  full: [...historicalManifest.full, ...ADDED_IN_V13].filter(notAddedAfter(REMOVED_IN_V14)),
+  light: historicalManifest.light.filter(notAddedAfter(REMOVED_IN_V14)),
+};
+MANIFESTS.set(14, v14);
+// Version 15: `verify` became `poke-holes`. Claude Code 2.1.286 tells Claude to
+// run any skill named `verify` before every commit, and ours is a multi-agent panel.
+const RENAMED_IN_V15 = new Map([["skills/verify/SKILL.md", "skills/poke-holes/SKILL.md"]]);
+const v15 = {
+  full: v14.full.map((path) => RENAMED_IN_V15.get(path) ?? path),
+  light: v14.light.map((path) => RENAMED_IN_V15.get(path) ?? path),
+};
+MANIFESTS.set(15, v15);
+// Version 16: the Stop hook that blocks a turn ending in a prose question. Claude-only,
+// so it stays out of the shared source inventory that the Codex runtime manifests read.
+const ADDED_IN_V16 = ["src/hooks/ask-gate.ts"];
+const v16 = {
+  full: [...v15.full, ...ADDED_IN_V16],
+  light: [...v15.light, ...ADDED_IN_V16],
+};
+MANIFESTS.set(16, v16);
+const v17 = {
+  full: [...v16.full, ...ADDED_IN_V17],
+  light: [...v16.light, ...ADDED_IN_V17],
+};
+MANIFESTS.set(17, v17);
+// Version 18: twelve skills left the library (see TOMBSTONE_SKILLS in managed-skills.ts).
+const REMOVED_IN_V18 = [
+  "skills/adhd/SKILL.md",
+  "skills/consolidate/SKILL.md",
+  "skills/design-tokens/SKILL.md",
+  "skills/lighthouse/SKILL.md",
+  "skills/lighthouse/agents/openai.yaml",
+  "skills/oracle/SKILL.md",
+  "skills/plan-ceo-review/SKILL.md",
+  "skills/plan-feature/SKILL.md",
+  "skills/project/SKILL.md",
+  "skills/qa/SKILL.md",
+  "skills/qa/agents/openai.yaml",
+  "skills/strategist/SKILL.md",
+  "skills/test/SKILL.md",
+  "skills/tldr/SKILL.md",
+];
+const v18 = {
+  full: v17.full.filter(notAddedAfter(REMOVED_IN_V18)),
+  light: v17.light.filter(notAddedAfter(REMOVED_IN_V18)),
+};
+MANIFESTS.set(18, v18);
+// Version 19: consolidation pass. Merged rule files, the maestro profile, dated audit
+// reports, and the two Stop hooks above.
+const REMOVED_IN_V19 = [
+  ...REMOVED_SOURCES_IN_V19,
+  "docs/audits/codebase-audit-2026-07-08.md",
+  "docs/audits/nuclear-review-2026-07-20.md",
+  "docs/audits/nuclear-review-2026-07-29.md",
+  "docs/audits/nuclear-review-2026-07-31.md",
+  "docs/consolidation-audits/2026-05.md",
+  "profiles/maestro.md",
+  "rules/react-perf.md",
+  "rules/ui-skills.md",
+];
+const v19 = {
+  full: v18.full.filter(notAddedAfter(REMOVED_IN_V19)),
+  light: v18.light.filter(notAddedAfter(REMOVED_IN_V19)),
+};
+MANIFESTS.set(19, v19);
+const v20 = {
+  full: [...v19.full, ...ADDED_IN_V20],
+  light: [...v19.light, ...ADDED_IN_V20],
+};
+MANIFESTS.set(20, v20);
+// Version 21: the durable-agents profile. Full only; light installs carry no profiles.
+const ADDED_IN_V21 = ["profiles/durable-agents.md"];
+const v21 = {
+  full: [...v20.full, ...ADDED_IN_V21],
+  light: v20.light,
+};
+MANIFESTS.set(21, v21);
+// Version 22: the comment-only bunfig every hook command passes as `--config`, so a project's
+// bunfig.toml `preload` cannot run inside a hook. It lives under src/ so the install manifest
+// hashes it. Both profiles: the light statusLine is a bun command too.
+const ADDED_IN_V22 = ["src/bunfig.toml"];
+const v22 = {
+  full: [...v21.full, ...ADDED_IN_V22],
+  light: [...v21.light, ...ADDED_IN_V22],
+};
+MANIFESTS.set(22, v22);
+const v23 = {
+  full: v22.full.filter(notAddedAfter(REMOVED_SOURCES_IN_V23)),
+  light: v22.light.filter(notAddedAfter(REMOVED_SOURCES_IN_V23)),
+};
+MANIFESTS.set(23, v23);
+// Version 24: the hook dispatcher that runs each event's synchronous handlers in one process.
+// Claude-only like ask-gate: the Codex plugin wires its handlers one per entry.
+const ADDED_IN_V24 = ["src/hooks/dispatch.ts"];
+const v24 = {
+  full: [...v23.full, ...ADDED_IN_V24],
+  light: [...v23.light, ...ADDED_IN_V24],
+};
+MANIFESTS.set(24, v24);
+// Version 25: the scaffolder agent merged into implementer, the checkpoint and explore skills
+// left the library, and `review` became `dr-review` (see TOMBSTONE_SKILLS in managed-skills.ts).
+const REMOVED_IN_V25 = [
+  "agents/scaffolder.md",
+  "hooks/checkpoint.md",
+  "skills/checkpoint/SKILL.md",
+  "skills/explore/SKILL.md",
+  "src/scripts/checkpoint.ts",
+];
+const RENAMED_IN_V25 = new Map([["skills/review/SKILL.md", "skills/dr-review/SKILL.md"]]);
+const v25 = {
+  full: v24.full
+    .filter(notAddedAfter(REMOVED_IN_V25))
+    .map((path) => RENAMED_IN_V25.get(path) ?? path),
+  light: v24.light
+    .filter(notAddedAfter(REMOVED_IN_V25))
+    .map((path) => RENAMED_IN_V25.get(path) ?? path),
+};
+MANIFESTS.set(25, v25);
+// Version 26: the RESEARCH.md format reference autoresearch loads at setup. Full only.
+const ADDED_IN_V26 = ["skills/autoresearch/RESEARCH-FORMAT.md"];
+const v26 = {
+  full: [...v25.full, ...ADDED_IN_V26],
+  light: v25.light,
+};
+MANIFESTS.set(26, v26);
+// Version 27: the dispatcher's test-protect handler. Claude-only like dispatch.ts.
+const ADDED_IN_V27 = ["src/hooks/test-protect.ts"];
+const v27 = {
+  full: [...v26.full, ...ADDED_IN_V27],
+  light: [...v26.light, ...ADDED_IN_V27],
+};
+MANIFESTS.set(27, v27);
+// Version 28: the dispatcher's spawn-cap handler. Claude-only like dispatch.ts.
+const ADDED_IN_V28 = ["src/hooks/spawn-cap.ts"];
+const v28 = {
+  full: [...v27.full, ...ADDED_IN_V28],
+  light: [...v27.light, ...ADDED_IN_V28],
+};
+MANIFESTS.set(28, v28);
+// Version 29: the dispatcher's visual-proof handler. Claude-only like dispatch.ts.
+const ADDED_IN_V29 = ["src/hooks/visual-proof.ts"];
+const v29 = {
+  full: [...v28.full, ...ADDED_IN_V29],
+  light: [...v28.light, ...ADDED_IN_V29],
+};
+MANIFESTS.set(29, v29);
+// Version 30: the dispatcher's cache-cold and config-guard handlers (Claude-only
+// like dispatch.ts) and the /audit finding grader.
+const ADDED_IN_V30 = [
+  "src/hooks/cache-cold.ts",
+  "src/hooks/config-guard.ts",
+  "src/lib/cache-cold.ts",
+  "src/scripts/grade-findings.ts",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v29.full, ...ADDED_IN_V30],
+  light: [...v29.light, ...ADDED_IN_V30],
+});
+
+const GENERATED_MANAGED_FILES = new Set([
+  ".cc-settings-baseline.json",
+  ".cc-settings-hooks-fingerprint",
+  ".cc-settings-src-manifest",
+]);
+
+export interface ClaudeManagedSourceFile {
+  source: string;
+  destination: string;
+}
+
+/** Exact tracked source files copied by a current Claude install. */
+export function currentClaudeManagedSourceFiles(profile: Profile): ClaudeManagedSourceFile[] {
+  return claudeManagedManifestPaths(
+    CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION,
+    profile,
+    "current installer",
+  )
+    .filter((destination) => !GENERATED_MANAGED_FILES.has(destination))
+    .map((destination) => {
+      if (destination === "CLAUDE.md") {
+        return { source: "CLAUDE-FULL.md", destination };
+      }
+      if (destination === "src/package.json") {
+        return { source: "package.json", destination };
+      }
+      if (destination === "src/tsconfig.json") {
+        return { source: "tsconfig.json", destination };
+      }
+      if (destination === "src/bun.lock") {
+        return { source: "bun.lock", destination };
+      }
+      return { source: destination, destination };
+    });
+}
+
+export function claudeManagedManifestPaths(
+  version: number,
+  profile: Profile,
+  source: string,
+): readonly string[] {
+  const manifest = MANIFESTS.get(version);
+  if (!manifest) {
+    throw new Error(
+      `Unsupported Claude managed-files manifest version ${version} in ${source}. ` +
+        "Reinstall cc-settings once to establish supported ownership metadata.",
+    );
+  }
+  return manifest[profile];
+}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KEBAB_CASE_RE } from "../lib/frontmatter.ts";
 
 // Skill frontmatter lives at the top of each skills/<name>/SKILL.md file.
 // The content between the `---` delimiters is YAML, parsed separately (Phase 3
@@ -13,17 +14,39 @@ export const SkillContext = z.enum(["fork", "main"]);
 // Validated at install: the installer warns the user about missing prereqs
 // before they invoke a skill that would runtime-fail. Each entry declares
 // exactly one of `command` (CLI on PATH) or `mcp` (MCP server name as
-// configured in ~/.claude.json or settings.json `mcpServers`).
-export const SkillRequirement = z.union([
-  z.object({
-    command: z.string().min(1),
-    install: z.string().optional(),
-  }),
-  z.object({
-    mcp: z.string().min(1),
-    install: z.string().optional(),
-  }),
-]);
+// configured in ~/.claude.json, or a list of names of which any one will do).
+// `optional: true` marks a prerequisite the skill degrades without; the
+// installer never warns about those, the skill body says what happens instead.
+// Cross-shape guard (issue #83): each branch below is a plain (non-strict)
+// z.object. An entry declaring BOTH `command` and `mcp` used to parse
+// successfully as command-only (the first union member to match), silently
+// discarding `mcp` — so the skill's MCP prerequisite was never checked. This
+// guard runs on the raw input before the union tries either branch, so it
+// catches the conflict without stricting the individual branches (which
+// would risk rejecting a future, currently-unmodeled field on either shape).
+const SkillRequirementShapeGuard = z
+  .record(z.string(), z.unknown())
+  .refine((entry) => !("command" in entry && "mcp" in entry), {
+    message: "requires entry must declare exactly one of `command` or `mcp`, not both",
+  });
+
+export const SkillRequirement = SkillRequirementShapeGuard.pipe(
+  z.union([
+    z.object({
+      command: z.string().min(1),
+      install: z.string().optional(),
+      optional: z.boolean().optional(),
+    }),
+    z.object({
+      // A list means any-of: the skill works with whichever of these servers
+      // is registered (e.g. chrome-devtools or aside-devtools, which run the
+      // same package under different names).
+      mcp: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
+      install: z.string().optional(),
+      optional: z.boolean().optional(),
+    }),
+  ]),
+);
 
 // Tools list reuses the same permission-rule strings as settings.json.permissions.
 // We keep it as a string array here; the actual allow/deny check happens when
@@ -32,7 +55,7 @@ export const SkillFrontmatter = z.looseObject({
   name: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9][a-z0-9-]*$/, "name must be kebab-case (a-z, 0-9, -)"),
+    .regex(KEBAB_CASE_RE, "name must be kebab-case (a-z, 0-9, single hyphens)"),
   description: z.string().min(1),
   context: SkillContext.optional(),
   agent: z.string().optional(), // delegates to an agent type by name

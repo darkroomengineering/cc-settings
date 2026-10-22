@@ -1,390 +1,289 @@
 # Darkroom Engineering
 
-> Coding standards and guardrails for AI-assisted development.
-> Works with Claude Code, Codex, Cursor, Copilot, Windsurf, and any AGENTS.md-compatible tool.
-
----
-
-## Philosophy
-
-This codebase will outlive any single contributor. Every shortcut becomes someone else's burden.
-Fight entropy. Leave the codebase better than you found it.
-
-Make the codebase legible to agents. The work to make a codebase legible to an agent — written-down
-conventions, skills, rules, intent docs — is simply the debt you owe to your human engineers; every
-entry pays it down for both audiences at once.
-
----
-
-## Getting Started
-
-1. **Read this file** — it's the baseline for how we work
-2. **Use your tools naturally** — read files, search code, run builds directly
-3. **Delegate when triggered** — see delegation rules in Claude Code's CLAUDE-FULL.md. Multi-file exploration, security-sensitive code, and test writing MUST go to agents; don't reason your way out of it.
-4. **Learn the guardrails** — they exist because we hit every one of these problems
-
-Don't over-engineer your workflow. Start simple, add complexity only when you feel friction.
-
----
+> Portable coding standards for Claude Code, Codex, Cursor, Copilot, Windsurf, and other AGENTS.md-aware tools.
 
 ## Response Calibration
 
-Claude Opus 4.8 calibrates response length to task complexity rather than defaulting to fixed verbosity. Match your output to what was asked:
+Match length to the request. Lead with the answer. A lookup gets a sentence and `file:line`; a multi-file change gets a brief plan and landing summary. Skip preambles and duplicate recaps.
 
-- **Simple questions** (1-2 sentences): direct answer, no preamble, no trailing summary
-- **Lookups ("where is X", "what does Y do")**: one short paragraph + file:line reference
-- **Single-file changes**: brief description + show the diff. Don't restate what the diff already shows
-- **Multi-file or complex work**: brief plan → execute → 1-2 sentence summary of what changed
-- **Explanations**: use headers/bullets only when structure genuinely helps; avoid ceremonial formatting for short answers
+### Register
 
-**Never**:
-- Add trailing summaries that restate the diff
-- Explain what you're about to do before every tool call (one sentence before a batch is enough)
-- Use "I'll now..." / "Let me..." preambles; just do the thing and announce completion
-- Pad responses with caveats or qualifications that don't change the outcome
+Optimize for first-read comprehension, not brevity:
 
-**Positive guidance beats negative**: state how to respond (concise, direct) rather than what to avoid. 4.8 interprets prompts literally — a rule like "don't be verbose" is weaker than "respond in 1-2 sentences for simple questions."
-
----
+- Put the subject first; move modifiers into a clause instead of stacking them.
+- Prefer active voice and direct verbs. Name the actor when it matters; use passive only when the actor is unknown or irrelevant.
+- Keep one subject or decision per sentence when combining claims creates ambiguity.
+- Use an existing name for an existing thing; never coin or capitalize a replacement concept. Define an unavoidable new name in its first sentence and reuse it unchanged.
+- Use identifiers when pointing at code, plain names when describing behavior: `parseConfig` when the reader will open it, "the config parser" when describing what it does.
+- Define jargon inline on first use.
+- State the effect before the mechanism. Never clip sentences or remove substance to be shorter; explain fully when explanation is the task.
+- Say what you mean literally. No mannered prose: metaphor or flourish in place of a direct statement ("a dial worth turning" for "a parameter worth varying") makes the reader work so the writer can perform.
+- Use lists, tables, or headers when the content is multifaceted enough that they help the reader; keep to plain prose otherwise.
 
 ## Guardrails
 
-These rules exist because we've seen them violated repeatedly. Non-negotiable.
-
 ### Laziness Ladder (Before Writing Code)
-The best code is the code you don't write. Before generating anything, stop at the **first rung that holds**:
 
-1. **Does this need to exist?** — if no, skip it (YAGNI). Question the request before solving it.
-2. **Does the standard library / runtime already do this?** — use it.
-3. **Does a native platform feature cover it?** — use it.
-4. **Does an already-installed dependency solve it?** — use it; don't add a new one.
-5. **Can it be one line?** — make it one line.
-6. **Only then** — write the minimum that works.
+Stop at the first rung that holds:
 
-Default to deletion over addition, boring over clever, fewest files possible. No abstractions, dependencies, or boilerplate nobody asked for. When two stdlib approaches tie on size, pick the edge-case-correct one.
+1. Does this need to exist? If not, skip it (YAGNI).
+2. Search behavior and callers. Reuse matching project wrappers before primitives; name gaps before adding code.
+3. Does the standard library/runtime do it? Use it.
+4. Does the native platform do it? Use it.
+5. Does an installed dependency do it? Use it; add nothing.
+6. Can it be one line? Make it one line.
+7. Only then, write the minimum that works.
 
-**Lazy, not negligent.** The ladder never applies to trust-boundary/input validation, error handling that prevents data loss, security, accessibility, or anything explicitly requested — those are always built in full. It also bends for real-world physical constraints (hardware drift, sensor inaccuracy) when the task involves them.
+Default to deletion over addition, boring over clever, and the fewest files. Add no unrequested abstractions, dependencies, or boilerplate. Between equal-size stdlib choices, pick the edge-case-correct one.
+
+The ladder never reduces trust-boundary/input validation, data-loss-preventing error handling, security, accessibility, explicit requirements, or real-world physical constraints.
+
+A deliberate simplification with a known ceiling gets a `SHORTCUT:` comment naming the ceiling and the upgrade trigger (`// SHORTCUT: one global lock. ceiling: ~50 rps. upgrade: shard by key when p99 write latency climbs`). Use this only for knowingly cut corners; it cannot excuse the protected concerns above. When a trigger fires, implement the upgrade and remove the marker in the same diff.
 
 ### Read Before Edit
-**Never change code you haven't read.** Research the codebase before editing — open the file, trace the callers, understand the context. Edit-first behavior produces shallow fixes and regressions. If you're about to modify something you haven't read in this session, stop and read it first.
+
+**Never change code you have not read in this session.** Read the file, trace callers, and understand the context before editing.
 
 ### 2-Iteration Limit
-If an approach fails after **2 attempts**, STOP:
-1. Summarize what you tried and why it failed
-2. Present **2-3 alternative approaches** with trade-offs
-3. Ask which direction to take
 
-Never burn 6+ attempts on the same strategy. Fail fast, pivot deliberately.
+After **2 failed attempts** with one approach, stop using it. Summarize the attempts, pick the best of **2-3 alternatives**, and continue, saying so; ask only when the choice changes the user's stated direction or is hard to reverse. Never spend 6+ attempts on one strategy.
+
+### Stop-Loss on Environment Blockers
+
+The 2-iteration limit does not fire on an OS, device, vendor, or network blocker, because every attempt is a new approach. Cap that investigation at about 20 minutes or 30 tool calls, then write a diagnosis instead of the next attempt: what was ruled out with evidence, the most likely cause, and 2 to 3 next options ranked by effort, including the one that needs the user's hands or a vendor.
 
 ### Bug Fix Scope
-When fixing a bug, stay **confined to files directly related to the bug**:
-- Don't refactor adjacent code "while you're in there"
-- Don't upgrade dependencies as part of a bug fix
-- Don't touch files outside the immediate blast radius
-- A bug fix PR should be reviewable in under 2 minutes
+
+Keep a bug fix confined to directly related files. Do not refactor adjacent code, upgrade dependencies, or touch outside the immediate blast radius. The PR should be reviewable in under 2 minutes.
 
 ### Completeness Is Cheap
-AI-assisted coding pushes the marginal cost of finishing toward zero. When the complete version of the thing you're **already building** costs minutes more than the shortcut, do the complete thing — every edge case, error path, and test. "Ship the 90%, defer the rest" is legacy thinking from when human typing was the bottleneck.
 
-This is bounded by scope, not a license to expand it. Complete the **unit you're deliberately touching**; it does not override `Bug Fix Scope` (a fix stays minimal) or `Surface Conflicts`. Finishing a bounded module is a "lake" — boil it. Rewriting an adjacent system is an "ocean" — flag it as out of scope, don't start it.
+Once the ladder says a bounded unit should exist, finish its edge cases and error paths when that costs only minutes more; do not ship 90% and defer the rest. Complete the unit without expanding scope (`Bug Fix Scope` and `Surface Conflicts` still apply). Commit tests only where the task asks or the repository already keeps that kind; scratch checks stay scratch.
 
-This is the **second gate, not a contradiction of the `Laziness Ladder`**: the ladder decides *whether* to build a thing; Completeness decides *how thoroughly* to finish what you've already decided to build. Clear the ladder first, then finish completely within scope. "Skip what isn't needed" and "fully finish what is" are sequential, not opposed.
+### No Loose Ends
+
+Finish the follow-ups your own change creates. After a delete, rename, or move, find and fix every reference (imports, links, docs, config, tests, sibling checkouts the files name) in the same pass. Do a minutes-long follow-up instead of suggesting it. Hand back only a decision the user owns, access you lack, or a change you could not reach.
 
 ### Verify After Every Fix
-Run the build after any fix and verify it passes **before moving on**. Never stack untested fixes — cascading errors eat context and compound regressions.
 
-### Pre-Commit Verification
-Before ANY commit:
-1. Run type checking (`tsc --noEmit` for TypeScript) — fix all errors
-2. Run the build command — fix all errors
-3. Run existing tests — fix all failures
+The repository's local checks (typecheck, tests, lint, build) are safe to run without asking. Prove each fix passes them before stacking the next one. **Never commit code that does not typecheck, build, and pass tests.**
 
-**Never commit code that doesn't build.**
+### E2E-First Testing
+
+Prefer E2E tests for new verification: use them to verify complex features, and end each with a verifiable, repeatable artifact. Where the repository already keeps unit tests, follow its convention. To test a system in isolation, first write down every way it can fail, then write the code.
+
+### Failing Tests: Regression vs. Contract Change
+
+Classify every post-change test failure before editing a test:
+
+- **Regression:** the assertion remains correct. Fix the code; never relax, weaken, or delete the assertion.
+- **Intentional contract change:** the requirement explicitly supersedes the assertion. Update implementation and assertion in the same diff, and report the changed contract and reason.
+
+If uncertain, treat it as a regression and stop to confirm. Making the suite green alone never justifies editing an assertion.
 
 ### Never Fake Measurements
-NEVER fabricate output from Lighthouse, bundle size tools, performance profilers, test runners, or build systems. If you can't run a tool, say so.
+
+Never fabricate Lighthouse, bundle-size, profiler, test-runner, or build output. If a tool cannot run, say so. Report a delta only when both baselines were measured; otherwise report countable facts. Label extrapolations `est.` and name their source.
 
 ### Visual/Spatial Honesty
-For sub-pixel rendering, WebGL, physics, complex animations, or canvas — acknowledge limitations upfront. Provide best-effort with clear TODOs, and suggest the user validate visually.
 
-For CSS/visual bugs: if a fix doesn't work after 2 attempts, propose **3 fundamentally different approaches** and let the user pick.
+For sub-pixel rendering, WebGL, physics, complex animation, or canvas, state limitations, provide best effort with clear TODOs, and request visual validation. After 2 failed attempts at a CSS/visual fix, offer **3 fundamentally different approaches** and let the user choose.
 
 ### Name the Cause
-Before committing a fix, you must be able to name the specific cause in one sentence. If you can't, you don't have the cause — you have a guess. Guessed fixes get committed, miss the root cause, force rollbacks. Especially true for CSS and viewport bugs.
 
-- **Guess**: "I think `safe-area-inset` should fix the black bars."
-- **Cause**: "The Lenis scroller has `height: 100vh` which excludes iOS browser chrome; needs `h-svh`."
-
-If the sentence requires "I think" or "maybe," gather more signal — screenshot the broken element, inspect computed styles — before editing.
+Before committing a fix, name its specific cause in one sentence. If the explanation needs "I think" or "maybe," gather more evidence, such as screenshots or computed styles, before editing.
 
 ### Fail Loud
-"Done" is wrong if anything was skipped, mocked, or unverified. State it explicitly in your final message when:
-- A test was skipped, marked `.only`, or had an assertion relaxed
-- A migration, batch job, or script "completed" but the run had skipped/failed records
-- A feature was implemented but not exercised end-to-end (e.g. UI shipped without browser verification)
-- A claim relies on a tool, command, or service you didn't actually run
 
-Type checking and tests verify code correctness, not feature correctness. Default to surfacing uncertainty — the cheapest bugs to fix are the ones the user hears about before they ship.
+Never say "done" without explicitly reporting:
+
+- skipped or `.only` tests, or relaxed assertions;
+- skipped/failed migration, batch, or script records;
+- features not exercised end-to-end, including UI without browser verification;
+- claims that depend on a tool or service you did not run;
+- defects in captures you took; inspect each one first.
+
+Typechecks and tests prove code, not the feature. Surface uncertainty.
 
 ### Surface Conflicts, Don't Average
-When two existing patterns in the codebase contradict (two error-handling styles, two state-management approaches, two router conventions), pick one — usually the more recent or more tested — and flag the other for follow-up cleanup. Do **not** write code that satisfies both. "Average" code that bridges contradictions doubles handlers, hides bugs, and ratchets complexity for the next reader.
+
+When existing patterns conflict, choose one, usually the newer or better-tested pattern, and flag the other for follow-up. Never bridge both patterns; that doubles behavior and hides bugs.
 
 ### Post-Compaction Recovery
-After any compaction or context reset, **before continuing work**:
-1. Re-read the task plan (todo, plan file, or issue)
-2. Re-read the files you're actively modifying
-3. Run `git diff --stat` to see what's changed
-4. Only then continue implementation
 
-Never assume you remember file contents or task state after compaction. Context loss is silent — re-read, don't guess.
+After compaction or a context reset, re-read the task plan and every actively modified file and run `git diff --stat` before resuming; remembered contents are stale.
 
 ### Neutral Exploration
-When investigating code (auditing, reviewing, exploring), use **neutral prompts** that don't bias toward a specific outcome:
-- Say "analyze the logic and report all findings" — not "find the bug"
-- Say "review the auth flow and describe what happens" — not "what's wrong with auth"
-- Say "trace the data flow and report" — not "where's the data leak"
 
-Biased prompts cause agents to manufacture issues that don't exist.
+Use neutral investigation prompts: ask to analyze logic, review a flow, or trace data and report all findings. Do not presuppose a bug or leak; biased prompts manufacture issues.
 
-### TODO Comments Are Instructions
-When you encounter a `TODO`, `FIXME`, or `HACK` comment, **implement it** — don't delete it. Removing a TODO without doing the work is marking your own homework complete by erasing the assignment.
+### Comments
+
+Default to no comment. Add one only when an agent without it would make a wrong edit or waste a search: an invariant, a non-obvious why, an outside fact (linked), or a warning against a safe-looking edit. Never restate the code, narrate the change, address the reviewer, or echo types in JSDoc. Implement `TODO`/`FIXME`/`HACK`; never delete one without doing the work. `SHORTCUT:` stays until its `upgrade:` trigger fires; then upgrade and delete it together.
+
+### Clarify Before Full Work Mode
+
+Any non-trivial solution (beyond a lookup or obvious one-file fix) opens with clarifying rounds on target repo or branch, design choices, what "done" means. Repeat until no decision that changes the work is left; later rounds ask only what answers opened. Per round: at most 4 questions, 2 to 4 concrete options, recommended first, through the host's question tool (`AskUserQuestion`; Codex `request_user_input`), never a prose list. Make routine calls (conventional default) yourself; state the assumption. Read before asking; ask only what the user alone knows. Ask any user decision, mid-task too, through the tool that turn; never end a turn on a prose question.
 
 ### Plan Before Multi-File Changes
-Before any change touching **5+ files**, outline the plan first:
-1. List every file you'll modify and what changes
-2. Identify what could break
-3. Get approval before executing
 
-This prevents wrong-approach cascades that force full rollbacks.
+When a wrong approach would require a full rollback, state the plan (files touched and risks), then proceed without waiting for approval on reversible in-scope work. Delegation thresholds live in each host's instructions (Claude Code: `CLAUDE-FULL.md`).
+
+### Every Plan Opens With a Functional DAG
+
+Every markdown plan (plan files, PRDs, ADRs, issue breakdowns, orchestration briefs, stated multi-file plans) start with `## Functional DAG`: a fenced recipe table with inputs on the left, operations merging rightward, parallelism visible by columns, and one terminal verification node. Rules and the Mermaid option: `docs/functional-dag.md`. Reviews, audits, retros, and handoffs are not plans.
 
 ### Dependency Upgrades
-Before upgrading major dependencies, check for breaking changes. If an upgrade breaks the build, **rollback immediately** to the working version. Rollback first, research the migration, then try again with a plan.
 
-### Autonomous Execution
-Non-destructive operations proceed without asking:
-- Reading files, searching code, exploring architecture
-- Running read-only commands (git status, git log, git diff)
-- Fetching documentation, research
+Check breaking changes before every major dependency upgrade. If the build breaks, rollback immediately, research the migration, then retry with a plan.
 
-Only confirm destructive or irreversible actions.
+### Shell Commands
+
+Quote every glob and path argument. Use absolute paths instead of `cd` chains; a wrong relative `cd` fails the whole command. Put each destructive step (delete, force, reset, drop) in its own command so a failure or denial stops exactly one thing. zsh doesn't word-split an unquoted `$VAR`: pass lists as arrays (`"${a[@]}"`), and suspect this when a command succeeds but does nothing.
 
 ### Recommend, Don't Override
-You recommend; the user decides. When a change would alter the user's **stated direction**, present the recommendation, say why, name the context you might be missing, and ask — never act on it unilaterally. Two agents agreeing (e.g. `oracle` + `verify`, or a reviewer pair) is a strong signal, not a mandate: the user holds domain knowledge, business context, and taste the models don't. Agreement is evidence to surface, not permission to proceed.
+
+The user decides changes to their stated direction. Recommend the change, explain why and what context may be missing, then ask. Agreement between agents is evidence, never permission.
 
 ### Bug Reports
-When given a bug report, fix it immediately. No "should I?" questions. If something goes sideways, stop and re-plan — don't keep pushing.
 
----
+Fix reported bugs immediately without asking whether to proceed.
 
 ## Tech Stack
 
-### Core
-- **TypeScript** — Strict mode, no `any` types
-- **Next.js 16+** — App Router only
-- **React 19+** — Server Components default, Client when needed
-- **Tailwind CSS v4** — With CSS Modules for complex components
-- **Bun** — Package manager and runtime
+These defaults apply to Darkroom web clients. A project's config and lockfile win; departures in new work say why in the PR. Tooling and non-web repositories, including this one, inherit only Bun, Biome, and TypeScript unless their profiles say otherwise. Framework details live in `profiles/`.
 
-### Quality
-- **Biome** — Linting and formatting (not ESLint/Prettier)
-- **React Compiler** — No manual `useMemo`/`useCallback`/`memo`
+### Core
+
+- **TypeScript:** strict mode.
+- **Next.js 16+:** App Router only.
+- **React 19+:** Server Components by default; Client Components only when needed.
+- **Tailwind CSS v4:** use CSS Modules for complex components.
+- **Biome:** linting and formatting, not ESLint/Prettier.
+- **React Compiler:** on.
 
 ### Animation & Graphics
-- **Lenis** — Smooth scroll
-- **GSAP** — Complex animations
-- **Tempus** — RAF management
-- **Hamo** — Performance hooks
 
-Always check latest version before installing: `bun info <package>`
+- **Lenis:** smooth scroll.
+- **GSAP:** complex animations.
+- **Tempus:** RAF management.
+- **Hamo:** performance hooks.
 
 ### Package Manager: Bun Only
-Darkroom projects are **bun-first**. Never mix package managers within a session.
 
-- Install: `bun add <pkg>` (never `npm install` / `pnpm add` / `yarn add`)
-- Run scripts: `bun run <script>` (never `npm run`)
-- Execute binaries: `bunx <bin>` (never `npx`)
-- Type-check: `bunx tsc --noEmit` (never `npx tsc`)
-
-**Exception:** `npx expo ...` is the official Expo invocation and is allowed in React Native projects only. Everywhere else, default to `bunx`. If you started a session with `bun`, do not silently switch to `npx` mid-task — it creates lockfile drift and confuses users.
-
----
-
-## Project Structure
-
-```
-app/                 # Next.js routes only
-components/          # UI components
-lib/
-  ├── hooks/         # Custom hooks
-  ├── integrations/  # Third-party clients
-  ├── styles/        # CSS, Tailwind config
-  └── utils/         # Pure utilities
-```
-
----
+`bun add`, `bun run`, `bunx`, `bunx tsc --noEmit`; never `npm`, `pnpm`, `yarn`, or `npx`, except `npx expo ...` and the pinned probes `npx react-doctor` and `npx deslop`. Switching package managers mid-session causes lockfile drift.
 
 ## Coding Standards
 
 ### TypeScript
-- No `any` — use `unknown` and narrow
-- Prefer `interface` over `type` for objects
-- Use discriminated unions for state
+
+- No `any`; use `unknown` and narrow it.
+- Prefer `interface` over `type` for objects.
+- Use discriminated unions for state.
 
 ### React
-- Server Components by default
-- `'use client'` only when needed
-- React Compiler enabled: do NOT use `useMemo`, `useCallback`, or `React.memo`
-- Use `useRef` for object instantiation to prevent infinite loops
 
-### Components
-```tsx
-import s from './component.module.css'
-import { Image } from '@/components/image'
-import { Link } from '@/components/link'
-```
+- With React Compiler, do not use `useMemo`, `useCallback`, or `React.memo`.
+- Use `useRef` for object instantiation to prevent infinite loops.
 
 ### Performance
-- Eliminate waterfalls — `Promise.all` for parallel fetches
-- Avoid barrel imports — use direct imports
-- Dynamic imports for heavy components
-- `React.cache()` for server-side deduplication
+
+- Eliminate waterfalls with `Promise.all` for independent fetches.
+- Avoid barrel imports; import directly.
+- Dynamically import heavy components.
+- Use `React.cache()` for server-side deduplication.
+- Native iOS/macOS animation: springs, built-in animatable modifiers, no timer-driven motion; full bar in `rules/swift-animation.md`.
 
 ### Accessibility
-- Images need `alt` text
-- Icon-only buttons need `aria-label`
-- Form inputs need `<label>` or `aria-label`
-- No `<div onClick>` — use semantic elements
-- Touch targets minimum 44x44px
-- Color contrast 4.5:1 minimum
+
+- Images require `alt` text.
+- Icon-only buttons require `aria-label`.
+- Inputs require `<label>` or `aria-label`.
+- Use semantic elements, never `<div onClick>`.
+- Touch targets: minimum 44x44px.
+- Color contrast: minimum 4.5:1.
 
 ### UI
-- Use `h-dvh` not `h-screen`
-- Never block paste in inputs
-- Animate only `transform`, `opacity` (compositor properties)
-- Max 200ms for interaction feedback
-- Honor `prefers-reduced-motion`
 
----
+- Use `h-svh`, not `h-screen`.
+- Never block paste in inputs.
+- Animate only compositor properties: `transform` and `opacity`.
+- Interaction feedback: maximum 200ms.
+- Honor `prefers-reduced-motion`.
 
 ## Git
 
-- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
-- Small, atomic commits
-- Never force push to `main` or `master`
+- Use conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`.
+- Keep commits small and atomic.
+- Never force-push `main` or `master`.
 
-### Stealth Mode (Mandatory)
+### History Belongs in Git, Not in Code
 
-No AI fingerprints in git history, PRs, or descriptions. Ever.
+Code and docs read as if the current state is the only one that ever existed. Remove, don't annotate: text describing what changed ("replaces X", "no longer", "previously", "renamed from", "current violations: 0") gets deleted or reworded to present tense, and the repo swept for the same pattern in one pass. Delete artifact files (a "Fixed Violations" ledger, a "moved to X" tombstone) and whatever enforced them. Keep "why" comments that prevent a bad future edit, minus the historical framing. History lives in `CHANGELOG.md`.
 
-- No `Co-Authored-By` lines mentioning Claude, Anthropic, or any AI
-- No "Generated with Claude Code" or similar in PR descriptions
-- No robot emoji, "AI-assisted", or "automated by" language
-- PR descriptions: `## Summary` + `## Test Plan` only — no AI badges
-- Commit messages: conventional format, nothing else
+### Stealth Mode
 
----
+Git history, PRs, and descriptions contain no AI fingerprints:
+
+- No `Co-Authored-By` naming Claude, Anthropic, or any AI.
+- No "Generated with Claude Code" or equivalent.
+- No robot emoji, "AI-assisted," or "automated by" language.
+- No AI badges in PR descriptions; see `rules/git.md` for the PR template.
+- Commit messages contain only the conventional message.
+
+## Code Review Rules
+
+AGENTS.md-aware reviewers use this scope. Report only behavior or risk; skip formatting, import order, naming taste, comment density, and anything Biome catches.
+
+**P0 — block the merge:**
+
+- Secrets or credentials in the diff, including `.env` values, keys, and tokens.
+- Injection: unparameterized SQL, user content passed to `dangerouslySetInnerHTML`, or open redirects.
+- Unvalidated trust-boundary input in API routes, webhooks, or form handlers.
+- Data-loss paths: unhandled write/migration errors or destructive operations without a guard.
+- Type-safety escapes hiding runtime failure: `any`, careless `as`, or `@ts-ignore`.
+- Test assertions relaxed, skipped, or deleted merely to pass.
+
+**P1 — fix before merge:**
+
+- Touched code that breaks Performance, Accessibility, or React above: waterfalls, barrel imports, missing `alt`/labels, `<div onClick>`, sub-44x44px targets, manual memoization.
+- New dependencies when stdlib, platform, or an installed dependency suffices.
+- Scope creep in a bug-fix diff.
 
 ## External Libraries
 
-**Search before building** — rungs 2–4 of the `Laziness Ladder` applied to dependencies: stdlib, then platform, then already-installed deps, before anything new. Reinventing something the platform already ships (or that exists as a one-liner) is the most common avoidable waste; adding a dependency you didn't need is the second-most-common.
+After the Laziness Ladder, before using any external library:
 
-Before implementing with any external library:
-1. Fetch current docs — don't assume API knowledge
-2. Check latest version: `bun info <package>`
-3. New projects: `bunx degit darkroomengineering/satus my-project`
-
----
+1. Fetch current documentation; do not rely on remembered APIs.
+2. Check the latest version with `bun info <package>`.
 
 ## Context Hygiene
 
 ### Tool Output Offloading
-When a tool returns output exceeding ~2000 tokens (large search results, verbose logs, big API responses), write it to a scratch file and return a summary with the file path instead of carrying the full output in context.
 
-```
-# Instead of returning 10K tokens of search results:
-[Results written to /tmp/scratch/search_results_001.txt — 47 matches found.
-Top 3: auth.controller.ts:42, session.service.ts:18, middleware/jwt.ts:7]
-```
-
-This prevents context bloat from accumulating tool outputs (which comprise ~84% of token usage in typical agent sessions).
+When output exceeds ~2000 tokens, write it to a scratch file and return a count, top findings, and path rather than carrying the full output in context.
 
 ### Information Placement
-Place critical information at the **beginning** and **end** of context. The middle receives less attention (lost-in-middle effect). When constructing prompts or structured output, put the most important facts first and last.
+
+Put critical information at the beginning and end of prompts and structured output; the middle receives less attention.
 
 ### Cache Discipline
-Anthropic prompt caches index by **exact prefix match**. A cache hit charges ~10% of input cost and returns faster; a miss pays full rate. The cache is the lever you have under flat-rate plans (Max 100/200) — hits don't save dollars but they preserve 5h-window quota and cut latency.
 
-- **Stable content first, volatile content last.** System prompt → CLAUDE.md → tools → conversation. Any edit to the stable prefix invalidates everything cached after it.
-- **Don't switch models mid-task.** Each model has its own cache namespace; switching trashes the existing entry. Decide the model at task start.
-- **Don't edit pinned files mid-session.** CLAUDE.md, AGENTS.md, and skill prompts are part of the cached prefix. Edit them between sessions, not during. If you must edit during, expect the next 1-2 turns to miss cache.
-- **Don't reorder tool definitions.** A new tool *appended* preserves the cache; a tool *inserted* in the middle invalidates everything after it.
-- **5-minute TTL.** Long pauses (lunch, meeting) blow the cache. Cluster related work into focused bursts.
-
-The compaction-at-65% rule (see `~/.claude/CLAUDE.md`) coexists with caching: compaction rewrites the prefix, so the next turn pays a one-time miss. That trade is correct — a single miss is cheaper than dragging stale context for 30 more turns.
-
----
+Prompt caches need an exact prefix match. Keep stable content before volatile content; during a task do not switch models, edit pinned CLAUDE.md/AGENTS.md/skill prompts, or reorder tool definitions. Compaction costs one miss but beats stale context.
 
 ## Safety
 
-- Never commit secrets or `.env` files
-- Use environment variables for all API keys
-- Seek approval for destructive changes only
-
----
+- Never commit secrets or `.env` files.
+- Put API keys in environment variables.
+- Seek approval only for destructive or irreversible changes.
 
 ## Knowledge Routing
 
-Use this table to decide where a piece of knowledge belongs:
-
-| Situation | Where it belongs |
+| Situation | Destination |
 |---|---|
-| Personal workflow preference ("I want terse responses") | auto-memory (`user` or `feedback`) |
-| Active project state, deadlines, blockers | auto-memory (`project`) |
-| Pointer to external system (Linear board, dashboard URL) | auto-memory (`reference`) |
-| Architecture decision the team must follow | **team-knowledge repo** (`/share-learning`) |
-| Library gotcha that affects everyone | **team-knowledge repo** (`/share-learning`) |
-| Convention ("All API routes return `{ data, error }`") | **team-knowledge repo** (`/share-learning`) |
-| Incident postmortem worth team awareness | **team-knowledge repo** (`/share-learning`) |
+| Personal workflow preference | auto-memory: `user` or `feedback` |
+| Active project state, deadline, blocker | auto-memory: `project` |
+| External-system pointer or URL | auto-memory: `reference` |
+| Team decision, convention, library gotcha, incident postmortem | team-knowledge repo via `/share-learning` |
 
-**Rule of thumb:** if another team member's AI agent would benefit from knowing it, post it to the team-knowledge repo. Otherwise let auto-memory handle it.
-
-Examples of team-wide entries:
-```bash
-# Read: browse index or search across notes
-cat $KNOWLEDGE_REPO_PATH/INDEX.md
-rg "smooth-scroll" $KNOWLEDGE_REPO_PATH/
-
-# Architecture decision
-/share-learning decision "Lenis over native smooth-scroll for cross-browser consistency"
-
-# Team convention
-/share-learning convention "All API routes return { data, error } — never throw to the caller"
-
-# Cross-cutting gotcha
-/share-learning gotcha "Sanity API returns UTC dates — always convert to local before display"
-```
-
-See `docs/knowledge-system.md` for full setup instructions and recall patterns.
-
-## Self-Evolving Learnings (agent convention)
-
-After completing a session, if you hit a non-obvious bug, discovered a useful
-pattern, or found an edge case, append it to your agent memory
-(`~/.claude/agent-memory/<agent-name>/MEMORY.md`). First 200 lines auto-load on next invocation.
-Keep entries terse:
-```
-- [YYYY-MM-DD] <category>: <one-line learning>
-```
-Categories: [categories vary per agent]
-
----
-
-## Knowledge System
-
-This project uses a two-tier knowledge system:
-
-**Shared (Team)** — Stored in the team-knowledge repo (`darkroomengineering/team-knowledge`). Architecture decisions, team conventions, cross-cutting gotchas. Accessible to any team member's AI agent via `rg`/`cat` on a local clone or via `gh api`.
-
-**Local (Personal)** — Stored in auto-memory and local config files. Workflow preferences, individual learnings, session context. Private to each developer.
-
-See `docs/knowledge-system.md` for details.
+If another team member's agent benefits, use the team-knowledge repo; otherwise use auto-memory. Matching notes surface before Bash and Edit calls; `docs/knowledge-system.md` has the read and post commands.

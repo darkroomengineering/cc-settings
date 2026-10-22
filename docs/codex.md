@@ -1,0 +1,337 @@
+# Codex support
+
+> **Audience:** standalone Codex users and administrators
+> **Purpose:** document Codex-native installation, daily use, lifecycle, and platform boundaries
+> **Status:** supporting Codex reference; shared behavior lives in [host parity](./claude-vs-codex.md)
+
+cc-settings installs a native Codex setup from the same source tree used for Claude Code. Use the
+installer as the canonical setup path. Codex's `/import` command remains useful for migrating an
+existing hand-tuned Claude Code profile, but it is no longer the recommended cc-settings setup.
+
+For running Codex as a second model from a Claude Code session, see
+[codex-bridge.md](./codex-bridge.md). This page covers standalone Codex installation and lifecycle.
+
+After installation, describe outcomes normally or pin a shared skill as `$skill-name`. Claude-style
+`/skill-name` examples do not apply in standalone Codex. Use `/status` for native session state and
+`/hooks` to review hooks. Follow [your first session](./first-session.md) for a harmless
+read-only setup check.
+
+## Install Codex
+
+The default target is `auto`. It installs both Claude Code and Codex when the `codex` executable is
+on `PATH`, and Claude Code only otherwise.
+
+```bash
+# Default target selection
+bash setup.sh
+
+# Codex only
+bash setup.sh --target=codex
+
+# Claude Code only
+bash setup.sh --target=claude
+
+# Both (full and plugin-changing operations require the CLI; a fresh --light does not)
+bash setup.sh --target=both
+```
+
+On Windows, use `.\setup.ps1` in place of `bash setup.sh`. No clone is needed for any of these:
+every flag also works remotely through `npx darkroom-settings --target=codex`, the shell one-liner
+(`curl -fsSL .../setup.sh | bash -s -- --target=codex`), or the PowerShell script-block form — see
+the [one-line install](./install.md#one-line-install).
+
+Restart each selected TUI after installation. In Codex, open `/hooks` and review the newly installed
+user hooks once. Repeat that review after a hook changes. The fixed HTTPS Figma MCP may ask
+you to authenticate in Codex.
+
+## What a full Codex install manages
+
+The installer uses `$CODEX_HOME` when it is set, or `~/.codex` otherwise:
+
+```text
+$CODEX_HOME/ or ~/.codex/
+|-- AGENTS.md                    # Managed marked block; surrounding user text stays intact
+|-- agents/*.toml               # Native role agents, except codex-verifier, plus claude-verifier
+|-- rules/darkroom.rules         # Native command policy
+|-- darkroom/source/             # Allowlisted runtime source used by the hooks
+|-- hooks.json                   # User-level hooks that run from darkroom/source
+|-- .cc-settings-version         # Ownership and version sentinel
+`-- backups/cc-settings/         # Codex-specific backups
+```
+
+The full profile also installs `darkroom@cc-settings` through the native Codex plugin CLI. The
+plugin provides:
+
+- The 38 shared skills from this repository.
+- The fixed HTTPS Figma MCP server.
+- Codex UI metadata.
+
+The plugin loads from the root `plugin.json` and `mcp.json`. Codex runs no hooks from a plugin in
+that format, so the installer writes the Codex-compatible lifecycle hooks to
+`$CODEX_HOME/hooks.json` as user-level hooks, with absolute paths into `darkroom/source`. The
+installer owns individual hook groups in that file, never the file. A group is its own when every
+handler runs `darkroom/source/src/scripts/codex-hook.ts` from any absolute path, so groups written
+under another `CODEX_HOME` still count as its own. Install and reinstall keep every other
+group and top-level key as they are and append its groups after the existing ones in each event, so
+another tool's hooks (Programa, for example) keep their positions. cc-settings rewrites hooks.json as 2-space JSON, keeping key and group order, so custom whitespace
+and formatting are not preserved. Uninstall and rollback remove only its groups, restore the ones a
+backup held, and delete the file only when nothing else is left in it; rollback leaves other tools'
+groups as they are now. The
+install stops before writing when the file cannot be merged into: a symlink, invalid JSON, an
+unexpected shape, or a group that mixes cc-settings and other handlers. These hooks keep their handoffs and logs in
+`$CODEX_HOME/plugins/data/darkroom-cc-settings`.
+
+The Codex package does not auto-run Context7 or Chrome DevTools from mutable, unpinned registry
+packages. Users may configure reviewed and pinned versions themselves. The package also excludes
+Claude's `tldr` MCP server and the `codex-verifier` agent. That agent exists only to bridge from
+Claude Code into Codex. Its twin, `claude-verifier`, is installed only into Codex and bridges the
+other way: it runs the current diff past a Claude model through headless Claude Code. See
+[delegating to other models](#delegating-to-other-models).
+
+The Codex CLI version this repo was last triaged against lives in `upstream/codex-manifest.json`.
+`bun run upstream:scan` reports when npm has a newer stable `@openai/codex`, and `/cc sync`
+reads that release's GitHub notes and cross-references the surfaces listed in the manifest.
+The Codex desktop app and IDE extension have their own release notes on
+[learn.chatgpt.com/docs/changelog](https://learn.chatgpt.com/docs/changelog), with no npm package
+to compare. The scan reads that page's RSS feed and reports every entry after the manifest's
+`appChangelogLastScan` date, skipping ChatGPT iOS releases; `/cc sync` triages them with the CLI notes.
+
+`darkroom/source` is a runtime allowlist, not a copy of the checkout. It contains only the shared
+skills, hooks, runtime `src/` files, and package metadata needed after installation. Native role
+instructions are generated separately in `agents/*.toml`. User-created files, ignored files, and
+unrelated repository content are not copied into the managed runtime.
+
+## If Codex says skill descriptions were shortened
+
+A full install checks `~/.agents/skills` for names that duplicate skills already supplied by the
+`darkroom@cc-settings` plugin. This usually comes from an older Codex `/import`. Duplicate entries
+consume the skill selector's `skills.max_context_tokens` budget and can make Codex shorten otherwise
+complete plugin descriptions. The installer reports the names but never moves them automatically.
+
+Preview the migration from a cc-settings checkout:
+
+```bash
+bun run migrate:codex-skills
+```
+
+The preview lists only names that overlap the current 38 cc-settings skills. It leaves unrelated
+user skills, including `context7-mcp` and `programa`, out of the move. It also reads
+`$CODEX_HOME/config.toml`, or `~/.codex/config.toml` when `CODEX_HOME` is unset. When Codex
+Desktop's `[desktop] external-agent-import-sync-enabled` setting is `true`, Desktop will recreate
+directories after they move. Preview still lists the overlaps and warns about recurrence, but
+`--apply` refuses to move anything or create a backup.
+
+Disable that setting, quit and restart Codex completely, then preview again. cc-settings never
+edits `config.toml`; you own that choice. After reviewing a warning-free list, apply explicitly:
+
+```bash
+bun run migrate:codex-skills --apply
+```
+
+The command moves each overlapping real directory into one timestamped
+`~/.agents/skills-backup-cc-settings-*` directory. It never deletes a skill, never follows a
+symlink, and stops if an overlapping entry is not a normal directory. A malformed TOML file or a
+non-boolean import-sync value also stops the migration before any move. Keep the backup until Codex
+has restarted and the skill picker shows the plugin descriptions normally.
+
+If the warning persists after the dedupe, the sum of every enabled plugin (for example a Claude
+Cowork import) exceeds the budget. Measure it from a cc-settings checkout:
+
+```bash
+bun run codex:skill-budget
+```
+
+The report lists description characters per source, the estimated total against the budget, the
+longest descriptions (Codex trims those first), and which single plugin would cover the overshoot
+if disabled. It exits 1 when over budget and never edits `config.toml`.
+
+The budget is 2% of the model context window: 10,000 tokens for `gpt-6-astra`, or 8,000
+characters when the window is unknown. `[skills] max_context_tokens` only lowers that cap.
+Verified on codex-cli 0.154.0: with 16000 or 64000 configured, Codex still logs
+`budget_limit=10000`, so raising the value does nothing. The remedies are subtraction, both in
+`~/.codex/config.toml`, both yours to own:
+
+```toml
+# Disable a plugin you never use in Codex (frees its whole description block):
+[plugins."sanity@claude-cowork"]
+enabled = false
+
+# Or hide individual skills:
+[[skills.config]]
+path = "/path/to/skill/SKILL.md"
+enabled = false
+```
+
+Restart Codex after either change. To read Codex's own accounting instead of the estimate:
+
+```bash
+RUST_LOG=codex_skills_extension::render_observability=info \
+  codex exec --skip-git-repo-check "Reply OK" 2>&1 | grep budget_limit
+```
+
+The line reports `budget_limit`, `total_skills`, `truncated_skill_descriptions`, and how many
+characters each trimmed description lost. The darkroom plugin stays under a fifth of the budget by
+construction (`bun run lint:skills` enforces the description ceiling), so its descriptions are
+never among the trimmed ones unless the rest of the install is far over.
+
+## Delegating to other models
+
+The session model delegates by task shape. Native role agents carry no `model` field, so each
+one runs on the session's model (Codex subagents inherit the parent's model unless the agent file
+sets one). To give a role its own model, add a `model` line to its `agents/*.toml`; the next
+reinstall restores the generated file.
+
+For an opinion from a different model family, spawn `claude-verifier` or run the bridge directly:
+
+```bash
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" review --base main
+bun "$CODEX_HOME/darkroom/source/src/scripts/claude-run.ts" ask "is this retry safe?"
+```
+
+Both are read-only and default to Opus 5.5 (`--model` or `CLAUDE_BRIDGE_MODEL` changes that). The
+call needs network, which Codex sandboxes disable by default: approve the escalation when Codex
+prompts, or set `[sandbox_workspace_write] network_access = true` in `config.toml`. It spends your
+Claude plan's quota. Details and the no-chaining guard are in the
+[bridge doc](./codex-bridge.md#the-reverse-bridge-codex-calling-claude).
+
+## Writing for GPT-6 Astra
+
+Codex CLI runs GPT-6 Astra by default. The managed `AGENTS.md` block and the native role agents
+already carry the adjustments OpenAI recommends for it in
+[Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra):
+done is defined before work starts, the local check suite is granted up front, and "ask first"
+language is limited to destructive or irreversible actions. When you write a task prompt or a
+repository-level `AGENTS.md` for Codex:
+
+- State the end state, not the steps. Astra handles ambiguity well and over-follows recipes.
+- Point at docs by situation ("use `deployment.md` when preparing a deployment"), never as a
+  reading list before every edit.
+- Do not tell it to run tests; it does. Tell it which checks are safe to run without asking.
+- If the task includes running the result and fixing what fails, say so; otherwise Astra returns
+  after the first implementation.
+
+Codex 0.155.1 leaves reasoning summaries off by default in new local TUI
+sessions; cc-settings sets no `model_reasoning_summary`, so an install inherits
+that default. Turn it on per session if you want the summaries in the status
+row (0.155.0 added them there).
+
+## Adaptive reasoning effort
+
+cc-settings does not enable Jev-driven effort adjustment for Astra or Fable.
+Automatic adjustment must preserve the prompt cache before it can be enabled
+in shared installs.
+
+Codex 0.155.1 exposes experimental app-server controls:
+`turn/settings/update` changes effort in a running turn when
+`step_model_switching` is enabled; `reasoning_effort_override` preserves the
+request-level effort and records trusted configuration updates for compatible
+models. The cache flag alone does not select effort or connect Jev to a session.
+Codex's command-hook output contract provides no effort override, and
+cc-settings has no supported connection from those hooks to the running
+app-server. Automatic control requires an adapter with access to that session's
+app-server connection, thread ID, and turn ID. See the
+[app-server protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md)
+and [Astra cache-preservation issue](https://github.com/openai/codex/issues/42996).
+
+cc-settings leaves these experimental flags unchanged. It does not rewrite
+global model settings or inject effort instructions into the prompt as a
+substitute for a runtime control.
+
+Claude Code's early-access `turn.step` function hook can change Fable 5.1 effort
+through `next({ ...event, effort })`. A local two-request transport probe on
+Claude Code 2.1.278, using synthetic credentials and local API responses,
+confirmed that Jev scores of 0.1 and 0.9 changed the outgoing effort from `low`
+to `high` while keeping `claude-fable-5-1` selected. The hook also changed the
+top-level `output_config.effort`. Anthropic's
+[effort documentation](https://platform.claude.com/docs/en/build-with-claude/effort)
+requires that top-level value to remain constant to preserve caching; only
+appended per-message effort should change. The probe confirmed request shape,
+not server-side cache hits, model quality, latency, or cost savings.
+
+The native plugin test runner also delivered the original effort to its
+downstream mock in two assertions, despite the CLI transport applying the
+rewrite. Those assertions remain unresolved in the prototype. Neither host
+has a verified cache-preserving shared integration.
+
+## Light profile
+
+Codex light is intentionally different from Claude light.
+
+| Surface | Codex light | Codex full |
+|---|---|---|
+| Managed Darkroom block in `AGENTS.md` | Yes | Yes |
+| Runtime source in `darkroom/source` | Yes | Yes |
+| Version sentinel and backups | Yes | Yes |
+| `darkroom@cc-settings` plugin | No | Yes |
+| Native role agents | No | Yes |
+| `rules/darkroom.rules` | No | Yes |
+
+Claude light remains raw Claude Code plus its statusline and `share-learning` skill. The two light
+profiles are not exact equivalents because each product has different native configuration
+surfaces.
+
+```bash
+bash setup.sh --target=codex --light
+```
+
+Re-run without `--light` to switch back to the full profile. Switching from full to light removes
+the installed Codex plugin along with the owned native agents and command rule.
+
+## Reinstall, rollback, and uninstall
+
+Every lifecycle command accepts the same target selector:
+
+```bash
+bash setup.sh --target=codex --dry-run
+bash setup.sh --target=codex --status
+bash setup.sh --target=codex --rollback
+bash setup.sh --target=codex --rollback=20260819120000
+bash setup.sh --target=codex --uninstall
+```
+
+Use `--target=claude` or `--target=both` with the same commands when appropriate. Claude and Codex
+keep separate backup stores, but successful combined operations write one shared ID to both. Bare
+combined rollback selects the newest common pair and ignores newer one-sided backups. An explicit
+combined timestamp must identify exactly one common pair. Use product-specific rollback commands
+when you intentionally want to select and verify independent older backups.
+
+Reinstalls preserve unrelated Codex agents, rules, and text outside the marked `AGENTS.md` block. A
+first install refuses to overwrite a same-name native agent or `darkroom.rules` file that the
+sentinel does not own. Switching to light, rolling back, and uninstalling remove only native agent
+files recorded in the sentinel. Uninstall removes the managed instruction block, source, sentinel,
+plugin, and owned full-profile files. It leaves the backup directory in place.
+
+Unknown flags and invalid flag values fail closed. The installer exits without selecting `auto` or
+changing either product.
+
+Use installer `--status` to inspect cc-settings install health. Use Codex `/status` for the current
+Codex session.
+
+## Platform boundaries
+
+Codex CLI does not expose an arbitrary custom statusline API. Claude's custom statusline and its
+quota chips therefore have no Codex equivalent. Codex `/status` shows native session status, while
+`bash setup.sh --target=codex --status` reports the cc-settings installation.
+
+Installed plugins are available in Codex CLI and desktop surfaces that support plugins. The Codex
+IDE extension can use standalone skills, but it does not load installed plugins. IDE users need a
+plugin-capable CLI or desktop surface, or skills installed directly at repository or user scope.
+
+Several shared workflows have narrower Codex branches:
+
+- The `tldr` code-map MCP server is not bundled. Shared workflows use `rg` and Codex native search instead.
+- `$freeze` cannot enforce a directory edit lock in Codex.
+- `$autoresearch` cannot run its Claude subprocess evaluation loop in Codex.
+- Claude agent teams, dynamic workflows, and the custom statusline remain Claude-only.
+
+## When to use `/import`
+
+Use `/import` as a migration or fallback option when an existing Claude Code installation contains
+carefully maintained personal configuration that you want Codex to translate. Native cc-settings
+installation is the normal path because it writes Codex-native instructions, agents, rules, hooks,
+and plugin configuration from current repository sources. It avoids carrying translated stale
+paths or Claude-specific tool names into Codex.
+
+Official references: [Import from another agent](https://learn.chatgpt.com/docs/import),
+[Build skills](https://learn.chatgpt.com/docs/build-skills), and
+[Package plugins](https://developers.openai.com/plugins/build/plugins).

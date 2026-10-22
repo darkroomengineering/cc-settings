@@ -3,13 +3,13 @@
 // the label/count format the lib emits.
 
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { teamKnowledgeAwareness } from "../src/lib/team-knowledge.ts";
+import { sandbox as makeSandbox } from "./support/tmp.ts";
 
 async function sandbox(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "cc-tk-"));
+  return makeSandbox("cc-tk");
 }
 
 describe("teamKnowledgeAwareness — no-op cases", () => {
@@ -41,33 +41,21 @@ describe("teamKnowledgeAwareness — no-op cases", () => {
   });
 });
 
-describe("teamKnowledgeAwareness — explicit repoPath bypasses cache", () => {
-  test("explicit repoPath uses local clone, not the TTL cache", async () => {
-    // Even if KNOWLEDGE_REPO_PATH is unset and the cache is cold, an explicit
-    // repoPath argument drives the local-clone code path (Branch A).
-    const dir = await sandbox();
-    try {
-      await writeFile(join(dir, "concept.md"), "# Concept");
-      const result = await teamKnowledgeAwareness(dir);
-      // Output must reference the local path (clone branch), not just a count.
-      expect(result.join("\n")).toContain(dir);
-      expect(result.join("\n")).toContain("1 shared note");
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("teamKnowledgeAwareness — TTL cache fallback (Branch B)", () => {
   test("no clone configured → surfaces the injected cache's note count", async () => {
     // The injected reader stands in for ~/.claude/tmp/knowledge-index.json.
     const result = await teamKnowledgeAwareness(undefined, async () => ({
-      notes: ["alpha", "beta", "gamma"],
+      notes: [
+        { name: "alpha", kind: "gotcha", tags: [], hook: "alpha hook" },
+        { name: "beta", kind: "gotcha", tags: [], hook: "beta hook" },
+        { name: "gamma", kind: "gotcha", tags: [], hook: "gamma hook" },
+      ],
       checkedAt: "2026-01-01T00:00:00.000Z",
     }));
     const text = result.join("\n");
     expect(text).toContain("3 shared notes");
-    expect(text).toContain("consult before architecture");
+    expect(text).toContain("matching notes surface before Bash/Edit calls");
+    expect(text).toContain("gh api repos/darkroomengineering/team-knowledge/contents/<name>.md");
   });
 });
 

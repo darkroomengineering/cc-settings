@@ -1,135 +1,80 @@
 ---
 paths:
   - ".git/**/*"
-  - "**/*"
+  - "**/.gitignore"
+  - ".github/**/*"
 ---
 
 # Git
 
 > Conventional commits, atomic changes, protected branches
 
----
-
 ## DO
 
-### Conventional Commits
-```bash
-feat: add user authentication flow
-fix: resolve race condition in checkout
-refactor: extract payment logic to service
-docs: update API documentation
-chore: upgrade dependencies
-test: add unit tests for auth module
-```
-
-### Atomic Commits & Clear Messages
-```bash
-# One logical change per commit
-git commit -m "feat: add login form component"
-git commit -m "feat: add login API endpoint"
-
-# With body for complex changes
-git commit -m "feat: implement OAuth2 authentication
-
-Add Google and GitHub OAuth providers with automatic
-account linking for existing users."
-```
-
-### Verify Before Destructive Operations
-```bash
-git status && git diff          # Always check first
-git log --oneline -10           # Review before reset
-git reset --soft HEAD~1         # Prefer soft reset
-```
-
-### Feature Branches
-```bash
-git checkout -b feat/user-profile
-git checkout -b fix/login-redirect
-```
-
-### Proper File Untracking
-When removing a tracked file from git but keeping it locally:
-```bash
-git rm --cached <file>        # Untrack without deleting
-echo "<file>" >> .gitignore   # Prevent re-tracking
-git commit -m "chore: untrack <file>"
-```
-Adding to `.gitignore` alone does NOT remove already-tracked files. You must use `git rm --cached`.
-
----
+- **Conventional commits**: `feat:` / `fix:` / `refactor:` / `docs:` / `chore:` /
+  `test:` — one logical change per commit, imperative subject, body only when
+  the why needs explaining.
+- **Verify before destructive operations**: `git status && git diff` first;
+  review `git log --oneline -10` before any reset; prefer `git reset --soft`.
+- **Feature branches**: `feat/user-profile`, `fix/login-redirect`.
+- **Untrack without deleting**: `git rm --cached <file>` + add to `.gitignore` —
+  gitignore alone does NOT remove already-tracked files.
 
 ## DON'T
 
-```bash
-# WRONG: Force push to main
-git push --force origin main
+- Ambiguous messages (`fix`, `update`, `wip`).
+- `--no-verify` without a stated reason.
 
-# WRONG: Ambiguous messages
-git commit -m "fix"
-git commit -m "update"
-git commit -m "wip"
+## PRs
 
-# WRONG: Skip hooks without reason
-git commit --no-verify
+Lead with a plain-English **"What this does"** — 2–3 sentences on the real-world
+effect, not the mechanism. Then a technical **Summary** for reviewers, then a
+**Test Plan** of bounded, checkable items ("run `bun test`, expect 0 failures"),
+never "tested thoroughly".
 
-# WRONG: Any AI attribution in commits or PRs
-Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
-# WRONG: AI badges in PR descriptions
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-# CORRECT: No attribution, no AI mentions, nothing
-```
+**Signal, not spam**: every sentence earns its place; explain the why, not the
+diff restated in jargon; plain beats impressive; no filler ("This PR introduces
+a comprehensive…"). Large diff → number the review order ("start with
+`schema.ts`; the rest is fallout"). A bullet list that keeps growing is usually
+two PRs.
 
-### Never Commit Secrets
+**Screenshots only for visible changes**: when a PR changes what a user sees,
+link the Figma frame or Linear ticket it implements and add a "Screenshots:
+before/after needed" line for the author; agents cannot attach images through
+`gh`. Refactor, logic, API, and tooling PRs get no screenshots.
 
-See `rules/security.md` for the secret file list and rationale.
+**Open a PR by default** — most Darkroom client projects protect `main`. Direct
+push to main is the exception for repos that explicitly allow it. Merge only
+with CI green, review done, no conflicts, branch up to date.
 
----
+## Commit and PR mechanics
 
-## PR Guidelines
+**Commit with explicit pathspecs.** Write the message to a file and commit the
+named paths: `git add <paths>` then `git commit -F <msgfile> -- <paths>`. A bare
+`git commit` takes the whole index, including files someone else staged earlier.
+Never `git add -A` or `git add .`.
 
-Lead every PR with a plain-English summary. Our default failure mode is
-descriptions that read as technical and over-engineered — the diff restated in
-jargon. Write for a teammate who didn't write the code (and for future you).
+**PR existence check.** `gh pr list --head <branch-name> --state open --json
+number,url,headRefName,headRepositoryOwner`, with the branch name only. Only an
+exit-0 `[]` means no PR; a non-zero exit means PR state is unknown, so stop
+instead of creating one. Never pass `--head owner:branch`: `gh` returns `[]` for
+it and the run opens a duplicate PR. With results, match on `headRefName` and the
+head owner, and stop on an ambiguous match.
 
-```markdown
-## What this does
-2–3 plain sentences: what changed and why it matters — the problem it solves or
-the behaviour it changes. Name the real-world effect ("login now survives a
-refresh"), not the mechanism ("refactored the auth persistence layer").
+**PR body from a file.** Write the body to a temp file and pass `--body-file
+<path>` to `gh pr create` or `gh pr edit`. Stdin, `--body-file -`, an inline
+heredoc, and `--body "$(cat ...)"` can produce an empty body while `gh` exits 0.
 
-## Summary
-Technical bullets — the *how*, for reviewers reading the code.
+**PR description source.** Use the repo's own template first (repo root,
+`docs/`, `.github/`, `.github/PULL_REQUEST_TEMPLATE/`) and treat it as a minimum:
+its headings and checklists stay, and the rules above apply inside them. With no
+template, use the structure under "PRs". Derive the summary from the full range
+(`git log <base>..HEAD`), never from the latest commit alone. When rewriting an
+existing body, keep its `Fixes #` and `Related` lines.
 
-## Test Plan
-- [ ] Unit tests pass
-- [ ] Manual testing completed
-```
+## Issue descriptions
 
-**Signal, not spam** — the bar for "What this does":
-- Every sentence earns its place. If a line only narrates the code, cut it.
-- Explain the *why*, not just the *what*. One why is good; the why behind it is better.
-- Don't make a small change sound big. Plain beats impressive.
-- No jargon dump, no restating the diff, no filler ("This PR introduces a comprehensive…").
-- If you can't say what it does in plain English, that's a signal the change is unclear — not a reason to reach for bigger words.
-
-### Open a PR by default
-Default to a feature branch + PR, even for small changes — most Darkroom client
-projects protect `main` and review through PRs. Direct `git push origin main` is
-the exception, reserved for repos that explicitly allow it and changes that are
-trivial and self-evident. When unsure, open a PR.
-
-### Before Merging
-- CI passes, code reviewed, no conflicts, branch up to date
-
-## Branch Protection (main)
-- Require PR reviews
-- Require status checks
-- No force pushes
-- No deletions
-
-## Tools
-- **Biome** - Pre-commit formatting
-- **husky** - Git hooks
-- **commitlint** - Commit conventions
+Lead with the observed effect, not the suspected cause ("checkout 500s on
+Safari" beats "possible race in session middleware"). Repro steps numbered, one
+action per step. One problem per issue; file tangents separately. Planned work
+gets bounded, verifiable tasks: one action each, with a check that proves it done.

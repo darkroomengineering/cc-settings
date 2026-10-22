@@ -4,16 +4,24 @@
 #   2. Ensure Bun is installed.
 #   3. exec `bun "$Repo\src\setup.ts" --source="$Repo" @Args`.
 #
-# Remote one-liner (default full install; clone the repo to pass flags):
+# Remote one-liner (default auto target):
 #   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1 | iex"
+# Remote with flags (script-block invocation populates $Args):
+#   powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/darkroomengineering/cc-settings/main/setup.ps1))) --light"
 #
 # Flags (forwarded to src\setup.ts):
-#   --light           light tier: raw CC + statusline + share-learning only
+#   --target=TARGET   auto, claude, codex, or both (default: auto)
+#   --light           smaller product-specific profile; see docs\install.md
+#   --typesafe-key=<key>  TypeSafe key for verbatim Jev compaction (prompted when interactive)
+#   --fresh           reinstall as if from scratch; see docs\install.md
 #   --rollback[=TS]   restore newest backup (or a timestamp match)
+#   --uninstall       remove cc-settings-managed files from selected target
 #   --dry-run         print planned actions only
+#   --status          print installed vs packaged version info
+#   --migrate-only    Claude only; both skips Codex; codex target rejects
 #   --interactive     prompt on settings.json conflicts (also: $env:CC_INTERACTIVE=1)
-#   --ts-hooks        install with TS hook paths (also: $env:CC_USE_TS_HOOKS=1)
 #   --help, -h
+# Unknown flags and invalid flag values fail closed.
 
 $ErrorActionPreference = "Stop"
 
@@ -25,8 +33,11 @@ $RepoUrl = "https://github.com/darkroomengineering/cc-settings.git"
 # guard before Split-Path (binding $null to -Path is a terminating error).
 $ScriptPath = $MyInvocation.MyCommand.Path
 $ScriptDir = if ($ScriptPath) { Split-Path -Parent $ScriptPath } else { $null }
-if (-not $ScriptDir -or -not (Test-Path $ScriptDir)) {
-    # Invoked via `irm ... | iex` - clone into a temp dir.
+# Bootstrap whenever there is no full checkout next to this script: `irm |
+# iex` (no script file at all), a lone downloaded setup.ps1, and the npm
+# installer stub all land here and clone the official repo first.
+if (-not $ScriptDir -or -not (Test-Path $ScriptDir) -or -not (Test-Path (Join-Path $ScriptDir "src\setup.ts"))) {
+    # No checkout next to the script - clone into a temp dir.
     $Clone = Join-Path ([System.IO.Path]::GetTempPath()) ("cc-settings-" + [System.Guid]::NewGuid().ToString("N"))
     Write-Host "Fetching cc-settings..."
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {

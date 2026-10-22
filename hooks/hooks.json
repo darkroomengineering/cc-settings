@@ -1,0 +1,57 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/safety-net.ts\"",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/safety-net.ts\"",
+            "timeout": 5,
+            "statusMessage": "Checking command safety"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/hooks/delegation-detector.ts\"",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/hooks/delegation-detector.ts\"",
+            "timeout": 3,
+            "statusMessage": "Checking delegation scope"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "timeout": 30,
+            "statusMessage": "Saving a handoff before compaction"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$PLUGIN_ROOT/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "commandWindows": "bun \"%PLUGIN_ROOT%/src/scripts/codex-hook.ts\" \"src/scripts/handoff.ts\" create --from-hook",
+            "timeout": 3,
+            "statusMessage": "Saving the session handoff"
+          }
+        ]
+      }
+    ]
+  }
+}

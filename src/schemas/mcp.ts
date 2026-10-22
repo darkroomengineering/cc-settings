@@ -10,9 +10,10 @@ const mcpCommentary = {
   _contextCost: z.enum(["low", "medium", "high"]).optional(),
   // `_status` annotates whether a server is part of the team-shipped baseline
   // ("core") or recommended-but-not-installed ("optional"). Onboarding signal
-  // for new team members. The installer surfaces it in the post-install summary
-  // and groups servers by status. Field is documentation-only — Claude Code
-  // doesn't read it.
+  // for new team members, used in mcp-configs/recommended.json. Documentation
+  // only — Claude Code doesn't read it, and as of v12.11.0 neither does the
+  // installer: the post-install summary groups by what config/20-mcp.json
+  // ships, and MCP ownership comparison ignores this key entirely.
   _status: z.enum(["core", "optional"]).optional(),
   serverInstructions: z.string().optional(),
 };
@@ -22,6 +23,12 @@ const mcpCommentary = {
 // `ENABLE_TOOL_SEARCH`. Use for hot-path servers (e.g. docs lookup).
 const mcpCommon = {
   alwaysLoad: z.boolean().optional(),
+  // Per-server MCP tool-call timeout in ms (overrides the 60s default).
+  // 2.1.206 fixed it being ignored for `--mcp-config` / `.mcp.json` servers.
+  request_timeout_ms: z.number().int().positive().optional(),
+  // Advertise the elicitation capability without the URL-mode field. Set it on
+  // a server that stops connecting since 2.1.287 added URL elicitation prompts.
+  bareElicitationCapability: z.boolean().optional(),
 };
 
 // stdio transport: command + args + env. No `type` field (or `type: "stdio"`).
@@ -58,7 +65,44 @@ export const McpSseServer = z.object({
 // `type` literal, stdio by presence of `command`. The three are mutually
 // exclusive on their required fields, so member order is cosmetic (it only
 // affects error-message quality, not which valid input matches).
-export const McpServer = z.union([McpHttpServer, McpSseServer, McpStdioServer]);
+//
+// Cross-shape guard (issue #83): each branch above is a plain (non-strict)
+// z.object, by design — unknown fields must survive a parse for forward
+// compat (newer Claude Code versions may add fields we don't model yet; see
+// ClaudeJson's loose-schema policy). But that "strip, don't reject" default
+// has a sharp edge: an entry that mixes stdio-only keys (command/args/env)
+// with http/sse-only keys (url/headers) — e.g. a stdio→http migration typo
+// like `{ command: "foo", url: "https://x" }` — silently matches the stdio
+// branch with `url` dropped, instead of failing loudly. A blanket
+// `z.strictObject()` would reject that, but it would *also* reject any
+// benign field a future Claude Code version adds that we haven't modeled
+// yet — exactly the forward-compat case the non-strict design protects
+// (see installMcpToClaudeJson in src/lib/mcp.ts, which already has a
+// raw-preserving fallback for real ~/.claude.json entries that fail schema
+// validation for this reason). So instead of stricting the branches, we
+// reject only the specific cross-shape conflict via a guard that runs on
+// the raw input *before* the union strips anything, leaving unrelated
+// unknown fields free to pass through as before.
+const MCP_STDIO_ONLY_KEYS = ["command", "args", "env"] as const;
+const MCP_NETWORK_ONLY_KEYS = ["url", "headers"] as const;
+
+function hasAnyKey(obj: Record<string, unknown>, keys: readonly string[]): boolean {
+  return keys.some((key) => key in obj);
+}
+
+const McpTransportShapeGuard = z
+  .record(z.string(), z.unknown())
+  .refine(
+    (entry) => !(hasAnyKey(entry, MCP_STDIO_ONLY_KEYS) && hasAnyKey(entry, MCP_NETWORK_ONLY_KEYS)),
+    {
+      message:
+        "MCP server entry mixes stdio fields (command/args/env) with http/sse fields (url/headers) — pick one transport",
+    },
+  );
+
+export const McpServer = McpTransportShapeGuard.pipe(
+  z.union([McpHttpServer, McpSseServer, McpStdioServer]),
+);
 
 export const McpServers = z.record(z.string(), McpServer);
 
