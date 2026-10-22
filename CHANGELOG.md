@@ -4,6 +4,24 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.87.1] — 2026-10-22
+
+Setup now installs the `/case-study` skill. v15.87.0 shipped the skill in the repo but left its files off both install lists, so setup reported success and `~/.claude/skills/case-study` never appeared.
+
+**Fixed:**
+- `src/lib/claude-managed-file-manifests.ts`: manifest v31 adds the 35 `skills/case-study/` files to the full profile.
+- `src/lib/codex-runtime-manifests.ts`: runtime manifest v23 adds the same files to the Codex runtime.
+
+**Added:**
+- `tests/skill-install-coverage.test.ts`: fails when a tracked file under `skills/` is missing from either install list.
+
+**Files changed:**
+- `src/lib/claude-managed-file-manifests.ts`
+- `src/lib/codex-runtime-manifests.ts`
+- `tests/skill-install-coverage.test.ts`, `tests/install-e2e.test.ts`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [15.87.0] — 2026-10-22
 
 New `/case-study` skill turns a shipped site into raw material for a studio case study: frame-perfect 16:9 clips per chapter and transition, layer-by-layer scene decompositions, Blender turntables and clay/wire/bake renders, every sound and image asset as its own file, and a shareable board. It works on three.js and other WebGL sites as well as plain DOM, GSAP and Lottie sites, and skips the phases a project has no material for.

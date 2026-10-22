@@ -269,7 +269,7 @@ const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
 // Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
 // bunfig.toml `preload` cannot run inside a hook.
 const ADDED_IN_V19 = ["src/bunfig.toml"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 22;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 23;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -360,9 +360,48 @@ const RUNTIME_SOURCE_FILES_V21: readonly string[] = RUNTIME_SOURCE_FILES_V20.fil
 ).map((path) => RENAMED_IN_V21.get(path) ?? path);
 // Version 22: the RESEARCH.md format reference beside the autoresearch skill.
 const ADDED_IN_V22 = ["skills/autoresearch/RESEARCH-FORMAT.md"];
+const RUNTIME_SOURCE_FILES_V22: readonly string[] = [...RUNTIME_SOURCE_FILES_V21, ...ADDED_IN_V22];
+// Version 23: the case-study skill.
+const ADDED_IN_V23 = [
+  "skills/case-study/SKILL.md",
+  "skills/case-study/examples/clips-template.txt",
+  "skills/case-study/examples/recipe-template.js",
+  "skills/case-study/examples/soundtrack-spec.json",
+  "skills/case-study/examples/transition-anatomy.js",
+  "skills/case-study/examples/type-on-black.js",
+  "skills/case-study/references/blender.md",
+  "skills/case-study/references/board.md",
+  "skills/case-study/references/gotchas.md",
+  "skills/case-study/scripts/blender/chapters_lib.py",
+  "skills/case-study/scripts/blender/common.py",
+  "skills/case-study/scripts/blender/encode.sh",
+  "skills/case-study/scripts/blender/turntable.py",
+  "skills/case-study/scripts/browser/boot.js",
+  "skills/case-study/scripts/browser/cdp.js",
+  "skills/case-study/scripts/browser/chrome.sh",
+  "skills/case-study/scripts/browser/click.js",
+  "skills/case-study/scripts/browser/film.js",
+  "skills/case-study/scripts/browser/goto.js",
+  "skills/case-study/scripts/browser/hold.js",
+  "skills/case-study/scripts/browser/hook.js",
+  "skills/case-study/scripts/browser/instances.js",
+  "skills/case-study/scripts/browser/layers.js",
+  "skills/case-study/scripts/browser/map.js",
+  "skills/case-study/scripts/browser/prelude.js",
+  "skills/case-study/scripts/browser/rec.js",
+  "skills/case-study/scripts/browser/solo.js",
+  "skills/case-study/scripts/media/cut_film.sh",
+  "skills/case-study/scripts/media/enc_web.sh",
+  "skills/case-study/scripts/media/export_sounds.sh",
+  "skills/case-study/scripts/media/export_svgs.js",
+  "skills/case-study/scripts/media/frames2mp4.sh",
+  "skills/case-study/scripts/media/sheet.sh",
+  "skills/case-study/scripts/media/soundtrack.py",
+  "skills/case-study/scripts/media/theatre_history.py",
+];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V21,
-  ...ADDED_IN_V22,
+  ...RUNTIME_SOURCE_FILES_V22,
+  ...ADDED_IN_V23,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -402,6 +441,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [19, RUNTIME_SOURCE_FILES_V19],
   [20, RUNTIME_SOURCE_FILES_V20],
   [21, RUNTIME_SOURCE_FILES_V21],
+  [22, RUNTIME_SOURCE_FILES_V22],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

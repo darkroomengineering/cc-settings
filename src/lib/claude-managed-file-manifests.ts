@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 30;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 31;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -766,9 +766,52 @@ const ADDED_IN_V30 = [
   "src/lib/cache-cold.ts",
   "src/scripts/grade-findings.ts",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v30 = {
   full: [...v29.full, ...ADDED_IN_V30],
   light: [...v29.light, ...ADDED_IN_V30],
+};
+MANIFESTS.set(30, v30);
+// Version 31: the case-study skill (full profile only, like every non-light skill).
+const ADDED_IN_V31 = [
+  "skills/case-study/SKILL.md",
+  "skills/case-study/examples/clips-template.txt",
+  "skills/case-study/examples/recipe-template.js",
+  "skills/case-study/examples/soundtrack-spec.json",
+  "skills/case-study/examples/transition-anatomy.js",
+  "skills/case-study/examples/type-on-black.js",
+  "skills/case-study/references/blender.md",
+  "skills/case-study/references/board.md",
+  "skills/case-study/references/gotchas.md",
+  "skills/case-study/scripts/blender/chapters_lib.py",
+  "skills/case-study/scripts/blender/common.py",
+  "skills/case-study/scripts/blender/encode.sh",
+  "skills/case-study/scripts/blender/turntable.py",
+  "skills/case-study/scripts/browser/boot.js",
+  "skills/case-study/scripts/browser/cdp.js",
+  "skills/case-study/scripts/browser/chrome.sh",
+  "skills/case-study/scripts/browser/click.js",
+  "skills/case-study/scripts/browser/film.js",
+  "skills/case-study/scripts/browser/goto.js",
+  "skills/case-study/scripts/browser/hold.js",
+  "skills/case-study/scripts/browser/hook.js",
+  "skills/case-study/scripts/browser/instances.js",
+  "skills/case-study/scripts/browser/layers.js",
+  "skills/case-study/scripts/browser/map.js",
+  "skills/case-study/scripts/browser/prelude.js",
+  "skills/case-study/scripts/browser/rec.js",
+  "skills/case-study/scripts/browser/solo.js",
+  "skills/case-study/scripts/media/cut_film.sh",
+  "skills/case-study/scripts/media/enc_web.sh",
+  "skills/case-study/scripts/media/export_sounds.sh",
+  "skills/case-study/scripts/media/export_svgs.js",
+  "skills/case-study/scripts/media/frames2mp4.sh",
+  "skills/case-study/scripts/media/sheet.sh",
+  "skills/case-study/scripts/media/soundtrack.py",
+  "skills/case-study/scripts/media/theatre_history.py",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v30.full, ...ADDED_IN_V31],
+  light: v30.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([
