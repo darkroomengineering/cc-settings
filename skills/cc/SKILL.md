@@ -240,8 +240,14 @@ If any fail: fix before moving on. Tests must pass.
 git add <changed paths>
 git commit -F "$MSG_FILE" -- <changed paths>
 git push -u origin HEAD
-gh pr create --base main --body-file "$BODY_FILE"
+gh pr create --base main --title "<commit subject> (<Linear ID>)" --body-file "$BODY_FILE"
 ```
+
+Before `gh pr create`, run the `ship` skill's "Linear issue" step: every sync
+PR carries a Linear issue, created without asking when none exists. Put its ID
+at the end of the PR title and `Fixes <ID>` on its own line in the body, and
+report the issue link with the PR link. The `linear-gate` hook blocks a PR
+without one in a mapped repo.
 
 `$MSG_FILE` holds `feat(v<new-version>): sync with Claude Code v<B> and Codex v<D>`,
 a one-paragraph summary, and Adopted / Deletions lists. Commit and PR mechanics

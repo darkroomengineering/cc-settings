@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.89.0] — 2026-10-23
+
+Every PR in a repo with a Linear team now carries a Linear issue. Until now only `/ship` created one, so PRs opened any other way, including by `/cc sync`, went out with no ticket.
+
+**Added:**
+- `src/hooks/linear-gate.ts`, a PreToolUse (Bash) handler in the dispatcher. It blocks `gh pr create`, and `gh pr edit` with a title, when the repo maps to a Linear team in `~/.claude/linear-teams.json` or the team-knowledge `linear-map.json`, and no issue of that team is in the title, body, body file or branch. The block reason names the team and project and points at the ship skill's "Linear issue" step. Unmapped repos and repos mapped to `null` pass. `CC_SKIP_LINEAR=1` in front of the command lets one PR through when Linear is unreachable.
+- `evals/cc-sync-linear-issue`: `/cc sync` creates the issue before opening its PR.
+
+**Changed:**
+- `skills/cc/SKILL.md` Phase 8 runs the ship skill's "Linear issue" step and puts the ID in the PR title and a `Fixes` line in the body.
+- `skills/ship/SKILL.md`: when Linear is unreachable, ship reruns `gh pr create` with `CC_SKIP_LINEAR=1` and reports the PR has no issue.
+- Claude managed-files manifest v33 installs the hook in both profiles.
+
+**Files changed:**
+- `src/hooks/linear-gate.ts`, `src/hooks/dispatch.ts`
+- `src/lib/claude-managed-file-manifests.ts`
+- `tests/linear-gate.test.ts`, `tests/install-e2e.test.ts`
+- `skills/cc/SKILL.md`, `skills/ship/SKILL.md`, `evals/cc-sync-linear-issue/`
+- `docs/hooks-reference.md`, `hooks/README.md`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [15.88.0] — 2026-10-23
 
 `/case-study` now delivers a colours and typography set with every case study: the palette, each theme, a specimen per typeface, the defined type scale and the text styles the live site really uses, rendered as 16:9 sheets in the project's own fonts. Masters now go to the studio's case-study Drive, one folder per project, and the board links to it. Lessons from running it on two more projects are folded in too: capturing locally when production is down, multi-page app-like sites, scripted pointer journeys, lit PBR models in Blender, and fixes found along the way.

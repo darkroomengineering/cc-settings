@@ -107,6 +107,12 @@ export const HANDLERS: Record<DispatchEvent, Handler[]> = {
       load: () => import("./config-guard.ts"),
     },
     {
+      name: "linear-gate",
+      matcher: "Bash",
+      timeoutS: 5,
+      load: () => import("./linear-gate.ts"),
+    },
+    {
       name: "pre-edit-validate",
       matcher: "Edit",
       timeoutS: 5,
