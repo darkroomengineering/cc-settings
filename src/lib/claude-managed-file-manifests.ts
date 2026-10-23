@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 32;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 33;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -825,9 +825,21 @@ const ADDED_IN_V32 = [
   "skills/case-study/scripts/browser/tokens.js",
   "skills/case-study/scripts/media/drive_upload.sh",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v32 = {
   full: [...v31.full, ...ADDED_IN_V32],
   light: v31.light,
+};
+MANIFESTS.set(32, v32);
+// Version 33: case-study scripted play for games, virtual JS timers, the production network guard, and take joining.
+const ADDED_IN_V33 = [
+  "skills/case-study/examples/play-template.js",
+  "skills/case-study/scripts/browser/netguard.js",
+  "skills/case-study/scripts/browser/timers.js",
+  "skills/case-study/scripts/media/join_takes.py",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v32.full, ...ADDED_IN_V33],
+  light: v32.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([
