@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.90.0"; // case-study games, scripted play and playable boards.
+const VERSION = "15.90.1"; // post-edit formats with Biome only in repos that use it.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
