@@ -4,6 +4,17 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.89.1] — 2026-10-23
+
+Draft PRs no longer run the slow test jobs. CI skips the `test` matrix (Ubuntu and macOS, about 7 to 11 minutes each) and the Windows `install-e2e` job (about 8 minutes) while a PR is a draft, and runs them when the PR is marked ready for review. Typecheck, lint, schemas, upstream-scan and the setup bootstrap smoke tests still run on drafts, and pushes to main still run the full suite on all three platforms. The org `ci-gate` runs its own typecheck and does not wait on these jobs, so a draft cannot get stuck.
+
+**Changed:**
+- `.github/workflows/ci.yml`: `ready_for_review` added to the `pull_request` trigger types, so leaving draft starts the skipped jobs; `test` and `install-e2e` skip when `github.event.pull_request.draft` is true.
+
+**Files changed:**
+- `.github/workflows/ci.yml`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts` (version)
+
 ## [15.89.0] — 2026-10-23
 
 Every PR in a repo with a Linear team now carries a Linear issue, and a background `linear` agent keeps that issue in step with the work. Until now only `/ship` created an issue, so PRs opened any other way, including by `/cc sync`, went out with no ticket, and nothing updated an issue after it was filed.
