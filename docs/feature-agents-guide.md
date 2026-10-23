@@ -18,6 +18,7 @@ cc-settings ships with **role agents** -- general-purpose agents defined by what
 | `deslopper` | Dead code removal and cleanup |
 | `maestro` | Multi-agent orchestration |
 | `security-reviewer` | Security audit |
+| `linear` | Linear issue bookkeeping: status, checklist, progress comments and follow-ups at each milestone (Claude-only, background) |
 | `codex-verifier` | Cross-model verification via the Codex CLI |
 | `claude-verifier` | Codex-only twin: cross-model verification via headless Claude Code (`codex/agents/`) |
 

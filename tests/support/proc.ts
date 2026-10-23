@@ -15,8 +15,14 @@ export async function spawnCapture(
     stderr?: "pipe" | "ignore" | "inherit";
   } = {},
 ): Promise<CaptureResult> {
+  // An override (or an `undefined` removal) replaces the inherited variable. Windows
+  // names ignore case, so overriding PATH there must also drop the inherited `Path`,
+  // or the child can resolve commands from the original one.
+  const fold = (k: string) => (process.platform === "win32" ? k.toUpperCase() : k);
+  const overridden = new Set(Object.keys(opts.env ?? {}).map(fold));
+  const inherited = Object.entries(process.env).filter(([k]) => !overridden.has(fold(k)));
   const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries({ ...process.env, ...opts.env })) {
+  for (const [k, v] of [...inherited, ...Object.entries(opts.env ?? {})]) {
     if (v !== undefined) env[k] = v;
   }
   const proc = Bun.spawn(cmd, {

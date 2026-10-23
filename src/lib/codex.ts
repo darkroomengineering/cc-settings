@@ -376,8 +376,10 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
   // timeout") as the default so a hung call can never run unbounded.
   const requested = opts.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : DEFAULT_EXEC_TIMEOUT_MS;
   const timeout = Math.min(requested, MAX_EXEC_TIMEOUT_MS);
-  // `--` ends Codex's option parsing: a prompt beginning with `-` can't be
-  // re-read by its arg parser as a flag (e.g. a sandbox override). Security: H1.
+  // The prompt goes over stdin (`-`), never argv: a prompt beginning with `-`
+  // can't be re-read as a flag (e.g. a sandbox override; Security: H1), and on
+  // Windows Bun refuses to pass newlines or cmd.exe metacharacters to the
+  // `codex.cmd` shim npm installs.
   const startedAt = Date.now();
   let stdout: string;
   let stderr: string;
@@ -391,9 +393,10 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
       ...(opts.outputLastMessagePath ? ["--output-last-message", opts.outputLastMessagePath] : []),
     ];
     const proc = Bun.spawn(
-      ["codex", "exec", "--sandbox", sandbox, ...modelArgs, ...outputArgs, "--", opts.prompt],
+      ["codex", "exec", "--sandbox", sandbox, ...modelArgs, ...outputArgs, "--", "-"],
       {
         cwd: opts.cwd,
+        stdin: new Blob([opts.prompt]),
         stdout: "pipe",
         stderr: "pipe",
         timeout,
