@@ -1,7 +1,7 @@
 {
-  "lastScan": "2026-10-21T00:00:00.000Z",
-  "codexVersion": "0.163.0",
-  "appChangelogLastScan": "2026-10-21",
+  "lastScan": "2026-10-23T00:00:00.000Z",
+  "codexVersion": "0.164.0",
+  "appChangelogLastScan": "2026-10-23",
   "knownConfigSurfaces": [
     "AGENTS.md managed block ($CODEX_HOME/AGENTS.md)",
     "agents/*.toml: name, description, developer_instructions, model, model_reasoning_effort, sandbox_mode",
@@ -31,6 +31,7 @@
     "0.161.0\u20130.162.0 sync (2026-10-09). GPT-6.1 Sol became the CLI default model (0.161.0); the bridge pins models per call, so only docs/codex-bridge.md changed. Nothing else touches a knownConfigSurfaces entry: /mcp login, worktree tools, tui.mouse_scroll_speed, Daybreak/Cyber opt-ins, voice, Windows and sandbox fixes skipped. codex-skill-budget keeps the 10K default until Sol's window is documented.",
     "0.162.1 sync (2026-10-12). Nothing to adopt: a TUI crash fix for multiline asynchronous questions (#51866) and a startup fix that limits background-server feature compatibility checks to explicit CLI overrides (#52648). Neither touches a knownConfigSurfaces entry.",
     "0.163.0 sync (2026-10-16). Nothing to adopt: the patched zsh backend and its shell flags were removed (#52160, #52213; no cc-settings surface references them), plus TUI features (/config panel, leader key, /daemon restart) and parallel read-only tools. Codex app 2026-10-14: GPT-5.5 retired for ChatGPT sign-ins; the bridge already pins GPT-6.1 Sol and GPT-6 Astra and no file names gpt-5.5.",
+    "0.164.0 sync (2026-10-23; app changelog had no entries after 2026-10-21). Nothing to adopt. Plugin hook approval is now bound to plugin contents (#54619), but the installer writes user-level $CODEX_HOME/hooks.json rather than plugin hooks, and the existing advice to review /hooks after an update already covers re-approval. Observation-only model-request and inter-agent-message lifecycle hooks (#55144, #55657) are internal extension hooks with no documented hooks.json event. Skipped: /presets, inline /model and /permissions arguments, Kitty/Sixel image previews, enterprise MCP auth, credential masking, Bedrock wizard default, compaction and resume fixes, Windows proxy auth, sandbox hardening.",
     "appChangelogLastScan is the date /cc sync last triaged https://learn.chatgpt.com/docs/changelog for Codex app and IDE extension entries. That page has its own version numbers (Codex app 26.x) and no npm package to diff, so upstream:scan reads its RSS feed (https://learn.chatgpt.com/codex/changelog/rss.xml) and reports non-iOS entries (guid not ending in -mobile) dated after this date as drift. Baseline set 2026-10-12: the entries from 2026-09-14 through 2026-10-08 are model launches and retirements (already handled by the CLI syncs and the bridge model pins), iOS releases, and a macOS security update; none touches a knownConfigSurfaces entry. Older app entries (hook trust review in app 26.506, primary-folder discovery of AGENTS.md, skills and config.toml on 2026-07-23) predate the baseline and were not re-triaged."
   ]
 }

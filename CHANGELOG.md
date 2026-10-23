@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.87.2] — 2026-10-23
+
+Sync with Claude Code 2.1.309 and Codex 0.164.0. One new env var is tracked, two docs rows are updated, and nothing is removed.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_ULTRAREVIEW_TRUST_CHECK` (Claude Code 2.1.309): `claude ultrareview` now requires workspace trust, and scripts skip the check with this variable or `--trust-workspace`. Tracked in `upstream/claude-code-manifest.json` and documented in `docs/settings-reference.md`; cc-settings does not set it.
+
+**Docs only:**
+- `docs/settings-reference.md`: `axScreenReader` and `CLAUDE_AX_SCREEN_READER` apply only from user, managed or `--settings` settings (2.1.307), and the new `claude_code.safety_event` OTel event (2.1.307) is noted.
+
+**Deletions / Native-now-redundant:** none. Codex 0.164.0 and the Codex app changelog brought nothing that touches an installer surface.
+
+**Files changed:**
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `docs/settings-reference.md`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [15.87.1] — 2026-10-22
 
 Setup now installs the `/case-study` skill. v15.87.0 shipped the skill in the repo but left its files off both install lists, so setup reported success and `~/.claude/skills/case-study` never appeared.
