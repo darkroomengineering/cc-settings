@@ -100,10 +100,9 @@ export function lookup(
   return undefined;
 }
 
-// SHORTCUT: only the mapped team's key counts as an issue ID, so `UTF-8` or
-// `GPT-6` in a title never passes. ceiling: a PR fixing another team's issue
-// is blocked. upgrade: when a repo routinely ships cross-team issues, confirm
-// generic IDs through the Linear API instead.
+// SHORTCUT: only the mapped team's key counts as an issue ID, so `UTF-8` or `GPT-6` never passes.
+// ceiling: a PR fixing another team's issue is blocked.
+// upgrade: when a repo routinely ships cross-team issues, confirm generic IDs through the Linear API.
 export function hasIssueId(text: string, team: string): boolean {
   const escaped = team.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(?:^|[^A-Za-z0-9])${escaped}-\\d+(?![A-Za-z0-9])`, "i").test(text);
