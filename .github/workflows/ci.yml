@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+    # ready_for_review is not a default type; without it, leaving draft would
+    # not start the test jobs skipped while the PR was a draft.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -27,6 +30,8 @@ jobs:
   test:
     # The full Windows suite takes ~23 minutes, so it runs only on pushes to
     # main. PRs get Windows coverage from install-e2e and install-ps1-bootstrap.
+    # Draft PRs skip it; it runs when the PR is marked ready for review.
+    if: github.event_name == 'push' || !github.event.pull_request.draft
     strategy:
       fail-fast: false
       matrix:
@@ -92,8 +97,8 @@ jobs:
 
   install-e2e:
     # Windows install tests on PRs, where the full Windows `test` run is
-    # skipped. On main the full suite covers these files.
-    if: github.event_name == 'pull_request'
+    # skipped. On main the full suite covers these files. Draft PRs skip it too.
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
