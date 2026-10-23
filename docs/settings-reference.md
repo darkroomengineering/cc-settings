@@ -52,7 +52,7 @@ Environment variables injected into every Claude Code session.
 |----------|--------|-------------|
 | `CLAUDE_CODE_EFFORT_LEVEL` | `low`, `medium`, `high`, `xhigh`, `max` | Adaptive thinking depth. While set it overrides `/effort`, `--effort` and saved per-model levels, so cc-settings does not set it; use `/effort` instead, which saves a default per model. See the [model configuration guide](https://code.claude.com/docs/en/model-config#choose-an-effort-level) |
 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | `"1"` or unset | Strips credentials from subprocess environments. Security hardening |
-| `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode with flat plain-text rendering; env counterpart of `axScreenReader` / `--ax-screen-reader` |
+| `CLAUDE_AX_SCREEN_READER` | `"1"` or unset | Enable screen-reader mode with flat plain-text rendering; env counterpart of `axScreenReader` / `--ax-screen-reader`. In a settings `env` block it applies only from user, managed or `--settings` settings (v2.1.307) |
 | `CLAUDE_AX_PREPARK_MS` | ms (string) or unset | Screen-reader mode: pause with the cursor at the start of a line before writing it. Off by default since v2.1.287; `50` restores the old pause |
 | `CLAUDE_CODE_PROCESS_WRAPPER` | wrapper executable path | Corporate launcher: agent view and the background service run every Claude Code self-spawn through this wrapper |
 | `CLAUDE_CODE_FORWARD_SUBAGENT_TEXT` | `"1"` or unset | Include subagent text and thinking in `stream-json` output; env counterpart of `--forward-subagent-text` |
@@ -78,6 +78,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_DISABLE_STRUCTURED_OUTPUTS` | `"1"` or unset | Since v2.1.288, turns off structured outputs. Set it on Mantle or behind a gateway that rejects them, where session titles, memory recall and prompt hooks otherwise fail. cc-settings does not set it |
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
 | `CLAUDE_CODE_DISABLE_WEB_FETCH` | `"1"` or unset | Turn off the WebFetch tool (v2.1.285). Unset here |
+| `CLAUDE_CODE_DISABLE_ULTRAREVIEW_TRUST_CHECK` | `"1"` or unset | `claude ultrareview` asks for workspace trust on a terminal and refuses elsewhere; this skips the check for scripts, as does `--trust-workspace` (v2.1.309). Unset here |
 | `CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES` | integer (string) | Cap how many times a timed-out non-streaming fallback request is re-sent (v2.1.285). Unset here |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
@@ -114,7 +115,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` | `"1"` or unset | Apply `CLAUDE_CODE_SUBAGENT_MODEL` (or the main model when unset) to **every** subagent, ignoring per-spawn and agent-definition overrides — the pre-2.1.251 behavior on demand. cc-settings leaves it unset so the per-agent pins in `agents/*.md` hold (v2.1.257) |
 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `"1"` or unset | Enable agent teams — teammates that share a task list and message each other, as distinct from subagents that only report back. Experimental and **disabled by default upstream**; cc-settings sets `"1"`. Without it "no team is set up at session start, no team directories are written, and Claude does not spawn or propose teammates". Enabling it makes teams *available*, not automatic — see `CLAUDE-FULL.md` → "Agent teams" for when to pick one over plain fan-out |
 | `CLAUDE_CODE_TMPDIR` | directory path | Overrides the temp directory used for Unix sockets and scratch files; set it shallow to avoid `EADDRINUSE` from over-long socket paths (v2.1.161) |
-| `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157; since v2.1.273 also puts real agent, skill, plugin and MCP server names on cost and token metrics) |
+| `OTEL_LOG_TOOL_DETAILS` | `"1"` or unset | Include custom/MCP command names in OTEL tool spans, and `tool_parameters` in `tool_decision` events; values are redacted unless this is set (v2.1.117; `tool_decision` params added v2.1.157; since v2.1.273 also puts real agent, skill, plugin and MCP server names on cost and token metrics). Since v2.1.307 a `claude_code.safety_event` event also reports each tool call that a permission rule, auto mode, a safety check, a hook or the sandbox stopped, prompted or sent back |
 | `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` | `"1"` or unset | Hide Anthropic's bundled skills, workflows, and built-in slash commands from the model. Env counterpart of the `disableBundledSkills` setting (v2.1.169) |
 | `CLAUDE_CODE_SAFE_MODE` | `"1"` or unset | Start Claude Code with all customizations disabled (CLAUDE.md, plugins, skills, hooks, MCP servers) for troubleshooting. Env counterpart of the `--safe-mode` flag (v2.1.169) |
 | `CLAUDE_CODE_RESTRICTED` | `"1"` or unset | Env counterpart of `--restricted`: removes the tools that run commands or code and `WebFetch` (unless named in `--tools`), keeps file tools inside the working directory, refuses `bypassPermissions`, and ignores user, project, and local settings files — so a restricted session never loads cc-settings (v2.1.248) |
@@ -789,7 +790,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `awaySummaryEnabled` | boolean | U | Show a session recap on re-entry after background work |
 | `awsAuthRefresh` | string | A | Shell command called to refresh AWS credentials |
 | `awsCredentialExport` | string | A | Shell command that exports AWS credential env vars |
-| `axScreenReader` | boolean | U | Screen-reader mode: flat plain-text rendering without borders or animations; also `--ax-screen-reader` or `CLAUDE_AX_SCREEN_READER=1` (v2.1.208) |
+| `axScreenReader` | boolean | U | Screen-reader mode: flat plain-text rendering without borders or animations; also `--ax-screen-reader` or `CLAUDE_AX_SCREEN_READER=1` (v2.1.208). Since v2.1.307 it applies only from user, managed or `--settings` settings, not project settings |
 | `bashEditDiffEnabled` | boolean | G | Append a diff of the files a Bash command changed to the Bash tool result when Bash handles file edits (v2.1.269) |
 | `bashOutputMaxChars` | integer ≤ 128000 | G | Characters of Bash output the model receives inline before the rest is saved to a file (v2.1.261) |
 | `blockedMarketplaces` | string[] | E | Marketplace IDs users cannot install from |
