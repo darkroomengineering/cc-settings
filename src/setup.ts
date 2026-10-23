@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.89.1"; // skip the slow CI test jobs on draft PRs.
+const VERSION = "15.89.2"; // Codex bridge works on Windows; Windows suite green on main.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
