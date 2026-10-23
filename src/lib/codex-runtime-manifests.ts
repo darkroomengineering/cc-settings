@@ -269,7 +269,7 @@ const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
 // Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
 // bunfig.toml `preload` cannot run inside a hook.
 const ADDED_IN_V19 = ["src/bunfig.toml"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 23;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 24;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -399,9 +399,21 @@ const ADDED_IN_V23 = [
   "skills/case-study/scripts/media/soundtrack.py",
   "skills/case-study/scripts/media/theatre_history.py",
 ];
+const RUNTIME_SOURCE_FILES_V23: readonly string[] = [...RUNTIME_SOURCE_FILES_V22, ...ADDED_IN_V23];
+// Version 24: case-study colour and typography sheets, scripted interactions, and the CDN origin swap.
+const ADDED_IN_V24 = [
+  "skills/case-study/examples/design-template.json",
+  "skills/case-study/scripts/browser/cold.js",
+  "skills/case-study/scripts/browser/interact.js",
+  "skills/case-study/scripts/browser/origin-swap.js",
+  "skills/case-study/scripts/browser/specimens.js",
+  "skills/case-study/scripts/browser/spin.js",
+  "skills/case-study/scripts/browser/tokens.js",
+  "skills/case-study/scripts/media/drive_upload.sh",
+];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V22,
-  ...ADDED_IN_V23,
+  ...RUNTIME_SOURCE_FILES_V23,
+  ...ADDED_IN_V24,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -442,6 +454,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [20, RUNTIME_SOURCE_FILES_V20],
   [21, RUNTIME_SOURCE_FILES_V21],
   [22, RUNTIME_SOURCE_FILES_V22],
+  [23, RUNTIME_SOURCE_FILES_V23],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 

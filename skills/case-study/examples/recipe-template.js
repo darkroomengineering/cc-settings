@@ -72,6 +72,18 @@ module.exports = {
     ],
   },
 
+  // 5. One material that composites several layers in its fragment shader (a card drawing base, foil, stickers and text in one pass).
+  //    Find the code that assembles the shader (a method the material calls in onBeforeCompile, or the onBeforeCompile itself), keep the
+  //    first n steps, and change a define so three compiles a new program. Label each step from what the still shows, not the function name.
+  shader_passes: {
+    y: 0, // FILL_ME
+    scene: "(s, has) => has(s, (o) => !!o.material?.uniforms?.uFILL_ME)",
+    steps: [1, 2, 3, 4].map((n) => [`Pass ${n} FILL_ME`, `{ let m; s.traverse((o) => !m && o.material?.uniforms?.uFILL_ME && (m = o.material));
+      if (!m.__src) m.__src = m.FILL_ME_buildMethod();                 // e.g. the method returning the 'diffuseColor = applyX(...)' lines
+      let i = 0; m.FILL_ME_buildMethod  // lines that aren't passes always stay = () => m.__src.split('\\n').filter((l) => !/apply/.test(l) || ++i <= ${n}).join('\\n');
+      m.defines = { ...m.defines, CS_PASS: '${n}' }; m.needsUpdate = true }`]),
+  },
+
   // 4. A DOM section (no `scene`): build the page up from the back. css(sel, true) forces visible even inside a hidden parent; css(sel) resets.
   dom_section: {
     y: 0, // FILL_ME

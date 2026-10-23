@@ -30,19 +30,22 @@ Every project is different; run the phases that apply and say which you skipped 
 - **A list of separate videos and images, never just one film.** Cut long captures into per-chapter and per-transition clips, plus stills.
 - **Every chapter gets the same depth.** Each one is decomposed layer by layer and gets a 3D turntable. Don't stop at the most obvious scene.
 - **Every sound and every image asset as its own file**, including small UI glyphs such as a navigation rail's icons.
+- **Colours and typography are part of every case study**: palette, themes, each typeface, the type scale, and what the live site really uses.
+- **Masters go to the studio Drive, one folder per project**, and the board links to that folder (phase 10).
 - **The repo stays clean.** No commits. Revert lockfile or config churn caused by installs and dev servers.
 - Show progress with contact sheets, and look at every capture (Read the image) before using it.
 
 ## Output layout
 Masters go next to the project: `<parent of project>/<project>-case-study-assets/`. Working files go in the session scratchpad (`<WORK>`).
 ```
-01_film/            video/: 00_full_scroll.mp4 + one clip per chapter & transition    stills/: ~24 frames
+01_film/            video/00_full_scroll.mp4 (or a page-by-page tour)   clips/: one per chapter & transition (cut_film.sh)   stills/: ~24 frames
 02_ch1_<name>/      stills/layer_NN_<label>.png   video/layer_build_live.mp4, hero shots   blender/ turntable + clay/wire/bake
 03_ch2_<name>/ ...  (one folder per chapter, numbered in site order)
 NN_transitions/     anatomy grid + labelled sequence + per-stage clips & stills
 NN_type/            reveal on black, cursor response, stills
 NN_sound/           stems_original/ stems_normalized/ stills_per_sound/ clip_soundtracks/ mixes/
-NN_image_assets/    svg/<glyphs|logos|frames|ui>/ (svg + 2048 png + png on dark), glyph sheet 16:9, textures/<scene>/
+NN_image_assets/    svg/<glyphs|logos|frames|ui>/ (svg + 2048 png + png on dark), glyph sheet 16:9, textures/<scene>/, cms/<site|blog|unreferenced>/
+NN_colors_typography/ colors_palette.png, colors_<theme>.png, type_<family>.png, type_scale.png, type_in_use.png
 _toolkit/           this project's recipes, capture scripts, Blender sets, board source (kept private, next to the masters)
 ```
 Project-specific code (recipes, shader names, board copy) belongs in `_toolkit/`, never in this skill. Before starting, look for a previous
@@ -51,7 +54,9 @@ Project-specific code (recipes, shader names, board copy) belongs in `_toolkit/`
 ## Workflow
 
 Run the phases in order. Run Blender (phase 5) as a background subagent as soon as phase 1 has found the models, so it renders while you
-capture. Before starting, read `references/gotchas.md`: each item there cost hours once.
+capture. Before starting, read `references/gotchas.md`: each item there cost hours once. Hand other
+independent work to background subagents too (image and sound export, a second project), each with its own Chrome port
+(`chrome.sh <profile> 9335` + `CDP_URL`) and its own output folder, so nobody drives anyone else's browser.
 
 ### 1. Recon (10 min)
 - **Stack:** read `package.json` (three, @react-three/fiber, postprocessing, @theatre/core, gsap, lenis, howler, troika, lottie, pixi, babylon…).
@@ -60,14 +65,21 @@ capture. Before starting, read `references/gotchas.md`: each item there cost hou
   Note texture/mesh encodings: KTX2/Basis and meshopt need converting before Blender (see `references/blender.md`).
 - **Structure:** read the page and section components to learn scene order, section names, what each scene loads, any transition shader, the
   text system and the sound triggers (`grep -rnE "new Audio|Howl|\.play\(|AudioContext|\.(mp3|wav|ogg)" --include=*.{js,jsx,ts,tsx,svelte,vue} .`).
+- **Design tokens:** where colours, themes, fonts and the type scale are defined (`styles/colors.*`, `fonts.*`, `typography.*`, a Tailwind config,
+  CSS custom properties, `next/font` loaders).
 - **Production URL:** find it (grep for the domain, or ask). Then decide where to capture from: run the local dev server and production
   side by side in the rig and compare. Prefer whichever renders correctly and matches what shipped. Usually that's production.
+  If production is down, run locally. Common local blockers, all fixable without touching the repo: a stale CMS token (if the dataset is
+  public, start the dev server with the token env vars set to empty), and a media CDN that only serves the production origin
+  (run `scripts/browser/origin-swap.js "<cdn glob>" <production origin>` in the background while capturing).
 - **Tools:** `ffmpeg`, Blender.app, Chrome, and puppeteer-core installed once with `bun add --cwd <SKILL>/scripts/browser puppeteer-core`.
 
 ### 2. Browser rig
 ```
 <SKILL>/scripts/browser/chrome.sh <WORK>/chrome-profile        # run_in_background; headless, real GPU, 1920x1080
 cd <SKILL>/scripts/browser && node cdp.js boot.js <url> [gateX,gateY]   # fresh load + hook.js; click a sound/enter gate if any
+# another session already on 9333? chrome.sh refuses a busy port: use `chrome.sh <profile> 9334` and prefix commands with CDP_URL=http://127.0.0.1:9334
+# COOKIES="theme=gold" node cdp.js boot.js …  locks a random theme / skips a consent banner; capture every theme as its own shot
 ```
 `hook.js` is injected before the page's own scripts. It grabs every three.js Scene, the renderer and the postprocessing passes (pmndrs
 `postprocessing` and three's own `EffectComposer`) as they are constructed (no source edits, works on minified production; `boot.js` reports
@@ -87,6 +99,10 @@ screenshot, so captures are frame-perfect at any resolution and identical on eve
 ### 4. Captures (each from a fresh `boot.js`)
 - **Film:** `film.js 0 <end> <seconds>` (as shipped, linear scroll), encoded with `media/frames2mp4.sh`. Then cut it into per-chapter and
   per-transition clips plus ~24 stills with `media/cut_film.sh` (clips file: `name|start|end`). Find boundaries from section offsets and a contact sheet.
+  Pages that scroll an inner element (a Lenis wrapper): `SCROLLER="<css>"` on any task. **Preloaders and intros:** `cold.js <url> <s>` records
+  from first paint (`HIDE="<css>"` removes dev overlays and consent banners from frame one). **Multi-page / app-like sites:** film each page,
+  and record the main journey as one take with `interact.js` clicking through the real UI (in-app navigation and page transitions included),
+  then cut it into per-step clips; a page-by-page tour (ffmpeg concat) replaces the single scroll film.
 - **Layer decomposition per chapter:** write a recipe (`examples/recipe-template.js`; helpers are documented in `layers.js`), then
   `OUT=… node cdp.js layers.js recipes.js <set> 1.25`. That gives stills `NN_label.png` plus a live build video (one layer every 1.25 s, with the scene still
   animating). Typical 3D order: raw geometry/bake → sky → each mesh family (name instance counts) → atmosphere (clouds, mist, fog, rain) →
@@ -99,7 +115,11 @@ screenshot, so captures are frame-perfect at any resolution and identical on eve
   debug mode if it has one. Deliver a 3×3 16:9 grid plus a labelled sequence (`examples/transition-anatomy.js`; tile with ffmpeg `xstack` into 640×360 cells).
 - **Type:** titles alone on black (`examples/type-on-black.js`: either pin a blend shader's inputs black, or hide every non-text mesh), plus a
   scripted cursor pass if the type reacts to the pointer. DOM titles: a DOM-mode recipe that hides everything but the heading.
-- **Interactions:** `click.js <y> 7 0.6` for click-triggered moments (scans, reveals). Lay the matching sound at the click time.
+- **Interactions:** `click.js <y> 7 0.6` for a single click; `interact.js <y> <s> "30-200:path:x0,y0:x1,y1;240:sel:#cta;300-420:drag:…;500:key:ArrowRight"`
+  for hovers, cursor sweeps, selector-aimed clicks, drags, wheel and keys at exact frames (it returns the frame of each action). Glide the pointer
+  to each target before clicking so pointer-driven cameras stay smooth. Lay the matching sounds at those times.
+- **3D subjects with no model file** (procedural cards, runtime instancing, shader-drawn surfaces): `spin.js "<target pred>" 8` spins the live
+  object a full turn with the site's own shaders, which stands in for the Blender turntable. Say which it is.
 - Check every capture with `media/sheet.sh` + Read before moving on.
 
 ### 5. Blender (delegate early)
@@ -124,19 +144,37 @@ brief in `references/blender.md`, and review its overview sheet when it reports.
   transparent PNG + PNG on dark, grouped into glyphs / logos / frames / ui. Then add a 16:9 sheet of the glyphs.
 - Copy the full-resolution textures (skip `_SD` copies), MSDF atlases, favicons and patterns.
 
-### 8. Process material (if available)
+### 8. Colours and typography
+- `OUT=<WORK>/tokens.json node cdp.js tokens.js <y1,y2,…>` (multi-page: `PAGES="url1,url2,…"`; `HIDE="<css>"` keeps dev overlays out) records what the live site really uses: `@font-face` files, every rendered text style
+  (family, size, line-height, tracking, weight, case) with counts and a real sample, CSS colour variables, colours in use.
+- Scene colours often live in animation data rather than CSS (Theatre state JSON, GSAP configs): walk it for `{r, g, b}` objects and make each
+  scene a group ("Letter room", "Globe"), labelled as approximate when values are linear.
+- Write a `design.json` from the source tokens (`examples/design-template.json`): named palette, themes / modes as groups, typefaces with roles,
+  the named type scale with real copy from the site. It gives the sheets proper names; skip it and the sheets fall back to the live tokens.
+- `OUT=<out>/NN_colors_typography node cdp.js specimens.js <tokens.json> [design.json]` renders 16:9 sheets in the project's own fonts: palette,
+  one per theme, one specimen per typeface, the type scale, and the styles found live. Compare the last two: drift between the system and
+  what shipped is a finding.
+
+### 9. Process material (if available)
 Dated animation-state exports (Theatre `config/*.json`) tell a growth story: `media/theatre_history.py <dir>` gives keyframes per export
 (one project went from 4 to 377 in six weeks). The same data also gives the sound automation lanes.
 
-### 9. Board and hand-off
-- Build the exploration board per `references/board.md` (start from a previous `_toolkit/board/` if there is one). Publish it; it starts private.
-- Copy masters into the output layout, save this project's recipes, scripts and board source into `_toolkit/`, and kill your Chrome, dev server and background jobs. Run `git status` in the project and revert anything you changed.
-- In the final message, give the board link and the masters folder with a short table of what's where, plus findings worth knowing:
+### 10. Drive, board and hand-off
+- **Upload the masters to Drive:** `media/drive_upload.sh <out> "<Client - Project>"` copies everything except `_toolkit/` into the
+  project's folder under the studio's case-study root ("Website - Case Study - Assets", whose URL `CASE_STUDY_DRIVE_ROOT` must hold; ask the user for it, it is not in this public repo), reusing a
+  folder that already has the project's name (look at the root's folder names first and match their "Client - Project" style), and prints
+  the folder URL. It needs rclone with a Drive remote: if `rclone listremotes` shows none, run `rclone config create gdrive drive scope=drive`
+  in the background and ask the user to approve the Google sign-in it opens. Never delete or overwrite files someone else put in the folder; the script refuses to replace a changed file.
+  The Google Drive connector can create a folder or list one, but can't carry large binaries; use it to check the result, not to upload.
+- Build the exploration board per `references/board.md` (start from a previous `_toolkit/board/` if there is one), with the Drive folder
+  linked in its header. Publish it; it starts private.
+- Save this project's recipes, scripts and board source into `_toolkit/`, and kill your Chrome, dev server and background jobs. Run `git status` in the project and revert anything you changed.
+- In the final message, give the board link, the Drive folder and the local masters folder with a short table of what's where, plus findings worth knowing:
   bake flaws, perf oddities, unused assets, a local build that doesn't match production.
 
 ## Bundled files
-- `scripts/browser/`: `chrome.sh`, `cdp.js`, `hook.js`, `rec.js`, `prelude.js`, `goto.js` (scroll like a visitor, never jump), `boot.js`, `map.js`, `solo.js`, `layers.js`, `film.js`, `hold.js`, `click.js`, `instances.js`
-- `scripts/media/`: `frames2mp4.sh`, `cut_film.sh`, `enc_web.sh`, `sheet.sh`, `export_sounds.sh`, `soundtrack.py`, `export_svgs.js`, `theatre_history.py`
+- `scripts/browser/`: `chrome.sh`, `cdp.js`, `hook.js`, `rec.js`, `prelude.js`, `goto.js` (scroll like a visitor, never jump; `SCROLLER` for inner scrollers), `boot.js`, `cold.js`, `map.js`, `solo.js`, `layers.js`, `film.js`, `hold.js`, `click.js`, `interact.js`, `spin.js`, `instances.js`, `tokens.js`, `specimens.js`, `origin-swap.js`
+- `scripts/media/`: `frames2mp4.sh`, `cut_film.sh`, `enc_web.sh`, `sheet.sh`, `export_sounds.sh`, `soundtrack.py`, `export_svgs.js`, `theatre_history.py`, `drive_upload.sh`
 - `scripts/blender/`: `turntable.py` (generic runner), `common.py`, `chapters_lib.py`, `encode.sh`
 - `references/`: `gotchas.md` (read first), `blender.md`, `board.md`
-- `examples/`: `recipe-template.js`, `transition-anatomy.js`, `type-on-black.js`, `clips-template.txt`, `soundtrack-spec.json`
+- `examples/`: `recipe-template.js`, `transition-anatomy.js`, `type-on-black.js`, `clips-template.txt`, `soundtrack-spec.json`, `design-template.json`

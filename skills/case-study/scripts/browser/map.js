@@ -11,7 +11,7 @@ module.exports = async (page, ys = '') => {
     const d = (o, n = 0) => {
       const v = __H.cnt(o), m = o.material, u = m?.uniforms ? Object.keys(m.uniforms).filter((k) => !/^uTroika/.test(k)).slice(0, 8).join(',') : ''
       let s = `${'  '.repeat(n)}${o.type}${o.name ? ' "' + o.name + '"' : ''}${v ? ' v=' + v : ''}${m ? ' ' + m.type : ''}${u ? ' {' + u + '}' : ''}${m?.map?.image?.width ? ' map' + m.map.image.width : ''}${o.isInstancedMesh ? ' ×' + o.count : ''}${o.visible ? '' : ' HIDDEN'}`
-      if (n < 3 && o.children.length && o.children.length < 20) s += '\n' + o.children.map((c) => d(c, n + 1)).join('\n')
+      if (n < 8 && o.children.length && o.children.length < 20) s += '\n' + o.children.map((c) => d(c, n + 1)).join('\n') // R3F nests deep
       else if (o.children.length) s += ` [${o.children.length} children]`
       return s
     }

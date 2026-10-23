@@ -4,6 +4,53 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.88.0] — 2026-10-23
+
+`/case-study` now delivers a colours and typography set with every case study: the palette, each theme, a specimen per typeface, the defined type scale and the text styles the live site really uses, rendered as 16:9 sheets in the project's own fonts. Masters now go to the studio's case-study Drive, one folder per project, and the board links to it. Lessons from running it on two more projects are folded in too: capturing locally when production is down, multi-page app-like sites, scripted pointer journeys, lit PBR models in Blender, and fixes found along the way.
+
+**Added:**
+- `scripts/browser/tokens.js`: reads the live site's font faces, rendered text styles, colour custom properties and colours in use.
+- `scripts/browser/specimens.js`: 16:9 colour and type sheets from those tokens, optionally named from a curated `design.json`.
+- `examples/design-template.json`: the curated palette, themes, typefaces and scale.
+- `scripts/browser/interact.js`: clicks, moves, drags and keys at exact frames on the frozen clock, for hover and click captures with sound.
+- `scripts/browser/origin-swap.js`: captures a local build whose media CDN only serves the production origin, without changing the project or the CDN.
+- SKILL.md phase 8, "Colours and typography", and a matching board section in `references/board.md`.
+- `scripts/media/drive_upload.sh`: uploads a project's masters to its folder under the case-study Drive root (reusing a folder with the project's name) via rclone, and prints the folder URL for the board. The root comes from `CASE_STUDY_DRIVE_ROOT`, which is required and kept out of the repo, and `--immutable` stops the run rather than overwrite a file that changed.
+- `scripts/browser/cold.js`: records from first paint, so preloaders and intros come out frame-perfect; `HIDE` removes dev overlays and consent banners from frame one.
+- `scripts/browser/spin.js`: an in-browser turntable of a live object, for 3D subjects with no model file.
+
+**Changed:**
+- Recon also locates design tokens, and covers running locally when production is down (stale CMS token, origin-locked CDN).
+- `boot.js` takes a `COOKIES` env, to pin a randomly picked theme or skip an intro.
+- `layers.js` adds `onlyDeep` / `showDeep` / `restoreDeep` for scenes nested several groups deep, and `map.js` prints up to eight levels.
+- `turntable.py` builds lit materials from a texture set the site loads in code (`--pbr`), with an HDRI (`--hdri`) for reflections.
+- `interact.js` aims clicks by CSS selector and adds drags and wheel events, so a whole multi-page journey can be recorded as one take.
+- `goto.js` / `film.js` scroll an inner element with `SCROLLER` (Lenis wrappers); `tokens.js` visits several pages (`PAGES`) and hides overlays (`HIDE`).
+- `chrome.sh` refuses a port another session's browser already holds; `rec.js` stops with a clear message when the hook is missing.
+- Phase 10 uploads to Drive and links the folder from the board; gotchas cover Vite dev reloads, env-gated local builds, post-campaign production
+  builds, shared ports, uniforms hidden on `_uniforms` or in compiled shaders, apps that reset `visible`, layers inside one shader, consent
+  banners, SPAs that answer 200 for removed routes, user content in captures, and licence tags on music.
+- `recipe-template.js` gains a pattern for taking apart one material that composites several layers in its shader; the board opens scrubbers
+  on the finished frame, labels repo-build vs production items, and keeps licensed music off.
+
+**Fixed:**
+- `cut_film.sh`: ffmpeg no longer swallows the clip list after the first clip, and still timestamps are formatted for ffmpeg.
+- `export_svgs.js`: SVGs that use `currentColor` rasterise in a chosen ink instead of black.
+- `hook.js` steps off-DOM videos (WebGL video textures) with the frozen clock and fires `ended` on non-looping ones.
+- `sheet.sh` samples image sequences like videos (it showed only the first frames) and grows rows to fit.
+- `specimens.js` quotes `font-variation-settings` safely, so condensed variable fonts render condensed.
+- `export_sounds.sh` accepts m4a, aac, flac, opus and webm, saves each file's embedded tags, and warns when they read like a licence restriction.
+- `prelude.js` `pick()` also finds one-mesh scenes (a background pass), so recipes can target them.
+- Manifest v32 and runtime manifest v24 install the eight new files.
+
+**Files changed:**
+- `skills/case-study/`
+- `src/lib/claude-managed-file-manifests.ts`, `src/lib/codex-runtime-manifests.ts`
+- `tests/install-e2e.test.ts`
+- `docs/skills.md`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [15.87.2] — 2026-10-23
 
 Sync with Claude Code 2.1.309 and Codex 0.164.0. One new env var is tracked, two docs rows are updated, and nothing is removed.

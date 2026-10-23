@@ -1,0 +1,26 @@
+{
+  "name": "FILL_ME project name (top-right label on every sheet)",
+  "background": "#0b0b0c",
+  "ink": "#f2f0ec",
+  "accent": "#FILL_ME (the brand accent; used for the big Aa)",
+  "labelFont": "FILL_ME family used for small labels, usually the mono; omit for ui-monospace",
+  "palette": [
+    { "name": "FILL_ME token name from the source", "hex": "#000000" }
+  ],
+  "groups": [
+    {
+      "name": "Theme · FILL_ME",
+      "note": "one line on how themes / modes work in this project",
+      "colors": [{ "name": "role · token", "hex": "#000000" }]
+    }
+  ],
+  "fontFiles": {
+    "FILL_ME Family": [{ "path": "/abs/path/to/Family-Regular.woff2", "weight": 400, "style": "normal" }]
+  },
+  "typefaces": [
+    { "family": "FILL_ME Family", "role": "Display / Text / Utility", "weights": [400], "sample": "a real line from the site" }
+  ],
+  "styles": [
+    { "name": "h1", "family": "FILL_ME Family", "size": 48, "lineHeight": "110%", "letterSpacing": "-0.02em", "weight": 400, "sample": "a real headline" }
+  ]
+}

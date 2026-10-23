@@ -19,15 +19,34 @@ document.addEventListener('DOMContentLoaded', () => document.head.append(st))
 {
   const realNow = performance.now.bind(performance), realRaf = window.requestAnimationFrame.bind(window), realDate = Date.now
   let q = [], id = 0
+  // Videos, including off-DOM ones feeding WebGL textures: remember which ones the page wants playing, and play them by stepping
+  // currentTime while the clock is frozen (a non-looping video fires 'ended' when it reaches its end, as sites wait for that).
+  const M = HTMLMediaElement.prototype, realPlay = M.play, realPause = M.pause, vids = new Set()
+  M.play = function () { if (this instanceof HTMLVideoElement) { vids.add(this); this.__vtWant = true; if (vt.on) return Promise.resolve() } return realPlay.call(this) }
+  M.pause = function () { this.__vtWant = false; return realPause.call(this) }
+  const videos = () => new Set([...vids, ...document.querySelectorAll('video')])
   const vt = window.__vt = {
     on: false, t: 0, d0: 0,
-    start() { vt.t = realNow(); vt.d0 = realDate() - vt.t; vt.on = true },
-    stop() { vt.on = false; const cbs = q; q = []; cbs.forEach(([, cb]) => realRaf(cb)); try { document.getAnimations().forEach((a) => a.play()) } catch {}; document.querySelectorAll('video[data-vt]').forEach((v) => v.play().catch(() => {})) },
+    start() {
+      vt.t = realNow(); vt.d0 = realDate() - vt.t; vt.on = true
+      videos().forEach((v) => { if (!v.paused) { v.__vtWant = true; realPause.call(v) } })
+    },
+    stop() {
+      vt.on = false; const cbs = q; q = []; cbs.forEach(([, cb]) => realRaf(cb)); try { document.getAnimations().forEach((a) => a.play()) } catch {}
+      videos().forEach((v) => v.__vtWant && realPlay.call(v).catch(() => {}))
+    },
     step(ms = 1000 / 60) {
       vt.t += ms; const cbs = q; q = []; cbs.forEach(([, cb]) => { try { cb(vt.t) } catch (e) { console.error(e) } })
       // CSS animations/transitions (Web Animations API) and <video> don't use rAF: step them by hand so DOM-only sites capture frame-perfect too
       try { document.getAnimations().forEach((a) => { a.pause(); a.currentTime = (a.currentTime ?? 0) + ms }) } catch {}
-      document.querySelectorAll('video').forEach((v) => { if (!v.paused) v.pause(); v.dataset.vt = '1'; v.currentTime = (v.currentTime + ms / 1000) % (v.duration || Infinity) })
+      videos().forEach((v) => {
+        if (!v.__vtWant) return
+        if (!v.paused) realPause.call(v)
+        const d = v.duration || Infinity, t = v.currentTime + ms / 1000
+        if (v.loop) v.currentTime = t % d
+        else if (t < d) v.currentTime = t
+        else { v.currentTime = d; v.__vtWant = false; v.dispatchEvent(new Event('ended')) }
+      })
     },
   }
   performance.now = () => (vt.on ? vt.t : realNow())
