@@ -6,7 +6,7 @@
 // are best-effort.
 
 import { existsSync, readFileSync } from "node:fs";
-import { basename, extname } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { resolveEngine } from "../lib/code-intel-engine.ts";
 import { type HookIO, processIO } from "../lib/hook-runtime.ts";
 import { hasCommand } from "../lib/platform.ts";
@@ -15,6 +15,20 @@ const BIOMABLE = new Set([".ts", ".tsx", ".js", ".jsx", ".json", ".css"]);
 const JSTS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 const COMPONENT = new Set([".tsx", ".jsx"]);
 
+// Biome with no config formats with its defaults (tabs, double quotes), which
+// rewrites every file in a repo that formats with something else (oxfmt,
+// Prettier). Only format when the file's repo opts into Biome.
+export function usesBiome(filePath: string): boolean {
+  let dir = dirname(resolve(filePath));
+  while (true) {
+    if (existsSync(join(dir, "biome.json")) || existsSync(join(dir, "biome.jsonc"))) return true;
+    if (existsSync(join(dir, ".git"))) return false;
+    const parent = dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+}
+
 export async function main(io: HookIO = processIO): Promise<void> {
   const { file_path: filePath = "" } = await io.toolInput<{ file_path: string }>();
   if (!filePath) return;
@@ -22,7 +36,7 @@ export async function main(io: HookIO = processIO): Promise<void> {
   const ext = extname(filePath).toLowerCase();
 
   // 1. Auto-format with biome.
-  if (BIOMABLE.has(ext)) {
+  if (BIOMABLE.has(ext) && usesBiome(filePath)) {
     if (hasCommand("biome")) {
       const proc = Bun.spawn(["biome", "check", "--write", filePath], {
         stdout: "ignore",

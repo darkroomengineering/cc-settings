@@ -464,6 +464,40 @@ describe("post-edit.ts", () => {
     const r = await run("post-edit.ts", { stdin: toolInput({ file_path: "" }) });
     expect(r.exit).toBe(0);
   });
+
+  test("leaves a file alone in a repo with no biome config, formats it in one with a config", async () => {
+    const { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { hasCommand } = await import("../src/lib/platform.ts");
+    if (!hasCommand("biome")) return;
+    const sandbox = mkdtempSync(join(tmpdir(), "cc-postedit-biome-test-"));
+    try {
+      const source = "const a = 'x'\nexport { a }\n";
+      for (const repo of ["plain", "biome"]) {
+        mkdirSync(join(sandbox, repo, ".git"), { recursive: true });
+        mkdirSync(join(sandbox, repo, "src"));
+        writeFileSync(join(sandbox, repo, "src", "a.ts"), source);
+      }
+      writeFileSync(join(sandbox, "biome", "biome.json"), "{}\n");
+
+      const plain = join(sandbox, "plain", "src", "a.ts");
+      await run("post-edit.ts", {
+        stdin: toolInput({ file_path: plain }),
+        cwd: join(sandbox, "plain"),
+      });
+      expect(readFileSync(plain, "utf8")).toBe(source);
+
+      const opted = join(sandbox, "biome", "src", "a.ts");
+      await run("post-edit.ts", {
+        stdin: toolInput({ file_path: opted }),
+        cwd: join(sandbox, "biome"),
+      });
+      expect(readFileSync(opted, "utf8")).toContain('"x"');
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("log-bash.ts", () => {

@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.90.1] — 2026-10-23
+
+The post-edit hook no longer reformats files in repos that don't use Biome. Whenever `biome` was installed globally, the hook ran `biome check --write` on every edited JS, TS, JSON and CSS file. In a repo with no `biome.json`, Biome formats with its defaults (tabs, double quotes), so every Edit in an oxfmt or Prettier repo came back rewritten and had to be reformatted by hand.
+
+**Fixed:**
+- `src/scripts/post-edit.ts`: formats only when a `biome.json` or `biome.jsonc` exists between the edited file and its repo root.
+- `tests/scripts-smoke.test.ts`: asserts a file in a repo without a Biome config is left byte-identical, and one in a repo with a config is formatted.
+
+**Files changed:**
+- src/scripts/post-edit.ts
+- tests/scripts-smoke.test.ts
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.90.0] — 2026-10-23
 
 `/case-study` now covers browser games and app-like flows, and its boards become something to play with. A game is captured by a script that plays it with real keys and clicks, frame-perfect, logging every beat so clips and soundtracks follow the real game; the board rebuilds the project's own characters, levels, mini-games and music logic as playable pieces. Captures can no longer write to a client's production: score uploads, sign-up leads and analytics are blocked or answered inside the capture browser.
