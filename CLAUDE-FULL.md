@@ -46,10 +46,19 @@ Work Mode":
 | new test files | `tester` (**MUST**) |
 | auth, payments, crypto, input validation | `security-reviewer` (**MUST**) |
 | dead code or deslop | `deslopper` (**MUST**) |
+| Linear issue, status, checklist, comments, follow-ups | `linear`, in the background (**MUST** in a repo with a `Linear:` startup line) |
 | 3+ independent workstreams | parallel Agent calls in one message (**MUST**) |
 | workers must debate while working | agent team |
 | full feature spanning 3+ agents | `maestro` |
 | premature-stopping or self-review-bias risk | dynamic workflow or `/effort ultracode`; see `skills/orchestrate/SKILL.md` |
+
+In a repo with a `Linear:` startup line, the main session spawns `linear` at
+each milestone of a unit of work: `start` before the first commit (wait for
+the ID and put it in the branch name), `pr-opened` and `ci` after `/ship`
+reports, `merged` after landing, and `follow-up` for work you defer. Pass the
+event, repo, branch, issue ID, PR URL and CI result you already have. `/ship`
+and `/build` run as forks and cannot spawn it; ship's "Linear issue" step is
+their fallback, and the `linear-gate` hook blocks a PR that has no issue.
 
 If no threshold fires, work directly. Re-evaluate when scope grows; state one
 reason before overriding a yes. Start independent delegations together, and

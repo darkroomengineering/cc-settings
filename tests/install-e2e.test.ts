@@ -2863,6 +2863,7 @@ describe("install E2E — uninstall ownership", () => {
         );
         expect(newlyManaged.sort()).toEqual(
           [
+            "agents/linear.md",
             "docs/README.md",
             "docs/claude-vs-codex.md",
             "docs/first-session.md",
@@ -2884,6 +2885,7 @@ describe("install E2E — uninstall ownership", () => {
             "src/hooks/cache-cold.ts",
             "src/hooks/config-guard.ts",
             "src/hooks/dispatch.ts",
+            "src/hooks/linear-gate.ts",
             "src/hooks/model-switch-guard.ts",
             "src/hooks/spawn-cap.ts",
             "src/hooks/test-protect.ts",

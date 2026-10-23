@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 32;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 33;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -825,9 +825,17 @@ const ADDED_IN_V32 = [
   "skills/case-study/scripts/browser/tokens.js",
   "skills/case-study/scripts/media/drive_upload.sh",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v32 = {
   full: [...v31.full, ...ADDED_IN_V32],
   light: v31.light,
+};
+MANIFESTS.set(32, v32);
+// Version 33: the dispatcher's linear-gate handler (Claude-only like dispatch.ts)
+// and the Claude-only linear agent (full profile only, like every agent).
+const ADDED_IN_V33 = ["src/hooks/linear-gate.ts"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v32.full, "agents/linear.md", ...ADDED_IN_V33],
+  light: [...v32.light, ...ADDED_IN_V33],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

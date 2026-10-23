@@ -26,7 +26,7 @@ export const MANAGED_AGENT_SOURCE_FILES = [
   "security-reviewer.md",
   "tester.md",
 ] as const;
-export const EXCLUDED_AGENT_SOURCE_FILES = new Set(["codex-verifier.md"]);
+export const EXCLUDED_AGENT_SOURCE_FILES = new Set(["codex-verifier.md", "linear.md"]);
 /** Agent sources that exist only for standalone Codex, under `codex/agents/`.
  *  They mirror Claude-only agents in the other direction (claude-verifier is
  *  the Codex-to-Claude twin of codex-verifier) and are never installed to Claude. */
