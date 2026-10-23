@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 33;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 34;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -833,9 +833,21 @@ MANIFESTS.set(32, v32);
 // Version 33: the dispatcher's linear-gate handler (Claude-only like dispatch.ts)
 // and the Claude-only linear agent (full profile only, like every agent).
 const ADDED_IN_V33 = ["src/hooks/linear-gate.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v33 = {
   full: [...v32.full, "agents/linear.md", ...ADDED_IN_V33],
   light: [...v32.light, ...ADDED_IN_V33],
+};
+MANIFESTS.set(33, v33);
+// Version 34: case-study scripted play for games, virtual JS timers, the production network guard, and take joining.
+const ADDED_IN_V34 = [
+  "skills/case-study/examples/play-template.js",
+  "skills/case-study/scripts/browser/netguard.js",
+  "skills/case-study/scripts/browser/timers.js",
+  "skills/case-study/scripts/media/join_takes.py",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v33.full, ...ADDED_IN_V34],
+  light: v33.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

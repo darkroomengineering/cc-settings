@@ -24,8 +24,31 @@ components, and rewrite every word of copy for the new project. Otherwise build 
   font files loaded with `@font-face` so the type section is set in the project's faces.
 - The project's own fonts as published `woff2` files, plus its accent colour and HUD motifs. The board should feel like the project.
 
+## Playable pieces (the user wants interactivity and immersion)
+Videos show the work; playable pieces let the team feel it. Give each chapter at least one, rebuilt in the page from the project's own
+assets, data and logic, never invented. Label them as built from real parts, and say in one line what follows the code exactly and what is
+approximated (a post-process pass redrawn in 2D, say).
+- **Ideas that worked:** state buttons for a character (every animation, pose and transition on a button, arrow keys to drive it, a
+  readout of the current frame); the level or scene itself, playable with the real controls, rules and timer, with layer toggles and a
+  camera pull-back slider; the project's mini-games with their real copy, timings and scoring; a mood or variant switcher; a replay
+  button for a countdown or reveal; a music machine that reproduces the audio logic (the chain of loops, "reach the end" waiting for the
+  track to finish, the stings). Existing pieces: the layer scrubber, swatches that copy their hex.
+- **Build:** one inline script (`/*__PLAY__*/` in `src.html`, filled by `build.py`), vanilla canvas and DOM, no library. Publish the project's
+  sprite atlases (PNG + JSON) and fetch them at runtime; inline small data (level grids, copy, timings) into `DATA`. Draw pixel art with
+  `imageSmoothingEnabled = false`. Port the project's logic line by line (movement, collisions, animation selection, dissolves) rather
+  than imitating it from the footage. Inside a stage, use the project's own look (its window chrome, buttons, type at the site's scale via
+  `cqw`); outside, the board's tokens.
+- **Behave on a page:** start each piece only when it scrolls near (IntersectionObserver) and pause its loop off screen; take keyboard input
+  only while its stage is focused (and `preventDefault` arrows so the page doesn't scroll); give touch a d-pad; play sound only after a
+  click or key, with a sound toggle; respect `prefers-reduced-motion`.
+- **Test before publishing:** serve the board over `http://` with `charset=utf-8` and drive each piece with puppeteer like a visitor (click
+  through a challenge, walk a real route into an enemy), screenshot every step, and check phone width for horizontal overflow
+  (grid items holding wide SVGs need `min-width: 0`).
+- Worked example: the `_toolkit/board/play.js` of a past game case study (ball puppet, playable maze, challenge arcade, mood switcher,
+  countdown, music machine).
+
 ## Sections (in this order)
-Index → Film (clips + stills) → one section per chapter (layer scrubber, live build video, turntable, clay/wire/bake, facts) → hero subject(s)
+Index → Film (clips + stills) → one section per chapter (its playable piece, layer scrubber, live build video, turntable, clay/wire/bake, facts) → hero subject(s)
 → Transitions → Type → Interactions → Colours & typography → Sound (lanes, sound board, every sound's waveform) → Image assets →
 Process/choreography → Toolkit
 (method, what else we can make, things we noticed).
