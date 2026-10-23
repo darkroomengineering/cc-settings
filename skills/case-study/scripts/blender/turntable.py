@@ -3,12 +3,16 @@
 usage: Blender -b --factory-startup -P turntable.py -- --glb a.glb [--glb b.glb ...] --name NAME --job probe|stills|turntable
          [--tex "MESH_SUBSTRING=color.png[:alpha.png]" ...] [--el 15] [--lens 50] [--hero-az 30] [--hero-el 15]
          [--samples 64] [--frames 192] [--breathe 0.5] [--look auto|bake|material]
+         [--pbr "MESH_SUBSTRING=path/prefix_"] [--hdri studio|city|forest|… or a .exr/.hdr path] [--hdri-strength 1.0]
 env:   CS_SITE (base for relative paths), CS_OUT (output root), CS_BG (hex ground for *_dark and the mp4)
 
 Textures, per mesh, first match wins:
   1. --tex mappings (for GLBs shipped without materials whose baked textures the site loads in code; map by mesh name substring)
   2. the mesh's own glTF base-colour texture (embedded images are written out as PNG; RGBA alpha becomes a greyscale alpha map)
   3. a flat swatch of its base colour
+--pbr builds a lit Principled material from a texture set the site loads in code (prefix + BaseColor/Albedo, Metallic/Metalness,
+Roughness, Normal, Height/Displacement; .png/.jpg/.webp), e.g. --pbr "Ltr=assets/textures/Model_Letters_". Lit looks use an HDRI for
+reflections (default: Blender's bundled studio.exr), which metals need.
 Output: $CS_OUT/NAME/{01_clay,02_wire,03_bake}.png (+ _dark.png), turntable_360.mp4 (+ turntable_png/), probe -> NAME/_probe_*.png
 Third stage ("look"): bake = unlit emission of the texture, right for sites that draw baked lighting with MeshBasicMaterial;
 material = the GLB's own PBR materials under the studio key light, right for lit sites. auto = bake when every mesh got a --tex map, else material.
@@ -23,13 +27,13 @@ from chapters_lib import *
 def args():
     a = get_argv()
     out = {"glb": [], "tex": [], "job": "probe", "name": "set", "el": 15.0, "lens": 50.0, "hero_az": 30.0, "hero_el": 15.0,
-           "samples": 64, "frames": N_TT, "breathe": 0.5, "look": "auto"}
+           "samples": 64, "frames": N_TT, "breathe": 0.5, "look": "auto", "pbr": [], "hdri": "studio", "hdri_strength": 1.0}
     i = 0
     while i < len(a):
         k = a[i].lstrip("-").replace("-", "_"); v = a[i + 1] if i + 1 < len(a) else None
-        if k in ("glb", "tex"):
+        if k in ("glb", "tex", "pbr"):
             out[k].append(v)
-        elif k in ("el", "lens", "hero_az", "hero_el", "breathe"):
+        elif k in ("el", "lens", "hero_az", "hero_el", "breathe", "hdri_strength"):
             out[k] = float(v)
         elif k in ("samples", "frames"):
             out[k] = int(v)
@@ -101,6 +105,65 @@ def own_texture(ob):
     return swatch((0.6, 0.6, 0.6), TEXD + "grey_swatch.png"), None
 
 
+SUFFIX = {"base": ("basecolor", "base_color", "albedo", "diffuse", "color"), "metal": ("metallic", "metalness", "metal"),
+          "rough": ("roughness", "rough"), "normal": ("normal", "nrm", "normalgl"), "height": ("height", "displacement", "disp", "bump")}
+
+
+def pbr_files(prefix):
+    d, stem = os.path.dirname(rel(prefix)), os.path.basename(prefix).lower()
+    found = {}
+    for f in sorted(os.listdir(d)):
+        low = f.lower()
+        if not low.startswith(stem) or not low.endswith((".png", ".jpg", ".jpeg", ".webp")):
+            continue
+        tail = os.path.splitext(low[len(stem):])[0].strip("_- ")
+        for key, names in SUFFIX.items():
+            if key not in found and tail in names:
+                found[key] = os.path.join(d, f)
+    return found
+
+
+def pbr_material(name, files):
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    def tex(path, non_color):
+        t = nt.nodes.new("ShaderNodeTexImage"); t.image = load_img(path, non_color=non_color); return t
+    if "base" in files:
+        nt.links.new(tex(files["base"], False).outputs["Color"], bsdf.inputs["Base Color"])
+    if "metal" in files:
+        nt.links.new(tex(files["metal"], True).outputs["Color"], bsdf.inputs["Metallic"])
+    if "rough" in files:
+        nt.links.new(tex(files["rough"], True).outputs["Color"], bsdf.inputs["Roughness"])
+    nrm = None
+    if "normal" in files:
+        nrm = nt.nodes.new("ShaderNodeNormalMap")
+        nt.links.new(tex(files["normal"], True).outputs["Color"], nrm.inputs["Color"])
+    if "height" in files:
+        bump = nt.nodes.new("ShaderNodeBump"); bump.inputs["Strength"].default_value = 0.15
+        nt.links.new(tex(files["height"], True).outputs["Color"], bump.inputs["Height"])
+        if nrm:
+            nt.links.new(nrm.outputs["Normal"], bump.inputs["Normal"])
+        nrm = bump
+    if nrm:
+        nt.links.new(nrm.outputs["Normal"], bsdf.inputs["Normal"])
+    return mat
+
+
+def hdri_world(sc, which, strength):
+    """Environment for lit looks: a bundled Blender studio light by name, or a .exr/.hdr path."""
+    path = which if os.path.isfile(str(which)) else os.path.join(bpy.utils.system_resource("DATAFILES", path="studiolights/world"), f"{which}.exr")
+    if not os.path.isfile(path):
+        return False
+    sc.world.use_nodes = True
+    nt = sc.world.node_tree
+    env = nt.nodes.new("ShaderNodeTexEnvironment"); env.image = bpy.data.images.load(path, check_existing=True)
+    bg = nt.nodes["Background"]; bg.inputs["Strength"].default_value = strength
+    nt.links.new(env.outputs["Color"], bg.inputs["Color"])
+    return True
+
+
 # ---------------------------------------------------------------------------------------------- build
 sc = reset()
 for g in A["glb"]:
@@ -111,11 +174,19 @@ for t in A["tex"]:
     color, _, alpha = files.partition(":")
     maps.append((key, rel(color), rel(alpha) if alpha else None))
 parts = []
-ORIG = {}   # the glTF's own materials, for the "material" look
+PBR = [(k, pbr_files(v)) for k, v in (x.split("=", 1) for x in A["pbr"])]
+for k, f in PBR:
+    print("PBR", k, {kk: os.path.basename(vv) for kk, vv in f.items()})
+PBR_MATS = {}
+ORIG = {}   # the glTF's own materials (or the --pbr material), for the "material" look
 for ob in [o for o in bpy.data.objects if o.type == "MESH"]:
     ORIG[ob.name] = [m for m in ob.data.materials]
+    pb = next((x for x in PBR if x[0] in ob.name and x[1]), None)
+    if pb:
+        PBR_MATS.setdefault(pb[0], pbr_material("pbr_" + pb[0], pb[1]))
+        ORIG[ob.name] = [PBR_MATS[pb[0]]]
     m = next((x for x in maps if x[0] in ob.name), None)
-    color, alpha = (m[1], m[2]) if m else own_texture(ob)
+    color, alpha = (m[1], m[2]) if m else ((pb[1].get("base"), None) if pb and pb[1].get("base") else own_texture(ob))
     ob.data.calc_loop_triangles()
     parts.append({"ob": ob, "color": color, "alpha": alpha, "mapped": bool(m)})
     print(f"PART {ob.name}: verts {len(ob.data.vertices)} tris {len(ob.data.loop_triangles)} tex {os.path.basename(color)}" + (f" alpha {os.path.basename(alpha)}" if alpha else ""))
@@ -160,6 +231,8 @@ def stage(st):
         setattr_safe(sc.eevee, "use_gtao", False)
     else:
         clay_lights(sc, T, size, A["hero_az"], cam_dist=hero_d)
+        if st == "material":
+            hdri_world(sc, A["hdri"], A["hdri_strength"])   # reflections for metals; background stays transparent
 
 
 def hero():

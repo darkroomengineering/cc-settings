@@ -4,6 +4,7 @@ const fs = require('node:fs')
 module.exports.rec = async (page, { dir, frames, fps = 60, perFrame, hook, warm = 0, quality = 95 }) => {
   fs.mkdirSync(dir, { recursive: true })
   const cdp = await page.createCDPSession()
+  if (!(await page.evaluate(() => !!window.__vt))) throw new Error('hook.js is not on this page: it reloaded after boot.js (hooks injected at document start only survive the session that added them), or cdp.js picked another tab. Boot again.')
   await page.evaluate(() => __vt.start())
   try {
     for (let i = -warm; i < frames; i++) {

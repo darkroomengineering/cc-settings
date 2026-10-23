@@ -1,10 +1,15 @@
 // Fresh load with hook.js injected (scene/renderer/pass capture + virtual clock).
 // usage: node cdp.js boot.js <url> [gateX,gateY] [settleSeconds=9]
+// env COOKIES="k=v; k2=v2" sets cookies first (lock a random theme, skip a consent banner or an intro).
 // gate = where to click a "click to enter / enable sound" gate, if the site has one. Reload between captures so toggled state never leaks.
 const fs = require('node:fs')
 module.exports = async (page, url, gate = '', settle = '9') => {
   await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 })
   await page.evaluateOnNewDocument(fs.readFileSync(__dirname + '/hook.js', 'utf8'))
+  if (process.env.COOKIES) {
+    const host = new URL(url).hostname
+    await page.setCookie(...process.env.COOKIES.split(';').map((c) => c.trim()).filter(Boolean).map((c) => { const [name, ...v] = c.split('='); return { name, value: v.join('='), domain: host, path: '/' } }))
+  }
   await page.goto(url, { waitUntil: 'load', timeout: 120000 })
   await new Promise((r) => setTimeout(r, 6000))
   if (gate) { const [x, y] = gate.split(',').map(Number); await page.mouse.click(x, y) }

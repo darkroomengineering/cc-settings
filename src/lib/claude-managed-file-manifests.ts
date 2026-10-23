@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 31;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 32;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -809,9 +809,25 @@ const ADDED_IN_V31 = [
   "skills/case-study/scripts/media/soundtrack.py",
   "skills/case-study/scripts/media/theatre_history.py",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v31 = {
   full: [...v30.full, ...ADDED_IN_V31],
   light: v30.light,
+};
+MANIFESTS.set(31, v31);
+// Version 32: case-study colour and typography sheets, scripted interactions, and the CDN origin swap.
+const ADDED_IN_V32 = [
+  "skills/case-study/examples/design-template.json",
+  "skills/case-study/scripts/browser/cold.js",
+  "skills/case-study/scripts/browser/interact.js",
+  "skills/case-study/scripts/browser/origin-swap.js",
+  "skills/case-study/scripts/browser/specimens.js",
+  "skills/case-study/scripts/browser/spin.js",
+  "skills/case-study/scripts/browser/tokens.js",
+  "skills/case-study/scripts/media/drive_upload.sh",
+];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v31.full, ...ADDED_IN_V32],
+  light: v31.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

@@ -14,7 +14,7 @@ module.exports.prelude = () => {
   window.__H = {
     has, cnt, effs,
     LENS: /Bloom|Chromatic|Vignette|Noise|Grain|Film|Glitch|Scanline|DotScreen|Pixel|Bokeh|DepthOfField|Afterimage|ToneMapping|Outline|LUT|Halftone/,
-    pick: (pred) => __big.find((s) => pred(s, has, cnt)),
+    pick: (pred) => __big.find((s) => pred(s, has, cnt)) || __cap.scenes.find((s) => pred(s, has, cnt)), // small scenes too (a one-mesh background pass)
     fx(re, on) { effs.filter((e) => re.test(name(e)) && !STRUCTURAL.test(name(e))).forEach((e) => { if (e.blendMode) e.blendMode.opacity.value = on ? __orig.opac.get(e) : 0; else e.enabled = on ? __orig.opac.get(e) : false }) },
     // css(sel, true) forces visible (beats a hidden parent), css(sel, false) hides, css(sel) resets to the page's own value
     css(sel, on) { document.querySelectorAll(sel).forEach((el) => (on === undefined ? el.style.removeProperty('visibility') : el.style.setProperty('visibility', on ? 'visible' : 'hidden', 'important'))) },
