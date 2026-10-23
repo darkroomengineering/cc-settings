@@ -830,10 +830,11 @@ const v32 = {
   light: v31.light,
 };
 MANIFESTS.set(32, v32);
-// Version 33: the dispatcher's linear-gate handler. Claude-only like dispatch.ts.
+// Version 33: the dispatcher's linear-gate handler (Claude-only like dispatch.ts)
+// and the Claude-only linear agent (full profile only, like every agent).
 const ADDED_IN_V33 = ["src/hooks/linear-gate.ts"];
 MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
-  full: [...v32.full, ...ADDED_IN_V33],
+  full: [...v32.full, "agents/linear.md", ...ADDED_IN_V33],
   light: [...v32.light, ...ADDED_IN_V33],
 });
 

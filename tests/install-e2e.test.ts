@@ -2863,6 +2863,7 @@ describe("install E2E — uninstall ownership", () => {
         );
         expect(newlyManaged.sort()).toEqual(
           [
+            "agents/linear.md",
             "docs/README.md",
             "docs/claude-vs-codex.md",
             "docs/first-session.md",
