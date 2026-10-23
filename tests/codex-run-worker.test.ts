@@ -14,6 +14,7 @@ const RUN = resolve(import.meta.dir, "../src/scripts/codex-run.ts");
 const FAKE_CODEX = `#!/bin/sh
 if [ "$1" = "login" ]; then exit 0; fi
 printf '%s\\n' "$@" > "$FAKE_ARGV"
+cat > "$FAKE_STDIN"
 out=""
 schema=""
 prev=""
@@ -33,6 +34,7 @@ interface Run {
   stderr: string;
   code: number;
   argv: string[];
+  stdin: string;
   schema: string;
 }
 
@@ -61,6 +63,7 @@ async function runCodexRun(
     await git(repo, "commit", "-q", "-m", "init");
 
     const argvFile = join(dir, "argv.txt");
+    const stdinFile = join(dir, "stdin.txt");
     const schemaCopy = join(dir, "schema.json");
     const resultFile = join(dir, "result.json");
     if (opts.result !== undefined) {
@@ -76,6 +79,7 @@ async function runCodexRun(
       HOME: home,
       USERPROFILE: home,
       FAKE_ARGV: gitBashPath(argvFile),
+      FAKE_STDIN: gitBashPath(stdinFile),
       FAKE_SCHEMA_COPY: gitBashPath(schemaCopy),
       FAKE_RESULT: opts.result !== undefined ? gitBashPath(resultFile) : "",
       FAKE_TOUCH: opts.touch ? gitBashPath(join(repo, opts.touch)) : "",
@@ -97,8 +101,9 @@ async function runCodexRun(
       proc.exited,
     ]);
     const argv = (await readFile(argvFile, "utf8").catch(() => "")).split("\n").filter(Boolean);
+    const stdin = await readFile(stdinFile, "utf8").catch(() => "");
     const schema = await readFile(schemaCopy, "utf8").catch(() => "");
-    return { stdout, stderr, code, argv, schema };
+    return { stdout, stderr, code, argv, stdin, schema };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -124,6 +129,8 @@ describe("codex-run.ts exec worker result", () => {
     expect(schemaAt).toBeGreaterThan(0);
     expect(outAt).toBeGreaterThan(0);
     expect(Math.max(schemaAt, outAt)).toBeLessThan(run.argv.indexOf("--"));
+    expect(run.argv.at(-1)).toBe("-");
+    expect(run.stdin).toStartWith("Task:\nadd b.ts\n");
     const schema = JSON.parse(run.schema);
     expect(schema.additionalProperties).toBe(false);
     expect(schema.required).toContain("verify_result");
