@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.89.2] — 2026-10-23
+
+The Codex bridge now works on Windows, and the full Windows test suite passes on main again. `codex-run.ts exec`, `ask` and `review` could not start Codex on Windows at all, because Bun refuses newlines and cmd.exe metacharacters in arguments to the `codex.cmd` shim, and every prompt has newlines. The full Windows suite runs only on pushes to main, so this showed up there on every push since at least 2026-10-21 and on no PR.
+
+**Fixed:**
+- `src/lib/codex.ts`: the prompt goes to Codex on stdin (`codex exec -- -`) instead of as an argument. It still cannot be read as a flag.
+- `tests/support/proc.ts`: `spawnCapture` drops an inherited variable when a test overrides it under any casing. Windows ignores case in variable names, so the inherited `Path` beat the test's `PATH` and 10 Linear map cache tests ran the runner's real `gh` instead of the fake.
+- `tests/tsc-lib.test.ts`: the `runTsc` test finds the search path under `PATH` or `Path`.
+- `tests/linear-gate.test.ts`: the relative `--body-file` fixture builds its path with `path.join`, matching what the hook looks up on Windows.
+- `tests/codex-run-worker.test.ts`: asserts the prompt arrives on stdin.
+
+**Files changed:**
+- src/lib/codex.ts
+- tests/support/proc.ts
+- tests/tsc-lib.test.ts
+- tests/linear-gate.test.ts
+- tests/codex-run-worker.test.ts
+- package.json, plugin.json, .claude-plugin/plugin.json, src/setup.ts
+
 ## [15.89.1] — 2026-10-23
 
 Draft PRs no longer run the slow test jobs. CI skips the `test` matrix (Ubuntu and macOS, about 7 to 11 minutes each) and the Windows `install-e2e` job (about 8 minutes) while a PR is a draft, and runs them when the PR is marked ready for review. Typecheck, lint, schemas, upstream-scan and the setup bootstrap smoke tests still run on drafts, and pushes to main still run the full suite on all three platforms. The org `ci-gate` runs its own typecheck and does not wait on these jobs, so a draft cannot get stuck.

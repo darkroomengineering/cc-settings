@@ -77,7 +77,9 @@ describe("runTsc", () => {
       const env = JSON.parse(readFileSync(observed, "utf8")) as Record<string, string>;
       for (const n of payload) expect(env[n], n).toBeUndefined();
       expect(env.OBSERVED_PATH).toBe(observed);
-      expect(typeof env.PATH).toBe("string");
+      // Windows reports the variable as `Path`.
+      const pathKey = Object.keys(env).find((k) => k.toUpperCase() === "PATH");
+      expect(pathKey && typeof env[pathKey]).toBe("string");
     } finally {
       for (const n of payload) {
         if (saved[n] === undefined) delete process.env[n];

@@ -1,6 +1,7 @@
 // Linear Gate: a PR in a Linear-mapped repo must name an issue of that team.
 
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import {
   type GateDeps,
   gateReason,
@@ -176,7 +177,7 @@ describe("gateReason", () => {
     [
       "relative body file",
       "gh pr create -t 'Add hero' -F body.md",
-      { files: { "/work/app/body.md": "Fixes OSS-53" } },
+      { files: { [join(CWD, "body.md")]: "Fixes OSS-53" } },
     ],
     [
       "absolute body file",
