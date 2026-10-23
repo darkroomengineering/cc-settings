@@ -34,6 +34,15 @@
 - **Live user content shows up in captures** (fan letters, comments, profile names). Note where it appears, and check with the client before
   any of it is published.
 
+- **A capture can write to the client's production.** Finishing a game posts a score to its leaderboard (anonymous auth + insert); an end
+  screen's sign-up form creates a real lead; analytics count every page view. Boot every capture with `BLOCK` / `FAKE_OK` (netguard.js), and
+  remember the guard only exists in pages loaded after it was set: a page booted earlier needs `netguard.js` run on it live, with a probe
+  request, before any take goes near a form. Never type a real person's address into a form, even a stubbed one.
+- **The local checkout can be behind what shipped.** Compare `main` with `origin/main` at recon; scripts that click by label break when
+  production's copy is newer (a button label changed after the local branch was cut).
+- **Headless content area is not the window size.** `--window-size=1920,1080` gives a 1920x993 page, and a viewport override only lasts as long as
+  the CDP session that set it, so a later task shot 1920x993. `boot.js` sizes the window itself; custom tasks should still check `innerHeight`.
+
 ## Hooking production
 - **The hook works on minified code** because three/postprocessing still assign `this.isScene = true` etc. Don't trap `uniforms`:
   it's too broad and broke the app. `isScene`, `isWebGLRenderer` and EffectPass `effects` are enough.
@@ -81,6 +90,16 @@
 - **Videos inside WebGL textures** are usually off-DOM `<video>` elements. `hook.js` tracks every video the page plays and steps it with the
   frozen clock (firing `ended` on non-looping ones, since intros often wait for it). Cold loads (preloader → intro) record fine from
   `domcontentloaded` with the clock already frozen; network loads keep running in real time meanwhile.
+
+- **JavaScript timers race ahead of frozen frames.** Freezing rAF and `performance.now` alone leaves `setTimeout` / `setInterval` on wall-clock
+  time, and a capture runs ~5-12x slower than real time, so key repeat, countdowns, game timers and challenge clocks jump ahead. `TIMERS=1`
+  moves them onto the virtual clock. Libraries that time with rAF (GSAP, Tempus, Howler's end events via setTimeout) then follow too.
+- **Scripted players fail on ordinary UI details.** A label rule re-fired forever because the picked value reappears in the dropdown's
+  trigger; a 30-frame click gate fired before the next rule's 40-frame reading pause and closed the list each time; a centred input put the
+  caret before the text so Backspace did nothing; the form rejected example.com. Guard rules with state flags, read the contact sheet after
+  the first minute, and keep the take: continue on the same page and join with `join_takes.py`.
+- **Two capture browsers double throughput** when takes are long (a full game run was ~10,000 frames at ~1 fps on a loaded machine): give
+  each its own profile and port, and keep heavy encodes for after.
 
 ## Sound
 - **Stems are mastered quietly.** One project averaged −46 dBFS, peaking around −26. Export normalized copies, and lift rebuilt mixes with one static gain plus

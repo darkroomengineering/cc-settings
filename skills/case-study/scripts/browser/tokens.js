@@ -55,8 +55,8 @@ module.exports = async (page, ys = '') => {
       const v = root.getPropertyValue(name).trim()
       if (v && CSS.supports('color', v) && !/^(inherit|initial|unset|currentcolor|transparent)$/i.test(v)) vars.push({ name, value: v })
     }
-    // drop local() fallbacks (no url) and framework dev-overlay faces (e.g. Next's __nextjs-*)
-    return { faces: faces.filter((f) => f.urls.length && !/^__/.test(f.family)), vars }
+    // drop local() fallbacks (no url) and Next dev-overlay faces (__nextjs-*)
+    return { faces: faces.filter((f) => f.urls.length && !/^__nextjs/i.test(f.family)), vars } // next/font names real faces __Name_hash: keep those
   })
   const out = {
     url: page.url(), fonts: sheets.faces, colorVars: sheets.vars,

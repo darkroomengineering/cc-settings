@@ -4,6 +4,25 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.89.0] — 2026-10-23
+
+`/case-study` now covers browser games and app-like flows, and its boards become something to play with. A game is captured by a script that plays it with real keys and clicks, frame-perfect, logging every beat so clips and soundtracks follow the real game; the board rebuilds the project's own characters, levels, mini-games and music logic as playable pieces. Captures can no longer write to a client's production: score uploads, sign-up leads and analytics are blocked or answered inside the capture browser.
+
+**Added:**
+- `scripts/browser/timers.js` (`TIMERS=1`): puts `setTimeout` / `setInterval` on the virtual clock, so movement, countdowns and game timers stay in step with the captured frames.
+- `scripts/browser/netguard.js` (`BLOCK` / `FAKE_OK`): fails or locally answers requests that would write to production; as a task it guards an already-loaded page and proves the stub answers.
+- `examples/play-template.js`: scripted play for games and app journeys, reading the screen each frame and logging clicks, keys, phases and sounds by frame.
+- `scripts/media/join_takes.py`: stitches a take that was fixed and continued on the same page.
+- "Playable pieces" in `references/board.md`: what to rebuild, how to build it from the project's assets and logic, how it behaves on the page, and how to test it.
+- SKILL.md: a games row in the project table, game and app-journey captures, sprite-sheet exports, and recon checks for a stale checkout and for requests that write to production.
+
+**Changed:**
+- `boot.js` sizes the headless window so every page is 1920x1080 (the content area was 1920x993 for tasks without their own viewport), and takes `TIMERS`, `BLOCK` and `FAKE_OK`; `cold.js` takes them too.
+- Gotchas cover writes to production, a local branch behind what shipped, the headless content area, timers racing ahead, scripted-player traps (labels that reappear, centred inputs, client-side validation), and a second capture browser for long takes.
+
+**Fixed:**
+- `tokens.js` keeps `next/font` faces (`__Name_hash`), which were filtered out as framework overlays.
+
 ## [15.88.0] — 2026-10-23
 
 `/case-study` now delivers a colours and typography set with every case study: the palette, each theme, a specimen per typeface, the defined type scale and the text styles the live site really uses, rendered as 16:9 sheets in the project's own fonts. Masters now go to the studio's case-study Drive, one folder per project, and the board links to it. Lessons from running it on two more projects are folded in too: capturing locally when production is down, multi-page app-like sites, scripted pointer journeys, lit PBR models in Blender, and fixes found along the way.

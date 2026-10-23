@@ -1,6 +1,6 @@
 ---
 name: case-study
-description: Turn any web project (WebGL, three.js, React Three Fiber, Theatre.js, GSAP or Lenis scroll sites, and plain DOM sites) into case-study material for the studio website. Produces frame-perfect 16:9 clips of every chapter and transition, layer-by-layer decompositions of every scene, Blender turntables and clay/wire/bake renders, every sound exported separately with mixes rebuilt from the animation data, every image asset (glyphs, logos, frames, textures) exported separately, and a shareable exploration board. Triggers "case study", "showcase", "portfolio piece", "making-of", "breakdown", "how it's made", "decompose the scene", "take apart the landscape", "record the site", "capture footage", "turntable", "export the sounds", "extract the icons/assets". Use when a finished project needs to be shown, even if nobody says "case study".
+description: Turn any web project (WebGL, three.js, React Three Fiber, Theatre.js, GSAP or Lenis scroll sites, plain DOM sites, and browser games or app-like flows) into case-study material for the studio website. Produces frame-perfect 16:9 clips of every chapter and transition (games are played through by a script with real input), layer-by-layer decompositions of every scene, Blender turntables and clay/wire/bake renders, every sound exported separately with mixes rebuilt from the animation data, every image asset (glyphs, logos, frames, textures, sprite sheets) exported separately, and a shareable exploration board with playable pieces rebuilt from the project's own assets. Triggers "case study", "showcase", "portfolio piece", "making-of", "breakdown", "how it's made", "decompose the scene", "take apart the landscape", "record the site", "capture footage", "turntable", "export the sounds", "extract the icons/assets". Use when a finished project needs to be shown, even if nobody says "case study".
 requires:
   - command: ffmpeg
     install: "brew install ffmpeg (encoding, contact sheets, sound export)"
@@ -24,6 +24,7 @@ Every project is different; run the phases that apply and say which you skipped 
 | DOM / GSAP / Lottie / video sites | film (the clock also steps CSS animations and video), DOM-mode layers via `css()`, clicks, sound, assets, board | skip Blender, solo and instances |
 | Multi-page sites | everything, per page | `boot.js` each URL; "chapters" become pages or sections |
 | No sound / no Theatre keyframes | — | skip phase 6, or place stems by section from the code's triggers |
+| Games and app-like flows (keyboard play, timers, forms) | layers, sound, assets, tokens, board | boot with `TIMERS=1` and a network guard; the film is a scripted playthrough (`examples/play-template.js`), cut by its logged events; 2D sprite games skip Blender and rebuild the level from their atlases instead |
 
 ## What the user expects (learned the hard way)
 - **16:9, 1920×1080 masters for everything**, including stills, grids and Blender renders. Re-render instead of cropping.
@@ -33,6 +34,11 @@ Every project is different; run the phases that apply and say which you skipped 
 - **Colours and typography are part of every case study**: palette, themes, each typeface, the type scale, and what the live site really uses.
 - **Masters go to the studio Drive, one folder per project**, and the board links to that folder (phase 10).
 - **The repo stays clean.** No commits. Revert lockfile or config churn caused by installs and dev servers.
+- **Captures never write to the client's production.** No score rows, no leads, no analytics hits, no anonymous sign-ins: block or fake those
+  requests in the capture browser (`BLOCK` / `FAKE_OK`, phase 2) before the first take, and never submit a real form.
+- **The board is something to play with, not only to watch.** The user asked for more interactivity and immersion: give each chapter a
+  playable piece rebuilt from the project's own assets and logic (state buttons for a character, the level itself, its mini-games, a music
+  machine, layer toggles, a camera pull-back slider). See "Playable pieces" in `references/board.md`.
 - Show progress with contact sheets, and look at every capture (Read the image) before using it.
 
 ## Output layout
@@ -67,6 +73,10 @@ independent work to background subagents too (image and sound export, a second p
   text system and the sound triggers (`grep -rnE "new Audio|Howl|\.play\(|AudioContext|\.(mp3|wav|ogg)" --include=*.{js,jsx,ts,tsx,svelte,vue} .`).
 - **Design tokens:** where colours, themes, fonts and the type scale are defined (`styles/colors.*`, `fonts.*`, `typography.*`, a Tailwind config,
   CSS custom properties, `next/font` loaders).
+- **Is the checkout current?** `git fetch` then `git log --oneline main..origin/main`: a stale local branch explains copy or features that
+  differ from production (one project was 9 commits behind; production matched origin/main). Read source from origin when it is what shipped.
+- **Side effects:** list every request the site makes that writes somewhere (`grep -rnE "fetch\(|axios|supabase|insert|/api/|hubspot|mailchimp|gtag|analytics"`):
+  score uploads, sign-up and contact forms, anonymous auth, analytics. They become the `BLOCK` / `FAKE_OK` patterns for every boot.
 - **Production URL:** find it (grep for the domain, or ask). Then decide where to capture from: run the local dev server and production
   side by side in the rig and compare. Prefer whichever renders correctly and matches what shipped. Usually that's production.
   If production is down, run locally. Common local blockers, all fixable without touching the repo: a stale CMS token (if the dataset is
@@ -80,6 +90,9 @@ independent work to background subagents too (image and sound export, a second p
 cd <SKILL>/scripts/browser && node cdp.js boot.js <url> [gateX,gateY]   # fresh load + hook.js; click a sound/enter gate if any
 # another session already on 9333? chrome.sh refuses a busy port: use `chrome.sh <profile> 9334` and prefix commands with CDP_URL=http://127.0.0.1:9334
 # COOKIES="theme=gold" node cdp.js boot.js …  locks a random theme / skips a consent banner; capture every theme as its own shot
+# TIMERS=1 …                                   also freezes setTimeout/setInterval (games, countdowns, app flows: anything that runs on JS timers)
+# BLOCK="supabase\.co|analytics" FAKE_OK="/api/signup" …   fail / locally answer requests that would write to production (netguard.js)
+# a page loaded before the guard: BLOCK=… FAKE_OK=… node cdp.js netguard.js /api/signup   installs it live and proves the stub answers
 ```
 `hook.js` is injected before the page's own scripts. It grabs every three.js Scene, the renderer and the postprocessing passes (pmndrs
 `postprocessing` and three's own `EffectComposer`) as they are constructed (no source edits, works on minified production; `boot.js` reports
@@ -118,6 +131,13 @@ screenshot, so captures are frame-perfect at any resolution and identical on eve
 - **Interactions:** `click.js <y> 7 0.6` for a single click; `interact.js <y> <s> "30-200:path:x0,y0:x1,y1;240:sel:#cta;300-420:drag:…;500:key:ArrowRight"`
   for hovers, cursor sweeps, selector-aimed clicks, drags, wheel and keys at exact frames (it returns the frame of each action). Glide the pointer
   to each target before clicking so pointer-driven cameras stay smooth. Lay the matching sounds at those times.
+- **Games and app journeys:** play them, don't scroll them. Copy `examples/play-template.js` into `_toolkit/` and give it rules (read the
+  screen each frame, wait a reading time, click or hold real keys); boot with `TIMERS=1` and the guard. Record a winning run, a losing run
+  (failures, hints, quitting) and the end screens as separate takes; each writes `events.json` (every click, key, phase and sound with its
+  frame), so clip lists and soundtracks come from real beats. Solve levels offline (BFS over the level data) so the script walks the real
+  route. Watch a contact sheet after the first minute: a rule that loops wastes the whole take. To end a take from outside, delete
+  `window.__probe` (the `finally` still writes the log); to fix one mid-way, continue on the same page into a new folder and stitch with
+  `media/join_takes.py`. Long takes run ~1-3 fps on a busy machine: run independent captures in a second Chrome on its own port.
 - **3D subjects with no model file** (procedural cards, runtime instancing, shader-drawn surfaces): `spin.js "<target pred>" 8` spins the live
   object a full turn with the site's own shaders, which stands in for the Blender turntable. Say which it is.
 - Check every capture with `media/sheet.sh` + Read before moving on.
@@ -143,6 +163,9 @@ brief in `references/blender.md`, and review its overview sheet when it reports.
   `bun add --cwd <WORK> sharp` and pass `<WORK>`): each SVG as svg + 2048 px
   transparent PNG + PNG on dark, grouped into glyphs / logos / frames / ui. Then add a 16:9 sheet of the glyphs.
 - Copy the full-resolution textures (skip `_SD` copies), MSDF atlases, favicons and patterns.
+- **Sprite sheets** (TexturePacker-style PNG + JSON): export every frame, each animation as a 16:9 strip and a loop at its in-game fps, and the
+  unique tiles of tile atlases (packers alias many cells to one rect: count both). A tiled level can be rebuilt whole from its atlases at native
+  resolution, which stands in for a turntable. Check each PNG against the atlas's `meta.size` (one splash shipped at half its authored size).
 
 ### 8. Colours and typography
 - `OUT=<WORK>/tokens.json node cdp.js tokens.js <y1,y2,…>` (multi-page: `PAGES="url1,url2,…"`; `HIDE="<css>"` keeps dev overlays out) records what the live site really uses: `@font-face` files, every rendered text style
@@ -167,14 +190,17 @@ Dated animation-state exports (Theatre `config/*.json`) tell a growth story: `me
   in the background and ask the user to approve the Google sign-in it opens. Never delete or overwrite files someone else put in the folder; the script refuses to replace a changed file.
   The Google Drive connector can create a folder or list one, but can't carry large binaries; use it to check the result, not to upload.
 - Build the exploration board per `references/board.md` (start from a previous `_toolkit/board/` if there is one), with the Drive folder
-  linked in its header. Publish it; it starts private.
+  linked in its header, and its playable pieces. Test it in a real browser over `http://` with a UTF-8 charset before publishing
+  (`file://` blocks the atlas fetches; a charset-less server garbles the arrows). Publish it; it starts private.
 - Save this project's recipes, scripts and board source into `_toolkit/`, and kill your Chrome, dev server and background jobs. Run `git status` in the project and revert anything you changed.
 - In the final message, give the board link, the Drive folder and the local masters folder with a short table of what's where, plus findings worth knowing:
   bake flaws, perf oddities, unused assets, a local build that doesn't match production.
 
 ## Bundled files
-- `scripts/browser/`: `chrome.sh`, `cdp.js`, `hook.js`, `rec.js`, `prelude.js`, `goto.js` (scroll like a visitor, never jump; `SCROLLER` for inner scrollers), `boot.js`, `cold.js`, `map.js`, `solo.js`, `layers.js`, `film.js`, `hold.js`, `click.js`, `interact.js`, `spin.js`, `instances.js`, `tokens.js`, `specimens.js`, `origin-swap.js`
-- `scripts/media/`: `frames2mp4.sh`, `cut_film.sh`, `enc_web.sh`, `sheet.sh`, `export_sounds.sh`, `soundtrack.py`, `export_svgs.js`, `theatre_history.py`, `drive_upload.sh`
+- `scripts/browser/`: `chrome.sh`, `cdp.js`, `hook.js`, `timers.js` (TIMERS=1), `netguard.js` (BLOCK / FAKE_OK), `rec.js`, `prelude.js`, `goto.js` (scroll like a visitor, never jump; `SCROLLER` for inner scrollers), `boot.js`, `cold.js`, `map.js`, `solo.js`, `layers.js`, `film.js`, `hold.js`, `click.js`, `interact.js`, `spin.js`, `instances.js`, `tokens.js`, `specimens.js`, `origin-swap.js`
+- `scripts/media/`: `frames2mp4.sh`, `cut_film.sh`, `enc_web.sh`, `sheet.sh`, `export_sounds.sh`, `soundtrack.py`, `export_svgs.js`, `theatre_history.py`, `drive_upload.sh`, `join_takes.py`
 - `scripts/blender/`: `turntable.py` (generic runner), `common.py`, `chapters_lib.py`, `encode.sh`
 - `references/`: `gotchas.md` (read first), `blender.md`, `board.md`
-- `examples/`: `recipe-template.js`, `transition-anatomy.js`, `type-on-black.js`, `clips-template.txt`, `soundtrack-spec.json`, `design-template.json`
+- `examples/`: `recipe-template.js`, `play-template.js` (scripted play for games and app journeys), `transition-anatomy.js`, `type-on-black.js`, `clips-template.txt`, `soundtrack-spec.json`, `design-template.json`
+- Worked examples live in past projects' `<project>-case-study-assets/_toolkit/` folders next to the masters (a WebGL scroll site, a DOM site,
+  a 2D maze game with scripted play, sprite exports and a board of playable pieces): look there before writing a recipe, a player or a board.
