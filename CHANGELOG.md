@@ -4,6 +4,20 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.90.4] — 2026-10-28
+
+The test suite runs about twice as fast, and CI now fails a PR when a dependency has a known vulnerability. `bun test --parallel` spreads the test files across one worker per CPU core: two local runs took 242 s and 252 s, against 375 s and 516 s run serially, with all 3101 tests passing. The zod advisory fixed in 15.90.3 sat open for five days as a Dependabot alert; `bun audit` in the lint job would have failed the next PR instead.
+
+**Changed:**
+- `package.json`: `bun run test` runs `bun test --parallel`.
+- `.github/workflows/ci.yml`: the `test` job runs `bun test --parallel`, and the `lint` job runs `bun audit`.
+- `.claude/AGENTS.md`: the Tests line names `bun run test`.
+
+**Files changed:**
+- package.json, .github/workflows/ci.yml, .claude/AGENTS.md
+- plugin.json, .claude-plugin/plugin.json, src/setup.ts
+- CHANGELOG.md
+
 ## [15.90.3] — 2026-10-28
 
 Zod moves to 4.6.7, which closes a high-severity advisory (GHSA-mrhx-c7xc-m3w5): Zod before 4.6.6 can exhaust memory while validating an oversized constrained collection. cc-settings validates settings, profiles, permissions, MCP config and team-knowledge notes with Zod, and the notes come from a shared repo.
