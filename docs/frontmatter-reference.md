@@ -32,7 +32,7 @@ Agent files define reusable personas that Claude Code can delegate work to via `
 | `permissionMode` | string | No | Permission mode for this agent's subagent session (used by `explore`, `reviewer`, `security-reviewer`) |
 | `initialPrompt` | string | No | Text prepended to the agent's first turn, before the delegated task (used by `explore`) |
 | `experimental.cacheTtl` | string | No | Per-agent prompt cache TTL, `5m` or `1h`, used when no `subagentPromptCacheTtl` setting is configured (v2.1.248). cc-settings sets `subagentPromptCacheTtl: "5m"` globally, so this only matters for an agent run under a config that drops that setting |
-| `autoCompactWindow` | — | No | Lets a subagent auto-compact earlier than the main conversation's window; also accepted in `--agents` definitions (v2.1.296). Upstream does not document the value format yet, so the install-time check accepts it without validating it. No cc-settings agent sets it |
+| `autoCompactWindow` | — | No | Lets a subagent auto-compact earlier than the main conversation's window; also accepted in `--agents` definitions (v2.1.296). Since v2.1.312 it also lowers a window set by `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; it never raises one. Upstream does not document the value format yet, so the install-time check accepts it without validating it. No cc-settings agent sets it |
 
 ### Auto-Invocation via `description`
 

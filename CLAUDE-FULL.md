@@ -150,7 +150,7 @@ Never export `CLAUDE_CODE_EFFORT_LEVEL`: while set, it overrides `/effort`.
 Thinking tokens are output-priced and every inheriting agent spends them, so a
 `/model fable` session drops to `/effort medium` for routine work. Raise
 deliberately: `/effort high` for hard non-coding reasoning, `/effort xhigh` for
-audits, migrations, and hard debugging, `ultrathink` for one turn. Agent
+audits, migrations, and hard debugging, `ultrathink` for one xhigh turn. Agent
 frontmatter pins effort where depth is non-negotiable (`security-reviewer`,
 `planner`); the Agent tool's `effort` parameter raises or lowers one spawn.
 

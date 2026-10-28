@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.90.2] — 2026-10-28
+
+Sync with Claude Code 2.1.312 and Codex 0.165.0. Five env vars are tracked, two docs rows are updated, and nothing is removed.
+
+**Adopted:**
+- `CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK` and `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT` (Claude Code 2.1.312), `CLAUDE_CODE_MODEL_CATALOG` and `CLAUDE_CODE_SYNC_SKILLS` (2.1.311), and `DISABLE_COMPACT`, which settings can now only turn on (2.1.311). Tracked in `upstream/claude-code-manifest.json` and documented in `docs/settings-reference.md`; cc-settings sets none of them.
+
+**Docs only:**
+- `docs/frontmatter-reference.md`: a subagent's `autoCompactWindow` now lowers a window set by `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (2.1.312).
+- `CLAUDE-FULL.md`: `ultrathink` runs its turn at xhigh effort (2.1.311).
+
+**Deletions / Native-now-redundant:** none. The 2.1.311 fix for `SubagentStop` hooks firing about twice a minute means `swarm-log.ts` now logs one stop per subagent; there was no workaround to remove. Codex 0.165.0 (GPT-6.1 Terra, memory v2 by default, Vertex provider) and the Codex app changelog touch no installer surface.
+
+**Files changed:**
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `docs/settings-reference.md`
+- `docs/frontmatter-reference.md`
+- `CLAUDE-FULL.md`
+- `package.json`, `.claude-plugin/plugin.json`, `plugin.json`, `src/setup.ts`
+- `CHANGELOG.md`
+
 ## [15.90.1] — 2026-10-23
 
 The post-edit hook no longer reformats files in repos that don't use Biome. Whenever `biome` was installed globally, the hook ran `biome check --write` on every edited JS, TS, JSON and CSS file. In a repo with no `biome.json`, Biome formats with its defaults (tabs, double quotes), so every Edit in an oxfmt or Prettier repo came back rewritten and had to be reformatted by hand.

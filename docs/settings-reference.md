@@ -79,6 +79,11 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` | `"true"` or unset | Suppress git status in system prompt (see also `includeGitInstructions` setting) |
 | `CLAUDE_CODE_DISABLE_WEB_FETCH` | `"1"` or unset | Turn off the WebFetch tool (v2.1.285). Unset here |
 | `CLAUDE_CODE_DISABLE_ULTRAREVIEW_TRUST_CHECK` | `"1"` or unset | `claude ultrareview` asks for workspace trust on a terminal and refuses elsewhere; this skips the check for scripts, as does `--trust-workspace` (v2.1.309). Unset here |
+| `CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK` | `"1"` or unset | Turns off the automatic model switch after a flagged message, which since v2.1.312 also covers model names Claude Code doesn't recognize. Unset here |
+| `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT` | `"0"` or unset | On Bedrock, Vertex, Foundry and Mantle, unrecognized model names (custom deployments, inference profile ARNs) get the shorter system prompt since v2.1.312; `=0` keeps the full one. Unset here |
+| `CLAUDE_CODE_MODEL_CATALOG` | `"off"` or unset | On Bedrock, Mantle, Vertex and Foundry, model settings load from a signed file on downloads.claude.ai since v2.1.311; `off` turns that off. Unset here |
+| `CLAUDE_CODE_SYNC_SKILLS` | `"1"` or unset | Syncs the claude.ai skills list; with feature-flag fetching off, a session reuses a list up to 10 minutes old that another session on the machine fetched (v2.1.311). Unset here |
+| `DISABLE_COMPACT` | `"1"` or unset | Turns compaction off. Since v2.1.311 settings files and a mod's `$.env.set` can only turn it off, never back on, and teammates and `/rewind` respect it. Unset here |
 | `CLAUDE_CODE_NONSTREAMING_TIMEOUT_RETRIES` | integer (string) | Cap how many times a timed-out non-streaming fallback request is re-sent (v2.1.285). Unset here |
 | `CLAUDE_CODE_DISABLE_CRON` | `"true"` or unset | Disable scheduled cron jobs |
 | `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` | milliseconds (string) | Timeout for SessionEnd hooks (default: 1500ms) |
