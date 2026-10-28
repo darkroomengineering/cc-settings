@@ -45,7 +45,7 @@ jobs:
         with:
           bun-version: ">=1.1.30"
       - run: bun install --frozen-lockfile
-      - run: bun test
+      - run: bun test --parallel
 
   lint:
     runs-on: ubuntu-latest
@@ -55,6 +55,7 @@ jobs:
         with:
           bun-version: ">=1.1.30"
       - run: bun install --frozen-lockfile
+      - run: bun audit
       - run: bun run lint
       - run: bun run lint:skills
       - run: bun run lint:agents

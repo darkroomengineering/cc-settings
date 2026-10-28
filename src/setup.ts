@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.90.3"; // zod 4.6.7 for GHSA-mrhx-c7xc-m3w5.
+const VERSION = "15.90.4"; // tests run in parallel; CI fails on a vulnerable dependency.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

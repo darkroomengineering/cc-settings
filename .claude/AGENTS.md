@@ -53,7 +53,7 @@ generated from the zod sources in `src/schemas/` — don't hand-edit it.
 - Rollback: `bun src/setup.ts --rollback` (restores newest backup)
 - Fresh install: `bash setup.sh --fresh` (reinstall as if from scratch — settings.json, prior-install state, and local approvals reset; login/history/memory untouched; recover via rollback)
 - Dry-run: `bun src/setup.ts --dry-run`
-- Tests: `bun test`
+- Tests: `bun run test` (runs `bun test --parallel`, one worker per CPU core)
 - Token spend from local transcripts: `bun run tokens` (`--all`, `--days N`, `--json`). Price-weighted by billing type, split main vs subagent; run it before and after a harness change. A Codex section counts tokens (cost n/a) from `$CODEX_HOME` rollouts under the same flags, so work routed to Codex stays visible.
 - Hook firing frequency from local transcripts: `bun run hooks:report` (`--days N`, `--project`, `--json`, `--bench <file>`). Maps tool calls, prompts, turns and compactions onto the matchers in `config/40-hooks.json` and lists the Stop hook `durationMs` Claude Code records.
 - Hook latency replay: `bun run hooks:bench` (`--runs N`, `--json`). Runs each synchronous hook with a sample payload under a throwaway `HOME`, reports p50/p95. Feed its `--json` to `hooks:report --bench`.
