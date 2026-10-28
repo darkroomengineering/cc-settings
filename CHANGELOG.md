@@ -4,6 +4,18 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.90.3] — 2026-10-28
+
+Zod moves to 4.6.7, which closes a high-severity advisory (GHSA-mrhx-c7xc-m3w5): Zod before 4.6.6 can exhaust memory while validating an oversized constrained collection. cc-settings validates settings, profiles, permissions, MCP config and team-knowledge notes with Zod, and the notes come from a shared repo.
+
+**Fixed:**
+- `package.json`, `bun.lock`: `zod` 4.4.3 to 4.6.7. `bun audit` reports no vulnerabilities, and the generated `schemas/*.schema.json` are unchanged.
+
+**Files changed:**
+- package.json, bun.lock
+- plugin.json, .claude-plugin/plugin.json, src/setup.ts
+- CHANGELOG.md
+
 ## [15.90.2] — 2026-10-28
 
 Sync with Claude Code 2.1.312 and Codex 0.165.0. Five env vars are tracked, two docs rows are updated, and nothing is removed.
