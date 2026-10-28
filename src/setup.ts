@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.90.2"; // sync with Claude Code 2.1.312 and Codex 0.165.0.
+const VERSION = "15.90.3"; // zod 4.6.7 for GHSA-mrhx-c7xc-m3w5.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
