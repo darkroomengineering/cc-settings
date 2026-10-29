@@ -9,7 +9,7 @@ All notable changes to cc-settings are documented here.
 Notes shared with `/share-learning` show up in team-knowledge's INDEX.md again. That repo no longer regenerates the index after a merge, because its `main` only accepts PRs, and its lint now fails a PR whose INDEX.md is stale. The skill now regenerates the index on the note's branch before opening the PR.
 
 **Changed:**
-- `skills/share-learning/SKILL.md`: after writing the note, clone the branch, run `scripts/build-index.ts` and `scripts/lint.ts`, and commit the new INDEX.md to the branch. The skill may now run `mktemp`, `gh repo clone` and `bun` on its temp clone.
+- `skills/share-learning/SKILL.md`: after writing the note, clone the branch, run `scripts/build-index.ts` and `scripts/lint.ts`, and commit the new INDEX.md to the branch. The skill may now run `mktemp`, `gh repo clone`, and exactly those two `bun` commands.
 
 ## [15.90.4] — 2026-10-28
 

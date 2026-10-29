@@ -7,7 +7,8 @@ allowed-tools:
   - Bash(base64*)
   - Bash(mktemp -d /tmp/team-knowledge.*)
   - Bash(gh repo clone*)
-  - Bash(bun /tmp/team-knowledge.*)
+  - Bash(bun "$TMP/scripts/build-index.ts")
+  - Bash(bun "$TMP/scripts/lint.ts")
 requires:
   - command: gh
     install: "Install GitHub CLI, run `gh auth login`, and request access to the team-knowledge repository."
