@@ -5,6 +5,9 @@ allowed-tools:
   - Bash(gh api*)
   - Bash(gh auth status*)
   - Bash(base64*)
+  - Bash(mktemp -d /tmp/team-knowledge.*)
+  - Bash(gh repo clone*)
+  - Bash(bun /tmp/team-knowledge.*)
 requires:
   - command: gh
     install: "Install GitHub CLI, run `gh auth login`, and request access to the team-knowledge repository."
@@ -147,16 +150,31 @@ authentication or repository access.
      -f sha="$SHA"
    ```
 
+   Regenerate `INDEX.md` on the branch. Its `lint` check fails when `INDEX.md` doesn't
+   match the notes, and nothing regenerates it after the merge:
+   ```bash
+   TMP=$(mktemp -d /tmp/team-knowledge.XXXXXX)
+   gh repo clone $KNOWLEDGE_REPO "$TMP" -- --depth 1 --branch "$BRANCH" -q
+   bun "$TMP/scripts/build-index.ts"
+   bun "$TMP/scripts/lint.ts"
+   SHA=$(gh api "repos/$KNOWLEDGE_REPO/contents/INDEX.md?ref=$BRANCH" --jq .sha)
+   gh api -X PUT repos/$KNOWLEDGE_REPO/contents/INDEX.md \
+     -f branch="$BRANCH" \
+     -f message="chore: regenerate INDEX.md" \
+     -f content="$(base64 < "$TMP/INDEX.md")" \
+     -f sha="$SHA"
+   ```
+
    Then open the PR. Its `lint` check validates every note's frontmatter, including
-   the 160-character `summary` limit; fix a failure on the same branch.
+   the 160-character `summary` limit; fix a failure on the same branch and regenerate
+   `INDEX.md` again.
    ```bash
    gh pr create -R $KNOWLEDGE_REPO --base main --head "$BRANCH" \
      --title "knowledge: add <name>" --body "<the summary line>"
    ```
 
 4. **Report.** Surface the PR URL to the user. Merging needs an approving review; agents
-   see the note only after the merge, when the repo's `index.yml` workflow regenerates
-   `INDEX.md`. Its final location is
+   see the note once the PR, with its regenerated `INDEX.md`, merges. Its final location is
    `https://github.com/$KNOWLEDGE_REPO/blob/main/<name>.md`.
 
 ## Refresh

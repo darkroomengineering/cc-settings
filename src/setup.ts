@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.90.4"; // tests run in parallel; CI fails on a vulnerable dependency.
+const VERSION = "15.90.5"; // share-learning regenerates team-knowledge INDEX.md in the note PR.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
