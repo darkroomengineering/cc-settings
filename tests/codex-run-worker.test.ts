@@ -3,11 +3,14 @@
 // to the `--output-last-message` path; codex-run.ts runs in a child inside a temp
 // git repo so the readiness check sees a real tree.
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
+
+// Git and bun subprocesses can exceed Bun's five-second default on a loaded Windows runner.
+setDefaultTimeout(30_000);
 
 const RUN = resolve(import.meta.dir, "../src/scripts/codex-run.ts");
 

@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.90.6"; // docs/performance-reference.md has the font subsetting procedure.
+const VERSION = "15.90.7"; // Windows CI: spawn-heavy test files get a 30 s timeout.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

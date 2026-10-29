@@ -10,10 +10,13 @@
 //     found, forcing a deterministic "not-installed" live check) → the hook
 //     must emit no additionalContext at all.
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+
+// Git and bun subprocesses can exceed Bun's five-second default on a loaded Windows runner.
+setDefaultTimeout(30_000);
 
 const HOOK = resolve(import.meta.dir, "..", "src", "hooks", "codex-verify.ts");
 

@@ -6,7 +6,7 @@
 //   - session-start.ts end to end: mapped, unmapped org repo, repo outside the
 //     org, no cache, expired cache
 
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { githubSlugFrom, linearLines, linearMapAwareness } from "../src/lib/team-knowledge.ts";
@@ -14,6 +14,9 @@ import { GIT_ISOLATION_ENV, git, makeRepo } from "./support/git.ts";
 import { gitBashPath, prependTestPath } from "./support/portable-process.ts";
 import { spawnCapture } from "./support/proc.ts";
 import { sandbox } from "./support/tmp.ts";
+
+// Git and bun subprocesses can exceed Bun's five-second default on a loaded Windows runner.
+setDefaultTimeout(30_000);
 
 const SESSION_START = resolve(import.meta.dir, "..", "src", "scripts", "session-start.ts");
 const REFRESH = resolve(import.meta.dir, "..", "src", "scripts", "refresh-knowledge-index.ts");
