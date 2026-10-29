@@ -72,13 +72,12 @@ Re-measure after every rung; stop when the remaining bytes are framework.
    `experimental.cssChunking: { type: 'graph', requestCost: 1,
    weightDistribution: 1 }`. Home inline CSS 136 KB to 110 KB raw, blog 103
    KB to 57 KB. `'strict'` is webpack-only and fails the Turbopack build.
-5. **Subset fonts to the characters rendered.** Probe every text node per
-   family (computed `font-family`, `text-transform`) and collect the
-   character set. Ship a Basic Latin base file (preloaded) and a Latin-1 /
-   General Punctuation `-Ext` file with `unicode-range` (fetched only when a
-   glyph needs it). 27 KB to 17 KB per cut, Google's "latin" Geist Mono 23
-   KB to 13 KB self-hosted. Preload nothing that has zero uses in the first
-   viewport. With `next/font/local`, the ext face needs
+5. **Subset fonts to the characters rendered.** Follow "Subsetting fonts
+   without changing rendering" in `~/.claude/docs/performance-reference.md`:
+   a preloaded core file and an extended file behind `unicode-range`, proven
+   with before/after pixel diffs. 27 KB to 17 KB per cut, Google's "latin"
+   Geist Mono 23 KB to 13 KB self-hosted. Preload nothing that has zero uses
+   in the first viewport. With `next/font/local`, the ext face needs
    `adjustFontFallback: false` and an inline `declarations` literal (no
    shared constants; the loader requires literals), and the stack is
    composed as `ext, base` in hand-written CSS.

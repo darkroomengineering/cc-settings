@@ -4,6 +4,14 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.90.6] — 2026-10-29
+
+Font subsetting has a written procedure that an agent follows when making a site's fonts smaller. It shrinks font bytes while keeping rendering identical, and proves that with before/after pixel diffs. The `/audit` performance playbook's font step links to it instead of carrying its own shorter version.
+
+**Changed:**
+- `docs/performance-reference.md`: new "Subsetting fonts without changing rendering" section. It covers measuring first, finding the characters, axes and features in use (including inline styles and the U+2010 hyphen from `hyphens: auto`), cutting to a preloaded core file plus an extended file behind `unicode-range`, the fallback-face and OFL Reserved Font Name traps, the pixel-diff proof, and a hand-run script with a `--check` mode for knowing when to rerun it.
+- `skills/audit/references/performance-playbook.md`: step 5 points to that section and keeps its measured numbers and `next/font/local` details.
+
 ## [15.90.5] — 2026-10-29
 
 Notes shared with `/share-learning` show up in team-knowledge's INDEX.md again. That repo no longer regenerates the index after a merge, because its `main` only accepts PRs, and its lint now fails a PR whose INDEX.md is stale. The skill now regenerates the index on the note's branch before opening the PR.
