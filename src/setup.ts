@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.90.5"; // share-learning regenerates team-knowledge INDEX.md in the note PR.
+const VERSION = "15.90.6"; // docs/performance-reference.md has the font subsetting procedure.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

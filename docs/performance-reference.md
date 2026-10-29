@@ -107,6 +107,65 @@ No built-in image component. For optimization, use a Vite plugin (`vite-imagetoo
 - Self-host fonts instead of Google Fonts for fewer round trips
 - `font-display: optional` for non-critical fonts (prevents CLS entirely)
 
+### Subsetting fonts without changing rendering
+
+The goal is fewer font bytes with every page rendering exactly as before. Any
+visible change is a regression until the user approves it; when a cut would
+change rendering, report what it saves and what it changes, and ship the
+identical version by default. Leave `font-display` and fallback fonts alone.
+
+1. **Measure first.** Per font file: bytes, glyph count, variable axes and
+   their ranges, OpenType features, hinting. Per page: font bytes transferred
+   and every `preload`.
+2. **Find what the site uses**, from stylesheets and inline component styles:
+   - characters in the content, after `text-transform`;
+   - axis values and weights per family, including one-off overrides and bold
+     inside italics;
+   - OpenType features switched on (`font-feature-settings`,
+     `font-variant-*`);
+   - CSS side effects: `hyphens: auto` draws U+2010 HYPHEN, which the content
+     never contains.
+3. **Cut each font to that.** Keep the used characters plus Latin-1 and
+   Latin Extended-A. Leave CJK to system fonts if that is how it renders
+   today. Restrict each variable axis to the range in use
+   (`fonttools varLib.instancer font.ttf wght=300:700`); pin an axis to one
+   value only when nothing overrides it. A range that excludes the old default
+   moves the default, so match the `@font-face` `font-weight` range to the new
+   axis. Drop unused layout features and hinting (`pyftsubset --unicodes=...
+   --layout-features=... --no-hinting --flavor=woff2`).
+4. **Split each font in two.** A core file with ASCII plus the punctuation
+   most pages use (curly quotes, dashes, ellipsis) is preloaded. An extended
+   file behind `unicode-range` downloads only when a page needs one of its
+   characters. Each `unicode-range` lists only characters its file contains;
+   a range wider than the file makes the browser fetch it and still fall back.
+5. **Watch the traps.**
+   - A generated fallback face between the core and extended faces draws the
+     extended characters before the real font does. With `next/font/local`,
+     set `adjustFontFallback: false` on the extended face (see the
+     `/audit` performance playbook, step 5).
+   - A font under the OFL with a Reserved Font Name must be renamed internally
+     once subset: rewrite name IDs 1, 4, 6 and 16.
+   - Open every generated file and check its glyph count, axes, features and
+     names; font tools drop or keep things silently.
+6. **Prove it.** Build a baseline from the same content, then pixel-diff
+   before and after on pages with code, italics, accented characters,
+   components with their own font settings, and CJK. Label every visible
+   difference as a content change, a regression to fix, or sub-pixel rounding.
+   Re-measure bytes per page and confirm the extended files load only where a
+   page needs them.
+
+**No build step.** The subsetting is a script the user runs by hand, and its
+output is committed. Give the script a `--check` mode that collects the
+characters, weights and features the site uses now and fails when the
+committed files lack any of them; a repo whose content changes often can run
+it in CI. Note in the script header when to rerun it: new content in another
+script or language, a new weight or axis value, a new OpenType feature.
+
+**Report:** bytes before and after per font and per page, the pixel-diff
+results with each difference labelled, every deviation from the procedure and
+what it cost, and the rerun command. Later options: inline the core font in
+the global stylesheet, and precache the extended files after idle.
+
 ## Cache Headers
 
 | Stack | Pattern |
