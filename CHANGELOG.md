@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.90.7] — 2026-10-29
+
+The Windows test job on `main` stops failing on slow tests that start git or bun. Under `bun test --parallel` the runner is busy enough that a few of these tests took longer than Bun's five-second default, and a different few failed on each run.
+
+**Fixed:**
+- `tests/codex-run-worker.test.ts`, `tests/codex-verify.test.ts`, `tests/linear-map.test.ts`: each file sets a 30-second default timeout, as `tests/codex-install.test.ts` already does for its installer runs.
+
 ## [15.90.6] — 2026-10-29
 
 Font subsetting has a written procedure that an agent follows when making a site's fonts smaller. It shrinks font bytes while keeping rendering identical, and proves that with before/after pixel diffs. The `/audit` performance playbook's font step links to it instead of carrying its own shorter version.
