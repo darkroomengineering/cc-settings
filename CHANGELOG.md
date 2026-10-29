@@ -4,6 +4,13 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.90.8] — 2026-10-29
+
+The settings reference now explains why sessions with long-running subagents use more tokens than `bun run tokens` shows. Claude Code re-sends each running subagent's whole conversation every 30 seconds to write its 3-5 word status line. These calls never reach the transcripts, and no documented setting turns them off.
+
+**Changed:**
+- `docs/settings-reference.md`: a `CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES` row describes the `agent_summary` calls, what is known of their cost (anthropics/claude-code#86879), that neither that variable nor `CLAUDE_CODE_FORK_SUBAGENT=0` turns them off, and that cc-settings changes no default until upstream ships a supported switch.
+
 ## [15.90.7] — 2026-10-29
 
 The Windows test job on `main` stops failing on slow tests that start git or bun. Under `bun test --parallel` the runner is busy enough that a few of these tests took longer than Bun's five-second default, and a different few failed on each run.
