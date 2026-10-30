@@ -192,11 +192,11 @@ async function reviewsFor(
   prAuthor: string,
 ): Promise<PrRecord["reviews"]> {
   const [reviews, comments] = await Promise.all([
-    sh(["gh", "api", "--paginate", `repos/${repo}/pulls/${pr}/reviews`]).then(
-      (s) => JSON.parse(s || "[]") as RawReview[],
+    sh(["gh", "api", "--paginate", "--slurp", `repos/${repo}/pulls/${pr}/reviews`]).then((s) =>
+      (JSON.parse(s || "[]") as RawReview[][]).flat(),
     ),
-    sh(["gh", "api", "--paginate", `repos/${repo}/pulls/${pr}/comments`]).then(
-      (s) => JSON.parse(s || "[]") as RawComment[],
+    sh(["gh", "api", "--paginate", "--slurp", `repos/${repo}/pulls/${pr}/comments`]).then((s) =>
+      (JSON.parse(s || "[]") as RawComment[][]).flat(),
     ),
   ]);
   let suppressed = 0;
@@ -297,8 +297,9 @@ async function collect(args: Map<string, string>): Promise<void> {
   const checkout = await checkoutFor(repo, args.get("path"), scratch);
   await sh(["git", "-C", checkout, "fetch", "--quiet", "origin"]).catch(() => {});
   const startIso = since ?? prs.map((p) => p.mergedAt).sort()[0];
+  // A date-only --until means midnight to git; the PR search includes the whole day.
   const endIso =
-    until ??
+    (until && /^\d{4}-\d{2}-\d{2}$/.test(until) ? `${until}T23:59:59` : until) ??
     prs
       .map((p) => p.mergedAt)
       .sort()
