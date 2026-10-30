@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.92.0"; // /cc update restarts only when launch-time files changed.
+const VERSION = "15.93.0"; // Mobile, worst-case data, Swift, and frame-budget rules.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
