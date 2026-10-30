@@ -33,6 +33,7 @@ import {
 } from "../lib/review-queue.ts";
 import { LEDGER_DIR, readDigest, toProjectRelative } from "../lib/session-ledger.ts";
 import { linearMapAwareness, teamKnowledgeAwareness } from "../lib/team-knowledge.ts";
+import { consumeUpdateResume } from "../lib/update-resume.ts";
 import {
   computeDrift,
   readPackagedVersion,
@@ -307,6 +308,12 @@ if (startSource === "compact") {
   } catch {
     // Recovery digest unavailable — continue with the normal banner.
   }
+}
+
+// `/restart` after `/cc update` comes back as a resume; the marker /cc update
+// left says what to carry on with.
+if (startSource === "resume") {
+  for (const l of await consumeUpdateResume(tmpDir, PROJECT_DIR).catch(() => [])) console.log(l);
 }
 
 // Shared team-knowledge corpus awareness (read counterpart to /share-learning).

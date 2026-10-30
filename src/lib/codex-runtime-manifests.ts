@@ -269,7 +269,7 @@ const ADDED_IN_V18 = ["src/lib/copilot-instructions.ts"];
 // Version 19: the comment-only bunfig the hook commands pass as `--config`, so a project's
 // bunfig.toml `preload` cannot run inside a hook.
 const ADDED_IN_V19 = ["src/bunfig.toml"];
-export const CURRENT_RUNTIME_MANIFEST_VERSION = 25;
+export const CURRENT_RUNTIME_MANIFEST_VERSION = 26;
 // Version 20: the proof-gate hooks (each repo runs its own checks in its own git hooks and
 // CI), plus the session-title and cwd-changed hooks. Versions 5-19 still own them.
 const REMOVED_IN_V20 = [
@@ -419,9 +419,12 @@ const ADDED_IN_V25 = [
   "skills/case-study/scripts/browser/timers.js",
   "skills/case-study/scripts/media/join_takes.py",
 ];
+const RUNTIME_SOURCE_FILES_V25: readonly string[] = [...RUNTIME_SOURCE_FILES_V24, ...ADDED_IN_V25];
+// Version 26: the /cc update resume marker read by session-start, and the /cc update restart reference.
+const ADDED_IN_V26 = ["skills/cc/references/update-restart.md", "src/lib/update-resume.ts"];
 export const RUNTIME_SOURCE_FILES: readonly string[] = [
-  ...RUNTIME_SOURCE_FILES_V24,
-  ...ADDED_IN_V25,
+  ...RUNTIME_SOURCE_FILES_V25,
+  ...ADDED_IN_V26,
 ];
 const RUNTIME_SOURCE_FILES_V9 = RUNTIME_SOURCE_FILES_V10.filter(
   (path) => !ADDED_IN_V10.includes(path),
@@ -464,6 +467,7 @@ const SUPPORTED_RUNTIME_MANIFESTS = new Map<number, readonly string[]>([
   [22, RUNTIME_SOURCE_FILES_V22],
   [23, RUNTIME_SOURCE_FILES_V23],
   [24, RUNTIME_SOURCE_FILES_V24],
+  [25, RUNTIME_SOURCE_FILES_V25],
   [CURRENT_RUNTIME_MANIFEST_VERSION, RUNTIME_SOURCE_FILES],
 ]);
 
