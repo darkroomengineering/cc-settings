@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 34;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 35;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -845,9 +845,17 @@ const ADDED_IN_V34 = [
   "skills/case-study/scripts/browser/timers.js",
   "skills/case-study/scripts/media/join_takes.py",
 ];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v34 = {
   full: [...v33.full, ...ADDED_IN_V34],
   light: v33.light,
+};
+MANIFESTS.set(34, v34);
+// Version 35: the /cc update resume marker read by session-start (every profile,
+// like session-start itself) and the /cc update restart reference (full only).
+const ADDED_IN_V35 = ["src/lib/update-resume.ts"];
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v34.full, "skills/cc/references/update-restart.md", ...ADDED_IN_V35],
+  light: [...v34.light, ...ADDED_IN_V35],
 });
 
 const GENERATED_MANAGED_FILES = new Set([

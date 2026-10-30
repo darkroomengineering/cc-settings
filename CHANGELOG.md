@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.92.0] — 2026-10-30
+
+`/cc update` no longer asks for a restart after every update. A running session already picks up settings, hooks, skills, agents and scripts, so the update now restarts only when it changed a file Claude Code reads at launch: `CLAUDE.md`, `AGENTS.md`, `personal.md`, `rules/`, an output style, or the settings `env` block. When it does, it writes a handoff first, and after `/restart` the resumed session is pointed at that handoff, so typing "continue" picks the task back up.
+
+**Added:**
+- `skills/cc/references/update-restart.md`: snapshots the installed file hashes before `setup.sh`, lists the launch-time files that changed, and writes the handoff and a resume marker when there are any.
+- `src/lib/update-resume.ts`: reads the marker once, only in the directory that wrote it and within two hours, and tells the resumed session to carry on from the handoff. `src/scripts/session-start.ts` calls it on a resume.
+- `tests/update-resume.test.ts`.
+
+**Changed:**
+- `skills/cc/SKILL.md`: update Phases 5 and 6 point to the reference.
+- `src/lib/claude-managed-file-manifests.ts` (v35), `src/lib/codex-runtime-manifests.ts` (v26): install the two new files.
+
 ## [15.91.0] — 2026-10-30
 
 cc-settings now accepts the new `permissions.blockWritesOutsideWorkingDirectories` setting from Claude Code 2.1.314; before this release a settings file with that key failed our schema check. The hook docs also confirm that our Bash safety checks already cover commands started by the Monitor tool.

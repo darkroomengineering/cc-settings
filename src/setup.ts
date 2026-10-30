@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.91.0"; // Claude Code 2.1.314 and Codex 0.166.0 sync.
+const VERSION = "15.92.0"; // /cc update restarts only when launch-time files changed.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

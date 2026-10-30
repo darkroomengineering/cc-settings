@@ -383,6 +383,7 @@ BRANCH=$(git -C "$CC_REPO" branch --show-current)
 
 ### Phase 5 — Apply
 
+For Claude, first take the snapshot in `references/update-restart.md`.
 ```bash
 git -C "$CC_REPO" pull --ff-only origin main
 bash "$CC_REPO/setup.sh" --target="$TARGET"
@@ -392,17 +393,17 @@ Claude-only update uses `--target=claude`; standalone Codex uses
 `--target=codex`; an explicit combined update uses `--target=both`. Add
 `--interactive` only when the user asks to review the merge.
 
-### Phase 6 — Verify and nudge
+### Phase 6 — Verify, then restart only when needed
 
 ```bash
 [ "$TARGET" = "claude" ] || test "$(jq -r .version "$CODEX_SENTINEL")" = "$LATEST"
 [ "$TARGET" = "codex" ] || test "$(jq -r .version "$CLAUDE_SENTINEL")" = "$LATEST"
 ```
 
-For Claude, tell the user to restart Claude Code. For Codex, tell the user to
-restart Codex. If plugin files changed, also tell the Codex user to review
-`/hooks` and confirm the new hook commands remain trusted. A combined update
-requires both restarts and both sentinel checks.
+For Codex, tell the user to restart Codex and, if plugin files changed, to
+confirm the new hook commands in `/hooks`. For Claude, finish with
+`references/update-restart.md`: restart only when launch-time files changed,
+otherwise carry on. A combined update needs both restarts and sentinel checks.
 
 ### Rollback
 
