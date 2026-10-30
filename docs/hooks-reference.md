@@ -254,7 +254,7 @@ echo "Edited file: $FILE_PATH"
 |-------|------|---------|-------------|
 | `matcher` | string | -- | Filter which tools/events trigger the hook (see Matcher Patterns below) |
 | `hooks` | list | (required) | Array of hook actions to execute |
-| `if` (on each hook action) | string | -- | Conditional filter using permission rule syntax (e.g., `"Bash(git commit*)"`, `"Bash(bun add*) Bash(npm install*)"`). Lives on the action object next to `command`, not on the group: Claude Code ignores a group-level `if`, and `claude plugin` commands strip it when they rewrite settings.json |
+| `if` (on each hook action) | string | -- | Conditional filter using permission rule syntax (e.g., `"Bash(git commit*)"`, `"Bash(bun add*) Bash(npm install*)"`; since v2.1.314 `Monitor(tail *)` matches the Monitor tool's shell commands the same way). Lives on the action object next to `command`, not on the group: Claude Code ignores a group-level `if`, and `claude plugin` commands strip it when they rewrite settings.json |
 
 **`if` vs `matcher`**: Use `matcher` to filter by tool name (`"Bash"`, `"Edit"`, `"Write|Edit"`). Use `if` to filter by specific command patterns within a tool, avoiding the need for shell-script grep matching. Space-separated patterns are OR'd together.
 
@@ -580,6 +580,10 @@ string, not a `tool_output` wrapper.
 | Script | Purpose | Async |
 |--------|---------|-------|
 | `handoff.ts create --from-hook` | Saves task state before compaction. `--from-hook` reads the hook payload from stdin for `session_id` + `trigger`, which is what lets PostCompact find this exact handoff afterwards | No |
+
+Since v2.1.314 Claude Code cuts each PreCompact hook's output at 10,000 characters. `handoff.ts` writes the handoff to a file and prints only its path, so the cap never applies to it.
+
+Since v2.1.314, hooks with the `Bash` matcher also run on shell commands started by the Monitor tool. A probe on v2.1.314 showed those payloads arrive with `tool_name: "Bash"` and the command in `tool_input.command`, so `dispatch.ts` hands them to safety-net and the other Bash handlers unchanged. Such hooks can block or ask, but cannot approve or rewrite a Monitor command.
 
 ### PostCompact
 

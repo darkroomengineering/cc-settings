@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.91.0] — 2026-10-30
+
+cc-settings now accepts the new `permissions.blockWritesOutsideWorkingDirectories` setting from Claude Code 2.1.314; before this release a settings file with that key failed our schema check. The hook docs also confirm that our Bash safety checks already cover commands started by the Monitor tool.
+
+**Adopted:**
+- `permissions.blockWritesOutsideWorkingDirectories` (Claude Code 2.1.314): `src/schemas/permissions.ts`, `schemas/settings.schema.json`, `docs/settings-reference.md`. Documented, not turned on: it would refuse agent writes to `~/.claude` memory, handoffs and scratch files.
+
+**Docs only:**
+- `docs/hooks-reference.md`: Bash-matcher hooks now run on Monitor tool commands (2.1.314). A probe showed those payloads arrive as `tool_name: "Bash"`, so safety-net checks them with no code change. Hook `if` conditions such as `Monitor(tail *)` match those commands, and PreCompact hook output is cut at 10,000 characters.
+- `docs/settings-reference.md`: `FORCE_HYPERLINK=false`, `no` and `off` now turn hyperlinks off (2.1.314).
+- Codex 0.166.0: nothing to adopt. The off-by-default `omit_skill_descriptions` flag would stop implicit skill matching, so it stays off.
+
+**Files changed:**
+- `src/schemas/permissions.ts`
+- `schemas/settings.schema.json`
+- `docs/settings-reference.md`
+- `docs/hooks-reference.md`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+- `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `src/setup.ts`
+
 ## [15.90.8] — 2026-10-29
 
 The settings reference now explains why sessions with long-running subagents use more tokens than `bun run tokens` shows. Claude Code re-sends each running subagent's whole conversation every 30 seconds to write its 3-5 word status line. These calls never reach the transcripts, and no documented setting turns them off.

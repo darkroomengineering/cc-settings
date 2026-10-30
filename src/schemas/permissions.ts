@@ -38,6 +38,7 @@ export const Permissions = z.object({
   defaultMode: PermissionMode.optional(),
   autoMode: AutoModeConfig.optional(),
   blockReadsOutsideWorkingDirectories: z.boolean().optional(), // 2.1.257 — auto mode: refuse file reads outside the working directories instead of asking once
+  blockWritesOutsideWorkingDirectories: z.boolean().optional(), // 2.1.314 — Write, Edit and NotebookEdit refuse paths outside the working directories in every permission mode
 });
 export type Permissions = z.infer<typeof Permissions>;
 export type PermissionMode = z.infer<typeof PermissionMode>;
