@@ -149,6 +149,7 @@ export const CURRENT_RUNTIME_TYPESCRIPT_SOURCES = [
   "src/scripts/post-edit-tsc.ts",
   "src/scripts/post-edit.ts",
   "src/scripts/post-failure.ts",
+  "src/scripts/pr-retro.ts",
   "src/scripts/project-init.ts",
   "src/scripts/proof.ts",
   "src/scripts/prune-mcp-auth-cache.ts",

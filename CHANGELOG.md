@@ -4,6 +4,28 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.94.0] — 2026-10-30
+
+`/retro prs` shows where a repo's fix effort actually went, so the team can pick which part of the stack or tooling to invest in. It reads merged PR history, sorts every fix, revert, repair and substantive review finding into buckets taken from the repo's own stack (framework, UI library, styling, animation and WebGL, each integration, tooling, docs), flags fixes that only work around a framework's behavior, and weighs each bucket by changed lines as well as count. It is read-only on the target repo and saves each run's split so the next run shows the trend.
+
+**Added:**
+- `skills/retro/references/prs.md`: the mode. Classification fans out to Sonnet subagents that must read the diff for every judgment call and record whether they did; the report always carries a caveats section (window cut, review coverage, bundled PRs, the calls that move the numbers).
+- `src/scripts/pr-retro.ts`: `collect` pulls merged PRs, reviews and PR-less commits and marks bots, dependency bumps, `fix:` and reverts; `tally` validates the classified items and does every count, percentage and line sum, then saves the split to `~/.claude/retros/<owner>__<repo>/`.
+- `evals/retro-prs-friction`: the mode collects and tallies instead of inventing numbers.
+
+**Changed:**
+- `skills/retro/SKILL.md`: routes `/retro prs`, adds the "PR retro", "friction retro" and "where did our fixes go" triggers, and pre-approves `Agent`.
+
+**Files changed:**
+- `skills/retro/SKILL.md`
+- `skills/retro/references/prs.md`
+- `src/scripts/pr-retro.ts`
+- `src/lib/install-source-inventory.ts`
+- `src/lib/claude-managed-file-manifests.ts` (manifest v37)
+- `src/lib/codex-runtime-manifests.ts` (runtime manifest v27)
+- `evals/retro-prs-friction/`
+- `docs/skills.md`
+
 ## [15.93.0] — 2026-10-30
 
 Agents now catch a handful of web and Swift defects the rules said nothing about: iOS zooming into inputs under 16px, avatars squished by long names, "1 members", animations that freeze while the page loads, and Swift `async` code that runs on a different thread than expected. Adapted from [emilkowalski/skills](https://github.com/emilkowalski/skills) (MIT); the rest of that repo was already covered by the motion rules or is off-stack.
