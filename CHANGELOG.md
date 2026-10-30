@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.93.0] — 2026-10-30
+
+Agents now catch a handful of web and Swift defects the rules said nothing about: iOS zooming into inputs under 16px, avatars squished by long names, "1 members", animations that freeze while the page loads, and Swift `async` code that runs on a different thread than expected. Adapted from [emilkowalski/skills](https://github.com/emilkowalski/skills) (MIT); the rest of that repo was already covered by the motion rules or is off-stack.
+
+**Added:**
+- `rules/swift.md` (loads for `.swift` files): concurrency ladder, the Swift 6.2 isolation settings that decide where an `async` function runs, Sendable fixes in order, Swift Testing, and `Logger`.
+
+**Changed:**
+- `rules/style.md`: Mobile Baseline (16px inputs, tap highlight, `touch-action`, overscroll, no touch sniffing) and Worst-Case Data (shrinking, wrapping, `Intl` plurals and initials, missing fields, 320px / 200% / RTL checks).
+- `rules/performance.md`: 8ms frame budget, no `setState` per frame, CSS or Web Animations for motion during busy loads, `drop-shadow` over `box-shadow`, blur under 20px.
+- `rules/motion-physics.md`: tooltip groups open instantly after the first, 30–80ms stagger, single-pointer drags, 10px axis lock.
+- `src/lib/claude-managed-file-manifests.ts` (v36), `tests/install-e2e.test.ts`, `docs/rules.md`: install and list the new rule.
+
 ## [15.92.0] — 2026-10-30
 
 `/cc update` no longer asks for a restart after every update. A running session already picks up settings, hooks, skills, agents and scripts, so the update now restarts only when it changed a file Claude Code reads at launch: `CLAUDE.md`, `AGENTS.md`, `personal.md`, `rules/`, an output style, or the settings `env` block. When it does, it writes a handoff first, and after `/restart` the resumed session is pointed at that handoff, so typing "continue" picks the task back up.

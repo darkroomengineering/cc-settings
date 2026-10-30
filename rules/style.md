@@ -34,6 +34,20 @@ body { background: var(--edge-bottom); }
 - Set `viewport-fit=cover`, keep content out of the strips, and sync `<meta name="theme-color">` to the top color.
 - Each edge is one solid color. It can change on scroll, but gradients and images cannot extend behind the toolbars.
 
+### Mobile Baseline
+Touch-device defects that desktop emulation never shows; confirm each on a real phone ([source](https://github.com/emilkowalski/skills), MIT):
+```css
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+input, textarea, select { font-size: max(16px, 1em); } /* under 16px, iOS zooms on focus and stays zoomed */
+button, a, [role='button'] { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.scroller { overscroll-behavior: contain; } /* inner scrollers don't chain into the page */
+```
+- Fix input zoom with the 16px floor, never `user-scalable=no` or `maximum-scale=1`.
+- `overscroll-behavior: none` on `html, body` only for app shells; scrolling documents keep pull-to-refresh.
+- `user-select: none` on controls only. Addresses, order numbers, and errors stay copyable.
+- Detect touch with `(hover)` / `(pointer)` media queries, never user-agent or width sniffing.
+- App shells with bottom-pinned inputs add `interactive-widget=resizes-content` to the viewport meta so Android's keyboard resizes the layout as iOS does.
+
 ### Modern CSS
 - **Native `popover` + `popovertarget`** for menus, tooltips, and non-modal overlays. They render in the top layer, so they never fight the z-index scale. Style `::backdrop` and `:popover-open`.
 - **`:has()`** for parent- or sibling-dependent styling instead of JS state or conditional classes.
@@ -55,6 +69,15 @@ body { background: var(--edge-bottom); }
 
 ### Typography
 - `tabular-nums` (`font-variant-numeric: tabular-nums`) on prices, stats, and tables so columns align.
+
+### Worst-Case Data
+Components that render data get checked against the data that breaks them, not the demo copy:
+- Fixed-size boxes (avatars, icons, badges, trailing actions) get `flex-shrink: 0`; the text column gets `min-width: 0`.
+- Emails, URLs, and IDs get `overflow-wrap: anywhere`, never `word-break: break-all`. Truncate file names and paths in the middle; never truncate numbers, amounts, or dates.
+- Truncated text stays readable some other way (tooltip, expand, detail view).
+- Counts use `Intl.PluralRules` ("1 member"), numbers `Intl.NumberFormat`, and initials `Intl.Segmenter` grapheme clusters, so an emoji-first name never renders `�`.
+- A missing optional field drops its line; never render an orphaned dash or separator.
+- Check the component at a 320px container, 200% browser zoom, and `dir="rtl"` when the product ships RTL.
 
 ---
 

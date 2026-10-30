@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 35;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 36;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -853,9 +853,15 @@ MANIFESTS.set(34, v34);
 // Version 35: the /cc update resume marker read by session-start (every profile,
 // like session-start itself) and the /cc update restart reference (full only).
 const ADDED_IN_V35 = ["src/lib/update-resume.ts"];
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v35 = {
   full: [...v34.full, "skills/cc/references/update-restart.md", ...ADDED_IN_V35],
   light: [...v34.light, ...ADDED_IN_V35],
+};
+MANIFESTS.set(35, v35);
+// Version 36: the Swift language rule (full profile only; light installs carry no rules).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v35.full, "rules/swift.md"],
+  light: v35.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

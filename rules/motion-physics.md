@@ -49,6 +49,11 @@ constant motion (marquee, progress bars).
 UI animations stay under 300ms — modals and drawers are the sanctioned exception,
 up to 500ms.
 
+- **Tooltip groups:** the first tooltip waits out its delay; once one is open,
+  hovering a neighbour opens it instantly, with no delay and no animation.
+- **Stagger:** 30–80ms between items. It is decoration, so input never waits for
+  the cascade to finish.
+
 ## Never ship
 
 - `ease-in` on a UI element — use `ease-out` or a token above.
@@ -88,7 +93,10 @@ illusion immediately. On touch, also set `touch-action` on the draggable (`none`
 or `pan-y` for a horizontal drag) — pointer capture alone doesn't stop the
 browser's native pan/zoom from cancelling the drag — and handle `pointercancel` /
 `lostpointercapture` to settle the element instead of leaving it stranded
-mid-drag.
+mid-drag. Track only the `pointerId` that started the drag and ignore further
+touch points, so a second finger cannot make the element jump. Before locking a
+drag to one axis, wait for about 10px of movement so a slightly diagonal start
+does not pick the wrong direction.
 
 ## Spring defaults
 

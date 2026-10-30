@@ -2910,6 +2910,7 @@ describe("install E2E — uninstall ownership", () => {
             "src/scripts/claude-run.ts",
             "src/scripts/migrate-legacy-codex-skills.ts",
             "rules/swift-animation.md",
+            "rules/swift.md",
             "src/lib/codex-skill-budget.ts",
             "src/scripts/codex-skill-budget.ts",
             "src/hooks/knowledge-hint.ts",
