@@ -104,7 +104,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SESSION_ID` | set automatically | Mirrors the `session_id` passed to hooks; available inside Bash tool subprocesses (v2.1.132) |
 | `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN` | `"1"` or unset | Opt out of the fullscreen alternate-screen renderer and keep the conversation in the terminal's native scrollback (v2.1.132) |
 | `CLAUDE_CODE_FORCE_SYNC_OUTPUT` | `"1"` or unset | Force-enable synchronized output on terminals that auto-detection misses (e.g. Emacs `eat`) (v2.1.129) |
-| `FORCE_HYPERLINK` | `"0"` to opt out | Footer PR badges are clickable hyperlinks even when terminal support can't be detected (ssh/tmux); `0` restores plain text (v2.1.217) |
+| `FORCE_HYPERLINK` | `"0"` to opt out | Footer PR badges are clickable hyperlinks even when terminal support can't be detected (ssh/tmux); `0` restores plain text (v2.1.217); since v2.1.314 `false`, `no` and `off` also turn hyperlinks off |
 | `CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE` | `"1"` or unset | On Homebrew or WinGet installs, Claude Code runs the upgrade command in the background and prompts to restart (v2.1.129) |
 | `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY` | `"1"` or unset | Opt in to `/v1/models` discovery for the `/model` picker on third-party gateways (was automatic 2.1.126–2.1.128) (v2.1.129) |
 | `CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL` | `"1"` or unset | Re-enable the session quality survey for enterprises capturing responses through OpenTelemetry (v2.1.136) |
@@ -940,6 +940,8 @@ Permissions control which tool invocations are allowed, denied, or require user 
 If a tool invocation does not match any rule, Claude Code prompts the user (implicit `ask`).
 
 `permissions.blockReadsOutsideWorkingDirectories` (v2.1.257, boolean): in auto mode Claude Code asks once before the first file read outside the working directories; set this to `true` to refuse such reads outright instead. Add directories with `additionalDirectories` or `/add-dir` when a read is legitimate. Since v2.1.273 it also keeps a memory directory chosen by a repository's settings out of the prompt, recall, indexing, and memory extraction.
+
+`permissions.blockWritesOutsideWorkingDirectories` (v2.1.314, boolean): Write, Edit and NotebookEdit refuse any path outside the working directories, in every permission mode. cc-settings does not set it: agents write auto-memory, handoffs and scratch files under `~/.claude` and the session temp directory, and every one of those writes would be refused unless the directory is listed in `additionalDirectories`. It does not cover Bash, so a shell command can still write anywhere the sandbox allows.
 
 `permissions.defaultMode: "bypassPermissions"` is ignored in `.claude/settings.json` and `.claude/settings.local.json` since v2.1.257, like `"auto"`; set it in user or managed settings, or pass `--permission-mode`.
 

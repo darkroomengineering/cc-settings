@@ -266,6 +266,9 @@
         },
         "blockReadsOutsideWorkingDirectories": {
           "type": "boolean"
+        },
+        "blockWritesOutsideWorkingDirectories": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
