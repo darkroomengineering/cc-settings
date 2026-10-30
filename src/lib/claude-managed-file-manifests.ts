@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 36;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 37;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -556,8 +556,13 @@ const REJOINING_AFTER = new Map<string, readonly string[]>([
   ["src/scripts/post-failure.ts", ["src/scripts/pre-commit-tsc.ts"]],
   ["src/scripts/session-start.ts", ["src/scripts/session-title.ts", ...REMOVED_SOURCES_IN_V19]],
 ]);
+// Version 37 adds the /retro prs script to the inventory; older shipped manifests never held it.
+const ADDED_SOURCES_IN_V37 = ["src/scripts/pr-retro.ts"];
 const HISTORICAL_TYPESCRIPT_SOURCES = CURRENT_RUNTIME_TYPESCRIPT_SOURCES.filter(
-  (path) => !ADDED_IN_V17.includes(path) && !ADDED_IN_V20.includes(path),
+  (path) =>
+    !ADDED_IN_V17.includes(path) &&
+    !ADDED_IN_V20.includes(path) &&
+    !ADDED_SOURCES_IN_V37.includes(path),
 ).flatMap((path) => [path, ...(REJOINING_AFTER.get(path) ?? [])]);
 const historicalManifest = {
   full: [
@@ -859,9 +864,15 @@ const v35 = {
 };
 MANIFESTS.set(35, v35);
 // Version 36: the Swift language rule (full profile only; light installs carry no rules).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v36 = {
   full: [...v35.full, "rules/swift.md"],
   light: v35.light,
+};
+MANIFESTS.set(36, v36);
+// Version 37: the /retro prs mode (full profile) and its counting script (every profile: src/ is installed from the light list).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v36.full, "skills/retro/references/prs.md", ...ADDED_SOURCES_IN_V37],
+  light: [...v36.light, ...ADDED_SOURCES_IN_V37],
 });
 
 const GENERATED_MANAGED_FILES = new Set([
