@@ -4,6 +4,19 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.94.1] — 2026-11-01
+
+The status line no longer says "cc stale" when your install is current. The startup check read the version from the enrolled checkout's working files, so a checkout sitting on an unmerged branch that already bumped the version made every session flag an update that did not exist. It now reads the version from origin's default branch (the local remote-tracking ref, no network), the same comparison the auto-updater already makes, and falls back to the working files only when git can't answer.
+
+**Fixed:**
+- `src/lib/version-delta.ts`: `readDefaultBranchVersion` reads `.claude-plugin/plugin.json` at `origin/HEAD` (or `origin/main`).
+- `src/scripts/session-start.ts`: the drift check uses it.
+
+**Files changed:**
+- `src/lib/version-delta.ts`
+- `src/scripts/session-start.ts`
+- `tests/version-drift.test.ts`
+
 ## [15.94.0] — 2026-10-30
 
 `/retro prs` shows where a repo's fix effort actually went, so the team can pick which part of the stack or tooling to invest in. It reads merged PR history, sorts every fix, revert, repair and substantive review finding into buckets taken from the repo's own stack (framework, UI library, styling, animation and WebGL, each integration, tooling, docs), flags fixes that only work around a framework's behavior, and weighs each bucket by changed lines as well as count. It is read-only on the target repo and saves each run's split so the next run shows the trend.
