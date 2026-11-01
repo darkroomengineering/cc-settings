@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   computeDrift,
+  readDefaultBranchVersion,
   readPackagedVersion,
   readSentinelInfo,
   refreshSessionInstallMap,
@@ -265,6 +266,65 @@ describe("readPackagedVersion", () => {
         );
         expect(await readPackagedVersion(dir)).toBeNull();
       }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+async function git(cwd: string, ...args: string[]): Promise<void> {
+  const proc = Bun.spawn(
+    ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args],
+    { cwd, stdout: "ignore", stderr: "ignore" },
+  );
+  if ((await proc.exited) !== 0) throw new Error(`git ${args.join(" ")} failed`);
+}
+
+async function writeManifest(dir: string, version: string): Promise<void> {
+  await mkdir(join(dir, ".claude-plugin"), { recursive: true });
+  await writeFile(
+    join(dir, ".claude-plugin", "plugin.json"),
+    JSON.stringify({ name: "cc-settings", version }),
+  );
+}
+
+describe("readDefaultBranchVersion", () => {
+  test("null repoPath ⇒ null", async () => {
+    expect(await readDefaultBranchVersion(null)).toBeNull();
+  });
+
+  test("reads origin's default branch, not an unmerged version bump on the checked-out branch", async () => {
+    const upstream = await tmp();
+    const parent = await tmp();
+    try {
+      await git(upstream, "init", "-q", "-b", "main");
+      await writeManifest(upstream, "1.0.0");
+      await git(upstream, "add", ".");
+      await git(upstream, "commit", "-q", "-m", "init");
+      await git(parent, "clone", "-q", upstream, "checkout");
+      const checkout = join(parent, "checkout");
+      await git(checkout, "switch", "-q", "-c", "feature");
+      await writeManifest(checkout, "1.1.0");
+      await git(checkout, "commit", "-q", "-am", "bump");
+
+      expect(await readPackagedVersion(checkout)).toBe("1.1.0");
+      expect(await readDefaultBranchVersion(checkout)).toBe("1.0.0");
+      expect(computeDrift("1.0.0", await readDefaultBranchVersion(checkout)).stale).toBe(false);
+
+      // Without origin/HEAD it still resolves origin/main.
+      await git(checkout, "remote", "set-head", "origin", "-d");
+      expect(await readDefaultBranchVersion(checkout)).toBe("1.0.0");
+    } finally {
+      await rm(upstream, { recursive: true, force: true });
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to the working tree outside a git repo", async () => {
+    const dir = await tmp();
+    try {
+      await writeManifest(dir, "2.3.4");
+      expect(await readDefaultBranchVersion(dir)).toBe("2.3.4");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

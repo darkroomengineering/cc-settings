@@ -36,7 +36,7 @@ import { linearMapAwareness, teamKnowledgeAwareness } from "../lib/team-knowledg
 import { consumeUpdateResume } from "../lib/update-resume.ts";
 import {
   computeDrift,
-  readPackagedVersion,
+  readDefaultBranchVersion,
   readSentinelInfo,
   refreshSessionInstallMap,
   SESSION_INSTALL_STATE,
@@ -391,7 +391,7 @@ if (existsSync(claudeMd)) {
 // session start.
 try {
   const { version: installed, repoPath } = await readSentinelInfo(CLAUDE_DIR);
-  const packaged = await readPackagedVersion(repoPath);
+  const packaged = await readDefaultBranchVersion(repoPath);
   await writeState("version-drift.json", computeDrift(installed, packaged));
 
   // Restart-pending banner reset: record that THIS process started on the
