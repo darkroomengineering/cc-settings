@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.93.0"; // Mobile, worst-case data, Swift, and frame-budget rules.
+const VERSION = "15.94.0"; // /retro prs: PR friction retro.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {

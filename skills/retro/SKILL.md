@@ -1,12 +1,13 @@
 ---
 name: retro
-description: Weekly engineering retrospective with persistent metrics covering commit patterns, sessions, quality trends. Triggers "retro", "weekly review", "how was my week", "what did I ship", "show me my stats".
+description: Weekly engineering retrospective with persistent metrics, or a PR friction retro of where fix effort went. Triggers "retro", "weekly review", "how was my week", "what did I ship", "PR retro", "friction retro", "where did our fixes go".
 context: fork
 allowed-tools:
   - Bash
   - Read
   - Write
   - Glob
+  - Agent
 ---
 
 # Engineering Retrospective
@@ -34,8 +35,9 @@ act-rate in Codex.
 - `/retro 24h` or `/retro 14d` or `/retro 30d` — custom window
 - `/retro compare` — current 7d vs prior 7d
 - `/retro compare 14d` — current 14d vs prior 14d
+- `/retro prs [owner/name] [N | YYYY-MM-DD..YYYY-MM-DD] [buckets=a,b] [path=/abs]` — PR friction retro: classify corrective work in merged PRs by stack bucket. **Read `references/prs.md` and follow it instead of the steps below.**
 
-**Validation:** Only accept arguments matching `\d+[dhw]`, `compare`, or `compare \d+[dhw]`. Reject anything else with usage instructions.
+**Validation:** Only accept arguments matching `\d+[dhw]`, `compare`, `compare \d+[dhw]`, or `prs` followed by the options above. Reject anything else with usage instructions.
 
 ---
 
