@@ -18,6 +18,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { z } from "zod";
+import { runGit } from "./git.ts";
 import { atomicWriteJson } from "./json-io.ts";
 
 export interface ChangelogEntry {
@@ -396,7 +397,29 @@ export async function readPackagedVersion(repoPath: string | null): Promise<stri
   const manifestPath = join(repoPath, ".claude-plugin", "plugin.json");
   if (!existsSync(manifestPath)) return null;
   try {
-    const parsed = JSON.parse(await readFile(manifestPath, "utf8")) as { version?: unknown };
+    return parseManifestVersion(await readFile(manifestPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** The version on the checkout's origin default branch, read from the local
+ *  remote-tracking ref (no network). The enrolled checkout is a working copy:
+ *  a feature branch that already bumped the version is unmerged work, not an
+ *  update to install, so the drift nudge must not compare against it. Falls
+ *  back to the working tree when git can't answer (no origin, not a git repo). */
+export async function readDefaultBranchVersion(repoPath: string | null): Promise<string | null> {
+  if (!repoPath) return null;
+  const ref =
+    (await runGit(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd: repoPath })) ||
+    "origin/main";
+  const manifest = await runGit(["show", `${ref}:.claude-plugin/plugin.json`], { cwd: repoPath });
+  return manifest ? parseManifestVersion(manifest) : readPackagedVersion(repoPath);
+}
+
+function parseManifestVersion(text: string): string | null {
+  try {
+    const parsed = JSON.parse(text) as { version?: unknown };
     // Require a well-formed X.Y.Z — compareVersion/computeDrift assume it, and a
     // malformed value would otherwise drive a bogus drift verdict.
     return typeof parsed.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed.version)
