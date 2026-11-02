@@ -4,6 +4,22 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.95.0] — 2026-11-02
+
+Sync with Claude Code v2.1.316. The new `CLAUDE_CODE_SUBAGENT_EFFORT` is documented next to the effort rules, and two other new env vars are tracked. cc-settings sets none of them. Codex 0.166.0 and the Codex app changelog had nothing new.
+
+**Adopted:**
+- `CLAUDE_CODE_SUBAGENT_EFFORT` (v2.1.316): `CLAUDE-FULL.md` "Effort and context" and the `docs/settings-reference.md` env table. It sets the effort for subagents that no frontmatter or Agent call names one for. Unlike `CLAUDE_CODE_EFFORT_LEVEL`, it does not override `/effort`. It stays unset so implementers keep the session's depth.
+- `CLAUDE_CODE_DISABLE_ULTRATHINK` and `CLAUDE_CODE_DISABLE_LOOPED_CROSS_CERT_DROP` (v2.1.316): tracked in the env table and the manifest.
+
+**Deletions / Native-now-redundant:** none.
+
+**Files changed:**
+- `CLAUDE-FULL.md`
+- `docs/settings-reference.md`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+
 ## [15.94.1] — 2026-11-01
 
 The status line no longer says "cc stale" when your install is current. The startup check read the version from the enrolled checkout's working files, so a checkout sitting on an unmerged branch that already bumped the version made every session flag an update that did not exist. It now reads the version from origin's default branch (the local remote-tracking ref, no network), the same comparison the auto-updater already makes, and falls back to the working files only when git can't answer.

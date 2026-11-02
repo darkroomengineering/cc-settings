@@ -114,7 +114,7 @@ import {
 
 export type { InstallTarget } from "./lib/install-types.ts";
 
-const VERSION = "15.94.1"; // Install drift compares against origin's default branch.
+const VERSION = "15.95.0"; // Sync with Claude Code v2.1.316.
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
 export function parseArgs(argv: string[]): InstallArgs {
