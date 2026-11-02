@@ -153,6 +153,8 @@ deliberately: `/effort high` for hard non-coding reasoning, `/effort xhigh` for
 audits, migrations, and hard debugging, `ultrathink` for one xhigh turn. Agent
 frontmatter pins effort where depth is non-negotiable (`security-reviewer`,
 `planner`); the Agent tool's `effort` parameter raises or lowers one spawn.
+`CLAUDE_CODE_SUBAGENT_EFFORT` would set a default for every unpinned spawn;
+cc-settings leaves it unset so implementers keep the session's depth.
 
 Treat **200K tokens as the working context ceiling even on a 1M-window model**:
 giant contexts drain usage limits and degrade attention. `/clear` between
