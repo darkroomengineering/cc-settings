@@ -792,7 +792,7 @@ Class column: **G** = General, **E** = Enterprise/Managed, **A** = Auth/Provider
 | `attribution` | object \| `false` | G | AI attribution in git commits/PRs (`commit`, `pr` string fields; `sessionUrl` boolean — `false` omits the claude.ai session link, v2.1.183); `false` hides all attribution (v2.1.281) |
 | `autoMemoryDirectory` | string | G | Custom directory for auto-memory storage (v2.1.101) |
 | `autoMemoryEnabled` | boolean | G | Enable/disable the auto-memory system |
-| `autoMode` | object | G | Auto-mode configuration object (shape evolving) |
+| `autoMode` | object | G | Auto-mode classifier rules: `environment`, `allow`, `soft_deny`, `hard_deny` prose arrays (see [`autoMode`](#automode)) |
 | `autoScrollEnabled` | boolean | U | Auto-scroll to bottom as output streams in (v2.1.102) |
 | `autoUpdatesChannel` | `"stable"` \| `"latest"` | G | Release channel to track for automatic updates |
 | `availableModels` | string[] | E | Restrict the model picker to this list |
@@ -1220,9 +1220,11 @@ Bash(mv * ~/.bash_profile*)
 ```
 <!-- END AUTOGEN:permissions -->
 
-### `permissions.autoMode`
+### `autoMode`
 
-Configuration for auto-mode classifier behavior. cc-settings does not set this — included here for completeness and managed-settings authoring.
+Top-level key (not under `permissions`) that tells the auto-mode classifier what counts as routine. The classifier reads it only from user settings (`~/.claude/settings.json`), managed settings, and `--settings`; a project's `.claude/settings.json` is ignored. cc-settings ships team entries in `config/10-core.json`. Setup merges each array as a union, so entries the user adds to `~/.claude/settings.json` (a home server, personal repos) survive a rerun. `claude auto-mode config` prints the effective rules; see the [auto mode config docs](https://code.claude.com/docs/en/auto-mode-config).
+
+A matching `permissions.allow`, `ask`, or `deny` rule resolves before the classifier runs. An `ask` rule always prompts, even in auto mode, and Remote Control forwards that prompt to the phone. A classifier block has no prompt fallback.
 
 Two v2.1.271 behavior changes in auto mode need no config: a skill's or slash command's inline `!` shell commands now follow default-mode permission rules instead of the classifier, and a command no rule decides runs as a reviewed tool call; and a subagent hands its result back through a dedicated call the classifier reviews, instead of its last message being reviewed after the fact. Monitor watches also always carry a deadline now (30 minutes at most, 10 in `-p` runs) and ask Claude to re-arm; the no-timeout `persistent` option is gone.
 
@@ -1230,22 +1232,22 @@ In unattended sessions (`-p`, the Agent SDK, CI and cloud), background Bash and 
 
 ```json
 {
-  "permissions": {
-    "autoMode": {
-      "hard_deny": [
-        "Bash(rm -rf /:*)",
-        "Bash(sudo:*)"
-      ]
-    }
+  "autoMode": {
+    "environment": ["$defaults", "Home server: 192.168.1.10 is the user's own machine"],
+    "allow": ["$defaults", "Repo Setup Scripts: running a setup script committed in the session's repo is routine"]
   }
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enabled` | boolean | Whether auto-mode is active |
-| `allowAll` | boolean | Allow everything not explicitly denied |
-| `hard_deny` | list of permission rules | Block unconditionally regardless of user intent or allow exceptions (v2.1.136). Uses the same `Tool(pattern)` syntax as `permissions.deny`. Distinct from `permissions.deny` in that `hard_deny` cannot be overridden by elevated permission modes or user prompts |
+| `environment` | string[] | Prose facts about trusted infrastructure: source-control orgs, internal domains, hosts |
+| `allow` | string[] | Prose exceptions that override `soft_deny` blocks |
+| `soft_deny` | string[] | Prose rules that block unless an `allow` entry or explicit user intent overrides them |
+| `hard_deny` | string[] | Prose rules that always block, whatever the user says |
+| `classifyAllShell` | boolean | Send every shell command to the classifier |
+
+Each array is prose, not `Tool(pattern)` syntax. `"$defaults"` splices in the built-in list at that position; leaving it out replaces the built-in list for that field.
 
 ---
 

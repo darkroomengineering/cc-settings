@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { composeSettings } from "../src/lib/compose-settings.ts";
 import type { MergeAccounting, MergeOptions, StrategyContext } from "../src/lib/settings-merge.ts";
 import {
+  autoModeStrategy,
   DEPRECATED_COMMAND_PATTERNS,
   envStrategy,
   hooksStrategy,
@@ -1732,5 +1733,52 @@ describe("team-owned marketplace entries across a rerun", () => {
     );
     expect(out.enabledPlugins["evil@evil"]).toBe(true);
     expect(out.enabledPlugins["compaction-trigger@cc-settings"]).toBe(true);
+  });
+});
+
+describe("autoModeStrategy", () => {
+  async function merged(team: unknown, user: unknown, ctx = makeCtx()): Promise<unknown> {
+    const r = await autoModeStrategy("autoMode", team, user, ctx);
+    if (!r.keep) throw new Error("expected keep");
+    return r.value;
+  }
+
+  test("unions arrays: team order first, user's own entries kept", async () => {
+    const team = { allow: ["$defaults", "team rule"], environment: ["$defaults"] };
+    const user = { allow: ["$defaults", "my rule"], environment: ["$defaults", "home server"] };
+    expect(await merged(team, user)).toEqual({
+      allow: ["$defaults", "team rule", "my rule"],
+      environment: ["$defaults", "home server"],
+    });
+  });
+
+  test("a team array the user lacks lands", async () => {
+    expect(
+      await merged({ allow: ["$defaults", "team rule"] }, { environment: ["home server"] }),
+    ).toEqual({ allow: ["$defaults", "team rule"], environment: ["home server"] });
+  });
+
+  test("an entry a previous install shipped and the team removed is dropped", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { autoMode: { allow: ["$defaults", "old team rule"] } },
+    });
+    expect(
+      await merged(
+        { allow: ["$defaults", "new team rule"] },
+        { allow: ["$defaults", "old team rule", "my rule"] },
+        ctx,
+      ),
+    ).toEqual({ allow: ["$defaults", "new team rule", "my rule"] });
+  });
+
+  test("non-array fields: user wins", async () => {
+    expect(await merged({ classifyAllShell: false }, { classifyAllShell: true })).toEqual({
+      classifyAllShell: true,
+    });
+  });
+
+  test("only one side present passes through", async () => {
+    expect(await merged(undefined, { allow: ["x"] })).toEqual({ allow: ["x"] });
+    expect((await autoModeStrategy("autoMode", undefined, undefined, makeCtx())).keep).toBe(false);
   });
 });

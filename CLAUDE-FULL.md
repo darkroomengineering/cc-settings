@@ -118,13 +118,20 @@ branch, `gh api` DELETE calls on branches, releases, or comments, and
 `gh release delete` are allowed. Run them when the approved work needs them;
 never hand them back.
 
-**When a command is denied:** never retry it, split it, or rephrase it. Append
-the exact command to `~/.claude/tmp/handoff-<session>.sh` (create it with a
-`#!/usr/bin/env bash` and `set -euo pipefail` header), tell the user once with
-the line `! bash <path>`, and carry on with the work that does not depend on
-it. Before a long autonomous run, enumerate the privileged commands the plan
-will need (plain `--force` push, `git stash clear`, `sudo`, keychain, SSH) into
-that same script up front, so the run is not interrupted one denial at a time.
+**When a command is denied:** never split or rephrase it to get past the
+check. Ask through `AskUserQuestion`, naming the exact command and what it
+does; the user is often on Remote Control and cannot run a script. A yes is
+explicit intent for that action, so rerun the exact command once. If it is
+denied again, or it needs a terminal the Bash tool lacks (a `sudo` password, a
+browser login), append it to `~/.claude/tmp/handoff-<session>.sh` (header
+`#!/usr/bin/env bash` and `set -euo pipefail`), tell the user once with
+`! bash <path>`, and carry on with the work that does not depend on it. For a
+CLI login, prefer a device-code flow (`codex login --device-auth`) and relay
+the URL and code. Before a long autonomous run, list the privileged commands the
+plan will need (plain `--force` push, `git stash clear`, SSH) in one
+`AskUserQuestion` up front, so the run is not interrupted one denial at a time.
+Commands the auto-mode classifier should always trust go in `autoMode` in
+`~/.claude/settings.json`; setup keeps the user's own entries there.
 
 ## Claude and Codex routing
 
