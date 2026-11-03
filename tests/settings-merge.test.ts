@@ -1771,6 +1771,62 @@ describe("autoModeStrategy", () => {
     ).toEqual({ allow: ["$defaults", "new team rule", "my rule"] });
   });
 
+  test("the team dropping a whole array retires its old entries, keeps the user's", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { autoMode: { allow: ["$defaults", "old team rule"] } },
+    });
+    expect(
+      await merged(
+        { environment: ["$defaults"] },
+        { allow: ["$defaults", "old team rule", "my rule"], environment: ["$defaults"] },
+        ctx,
+      ),
+    ).toEqual({ allow: ["$defaults", "my rule"], environment: ["$defaults"] });
+  });
+
+  test("an array left with only $defaults after retirement is omitted, never emptied", async () => {
+    const ctx = makeCtx({
+      baselineSettings: { autoMode: { allow: ["$defaults", "old team rule"] } },
+    });
+    expect(
+      await merged(
+        { environment: ["$defaults"] },
+        { allow: ["$defaults", "old team rule"], environment: ["$defaults"] },
+        ctx,
+      ),
+    ).toEqual({ environment: ["$defaults"] });
+  });
+
+  test("a user's own empty array survives when no baseline entry was retired", async () => {
+    expect(await merged({}, { hard_deny: [] }, makeCtx())).toEqual({ hard_deny: [] });
+  });
+
+  test("the team dropping the whole block retires its entries and keeps the user's", async () => {
+    const ctx = makeCtx({
+      baselineSettings: {
+        autoMode: { allow: ["$defaults", "old team rule"], environment: ["$defaults", "org"] },
+      },
+    });
+    expect(
+      await merged(
+        undefined,
+        {
+          allow: ["$defaults", "old team rule"],
+          environment: ["$defaults", "org", "home server"],
+          classifyAllShell: true,
+        },
+        ctx,
+      ),
+    ).toEqual({ environment: ["$defaults", "home server"], classifyAllShell: true });
+    const onlyTeam = await autoModeStrategy(
+      "autoMode",
+      undefined,
+      { allow: ["$defaults", "old team rule"], environment: ["$defaults", "org"] },
+      ctx,
+    );
+    expect(onlyTeam.keep).toBe(false);
+  });
+
   test("non-array fields: user wins", async () => {
     expect(await merged({ classifyAllShell: false }, { classifyAllShell: true })).toEqual({
       classifyAllShell: true,
