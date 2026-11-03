@@ -65,14 +65,22 @@ describe("classifyCodexError — rate-limited classification", () => {
 });
 
 describe("classifyCodexError — no-access classification", () => {
-  test("'unauthorized' in stderr → no-access", () => {
+  test("'unauthorized' in stderr → unauthenticated", () => {
     const { state } = classifyCodexError(1, "unauthorized: invalid credentials");
-    expect(state).toBe("no-access");
+    expect(state).toBe("unauthenticated");
   });
 
-  test("'401' in stderr → no-access", () => {
+  test("'401' in stderr → unauthenticated", () => {
     const { state } = classifyCodexError(401, "HTTP 401 Unauthorized");
-    expect(state).toBe("no-access");
+    expect(state).toBe("unauthenticated");
+  });
+
+  test("invalidated oauth token → unauthenticated", () => {
+    const { state } = classifyCodexError(
+      1,
+      "ERROR codex_models_manager::manager: failed to refresh available models: unexpected status 401 Unauthorized: Encountered invalidated oauth token for user",
+    );
+    expect(state).toBe("unauthenticated");
   });
 
   test("'forbidden' in stderr → no-access", () => {
@@ -100,8 +108,8 @@ describe("classifyCodexError — no-access classification", () => {
     expect(state).toBe("no-access");
   });
 
-  test("matching is case-insensitive (UNAUTHORIZED → no-access)", () => {
-    const { state } = classifyCodexError(1, "UNAUTHORIZED");
+  test("matching is case-insensitive (FORBIDDEN → no-access)", () => {
+    const { state } = classifyCodexError(1, "FORBIDDEN");
     expect(state).toBe("no-access");
   });
 });
