@@ -895,7 +895,7 @@ export const autoModeStrategy: Strategy = async (key, team, user, ctx) => {
           : [],
       );
       const kept = [...shipped, ...u.filter((s) => !shipped.includes(s) && !retired.has(s))];
-      if (t === undefined && kept.every((s) => s === AUTO_MODE_DEFAULTS)) continue;
+      if (t === undefined && u.length > 0 && kept.every((s) => s === AUTO_MODE_DEFAULTS)) continue;
       out[k] = kept;
     } else {
       out[k] = u === undefined ? t : u;

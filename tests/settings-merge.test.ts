@@ -1797,6 +1797,10 @@ describe("autoModeStrategy", () => {
     ).toEqual({ environment: ["$defaults"] });
   });
 
+  test("a user's own empty array survives when no baseline entry was retired", async () => {
+    expect(await merged({}, { hard_deny: [] }, makeCtx())).toEqual({ hard_deny: [] });
+  });
+
   test("the team dropping the whole block retires its entries and keeps the user's", async () => {
     const ctx = makeCtx({
       baselineSettings: {
