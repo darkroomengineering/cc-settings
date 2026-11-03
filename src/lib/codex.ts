@@ -295,14 +295,17 @@ function firstLine(s: string): string {
 export function classifyCodexError(
   exit: number,
   stderr: string,
-): { state: "no-access" | "rate-limited" | "unknown"; detail: string } {
+): { state: "unauthenticated" | "no-access" | "rate-limited" | "unknown"; detail: string } {
   const s = stderr.toLowerCase();
   if (/quota|usage limit|rate.?limit|too many requests|\b429\b/.test(s)) {
     return { state: "rate-limited", detail: firstLine(stderr) };
   }
-  if (
-    /unauthorized|\b401\b|forbidden|\b403\b|no access|not entitled|does not have access/.test(s)
-  ) {
+  // 401 is a credential problem (expired or invalidated token) that `codex login`
+  // fixes at once; caching it as a 24h sticky no-access would outlive the re-login.
+  if (/unauthorized|\b401\b|invalidated .*token|token (?:has )?expired/.test(s)) {
+    return { state: "unauthenticated", detail: firstLine(stderr) };
+  }
+  if (/forbidden|\b403\b|no access|not entitled|does not have access/.test(s)) {
     return { state: "no-access", detail: firstLine(stderr) };
   }
   return { state: "unknown", detail: firstLine(stderr) || `exit ${exit}` };
@@ -472,7 +475,12 @@ export async function runCodexExec(opts: CodexRunOptions): Promise<CodexRunResul
     // cache would wrongly block unpinned exec/ask calls for 5-24h. Surface the
     // failure to this caller only; leave the shared verdict cache untouched.
   } else {
-    await writeCodexVerdict({ state: cls.state, checkedAt: now, sticky: true, detail: cls.detail });
+    await writeCodexVerdict({
+      state: cls.state,
+      checkedAt: now,
+      sticky: cls.state !== "unauthenticated",
+      detail: cls.detail,
+    });
   }
   return { ok: false, output: sanitizeOutput(stdout.trim()), state: cls.state, detail: cls.detail };
 }
