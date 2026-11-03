@@ -258,8 +258,8 @@ a one-paragraph summary, and Adopted / Deletions lists. Commit and PR mechanics
 follow `~/.claude/rules/git.md`; read it first if present.
 
 Work on a branch: main rejects direct pushes and requires the org
-`ci-gate` workflow, which runs only on a PR. Merge the PR once it passes;
-`darky/review` is not required. Use conventional commit prefix `feat(v<X.Y.Z>):` so the
+`ci-gate` workflow, which runs only on a PR, plus one approving review. Merge
+the PR once both are in; `darky/review` is not required. Use conventional commit prefix `feat(v<X.Y.Z>):` so the
 version stands out in git log. Do not push if anything in Phase 7 is failing.
 
 ### What this mode does NOT do
