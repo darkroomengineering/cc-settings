@@ -868,28 +868,40 @@ export const marketplacesStrategy: Strategy = async (_key, team, user, ctx) => {
 // new team entries still land. The default deep merge would let the user's
 // array replace the team's wholesale. A user entry that a previous install
 // supplied (it sits in the baseline) and the team has since removed is dropped,
-// not kept as a user extra. Non-array fields (classifyAllShell): user wins.
+// not kept as a user extra, including when the team drops the whole array or
+// the whole block. "$defaults" is never retired, and an array left with nothing
+// but "$defaults" is omitted: an explicit empty array would also wipe Claude
+// Code's built-in rules. Non-array fields (classifyAllShell): user wins.
+const AUTO_MODE_DEFAULTS = "$defaults";
+const isStrings = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((s) => typeof s === "string");
+
 export const autoModeStrategy: Strategy = async (key, team, user, ctx) => {
   if (team === undefined && user === undefined) return { keep: false };
-  if (!isPlainObject(team) || !isPlainObject(user)) {
+  const teamObj = team === undefined ? {} : team;
+  if (!isPlainObject(teamObj) || !isPlainObject(user)) {
     return { keep: true, value: user === undefined ? team : user };
   }
   const out: UnknownRecord = {};
-  for (const k of new Set([...Object.keys(team), ...Object.keys(user)])) {
-    const t = team[k];
+  for (const k of new Set([...Object.keys(teamObj), ...Object.keys(user)])) {
+    const t = teamObj[k];
     const u = user[k];
-    const isStrings = (v: unknown): v is string[] =>
-      Array.isArray(v) && v.every((s) => typeof s === "string");
-    if (isStrings(t) && isStrings(u)) {
+    if (isStrings(u) && (t === undefined || isStrings(t))) {
+      const shipped = t ?? [];
       const previous = baselineValueAt(ctx.opts, `${key}.${k}`);
-      const retired = new Set(isStrings(previous) ? previous.filter((s) => !t.includes(s)) : []);
-      const extras = u.filter((s) => !t.includes(s) && !retired.has(s));
-      out[k] = [...t, ...extras];
-      if (!(k in user)) ctx.accounting.defaultsAdded++;
+      const retired = new Set(
+        isStrings(previous)
+          ? previous.filter((s) => s !== AUTO_MODE_DEFAULTS && !shipped.includes(s))
+          : [],
+      );
+      const kept = [...shipped, ...u.filter((s) => !shipped.includes(s) && !retired.has(s))];
+      if (t === undefined && kept.every((s) => s === AUTO_MODE_DEFAULTS)) continue;
+      out[k] = kept;
     } else {
       out[k] = u === undefined ? t : u;
     }
   }
+  if (team === undefined && Object.keys(out).length === 0) return { keep: false };
   return { keep: true, value: out };
 };
 
