@@ -66,6 +66,8 @@
 			"TodoWrite(*)"
 		],
 		"ask": [
+			"Bash(brew install:*)",
+			"Bash(gh pr merge:*)",
 			"Bash(git branch -D:*)",
 			"Bash(git branch -d -f:*)",
 			"Bash(git stash drop:*)",

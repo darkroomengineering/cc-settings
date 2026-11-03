@@ -17,6 +17,18 @@
 	"sandbox": {
 		"failIfUnavailable": false
 	},
+	"autoMode": {
+		"environment": [
+			"$defaults",
+			"Source control: github.com/darkroomengineering and every repo under it"
+		],
+		"allow": [
+			"$defaults",
+			"Repo Setup Scripts: Running a setup or install script committed in the session's repo (`bash setup.sh`, `bun src/setup.ts`, `./setup.ps1`) is routine local setup, not untrusted code execution",
+			"Build Output Cleanup: `rm -rf` of build, cache, or profiling output inside the session's repo (dist, build, .next, .turbo, coverage, DerivedData, build/perf) or inside the agent's scratchpad is routine cleanup",
+			"CLI Auth Status: Read-only credential checks such as `codex login status`, `gh auth status`, and `claude auth status` only report login state and are Read-Only Operations"
+		]
+	},
 	"extraKnownMarketplaces": {
 		"fast-jev-compaction": {
 			"source": {
