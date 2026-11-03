@@ -58,27 +58,27 @@ describe("permissionsStrategy", () => {
 
   test("empty user + non-empty team → all team allow rules present", async () => {
     const ctx = makeCtx();
-    const team = { allow: ["Bash(*)", "Read(*)"] };
+    const team = { allow: ["Bash(*)", "Read"] };
     const result = await permissionsStrategy("permissions", team, {}, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
-    expect(merged.allow).toEqual(["Bash(*)", "Read(*)"]);
+    expect(merged.allow).toEqual(["Bash(*)", "Read"]);
     expect(ctx.accounting.permissionsAdded).toBe(0); // no user extras
   });
 
   test("user-only allow rules are preserved", async () => {
     const ctx = makeCtx();
     const team = { allow: ["Bash(*)"] };
-    const user = { allow: ["Bash(*)", "Grep(*)", "Edit(*)"] };
+    const user = { allow: ["Bash(*)", "Grep", "Edit"] };
     const result = await permissionsStrategy("permissions", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
     const allow = merged.allow as string[];
     expect(allow).toContain("Bash(*)");
-    expect(allow).toContain("Grep(*)");
-    expect(allow).toContain("Edit(*)");
+    expect(allow).toContain("Grep");
+    expect(allow).toContain("Edit");
     expect(ctx.accounting.permissionsAdded).toBe(2); // Grep and Edit are user-only
   });
 
@@ -92,10 +92,10 @@ describe("permissionsStrategy", () => {
 
   test("user-only rules naming removed tools are pruned (MultiEdit)", async () => {
     const ctx = makeCtx();
-    const team = { allow: ["Edit(*)"], deny: ["Edit(~/.claude/settings.json)"] };
+    const team = { allow: ["Edit"], deny: ["Edit(~/.claude/settings.json)"] };
     // Simulates an install that synced before v12.2.6 removed the MultiEdit rules.
     const user = {
-      allow: ["Edit(*)", "MultiEdit(*)"],
+      allow: ["Edit", "MultiEdit(*)"],
       deny: [
         "Edit(~/.claude/settings.json)",
         "MultiEdit(~/.claude/settings.json)",
@@ -106,7 +106,7 @@ describe("permissionsStrategy", () => {
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
-    expect(merged.allow).toEqual(["Edit(*)"]);
+    expect(merged.allow).toEqual(["Edit"]);
     expect(merged.deny).toEqual(["Edit(~/.claude/settings.json)"]);
     expect(ctx.accounting.permissionsPruned).toBe(3);
     expect(ctx.accounting.permissionsAdded).toBe(0); // pruned extras don't count as added
@@ -116,13 +116,13 @@ describe("permissionsStrategy", () => {
     const ctx = makeCtx();
     // Both-sides: an older team fragment that still ships the rule must not
     // resurrect it. Team-only deny exercises the alwaysAccept path.
-    const team = { allow: ["Edit(*)", "MultiEdit(*)"], deny: ["MultiEdit(~/.claude.json)"] };
-    const user = { allow: ["Edit(*)", "MultiEdit(*)"] };
+    const team = { allow: ["Edit", "MultiEdit(*)"], deny: ["MultiEdit(~/.claude.json)"] };
+    const user = { allow: ["Edit", "MultiEdit(*)"] };
     const result = await permissionsStrategy("permissions", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const merged = result.value as Record<string, unknown>;
-    expect(merged.allow).toEqual(["Edit(*)"]);
+    expect(merged.allow).toEqual(["Edit"]);
     expect(merged.deny).toEqual([]);
   });
 
@@ -156,7 +156,7 @@ describe("permissionsStrategy", () => {
       ["MultiEdit(~/.claude/settings.json)", true],
       ["MultiEditor(*)", false],
       ["multiedit(*)", false],
-      ["Edit(*)", false],
+      ["Edit", false],
       ["Bash(MultiEdit(*))", false],
     ];
     for (const [rule, expected] of cases) {
@@ -180,11 +180,29 @@ describe("permissionsStrategy", () => {
       ["NotebookEdit(~/notebooks/*)", false],
       // replacements → never pruned
       ["Edit(~/.ssh/*)", false],
-      ["Read(*)", false],
+      ["Read", false],
     ];
     for (const [rule, expected] of cases) {
       expect(permissionRuleIsDeprecated(rule)).toBe(expected);
     }
+  });
+
+  test("retired Tool(*) allow rules are pruned; deny and ask keep them", async () => {
+    const ctx = makeCtx();
+    const team = { allow: ["Read", "Edit", "Grep"] };
+    const user = {
+      allow: ["Read(*)", "Edit(*)", "Grep(*)", "Read", "Read(~/notes/*)"],
+      deny: ["Edit(*)"],
+      ask: ["Grep(*)"],
+    };
+    const result = await permissionsStrategy("permissions", team, user, ctx);
+    expect(result.keep).toBe(true);
+    if (!result.keep) return;
+    const merged = result.value as Record<string, unknown>;
+    expect(merged.allow).toEqual(["Read", "Edit", "Grep", "Read(~/notes/*)"]);
+    expect(merged.deny).toEqual(["Edit(*)"]);
+    expect(merged.ask).toEqual(["Grep(*)"]);
+    expect(ctx.accounting.permissionsPruned).toBe(3);
   });
 
   test("retired workflow deny rules are pruned; a user's own variant survives", async () => {
@@ -256,16 +274,16 @@ describe("permissionsStrategy", () => {
 
   test("overlapping allow with union semantics — no duplicates", async () => {
     const ctx = makeCtx();
-    const team = { allow: ["Bash(*)", "Read(*)"] };
-    const user = { allow: ["Read(*)", "Edit(*)"] };
+    const team = { allow: ["Bash(*)", "Read"] };
+    const user = { allow: ["Read", "Edit"] };
     const result = await permissionsStrategy("permissions", team, user, ctx);
     expect(result.keep).toBe(true);
     if (!result.keep) return;
     const allow = (result.value as Record<string, unknown>).allow as string[];
-    // Read(*) appears in both; should appear once
-    expect(allow.filter((r) => r === "Read(*)").length).toBe(1);
+    // Read appears in both; should appear once
+    expect(allow.filter((r) => r === "Read").length).toBe(1);
     expect(allow).toContain("Bash(*)");
-    expect(allow).toContain("Edit(*)");
+    expect(allow).toContain("Edit");
   });
 });
 

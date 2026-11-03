@@ -74,6 +74,7 @@ Claude Code has a native **advisor** layered on the API's [advisor tool](https:/
 ## Effort and context details
 
 - Opus 5.5 and Sonnet 5.5 default to `medium` effort, Fable 5.1 to `high`. `/effort` remembers a level per model, so a raise on Fable does not follow you to `/model opus`; the `s` option keeps a change session-only. An `/effort` change on Fable 5.1 does not invalidate the prompt cache.
+- A subagent or teammate on a different model from the main session runs at that model's saved effort level, not the session's. The Sonnet-pinned `explore` and `reviewer` follow Sonnet's level; `implementer`, `tester` and `deslopper` inherit the session model, so they keep its effort.
 - On Fable 5.1, `medium` matches Fable 5 quality at lower cost and `low` is viable for routine turns, but at `low` it answers from memory instead of searching.
 - `ultracode` is its own `/effort` toggle for automatic dynamic workflows at any effort level; pair it with `xhigh` when the run needs depth.
 - The 200K working ceiling exists because Opus-tier input above 200K bills at the long-context premium. Fable 5 and 5.1 default to a 1M window at standard rates, so on Fable the ceiling is about usage limits and attention, and compaction can run later.

@@ -4,6 +4,27 @@ All notable changes to cc-settings are documented here.
 
 > **Versioning** — cc-settings uses a single version number matching the installer (`src/setup.ts` `VERSION` constant, written to `~/.claude/.cc-settings-version` sentinel). Historical entries below 10.0 predate this unification; the jump from v8.x to v10.x in April 2026 realigned the product version with the installer version that was already ahead.
 
+## [15.96.0] — 2026-11-03
+
+Sync with Claude Code v2.1.317. Claude Code started warning at every session start about the `Read(*)`, `Edit(*)` and `Grep(*)` allow rules. They are now plain `Read`, `Edit` and `Grep`, which keep the all-paths allow they always meant, and a reinstall removes the old forms. Codex 0.166.0 and the Codex app changelog had nothing new.
+
+**Adopted:**
+- Plain `Read`, `Edit` and `Grep` allow rules: `config/30-permissions.json`. Claude Code now reads `(*)` on these tools as "working directories only" and warns about it. This rollout is not in the 2.1.317 changelog.
+- `RETIRED_ALLOW_RULES` in `src/lib/settings-merge.ts`: reinstalling removes the three old rules from `allow`, which the union merge would otherwise keep as user additions. The same rules in `deny` or `ask` stay.
+- `CLAUDE_CODE_DISABLE_NESTED_SESSION_ID` (v2.1.317): tracked in the env table and the manifest. It gives a `claude -p` inside a self-hosted runner session its own session ID.
+- Subagent effort (v2.1.317): `docs/agent-models.md` notes that a subagent on a different model runs at that model's saved effort, so the Sonnet-pinned `explore` and `reviewer` follow Sonnet's level.
+
+**Deletions / Native-now-redundant:** none.
+
+**Files changed:**
+- `config/30-permissions.json`
+- `src/lib/settings-merge.ts`
+- `tests/settings-merge.test.ts`
+- `docs/settings-reference.md`
+- `docs/agent-models.md`
+- `upstream/claude-code-manifest.json`
+- `upstream/codex-manifest.json`
+
 ## [15.95.0] — 2026-11-02
 
 Sync with Claude Code v2.1.316. The new `CLAUDE_CODE_SUBAGENT_EFFORT` is documented next to the effort rules, and two other new env vars are tracked. cc-settings sets none of them. Codex 0.166.0 and the Codex app changelog had nothing new.
