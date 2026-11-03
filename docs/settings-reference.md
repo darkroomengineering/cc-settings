@@ -126,6 +126,7 @@ Environment variables injected into every Claude Code session.
 | `CLAUDE_CODE_SAFE_MODE` | `"1"` or unset | Start Claude Code with all customizations disabled (CLAUDE.md, plugins, skills, hooks, MCP servers) for troubleshooting. Env counterpart of the `--safe-mode` flag (v2.1.169) |
 | `CLAUDE_CODE_RESTRICTED` | `"1"` or unset | Env counterpart of `--restricted`: removes the tools that run commands or code and `WebFetch` (unless named in `--tools`), keeps file tools inside the working directory, refuses `bypassPermissions`, and ignores user, project, and local settings files — so a restricted session never loads cc-settings (v2.1.248) |
 | `SELF_HOSTED_RUNNER_CLIENT_LABEL` | label | Label `claude self-hosted-runner` registers with instead of the hostname; env counterpart of `--client-label` (v2.1.248) |
+| `CLAUDE_CODE_DISABLE_NESTED_SESSION_ID` | `"1"` or unset | On a self-hosted runner, set to `1` so a `claude -p` started inside a runner session gets its own session ID instead of sharing the runner session's (v2.1.317) |
 | `CLAUDE_CLIENT_PRESENCE_FILE` | file path | Path to a presence file Claude Code touches while active; suppresses mobile push notifications when the desktop client is present (v2.1.181) |
 | `API_FORCE_IDLE_TIMEOUT` | `"0"` to opt out, unset for default | Restores a default 5-minute idle timeout on Vertex/Foundry so a stalled stream aborts instead of hanging; set `=0` to opt out (v2.1.169) |
 | `CLAUDE_CODE_MAX_RETRIES` | integer (string) | Max API retry attempts on transient failures. Capped at `15` from v2.1.186; the cap is lifted when `CLAUDE_CODE_RETRY_WATCHDOG` is set (v2.1.199). From v2.1.286 one limit covers a whole model call, so with the defaults a failing call sends at most 14 requests |
@@ -958,7 +959,7 @@ Patterns follow the format `ToolName(argument-pattern)`:
 |---------|---------|
 | `Bash(git status:*)` | Any bash command starting with `git status` |
 | `Bash(rm -rf node_modules)` | Exact command `rm -rf node_modules` only |
-| `Read(*)` | Reading any file |
+| `Read` | Reading any file, any path. `Read(*)` and `Edit(*)` cover only the working directories and warn at startup |
 | `Read(~/.ssh/*)` | Reading files in `~/.ssh/` directory |
 | `Edit(~/.claude/settings.json)` | Writing to that specific file (as of v2.1.210, `Edit(path)` rules also govern the Write and NotebookEdit tools; `Write(path)`/`NotebookEdit(path)`/`Glob(path)` rules trigger a startup warning). `/update-config` writes `Edit(path)` rules since v2.1.275; it wrote `Write(path)` before, which the file checks never matched) |
 | `Bash(curl * \| bash)` | Any curl-to-bash pipe pattern |
@@ -1066,9 +1067,9 @@ Bash(rm -rf .next)
 Bash(rm -rf dist)
 Bash(rm -rf .turbo)
 Bash(rm *.tmp)
-Read(*)
-Edit(*)
-Grep(*)
+Read
+Edit
+Grep
 LS(*)
 TodoWrite(*)
 ```

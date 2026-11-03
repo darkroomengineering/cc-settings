@@ -59,9 +59,9 @@
 			"Bash(rm -rf dist)",
 			"Bash(rm -rf .turbo)",
 			"Bash(rm *.tmp)",
-			"Read(*)",
-			"Edit(*)",
-			"Grep(*)",
+			"Read",
+			"Edit",
+			"Grep",
 			"LS(*)",
 			"TodoWrite(*)"
 		],

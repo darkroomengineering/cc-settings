@@ -211,6 +211,12 @@ export const RETIRED_PERMISSION_RULES = new Set<string>([
   "Bash(mv * ~/.bash_profile:*)",
 ]);
 
+// Allow rules cc-settings shipped as `Tool(*)`. Claude Code reads `(*)` on
+// path-scoped tools as "working directories only" and warns at startup; the
+// bare tool name is the all-paths allow these rules always meant. Pruned from
+// `allow` only, so the union merge does not keep them as user extras.
+export const RETIRED_ALLOW_RULES = new Set<string>(["Read(*)", "Edit(*)", "Grep(*)"]);
+
 export function permissionRuleIsDeprecated(rule: string): boolean {
   return DEPRECATED_PERMISSION_PATTERNS.some((re) => re.test(rule));
 }
@@ -345,6 +351,9 @@ export const permissionsStrategy: Strategy = async (_key, team, user, ctx) => {
     stringArrayField(u, "allow"),
     opts,
     "allow rule",
+    false,
+    true,
+    RETIRED_ALLOW_RULES,
   );
   const deny = await unionPermissionArray(
     stringArrayField(t, "deny"),
