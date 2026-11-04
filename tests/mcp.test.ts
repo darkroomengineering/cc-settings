@@ -11,6 +11,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ENGINES } from "../src/lib/code-intel-engine.ts";
+import { extractFrontmatterBlock } from "../src/lib/frontmatter.ts";
 import { JsonParseError } from "../src/lib/json-io.ts";
 import {
   duplicateTeamServers,
@@ -270,7 +271,7 @@ describe("mcp — claude.json installer", () => {
     }
   });
 
-  test("shipped config runs context7 over remote OAuth and pins chrome-devtools, and an earlier install is replaced", async () => {
+  test("shipped config runs context7 over remote OAuth and an earlier install is replaced", async () => {
     const shipped = (await Bun.file(
       join(import.meta.dir, "..", "config", "20-mcp.json"),
     ).json()) as {
@@ -279,13 +280,10 @@ describe("mcp — claude.json installer", () => {
         { args?: string[]; type?: string; url?: string; command?: string; alwaysLoad?: boolean }
       >;
     };
-    const exact = /@\d+\.\d+\.\d+$/;
     const context7 = shipped.mcpServers.context7;
-    const devtools = shipped.mcpServers["chrome-devtools"];
     expect(context7?.type).toBe("http");
     expect(context7?.url).toBe("https://mcp.context7.com/mcp/oauth");
     expect(context7?.command).toBeUndefined();
-    expect(devtools?.args?.at(-1)).toMatch(exact);
     expect(context7?.alwaysLoad).toBeUndefined();
 
     const sandbox = await mkdtemp(join(tmpdir(), "cc-claude-json-pin-"));
@@ -293,16 +291,37 @@ describe("mcp — claude.json installer", () => {
       const claudeJsonPath = join(sandbox, ".claude.json");
       const earlier = {
         context7: { command: "bunx", args: ["-y", "@upstash/context7-mcp"], alwaysLoad: true },
-        "chrome-devtools": { command: "bunx", args: ["-y", "chrome-devtools-mcp@latest"] },
       };
       await writeFile(claudeJsonPath, JSON.stringify({ mcpServers: earlier }));
       await installMcpToClaudeJson(shipped.mcpServers as never, claudeJsonPath, earlier);
       const result = JSON.parse(await readFile(claudeJsonPath, "utf8"));
       expect(result.mcpServers.context7).toEqual(context7);
-      expect(result.mcpServers["chrome-devtools"].args).toEqual(devtools?.args as string[]);
     } finally {
       await rm(sandbox, { recursive: true, force: true });
     }
+  });
+
+  // Each global chrome-devtools server costs every session a Node process
+  // (~107 MB idle), so it lives only in the tester agent, which Claude Code
+  // starts and stops with that agent.
+  test("chrome-devtools ships only inside the tester agent, pinned and without telemetry", async () => {
+    const shipped = (await Bun.file(
+      join(import.meta.dir, "..", "config", "20-mcp.json"),
+    ).json()) as {
+      mcpServers: Record<string, unknown>;
+    };
+    expect(shipped.mcpServers["chrome-devtools"]).toBeUndefined();
+
+    const md = await Bun.file(join(import.meta.dir, "..", "agents", "tester.md")).text();
+    const fm = Bun.YAML.parse(extractFrontmatterBlock(md) ?? "") as {
+      mcpServers?: Array<Record<string, { command?: string; args?: string[] }>>;
+    };
+    const devtools = fm.mcpServers?.find((s) => "chrome-devtools" in s)?.["chrome-devtools"];
+    const args = devtools?.args ?? [];
+    expect(args.find((a) => a.startsWith("chrome-devtools-mcp@"))).toMatch(
+      /^chrome-devtools-mcp@\d+\.\d+\.\d+$/,
+    );
+    expect(args).toContain("--no-usage-statistics");
   });
 
   test("a null/scalar entry among valid servers is dropped, not cast (no throw)", async () => {
@@ -400,6 +419,95 @@ describe("context7 stdio → remote OAuth migration", () => {
       expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
         mcpServers: { personal: { command: "mine" } },
       });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("retired chrome-devtools entry leaves ~/.claude.json", () => {
+  const instructions =
+    "Chrome DevTools control for performance tracing, network inspection, console logs, DOM inspection, user interaction simulation, and performance audits. Prefer this over shelling out to the lighthouse CLI when measuring Core Web Vitals.";
+  const lastShipped = {
+    command: "bunx",
+    args: ["-y", "chrome-devtools-mcp@1.11.0"],
+    serverInstructions: instructions,
+  };
+  const personal = { command: "my-server", args: ["--flag"] };
+  const readShipped = async () =>
+    (
+      (await Bun.file(join(import.meta.dir, "..", "config", "20-mcp.json")).json()) as {
+        mcpServers: Record<string, Record<string, unknown>>;
+      }
+    ).mcpServers;
+
+  async function install(
+    onDisk: Record<string, unknown>,
+    mcpWritten?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-devtools-retire-"));
+    const path = join(dir, ".claude.json");
+    try {
+      await writeFile(path, JSON.stringify({ mcpServers: onDisk }));
+      await installMcpToClaudeJson((await readShipped()) as never, path, mcpWritten);
+      return JSON.parse(await readFile(path, "utf8")).mcpServers;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  test("the entry an earlier install recorded in mcp_written is removed", async () => {
+    const recorded = { command: "bunx", args: ["-y", "chrome-devtools-mcp@9.9.9"] };
+    const servers = await install({ "chrome-devtools": recorded }, { "chrome-devtools": recorded });
+    expect(servers["chrome-devtools"]).toBeUndefined();
+  });
+
+  test.each([
+    ["bunx", "chrome-devtools-mcp@1.11.0"],
+    ["bunx", "chrome-devtools-mcp@latest"],
+    ["npx", "chrome-devtools-mcp@latest"],
+  ])("a shipped %s %s entry with no mcp_written record is removed", async (command, spec) => {
+    const servers = await install({
+      "chrome-devtools": { command, args: ["-y", spec], serverInstructions: instructions },
+    });
+    expect(servers["chrome-devtools"]).toBeUndefined();
+  });
+
+  test("a user-edited chrome-devtools entry stays", async () => {
+    const mine = {
+      ...lastShipped,
+      args: [...lastShipped.args, "--browserUrl", "http://127.0.0.1:9222"],
+    };
+    const servers = await install({ "chrome-devtools": mine }, { "chrome-devtools": lastShipped });
+    expect(servers["chrome-devtools"]).toEqual(mine);
+  });
+
+  test("other user-only servers are untouched", async () => {
+    const aside = {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "chrome-devtools-mcp@latest", "--browserUrl", "http://127.0.0.1:9223"],
+      env: {},
+    };
+    const servers = await install(
+      { "chrome-devtools": lastShipped, "aside-devtools": aside, personal },
+      { "chrome-devtools": lastShipped },
+    );
+    expect(servers["chrome-devtools"]).toBeUndefined();
+    expect(servers["aside-devtools"]).toEqual(aside);
+    expect(servers.personal).toEqual(personal);
+  });
+
+  test("a light install removes the last shipped entry with no mcp_written record", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-mcp-devtools-light-"));
+    const path = join(dir, ".claude.json");
+    try {
+      await writeFile(
+        path,
+        JSON.stringify({ mcpServers: { "chrome-devtools": lastShipped, personal } }),
+      );
+      await removeManagedMcpServers({ mcpServers: await readShipped() }, path, null);
+      expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ mcpServers: { personal } });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

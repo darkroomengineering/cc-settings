@@ -138,7 +138,7 @@ light profiles are intentionally different.
 | Instructions | Claude defaults | Darkroom instructions, rules, and profiles | Managed Darkroom `AGENTS.md` block | Same managed block |
 | Role agents | None | All Claude roles | None | Native roles except `codex-verifier`, plus `claude-verifier` |
 | Hooks | Statusline only | Full Claude hook set | None through plugin | Compatible user hooks |
-| MCP servers | None | Context7, TLDR, Figma, Chrome DevTools | None | Fixed HTTPS Figma only |
+| MCP servers | None | Context7, TLDR, Figma; Chrome DevTools inside the `tester` agent | None | Fixed HTTPS Figma only |
 | Runtime and sentinel | Yes | Yes | Yes | Yes |
 
 Re-run with or without `--light` to switch tiers. The installer removes only entries recorded as

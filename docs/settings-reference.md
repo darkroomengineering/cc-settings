@@ -985,7 +985,7 @@ As of v2.1.178, rules can also match a tool's input parameters with `Tool(param:
 - **System info:** `du`, `df`, `printenv`, `date`, `uname`, `whoami`, `basename`, `dirname`, `realpath`
 - **File ops:** `mkdir`, `cp`, `mv`, and scoped `rm` (`rm -rf node_modules|.next|dist|.turbo`, `rm *.tmp`)
 - **Claude Code tools:** `Read`, `Write`, `Edit`, `Glob`, `Grep`, `LS`, `TodoWrite`, `NotebookEdit`
-- **External:** `lighthouse` (CLI; complemented by the chrome-devtools MCP), `open -a`
+- **External:** `lighthouse` (CLI; complemented by the chrome-devtools MCP in the `tester` agent), `open -a`
 
 > **Deliberately NOT allowed (v11.7.0 hardening):** `curl`, `find`, `env`, `xargs`, `awk` are not in the allow list — each can invoke arbitrary commands (`find -exec`, `env VAR=x cmd`, `xargs cmd`, `awk 'system()'`, curl write/exfil flags) and would bypass every other rule, so they prompt instead. `vitest` was dropped too (the repo uses `bun test`).
 
@@ -1299,7 +1299,7 @@ Library documentation lookup through Context7's hosted MCP server.
 }
 ```
 
-> **Note:** the `/mcp/oauth` endpoint signs each user in through Claude Code's MCP OAuth flow, so cc-settings stores no API key. Until you run `/mcp` in Claude Code and sign in to Context7 once, the server shows as needing authentication and its tools are unavailable. Context7 supports OAuth only on the remote endpoint; a local stdio server needs an API key. A context7 entry you write yourself in `~/.claude.json` (for example `https://mcp.context7.com/mcp` with a key header) wins over this one. The server has no `alwaysLoad`, so its tools stay deferred behind `ENABLE_TOOL_SEARCH` until needed. `chrome-devtools` is pinned to an exact version (`chrome-devtools-mcp@1.11.0`), so a session start never runs a newer release than the one reviewed here; bump it by editing `config/20-mcp.json` by hand.
+> **Note:** the `/mcp/oauth` endpoint signs each user in through Claude Code's MCP OAuth flow, so cc-settings stores no API key. Until you run `/mcp` in Claude Code and sign in to Context7 once, the server shows as needing authentication and its tools are unavailable. Context7 supports OAuth only on the remote endpoint; a local stdio server needs an API key. A context7 entry you write yourself in `~/.claude.json` (for example `https://mcp.context7.com/mcp` with a key header) wins over this one. The server has no `alwaysLoad`, so its tools stay deferred behind `ENABLE_TOOL_SEARCH` until needed. `chrome-devtools` is defined inline in `agents/tester.md` and pinned to an exact version (`chrome-devtools-mcp@1.11.0`), so a tester run never starts a newer release than the one reviewed here; bump it by editing that file by hand.
 
 **Tools provided:** `mcp__context7__resolve-library-id`, `mcp__context7__query-docs`
 
@@ -1472,7 +1472,8 @@ Notes on the MCP servers shipped in `config/20-mcp.json`. They live here rather 
 - **context7**: Library documentation lookup. Auto-triggered by the server's own instructions on any library question and documentation-related prompts. Remote OAuth endpoint: run `/mcp` in Claude Code and sign in to Context7 once. (status: core)
 - **tldr**: Codemap analysis behind a pluggable engine. Default `native-ts` — no prerequisite, no index. `CC_CODE_INTEL_ENGINE=llm-tldr` opts into the multi-language engine, which needs `pipx install llm-tldr` (v1.5+) and `tldr warm .`. The entry in `config/20-mcp.json` is the llm-tldr template; the installer rewrites it to the resolved engine. (status: core)
 - **figma**: Figma Dev Mode MCP (remote). Requires Dev or Full seat. OAuth on first use. (status: core)
-- **chrome-devtools**: Chrome DevTools via CDP. Performance traces, network, console, user simulation. Uses bunx so catalog:/overrides in monorepo package.json don't break npx resolution. Pinned to an exact version in `config/20-mcp.json`. (status: core)
+
+`chrome-devtools` is not in `config/20-mcp.json`. The `tester` agent defines it inline in its `mcpServers` frontmatter (`bunx -y chrome-devtools-mcp@1.11.0 --no-usage-statistics`), so Claude Code starts the server when that agent runs and stops it when the agent finishes; a global server would keep a Node process of about 100 MB running in every session. The installer removes a `chrome-devtools` entry from `~/.claude.json` only when it matches what cc-settings wrote there; an entry you changed stays. Plugin installs ignore agent `mcpServers`, so `.claude-plugin/plugin.json` declares the server for them.
 
 ### Linear: one server per workspace
 

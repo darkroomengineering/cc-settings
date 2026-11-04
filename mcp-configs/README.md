@@ -148,11 +148,15 @@ These servers are configured automatically by `setup.sh`:
 - **context7** - Live documentation lookup (crucial for current APIs)
 - **tldr** - Codemap analysis: call graphs, impact, imports (`native-ts` default, no install; `pipx install llm-tldr` + `CC_CODE_INTEL_ENGINE=llm-tldr` for multi-language and semantic search)
 - **figma** - Design-to-code and Figma file inspection (MCP server's own instructions handle URL parsing and design-to-code)
-- **chrome-devtools** - Browser automation (navigate, screenshot, a11y snapshot, click/fill, Lighthouse)
+
+The `tester` agent runs **chrome-devtools** (browser automation: navigate, screenshot, a11y snapshot,
+click/fill, Lighthouse) as its own server, defined in `agents/tester.md`. It starts when the agent runs
+and stops when the agent finishes, so sessions that never test in a browser pay nothing for it.
 
 ### Optional (`recommended.json` — `optionalMcpServers`)
 
 Additional servers you can add manually to `~/.claude.json`:
+- **chrome-devtools** - DevTools in every session, not only in `tester` runs (one Node process per session, about 100 MB)
 - **github** - GitHub integration for issues, PRs, projects (alternative: use `gh` CLI)
 - **vercel** - Deployment management
 - **memory** - Persistent knowledge across sessions (cc-settings ships its own auto-memory system at `~/.claude/projects/<hash>/memory/` — this server is redundant unless you prefer a different memory UX)

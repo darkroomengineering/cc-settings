@@ -24,7 +24,7 @@ This is the portable installed runner — it works in any repo. (`bun run proof`
 
 Projects can opt into **advisory** probes by depending on the tool — the gate then runs the project's pinned binary: **react-doctor** (React render/quality score, telemetry off) and/or **deslop** (framework-agnostic cross-file dead-code count). Advisory results are reported but never flip the verdict — deterministic signals alongside the hard gates, not blockers. Silent for projects that don't depend on them.
 
-For UI changes, attach a screenshot (via the chrome-devtools MCP) as the visual half of the proof — tests can't prove "looks right".
+For UI changes, attach a screenshot (via the `tester` agent, which starts the chrome-devtools MCP for the run) as the visual half of the proof — tests can't prove "looks right".
 
 ## Standalone Codex semantic probe
 

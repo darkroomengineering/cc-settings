@@ -66,7 +66,6 @@ beforeAll(async () => {
         context7: { command: "bunx" },
         tldr: { command: "tldr-mcp" },
         figma: { type: "http" },
-        "chrome-devtools": { command: "bunx" },
       },
     }),
     "utf8",
@@ -156,7 +155,7 @@ describe("countEntriesRecursive", () => {
 describe("readShippedMcpNames", () => {
   test("reads the server names cc-settings ships", async () => {
     const names = await readShippedMcpNames(root);
-    expect([...names].sort()).toEqual(["chrome-devtools", "context7", "figma", "tldr"]);
+    expect([...names].sort()).toEqual(["context7", "figma", "tldr"]);
   });
 
   test("no sourceDir → empty set (degrade to user-added, never guess)", async () => {
@@ -170,13 +169,13 @@ describe("readShippedMcpNames", () => {
 
 describe("classifyMcpServers", () => {
   test("shipped servers are cc-settings-managed, regardless of _status residue", () => {
-    const shipped = new Set(["context7", "tldr", "figma", "chrome-devtools"]);
+    const shipped = new Set(["context7", "tldr", "figma"]);
     const { managed, userAdded } = classifyMcpServers(
-      ["context7", "tldr", "figma", "chrome-devtools", "sanity"],
+      ["context7", "tldr", "figma", "sanity"],
       shipped,
     );
     // The exact regression: tldr and context7 land under cc-settings, not user-added.
-    expect(managed).toEqual(["context7", "tldr", "figma", "chrome-devtools"]);
+    expect(managed).toEqual(["context7", "tldr", "figma"]);
     expect(userAdded).toEqual(["sanity"]);
   });
 

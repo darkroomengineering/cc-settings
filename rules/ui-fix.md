@@ -17,7 +17,7 @@ paths:
 ## DO
 
 ### Confirm the symptom visually before editing
-Request a screenshot, video, or `mcp__chrome-devtools__take_snapshot` of the broken element's computed styles. Identify the **exact offending property** on the **exact offending node** before proposing a fix.
+Request a screenshot, video, or a `tester` agent run (it starts chrome-devtools for the run) that snapshots the broken element's computed styles. Identify the **exact offending property** on the **exact offending node** before proposing a fix.
 
 ### Name the cause in one sentence
 See AGENTS.md "Name the Cause" for the guess-vs-cause example. If you can only produce a guess, stop and gather more signal.
