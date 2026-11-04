@@ -4,7 +4,7 @@ import {
 } from "./install-source-inventory.ts";
 import type { Profile } from "./light-profile.ts";
 
-export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 37;
+export const CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION = 38;
 
 const FULL_V2 = [
   ".cc-settings-baseline.json",
@@ -870,9 +870,15 @@ const v36 = {
 };
 MANIFESTS.set(36, v36);
 // Version 37: the /retro prs mode (full profile) and its counting script (every profile: src/ is installed from the light list).
-MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+const v37 = {
   full: [...v36.full, "skills/retro/references/prs.md", ...ADDED_SOURCES_IN_V37],
   light: [...v36.light, ...ADDED_SOURCES_IN_V37],
+};
+MANIFESTS.set(37, v37);
+// Version 38: the writing and design rules (full profile only; light installs carry no rules).
+MANIFESTS.set(CURRENT_CLAUDE_MANAGED_FILES_MANIFEST_VERSION, {
+  full: [...v37.full, "rules/design.md", "rules/writing.md"],
+  light: v37.light,
 });
 
 const GENERATED_MANAGED_FILES = new Set([

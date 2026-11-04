@@ -116,6 +116,19 @@ Remedial order, earliest first: delete the animation, reduce it, fix the easing,
 
 ---
 
+## Generic Copy & UI Checklist
+
+Fires when the diff adds or changes user-facing copy or the markup and styles of a page, landing page, or marketing section. The catalogs live in `rules/writing.md` and `rules/design.md`; both are path-scoped and may not be loaded in this fork, so read them before flagging. These are Warnings, never Critical, with one exception: invented testimonials, customer logos, quotes, or stats presented as real are Critical (fabricated proof).
+
+- **Templated landing page:** three or more pieces of the pattern in `rules/design.md` together. Report it once, list the pieces, and name what the page should lead with instead.
+- **Visual reflex:** gradient headline text, purple or neon glow, blurred blobs, accent bars on one side of cards, cards in cards, Zap/Shield/Sparkles or emoji feature icons, fade-in-up on every section, the unmodified component-kit look.
+- **Copy reflex:** contrast reveals ("It's not X. It's Y."), self-answered questions, verb-pair headlines on every section, filler words (supercharge, seamless, unlock, elevate), em dashes in copy, mixed casing.
+- **Earn it, don't strip it:** status pills, chevrons, nav icons, checkmark lists, and hover lift are fine when they encode a real state, action, or comparison. Flag only the decorative case, and say why it is decorative.
+
+Each finding names the tell, quotes the line, and gives a concrete replacement drawn from the product, not another stock pattern.
+
+---
+
 ## Variant: Inbound PR Feedback
 
 When the user asks to "summarize PR feedback", "address the review comments", or "what did reviewers say" on the active PR (not a self-review of the local diff): judge every unresolved review thread, fix the valid ones, and complete the conversation. If the user asks for a digest only ("just summarize", "don't change anything"), stop after step 4 and print the digest. Otherwise fix; never ask which mode they want.
